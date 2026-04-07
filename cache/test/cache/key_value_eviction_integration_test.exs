@@ -10,13 +10,14 @@ defmodule Cache.KeyValueEvictionIntegrationTest do
   alias Cache.KeyValueEntry
   alias Cache.KeyValueEvictionWorker
   alias Cache.KeyValueRepo
+  alias Cache.KeyValueWriteRepo
   alias Ecto.Adapters.SQL.Sandbox
 
   setup :set_mimic_from_context
 
   setup do
     :ok = Sandbox.checkout(Cache.Repo)
-    :ok = Sandbox.checkout(KeyValueRepo)
+    :ok = Cache.KeyValueRepoTestHelpers.reset!()
     stub(Config, :key_value_mode, fn -> :local end)
     stub(Config, :distributed_kv_enabled?, fn -> false end)
     :ok
@@ -27,7 +28,7 @@ defmodule Cache.KeyValueEvictionIntegrationTest do
     fresh_time = DateTime.add(DateTime.utc_now(), -1, :day)
 
     for index <- 1..10 do
-      KeyValueRepo.insert!(%KeyValueEntry{
+      KeyValueWriteRepo.insert!(%KeyValueEntry{
         key: "keyvalue:acme:ios:ROOT_#{index}",
         json_payload: JSON.encode!(%{"entries" => [%{"value" => "HASH_#{index}"}]}),
         last_accessed_at: old_time
@@ -35,7 +36,7 @@ defmodule Cache.KeyValueEvictionIntegrationTest do
     end
 
     for index <- 1..10 do
-      KeyValueRepo.insert!(%KeyValueEntry{
+      KeyValueWriteRepo.insert!(%KeyValueEntry{
         key: "keyvalue:acme:ios:FRESH_#{index}",
         json_payload: JSON.encode!(%{"entries" => [%{"value" => "FRESH_HASH_#{index}"}]}),
         last_accessed_at: fresh_time
@@ -57,7 +58,7 @@ defmodule Cache.KeyValueEvictionIntegrationTest do
     fresh_time = DateTime.add(DateTime.utc_now(), -1, :day)
 
     for index <- 1..3 do
-      KeyValueRepo.insert!(%KeyValueEntry{
+      KeyValueWriteRepo.insert!(%KeyValueEntry{
         key: "keyvalue:acme:ios:TELEMETRY_OLD_#{index}",
         json_payload: JSON.encode!(%{"entries" => [%{"value" => "TELEMETRY_HASH_#{index}"}]}),
         last_accessed_at: old_time
@@ -65,7 +66,7 @@ defmodule Cache.KeyValueEvictionIntegrationTest do
     end
 
     for index <- 1..2 do
-      KeyValueRepo.insert!(%KeyValueEntry{
+      KeyValueWriteRepo.insert!(%KeyValueEntry{
         key: "keyvalue:acme:ios:TELEMETRY_FRESH_#{index}",
         json_payload: JSON.encode!(%{"entries" => [%{"value" => "TELEMETRY_FRESH_HASH_#{index}"}]}),
         last_accessed_at: fresh_time

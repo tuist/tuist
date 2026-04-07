@@ -7,7 +7,6 @@ defmodule Cache.KeyValueBuffer do
 
   alias Cache.Config
   alias Cache.KeyValueEntry
-  alias Cache.KeyValueRepo
   alias Cache.SQLiteBuffer
 
   @query_chunk_size 500
@@ -114,7 +113,7 @@ defmodule Cache.KeyValueBuffer do
     rows
     |> Enum.chunk_every(@query_chunk_size)
     |> Enum.each(fn rows_chunk ->
-      KeyValueRepo.insert_all(KeyValueEntry, rows_chunk,
+      Cache.KeyValueWriteRepo.insert_all(KeyValueEntry, rows_chunk,
         conflict_target: :key,
         on_conflict:
           {:replace,
@@ -134,7 +133,7 @@ defmodule Cache.KeyValueBuffer do
     |> Enum.chunk_every(@query_chunk_size)
     |> Enum.each(fn keys_chunk ->
       if distributed? do
-        KeyValueRepo.update_all(
+        Cache.KeyValueWriteRepo.update_all(
           from(entry in KeyValueEntry,
             where: entry.key in ^keys_chunk,
             update: [
@@ -149,7 +148,7 @@ defmodule Cache.KeyValueBuffer do
           []
         )
       else
-        KeyValueRepo.update_all(from(entry in KeyValueEntry, where: entry.key in ^keys_chunk),
+        Cache.KeyValueWriteRepo.update_all(from(entry in KeyValueEntry, where: entry.key in ^keys_chunk),
           set: [last_accessed_at: now, updated_at: now_truncated]
         )
       end

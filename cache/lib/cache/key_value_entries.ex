@@ -52,7 +52,7 @@ defmodule Cache.KeyValueEntries do
     deadline_ms = System.monotonic_time(:millisecond) + max(max_duration_ms, 0)
     timeout = Config.key_value_maintenance_busy_timeout_ms()
 
-    SQLiteHelpers.with_repo_busy_timeout(KeyValueRepo, timeout, fn ->
+    SQLiteHelpers.with_repo_busy_timeout(Cache.KeyValueWriteRepo, timeout, fn ->
       if time_limit_reached?(deadline_ms) do
         {0, :time_limit_reached}
       else
@@ -87,7 +87,7 @@ defmodule Cache.KeyValueEntries do
 
   def clear_replication_token(key, token) when is_binary(key) do
     {count, _} =
-      KeyValueRepo.update_all(
+      Cache.KeyValueWriteRepo.update_all(
         from(entry in KeyValueEntry,
           where: entry.key == ^key,
           where: entry.replication_enqueued_at == ^token
@@ -125,7 +125,7 @@ defmodule Cache.KeyValueEntries do
 
   def commit_remote_batch(last_processed_row) do
     {:ok, :ok} =
-      KeyValueRepo.transaction(
+      Cache.KeyValueWriteRepo.transaction(
         fn ->
           put_replication_state!(
             @poller_watermark,
@@ -177,7 +177,7 @@ defmodule Cache.KeyValueEntries do
   def materialize_remote_entries(rows) when is_list(rows) do
     now = DateTime.truncate(DateTime.utc_now(), :second)
 
-    case KeyValueRepo.transaction(
+    case Cache.KeyValueWriteRepo.transaction(
            fn ->
              local_entries_by_key = fetch_local_entries_by_key(Enum.map(rows, & &1.key))
              {upsert_rows, stats} = build_remote_upsert_rows(rows, local_entries_by_key, now)
@@ -205,7 +205,7 @@ defmodule Cache.KeyValueEntries do
   end
 
   defp apply_remote_batch_transaction(rows, alive_rows, tombstone_keys, now, signature) do
-    case KeyValueRepo.transaction(
+    case Cache.KeyValueWriteRepo.transaction(
            fn ->
              local_entries_by_key = fetch_local_entries_by_key(Enum.map(rows, & &1.key))
 
@@ -261,14 +261,14 @@ defmodule Cache.KeyValueEntries do
 
     %State{name: name}
     |> State.changeset(attrs)
-    |> KeyValueRepo.insert!(
+    |> Cache.KeyValueWriteRepo.insert!(
       on_conflict: [set: [watermark_updated_at: watermark_updated_at, watermark_key: watermark_key]],
       conflict_target: :name
     )
   end
 
   defp delete_replication_state!(name) do
-    KeyValueRepo.delete_all(from(state in State, where: state.name == ^name))
+    Cache.KeyValueWriteRepo.delete_all(from(state in State, where: state.name == ^name))
     :ok
   end
 
@@ -306,7 +306,7 @@ defmodule Cache.KeyValueEntries do
   defp fetch_local_entries_by_key(keys) do
     KeyValueEntry
     |> where([entry], entry.key in ^keys)
-    |> KeyValueRepo.all()
+    |> Cache.KeyValueWriteRepo.all()
     |> Map.new(&{&1.key, &1})
   end
 
@@ -393,7 +393,7 @@ defmodule Cache.KeyValueEntries do
   defp upsert_remote_rows([]), do: :ok
 
   defp upsert_remote_rows(rows) do
-    KeyValueRepo.insert_all(KeyValueEntry, rows,
+    Cache.KeyValueWriteRepo.insert_all(KeyValueEntry, rows,
       conflict_target: :key,
       on_conflict: {:replace, @remote_apply_conflict_fields}
     )
@@ -405,7 +405,7 @@ defmodule Cache.KeyValueEntries do
 
   defp delete_tombstoned_rows(keys) do
     {count, _} =
-      KeyValueRepo.delete_all(
+      Cache.KeyValueWriteRepo.delete_all(
         from(entry in KeyValueEntry,
           where: entry.key in ^keys,
           where: is_nil(entry.replication_enqueued_at)
@@ -441,7 +441,7 @@ defmodule Cache.KeyValueEntries do
 
   def delete_local_entry_if_before_or_equal(key, cutoff) when is_binary(key) do
     {count, _} =
-      KeyValueRepo.delete_all(
+      Cache.KeyValueWriteRepo.delete_all(
         from(entry in KeyValueEntry,
           where: entry.key == ^key,
           where: entry.source_updated_at <= ^cutoff
@@ -508,7 +508,7 @@ defmodule Cache.KeyValueEntries do
 
       result =
         try do
-          SQLiteHelpers.with_repo_busy_timeout(KeyValueRepo, timeout, fn ->
+          SQLiteHelpers.with_repo_busy_timeout(Cache.KeyValueWriteRepo, timeout, fn ->
             delete_candidate_batch(cutoff, batch_size, cursor, on_deleted_keys)
           end)
         rescue
@@ -581,7 +581,7 @@ defmodule Cache.KeyValueEntries do
 
     query = if after_id, do: from(entry in query, where: entry.id > ^after_id), else: query
 
-    KeyValueRepo.all(query)
+    Cache.KeyValueWriteRepo.all(query)
   end
 
   defp non_null_candidates(cutoff, limit, cursor) do
@@ -608,7 +608,7 @@ defmodule Cache.KeyValueEntries do
           )
       end
 
-    KeyValueRepo.all(query)
+    Cache.KeyValueWriteRepo.all(query)
   end
 
   defp delete_expired_entries(ids_to_delete, cutoff, on_deleted_keys) do
@@ -634,14 +634,14 @@ defmodule Cache.KeyValueEntries do
 
   defp delete_chunk(ids_chunk, cutoff) do
     {:ok, {deleted_count, deleted_keys}} =
-      KeyValueRepo.transaction(fn ->
+      Cache.KeyValueWriteRepo.transaction(fn ->
         verified_entries =
           KeyValueEntry
           |> where([entry], entry.id in ^ids_chunk)
           |> where([entry], is_nil(entry.last_accessed_at) or entry.last_accessed_at < ^cutoff)
           |> apply_evictable_filter(false)
           |> select([entry], {entry.id, entry.key})
-          |> KeyValueRepo.all()
+          |> Cache.KeyValueWriteRepo.all()
 
         verified_ids = Enum.map(verified_entries, &elem(&1, 0))
         verified_keys = Enum.map(verified_entries, &elem(&1, 1))
@@ -651,7 +651,7 @@ defmodule Cache.KeyValueEntries do
           |> where([entry], entry.id in ^verified_ids)
           |> where([entry], is_nil(entry.last_accessed_at) or entry.last_accessed_at < ^cutoff)
           |> apply_evictable_filter(false)
-          |> KeyValueRepo.delete_all()
+          |> Cache.KeyValueWriteRepo.delete_all()
 
         {deleted_count, verified_keys}
       end)
@@ -685,7 +685,7 @@ defmodule Cache.KeyValueEntries do
     # writer can modify matching rows between the two statements. This guarantees
     # that `candidate_keys` is exactly the set of deleted keys.
     {:ok, {candidate_keys, deleted_count}} =
-      KeyValueRepo.transaction(
+      Cache.KeyValueWriteRepo.transaction(
         fn ->
           candidate_keys = project_candidate_keys_batch(prefix, prefix_upper_bound, cutoff, include_pending, cursor)
 
@@ -766,7 +766,7 @@ defmodule Cache.KeyValueEntries do
 
     query = if cursor, do: from(entry in query, where: entry.key > ^cursor), else: query
 
-    KeyValueRepo.all(query)
+    Cache.KeyValueWriteRepo.all(query)
   end
 
   defp delete_project_candidate_keys_batch(candidate_keys, cutoff, include_pending) do
@@ -775,7 +775,7 @@ defmodule Cache.KeyValueEntries do
       |> where([entry], entry.key in ^candidate_keys)
       |> where([entry], is_nil(entry.source_updated_at) or entry.source_updated_at <= ^cutoff)
       |> apply_evictable_filter(include_pending)
-      |> KeyValueRepo.delete_all()
+      |> Cache.KeyValueWriteRepo.delete_all()
 
     count
   end
@@ -832,7 +832,7 @@ defmodule Cache.KeyValueEntries do
       end)
 
     {count, _} =
-      KeyValueRepo.update_all(
+      Cache.KeyValueWriteRepo.update_all(
         from(entry in KeyValueEntry, where: ^predicate),
         set: [replication_enqueued_at: nil]
       )

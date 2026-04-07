@@ -10,12 +10,12 @@ defmodule Cache.KeyValueEntriesTest do
   alias Cache.KeyValueEntries
   alias Cache.KeyValueEntry
   alias Cache.KeyValueRepo
-  alias Ecto.Adapters.SQL.Sandbox
+  alias Cache.KeyValueWriteRepo
 
   setup :set_mimic_from_context
 
   setup do
-    :ok = Sandbox.checkout(KeyValueRepo)
+    :ok = Cache.KeyValueRepoTestHelpers.reset!()
     stub(Config, :key_value_mode, fn -> :local end)
     stub(Config, :distributed_kv_enabled?, fn -> false end)
     :ok
@@ -25,7 +25,7 @@ defmodule Cache.KeyValueEntriesTest do
     old_time = DateTime.add(DateTime.utc_now(), -31, :day)
 
     entry =
-      KeyValueRepo.insert!(%KeyValueEntry{
+      KeyValueWriteRepo.insert!(%KeyValueEntry{
         key: "old-entry",
         json_payload: ~s({"hash": "abc"}),
         last_accessed_at: old_time
@@ -45,7 +45,7 @@ defmodule Cache.KeyValueEntriesTest do
     old_time = DateTime.add(DateTime.utc_now(), -31, :day)
 
     pending_entry =
-      KeyValueRepo.insert!(%KeyValueEntry{
+      KeyValueWriteRepo.insert!(%KeyValueEntry{
         key: "pending-entry",
         json_payload: ~s({"hash": "pending"}),
         last_accessed_at: old_time,
@@ -54,7 +54,7 @@ defmodule Cache.KeyValueEntriesTest do
       })
 
     expired_entry =
-      KeyValueRepo.insert!(%KeyValueEntry{
+      KeyValueWriteRepo.insert!(%KeyValueEntry{
         key: "expired-entry",
         json_payload: ~s({"hash": "expired"}),
         last_accessed_at: old_time,
@@ -72,8 +72,8 @@ defmodule Cache.KeyValueEntriesTest do
   test "delete_expired emits deleted keys through on_deleted_keys callback" do
     old_time = DateTime.add(DateTime.utc_now(), -31, :day)
 
-    KeyValueRepo.insert!(%KeyValueEntry{key: "old-entry-1", json_payload: "{}", last_accessed_at: old_time})
-    KeyValueRepo.insert!(%KeyValueEntry{key: "old-entry-2", json_payload: "{}", last_accessed_at: old_time})
+    KeyValueWriteRepo.insert!(%KeyValueEntry{key: "old-entry-1", json_payload: "{}", last_accessed_at: old_time})
+    KeyValueWriteRepo.insert!(%KeyValueEntry{key: "old-entry-2", json_payload: "{}", last_accessed_at: old_time})
 
     {:ok, deleted_keys_ref} = Agent.start_link(fn -> [] end)
 
@@ -95,7 +95,7 @@ defmodule Cache.KeyValueEntriesTest do
     new_token = DateTime.utc_now()
 
     first_entry =
-      KeyValueRepo.insert!(%KeyValueEntry{
+      KeyValueWriteRepo.insert!(%KeyValueEntry{
         key: "keyvalue:acme:ios:first",
         json_payload: "{}",
         last_accessed_at: old_token,
@@ -104,7 +104,7 @@ defmodule Cache.KeyValueEntriesTest do
       })
 
     second_entry =
-      KeyValueRepo.insert!(%KeyValueEntry{
+      KeyValueWriteRepo.insert!(%KeyValueEntry{
         key: "keyvalue:acme:ios:second",
         json_payload: "{}",
         last_accessed_at: new_token,
@@ -149,7 +149,7 @@ defmodule Cache.KeyValueEntriesTest do
     local_source_updated_at = DateTime.utc_now()
     remote_source_updated_at = DateTime.add(local_source_updated_at, -60, :second)
 
-    KeyValueRepo.insert!(%KeyValueEntry{
+    KeyValueWriteRepo.insert!(%KeyValueEntry{
       key: "keyvalue:acme:ios:cas",
       json_payload: Jason.encode!(%{entries: [%{"value" => "local"}]}),
       source_node: "test-node",
@@ -176,7 +176,7 @@ defmodule Cache.KeyValueEntriesTest do
     local_source_updated_at = DateTime.add(DateTime.utc_now(), -60, :second)
     remote_source_updated_at = DateTime.utc_now()
 
-    KeyValueRepo.insert!(%KeyValueEntry{
+    KeyValueWriteRepo.insert!(%KeyValueEntry{
       key: "keyvalue:acme:ios:cas",
       json_payload: Jason.encode!(%{entries: [%{"value" => "local"}]}),
       source_node: "node-a",
@@ -207,7 +207,7 @@ defmodule Cache.KeyValueEntriesTest do
     remote_source_updated_at = DateTime.add(local_source_updated_at, 60, :second)
     local_access_token = DateTime.add(remote_source_updated_at, 60, :second)
 
-    KeyValueRepo.insert!(%KeyValueEntry{
+    KeyValueWriteRepo.insert!(%KeyValueEntry{
       key: "keyvalue:acme:ios:cas",
       json_payload: Jason.encode!(%{entries: [%{"value" => "local"}]}),
       source_node: "node-a",
@@ -265,7 +265,7 @@ defmodule Cache.KeyValueEntriesTest do
     parent = self()
     row = remote_row("keyvalue:acme:ios:locked")
 
-    stub(KeyValueRepo, :transaction, fn _fun, opts ->
+    stub(KeyValueWriteRepo, :transaction, fn _fun, opts ->
       send(parent, {:transaction_opts, opts})
 
       {:ok,
@@ -292,7 +292,7 @@ defmodule Cache.KeyValueEntriesTest do
     original_time = DateTime.add(DateTime.utc_now(), -120, :second)
     updated_time = DateTime.add(original_time, 60, :second)
 
-    KeyValueRepo.insert!(%KeyValueEntry{
+    KeyValueWriteRepo.insert!(%KeyValueEntry{
       key: "keyvalue:acme:ios:update",
       json_payload: Jason.encode!(%{entries: [%{"value" => "old"}]}),
       last_accessed_at: original_time,
@@ -354,7 +354,7 @@ defmodule Cache.KeyValueEntriesTest do
     first_update_time = DateTime.add(original_time, 60, :second)
     second_update_time = DateTime.add(first_update_time, 60, :second)
 
-    KeyValueRepo.insert!(%KeyValueEntry{
+    KeyValueWriteRepo.insert!(%KeyValueEntry{
       key: "keyvalue:acme:ios:update",
       json_payload: Jason.encode!(%{entries: [%{"value" => "old"}]}),
       source_node: "node-a",
@@ -411,7 +411,7 @@ defmodule Cache.KeyValueEntriesTest do
     remote_source_updated_at = DateTime.add(local_source_updated_at, -60, :second)
     remote_last_accessed_at = DateTime.add(local_source_updated_at, 5, :second)
 
-    KeyValueRepo.insert!(%KeyValueEntry{
+    KeyValueWriteRepo.insert!(%KeyValueEntry{
       key: "keyvalue:acme:ios:cas",
       json_payload: Jason.encode!(%{entries: [%{"value" => "local"}]}),
       source_node: "test-node",
@@ -445,14 +445,14 @@ defmodule Cache.KeyValueEntriesTest do
   test "apply_remote_batch deletes tombstones only for non-pending rows" do
     deleted_at = DateTime.utc_now()
 
-    KeyValueRepo.insert!(%KeyValueEntry{
+    KeyValueWriteRepo.insert!(%KeyValueEntry{
       key: "keyvalue:acme:ios:stale",
       json_payload: Jason.encode!(%{entries: []}),
       last_accessed_at: deleted_at,
       source_updated_at: deleted_at
     })
 
-    KeyValueRepo.insert!(%KeyValueEntry{
+    KeyValueWriteRepo.insert!(%KeyValueEntry{
       key: "keyvalue:acme:ios:pending",
       json_payload: Jason.encode!(%{entries: []}),
       source_node: "test-node",
@@ -484,14 +484,14 @@ defmodule Cache.KeyValueEntriesTest do
     original_time = DateTime.add(DateTime.utc_now(), -120, :second)
     updated_time = DateTime.add(original_time, 60, :second)
 
-    KeyValueRepo.insert!(%KeyValueEntry{
+    KeyValueWriteRepo.insert!(%KeyValueEntry{
       key: "keyvalue:acme:ios:update",
       json_payload: Jason.encode!(%{entries: [%{"value" => "old"}]}),
       last_accessed_at: original_time,
       source_updated_at: original_time
     })
 
-    KeyValueRepo.insert!(%KeyValueEntry{
+    KeyValueWriteRepo.insert!(%KeyValueEntry{
       key: "keyvalue:acme:ios:delete",
       json_payload: Jason.encode!(%{entries: []}),
       last_accessed_at: original_time,
@@ -537,7 +537,7 @@ defmodule Cache.KeyValueEntriesTest do
   test "apply_remote_batch returns busy errors without committing" do
     row = remote_row("keyvalue:acme:ios:busy")
 
-    stub(KeyValueRepo, :transaction, fn _fun, _opts ->
+    stub(KeyValueWriteRepo, :transaction, fn _fun, _opts ->
       raise %Exqlite.Error{message: "Database busy"}
     end)
 
@@ -548,21 +548,21 @@ defmodule Cache.KeyValueEntriesTest do
   test "delete_project_entries_before does not match handles containing SQL wildcards" do
     old_time = DateTime.add(DateTime.utc_now(), -1, :day)
 
-    KeyValueRepo.insert!(%KeyValueEntry{
+    KeyValueWriteRepo.insert!(%KeyValueEntry{
       key: "keyvalue:a_b:ios:target",
       json_payload: "{}",
       last_accessed_at: old_time,
       source_updated_at: old_time
     })
 
-    KeyValueRepo.insert!(%KeyValueEntry{
+    KeyValueWriteRepo.insert!(%KeyValueEntry{
       key: "keyvalue:axb:ios:bystander",
       json_payload: "{}",
       last_accessed_at: old_time,
       source_updated_at: old_time
     })
 
-    KeyValueRepo.insert!(%KeyValueEntry{
+    KeyValueWriteRepo.insert!(%KeyValueEntry{
       key: "keyvalue:a%b:mac:target",
       json_payload: "{}",
       last_accessed_at: old_time,
@@ -582,21 +582,21 @@ defmodule Cache.KeyValueEntriesTest do
     old_time = DateTime.add(DateTime.utc_now(), -1, :day)
     new_time = DateTime.utc_now()
 
-    KeyValueRepo.insert!(%KeyValueEntry{
+    KeyValueWriteRepo.insert!(%KeyValueEntry{
       key: "keyvalue:acme:ios:old",
       json_payload: "{}",
       last_accessed_at: old_time,
       source_updated_at: old_time
     })
 
-    KeyValueRepo.insert!(%KeyValueEntry{
+    KeyValueWriteRepo.insert!(%KeyValueEntry{
       key: "keyvalue:acme:ios:new",
       json_payload: "{}",
       last_accessed_at: new_time,
       source_updated_at: new_time
     })
 
-    KeyValueRepo.insert!(%KeyValueEntry{
+    KeyValueWriteRepo.insert!(%KeyValueEntry{
       key: "keyvalue:acme:ios:legacy-pending",
       json_payload: "{}",
       source_node: "test-node",
@@ -621,21 +621,21 @@ defmodule Cache.KeyValueEntriesTest do
     old_time = DateTime.add(DateTime.utc_now(), -1, :day)
     new_time = DateTime.utc_now()
 
-    KeyValueRepo.insert!(%KeyValueEntry{
+    KeyValueWriteRepo.insert!(%KeyValueEntry{
       key: "keyvalue:acme:ios:old",
       json_payload: "{}",
       last_accessed_at: old_time,
       source_updated_at: old_time
     })
 
-    KeyValueRepo.insert!(%KeyValueEntry{
+    KeyValueWriteRepo.insert!(%KeyValueEntry{
       key: "keyvalue:acme:ios:new",
       json_payload: "{}",
       last_accessed_at: new_time,
       source_updated_at: new_time
     })
 
-    KeyValueRepo.insert!(%KeyValueEntry{
+    KeyValueWriteRepo.insert!(%KeyValueEntry{
       key: "keyvalue:acme:ios:pending",
       json_payload: "{}",
       source_node: "test-node",
@@ -709,7 +709,7 @@ defmodule Cache.KeyValueEntriesTest do
         }
       end
 
-    {1000, _} = KeyValueRepo.insert_all(KeyValueEntry, rows)
+    {1000, _} = KeyValueWriteRepo.insert_all(KeyValueEntry, rows)
     {:ok, batch_sizes} = Agent.start_link(fn -> [] end)
 
     {keys, count} =
@@ -746,7 +746,7 @@ defmodule Cache.KeyValueEntriesTest do
         }
       end
 
-    {1000, _} = KeyValueRepo.insert_all(KeyValueEntry, rows)
+    {1000, _} = KeyValueWriteRepo.insert_all(KeyValueEntry, rows)
     {:ok, after_batch_sizes} = Agent.start_link(fn -> [] end)
 
     {keys, count} =
@@ -778,7 +778,7 @@ defmodule Cache.KeyValueEntriesTest do
         }
       end
 
-    {1000, _} = KeyValueRepo.insert_all(KeyValueEntry, rows)
+    {1000, _} = KeyValueWriteRepo.insert_all(KeyValueEntry, rows)
 
     assert {:error, :cleanup_lease_lost} =
              KeyValueEntries.delete_project_entries_before("acme", "ios", old_time,
@@ -791,21 +791,21 @@ defmodule Cache.KeyValueEntriesTest do
   test "delete_project_entries_before respects exact lexicographic key bounds" do
     old_time = DateTime.add(DateTime.utc_now(), -1, :day)
 
-    KeyValueRepo.insert!(%KeyValueEntry{
+    KeyValueWriteRepo.insert!(%KeyValueEntry{
       key: "keyvalue:acme:ios:target",
       json_payload: "{}",
       last_accessed_at: old_time,
       source_updated_at: old_time
     })
 
-    KeyValueRepo.insert!(%KeyValueEntry{
+    KeyValueWriteRepo.insert!(%KeyValueEntry{
       key: "keyvalue:acme:ios",
       json_payload: "{}",
       last_accessed_at: old_time,
       source_updated_at: old_time
     })
 
-    KeyValueRepo.insert!(%KeyValueEntry{
+    KeyValueWriteRepo.insert!(%KeyValueEntry{
       key: "keyvalue:acme:ios;",
       json_payload: "{}",
       last_accessed_at: old_time,
@@ -837,7 +837,7 @@ defmodule Cache.KeyValueEntriesTest do
         }
       end
 
-    {1000, _} = KeyValueRepo.insert_all(KeyValueEntry, rows)
+    {1000, _} = KeyValueWriteRepo.insert_all(KeyValueEntry, rows)
 
     {keys, count} = KeyValueEntries.delete_project_entries_before("acme", "ios", old_time)
 

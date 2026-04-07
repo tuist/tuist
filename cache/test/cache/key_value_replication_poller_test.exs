@@ -14,7 +14,6 @@ defmodule Cache.KeyValueReplicationPollerTest do
   alias Cache.KeyValueReplicationPoller
   alias Cache.KeyValueRepo
   alias Ecto.Adapters.SQL
-  alias Ecto.Adapters.SQL.Sandbox
 
   setup :set_mimic_from_context
 
@@ -32,8 +31,7 @@ defmodule Cache.KeyValueReplicationPollerTest do
   end
 
   setup do
-    :ok = Sandbox.checkout(KeyValueRepo)
-    Sandbox.mode(KeyValueRepo, {:shared, self()})
+    :ok = Cache.KeyValueRepoTestHelpers.reset!()
     {:ok, _} = Cachex.clear(:cache_keyvalue_store)
 
     stub(Config, :key_value_mode, fn -> :distributed end)

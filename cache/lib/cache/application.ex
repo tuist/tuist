@@ -43,6 +43,7 @@ defmodule Cache.Application do
       {DBConnection.TelemetryListener, name: TelemetryListener},
       {Cache.Repo, connection_listeners: {[TelemetryListener], :cache}},
       {Cache.KeyValueRepo, connection_listeners: {[TelemetryListener], :key_value}},
+      {Cache.KeyValueWriteRepo, connection_listeners: {[TelemetryListener], :key_value_write}},
       Cache.KeyValueBuffer,
       Cache.CacheArtifactsBuffer,
       Cache.S3TransfersBuffer,

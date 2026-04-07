@@ -4,6 +4,7 @@ This context owns the cache-specific wrappers around shared repo monitoring.
 
 ## Responsibilities
 - Configure shared repo pool metrics for cache repos.
+- Keep the reader/writer split for the local key-value SQLite database explicit in repo wiring and metrics labels.
 - Keep cache repo labels and telemetry prefixes aligned with PromEx wiring.
 
 ## Boundaries

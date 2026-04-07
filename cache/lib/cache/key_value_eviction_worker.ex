@@ -226,14 +226,14 @@ defmodule Cache.KeyValueEvictionWorker do
     if deadline_reached?(deadline_ms) do
       {:error, :deadline_exhausted}
     else
-      KeyValueRepo.checkout(fn ->
+      Cache.KeyValueWriteRepo.checkout(fn ->
         try do
           case set_maintenance_busy_timeout() do
             :ok -> fun.()
             error -> error
           end
         after
-          SQLiteHelpers.restore_busy_timeout(KeyValueRepo)
+          SQLiteHelpers.restore_busy_timeout(Cache.KeyValueWriteRepo)
         end
       end)
     end
@@ -259,7 +259,7 @@ defmodule Cache.KeyValueEvictionWorker do
   end
 
   defp kv_query(query) do
-    case KeyValueRepo.query(query) do
+    case Cache.KeyValueWriteRepo.query(query) do
       {:ok, result} ->
         {:ok, result}
 

@@ -9,8 +9,6 @@ defmodule Cache.DistributedKV.CleanupTest do
   alias Cache.DistributedKV.Entry
   alias Cache.DistributedKV.Project
   alias Cache.DistributedKV.Repo
-  alias Cache.DistributedKV.State
-  alias Cache.KeyValueRepo
   alias Ecto.Adapters.SQL
   alias Ecto.Adapters.SQL.Sandbox
 
@@ -31,12 +29,10 @@ defmodule Cache.DistributedKV.CleanupTest do
 
   setup do
     :ok = Sandbox.checkout(Repo)
-    :ok = Sandbox.checkout(KeyValueRepo)
     Sandbox.mode(Repo, {:shared, self()})
-    Sandbox.mode(KeyValueRepo, {:shared, self()})
     Repo.delete_all(Entry)
     Repo.delete_all(Project)
-    KeyValueRepo.delete_all(State)
+    :ok = Cache.KeyValueRepoTestHelpers.reset!()
     stub(Config, :distributed_kv_cleanup_lease_ms, fn -> 60_000 end)
     :ok
   end

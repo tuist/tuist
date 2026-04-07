@@ -43,4 +43,21 @@ defmodule Cache.ApplicationTest do
 
     assert distributed_supervisor_index < oban_index
   end
+
+  test "starts the dedicated key value write repo before the key value buffer" do
+    stub(Config, :analytics_enabled?, fn -> false end)
+    stub(Config, :distributed_kv_enabled?, fn -> false end)
+
+    children = Cache.Application.children()
+
+    key_value_write_repo_index =
+      Enum.find_index(children, fn
+        {Cache.KeyValueWriteRepo, _opts} -> true
+        _ -> false
+      end)
+
+    key_value_buffer_index = Enum.find_index(children, &(&1 == Cache.KeyValueBuffer))
+
+    assert key_value_write_repo_index < key_value_buffer_index
+  end
 end

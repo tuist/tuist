@@ -13,12 +13,13 @@ defmodule Cache.KeyValueStoreTest do
   alias Cache.KeyValueEvictionWorker
   alias Cache.KeyValueRepo
   alias Cache.KeyValueStore
+  alias Cache.KeyValueWriteRepo
   alias Ecto.Adapters.SQL.Sandbox
 
   setup :set_mimic_from_context
 
   setup context do
-    :ok = Sandbox.checkout(KeyValueRepo)
+    :ok = Cache.KeyValueRepoTestHelpers.reset!()
     stub(Config, :key_value_mode, fn -> :local end)
     stub(Config, :distributed_kv_enabled?, fn -> false end)
 
@@ -624,7 +625,7 @@ defmodule Cache.KeyValueStoreTest do
       key = "keyvalue:#{account_handle}:#{project_handle}:#{cas_id}"
       old_time = DateTime.add(DateTime.utc_now(), -120, :second)
 
-      KeyValueRepo.update_all(
+      KeyValueWriteRepo.update_all(
         from(e in KeyValueEntry, where: e.key == ^key),
         set: [last_accessed_at: old_time]
       )
@@ -657,7 +658,7 @@ defmodule Cache.KeyValueStoreTest do
       key = "keyvalue:#{account_handle}:#{project_handle}:#{cas_id}"
       old_time = DateTime.add(DateTime.utc_now(), -120, :second)
 
-      KeyValueRepo.insert!(%KeyValueEntry{
+      KeyValueWriteRepo.insert!(%KeyValueEntry{
         key: key,
         json_payload: Jason.encode!(%{entries: [%{"value" => "pre-existing"}]}),
         last_accessed_at: old_time,
@@ -702,7 +703,7 @@ defmodule Cache.KeyValueStoreTest do
       key = "keyvalue:#{account_handle}:#{project_handle}:#{cas_id}"
       old_time = DateTime.add(DateTime.utc_now(), -120, :second)
 
-      KeyValueRepo.update_all(
+      KeyValueWriteRepo.update_all(
         from(e in KeyValueEntry, where: e.key == ^key),
         set: [last_accessed_at: old_time]
       )
@@ -765,7 +766,7 @@ defmodule Cache.KeyValueStoreTest do
 
       old_time = DateTime.add(DateTime.utc_now(), -31, :day)
 
-      KeyValueRepo.update_all(
+      KeyValueWriteRepo.update_all(
         from(e in KeyValueEntry, where: e.key == ^key),
         set: [last_accessed_at: old_time]
       )

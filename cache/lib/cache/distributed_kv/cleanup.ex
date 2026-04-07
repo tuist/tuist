@@ -316,7 +316,7 @@ defmodule Cache.DistributedKV.Cleanup do
 
     %State{name: @discovery_watermark}
     |> State.changeset(attrs)
-    |> KeyValueRepo.insert!(
+    |> Cache.KeyValueWriteRepo.insert!(
       on_conflict: [set: [watermark_updated_at: attrs.watermark_updated_at, watermark_key: attrs.watermark_key]],
       conflict_target: :name
     )
@@ -340,7 +340,7 @@ defmodule Cache.DistributedKV.Cleanup do
 
     %State{name: name}
     |> State.changeset(attrs)
-    |> KeyValueRepo.insert!(
+    |> Cache.KeyValueWriteRepo.insert!(
       on_conflict: [set: [watermark_updated_at: attrs.watermark_updated_at, watermark_key: attrs.watermark_key]],
       conflict_target: :name
     )

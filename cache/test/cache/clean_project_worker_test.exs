@@ -14,13 +14,13 @@ defmodule Cache.CleanProjectWorkerTest do
   alias Cache.KeyValueEntry
   alias Cache.KeyValueRepo
   alias Cache.KeyValueStore
+  alias Cache.KeyValueWriteRepo
   alias Cache.S3
-  alias Ecto.Adapters.SQL.Sandbox
 
   setup :set_mimic_from_context
 
   setup do
-    :ok = Sandbox.checkout(KeyValueRepo)
+    :ok = Cache.KeyValueRepoTestHelpers.reset!()
     stub(Config, :key_value_mode, fn -> :local end)
     stub(Config, :distributed_kv_enabled?, fn -> false end)
     stub(Cleanup, :expire_project_cleanup_lease, fn _account_handle, _project_handle, _cleanup_started_at -> :ok end)
@@ -578,7 +578,7 @@ defmodule Cache.CleanProjectWorkerTest do
       key = "keyvalue:#{account_handle}:#{project_handle}:#{cas_id}"
       stale_payload = Jason.encode!(%{entries: [%{"value" => "stale"}]})
 
-      KeyValueRepo.insert!(%KeyValueEntry{
+      KeyValueWriteRepo.insert!(%KeyValueEntry{
         key: key,
         json_payload: stale_payload,
         source_node: "test-node",

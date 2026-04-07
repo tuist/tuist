@@ -7,6 +7,7 @@ defmodule Cache.Repo.PromExPlugin do
     pool_metrics_event_name: [:cache, :repo, :pool, :metrics],
     repos: [
       {Cache.Repo, %{repo: "cache", database: "sqlite"}},
-      {Cache.KeyValueRepo, %{repo: "key_value", database: "sqlite"}}
+      {Cache.KeyValueRepo, %{repo: "key_value", database: "sqlite"}},
+      {Cache.KeyValueWriteRepo, %{repo: "key_value_write", database: "sqlite"}}
     ]
 end

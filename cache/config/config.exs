@@ -9,7 +9,6 @@ config :cache, Cache.DistributedKV.Repo,
 
 config :cache, Cache.KeyValueRepo,
   busy_timeout: 30_000,
-  default_transaction_mode: :immediate,
   journal_mode: :wal,
   synchronous: :normal,
   temp_store: :memory,
@@ -18,6 +17,20 @@ config :cache, Cache.KeyValueRepo,
   journal_size_limit: 67_108_864,
   queue_target: 1_000,
   queue_interval: 1_000,
+  custom_pragmas: [mmap_size: 268_435_456],
+  priv: "priv/key_value_repo"
+
+config :cache, Cache.KeyValueWriteRepo,
+  busy_timeout: 30_000,
+  default_transaction_mode: :immediate,
+  journal_mode: :wal,
+  synchronous: :normal,
+  temp_store: :memory,
+  cache_size: -64_000,
+  auto_vacuum: :incremental,
+  journal_size_limit: 67_108_864,
+  queue_target: 30_000,
+  queue_interval: 30_000,
   custom_pragmas: [mmap_size: 268_435_456],
   priv: "priv/key_value_repo"
 
@@ -41,7 +54,7 @@ config :cache, Cache.Repo,
   custom_pragmas: [mmap_size: 268_435_456]
 
 config :cache, Cache.SQLiteBuffer,
-  flush_interval_ms: 2_000,
+  flush_interval_ms: 500,
   flush_timeout_ms: 30_000,
   max_batch_size: 1_000,
   shutdown_ms: 30_000
@@ -60,13 +73,13 @@ config :cache, Oban,
   repo: Cache.Repo,
   engine: Oban.Engines.Lite,
   notifier: Oban.Notifiers.PG,
-  stage_interval: to_timeout(second: 5),
+  stage_interval: to_timeout(second: 10),
   queues: [
-    clean: 10,
+    clean: 2,
     maintenance: 1,
     s3_transfers: 1,
     registry_sync: 1,
-    registry_release: 5
+    registry_release: 2
   ],
   plugins: [
     {Oban.Plugins.Pruner, interval: to_timeout(minute: 5), max_age: to_timeout(day: 1)},

@@ -129,6 +129,13 @@ if config_env() == :prod do
     pool_size: String.to_integer(System.get_env("KEY_VALUE_POOL_SIZE") || System.get_env("POOL_SIZE") || "2"),
     show_sensitive_data_on_connection_error: false
 
+  config :cache, Cache.KeyValueWriteRepo,
+    database: System.get_env("KEY_VALUE_DATABASE_PATH") || "/data/key_value.sqlite",
+    pool_size: String.to_integer(System.get_env("KEY_VALUE_WRITE_POOL_SIZE") || "1"),
+    queue_target: String.to_integer(System.get_env("KEY_VALUE_WRITE_QUEUE_TARGET_MS") || "30000"),
+    queue_interval: String.to_integer(System.get_env("KEY_VALUE_WRITE_QUEUE_INTERVAL_MS") || "30000"),
+    show_sensitive_data_on_connection_error: false
+
   if key_value_mode == :distributed do
     database_url = System.get_env("DISTRIBUTED_KV_DATABASE_URL")
     node_name = System.get_env("DISTRIBUTED_KV_NODE_NAME") || System.get_env("HOSTNAME")

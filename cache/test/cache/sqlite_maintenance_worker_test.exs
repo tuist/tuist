@@ -8,13 +8,13 @@ defmodule Cache.SQLiteMaintenanceWorkerTest do
 
   test "vacuums the primary repo and runs bounded KV maintenance" do
     maintenance_timeout = Cache.Config.key_value_maintenance_busy_timeout_ms()
-    repo_timeout = Cache.Config.repo_busy_timeout_ms(Cache.KeyValueRepo)
+    repo_timeout = Cache.Config.repo_busy_timeout_ms(Cache.KeyValueWriteRepo)
 
     expect(Cache.Repo, :query, fn "PRAGMA incremental_vacuum(128000)" -> {:ok, %{rows: []}} end)
 
-    expect(Cache.KeyValueRepo, :checkout, fn fun -> fun.() end)
+    expect(Cache.KeyValueWriteRepo, :checkout, fn fun -> fun.() end)
 
-    expect(Cache.KeyValueRepo, :query, fn query ->
+    expect(Cache.KeyValueWriteRepo, :query, fn query ->
       cond do
         query == "PRAGMA busy_timeout = #{maintenance_timeout}" -> {:ok, %{rows: []}}
         query == "PRAGMA wal_checkpoint(PASSIVE)" -> {:ok, %{rows: [[0, 0, 0]]}}
@@ -28,13 +28,13 @@ defmodule Cache.SQLiteMaintenanceWorkerTest do
 
   test "skips KV maintenance when SQLite is busy" do
     maintenance_timeout = Cache.Config.key_value_maintenance_busy_timeout_ms()
-    repo_timeout = Cache.Config.repo_busy_timeout_ms(Cache.KeyValueRepo)
+    repo_timeout = Cache.Config.repo_busy_timeout_ms(Cache.KeyValueWriteRepo)
 
     expect(Cache.Repo, :query, fn "PRAGMA incremental_vacuum(128000)" -> {:ok, %{rows: []}} end)
 
-    expect(Cache.KeyValueRepo, :checkout, fn fun -> fun.() end)
+    expect(Cache.KeyValueWriteRepo, :checkout, fn fun -> fun.() end)
 
-    expect(Cache.KeyValueRepo, :query, fn query ->
+    expect(Cache.KeyValueWriteRepo, :query, fn query ->
       cond do
         query == "PRAGMA busy_timeout = #{maintenance_timeout}" -> {:ok, %{rows: []}}
         query == "PRAGMA wal_checkpoint(PASSIVE)" -> raise %Exqlite.Error{message: "Database busy"}

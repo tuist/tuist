@@ -21,7 +21,7 @@ defmodule CacheWeb.ConnCase do
   alias Cache.CacheArtifactsBuffer
   alias Cache.KeyValueBuffer
   alias Cache.KeyValueEntry
-  alias Cache.KeyValueRepo
+  alias Cache.KeyValueWriteRepo
   alias Cache.Repo
   alias Cache.S3Transfer
   alias Cache.S3TransfersBuffer
@@ -42,7 +42,6 @@ defmodule CacheWeb.ConnCase do
 
   setup _tags do
     :ok = Sandbox.checkout(Repo)
-    :ok = Sandbox.checkout(KeyValueRepo)
 
     allow_buffer(KeyValueBuffer)
     allow_buffer(CacheArtifactsBuffer)
@@ -50,7 +49,7 @@ defmodule CacheWeb.ConnCase do
 
     Repo.delete_all(S3Transfer)
     Repo.delete_all(CacheArtifact)
-    KeyValueRepo.delete_all(KeyValueEntry)
+    KeyValueWriteRepo.delete_all(KeyValueEntry)
 
     Cachex.clear(:cache_keyvalue_store)
     Cachex.clear(:cas_auth_cache)
@@ -60,8 +59,10 @@ defmodule CacheWeb.ConnCase do
 
   defp allow_buffer(buffer) do
     if pid = Process.whereis(buffer) do
-      repo = if buffer == KeyValueBuffer, do: KeyValueRepo, else: Repo
-      Sandbox.allow(repo, self(), pid)
+      if buffer != KeyValueBuffer do
+        Sandbox.allow(Repo, self(), pid)
+      end
+
       buffer.reset()
     end
   end

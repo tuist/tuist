@@ -12,13 +12,14 @@ defmodule Cache.KeyValueEvictionWorkerTest do
   alias Cache.KeyValueEntry
   alias Cache.KeyValueEvictionWorker
   alias Cache.KeyValueRepo
+  alias Cache.KeyValueWriteRepo
   alias Ecto.Adapters.SQL.Sandbox
 
   setup :set_mimic_from_context
 
   setup do
     :ok = Sandbox.checkout(Cache.Repo)
-    :ok = Sandbox.checkout(KeyValueRepo)
+    :ok = Cache.KeyValueRepoTestHelpers.reset!()
     stub(Config, :key_value_mode, fn -> :local end)
     stub(Config, :distributed_kv_enabled?, fn -> false end)
     :ok
@@ -28,13 +29,13 @@ defmodule Cache.KeyValueEvictionWorkerTest do
     old_time = DateTime.add(DateTime.utc_now(), -31, :day)
     recent_time = DateTime.add(DateTime.utc_now(), -10, :day)
 
-    KeyValueRepo.insert!(%KeyValueEntry{
+    KeyValueWriteRepo.insert!(%KeyValueEntry{
       key: "old-entry",
       json_payload: ~s({"hash": "abc"}),
       last_accessed_at: old_time
     })
 
-    KeyValueRepo.insert!(%KeyValueEntry{
+    KeyValueWriteRepo.insert!(%KeyValueEntry{
       key: "fresh-entry",
       json_payload: ~s({"hash": "def"}),
       last_accessed_at: recent_time
@@ -52,7 +53,7 @@ defmodule Cache.KeyValueEvictionWorkerTest do
   test "returns :ok when no entries are expired" do
     now = DateTime.utc_now()
 
-    KeyValueRepo.insert!(%KeyValueEntry{
+    KeyValueWriteRepo.insert!(%KeyValueEntry{
       key: "recent-entry",
       json_payload: ~s({"hash": "ghi"}),
       last_accessed_at: now
@@ -73,7 +74,7 @@ defmodule Cache.KeyValueEvictionWorkerTest do
 
     old_time = DateTime.add(DateTime.utc_now(), -31, :day)
 
-    KeyValueRepo.insert!(%KeyValueEntry{
+    KeyValueWriteRepo.insert!(%KeyValueEntry{
       key: "pending-entry",
       json_payload: ~s({"hash": "abc"}),
       last_accessed_at: old_time,
@@ -101,7 +102,7 @@ defmodule Cache.KeyValueEvictionWorkerTest do
         for index <- 1..20 do
           key = "churn-entry-#{cycle}-#{index}"
 
-          KeyValueRepo.insert!(%KeyValueEntry{
+          KeyValueWriteRepo.insert!(%KeyValueEntry{
             key: key,
             json_payload: ~s({"hash": "#{key}"}),
             last_accessed_at: old_time,
@@ -129,7 +130,7 @@ defmodule Cache.KeyValueEvictionWorkerTest do
   test "size-based eviction emits telemetry" do
     call_count = :counters.new(1, [:atomics])
 
-    stub(KeyValueRepo, :query, fn query ->
+    stub(KeyValueWriteRepo, :query, fn query ->
       cond do
         String.starts_with?(query, "PRAGMA busy_timeout =") ->
           {:ok, %{rows: []}}
@@ -168,7 +169,7 @@ defmodule Cache.KeyValueEvictionWorkerTest do
   end
 
   test "busy lock contention exits safely" do
-    stub(KeyValueRepo, :query, fn query ->
+    stub(KeyValueWriteRepo, :query, fn query ->
       cond do
         String.starts_with?(query, "PRAGMA busy_timeout =") -> {:ok, %{rows: []}}
         query == "PRAGMA page_count" -> {:ok, %{rows: [[10]]}}
@@ -191,7 +192,7 @@ defmodule Cache.KeyValueEvictionWorkerTest do
   end
 
   test "non-busy SQLite query failures fail the job" do
-    stub(KeyValueRepo, :query, fn query ->
+    stub(KeyValueWriteRepo, :query, fn query ->
       cond do
         String.starts_with?(query, "PRAGMA busy_timeout =") -> {:ok, %{rows: []}}
         query == "PRAGMA page_count" -> {:error, %Exqlite.Error{message: "disk I/O error"}}

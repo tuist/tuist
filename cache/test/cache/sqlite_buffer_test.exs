@@ -11,6 +11,7 @@ defmodule Cache.SQLiteBufferTest do
   alias Cache.KeyValueBuffer
   alias Cache.KeyValueEntry
   alias Cache.KeyValueRepo
+  alias Cache.KeyValueWriteRepo
   alias Cache.Repo
   alias Cache.S3Transfer
   alias Cache.S3TransfersBuffer
@@ -21,7 +22,7 @@ defmodule Cache.SQLiteBufferTest do
 
   setup context do
     :ok = Sandbox.checkout(Repo)
-    :ok = Sandbox.checkout(KeyValueRepo)
+    :ok = Cache.KeyValueRepoTestHelpers.reset!()
     stub(Config, :key_value_mode, fn -> :local end)
     stub(Config, :distributed_kv_enabled?, fn -> false end)
 
@@ -37,7 +38,7 @@ defmodule Cache.SQLiteBufferTest do
 
     Repo.delete_all(S3Transfer)
     Repo.delete_all(CacheArtifact)
-    KeyValueRepo.delete_all(KeyValueEntry)
+    KeyValueWriteRepo.delete_all(KeyValueEntry)
 
     {:ok, context}
   end
@@ -80,7 +81,7 @@ defmodule Cache.SQLiteBufferTest do
     timestamp = DateTime.truncate(DateTime.utc_now(), :second)
     distributed_time = DateTime.add(DateTime.utc_now(), -120, :second)
 
-    KeyValueRepo.insert!(%KeyValueEntry{
+    KeyValueWriteRepo.insert!(%KeyValueEntry{
       key: key,
       json_payload: Jason.encode!(%{entries: [%{"value" => "old"}]}),
       last_accessed_at: distributed_time,
@@ -106,7 +107,7 @@ defmodule Cache.SQLiteBufferTest do
     initial_time = DateTime.add(DateTime.utc_now(), -120, :second)
     timestamp = DateTime.truncate(DateTime.utc_now(), :second)
 
-    KeyValueRepo.insert!(%KeyValueEntry{
+    KeyValueWriteRepo.insert!(%KeyValueEntry{
       key: key,
       json_payload: payload,
       last_accessed_at: initial_time,
@@ -131,7 +132,7 @@ defmodule Cache.SQLiteBufferTest do
     timestamp = DateTime.truncate(DateTime.utc_now(), :second)
     initial_time = DateTime.add(DateTime.utc_now(), -120, :second)
 
-    KeyValueRepo.insert!(%KeyValueEntry{
+    KeyValueWriteRepo.insert!(%KeyValueEntry{
       key: legacy_key,
       json_payload: JSON.encode!(%{entries: []}),
       last_accessed_at: initial_time,
@@ -139,7 +140,7 @@ defmodule Cache.SQLiteBufferTest do
       updated_at: timestamp
     })
 
-    KeyValueRepo.insert!(%KeyValueEntry{
+    KeyValueWriteRepo.insert!(%KeyValueEntry{
       key: shared_key,
       json_payload: JSON.encode!(%{entries: []}),
       last_accessed_at: initial_time,
@@ -164,7 +165,7 @@ defmodule Cache.SQLiteBufferTest do
     timestamp = DateTime.truncate(DateTime.utc_now(), :second)
     initial_time = DateTime.add(DateTime.utc_now(), -120, :second)
 
-    KeyValueRepo.insert!(%KeyValueEntry{
+    KeyValueWriteRepo.insert!(%KeyValueEntry{
       key: key,
       json_payload: Jason.encode!(%{entries: []}),
       last_accessed_at: initial_time,
@@ -196,7 +197,7 @@ defmodule Cache.SQLiteBufferTest do
         }
       end
 
-    {1000, _} = KeyValueRepo.insert_all(KeyValueEntry, rows)
+    {1000, _} = KeyValueWriteRepo.insert_all(KeyValueEntry, rows)
 
     for i <- 1..1000 do
       :ok = KeyValueBuffer.enqueue_access("#{base_key}:#{i}")
@@ -270,7 +271,6 @@ defmodule Cache.SQLiteBufferTest do
     shutdown_buf = :"sqlite_buffer_shutdown_test_#{suffix}"
     {:ok, pid} = SQLiteBuffer.start_link(name: shutdown_buf, buffer_module: KeyValueBuffer)
 
-    Sandbox.allow(KeyValueRepo, self(), pid)
     true = :ets.insert(shutdown_buf, {key, {:write, %{key: key, json_payload: payload}}})
 
     :ok = GenServer.stop(pid)
@@ -286,8 +286,6 @@ defmodule Cache.SQLiteBufferTest do
     suffix = :erlang.unique_integer([:positive])
     buffer = :"sqlite_buffer_unexpected_message_test_#{suffix}"
     {:ok, pid} = SQLiteBuffer.start_link(name: buffer, buffer_module: KeyValueBuffer)
-
-    Sandbox.allow(KeyValueRepo, self(), pid)
 
     log =
       capture_log(fn ->

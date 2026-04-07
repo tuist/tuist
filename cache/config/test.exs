@@ -22,8 +22,16 @@ config :cache, Cache.Guardian,
 
 config :cache, Cache.KeyValueRepo,
   database: Path.expand("../test_key_value.sqlite3", __DIR__),
-  pool: Sandbox,
-  pool_size: System.schedulers_online() * 2 + 10,
+  pool_size: 10,
+  busy_timeout: 30_000,
+  timeout: 45_000,
+  queue_target: 45_000,
+  queue_interval: 45_000,
+  show_sensitive_data_on_connection_error: false
+
+config :cache, Cache.KeyValueWriteRepo,
+  database: Path.expand("../test_key_value.sqlite3", __DIR__),
+  pool_size: 1,
   busy_timeout: 30_000,
   timeout: 45_000,
   queue_target: 45_000,
