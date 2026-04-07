@@ -82,7 +82,7 @@ public struct StaticXCFrameworkAppIntentsMetadataGraphMapper: GraphMapping {
 
         \(dependenciesScript)
         """
-        TargetScript(
+        return TargetScript(
             name: Constants.scriptName,
             order: .pre,
             script: .embedded(script),
