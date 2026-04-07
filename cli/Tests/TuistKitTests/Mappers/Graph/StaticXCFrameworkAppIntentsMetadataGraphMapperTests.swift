@@ -67,8 +67,8 @@ final class StaticXCFrameworkAppIntentsMetadataGraphMapperTests: TuistUnitTestCa
             : > "$STATIC_METADATA_FILE"
 
             framework_name='IntentsFramework'
-            framework_metadata="${BUILT_PRODUCTS_DIR}/${framework_name}.framework/Metadata.appintents"
-            static_metadata="${BUILT_PRODUCTS_DIR}/${framework_name}.appintents/Metadata.appintents"
+            framework_metadata="${BUILT_PRODUCTS_DIR}/IntentsFramework.framework/Metadata.appintents"
+            static_metadata="${BUILT_PRODUCTS_DIR}/IntentsFramework.appintents/Metadata.appintents"
 
             if [ -d "$framework_metadata" ] && [ ! -d "$static_metadata" ]; then
                 mkdir -p "$static_metadata"
@@ -82,8 +82,22 @@ final class StaticXCFrameworkAppIntentsMetadataGraphMapperTests: TuistUnitTestCa
             [ -f "$static_actions_data" ] && echo "$static_actions_data" >> "$STATIC_METADATA_FILE"
             """
         )
+        XCTAssertEqual(
+            script.inputPaths,
+            [
+                "${BUILT_PRODUCTS_DIR}/IntentsFramework.framework/Metadata.appintents/extract.actionsdata",
+                "${BUILT_PRODUCTS_DIR}/IntentsFramework.framework/Metadata.appintents/version.json",
+            ]
+        )
+        XCTAssertEqual(
+            script.outputPaths,
+            [
+                "${TARGET_TEMP_DIR}/${TARGET_NAME}.DependencyMetadataFileList",
+                "${TARGET_TEMP_DIR}/${TARGET_NAME}.DependencyStaticMetadataFileList",
+            ]
+        )
         XCTAssertFalse(script.showEnvVarsInLog)
-        XCTAssertEqual(script.basedOnDependencyAnalysis, false)
+        XCTAssertEqual(script.basedOnDependencyAnalysis, true)
         XCTAssertEmpty(gotSideEffects)
     }
 

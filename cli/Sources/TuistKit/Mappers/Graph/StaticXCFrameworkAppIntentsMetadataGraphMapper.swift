@@ -48,8 +48,8 @@ public struct StaticXCFrameworkAppIntentsMetadataGraphMapper: GraphMapping {
         let dependenciesScript = dependencies.map { dependency in
             """
             framework_name='\(dependency.frameworkName)'
-            framework_metadata="${BUILT_PRODUCTS_DIR}/${framework_name}.framework/Metadata.appintents"
-            static_metadata="${BUILT_PRODUCTS_DIR}/${framework_name}.appintents/Metadata.appintents"
+            framework_metadata="\(dependency.frameworkMetadataPath)"
+            static_metadata="\(dependency.staticMetadataPath)"
 
             if [ -d "$framework_metadata" ] && [ ! -d "$static_metadata" ]; then
                 mkdir -p "$static_metadata"
@@ -73,12 +73,17 @@ public struct StaticXCFrameworkAppIntentsMetadataGraphMapper: GraphMapping {
 
         \(dependenciesScript)
         """
+
+        // Keep the declared outputs target-local. Multiple runnable targets can share the same static XCFramework,
+        // and declaring the copied .appintents sidecar as an output would make Xcode see multiple producers.
         return TargetScript(
             name: Constants.scriptName,
             order: .pre,
             script: .embedded(script),
+            inputPaths: dependencies.flatMap(\.inputPaths),
+            outputPaths: [Constants.metadataFile, Constants.staticMetadataFile],
             showEnvVarsInLog: false,
-            basedOnDependencyAnalysis: false
+            basedOnDependencyAnalysis: true
         )
     }
 
@@ -103,6 +108,21 @@ public struct StaticXCFrameworkAppIntentsMetadataGraphMapper: GraphMapping {
 
 private struct AppIntentsMetadataDependency: Comparable, Hashable {
     let frameworkName: String
+
+    var frameworkMetadataPath: String {
+        "${BUILT_PRODUCTS_DIR}/\(frameworkName).framework/Metadata.appintents"
+    }
+
+    var staticMetadataPath: String {
+        "${BUILT_PRODUCTS_DIR}/\(frameworkName).appintents/Metadata.appintents"
+    }
+
+    var inputPaths: [String] {
+        [
+            "\(frameworkMetadataPath)/extract.actionsdata",
+            "\(frameworkMetadataPath)/version.json",
+        ]
+    }
 
     static func < (lhs: AppIntentsMetadataDependency, rhs: AppIntentsMetadataDependency) -> Bool {
         lhs.frameworkName < rhs.frameworkName
