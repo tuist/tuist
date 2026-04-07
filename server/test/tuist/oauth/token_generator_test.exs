@@ -201,7 +201,7 @@ defmodule Tuist.OAuth.TokenGeneratorTest do
       assert resource.scopes == ["mcp"]
       assert resource.all_projects == true
       assert resource.account.id == user.account.id
-      assert resource.user.id == user.id
+      assert resource.issued_by.id == user.id
     end
 
     test "can list all accessible projects including org projects", %{user: user, project: project} do

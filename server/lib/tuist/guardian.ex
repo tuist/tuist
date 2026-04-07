@@ -41,7 +41,7 @@ defmodule Tuist.Guardian do
            scopes: claims["scopes"],
            all_projects: Map.get(claims, "all_projects", false),
            project_ids: extract_project_ids(claims),
-           user: user
+           issued_by: user
          }}
 
       {:error, :not_found} ->

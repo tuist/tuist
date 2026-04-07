@@ -218,7 +218,7 @@ defmodule Tuist.Projects do
     |> maybe_filter_recent(opts)
   end
 
-  def list_accessible_projects(%AuthenticatedAccount{user: %User{} = user, all_projects: true}, opts) do
+  def list_accessible_projects(%AuthenticatedAccount{issued_by: %User{} = user, all_projects: true}, opts) do
     list_accessible_projects(user, opts)
   end
 
