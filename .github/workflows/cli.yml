@@ -189,7 +189,7 @@ jobs:
 
   cli-acceptance-tests-build:
     name: Build Acceptance Tests
-    runs-on: namespace-profile-default-macos
+    runs-on: macos-26
     timeout-minutes: 60
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     outputs:
@@ -231,7 +231,7 @@ jobs:
 
   cli-acceptance-tests:
     name: Acceptance Tests
-    runs-on: namespace-profile-default-macos
+    runs-on: macos-26
     timeout-minutes: 60
     needs: cli-acceptance-tests-build
     strategy:
