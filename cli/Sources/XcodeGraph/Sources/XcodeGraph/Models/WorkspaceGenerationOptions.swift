@@ -1,4 +1,5 @@
 import Foundation
+import Path
 
 extension Workspace {
     /// Contains options related to the workspace generation.
@@ -94,7 +95,7 @@ extension Workspace {
             /// Uses the default DerivedData location configured in Xcode.
             case `default`
             /// A custom path to the DerivedData directory.
-            case custom(String)
+            case custom(AbsolutePath)
         }
 
         public let derivedDataPath: DerivedDataPath

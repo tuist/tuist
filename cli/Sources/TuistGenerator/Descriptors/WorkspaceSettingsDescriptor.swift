@@ -23,8 +23,8 @@ public struct WorkspaceSettingsDescriptor: Equatable {
             derivedDataLocationStyle = nil
             derivedDataCustomLocation = nil
         case let .custom(path):
-            derivedDataLocationStyle = path.hasPrefix("/") ? .absolutePath : .workspaceRelativePath
-            derivedDataCustomLocation = path
+            derivedDataLocationStyle = .absolutePath
+            derivedDataCustomLocation = path.pathString
         }
         return WorkspaceSettings(
             derivedDataLocationStyle: derivedDataLocationStyle,

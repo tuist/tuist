@@ -2,6 +2,7 @@ import FileSystem
 import FileSystemTesting
 import Foundation
 import Mockable
+import Path
 import Testing
 import TuistCore
 import TuistSupport
@@ -48,12 +49,13 @@ struct WorkspaceSettingsDescriptorGeneratorTests {
         #expect(result == WorkspaceSettingsDescriptor(enableAutomaticXcodeSchemes: true))
     }
 
-    @Test(.inTemporaryDirectory, .withMockedSwiftVersionProvider) func generate_withRelativeDerivedDataPath() {
+    @Test(.inTemporaryDirectory, .withMockedSwiftVersionProvider) func generate_withCustomDerivedDataPath() throws {
         // Given
+        let derivedDataPath = try AbsolutePath(validating: "/tmp/DerivedData")
         let workspace = Workspace.test(
             generationOptions: .test(
                 enableAutomaticXcodeSchemes: nil,
-                derivedDataPath: .custom("DerivedData")
+                derivedDataPath: .custom(derivedDataPath)
             )
         )
 
@@ -64,26 +66,9 @@ struct WorkspaceSettingsDescriptorGeneratorTests {
         #expect(
             result == WorkspaceSettingsDescriptor(
                 enableAutomaticXcodeSchemes: nil,
-                derivedDataPath: .custom("DerivedData")
+                derivedDataPath: .custom(derivedDataPath)
             )
         )
-        #expect(result?.settings.derivedDataLocationStyle == .workspaceRelativePath)
-        #expect(result?.settings.derivedDataCustomLocation == "DerivedData")
-    }
-
-    @Test(.inTemporaryDirectory, .withMockedSwiftVersionProvider) func generate_withAbsoluteDerivedDataPath() {
-        // Given
-        let workspace = Workspace.test(
-            generationOptions: .test(
-                enableAutomaticXcodeSchemes: nil,
-                derivedDataPath: .custom("/tmp/DerivedData")
-            )
-        )
-
-        // When
-        let result = subject.generateWorkspaceSettings(workspace: workspace)
-
-        // Then
         #expect(result?.settings.derivedDataLocationStyle == .absolutePath)
         #expect(result?.settings.derivedDataCustomLocation == "/tmp/DerivedData")
     }
