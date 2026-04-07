@@ -145,6 +145,7 @@ defmodule Tuist.OAuth.TokenGeneratorTest do
       {:ok, claims} = Tuist.Guardian.decode_and_verify(jwt_token)
 
       assert claims["scopes"] == [
+               "project:admin:read",
                "project:cache:read",
                "project:cache:write",
                "project:previews:read",
@@ -172,6 +173,7 @@ defmodule Tuist.OAuth.TokenGeneratorTest do
       {:ok, claims} = Tuist.Guardian.decode_and_verify(jwt_token)
 
       assert claims["scopes"] == [
+               "project:admin:read",
                "project:cache:read",
                "project:cache:write",
                "project:previews:read",
