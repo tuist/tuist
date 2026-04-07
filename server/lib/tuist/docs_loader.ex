@@ -4,10 +4,11 @@ defmodule Tuist.Docs.Loader do
   alias Tuist.Docs.HTML
   alias Tuist.Docs.Page
   alias Tuist.Docs.Paths
+  alias Tuist.Locale
 
   # Paths
   @docs_root Path.expand("../../priv/docs", __DIR__)
-  @locales ~w(en ar es ja ko pl pt ru tr yue_Hant zh_Hans zh_Hant)
+  @locales Locale.supported_locales()
   @examples_root Path.expand("../../../examples/xcode", __DIR__)
 
   # Icons

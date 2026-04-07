@@ -2,10 +2,10 @@
   "aside": {
     "translate": {
       "title": {
-        "text": "Translation 🌍"
+        "text": "Languages 🌍"
       },
       "description": {
-        "text": "You can translate or improve the translation of this page."
+        "text": "You can help Tuist support more languages or improve the language guidance for this page."
       },
       "cta": {
         "text": "Contribute"
@@ -168,7 +168,7 @@
           "text": "Debugging"
         },
         "translate": {
-          "text": "Translate"
+          "text": "Languages"
         },
         "releases": {
           "text": "Releases"
