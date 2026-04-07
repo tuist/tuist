@@ -575,28 +575,43 @@ struct CommandEnvironmentVariableTests {
     @Test(.withMockedEnvironment()) func xcodeBuildShardCommandsUseEnvVars() throws {
         setVariable(.testShardArchivePath, value: "/tmp/env-shards/bundle.aar")
 
-        let buildForTestingCommandWithEnvVars = try XcodeBuildBuildForTestingCommand.parse([])
+        let buildForTestingCommandWithEnvVars = try #require(
+            XcodeBuildCommand.parseAsRoot(["build-for-testing"]) as? XcodeBuildBuildForTestingCommand
+        )
         #expect(buildForTestingCommandWithEnvVars.shardArchivePath == "/tmp/env-shards/bundle.aar")
 
-        let testCommandWithEnvVars = try XcodeBuildTestCommand.parse([])
+        let testCommandWithEnvVars = try #require(
+            XcodeBuildCommand.parseAsRoot(["test"]) as? XcodeBuildTestCommand
+        )
         #expect(testCommandWithEnvVars.shardArchivePath == "/tmp/env-shards/bundle.aar")
 
-        let testWithoutBuildingCommandWithEnvVars = try XcodeBuildTestWithoutBuildingCommand.parse([])
+        let testWithoutBuildingCommandWithEnvVars = try #require(
+            XcodeBuildCommand.parseAsRoot(["test-without-building"]) as? XcodeBuildTestWithoutBuildingCommand
+        )
         #expect(testWithoutBuildingCommandWithEnvVars.shardArchivePath == "/tmp/env-shards/bundle.aar")
 
-        let buildForTestingCommandWithArgs = try XcodeBuildBuildForTestingCommand.parse([
-            "--shard-archive-path", "/tmp/cli-shards/build.aar",
-        ])
+        let buildForTestingCommandWithArgs = try #require(
+            XcodeBuildCommand.parseAsRoot([
+                "build-for-testing",
+                "--shard-archive-path", "/tmp/cli-shards/build.aar",
+            ]) as? XcodeBuildBuildForTestingCommand
+        )
         #expect(buildForTestingCommandWithArgs.shardArchivePath == "/tmp/cli-shards/build.aar")
 
-        let testCommandWithArgs = try XcodeBuildTestCommand.parse([
-            "--shard-archive-path", "/tmp/cli-shards/test.aar",
-        ])
+        let testCommandWithArgs = try #require(
+            XcodeBuildCommand.parseAsRoot([
+                "test",
+                "--shard-archive-path", "/tmp/cli-shards/test.aar",
+            ]) as? XcodeBuildTestCommand
+        )
         #expect(testCommandWithArgs.shardArchivePath == "/tmp/cli-shards/test.aar")
 
-        let testWithoutBuildingCommandWithArgs = try XcodeBuildTestWithoutBuildingCommand.parse([
-            "--shard-archive-path", "/tmp/cli-shards/test-without-building.aar",
-        ])
+        let testWithoutBuildingCommandWithArgs = try #require(
+            XcodeBuildCommand.parseAsRoot([
+                "test-without-building",
+                "--shard-archive-path", "/tmp/cli-shards/test-without-building.aar",
+            ]) as? XcodeBuildTestWithoutBuildingCommand
+        )
         #expect(testWithoutBuildingCommandWithArgs.shardArchivePath == "/tmp/cli-shards/test-without-building.aar")
     }
 
