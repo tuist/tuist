@@ -2,6 +2,7 @@
     import FileSystem
     import Foundation
     import Path
+    import TuistAlert
     import TuistConfigLoader
     import TuistCore
     import TuistEnvironment
@@ -106,10 +107,13 @@
             )
 
             let config = try await configLoader.loadConfig(path: projectPath)
-            try await uploadBuildRunService.uploadBuildRun(
+            let buildURL = try await uploadBuildRunService.uploadBuildRun(
                 activityLogPath: mostRecentActivityLogPath,
                 projectPath: projectPath,
                 config: config
+            )
+            AlertController.current.success(
+                .alert("Build uploaded for processing. View status at \(buildURL.absoluteString)")
             )
         }
 

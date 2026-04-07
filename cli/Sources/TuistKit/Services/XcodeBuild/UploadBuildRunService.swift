@@ -2,7 +2,6 @@ import FileSystem
 import Foundation
 import Mockable
 import Path
-import TuistAlert
 import TuistAutomation
 import TuistCASAnalytics
 import TuistCI
@@ -30,11 +29,12 @@ enum UploadBuildRunServiceError: Equatable, LocalizedError {
 
 @Mockable
 public protocol UploadBuildRunServicing {
+    @discardableResult
     func uploadBuildRun(
         activityLogPath: AbsolutePath,
         projectPath: AbsolutePath,
         config: Tuist
-    ) async throws
+    ) async throws -> URL
 }
 
 public struct UploadBuildRunService: UploadBuildRunServicing {
@@ -67,11 +67,12 @@ public struct UploadBuildRunService: UploadBuildRunServicing {
         self.ciController = ciController
     }
 
+    @discardableResult
     public func uploadBuildRun(
         activityLogPath: AbsolutePath,
         projectPath: AbsolutePath,
         config: Tuist
-    ) async throws {
+    ) async throws -> URL {
         let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
         guard let fullHandle = config.fullHandle else {
             throw UploadBuildRunServiceError.missingFullHandle
@@ -125,9 +126,8 @@ public struct UploadBuildRunService: UploadBuildRunServicing {
                 machineMetrics: []
             )
         }
-        AlertController.current.success(
-            .alert("Build uploaded for processing. View status at \(build.url.absoluteString)")
-        )
+        await RunMetadataStorage.current.update(buildRunURL: build.url)
+        return build.url
     }
 
     private func bundleBuild(

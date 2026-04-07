@@ -49,7 +49,7 @@ struct InspectBuildCommandServiceTests {
 
         given(uploadBuildRunService)
             .uploadBuildRun(activityLogPath: .any, projectPath: .any, config: .any)
-            .willReturn()
+            .willReturn(URL(string: "https://tuist.dev/test")!)
 
         let mockedEnvironment = try #require(Environment.mocked)
         mockedEnvironment.schemeName = "App"

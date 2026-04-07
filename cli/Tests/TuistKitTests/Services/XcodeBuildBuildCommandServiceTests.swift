@@ -82,7 +82,7 @@ struct XcodeBuildBuildCommandServiceTests {
 
         given(uploadBuildRunService)
             .uploadBuildRun(activityLogPath: .any, projectPath: .any, config: .any)
-            .willReturn()
+            .willReturn(URL(string: "https://tuist.dev/test")!)
 
         // When
         try await subject.run(passthroughXcodebuildArguments: arguments)
@@ -137,7 +137,7 @@ struct XcodeBuildBuildCommandServiceTests {
 
         given(uploadBuildRunService)
             .uploadBuildRun(activityLogPath: .any, projectPath: .any, config: .any)
-            .willReturn()
+            .willReturn(URL(string: "https://tuist.dev/test")!)
 
         // When
         try await subject.run(passthroughXcodebuildArguments: arguments)
