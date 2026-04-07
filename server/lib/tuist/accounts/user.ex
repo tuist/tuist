@@ -129,7 +129,7 @@ defmodule Tuist.Accounts.User do
   def preferred_locale_changeset(user, attrs) do
     user
     |> cast(attrs, [:preferred_locale])
-    |> validate_inclusion(:preferred_locale, [nil | Tuist.Locale.supported_locales()])
+    |> validate_inclusion(:preferred_locale, Tuist.Locale.supported_locales())
   end
 
   def gravatar_url(%__MODULE__{email: email}) do

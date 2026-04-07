@@ -61,6 +61,46 @@ defmodule TuistWeb.LocaleTest do
       assert updated_socket.assigns.locale == "zh_Hans"
       assert Gettext.get_locale(GettextBackend) == "zh_Hans"
     end
+
+    test "uses user's preferred_locale over session locale" do
+      socket =
+        %LiveView.Socket{}
+        |> Phoenix.Component.assign(:current_user, %{preferred_locale: "ja"})
+
+      {:cont, updated_socket} = Locale.on_mount(:assign_locale, %{}, %{"locale" => "es"}, socket)
+
+      assert updated_socket.assigns.locale == "ja"
+      assert Gettext.get_locale(GettextBackend) == "ja"
+    end
+
+    test "falls back to session locale when preferred_locale is nil" do
+      socket =
+        %LiveView.Socket{}
+        |> Phoenix.Component.assign(:current_user, %{preferred_locale: nil})
+
+      {:cont, updated_socket} = Locale.on_mount(:assign_locale, %{}, %{"locale" => "ko"}, socket)
+
+      assert updated_socket.assigns.locale == "ko"
+      assert Gettext.get_locale(GettextBackend) == "ko"
+    end
+
+    test "ignores unsupported preferred_locale and falls back to session" do
+      socket =
+        %LiveView.Socket{}
+        |> Phoenix.Component.assign(:current_user, %{preferred_locale: "xx"})
+
+      {:cont, updated_socket} = Locale.on_mount(:assign_locale, %{}, %{"locale" => "ru"}, socket)
+
+      assert updated_socket.assigns.locale == "ru"
+      assert Gettext.get_locale(GettextBackend) == "ru"
+    end
+
+    test "falls back to session locale when no current_user is assigned" do
+      {:cont, updated_socket} = Locale.on_mount(:assign_locale, %{}, %{"locale" => "es"}, %LiveView.Socket{})
+
+      assert updated_socket.assigns.locale == "es"
+      assert Gettext.get_locale(GettextBackend) == "es"
+    end
   end
 
   describe "LocalePlug" do
