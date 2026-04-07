@@ -22,6 +22,7 @@ server:
   logLevel: info
   hosted: false
   skipEmailConfirmation: true
+  secretKeyBase: ""
   license:
     key: ""
     certificateBase64: ""
@@ -61,6 +62,8 @@ cache:
   publicHost: cache.local
   serverUrl: ""
   apiKey: ""
+  secretKeyBase: ""
+  guardianSecretKey: ""
   storage:
     pvc:
       create: true
