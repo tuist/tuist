@@ -1,6 +1,16 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.174.3<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* fix selective testing not skipping unchanged test targets by [@pepicrft](https://github.com/pepicrft) in [#10173](https://github.com/tuist/tuist/pull/10173)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.174.2...4.174.3
+
 ## What's Changed in 4.174.2<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
@@ -1625,7 +1635,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* clean up warnings by [@waltflanagan](https://github.com/waltflanagan)
+* clean up warnings by [@waltflanagan](https://github.com/waltflanagan) in [#7666](https://github.com/tuist/tuist/pull/7666)
 * fix content hashing to use relative path when file does not exist by [@waltflanagan](https://github.com/waltflanagan) in [#8557](https://github.com/tuist/tuist/pull/8557)
 
 
@@ -2423,7 +2433,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* Add commands to list and read bundles by [@pepicrft](https://github.com/pepicrft)
+* Add commands to list and read bundles by [@pepicrft](https://github.com/pepicrft) in [#7893](https://github.com/tuist/tuist/pull/7893)
 
 
 
@@ -2568,7 +2578,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* Ignore internal server errors when interating with the cache by [@pepicrft](https://github.com/pepicrft)
+* Ignore internal server errors when interating with the cache by [@pepicrft](https://github.com/pepicrft) in [#7924](https://github.com/tuist/tuist/pull/7924)
 
 
 
@@ -2578,7 +2588,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* do not link cached frameworks with linking status .none by [@fortmarek](https://github.com/fortmarek)
+* do not link cached frameworks with linking status .none by [@fortmarek](https://github.com/fortmarek) in [#7918](https://github.com/tuist/tuist/pull/7918)
 
 
 
@@ -2599,7 +2609,7 @@ All notable changes to this project will be documented in this file.
 ### 🐛 Bug Fixes
 
 * fix cli not launching because ProjectAutomation's dynamic framework can't be found by [@pepicrft](https://github.com/pepicrft)
-* token refresh race condition by [@pepicrft](https://github.com/pepicrft)
+* token refresh race condition by [@pepicrft](https://github.com/pepicrft) in [#7907](https://github.com/tuist/tuist/pull/7907)
 
 
 
