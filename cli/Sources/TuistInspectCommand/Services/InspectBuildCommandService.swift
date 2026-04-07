@@ -110,7 +110,9 @@
             let buildURL = try await uploadBuildRunService.uploadBuildRun(
                 activityLogPath: mostRecentActivityLogPath,
                 projectPath: projectPath,
-                config: config
+                config: config,
+                scheme: nil,
+                configuration: nil
             )
             AlertController.current.success(
                 .alert("Build uploaded for processing. View status at \(buildURL.absoluteString)")

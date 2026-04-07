@@ -33,7 +33,9 @@ public protocol UploadBuildRunServicing {
     func uploadBuildRun(
         activityLogPath: AbsolutePath,
         projectPath: AbsolutePath,
-        config: Tuist
+        config: Tuist,
+        scheme: String?,
+        configuration: String?
     ) async throws -> URL
 }
 
@@ -71,7 +73,9 @@ public struct UploadBuildRunService: UploadBuildRunServicing {
     public func uploadBuildRun(
         activityLogPath: AbsolutePath,
         projectPath: AbsolutePath,
-        config: Tuist
+        config: Tuist,
+        scheme: String? = nil,
+        configuration: String? = nil
     ) async throws -> URL {
         let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
         guard let fullHandle = config.fullHandle else {
@@ -100,7 +104,7 @@ public struct UploadBuildRunService: UploadBuildRunServicing {
                 serverURL: serverURL,
                 id: buildId,
                 category: .incremental,
-                configuration: Environment.current.variables["CONFIGURATION"],
+                configuration: configuration ?? Environment.current.variables["CONFIGURATION"],
                 customMetadata: customMetadata,
                 duration: 0,
                 files: [],
@@ -112,7 +116,7 @@ public struct UploadBuildRunService: UploadBuildRunServicing {
                 issues: [],
                 modelIdentifier: machineEnvironment.modelIdentifier(),
                 macOSVersion: machineEnvironment.macOSVersion,
-                scheme: Environment.current.schemeName,
+                scheme: scheme ?? Environment.current.schemeName,
                 targets: [],
                 xcodeCacheUploadEnabled: config.cache.upload,
                 xcodeVersion: try await xcodeBuildController.version()?.description,

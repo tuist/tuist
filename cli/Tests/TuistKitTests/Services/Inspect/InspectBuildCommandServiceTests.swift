@@ -48,7 +48,7 @@ struct InspectBuildCommandServiceTests {
             .willReturn(.test(fullHandle: "tuist/tuist"))
 
         given(uploadBuildRunService)
-            .uploadBuildRun(activityLogPath: .any, projectPath: .any, config: .any)
+            .uploadBuildRun(activityLogPath: .any, projectPath: .any, config: .any, scheme: .any, configuration: .any)
             .willReturn(URL(string: "https://tuist.dev/test")!)
 
         let mockedEnvironment = try #require(Environment.mocked)
@@ -104,7 +104,9 @@ struct InspectBuildCommandServiceTests {
             .uploadBuildRun(
                 activityLogPath: .value(activityLogPath),
                 projectPath: .value(projectPath),
-                config: .any
+                config: .any,
+                scheme: .any,
+                configuration: .any
             )
             .called(1)
     }
@@ -150,7 +152,7 @@ struct InspectBuildCommandServiceTests {
 
         // Then
         verify(uploadBuildRunService)
-            .uploadBuildRun(activityLogPath: .any, projectPath: .any, config: .any)
+            .uploadBuildRun(activityLogPath: .any, projectPath: .any, config: .any, scheme: .any, configuration: .any)
             .called(1)
     }
 
@@ -355,8 +357,8 @@ struct InspectBuildCommandServiceTests {
 
         uploadBuildRunService.reset()
         given(uploadBuildRunService)
-            .uploadBuildRun(activityLogPath: .any, projectPath: .any, config: .any)
-            .willProduce { _, _, _ in
+            .uploadBuildRun(activityLogPath: .any, projectPath: .any, config: .any, scheme: .any, configuration: .any)
+            .willProduce { _, _, _, _, _ in
                 throw UploadBuildRunServiceError.missingFullHandle
             }
 
@@ -408,7 +410,9 @@ struct InspectBuildCommandServiceTests {
             .uploadBuildRun(
                 activityLogPath: .value(activityLogPath),
                 projectPath: .value(projectPath),
-                config: .any
+                config: .any,
+                scheme: .any,
+                configuration: .any
             )
             .called(1)
     }

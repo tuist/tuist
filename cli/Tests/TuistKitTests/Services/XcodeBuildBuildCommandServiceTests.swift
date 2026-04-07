@@ -81,7 +81,7 @@ struct XcodeBuildBuildCommandServiceTests {
             .willReturn(.test(fullHandle: "tuist/tuist"))
 
         given(uploadBuildRunService)
-            .uploadBuildRun(activityLogPath: .any, projectPath: .any, config: .any)
+            .uploadBuildRun(activityLogPath: .any, projectPath: .any, config: .any, scheme: .any, configuration: .any)
             .willReturn(URL(string: "https://tuist.dev/test")!)
 
         // When
@@ -136,7 +136,7 @@ struct XcodeBuildBuildCommandServiceTests {
             .willReturn(.test(fullHandle: "tuist/tuist"))
 
         given(uploadBuildRunService)
-            .uploadBuildRun(activityLogPath: .any, projectPath: .any, config: .any)
+            .uploadBuildRun(activityLogPath: .any, projectPath: .any, config: .any, scheme: .any, configuration: .any)
             .willReturn(URL(string: "https://tuist.dev/test")!)
 
         // When
@@ -147,7 +147,9 @@ struct XcodeBuildBuildCommandServiceTests {
             .uploadBuildRun(
                 activityLogPath: .value(activityLogFile.path),
                 projectPath: .any,
-                config: .any
+                config: .any,
+                scheme: .any,
+                configuration: .any
             )
             .called(1)
     }
@@ -195,7 +197,7 @@ struct XcodeBuildBuildCommandServiceTests {
 
         // Then
         verify(uploadBuildRunService)
-            .uploadBuildRun(activityLogPath: .any, projectPath: .any, config: .any)
+            .uploadBuildRun(activityLogPath: .any, projectPath: .any, config: .any, scheme: .any, configuration: .any)
             .called(0)
     }
 
@@ -238,8 +240,8 @@ struct XcodeBuildBuildCommandServiceTests {
             .willReturn(.test(fullHandle: "tuist/tuist"))
 
         given(uploadBuildRunService)
-            .uploadBuildRun(activityLogPath: .any, projectPath: .any, config: .any)
-            .willProduce { _, _, _ in
+            .uploadBuildRun(activityLogPath: .any, projectPath: .any, config: .any, scheme: .any, configuration: .any)
+            .willProduce { _, _, _, _, _ in
                 throw NSError(domain: "test", code: 1)
             }
 

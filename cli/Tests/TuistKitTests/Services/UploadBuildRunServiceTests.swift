@@ -131,7 +131,9 @@ struct UploadBuildRunServiceTests {
         try await subject.uploadBuildRun(
             activityLogPath: activityLogPath,
             projectPath: projectPath,
-            config: config
+            config: config,
+            scheme: "App",
+            configuration: "Debug"
         )
 
         // Then
@@ -212,7 +214,9 @@ struct UploadBuildRunServiceTests {
         try await subject.uploadBuildRun(
             activityLogPath: activityLogPath,
             projectPath: projectPath,
-            config: config
+            config: config,
+            scheme: "App",
+            configuration: "Debug"
         )
 
         verify(createBuildService)

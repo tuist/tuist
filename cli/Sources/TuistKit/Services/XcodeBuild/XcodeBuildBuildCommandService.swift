@@ -99,7 +99,8 @@ struct XcodeBuildBuildCommandService {
             let buildPath = try await path(passthroughXcodebuildArguments: passthroughXcodebuildArguments)
             await uploadBuildRunIfNeeded(
                 activityLogPath: mostRecentActivityLogFile.path,
-                projectPath: buildPath
+                projectPath: buildPath,
+                passthroughXcodebuildArguments: passthroughXcodebuildArguments
             )
         }
 
@@ -136,7 +137,8 @@ struct XcodeBuildBuildCommandService {
 
     private func uploadBuildRunIfNeeded(
         activityLogPath: AbsolutePath,
-        projectPath: AbsolutePath
+        projectPath: AbsolutePath,
+        passthroughXcodebuildArguments: [String]
     ) async {
         guard let uploadBuildRunService else { return }
         do {
@@ -145,7 +147,9 @@ struct XcodeBuildBuildCommandService {
             try await uploadBuildRunService.uploadBuildRun(
                 activityLogPath: activityLogPath,
                 projectPath: projectPath,
-                config: config
+                config: config,
+                scheme: passedValue(for: "-scheme", arguments: passthroughXcodebuildArguments),
+                configuration: passedValue(for: "-configuration", arguments: passthroughXcodebuildArguments)
             )
         } catch {
             AlertController.current.warning(.alert("Failed to upload build: \(error.localizedDescription)"))
