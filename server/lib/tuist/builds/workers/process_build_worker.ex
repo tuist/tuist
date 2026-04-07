@@ -23,7 +23,14 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
       if is_nil(processor_url) or processor_url == "" do
         process_locally(build_id, storage_key, account_id, xcode_cache_upload_enabled)
       else
-        send_to_processor(processor_url, build_id, storage_key, account_id, project_id, xcode_cache_upload_enabled)
+        send_to_processor(
+          processor_url,
+          build_id,
+          storage_key,
+          account_id,
+          project_id,
+          xcode_cache_upload_enabled
+        )
       end
 
     build_metadata = Map.get(args, "build_metadata", %{})

@@ -9,6 +9,7 @@ defmodule Tuist.MixProject do
       elixirc_paths: elixirc_paths(Mix.env()),
       test_paths: ["test"],
       start_permanent: Enum.member?([:prod, :stag, :can], Mix.env()),
+      releases: releases(),
       aliases: aliases(),
       deps: deps(),
       compilers: [:boundary] ++ Mix.compilers(),
@@ -207,6 +208,16 @@ defmodule Tuist.MixProject do
         "esbuild app --minify",
         "esbuild apidocs --minify",
         "phx.digest"
+      ]
+    ]
+  end
+
+  defp releases do
+    [
+      tuist: [
+        applications: [
+          processor: :load
+        ]
       ]
     ]
   end

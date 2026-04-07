@@ -375,6 +375,11 @@ The official Tuist Docker image is available at:
 ghcr.io/tuist/tuist
 ```
 
+The published image includes embedded Linux build processing for `.xcactivitylog` archives, so self-hosted deployments can process builds without running a separate `processor` service. If you later want to offload build processing to dedicated workers, set `TUIST_PROCESSOR_URL` and `TUIST_PROCESSOR_WEBHOOK_SECRET` to enable the remote processor mode.
+
+> [!NOTE]
+> `.xcresult` processing remains a separate concern and still requires the macOS-based `xcode_processor` service.
+
 ### Pulling the Docker image {#pulling-the-docker-image}
 
 You can retrieve the image by executing the following command:
