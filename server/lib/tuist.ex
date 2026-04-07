@@ -24,6 +24,7 @@ defmodule Tuist do
       Docs.Sidebar,
       Marketing.Changelog,
       Marketing.Changelog.OgImage,
+      Marketing.OgImages,
       Marketing.OpenGraph,
       Marketing.Newsletter,
       Marketing.BlogContentProcessor,
