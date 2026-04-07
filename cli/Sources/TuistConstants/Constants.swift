@@ -1,7 +1,7 @@
 import Foundation
 
 public enum Constants {
-    @TaskLocal public static var version: String! = "4.174.5"
+    @TaskLocal public static var version: String! = "4.174.6"
     public static let versionFileName = ".tuist-version"
     public static let binFolderName = ".tuist-bin"
     public static let binName = "tuist"

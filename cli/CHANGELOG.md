@@ -6,6 +6,9 @@ All notable changes to this project will be documented in this file.
 ### 🐛 Bug Fixes
 
 * fix cross-project test host embed and TEST_HOST settings by [@pepicrft](https://github.com/pepicrft) in [#10139](https://github.com/tuist/tuist/pull/10139)
+### 🚜 Refactor
+
+* remove local MCP command by [@pepicrft](https://github.com/pepicrft) in [#10171](https://github.com/tuist/tuist/pull/10171)
 
 
 
