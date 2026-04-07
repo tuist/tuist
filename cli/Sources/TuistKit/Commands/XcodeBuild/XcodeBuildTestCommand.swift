@@ -48,7 +48,7 @@ public struct XcodeBuildTestCommand: AsyncParsableCommand, TrackableParsableComm
     var inspectMode: TestProcessingMode = .local
 
     public func run() async throws {
-        let shardArchivePath = try await {
+        let shardArchivePath = try await { () async throws -> AbsolutePath? in
             if let shardArchivePath = self.shardArchivePath {
                 return try await Environment.current.pathRelativeToWorkingDirectory(shardArchivePath)
             }

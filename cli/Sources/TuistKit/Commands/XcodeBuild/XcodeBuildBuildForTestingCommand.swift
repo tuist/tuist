@@ -83,7 +83,7 @@ public struct XcodeBuildBuildForTestingCommand: AsyncParsableCommand, TrackableP
     public var passthroughXcodebuildArguments: [String] = []
 
     public func run() async throws {
-        let shardArchivePath = try await {
+        let shardArchivePath = try await { () async throws -> AbsolutePath? in
             if let shardArchivePath = self.shardArchivePath {
                 return try await Environment.current.pathRelativeToWorkingDirectory(shardArchivePath)
             }
