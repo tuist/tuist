@@ -1,6 +1,16 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.174.4<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* add missing TuistTesting dependency to TuistCASTests by [@jsj](https://github.com/jsj) in [#10182](https://github.com/tuist/tuist/pull/10182)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.174.3...4.174.4
+
 ## What's Changed in 4.174.3<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
