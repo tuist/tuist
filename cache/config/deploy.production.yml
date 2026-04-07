@@ -17,8 +17,8 @@ env:
     SERVER_URL: https://tuist.dev
     SENTRY_ENV: prod
     DEPLOY_ENV: prod
-    POOL_SIZE: "10"
-    KEY_VALUE_POOL_SIZE: "4"
+    POOL_SIZE: "2"
+    KEY_VALUE_POOL_SIZE: "2"
     DISTRIBUTED_KV_POOL_SIZE: "10"
     DISTRIBUTED_KV_ACCESS_THROTTLE_MS: "300000"
     KEY_VALUE_MODE: distributed

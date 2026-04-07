@@ -5,6 +5,8 @@ defmodule Cache.SQLiteBuffer do
 
   use GenServer
 
+  alias Cache.Config
+
   require Logger
 
   @default_flush_interval_ms 200
@@ -174,14 +176,7 @@ defmodule Cache.SQLiteBuffer do
   end
 
   defp config_value(buffer_module, key, default) do
-    global =
-      :cache
-      |> Application.get_env(__MODULE__, [])
-      |> Keyword.get(key, default)
-
-    :cache
-    |> Application.get_env(buffer_module, [])
-    |> Keyword.get(key, global)
+    Config.sqlite_buffer_value(buffer_module, key, default)
   end
 
   defp flush_timeout_ms(server) do

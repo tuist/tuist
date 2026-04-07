@@ -128,6 +128,17 @@ defmodule Cache.Config do
     Application.get_env(:cache, repo)[:busy_timeout] || 30_000
   end
 
+  def sqlite_buffer_value(scope, key, default) do
+    global =
+      :cache
+      |> Application.get_env(Cache.SQLiteBuffer, [])
+      |> Keyword.get(key, default)
+
+    :cache
+    |> Application.get_env(scope, [])
+    |> Keyword.get(key, global)
+  end
+
   def key_value_eviction_max_duration_ms do
     Application.get_env(:cache, :key_value_eviction_max_duration_ms, 300_000)
   end

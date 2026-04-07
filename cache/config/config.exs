@@ -9,6 +9,7 @@ config :cache, Cache.DistributedKV.Repo,
 
 config :cache, Cache.KeyValueRepo,
   busy_timeout: 30_000,
+  default_transaction_mode: :immediate,
   journal_mode: :wal,
   synchronous: :normal,
   temp_store: :memory,
@@ -28,6 +29,7 @@ config :cache, Cache.PromEx,
 
 config :cache, Cache.Repo,
   busy_timeout: 30_000,
+  default_transaction_mode: :immediate,
   journal_mode: :wal,
   synchronous: :normal,
   temp_store: :memory,
@@ -39,7 +41,7 @@ config :cache, Cache.Repo,
   custom_pragmas: [mmap_size: 268_435_456]
 
 config :cache, Cache.SQLiteBuffer,
-  flush_interval_ms: 500,
+  flush_interval_ms: 2_000,
   flush_timeout_ms: 30_000,
   max_batch_size: 1_000,
   shutdown_ms: 30_000
@@ -58,6 +60,7 @@ config :cache, Oban,
   repo: Cache.Repo,
   engine: Oban.Engines.Lite,
   notifier: Oban.Notifiers.PG,
+  stage_interval: to_timeout(second: 5),
   queues: [
     clean: 10,
     maintenance: 1,
