@@ -198,6 +198,14 @@ public class GraphTraverser: GraphTraversing {
         }
     }
 
+    /// Collects App Intents metadata directories from transitive static XCFramework dependencies.
+    ///
+    /// This is intentionally limited to static XCFrameworks. Dynamic frameworks already expose their
+    /// App Intents metadata through the normal framework bundle layout that Xcode consumes as part of
+    /// its regular dependency metadata handling. The cached static XCFramework case is different: Tuist
+    /// needs to discover those metadata directories so project generation can recreate the sibling
+    /// `<Name>.appintents` layout and populate the dependency metadata file lists before Xcode processes
+    /// App Intents for the runnable target.
     public func staticXCFrameworkAppIntentsMetadata(
         path: AbsolutePath,
         name: String
