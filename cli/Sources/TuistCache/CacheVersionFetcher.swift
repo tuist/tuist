@@ -33,13 +33,10 @@ enum CacheVersion: String, Equatable, Hashable {
     /// Existing caches from the embedding approach must be invalidated.
     case version5 = "5"
 
-    /// Cached xcframework slices now embed Metadata.appintents for App Intents frameworks.
-    /// Existing caches without that metadata must be invalidated.
-    case version6 = "6"
 }
 
 struct CacheVersionFetcher: CacheVersionFetching {
     func version() -> CacheVersion {
-        .version6
+        .version5
     }
 }
