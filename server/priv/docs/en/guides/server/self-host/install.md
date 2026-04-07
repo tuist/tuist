@@ -375,12 +375,6 @@ Tuist provides an official Helm chart for deploying on Kubernetes. The chart pac
 ### Installing the chart {#installing-the-chart}
 
 ```bash
-helm install tuist oci://ghcr.io/tuist/charts/tuist
-```
-
-You will need to provide your license key:
-
-```bash
 helm install tuist oci://ghcr.io/tuist/charts/tuist \
   --set server.license.key="YOUR_LICENSE_KEY"
 ```
@@ -388,14 +382,17 @@ helm install tuist oci://ghcr.io/tuist/charts/tuist \
 To pin a specific chart version:
 
 ```bash
-helm install tuist oci://ghcr.io/tuist/charts/tuist --version 0.1.0
+helm install tuist oci://ghcr.io/tuist/charts/tuist \
+  --set server.license.key="YOUR_LICENSE_KEY" \
+  --version 0.1.0
 ```
 
 ### Infrastructure dependencies {#helm-infrastructure-dependencies}
 
-The chart manages three infrastructure dependencies: `postgresql`, `clickhouse`, and `objectStorage`. Each defaults to **embedded** mode, meaning the chart deploys them inside the cluster. To point at your own external instances instead, set the dependency's `mode` to `external` and fill in the connection details. For example, to use an external PostgreSQL database:
+The chart manages three infrastructure dependencies: `postgresql`, `clickhouse`, and `objectStorage`. Each defaults to **embedded** mode, meaning the chart deploys them inside the cluster. To point at your own external instances instead, set the dependency's `mode` to `external` and fill in the connection details in your `values.yaml`. For example, to use an external PostgreSQL database:
 
 ```yaml
+# values.yaml
 postgresql:
   mode: external
   external:
@@ -410,9 +407,10 @@ The same pattern applies to `clickhouse` and `objectStorage`. See the `external`
 
 ### Observability {#helm-observability}
 
-The chart includes an optional observability stack (OpenTelemetry Collector, Prometheus, Grafana, Loki, and Tempo). It is **disabled by default**. To enable it:
+The chart includes an optional observability stack (OpenTelemetry Collector, Prometheus, Grafana, Loki, and Tempo). It is **disabled by default**. To enable it in your `values.yaml`:
 
 ```yaml
+# values.yaml
 observability:
   enabled: true
 ```
@@ -420,6 +418,7 @@ observability:
 When enabled, Grafana is available with Logs, Traces, and Metrics drilldowns pre-configured. For external observability, keep this disabled and configure the endpoints via `server.extraEnv`:
 
 ```yaml
+# values.yaml
 server:
   extraEnv:
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
@@ -427,29 +426,6 @@ server:
     - name: TUIST_LOKI_URL
       value: "http://your-loki:3100"
 ```
-
-### Local testing {#helm-local-testing}
-
-> [!TIP]
-> **Testing locally with kind**
->
-> You can spin up the full stack on your machine using [kind](https://kind.sigs.k8s.io/) and the included mise tasks. This builds the Docker images locally, creates a kind cluster, installs the chart, and port-forwards all services automatically:
->
-> ```bash
-> # Deploy everything (builds images from source)
-> mise run helm:up --license "YOUR_LICENSE_KEY"
->
-> # Include the observability stack (Grafana, Prometheus, Loki, Tempo)
-> mise run helm:up --license "YOUR_LICENSE_KEY" --observability
->
-> # Check status
-> mise run helm:status
->
-> # Tear down
-> mise run helm:down
-> ```
->
-> **Prerequisites:** `docker`, `kind`, `helm`, and `kubectl`.
 
 ### Values reference {#helm-values-reference}
 
