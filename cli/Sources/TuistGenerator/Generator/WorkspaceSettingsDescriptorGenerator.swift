@@ -15,7 +15,7 @@ protocol WorkspaceSettingsDescriptorGenerating {
 struct WorkspaceSettingsDescriptorGenerator: WorkspaceSettingsDescriptorGenerating {
     func generateWorkspaceSettings(workspace: Workspace) -> WorkspaceSettingsDescriptor? {
         let options = workspace.generationOptions
-        let hasCustomDerivedData: Bool = if case .custom = options.derivedDataPath { true } else { false }
+        let hasCustomDerivedData = if case .custom = options.derivedDataPath { true } else { false }
         guard options.enableAutomaticXcodeSchemes != nil || hasCustomDerivedData else {
             return nil
         }
