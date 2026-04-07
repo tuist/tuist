@@ -12,12 +12,12 @@ defmodule TuistWeb.Locale do
   def supported_locales, do: SharedLocale.supported_locales()
 
   def on_mount(:assign_locale, _params, session, socket) do
-    locale =
-      session
-      |> Map.get("locale")
-      |> normalize_locale()
+    user_locale = user_dashboard_locale(socket)
 
-    locale = locale || connect_locale(socket)
+    locale =
+      user_locale ||
+        session |> Map.get("locale") |> normalize_locale() ||
+        connect_locale(socket)
 
     if locale do
       Gettext.put_locale(GettextBackend, locale)
@@ -49,6 +49,16 @@ defmodule TuistWeb.Locale do
     |> case do
       "" -> nil
       locale -> exact_supported_locale(locale) || chinese_locale(locale)
+    end
+  end
+
+  defp user_dashboard_locale(socket) do
+    case socket.assigns do
+      %{current_user: %{dashboard_language: lang}} when is_binary(lang) and lang != "" ->
+        if lang in supported_locales(), do: lang
+
+      _ ->
+        nil
     end
   end
 

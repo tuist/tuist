@@ -1205,6 +1205,12 @@ defmodule Tuist.Accounts do
     Repo.get(Role, id)
   end
 
+  def update_user_dashboard_language(%User{} = user, dashboard_language) do
+    user
+    |> User.dashboard_language_changeset(%{dashboard_language: dashboard_language})
+    |> Repo.update()
+  end
+
   def update_last_visited_project(%User{} = user, last_visited_project_id) do
     {:ok, user} =
       user

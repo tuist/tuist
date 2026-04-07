@@ -832,7 +832,11 @@ defmodule TuistWeb.Router do
 
     live_session :account,
       layout: {TuistWeb.Layouts, :account},
-      on_mount: [{TuistWeb.Authentication, :ensure_authenticated}, {TuistWeb.LayoutLive, :account}] do
+      on_mount: [
+        {TuistWeb.Authentication, :ensure_authenticated},
+        {TuistWeb.Locale, :assign_locale},
+        {TuistWeb.LayoutLive, :account}
+      ] do
       live "/", ProjectsLive
       live "/projects", ProjectsLive
       live "/members", MembersLive
@@ -857,8 +861,9 @@ defmodule TuistWeb.Router do
     live_session :project,
       layout: {TuistWeb.Layouts, :project},
       on_mount: [
-        {TuistWeb.LayoutLive, :project},
-        {TuistWeb.Authentication, :mount_current_user}
+        {TuistWeb.Authentication, :mount_current_user},
+        {TuistWeb.Locale, :assign_locale},
+        {TuistWeb.LayoutLive, :project}
       ] do
       live "/tests", TestsLive
       live "/tests/test-runs", TestRunsLive
