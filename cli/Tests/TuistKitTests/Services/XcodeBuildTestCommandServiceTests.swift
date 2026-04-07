@@ -245,6 +245,7 @@ struct XcodeBuildTestCommandServiceTests {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let shardArchivePath = temporaryDirectory.appending(component: "bundle.aar")
         let testProductsPath = temporaryDirectory.appending(component: "Extracted.xctestproducts")
+        let resultBundlePath = temporaryDirectory.appending(component: "test.xcresult")
 
         try await fileSystem.makeDirectory(at: testProductsPath)
 
@@ -284,7 +285,11 @@ struct XcodeBuildTestCommandServiceTests {
             .willReturn()
 
         try await subject.run(
-            passthroughXcodebuildArguments: ["test", "-scheme", "MyAppTests"],
+            passthroughXcodebuildArguments: [
+                "test",
+                "-scheme", "MyAppTests",
+                "-resultBundlePath", resultBundlePath.pathString,
+            ],
             shardIndex: 1,
             shardArchivePath: shardArchivePath
         )

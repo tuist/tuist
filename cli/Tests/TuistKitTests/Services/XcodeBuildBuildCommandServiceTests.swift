@@ -249,6 +249,7 @@ struct XcodeBuildBuildCommandServiceTests {
         let testProductsPath = temporaryDirectory.appending(component: "MyAppTests.xctestproducts")
         let shardArchivePath = temporaryDirectory.appending(components: "artifacts", "bundle.aar")
         let derivedDataPath = temporaryDirectory.appending(component: "DerivedData")
+        let resultBundlePath = temporaryDirectory.appending(component: "build.xcresult")
 
         try await fileSystem.makeDirectory(at: testProductsPath)
 
@@ -263,6 +264,10 @@ struct XcodeBuildBuildCommandServiceTests {
                     derivedDataPath: derivedDataPath
                 )
             )
+
+        given(xcActivityLogController)
+            .mostRecentActivityLogFile(projectDerivedDataDirectory: .value(derivedDataPath), filter: .any)
+            .willReturn(nil)
 
         given(xcodeBuildController)
             .run(arguments: .any)
@@ -302,6 +307,7 @@ struct XcodeBuildBuildCommandServiceTests {
                 "build-for-testing",
                 "-scheme", "MyAppTests",
                 "-destination", "platform=iOS Simulator,name=iPhone 16",
+                "-resultBundlePath", resultBundlePath.pathString,
                 "-testProductsPath", testProductsPath.pathString,
             ],
             shardTotal: 2,
