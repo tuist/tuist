@@ -54,7 +54,7 @@ defmodule TuistWeb.Locale do
 
   defp user_dashboard_locale(socket) do
     case socket.assigns do
-      %{current_user: %{dashboard_language: lang}} when is_binary(lang) and lang != "" ->
+      %{current_user: %{preferred_locale: lang}} when is_binary(lang) and lang != "" ->
         if lang in supported_locales(), do: lang
 
       _ ->

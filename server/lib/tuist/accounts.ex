@@ -1205,9 +1205,9 @@ defmodule Tuist.Accounts do
     Repo.get(Role, id)
   end
 
-  def update_user_dashboard_language(%User{} = user, dashboard_language) do
+  def update_user_preferred_locale(%User{} = user, preferred_locale) do
     user
-    |> User.dashboard_language_changeset(%{dashboard_language: dashboard_language})
+    |> User.preferred_locale_changeset(%{preferred_locale: preferred_locale})
     |> Repo.update()
   end
 

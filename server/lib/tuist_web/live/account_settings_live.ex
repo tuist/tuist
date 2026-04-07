@@ -27,8 +27,8 @@ defmodule TuistWeb.AccountSettingsLive do
     cache_endpoints = Accounts.list_account_cache_endpoints(selected_account)
     custom_cache_endpoints_available = Accounts.custom_cache_endpoints_available?(selected_account)
 
-    dashboard_language_form =
-      to_form(%{"dashboard_language" => current_user.dashboard_language || "browser"})
+    preferred_locale_form =
+      to_form(%{"preferred_locale" => current_user.preferred_locale || "browser"})
 
     socket =
       socket
@@ -40,7 +40,7 @@ defmodule TuistWeb.AccountSettingsLive do
       |> assign(add_cache_endpoint_form: add_cache_endpoint_form)
       |> assign(cache_endpoints: cache_endpoints)
       |> assign(custom_cache_endpoints_available: custom_cache_endpoints_available)
-      |> assign(dashboard_language_form: dashboard_language_form)
+      |> assign(preferred_locale_form: preferred_locale_form)
       |> assign(:head_title, "#{dgettext("dashboard_account", "Settings")} · #{selected_account.name} · Tuist")
 
     {:ok, socket}
@@ -125,13 +125,13 @@ defmodule TuistWeb.AccountSettingsLive do
   end
 
   def handle_event(
-        "select_dashboard_language",
+        "select_preferred_locale",
         %{"value" => [value]},
         %{assigns: %{current_user: current_user, selected_account: selected_account}} = socket
       ) do
-    dashboard_language = if value == "browser", do: nil, else: value
+    preferred_locale = if value == "browser", do: nil, else: value
 
-    {:ok, _user} = Accounts.update_user_dashboard_language(current_user, dashboard_language)
+    {:ok, _user} = Accounts.update_user_preferred_locale(current_user, preferred_locale)
 
     {:noreply, push_navigate(socket, to: ~p"/#{selected_account.name}/settings")}
   end
@@ -237,9 +237,9 @@ defmodule TuistWeb.AccountSettingsLive do
     end
   end
 
-  attr(:dashboard_language_form, :any, required: true)
+  attr(:preferred_locale_form, :any, required: true)
 
-  def dashboard_language_section(assigns) do
+  def preferred_locale_section(assigns) do
     languages = [%{code: "browser", label: dgettext("dashboard_account", "Browser default")} | SharedLocale.languages()]
     assigns = assign(assigns, :languages, languages)
 
@@ -259,9 +259,9 @@ defmodule TuistWeb.AccountSettingsLive do
         </label>
         <.select
           id="dashboard-language-selection"
-          field={@dashboard_language_form[:dashboard_language]}
+          field={@preferred_locale_form[:preferred_locale]}
           label={dgettext("dashboard_account", "Language")}
-          on_value_change="select_dashboard_language"
+          on_value_change="select_preferred_locale"
         >
           <:item
             :for={lang <- @languages}
