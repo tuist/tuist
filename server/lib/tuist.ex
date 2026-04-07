@@ -126,6 +126,8 @@ defmodule Tuist do
       ClickHouseRepo,
       ClickHouseFlop,
       Markdown,
+      Cldr,
+      Cldr.Number,
       # We should not be exposing this one
       Repo,
       Storage,

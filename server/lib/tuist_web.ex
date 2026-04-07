@@ -121,8 +121,9 @@ defmodule TuistWeb do
       # HTML escaping functionality
       import Phoenix.HTML
       import TuistWeb.AppAuthComponents
-      # Core UI components and translation
       import TuistWeb.AppComponents
+      import TuistWeb.CldrHelpers
+      # Core UI components and translation
       import TuistWeb.Components.IconComponents
       import TuistWeb.Components.Skeleton
       import TuistWeb.Widget

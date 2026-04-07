@@ -197,11 +197,7 @@
             "Cache hits represents the total count of targets that were resolved from cache (local or remote) during the given period."
           )
         }
-        value={
-          if @hits_analytics.ok?,
-            do:
-              Number.Delimit.number_to_delimited(@hits_analytics.result.total_count, precision: 0)
-        }
+        value={if @hits_analytics.ok?, do: format_number(@hits_analytics.result.total_count)}
         id="widget-cache-hits"
         trend_value={if @hits_analytics.ok?, do: @hits_analytics.result.trend}
         trend_type={:neutral}
@@ -221,13 +217,7 @@
             "Cache misses represents the total count of cacheable targets that had to be rebuilt because they were not found in cache during the given period."
           )
         }
-        value={
-          if @misses_analytics.ok?,
-            do:
-              Number.Delimit.number_to_delimited(@misses_analytics.result.total_count,
-                precision: 0
-              )
-        }
+        value={if @misses_analytics.ok?, do: format_number(@misses_analytics.result.total_count)}
         id="widget-cache-misses"
         trend_value={if @misses_analytics.ok?, do: @misses_analytics.result.trend}
         trend_type={:neutral}

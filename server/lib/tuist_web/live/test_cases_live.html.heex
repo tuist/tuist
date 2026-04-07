@@ -92,10 +92,7 @@
           }
           value={
             if @test_case_runs_analytics.ok?,
-              do:
-                Number.Delimit.number_to_delimited(@test_case_runs_analytics.result.count,
-                  precision: 0
-                )
+              do: format_number(@test_case_runs_analytics.result.count)
           }
           id="widget-test-case-run-count"
           legend_color="primary"
@@ -122,11 +119,7 @@
           }
           value={
             if @failed_test_case_runs_analytics.ok?,
-              do:
-                Number.Delimit.number_to_delimited(
-                  @failed_test_case_runs_analytics.result.count,
-                  precision: 0
-                )
+              do: format_number(@failed_test_case_runs_analytics.result.count)
           }
           id="widget-failed-test-case-run-count"
           legend_color="destructive"
