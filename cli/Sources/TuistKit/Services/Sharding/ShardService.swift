@@ -139,7 +139,7 @@ public struct ShardService: ShardServicing {
             try await fileSystem.writeText(plistString, at: destPath)
             xcTestRunPath = destPath
         } else {
-            try await fileSystem.writeText(plistString, at: xcTestRunSourcePath)
+            try await fileSystem.writeText(plistString, at: xcTestRunSourcePath, encoding: .utf8, options: [.overwrite])
         }
 
         let selectiveTestingGraphPath = resolvedTestProductsPath.appending(component: SelectiveTestingGraph.fileName)
