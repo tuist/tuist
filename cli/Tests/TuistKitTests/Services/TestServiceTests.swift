@@ -3377,7 +3377,7 @@ final class TestServiceTests: TuistUnitTestCase {
 
         given(configLoader)
             .loadConfig(path: .any)
-            .willReturn(.test(fullHandle: "tuist/tuist", project: .testGeneratedProject()))
+            .willReturn(.test(project: .testGeneratedProject(), fullHandle: "tuist/tuist"))
 
         given(generator)
             .generateWithGraph(path: .any, options: .any)
@@ -3420,8 +3420,8 @@ final class TestServiceTests: TuistUnitTestCase {
         // When
         try await testRun(
             path: path,
-            action: .build,
             platform: "iOS",
+            action: .build,
             passthroughXcodeBuildArguments: ["-testProductsPath", testProductsPath.pathString],
             shardTotal: 2,
             shardArchivePath: shardArchivePath
@@ -3456,7 +3456,7 @@ final class TestServiceTests: TuistUnitTestCase {
 
         given(configLoader)
             .loadConfig(path: .any)
-            .willReturn(.test(fullHandle: "tuist/tuist", project: .testGeneratedProject()))
+            .willReturn(.test(project: .testGeneratedProject(), fullHandle: "tuist/tuist"))
 
         given(shardService)
             .shard(
