@@ -27,7 +27,11 @@ public struct ExternalDependencyPathWorkspaceMapper: WorkspaceMapping {
         var project = project
         let xcodeProjBasename = project.xcodeProjPath.basename
         let derivedDirectory = project.path.parentDirectory.parentDirectory.appending(
-            components: Constants.DerivedDirectory.dependenciesDerivedDirectory, project.name
+            components: [
+                Constants.DerivedDirectory.dependenciesDerivedDirectory,
+                Constants.DerivedDirectory.dependenciesProjectDirectory,
+                project.name,
+            ]
         )
         project.xcodeProjPath = derivedDirectory.appending(component: xcodeProjBasename)
 

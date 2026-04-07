@@ -52,6 +52,7 @@ extension Project {
                 .appending(
                     components: [
                         Constants.DerivedDirectory.dependenciesDerivedDirectory,
+                        Constants.DerivedDirectory.dependenciesTargetDirectory,
                         target.name,
                     ]
                 )
