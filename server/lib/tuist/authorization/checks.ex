@@ -129,6 +129,13 @@ defmodule Tuist.Authorization.Checks do
   When `all_projects` is true, the token has access to all projects under the account.
   When `all_projects` is false, access is restricted to projects in `project_ids`.
   """
+  def project_access_permitted(
+        %AuthenticatedAccount{user: %User{} = user, all_projects: true},
+        %Project{} = project
+      ) do
+    Accounts.owns_account_or_belongs_to_account_organization?(user, %{id: project.account_id})
+  end
+
   def project_access_permitted(%AuthenticatedAccount{account: %Account{id: account_id}, all_projects: true}, %Project{
         account_id: project_account_id
       }) do

@@ -9,7 +9,8 @@ defmodule Tuist.Accounts.AuthenticatedAccount do
   - `project_ids` - When all_projects is false, list of project IDs the token can access
   - `token_id` - The ID of the token used for authentication
   - `created_by_account_id` - The ID of the account that created this token
+  - `user` - The user who authorized the token (set for OAuth tokens to enable cross-org project listing)
   """
   @enforce_keys [:account, :scopes]
-  defstruct [:account, :scopes, :all_projects, :project_ids, :token_id, :created_by_account_id]
+  defstruct [:account, :scopes, :all_projects, :project_ids, :token_id, :created_by_account_id, :user]
 end

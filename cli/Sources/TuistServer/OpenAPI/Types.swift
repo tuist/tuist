@@ -3824,6 +3824,11 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/Project/repository_url`.
             public var repository_url: Swift.String?
+            /// Deprecated. Always returns an empty string.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Project/token`.
+            @available(*, deprecated)
+            public var token: Swift.String?
             /// The visibility of the project
             ///
             /// - Remark: Generated from `#/components/schemas/Project/visibility`.
@@ -3843,6 +3848,7 @@ public enum Components {
             ///   - full_name: The full name of the project (e.g. tuist/tuist)
             ///   - id: ID of the project
             ///   - repository_url: The URL of the connected git repository, such as https://github.com/tuist/tuist or https://github.com/tuist/tuist.git
+            ///   - token: Deprecated. Always returns an empty string.
             ///   - visibility: The visibility of the project
             public init(
                 build_system: Components.Schemas.Project.build_systemPayload? = nil,
@@ -3850,6 +3856,7 @@ public enum Components {
                 full_name: Swift.String,
                 id: Swift.Double,
                 repository_url: Swift.String? = nil,
+                token: Swift.String? = nil,
                 visibility: Components.Schemas.Project.visibilityPayload
             ) {
                 self.build_system = build_system
@@ -3857,6 +3864,7 @@ public enum Components {
                 self.full_name = full_name
                 self.id = id
                 self.repository_url = repository_url
+                self.token = token
                 self.visibility = visibility
             }
             public enum CodingKeys: String, CodingKey {
@@ -3865,6 +3873,7 @@ public enum Components {
                 case full_name
                 case id
                 case repository_url
+                case token
                 case visibility
             }
         }
@@ -7506,6 +7515,7 @@ public enum Components {
                 case failure = "failure"
                 case skipped = "skipped"
                 case processing = "processing"
+                case failed_processing = "failed_processing"
             }
             /// The status of the test run.
             ///
@@ -7671,6 +7681,7 @@ public enum Components {
                         case failure = "failure"
                         case skipped = "skipped"
                         case processing = "processing"
+                        case failed_processing = "failed_processing"
                     }
                     /// The status of the test case.
                     ///
@@ -7743,6 +7754,7 @@ public enum Components {
                         case failure = "failure"
                         case skipped = "skipped"
                         case processing = "processing"
+                        case failed_processing = "failed_processing"
                     }
                     /// The status of the test suite.
                     ///
@@ -49023,6 +49035,7 @@ public enum Operations {
                         case failure = "failure"
                         case skipped = "skipped"
                         case processing = "processing"
+                        case failed_processing = "failed_processing"
                     }
                     /// The status of the test run.
                     ///
@@ -49188,6 +49201,7 @@ public enum Operations {
                                 case failure = "failure"
                                 case skipped = "skipped"
                                 case processing = "processing"
+                                case failed_processing = "failed_processing"
                             }
                             /// The status of the test case.
                             ///
@@ -49260,6 +49274,7 @@ public enum Operations {
                                 case failure = "failure"
                                 case skipped = "skipped"
                                 case processing = "processing"
+                                case failed_processing = "failed_processing"
                             }
                             /// The status of the test suite.
                             ///
