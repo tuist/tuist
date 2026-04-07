@@ -3,6 +3,16 @@ import Mockable
 import Path
 import XcodeGraph
 
+public struct StaticXCFrameworkAppIntentsMetadata: Hashable, Sendable {
+    public let frameworkName: String
+    public let metadataPath: AbsolutePath
+
+    public init(frameworkName: String, metadataPath: AbsolutePath) {
+        self.frameworkName = frameworkName
+        self.metadataPath = metadataPath
+    }
+}
+
 @Mockable
 public protocol GraphTraversing {
     /// Graph name
@@ -81,6 +91,14 @@ public protocol GraphTraversing {
 
     /// - Returns: All direct and transitive target dependencies, traversing from the passed targets
     func allTargetDependencies(traversingFromTargets: [GraphTarget]) -> Set<GraphTarget>
+
+    /// Returns App Intents metadata directories declared by transitive static XCFramework dependencies.
+    ///
+    /// We traverse through both target and binary edges because static XCFrameworks can depend on
+    /// other binaries, and Xcode resolves the final slice from the copied XCFramework graph at build time.
+    func staticXCFrameworkAppIntentsMetadata(path: AbsolutePath, name: String) throws -> Set<
+        StaticXCFrameworkAppIntentsMetadata
+    >
 
     /// Given a project directory and target name, it returns **all** its direct target dependencies (including external
     /// dependencies).

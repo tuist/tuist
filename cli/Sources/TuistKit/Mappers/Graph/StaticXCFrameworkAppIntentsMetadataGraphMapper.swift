@@ -1,17 +1,8 @@
 import FileSystem
-import Path
 import TuistCore
 import XcodeGraph
 
 public struct StaticXCFrameworkAppIntentsMetadataGraphMapper: GraphMapping {
-    private struct AppIntentsMetadataDependency: Comparable, Hashable {
-        let frameworkName: String
-
-        static func < (lhs: AppIntentsMetadataDependency, rhs: AppIntentsMetadataDependency) -> Bool {
-            lhs.frameworkName < rhs.frameworkName
-        }
-    }
-
     private enum Constants {
         static let scriptName = "Prepare App Intents Metadata for Static XCFrameworks"
         static let metadataFile = "${TARGET_TEMP_DIR}/${TARGET_NAME}.DependencyMetadataFileList"
@@ -95,57 +86,25 @@ public struct StaticXCFrameworkAppIntentsMetadataGraphMapper: GraphMapping {
         graph: Graph,
         graphTarget: GraphTarget
     ) async throws -> [AppIntentsMetadataDependency] {
-        let staticXCFrameworkDependencies = staticXCFrameworkDependencies(
-            graph: graph,
-            from: .target(name: graphTarget.target.name, path: graphTarget.path)
+        let graphTraverser = GraphTraverser(graph: graph)
+        let dependencies = try graphTraverser.staticXCFrameworkAppIntentsMetadata(
+            path: graphTarget.path,
+            name: graphTarget.target.name
         )
 
-        var dependencies: Set<AppIntentsMetadataDependency> = []
-
-        for dependency in staticXCFrameworkDependencies {
-            guard case let .xcframework(xcframework) = dependency else { continue }
-            dependencies.formUnion(try await appIntentsMetadataDependencies(in: xcframework))
+        var result: [AppIntentsMetadataDependency] = []
+        for dependency in dependencies where try await fileSystem.exists(dependency.metadataPath) {
+            result.append(.init(frameworkName: dependency.frameworkName))
         }
 
-        return dependencies.sorted()
+        return result.sorted()
     }
+}
 
-    private func staticXCFrameworkDependencies(
-        graph: Graph,
-        from root: GraphDependency
-    ) -> Set<GraphDependency> {
-        var queue = Array(graph.dependencies[root, default: []])
-        var visited: Set<GraphDependency> = []
-        var result: Set<GraphDependency> = []
+private struct AppIntentsMetadataDependency: Comparable, Hashable {
+    let frameworkName: String
 
-        while let dependency = queue.popLast() {
-            guard visited.insert(dependency).inserted else { continue }
-
-            if case let .xcframework(xcframework) = dependency, xcframework.linking == .static {
-                result.insert(dependency)
-            }
-
-            queue.append(contentsOf: graph.dependencies[dependency, default: []])
-        }
-
-        return result
-    }
-
-    private func appIntentsMetadataDependencies(
-        in xcframework: GraphDependency.XCFramework
-    ) async throws -> Set<AppIntentsMetadataDependency> {
-        var dependencies: Set<AppIntentsMetadataDependency> = []
-
-        for library in xcframework.infoPlist.libraries where library.path.extension == "framework" {
-            let metadataPath = xcframework.path
-                .appending(component: library.identifier)
-                .appending(try RelativePath(validating: library.path.pathString))
-                .appending(component: "Metadata.appintents")
-
-            guard try await fileSystem.exists(metadataPath) else { continue }
-            dependencies.insert(.init(frameworkName: library.binaryName))
-        }
-
-        return dependencies
+    static func < (lhs: AppIntentsMetadataDependency, rhs: AppIntentsMetadataDependency) -> Bool {
+        lhs.frameworkName < rhs.frameworkName
     }
 }

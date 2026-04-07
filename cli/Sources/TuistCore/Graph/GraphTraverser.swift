@@ -198,6 +198,33 @@ public class GraphTraverser: GraphTraversing {
         }
     }
 
+    public func staticXCFrameworkAppIntentsMetadata(
+        path: AbsolutePath,
+        name: String
+    ) throws -> Set<StaticXCFrameworkAppIntentsMetadata> {
+        var queue = Array(graph.dependencies[.target(name: name, path: path), default: []])
+        var visited: Set<GraphDependency> = []
+        var result: Set<StaticXCFrameworkAppIntentsMetadata> = []
+
+        while let dependency = queue.popLast() {
+            guard visited.insert(dependency).inserted else { continue }
+
+            if case let .xcframework(xcframework) = dependency, xcframework.linking == .static {
+                for library in xcframework.infoPlist.libraries where library.path.extension == "framework" {
+                    let metadataPath = xcframework.path
+                        .appending(component: library.identifier)
+                        .appending(try RelativePath(validating: library.path.pathString))
+                        .appending(component: "Metadata.appintents")
+                    result.insert(.init(frameworkName: library.binaryName, metadataPath: metadataPath))
+                }
+            }
+
+            queue.append(contentsOf: graph.dependencies[dependency, default: []])
+        }
+
+        return result
+    }
+
     public func directTargetDependencies(path: Path.AbsolutePath, name: String) -> Set<
         GraphTargetReference
     > {
