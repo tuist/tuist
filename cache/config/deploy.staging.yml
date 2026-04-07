@@ -9,4 +9,5 @@ env:
     SERVER_URL: https://staging.tuist.dev
     SENTRY_ENV: stag
     DEPLOY_ENV: stag
+    DISTRIBUTED_KV_POOL_SIZE: "10"
     KEY_VALUE_MODE: distributed

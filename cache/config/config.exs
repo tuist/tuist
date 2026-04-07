@@ -3,6 +3,8 @@ import Config
 config :cache, Cache.DistributedKV.Repo,
   migration_primary_key: [type: :string],
   migration_timestamps: [type: :utc_datetime_usec],
+  queue_target: 1_000,
+  queue_interval: 1_000,
   priv: "priv/distributed_kv_repo"
 
 config :cache, Cache.KeyValueRepo,
