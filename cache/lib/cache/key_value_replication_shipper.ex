@@ -67,6 +67,11 @@ defmodule Cache.KeyValueReplicationShipper do
     {:noreply, new_state}
   end
 
+  def handle_info(message, state) do
+    Logger.warning("Replication shipper received unexpected message: #{inspect(message)}")
+    {:noreply, state}
+  end
+
   defp safe_flush(state) do
     flush_pending_rows()
     {:ok, %{state | consecutive_errors: 0}}

@@ -2,6 +2,8 @@ defmodule Cache.KeyValueReplicationShipperTest do
   use ExUnit.Case, async: false
   use Mimic
 
+  import ExUnit.CaptureLog
+
   alias Cache.Config
   alias Cache.DistributedKV.Cleanup
   alias Cache.DistributedKV.Entry
@@ -284,6 +286,27 @@ defmodule Cache.KeyValueReplicationShipperTest do
 
     assert :ok = KeyValueReplicationShipper.flush_now()
     assert_receive :cutoffs_loaded
+  end
+
+  test "ignores alias dropped messages without crashing" do
+    stub(Config, :distributed_kv_ship_interval_ms, fn -> 60_000 end)
+    stub(Cleanup, :effective_project_barriers, fn _scopes -> %{} end)
+    stub(KeyValueEntries, :list_pending_replication, fn -> [] end)
+
+    pid = start_supervised!(KeyValueReplicationShipper)
+    ref = Process.monitor(pid)
+    message = {[:alias | make_ref()], :dropped}
+
+    log =
+      capture_log(fn ->
+        send(pid, message)
+        Process.sleep(50)
+      end)
+
+    assert log =~ "Replication shipper received unexpected message: #{inspect(message)}"
+    refute_received {:DOWN, ^ref, :process, ^pid, _reason}
+    assert Process.alive?(pid)
+    assert :ok = KeyValueReplicationShipper.flush_now()
   end
 
   test "same-second cleanup cutoffs do not discard pending rows" do
