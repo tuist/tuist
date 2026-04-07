@@ -1722,6 +1722,36 @@ final class GraphTraverserTests: TuistUnitTestCase {
         XCTAssertTrue(got.isEmpty)
     }
 
+    func test_embeddableFrameworks_whenHostedTestTarget_withDirectFrameworkNotInHost() throws {
+        // Given: Unit test depends on a host app AND a framework that the host does NOT depend on.
+        // The framework should NOT be embedded in the .xctest bundle.
+        let featureFramework = Target.test(name: "FeatureA", product: .framework)
+        let app = Target.test(name: "SharedTestHost", product: .app)
+        let tests = Target.test(name: "FeatureATests", product: .unitTests)
+        let hostProject = Project.test(path: "/path/host", targets: [app])
+        let featureProject = Project.test(path: "/path/feature", targets: [featureFramework, tests])
+
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: app.name, path: hostProject.path): Set(),
+            .target(name: featureFramework.name, path: featureProject.path): Set(),
+            .target(name: tests.name, path: featureProject.path): Set([
+                .target(name: app.name, path: hostProject.path),
+                .target(name: featureFramework.name, path: featureProject.path),
+            ]),
+        ]
+        let graph = Graph.test(
+            projects: [hostProject.path: hostProject, featureProject.path: featureProject],
+            dependencies: dependencies
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.embeddableFrameworks(path: featureProject.path, name: tests.name).sorted()
+
+        // Then
+        XCTAssertTrue(got.isEmpty)
+    }
+
     func test_embeddableFrameworks_whenUITest_andAppPrecompiledDependencies() throws {
         // Given
         let app = Target.test(name: "App", product: .app)
