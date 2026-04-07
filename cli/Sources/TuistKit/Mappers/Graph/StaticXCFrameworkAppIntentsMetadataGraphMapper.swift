@@ -4,41 +4,18 @@ import TuistCore
 import XcodeGraph
 
 public struct StaticXCFrameworkAppIntentsMetadataGraphMapper: GraphMapping {
+    private struct AppIntentsMetadataDependency: Comparable, Hashable {
+        let frameworkName: String
+
+        static func < (lhs: AppIntentsMetadataDependency, rhs: AppIntentsMetadataDependency) -> Bool {
+            lhs.frameworkName < rhs.frameworkName
+        }
+    }
+
     private enum Constants {
-        static let scriptName = "Inject App Intents Metadata from Cached Frameworks"
-        static let script = """
-        METADATA_FILE="${TARGET_TEMP_DIR}/${TARGET_NAME}.DependencyMetadataFileList"
-        STATIC_METADATA_FILE="${TARGET_TEMP_DIR}/${TARGET_NAME}.DependencyStaticMetadataFileList"
-
-        for framework_path in "${BUILT_PRODUCTS_DIR}"/*.framework; do
-            [ -d "$framework_path" ] || continue
-
-            framework_name="$(basename "$framework_path" .framework)"
-            metadata_source="${framework_path}/Metadata.appintents"
-            sibling_metadata="${BUILT_PRODUCTS_DIR}/${framework_name}.appintents/Metadata.appintents"
-
-            [ -d "$metadata_source" ] || continue
-
-            if [ ! -d "$sibling_metadata" ]; then
-                mkdir -p "$sibling_metadata"
-                cp -R "$metadata_source/" "$sibling_metadata/"
-            fi
-
-            actions_data="${sibling_metadata}/extract.actionsdata"
-            [ -f "$actions_data" ] || continue
-
-            touch "$METADATA_FILE" "$STATIC_METADATA_FILE"
-
-            framework_actions_data="${framework_path}/Metadata.appintents/extract.actionsdata"
-            if ! grep -qF "$framework_actions_data" "$METADATA_FILE"; then
-                echo "$framework_actions_data" >> "$METADATA_FILE"
-            fi
-
-            if ! grep -qF "$actions_data" "$STATIC_METADATA_FILE"; then
-                echo "$actions_data" >> "$STATIC_METADATA_FILE"
-            fi
-        done
-        """
+        static let scriptName = "Prepare App Intents Metadata for Static XCFrameworks"
+        static let metadataFile = "${TARGET_TEMP_DIR}/${TARGET_NAME}.DependencyMetadataFileList"
+        static let staticMetadataFile = "${TARGET_TEMP_DIR}/${TARGET_NAME}.DependencyStaticMetadataFileList"
     }
 
     private let fileSystem: FileSysteming
@@ -57,12 +34,17 @@ public struct StaticXCFrameworkAppIntentsMetadataGraphMapper: GraphMapping {
 
         for graphTarget in targets {
             guard graphTarget.target.product.runnable else { continue }
-            guard try await requiresMetadataInjection(graph: graph, graphTarget: graphTarget) else { continue }
+
+            let metadataDependencies = try await appIntentsMetadataDependencies(
+                graph: graph,
+                graphTarget: graphTarget
+            )
+            guard !metadataDependencies.isEmpty else { continue }
             guard !graphTarget.target.scripts.contains(where: { $0.name == Constants.scriptName }) else { continue }
             guard var project = graph.projects[graphTarget.path] else { continue }
 
             let updatedTarget = graphTarget.target.with(
-                scripts: graphTarget.target.scripts + [metadataInjectionScript]
+                scripts: graphTarget.target.scripts + [metadataInjectionScript(for: metadataDependencies)]
             )
             project.targets[updatedTarget.name] = updatedTarget
             graph.projects[graphTarget.path] = project
@@ -71,32 +53,61 @@ public struct StaticXCFrameworkAppIntentsMetadataGraphMapper: GraphMapping {
         return (graph, [], environment)
     }
 
-    private var metadataInjectionScript: TargetScript {
+    private func metadataInjectionScript(for dependencies: [AppIntentsMetadataDependency]) -> TargetScript {
+        let dependenciesScript = dependencies.map { dependency in
+            """
+            framework_name='\(dependency.frameworkName)'
+            framework_metadata="${BUILT_PRODUCTS_DIR}/${framework_name}.framework/Metadata.appintents"
+            static_metadata="${BUILT_PRODUCTS_DIR}/${framework_name}.appintents/Metadata.appintents"
+
+            if [ -d "$framework_metadata" ] && [ ! -d "$static_metadata" ]; then
+                mkdir -p "$static_metadata"
+                cp -R "$framework_metadata/." "$static_metadata/"
+            fi
+
+            framework_actions_data="${framework_metadata}/extract.actionsdata"
+            [ -f "$framework_actions_data" ] && echo "$framework_actions_data" >> "$METADATA_FILE"
+
+            static_actions_data="${static_metadata}/extract.actionsdata"
+            [ -f "$static_actions_data" ] && echo "$static_actions_data" >> "$STATIC_METADATA_FILE"
+            """
+        }.joined(separator: "\n\n")
+
+        let script = """
+        METADATA_FILE="\(Constants.metadataFile)"
+        STATIC_METADATA_FILE="\(Constants.staticMetadataFile)"
+
+        : > "$METADATA_FILE"
+        : > "$STATIC_METADATA_FILE"
+
+        \(dependenciesScript)
+        """
         TargetScript(
             name: Constants.scriptName,
             order: .pre,
-            script: .embedded(Constants.script),
+            script: .embedded(script),
+            showEnvVarsInLog: false,
             basedOnDependencyAnalysis: false
         )
     }
 
-    private func requiresMetadataInjection(
+    private func appIntentsMetadataDependencies(
         graph: Graph,
         graphTarget: GraphTarget
-    ) async throws -> Bool {
+    ) async throws -> [AppIntentsMetadataDependency] {
         let staticXCFrameworkDependencies = staticXCFrameworkDependencies(
             graph: graph,
             from: .target(name: graphTarget.target.name, path: graphTarget.path)
         )
 
+        var dependencies: Set<AppIntentsMetadataDependency> = []
+
         for dependency in staticXCFrameworkDependencies {
             guard case let .xcframework(xcframework) = dependency else { continue }
-            if try await containsAppIntentsMetadata(at: xcframework.path) {
-                return true
-            }
+            dependencies.formUnion(try await appIntentsMetadataDependencies(in: xcframework))
         }
 
-        return false
+        return dependencies.sorted()
     }
 
     private func staticXCFrameworkDependencies(
@@ -120,12 +131,21 @@ public struct StaticXCFrameworkAppIntentsMetadataGraphMapper: GraphMapping {
         return result
     }
 
-    private func containsAppIntentsMetadata(at xcframeworkPath: AbsolutePath) async throws -> Bool {
-        let metadataPaths = try await fileSystem.glob(
-            directory: xcframeworkPath,
-            include: ["**/Metadata.appintents"]
-        ).collect()
+    private func appIntentsMetadataDependencies(
+        in xcframework: GraphDependency.XCFramework
+    ) async throws -> Set<AppIntentsMetadataDependency> {
+        var dependencies: Set<AppIntentsMetadataDependency> = []
 
-        return !metadataPaths.isEmpty
+        for library in xcframework.infoPlist.libraries where library.path.extension == "framework" {
+            let metadataPath = xcframework.path
+                .appending(component: library.identifier)
+                .appending(try RelativePath(validating: library.path.pathString))
+                .appending(component: "Metadata.appintents")
+
+            guard try await fileSystem.exists(metadataPath) else { continue }
+            dependencies.insert(.init(frameworkName: library.binaryName))
+        }
+
+        return dependencies
     }
 }
