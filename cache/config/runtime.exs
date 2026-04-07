@@ -159,7 +159,11 @@ if config_env() == :prod do
 
   config :cache, Cache.Repo,
     database: "/data/repo.sqlite",
-    pool_size: String.to_integer(System.get_env("POOL_SIZE") || "1"),
+    # Keep repo.sqlite on a small pool so Oban and metadata writes can make
+    # progress concurrently without opening a large number of SQLite writers.
+    pool_size: String.to_integer(System.get_env("POOL_SIZE") || "4"),
+    queue_target: String.to_integer(System.get_env("REPO_QUEUE_TARGET_MS") || "30000"),
+    queue_interval: String.to_integer(System.get_env("REPO_QUEUE_INTERVAL_MS") || "30000"),
     show_sensitive_data_on_connection_error: false
 
   config :cache, CacheWeb.Endpoint,

@@ -11,6 +11,7 @@ defmodule Cache.KeyValueEntriesTest do
   alias Cache.KeyValueEntry
   alias Cache.KeyValueRepo
   alias Cache.KeyValueWriteRepo
+  alias Cache.SQLiteHelpers
 
   setup :set_mimic_from_context
 
@@ -88,6 +89,21 @@ defmodule Cache.KeyValueEntriesTest do
     assert count == 2
     assert status == :complete
     assert Enum.sort(Agent.get(deleted_keys_ref, & &1)) == ["old-entry-1", "old-entry-2"]
+  end
+
+  test "estimated_size_bytes reads SQLite file sizes instead of scanning rows" do
+    KeyValueWriteRepo.insert!(%KeyValueEntry{
+      key: "size-entry",
+      json_payload: String.duplicate("x", 4096),
+      last_accessed_at: DateTime.utc_now()
+    })
+
+    db_path = SQLiteHelpers.db_path(KeyValueRepo)
+
+    assert KeyValueEntries.estimated_size_bytes() ==
+             SQLiteHelpers.file_size(db_path) + SQLiteHelpers.wal_file_size(db_path)
+
+    assert KeyValueEntries.estimated_size_bytes() > 0
   end
 
   test "clear_replication_tokens clears only rows that still match their original token" do

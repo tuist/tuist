@@ -491,7 +491,9 @@ defmodule Cache.KeyValueEntries do
   end
 
   def estimated_size_bytes do
-    KeyValueRepo.one(from(entry in KeyValueEntry, select: sum(fragment("length(?)", entry.json_payload)))) || 0
+    db_path = SQLiteHelpers.db_path(KeyValueRepo)
+
+    SQLiteHelpers.file_size(db_path) + SQLiteHelpers.wal_file_size(db_path)
   end
 
   def entry_count do
