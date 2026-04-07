@@ -37,13 +37,7 @@ struct XcodeBuildBuildCommandService {
         xcActivityLogController: XCActivityLogControlling = XCActivityLogController(),
         shardPlanService: ShardPlanServicing = ShardPlanService(),
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
-        uploadBuildRunService: UploadBuildRunServicing? = {
-            #if os(macOS)
-                return UploadBuildRunService()
-            #else
-                return nil
-            #endif
-        }()
+        uploadBuildRunService: UploadBuildRunServicing? = UploadBuildRunService()
     ) {
         self.fileSystem = fileSystem
         self.xcodeBuildController = xcodeBuildController
