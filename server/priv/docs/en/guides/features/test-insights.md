@@ -12,7 +12,7 @@ Use Test Insights to monitor your test suite's health by identifying slow tests,
 > [!WARNING]
 > **Requirements**
 >
-> - A <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/server/accounts-and-projects">Tuist account and project</TuistWeb.Docs.MarkdownComponents.localized_link>
+> - A <.localized_link href="/guides/server/accounts-and-projects">Tuist account and project</.localized_link>
 
 
 <HomeCards>

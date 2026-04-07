@@ -93,14 +93,14 @@ You’ll also need a solution to store files (e.g. framework and library binarie
 >
 > If your goal is primarily to bring your own bucket for storing binaries and reduce cache latency, you might not need to self-host the whole server. You can self-host cache nodes and connect them to the hosted Tuist server or your self-hosted server.
 >
-> See the <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/cache/self-host">cache self-hosting guide</TuistWeb.Docs.MarkdownComponents.localized_link>.
+> See the <.localized_link href="/guides/cache/self-host">cache self-hosting guide</.localized_link>.
 
 
 ### Self-hosted cache nodes {#self-hosted-cache-nodes}
 
 To use self-hosted cache nodes with a self-hosted Tuist server:
 
-1. Deploy your cache nodes following the <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/cache/self-host">cache self-hosting guide</TuistWeb.Docs.MarkdownComponents.localized_link>.
+1. Deploy your cache nodes following the <.localized_link href="/guides/cache/self-host">cache self-hosting guide</.localized_link>.
 2. Set `TUIST_CACHE_ENDPOINTS` to a comma-separated list of cache node URLs (for example, `https://cache-1.example.com,https://cache-2.example.com`).
 
 ## Configuration {#configuration}
@@ -204,7 +204,7 @@ You can set up authentication with Google using [OAuth 2](https://developers.goo
 
 #### Okta {#okta}
 
-You can enable authentication with Okta through the [OAuth 2.0](https://oauth.net/2/) protocol. You'll have to [create an app](https://developer.okta.com/docs/en/guides/implement-oauth-for-okta/main/#create-an-oauth-2-0-app-in-okta) on Okta following <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/integrations/sso#okta">these instructions</TuistWeb.Docs.MarkdownComponents.localized_link>.
+You can enable authentication with Okta through the [OAuth 2.0](https://oauth.net/2/) protocol. You'll have to [create an app](https://developer.okta.com/docs/en/guides/implement-oauth-for-okta/main/#create-an-oauth-2-0-app-in-okta) on Okta following <.localized_link href="/guides/integrations/sso#okta">these instructions</.localized_link>.
 
 You will need to set the following environment variables once you obtain the client id and secret during the set up of the Okta application:
 
@@ -277,7 +277,7 @@ Tuist requires email functionality for user authentication and transactional not
 
 ### Git platform configuration {#git-platform-configuration}
 
-Tuist can <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/server/authentication">integrate with Git platforms</TuistWeb.Docs.MarkdownComponents.localized_link> to provide extra features such as automatically posting comments in your pull requests.
+Tuist can <.localized_link href="/guides/server/authentication">integrate with Git platforms</.localized_link> to provide extra features such as automatically posting comments in your pull requests.
 
 #### GitHub {#platform-github}
 

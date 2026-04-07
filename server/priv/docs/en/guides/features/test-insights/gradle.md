@@ -10,7 +10,7 @@
 > [!WARNING]
 > **Requirements**
 >
-> - The <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/install-gradle-plugin">Tuist Gradle plugin</TuistWeb.Docs.MarkdownComponents.localized_link> installed and configured
+> - The <.localized_link href="/guides/install-gradle-plugin">Tuist Gradle plugin</.localized_link> installed and configured
 
 
 Tuist's Gradle plugin automatically uploads test results after each test task execution, giving you visibility into test performance and flaky tests directly in the Tuist dashboard.

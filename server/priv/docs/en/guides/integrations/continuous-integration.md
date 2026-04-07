@@ -9,7 +9,7 @@
 
 To run Tuist commands in your [continuous integration](https://en.wikipedia.org/wiki/Continuous_integration) workflows, you'll need to install it in your CI environment. 
 
-Authentication is optional but required if you want to use server-side features like <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/features/cache">cache</TuistWeb.Docs.MarkdownComponents.localized_link>. 
+Authentication is optional but required if you want to use server-side features like <.localized_link href="/guides/features/cache">cache</.localized_link>. 
 
 The following sections provide examples of how to do this on different CI platforms.
 
@@ -17,7 +17,7 @@ The following sections provide examples of how to do this on different CI platfo
 
 ### GitHub Actions {#github-actions}
 
-On [GitHub Actions](https://docs.github.com/en/actions) you can use <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/server/authentication#oidc-tokens">OIDC authentication</TuistWeb.Docs.MarkdownComponents.localized_link> for secure, secretless authentication:
+On [GitHub Actions](https://docs.github.com/en/actions) you can use <.localized_link href="/guides/server/authentication#oidc-tokens">OIDC authentication</.localized_link> for secure, secretless authentication:
 
 ::: code-group
 ```yaml [OIDC (Mise)]
@@ -114,7 +114,7 @@ jobs:
 > [!NOTE]
 > **Oidc Setup**
 >
-> Before using OIDC authentication, you need to <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/integrations/gitforge/github">connect your GitHub repository</TuistWeb.Docs.MarkdownComponents.localized_link> to your Tuist project. The `permissions: id-token: write` is required for OIDC to work. Alternatively, you can use an <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/server/authentication#account-tokens">account token</TuistWeb.Docs.MarkdownComponents.localized_link> with the `TUIST_TOKEN` secret.
+> Before using OIDC authentication, you need to <.localized_link href="/guides/integrations/gitforge/github">connect your GitHub repository</.localized_link> to your Tuist project. The `permissions: id-token: write` is required for OIDC to work. Alternatively, you can use an <.localized_link href="/guides/server/authentication#account-tokens">account token</.localized_link> with the `TUIST_TOKEN` secret.
 
 
 > [!TIP]
@@ -152,12 +152,12 @@ tuist generate
 > [!NOTE]
 > **Authentication**
 >
-> Use an <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/server/authentication#account-tokens">account token</TuistWeb.Docs.MarkdownComponents.localized_link> by setting the `TUIST_TOKEN` environment variable in your Xcode Cloud workflow settings.
+> Use an <.localized_link href="/guides/server/authentication#account-tokens">account token</.localized_link> by setting the `TUIST_TOKEN` environment variable in your Xcode Cloud workflow settings.
 
 
 ### CircleCI {#circleci}
 
-On [CircleCI](https://circleci.com) you can use <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/server/authentication#oidc-tokens">OIDC authentication</TuistWeb.Docs.MarkdownComponents.localized_link> for secure, secretless authentication:
+On [CircleCI](https://circleci.com) you can use <.localized_link href="/guides/server/authentication#oidc-tokens">OIDC authentication</.localized_link> for secure, secretless authentication:
 
 ::: code-group
 ```yaml [OIDC (Mise)]
@@ -211,12 +211,12 @@ jobs:
 > [!NOTE]
 > **Authentication**
 >
-> Before using OIDC authentication, you need to <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/integrations/gitforge/github">connect your GitHub repository</TuistWeb.Docs.MarkdownComponents.localized_link> to your Tuist project. CircleCI OIDC tokens include your connected GitHub repository, which Tuist uses to authorize access to your projects. Alternatively, you can use an <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/server/authentication#account-tokens">account token</TuistWeb.Docs.MarkdownComponents.localized_link> with the `TUIST_TOKEN` environment variable.
+> Before using OIDC authentication, you need to <.localized_link href="/guides/integrations/gitforge/github">connect your GitHub repository</.localized_link> to your Tuist project. CircleCI OIDC tokens include your connected GitHub repository, which Tuist uses to authorize access to your projects. Alternatively, you can use an <.localized_link href="/guides/server/authentication#account-tokens">account token</.localized_link> with the `TUIST_TOKEN` environment variable.
 
 
 ### Bitrise {#bitrise}
 
-On [Bitrise](https://bitrise.io) you can use <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/server/authentication#oidc-tokens">OIDC authentication</TuistWeb.Docs.MarkdownComponents.localized_link> for secure, secretless authentication:
+On [Bitrise](https://bitrise.io) you can use <.localized_link href="/guides/server/authentication#oidc-tokens">OIDC authentication</.localized_link> for secure, secretless authentication:
 
 ::: code-group
 ```yaml [OIDC (Mise)]
@@ -272,7 +272,7 @@ workflows:
 > [!NOTE]
 > **Authentication**
 >
-> Before using OIDC authentication, you need to <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/integrations/gitforge/github">connect your GitHub repository</TuistWeb.Docs.MarkdownComponents.localized_link> to your Tuist project. Bitrise OIDC tokens include your connected GitHub repository, which Tuist uses to authorize access to your projects. Alternatively, you can use an <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/server/authentication#account-tokens">account token</TuistWeb.Docs.MarkdownComponents.localized_link> with the `TUIST_TOKEN` environment variable.
+> Before using OIDC authentication, you need to <.localized_link href="/guides/integrations/gitforge/github">connect your GitHub repository</.localized_link> to your Tuist project. Bitrise OIDC tokens include your connected GitHub repository, which Tuist uses to authorize access to your projects. Alternatively, you can use an <.localized_link href="/guides/server/authentication#account-tokens">account token</.localized_link> with the `TUIST_TOKEN` environment variable.
 
 
 ### Codemagic {#codemagic}
@@ -319,5 +319,5 @@ workflows:
 > [!NOTE]
 > **Authentication**
 >
-> Create an <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/server/authentication#account-tokens">account token</TuistWeb.Docs.MarkdownComponents.localized_link> and add it as a secret environment variable named `TUIST_TOKEN`.
+> Create an <.localized_link href="/guides/server/authentication#account-tokens">account token</.localized_link> and add it as a secret environment variable named `TUIST_TOKEN`.
 

@@ -21,19 +21,19 @@ After that, you can add a project connection between your GitHub repository and 
 > [!TIP]
 > **Ip Allowlisting**
 >
-> If your GitHub organization uses [IP allow lists](https://docs.github.com/en/organizations/keeping-your-organization-secure/managing-security-settings-for-your-organization/managing-allowed-ip-addresses-for-your-organization) or your GitHub instance is behind a firewall, make sure to allowlist Tuist's <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/server/network#outbound-ip-addresses">outbound IP addresses</TuistWeb.Docs.MarkdownComponents.localized_link> so that the integration can communicate with your repository.
+> If your GitHub organization uses [IP allow lists](https://docs.github.com/en/organizations/keeping-your-organization-secure/managing-security-settings-for-your-organization/managing-allowed-ip-addresses-for-your-organization) or your GitHub instance is behind a firewall, make sure to allowlist Tuist's <.localized_link href="/guides/server/network#outbound-ip-addresses">outbound IP addresses</.localized_link> so that the integration can communicate with your repository.
 
 
 ## Pull/merge request comments {#pull-merge-request-comments}
 
-The GitHub app posts a Tuist run report, which includes a summary of the PR, including links to the latest <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/features/previews#pullmerge-request-comments">previews</TuistWeb.Docs.MarkdownComponents.localized_link> or <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/features/selective-testing#pullmerge-request-comments">tests</TuistWeb.Docs.MarkdownComponents.localized_link>:
+The GitHub app posts a Tuist run report, which includes a summary of the PR, including links to the latest <.localized_link href="/guides/features/previews#pullmerge-request-comments">previews</.localized_link> or <.localized_link href="/guides/features/selective-testing#pullmerge-request-comments">tests</.localized_link>:
 
 ![An image that shows the pull request comment](/images/guides/integrations/gitforge/github/pull-request-comment.png)
 
 > [!NOTE]
 > **Requirements**
 >
-> The comment is only posted when your CI runs are <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/integrations/continuous-integration#authentication">authenticated</TuistWeb.Docs.MarkdownComponents.localized_link>.
+> The comment is only posted when your CI runs are <.localized_link href="/guides/integrations/continuous-integration#authentication">authenticated</.localized_link>.
 
 
 > [!NOTE]

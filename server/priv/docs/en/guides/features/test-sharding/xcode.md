@@ -10,8 +10,8 @@
 > [!WARNING]
 > **Requirements**
 >
-> - A <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/server/accounts-and-projects">Tuist account and project</TuistWeb.Docs.MarkdownComponents.localized_link>
-> - <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/features/test-insights">Test Insights</TuistWeb.Docs.MarkdownComponents.localized_link> configured (for optimal shard balancing)
+> - A <.localized_link href="/guides/server/accounts-and-projects">Tuist account and project</.localized_link>
+> - <.localized_link href="/guides/features/test-insights">Test Insights</.localized_link> configured (for optimal shard balancing)
 
 
 Test sharding for Xcode projects uses `tuist xcodebuild build-for-testing` to create a shard plan and `tuist xcodebuild test` to execute each shard.

@@ -10,9 +10,9 @@
 > [!WARNING]
 > **Requirements**
 >
-> - A <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/features/projects">Tuist generated project</TuistWeb.Docs.MarkdownComponents.localized_link>
-> - A <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/server/accounts-and-projects">Tuist account and project</TuistWeb.Docs.MarkdownComponents.localized_link>
-> - <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/features/test-insights">Test Insights</TuistWeb.Docs.MarkdownComponents.localized_link> configured (for optimal shard balancing)
+> - A <.localized_link href="/guides/features/projects">Tuist generated project</.localized_link>
+> - A <.localized_link href="/guides/server/accounts-and-projects">Tuist account and project</.localized_link>
+> - <.localized_link href="/guides/features/test-insights">Test Insights</.localized_link> configured (for optimal shard balancing)
 
 
 Test sharding for generated projects uses `tuist test` for both the build and test phases.
@@ -38,7 +38,7 @@ This command:
 3. Creates a shard plan on the Tuist server using historical timing data
 4. Uploads the `.xctestproducts` bundle for use by shard runners
 5. Outputs a shard matrix for your CI system
-6. Persists the <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/features/selective-testing">selective testing</TuistWeb.Docs.MarkdownComponents.localized_link> graph (if applicable) so shard runners don't need to regenerate the project
+6. Persists the <.localized_link href="/guides/features/selective-testing">selective testing</.localized_link> graph (if applicable) so shard runners don't need to regenerate the project
 
 ### Build options {#build-options}
 
@@ -71,7 +71,7 @@ Tuist downloads the `.xctestproducts` bundle and filters it to include only the 
 > [!TIP]
 > **Selective Testing**
 >
-> Test sharding works seamlessly with <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/features/selective-testing">selective testing</TuistWeb.Docs.MarkdownComponents.localized_link>. The selective testing graph is persisted during the build phase and restored for each shard, so runners don't need to regenerate the project.
+> Test sharding works seamlessly with <.localized_link href="/guides/features/selective-testing">selective testing</.localized_link>. The selective testing graph is persisted during the build phase and restored for each shard, so runners don't need to regenerate the project.
 
 
 ## Continuous integration {#continuous-integration}

@@ -6,12 +6,11 @@ defmodule Tuist.Docs.Loader do
   alias Phoenix.HTML.Safe
   alias Tuist.Docs.HTML
   alias Tuist.Docs.Page
-  alias Tuist.Docs.Paths
   alias Tuist.Locale
 
   # Live doc pages reference these modules from HEEx templates at compile time.
   require Noora.Alert
-  require TuistWeb.Docs.MarkdownComponents
+  import TuistWeb.Docs.MarkdownComponents
 
   # Paths
   @docs_root Path.expand("../../priv/docs", __DIR__)
@@ -310,7 +309,7 @@ defmodule Tuist.Docs.Loader do
 
   defp localize_link_components(markdown, _locale) do
     Regex.replace(@localized_link_regex, markdown, fn _, href, text ->
-      ~s(<TuistWeb.Docs.MarkdownComponents.localized_link href="#{href}" locale={@locale}>#{text}</TuistWeb.Docs.MarkdownComponents.localized_link>)
+      ~s(<.localized_link href="#{href}" locale={@locale}>#{text}</.localized_link>)
     end)
   end
 

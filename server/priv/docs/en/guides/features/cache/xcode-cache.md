@@ -16,7 +16,7 @@ The Xcode cache was introduced in Xcode 26. You might also see it referred to as
 > [!WARNING]
 > **Requirements**
 >
-> - A <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/server/accounts-and-projects">Tuist account and project</TuistWeb.Docs.MarkdownComponents.localized_link>
+> - A <.localized_link href="/guides/server/accounts-and-projects">Tuist account and project</.localized_link>
 > - Xcode 26.0 or later
 
 
@@ -34,7 +34,7 @@ tuist setup cache
 
 This command creates a [LaunchAgent](https://developer.apple.com/library/archive/documentation/MacOSX/Conceptual/BPSystemStartup/Chapters/CreatingLaunchdJobs.html) to run a local cache service on startup that the Swift [build system](https://github.com/swiftlang/swift-build) uses to share compilation artifacts. This command needs to be run once in both your local and CI environments.
 
-To set up the cache on the CI, make sure you are <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/integrations/continuous-integration#authentication">authenticated</TuistWeb.Docs.MarkdownComponents.localized_link>.
+To set up the cache on the CI, make sure you are <.localized_link href="/guides/integrations/continuous-integration#authentication">authenticated</.localized_link>.
 
 ### Configure Xcode Build Settings {#configure-xcode-build-settings}
 
@@ -129,7 +129,7 @@ With this setup, local builds benefit from cached artifacts without uploading, w
 
 To enable caching in your CI environment, you need to run the same command as in local environments: `tuist setup cache`.
 
-For authentication, you can use either <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/server/authentication#oidc-tokens">OIDC authentication</TuistWeb.Docs.MarkdownComponents.localized_link> (recommended for supported CI providers) or an <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/server/authentication#account-tokens">account token</TuistWeb.Docs.MarkdownComponents.localized_link> via the `TUIST_TOKEN` environment variable.
+For authentication, you can use either <.localized_link href="/guides/server/authentication#oidc-tokens">OIDC authentication</.localized_link> (recommended for supported CI providers) or an <.localized_link href="/guides/server/authentication#account-tokens">account token</.localized_link> via the `TUIST_TOKEN` environment variable.
 
 An example workflow for GitHub Actions using OIDC authentication:
 ```yaml
@@ -150,4 +150,4 @@ jobs:
       - # Your build steps
 ```
 
-See the <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/integrations/continuous-integration">Continuous Integration guide</TuistWeb.Docs.MarkdownComponents.localized_link> for more examples, including token-based authentication and other CI platforms like Xcode Cloud, CircleCI, Bitrise, and Codemagic.
+See the <.localized_link href="/guides/integrations/continuous-integration">Continuous Integration guide</.localized_link> for more examples, including token-based authentication and other CI platforms like Xcode Cloud, CircleCI, Bitrise, and Codemagic.

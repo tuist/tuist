@@ -10,7 +10,7 @@
 > [!WARNING]
 > **Requirements**
 >
-> - <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/features/test-insights">Test Insights</TuistWeb.Docs.MarkdownComponents.localized_link> must be configured
+> - <.localized_link href="/guides/features/test-insights">Test Insights</.localized_link> must be configured
 
 
 Flaky tests are tests that produce different results (pass or fail) when run multiple times with the same code. They erode trust in your test suite and waste developer time investigating false failures. Tuist automatically detects flaky tests and helps you track them over time.

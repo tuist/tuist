@@ -10,7 +10,7 @@
 > [!WARNING]
 > **Requirements**
 >
-> - A <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/server/accounts-and-projects">Tuist account and project</TuistWeb.Docs.MarkdownComponents.localized_link>
+> - A <.localized_link href="/guides/server/accounts-and-projects">Tuist account and project</.localized_link>
 > - Tuist CLI 4.138.1 or later
 > - A Xcode project
 
@@ -28,7 +28,7 @@ To start tracking local build times, you can leverage the `tuist inspect build` 
 
 
 > [!NOTE]
-> If you are not using <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/features/projects">generated projects</TuistWeb.Docs.MarkdownComponents.localized_link>, the post-scheme action is not executed when the build fails.
+> If you are not using <.localized_link href="/guides/features/projects">generated projects</.localized_link>, the post-scheme action is not executed when the build fails.
 
 >
 > You can execute it in that case by setting `runPostActionsOnFailure` to `YES` in the relevant `project.pbxproj` `BuildAction`:
@@ -119,10 +119,10 @@ buildAction: .buildAction(
 
 ## Build Insights in CI {#continuous-integration}
 
-To track build insights on CI, make sure CI is <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/integrations/continuous-integration#authentication">authenticated</TuistWeb.Docs.MarkdownComponents.localized_link>.
+To track build insights on CI, make sure CI is <.localized_link href="/guides/integrations/continuous-integration#authentication">authenticated</.localized_link>.
 
 For Xcodebuild-driven CI you need to:
-- Use <TuistWeb.Docs.MarkdownComponents.localized_link href="/cli/xcodebuild#tuist-xcodebuild">`tuist xcodebuild`</TuistWeb.Docs.MarkdownComponents.localized_link> when invoking `xcodebuild` actions.
+- Use <.localized_link href="/cli/xcodebuild#tuist-xcodebuild">`tuist xcodebuild`</.localized_link> when invoking `xcodebuild` actions.
 - Add `-resultBundlePath` to your `xcodebuild` command.
 
 Without `-resultBundlePath`, required activity logs and result bundles are not generated and `tuist inspect build` cannot analyze the build.

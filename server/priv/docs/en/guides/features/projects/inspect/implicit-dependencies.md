@@ -20,7 +20,7 @@ If the command detects any implicit imports, it exits with an exit code other th
 > [!TIP]
 > **Validate In Ci**
 >
-> We strongly recommend to run this command as part of your <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/integrations/continuous-integration">continuous integration</TuistWeb.Docs.MarkdownComponents.localized_link> command every time new code is pushed upstream.
+> We strongly recommend to run this command as part of your <.localized_link href="/guides/integrations/continuous-integration">continuous integration</.localized_link> command every time new code is pushed upstream.
 
 
 > [!WARNING]

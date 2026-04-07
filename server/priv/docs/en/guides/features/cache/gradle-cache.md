@@ -12,10 +12,10 @@ Tuist provides a Gradle plugin that integrates with [Gradle's built-in build cac
 > [!WARNING]
 > **Requirements**
 >
-> - The <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/install-gradle-plugin">Tuist Gradle plugin</TuistWeb.Docs.MarkdownComponents.localized_link> installed and configured
+> - The <.localized_link href="/guides/install-gradle-plugin">Tuist Gradle plugin</.localized_link> installed and configured
 
 
-Once the <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/install-gradle-plugin">Tuist Gradle plugin</TuistWeb.Docs.MarkdownComponents.localized_link> is installed, you also need to enable Gradle's build cache in your `gradle.properties` file:
+Once the <.localized_link href="/guides/install-gradle-plugin">Tuist Gradle plugin</.localized_link> is installed, you also need to enable Gradle's build cache in your `gradle.properties` file:
 
 ```properties
 org.gradle.caching=true
@@ -49,8 +49,8 @@ With this setup, local builds benefit from cached artifacts without uploading, w
 
 ## Continuous integration {#continuous-integration}
 
-For CI environments, authenticate using one of the methods in the <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/server/authentication#continuous-integration">Authentication guide</TuistWeb.Docs.MarkdownComponents.localized_link>.
-See the <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/integrations/continuous-integration">Continuous Integration guide</TuistWeb.Docs.MarkdownComponents.localized_link> for provider-specific CI examples.
+For CI environments, authenticate using one of the methods in the <.localized_link href="/guides/server/authentication#continuous-integration">Authentication guide</.localized_link>.
+See the <.localized_link href="/guides/integrations/continuous-integration">Continuous Integration guide</.localized_link> for provider-specific CI examples.
 
 ### Disabling the local build cache {#disabling-the-local-build-cache}
 

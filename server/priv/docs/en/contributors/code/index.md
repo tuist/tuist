@@ -9,9 +9,9 @@
 
 Tuist is a monorepo. Each component has its own tooling, dependencies, and local run steps. Choose the area you want to contribute to:
 
-- <TuistWeb.Docs.MarkdownComponents.localized_link href="/contributors/code/cli">CLI</TuistWeb.Docs.MarkdownComponents.localized_link>
-- <TuistWeb.Docs.MarkdownComponents.localized_link href="/contributors/code/server">Server</TuistWeb.Docs.MarkdownComponents.localized_link>
-- <TuistWeb.Docs.MarkdownComponents.localized_link href="/contributors/code/handbook">Handbook</TuistWeb.Docs.MarkdownComponents.localized_link>
-- <TuistWeb.Docs.MarkdownComponents.localized_link href="/contributors/code/docs">Docs</TuistWeb.Docs.MarkdownComponents.localized_link>
+- <.localized_link href="/contributors/code/cli">CLI</.localized_link>
+- <.localized_link href="/contributors/code/server">Server</.localized_link>
+- <.localized_link href="/contributors/code/handbook">Handbook</.localized_link>
+- <.localized_link href="/contributors/code/docs">Docs</.localized_link>
 
-All components use <TuistWeb.Docs.MarkdownComponents.localized_link href="https://mise.jdx.dev/getting-started.html">Mise</TuistWeb.Docs.MarkdownComponents.localized_link> for dependency management.
+All components use <.localized_link href="https://mise.jdx.dev/getting-started.html">Mise</.localized_link> for dependency management.

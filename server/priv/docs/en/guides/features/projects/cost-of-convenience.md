@@ -62,7 +62,7 @@ The consequence of this design decision is that many projects acidentally compil
 > [!TIP]
 > **Tuist Detection Of Implicit Dependencies**
 >
-> Tuist provides a <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/features/projects/inspect/implicit-dependencies">command</TuistWeb.Docs.MarkdownComponents.localized_link> to detect implicit dependencies. You can use the command to validate in CI that all your dependencies are explicit.
+> Tuist provides a <.localized_link href="/guides/features/projects/inspect/implicit-dependencies">command</.localized_link> to detect implicit dependencies. You can use the command to validate in CI that all your dependencies are explicit.
 
 
 ### Find implicit dependencies in schemes {#find-implicit-dependencies-in-schemes}

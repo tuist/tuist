@@ -10,11 +10,11 @@
 > [!WARNING]
 > **Requirements**
 >
-> - A <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/features/projects">generated project</TuistWeb.Docs.MarkdownComponents.localized_link>
-> - A <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/server/accounts-and-projects">Tuist account and project</TuistWeb.Docs.MarkdownComponents.localized_link>
+> - A <.localized_link href="/guides/features/projects">generated project</.localized_link>
+> - A <.localized_link href="/guides/server/accounts-and-projects">Tuist account and project</.localized_link>
 
 
-To run tests selectively with your generated project, use the `tuist test` command. The command <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/features/projects/hashing">hashes</TuistWeb.Docs.MarkdownComponents.localized_link> your Xcode project the same way it does for <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/features/cache#cache-warming">warming the cache</TuistWeb.Docs.MarkdownComponents.localized_link>, and on success, it persists the hashes on to determine what has changed in future runs.
+To run tests selectively with your generated project, use the `tuist test` command. The command <.localized_link href="/guides/features/projects/hashing">hashes</.localized_link> your Xcode project the same way it does for <.localized_link href="/guides/features/cache#cache-warming">warming the cache</.localized_link>, and on success, it persists the hashes on to determine what has changed in future runs.
 
 In future runs `tuist test` transparently uses the hashes to filter down the tests to run only the ones that have changed since the last successful test run.
 
