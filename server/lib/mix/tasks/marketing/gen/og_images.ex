@@ -154,6 +154,7 @@ defmodule Mix.Tasks.Marketing.Gen.OgImages do
           timeline_path = Path.join(priv_dir, "static/marketing/images/og/changelog-timeline.svg")
           OgImages.render_changelog_list_html(Keyword.put(html_opts, :timeline_path, timeline_path))
         :newsletter -> OgImages.render_newsletter_html(html_opts)
+        :api_docs -> OgImages.render_api_docs_html(html_opts)
         _ -> OgImages.render_html(html_opts)
       end
 
