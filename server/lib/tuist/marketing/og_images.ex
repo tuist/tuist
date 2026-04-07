@@ -288,9 +288,15 @@ defmodule Tuist.Marketing.OgImages do
         <img class="timeline" src={@timeline_data_uri} />
         <div class="title">{@title}</div>
         <div class="entries">
-          <div class="entry"><div class="entry-bar"></div></div>
-          <div class="entry"><div class="entry-bar"></div></div>
-          <div class="entry"><div class="entry-bar"></div></div>
+          <div class="entry">
+            <div class="entry-bar"></div>
+          </div>
+          <div class="entry">
+            <div class="entry-bar"></div>
+          </div>
+          <div class="entry">
+            <div class="entry-bar"></div>
+          </div>
         </div>
         <img class="logo-img" src={@logo_data_uri} />
         <div class="logo-tuist">Tuist</div>
@@ -482,12 +488,30 @@ defmodule Tuist.Marketing.OgImages do
           <div class="card-back card-back-right"></div>
           <div class="card-front">
             <div class="api-rows">
-              <div class="api-row"><div class="api-dot"></div><div class="api-bar"></div></div>
-              <div class="api-row"><div class="api-dot"></div><div class="api-bar"></div></div>
-              <div class="api-row"><div class="api-dot"></div><div class="api-bar"></div></div>
-              <div class="api-row"><div class="api-dot"></div><div class="api-bar"></div></div>
-              <div class="api-row"><div class="api-dot"></div><div class="api-bar"></div></div>
-              <div class="api-row"><div class="api-dot"></div><div class="api-bar"></div></div>
+              <div class="api-row">
+                <div class="api-dot"></div>
+                <div class="api-bar"></div>
+              </div>
+              <div class="api-row">
+                <div class="api-dot"></div>
+                <div class="api-bar"></div>
+              </div>
+              <div class="api-row">
+                <div class="api-dot"></div>
+                <div class="api-bar"></div>
+              </div>
+              <div class="api-row">
+                <div class="api-dot"></div>
+                <div class="api-bar"></div>
+              </div>
+              <div class="api-row">
+                <div class="api-dot"></div>
+                <div class="api-bar"></div>
+              </div>
+              <div class="api-row">
+                <div class="api-dot"></div>
+                <div class="api-bar"></div>
+              </div>
             </div>
             <div class="card-fade"></div>
           </div>
@@ -817,12 +841,14 @@ defmodule Tuist.Marketing.OgImages do
     icon_data_uri =
       if icon_path do
         icon_base64 = icon_path |> File.read!() |> Base.encode64()
+
         mime =
           cond do
             String.ends_with?(icon_path, ".svg") -> "image/svg+xml"
             String.ends_with?(icon_path, ".png") -> "image/png"
             true -> "image/webp"
           end
+
         "data:#{mime};base64,#{icon_base64}"
       end
 

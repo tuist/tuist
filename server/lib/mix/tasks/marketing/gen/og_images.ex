@@ -22,7 +22,8 @@ defmodule Mix.Tasks.Marketing.Gen.OgImages do
     {"pricing", "Pricing", [icon_path_suffix: "static/marketing/images/pricing/logo-og.svg"]},
     {"blog", "Blog", [template: :blog]},
     {"changelog", "Changelog", [template: :changelog]},
-    {"tuist-digest", "Newsletter", [template: :newsletter, icon_path_suffix: "static/marketing/images/newsletter/envelope.webp"]},
+    {"tuist-digest", "Newsletter",
+     [template: :newsletter, icon_path_suffix: "static/marketing/images/newsletter/envelope.webp"]},
     {"support", "Support", []},
     {"customers", "Customers", []},
     {"cache", "Cache", []},
@@ -147,16 +148,7 @@ defmodule Mix.Tasks.Marketing.Gen.OgImages do
 
     html_opts = if icon_path, do: Keyword.put(html_opts, :icon_path, icon_path), else: html_opts
 
-    html =
-      case template do
-        :blog -> OgImages.render_blog_html(html_opts)
-        :changelog ->
-          timeline_path = Path.join(priv_dir, "static/marketing/images/og/changelog-timeline.svg")
-          OgImages.render_changelog_list_html(Keyword.put(html_opts, :timeline_path, timeline_path))
-        :newsletter -> OgImages.render_newsletter_html(html_opts)
-        :api_docs -> OgImages.render_api_docs_html(html_opts)
-        _ -> OgImages.render_html(html_opts)
-      end
+    html = render_template_html(template, html_opts, priv_dir)
 
     case Carta.render(@pool, html, width: 1920, height: 1080, quality: 95) do
       {:ok, jpeg_binary} ->
@@ -167,6 +159,19 @@ defmodule Mix.Tasks.Marketing.Gen.OgImages do
         IO.warn("Failed to generate OG image for #{filename} (#{locale}): #{inspect(reason)}")
     end
   end
+
+  defp render_template_html(:blog, html_opts, _priv_dir), do: OgImages.render_blog_html(html_opts)
+
+  defp render_template_html(:changelog, html_opts, priv_dir) do
+    timeline_path = Path.join(priv_dir, "static/marketing/images/og/changelog-timeline.svg")
+    OgImages.render_changelog_list_html(Keyword.put(html_opts, :timeline_path, timeline_path))
+  end
+
+  defp render_template_html(:newsletter, html_opts, _priv_dir), do: OgImages.render_newsletter_html(html_opts)
+
+  defp render_template_html(:api_docs, html_opts, _priv_dir), do: OgImages.render_api_docs_html(html_opts)
+
+  defp render_template_html(_default, html_opts, _priv_dir), do: OgImages.render_html(html_opts)
 
   defp generate_home_og_images(og_images_directory) do
     priv_dir = Application.app_dir(:tuist, "priv")
