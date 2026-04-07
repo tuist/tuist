@@ -888,6 +888,7 @@ var targets: [Target] = [
             "TuistCAS",
             "TuistEnvironment",
             "TuistServer",
+            "TuistTesting",
             mockableDependency,
         ],
         path: "cli/Tests/TuistCASTests"

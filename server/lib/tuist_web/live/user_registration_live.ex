@@ -157,6 +157,7 @@ defmodule TuistWeb.UserRegistrationLive do
                 name="user[password]"
                 label={dgettext("dashboard_auth", "Password")}
                 id="password"
+                type="password"
                 input_type="password"
                 error={format_password_error(@errors)}
                 show_prefix={false}
