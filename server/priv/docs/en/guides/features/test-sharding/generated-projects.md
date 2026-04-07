@@ -442,26 +442,23 @@ tuist test \
 When `--shard-archive-path` is set, Tuist skips remote test-products transfer and uses the local archive instead. If you also pass `--shard-skip-upload`, the archive path takes precedence.
 
 > [!IMPORTANT]
-> Use a unique path per workflow run (e.g. include the CI run ID) to avoid collisions between concurrent runs. You should also clean up the test products after sharding completes to avoid accumulating stale data on the volume.
+> Use a unique path per workflow run (e.g. include the CI run ID) to avoid collisions between concurrent runs. You should also clean up the shard archive after sharding completes to avoid accumulating stale data on the runner.
 
 ### Namespace {#namespace}
 
-[Namespace](https://namespace.so) runners support shared volumes across GitHub Actions jobs. Since volumes persist across workflow runs, include `${{ github.run_id }}` in the path to isolate concurrent runs and clean up afterwards:
+[Namespace](https://namespace.so) runners work well with GitHub Actions artifacts. Set `TUIST_TEST_SHARD_ARCHIVE_PATH` once so the build job writes the shard archive locally, upload it, and download it in each shard job before running `tuist test`:
 
 ```yaml
 name: Tests
 on: [pull_request]
 
 env:
-  TEST_PRODUCTS_PATH: /Volumes/test-products/${{ github.run_id }}/MyScheme.xctestproducts
+  TUIST_TEST_SHARD_ARCHIVE_PATH: /tmp/shards/${{ github.run_id }}/bundle.aar
 
 jobs:
   build:
     name: Build test shards
     runs-on: namespace-profile-default-macos
-    volumes:
-      - name: test-products
-        path: /Volumes/test-products
     outputs:
       matrix: ${{ steps.build.outputs.matrix }}
     steps:
@@ -469,12 +466,13 @@ jobs:
       - uses: jdx/mise-action@v2
       - run: tuist auth login
       - id: build
-        run: |
-          tuist test \
-            --shard-total 5 \
-            --shard-skip-upload \
-            -- \
-            -testProductsPath $TEST_PRODUCTS_PATH
+        run: tuist test --shard-total 5
+      - uses: actions/upload-artifact@v4
+        with:
+          name: test-shard-archive
+          path: ${{ env.TUIST_TEST_SHARD_ARCHIVE_PATH }}
+      - if: always()
+        run: rm -rf /tmp/shards/${{ github.run_id }}
 
   test:
     name: "Shard #${{ matrix.shard }}"
@@ -484,17 +482,17 @@ jobs:
       fail-fast: false
       matrix:
         shard: ${{ fromJson(needs.build.outputs.matrix).shard }}
-    volumes:
-      - name: test-products
-        path: /Volumes/test-products
     env:
       TUIST_SHARD_INDEX: ${{ matrix.shard }}
     steps:
       - uses: actions/checkout@v4
       - uses: jdx/mise-action@v2
       - run: tuist auth login
-      - run: |
-          tuist test -- -testProductsPath $TEST_PRODUCTS_PATH
+      - uses: actions/download-artifact@v4
+        with:
+          name: test-shard-archive
+          path: /tmp/shards/${{ github.run_id }}
+      - run: tuist test
       - if: always()
-        run: rm -rf /Volumes/test-products/${{ github.run_id }}
+        run: rm -rf /tmp/shards/${{ github.run_id }}
 ```

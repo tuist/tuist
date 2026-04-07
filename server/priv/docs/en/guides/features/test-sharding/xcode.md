@@ -484,22 +484,19 @@ When `--shard-archive-path` is set, Tuist skips remote test-products transfer an
 
 ### Namespace {#namespace}
 
-[Namespace](https://namespace.so) runners support shared volumes across GitHub Actions jobs. Since volumes persist across workflow runs, include `${{ github.run_id }}` in the path to isolate concurrent runs and clean up afterwards:
+[Namespace](https://namespace.so) runners work well with GitHub Actions artifacts. Set `TUIST_TEST_SHARD_ARCHIVE_PATH` once so the build job writes the shard archive locally, upload it, and download it in each shard job before running `tuist xcodebuild test`:
 
 ```yaml
 name: Tests
 on: [pull_request]
 
 env:
-  TEST_PRODUCTS_PATH: /Volumes/test-products/${{ github.run_id }}/MyScheme.xctestproducts
+  TUIST_TEST_SHARD_ARCHIVE_PATH: /tmp/shards/${{ github.run_id }}/bundle.aar
 
 jobs:
   build:
     name: Build test shards
     runs-on: namespace-profile-default-macos
-    volumes:
-      - name: test-products
-        path: /Volumes/test-products
     outputs:
       matrix: ${{ steps.build.outputs.matrix }}
     steps:
@@ -511,9 +508,13 @@ jobs:
           tuist xcodebuild build-for-testing \
             -scheme MyScheme \
             -destination 'platform=iOS Simulator,name=iPhone 16' \
-            --shard-total 5 \
-            --shard-skip-upload \
-            -testProductsPath $TEST_PRODUCTS_PATH
+            --shard-total 5
+      - uses: actions/upload-artifact@v4
+        with:
+          name: test-shard-archive
+          path: ${{ env.TUIST_TEST_SHARD_ARCHIVE_PATH }}
+      - if: always()
+        run: rm -rf /tmp/shards/${{ github.run_id }}
 
   test:
     name: "Shard #${{ matrix.shard }}"
@@ -523,20 +524,20 @@ jobs:
       fail-fast: false
       matrix:
         shard: ${{ fromJson(needs.build.outputs.matrix).shard }}
-    volumes:
-      - name: test-products
-        path: /Volumes/test-products
     env:
       TUIST_SHARD_INDEX: ${{ matrix.shard }}
     steps:
       - uses: actions/checkout@v4
       - uses: jdx/mise-action@v2
       - run: tuist auth login
+      - uses: actions/download-artifact@v4
+        with:
+          name: test-shard-archive
+          path: /tmp/shards/${{ github.run_id }}
       - run: |
           tuist xcodebuild test \
             -scheme MyScheme \
-            -destination 'platform=iOS Simulator,name=iPhone 16' \
-            -testProductsPath $TEST_PRODUCTS_PATH
+            -destination 'platform=iOS Simulator,name=iPhone 16'
       - if: always()
-        run: rm -rf /Volumes/test-products/${{ github.run_id }}
+        run: rm -rf /tmp/shards/${{ github.run_id }}
 ```
