@@ -159,6 +159,5 @@
                 return currentWorkingDirectory
             }
         }
-
     }
 #endif
