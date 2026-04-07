@@ -1,0 +1,409 @@
+{{- if .Values.observability.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "otel-collector-config") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+data:
+  config.yaml: |
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+    processors:
+      batch:
+    exporters:
+      debug: {}
+      otlp/tempo:
+        endpoint: {{ include "tuist.componentName" (dict "root" . "component" "tempo") }}:4317
+        tls:
+          insecure: true
+      otlphttp/loki:
+        endpoint: http://{{ include "tuist.componentName" (dict "root" . "component" "loki") }}:3100/otlp
+      prometheus:
+        endpoint: 0.0.0.0:9464
+    service:
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [batch]
+          exporters: [otlp/tempo, debug]
+        logs:
+          receivers: [otlp]
+          processors: [batch]
+          exporters: [otlphttp/loki, debug]
+        metrics:
+          receivers: [otlp]
+          processors: [batch]
+          exporters: [prometheus, debug]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "otel-collector") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+spec:
+  selector:
+    {{- include "tuist.componentLabels" (dict "root" . "component" "otel-collector") | nindent 4 }}
+  ports:
+    - name: otlp-grpc
+      port: 4317
+      targetPort: 4317
+    - name: otlp-http
+      port: 4318
+      targetPort: 4318
+    - name: prom
+      port: 9464
+      targetPort: 9464
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "otel-collector") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "tuist.componentLabels" (dict "root" . "component" "otel-collector") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "tuist.componentLabels" (dict "root" . "component" "otel-collector") | nindent 8 }}
+    spec:
+      containers:
+        - name: otel-collector
+          image: "{{ .Values.observability.collector.image.repository }}:{{ .Values.observability.collector.image.tag }}"
+          imagePullPolicy: {{ .Values.observability.collector.image.pullPolicy }}
+          args: ["--config=/conf/config.yaml"]
+          ports:
+            - containerPort: 4317
+            - containerPort: 4318
+            - containerPort: 9464
+          volumeMounts:
+            - name: config
+              mountPath: /conf
+          resources:
+            {{- toYaml .Values.observability.collector.resources | nindent 12 }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "tuist.componentName" (dict "root" . "component" "otel-collector-config") }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "prometheus-config") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+    scrape_configs:
+      - job_name: otel-collector
+        static_configs:
+          - targets: ['{{ include "tuist.componentName" (dict "root" . "component" "otel-collector") }}:9464']
+      - job_name: tuist-server
+        static_configs:
+          - targets: ['{{ include "tuist.componentName" (dict "root" . "component" "server") }}:9091']
+      - job_name: tuist-cache
+        metrics_path: /metrics
+        static_configs:
+          - targets: ['{{ include "tuist.componentName" (dict "root" . "component" "cache") }}:{{ .Values.cache.service.port }}']
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "prometheus") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+spec:
+  selector:
+    {{- include "tuist.componentLabels" (dict "root" . "component" "prometheus") | nindent 4 }}
+  ports:
+    - name: http
+      port: 9090
+      targetPort: 9090
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "prometheus") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "tuist.componentLabels" (dict "root" . "component" "prometheus") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "tuist.componentLabels" (dict "root" . "component" "prometheus") | nindent 8 }}
+    spec:
+      containers:
+        - name: prometheus
+          image: "{{ .Values.observability.prometheus.image.repository }}:{{ .Values.observability.prometheus.image.tag }}"
+          imagePullPolicy: {{ .Values.observability.prometheus.image.pullPolicy }}
+          args:
+            - --config.file=/etc/prometheus/prometheus.yml
+            - --storage.tsdb.path=/prometheus
+          ports:
+            - containerPort: 9090
+          volumeMounts:
+            - name: config
+              mountPath: /etc/prometheus/prometheus.yml
+              subPath: prometheus.yml
+            - name: data
+              mountPath: /prometheus
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "tuist.componentName" (dict "root" . "component" "prometheus-config") }}
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "loki") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+spec:
+  selector:
+    {{- include "tuist.componentLabels" (dict "root" . "component" "loki") | nindent 4 }}
+  ports:
+    - name: http
+      port: 3100
+      targetPort: 3100
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "loki") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "tuist.componentLabels" (dict "root" . "component" "loki") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "tuist.componentLabels" (dict "root" . "component" "loki") | nindent 8 }}
+    spec:
+      containers:
+        - name: loki
+          image: "{{ .Values.observability.loki.image.repository }}:{{ .Values.observability.loki.image.tag }}"
+          imagePullPolicy: {{ .Values.observability.loki.image.pullPolicy }}
+          args:
+            - -config.file=/etc/loki/local-config.yaml
+          ports:
+            - containerPort: 3100
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "tempo") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+spec:
+  selector:
+    {{- include "tuist.componentLabels" (dict "root" . "component" "tempo") | nindent 4 }}
+  ports:
+    - name: http
+      port: 3200
+      targetPort: 3200
+    - name: otlp-grpc
+      port: 4317
+      targetPort: 4317
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "tempo-config") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+data:
+  tempo.yaml: |
+    server:
+      http_listen_port: 3200
+      grpc_listen_port: 9095
+    distributor:
+      receivers:
+        otlp:
+          protocols:
+            grpc:
+              endpoint: 0.0.0.0:4317
+            http:
+              endpoint: 0.0.0.0:4318
+    metrics_generator:
+      ring:
+        kvstore:
+          store: inmemory
+      processor:
+        local_blocks:
+          flush_to_storage: false
+      storage:
+        path: /tmp/tempo/generator/wal
+        remote_write: []
+      traces_storage:
+        path: /tmp/tempo/generator/traces
+    ingester:
+      max_block_duration: 5m
+    compactor:
+      compaction:
+        block_retention: 24h
+    storage:
+      trace:
+        backend: local
+        local:
+          path: /tmp/tempo/traces
+        wal:
+          path: /tmp/tempo/wal
+    overrides:
+      defaults:
+        metrics_generator:
+          processors:
+            - local-blocks
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "tempo") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "tuist.componentLabels" (dict "root" . "component" "tempo") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "tuist.componentLabels" (dict "root" . "component" "tempo") | nindent 8 }}
+    spec:
+      containers:
+        - name: tempo
+          image: "{{ .Values.observability.tempo.image.repository }}:{{ .Values.observability.tempo.image.tag }}"
+          imagePullPolicy: {{ .Values.observability.tempo.image.pullPolicy }}
+          args:
+            - -config.file=/etc/tempo/tempo.yaml
+          ports:
+            - containerPort: 3200
+            - containerPort: 4317
+          volumeMounts:
+            - name: config
+              mountPath: /etc/tempo/tempo.yaml
+              subPath: tempo.yaml
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "tuist.componentName" (dict "root" . "component" "tempo-config") }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "grafana-datasources") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+data:
+  plugins.yaml: |
+    apiVersion: 1
+    apps:
+      - type: grafana-lokiexplore-app
+        org_id: 1
+        disabled: false
+      - type: grafana-exploretraces-app
+        org_id: 1
+        disabled: false
+  datasources.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        type: prometheus
+        access: proxy
+        url: http://{{ include "tuist.componentName" (dict "root" . "component" "prometheus") }}:9090
+      - name: Loki
+        type: loki
+        access: proxy
+        url: http://{{ include "tuist.componentName" (dict "root" . "component" "loki") }}:3100
+      - name: Tempo
+        type: tempo
+        access: proxy
+        url: http://{{ include "tuist.componentName" (dict "root" . "component" "tempo") }}:3200
+        jsonData:
+          tracesToLogsV2:
+            datasourceUid: loki
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "grafana") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+spec:
+  selector:
+    {{- include "tuist.componentLabels" (dict "root" . "component" "grafana") | nindent 4 }}
+  ports:
+    - name: http
+      port: 3000
+      targetPort: 3000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "grafana") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "tuist.componentLabels" (dict "root" . "component" "grafana") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "tuist.componentLabels" (dict "root" . "component" "grafana") | nindent 8 }}
+    spec:
+      containers:
+        - name: grafana
+          image: "{{ .Values.observability.grafana.image.repository }}:{{ .Values.observability.grafana.image.tag }}"
+          imagePullPolicy: {{ .Values.observability.grafana.image.pullPolicy }}
+          ports:
+            - containerPort: 3000
+          env:
+            - name: GF_SECURITY_ADMIN_USER
+              value: {{ .Values.observability.grafana.adminUser | quote }}
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              value: {{ .Values.observability.grafana.adminPassword | quote }}
+            - name: GF_AUTH_ANONYMOUS_ENABLED
+              value: "true"
+            - name: GF_AUTH_ANONYMOUS_ORG_ROLE
+              value: Admin
+            - name: GF_INSTALL_PLUGINS
+              value: "grafana-lokiexplore-app,grafana-exploretraces-app 1.3.3"
+            - name: GF_USERS_ALLOW_SIGN_UP
+              value: "false"
+            - name: GF_PATHS_PROVISIONING
+              value: /etc/grafana/provisioning
+          volumeMounts:
+            - name: datasources
+              mountPath: /etc/grafana/provisioning/datasources/datasources.yaml
+              subPath: datasources.yaml
+            - name: datasources
+              mountPath: /etc/grafana/provisioning/plugins/plugins.yaml
+              subPath: plugins.yaml
+      volumes:
+        - name: datasources
+          configMap:
+            name: {{ include "tuist.componentName" (dict "root" . "component" "grafana-datasources") }}
+{{- end }}
