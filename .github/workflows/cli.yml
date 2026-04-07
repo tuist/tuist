@@ -191,7 +191,7 @@ jobs:
     name: Build Acceptance Tests
     runs-on: macos-26
     timeout-minutes: 60
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    # if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     outputs:
       matrix: ${{ steps.shard.outputs.matrix }}
     steps:
