@@ -6,6 +6,7 @@ defmodule Cache.SQLiteBuffer do
   use GenServer
 
   alias Cache.Config
+  alias Cache.SQLiteHelpers
 
   require Logger
 
@@ -60,6 +61,7 @@ defmodule Cache.SQLiteBuffer do
       timer_ref: nil,
       flush_interval_ms: config_value(buffer_module, :flush_interval_ms, @default_flush_interval_ms),
       flush_timeout_ms: config_value(buffer_module, :flush_timeout_ms, @default_flush_timeout_ms),
+      shutdown_ms: config_value(name, :shutdown_ms, @default_shutdown_ms),
       max_batch_size: config_value(buffer_module, :max_batch_size, @default_max_batch_size)
     }
 
@@ -69,7 +71,8 @@ defmodule Cache.SQLiteBuffer do
   @impl true
   def handle_call(:flush, _from, state) do
     state = cancel_flush_timer(state)
-    state = flush_state(state, :drain)
+    deadline_ms = System.monotonic_time(:millisecond) + state.flush_timeout_ms
+    state = flush_state(state, :drain, deadline_ms)
     state = ensure_flush_timer(state)
     {:reply, :ok, state}
   end
@@ -106,39 +109,114 @@ defmodule Cache.SQLiteBuffer do
   def terminate(_reason, state) do
     buffer_name = state.buffer_module.buffer_name()
     Logger.notice("Flushing #{buffer_name} buffer before shutdown...")
-    _ = flush_state(state, :drain)
+    deadline_ms = System.monotonic_time(:millisecond) + state.shutdown_ms
+    _ = flush_state(state, :drain, deadline_ms)
     :ok
   end
 
-  defp flush_state(state, mode) do
+  defp flush_state(state, mode, deadline_ms \\ nil) do
     operations = state.buffer_module.flush_entries(state.table, state.max_batch_size)
-    state = Enum.reduce(operations, state, &execute_operation/2)
 
-    if mode == :drain and not state.buffer_module.queue_empty?(state.table) do
-      flush_state(state, mode)
-    else
-      state
+    result =
+      Enum.reduce_while(operations, state, fn operation, state ->
+        case execute_operation(operation, state, mode, deadline_ms) do
+          {:ok, next_state} -> {:cont, next_state}
+          {:retry_later, next_state} -> {:halt, {:retry_later, next_state}}
+        end
+      end)
+
+    case result do
+      {:retry_later, state} ->
+        state
+
+      state ->
+        if mode == :drain and not state.buffer_module.queue_empty?(state.table) do
+          flush_state(state, mode, deadline_ms)
+        else
+          state
+        end
     end
   end
 
-  defp execute_operation({operation, entries}, state) do
+  defp execute_operation({operation, entries, raw_entries}, state, mode, deadline_ms) do
     batch_size = batch_size(entries)
     buffer_name = state.buffer_module.buffer_name()
+    operation_data = {operation, entries, raw_entries}
 
     Logger.notice("Flushing #{batch_size} row(s) from #{buffer_name} (#{operation})")
 
-    {duration_ms, _} =
-      :timer.tc(fn ->
-        state.buffer_module.write_batch(operation, entries)
-      end)
+    try do
+      {duration_ms, _} =
+        :timer.tc(fn ->
+          state.buffer_module.write_batch(operation, entries)
+        end)
 
-    emit_flush_metrics(buffer_name, operation, duration_ms, batch_size)
-    state
+      acknowledge_entries(state.table, raw_entries)
+      emit_flush_metrics(buffer_name, operation, duration_ms, batch_size)
+      {:ok, state}
+    rescue
+      error ->
+        if SQLiteHelpers.contention_error?(error) do
+          handle_contention_retry(
+            error,
+            batch_size,
+            buffer_name,
+            operation_data,
+            state,
+            mode,
+            deadline_ms
+          )
+        else
+          reraise error, __STACKTRACE__
+        end
+    end
+  end
+
+  defp handle_contention_retry(
+         error,
+         batch_size,
+         buffer_name,
+         {operation, entries, raw_entries},
+         state,
+         :drain,
+         deadline_ms
+       ) do
+    if System.monotonic_time(:millisecond) >= deadline_ms do
+      Logger.warning("#{buffer_name} buffer flush timed out under SQLite contention")
+      {:retry_later, state}
+    else
+      Logger.warning(
+        "Deferring flush of #{batch_size} row(s) from #{buffer_name} (#{operation}) due to SQLite contention: #{Exception.message(error)}"
+      )
+
+      Process.sleep(25)
+      execute_operation({operation, entries, raw_entries}, state, :drain, deadline_ms)
+    end
+  end
+
+  defp handle_contention_retry(
+         error,
+         batch_size,
+         buffer_name,
+         {operation, _entries, _raw_entries},
+         state,
+         :batch,
+         _deadline_ms
+       ) do
+    Logger.warning(
+      "Deferring flush of #{batch_size} row(s) from #{buffer_name} (#{operation}) due to SQLite contention: #{Exception.message(error)}"
+    )
+
+    {:retry_later, state}
   end
 
   defp batch_size(entries) when is_map(entries), do: map_size(entries)
   defp batch_size(entries) when is_list(entries), do: length(entries)
   defp batch_size(_entries), do: 0
+
+  defp acknowledge_entries(table, raw_entries) do
+    Enum.each(raw_entries, &:ets.delete_object(table, &1))
+  end
 
   defp ensure_flush_timer(state) do
     if state.timer_ref == nil do

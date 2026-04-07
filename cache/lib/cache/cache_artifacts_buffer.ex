@@ -52,8 +52,7 @@ defmodule Cache.CacheArtifactsBuffer do
     accesses =
       case :ets.select(table, access_spec, max_batch_size) do
         {entries, _continuation} ->
-          Enum.each(entries, &:ets.delete_object(table, &1))
-          Enum.map(entries, fn {key, {:access, entry}} -> {key, entry} end)
+          entries
 
         :"$end_of_table" ->
           []
@@ -62,8 +61,7 @@ defmodule Cache.CacheArtifactsBuffer do
     deletes =
       case :ets.select(table, delete_spec, max_batch_size) do
         {entries, _continuation} ->
-          Enum.each(entries, &:ets.delete_object(table, &1))
-          Enum.map(entries, fn {key, :delete} -> key end)
+          entries
 
         :"$end_of_table" ->
           []
@@ -72,8 +70,14 @@ defmodule Cache.CacheArtifactsBuffer do
     operations =
       Enum.reject(
         [
-          if(accesses != [], do: {:artifact_accesses, Map.new(accesses)}),
-          if(deletes != [], do: {:artifact_deletes, deletes})
+          if(accesses != [],
+            do:
+              {:artifact_accesses, Map.new(Enum.map(accesses, fn {key, {:access, entry}} -> {key, entry} end)),
+               accesses}
+          ),
+          if(deletes != [],
+            do: {:artifact_deletes, Enum.map(deletes, fn {key, :delete} -> key end), deletes}
+          )
         ],
         &is_nil/1
       )

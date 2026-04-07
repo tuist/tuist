@@ -16,7 +16,7 @@ config :cache, Cache.KeyValueWriteRepo,
 
 config :cache, Cache.Repo,
   database: "dev.sqlite3",
-  pool_size: 10,
+  pool_size: 1,
   show_sensitive_data_on_connection_error: true
 
 config :cache, CacheWeb.Endpoint,

@@ -61,7 +61,6 @@ defmodule Cache.S3TransfersBuffer do
     inserts =
       case :ets.select(table, insert_spec, max_batch_size) do
         {entries, _continuation} ->
-          Enum.each(entries, &:ets.delete_object(table, &1))
           entries
 
         :"$end_of_table" ->
@@ -71,8 +70,7 @@ defmodule Cache.S3TransfersBuffer do
     deletes =
       case :ets.select(table, delete_spec, max_batch_size) do
         {entries, _continuation} ->
-          Enum.each(entries, &:ets.delete_object(table, &1))
-          Enum.map(entries, fn {{:delete, id}, :delete} -> id end)
+          entries
 
         :"$end_of_table" ->
           []
@@ -81,8 +79,10 @@ defmodule Cache.S3TransfersBuffer do
     operations =
       Enum.reject(
         [
-          if(inserts != [], do: {:s3_inserts, Map.new(inserts)}),
-          if(deletes != [], do: {:s3_deletes, deletes})
+          if(inserts != [], do: {:s3_inserts, Map.new(inserts), inserts}),
+          if(deletes != [],
+            do: {:s3_deletes, Enum.map(deletes, fn {{:delete, id}, :delete} -> id end), deletes}
+          )
         ],
         &is_nil/1
       )

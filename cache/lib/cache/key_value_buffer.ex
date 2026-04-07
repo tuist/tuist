@@ -55,8 +55,7 @@ defmodule Cache.KeyValueBuffer do
     writes =
       case :ets.select(table, write_spec, max_batch_size) do
         {entries, _continuation} ->
-          Enum.each(entries, &:ets.delete_object(table, &1))
-          Enum.map(entries, fn {key, {:write, entry}} -> {key, entry} end)
+          entries
 
         :"$end_of_table" ->
           []
@@ -65,8 +64,7 @@ defmodule Cache.KeyValueBuffer do
     accesses =
       case :ets.select(table, access_spec, max_batch_size) do
         {entries, _continuation} ->
-          Enum.each(entries, &:ets.delete_object(table, &1))
-          Enum.map(entries, fn {key, {:access, entry}} -> {key, entry} end)
+          entries
 
         :"$end_of_table" ->
           []
@@ -74,8 +72,13 @@ defmodule Cache.KeyValueBuffer do
 
     Enum.reject(
       [
-        if(writes != [], do: {:key_values, Map.new(writes)}),
-        if(accesses != [], do: {:key_value_accesses, Map.new(accesses)})
+        if(writes != [],
+          do: {:key_values, Map.new(Enum.map(writes, fn {key, {:write, entry}} -> {key, entry} end)), writes}
+        ),
+        if(accesses != [],
+          do:
+            {:key_value_accesses, Map.new(Enum.map(accesses, fn {key, {:access, entry}} -> {key, entry} end)), accesses}
+        )
       ],
       &is_nil/1
     )

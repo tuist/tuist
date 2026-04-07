@@ -115,7 +115,7 @@ defmodule Cache.KeyValueStore do
     end)
   rescue
     error ->
-      if SQLiteHelpers.busy_error?(error) do
+      if SQLiteHelpers.contention_error?(error) do
         :telemetry.execute(@contention_event, %{count: 1}, %{})
         {:error, :not_found}
       else

@@ -1,3 +1,45 @@
+defmodule Cache.SQLiteBufferTest.RetryingBuffer do
+  @moduledoc false
+  @behaviour Cache.SQLiteBufferable
+
+  alias Cache.SQLiteBuffer
+
+  @impl true
+  def buffer_name, do: :retrying_test_buffer
+
+  @impl true
+  def flush_entries(table, max_batch_size) do
+    spec = [{{:"$1", :"$2"}, [], [:"$_"]}]
+
+    case :ets.select(table, spec, max_batch_size) do
+      {entries, _continuation} when entries != [] -> [{:writes, entries, entries}]
+      _ -> []
+    end
+  end
+
+  @impl true
+  def queue_stats(table) do
+    count = SQLiteBuffer.table_size(table)
+    %{retrying_test_buffer: count, total: count}
+  end
+
+  @impl true
+  def queue_empty?(table), do: SQLiteBuffer.table_size(table) == 0
+
+  @impl true
+  def write_batch(:writes, entries) do
+    Enum.each(entries, fn {key, entry} ->
+      case Agent.get_and_update(entry.attempts, fn count -> {count, count + 1} end) do
+        0 ->
+          raise DBConnection.ConnectionError, "connection not available"
+
+        _count ->
+          Agent.update(entry.completions, fn persisted -> [{key, entry.payload} | persisted] end)
+      end
+    end)
+  end
+end
+
 defmodule Cache.SQLiteBufferTest do
   use ExUnit.Case, async: false
   use Mimic
@@ -58,6 +100,52 @@ defmodule Cache.SQLiteBufferTest do
     record = KeyValueRepo.get_by!(KeyValueEntry, key: key)
     assert record.json_payload == payload_two
     assert record.last_accessed_at
+  end
+
+  test "retryable key-value write failures are retried within flush" do
+    key = "keyvalue:account:project:retry"
+    payload = JSON.encode!(%{entries: [%{"value" => "retry"}]})
+    attempts = start_supervised!({Agent, fn -> 0 end})
+
+    stub(KeyValueWriteRepo, :insert_all, fn schema, rows, opts ->
+      case Agent.get_and_update(attempts, fn count -> {count, count + 1} end) do
+        0 -> raise DBConnection.ConnectionError, "connection not available"
+        _count -> call_original(KeyValueWriteRepo, :insert_all, [schema, rows, opts])
+      end
+    end)
+
+    log =
+      capture_log(fn ->
+        assert :ok = KeyValueBuffer.enqueue(key, payload)
+        assert :ok = KeyValueBuffer.flush()
+      end)
+
+    assert log =~ "Deferring flush of 1 row(s) from key_values"
+    assert %{key_values: 0, total: 0} = KeyValueBuffer.queue_stats()
+    assert KeyValueRepo.get_by!(KeyValueEntry, key: key).json_payload == payload
+  end
+
+  test "retryable repo write failures are retried within flush" do
+    key = "account/project/xcode/ab/cd/retry"
+    attempts = start_supervised!({Agent, fn -> 0 end})
+    last_accessed_at = DateTime.utc_now()
+
+    stub(Repo, :insert_all, fn schema, rows, opts ->
+      case Agent.get_and_update(attempts, fn count -> {count, count + 1} end) do
+        0 -> raise %Exqlite.Error{message: "database is locked"}
+        _count -> call_original(Repo, :insert_all, [schema, rows, opts])
+      end
+    end)
+
+    log =
+      capture_log(fn ->
+        assert :ok = CacheArtifactsBuffer.enqueue_access(key, 123, last_accessed_at)
+        assert :ok = CacheArtifactsBuffer.flush()
+      end)
+
+    assert log =~ "Deferring flush of 1 row(s) from cache_artifacts"
+    assert %{cache_artifacts: 0, total: 0} = CacheArtifactsBuffer.queue_stats()
+    assert Repo.get_by!(CacheArtifact, key: key).size_bytes == 123
   end
 
   test "distributed writes mark source_updated_at and replication token" do
@@ -269,14 +357,45 @@ defmodule Cache.SQLiteBufferTest do
 
     suffix = :erlang.unique_integer([:positive])
     shutdown_buf = :"sqlite_buffer_shutdown_test_#{suffix}"
-    {:ok, pid} = SQLiteBuffer.start_link(name: shutdown_buf, buffer_module: KeyValueBuffer)
+    pid = start_supervised!({SQLiteBuffer, [name: shutdown_buf, buffer_module: KeyValueBuffer]})
 
     true = :ets.insert(shutdown_buf, {key, {:write, %{key: key, json_payload: payload}}})
 
-    :ok = GenServer.stop(pid)
+    :ok = GenServer.stop(pid, :shutdown)
 
     record = KeyValueRepo.get_by!(KeyValueEntry, key: key)
     assert record.json_payload == payload
+  end
+
+  test "shutdown retries queued entries under transient contention" do
+    key = "shutdown-retry"
+    payload = %{event: :shutdown}
+    attempts = start_supervised!(Supervisor.child_spec({Agent, fn -> 0 end}, id: make_ref()))
+    completions = start_supervised!(Supervisor.child_spec({Agent, fn -> [] end}, id: make_ref()))
+
+    suffix = :erlang.unique_integer([:positive])
+    buffer = :"sqlite_buffer_shutdown_retry_test_#{suffix}"
+
+    stub(Config, :sqlite_buffer_value, fn scope, key, default ->
+      if scope == buffer and key == :shutdown_ms do
+        1_000
+      else
+        call_original(Config, :sqlite_buffer_value, [scope, key, default])
+      end
+    end)
+
+    pid = start_supervised!({SQLiteBuffer, [name: buffer, buffer_module: Cache.SQLiteBufferTest.RetryingBuffer]})
+
+    true = :ets.insert(buffer, {key, %{attempts: attempts, completions: completions, payload: payload}})
+
+    log =
+      capture_log(fn ->
+        :ok = GenServer.stop(pid, :shutdown)
+      end)
+
+    assert log =~ "Deferring flush of 1 row(s) from retrying_test_buffer"
+    assert Agent.get(attempts, & &1) == 2
+    assert Agent.get(completions, & &1) == [{key, payload}]
   end
 
   test "unexpected info messages are logged and ignored" do

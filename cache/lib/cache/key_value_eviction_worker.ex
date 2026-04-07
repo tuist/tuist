@@ -198,7 +198,7 @@ defmodule Cache.KeyValueEvictionWorker do
   end
 
   defp run_size_maintenance_pass(deadline_ms) do
-    with_db_budget(deadline_ms, fn ->
+    with_write_db_budget(deadline_ms, fn ->
       with {:ok, _} <- kv_query("PRAGMA wal_checkpoint(PASSIVE)"),
            {:ok, _} <- kv_query("PRAGMA incremental_vacuum(1000)") do
         :ok
@@ -207,10 +207,10 @@ defmodule Cache.KeyValueEvictionWorker do
   end
 
   defp fetch_size_state(deadline_ms) do
-    with_db_budget(deadline_ms, fn ->
-      with {:ok, page_count} <- kv_pragma_value("PRAGMA page_count"),
-           {:ok, freelist_count} <- kv_pragma_value("PRAGMA freelist_count"),
-           {:ok, page_size} <- kv_pragma_value("PRAGMA page_size") do
+    with_read_db_budget(deadline_ms, fn ->
+      with {:ok, page_count} <- kv_read_pragma_value("PRAGMA page_count"),
+           {:ok, freelist_count} <- kv_read_pragma_value("PRAGMA freelist_count"),
+           {:ok, page_size} <- kv_read_pragma_value("PRAGMA page_size") do
         wal_size = SQLiteHelpers.wal_file_size(db_path())
 
         {:ok,
@@ -222,7 +222,7 @@ defmodule Cache.KeyValueEvictionWorker do
     end)
   end
 
-  defp with_db_budget(deadline_ms, fun) do
+  defp with_write_db_budget(deadline_ms, fun) do
     if deadline_reached?(deadline_ms) do
       {:error, :deadline_exhausted}
     else
@@ -243,6 +243,18 @@ defmodule Cache.KeyValueEvictionWorker do
       {:error, :busy}
   end
 
+  defp with_read_db_budget(deadline_ms, fun) do
+    if deadline_reached?(deadline_ms) do
+      {:error, :deadline_exhausted}
+    else
+      SQLiteHelpers.with_repo_busy_timeout(KeyValueRepo, 0, fun)
+    end
+  rescue
+    error in [DBConnection.ConnectionError] ->
+      Logger.warning("KV eviction read checkout failed: #{Exception.message(error)}")
+      {:error, :busy}
+  end
+
   defp set_maintenance_busy_timeout do
     timeout = Config.key_value_maintenance_busy_timeout_ms()
 
@@ -252,8 +264,8 @@ defmodule Cache.KeyValueEvictionWorker do
     end
   end
 
-  defp kv_pragma_value(query) do
-    with {:ok, %{rows: [[value]]}} <- kv_query(query) do
+  defp kv_read_pragma_value(query) do
+    with {:ok, %{rows: [[value]]}} <- kv_read_query(query) do
       {:ok, value}
     end
   end
@@ -264,10 +276,25 @@ defmodule Cache.KeyValueEvictionWorker do
         {:ok, result}
 
       {:error, error} ->
-        if SQLiteHelpers.busy_error?(error) do
+        if SQLiteHelpers.contention_error?(error) do
           {:error, :busy}
         else
           Logger.error("KV SQLite query failed: #{query} — #{inspect(error)}")
+          raise error
+        end
+    end
+  end
+
+  defp kv_read_query(query) do
+    case KeyValueRepo.query(query) do
+      {:ok, result} ->
+        {:ok, result}
+
+      {:error, error} ->
+        if SQLiteHelpers.contention_error?(error) do
+          {:error, :busy}
+        else
+          Logger.error("KV SQLite read query failed: #{query} — #{inspect(error)}")
           raise error
         end
     end

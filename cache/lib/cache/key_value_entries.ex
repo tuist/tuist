@@ -52,29 +52,27 @@ defmodule Cache.KeyValueEntries do
     deadline_ms = System.monotonic_time(:millisecond) + max(max_duration_ms, 0)
     timeout = Config.key_value_maintenance_busy_timeout_ms()
 
-    SQLiteHelpers.with_repo_busy_timeout(Cache.KeyValueWriteRepo, timeout, fn ->
-      if time_limit_reached?(deadline_ms) do
-        {0, :time_limit_reached}
-      else
-        case candidate_batch(cutoff, batch_size, nil) do
-          [] ->
-            {0, :complete}
+    if time_limit_reached?(deadline_ms) do
+      {0, :time_limit_reached}
+    else
+      case candidate_batch_result(cutoff, batch_size, nil) do
+        {:error, :busy} ->
+          {0, :busy}
 
-          batch ->
-            ids_to_delete = Enum.map(batch, &elem(&1, 0))
-            {count, status} = delete_expired_entries(ids_to_delete, cutoff, on_deleted_keys)
+        [] ->
+          {0, :complete}
+
+        batch ->
+          ids_to_delete = Enum.map(batch, &elem(&1, 0))
+          {count, status} = delete_expired_entries_with_timeout(ids_to_delete, cutoff, on_deleted_keys, timeout)
+
+          if status == :complete and count > 0 do
             :timer.sleep(@batch_sleep_ms)
-            {count, status}
-        end
+          end
+
+          {count, status}
       end
-    end)
-  rescue
-    error ->
-      if SQLiteHelpers.busy_error?(error) do
-        {0, :busy}
-      else
-        reraise error, __STACKTRACE__
-      end
+    end
   end
 
   def list_pending_replication(limit \\ Config.distributed_kv_ship_batch_size()) do
@@ -157,7 +155,7 @@ defmodule Cache.KeyValueEntries do
     end
   rescue
     error ->
-      if SQLiteHelpers.busy_error?(error) do
+      if SQLiteHelpers.contention_error?(error) do
         {:error, :busy}
       else
         reraise error, __STACKTRACE__
@@ -197,7 +195,7 @@ defmodule Cache.KeyValueEntries do
     end
   rescue
     error ->
-      if SQLiteHelpers.busy_error?(error) do
+      if SQLiteHelpers.contention_error?(error) do
         {:error, :busy}
       else
         reraise error, __STACKTRACE__
@@ -506,44 +504,59 @@ defmodule Cache.KeyValueEntries do
     else
       timeout = Config.key_value_maintenance_busy_timeout_ms()
 
-      result =
-        try do
-          SQLiteHelpers.with_repo_busy_timeout(Cache.KeyValueWriteRepo, timeout, fn ->
-            delete_candidate_batch(cutoff, batch_size, cursor, on_deleted_keys)
-          end)
-        rescue
-          error ->
-            if SQLiteHelpers.busy_error?(error), do: :busy, else: reraise(error, __STACKTRACE__)
-        end
-
-      case result do
-        :empty ->
-          {count_acc, :complete}
-
-        :busy ->
+      case candidate_batch_result(cutoff, batch_size, cursor) do
+        {:error, :busy} ->
           {count_acc, :busy}
 
-        {:ok, batch_count, new_cursor} ->
-          :timer.sleep(@batch_sleep_ms)
-          delete_expired_loop(cutoff, batch_size, deadline_ms, on_deleted_keys, new_cursor, count_acc + batch_count)
+        [] ->
+          {count_acc, :complete}
+
+        rows ->
+          ids_to_delete = Enum.map(rows, &elem(&1, 0))
+          {batch_count, status} = delete_expired_entries_with_timeout(ids_to_delete, cutoff, on_deleted_keys, timeout)
+
+          continue_delete_expired_loop(
+            cutoff,
+            batch_size,
+            deadline_ms,
+            on_deleted_keys,
+            rows,
+            count_acc,
+            batch_count,
+            status
+          )
       end
     end
   end
 
-  defp delete_candidate_batch(cutoff, batch_size, cursor, on_deleted_keys) do
-    case candidate_batch(cutoff, batch_size, cursor) do
-      [] ->
-        :empty
+  defp continue_delete_expired_loop(
+         _cutoff,
+         _batch_size,
+         _deadline_ms,
+         _on_deleted_keys,
+         _rows,
+         count_acc,
+         batch_count,
+         :busy
+       ) do
+    {count_acc + batch_count, :busy}
+  end
 
-      rows ->
-        ids = Enum.map(rows, &elem(&1, 0))
-        {batch_count, status} = delete_expired_entries(ids, cutoff, on_deleted_keys)
-
-        case status do
-          :busy -> :busy
-          :complete -> {:ok, batch_count, batch_cursor(rows)}
-        end
+  defp continue_delete_expired_loop(
+         cutoff,
+         batch_size,
+         deadline_ms,
+         on_deleted_keys,
+         rows,
+         count_acc,
+         batch_count,
+         :complete
+       ) do
+    if batch_count > 0 do
+      :timer.sleep(@batch_sleep_ms)
     end
+
+    delete_expired_loop(cutoff, batch_size, deadline_ms, on_deleted_keys, batch_cursor(rows), count_acc + batch_count)
   end
 
   defp candidate_batch(cutoff, batch_size, {:time_cursor, cursor_time, cursor_id}) do
@@ -568,6 +581,17 @@ defmodule Cache.KeyValueEntries do
     end
   end
 
+  defp candidate_batch_result(cutoff, batch_size, cursor) do
+    candidate_batch(cutoff, batch_size, cursor)
+  rescue
+    error ->
+      if SQLiteHelpers.contention_error?(error) do
+        {:error, :busy}
+      else
+        reraise error, __STACKTRACE__
+      end
+  end
+
   defp null_candidates(limit, after_id) do
     query =
       from(entry in KeyValueEntry,
@@ -581,7 +605,7 @@ defmodule Cache.KeyValueEntries do
 
     query = if after_id, do: from(entry in query, where: entry.id > ^after_id), else: query
 
-    Cache.KeyValueWriteRepo.all(query)
+    KeyValueRepo.all(query)
   end
 
   defp non_null_candidates(cutoff, limit, cursor) do
@@ -608,7 +632,7 @@ defmodule Cache.KeyValueEntries do
           )
       end
 
-    Cache.KeyValueWriteRepo.all(query)
+    KeyValueRepo.all(query)
   end
 
   defp delete_expired_entries(ids_to_delete, cutoff, on_deleted_keys) do
@@ -623,7 +647,7 @@ defmodule Cache.KeyValueEntries do
         {:cont, {count_acc + deleted_count, :complete}}
       rescue
         error ->
-          if SQLiteHelpers.busy_error?(error) do
+          if SQLiteHelpers.contention_error?(error) do
             {:halt, {count_acc, :busy}}
           else
             reraise error, __STACKTRACE__
@@ -657,6 +681,19 @@ defmodule Cache.KeyValueEntries do
       end)
 
     {deleted_count, deleted_keys}
+  end
+
+  defp delete_expired_entries_with_timeout(ids_to_delete, cutoff, on_deleted_keys, timeout) do
+    SQLiteHelpers.with_repo_busy_timeout(Cache.KeyValueWriteRepo, timeout, fn ->
+      delete_expired_entries(ids_to_delete, cutoff, on_deleted_keys)
+    end)
+  rescue
+    error ->
+      if SQLiteHelpers.contention_error?(error) do
+        {0, :busy}
+      else
+        reraise error, __STACKTRACE__
+      end
   end
 
   defp batch_cursor(batch) do

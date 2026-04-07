@@ -130,7 +130,7 @@ defmodule Cache.KeyValueEvictionWorkerTest do
   test "size-based eviction emits telemetry" do
     call_count = :counters.new(1, [:atomics])
 
-    stub(KeyValueWriteRepo, :query, fn query ->
+    stub(KeyValueRepo, :query, fn query ->
       cond do
         String.starts_with?(query, "PRAGMA busy_timeout =") ->
           {:ok, %{rows: []}}
@@ -143,6 +143,13 @@ defmodule Cache.KeyValueEvictionWorkerTest do
 
         query == "PRAGMA page_size" ->
           {:ok, %{rows: [[4096]]}}
+      end
+    end)
+
+    stub(KeyValueWriteRepo, :query, fn query ->
+      cond do
+        String.starts_with?(query, "PRAGMA busy_timeout =") ->
+          {:ok, %{rows: []}}
 
         query == "PRAGMA wal_checkpoint(PASSIVE)" ->
           {:ok, %{rows: [[0, 0, 0]]}}
@@ -169,7 +176,7 @@ defmodule Cache.KeyValueEvictionWorkerTest do
   end
 
   test "busy lock contention exits safely" do
-    stub(KeyValueWriteRepo, :query, fn query ->
+    stub(KeyValueRepo, :query, fn query ->
       cond do
         String.starts_with?(query, "PRAGMA busy_timeout =") -> {:ok, %{rows: []}}
         query == "PRAGMA page_count" -> {:ok, %{rows: [[10]]}}
@@ -192,7 +199,7 @@ defmodule Cache.KeyValueEvictionWorkerTest do
   end
 
   test "non-busy SQLite query failures fail the job" do
-    stub(KeyValueWriteRepo, :query, fn query ->
+    stub(KeyValueRepo, :query, fn query ->
       cond do
         String.starts_with?(query, "PRAGMA busy_timeout =") -> {:ok, %{rows: []}}
         query == "PRAGMA page_count" -> {:error, %Exqlite.Error{message: "disk I/O error"}}
