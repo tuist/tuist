@@ -8,6 +8,7 @@ All notable changes to this project will be documented in this file.
 * add workspace-level DerivedData location support by [@davidpasztor](https://github.com/davidpasztor) in [#9693](https://github.com/tuist/tuist/pull/9693)
 ### 🐛 Bug Fixes
 
+* add retry logic to build uploads by [@fortmarek](https://github.com/fortmarek) in [#10210](https://github.com/tuist/tuist/pull/10210)
 * add nonisolated(unsafe) to generated plist accessors with Any type by [@fortmarek](https://github.com/fortmarek) in [#10195](https://github.com/tuist/tuist/pull/10195)
 
 
