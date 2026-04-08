@@ -13,6 +13,7 @@ on:
       - "*.swift"
       - ".github/workflows/cli.yml"
       - "mise/tasks/cli/lint.sh"
+      - "mise/tasks/cli/ee.sh"
       - "mise.toml"
       - "mise.lock"
       - "examples/xcode/**"
@@ -32,6 +33,7 @@ on:
       - "*.swift"
       - ".github/workflows/cli.yml"
       - "mise/tasks/cli/lint.sh"
+      - "mise/tasks/cli/ee.sh"
       - "mise.toml"
       - "mise.lock"
       - "examples/xcode/**"
@@ -47,6 +49,8 @@ permissions:
 
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  TUIST_GITHUB_TOKEN: ${{ secrets.TUIST_GITHUB_TOKEN }}
+  TUIST_EE: ${{ github.event.pull_request.head.repo.fork != true && '1' || '' }}
   TUIST_ENABLE_CACHING: ${{ github.event.pull_request.head.repo.fork != true }}
   MISE_GITHUB_ATTESTATIONS: 0
   MISE_LOCKED: 1
@@ -62,6 +66,11 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.TUIST_GITHUB_TOKEN || github.token }}
+      - name: Initialize TuistCacheEE submodule
+        if: github.event.pull_request.head.repo.fork != true
+        run: bash mise/tasks/cli/ee.sh
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - uses: actions/cache/restore@v4
@@ -125,6 +134,11 @@ jobs:
     if: github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.TUIST_GITHUB_TOKEN || github.token }}
+      - name: Initialize TuistCacheEE submodule
+        if: github.event.pull_request.head.repo.fork != true
+        run: bash mise/tasks/cli/ee.sh
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - name: Restore cache
@@ -161,6 +175,11 @@ jobs:
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.TUIST_GITHUB_TOKEN || github.token }}
+      - name: Initialize TuistCacheEE submodule
+        if: github.event.pull_request.head.repo.fork != true
+        run: bash mise/tasks/cli/ee.sh
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - uses: namespacelabs/nscloud-cache-action@v1
@@ -191,11 +210,17 @@ jobs:
     name: Build Acceptance Tests
     runs-on: namespace-profile-default-macos
     timeout-minutes: 60
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    # TODO: restore draft skip before merging
+    # if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     outputs:
       matrix: ${{ steps.shard.outputs.matrix }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.TUIST_GITHUB_TOKEN || github.token }}
+      - name: Initialize TuistCacheEE submodule
+        if: github.event.pull_request.head.repo.fork != true
+        run: bash mise/tasks/cli/ee.sh
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - uses: namespacelabs/nscloud-cache-action@v1
@@ -239,6 +264,11 @@ jobs:
       matrix: ${{ fromJson(needs.cli-acceptance-tests-build.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.TUIST_GITHUB_TOKEN || github.token }}
+      - name: Initialize TuistCacheEE submodule
+        if: github.event.pull_request.head.repo.fork != true
+        run: bash mise/tasks/cli/ee.sh
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - uses: namespacelabs/nscloud-cache-action@v1

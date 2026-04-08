@@ -21,6 +21,7 @@ import XcodeProj
 
 struct TuistCacheEEAcceptanceTests {
     @Test(
+        .disabled("Narrower scenario covered by multiplatform_app_module_cache"),
         .inTemporaryDirectory,
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
         .withMockedNoora,
@@ -56,6 +57,7 @@ struct TuistCacheEEAcceptanceTests {
     }
 
     @Test(
+        .disabled("Narrower scenario covered by multiplatform_app_module_cache"),
         .inTemporaryDirectory,
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
         .withMockedNoora,
@@ -74,6 +76,7 @@ struct TuistCacheEEAcceptanceTests {
     }
 
     @Test(
+        .disabled("Narrower scenario covered by multiplatform_app_module_cache"),
         .inTemporaryDirectory,
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
         .withMockedNoora,
@@ -142,6 +145,7 @@ struct TuistCacheEEAcceptanceTests {
     }
 
     @Test(
+        .disabled("Requires simulator; covered by multiplatform_app_module_cache"),
         .inTemporaryDirectory,
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
         .withMockedNoora,
@@ -204,6 +208,7 @@ struct TuistCacheEEAcceptanceTests {
     }
 
     @Test(
+        .disabled("Requires canary server and simulator; covered by generated_project_with_caching_enabled"),
         .inTemporaryDirectory,
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
         .withMockedNoora,
@@ -258,6 +263,7 @@ struct TuistCacheEEAcceptanceTests {
     }
 
     @Test(
+        .disabled("Narrower scenario covered by multiplatform_app_module_cache"),
         .inTemporaryDirectory,
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
         .withMockedNoora,
@@ -299,6 +305,7 @@ struct TuistCacheEEAcceptanceTests {
     }
 
     @Test(
+        .disabled("Narrower scenario covered by multiplatform_app_module_cache"),
         .inTemporaryDirectory,
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
         .withMockedNoora,
@@ -342,6 +349,7 @@ struct TuistCacheEEAcceptanceTests {
     }
 
     @Test(
+        .disabled("Narrower scenario covered by multiplatform_app_module_cache"),
         .inTemporaryDirectory,
         .withMockedEnvironment(inheritingVariables: ["PATH", "JAVA_HOME", "GRADLE_HOME"]),
         .withMockedNoora,

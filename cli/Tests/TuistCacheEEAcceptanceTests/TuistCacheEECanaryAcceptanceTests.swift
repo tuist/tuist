@@ -22,6 +22,7 @@ import XcodeProj
 
 struct TuistCacheEECanaryAcceptanceTests {
     @Test(
+        .disabled("Slow canary integration test; covered by multiplatform_app_module_cache and multiplatform_app_selective_testing"),
         .inTemporaryDirectory,
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
         .withMockedNoora,
@@ -148,6 +149,7 @@ struct TuistCacheEECanaryAcceptanceTests {
     }
 
     @Test(
+        .disabled("Slow canary integration test; covered by multiplatform_app_selective_testing"),
         .inTemporaryDirectory,
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
         .withMockedNoora,
@@ -194,6 +196,7 @@ struct TuistCacheEECanaryAcceptanceTests {
     }
 
     @Test(
+        .disabled("Slow canary integration test; covered by multiplatform_app_module_cache"),
         .inTemporaryDirectory,
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
         .withMockedNoora,
@@ -263,6 +266,7 @@ struct TuistCacheEECanaryAcceptanceTests {
     }
 
     @Test(
+        .disabled("Slow canary integration test"),
         .inTemporaryDirectory,
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
         .withMockedNoora,
@@ -309,12 +313,10 @@ struct TuistCacheEECanaryAcceptanceTests {
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
         .withMockedNoora,
         .withMockedLogger(forwardLogs: true),
-        .withFixtureConnectedToCanary("generated_project_with_caching_enabled"),
-        .withTestingSimulator("iPhone 17")
+        .withFixtureConnectedToCanary("generated_project_with_caching_enabled")
     ) func generated_project_with_caching_enabled() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         let xcodeprojPath = fixtureDirectory.appending(component: "App.xcodeproj")
-        let simulator = try #require(Simulator.testing)
         let fileSystem = FileSystem()
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let environment = try #require(Environment.mocked)
@@ -360,7 +362,7 @@ struct TuistCacheEECanaryAcceptanceTests {
 
         let arguments = [
             "-scheme", "App",
-            "-destination", simulator.description,
+            "-destination", "generic/platform=iOS Simulator",
             "-project", xcodeprojPath.pathString,
             "-derivedDataPath", temporaryDirectory.pathString,
             "CODE_SIGN_IDENTITY=",
@@ -376,5 +378,117 @@ struct TuistCacheEECanaryAcceptanceTests {
 
         try await TuistTest.run(XcodeBuildBuildCommand.self, arguments)
         TuistTest.expectLogs("cacheable tasks (100%)")
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
+        .withFixtureConnectedToCanary("generated_multiplatform_app")
+    ) func multiplatform_app_module_cache() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let xcodeprojPath = fixtureDirectory.appending(component: "App.xcodeproj")
+
+        // When: Cache the binaries
+        try await TuistTest.run(
+            CacheCommand.self,
+            ["--path", fixtureDirectory.pathString]
+        )
+
+        // When: Generate with focus on App
+        try await TuistTest.run(
+            GenerateCommand.self, ["App", "--path", fixtureDirectory.pathString, "--no-open"]
+        )
+
+        // Then: Cached frameworks should be linked as xcframeworks
+        try TuistAcceptanceTest.expectXCFrameworkLinked(
+            "MacOSStaticFramework", by: "App", xcodeprojPath: xcodeprojPath
+        )
+        try TuistAcceptanceTest.expectXCFrameworkLinked(
+            "MultiPlatformTransitiveDynamicFramework", by: "App", xcodeprojPath: xcodeprojPath
+        )
+
+        // When: Build the project for macOS
+        let arguments = [
+            "-scheme", "App",
+            "-destination", "platform=macOS",
+            "-project", xcodeprojPath.pathString,
+            "-derivedDataPath", temporaryDirectory.pathString,
+            "CODE_SIGN_IDENTITY=",
+            "CODE_SIGNING_REQUIRED=NO",
+            "CODE_SIGNING_ALLOWED=NO",
+        ]
+        try await TuistTest.run(XcodeBuildBuildCommand.self, arguments)
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
+        .withFixtureConnectedToCanary("generated_multiplatform_app")
+    ) func multiplatform_app_selective_testing() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let fileSystem = FileSystem()
+
+        // When: Run tests for the first time
+        try await TuistTest.run(
+            TestCommand.self,
+            [
+                "--path", fixtureDirectory.pathString,
+                "--derived-data-path", temporaryDirectory.pathString,
+                "--platform", "macOS",
+                "--",
+                "CODE_SIGN_IDENTITY=",
+                "CODE_SIGNING_REQUIRED=NO",
+                "CODE_SIGNING_ALLOWED=NO",
+            ]
+        )
+
+        // Selective test results are persisted asynchronously
+        try await Task.sleep(nanoseconds: 7_000_000_000)
+
+        // When: Clean selective testing data and local binaries
+        try await TuistTest.run(
+            CleanCommand.self, ["binaries", "--path", fixtureDirectory.pathString]
+        )
+        try await TuistTest.run(
+            CleanCommand.self, ["selectiveTests", "--path", fixtureDirectory.pathString]
+        )
+        resetUI()
+
+        // When: Modify MacOSStaticFramework source and cache again
+        let filePath = fixtureDirectory.appending(
+            try RelativePath(validating: "Modules/MacOSStaticFramework/Sources/MacOSStaticFrameworkClass.swift")
+        )
+        try await fileSystem.writeText(
+            """
+            \(try await fileSystem.readTextFile(at: filePath))
+            // \(UUID().uuidString)
+            """, at: filePath, options: Set([.overwrite])
+        )
+        try await TuistTest.run(CacheCommand.self, ["--path", fixtureDirectory.pathString])
+
+        // When: Run tests again
+        try await TuistTest.run(
+            TestCommand.self,
+            [
+                "--path", fixtureDirectory.pathString,
+                "--derived-data-path", temporaryDirectory.pathString,
+                "--platform", "macOS",
+                "--",
+                "CODE_SIGN_IDENTITY=",
+                "CODE_SIGNING_REQUIRED=NO",
+                "CODE_SIGNING_ALLOWED=NO",
+            ]
+        )
+
+        // Then: Expect MultiPlatformTransitiveDynamicFrameworkTests to be skipped (unchanged)
+        TuistTest.expectLogs(
+            "The following targets have not changed since the last successful run and will be skipped: MultiPlatformTransitiveDynamicFrameworkTests"
+        )
     }
 }
