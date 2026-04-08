@@ -2,6 +2,7 @@ import FileSystem
 import Foundation
 import Mockable
 import Path
+import SwiftyJSON
 import Testing
 import TuistCI
 import TuistEnvironment
@@ -32,6 +33,23 @@ struct ShardMatrixOutputServiceTests {
 
         let content = try await fileSystem.readTextFile(at: githubOutputPath)
         #expect(content == "matrix={\"shard\":[0, 1, 2]}\n")
+    }
+
+    @Test(.withMockedEnvironment())
+    func output_github_writesEmptyMatrixWhenNoShards() async throws {
+        let cwd = try await Environment.current.currentWorkingDirectory()
+        let githubOutputPath = cwd.appending(component: "github_output_empty")
+        try await fileSystem.writeText("", at: githubOutputPath, encoding: .utf8)
+
+        given(ciController).ciInfo().willReturn(.test(provider: .github))
+        Environment.mocked?.variables["GITHUB_OUTPUT"] = githubOutputPath.pathString
+
+        try await subject.output(.test(shardCount: 0))
+
+        let content = try await fileSystem.readTextFile(at: githubOutputPath)
+        let matrixValue = try #require(content.split(separator: "=", maxSplits: 1).last.map(String.init))
+        let json = try JSON(data: Data(matrixValue.utf8))
+        #expect(json["shard"].arrayValue.isEmpty)
     }
 
     @Test(.withMockedEnvironment())

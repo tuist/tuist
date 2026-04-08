@@ -13,7 +13,7 @@ The Tuist cache service can be self-hosted to provide a private binary cache for
 > [!NOTE]
 > Self-hosting cache nodes requires an **Enterprise plan**.
 >
-> You can connect self-hosted cache nodes to either the hosted Tuist server (`https://tuist.dev`) or a self-hosted Tuist server. Self-hosting the Tuist server itself requires a separate server license. See the <LocalizedLink href="/guides/server/self-host/install">server self-hosting guide</LocalizedLink>.
+> You can connect self-hosted cache nodes to either the hosted Tuist server (`https://tuist.dev`) or a self-hosted Tuist server. Self-hosting the Tuist server itself requires a separate server license. See the <.localized_link href="/guides/server/self-host/install">server self-hosting guide</.localized_link>.
 
 
 ## Prerequisites {#prerequisites}
@@ -197,7 +197,7 @@ The cache service runs several background maintenance loops that keep disk and d
 - **KV eviction** — Entries not accessed within 30 days are always removed regardless of database size. Additionally, when the KV database exceeds `KEY_VALUE_MAX_DB_SIZE_BYTES` (default 25 GiB), the service removes entries older than `KEY_VALUE_EVICTION_MIN_RETENTION_DAYS` until the database shrinks to `KEY_VALUE_EVICTION_HYSTERESIS_RELEASE_BYTES`. Each pass is capped at `KEY_VALUE_EVICTION_MAX_DURATION_MS`.
 - **Orphan cleanup** — Scans the disk storage tree for files without a matching `cache_artifacts` row and removes them. This depends on the primary metadata database, not the KV database.
 
-For a detailed explanation of how each process works internally, see the <LocalizedLink href="/guides/cache/architecture">architecture guide</LocalizedLink>.
+For a detailed explanation of how each process works internally, see the <.localized_link href="/guides/cache/architecture">architecture guide</.localized_link>.
 
 ## Health checks {#health-checks}
 

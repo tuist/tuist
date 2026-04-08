@@ -43,12 +43,11 @@ defmodule Tuist.DocsTest do
       assert Enum.all?(page.headings, fn h -> h.level in [2, 3, 4] end)
     end
 
-    test "rewrites docs links to locale-first public routes" do
-      home_page = Docs.get_page("/en")
+    test "compiles localized_link components into body template" do
       migration_page = Docs.get_page("/en/references/migrations/from-v3-to-v4")
 
-      assert home_page.body =~ ~s(href="/en/docs/guides/features/cache")
-      assert migration_page.body =~ ~s(href="/en/docs/guides/install-tuist#alternative-homebrew")
+      assert migration_page.body_template
+      assert migration_page.body =~ "localized_link"
     end
   end
 end

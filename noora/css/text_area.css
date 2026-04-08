@@ -22,7 +22,7 @@
       cursor: text;
 
       &:hover,
-      &:focus {
+      &:focus-visible {
         background: var(--noora-surface-background-secondary);
         box-shadow: var(--noora-light-border-focus);
       }
