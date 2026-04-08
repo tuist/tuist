@@ -226,37 +226,6 @@
     </.card>
 
     <.card
-      :if={Enum.any?(@test_case_run.arguments)}
-      title={dgettext("dashboard_tests", "Arguments")}
-      icon="chart_arcs"
-      data-part="arguments-card"
-    >
-      <.card_section data-part="arguments-card-section">
-        <.table id="arguments-table" rows={@test_case_run.arguments}>
-          <:col :let={argument} label={dgettext("dashboard_tests", "Argument")}>
-            {argument.name}
-          </:col>
-          <:col :let={argument} label={dgettext("dashboard_tests", "Status")}>
-            <.badge
-              :if={argument.status == "success"}
-              label={dgettext("dashboard_tests", "Passed")}
-              color="success"
-              style="light-fill"
-              size="small"
-            />
-            <.badge
-              :if={argument.status == "failure"}
-              label={dgettext("dashboard_tests", "Failed")}
-              color="destructive"
-              style="light-fill"
-              size="small"
-            />
-          </:col>
-        </.table>
-      </.card_section>
-    </.card>
-
-    <.card
       :if={Enum.any?(@test_case_run.failures)}
       title={dgettext("dashboard_tests", "Failures")}
       icon="alert_circle"
@@ -873,6 +842,37 @@
             </div>
           </div>
         </div>
+      </.card_section>
+    </.card>
+
+    <.card
+      :if={Enum.any?(@test_case_run.arguments)}
+      title={dgettext("dashboard_tests", "Arguments")}
+      icon="chart_arcs"
+      data-part="arguments-card"
+    >
+      <.card_section data-part="arguments-card-section">
+        <.table id="arguments-table" rows={@test_case_run.arguments}>
+          <:col :let={argument} label={dgettext("dashboard_tests", "Argument")}>
+            {argument.name}
+          </:col>
+          <:col :let={argument} label={dgettext("dashboard_tests", "Status")}>
+            <.badge
+              :if={argument.status == "success"}
+              label={dgettext("dashboard_tests", "Passed")}
+              color="success"
+              style="light-fill"
+              size="small"
+            />
+            <.badge
+              :if={argument.status == "failure"}
+              label={dgettext("dashboard_tests", "Failed")}
+              color="destructive"
+              style="light-fill"
+              size="small"
+            />
+          </:col>
+        </.table>
       </.card_section>
     </.card>
   </div>
