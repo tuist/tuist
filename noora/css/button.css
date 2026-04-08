@@ -43,7 +43,7 @@
       background: var(--noora-button-background-primary-hover);
     }
 
-    &:focus {
+    &:focus-visible {
       box-shadow: var(--noora-button-border-primary-focus);
     }
 
@@ -68,7 +68,7 @@
       background: var(--noora-button-background-secondary-hover);
     }
 
-    &:focus {
+    &:focus-visible {
       box-shadow: var(--noora-button-border-secondary-focus);
     }
 
@@ -95,7 +95,7 @@
       background: var(--noora-button-background-destructive-hover);
     }
 
-    &:focus {
+    &:focus-visible {
       box-shadow: var(--noora-button-border-destructive-focus);
     }
 
