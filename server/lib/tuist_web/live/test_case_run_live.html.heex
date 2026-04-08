@@ -857,19 +857,15 @@
             {argument.name}
           </:col>
           <:col :let={argument} label={dgettext("dashboard_tests", "Status")}>
-            <.badge
+            <.status_badge_cell
               :if={argument.status == "success"}
               label={dgettext("dashboard_tests", "Passed")}
-              color="success"
-              style="light-fill"
-              size="small"
+              status="success"
             />
-            <.badge
+            <.status_badge_cell
               :if={argument.status == "failure"}
               label={dgettext("dashboard_tests", "Failed")}
-              color="destructive"
-              style="light-fill"
-              size="small"
+              status="failure"
             />
           </:col>
         </.table>

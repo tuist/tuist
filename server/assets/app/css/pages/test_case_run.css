@@ -8,6 +8,16 @@
     margin-top: var(--noora-spacing-5);
   }
 
+  & [data-part="arguments-card"] > [data-part="arguments-card-section"] {
+    gap: var(--noora-spacing-8);
+
+    & .noora-table {
+      & td {
+        overflow: hidden;
+      }
+    }
+  }
+
   & .argument-collapsible {
     box-shadow: var(--noora-light-border-default);
     border-radius: var(--noora-radius-large);
@@ -24,6 +34,11 @@
         flex: 1;
         color: var(--noora-surface-label-primary);
         font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+      }
+
+      & [data-part="argument-duration"] {
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-small);
       }
     }
 
