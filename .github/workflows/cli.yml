@@ -324,6 +324,9 @@ jobs:
         with:
           path: .build
           key: linux-cli-${{ hashFiles('Package.resolved') }}
+      - name: Resolve dependencies
+        if: steps.cache-restore.outputs.cache-hit != 'true'
+        run: swift package resolve --replace-scm-with-registry
       - name: Build tuist CLI
         run: swift build --target tuist --replace-scm-with-registry --force-resolved-versions
       - name: Save cache
@@ -349,6 +352,9 @@ jobs:
         with:
           path: .build
           key: linux-cli-${{ hashFiles('Package.resolved') }}
+      - name: Resolve dependencies
+        if: steps.cache-restore.outputs.cache-hit != 'true'
+        run: swift package resolve --replace-scm-with-registry
       - name: Run unit tests
         run: swift test --replace-scm-with-registry
       - name: Save cache
