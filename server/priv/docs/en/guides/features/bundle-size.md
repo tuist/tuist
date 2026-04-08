@@ -10,7 +10,7 @@
 > [!WARNING]
 > **Requirements**
 >
-> - A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and project</LocalizedLink>
+> - A <.localized_link href="/guides/server/accounts-and-projects">Tuist account and project</.localized_link>
 
 
 As you add more features to your app, your app bundle size keeps growing. While some of the bundle size growth is inevitable as you ship more code and assets, there are many ways to minimize that growth, such as by ensuring your assets are not duplicated across your bundles or stripping unused binary symbols. Tuist Bundle Insights supports both **Apple** and **Android** bundles, providing you with tools and insights to help your app size stay small, and we also monitor your app size over time.
@@ -52,7 +52,7 @@ The `tuist inspect bundle` command analyzes the bundle and provides you with a l
 
 ## Continuous integration {#continuous-integration}
 
-To track bundle size over time, you will need to analyze the bundle on the CI. First, you will need to ensure that your CI is <LocalizedLink href="/guides/integrations/continuous-integration#authentication">authenticated</LocalizedLink>:
+To track bundle size over time, you will need to analyze the bundle on the CI. First, you will need to ensure that your CI is <.localized_link href="/guides/integrations/continuous-integration#authentication">authenticated</.localized_link>:
 
 An example workflow for GitHub Actions could then look like this:
 
@@ -94,7 +94,7 @@ Once set up, you will be able to see how your bundle size evolves over time:
 > [!WARNING]
 > **Integration With Git Platform Required**
 >
-> To get automatic pull/merge request comments, integrate your <LocalizedLink href="/guides/server/accounts-and-projects">Tuist project</LocalizedLink> with a <LocalizedLink href="/guides/server/authentication">Git platform</LocalizedLink>.
+> To get automatic pull/merge request comments, integrate your <.localized_link href="/guides/server/accounts-and-projects">Tuist project</.localized_link> with a <.localized_link href="/guides/server/authentication">Git platform</.localized_link>.
 
 
 Once your Tuist project is connected with your Git platform such as [GitHub](https://github.com), Tuist will post a comment directly in your pull/merge requests whenever you run `tuist inspect bundle`:
