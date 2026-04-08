@@ -3,6 +3,8 @@ defmodule TuistWeb.DocsLive do
   use TuistWeb, :live_view
   use Noora
 
+  import TuistWeb.Docs.MarkdownComponents, warn: false
+
   alias Tuist.Docs
   alias Tuist.Docs.Paths
   alias TuistWeb.Errors.NotFoundError
