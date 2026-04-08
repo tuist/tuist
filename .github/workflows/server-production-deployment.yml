@@ -21,7 +21,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: server-production-deployment-${{ github.head_ref }}
+  group: server-production-deployment-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
 env:

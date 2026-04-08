@@ -54,7 +54,7 @@ env:
   MISE_LOCKED: 1
 
 concurrency:
-  group: cli-cache-ee-${{ github.head_ref }}
+  group: cli-cache-ee-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
 jobs:
