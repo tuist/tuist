@@ -2,18 +2,15 @@
 set -euo pipefail
 
 TYPESENSE_API_KEY=$(op read "op://search/TYPESENSE_API_KEY/notesPlain")
-CONTAINER=$(ssh root@91.99.179.13 "docker ps --filter label=service=tuist-search --filter label=role=web --format '{{.Names}}' | head -1")
-CONTAINER_IP=$(ssh root@91.99.179.13 "docker inspect $CONTAINER --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}'")
-
-# Open SSH tunnel to TypeSense
-ssh -fN -L 18108:${CONTAINER_IP}:8108 root@91.99.179.13
-trap 'pkill -f "ssh -fN -L 18108" 2>/dev/null' EXIT
-
-echo "SSH tunnel open to TypeSense at localhost:18108"
-
 GITHUB_TOKEN=$(op read "op://search/GITHUB_TOKEN/notesPlain" 2>/dev/null || echo "")
+CONTAINER_IP=$(ssh root@91.99.179.13 "docker ps --filter label=service=tuist-search --filter label=role=web --format '{{.Names}}' | head -1 | xargs docker inspect --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}'")
 
-TYPESENSE_API_KEY="$TYPESENSE_API_KEY" \
-TYPESENSE_HOST="http://localhost:18108" \
-GITHUB_TOKEN="$GITHUB_TOKEN" \
-  python3 "$(dirname "$0")/index-github.py"
+scp bin/index-github.py root@91.99.179.13:/tmp/index-github.py
+ssh root@91.99.179.13 \
+  "docker run --rm --network kamal --dns 8.8.8.8 \
+    -e TYPESENSE_API_KEY='${TYPESENSE_API_KEY}' \
+    -e TYPESENSE_HOST='http://${CONTAINER_IP}:8108' \
+    -e GITHUB_TOKEN='${GITHUB_TOKEN}' \
+    -v /tmp/index-github.py:/app/index-github.py:ro \
+    python:3.12-slim \
+    python3 /app/index-github.py"
