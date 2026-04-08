@@ -35,9 +35,9 @@ jobs:
       - name: Setup SSH
         uses: webfactory/ssh-agent@v0.9.1
         with:
-          ssh-private-key: ${{ secrets.SEARCH_SSH_PRIVATE_KEY }}
+          ssh-private-key: ${{ secrets.CACHE_SSH_PRIVATE_KEY }}
       - name: Deploy with Kamal
         env:
-          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.SEARCH_OP_SERVICE_ACCOUNT_TOKEN }}
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.CACHE_OP_SERVICE_ACCOUNT_TOKEN }}
         run: |
           mise run deploy
