@@ -31,6 +31,7 @@ env:
     TYPESENSE_ENABLE_CORS: "true"
   secret:
     - TYPESENSE_API_KEY
+    - GITHUB_TOKEN
 
 volumes:
   - /data/typesense:/data

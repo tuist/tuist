@@ -2,33 +2,30 @@
 # Triggers the DocSearch scraper on the remote server.
 # Runs the typesense/docsearch-scraper Docker image against each config
 # (docs site + community forum) to crawl and index content into TypeSense.
-# Pass a specific config file as argument to scrape only that source.
+# Pass config names as arguments to scrape specific sources (e.g. docsearch.json).
 set -euo pipefail
 
 SERVER_HOST="91.99.179.13"
 SSH_USER="${SEARCH_SSH_USER:-root}"
-TYPESENSE_CONTAINER=$(ssh ${SSH_USER}@${SERVER_HOST} "docker ps --filter label=service=tuist-search --filter label=role=web --format '{{.Names}}' | head -1")
+CONTAINER=$(ssh ${SSH_USER}@${SERVER_HOST} "docker ps --filter label=service=tuist-search --filter label=role=web --format '{{.Names}}' | head -1")
 
-CONFIGS=("config/docsearch.json" "config/docsearch-forum.json")
+CONFIGS=("docsearch.json" "docsearch-forum.json")
 
-# Allow passing a specific config as argument
 if [ $# -gt 0 ]; then
   CONFIGS=("$@")
 fi
 
-for config_file in "${CONFIGS[@]}"; do
-  echo "==> Scraping with ${config_file}..."
-  scp "$config_file" ${SSH_USER}@${SERVER_HOST}:/tmp/docsearch-config.json
+for config_name in "${CONFIGS[@]}"; do
+  echo "==> Scraping with ${config_name}..."
   ssh ${SSH_USER}@${SERVER_HOST} \
     "TYPESENSE_API_KEY=\$(cat /opt/docsearch/.api_key) && \
-     CONFIG=\$(cat /tmp/docsearch-config.json) && \
+     CONFIG=\$(docker exec ${CONTAINER} cat /opt/docsearch/${config_name}) && \
      docker run --rm --network kamal --dns 8.8.8.8 \
       -e TYPESENSE_API_KEY=\"\$TYPESENSE_API_KEY\" \
-      -e TYPESENSE_HOST=${TYPESENSE_CONTAINER} \
+      -e TYPESENSE_HOST=${CONTAINER} \
       -e TYPESENSE_PORT=8108 \
       -e TYPESENSE_PROTOCOL=http \
       -e CONFIG=\"\$CONFIG\" \
-      typesense/docsearch-scraper && \
-     rm -f /tmp/docsearch-config.json"
-  echo "==> Done with ${config_file}"
+      typesense/docsearch-scraper"
+  echo "==> Done with ${config_name}"
 done

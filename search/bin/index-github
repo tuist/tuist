@@ -2,24 +2,14 @@
 # Indexes all GitHub issues and pull requests from tuist/tuist into TypeSense.
 # Paginates through the GitHub API, handles rate limiting, and bulk-imports
 # documents into the "github-issues" TypeSense collection in batches of 250.
-# Can be run locally (resolves TypeSense host via SSH) or with TYPESENSE_HOST set.
+# Requires TYPESENSE_API_KEY and TYPESENSE_HOST environment variables.
 set -euo pipefail
 
 GITHUB_REPO="tuist/tuist"
-TYPESENSE_API_KEY="${TYPESENSE_API_KEY:-$(op read "op://search/TYPESENSE_API_KEY/notesPlain")}"
-TYPESENSE_HOST="${TYPESENSE_HOST:-}"
-GITHUB_TOKEN="${GITHUB_TOKEN:-$(op read "op://search/GITHUB_TOKEN/notesPlain" 2>/dev/null || echo "")}"
+TYPESENSE_API_KEY="${TYPESENSE_API_KEY:?TYPESENSE_API_KEY is required}"
+TYPESENSE_HOST="${TYPESENSE_HOST:?TYPESENSE_HOST is required}"
+GITHUB_TOKEN="${GITHUB_TOKEN:-}"
 COLLECTION="github-issues"
-
-# When TYPESENSE_HOST is not set (manual run from a developer machine),
-# resolve the container IP via SSH. When run on the server (e.g. via cron),
-# TYPESENSE_HOST is already provided.
-if [ -z "$TYPESENSE_HOST" ]; then
-  SERVER_HOST="91.99.179.13"
-  SSH_USER="${SEARCH_SSH_USER:-root}"
-  CONTAINER_IP=$(ssh ${SSH_USER}@${SERVER_HOST} "docker ps --filter label=service=tuist-search --filter label=role=web --format '{{.Names}}' | head -1 | xargs docker inspect --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}'")
-  TYPESENSE_HOST="http://${CONTAINER_IP}:8108"
-fi
 
 DOCUMENTS_FILE=$(mktemp)
 trap 'rm -f "$DOCUMENTS_FILE"' EXIT

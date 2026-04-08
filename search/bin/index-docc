@@ -3,23 +3,13 @@
 # Recursively crawls the DocC JSON data endpoints at projectdescription.tuist.dev,
 # extracts titles, abstracts, and content from each page, then bulk-imports them
 # into the "projectdescription" TypeSense collection.
-# Can be run locally (resolves TypeSense host via SSH) or with TYPESENSE_HOST set.
+# Requires TYPESENSE_API_KEY and TYPESENSE_HOST environment variables.
 set -euo pipefail
 
 BASE_URL="https://projectdescription.tuist.dev"
-TYPESENSE_API_KEY="${TYPESENSE_API_KEY:-$(op read "op://search/TYPESENSE_API_KEY/notesPlain")}"
-TYPESENSE_HOST="${TYPESENSE_HOST:-}"
+TYPESENSE_API_KEY="${TYPESENSE_API_KEY:?TYPESENSE_API_KEY is required}"
+TYPESENSE_HOST="${TYPESENSE_HOST:?TYPESENSE_HOST is required}"
 COLLECTION="projectdescription"
-
-# When TYPESENSE_HOST is not set (manual run from a developer machine),
-# resolve the container IP via SSH. When run on the server (e.g. via cron),
-# TYPESENSE_HOST is already provided.
-if [ -z "$TYPESENSE_HOST" ]; then
-  SERVER_HOST="91.99.179.13"
-  SSH_USER="${SEARCH_SSH_USER:-root}"
-  CONTAINER_IP=$(ssh ${SSH_USER}@${SERVER_HOST} "docker ps --filter label=service=tuist-search --filter label=role=web --format '{{.Names}}' | head -1 | xargs docker inspect --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}'")
-  TYPESENSE_HOST="http://${CONTAINER_IP}:8108"
-fi
 
 VISITED_FILE=$(mktemp)
 DOCUMENTS_FILE=$(mktemp)
