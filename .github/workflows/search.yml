@@ -27,30 +27,15 @@ defaults:
 
 jobs:
   build:
-    name: Build Docker image
+    name: Build and health check
     runs-on: namespace-profile-default
     timeout-minutes: 10
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
-      - name: Build image
-        run: docker build -t tuist/search:test .
-      - name: Verify container starts and is healthy
-        run: |
-          docker run --rm -d --name search-test \
-            -e TYPESENSE_API_KEY=test \
-            -e TYPESENSE_DATA_DIR=/data \
-            -e TYPESENSE_ENABLE_CORS=true \
-            -p 18108:8108 \
-            tuist/search:test
-          for i in $(seq 1 30); do
-            if curl -sf http://localhost:18108/health > /dev/null 2>&1; then
-              echo "Health check passed"
-              docker stop search-test
-              exit 0
-            fi
-            sleep 1
-          done
-          echo "Health check failed"
-          docker logs search-test
-          docker stop search-test
-          exit 1
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
+          working_directory: search
+      - name: Build and verify health
+        run: mise run test
