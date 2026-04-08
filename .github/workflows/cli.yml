@@ -227,7 +227,13 @@ jobs:
         run: xcodebuild -downloadComponent MetalToolchain
       - name: Build tests
         id: shard
-        run: tuist test --build-only --shard-total 2 --shard-granularity suite TuistAcceptanceTests
+        run: |
+          if [ "${{ github.event.pull_request.head.repo.fork }}" = "true" ]; then
+            tuist test --build-only TuistAcceptanceTests
+            echo 'matrix={"shard":[0]}' >> "$GITHUB_OUTPUT"
+          else
+            tuist test --build-only --shard-total 2 --shard-granularity suite TuistAcceptanceTests
+          fi
 
   cli-acceptance-tests:
     name: Acceptance Tests
@@ -275,10 +281,10 @@ jobs:
           security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
           security default-keychain -s $KEYCHAIN_PATH
           security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
-      - name: Run shard ${{ matrix.shard }}
+      - name: Run tests
         run: tuist test --without-building --platform macOS TuistAcceptanceTests -- -retry-tests-on-failure -test-iterations 2
         env:
-          TUIST_SHARD_INDEX: ${{ matrix.shard }}
+          TUIST_SHARD_INDEX: ${{ github.event.pull_request.head.repo.fork != true && matrix.shard || '' }}
 
   cli-linux-build:
     name: Linux Build
