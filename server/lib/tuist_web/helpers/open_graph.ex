@@ -29,20 +29,23 @@ defmodule TuistWeb.Helpers.OpenGraph do
 
   @doc """
   Builds a locale-specific OG image path for marketing pages. For English,
-  returns the path as-is. For other locales, inserts the locale before the
-  filename.
+  returns the path as-is. For other supported locales, inserts the locale
+  before the filename. Falls back to English for unknown locales.
 
   ## Examples
 
       marketing_og_image_path("/marketing/images/og/generated/about.jpg")
-      # English: "/marketing/images/og/generated/about.jpg"
-      # Korean:  "/marketing/images/og/generated/ko/about.jpg"
+      # English:  "/marketing/images/og/generated/about.jpg"
+      # Korean:   "/marketing/images/og/generated/ko/about.jpg"
+      # Spanish:  "/marketing/images/og/generated/es/about.jpg"
 
   """
+  @og_image_locales TuistWeb.Marketing.Localization.all_locales()
+
   def marketing_og_image_path(path) do
     locale = Gettext.get_locale(TuistWeb.Gettext)
 
-    if locale == "en" do
+    if locale == "en" or locale not in @og_image_locales do
       path
     else
       dirname = Path.dirname(path)
