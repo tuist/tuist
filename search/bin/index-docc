@@ -16,7 +16,8 @@ COLLECTION="projectdescription"
 # TYPESENSE_HOST is already provided.
 if [ -z "$TYPESENSE_HOST" ]; then
   SERVER_HOST="91.99.179.13"
-  CONTAINER_IP=$(ssh root@${SERVER_HOST} "docker ps --filter label=service=tuist-search --filter label=role=web --format '{{.Names}}' | head -1 | xargs docker inspect --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}'")
+  SSH_USER="${SEARCH_SSH_USER:-root}"
+  CONTAINER_IP=$(ssh ${SSH_USER}@${SERVER_HOST} "docker ps --filter label=service=tuist-search --filter label=role=web --format '{{.Names}}' | head -1 | xargs docker inspect --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}'")
   TYPESENSE_HOST="http://${CONTAINER_IP}:8108"
 fi
 

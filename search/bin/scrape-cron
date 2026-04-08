@@ -9,19 +9,20 @@ TYPESENSE_API_KEY=$(op read "op://search/TYPESENSE_API_KEY/notesPlain")
 GITHUB_TOKEN=$(op read "op://search/GITHUB_TOKEN/notesPlain" 2>/dev/null || echo "")
 
 SERVER_HOST="91.99.179.13"
+SSH_USER="${SEARCH_SSH_USER:-root}"
 
 # Upload configs, scripts, and secrets to server (restricted permissions)
-ssh root@${SERVER_HOST} "mkdir -p /opt/docsearch && chmod 700 /opt/docsearch"
-scp config/docsearch.json root@${SERVER_HOST}:/opt/docsearch/docsearch.json
-scp config/docsearch-forum.json root@${SERVER_HOST}:/opt/docsearch/docsearch-forum.json
-scp bin/index-docc root@${SERVER_HOST}:/opt/docsearch/index-docc
-scp bin/index-github root@${SERVER_HOST}:/opt/docsearch/index-github
-ssh root@${SERVER_HOST} "chmod +x /opt/docsearch/index-docc /opt/docsearch/index-github"
-ssh root@${SERVER_HOST} "echo '${TYPESENSE_API_KEY}' > /opt/docsearch/.api_key && chmod 600 /opt/docsearch/.api_key"
-ssh root@${SERVER_HOST} "echo '${GITHUB_TOKEN}' > /opt/docsearch/.github_token && chmod 600 /opt/docsearch/.github_token"
+ssh ${SSH_USER}@${SERVER_HOST} "mkdir -p /opt/docsearch && chmod 700 /opt/docsearch"
+scp config/docsearch.json ${SSH_USER}@${SERVER_HOST}:/opt/docsearch/docsearch.json
+scp config/docsearch-forum.json ${SSH_USER}@${SERVER_HOST}:/opt/docsearch/docsearch-forum.json
+scp bin/index-docc ${SSH_USER}@${SERVER_HOST}:/opt/docsearch/index-docc
+scp bin/index-github ${SSH_USER}@${SERVER_HOST}:/opt/docsearch/index-github
+ssh ${SSH_USER}@${SERVER_HOST} "chmod +x /opt/docsearch/index-docc /opt/docsearch/index-github"
+ssh ${SSH_USER}@${SERVER_HOST} "echo '${TYPESENSE_API_KEY}' > /opt/docsearch/.api_key && chmod 600 /opt/docsearch/.api_key"
+ssh ${SSH_USER}@${SERVER_HOST} "echo '${GITHUB_TOKEN}' > /opt/docsearch/.github_token && chmod 600 /opt/docsearch/.github_token"
 
 # Create runner script on server
-ssh root@${SERVER_HOST} "cat > /opt/docsearch/run.sh" << 'REMOTE_SCRIPT'
+ssh ${SSH_USER}@${SERVER_HOST} "cat > /opt/docsearch/run.sh" << 'REMOTE_SCRIPT'
 #!/bin/bash
 set -euo pipefail
 CONTAINER=$(docker ps --filter label=service=tuist-search --filter label=role=web --format '{{.Names}}' | head -1)
@@ -59,10 +60,10 @@ GITHUB_TOKEN="$GITHUB_TOKEN" \
   /opt/docsearch/index-github
 echo "==> Done with GitHub indexer"
 REMOTE_SCRIPT
-ssh root@${SERVER_HOST} "chmod 700 /opt/docsearch/run.sh"
+ssh ${SSH_USER}@${SERVER_HOST} "chmod 700 /opt/docsearch/run.sh"
 
 # Install systemd service and timer
-ssh root@${SERVER_HOST} "cat > /etc/systemd/system/docsearch-scraper.service" << 'SERVICE'
+ssh ${SSH_USER}@${SERVER_HOST} "cat > /etc/systemd/system/docsearch-scraper.service" << 'SERVICE'
 [Unit]
 Description=DocSearch scraper and search indexer
 After=docker.service
@@ -72,7 +73,7 @@ Type=oneshot
 ExecStart=/opt/docsearch/run.sh
 SERVICE
 
-ssh root@${SERVER_HOST} "cat > /etc/systemd/system/docsearch-scraper.timer" << 'TIMER'
+ssh ${SSH_USER}@${SERVER_HOST} "cat > /etc/systemd/system/docsearch-scraper.timer" << 'TIMER'
 [Unit]
 Description=Run DocSearch scraper daily at 04:00 UTC
 
@@ -84,10 +85,10 @@ Persistent=true
 WantedBy=timers.target
 TIMER
 
-ssh root@${SERVER_HOST} "systemctl daemon-reload && systemctl enable --now docsearch-scraper.timer"
+ssh ${SSH_USER}@${SERVER_HOST} "systemctl daemon-reload && systemctl enable --now docsearch-scraper.timer"
 
 # Remove old cron job if present
-ssh root@${SERVER_HOST} "rm -f /etc/cron.d/docsearch-scraper"
+ssh ${SSH_USER}@${SERVER_HOST} "rm -f /etc/cron.d/docsearch-scraper"
 
 echo "Systemd timer installed — scraper will run daily at 04:00 UTC"
-echo "View logs: ssh root@${SERVER_HOST} journalctl -u docsearch-scraper"
+echo "View logs: ssh ${SSH_USER}@${SERVER_HOST} journalctl -u docsearch-scraper"

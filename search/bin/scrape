@@ -7,7 +7,8 @@ set -euo pipefail
 
 TYPESENSE_API_KEY=$(op read "op://search/TYPESENSE_API_KEY/notesPlain")
 SERVER_HOST="91.99.179.13"
-TYPESENSE_CONTAINER=$(ssh root@${SERVER_HOST} "docker ps --filter label=service=tuist-search --filter label=role=web --format '{{.Names}}' | head -1")
+SSH_USER="${SEARCH_SSH_USER:-root}"
+TYPESENSE_CONTAINER=$(ssh ${SSH_USER}@${SERVER_HOST} "docker ps --filter label=service=tuist-search --filter label=role=web --format '{{.Names}}' | head -1")
 
 CONFIGS=("config/docsearch.json" "config/docsearch-forum.json")
 
@@ -19,7 +20,7 @@ fi
 for config_file in "${CONFIGS[@]}"; do
   echo "==> Scraping with ${config_file}..."
   CONFIG=$(cat "$config_file")
-  ssh root@${SERVER_HOST} \
+  ssh ${SSH_USER}@${SERVER_HOST} \
     "docker run --rm --network kamal --dns 8.8.8.8 \
       -e TYPESENSE_API_KEY='${TYPESENSE_API_KEY}' \
       -e TYPESENSE_HOST=${TYPESENSE_CONTAINER} \
