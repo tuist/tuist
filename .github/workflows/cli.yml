@@ -125,7 +125,7 @@ jobs:
         if: steps.cache.outputs.cache-matched-key == ''
         run: tuist install
       - name: Build
-        run: swift build --configuration debug --replace-scm-with-registry
+        run: swift build --configuration debug --replace-scm-with-registry --force-resolved-versions
 
   cli-cache:
     name: Cache
@@ -325,7 +325,7 @@ jobs:
           path: .build
           key: linux-cli-${{ hashFiles('Package.resolved') }}
       - name: Build tuist CLI
-        run: swift build --target tuist --replace-scm-with-registry
+        run: swift build --target tuist --replace-scm-with-registry --force-resolved-versions
       - name: Save cache
         if: github.ref == 'refs/heads/main'
         id: cache-save
