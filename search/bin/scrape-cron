@@ -61,10 +61,33 @@ echo "==> Done with GitHub indexer"
 REMOTE_SCRIPT
 ssh root@${SERVER_HOST} "chmod 700 /opt/docsearch/run.sh"
 
-# Install cron job
-ssh root@${SERVER_HOST} "cat > /etc/cron.d/docsearch-scraper << 'CRON'
-0 4 * * * root /opt/docsearch/run.sh >> /var/log/docsearch-scraper.log 2>&1
-CRON
-chmod 644 /etc/cron.d/docsearch-scraper"
+# Install systemd service and timer
+ssh root@${SERVER_HOST} "cat > /etc/systemd/system/docsearch-scraper.service" << 'SERVICE'
+[Unit]
+Description=DocSearch scraper and search indexer
+After=docker.service
 
-echo "Cron job installed — scraper will run daily at 04:00 UTC"
+[Service]
+Type=oneshot
+ExecStart=/opt/docsearch/run.sh
+SERVICE
+
+ssh root@${SERVER_HOST} "cat > /etc/systemd/system/docsearch-scraper.timer" << 'TIMER'
+[Unit]
+Description=Run DocSearch scraper daily at 04:00 UTC
+
+[Timer]
+OnCalendar=*-*-* 04:00:00 UTC
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+TIMER
+
+ssh root@${SERVER_HOST} "systemctl daemon-reload && systemctl enable --now docsearch-scraper.timer"
+
+# Remove old cron job if present
+ssh root@${SERVER_HOST} "rm -f /etc/cron.d/docsearch-scraper"
+
+echo "Systemd timer installed — scraper will run daily at 04:00 UTC"
+echo "View logs: ssh root@${SERVER_HOST} journalctl -u docsearch-scraper"
