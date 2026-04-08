@@ -1,14 +1,132 @@
 #!/bin/bash
 set -euo pipefail
 
-TYPESENSE_API_KEY=$(op read "op://search/TYPESENSE_API_KEY/notesPlain")
-CONTAINER_IP=$(ssh root@91.99.179.13 "docker ps --filter label=service=tuist-search --filter label=role=web --format '{{.Names}}' | head -1 | xargs docker inspect --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}'")
+# Index a DocC site into TypeSense by crawling its JSON data endpoints.
 
-scp bin/index-docc.py root@91.99.179.13:/tmp/index-docc.py
-ssh root@91.99.179.13 \
-  "docker run --rm --network kamal --dns 8.8.8.8 \
-    -e TYPESENSE_API_KEY='${TYPESENSE_API_KEY}' \
-    -e TYPESENSE_HOST='http://${CONTAINER_IP}:8108' \
-    -v /tmp/index-docc.py:/app/index-docc.py:ro \
-    python:3.12-slim \
-    python3 /app/index-docc.py"
+BASE_URL="https://projectdescription.tuist.dev"
+TYPESENSE_API_KEY="${TYPESENSE_API_KEY:-$(op read "op://search/TYPESENSE_API_KEY/notesPlain")}"
+TYPESENSE_HOST="${TYPESENSE_HOST:-}"
+COLLECTION="projectdescription"
+
+SERVER_HOST="91.99.179.13"
+
+if [ -z "$TYPESENSE_HOST" ]; then
+  CONTAINER_IP=$(ssh root@${SERVER_HOST} "docker ps --filter label=service=tuist-search --filter label=role=web --format '{{.Names}}' | head -1 | xargs docker inspect --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}'")
+  TYPESENSE_HOST="http://${CONTAINER_IP}:8108"
+fi
+
+VISITED_FILE=$(mktemp)
+DOCUMENTS_FILE=$(mktemp)
+trap 'rm -f "$VISITED_FILE" "$DOCUMENTS_FILE"' EXIT
+
+typesense_request() {
+  local method="$1" path="$2"
+  shift 2
+  curl -sf -X "$method" "${TYPESENSE_HOST}${path}" \
+    -H "X-TYPESENSE-API-KEY: ${TYPESENSE_API_KEY}" \
+    -H "Content-Type: application/json" \
+    "$@" || true
+}
+
+extract_text() {
+  local json="$1"
+  echo "$json" | jq -r '
+    [recurse(.inlineContent[]?, .content[]?, .items[]?) |
+      select(.type == "text") | .text,
+      select(.type == "codeVoice") | .code,
+      select(.type == "heading") | .text
+    ] | join(" ")
+  ' 2>/dev/null || echo ""
+}
+
+process_page() {
+  local path="$1"
+
+  if grep -qxF "$path" "$VISITED_FILE" 2>/dev/null; then
+    return
+  fi
+  echo "$path" >> "$VISITED_FILE"
+
+  local data
+  data=$(curl -sf -H "User-Agent: TuistSearchIndexer/1.0" "${BASE_URL}/data${path}.json" 2>/dev/null) || return
+
+  local title role url
+  title=$(echo "$data" | jq -r '.metadata.title // ""')
+  role=$(echo "$data" | jq -r '.metadata.roleHeading // ""')
+  url="${BASE_URL}/documentation${path#/documentation}"
+
+  local content abstract
+  content=$(echo "$data" | jq -r '
+    [.primaryContentSections[]? |
+      select(.kind == "content") | .content[]?,
+      select(.kind == "parameters") | .parameters[]? | "\(.name // ""): \([.content[]? | recurse(.inlineContent[]?) | select(.type == "text") | .text] | join(" "))"
+    ] | if type == "array" then join(" ") else "" end
+  ' 2>/dev/null | head -c 10000)
+
+  abstract=$(echo "$data" | jq -r '[.abstract[]? | select(.type == "text") | .text] | join(" ")' 2>/dev/null)
+
+  if [ -n "$title" ] && [ "$title" != "null" ]; then
+    jq -nc \
+      --arg title "$title" \
+      --arg role "$role" \
+      --arg abstract "${abstract:-}" \
+      --arg content "${content:-}" \
+      --arg url "$url" \
+      --arg path "$path" \
+      '{
+        title: $title,
+        role: $role,
+        abstract: $abstract,
+        content: $content,
+        url: $url,
+        path: $path,
+        "hierarchy.lvl0": "ProjectDescription",
+        "hierarchy.lvl1": $role,
+        "hierarchy.lvl2": $title
+      }' >> "$DOCUMENTS_FILE"
+  fi
+
+  local child_paths
+  child_paths=$(echo "$data" | jq -r '
+    [
+      (.references // {} | to_entries[] | select(.value.type == "topic") | .value.url),
+      (.topicSections[]?.identifiers[]? as $id | (.references // {})[$id]? | .url // empty)
+    ] | unique[] | select(startswith("/documentation/"))
+  ' 2>/dev/null)
+
+  while IFS= read -r child_path; do
+    [ -n "$child_path" ] && process_page "$child_path"
+  done <<< "$child_paths"
+}
+
+echo "Crawling DocC site at ${BASE_URL}..."
+process_page "/documentation/projectdescription"
+
+doc_count=$(wc -l < "$DOCUMENTS_FILE" | tr -d ' ')
+echo "Found ${doc_count} pages"
+
+typesense_request DELETE "/collections/${COLLECTION}"
+
+typesense_request POST "/collections" -d '{
+  "name": "'"${COLLECTION}"'",
+  "fields": [
+    {"name": "title", "type": "string"},
+    {"name": "role", "type": "string", "facet": true},
+    {"name": "abstract", "type": "string"},
+    {"name": "content", "type": "string"},
+    {"name": "url", "type": "string", "index": false},
+    {"name": "path", "type": "string", "index": false},
+    {"name": "hierarchy.lvl0", "type": "string", "facet": true},
+    {"name": "hierarchy.lvl1", "type": "string", "facet": true, "optional": true},
+    {"name": "hierarchy.lvl2", "type": "string", "facet": true, "optional": true}
+  ]
+}'
+echo "Created collection '${COLLECTION}'"
+
+result=$(curl -sf -X POST "${TYPESENSE_HOST}/collections/${COLLECTION}/documents/import?action=create" \
+  -H "X-TYPESENSE-API-KEY: ${TYPESENSE_API_KEY}" \
+  -H "Content-Type: text/plain" \
+  --data-binary @"$DOCUMENTS_FILE")
+
+successes=$(echo "$result" | jq -r 'select(.success == true)' | wc -l | tr -d ' ')
+echo "Indexed ${successes}/${doc_count} documents into '${COLLECTION}'"
