@@ -11,7 +11,9 @@ config :cache, Cache.DistributedKV.Repo,
   queue_interval: 1_000,
   priv: "priv/distributed_kv_repo"
 
-config :cache, Cache.KeyValueBuffer, max_batch_size: 250
+config :cache, Cache.KeyValueBuffer,
+  flush_interval_ms: 100,
+  max_batch_size: 250
 
 config :cache, Cache.KeyValueRepo,
   busy_timeout: 30_000,
