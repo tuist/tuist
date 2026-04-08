@@ -34,8 +34,8 @@ struct SynthesizedResourceInterfacesGeneratorTests {
             paths: [plistPath]
         )
 
-        #expect(rendered.contains("nonisolated(unsafe) static let settings"))
-        #expect(!rendered.contains("nonisolated(unsafe) static let serverUrl"))
+        #expect(rendered.contains("nonisolated(unsafe) static let settings: [String: Any]"))
+        #expect(rendered.contains("public static let serverUrl: String"))
     }
 
     @Test(.inTemporaryDirectory)
@@ -63,6 +63,9 @@ struct SynthesizedResourceInterfacesGeneratorTests {
             paths: [plistPath]
         )
 
+        #expect(rendered.contains("public static let appName: String"))
+        #expect(rendered.contains("public static let version: Int"))
+        #expect(rendered.contains("public static let debugEnabled: Bool"))
         #expect(!rendered.contains("nonisolated(unsafe)"))
     }
 
@@ -92,6 +95,6 @@ struct SynthesizedResourceInterfacesGeneratorTests {
             paths: [plistPath]
         )
 
-        #expect(rendered.contains("nonisolated(unsafe) static let endpoints"))
+        #expect(rendered.contains("nonisolated(unsafe) static let endpoints: [[String: Any]]"))
     }
 }
