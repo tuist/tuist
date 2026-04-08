@@ -2,6 +2,8 @@ defmodule CacheWeb.UpControllerTest do
   use CacheWeb.ConnCase
   use Mimic
 
+  import ExUnit.CaptureLog
+
   alias Cache.Config
   alias Cache.DistributedKV.Repo, as: DistributedKVRepo
   alias Cache.KeyValueRepo
@@ -32,9 +34,13 @@ defmodule CacheWeb.UpControllerTest do
       reject(&KeyValueWriteRepo.query/1)
       reject(&DistributedKVRepo.query/1)
 
-      conn = get(conn, "/up")
+      log =
+        capture_log(fn ->
+          conn = get(conn, "/up")
+          assert response(conn, :service_unavailable) == ""
+        end)
 
-      assert response(conn, :service_unavailable) == ""
+      assert log =~ "/up repo check failed for Cache.Repo: :busy"
     end
 
     test "returns service unavailable when the key value writer repo query fails", %{conn: conn} do
@@ -45,9 +51,13 @@ defmodule CacheWeb.UpControllerTest do
       expect(KeyValueWriteRepo, :query, fn "SELECT 1" -> {:error, :busy} end)
       reject(&DistributedKVRepo.query/1)
 
-      conn = get(conn, "/up")
+      log =
+        capture_log(fn ->
+          conn = get(conn, "/up")
+          assert response(conn, :service_unavailable) == ""
+        end)
 
-      assert response(conn, :service_unavailable) == ""
+      assert log =~ "/up repo check failed for Cache.KeyValueWriteRepo: :busy"
     end
 
     test "checks the distributed KV repo when distributed mode is enabled", %{conn: conn} do
@@ -58,9 +68,13 @@ defmodule CacheWeb.UpControllerTest do
       expect(KeyValueWriteRepo, :query, fn "SELECT 1" -> {:ok, %{rows: [[1]]}} end)
       expect(DistributedKVRepo, :query, fn "SELECT 1" -> {:error, :busy} end)
 
-      conn = get(conn, "/up")
+      log =
+        capture_log(fn ->
+          conn = get(conn, "/up")
+          assert response(conn, :service_unavailable) == ""
+        end)
 
-      assert response(conn, :service_unavailable) == ""
+      assert log =~ "/up repo check failed for Cache.DistributedKV.Repo: :busy"
     end
   end
 end

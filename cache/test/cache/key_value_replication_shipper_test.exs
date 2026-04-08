@@ -206,6 +206,38 @@ defmodule Cache.KeyValueReplicationShipperTest do
              Repo.get!(Entry, "keyvalue:acme:ios:cas")
   end
 
+  test "access-only replication falls back to the current node when source node is missing" do
+    parent = self()
+    source_updated_at = DateTime.add(DateTime.utc_now(), -60, :second)
+    replication_enqueued_at = DateTime.utc_now()
+
+    pending_entry = %KeyValueEntry{
+      id: 1,
+      key: "keyvalue:acme:ios:cas",
+      json_payload: Jason.encode!(%{entries: [%{"value" => "artifact"}]}),
+      source_node: nil,
+      last_accessed_at: replication_enqueued_at,
+      source_updated_at: source_updated_at,
+      replication_enqueued_at: replication_enqueued_at
+    }
+
+    stub(Cleanup, :effective_project_barriers, fn _scopes -> %{} end)
+    stub(KeyValueAccessTracker, :clear, fn _key -> :ok end)
+    stub(KeyValueEntries, :list_pending_replication, fn -> [pending_entry] end)
+
+    stub(KeyValueEntries, :clear_replication_tokens, fn [_entry] ->
+      send(parent, :token_cleared)
+      1
+    end)
+
+    start_supervised!(KeyValueReplicationShipper)
+
+    assert_receive :token_cleared
+
+    assert %Entry{source_node: "test-node", source_updated_at: ^source_updated_at} =
+             Repo.get!(Entry, "keyvalue:acme:ios:cas")
+  end
+
   test "batches shared repo work for one flush" do
     parent = self()
     token = DateTime.utc_now()

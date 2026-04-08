@@ -8,18 +8,18 @@ defmodule Cache.CacheArtifactsTest do
   alias Cache.Repo
   alias Ecto.Adapters.SQL.Sandbox
 
-  setup do
+  setup :set_mimic_from_context
+
+  setup context do
     :ok = Sandbox.checkout(Repo)
 
-    if pid = Process.whereis(CacheArtifactsBuffer) do
-      Sandbox.allow(Repo, self(), pid)
-      CacheArtifactsBuffer.reset()
-    end
+    context = Cache.BufferTestHelpers.setup_cache_artifacts_buffer(context)
+    :ok = CacheArtifactsBuffer.flush()
 
     {:ok, storage_dir} = Briefly.create(directory: true)
     stub(Disk, :storage_dir, fn -> storage_dir end)
 
-    {:ok, storage_dir: storage_dir}
+    {:ok, Map.put(context, :storage_dir, storage_dir)}
   end
 
   test "returns empty list when no keys match" do

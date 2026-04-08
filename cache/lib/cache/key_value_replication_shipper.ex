@@ -158,7 +158,7 @@ defmodule Cache.KeyValueReplicationShipper do
 
   defp pending_source_node(entry) do
     if pending_access_bump_only?(entry) do
-      entry.source_node
+      entry.source_node || Config.distributed_kv_node_name()
     else
       Config.distributed_kv_node_name()
     end

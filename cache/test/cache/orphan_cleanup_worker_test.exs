@@ -13,20 +13,21 @@ defmodule Cache.OrphanCleanupWorkerTest do
   alias Cache.Repo
   alias Ecto.Adapters.SQL.Sandbox
 
-  setup do
+  setup :set_mimic_from_context
+
+  setup context do
     :ok = Sandbox.checkout(Repo)
     Repo.delete_all(CacheArtifact)
     Repo.delete_all(OrphanScanCursor)
 
-    if pid = Process.whereis(CacheArtifactsBuffer) do
-      Sandbox.allow(Repo, self(), pid)
-      CacheArtifactsBuffer.reset()
-    end
+    context = Cache.BufferTestHelpers.setup_cache_artifacts_buffer(context)
+    :ok = CacheArtifactsBuffer.flush()
+    Repo.delete_all(CacheArtifact)
 
     {:ok, storage_dir} = Briefly.create(directory: true)
     stub(Disk, :storage_dir, fn -> storage_dir end)
 
-    {:ok, storage_dir: storage_dir}
+    {:ok, Map.put(context, :storage_dir, storage_dir)}
   end
 
   test "deletes files on disk with no cache_artifacts row", %{storage_dir: storage_dir} do
