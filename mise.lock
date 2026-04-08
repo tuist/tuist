@@ -138,14 +138,11 @@ backend = "aqua:realm/SwiftLint"
 "platforms.macos-x64" = { url = "https://github.com/realm/SwiftLint/releases/download/0.59.1/portable_swiftlint.zip"}
 
 [[tools.tuist]]
-version = "4.175.0"
+version = "4.176.0"
 backend = "aqua:tuist/tuist"
-"platforms.linux-arm64" = { checksum = "sha256:e6ff20c019da95a547e6a4fe9c34970ae31065e805ef62991c1f28511e80d664", url = "https://github.com/tuist/tuist/releases/download/4.175.0/tuist-linux-aarch64.tar.gz"}
-"platforms.linux-arm64-musl" = { checksum = "sha256:e6ff20c019da95a547e6a4fe9c34970ae31065e805ef62991c1f28511e80d664", url = "https://github.com/tuist/tuist/releases/download/4.175.0/tuist-linux-aarch64.tar.gz"}
-"platforms.linux-x64" = { checksum = "sha256:31da255dba8fb238b59684a10f597615038d981c9799d350cd369121c5de78ac", url = "https://github.com/tuist/tuist/releases/download/4.175.0/tuist-linux-x86_64.tar.gz"}
-"platforms.linux-x64-musl" = { checksum = "sha256:31da255dba8fb238b59684a10f597615038d981c9799d350cd369121c5de78ac", url = "https://github.com/tuist/tuist/releases/download/4.175.0/tuist-linux-x86_64.tar.gz"}
-"platforms.macos-arm64" = { checksum = "sha256:042c72bf1b9d6caef634617be58bde8674c1e82c1b28cb9301b8b660fa2d6736", url = "https://github.com/tuist/tuist/releases/download/4.175.0/tuist.zip"}
-"platforms.macos-x64" = { checksum = "sha256:042c72bf1b9d6caef634617be58bde8674c1e82c1b28cb9301b8b660fa2d6736", url = "https://github.com/tuist/tuist/releases/download/4.175.0/tuist.zip"}
+"platforms.linux-x64" = { checksum = "sha256:9ac68f5b1b3be1a951e758b09a6d79a6516947cba3d3c4b5a7e5db055bc26647", url = "https://github.com/tuist/tuist/releases/download/4.176.0/tuist-linux-x86_64.tar.gz"}
+"platforms.macos-arm64" = { checksum = "sha256:5115fb53cee0ffa4fb5d023afbfcbb468d915c83722aea37c690a5314db427d8", url = "https://github.com/tuist/tuist/releases/download/4.176.0/tuist.zip"}
+"platforms.macos-x64" = { checksum = "sha256:5115fb53cee0ffa4fb5d023afbfcbb468d915c83722aea37c690a5314db427d8", url = "https://github.com/tuist/tuist/releases/download/4.176.0/tuist.zip"}
 
 [[tools.yq]]
 version = "4.52.5"
