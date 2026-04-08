@@ -15,6 +15,7 @@ This file provides guidance to AI agents when working with code in this reposito
 - `skills/` - Agent Skills (published to [tuist/agent-skills](https://github.com/tuist/agent-skills))
 - `processor/` - Build processor service (Elixir/Phoenix + Swift NIF) - see `processor/AGENTS.md`
 - `xcode_processor/` - Xcode processor service for xcresult processing (Elixir/Phoenix + Swift NIF, macOS) - see `xcode_processor/AGENTS.md`
+- `search/` - Search infrastructure (TypeSense) - see `search/AGENTS.md`
 - `infra/` - Infrastructure and deployment assets - see `infra/AGENTS.md`
 
 ## Global Guardrails
@@ -35,6 +36,7 @@ When creating commits and pull requests, use these conventional commit scopes:
 - `cli` - Changes to the Tuist CLI (Swift)
 - `noora` - Changes to the Noora web component library
 - `skills` - Changes to the Agent Skills package
+- `search` - Changes to the search infrastructure (TypeSense)
 - `docs` - Changes to documentation
 - `handbook` - Changes to the handbook/guides
 
