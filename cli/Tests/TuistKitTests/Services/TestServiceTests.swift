@@ -142,6 +142,9 @@ final class TestServiceTests: TuistUnitTestCase {
         given(testQuarantineService)
             .onlyQuarantinedTestsFailed(testStatuses: .any, quarantinedTests: .any)
             .willReturn(false)
+        given(shardMatrixOutputService)
+            .output(.any)
+            .willReturn()
 
         given(uploadResultBundleService)
             .uploadTestSummary(
@@ -3373,6 +3376,19 @@ final class TestServiceTests: TuistUnitTestCase {
         let path = try temporaryPath()
         let testProductsPath = path.appending(component: "TestProducts.xctestproducts")
         let shardArchivePath = path.appending(components: "artifacts", "bundle.aar")
+        let projectPath = AbsolutePath.root.appending(component: "Project")
+        let scheme = Scheme.test(name: "ProjectScheme")
+        let graph: Graph = .test(
+            workspace: .test(schemes: [scheme]),
+            projects: [
+                projectPath: .test(
+                    path: projectPath,
+                    targets: [
+                        .test(name: "AppTests", product: .unitTests),
+                    ]
+                ),
+            ]
+        )
         try await fileSystem.makeDirectory(at: testProductsPath)
 
         given(configLoader)
@@ -3383,14 +3399,14 @@ final class TestServiceTests: TuistUnitTestCase {
             .generateWithGraph(path: .any, options: .any)
             .willProduce { path, _ in
                 (
-                    path, .test(workspace: .test(schemes: [.test(name: "ProjectScheme")])),
+                    path, graph,
                     MapperEnvironment()
                 )
             }
 
         given(buildGraphInspector)
-            .testableSchemes(graphTraverser: .any)
-            .willReturn([.test(name: "ProjectScheme")])
+            .workspaceSchemes(graphTraverser: .any)
+            .willReturn([scheme])
 
         given(shardPlanService)
             .plan(
