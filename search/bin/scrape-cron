@@ -5,7 +5,7 @@
 set -euo pipefail
 
 TYPESENSE_API_KEY=$(op read "op://cache/TYPESENSE_API_KEY/password")
-GITHUB_TOKEN=$(op read "op://cache/GITHUB_TOKEN/password" 2>/dev/null || echo "")
+GITHUB_TOKEN=$(op read "op://cache/SEARCH_GITHUB_TOKEN/password" 2>/dev/null || echo "")
 
 SERVER_HOST="91.99.179.13"
 SSH_USER="${SEARCH_SSH_USER:-root}"
