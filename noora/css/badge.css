@@ -108,16 +108,8 @@
       color: var(--noora-badge-light-fill-neutral-label);
       box-shadow: 0 0 0 1px
         light-dark(
-          color-mix(
-            in oklch,
-            var(--noora-neutral-light-1100) 40%,
-            transparent
-          ),
-          color-mix(
-            in oklch,
-            var(--noora-neutral-light-100) 20%,
-            transparent
-          )
+          color-mix(in oklch, var(--noora-neutral-light-1100) 40%, transparent),
+          color-mix(in oklch, var(--noora-neutral-light-100) 20%, transparent)
         );
     }
 
