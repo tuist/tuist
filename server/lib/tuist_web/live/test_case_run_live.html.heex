@@ -854,7 +854,7 @@
       <.card_section data-part="arguments-card-section">
         <.table id="arguments-table" rows={@test_case_run.arguments}>
           <:col :let={argument} label={dgettext("dashboard_tests", "Argument")}>
-            {argument.name}
+            <.text_cell label={argument.name} />
           </:col>
           <:col :let={argument} label={dgettext("dashboard_tests", "Status")}>
             <.status_badge_cell
