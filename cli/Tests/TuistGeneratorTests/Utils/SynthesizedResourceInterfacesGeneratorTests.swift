@@ -8,12 +8,11 @@ import XcodeGraph
 @testable import TuistGenerator
 
 struct SynthesizedResourceInterfacesGeneratorTests {
-    private let subject = SynthesizedResourceInterfacesGenerator()
-
     @Test(.inTemporaryDirectory)
     func render_plistWithDictionaryValues_includesNonisolatedUnsafe() async throws {
+        let subject = SynthesizedResourceInterfacesGenerator()
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        let plistPath = temporaryDirectory.appending(component: "Config.plist")
+        let plistPath = temporaryDirectory.appending(component: "DictConfig.plist")
 
         let plistData = try PropertyListSerialization.data(
             fromPropertyList: [
@@ -35,13 +34,14 @@ struct SynthesizedResourceInterfacesGeneratorTests {
         )
 
         #expect(rendered.contains("nonisolated(unsafe) static let settings: [String: Any]"))
-        #expect(rendered.contains("public static let serverUrl: String"))
+        #expect(rendered.contains("public static let serverURL: String"))
     }
 
     @Test(.inTemporaryDirectory)
     func render_plistWithOnlyScalarValues_doesNotIncludeNonisolatedUnsafe() async throws {
+        let subject = SynthesizedResourceInterfacesGenerator()
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        let plistPath = temporaryDirectory.appending(component: "Config.plist")
+        let plistPath = temporaryDirectory.appending(component: "ScalarConfig.plist")
 
         let plistData = try PropertyListSerialization.data(
             fromPropertyList: [
@@ -71,8 +71,9 @@ struct SynthesizedResourceInterfacesGeneratorTests {
 
     @Test(.inTemporaryDirectory)
     func render_plistWithArrayOfDictionaries_includesNonisolatedUnsafe() async throws {
+        let subject = SynthesizedResourceInterfacesGenerator()
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        let plistPath = temporaryDirectory.appending(component: "Config.plist")
+        let plistPath = temporaryDirectory.appending(component: "ArrayConfig.plist")
 
         let plistData = try PropertyListSerialization.data(
             fromPropertyList: [
