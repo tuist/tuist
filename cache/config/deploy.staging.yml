@@ -9,7 +9,7 @@ env:
     SERVER_URL: https://staging.tuist.dev
     SENTRY_ENV: stag
     DEPLOY_ENV: stag
-    POOL_SIZE: "4"
+    POOL_SIZE: "1"
     REPO_QUEUE_TARGET_MS: "30000"
     REPO_QUEUE_INTERVAL_MS: "30000"
     DISTRIBUTED_KV_POOL_SIZE: "10"
