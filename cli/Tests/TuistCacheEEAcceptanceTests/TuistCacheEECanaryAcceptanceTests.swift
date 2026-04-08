@@ -451,16 +451,13 @@ struct TuistCacheEECanaryAcceptanceTests {
         // Selective test results are persisted asynchronously
         try await Task.sleep(nanoseconds: 7_000_000_000)
 
-        // When: Clean selective testing data and local binaries
-        try await TuistTest.run(
-            CleanCommand.self, ["binaries", "--path", fixtureDirectory.pathString]
-        )
+        // When: Clean selective testing data
         try await TuistTest.run(
             CleanCommand.self, ["selectiveTests", "--path", fixtureDirectory.pathString]
         )
         resetUI()
 
-        // When: Modify MacOSStaticFramework source and cache again
+        // When: Modify MacOSStaticFramework source
         let filePath = fixtureDirectory.appending(
             try RelativePath(validating: "Modules/MacOSStaticFramework/Sources/MacOSStaticFrameworkClass.swift")
         )
@@ -470,7 +467,6 @@ struct TuistCacheEECanaryAcceptanceTests {
             // \(UUID().uuidString)
             """, at: filePath, options: Set([.overwrite])
         )
-        try await TuistTest.run(CacheCommand.self, ["--path", fixtureDirectory.pathString])
 
         // When: Run tests again
         try await TuistTest.run(
