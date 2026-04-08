@@ -1,0 +1,128 @@
+{{- if eq .Values.objectStorage.mode "embedded" }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "object-storage") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+spec:
+  selector:
+    {{- include "tuist.componentLabels" (dict "root" . "component" "object-storage") | nindent 4 }}
+  ports:
+    - name: api
+      port: 9000
+      targetPort: 9000
+    - name: console
+      port: 9001
+      targetPort: 9001
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "object-storage") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+spec:
+  serviceName: {{ include "tuist.componentName" (dict "root" . "component" "object-storage") }}
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "tuist.componentLabels" (dict "root" . "component" "object-storage") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "tuist.componentLabels" (dict "root" . "component" "object-storage") | nindent 8 }}
+    spec:
+      containers:
+        - name: minio
+          image: "{{ .Values.objectStorage.embedded.image.repository }}:{{ .Values.objectStorage.embedded.image.tag }}"
+          imagePullPolicy: {{ .Values.objectStorage.embedded.image.pullPolicy }}
+          args:
+            - server
+            - /data
+            - --console-address
+            - :9001
+          ports:
+            - containerPort: 9000
+              name: api
+            - containerPort: 9001
+              name: console
+          env:
+            - name: MINIO_ROOT_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
+                  key: object-storage-access-key
+            - name: MINIO_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
+                  key: object-storage-secret-key
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          readinessProbe:
+            httpGet:
+              path: /minio/health/ready
+              port: api
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.objectStorage.embedded.resources | nindent 12 }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          {{- toYaml .Values.objectStorage.embedded.persistence.accessModes | nindent 10 }}
+        resources:
+          requests:
+            storage: {{ .Values.objectStorage.embedded.persistence.size }}
+        {{- if .Values.objectStorage.embedded.persistence.storageClassName }}
+        storageClassName: {{ .Values.objectStorage.embedded.persistence.storageClassName }}
+        {{- end }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "object-storage-init") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+spec:
+  backoffLimit: 5
+  template:
+    metadata:
+      labels:
+        {{- include "tuist.componentLabels" (dict "root" . "component" "object-storage-init") | nindent 8 }}
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: bucket-init
+          image: "{{ .Values.objectStorage.embedded.mcImage.repository }}:{{ .Values.objectStorage.embedded.mcImage.tag }}"
+          imagePullPolicy: {{ .Values.objectStorage.embedded.mcImage.pullPolicy }}
+          env:
+            - name: ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
+                  key: object-storage-access-key
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
+                  key: object-storage-secret-key
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              until mc alias set local http://{{ include "tuist.componentName" (dict "root" . "component" "object-storage") }}:9000 "$ACCESS_KEY" "$SECRET_KEY"; do
+                sleep 2
+              done
+              until mc ready local; do
+                sleep 2
+              done
+              mc mb --ignore-existing local/{{ include "tuist.objectStorageBucketDefault" . }}
+              mc mb --ignore-existing local/{{ include "tuist.objectStorageBucketCache" . }}
+              mc mb --ignore-existing local/{{ include "tuist.objectStorageBucketXcodeCache" . }}
+              mc mb --ignore-existing local/{{ include "tuist.objectStorageBucketRegistry" . }}
+{{- end }}

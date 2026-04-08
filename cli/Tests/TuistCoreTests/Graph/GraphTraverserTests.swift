@@ -4167,6 +4167,105 @@ final class GraphTraverserTests: TuistUnitTestCase {
         ])
     }
 
+    func test_staticXCFrameworkAppIntentsMetadata_returns_direct_and_transitive_static_xcframework_metadata() throws {
+        // Given
+        let app = Target.test(name: "App", product: .app)
+        let feature = Target.test(name: "Feature", product: .framework)
+        let project = Project.test(targets: [app, feature])
+        let directXCFramework: GraphDependency = .testXCFramework(
+            path: "/xcframeworks/direct.xcframework",
+            infoPlist: .test(libraries: [.test(
+                identifier: "ios-arm64",
+                path: try RelativePath(validating: "Direct.framework"),
+                architectures: [.arm64]
+            )]),
+            linking: .static
+        )
+        let transitiveXCFramework: GraphDependency = .testXCFramework(
+            path: "/xcframeworks/transitive.xcframework",
+            infoPlist: .test(libraries: [.test(
+                identifier: "ios-arm64",
+                path: try RelativePath(validating: "Transitive.framework"),
+                architectures: [.arm64]
+            )]),
+            linking: .static
+        )
+        let dynamicXCFramework: GraphDependency = .testXCFramework(
+            path: "/xcframeworks/dynamic.xcframework",
+            infoPlist: .test(libraries: [.test(
+                identifier: "ios-arm64",
+                path: try RelativePath(validating: "Dynamic.framework"),
+                architectures: [.arm64]
+            )]),
+            linking: .dynamic
+        )
+
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: app.name, path: project.path): Set([
+                .target(name: feature.name, path: project.path),
+                dynamicXCFramework,
+            ]),
+            .target(name: feature.name, path: project.path): Set([
+                directXCFramework,
+            ]),
+            directXCFramework: Set([
+                transitiveXCFramework,
+            ]),
+        ]
+        let graph = Graph.test(
+            path: project.path,
+            projects: [project.path: project],
+            dependencies: dependencies
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = try subject.staticXCFrameworkAppIntentsMetadata(path: project.path, name: app.name)
+
+        // Then
+        XCTAssertEqual(got, Set([
+            .init(
+                frameworkName: "Direct",
+                metadataPath: "/xcframeworks/direct.xcframework/ios-arm64/Direct.framework/Metadata.appintents"
+            ),
+            .init(
+                frameworkName: "Transitive",
+                metadataPath: "/xcframeworks/transitive.xcframework/ios-arm64/Transitive.framework/Metadata.appintents"
+            ),
+        ]))
+    }
+
+    func test_staticXCFrameworkAppIntentsMetadata_ignores_non_framework_libraries() throws {
+        // Given
+        let app = Target.test(name: "App", product: .app)
+        let project = Project.test(targets: [app])
+        let staticLibraryXCFramework: GraphDependency = .testXCFramework(
+            path: "/xcframeworks/library.xcframework",
+            infoPlist: .test(libraries: [.test(
+                identifier: "ios-arm64",
+                path: try RelativePath(validating: "libLibrary.a"),
+                architectures: [.arm64]
+            )]),
+            linking: .static
+        )
+        let graph = Graph.test(
+            path: project.path,
+            projects: [project.path: project],
+            dependencies: [
+                .target(name: app.name, path: project.path): Set([
+                    staticLibraryXCFramework,
+                ]),
+            ]
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = try subject.staticXCFrameworkAppIntentsMetadata(path: project.path, name: app.name)
+
+        // Then
+        XCTAssertEmpty(got)
+    }
+
     func test_copyProductDependencies_when_targetHasTransitiveStaticXCFrameworks() throws {
         // XCFrameworks are copied into the products directory to let Xcode's compilation process pick the right architecture and
         // platform at build-time. The logic that determines which xcframeworks to include should traverse the .xcframework

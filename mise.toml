@@ -1,5 +1,5 @@
 [tools]
-    tuist = "4.174.7"
+    tuist = "4.175.0"
     swiftlint = "0.59.1"
     "elixir" = "1.19.1"
     "erlang" = "28.1"
@@ -25,6 +25,7 @@
     TUIST_CACHE_CONCURRENCY_LIMIT="none"
     # Elixir recommends half of the number of cores: https://elixir-lang.org/blog/2025/10/16/elixir-v1-19-0-released/
     MIX_OS_DEPS_COMPILE_PARTITION_COUNT=4
+    TUIST_INSPECT_TEST_MODE = "remote"
     TUIST_HOSTED = "1"
     TUIST_S3_VIRTUAL_HOST = "1"
     TUIST_S3_BUCKET_AS_HOST = "1"

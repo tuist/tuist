@@ -201,7 +201,7 @@ For a detailed explanation of how each process works internally, see the <Locali
 
 ## Health checks {#health-checks}
 
-- `GET /up` — Returns 200 when healthy
+- `GET /up` — Returns 200 when healthy, 503 otherwise
 - `GET /metrics` — Prometheus metrics
 
 ## Monitoring {#monitoring}
