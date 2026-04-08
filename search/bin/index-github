@@ -39,11 +39,6 @@ url="https://api.github.com/repos/${GITHUB_REPO}/issues?state=all&per_page=100&s
 total=0
 
 while [ -n "$url" ]; do
-  auth_header=""
-  if [ -n "$GITHUB_TOKEN" ]; then
-    auth_header="-H \"Authorization: Bearer ${GITHUB_TOKEN}\""
-  fi
-
   response_file=$(mktemp)
   header_file=$(mktemp)
 

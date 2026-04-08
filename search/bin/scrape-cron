@@ -18,8 +18,8 @@ scp config/docsearch-forum.json ${SSH_USER}@${SERVER_HOST}:/opt/docsearch/docsea
 scp bin/index-docc ${SSH_USER}@${SERVER_HOST}:/opt/docsearch/index-docc
 scp bin/index-github ${SSH_USER}@${SERVER_HOST}:/opt/docsearch/index-github
 ssh ${SSH_USER}@${SERVER_HOST} "chmod +x /opt/docsearch/index-docc /opt/docsearch/index-github"
-ssh ${SSH_USER}@${SERVER_HOST} "echo '${TYPESENSE_API_KEY}' > /opt/docsearch/.api_key && chmod 600 /opt/docsearch/.api_key"
-ssh ${SSH_USER}@${SERVER_HOST} "echo '${GITHUB_TOKEN}' > /opt/docsearch/.github_token && chmod 600 /opt/docsearch/.github_token"
+echo "${TYPESENSE_API_KEY}" | ssh ${SSH_USER}@${SERVER_HOST} "cat > /opt/docsearch/.api_key && chmod 600 /opt/docsearch/.api_key"
+echo "${GITHUB_TOKEN}" | ssh ${SSH_USER}@${SERVER_HOST} "cat > /opt/docsearch/.github_token && chmod 600 /opt/docsearch/.github_token"
 
 # Create runner script on server
 ssh ${SSH_USER}@${SERVER_HOST} "cat > /opt/docsearch/run.sh" << 'REMOTE_SCRIPT'

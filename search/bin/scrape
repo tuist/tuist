@@ -5,7 +5,6 @@
 # Pass a specific config file as argument to scrape only that source.
 set -euo pipefail
 
-TYPESENSE_API_KEY=$(op read "op://search/TYPESENSE_API_KEY/notesPlain")
 SERVER_HOST="91.99.179.13"
 SSH_USER="${SEARCH_SSH_USER:-root}"
 TYPESENSE_CONTAINER=$(ssh ${SSH_USER}@${SERVER_HOST} "docker ps --filter label=service=tuist-search --filter label=role=web --format '{{.Names}}' | head -1")
@@ -19,14 +18,17 @@ fi
 
 for config_file in "${CONFIGS[@]}"; do
   echo "==> Scraping with ${config_file}..."
-  CONFIG=$(cat "$config_file")
+  scp "$config_file" ${SSH_USER}@${SERVER_HOST}:/tmp/docsearch-config.json
   ssh ${SSH_USER}@${SERVER_HOST} \
-    "docker run --rm --network kamal --dns 8.8.8.8 \
-      -e TYPESENSE_API_KEY='${TYPESENSE_API_KEY}' \
+    "TYPESENSE_API_KEY=\$(cat /opt/docsearch/.api_key) && \
+     CONFIG=\$(cat /tmp/docsearch-config.json) && \
+     docker run --rm --network kamal --dns 8.8.8.8 \
+      -e TYPESENSE_API_KEY=\"\$TYPESENSE_API_KEY\" \
       -e TYPESENSE_HOST=${TYPESENSE_CONTAINER} \
       -e TYPESENSE_PORT=8108 \
       -e TYPESENSE_PROTOCOL=http \
-      -e CONFIG='${CONFIG}' \
-      typesense/docsearch-scraper"
+      -e CONFIG=\"\$CONFIG\" \
+      typesense/docsearch-scraper && \
+     rm -f /tmp/docsearch-config.json"
   echo "==> Done with ${config_file}"
 done
