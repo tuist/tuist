@@ -15,7 +15,7 @@ docker build -t "$IMAGE_NAME" .
 echo "Starting container..."
 docker run -d --name "$CONTAINER_NAME" \
   -e TYPESENSE_API_KEY=test \
-  -e TYPESENSE_DATA_DIR=/data \
+  -e TYPESENSE_DATA_DIR=/tmp/typesense-data \
   -e TYPESENSE_ENABLE_CORS=true \
   -p 18108:8108 \
   "$IMAGE_NAME"
