@@ -1,0 +1,26 @@
+#!/bin/bash
+set -euo pipefail
+
+TYPESENSE_API_KEY=$(op read "op://search/TYPESENSE_API_KEY/notesPlain")
+TYPESENSE_CONTAINER=$(ssh root@91.99.179.13 "docker ps --filter label=service=tuist-search --filter label=role=web --format '{{.Names}}' | head -1")
+
+CONFIGS=("config/docsearch.json" "config/docsearch-forum.json")
+
+# Allow passing a specific config as argument
+if [ $# -gt 0 ]; then
+  CONFIGS=("$@")
+fi
+
+for config_file in "${CONFIGS[@]}"; do
+  echo "==> Scraping with ${config_file}..."
+  CONFIG=$(cat "$config_file")
+  ssh root@91.99.179.13 \
+    "docker run --rm --network kamal --dns 8.8.8.8 \
+      -e TYPESENSE_API_KEY='${TYPESENSE_API_KEY}' \
+      -e TYPESENSE_HOST=${TYPESENSE_CONTAINER} \
+      -e TYPESENSE_PORT=8108 \
+      -e TYPESENSE_PROTOCOL=http \
+      -e CONFIG='${CONFIG}' \
+      typesense/docsearch-scraper"
+  echo "==> Done with ${config_file}"
+done

@@ -1,0 +1,68 @@
+#!/bin/bash
+set -euo pipefail
+
+TYPESENSE_API_KEY=$(op read "op://search/TYPESENSE_API_KEY/notesPlain")
+GITHUB_TOKEN=$(op read "op://search/GITHUB_TOKEN/notesPlain" 2>/dev/null || echo "")
+
+# Upload configs, scripts, and secrets to server (restricted permissions)
+ssh root@91.99.179.13 "mkdir -p /opt/docsearch && chmod 700 /opt/docsearch"
+scp config/docsearch.json root@91.99.179.13:/opt/docsearch/docsearch.json
+scp config/docsearch-forum.json root@91.99.179.13:/opt/docsearch/docsearch-forum.json
+scp bin/index-docc.py root@91.99.179.13:/opt/docsearch/index-docc.py
+scp bin/index-github.py root@91.99.179.13:/opt/docsearch/index-github.py
+ssh root@91.99.179.13 "echo '${TYPESENSE_API_KEY}' > /opt/docsearch/.api_key && chmod 600 /opt/docsearch/.api_key"
+ssh root@91.99.179.13 "echo '${GITHUB_TOKEN}' > /opt/docsearch/.github_token && chmod 600 /opt/docsearch/.github_token"
+
+# Create runner script on server
+ssh root@91.99.179.13 "cat > /opt/docsearch/run.sh" << 'REMOTE_SCRIPT'
+#!/bin/bash
+set -euo pipefail
+CONTAINER=$(docker ps --filter label=service=tuist-search --filter label=role=web --format '{{.Names}}' | head -1)
+TYPESENSE_API_KEY=$(cat /opt/docsearch/.api_key)
+GITHUB_TOKEN=$(cat /opt/docsearch/.github_token 2>/dev/null || echo "")
+CONTAINER_IP=$(docker inspect "$CONTAINER" --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}')
+
+# DocSearch scrapers (docs, forum)
+for config_file in /opt/docsearch/docsearch*.json; do
+  echo "==> Scraping with ${config_file}..."
+  CONFIG=$(cat "$config_file")
+  docker run --rm --network kamal --dns 8.8.8.8 \
+    -e TYPESENSE_API_KEY="$TYPESENSE_API_KEY" \
+    -e TYPESENSE_HOST="$CONTAINER" \
+    -e TYPESENSE_PORT=8108 \
+    -e TYPESENSE_PROTOCOL=http \
+    -e CONFIG="$CONFIG" \
+    typesense/docsearch-scraper
+  echo "==> Done with ${config_file}"
+done
+
+# DocC indexer (ProjectDescription API reference)
+echo "==> Indexing DocC (ProjectDescription)..."
+docker run --rm --network kamal --dns 8.8.8.8 \
+  -e TYPESENSE_API_KEY="$TYPESENSE_API_KEY" \
+  -e TYPESENSE_HOST="http://${CONTAINER_IP}:8108" \
+  -v /opt/docsearch/index-docc.py:/app/index-docc.py:ro \
+  python:3.12-slim \
+  python3 /app/index-docc.py
+echo "==> Done with DocC indexer"
+
+# GitHub indexer (issues and PRs)
+echo "==> Indexing GitHub issues and PRs..."
+docker run --rm --network kamal --dns 8.8.8.8 \
+  -e TYPESENSE_API_KEY="$TYPESENSE_API_KEY" \
+  -e TYPESENSE_HOST="http://${CONTAINER_IP}:8108" \
+  -e GITHUB_TOKEN="$GITHUB_TOKEN" \
+  -v /opt/docsearch/index-github.py:/app/index-github.py:ro \
+  python:3.12-slim \
+  python3 /app/index-github.py
+echo "==> Done with GitHub indexer"
+REMOTE_SCRIPT
+ssh root@91.99.179.13 "chmod 700 /opt/docsearch/run.sh"
+
+# Install cron job
+ssh root@91.99.179.13 "cat > /etc/cron.d/docsearch-scraper << 'CRON'
+0 4 * * * root /opt/docsearch/run.sh >> /var/log/docsearch-scraper.log 2>&1
+CRON
+chmod 644 /etc/cron.d/docsearch-scraper"
+
+echo "Cron job installed — scraper will run daily at 04:00 UTC"

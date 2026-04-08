@@ -1,0 +1,43 @@
+name: Search Deploy
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - search/**
+      - .github/workflows/search-deploy.yml
+
+concurrency:
+  group: search-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: search
+
+jobs:
+  deploy:
+    runs-on: namespace-profile-default
+    timeout-minutes: 30
+    environment: search-production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: 1password/install-cli-action@v2
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
+          working_directory: search
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.1
+        with:
+          ssh-private-key: ${{ secrets.SEARCH_SSH_PRIVATE_KEY }}
+      - name: Deploy with Kamal
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.SEARCH_OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          mise run deploy
