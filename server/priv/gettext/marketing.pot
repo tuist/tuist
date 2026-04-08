@@ -87,7 +87,7 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:557
 #: lib/tuist_web/marketing/controllers/marketing_html/blog_post.html.heex:10
 #: lib/tuist_web/marketing/live/marketing_blog_live.html.heex:13
-#: lib/tuist_web/marketing/live/marketing_blog_post_live.ex:49
+#: lib/tuist_web/marketing/live/marketing_blog_post_live.ex:52
 #: lib/tuist_web/marketing/live/marketing_blog_post_live.html.heex:13
 #, elixir-autogen, elixir-format
 msgid "Blog"
@@ -1044,7 +1044,7 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:592
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:647
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:688
-#: lib/tuist_web/marketing/live/marketing_blog_post_live.ex:48
+#: lib/tuist_web/marketing/live/marketing_blog_post_live.ex:51
 #, elixir-autogen, elixir-format
 msgid "Tuist"
 msgstr ""
