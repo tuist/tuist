@@ -99,6 +99,9 @@
     echo "2. Push your changes to complete the CLA signing process"
     '''
 
+[plugins]
+    swiftformat = "https://github.com/mise-plugins/mise-swiftformat.git"
+
 [settings]
     jobs = 6
     http_timeout = "60"
