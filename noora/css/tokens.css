@@ -122,13 +122,13 @@
   --noora-neutral-gray-24: oklch(31.8% 0 0 / 0.24);
   --noora-neutral-gray-16: oklch(34.8% 0 0 / 0.16);
 
-  --noora-alpha-red: oklch(58.7% 0.23 30.7 / 0.2);
+  --noora-alpha-red: oklch(58.7% 0.23 30.7 / 0.18);
   --noora-alpha-orange: oklch(71.9% 0.185 48.7 / 0.16);
   --noora-alpha-yellow: oklch(84.8% 0.174 86.1 / 0.16);
   --noora-alpha-green: oklch(64% 0.175 146.7 / 0.16);
   --noora-alpha-azure: oklch(57% 0.127 238.5 / 0.16);
-  --noora-alpha-blue: oklch(63% 0.182 259.5 / 0.24);
-  --noora-alpha-purple: oklch(53.2% 0.276 286.9 / 0.24);
+  --noora-alpha-blue: oklch(63% 0.182 259.5 / 0.2);
+  --noora-alpha-purple: oklch(53.2% 0.276 286.9 / 0.2);
   --noora-alpha-pink: oklch(57.4% 0.218 7.8 / 0.24);
   --noora-alpha-black: oklch(0% 0 0 / 0.8);
 

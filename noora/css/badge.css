@@ -106,46 +106,107 @@
     &[data-color="neutral"] {
       background: var(--noora-badge-light-fill-neutral-background);
       color: var(--noora-badge-light-fill-neutral-label);
+      box-shadow: 0 0 0 1px
+        light-dark(
+          color-mix(
+            in oklch,
+            var(--noora-neutral-light-1100) 40%,
+            transparent
+          ),
+          color-mix(
+            in oklch,
+            var(--noora-neutral-light-100) 20%,
+            transparent
+          )
+        );
     }
 
     &[data-color="destructive"] {
       background: var(--noora-badge-light-fill-destructive-background);
       color: var(--noora-badge-light-fill-destructive-label);
+      box-shadow: 0 0 0 1px
+        color-mix(
+          in oklch,
+          var(--noora-badge-light-fill-destructive-label) 40%,
+          transparent
+        );
     }
 
     &[data-color="warning"] {
       background: var(--noora-badge-light-fill-warning-background);
       color: var(--noora-badge-light-fill-warning-label);
+      box-shadow: 0 0 0 1px
+        color-mix(
+          in oklch,
+          var(--noora-badge-light-fill-warning-label) 40%,
+          transparent
+        );
     }
 
     &[data-color="attention"] {
       background: var(--noora-badge-light-fill-attention-background);
       color: var(--noora-badge-light-fill-attention-label);
+      box-shadow: 0 0 0 1px
+        color-mix(
+          in oklch,
+          var(--noora-badge-light-fill-attention-label) 40%,
+          transparent
+        );
     }
 
     &[data-color="success"] {
       background: var(--noora-badge-light-fill-success-background);
       color: var(--noora-badge-light-fill-success-label);
+      box-shadow: 0 0 0 1px
+        color-mix(
+          in oklch,
+          var(--noora-badge-light-fill-success-label) 40%,
+          transparent
+        );
     }
 
     &[data-color="information"] {
       background: var(--noora-badge-light-fill-information-background);
       color: var(--noora-badge-light-fill-information-label);
+      box-shadow: 0 0 0 1px
+        color-mix(
+          in oklch,
+          var(--noora-badge-light-fill-information-label) 40%,
+          transparent
+        );
     }
 
     &[data-color="focus"] {
       background: var(--noora-badge-light-fill-focus-background);
       color: var(--noora-badge-light-fill-focus-label);
+      box-shadow: 0 0 0 1px
+        color-mix(
+          in oklch,
+          var(--noora-badge-light-fill-focus-label) 40%,
+          transparent
+        );
     }
 
     &[data-color="primary"] {
       background: var(--noora-badge-light-fill-primary-background);
       color: var(--noora-badge-light-fill-primary-label);
+      box-shadow: 0 0 0 1px
+        color-mix(
+          in oklch,
+          var(--noora-badge-light-fill-primary-label) 40%,
+          transparent
+        );
     }
 
     &[data-color="secondary"] {
       background: var(--noora-badge-light-fill-secondary-background);
       color: var(--noora-badge-light-fill-secondary-label);
+      box-shadow: 0 0 0 1px
+        color-mix(
+          in oklch,
+          var(--noora-badge-light-fill-secondary-label) 40%,
+          transparent
+        );
     }
   }
 }
