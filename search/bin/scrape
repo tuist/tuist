@@ -1,4 +1,8 @@
 #!/bin/bash
+# Triggers the DocSearch scraper on the remote server.
+# Runs the typesense/docsearch-scraper Docker image against each config
+# (docs site + community forum) to crawl and index content into TypeSense.
+# Pass a specific config file as argument to scrape only that source.
 set -euo pipefail
 
 TYPESENSE_API_KEY=$(op read "op://search/TYPESENSE_API_KEY/notesPlain")

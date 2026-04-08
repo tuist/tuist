@@ -1,7 +1,9 @@
 #!/bin/bash
+# Indexes all GitHub issues and pull requests from tuist/tuist into TypeSense.
+# Paginates through the GitHub API, handles rate limiting, and bulk-imports
+# documents into the "github-issues" TypeSense collection in batches of 250.
+# Can be run locally (resolves TypeSense host via SSH) or with TYPESENSE_HOST set.
 set -euo pipefail
-
-# Index GitHub issues and PRs from tuist/tuist into TypeSense.
 
 GITHUB_REPO="tuist/tuist"
 TYPESENSE_API_KEY="${TYPESENSE_API_KEY:-$(op read "op://search/TYPESENSE_API_KEY/notesPlain")}"

@@ -1,7 +1,10 @@
 #!/bin/bash
+# Indexes the ProjectDescription DocC API reference into TypeSense.
+# Recursively crawls the DocC JSON data endpoints at projectdescription.tuist.dev,
+# extracts titles, abstracts, and content from each page, then bulk-imports them
+# into the "projectdescription" TypeSense collection.
+# Can be run locally (resolves TypeSense host via SSH) or with TYPESENSE_HOST set.
 set -euo pipefail
-
-# Index a DocC site into TypeSense by crawling its JSON data endpoints.
 
 BASE_URL="https://projectdescription.tuist.dev"
 TYPESENSE_API_KEY="${TYPESENSE_API_KEY:-$(op read "op://search/TYPESENSE_API_KEY/notesPlain")}"

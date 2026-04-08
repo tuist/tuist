@@ -1,4 +1,8 @@
 #!/bin/bash
+# Installs a daily cron job (04:00 UTC) on the remote server that runs all
+# indexers: DocSearch scrapers (docs + forum), DocC API indexer, and GitHub
+# issues/PRs indexer. Uploads the latest scripts, configs, and secrets to
+# /opt/docsearch/ on the server each time it is run.
 set -euo pipefail
 
 TYPESENSE_API_KEY=$(op read "op://search/TYPESENSE_API_KEY/notesPlain")
