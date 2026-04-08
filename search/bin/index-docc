@@ -11,9 +11,11 @@ TYPESENSE_API_KEY="${TYPESENSE_API_KEY:-$(op read "op://search/TYPESENSE_API_KEY
 TYPESENSE_HOST="${TYPESENSE_HOST:-}"
 COLLECTION="projectdescription"
 
-SERVER_HOST="91.99.179.13"
-
+# When TYPESENSE_HOST is not set (manual run from a developer machine),
+# resolve the container IP via SSH. When run on the server (e.g. via cron),
+# TYPESENSE_HOST is already provided.
 if [ -z "$TYPESENSE_HOST" ]; then
+  SERVER_HOST="91.99.179.13"
   CONTAINER_IP=$(ssh root@${SERVER_HOST} "docker ps --filter label=service=tuist-search --filter label=role=web --format '{{.Names}}' | head -1 | xargs docker inspect --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}'")
   TYPESENSE_HOST="http://${CONTAINER_IP}:8108"
 fi
