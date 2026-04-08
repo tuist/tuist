@@ -1,7 +1,7 @@
 import Foundation
 
 public enum Constants {
-    @TaskLocal public static var version: String! = "4.174.5"
+    @TaskLocal public static var version: String! = "4.175.0"
     public static let versionFileName = ".tuist-version"
     public static let binFolderName = ".tuist-bin"
     public static let binName = "tuist"
@@ -50,6 +50,10 @@ public enum Constants {
         public static let sources = "Sources"
         public static let signingKeychain = "signing.keychain"
         public static let dependenciesDerivedDirectory = "tuist-derived"
+        public static let dependenciesProjectDirectory = "Projects"
+        public static let dependenciesTargetDirectory = "Targets"
+        public static let dependenciesModuleMapsDirectory = "ModuleMaps"
+        public static let dependenciesXCFrameworkDirectory = "XCFrameworks"
     }
 
     /// Pass these variables to make custom configuration of tuist

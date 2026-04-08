@@ -28,14 +28,16 @@ if config_env() == :prod do
     end
 
   s3_port = if s3_uri.port != s3_default_port, do: s3_uri.port, else: nil
+  s3_virtual_host = System.get_env("S3_VIRTUAL_HOST", "true") in ["1", "true", "TRUE"]
+  s3_bucket_as_host = System.get_env("S3_BUCKET_AS_HOST", "true") in ["1", "true", "TRUE"]
 
   s3_config =
     [
       scheme: s3_scheme,
       host: s3_host,
       region: System.get_env("S3_REGION") || "auto",
-      virtual_host: true,
-      bucket_as_host: true
+      virtual_host: s3_virtual_host,
+      bucket_as_host: s3_bucket_as_host
     ]
 
   s3_config = if s3_port, do: Keyword.put(s3_config, :port, s3_port), else: s3_config

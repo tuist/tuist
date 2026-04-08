@@ -66,6 +66,7 @@ final class ExternalDependencyPathWorkspaceMapperTests: TuistUnitTestCase {
         let expectedXcodeprojPath = externalProjectBasePath.appending(
             components: [
                 Constants.DerivedDirectory.dependenciesDerivedDirectory,
+                Constants.DerivedDirectory.dependenciesProjectDirectory,
                 "ExternalDependency",
                 "ExternalDependency.xcodeproj",
             ]
@@ -94,6 +95,46 @@ final class ExternalDependencyPathWorkspaceMapperTests: TuistUnitTestCase {
                     type: .external(hash: nil)
                 ),
             ]
+        )
+    }
+
+    func test_map_namespacesExternalProjectsToAvoidCollidingWithTargetDerivedDirectories() throws {
+        // Given
+        let externalProjectBasePath = try temporaryPath()
+            .appending(component: Constants.SwiftPackageManager.packageBuildDirectoryName)
+        let externalProjectPath = externalProjectBasePath.appending(
+            components: [
+                "checkouts",
+                "vgsl",
+            ]
+        )
+        let externalProject = Project.test(
+            path: externalProjectPath,
+            sourceRootPath: externalProjectPath,
+            xcodeProjPath: externalProjectPath.appending(component: "vgsl.xcodeproj"),
+            name: "vgsl",
+            type: .external(hash: nil)
+        )
+
+        // When
+        let (gotWorkspaceWithProjects, _) = try subject.map(
+            workspace: WorkspaceWithProjects(
+                workspace: .test(name: "A"),
+                projects: [externalProject]
+            )
+        )
+
+        // Then
+        XCTAssertEqual(
+            gotWorkspaceWithProjects.projects.first?.xcodeProjPath,
+            externalProjectBasePath.appending(
+                components: [
+                    Constants.DerivedDirectory.dependenciesDerivedDirectory,
+                    Constants.DerivedDirectory.dependenciesProjectDirectory,
+                    "vgsl",
+                    "vgsl.xcodeproj",
+                ]
+            )
         )
     }
 }

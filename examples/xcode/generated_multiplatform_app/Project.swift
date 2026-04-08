@@ -73,6 +73,18 @@ let multiPlatformTransitiveDynamicFramework: Target = .target(
     sources: "Modules/MultiPlatformTransitiveDynamicFramework/Sources/**/*.swift"
 )
 
+let multiPlatformTransitiveDynamicFrameworkTests: Target = .target(
+    name: "MultiPlatformTransitiveDynamicFrameworkTests",
+    destinations: [.mac],
+    product: .unitTests,
+    bundleId: "dev.tuist.App.MultiPlatformTransitiveDynamicFrameworkTests",
+    deploymentTargets: .multiplatform(macOS: "14.0.0"),
+    sources: "Modules/MultiPlatformTransitiveDynamicFrameworkTests/Sources/**/*.swift",
+    dependencies: [
+        .target(name: "MultiPlatformTransitiveDynamicFramework", condition: .when([.macos])),
+    ]
+)
+
 let project = Project(
     name: "App",
     targets: [
@@ -82,5 +94,6 @@ let project = Project(
         macOSStaticFramework,
         macOSStaticFrameworkTests,
         multiPlatformTransitiveDynamicFramework,
+        multiPlatformTransitiveDynamicFrameworkTests,
     ]
 )

@@ -351,6 +351,7 @@ defmodule TuistWeb.API.ProjectsController do
     response = %{
       id: project.id,
       full_name: full_name,
+      token: "",
       default_branch: project.default_branch,
       visibility: project.visibility,
       build_system: project.build_system

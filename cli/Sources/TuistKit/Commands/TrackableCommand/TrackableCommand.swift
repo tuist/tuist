@@ -150,6 +150,7 @@ public class TrackableCommand {
             from: info,
             path: path
         )
+        let buildRunURL = await runMetadataStorage.buildRunURL
         if (command as? TrackableParsableCommand)?.analyticsRequired == true || Environment.current.isCI {
             Logger.current.info("Uploading run metadata...")
             do {
@@ -159,7 +160,12 @@ public class TrackableCommand {
                     serverURL: serverURL,
                     sessionDirectory: sessionDirectory
                 )
-                if let testRunURL = serverCommandEvent.testRunURL {
+                if let buildRunURL {
+                    Logger.current
+                        .info(
+                            "Build uploaded for processing. You can view the build report at: \(buildRunURL.absoluteString)"
+                        )
+                } else if let testRunURL = serverCommandEvent.testRunURL {
                     Logger.current
                         .info(
                             "You can view a detailed test report at: \(testRunURL.absoluteString)"

@@ -11,6 +11,7 @@ defmodule TuistWeb.Marketing.MarketingController do
   alias Tuist.Marketing.Newsletter
   alias Tuist.Marketing.Pages
   alias TuistWeb.Errors.NotFoundError
+  alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Marketing.Localization
 
   plug(:assign_default_head_tags)
@@ -24,7 +25,7 @@ defmodule TuistWeb.Marketing.MarketingController do
     |> assign(:head_title, "Tuist · A virtual platform team for mobile devs who ship")
     |> assign(
       :head_image,
-      Tuist.Environment.app_url(path: "/marketing/images/og/home.jpg")
+      Tuist.Environment.app_url(path: OpenGraph.marketing_og_image_path("/marketing/images/og/generated/home.jpg"))
     )
     |> assign(:head_twitter_card, "summary_large_image")
     |> assign(:read_more_posts, read_more_posts)
@@ -45,7 +46,7 @@ defmodule TuistWeb.Marketing.MarketingController do
     )
     |> assign(
       :head_image,
-      Tuist.Environment.app_url(path: "/marketing/images/og/home.jpg")
+      Tuist.Environment.app_url(path: OpenGraph.marketing_og_image_path("/marketing/images/og/generated/home.jpg"))
     )
     |> assign(:head_twitter_card, "summary_large_image")
     |> assign(:featured_testimonials, get_featured_testimonials(locale))
@@ -244,7 +245,7 @@ defmodule TuistWeb.Marketing.MarketingController do
     )
     |> assign(
       :head_image,
-      Tuist.Environment.app_url(path: og_image_path("/marketing/images/og/generated/about.jpg"))
+      Tuist.Environment.app_url(path: OpenGraph.marketing_og_image_path("/marketing/images/og/generated/about.jpg"))
     )
     |> assign(:head_twitter_card, "summary_large_image")
     |> assign(
@@ -266,7 +267,7 @@ defmodule TuistWeb.Marketing.MarketingController do
     )
     |> assign(
       :head_image,
-      Tuist.Environment.app_url(path: og_image_path("/marketing/images/og/generated/support.jpg"))
+      Tuist.Environment.app_url(path: OpenGraph.marketing_og_image_path("/marketing/images/og/generated/support.jpg"))
     )
     |> assign(:head_twitter_card, "summary_large_image")
     |> assign(
@@ -288,7 +289,9 @@ defmodule TuistWeb.Marketing.MarketingController do
     )
     |> assign(
       :head_image,
-      Tuist.Environment.app_url(path: og_image_path("/marketing/images/og/generated/tuist-digest.jpg"))
+      Tuist.Environment.app_url(
+        path: OpenGraph.marketing_og_image_path("/marketing/images/og/generated/tuist-digest.jpg")
+      )
     )
     |> assign(:head_twitter_card, "summary_large_image")
     |> assign(:head_title, dgettext("marketing", "Tuist Digest Newsletter"))
@@ -335,7 +338,9 @@ defmodule TuistWeb.Marketing.MarketingController do
             |> assign(:head_title, dgettext("marketing", "Successfully Subscribed!"))
             |> assign(
               :head_image,
-              Tuist.Environment.app_url(path: og_image_path("/marketing/images/og/generated/tuist-digest.jpg"))
+              Tuist.Environment.app_url(
+                path: OpenGraph.marketing_og_image_path("/marketing/images/og/generated/tuist-digest.jpg")
+              )
             )
             |> assign(:head_twitter_card, "summary_large_image")
             |> assign(:email, email)
@@ -347,7 +352,9 @@ defmodule TuistWeb.Marketing.MarketingController do
             |> assign(:head_title, "Newsletter Verification Failed")
             |> assign(
               :head_image,
-              Tuist.Environment.app_url(path: og_image_path("/marketing/images/og/generated/tuist-digest.jpg"))
+              Tuist.Environment.app_url(
+                path: OpenGraph.marketing_og_image_path("/marketing/images/og/generated/tuist-digest.jpg")
+              )
             )
             |> assign(:head_twitter_card, "summary_large_image")
             |> assign(
@@ -363,7 +370,9 @@ defmodule TuistWeb.Marketing.MarketingController do
         |> assign(:head_title, dgettext("marketing", "Newsletter Verification Failed"))
         |> assign(
           :head_image,
-          Tuist.Environment.app_url(path: og_image_path("/marketing/images/og/generated/tuist-digest.jpg"))
+          Tuist.Environment.app_url(
+            path: OpenGraph.marketing_og_image_path("/marketing/images/og/generated/tuist-digest.jpg")
+          )
         )
         |> assign(:head_twitter_card, "summary_large_image")
         |> assign(
@@ -380,7 +389,9 @@ defmodule TuistWeb.Marketing.MarketingController do
     |> assign(:head_title, dgettext("marketing", "Newsletter Verification Failed"))
     |> assign(
       :head_image,
-      Tuist.Environment.app_url(path: og_image_path("/marketing/images/og/generated/tuist-digest.jpg"))
+      Tuist.Environment.app_url(
+        path: OpenGraph.marketing_og_image_path("/marketing/images/og/generated/tuist-digest.jpg")
+      )
     )
     |> assign(:head_twitter_card, "summary_large_image")
     |> assign(
@@ -626,7 +637,7 @@ defmodule TuistWeb.Marketing.MarketingController do
     |> assign(:plans, plans)
     |> assign(
       :head_image,
-      Tuist.Environment.app_url(path: "/marketing/images/og/pricing.jpg")
+      Tuist.Environment.app_url(path: OpenGraph.marketing_og_image_path("/marketing/images/og/generated/pricing.jpg"))
     )
     |> assign(:head_twitter_card, "summary_large_image")
     |> assign_structured_data(get_faq_structured_data(faqs))
@@ -665,7 +676,10 @@ defmodule TuistWeb.Marketing.MarketingController do
     |> assign(
       :head_image,
       Tuist.Environment.app_url(
-        path: og_image_path("/marketing/images/og/generated/#{page.slug |> String.split("/") |> List.last()}.jpg")
+        path:
+          OpenGraph.marketing_og_image_path(
+            "/marketing/images/og/generated/#{page.slug |> String.split("/") |> List.last()}.jpg"
+          )
       )
     )
     |> assign(:head_twitter_card, "summary_large_image")
@@ -696,23 +710,5 @@ defmodule TuistWeb.Marketing.MarketingController do
 
   defp put_resp_header_server(conn, _opts) do
     put_resp_header(conn, "server", "Bandit")
-  end
-
-  # Builds a locale-specific OG image path. For English, returns the path as-is.
-  # For other locales, inserts the locale before the filename.
-  #
-  # Examples:
-  #   - og_image_path("/marketing/images/og/about.jpg", "en") -> "/marketing/images/og/about.jpg"
-  #   - og_image_path("/marketing/images/og/about.jpg", "ko") -> "/marketing/images/og/ko/about.jpg"
-  defp og_image_path(path, locale \\ nil) do
-    locale = locale || Gettext.get_locale(TuistWeb.Gettext)
-
-    if locale == "en" do
-      path
-    else
-      dirname = Path.dirname(path)
-      basename = Path.basename(path)
-      Path.join([dirname, locale, basename])
-    end
   end
 end

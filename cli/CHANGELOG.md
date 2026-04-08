@@ -1,15 +1,33 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.174.5<!-- RELEASE NOTES START -->
+## What's Changed in 4.175.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* fix App Intents metadata for cached xcframeworks by [@pepicrft](https://github.com/pepicrft) in [#10168](https://github.com/tuist/tuist/pull/10168)
+* upload build data from tuist xcodebuild build by [@fortmarek](https://github.com/fortmarek) in [#10186](https://github.com/tuist/tuist/pull/10186)
+### 🐛 Bug Fixes
+
+* handle existing files during shard xctestrun write by [@fortmarek](https://github.com/fortmarek) in [#10188](https://github.com/tuist/tuist/pull/10188)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.174.7...4.175.0
+
+## What's Changed in 4.174.7<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
 
+* namespace dependency-derived artifacts by [@pepicrft](https://github.com/pepicrft) in [#10166](https://github.com/tuist/tuist/pull/10166)
 * fix cross-project test host embed and TEST_HOST settings by [@pepicrft](https://github.com/pepicrft) in [#10139](https://github.com/tuist/tuist/pull/10139)
+### 🚜 Refactor
+
+* remove local MCP command by [@pepicrft](https://github.com/pepicrft) in [#10171](https://github.com/tuist/tuist/pull/10171)
 
 
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.174.4...4.174.5
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.174.4...4.174.7
 
 ## What's Changed in 4.174.4<!-- RELEASE NOTES START -->
 
