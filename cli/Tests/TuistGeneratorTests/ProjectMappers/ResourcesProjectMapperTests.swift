@@ -84,6 +84,7 @@ struct ResourcesProjectMapperTests {
             "CODE_SIGNING_ALLOWED": "NO",
             "GENERATE_MASTER_OBJECT_FILE": "NO",
             "VERSIONING_SYSTEM": "",
+            "PACKAGE_RESOURCE_TARGET_KIND": "resource",
         ])
     }
 
@@ -982,7 +983,7 @@ struct ResourcesProjectMapperTests {
     }
 
     @Test
-    func mapWhenStaticTargetHasXcstringsKeepsThemInResources() async throws {
+    func mapWhenStaticTargetHasXcstringsAddsThemToSources() async throws {
         // Given
         let resources: [ResourceFileElement] = [
             .file(path: "/Resources/Localizable.xcstrings"),
@@ -999,11 +1000,11 @@ struct ResourcesProjectMapperTests {
         // Then
         let gotTarget = try #require(gotProject.targets.values.sorted().last)
         let xcstringsSources = gotTarget.sources.filter { $0.path.extension == "xcstrings" }
-        #expect(xcstringsSources.isEmpty)
-        let xcstringsResources = gotTarget.resources.resources.filter { $0.path.extension == "xcstrings" }
-        #expect(xcstringsResources.count == 1)
+        #expect(xcstringsSources.count == 1)
         let expectedXcstringsPath = try AbsolutePath(validating: "/Resources/Localizable.xcstrings")
-        #expect(xcstringsResources.first?.path == expectedXcstringsPath)
+        #expect(xcstringsSources.first?.path == expectedXcstringsPath)
+        let xcstringsResources = gotTarget.resources.resources.filter { $0.path.extension == "xcstrings" }
+        #expect(xcstringsResources.isEmpty)
 
         let resourcesTarget = try #require(gotProject.targets.values.sorted().first)
         #expect(resourcesTarget.product == .bundle)
@@ -1011,7 +1012,7 @@ struct ResourcesProjectMapperTests {
     }
 
     @Test
-    func mapWhenStaticTargetHasResourcesSetsPackageResourceBundleName() async throws {
+    func mapWhenStaticTargetHasResourcesSetsPackageResourceBuildSettings() async throws {
         // Given
         let resources: [ResourceFileElement] = [
             .file(path: "/Resources/Assets.xcassets"),
@@ -1029,6 +1030,8 @@ struct ResourcesProjectMapperTests {
         let expectedBundleName = "\(project.name)_\(target.name)"
         let bundleNameSetting = gotTarget.settings?.base["PACKAGE_RESOURCE_BUNDLE_NAME"]
         #expect(bundleNameSetting == .string(expectedBundleName))
+        let targetKindSetting = gotTarget.settings?.base["PACKAGE_RESOURCE_TARGET_KIND"]
+        #expect(targetKindSetting == .string("regular"))
     }
 
     // MARK: - Helpers

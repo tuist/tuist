@@ -13,7 +13,7 @@ Swift Package Manager emerged as a dependency manager for Swift code that uninen
 
 We often come across developers and organizations that challenge the need for Tuist considering that Swift Package Manager can take a similar project management role. Some venture into a migration to later on realize that their developer experience has degraded signicantly. For instance, the rename of a file might take up to 15 seconds to re-index. 15 seconds!
 
-**Whether Apple will make Swift Package Manager a built-for-scale project manager is uncertain.** However, we are not seeing any signs that it's happening. In fact, we are seeing quite the opposite. They are making Xcode-inspired decisions, like achieving convenience through implicit configurations, which <LocalizedLink href="/guides/features/projects/cost-of-convenience">as you might know,</LocalizedLink> is the source of complications at scale. We believe it'd take Apple to go to first principles and revisit some decisions that made sense as a dependency manager but not as a project manager, for example the usage of a compiled language as an interface to define projects.
+**Whether Apple will make Swift Package Manager a built-for-scale project manager is uncertain.** However, we are not seeing any signs that it's happening. In fact, we are seeing quite the opposite. They are making Xcode-inspired decisions, like achieving convenience through implicit configurations, which <.localized_link href="/guides/features/projects/cost-of-convenience">as you might know,</.localized_link> is the source of complications at scale. We believe it'd take Apple to go to first principles and revisit some decisions that made sense as a dependency manager but not as a project manager, for example the usage of a compiled language as an interface to define projects.
 
 > [!TIP]
 > **Spm As Just A Dependency Manager**
@@ -58,11 +58,11 @@ import ProjectDescription
 let tuist = Tuist()
 ```
 
-The `Tuist.swift` contains the configuration for your project and its path serves as a reference to determine the root of your project. You can check out the <LocalizedLink href="/guides/features/projects/directory-structure">directory structure</LocalizedLink> document to learn more about the structure of Tuist projects.
+The `Tuist.swift` contains the configuration for your project and its path serves as a reference to determine the root of your project. You can check out the <.localized_link href="/guides/features/projects/directory-structure">directory structure</.localized_link> document to learn more about the structure of Tuist projects.
 
 ## Editing the project {#editing-the-project}
 
-You can use <LocalizedLink href="/guides/features/projects/editing">`tuist edit`</LocalizedLink> to edit the project in Xcode. The command will generate an Xcode project that you can open and start working on.
+You can use <.localized_link href="/guides/features/projects/editing">`tuist edit`</.localized_link> to edit the project in Xcode. The command will generate an Xcode project that you can open and start working on.
 
 ```bash
 tuist edit

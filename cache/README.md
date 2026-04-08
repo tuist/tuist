@@ -22,7 +22,7 @@ This service provides:
 - `POST /api/cache/cas/:id` - Store Xcode cache artifact (requires `account_handle` and `project_handle` query params)
 
 ### Health Check
-- `GET /up` - Health check endpoint
+- `GET /up` - Health check endpoint (returns 200 when healthy, 503 otherwise)
 
 ## Setup
 

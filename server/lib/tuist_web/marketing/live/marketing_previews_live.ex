@@ -23,7 +23,9 @@ defmodule TuistWeb.Marketing.MarketingPreviewsLive do
      |> assign(:head_twitter_card, "summary_large_image")
      |> assign(
        :head_image,
-       Tuist.Environment.app_url(path: "/marketing/images/og/previews.jpg")
+       Tuist.Environment.app_url(
+         path: TuistWeb.Helpers.OpenGraph.marketing_og_image_path("/marketing/images/og/generated/previews.jpg")
+       )
      )
      |> assign(
        :head_description,

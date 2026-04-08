@@ -19,8 +19,9 @@ extension SynthesizedResourceInterfaceTemplates {
     {% endmacro %}
     {% macro documentBlock file document %}
       {% set rootType %}{% call typeBlock document.metadata %}{% endset %}
+      {%- set containsAny %}{%- call typesContainAny document.metadata -%}{% endset %}
       {% if document.metadata.type == "Array" %}
-      {{accessModifier}} static let items: {{rootType}} = {%+ call valueBlock document.data document.metadata +%}
+      {{accessModifier}} {% if containsAny %}nonisolated(unsafe) {%+ endif %}static let items: {{rootType}} = {%+ call valueBlock document.data document.metadata +%}
       {% elif document.metadata.type == "Dictionary" %}
       {% for key,value in document.metadata.properties %}
       {{accessModifier}} {%+ call propertyBlock key value document.data %}
@@ -38,10 +39,18 @@ extension SynthesizedResourceInterfaceTemplates {
         {{metadata.type}}
       {%- endif -%}
     {% endmacro %}
+    {% macro typesContainAny metadata %}
+      {%- if metadata.type == "Dictionary" -%}
+        true
+      {%- elif metadata.type == "Array" -%}
+        {%- call typesContainAny metadata.element -%}
+      {%- endif -%}
+    {% endmacro %}
     {% macro propertyBlock key metadata data %}
       {%- set propertyName %}{{key|swiftIdentifier:"pretty"|lowerFirstWord|escapeReservedKeywords}}{% endset -%}
       {%- set propertyType %}{% call typeBlock metadata %}{% endset -%}
-      static let {{propertyName}}: {{propertyType}} = {%+ call valueBlock data[key] metadata +%}
+      {%- set containsAny %}{%- call typesContainAny metadata -%}{% endset -%}
+      {% if containsAny %}nonisolated(unsafe) {%+ endif %}static let {{propertyName}}: {{propertyType}} = {%+ call valueBlock data[key] metadata +%}
     {% endmacro %}
     {% macro valueBlock value metadata %}
       {%- if metadata.type == "String" -%}
