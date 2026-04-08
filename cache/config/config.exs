@@ -7,8 +7,8 @@ config :cache, Cache.CacheArtifactsBuffer,
 config :cache, Cache.DistributedKV.Repo,
   migration_primary_key: [type: :string],
   migration_timestamps: [type: :utc_datetime_usec],
-  queue_target: 1_000,
-  queue_interval: 1_000,
+  queue_target: 30_000,
+  queue_interval: 30_000,
   priv: "priv/distributed_kv_repo"
 
 config :cache, Cache.KeyValueBuffer,
@@ -23,8 +23,8 @@ config :cache, Cache.KeyValueRepo,
   cache_size: -64_000,
   auto_vacuum: :incremental,
   journal_size_limit: 67_108_864,
-  queue_target: 1_000,
-  queue_interval: 1_000,
+  queue_target: 30_000,
+  queue_interval: 30_000,
   custom_pragmas: [mmap_size: 268_435_456],
   priv: "priv/key_value_repo"
 
@@ -37,8 +37,8 @@ config :cache, Cache.KeyValueWriteRepo,
   cache_size: -64_000,
   auto_vacuum: :incremental,
   journal_size_limit: 67_108_864,
-  queue_target: 1_000,
-  queue_interval: 1_000,
+  queue_target: 30_000,
+  queue_interval: 30_000,
   custom_pragmas: [mmap_size: 268_435_456],
   priv: "priv/key_value_repo"
 

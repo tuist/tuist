@@ -126,14 +126,16 @@ if config_env() == :prod do
 
   config :cache, Cache.KeyValueRepo,
     database: System.get_env("KEY_VALUE_DATABASE_PATH") || "/data/key_value.sqlite",
-    pool_size: String.to_integer(System.get_env("KEY_VALUE_POOL_SIZE") || System.get_env("POOL_SIZE") || "2"),
+    pool_size: String.to_integer(System.get_env("KEY_VALUE_POOL_SIZE") || "2"),
+    queue_target: String.to_integer(System.get_env("KEY_VALUE_QUEUE_TARGET_MS") || "30000"),
+    queue_interval: String.to_integer(System.get_env("KEY_VALUE_QUEUE_INTERVAL_MS") || "30000"),
     show_sensitive_data_on_connection_error: false
 
   config :cache, Cache.KeyValueWriteRepo,
     database: System.get_env("KEY_VALUE_DATABASE_PATH") || "/data/key_value.sqlite",
     pool_size: String.to_integer(System.get_env("KEY_VALUE_WRITE_POOL_SIZE") || "1"),
-    queue_target: String.to_integer(System.get_env("KEY_VALUE_WRITE_QUEUE_TARGET_MS") || "1000"),
-    queue_interval: String.to_integer(System.get_env("KEY_VALUE_WRITE_QUEUE_INTERVAL_MS") || "1000"),
+    queue_target: String.to_integer(System.get_env("KEY_VALUE_WRITE_QUEUE_TARGET_MS") || "30000"),
+    queue_interval: String.to_integer(System.get_env("KEY_VALUE_WRITE_QUEUE_INTERVAL_MS") || "30000"),
     show_sensitive_data_on_connection_error: false
 
   if key_value_mode == :distributed do
@@ -151,8 +153,10 @@ if config_env() == :prod do
     config :cache, Repo,
       url: database_url,
       ssl: Cache.Config.distributed_kv_ssl_opts(database_url),
-      pool_size: String.to_integer(System.get_env("DISTRIBUTED_KV_POOL_SIZE") || "5"),
-      timeout: String.to_integer(System.get_env("DISTRIBUTED_KV_DATABASE_TIMEOUT_MS") || "10000")
+      pool_size: String.to_integer(System.get_env("DISTRIBUTED_KV_POOL_SIZE") || "6"),
+      queue_target: String.to_integer(System.get_env("DISTRIBUTED_KV_QUEUE_TARGET_MS") || "30000"),
+      queue_interval: String.to_integer(System.get_env("DISTRIBUTED_KV_QUEUE_INTERVAL_MS") || "30000"),
+      timeout: String.to_integer(System.get_env("DISTRIBUTED_KV_DATABASE_TIMEOUT_MS") || "30000")
 
     config :cache, :ecto_repos, [Cache.Repo, Cache.KeyValueRepo, Repo]
   end
