@@ -30,7 +30,8 @@ defmodule CacheWeb.UpController do
   end
 
   defp healthcheck_repos do
-    [Cache.Repo, Cache.KeyValueRepo] ++ if(Config.distributed_kv_enabled?(), do: [Cache.DistributedKV.Repo], else: [])
+    [Cache.Repo, Cache.KeyValueRepo, Cache.KeyValueWriteRepo] ++
+      if(Config.distributed_kv_enabled?(), do: [Cache.DistributedKV.Repo], else: [])
   end
 
   defp query_repo(repo) do

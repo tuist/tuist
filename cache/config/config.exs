@@ -1,8 +1,8 @@
 import Config
 
 config :cache, Cache.CacheArtifactsBuffer,
-  flush_interval_ms: 2_000,
-  max_batch_size: 250
+  flush_interval_ms: 250,
+  max_batch_size: 1_000
 
 config :cache, Cache.DistributedKV.Repo,
   migration_primary_key: [type: :string],
