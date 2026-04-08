@@ -3,10 +3,12 @@ defmodule Cache.KeyValueRepoTestHelpers do
 
   alias Cache.DistributedKV.State
   alias Cache.KeyValueEntry
+  alias Cache.KeyValuePendingReplicationEntry
   alias Cache.KeyValueWriteRepo
 
   def reset! do
     KeyValueWriteRepo.delete_all(State)
+    KeyValueWriteRepo.delete_all(KeyValuePendingReplicationEntry)
     KeyValueWriteRepo.delete_all(KeyValueEntry)
     :ok
   end

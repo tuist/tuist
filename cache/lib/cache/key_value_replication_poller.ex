@@ -77,7 +77,14 @@ defmodule Cache.KeyValueReplicationPoller do
     started_at = System.monotonic_time(:millisecond)
 
     with {:ok, {total_materialized, total_deleted}} <- poll_totals(started_at) do
+      total_synced = total_materialized + total_deleted
       new_state = maybe_emit_local_store_size(state)
+
+      if total_synced > 0 do
+        Logger.info(
+          "Distributed KV poller synced #{total_synced} row(s) from shared store successfully (materialized=#{total_materialized}, deleted=#{total_deleted})"
+        )
+      end
 
       :telemetry.execute(
         @completion_event,

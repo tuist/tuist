@@ -3,10 +3,10 @@ servers:
     hosts:
       - cache-eu-central.tuist.dev
       - cache-eu-north.tuist.dev
-      - cache-us-east.tuist.dev
+      # - cache-us-east.tuist.dev
       - cache-us-east-2.tuist.dev
       - cache-us-east-3.tuist.dev
-      - cache-us-west.tuist.dev
+      # - cache-us-west.tuist.dev
       - cache-ap-southeast.tuist.dev
       - cache-sa-west.tuist.dev
       - cache-au-east.tuist.dev
@@ -20,15 +20,16 @@ env:
     POOL_SIZE: "1"
     REPO_QUEUE_TARGET_MS: "30000"
     REPO_QUEUE_INTERVAL_MS: "30000"
-    KEY_VALUE_POOL_SIZE: "2"
+    KEY_VALUE_POOL_SIZE: "10"
     KEY_VALUE_QUEUE_TARGET_MS: "30000"
     KEY_VALUE_QUEUE_INTERVAL_MS: "30000"
     KEY_VALUE_WRITE_POOL_SIZE: "1"
     KEY_VALUE_WRITE_QUEUE_TARGET_MS: "30000"
     KEY_VALUE_WRITE_QUEUE_INTERVAL_MS: "30000"
-    DISTRIBUTED_KV_POOL_SIZE: "6"
+    DISTRIBUTED_KV_POOL_SIZE: "10"
     DISTRIBUTED_KV_QUEUE_TARGET_MS: "30000"
     DISTRIBUTED_KV_QUEUE_INTERVAL_MS: "30000"
     DISTRIBUTED_KV_DATABASE_TIMEOUT_MS: "30000"
+    DISTRIBUTED_KV_CLEANUP_DISCOVERY_INTERVAL_MS: "60000"
     DISTRIBUTED_KV_ACCESS_THROTTLE_MS: "300000"
     KEY_VALUE_MODE: distributed

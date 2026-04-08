@@ -127,6 +127,7 @@ if config_env() == :prod do
   config :cache, Cache.KeyValueRepo,
     database: System.get_env("KEY_VALUE_DATABASE_PATH") || "/data/key_value.sqlite",
     pool_size: String.to_integer(System.get_env("KEY_VALUE_POOL_SIZE") || "2"),
+    timeout: String.to_integer(System.get_env("KEY_VALUE_TIMEOUT_MS") || "30000"),
     queue_target: String.to_integer(System.get_env("KEY_VALUE_QUEUE_TARGET_MS") || "30000"),
     queue_interval: String.to_integer(System.get_env("KEY_VALUE_QUEUE_INTERVAL_MS") || "30000"),
     show_sensitive_data_on_connection_error: false
@@ -134,6 +135,7 @@ if config_env() == :prod do
   config :cache, Cache.KeyValueWriteRepo,
     database: System.get_env("KEY_VALUE_DATABASE_PATH") || "/data/key_value.sqlite",
     pool_size: String.to_integer(System.get_env("KEY_VALUE_WRITE_POOL_SIZE") || "1"),
+    timeout: String.to_integer(System.get_env("KEY_VALUE_WRITE_TIMEOUT_MS") || "30000"),
     queue_target: String.to_integer(System.get_env("KEY_VALUE_WRITE_QUEUE_TARGET_MS") || "30000"),
     queue_interval: String.to_integer(System.get_env("KEY_VALUE_WRITE_QUEUE_INTERVAL_MS") || "30000"),
     show_sensitive_data_on_connection_error: false

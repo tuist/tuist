@@ -130,13 +130,48 @@ defmodule Cache.KeyValueEntriesTest do
 
     cleared_count =
       KeyValueEntries.clear_replication_tokens([
-        %{id: first_entry.id, replication_enqueued_at: old_token},
-        %{id: second_entry.id, replication_enqueued_at: old_token}
+        %{id: first_entry.id, replication_enqueued_at: old_token, last_accessed_at: first_entry.last_accessed_at},
+        %{id: second_entry.id, replication_enqueued_at: old_token, last_accessed_at: second_entry.last_accessed_at}
       ])
 
     assert cleared_count == 1
     assert KeyValueRepo.get!(KeyValueEntry, first_entry.id).replication_enqueued_at == nil
     assert KeyValueRepo.get!(KeyValueEntry, second_entry.id).replication_enqueued_at == new_token
+  end
+
+  test "clear_replication_tokens keeps rows pending when last_accessed_at changed after selection" do
+    selected_last_accessed_at = DateTime.add(DateTime.utc_now(), -60, :second)
+    newer_last_accessed_at = DateTime.utc_now()
+
+    entry =
+      KeyValueWriteRepo.insert!(%KeyValueEntry{
+        key: "keyvalue:acme:ios:pending-access",
+        json_payload: "{}",
+        last_accessed_at: selected_last_accessed_at,
+        source_updated_at: selected_last_accessed_at,
+        replication_enqueued_at: selected_last_accessed_at
+      })
+
+    {1, _} =
+      KeyValueWriteRepo.update_all(
+        from(record in KeyValueEntry, where: record.id == ^entry.id),
+        set: [last_accessed_at: newer_last_accessed_at]
+      )
+
+    cleared_count =
+      KeyValueEntries.clear_replication_tokens([
+        %{
+          id: entry.id,
+          replication_enqueued_at: selected_last_accessed_at,
+          last_accessed_at: selected_last_accessed_at
+        }
+      ])
+
+    assert cleared_count == 0
+
+    record = KeyValueRepo.get!(KeyValueEntry, entry.id)
+    assert record.replication_enqueued_at == selected_last_accessed_at
+    assert record.last_accessed_at == newer_last_accessed_at
   end
 
   test "materialize_remote_entry inserts new rows and updates watermark" do

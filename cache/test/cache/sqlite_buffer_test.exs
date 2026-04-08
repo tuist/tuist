@@ -248,6 +248,33 @@ defmodule Cache.SQLiteBufferTest do
     assert shared_record.replication_enqueued_at
   end
 
+  test "distributed access does not overwrite an existing replication token" do
+    stub(Config, :key_value_mode, fn -> :distributed end)
+    stub(Config, :distributed_kv_enabled?, fn -> true end)
+
+    key = "keyvalue:shared:pending:account:project"
+    initial_time = DateTime.add(DateTime.utc_now(), -120, :second)
+    pending_token = DateTime.add(DateTime.utc_now(), -60, :second)
+    timestamp = DateTime.truncate(DateTime.utc_now(), :second)
+
+    KeyValueWriteRepo.insert!(%KeyValueEntry{
+      key: key,
+      json_payload: JSON.encode!(%{entries: []}),
+      last_accessed_at: initial_time,
+      source_updated_at: initial_time,
+      replication_enqueued_at: pending_token,
+      inserted_at: timestamp,
+      updated_at: timestamp
+    })
+
+    :ok = KeyValueBuffer.enqueue_access(key)
+    :ok = KeyValueBuffer.flush()
+
+    record = KeyValueRepo.get_by!(KeyValueEntry, key: key)
+    assert record.replication_enqueued_at == pending_token
+    assert DateTime.after?(record.last_accessed_at, initial_time)
+  end
+
   test "local access does not enqueue replication for legacy shared rows" do
     key = "keyvalue:shared:account:project"
     timestamp = DateTime.truncate(DateTime.utc_now(), :second)

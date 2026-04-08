@@ -8,6 +8,7 @@ defmodule Cache.KeyValueEntries do
   alias Cache.Config
   alias Cache.DistributedKV.State
   alias Cache.KeyValueEntry
+  alias Cache.KeyValuePendingReplicationEntry
   alias Cache.KeyValueRepo
   alias Cache.SQLiteHelpers
 
@@ -76,11 +77,56 @@ defmodule Cache.KeyValueEntries do
   end
 
   def list_pending_replication(limit \\ Config.distributed_kv_ship_batch_size()) do
-    KeyValueEntry
-    |> where([entry], not is_nil(entry.replication_enqueued_at))
-    |> order_by([entry], asc: entry.replication_enqueued_at, asc: entry.id)
-    |> limit(^limit)
-    |> KeyValueRepo.all()
+    query =
+      KeyValuePendingReplicationEntry
+      |> order_by([entry], asc: entry.replication_enqueued_at, asc: entry.key)
+      |> limit(^limit)
+      |> select([entry], %{
+        key: entry.key,
+        json_payload: entry.json_payload,
+        source_node: entry.source_node,
+        last_accessed_at: entry.last_accessed_at,
+        source_updated_at: entry.source_updated_at,
+        replication_enqueued_at: entry.replication_enqueued_at
+      })
+
+    SQLiteHelpers.with_repo_busy_timeout(KeyValueRepo, 0, fn ->
+      KeyValueRepo.all(query, timeout: Config.key_value_read_busy_timeout_ms())
+    end)
+  end
+
+  def sync_pending_replication_entries([]), do: :ok
+
+  def sync_pending_replication_entries(rows) when is_list(rows) do
+    {pending_rows, cleared_keys} =
+      Enum.reduce(rows, {[], []}, fn row, {pending_rows, cleared_keys} ->
+        if is_nil(Map.get(row, :replication_enqueued_at)) do
+          {pending_rows, [row.key | cleared_keys]}
+        else
+          {[pending_replication_row(row) | pending_rows], cleared_keys}
+        end
+      end)
+
+    delete_pending_replication_entries(Enum.uniq(cleared_keys))
+
+    if pending_rows != [] do
+      Cache.KeyValueWriteRepo.insert_all(KeyValuePendingReplicationEntry, pending_rows,
+        conflict_target: :key,
+        on_conflict:
+          {:replace, [:json_payload, :source_node, :source_updated_at, :last_accessed_at, :replication_enqueued_at]}
+      )
+    end
+
+    :ok
+  end
+
+  def delete_pending_replication_entries([]), do: 0
+
+  def delete_pending_replication_entries(keys) when is_list(keys) do
+    {count, _} =
+      Cache.KeyValueWriteRepo.delete_all(from(entry in KeyValuePendingReplicationEntry, where: entry.key in ^keys))
+
+    count
   end
 
   def clear_replication_token(key, token) when is_binary(key) do
@@ -93,16 +139,28 @@ defmodule Cache.KeyValueEntries do
         set: [replication_enqueued_at: nil]
       )
 
+    Cache.KeyValueWriteRepo.delete_all(
+      from(entry in KeyValuePendingReplicationEntry,
+        where: entry.key == ^key,
+        where: entry.replication_enqueued_at == ^token
+      )
+    )
+
     count
   end
 
   def clear_replication_tokens(entries) when is_list(entries) do
     entries
-    |> Enum.map(&replication_token_ref/1)
-    |> Enum.reject(&is_nil/1)
+    |> Enum.flat_map(fn entry ->
+      case replication_token_ref(entry) do
+        nil -> []
+        ref -> [ref]
+      end
+    end)
     |> Enum.chunk_every(@replication_token_clear_chunk_size)
-    |> Enum.reduce(0, fn chunk, count_acc ->
-      count_acc + clear_replication_token_chunk(chunk)
+    |> Enum.reduce(0, fn refs, count_acc ->
+      clear_pending_replication_chunk(refs)
+      count_acc + clear_replication_token_chunk(refs)
     end)
   end
 
@@ -396,6 +454,8 @@ defmodule Cache.KeyValueEntries do
       on_conflict: {:replace, @remote_apply_conflict_fields}
     )
 
+    sync_pending_replication_entries(rows)
+
     :ok
   end
 
@@ -409,6 +469,8 @@ defmodule Cache.KeyValueEntries do
           where: is_nil(entry.replication_enqueued_at)
         )
       )
+
+    delete_pending_replication_entries(keys)
 
     count
   end
@@ -445,6 +507,10 @@ defmodule Cache.KeyValueEntries do
           where: entry.source_updated_at <= ^cutoff
         )
       )
+
+    if count > 0 do
+      delete_pending_replication_entries([key])
+    end
 
     count
   end
@@ -679,6 +745,8 @@ defmodule Cache.KeyValueEntries do
           |> apply_evictable_filter(false)
           |> Cache.KeyValueWriteRepo.delete_all()
 
+        delete_pending_replication_entries(verified_keys)
+
         {deleted_count, verified_keys}
       end)
 
@@ -816,6 +884,8 @@ defmodule Cache.KeyValueEntries do
       |> apply_evictable_filter(include_pending)
       |> Cache.KeyValueWriteRepo.delete_all()
 
+    delete_pending_replication_entries(candidate_keys)
+
     count
   end
 
@@ -850,24 +920,22 @@ defmodule Cache.KeyValueEntries do
 
   defp replication_token_ref(%{replication_enqueued_at: nil}), do: nil
 
-  defp replication_token_ref(%{id: id, replication_enqueued_at: token}) when not is_nil(id) do
-    {:id, id, token}
+  defp replication_token_ref(%{id: id, replication_enqueued_at: token, last_accessed_at: last_accessed_at})
+       when not is_nil(id) do
+    {:id, id, token, last_accessed_at}
   end
 
-  defp replication_token_ref(%{key: key, replication_enqueued_at: token}) when is_binary(key) do
-    {:key, key, token}
+  defp replication_token_ref(%{key: key, replication_enqueued_at: token, last_accessed_at: last_accessed_at})
+       when is_binary(key) do
+    {:key, key, token, last_accessed_at}
   end
 
   defp clear_replication_token_chunk([]), do: 0
 
   defp clear_replication_token_chunk(refs) do
     predicate =
-      Enum.reduce(refs, dynamic(false), fn
-        {:id, id, token}, dynamic ->
-          dynamic([entry], ^dynamic or (entry.id == ^id and entry.replication_enqueued_at == ^token))
-
-        {:key, key, token}, dynamic ->
-          dynamic([entry], ^dynamic or (entry.key == ^key and entry.replication_enqueued_at == ^token))
+      Enum.reduce(refs, dynamic(false), fn ref, dynamic ->
+        replication_token_predicate(ref, dynamic)
       end)
 
     {count, _} =
@@ -877,6 +945,67 @@ defmodule Cache.KeyValueEntries do
       )
 
     count
+  end
+
+  defp clear_pending_replication_chunk(refs) do
+    keys_to_clear =
+      Enum.flat_map(refs, fn
+        {:key, key, token, last_accessed_at} ->
+          [{key, token, last_accessed_at}]
+
+        _ ->
+          []
+      end)
+
+    case keys_to_clear do
+      [] ->
+        0
+
+      _ ->
+        predicate =
+          Enum.reduce(keys_to_clear, dynamic(false), fn {key, token, last_accessed_at}, dynamic ->
+            dynamic(
+              [entry],
+              ^dynamic or
+                (entry.key == ^key and entry.replication_enqueued_at == ^token and
+                   entry.last_accessed_at == ^last_accessed_at)
+            )
+          end)
+
+        {count, _} =
+          Cache.KeyValueWriteRepo.delete_all(from(entry in KeyValuePendingReplicationEntry, where: ^predicate))
+
+        count
+    end
+  end
+
+  defp replication_token_predicate({:id, id, token, last_accessed_at}, dynamic) do
+    dynamic(
+      [entry],
+      ^dynamic or
+        (entry.id == ^id and entry.replication_enqueued_at == ^token and
+           entry.last_accessed_at == ^last_accessed_at)
+    )
+  end
+
+  defp replication_token_predicate({:key, key, token, last_accessed_at}, dynamic) do
+    dynamic(
+      [entry],
+      ^dynamic or
+        (entry.key == ^key and entry.replication_enqueued_at == ^token and
+           entry.last_accessed_at == ^last_accessed_at)
+    )
+  end
+
+  defp pending_replication_row(row) do
+    Map.take(row, [
+      :key,
+      :json_payload,
+      :source_node,
+      :source_updated_at,
+      :last_accessed_at,
+      :replication_enqueued_at
+    ])
   end
 
   defp merge_remote_into_local(local_entry, remote_attrs) do

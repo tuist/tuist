@@ -6,7 +6,9 @@ defmodule Cache.KeyValueBuffer do
   import Ecto.Query
 
   alias Cache.Config
+  alias Cache.KeyValueEntries
   alias Cache.KeyValueEntry
+  alias Cache.KeyValueWriteRepo
   alias Cache.SQLiteBuffer
 
   @query_chunk_size 500
@@ -116,12 +118,16 @@ defmodule Cache.KeyValueBuffer do
     rows
     |> Enum.chunk_every(@query_chunk_size)
     |> Enum.each(fn rows_chunk ->
-      Cache.KeyValueWriteRepo.insert_all(KeyValueEntry, rows_chunk,
+      KeyValueWriteRepo.insert_all(KeyValueEntry, rows_chunk,
         conflict_target: :key,
         on_conflict:
           {:replace,
            [:json_payload, :source_node, :last_accessed_at, :updated_at, :source_updated_at, :replication_enqueued_at]}
       )
+
+      if distributed? do
+        KeyValueEntries.sync_pending_replication_entries(rows_chunk)
+      end
     end)
   end
 
@@ -136,7 +142,7 @@ defmodule Cache.KeyValueBuffer do
     |> Enum.chunk_every(@query_chunk_size)
     |> Enum.each(fn keys_chunk ->
       if distributed? do
-        Cache.KeyValueWriteRepo.update_all(
+        KeyValueWriteRepo.update_all(
           from(entry in KeyValueEntry,
             where: entry.key in ^keys_chunk,
             update: [
@@ -144,14 +150,36 @@ defmodule Cache.KeyValueBuffer do
                 last_accessed_at: ^now,
                 updated_at: ^now_truncated,
                 replication_enqueued_at:
-                  fragment("CASE WHEN source_updated_at IS NOT NULL THEN ? ELSE replication_enqueued_at END", ^now)
+                  fragment(
+                    "CASE WHEN source_updated_at IS NOT NULL AND replication_enqueued_at IS NULL THEN ? ELSE replication_enqueued_at END",
+                    ^now
+                  )
               ]
             ]
           ),
           []
         )
+
+        queue_rows =
+          KeyValueWriteRepo.all(
+            from(entry in KeyValueEntry,
+              where: entry.key in ^keys_chunk,
+              where: not is_nil(entry.source_updated_at),
+              where: not is_nil(entry.replication_enqueued_at),
+              select: %{
+                key: entry.key,
+                json_payload: entry.json_payload,
+                source_node: entry.source_node,
+                source_updated_at: entry.source_updated_at,
+                last_accessed_at: entry.last_accessed_at,
+                replication_enqueued_at: entry.replication_enqueued_at
+              }
+            )
+          )
+
+        KeyValueEntries.sync_pending_replication_entries(queue_rows)
       else
-        Cache.KeyValueWriteRepo.update_all(from(entry in KeyValueEntry, where: entry.key in ^keys_chunk),
+        KeyValueWriteRepo.update_all(from(entry in KeyValueEntry, where: entry.key in ^keys_chunk),
           set: [last_accessed_at: now, updated_at: now_truncated]
         )
       end
