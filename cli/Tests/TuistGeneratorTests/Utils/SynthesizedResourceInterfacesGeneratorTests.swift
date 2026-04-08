@@ -141,4 +141,5 @@ struct SynthesizedResourceInterfacesGeneratorTests {
         )
     }
 }
+
 // swiftlint:enable line_length
