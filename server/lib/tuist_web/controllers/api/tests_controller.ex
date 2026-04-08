@@ -475,8 +475,12 @@ defmodule TuistWeb.API.TestsController do
             model_identifier: test_run.model_identifier,
             scheme: test_run.scheme,
             ci_run_id: test_run.ci_run_id,
+            ci_project_handle: test_run.ci_project_handle,
             ci_host: test_run.ci_host,
-            ci_provider: test_run.ci_provider
+            ci_provider: test_run.ci_provider,
+            build_run_id: test_run.build_run_id,
+            shard_plan_id: test_run.shard_plan_id,
+            shard_index: Map.get(body_params, :shard_index)
           }
           |> Tuist.Tests.Workers.ProcessXcresultWorker.new()
           |> Oban.insert()
