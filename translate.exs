@@ -4,6 +4,13 @@ Mix.install([
   {:expo, "~> 1.1"}
 ])
 
+Finch.start_link(
+  name: Req.Finch,
+  pools: %{
+    default: [size: 25, count: 2]
+  }
+)
+
 defmodule L10n.Context do
   @moduledoc """
   Resolves the hierarchical L10N.md context chain.
@@ -475,7 +482,7 @@ defmodule L10n.Translator do
           end
         end
       end,
-      max_concurrency: Keyword.get(opts, :max_concurrency, 4),
+      max_concurrency: Keyword.get(opts, :max_concurrency, 2),
       timeout: Keyword.get(opts, :timeout, 1_200_000)
     )
     |> Enum.map(fn {:ok, result} -> result end)
@@ -519,7 +526,7 @@ defmodule L10n.CLI do
     * `--force`, `-f` — Re-translate all files, ignoring lock state
     * `--locale`, `-l` — Translate only the specified locale (e.g., `--locale es`)
     * `--model`, `-m` — Override the LLM model from L10N.md (e.g., `--model openai:gpt-4.1`)
-    * `--concurrency`, `-c` — Max parallel translations per locale within one source file (default: 4)
+    * `--concurrency`, `-c` — Max parallel translations per locale within one source file (default: 2)
     * `--pot-concurrency` — Max parallel source files being translated at once (default: 1)
     * `--timeout`, `-t` — Timeout in ms per translation (default: 300000)
   """
@@ -599,7 +606,7 @@ defmodule L10n.CLI do
             context_files,
             force: Keyword.get(opts, :force, false),
             locale_override_fn: locale_override_fn,
-            max_concurrency: Keyword.get(opts, :concurrency, 4),
+            max_concurrency: Keyword.get(opts, :concurrency, 2),
             timeout: Keyword.get(opts, :timeout, 300_000)
           )
         end,
