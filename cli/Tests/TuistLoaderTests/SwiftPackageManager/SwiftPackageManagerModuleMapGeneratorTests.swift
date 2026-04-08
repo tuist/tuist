@@ -136,6 +136,54 @@ final class SwiftPackageManagerModuleMapGeneratorTests: TuistUnitTestCase {
         )
     }
 
+    func test_generate_when_concurrent_external_packages() async throws {
+        // Given
+        // Simulate multiple external packages under the same .build/checkouts directory
+        let checkoutsDir = try temporaryPath().appending(components: ".build", "checkouts")
+        let moduleNames = (0..<20).map { "Module\($0)" }
+
+        for moduleName in moduleNames {
+            let packageDir = checkoutsDir.appending(component: moduleName)
+            let publicHeadersPath = packageDir.appending(components: "Sources", moduleName, "include")
+            try await fileSystem.makeDirectory(at: publicHeadersPath)
+            try await fileSystem.touch(publicHeadersPath.appending(component: "\(moduleName).h"))
+        }
+
+        // When — generate module maps concurrently, reproducing the race on tuist-derived/ModuleMaps
+        // Each task gets its own generator with its own content hasher to avoid mock thread-safety issues
+        var errors: [String] = []
+        await withTaskGroup(of: (String, Error?).self) { group in
+            for moduleName in moduleNames {
+                group.addTask {
+                    do {
+                        let hasher = MockContentHashing()
+                        given(hasher).hash(Parameter<String>.any).willProduce { $0 }
+                        given(hasher).hash(path: .any).willProduce { $0.pathString }
+                        let generator = SwiftPackageManagerModuleMapGenerator(contentHasher: hasher)
+                        let packageDir = checkoutsDir.appending(component: moduleName)
+                        let publicHeadersPath = packageDir.appending(components: "Sources", moduleName, "include")
+                        _ = try await generator.generate(
+                            packageDirectory: packageDir,
+                            moduleName: moduleName,
+                            publicHeadersPath: publicHeadersPath
+                        )
+                        return (moduleName, nil)
+                    } catch {
+                        return (moduleName, error)
+                    }
+                }
+            }
+            for await (moduleName, error) in group {
+                if let error {
+                    errors.append("\(moduleName): \(error)")
+                }
+            }
+        }
+
+        // Then — no errors should have occurred
+        XCTAssertTrue(errors.isEmpty, "Concurrent generation failed: \(errors.joined(separator: "\n"))")
+    }
+
     private func test_generate(for moduleMap: ModuleMap) async throws {
         var writeCount = 0
 

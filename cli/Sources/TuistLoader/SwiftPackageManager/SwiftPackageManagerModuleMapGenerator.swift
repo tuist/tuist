@@ -86,15 +86,7 @@ public struct SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerModuleMa
             )
         }
 
-        do {
-            try await fileSystem.makeDirectory(
-                at: generatedModuleMapPath.parentDirectory,
-                options: [.createTargetParentDirectories]
-            )
-        } catch {
-            // Concurrent generation can create the directory first.
-            guard try await fileSystem.exists(generatedModuleMapPath.parentDirectory, isDirectory: true) else { throw error }
-        }
+        try await createDirectoryIfNeeded(at: generatedModuleMapPath.parentDirectory)
 
         if try await fileSystem.exists(umbrellaHeaderPath) {
             if let customModuleMapPath {
@@ -178,6 +170,32 @@ public struct SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerModuleMa
             return nestedHeadersPath.appending(moduleMapPath)
         } else {
             return nil
+        }
+    }
+
+    /// Creates a directory and all its ancestors, handling concurrent creation safely.
+    /// NIO's `makeDirectory(withIntermediateDirectories:)` has a race condition where
+    /// concurrent calls that create the same intermediate directory can fail with EEXIST.
+    /// This method avoids the issue by creating each level individually.
+    private func createDirectoryIfNeeded(at path: AbsolutePath) async throws {
+        if try await fileSystem.exists(path, isDirectory: true) { return }
+
+        // Collect missing ancestors
+        var directoriesToCreate: [AbsolutePath] = []
+        var current = path
+        while try await !fileSystem.exists(current) {
+            directoriesToCreate.append(current)
+            current = current.parentDirectory
+        }
+
+        // Create top-down, one level at a time
+        for directory in directoriesToCreate.reversed() {
+            do {
+                try await fileSystem.makeDirectory(at: directory)
+            } catch {
+                // A concurrent task may have created this directory
+                guard try await fileSystem.exists(directory, isDirectory: true) else { throw error }
+            }
         }
     }
 
