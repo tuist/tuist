@@ -89,8 +89,11 @@ public struct SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerModuleMa
         do {
             try await fileSystem.makeDirectory(at: generatedModuleMapPath.parentDirectory)
         } catch {
-            // Concurrent generation can create the directory first.
-            guard try await fileSystem.exists(generatedModuleMapPath.parentDirectory, isDirectory: true) else { throw error }
+            // Concurrent generation or a prior run can create intermediate directories first.
+            // If our target directory doesn't exist yet, retry now that intermediates exist.
+            if try await !fileSystem.exists(generatedModuleMapPath.parentDirectory, isDirectory: true) {
+                try await fileSystem.makeDirectory(at: generatedModuleMapPath.parentDirectory)
+            }
         }
 
         if try await fileSystem.exists(umbrellaHeaderPath) {
