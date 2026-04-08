@@ -185,13 +185,8 @@ defmodule TuistWeb.GradleBuildsLive do
   def assign_configuration_insights_options(socket, params) do
     configuration_insights_type = params["configuration-insights-type"] || "gradle-version"
 
-    %{preset: preset, period: period} =
-      DatePicker.date_picker_params(params, "configuration-insights")
-
     socket
     |> assign(:configuration_insights_type, configuration_insights_type)
-    |> assign(:configuration_insights_preset, preset)
-    |> assign(:configuration_insights_period, period)
   end
 
   def assign_initial_configuration_insights(%{assigns: %{current_params: current_params}} = socket) do
@@ -210,7 +205,7 @@ defmodule TuistWeb.GradleBuildsLive do
         %{assigns: %{selected_project: project, configuration_insights_type: configuration_insights_type}} = socket,
         params
       ) do
-    %{period: {start_datetime, end_datetime}} = DatePicker.date_picker_params(params, "configuration-insights")
+    %{period: {start_datetime, end_datetime}} = DatePicker.date_picker_params(params, "analytics")
 
     opts = [start_datetime: start_datetime, end_datetime: end_datetime]
 

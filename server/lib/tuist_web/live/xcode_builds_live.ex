@@ -26,11 +26,14 @@ defmodule TuistWeb.XcodeBuildsLive do
               "analytics-selected-widget",
               "analytics-environment",
               "analytics-date-range",
+              "analytics-start-date",
+              "analytics-end-date",
               "analytics-build-scheme",
               "analytics-build-configuration",
               "analytics-build-category",
               "analytics-build-tag",
-              "build-duration-type"
+              "build-duration-type",
+              "configuration-insights-type"
             ])
           )
       )
@@ -234,20 +237,15 @@ defmodule TuistWeb.XcodeBuildsLive do
   defp assign_configuration_insights_options(socket, params) do
     configuration_insights_type = params["configuration-insights-type"] || "xcode-version"
 
-    %{preset: preset, period: period} =
-      DatePicker.date_picker_params(params, "configuration-insights")
-
     socket
     |> assign(:configuration_insights_type, configuration_insights_type)
-    |> assign(:configuration_insights_preset, preset)
-    |> assign(:configuration_insights_period, period)
   end
 
   defp assign_configuration_insights(
          %{assigns: %{selected_project: project, configuration_insights_type: configuration_insights_type}} = socket,
          params
        ) do
-    %{period: {start_datetime, end_datetime}} = DatePicker.date_picker_params(params, "configuration-insights")
+    %{period: {start_datetime, end_datetime}} = DatePicker.date_picker_params(params, "analytics")
 
     opts = [start_datetime: start_datetime, end_datetime: end_datetime]
 
