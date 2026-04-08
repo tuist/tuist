@@ -140,7 +140,7 @@
   );
   --noora-surface-background-secondary: light-dark(
     var(--noora-neutral-light-200),
-    var(--noora-neutral-dark-1100)
+    var(--noora-neutral-dark-1000)
   );
   --noora-surface-background-tertiary: light-dark(
     var(--noora-neutral-light-100),
@@ -244,14 +244,14 @@
   --noora-button-background-primary:
     linear-gradient(
       180deg,
-      oklch(100% 0 0 / 0.16) 0%,
+      oklch(100% 0 0 / 0.06) 0%,
       oklch(100% 0 0 / 0) 100%
     ),
     var(--noora-button-primary-background);
   --noora-button-background-primary-hover:
     linear-gradient(
       180deg,
-      oklch(100% 0 0 / 0.08) 0%,
+      oklch(100% 0 0 / 0.18) 0%,
       oklch(100% 0 0 / 0) 100%
     ),
     var(--noora-button-primary-background);
@@ -300,42 +300,42 @@
   --noora-button-background-secondary:
     linear-gradient(
       180deg,
-      light-dark(oklch(78.6% 0.013 248 / 0), oklch(100% 0 0 / 0.06)),
-      light-dark(oklch(78.6% 0.013 248 / 0.06), oklch(100% 0 0 / 0))
+      light-dark(oklch(78.6% 0.013 248 / 0), oklch(100% 0 0 / 0.04)),
+      light-dark(oklch(78.6% 0.013 248 / 0.08), oklch(100% 0 0 / 0))
     ),
     var(--noora-button-secondary-background);
   --noora-button-background-secondary-hover:
     linear-gradient(
       180deg,
-      light-dark(oklch(78.6% 0.013 248 / 0.03), oklch(100% 0 0 / 0.03)),
-      light-dark(oklch(78.6% 0.013 248 / 0.13), oklch(100% 0 0 / 0))
+      light-dark(oklch(78.6% 0.013 248 / 0), oklch(100% 0 0 / 0.08)),
+      light-dark(oklch(78.6% 0.013 248 / 0.16), oklch(100% 0 0 / 0))
     ),
     var(--noora-button-secondary-background);
   --noora-button-background-secondary-disabled:
     linear-gradient(
       180deg,
       light-dark(oklch(78.6% 0.013 248 / 0), oklch(100% 0 0 / 0.06)),
-      light-dark(oklch(78.6% 0.013 248 / 0.06), oklch(100% 0 0 / 0))
+      light-dark(oklch(78.6% 0.013 248 / 0.08), oklch(100% 0 0 / 0))
     ),
     var(--noora-button-secondary-disabled-background);
   --noora-button-border-secondary:
-    0px 1px 0px 0px light-dark(oklch(100% 0 0 / 0.9), oklch(100% 0 0 / 0.12))
+    0px 1px 0px 0px light-dark(oklch(100% 0 0 / 0.9), oklch(100% 0 0 / 0.16))
       inset,
     0px 1px 1px 0px
-      light-dark(oklch(31.8% 0.011 248.2 / 0.05), oklch(16.2% 0 0 / 0.8)),
+      light-dark(oklch(31.8% 0.011 248.2 / 0.05), oklch(16.2% 0 0 / 0.10)),
     0px 0px 0px 1px
-      light-dark(oklch(31.8% 0.011 248.2 / 0.08), oklch(25.4% 0 0 / 0.9)),
+      light-dark(oklch(31.8% 0.011 248.2 / 0.08), oklch(34.8% 0 0 / 0.90)),
     0px 2px 3px 0px
-      light-dark(oklch(31.8% 0.011 248.2 / 0.06), oklch(0% 0 0 / 0.24));
+      light-dark(oklch(31.8% 0.011 248.2 / 0.06), oklch(0% 0 0 / 0.50));
   --noora-button-border-secondary-disabled:
-    0px 1px 0px 0px light-dark(oklch(100% 0 0 / 0.7), oklch(100% 0 0 / 0.12))
+    0px 1px 0px 0px light-dark(oklch(100% 0 0 / 0.7), oklch(100% 0 0 / 0.16))
       inset,
     0px 1px 1px 0px
-      light-dark(oklch(31.8% 0.011 248.2 / 0.05), oklch(16.2% 0 0 / 0.8)),
+      light-dark(oklch(31.8% 0.011 248.2 / 0.05), oklch(16.2% 0 0 / 0.10)),
     0px 0px 0px 1px
-      light-dark(oklch(31.8% 0.011 248.2 / 0.05), oklch(25.4% 0 0 / 0.9)),
+      light-dark(oklch(31.8% 0.011 248.2 / 0.05), oklch(34.8% 0 0 / 0.90)),
     0px 2px 3px 0px
-      light-dark(oklch(31.8% 0.011 248.2 / 0.06), oklch(0% 0 0 / 0.24));
+      light-dark(oklch(31.8% 0.011 248.2 / 0.06), oklch(0% 0 0 / 0.50));
   --noora-button-background-secondary-active:
     linear-gradient(
       180deg,
@@ -351,21 +351,21 @@
       ),
     0px 0px 0px 2.5px
       light-dark(oklch(31.8% 0.011 248.2 / 0.25), oklch(54.9% 0 0 / 0.8)),
-    0px 1px 0px 0px light-dark(oklch(100% 0 0 / 0.9), oklch(100% 0 0 / 0.12))
+    0px 1px 0px 0px light-dark(oklch(100% 0 0 / 0.9), oklch(100% 0 0 / 0.16))
       inset,
     0px 1px 1px 0px
-      light-dark(oklch(31.8% 0.011 248.2 / 0.05), oklch(16.2% 0 0 / 0.8)),
+      light-dark(oklch(31.8% 0.011 248.2 / 0.05), oklch(16.2% 0 0 / 0.10)),
     0px 0px 0px 1px
-      light-dark(oklch(31.8% 0.011 248.2 / 0.08), oklch(25.4% 0 0 / 0.9)),
+      light-dark(oklch(31.8% 0.011 248.2 / 0.08), oklch(34.8% 0 0 / 0.90)),
     0px 2px 3px 0px
-      light-dark(oklch(31.8% 0.011 248.2 / 0.06), oklch(0% 0 0 / 0.24));
+      light-dark(oklch(31.8% 0.011 248.2 / 0.06), oklch(0% 0 0 / 0.50));
   --noora-button-border-secondary-active:
     0px 0px 0px 1px
-      light-dark(oklch(31.8% 0.011 248.2 / 0.08), oklch(25.4% 0 0 / 0.9)),
+      light-dark(oklch(31.8% 0.011 248.2 / 0.08), oklch(34.8% 0 0 / 0.90)),
     0px 1px 2px 0px light-dark(oklch(0% 0 0 / 0.05), oklch(0% 0 0 / 0.4)) inset;
 
   --noora-button-background-destructive:
-    linear-gradient(180deg, oklch(100% 0 0 / 0.24), oklch(100% 0 0 / 0)),
+    linear-gradient(180deg, oklch(100% 0 0 / 0.06), oklch(100% 0 0 / 0)),
     var(--noora-button-destructive-background);
   --noora-button-border-destructive:
     0px 1px 0px 0px oklch(100% 0 0 / 0.2) inset,
@@ -375,7 +375,7 @@
     0px 2px 3px 0px
       light-dark(oklch(31.8% 0.011 248.2 / 0.16), oklch(0% 0 0 / 0.4));
   --noora-button-background-destructive-hover:
-    linear-gradient(180deg, oklch(100% 0 0 / 0.06), oklch(100% 0 0 / 0)),
+    linear-gradient(180deg, oklch(100% 0 0 / 0.24), oklch(100% 0 0 / 0)),
     var(--noora-button-destructive-background);
   --noora-button-border-destructive-hover:
     0px 1px 0px 0px oklch(100% 0 0 / 0.1) inset,
@@ -387,8 +387,8 @@
   --noora-button-background-destructive-disabled:
     linear-gradient(
       180deg,
-      light-dark(oklch(100% 0 0 / 0.32), oklch(31.8% 0.011 248.2 / 0.25)),
-      light-dark(oklch(100% 0 0 / 0), oklch(31.8% 0.011 248.2 / 0.45))
+      light-dark(oklch(100% 0 0 / 0.06), oklch(31.8% 0.011 248.2 / 0.25)),
+      light-dark(oklch(100% 0 0 / 0), oklch(31.8% 0.011 248.2 / 0.50))
     ),
     var(--noora-button-destructive-disabled-background);
   --noora-button-border-destructive-disabled:
@@ -879,10 +879,10 @@
       0px 0px 0px 1px oklch(46.9% 0.27 286.9 / 0.9),
       0px 2px 3px 0px oklch(0% 0 0 / 0.4);
     --noora-button-border-secondary-hover:
-      0px 1px 0px 0px oklch(100% 0 0 / 0.06) inset,
-      0px 1px 1px 0px oklch(16.2% 0 0 / 0.8),
-      0px 0px 0px 1px oklch(25.4% 0 0 / 0.9),
-      0px 2px 3px 0px oklch(0% 0 0 / 0.24);
+      0px 1px 0px 0px oklch(100% 0 0 / 0.24) inset,
+      0px 1px 1px 0px oklch(16.2% 0 0 / 0.10),
+      0px 0px 0px 1px oklch(34.8% 0 0 / 0.90),
+      0px 2px 3px 0px oklch(0% 0 0 / 0.50);
   }
 
   &[data-theme="dark"] {
