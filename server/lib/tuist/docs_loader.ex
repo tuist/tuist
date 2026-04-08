@@ -3,7 +3,7 @@ defmodule Tuist.Docs.Loader do
 
   use Noora
 
-  import TuistWeb.Docs.MarkdownComponents
+  import TuistWeb.Docs.MarkdownComponents, warn: false
 
   alias Phoenix.HTML.Safe
   alias Tuist.Docs.HTML
