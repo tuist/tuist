@@ -1,0 +1,56 @@
+name: Search
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - search/**
+      - .github/workflows/search.yml
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - search/**
+      - .github/workflows/search.yml
+  merge_group: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: search-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: search
+
+jobs:
+  build:
+    name: Build Docker image
+    runs-on: namespace-profile-default
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -t tuist/search:test .
+      - name: Verify container starts and is healthy
+        run: |
+          docker run --rm -d --name search-test \
+            -e TYPESENSE_API_KEY=test \
+            -e TYPESENSE_DATA_DIR=/data \
+            -e TYPESENSE_ENABLE_CORS=true \
+            -p 18108:8108 \
+            tuist/search:test
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:18108/health > /dev/null 2>&1; then
+              echo "Health check passed"
+              docker stop search-test
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Health check failed"
+          docker logs search-test
+          docker stop search-test
+          exit 1
