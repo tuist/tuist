@@ -99,8 +99,6 @@
         inset;
   }
 
-
-
   & b,
   strong {
     font: var(--noora-font-weight-semibold) var(--noora-font-body-large);
