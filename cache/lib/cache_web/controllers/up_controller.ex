@@ -1,6 +1,8 @@
 defmodule CacheWeb.UpController do
   use CacheWeb, :controller
 
+  alias Cache.Config
+
   require Logger
 
   def index(conn, _params) do
@@ -28,7 +30,7 @@ defmodule CacheWeb.UpController do
   end
 
   defp healthcheck_repos do
-    [Cache.Repo, Cache.KeyValueRepo]
+    [Cache.Repo, Cache.KeyValueRepo] ++ if(Config.distributed_kv_enabled?(), do: [Cache.DistributedKV.Repo], else: [])
   end
 
   defp query_repo(repo) do
