@@ -210,7 +210,7 @@ jobs:
     name: Build Acceptance Tests
     runs-on: namespace-profile-default-macos
     timeout-minutes: 60
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    if: (github.event.pull_request.draft == false || github.event_name != 'pull_request') && github.event.pull_request.head.repo.fork != true
     outputs:
       matrix: ${{ steps.shard.outputs.matrix }}
     steps:
@@ -308,6 +308,45 @@ jobs:
         run: tuist test --without-building --platform macOS TuistAcceptanceTests -- -retry-tests-on-failure -test-iterations 2
         env:
           TUIST_SHARD_INDEX: ${{ matrix.shard }}
+
+  cli-acceptance-tests-fork:
+    name: Acceptance Tests (Fork)
+    runs-on: macos-26
+    timeout-minutes: 60
+    if: (github.event.pull_request.draft == false || github.event_name != 'pull_request') && github.event.pull_request.head.repo.fork == true
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
+      - uses: actions/cache/restore@v4
+        id: cache
+        with:
+          path: .build
+          key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved') }}
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          install_args: "tuist"
+          cache: "false"
+      - name: Install Tuist dependencies
+        if: steps.cache.outputs.cache-matched-key == ''
+        run: tuist install
+      - name: Skip Xcode Macro Fingerprint Validation
+        run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
+      - name: Skip Xcode Package Validation
+        run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidation -bool YES
+      - name: Download Metal Toolchain
+        run: xcodebuild -downloadComponent MetalToolchain
+      - name: Set up new keychain
+        run: |
+          TMP_DIRECTORY=$(mktemp -d)
+          KEYCHAIN_PATH=$TMP_DIRECTORY/keychain.keychain
+          KEYCHAIN_PASSWORD=$(uuidgen)
+          security create-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
+          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+          security default-keychain -s $KEYCHAIN_PATH
+          security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
+      - name: Run tests
+        run: tuist test --platform macOS TuistAcceptanceTests -- -retry-tests-on-failure -test-iterations 2
 
   cli-linux-build:
     name: Linux Build
