@@ -7,8 +7,14 @@ servers:
     hosts:
       - 91.99.179.13
 
+ssh:
+  user: github-actions
+
 registry:
-  server: localhost:5000
+  server: ghcr.io
+  username: cschmatzler
+  password:
+    - KAMAL_REGISTRY_PASSWORD
 
 proxy:
   ssl: true
