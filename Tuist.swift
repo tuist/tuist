@@ -2,7 +2,6 @@ import ProjectDescription
 
 let tuist = Tuist(
     fullHandle: "tuist/tuist",
-    url: "http://localhost:8371",
     project: .tuist(
         generationOptions: .options(
             optionalAuthentication: true,
@@ -11,7 +10,7 @@ let tuist = Tuist(
         ),
         installOptions: .options(
             passthroughSwiftPackageManagerArguments: [
-                "--replace-scm-with-registry"
+                "--replace-scm-with-registry",
             ]
         )
     )
