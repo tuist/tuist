@@ -696,7 +696,10 @@ defmodule TuistWeb.Router do
     pipe_through [:browser_app, :require_authenticated_user, :analytics]
 
     live_session :require_authenticated_user,
-      on_mount: [{TuistWeb.Authentication, :ensure_authenticated}] do
+      on_mount: [
+        {TuistWeb.Authentication, :ensure_authenticated},
+        {TuistWeb.Locale, :assign_locale}
+      ] do
       get "/dashboard", DashboardController, :dashboard
       live "/organizations/new", CreateOrganizationLive, :new
       live "/projects/new", CreateProjectLive, :new

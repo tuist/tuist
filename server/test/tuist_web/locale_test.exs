@@ -4,10 +4,10 @@ defmodule TuistWeb.LocaleTest do
 
   alias Phoenix.LiveView
   alias Tuist.Accounts
+  alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistWeb.Gettext, as: GettextBackend
   alias TuistWeb.Locale
   alias TuistWeb.Plugs.LocalePlug
-  alias TuistTestSupport.Fixtures.AccountsFixtures
 
   describe "normalize_locale/1" do
     test "normalizes language and region locales" do
@@ -68,9 +68,7 @@ defmodule TuistWeb.LocaleTest do
       user = AccountsFixtures.user_fixture()
       {:ok, user} = Accounts.update_user_preferred_locale(user, "ja")
 
-      socket =
-        %LiveView.Socket{}
-        |> Phoenix.Component.assign(:current_user, user)
+      socket = Phoenix.Component.assign(%LiveView.Socket{}, :current_user, user)
 
       {:cont, updated_socket} = Locale.on_mount(:assign_locale, %{}, %{"locale" => "es"}, socket)
 
@@ -81,9 +79,7 @@ defmodule TuistWeb.LocaleTest do
     test "falls back to session locale when preferred_locale is nil" do
       user = AccountsFixtures.user_fixture()
 
-      socket =
-        %LiveView.Socket{}
-        |> Phoenix.Component.assign(:current_user, user)
+      socket = Phoenix.Component.assign(%LiveView.Socket{}, :current_user, user)
 
       {:cont, updated_socket} = Locale.on_mount(:assign_locale, %{}, %{"locale" => "ko"}, socket)
 
@@ -96,9 +92,7 @@ defmodule TuistWeb.LocaleTest do
       Tuist.Repo.update!(Ecto.Changeset.change(user, preferred_locale: "xx"))
       user = Accounts.get_user_by_id(user.id)
 
-      socket =
-        %LiveView.Socket{}
-        |> Phoenix.Component.assign(:current_user, user)
+      socket = Phoenix.Component.assign(%LiveView.Socket{}, :current_user, user)
 
       {:cont, updated_socket} = Locale.on_mount(:assign_locale, %{}, %{"locale" => "ru"}, socket)
 
