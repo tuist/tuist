@@ -1,0 +1,25 @@
+{
+  "context_files": [
+    {
+      "hash": "d8ddb528531aa9d4820a4cd80a344266e13f3da9342ed7490baac74cfce73919",
+      "path": "server/L10N.md"
+    },
+    {
+      "hash": "228bdeb0404f501a25aaf9fde3ec22f8c937b03edbeaf3ce3e35b274f07a140f",
+      "path": "L10N.md"
+    }
+  ],
+  "hash": "fb963b3dfb59b5f379e5841f1899d25bacdd4ee7fcd87648829e39b957190f3f",
+  "locale_override_files": [
+    {
+      "hash": "0fddcd4efd657f1b06dcfd0915245d2f172199275328cfa77c8f000c711a0361",
+      "path": "server/L10N/es.md"
+    }
+  ],
+  "model": "openai:gpt-4.1-mini",
+  "source": {
+    "file": "server/priv/gettext/default.pot",
+    "hash": "01170c98ec0dc5fc39ccb6e072d1cb1e46efe0d349c5d86194954c6cac514f58"
+  },
+  "translated_at": "2026-03-31T17:08:25.108821Z"
+}

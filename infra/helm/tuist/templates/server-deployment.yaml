@@ -1,0 +1,119 @@
+{{- if .Values.server.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "server") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: server
+spec:
+  replicas: {{ .Values.server.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "tuist.componentLabels" (dict "root" . "component" "server") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "tuist.componentLabels" (dict "root" . "component" "server") | nindent 8 }}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9091"
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: server
+          image: "{{ .Values.server.image.repository }}:{{ .Values.server.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.server.image.pullPolicy }}
+          command:
+            - /app/bin/tuist
+            - start
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: TUIST_WEB
+              value: "true"
+            - name: DATABASE_URL
+              value: {{ include "tuist.databaseUrl" . | quote }}
+            - name: TUIST_USE_SSL_FOR_DATABASE
+              value: {{ .Values.server.database.ssl | ternary "1" "0" | quote }}
+            - name: TUIST_CLICKHOUSE_URL
+              value: {{ include "tuist.clickhouseUrl" . | quote }}
+            - name: TUIST_SECRET_KEY_BASE
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
+                  key: server-secret-key-base
+            - name: TUIST_APP_URL
+              value: {{ .Values.server.appUrl | quote }}
+            - name: TUIST_LOG_LEVEL
+              value: {{ .Values.server.logLevel | quote }}
+            - name: TUIST_HOSTED
+              value: {{ .Values.server.hosted | ternary "1" "0" | quote }}
+            - name: TUIST_SKIP_EMAIL_CONFIRMATION
+              value: {{ .Values.server.skipEmailConfirmation | ternary "1" "0" | quote }}
+            - name: TUIST_SELF_HOSTING_DEVELOPMENT_MODE
+              value: {{ .Values.server.license.selfHostingDevelopmentMode | ternary "1" "0" | quote }}
+            {{- if .Values.server.license.key }}
+            - name: TUIST_LICENSE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
+                  key: server-license-key
+            {{- end }}
+            {{- if .Values.server.license.certificateBase64 }}
+            - name: TUIST_LICENSE_CERTIFICATE_BASE64
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
+                  key: server-license-certificate-base64
+            {{- end }}
+            - name: TUIST_S3_BUCKET_NAME
+              value: {{ .Values.server.s3.bucketName | quote }}
+            - name: TUIST_S3_ENDPOINT
+              value: {{ include "tuist.objectStorageEndpoint" . | quote }}
+            - name: TUIST_S3_REGION
+              value: {{ .Values.server.s3.region | quote }}
+            - name: TUIST_S3_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
+                  key: object-storage-access-key
+            - name: TUIST_S3_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
+                  key: object-storage-secret-key
+            - name: TUIST_S3_VIRTUAL_HOST
+              value: {{ .Values.server.s3.virtualHost | ternary "1" "0" | quote }}
+            - name: TUIST_S3_BUCKET_AS_HOST
+              value: {{ .Values.server.s3.bucketAsHost | ternary "1" "0" | quote }}
+            {{- if .Values.cache.enabled }}
+            - name: TUIST_CACHE_ENDPOINTS
+              value: {{ .Values.server.cacheEndpointUrl | default (printf "http://%s:%v" (include "tuist.componentName" (dict "root" . "component" "cache")) .Values.cache.service.port) | quote }}
+            {{- end }}
+            {{- if and .Values.observability.enabled (include "tuist.observabilityOtlpEndpoint" .) }}
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: {{ include "tuist.observabilityOtlpEndpoint" . | quote }}
+            - name: TUIST_LOKI_URL
+              value: "http://{{ include "tuist.componentName" (dict "root" . "component" "loki") }}:3100"
+            {{- end }}
+            {{- with .Values.server.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          readinessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          resources:
+            {{- toYaml .Values.server.resources | nindent 12 }}
+{{- end }}

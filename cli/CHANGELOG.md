@@ -1,15 +1,122 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.172.1<!-- RELEASE NOTES START -->
+## What's Changed in 4.176.0<!-- RELEASE NOTES START -->
 
+### ⛰️  Features
+
+* add workspace-level DerivedData location support by [@davidpasztor](https://github.com/davidpasztor) in [#9693](https://github.com/tuist/tuist/pull/9693)
+### 🐛 Bug Fixes
+
+* add retry logic to build uploads by [@fortmarek](https://github.com/fortmarek) in [#10210](https://github.com/tuist/tuist/pull/10210)
+* add nonisolated(unsafe) to generated plist accessors with Any type by [@fortmarek](https://github.com/fortmarek) in [#10195](https://github.com/tuist/tuist/pull/10195)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.175.0...4.176.0
+
+## What's Changed in 4.175.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* fix App Intents metadata for cached xcframeworks by [@pepicrft](https://github.com/pepicrft) in [#10168](https://github.com/tuist/tuist/pull/10168)
+* upload build data from tuist xcodebuild build by [@fortmarek](https://github.com/fortmarek) in [#10186](https://github.com/tuist/tuist/pull/10186)
+### 🐛 Bug Fixes
+
+* handle existing files during shard xctestrun write by [@fortmarek](https://github.com/fortmarek) in [#10188](https://github.com/tuist/tuist/pull/10188)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.174.7...4.175.0
+
+## What's Changed in 4.174.7<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* namespace dependency-derived artifacts by [@pepicrft](https://github.com/pepicrft) in [#10166](https://github.com/tuist/tuist/pull/10166)
+* fix cross-project test host embed and TEST_HOST settings by [@pepicrft](https://github.com/pepicrft) in [#10139](https://github.com/tuist/tuist/pull/10139)
+### 🚜 Refactor
+
+* remove local MCP command by [@pepicrft](https://github.com/pepicrft) in [#10171](https://github.com/tuist/tuist/pull/10171)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.174.4...4.174.7
+
+## What's Changed in 4.174.4<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* add missing TuistTesting dependency to TuistCASTests by [@jsj](https://github.com/jsj) in [#10182](https://github.com/tuist/tuist/pull/10182)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.174.3...4.174.4
+
+## What's Changed in 4.174.3<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* fix selective testing not skipping unchanged test targets by [@pepicrft](https://github.com/pepicrft) in [#10173](https://github.com/tuist/tuist/pull/10173)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.174.2...4.174.3
+
+## What's Changed in 4.174.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* deduplicate entries during Apple Archive compression by [@fortmarek](https://github.com/fortmarek) in [#10164](https://github.com/tuist/tuist/pull/10164)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.174.1...4.174.2
+
+## What's Changed in 4.174.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* dereference symlinks during Apple Archive compression by [@fortmarek](https://github.com/fortmarek) in [#10163](https://github.com/tuist/tuist/pull/10163)
+* resolve result bundle symlink before remote upload by [@fortmarek](https://github.com/fortmarek) in [#10161](https://github.com/tuist/tuist/pull/10161)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.174.0...4.174.1
+
+## What's Changed in 4.174.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add defaultSwiftVersion generation option and respect package-declared Swift versions by [@pepicrft](https://github.com/pepicrft) in [#10151](https://github.com/tuist/tuist/pull/10151)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.173.1...4.174.0
+
+## What's Changed in 4.173.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* resource/file glob excluding with ** pattern incorrectly excludes all sibling files by [@stefanomondino](https://github.com/stefanomondino) in [#10114](https://github.com/tuist/tuist/pull/10114)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.173.0...4.173.1
+
+## What's Changed in 4.173.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add --inspect-mode flag for remote xcresult processing by [@fortmarek](https://github.com/fortmarek) in [#10145](https://github.com/tuist/tuist/pull/10145)
+* support shared volumes for test shard distribution by [@fortmarek](https://github.com/fortmarek) in [#10144](https://github.com/tuist/tuist/pull/10144)
 ### 🐛 Bug Fixes
 
 * preserve .swiftmodule directories in shard archives by [@fortmarek](https://github.com/fortmarek) in [#10137](https://github.com/tuist/tuist/pull/10137)
 
 
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.172.0...4.172.1
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.172.0...4.173.0
 
 ## What's Changed in 4.172.0<!-- RELEASE NOTES START -->
 

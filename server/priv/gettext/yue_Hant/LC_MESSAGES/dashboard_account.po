@@ -1,315 +1,302 @@
 msgid ""
 msgstr ""
-"Project-Id-Version: PACKAGE VERSION\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
-"Last-Translator: Automatically generated\n"
-"Language-Team: none\n"
 "Language: yue_Hant\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
-"X-Generator: Translate Toolkit 3.17.5\n"
-
-## This file is a PO Template file.
-##
-## "msgid"s here are often extracted from source code.
-## Add new messages manually only if they're dynamic
-## messages that can't be statically extracted.
-##
-## Run "mix gettext.extract" to bring this file up to
-## date. Leave "msgstr"s empty as changing them here has no
-## effect: edit them in PO (.po) files instead.
-#
 
 #: lib/tuist/billing.ex:59
 #: lib/tuist_web/live/billing_live.ex:217
 #, elixir-autogen, elixir-format
 msgid "$0"
-msgstr ""
+msgstr "＄0"
 
 #: lib/tuist_web/live/billing_live.html.heex:220
 #, elixir-autogen, elixir-format
 msgid "$0.50"
-msgstr ""
+msgstr "＄0.50"
 
-#: lib/tuist_web/live/accept_invitation_live.ex:63
+#: lib/tuist_web/live/accept_invitation_live.ex:65
 #, elixir-autogen, elixir-format
 msgid "%{inviter} has invited you to join the %{organization} organization"
-msgstr ""
+msgstr "%{inviter} 邀請你加入 %{organization} 組織"
 
 #: lib/tuist_web/live/billing_live.html.heex:294
 #, elixir-autogen, elixir-format
 msgid "%{month}/%{year}"
-msgstr ""
+msgstr "%{month}/%{year}"
 
 #: lib/tuist/accounts/user_notifier.ex:175
-#: lib/tuist_web/live/accept_invitation_live.ex:75
+#: lib/tuist_web/live/accept_invitation_live.ex:77
 #, elixir-autogen, elixir-format
 msgid "Accept invitation"
-msgstr ""
+msgstr "接受邀請"
 
 #: lib/tuist_web/live/billing_live.html.heex:279
 #, elixir-autogen, elixir-format
 msgid "Add payment method"
-msgstr ""
+msgstr "新增付款方式"
 
 #: lib/tuist_web/live/members_live.ex:124
 #: lib/tuist_web/live/members_live.ex:140
 #, elixir-autogen, elixir-format
 msgid "Admin"
-msgstr ""
+msgstr "管理員"
 
 #: lib/tuist/billing.ex:37
 #: lib/tuist_web/live/billing_live.ex:187
 #: lib/tuist_web/live/billing_live.html.heex:58
 #, elixir-autogen, elixir-format
 msgid "Air"
-msgstr ""
+msgstr "Air"
 
 #: lib/tuist_web/live/billing_live.html.heex:317
 #, elixir-autogen, elixir-format
 msgid "All billing correspondence will go to this email"
-msgstr ""
+msgstr "所有帳單相關通信將會寄到此電郵"
 
 #: lib/tuist/billing.ex:46
 #: lib/tuist_web/live/billing_live.ex:192
 #, elixir-autogen, elixir-format
 msgid "All features, no credit card required"
-msgstr ""
+msgstr "所有功能，毋須信用卡"
 
 #: lib/tuist_web/live/members_live.ex:59
 #, elixir-autogen, elixir-format
 msgid "All members"
-msgstr ""
+msgstr "全部成員"
 
-#: lib/tuist_web/live/account_settings_live.ex:156
+#: lib/tuist_web/live/account_settings_live.ex:250
 #, elixir-autogen, elixir-format
 msgid "All regions"
-msgstr ""
+msgstr "所有地區"
 
-#: lib/tuist_web/live/account_settings_live.html.heex:99
-#: lib/tuist_web/live/account_settings_live.html.heex:247
+#: lib/tuist_web/live/account_settings_live.html.heex:105
+#: lib/tuist_web/live/account_settings_live.html.heex:253
 #, elixir-autogen, elixir-format
 msgid "Are you sure you want to delete this?"
-msgstr ""
+msgstr "你確定要刪除此項目嗎？"
 
 #: lib/tuist_web/live/members_live.ex:196
 #, elixir-autogen, elixir-format
 msgid "Are you sure you want to remove %{name} from this organization?"
-msgstr ""
+msgstr "你確定要將 %{name} 從此組織移除嗎？"
 
 #: lib/tuist_web/live/billing_live.ex:71
 #: lib/tuist_web/live/billing_live.html.heex:3
 #, elixir-autogen, elixir-format
 msgid "Billing"
-msgstr ""
+msgstr "帳單"
 
 #: lib/tuist_web/live/billing_live.html.heex:314
 #, elixir-autogen, elixir-format
 msgid "Billing email"
-msgstr ""
+msgstr "帳單電郵"
 
-#: lib/tuist_web/live/account_settings_live.html.heex:63
-#: lib/tuist_web/live/account_settings_live.html.heex:137
-#: lib/tuist_web/live/account_settings_live.html.heex:211
-#: lib/tuist_web/live/account_settings_live.html.heex:283
-#: lib/tuist_web/live/create_organization_live.ex:62
+#: lib/tuist_web/live/account_settings_live.ex:322
+#: lib/tuist_web/live/account_settings_live.ex:409
+#: lib/tuist_web/live/account_settings_live.html.heex:69
+#: lib/tuist_web/live/account_settings_live.html.heex:143
+#: lib/tuist_web/live/account_settings_live.html.heex:217
+#: lib/tuist_web/live/account_settings_live.html.heex:289
+#: lib/tuist_web/live/create_organization_live.ex:64
 #: lib/tuist_web/live/members_live.ex:157
 #: lib/tuist_web/live/members_live.ex:206
 #, elixir-autogen, elixir-format
 msgid "Cancel"
-msgstr ""
+msgstr "取消"
 
 #: lib/tuist_web/live/billing_live.html.heex:156
 #, elixir-autogen, elixir-format
 msgid "Change subscription plan"
-msgstr ""
+msgstr "更改訂閱計劃"
 
 #: lib/tuist_web/live/billing_live.html.heex:154
 #, elixir-autogen, elixir-format
 msgid "Change your subscription to fit your needs."
-msgstr ""
+msgstr "更改您的訂閱以配合您的需求。"
 
-#: lib/tuist_web/live/account_settings_live.ex:140
+#: lib/tuist_web/live/account_settings_live.ex:234
 #, elixir-autogen, elixir-format
 msgid "Choose where your artifacts, like module cache binaries, are stored for legal compliance."
-msgstr ""
+msgstr "選擇存放您嘅工件（例如模組快取二進位檔）嘅地點，以符合法律規定。"
 
 #: lib/tuist/billing.ex:47
 #, elixir-autogen, elixir-format
 msgid "Community support"
-msgstr ""
+msgstr "社群支援"
 
 #: lib/tuist_web/live/billing_live.ex:193
 #, elixir-autogen, elixir-format
 msgid "Community support via forum"
-msgstr ""
+msgstr "透過論壇嘅社群支援"
 
 #: lib/tuist_web/live/billing_live.html.heex:111
 #, elixir-autogen, elixir-format
 msgid "Community support: Support via community forum"
-msgstr ""
+msgstr "社群支援：透過社群論壇提供支援"
 
 #: lib/tuist_web/live/billing_live.html.heex:147
 #, elixir-autogen, elixir-format
 msgid "Completely free for open source projects"
-msgstr ""
+msgstr "對開源項目全免費"
 
 #: lib/tuist/accounts/user_notifier.ex:113
 #, elixir-autogen, elixir-format
 msgid "Confirm your email"
-msgstr ""
+msgstr "確認你的電郵"
 
 #: lib/tuist/accounts/user_notifier.ex:104
 #, elixir-autogen, elixir-format
 msgid "Confirmation instructions"
-msgstr ""
+msgstr "確認指示"
 
 #: lib/tuist/billing.ex:79
 #: lib/tuist_web/live/billing_live.ex:254
 #, elixir-autogen, elixir-format
 msgid "Contact sales"
-msgstr ""
+msgstr "聯絡銷售團隊"
+
+#: lib/tuist_web/live/create_organization_live.ex:39
+#, elixir-autogen, elixir-format
+msgid "Create a new organization"
+msgstr "建立新組織"
 
 #: lib/tuist_web/live/create_organization_live.ex:37
 #, elixir-autogen, elixir-format
-msgid "Create a new organization"
-msgstr ""
-
-#: lib/tuist_web/live/create_organization_live.ex:35
-#, elixir-autogen, elixir-format
 msgid "Create an organization account to continue"
-msgstr ""
+msgstr "建立組織帳戶以繼續"
 
-#: lib/tuist_web/live/create_organization_live.ex:57
+#: lib/tuist_web/live/create_organization_live.ex:59
 #, elixir-autogen, elixir-format
 msgid "Create organization"
-msgstr ""
+msgstr "建立組織"
 
 #: lib/tuist_web/live/billing_live.ex:244
 #, elixir-autogen, elixir-format
 msgid "Create your plan or self-host your instance"
-msgstr ""
+msgstr "建立您的計劃或自行托管您的實例"
 
 #: lib/tuist/billing.ex:77
 #: lib/tuist_web/live/billing_live.html.heex:88
 #, elixir-autogen, elixir-format
 msgid "Create your plan or self-host your instance."
-msgstr ""
+msgstr "建立您的計劃或自行托管您的實例。"
 
 #: lib/tuist_web/live/billing_live.ex:199
 #: lib/tuist_web/live/billing_live.ex:228
 #: lib/tuist_web/live/billing_live.html.heex:11
 #, elixir-autogen, elixir-format
 msgid "Current plan"
-msgstr ""
+msgstr "現有計劃"
 
 #: lib/tuist/billing.ex:78
 #: lib/tuist_web/live/billing_live.ex:245
 #: lib/tuist_web/live/billing_live.html.heex:70
 #, elixir-autogen, elixir-format
 msgid "Custom"
-msgstr ""
+msgstr "自訂"
 
 #: lib/tuist/billing.ex:81
 #: lib/tuist_web/live/billing_live.ex:247
 #, elixir-autogen, elixir-format
 msgid "Custom terms"
-msgstr ""
+msgstr "自訂條款"
 
 #: lib/tuist_web/live/billing_live.html.heex:133
 #, elixir-autogen, elixir-format
 msgid "Custom terms: Tailored agreements to meet your specific needs"
-msgstr ""
+msgstr "自訂條款：度身訂造嘅協議以符合您嘅具體需求"
 
-#: lib/tuist_web/live/accept_invitation_live.ex:153
+#: lib/tuist_web/live/accept_invitation_live.ex:155
 #, elixir-autogen, elixir-format
 msgid "Dashboard"
-msgstr ""
+msgstr "儀錶板"
 
-#: lib/tuist_web/live/accept_invitation_live.ex:81
+#: lib/tuist_web/live/accept_invitation_live.ex:83
 #, elixir-autogen, elixir-format
 msgid "Decline"
-msgstr ""
+msgstr "拒絕"
 
-#: lib/tuist_web/live/account_settings_live.html.heex:145
-#: lib/tuist_web/live/account_settings_live.html.heex:291
+#: lib/tuist_web/live/account_settings_live.ex:383
+#: lib/tuist_web/live/account_settings_live.ex:417
+#: lib/tuist_web/live/account_settings_live.ex:429
+#: lib/tuist_web/live/account_settings_live.html.heex:151
+#: lib/tuist_web/live/account_settings_live.html.heex:297
 #, elixir-autogen, elixir-format
 msgid "Delete"
-msgstr ""
+msgstr "刪除"
 
-#: lib/tuist_web/live/account_settings_live.html.heex:232
-#: lib/tuist_web/live/account_settings_live.html.heex:253
+#: lib/tuist_web/live/account_settings_live.html.heex:238
+#: lib/tuist_web/live/account_settings_live.html.heex:259
 #, elixir-autogen, elixir-format
 msgid "Delete account"
-msgstr ""
+msgstr "刪除帳戶"
 
-#: lib/tuist_web/live/account_settings_live.html.heex:84
-#: lib/tuist_web/live/account_settings_live.html.heex:105
+#: lib/tuist_web/live/account_settings_live.html.heex:90
+#: lib/tuist_web/live/account_settings_live.html.heex:111
 #, elixir-autogen, elixir-format
 msgid "Delete organization"
-msgstr ""
+msgstr "刪除組織"
 
-#: lib/tuist_web/live/account_settings_live.html.heex:118
+#: lib/tuist_web/live/account_settings_live.html.heex:124
 #, elixir-autogen, elixir-format
 msgid "Deleting the organization will delete all of its projects"
-msgstr ""
+msgstr "刪除組織將會刪除其所有項目"
 
-#: lib/tuist_web/live/account_settings_live.html.heex:265
+#: lib/tuist_web/live/account_settings_live.html.heex:271
 #, elixir-autogen, elixir-format
 msgid "Deleting your account will also delete all the projects that belong to it"
-msgstr ""
+msgstr "刪除帳戶亦會刪除所有屬於該帳戶嘅項目"
 
 #: lib/tuist/accounts/user_notifier.ex:137
 #, elixir-autogen, elixir-format
 msgid "Did you request to reset your password?"
-msgstr ""
+msgstr "你係咪申請重設密碼？"
 
 #: lib/tuist_web/live/billing_live.ex:205
 #, elixir-autogen, elixir-format
 msgid "Downgrade"
-msgstr ""
+msgstr "降級"
 
 #: lib/tuist_web/live/members_live.ex:90
 #, elixir-autogen, elixir-format
 msgid "E-mail"
-msgstr ""
+msgstr "電郵"
 
 #: lib/tuist_web/live/billing_live.html.heex:334
 #: lib/tuist_web/live/members_live.ex:274
 #, elixir-autogen, elixir-format
 msgid "Email"
-msgstr ""
+msgstr "電郵"
 
 #: lib/tuist_web/live/members_live.ex:335
 #, elixir-autogen, elixir-format
 msgid "Email address"
-msgstr ""
+msgstr "電郵地址"
 
-#: lib/tuist_web/live/account_settings_live.html.heex:125
+#: lib/tuist_web/live/account_settings_live.html.heex:131
 #, elixir-autogen, elixir-format
 msgid "Enter this organization's name to confirm"
-msgstr ""
+msgstr "輸入此組織名稱以確認"
 
-#: lib/tuist_web/live/account_settings_live.html.heex:272
+#: lib/tuist_web/live/account_settings_live.html.heex:278
 #, elixir-autogen, elixir-format
 msgid "Enter your username to confirm"
-msgstr ""
+msgstr "輸入你的用戶名稱以確認"
 
 #: lib/tuist/billing.ex:75
 #: lib/tuist_web/live/billing_live.ex:243
 #: lib/tuist_web/live/billing_live.html.heex:61
 #, elixir-autogen, elixir-format
 msgid "Enterprise"
-msgstr ""
+msgstr "企業"
 
-#: lib/tuist_web/live/account_settings_live.ex:157
+#: lib/tuist_web/live/account_settings_live.ex:251
 #, elixir-autogen, elixir-format
 msgid "Europe"
-msgstr ""
+msgstr "歐洲"
 
 #: lib/tuist/billing.ex:40
 #: lib/tuist_web/live/billing_live.ex:189
@@ -317,629 +304,830 @@ msgstr ""
 #: lib/tuist_web/live/billing_live.html.heex:68
 #, elixir-autogen, elixir-format
 msgid "Free"
-msgstr ""
+msgstr "免費"
 
 #: lib/tuist_web/live/billing_live.html.heex:25
 #, elixir-autogen, elixir-format
 msgid "Free tier exceeded"
-msgstr ""
+msgstr "超出免費層級"
 
 #: lib/tuist_web/live/billing_live.ex:191
 #, elixir-autogen, elixir-format
 msgid "Free under tier limits"
-msgstr ""
+msgstr "低於免費層級限制"
 
 #: lib/tuist/billing.ex:63
 #, elixir-autogen, elixir-format
 msgid "Generous base price"
-msgstr ""
+msgstr "慷慨嘅基本價格"
 
 #: lib/tuist_web/live/billing_live.html.heex:116
 #, elixir-autogen, elixir-format
 msgid "Generous base price: Pay nothing if below free tier limits"
-msgstr ""
+msgstr "慷慨嘅基本價格：低於免費層級限制時毋須付款"
 
 #: lib/tuist/billing.ex:43
 #, elixir-autogen, elixir-format
 msgid "Generous free monthly tier"
-msgstr ""
+msgstr "慷慨免費月度層級"
 
 #: lib/tuist_web/live/billing_live.html.heex:99
 #, elixir-autogen, elixir-format
 msgid "Generous free monthly tier: Usage capped at free tier limits"
-msgstr ""
+msgstr "慷慨免費月度層級：使用量限制於免費層級"
 
 #: lib/tuist/billing.ex:41
 #: lib/tuist/billing.ex:61
 #, elixir-autogen, elixir-format
 msgid "Get started"
-msgstr ""
+msgstr "開始使用"
 
 #: lib/tuist_web/live/billing_live.ex:188
 #, elixir-autogen, elixir-format
 msgid "Get started with no credit card required"
-msgstr ""
+msgstr "立即開始，毋須信用卡"
 
 #: lib/tuist/billing.ex:39
 #: lib/tuist_web/live/billing_live.html.heex:79
 #, elixir-autogen, elixir-format
 msgid "Get started with no credit card required—try with no commitment."
-msgstr ""
+msgstr "立即開始，毋須信用卡 — 無需承諾即可試用。"
 
 #: lib/tuist/accounts/user_notifier.ex:172
 #, elixir-autogen, elixir-format
 msgid "Hola %{invitee_email}, you can join the organization by clicking the button below:"
-msgstr ""
+msgstr "Hola %{invitee_email}，你可以按下面按鈕加入組織："
 
 #: lib/tuist/accounts/user_notifier.ex:139
 #, elixir-autogen, elixir-format
 msgid "Hola %{name}, you can reset your password by clicking the button below:"
-msgstr ""
+msgstr "Hola %{name}，你可以按下面按鈕重設密碼："
 
 #: lib/tuist/accounts/user_notifier.ex:118
 #: lib/tuist/accounts/user_notifier.ex:147
 #, elixir-autogen, elixir-format
 msgid "If you didn't make this request, feel free to ignore this email."
-msgstr ""
+msgstr "如果你並非本人提出此申請，請忽略此電郵。"
 
-#: lib/tuist_web/live/accept_invitation_live.ex:105
+#: lib/tuist_web/live/accept_invitation_live.ex:107
 #, elixir-autogen, elixir-format
 msgid "Invitation accepted!"
-msgstr ""
+msgstr "邀請已接受！"
 
-#: lib/tuist_web/live/accept_invitation_live.ex:88
+#: lib/tuist_web/live/accept_invitation_live.ex:90
 #, elixir-autogen, elixir-format
 msgid "Invitation not found"
-msgstr ""
+msgstr "找唔到邀請"
 
-#: lib/tuist_web/live/accept_invitation_live.ex:127
+#: lib/tuist_web/live/accept_invitation_live.ex:129
 #, elixir-autogen, elixir-format
 msgid "Invitation rejected"
-msgstr ""
+msgstr "邀請已拒絕"
 
 #: lib/tuist/accounts/user_notifier.ex:166
 #, elixir-autogen, elixir-format
 msgid "Invitation to %{organization_name}"
-msgstr ""
+msgstr "邀請加入 %{organization_name}"
 
 #: lib/tuist_web/live/members_live.ex:66
 #, elixir-autogen, elixir-format
 msgid "Invitations"
-msgstr ""
+msgstr "邀請"
 
 #: lib/tuist_web/live/members_live.ex:324
 #, elixir-autogen, elixir-format
 msgid "Invite member"
-msgstr ""
+msgstr "邀請成員"
 
 #: lib/tuist_web/live/members_live.ex:328
 #, elixir-autogen, elixir-format
 msgid "Invite members"
-msgstr ""
+msgstr "邀請成員"
 
 #: lib/tuist_web/live/members_live.ex:306
 #, elixir-autogen, elixir-format
 msgid "Invite members to your organization"
-msgstr ""
+msgstr "邀請成員加入你嘅組織"
 
 #: lib/tuist_web/live/billing_live.html.heex:40
 #, elixir-autogen, elixir-format
 msgid "Learn more"
-msgstr ""
+msgstr "了解更多"
 
 #: lib/tuist/billing.ex:45
 #, elixir-autogen, elixir-format
 msgid "Like, totally free"
-msgstr ""
+msgstr "就係完全免費"
 
 #: lib/tuist_web/live/billing_live.html.heex:105
 #, elixir-autogen, elixir-format
 msgid "Like, totally free: All features, no credit card required"
-msgstr ""
+msgstr "就係完全免費：所有功能，毋須信用卡"
 
 #: lib/tuist_web/live/members_live.ex:99
 #: lib/tuist_web/live/members_live.ex:236
 #, elixir-autogen, elixir-format
 msgid "Manage role"
-msgstr ""
+msgstr "管理角色"
 
 #: lib/tuist_web/live/billing_live.html.heex:5
 #, elixir-autogen, elixir-format
 msgid "Manage your billing and payment details"
-msgstr ""
+msgstr "管理你的帳單及付款詳情"
 
 #: lib/tuist_web/live/members_live.ex:78
 #, elixir-autogen, elixir-format
 msgid "Member"
-msgstr ""
+msgstr "成員"
 
 #: lib/tuist_web/live/members_live.ex:17
 #: lib/tuist_web/live/members_live.ex:36
 #, elixir-autogen, elixir-format
 msgid "Members"
-msgstr ""
+msgstr "成員"
 
 #: lib/tuist_web/live/billing_live.ex:149
 #, elixir-autogen, elixir-format
 msgid "Most Popular"
-msgstr ""
+msgstr "最受歡迎"
 
-#: lib/tuist_web/live/create_organization_live.ex:49
+#: lib/tuist_web/live/create_organization_live.ex:51
 #, elixir-autogen, elixir-format
 msgid "Name"
-msgstr ""
+msgstr "名稱"
 
 #: lib/tuist/billing.ex:51
 #, elixir-autogen, elixir-format
 msgid "No credit card required"
-msgstr ""
+msgstr "毋須信用卡"
 
 #: lib/tuist_web/live/members_live.ex:303
 #, elixir-autogen, elixir-format
 msgid "No invitations created"
-msgstr ""
+msgstr "無邀請建立"
 
 #: lib/tuist_web/live/members_live.ex:260
 #, elixir-autogen, elixir-format
 msgid "No members found"
-msgstr ""
+msgstr "無找到成員"
 
 #: lib/tuist/billing.ex:83
 #: lib/tuist_web/live/billing_live.ex:248
 #, elixir-autogen, elixir-format
 msgid "On-premise"
-msgstr ""
+msgstr "本地部署"
 
 #: lib/tuist_web/live/billing_live.html.heex:139
 #, elixir-autogen, elixir-format
 msgid "On-premise: Self-host your instance of Tuist"
-msgstr ""
+msgstr "本地部署：自行托管你的 Tuist 實例"
 
 #: lib/tuist_web/live/billing_live.html.heex:59
 #, elixir-autogen, elixir-format
 msgid "Open source"
-msgstr ""
+msgstr "開源"
 
-#: lib/tuist_web/live/account_settings_live.html.heex:54
-#: lib/tuist_web/live/account_settings_live.html.heex:128
+#: lib/tuist_web/live/account_settings_live.html.heex:60
+#: lib/tuist_web/live/account_settings_live.html.heex:134
 #, elixir-autogen, elixir-format
 msgid "Organization name"
-msgstr ""
+msgstr "組織名稱"
 
-#: lib/tuist/accounts/user.ex:88
+#: lib/tuist/accounts/user.ex:89
 #, elixir-autogen, elixir-format
 msgid "Passwords don't match"
-msgstr ""
+msgstr "密碼不符"
 
 #: lib/tuist/billing.ex:64
 #: lib/tuist_web/live/billing_live.ex:220
 #, elixir-autogen, elixir-format
 msgid "Pay nothing if below free tier limits"
-msgstr ""
+msgstr "低於免費層級時毋須付款"
 
 #: lib/tuist/billing.ex:66
 #: lib/tuist_web/live/billing_live.ex:221
 #, elixir-autogen, elixir-format
 msgid "Pay only for what you use per feature"
-msgstr ""
+msgstr "只需支付按功能使用量計算嘅費用"
 
 #: lib/tuist_web/live/billing_live.html.heex:243
 #, elixir-autogen, elixir-format
 msgid "Payment method"
-msgstr ""
+msgstr "付款方式"
 
 #: lib/tuist_web/live/billing_live.html.heex:246
 #, elixir-autogen, elixir-format
 msgid "Payments for your subscription are made using the default card."
-msgstr ""
+msgstr "您的訂閱付款將使用預設信用卡。"
 
 #: lib/tuist_web/live/members_live.ex:279
 #, elixir-autogen, elixir-format
 msgid "Pending"
-msgstr ""
+msgstr "待處理"
 
 #: lib/tuist_web/live/billing_live.html.heex:231
 #, elixir-autogen, elixir-format
 msgid "Price"
-msgstr ""
+msgstr "價格"
 
 #: lib/tuist_web/live/billing_live.html.heex:172
 #, elixir-autogen, elixir-format
 msgid "Pricing details"
-msgstr ""
+msgstr "價格詳情"
 
 #: lib/tuist/billing.ex:85
 #, elixir-autogen, elixir-format
 msgid "Priority support"
-msgstr ""
+msgstr "優先支援"
 
 #: lib/tuist_web/live/billing_live.ex:249
 #, elixir-autogen, elixir-format
 msgid "Priority support via shared Slack channel"
-msgstr ""
+msgstr "透過共享 Slack 頻道提供優先支援"
 
 #: lib/tuist_web/live/billing_live.html.heex:142
 #, elixir-autogen, elixir-format
 msgid "Priority support: Via shared Slack channel"
-msgstr ""
+msgstr "優先支援：透過共享 Slack 頻道"
 
 #: lib/tuist/billing.ex:56
 #: lib/tuist_web/live/billing_live.ex:215
 #: lib/tuist_web/live/billing_live.html.heex:60
 #, elixir-autogen, elixir-format
 msgid "Pro"
-msgstr ""
+msgstr "專業版"
 
-#: lib/tuist_web/live/account_settings_live.ex:153
+#: lib/tuist_web/live/account_settings_live.ex:247
 #, elixir-autogen, elixir-format
 msgid "Region"
-msgstr ""
+msgstr "地區"
 
 #: lib/tuist_web/live/billing_live.html.heex:225
 #, elixir-autogen, elixir-format
 msgid "Remote cache hits"
-msgstr ""
+msgstr "遠端快取命中"
 
 #: lib/tuist_web/live/billing_live.html.heex:34
 #, elixir-autogen, elixir-format
 msgid "Remote cache hits:"
-msgstr ""
+msgstr "遠端快取命中："
 
 #: lib/tuist_web/live/members_live.ex:214
 #, elixir-autogen, elixir-format
 msgid "Remove"
-msgstr ""
+msgstr "移除"
 
 #: lib/tuist_web/live/members_live.ex:178
 #: lib/tuist_web/live/members_live.ex:246
 #, elixir-autogen, elixir-format
 msgid "Remove member"
-msgstr ""
+msgstr "移除成員"
 
-#: lib/tuist_web/live/account_settings_live.html.heex:71
-#: lib/tuist_web/live/account_settings_live.html.heex:219
+#: lib/tuist_web/live/account_settings_live.html.heex:77
+#: lib/tuist_web/live/account_settings_live.html.heex:225
 #, elixir-autogen, elixir-format
 msgid "Rename"
-msgstr ""
+msgstr "重新命名"
 
-#: lib/tuist_web/live/account_settings_live.html.heex:13
-#: lib/tuist_web/live/account_settings_live.html.heex:37
+#: lib/tuist_web/live/account_settings_live.html.heex:19
+#: lib/tuist_web/live/account_settings_live.html.heex:43
 #, elixir-autogen, elixir-format
 msgid "Rename organization"
-msgstr ""
+msgstr "重新命名組織"
 
-#: lib/tuist_web/live/account_settings_live.html.heex:31
+#: lib/tuist_web/live/account_settings_live.html.heex:37
 #, elixir-autogen, elixir-format
 msgid "Rename your organization?"
-msgstr ""
+msgstr "重新命名你的組織？"
 
-#: lib/tuist_web/live/account_settings_live.html.heex:49
-#: lib/tuist_web/live/account_settings_live.html.heex:198
+#: lib/tuist_web/live/account_settings_live.html.heex:55
+#: lib/tuist_web/live/account_settings_live.html.heex:204
 #, elixir-autogen, elixir-format
 msgid "Renaming can have unexpected consequences"
-msgstr ""
+msgstr "重新命名可能會帶來意想不到的後果"
 
-#: lib/tuist_web/live/account_settings_live.html.heex:16
+#: lib/tuist_web/live/account_settings_live.html.heex:22
 #, elixir-autogen, elixir-format
 msgid "Renaming your organization can have unintended side effects."
-msgstr ""
+msgstr "重新命名你的組織可能會產生意外的副作用。"
 
 #: lib/tuist/accounts/user_notifier.ex:133
 #, elixir-autogen, elixir-format
 msgid "Reset password instructions"
-msgstr ""
+msgstr "重設密碼指示"
 
 #: lib/tuist/accounts/user_notifier.ex:142
 #, elixir-autogen, elixir-format
 msgid "Reset your password"
-msgstr ""
+msgstr "重設你的密碼"
 
 #: lib/tuist_web/live/members_live.ex:287
 #, elixir-autogen, elixir-format
 msgid "Revoke invite"
-msgstr ""
+msgstr "撤銷邀請"
 
 #: lib/tuist_web/live/members_live.ex:93
 #: lib/tuist_web/live/members_live.ex:118
 #, elixir-autogen, elixir-format
 msgid "Role"
-msgstr ""
+msgstr "角色"
 
 #: lib/tuist_web/live/members_live.ex:165
 #, elixir-autogen, elixir-format
 msgid "Save"
-msgstr ""
+msgstr "儲存"
 
 #: lib/tuist_web/live/members_live.ex:43
 #, elixir-autogen, elixir-format
 msgid "Search members..."
-msgstr ""
+msgstr "搜尋成員..."
 
-#: lib/tuist_web/live/account_settings_live.ex:148
+#: lib/tuist_web/live/account_settings_live.ex:242
 #, elixir-autogen, elixir-format
 msgid "Select region"
-msgstr ""
+msgstr "選擇地區"
 
 #: lib/tuist/billing.ex:84
 #, elixir-autogen, elixir-format
 msgid "Self-host your instance of Tuist"
-msgstr ""
+msgstr "自行托管你的 Tuist 實例"
 
-#: lib/tuist_web/live/account_settings_live.ex:32
+#: lib/tuist_web/live/account_settings_live.ex:39
 #: lib/tuist_web/live/account_settings_live.html.heex:3
 #, elixir-autogen, elixir-format
 msgid "Settings"
-msgstr ""
+msgstr "設定"
 
 #: lib/tuist/billing.ex:67
 #, elixir-autogen, elixir-format
 msgid "Standard support"
-msgstr ""
+msgstr "標準支援"
 
 #: lib/tuist_web/live/billing_live.ex:222
 #, elixir-autogen, elixir-format
 msgid "Standard support via Slack and email"
-msgstr ""
+msgstr "透過 Slack 同電郵嘅標準支援"
 
 #: lib/tuist_web/live/billing_live.html.heex:128
 #, elixir-autogen, elixir-format
 msgid "Standard support: Via Slack and email"
-msgstr ""
+msgstr "標準支援：透過 Slack 同電郵"
 
 #: lib/tuist_web/live/members_live.ex:277
 #, elixir-autogen, elixir-format
 msgid "Status"
-msgstr ""
+msgstr "狀態"
 
-#: lib/tuist_web/live/account_settings_live.ex:137
+#: lib/tuist_web/live/account_settings_live.ex:231
 #, elixir-autogen, elixir-format
 msgid "Storage region"
-msgstr ""
+msgstr "儲存地區"
 
 #: lib/tuist/billing.ex:48
 #, elixir-autogen, elixir-format
 msgid "Support via community forum"
-msgstr ""
+msgstr "透過社群論壇提供支援"
 
 #: lib/tuist/billing.ex:82
 #, elixir-autogen, elixir-format
 msgid "Tailored agreements to meet your specific needs"
-msgstr ""
+msgstr "度身訂做嘅協議以滿足你嘅具體需求"
 
-#: lib/tuist_web/live/account_settings_live.html.heex:87
-#: lib/tuist_web/live/account_settings_live.html.heex:235
+#: lib/tuist_web/live/account_settings_live.html.heex:93
+#: lib/tuist_web/live/account_settings_live.html.heex:241
 #, elixir-autogen, elixir-format
 msgid "This action cannot be undone."
-msgstr ""
+msgstr "此操作無法復原。"
 
 #: lib/tuist/accounts/user_notifier.ex:110
 #, elixir-autogen, elixir-format
 msgid "To start using Tuist, verify your email and you are good to go:"
-msgstr ""
+msgstr "開始使用 Tuist，請先驗證你的電郵，即可使用："
 
 #: lib/tuist_web/live/billing_live.html.heex:234
 #, elixir-autogen, elixir-format
 msgid "Total"
-msgstr ""
+msgstr "總計"
 
 #: lib/tuist_web/live/members_live.ex:261
 #, elixir-autogen, elixir-format
 msgid "Try changing your search term"
-msgstr ""
+msgstr "嘗試更改你的搜尋條件"
 
-#: lib/tuist_web/live/accept_invitation_live.ex:52
-#: lib/tuist_web/live/create_organization_live.ex:26
+#: lib/tuist_web/live/accept_invitation_live.ex:54
+#: lib/tuist_web/live/create_organization_live.ex:28
 #, elixir-autogen, elixir-format
 msgid "Tuist Logo"
-msgstr ""
+msgstr "Tuist 標誌"
 
-#: lib/tuist_web/live/account_settings_live.ex:158
+#: lib/tuist_web/live/account_settings_live.ex:252
 #, elixir-autogen, elixir-format
 msgid "United States"
-msgstr ""
+msgstr "美國"
 
-#: lib/tuist/vcs.ex:464
+#: lib/tuist/vcs.ex:500
 #, elixir-autogen, elixir-format
 msgid "Unknown"
-msgstr ""
+msgstr "未知"
 
 #: lib/tuist/billing.ex:70
 #, elixir-autogen, elixir-format
 msgid "Unlimited projects"
-msgstr ""
+msgstr "無限項目"
 
 #: lib/tuist_web/live/billing_live.html.heex:325
 #, elixir-autogen, elixir-format
 msgid "Update billing email"
-msgstr ""
+msgstr "更新帳單電郵"
 
 #: lib/tuist_web/live/billing_live.html.heex:257
 #, elixir-autogen, elixir-format
 msgid "Update payment method"
-msgstr ""
+msgstr "更新付款方式"
 
-#: lib/tuist_web/live/account_settings_live.html.heex:163
-#: lib/tuist_web/live/account_settings_live.html.heex:187
+#: lib/tuist_web/live/account_settings_live.html.heex:169
+#: lib/tuist_web/live/account_settings_live.html.heex:193
 #, elixir-autogen, elixir-format
 msgid "Update username"
-msgstr ""
+msgstr "更新用戶名稱"
 
-#: lib/tuist_web/live/account_settings_live.html.heex:181
+#: lib/tuist_web/live/account_settings_live.html.heex:187
 #, elixir-autogen, elixir-format
 msgid "Update your username?"
-msgstr ""
+msgstr "更新你的用戶名稱？"
 
-#: lib/tuist_web/live/account_settings_live.html.heex:166
+#: lib/tuist_web/live/account_settings_live.html.heex:172
 #, elixir-autogen, elixir-format
 msgid "Updating your username can have unintended consequences."
-msgstr ""
+msgstr "更新你的用戶名稱可能會帶來意想不到的後果。"
 
 #: lib/tuist_web/live/billing_live.ex:234
 #, elixir-autogen, elixir-format
 msgid "Upgrade"
-msgstr ""
+msgstr "升級"
 
 #: lib/tuist_web/live/billing_live.html.heex:162
 #, elixir-autogen, elixir-format
 msgid "Upgrade plan"
-msgstr ""
+msgstr "升級計劃"
 
 #: lib/tuist_web/live/billing_live.html.heex:206
 #, elixir-autogen, elixir-format
 msgid "Usage"
-msgstr ""
+msgstr "使用量"
 
 #: lib/tuist/billing.ex:44
 #, elixir-autogen, elixir-format
 msgid "Usage capped at free tier limits"
-msgstr ""
+msgstr "使用量限制於免費層級"
 
 #: lib/tuist_web/live/billing_live.html.heex:22
 #, elixir-autogen, elixir-format
 msgid "Usage details"
-msgstr ""
+msgstr "使用詳情"
 
 #: lib/tuist_web/live/billing_live.html.heex:69
 #, elixir-autogen, elixir-format
 msgid "Usage-based"
-msgstr ""
+msgstr "按使用量計費"
 
 #: lib/tuist/billing.ex:65
 #, elixir-autogen, elixir-format
 msgid "Usage-based pricing"
-msgstr ""
+msgstr "按使用量計費"
 
 #: lib/tuist_web/live/billing_live.ex:216
 #, elixir-autogen, elixir-format
 msgid "Usage-based pricing after free tier"
-msgstr ""
+msgstr "超出免費層級後按使用量計費"
 
 #: lib/tuist/billing.ex:58
 #: lib/tuist_web/live/billing_live.html.heex:85
 #, elixir-autogen, elixir-format
 msgid "Usage-based pricing after free tier."
-msgstr ""
+msgstr "超出免費層級後按使用量計費。"
 
 #: lib/tuist_web/live/billing_live.html.heex:122
 #, elixir-autogen, elixir-format
 msgid "Usage-based pricing: Pay only for what you use per feature"
-msgstr ""
+msgstr "按使用量計費：僅為每個功能用量付款"
 
 #: lib/tuist_web/live/billing_live.html.heex:91
 #, elixir-autogen, elixir-format
 msgid "Use all Tuist features as long as you stay open source."
-msgstr ""
+msgstr "只要你保持開源，就可以使用所有 Tuist 功能。"
 
 #: lib/tuist_web/live/members_live.ex:123
 #: lib/tuist_web/live/members_live.ex:130
 #, elixir-autogen, elixir-format
 msgid "User"
-msgstr ""
+msgstr "用戶"
 
-#: lib/tuist_web/live/account_settings_live.html.heex:203
-#: lib/tuist_web/live/account_settings_live.html.heex:275
+#: lib/tuist_web/live/account_settings_live.html.heex:209
+#: lib/tuist_web/live/account_settings_live.html.heex:281
 #, elixir-autogen, elixir-format
 msgid "Username"
-msgstr ""
+msgstr "用戶名稱"
 
 #: lib/tuist/billing.ex:67
 #, elixir-autogen, elixir-format
 msgid "Via Slack and email"
-msgstr ""
+msgstr "透過 Slack 同電郵"
 
 #: lib/tuist/billing.ex:85
 #, elixir-autogen, elixir-format
 msgid "Via shared Slack channel"
-msgstr ""
+msgstr "透過共享 Slack 頻道"
 
-#: lib/tuist_web/live/accept_invitation_live.ex:96
+#: lib/tuist_web/live/accept_invitation_live.ex:98
 #, elixir-autogen, elixir-format
 msgid "We could not find the invitation you are trying to accept. Please try again."
-msgstr ""
+msgstr "我哋未能找到你嘗試接受嘅邀請。請再試一次。"
 
-#: lib/tuist_web/live/account_settings_live.ex:17
+#: lib/tuist_web/live/account_settings_live.ex:18
 #: lib/tuist_web/live/billing_live.ex:13
+#: lib/tuist_web/live/sso_settings_live.ex:15
 #, elixir-autogen, elixir-format
 msgid "You are not authorized to perform this action."
-msgstr ""
+msgstr "你無權進行此操作。"
 
-#: lib/tuist_web/live/accept_invitation_live.ex:119
+#: lib/tuist_web/live/accept_invitation_live.ex:121
 #, elixir-autogen, elixir-format
 msgid "You are now a part of %{organization} organization"
-msgstr ""
+msgstr "你而家係 %{organization} 組織嘅一部分"
 
-#: lib/tuist_web/live/accept_invitation_live.ex:107
+#: lib/tuist_web/live/accept_invitation_live.ex:109
 #, elixir-autogen, elixir-format
 msgid "You have accepted the invite to join the organization"
-msgstr ""
+msgstr "你已接受邀請加入該組織"
 
-#: lib/tuist_web/live/accept_invitation_live.ex:61
+#: lib/tuist_web/live/accept_invitation_live.ex:63
 #, elixir-autogen, elixir-format
 msgid "You have been invited"
-msgstr ""
+msgstr "你已被邀請"
 
-#: lib/tuist_web/live/accept_invitation_live.ex:129
+#: lib/tuist_web/live/accept_invitation_live.ex:131
 #, elixir-autogen, elixir-format
 msgid "You have rejected the invite to join the organization"
-msgstr ""
+msgstr "你已拒絕邀請加入該組織"
 
 #: lib/tuist/accounts/user_notifier.ex:116
 #, elixir-autogen, elixir-format
 msgid "You received this email because you recently signed up for a Tuist account."
-msgstr ""
+msgstr "你收到此郵件係因為你最近註冊咗 Tuist 帳戶。"
 
 #: lib/tuist/accounts/user_notifier.ex:145
 #, elixir-autogen, elixir-format
 msgid "You received this email because you requested a password reset for your Tuist account."
-msgstr ""
+msgstr "你收到此郵件係因為你申請重設 Tuist 帳戶嘅密碼。"
 
 #: lib/tuist/accounts/user_notifier.ex:170
 #, elixir-autogen, elixir-format
 msgid "You were invited to join the %{organization_name} Tuist organization by %{inviter_email}"
-msgstr ""
+msgstr "你被 %{inviter_email} 邀請加入 %{organization_name} Tuist 組織"
 
-#: lib/tuist_web/live/accept_invitation_live.ex:141
+#: lib/tuist_web/live/accept_invitation_live.ex:143
 #, elixir-autogen, elixir-format
 msgid "You won’t be able to access this organization unless invited again."
-msgstr ""
+msgstr "除非再次獲邀，否則你將無法存取此組織。"
 
 #: lib/tuist/accounts/user_notifier.ex:108
 #, elixir-autogen, elixir-format
 msgid "You're Almost Set!"
-msgstr ""
+msgstr "你差唔多完成設定！"
 
 #: lib/tuist_web/live/billing_live.html.heex:210
 #, elixir-autogen, elixir-format
 msgid "You’ve exceeded your free tier quota and will incur charges for additional usage."
-msgstr ""
+msgstr "你已超出免費層級配額，額外使用將會產生費用。"
 
 #: lib/tuist_web/live/billing_live.html.heex:47
 #, elixir-autogen, elixir-format
 msgid "about remote cache hits"
-msgstr ""
+msgstr "關於遠端快取命中"
 
 #: lib/tuist_web/live/billing_live.html.heex:228
 #, elixir-autogen, elixir-format
 msgid "above free tier"
-msgstr ""
+msgstr "超出免費層級"
 
 #: lib/tuist/billing.ex:60
 #: lib/tuist_web/live/billing_live.ex:218
 #, elixir-autogen, elixir-format
 msgid "and up"
-msgstr ""
+msgstr "及以上"
 
 #: lib/tuist_web/live/billing_live.ex:34
 #, elixir-autogen, elixir-format
 msgid "charged /per month"
-msgstr ""
+msgstr "每月收費"
 
 #: lib/tuist_web/live/billing_live.ex:36
 #, elixir-autogen, elixir-format
 msgid "charged on %{next_charge_date}"
-msgstr ""
+msgstr "於 %{next_charge_date} 收費"
 
 #: lib/tuist_web/live/billing_live.html.heex:301
 #, elixir-autogen, elixir-format
 msgid "xxxx xxxx xxxx %{card_number}"
-msgstr ""
+msgstr "xxxx xxxx xxxx %{card_number}"
+
+#: lib/tuist_web/live/account_settings_live.ex:330
+#, elixir-autogen, elixir-format
+msgid "Add"
+msgstr "新增"
+
+#: lib/tuist_web/live/account_settings_live.ex:292
+#, elixir-autogen, elixir-format
+msgid "Add cache endpoint"
+msgstr "新增快取端點"
+
+#: lib/tuist_web/live/account_settings_live.ex:299
+#, elixir-autogen, elixir-format
+msgid "Add endpoint"
+msgstr "新增端點"
+
+#: lib/tuist_web/live/account_settings_live.ex:312
+#, elixir-autogen, elixir-format
+msgid "Endpoint URL"
+msgstr "端點網址"
+
+#: lib/tuist_web/live/account_settings_live.ex:369
+#, elixir-autogen, elixir-format
+msgid "URL"
+msgstr "網址"
+
+#: lib/tuist_web/live/account_settings_live.ex:376
+#, elixir-autogen, elixir-format
+msgid "Delete last cache endpoint?"
+msgstr "刪除最後一個快取端點？"
+
+#: lib/tuist_web/live/account_settings_live.ex:396
+#, elixir-autogen, elixir-format
+msgid "Removing the last custom cache endpoint will switch your organization back to Tuist-hosted caching. This affects all builds across your organization."
+msgstr "刪除最後一個自訂快取端點後，您的組織將會切換回 Tuist 托管快取。這會影響組織內所有構建。"
+
+#: lib/tuist_web/live/account_settings_live.ex:274
+#, elixir-autogen, elixir-format
+msgid "Cache endpoints"
+msgstr "快取端點"
+
+#: lib/tuist_web/live/account_settings_live.ex:278
+#, elixir-autogen, elixir-format
+msgid "Configure custom cache endpoints for self-hosted cache setups. When enabled, Tuist will read from and write to these endpoints instead of the default Tuist-hosted cache."
+msgstr "為自行托管快取設定自訂快取端點。啟用後，Tuist 將會讀取及寫入這些端點，而非使用預設 Tuist 托管快取。"
+
+#: lib/tuist_web/live/account_settings_live.ex:346
+#, elixir-autogen, elixir-format
+msgid "Custom cache endpoints are disabled. Tuist will use the default Tuist-hosted cache."
+msgstr "自訂快取端點已停用。Tuist 將使用預設的 Tuist 托管快取。"
+
+#: lib/tuist_web/live/account_settings_live.ex:358
+#, elixir-autogen, elixir-format
+msgid "No custom cache endpoints configured. Tuist will use the default Tuist-hosted cache until endpoints are added."
+msgstr "未配置自訂快取端點。在新增端點之前，Tuist 將使用預設的 Tuist 托管快取。"
+
+#: lib/tuist_web/live/sso_settings_live.html.heex:164
+#, elixir-autogen, elixir-format
+msgid "Client ID"
+msgstr "用戶端 ID"
+
+#: lib/tuist_web/live/sso_settings_live.html.heex:185
+#, elixir-autogen, elixir-format
+msgid "Client secret"
+msgstr "用戶端密鑰"
+
+#: lib/tuist_web/live/sso_settings_live.html.heex:117
+#, elixir-autogen, elixir-format
+msgid "Copy the Client ID and Client Secret from the application settings"
+msgstr "從應用程式設定複製用戶端 ID 和用戶端密鑰"
+
+#: lib/tuist_web/live/sso_settings_live.html.heex:99
+#, elixir-autogen, elixir-format
+msgid "Go to Applications > Applications > Create App Integration"
+msgstr "前往應用程式 > 應用程式 > 建立應用程式整合"
+
+#: lib/tuist_web/live/sso_settings_live.html.heex:65
+#, elixir-autogen, elixir-format
+msgid "Google Workspace domain"
+msgstr "Google Workspace 網域"
+
+#: lib/tuist_web/live/sso_settings_live.html.heex:177
+#, elixir-autogen, elixir-format
+msgid "Okta application client ID"
+msgstr "Okta 應用程式用戶端 ID"
+
+#: lib/tuist_web/live/sso_settings_live.html.heex:143
+#, elixir-autogen, elixir-format
+msgid "Okta domain"
+msgstr "Okta 網域"
+
+#: lib/tuist_web/live/sso_settings_live.html.heex:53
+#, elixir-autogen, elixir-format
+msgid "Provider"
+msgstr "提供者"
+
+#: lib/tuist_web/live/sso_settings_live.ex:36
+#, elixir-autogen, elixir-format
+msgid "SSO"
+msgstr "單一登入"
+
+#: lib/tuist_web/live/sso_settings_live.ex:20
+#, elixir-autogen, elixir-format
+msgid "SSO settings are only available for organizations."
+msgstr "單一登入設定只限組織使用。"
+
+#: lib/tuist_web/live/sso_settings_live.html.heex:105
+#, elixir-autogen, elixir-format
+msgid "Select \"OIDC - OpenID Connect\" and \"Web Application\""
+msgstr "選擇「OIDC - OpenID 連接」及「網頁應用程式」"
+
+#: lib/tuist_web/live/sso_settings_live.html.heex:3
+#, elixir-autogen, elixir-format
+msgid "Single Sign-On"
+msgstr "單一登入"
+
+#: lib/tuist_web/live/sso_settings_live.ex:211
+#, elixir-autogen, elixir-format
+msgid "You must be authenticated with Google using an email tied to this domain. Please sign in with Google first."
+msgstr "你必須使用與此網域相關聯的電郵進行 Google 認證。請先使用 Google 登入。"
+
+#: lib/tuist_web/live/sso_settings_live.html.heex:89
+#, elixir-autogen, elixir-format
+msgid "Create an OIDC Web Application in your Okta admin dashboard before configuring the fields below."
+msgstr "在 Okta 管理儀表板中建立 OIDC 網頁應用程式，然後再配置以下欄位。"
+
+#: lib/tuist_web/live/sso_settings_live.html.heex:40
+#, elixir-autogen, elixir-format
+msgid "SSO provider"
+msgstr "單一登入提供者"
+
+#: lib/tuist_web/live/sso_settings_live.html.heex:233
+#, elixir-autogen, elixir-format
+msgid "Save changes"
+msgstr "儲存變更"
+
+#: lib/tuist_web/live/sso_settings_live.html.heex:43
+#, elixir-autogen, elixir-format
+msgid "Select an SSO provider to allow users to sign in to Tuist and automatically join this organization."
+msgstr "選擇一個單一登入提供者，允許用戶登入 Tuist 並自動加入此組織。"
+
+#: lib/tuist_web/live/sso_settings_live.html.heex:86
+#, elixir-autogen, elixir-format
+msgid "Setup instructions"
+msgstr "設定指示"
+
+#: lib/tuist_web/live/sso_settings_live.html.heex:167
+#, elixir-autogen, elixir-format
+msgid "The client ID from your Okta OIDC application."
+msgstr "你的 Okta OIDC 應用程式嘅用戶端 ID。"
+
+#: lib/tuist_web/live/sso_settings_live.html.heex:188
+#, elixir-autogen, elixir-format
+msgid "The client secret from your Okta OIDC application."
+msgstr "你的 Okta OIDC 應用程式嘅用戶端密鑰。"
+
+#: lib/tuist_web/live/sso_settings_live.html.heex:68
+#, elixir-autogen, elixir-format
+msgid "Users signing in with a Google account from this domain will be automatically added to this organization."
+msgstr "使用此網域 Google 帳戶登入嘅用戶會自動被加入此組織。"
+
+#: lib/tuist_web/live/sso_settings_live.html.heex:146
+#, elixir-autogen, elixir-format
+msgid "Your Okta organization URL without the https:// prefix."
+msgstr "你的 Okta 組織網址，無 https:// 前綴。"
+
+#: lib/tuist_web/live/sso_settings_live.html.heex:25
+#, elixir-autogen, elixir-format
+msgid "Enable Single Sign-On"
+msgstr "啟用單一登入"
+
+#: lib/tuist_web/live/sso_settings_live.html.heex:28
+#, elixir-autogen, elixir-format
+msgid "Enable and configure SSO for your organization."
+msgstr "為你的組織啟用並設定單一登入。"
+
+#: lib/tuist_web/live/sso_settings_live.html.heex:123
+#, elixir-autogen, elixir-format
+msgid "Set the initiate login URI to:"
+msgstr "設定開始登入的 URI 為："
+
+#: lib/tuist_web/live/sso_settings_live.html.heex:111
+#, elixir-autogen, elixir-format
+msgid "Set the sign-in redirect URI to:"
+msgstr "設定登入重定向 URI 為："
+
+#: lib/tuist_web/live/sso_settings_live.html.heex:218
+#, elixir-autogen, elixir-format
+msgid "Enforce SSO"
+msgstr "強制使用單一登入"
+
+#: lib/tuist_web/live/sso_settings_live.html.heex:221
+#, elixir-autogen, elixir-format
+msgid "When enabled, organization members will not be able to log in with email and password. They must use SSO instead."
+msgstr "啟用後，組織成員將無法使用電郵及密碼登入，必須改用單一登入。"
+
+#: lib/tuist_web/live/sso_settings_live.ex:197
+#, elixir-autogen, elixir-format
+msgid "You must authenticate with the SSO provider before enforcing SSO. Please sign in with your SSO provider first."
+msgstr "在強制使用單一登入前，你必須先完成單一登入提供者的認證。請先使用你的單一登入提供者登入。 "

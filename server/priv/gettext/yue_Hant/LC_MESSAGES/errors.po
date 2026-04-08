@@ -1,0 +1,23 @@
+msgid ""
+msgstr ""
+"Language: yue_Hant\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#: lib/tuist_web/live/docs_live.ex:60
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:656
+#, elixir-autogen, elixir-format
+msgid "Page not found"
+msgstr "未搵到頁面"
+
+#: lib/tuist_web/controllers/build_controller.ex:33
+#, elixir-autogen, elixir-format
+msgid "Build not found"
+msgstr "未搵到構建"
+
+#: lib/tuist_web/controllers/build_controller.ex:29
+#, elixir-autogen, elixir-format
+msgid "You are not authorized to access this build"
+msgstr "你冇權限存取呢個構建"

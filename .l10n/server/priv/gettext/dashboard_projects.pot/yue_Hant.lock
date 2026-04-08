@@ -1,0 +1,19 @@
+{
+  "hash": "4870de038200441c9bd307e55d83290d9311b003857b66c6ff412d71457756ed",
+  "hash_tree": {
+    "context": {
+      "child": {
+        "file": "L10N.md",
+        "hash": "228bdeb0404f501a25aaf9fde3ec22f8c937b03edbeaf3ce3e35b274f07a140f"
+      },
+      "file": "server/L10N.md",
+      "hash": "d8ddb528531aa9d4820a4cd80a344266e13f3da9342ed7490baac74cfce73919"
+    },
+    "source": {
+      "file": "server/priv/gettext/dashboard_projects.pot",
+      "hash": "0aba6c4e214a0a6e4ef74a2f402077a3de884d43d2abc3afb1d110ac9ba9a7ab"
+    }
+  },
+  "model": "openai:gpt-4.1-mini",
+  "translated_at": "2026-04-01T11:55:30.748958Z"
+}

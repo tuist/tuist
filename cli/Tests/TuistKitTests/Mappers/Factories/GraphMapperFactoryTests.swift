@@ -63,6 +63,14 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
         // Then
         XCTAssertContainsElementOfType(got, ModuleMapMapper.self)
     }
+
+    func test_default_contains_the_static_xcframework_app_intents_metadata_graph_mapper() {
+        // When
+        let got = subject.default(config: .test())
+
+        // Then
+        XCTAssertContainsElementOfType(got, StaticXCFrameworkAppIntentsMetadataGraphMapper.self)
+    }
 }
 
 #if canImport(TuistCacheEE)
@@ -287,6 +295,29 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
             )
         }
 
+        func test_automation_runs_tests_cache_after_static_xcframework_app_intents_metadata_mapper() throws {
+            // Given
+            let config = Tuist.test()
+
+            // When
+            let got = subject.automation(
+                config: config,
+                ignoreBinaryCache: false,
+                ignoreSelectiveTesting: false,
+                testPlan: nil,
+                includedTargets: [],
+                excludedTargets: [],
+                configuration: "Debug",
+                cacheStorage: cacheStorage,
+                destination: nil
+            )
+
+            // Then - TestsCacheGraphMapper should run after App Intents metadata injection for consistent hashing
+            XCTAssertContainsElementOfType(
+                got, TestsCacheGraphMapper.self, after: StaticXCFrameworkAppIntentsMetadataGraphMapper.self
+            )
+        }
+
         func test_automation_contains_the_tests_cache_tree_shaking_mapper() throws {
             // Given
             let config = Tuist.test()
@@ -393,6 +424,31 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
             )
         }
 
+        func test_automation_contains_static_xcframework_app_intents_metadata_mapper_after_cache_replacement() throws {
+            // Given
+            let config = Tuist.test()
+
+            // When
+            let got = subject.automation(
+                config: config,
+                ignoreBinaryCache: false,
+                ignoreSelectiveTesting: false,
+                testPlan: nil,
+                includedTargets: [],
+                excludedTargets: [],
+                configuration: "Debug",
+                cacheStorage: cacheStorage,
+                destination: nil
+            )
+
+            // Then
+            XCTAssertContainsElementOfType(
+                got,
+                StaticXCFrameworkAppIntentsMetadataGraphMapper.self,
+                after: TargetsToCacheBinariesGraphMapper.self
+            )
+        }
+
         func test_build_contains_static_xcframework_module_map_mapper_after_cache_replacement() {
             // Given
             let config = Tuist.test()
@@ -409,6 +465,26 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
             XCTAssertContainsElementOfType(
                 got,
                 StaticXCFrameworkModuleMapGraphMapper.self,
+                after: TargetsToCacheBinariesGraphMapper.self
+            )
+        }
+
+        func test_build_contains_static_xcframework_app_intents_metadata_mapper_after_cache_replacement() {
+            // Given
+            let config = Tuist.test()
+
+            // When
+            let got = subject.build(
+                config: config,
+                ignoreBinaryCache: false,
+                configuration: "Debug",
+                cacheStorage: cacheStorage
+            )
+
+            // Then
+            XCTAssertContainsElementOfType(
+                got,
+                StaticXCFrameworkAppIntentsMetadataGraphMapper.self,
                 after: TargetsToCacheBinariesGraphMapper.self
             )
         }
@@ -431,6 +507,28 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
             XCTAssertContainsElementOfType(
                 got,
                 StaticXCFrameworkModuleMapGraphMapper.self,
+                after: TargetsToCacheBinariesGraphMapper.self
+            )
+        }
+
+        func test_generation_contains_static_xcframework_app_intents_metadata_mapper_after_cache_replacement() {
+            // Given
+            let config = Tuist.test()
+            let cacheSources: Set<TargetQuery> = Set([.named("MyTarget")])
+
+            // When
+            let got = subject.generation(
+                config: config,
+                cacheProfile: .onlyExternal,
+                cacheSources: cacheSources,
+                configuration: "Debug",
+                cacheStorage: cacheStorage
+            )
+
+            // Then
+            XCTAssertContainsElementOfType(
+                got,
+                StaticXCFrameworkAppIntentsMetadataGraphMapper.self,
                 after: TargetsToCacheBinariesGraphMapper.self
             )
         }
@@ -478,6 +576,27 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
             )
         }
 
+        func test_binaryCacheWarming_contains_static_xcframework_app_intents_metadata_mapper_after_cache_replacement() {
+            // Given
+            let includedTargets: Set<TargetQuery> = Set([.named("MyTarget")])
+
+            // When
+            let got = subject.binaryCacheWarming(
+                config: .test(),
+                targets: [.iOS: includedTargets],
+                cacheSources: includedTargets,
+                configuration: "Debug",
+                cacheStorage: cacheStorage
+            )
+
+            // Then
+            XCTAssertContainsElementOfType(
+                got,
+                StaticXCFrameworkAppIntentsMetadataGraphMapper.self,
+                after: TargetsToCacheBinariesGraphMapper.self
+            )
+        }
+
         func test_automation_and_binaryCacheWarming_use_same_base_mappers() {
             // Given
             let config = Tuist.test()
@@ -507,8 +626,10 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
             // in the same relative order for consistent hashing
             XCTAssertContainsElementOfType(automationMappers, ModuleMapMapper.self)
             XCTAssertContainsElementOfType(automationMappers, StaticXCFrameworkModuleMapGraphMapper.self)
+            XCTAssertContainsElementOfType(automationMappers, StaticXCFrameworkAppIntentsMetadataGraphMapper.self)
             XCTAssertContainsElementOfType(cacheMappers, ModuleMapMapper.self)
             XCTAssertContainsElementOfType(cacheMappers, StaticXCFrameworkModuleMapGraphMapper.self)
+            XCTAssertContainsElementOfType(cacheMappers, StaticXCFrameworkAppIntentsMetadataGraphMapper.self)
         }
     }
 #endif

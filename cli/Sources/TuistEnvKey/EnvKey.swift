@@ -189,6 +189,7 @@ public enum EnvKey: String, CaseIterable {
     case testShardGranularity = "TUIST_TEST_SHARD_GRANULARITY"
     case testShardIndex = "TUIST_SHARD_INDEX"
     case testShardReference = "TUIST_SHARD_REFERENCE"
+    case testShardSkipUpload = "TUIST_TEST_SHARD_SKIP_UPLOAD"
 
     // TEST SHOW
 

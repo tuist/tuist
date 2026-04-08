@@ -22,7 +22,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: gradle-cache-acceptance-${{ github.head_ref }}
+  group: gradle-cache-acceptance-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
 env:

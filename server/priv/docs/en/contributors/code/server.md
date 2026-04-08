@@ -39,6 +39,26 @@ Open `http://localhost:8080` in your browser. In development, the login page inc
 > [!NOTE]
 > First-party developers can load encrypted secrets from `priv/secrets/dev.key`. External contributors don't need this key — the server runs locally without it. OAuth, Stripe, and other third-party integrations will be disabled, but core functionality works.
 
+### Local Helm testing {#local-helm-testing}
+
+You can spin up the full stack on your machine using [kind](https://kind.sigs.k8s.io/) and the included mise tasks. This builds the Docker images locally, creates a kind cluster, installs the chart, and port-forwards all services automatically:
+
+```bash
+# Deploy everything (builds images from source)
+mise run helm:up --license "YOUR_LICENSE_KEY"
+
+# Include the observability stack (Grafana, Prometheus, Loki, Tempo)
+mise run helm:up --license "YOUR_LICENSE_KEY" --observability
+
+# Check status
+mise run helm:status
+
+# Tear down
+mise run helm:down
+```
+
+**Prerequisites:** `docker`, `kind`, `helm`, and `kubectl`.
+
 ### Tests and formatting {#tests-and-formatting}
 
 - Tests: `mix test`

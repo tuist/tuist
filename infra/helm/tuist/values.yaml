@@ -1,0 +1,226 @@
+nameOverride: ""
+fullnameOverride: ""
+
+global:
+  imagePullSecrets: []
+  commonLabels: {}
+
+server:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: ghcr.io/tuist/tuist
+    tag: ""
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 8080
+  resources: {}
+  extraEnv: []
+  appUrl: http://tuist.local
+  logLevel: info
+  hosted: false
+  skipEmailConfirmation: true
+  secretKeyBase: ""
+  license:
+    key: ""
+    certificateBase64: ""
+    selfHostingDevelopmentMode: false
+  database:
+    ssl: false
+  s3:
+    region: auto
+    virtualHost: false
+    bucketAsHost: false
+    bucketName: tuist
+  cacheEndpointUrl: ""
+  migrationJob:
+    enabled: true
+    backoffLimit: 6
+    resources: {}
+
+cache:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: ghcr.io/tuist/cache
+    tag: ""
+    pullPolicy: IfNotPresent
+  nginx:
+    enabled: true
+    image:
+      repository: nginx
+      tag: "1.29-alpine"
+      pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 80
+  resources: {}
+  extraEnv: []
+  publicHost: cache.local
+  serverUrl: ""
+  apiKey: ""
+  secretKeyBase: ""
+  guardianSecretKey: ""
+  storage:
+    pvc:
+      create: true
+      storageClassName: ""
+      accessModes:
+        - ReadWriteOnce
+      size: 50Gi
+  data:
+    pvc:
+      create: true
+      storageClassName: ""
+      accessModes:
+        - ReadWriteOnce
+      size: 20Gi
+  socket:
+    pvc:
+      create: false
+      storageClassName: ""
+      accessModes:
+        - ReadWriteOnce
+      size: 1Gi
+  s3:
+    region: auto
+    bucket: tuist-cache
+    xcodeCacheBucket: tuist-xcode-cache
+    registryBucket: tuist-registry
+
+postgresql:
+  mode: embedded
+  external:
+    host: ""
+    port: 5432
+    database: tuist
+    username: tuist
+    password: tuist
+  embedded:
+    image:
+      repository: postgres
+      tag: "16"
+      pullPolicy: IfNotPresent
+    database: tuist
+    username: tuist
+    password: tuist
+    persistence:
+      storageClassName: ""
+      accessModes:
+        - ReadWriteOnce
+      size: 20Gi
+    resources: {}
+
+clickhouse:
+  mode: embedded
+  external:
+    url: ""
+  embedded:
+    image:
+      repository: clickhouse/clickhouse-server
+      tag: "26.1"
+      pullPolicy: IfNotPresent
+    database: tuist
+    username: default
+    password: ""
+    persistence:
+      storageClassName: ""
+      accessModes:
+        - ReadWriteOnce
+      size: 50Gi
+    resources: {}
+
+objectStorage:
+  mode: embedded
+  external:
+    endpoint: ""
+    accessKey: ""
+    secretKey: ""
+    region: auto
+    buckets:
+      default: tuist
+      cache: tuist-cache
+      xcodeCache: tuist-xcode-cache
+      registry: tuist-registry
+  embedded:
+    provider: minio
+    image:
+      repository: quay.io/minio/minio
+      tag: latest
+      pullPolicy: IfNotPresent
+    mcImage:
+      repository: quay.io/minio/mc
+      tag: latest
+      pullPolicy: IfNotPresent
+    rootUser: minio
+    rootPassword: minio1234
+    region: auto
+    persistence:
+      storageClassName: ""
+      accessModes:
+        - ReadWriteOnce
+      size: 100Gi
+    buckets:
+      default: tuist
+      cache: tuist-cache
+      xcodeCache: tuist-xcode-cache
+      registry: tuist-registry
+    resources: {}
+
+observability:
+  enabled: false
+  collector:
+    image:
+      repository: otel/opentelemetry-collector-contrib
+      tag: "0.122.1"
+      pullPolicy: IfNotPresent
+    resources: {}
+  grafana:
+    enabled: true
+    image:
+      repository: grafana/grafana
+      tag: "11.5.2"
+      pullPolicy: IfNotPresent
+    adminUser: admin
+    adminPassword: admin
+    persistence:
+      storageClassName: ""
+      accessModes:
+        - ReadWriteOnce
+      size: 10Gi
+  prometheus:
+    enabled: true
+    image:
+      repository: prom/prometheus
+      tag: "v3.4.2"
+      pullPolicy: IfNotPresent
+    persistence:
+      storageClassName: ""
+      accessModes:
+        - ReadWriteOnce
+      size: 20Gi
+  loki:
+    enabled: true
+    image:
+      repository: grafana/loki
+      tag: "3.5.5"
+      pullPolicy: IfNotPresent
+    persistence:
+      storageClassName: ""
+      accessModes:
+        - ReadWriteOnce
+      size: 20Gi
+  tempo:
+    enabled: true
+    image:
+      repository: grafana/tempo
+      tag: "2.8.2"
+      pullPolicy: IfNotPresent
+    persistence:
+      storageClassName: ""
+      accessModes:
+        - ReadWriteOnce
+      size: 20Gi

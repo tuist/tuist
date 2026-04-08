@@ -2,6 +2,7 @@
 #MISE description="Trigger a registry sync for a Swift package version on a production cache node"
 #USAGE arg "<package>" help="Package in scope/name format (e.g., onevcat/rainbow)"
 #USAGE arg "<version>" help="Version tag to sync (e.g., 4.2.1)"
+#USAGE option "--user <user>" help="SSH username for connecting to the cache node"
 
 set -euo pipefail
 
@@ -56,9 +57,11 @@ read_random_production_host() {
 main() {
     local package="$usage_package"
     local version="$usage_version"
+    local user="${usage_user:-}"
     local normalized_scope
     local repository_full_handle
     local selected_host
+    local ssh_target
 
     parse_package "$package"
 
@@ -72,10 +75,16 @@ main() {
 
     log "Package input: ${raw_scope}/${raw_name}"
     log "Using scope \"${normalized_scope}\", name \"${raw_name}\", tag \"${version}\""
-    log "Randomly selected production cache node from cache/config/deploy.production.yml: ${selected_host}"
-    log "Connecting to ${selected_host}"
+    if [[ -n "$user" ]]; then
+        ssh_target="${user}@${selected_host}"
+    else
+        ssh_target="$selected_host"
+    fi
 
-    ssh -o BatchMode=yes "$selected_host" bash -s -- "$normalized_scope" "$raw_name" "$repository_full_handle" "$version" <<'REMOTE'
+    log "Randomly selected production cache node from cache/config/deploy.production.yml: ${selected_host}"
+    log "Connecting to ${ssh_target}"
+
+    ssh -o BatchMode=yes "$ssh_target" bash -s -- "$normalized_scope" "$raw_name" "$repository_full_handle" "$version" <<'REMOTE'
 #!/usr/bin/env bash
 set -euo pipefail
 

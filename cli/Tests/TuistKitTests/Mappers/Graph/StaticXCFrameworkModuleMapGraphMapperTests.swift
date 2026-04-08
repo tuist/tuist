@@ -61,6 +61,7 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
                 Constants.tuistDirectoryName,
                 Constants.SwiftPackageManager.packageBuildDirectoryName,
                 Constants.DerivedDirectory.dependenciesDerivedDirectory,
+                Constants.DerivedDirectory.dependenciesXCFrameworkDirectory,
             ]
         )
 
@@ -117,10 +118,10 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
                             base: [
                                 "OTHER_SWIFT_FLAGS": [
                                     "-Xcc",
-                                    "-fmodule-map-file=\"$(SRCROOT)/Tuist/.build/tuist-derived/GoogleMaps/Headers/module.modulemap\"",
+                                    "-fmodule-map-file=\"$(SRCROOT)/Tuist/.build/tuist-derived/XCFrameworks/GoogleMaps/Headers/module.modulemap\"",
                                 ],
                                 "OTHER_C_FLAGS": [
-                                    "-fmodule-map-file=\"$(SRCROOT)/Tuist/.build/tuist-derived/GoogleMaps/Headers/module.modulemap\"",
+                                    "-fmodule-map-file=\"$(SRCROOT)/Tuist/.build/tuist-derived/XCFrameworks/GoogleMaps/Headers/module.modulemap\"",
                                 ],
                                 "HEADER_SEARCH_PATHS": ["\"$(SRCROOT)/../GoogleMaps.xcframework/ios-arm64/Headers\""],
                             ]
@@ -399,6 +400,7 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
                 Constants.tuistDirectoryName,
                 Constants.SwiftPackageManager.packageBuildDirectoryName,
                 Constants.DerivedDirectory.dependenciesDerivedDirectory,
+                Constants.DerivedDirectory.dependenciesXCFrameworkDirectory,
             ]
         )
 
@@ -455,10 +457,10 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
                             base: [
                                 "OTHER_SWIFT_FLAGS": [
                                     "-Xcc",
-                                    "-fmodule-map-file=\"$(SRCROOT)/Tuist/.build/tuist-derived/GoogleMaps/Headers/module.modulemap\"",
+                                    "-fmodule-map-file=\"$(SRCROOT)/Tuist/.build/tuist-derived/XCFrameworks/GoogleMaps/Headers/module.modulemap\"",
                                 ],
                                 "OTHER_C_FLAGS": [
-                                    "-fmodule-map-file=\"$(SRCROOT)/Tuist/.build/tuist-derived/GoogleMaps/Headers/module.modulemap\"",
+                                    "-fmodule-map-file=\"$(SRCROOT)/Tuist/.build/tuist-derived/XCFrameworks/GoogleMaps/Headers/module.modulemap\"",
                                 ],
                                 "HEADER_SEARCH_PATHS": ["\"$(SRCROOT)/../GoogleMaps.xcframework/ios-arm64/Headers\""],
                             ]
@@ -583,10 +585,10 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
                             base: [
                                 "OTHER_SWIFT_FLAGS": [
                                     "-Xcc",
-                                    "-fmodule-map-file=\"$(SRCROOT)/Tuist/.build/tuist-derived/GoogleMaps/Headers/module.modulemap\"",
+                                    "-fmodule-map-file=\"$(SRCROOT)/Tuist/.build/tuist-derived/XCFrameworks/GoogleMaps/Headers/module.modulemap\"",
                                 ],
                                 "OTHER_C_FLAGS": [
-                                    "-fmodule-map-file=\"$(SRCROOT)/Tuist/.build/tuist-derived/GoogleMaps/Headers/module.modulemap\"",
+                                    "-fmodule-map-file=\"$(SRCROOT)/Tuist/.build/tuist-derived/XCFrameworks/GoogleMaps/Headers/module.modulemap\"",
                                 ],
                                 "HEADER_SEARCH_PATHS": ["\"$(SRCROOT)/../GoogleMaps.xcframework/ios-arm64/Headers\""],
                             ]
@@ -598,10 +600,10 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
                             base: [
                                 "OTHER_SWIFT_FLAGS": [
                                     "-Xcc",
-                                    "-fmodule-map-file=\"$(SRCROOT)/Tuist/.build/tuist-derived/GoogleMaps/Headers/module.modulemap\"",
+                                    "-fmodule-map-file=\"$(SRCROOT)/Tuist/.build/tuist-derived/XCFrameworks/GoogleMaps/Headers/module.modulemap\"",
                                 ],
                                 "OTHER_C_FLAGS": [
-                                    "-fmodule-map-file=\"$(SRCROOT)/Tuist/.build/tuist-derived/GoogleMaps/Headers/module.modulemap\"",
+                                    "-fmodule-map-file=\"$(SRCROOT)/Tuist/.build/tuist-derived/XCFrameworks/GoogleMaps/Headers/module.modulemap\"",
                                 ],
                                 "HEADER_SEARCH_PATHS": ["\"$(SRCROOT)/../GoogleMaps.xcframework/ios-arm64/Headers\""],
                             ]
@@ -667,6 +669,7 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
                 Constants.tuistDirectoryName,
                 Constants.SwiftPackageManager.packageBuildDirectoryName,
                 Constants.DerivedDirectory.dependenciesDerivedDirectory,
+                Constants.DerivedDirectory.dependenciesXCFrameworkDirectory,
             ]
         )
 
@@ -732,10 +735,10 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
                             base: [
                                 "OTHER_SWIFT_FLAGS": [
                                     "-Xcc",
-                                    "-fmodule-map-file=\"$(SRCROOT)/Tuist/.build/tuist-derived/GoogleMaps/Headers/module.modulemap\"",
+                                    "-fmodule-map-file=\"$(SRCROOT)/Tuist/.build/tuist-derived/XCFrameworks/GoogleMaps/Headers/module.modulemap\"",
                                 ],
                                 "OTHER_C_FLAGS": [
-                                    "-fmodule-map-file=\"$(SRCROOT)/Tuist/.build/tuist-derived/GoogleMaps/Headers/module.modulemap\"",
+                                    "-fmodule-map-file=\"$(SRCROOT)/Tuist/.build/tuist-derived/XCFrameworks/GoogleMaps/Headers/module.modulemap\"",
                                 ],
                                 "HEADER_SEARCH_PATHS": [
                                     "\"$(SRCROOT)/../BuiltFrameworks/GoogleMaps.xcframework/ios-arm64/Headers\"",
@@ -1000,10 +1003,10 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
                             base: [
                                 "OTHER_SWIFT_FLAGS": [
                                     "-Xcc",
-                                    "-fmodule-map-file=\"$(SRCROOT)/Tuist/.build/tuist-derived/GoogleMaps/Headers/module.modulemap\"",
+                                    "-fmodule-map-file=\"$(SRCROOT)/Tuist/.build/tuist-derived/XCFrameworks/GoogleMaps/Headers/module.modulemap\"",
                                 ],
                                 "OTHER_C_FLAGS": [
-                                    "-fmodule-map-file=\"$(SRCROOT)/Tuist/.build/tuist-derived/GoogleMaps/Headers/module.modulemap\"",
+                                    "-fmodule-map-file=\"$(SRCROOT)/Tuist/.build/tuist-derived/XCFrameworks/GoogleMaps/Headers/module.modulemap\"",
                                 ],
                                 "HEADER_SEARCH_PATHS": [
                                     "\"$(SRCROOT)/../BuiltFrameworks/GoogleMaps.xcframework/ios-arm64/Headers\"",
@@ -1022,10 +1025,10 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
                             base: [
                                 "OTHER_SWIFT_FLAGS": [
                                     "-Xcc",
-                                    "-fmodule-map-file=\"$(SRCROOT)/../../../Project1/Tuist/.build/tuist-derived/GoogleMaps/Headers/module.modulemap\"",
+                                    "-fmodule-map-file=\"$(SRCROOT)/../../../Project1/Tuist/.build/tuist-derived/XCFrameworks/GoogleMaps/Headers/module.modulemap\"",
                                 ],
                                 "OTHER_C_FLAGS": [
-                                    "-fmodule-map-file=\"$(SRCROOT)/../../../Project1/Tuist/.build/tuist-derived/GoogleMaps/Headers/module.modulemap\"",
+                                    "-fmodule-map-file=\"$(SRCROOT)/../../../Project1/Tuist/.build/tuist-derived/XCFrameworks/GoogleMaps/Headers/module.modulemap\"",
                                 ],
                                 "HEADER_SEARCH_PATHS": [
                                     "\"$(SRCROOT)/../../../BuiltFrameworks/GoogleMaps.xcframework/ios-arm64/Headers\"",
@@ -1196,6 +1199,7 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
                 Constants.tuistDirectoryName,
                 Constants.SwiftPackageManager.packageBuildDirectoryName,
                 Constants.DerivedDirectory.dependenciesDerivedDirectory,
+                Constants.DerivedDirectory.dependenciesXCFrameworkDirectory,
             ]
         )
 
@@ -1252,10 +1256,10 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
                             base: [
                                 "OTHER_SWIFT_FLAGS": [
                                     "-Xcc",
-                                    "-fmodule-map-file=\"$(SRCROOT)/Tuist/.build/tuist-derived/GoogleMaps/Headers/module.modulemap\"",
+                                    "-fmodule-map-file=\"$(SRCROOT)/Tuist/.build/tuist-derived/XCFrameworks/GoogleMaps/Headers/module.modulemap\"",
                                 ],
                                 "OTHER_C_FLAGS": [
-                                    "-fmodule-map-file=\"$(SRCROOT)/Tuist/.build/tuist-derived/GoogleMaps/Headers/module.modulemap\"",
+                                    "-fmodule-map-file=\"$(SRCROOT)/Tuist/.build/tuist-derived/XCFrameworks/GoogleMaps/Headers/module.modulemap\"",
                                 ],
                                 "HEADER_SEARCH_PATHS": ["\"$(SRCROOT)/../GoogleMaps.xcframework/ios-arm64/Headers\""],
                             ]

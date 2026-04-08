@@ -401,6 +401,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.acceptanceTesting.targetName),
                     .target(name: Module.testing.targetName),
                     .target(name: Module.loggerTesting.targetName),
+                    .target(name: Module.environment.targetName),
                     .target(name: Module.kit.targetName),
                     .target(name: Module.initCommand.targetName),
                     .target(name: Module.support.targetName),
@@ -780,7 +781,6 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.environment.targetName),
                     .target(name: Module.logging.targetName),
                     .target(name: Module.userInputReader.targetName),
-                    .external(name: "MCP"),
                     .external(name: "FileSystem"),
                     .external(name: "SwiftToolsSupport"),
                     .target(name: Module.xcodeGraph.targetName),
@@ -1675,7 +1675,6 @@ public enum Module: String, CaseIterable {
                     .external(name: "GRPCNIOTransportHTTP2"),
                     .external(name: "SwiftyJSON"),
                     .external(name: "Rosalind"),
-                    .external(name: "MCP"),
                     .external(name: "Noora"),
                     .external(name: "Command"),
                     .external(name: "OpenAPIRuntime"),
@@ -1872,6 +1871,7 @@ public enum Module: String, CaseIterable {
             case .xcResultService:
                 [
                     .target(name: Module.testing.targetName),
+                    .target(name: "XCResultParser"),
                     .external(name: "FileSystemTesting"),
                 ]
             case .cas:

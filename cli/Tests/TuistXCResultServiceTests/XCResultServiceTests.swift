@@ -134,4 +134,44 @@ struct XCResultServiceTests {
         #expect(regularTest.status == .passed)
         #expect(regularTest.arguments.isEmpty)
     }
+
+    // MARK: - parseTestStatuses
+
+    @Test
+    func parseTestStatuses_returnsCorrectStatuses() async throws {
+        let xcresult = try AbsolutePath(validating: #file).parentDirectory
+            .appending(try RelativePath(validating: "../Fixtures/test.xcresult"))
+
+        let got = try await subject.parseTestStatuses(path: xcresult)
+
+        #expect(got.hasFailures == true)
+        let passed = got.testCases.filter { $0.status == .passed }
+        let failed = got.testCases.filter { $0.status == .failed }
+        #expect(passed.count == 2)
+        #expect(failed.count == 4)
+        #expect(got.testCases.allSatisfy { $0.module == "AppTests" })
+    }
+
+    @Test
+    func parseTestStatuses_returnsPassingModuleNames() async throws {
+        let xcresult = try AbsolutePath(validating: #file).parentDirectory
+            .appending(try RelativePath(validating: "../Fixtures/test-with-custom-label.xcresult"))
+
+        let got = try await subject.parseTestStatuses(path: xcresult)
+
+        #expect(got.hasFailures == false)
+        #expect(got.passingModuleNames().contains("AppTests"))
+    }
+
+    @Test
+    func parseTestStatuses_extractsModuleAndSuiteNames() async throws {
+        let xcresult = try AbsolutePath(validating: #file).parentDirectory
+            .appending(try RelativePath(validating: "../Fixtures/test.xcresult"))
+
+        let got = try await subject.parseTestStatuses(path: xcresult)
+
+        let modules = Set(got.testCases.compactMap(\.module))
+        #expect(modules == ["AppTests"])
+        #expect(got.testCases.contains { $0.testSuite != nil })
+    }
 }

@@ -3,31 +3,21 @@
     import Foundation
     import Path
     import TuistAlert
-    import TuistAutomation
-    import TuistCASAnalytics
-    import TuistCI
     import TuistConfigLoader
     import TuistCore
     import TuistEnvironment
-    import TuistGit
-    import TuistLoader
+    import TuistKit
     import TuistLogging
-    import TuistMachineMetrics
     import TuistProcess
-    import TuistServer
     import TuistSupport
     import TuistXCActivityLog
     import TuistXcodeProjectOrWorkspacePathLocator
 
     enum InspectBuildCommandServiceError: Equatable, LocalizedError {
-        case missingFullHandle
         case executablePathMissing
         case mostRecentActivityLogNotFound(AbsolutePath)
         var errorDescription: String? {
             switch self {
-            case .missingFullHandle:
-                return
-                    "The 'Tuist.swift' file is missing a fullHandle. See how to set up a Tuist project at: https://tuist.dev/en/docs/guides/server/accounts-and-projects#projects"
             case .executablePathMissing:
                 return "We couldn't find tuist's executable path to run inspect build in a background."
             case let .mostRecentActivityLogNotFound(projectPath):
@@ -40,47 +30,29 @@
     struct InspectBuildCommandService {
         private let derivedDataLocator: DerivedDataLocating
         private let fileSystem: FileSysteming
-        private let machineEnvironment: MachineEnvironmentRetrieving
-        private let xcodeBuildController: XcodeBuildControlling
-        private let createBuildService: CreateBuildServicing
-        private let uploadBuildService: UploadBuildServicing
         private let configLoader: ConfigLoading
         private let xcActivityLogController: XCActivityLogControlling
         private let backgroundProcessRunner: BackgroundProcessRunning
         private let dateService: DateServicing
-        private let serverEnvironmentService: ServerEnvironmentServicing
-        private let gitController: GitControlling
-        private let ciController: CIControlling
+        private let uploadBuildRunService: UploadBuildRunServicing
         private let xcodeProjectOrWorkspacePathLocator: XcodeProjectOrWorkspacePathLocating
         init(
             derivedDataLocator: DerivedDataLocating = DerivedDataLocator(),
             fileSystem: FileSysteming = FileSystem(),
-            machineEnvironment: MachineEnvironmentRetrieving = MachineEnvironment.shared,
-            xcodeBuildController: XcodeBuildControlling = XcodeBuildController(),
-            createBuildService: CreateBuildServicing = CreateBuildService(),
-            uploadBuildService: UploadBuildServicing = UploadBuildService(),
             configLoader: ConfigLoading = ConfigLoader(),
             xcActivityLogController: XCActivityLogControlling = XCActivityLogController(),
             backgroundProcessRunner: BackgroundProcessRunning = BackgroundProcessRunner(),
             dateService: DateServicing = DateService(),
-            serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
-            gitController: GitControlling = GitController(),
-            ciController: CIControlling = CIController(),
+            uploadBuildRunService: UploadBuildRunServicing = UploadBuildRunService(),
             xcodeProjectOrWorkspacePathLocator: XcodeProjectOrWorkspacePathLocating = XcodeProjectOrWorkspacePathLocator()
         ) {
             self.derivedDataLocator = derivedDataLocator
             self.fileSystem = fileSystem
-            self.machineEnvironment = machineEnvironment
-            self.xcodeBuildController = xcodeBuildController
-            self.createBuildService = createBuildService
-            self.uploadBuildService = uploadBuildService
             self.configLoader = configLoader
             self.xcActivityLogController = xcActivityLogController
             self.backgroundProcessRunner = backgroundProcessRunner
             self.dateService = dateService
-            self.serverEnvironmentService = serverEnvironmentService
-            self.gitController = gitController
-            self.ciController = ciController
+            self.uploadBuildRunService = uploadBuildRunService
             self.xcodeProjectOrWorkspacePathLocator = xcodeProjectOrWorkspacePathLocator
         }
 
@@ -134,9 +106,16 @@
                 referenceDate: referenceDate
             )
 
-            try await createRemoteBuild(
-                mostRecentActivityLogPath: mostRecentActivityLogPath,
-                projectPath: projectPath
+            let config = try await configLoader.loadConfig(path: projectPath)
+            let buildURL = try await uploadBuildRunService.uploadBuildRun(
+                activityLogPath: mostRecentActivityLogPath,
+                projectPath: projectPath,
+                config: config,
+                scheme: nil,
+                configuration: nil
+            )
+            AlertController.current.success(
+                .alert("Build uploaded for processing. View status at \(buildURL.absoluteString)")
             )
         }
 
@@ -176,107 +155,6 @@
             return mostRecentActivityLogPath
         }
 
-        private func createRemoteBuild(
-            mostRecentActivityLogPath: AbsolutePath,
-            projectPath: AbsolutePath
-        ) async throws {
-            let config =
-                try await configLoader
-                    .loadConfig(path: projectPath)
-            let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
-            guard let fullHandle = config.fullHandle else {
-                throw InspectBuildCommandServiceError.missingFullHandle
-            }
-
-            let buildId = mostRecentActivityLogPath.basenameWithoutExt
-
-            let build: ServerBuild = try await fileSystem.runInTemporaryDirectory(prefix: "build") { tempDirectory in
-                let archivePath = try await bundleBuild(
-                    mostRecentActivityLogPath: mostRecentActivityLogPath,
-                    into: tempDirectory
-                )
-                try await uploadBuildService.uploadBuild(
-                    buildId: buildId,
-                    fullHandle: fullHandle,
-                    serverURL: serverURL,
-                    filePath: archivePath
-                )
-
-                let gitInfo = try gitController.gitInfo(workingDirectory: projectPath)
-                let ciInfo = ciController.ciInfo()
-                let customMetadata = readCustomMetadata()
-                return try await createBuildService.createBuild(
-                    fullHandle: fullHandle,
-                    serverURL: serverURL,
-                    id: buildId,
-                    category: .incremental,
-                    configuration: Environment.current.variables["CONFIGURATION"],
-                    customMetadata: customMetadata,
-                    duration: 0,
-                    files: [],
-                    gitBranch: gitInfo.branch,
-                    gitCommitSHA: gitInfo.sha,
-                    gitRef: gitInfo.ref,
-                    gitRemoteURLOrigin: gitInfo.remoteURLOrigin,
-                    isCI: Environment.current.isCI,
-                    issues: [],
-                    modelIdentifier: machineEnvironment.modelIdentifier(),
-                    macOSVersion: machineEnvironment.macOSVersion,
-                    scheme: Environment.current.schemeName,
-                    targets: [],
-                    xcodeCacheUploadEnabled: config.cache.upload,
-                    xcodeVersion: try await xcodeBuildController.version()?.description,
-                    status: .processing,
-                    ciRunId: ciInfo?.runId,
-                    ciProjectHandle: ciInfo?.projectHandle,
-                    ciHost: ciInfo?.host,
-                    ciProvider: ciInfo?.provider,
-                    cacheableTasks: [],
-                    casOutputs: [],
-                    machineMetrics: []
-                )
-            }
-            AlertController.current.success(
-                .alert("Build uploaded for processing. View status at \(build.url.absoluteString)")
-            )
-        }
-
-        private func bundleBuild(
-            mostRecentActivityLogPath: AbsolutePath,
-            into tempDirectory: AbsolutePath
-        ) async throws -> AbsolutePath {
-            let buildDirectory = tempDirectory.appending(component: "build")
-            try await fileSystem.makeDirectory(at: buildDirectory)
-
-            let xcactivitylogDir = buildDirectory.appending(component: "xcactivitylog")
-            try await fileSystem.makeDirectory(at: xcactivitylogDir)
-            try await fileSystem.copy(
-                mostRecentActivityLogPath,
-                to: xcactivitylogDir.appending(component: mostRecentActivityLogPath.basename)
-            )
-
-            let casAnalyticsDatabasePath = Environment.current.stateDirectory
-                .appending(component: CASAnalyticsDatabase.databaseName)
-            if try await fileSystem.exists(casAnalyticsDatabasePath) {
-                try await fileSystem.copy(
-                    casAnalyticsDatabasePath,
-                    to: buildDirectory.appending(component: "cas_analytics.db")
-                )
-            }
-
-            let metricsSource = MachineMetricsReader.metricsFilePath
-            if try await fileSystem.exists(metricsSource) {
-                try await fileSystem.copy(
-                    metricsSource,
-                    to: buildDirectory.appending(component: "machine_metrics.jsonl")
-                )
-            }
-
-            let zipPath = tempDirectory.appending(component: "build.zip")
-            try await fileSystem.zipFileOrDirectoryContent(at: buildDirectory, to: zipPath)
-            return zipPath
-        }
-
         private func path(_ path: String?) async throws -> AbsolutePath {
             let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
             if let path {
@@ -286,28 +164,6 @@
             } else {
                 return currentWorkingDirectory
             }
-        }
-
-        private func readCustomMetadata() -> BuildCustomMetadata {
-            let env = Environment.current.variables
-            var tags: [String] = []
-            var values: [String: String] = [:]
-
-            if let tagsString = env["TUIST_BUILD_TAGS"] {
-                tags.append(
-                    contentsOf: tagsString.split(separator: ",").map { String($0).trimmingCharacters(in: .whitespaces) }
-                )
-            }
-
-            for (key, value) in env where key.hasPrefix("TUIST_BUILD_VALUE_") {
-                let valueKey = String(key.dropFirst("TUIST_BUILD_VALUE_".count)).lowercased()
-                values[valueKey] = value
-            }
-
-            return BuildCustomMetadata(
-                tags: tags,
-                values: BuildCustomMetadata.valuesPayload(additionalProperties: values)
-            )
         }
     }
 #endif

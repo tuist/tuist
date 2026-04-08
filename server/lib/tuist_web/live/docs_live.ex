@@ -3,6 +3,8 @@ defmodule TuistWeb.DocsLive do
   use TuistWeb, :live_view
   use Noora
 
+  import TuistWeb.Docs.MarkdownComponents, warn: false
+
   alias Tuist.Docs
   alias Tuist.Docs.Paths
   alias TuistWeb.Errors.NotFoundError
@@ -227,11 +229,11 @@ defmodule TuistWeb.DocsLive do
               patch={docs_path("/#{@locale}/guides/features/cache/module-cache")}
               data-part="feature-card"
             >
-              <div data-part="feature-card-image">
-                <span data-part="feature-card-icon"><.database /></span>
-                <span data-part="feature-card-title">{dgettext("docs", "Cache")}</span>
+              <div data-part="image">
+                <span data-part="icon"><.database /></span>
+                <span data-part="title">{dgettext("docs", "Cache")}</span>
               </div>
-              <div data-part="feature-card-body">
+              <div data-part="body">
                 <p>
                   {dgettext(
                     "docs",
@@ -244,11 +246,11 @@ defmodule TuistWeb.DocsLive do
               patch={docs_path("/#{@locale}/guides/features/build-insights")}
               data-part="feature-card"
             >
-              <div data-part="feature-card-image">
-                <span data-part="feature-card-icon"><.search /></span>
-                <span data-part="feature-card-title">{dgettext("docs", "Insights")}</span>
+              <div data-part="image">
+                <span data-part="icon"><.search /></span>
+                <span data-part="title">{dgettext("docs", "Insights")}</span>
               </div>
-              <div data-part="feature-card-body">
+              <div data-part="body">
                 <p>
                   {dgettext(
                     "docs",
@@ -274,11 +276,11 @@ defmodule TuistWeb.DocsLive do
               patch={docs_path("/#{@locale}/guides/features/selective-testing")}
               data-part="feature-card"
             >
-              <div data-part="feature-card-image">
-                <span data-part="feature-card-icon"><.subtask /></span>
-                <span data-part="feature-card-title">{dgettext("docs", "Selective Testing")}</span>
+              <div data-part="image">
+                <span data-part="icon"><.subtask /></span>
+                <span data-part="title">{dgettext("docs", "Selective Testing")}</span>
               </div>
-              <div data-part="feature-card-body">
+              <div data-part="body">
                 <p>
                   {dgettext(
                     "docs",
@@ -291,11 +293,11 @@ defmodule TuistWeb.DocsLive do
               patch={docs_path("/#{@locale}/guides/features/test-insights/flaky-tests")}
               data-part="feature-card"
             >
-              <div data-part="feature-card-image">
-                <span data-part="feature-card-icon"><.progress_x /></span>
-                <span data-part="feature-card-title">{dgettext("docs", "Flaky Tests")}</span>
+              <div data-part="image">
+                <span data-part="icon"><.progress_x /></span>
+                <span data-part="title">{dgettext("docs", "Flaky Tests")}</span>
               </div>
-              <div data-part="feature-card-body">
+              <div data-part="body">
                 <p>
                   {dgettext(
                     "docs",
@@ -308,11 +310,11 @@ defmodule TuistWeb.DocsLive do
               patch={docs_path("/#{@locale}/guides/features/test-insights")}
               data-part="feature-card"
             >
-              <div data-part="feature-card-image">
-                <span data-part="feature-card-icon"><.search /></span>
-                <span data-part="feature-card-title">{dgettext("docs", "Insights")}</span>
+              <div data-part="image">
+                <span data-part="icon"><.search /></span>
+                <span data-part="title">{dgettext("docs", "Insights")}</span>
               </div>
-              <div data-part="feature-card-body">
+              <div data-part="body">
                 <p>
                   {dgettext(
                     "docs",
@@ -335,11 +337,11 @@ defmodule TuistWeb.DocsLive do
           </p>
           <div data-part="feature-cards">
             <.link patch={docs_path("/#{@locale}/guides/features/previews")} data-part="feature-card">
-              <div data-part="feature-card-image">
-                <span data-part="feature-card-icon"><.devices /></span>
-                <span data-part="feature-card-title">{dgettext("docs", "Previews")}</span>
+              <div data-part="image">
+                <span data-part="icon"><.devices /></span>
+                <span data-part="title">{dgettext("docs", "Previews")}</span>
               </div>
-              <div data-part="feature-card-body">
+              <div data-part="body">
                 <p>
                   {dgettext(
                     "docs",
@@ -497,7 +499,7 @@ defmodule TuistWeb.DocsLive do
       locale={@locale}
     >
       <article id={"docs-body-#{@page.slug}"} class="tuist-docs" data-prose phx-hook="DocsContent">
-        {raw(@page.body)}
+        {render_doc_body(@page, assigns)}
       </article>
       <footer id="docs-page-footer">
         <div data-part="markdown-link">
@@ -556,6 +558,17 @@ defmodule TuistWeb.DocsLive do
         []
     end
   end
+
+  defp render_doc_body(%{body_template: template, code_blocks: code_blocks}, assigns) when not is_nil(template) do
+    merged_assigns = Map.put(assigns, :_doc_code_blocks, code_blocks || [])
+
+    {rendered, _} =
+      Code.eval_quoted(template, [assigns: merged_assigns], Macro.Env.prune_compile_info(__ENV__))
+
+    rendered
+  end
+
+  defp render_doc_body(%{body: body}, _assigns), do: raw(body)
 
   defp build_path(%{"path" => path_parts}, locale), do: Paths.slug(locale, path_parts)
   defp build_path(_params, locale), do: Paths.slug(locale)

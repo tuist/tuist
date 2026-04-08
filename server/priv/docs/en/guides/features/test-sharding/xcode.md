@@ -10,8 +10,8 @@
 > [!WARNING]
 > **Requirements**
 >
-> - A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and project</LocalizedLink>
-> - <LocalizedLink href="/guides/features/test-insights">Test Insights</LocalizedLink> configured (for optimal shard balancing)
+> - A <.localized_link href="/guides/server/accounts-and-projects">Tuist account and project</.localized_link>
+> - <.localized_link href="/guides/features/test-insights">Test Insights</.localized_link> configured (for optimal shard balancing)
 
 
 Test sharding for Xcode projects uses `tuist xcodebuild build-for-testing` to create a shard plan and `tuist xcodebuild test` to execute each shard.
@@ -417,4 +417,98 @@ workflows:
 
 > [!TIP]
 > Bitrise does not support dynamic parallel job creation at runtime. Define a fixed number of shard workflows in your pipeline stages — workflows within a stage run in parallel automatically.
+
+## Shared volumes {#shared-volumes}
+
+By default, the build phase uploads the `.xctestproducts` bundle to remote storage, and each shard runner downloads it. If your CI provider supports **shared volumes** (persistent storage mounted across jobs), you can skip this upload/download entirely by passing the test products through a shared filesystem.
+
+This can significantly reduce shard startup time, especially for large test bundles.
+
+To use shared volumes:
+
+1. In the **build phase**, pass `-testProductsPath` pointing to a shared volume and add `--shard-skip-upload` to skip the remote upload:
+
+```sh
+tuist xcodebuild build-for-testing \
+  -scheme MyScheme \
+  -destination 'platform=iOS Simulator,name=iPhone 16' \
+  --shard-total 5 \
+  --shard-skip-upload \
+  -testProductsPath /path/to/shared/volume/$UNIQUE_ID/MyScheme.xctestproducts
+```
+
+2. In the **test phase**, pass the same `-testProductsPath` so Tuist reads the test products locally instead of downloading them:
+
+```sh
+tuist xcodebuild test \
+  -scheme MyScheme \
+  -destination 'platform=iOS Simulator,name=iPhone 16' \
+  -testProductsPath /path/to/shared/volume/$UNIQUE_ID/MyScheme.xctestproducts
+```
+
+> [!IMPORTANT]
+> Use a unique path per workflow run (e.g. include the CI run ID) to avoid collisions between concurrent runs. You should also clean up the test products after sharding completes to avoid accumulating stale data on the volume.
+
+| Flag | Environment variable | Description |
+|------|---------------------|-------------|
+| `--shard-skip-upload` | `TUIST_TEST_SHARD_SKIP_UPLOAD` | Skip uploading the test products bundle to remote storage |
+
+### Namespace {#namespace}
+
+[Namespace](https://namespace.so) runners support shared volumes across GitHub Actions jobs. Since volumes persist across workflow runs, include `${{ github.run_id }}` in the path to isolate concurrent runs and clean up afterwards:
+
+```yaml
+name: Tests
+on: [pull_request]
+
+env:
+  TEST_PRODUCTS_PATH: /Volumes/test-products/${{ github.run_id }}/MyScheme.xctestproducts
+
+jobs:
+  build:
+    name: Build test shards
+    runs-on: namespace-profile-default-macos
+    volumes:
+      - name: test-products
+        path: /Volumes/test-products
+    outputs:
+      matrix: ${{ steps.build.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+      - run: tuist auth login
+      - id: build
+        run: |
+          tuist xcodebuild build-for-testing \
+            -scheme MyScheme \
+            -destination 'platform=iOS Simulator,name=iPhone 16' \
+            --shard-total 5 \
+            --shard-skip-upload \
+            -testProductsPath $TEST_PRODUCTS_PATH
+
+  test:
+    name: "Shard #${{ matrix.shard }}"
+    needs: build
+    runs-on: namespace-profile-default-macos
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJson(needs.build.outputs.matrix).shard }}
+    volumes:
+      - name: test-products
+        path: /Volumes/test-products
+    env:
+      TUIST_SHARD_INDEX: ${{ matrix.shard }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+      - run: tuist auth login
+      - run: |
+          tuist xcodebuild test \
+            -scheme MyScheme \
+            -destination 'platform=iOS Simulator,name=iPhone 16' \
+            -testProductsPath $TEST_PRODUCTS_PATH
+      - if: always()
+        run: rm -rf /Volumes/test-products/${{ github.run_id }}
+```
 

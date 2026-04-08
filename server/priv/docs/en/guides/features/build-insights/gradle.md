@@ -10,7 +10,7 @@
 > [!WARNING]
 > **Requirements**
 >
-> - The <LocalizedLink href="/guides/install-gradle-plugin">Tuist Gradle plugin</LocalizedLink> installed and configured
+> - The <.localized_link href="/guides/install-gradle-plugin">Tuist Gradle plugin</.localized_link> installed and configured
 
 
 Tuist's Gradle plugin can send build analytics to Tuist, giving you visibility into task execution and build performance.

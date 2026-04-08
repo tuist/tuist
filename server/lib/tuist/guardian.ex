@@ -33,12 +33,15 @@ defmodule Tuist.Guardian do
   def resource_from_claims(%{"sub" => id, "type" => "account"} = claims) do
     case Accounts.get_account_by_id(id) do
       {:ok, account} ->
+        user = load_user_from_claims(claims)
+
         {:ok,
          %AuthenticatedAccount{
            account: account,
            scopes: claims["scopes"],
            all_projects: Map.get(claims, "all_projects", false),
-           project_ids: extract_project_ids(claims)
+           project_ids: extract_project_ids(claims),
+           issued_by: user
          }}
 
       {:error, :not_found} ->
@@ -50,6 +53,12 @@ defmodule Tuist.Guardian do
     resource = Accounts.get_user_by_id(id)
     {:ok, resource}
   end
+
+  defp load_user_from_claims(%{"user_id" => user_id}) when not is_nil(user_id) do
+    Accounts.get_user_by_id(user_id)
+  end
+
+  defp load_user_from_claims(_), do: nil
 
   defp extract_project_ids(%{"project_ids" => project_ids}) when is_list(project_ids), do: project_ids
   defp extract_project_ids(%{"project_id" => project_id}) when not is_nil(project_id), do: [project_id]

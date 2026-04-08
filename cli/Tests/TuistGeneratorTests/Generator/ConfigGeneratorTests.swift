@@ -65,7 +65,7 @@ struct ConfigGeneratorTests {
             "INFOPLIST_FILE": "$(SRCROOT)/Info.plist",
             "PRODUCT_BUNDLE_IDENTIFIER": "com.test.bundle_id",
             "CODE_SIGN_ENTITLEMENTS": "$(SRCROOT)/Test.entitlements",
-            "SWIFT_VERSION": "5.0",
+            "SWIFT_VERSION": "5",
         ]
 
         let debugSettings: SettingsDictionary = [
@@ -300,6 +300,66 @@ struct ConfigGeneratorTests {
 
         let testHostSettings: SettingsDictionary = [
             "TEST_HOST": "$(BUILT_PRODUCTS_DIR)/App_dash.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/App_dash",
+            "BUNDLE_LOADER": "$(TEST_HOST)",
+        ]
+
+        assert(config: debugConfig, contains: testHostSettings)
+        assert(config: releaseConfig, contains: testHostSettings)
+    }
+
+    @Test(
+        .withMockedXcodeController,
+        .inTemporaryDirectory
+    ) func generateTestTargetConfiguration_crossProjectHost() async throws {
+        // Given: Unit test in one project depends on a host app in another project
+        let dir = try #require(FileSystem.temporaryTestDirectory)
+
+        let hostAppTarget = Target.test(
+            name: "SharedTestHost",
+            destinations: .iOS,
+            product: .app
+        )
+        let testTarget = Target.test(name: "Test", destinations: .iOS, product: .unitTests)
+
+        let hostProjectPath = dir.appending(component: "SharedTestHost")
+        let featureProjectPath = dir.appending(component: "FeatureA")
+
+        let hostProject = Project.test(path: hostProjectPath, name: "SharedTestHost", targets: [hostAppTarget])
+        let featureProject = Project.test(path: featureProjectPath, name: "FeatureA", targets: [testTarget])
+
+        let graph = Graph.test(
+            name: featureProject.name,
+            path: featureProject.path,
+            projects: [hostProjectPath: hostProject, featureProjectPath: featureProject],
+            dependencies: [
+                GraphDependency.target(
+                    name: testTarget.name,
+                    path: featureProjectPath
+                ): Set([.target(name: hostAppTarget.name, path: hostProjectPath)]),
+            ]
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        _ = try await subject.generateTargetConfig(
+            testTarget,
+            project: featureProject,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            projectSettings: featureProject.settings,
+            fileElements: .init(),
+            graphTraverser: graphTraverser,
+            sourceRootPath: featureProjectPath
+        )
+
+        // Then
+        let configurationList = pbxTarget.buildConfigurationList
+        let debugConfig = configurationList?.configuration(name: "Debug")
+        let releaseConfig = configurationList?.configuration(name: "Release")
+
+        let testHostSettings: SettingsDictionary = [
+            "TEST_HOST":
+                "$(BUILT_PRODUCTS_DIR)/SharedTestHost.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/SharedTestHost",
             "BUNDLE_LOADER": "$(TEST_HOST)",
         ]
 

@@ -31,6 +31,17 @@ hello-*.tar
 /priv/static/marketing/assets/
 /priv/static/docs/assets/
 /priv/docs/images/og/
+# Generated OG images for marketing pages (produced at build time via mix marketing.gen.og_images)
+# Blog and newsletter images are kept in git since they are English-only and static.
+/priv/static/marketing/images/og/generated/*.jpg
+/priv/static/marketing/images/og/generated/es/
+/priv/static/marketing/images/og/generated/ja/
+/priv/static/marketing/images/og/generated/ko/
+/priv/static/marketing/images/og/generated/ru/
+/priv/static/marketing/images/og/generated/yue_Hant/
+/priv/static/marketing/images/og/generated/zh_Hans/
+/priv/static/marketing/images/og/generated/zh_Hant/
+/priv/static/marketing/images/og/generated/changelog/
 /priv/static/apidocs/assets/
 /priv/static/storybook/assets/
 

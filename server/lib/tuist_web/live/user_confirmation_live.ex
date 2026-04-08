@@ -88,6 +88,6 @@ defmodule TuistWeb.UserConfirmationLive do
   end
 
   def handle_info(:redirect, socket) do
-    {:noreply, redirect(socket, to: ~p"/projects/new")}
+    {:noreply, redirect(socket, to: ~p"/organizations/new")}
   end
 end

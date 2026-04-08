@@ -1,6 +1,7 @@
 import FileSystem
 import Foundation
 import Path
+import TuistAlert
 import TuistAutomation
 import TuistConfigLoader
 import TuistCore
@@ -23,6 +24,7 @@ struct XcodeBuildBuildCommandService {
     private let xcActivityLogController: XCActivityLogControlling
     private let shardPlanService: ShardPlanServicing
     private let serverEnvironmentService: ServerEnvironmentServicing
+    private let uploadBuildRunService: UploadBuildRunServicing?
 
     init(
         fileSystem: FileSysteming = FileSystem(),
@@ -34,7 +36,8 @@ struct XcodeBuildBuildCommandService {
         derivedDataLocator: DerivedDataLocating = DerivedDataLocator(),
         xcActivityLogController: XCActivityLogControlling = XCActivityLogController(),
         shardPlanService: ShardPlanServicing = ShardPlanService(),
-        serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService()
+        serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
+        uploadBuildRunService: UploadBuildRunServicing? = UploadBuildRunService()
     ) {
         self.fileSystem = fileSystem
         self.xcodeBuildController = xcodeBuildController
@@ -46,6 +49,7 @@ struct XcodeBuildBuildCommandService {
         self.xcActivityLogController = xcActivityLogController
         self.shardPlanService = shardPlanService
         self.serverEnvironmentService = serverEnvironmentService
+        self.uploadBuildRunService = uploadBuildRunService
     }
 
     func run(
@@ -55,7 +59,8 @@ struct XcodeBuildBuildCommandService {
         shardMin: Int? = nil,
         shardMax: Int? = nil,
         shardTotal: Int? = nil,
-        shardMaxDuration: Int? = nil
+        shardMaxDuration: Int? = nil,
+        shardSkipUpload: Bool = false
     ) async throws {
         var passthroughXcodebuildArguments = passthroughXcodebuildArguments
         try await passthroughXcodebuildArguments.append(
@@ -85,11 +90,18 @@ struct XcodeBuildBuildCommandService {
             derivedDataPath = try await derivedDataLocator.locate(for: projectPath)
         }
         if let derivedDataPath,
-           let mostRecentActivityLogPath = try await xcActivityLogController.mostRecentActivityLogFile(
+           let mostRecentActivityLogFile = try await xcActivityLogController.mostRecentActivityLogFile(
                projectDerivedDataDirectory: derivedDataPath
            )
         {
-            await RunMetadataStorage.current.update(buildRunId: mostRecentActivityLogPath.path.basenameWithoutExt)
+            await RunMetadataStorage.current.update(buildRunId: mostRecentActivityLogFile.path.basenameWithoutExt)
+
+            let buildPath = try await path(passthroughXcodebuildArguments: passthroughXcodebuildArguments)
+            await uploadBuildRunIfNeeded(
+                activityLogPath: mostRecentActivityLogFile.path,
+                projectPath: buildPath,
+                passthroughXcodebuildArguments: passthroughXcodebuildArguments
+            )
         }
 
         if isSharding, let schemeName {
@@ -117,8 +129,30 @@ struct XcodeBuildBuildCommandService {
                 shardMaxDuration: shardMaxDuration,
                 fullHandle: fullHandle,
                 serverURL: serverURL,
-                buildRunId: buildRunId
+                buildRunId: buildRunId,
+                skipUpload: shardSkipUpload
             )
+        }
+    }
+
+    private func uploadBuildRunIfNeeded(
+        activityLogPath: AbsolutePath,
+        projectPath: AbsolutePath,
+        passthroughXcodebuildArguments: [String]
+    ) async {
+        guard let uploadBuildRunService else { return }
+        do {
+            let config = try await configLoader.loadConfig(path: projectPath)
+            guard config.fullHandle != nil else { return }
+            try await uploadBuildRunService.uploadBuildRun(
+                activityLogPath: activityLogPath,
+                projectPath: projectPath,
+                config: config,
+                scheme: passedValue(for: "-scheme", arguments: passthroughXcodebuildArguments),
+                configuration: passedValue(for: "-configuration", arguments: passthroughXcodebuildArguments)
+            )
+        } catch {
+            AlertController.current.warning(.alert("Failed to upload build: \(error.localizedDescription)"))
         }
     }
 

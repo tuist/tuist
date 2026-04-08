@@ -7,7 +7,7 @@
 ---
 # Generated project with the XcodeProj-based package integration {#generated-project-with-xcodeproj-based-integration}
 
-When using the <LocalizedLink href="/guides/features/projects/dependencies#tuists-xcodeprojbased-integration">XcodeProj-based integration</LocalizedLink>, you can use the ``--replace-scm-with-registry`` flag to resolve dependencies from the registry if they are available. Add it to the `installOptions` in your `Tuist.swift` file:
+When using the <.localized_link href="/guides/features/projects/dependencies#tuists-xcodeprojbased-integration">XcodeProj-based integration</.localized_link>, you can use the ``--replace-scm-with-registry`` flag to resolve dependencies from the registry if they are available. Add it to the `installOptions` in your `Tuist.swift` file:
 ```swift
 import ProjectDescription
 

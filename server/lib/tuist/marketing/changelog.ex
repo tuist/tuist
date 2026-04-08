@@ -16,4 +16,5 @@ defmodule Tuist.Marketing.Changelog do
 
   def get_entries, do: @entries
   def get_categories, do: @categories
+  def get_entry_by_id(id), do: Enum.find(@entries, &(&1.id == id))
 end

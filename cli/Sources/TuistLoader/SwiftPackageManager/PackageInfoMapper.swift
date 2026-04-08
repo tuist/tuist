@@ -1556,9 +1556,7 @@ extension PackageInfo {
             settingsDictionary["CLANG_CXX_LANGUAGE_STANDARD"] = .string(cxxLanguageStandard)
         }
 
-        if let swiftLanguageVersion = swiftVersion(for: swiftToolsVersion) {
-            settingsDictionary["SWIFT_VERSION"] = .string(swiftLanguageVersion)
-        }
+        settingsDictionary["SWIFT_VERSION"] = .string(swiftVersion(for: swiftToolsVersion))
 
         let configurations = baseSettings.configurations.lazy
             .sorted(by: { $0.key < $1.key })
@@ -1582,19 +1580,35 @@ extension PackageInfo {
         }
     }
 
-    private func swiftVersion(for configuredSwiftVersion: XcodeGraph.Version?) -> String? {
-        // Take the latest swift version compatible with the configured one
-        let maxAllowedSwiftLanguageVersion = swiftLanguageVersions?
-            .filter {
-                guard let configuredSwiftVersion else {
-                    return true
+    private func swiftVersion(for configuredSwiftVersion: XcodeGraph.Version?) -> String {
+        if let swiftLanguageVersions {
+            // Take the latest swift version compatible with the configured one
+            let maxAllowedSwiftLanguageVersion = swiftLanguageVersions
+                .filter {
+                    guard let configuredSwiftVersion else {
+                        return true
+                    }
+                    return $0 <= configuredSwiftVersion
                 }
-                return $0 <= configuredSwiftVersion
-            }
-            .sorted()
-            .last
+                .sorted()
+                .last
 
-        return maxAllowedSwiftLanguageVersion?.description
+            if let maxAllowedSwiftLanguageVersion {
+                return maxAllowedSwiftLanguageVersion.description
+            }
+        }
+
+        // When swiftLanguageVersions is not declared, derive from tools-version,
+        // matching SPM's behavior in ToolsVersion.swiftLanguageVersion:
+        // https://github.com/swiftlang/swift-package-manager/blob/main/Sources/PackageModel/ToolsVersion.swift
+        switch toolsVersion.major {
+        case 4:
+            return toolsVersion.minor < 2 ? "4" : "4.2"
+        case 5:
+            return "5"
+        default:
+            return "6"
+        }
     }
 }
 

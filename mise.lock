@@ -120,7 +120,7 @@ backend = "aqua:getsops/sops"
 
 [[tools.swiftformat]]
 version = "0.58.7"
-backend = "github:nicklockwood/SwiftFormat"
+backend = "asdf:https://github.com/mise-plugins/mise-swiftformat.git"
 "platforms.linux-arm64" = { checksum = "sha256:33c3b3b4d66d17513177e0a4f9b943611d64a16aa12ea52cbfba39595c098621", url = "https://github.com/nicklockwood/SwiftFormat/releases/download/0.58.7/swiftformat_linux_aarch64.zip", url_api = "https://api.github.com/repos/nicklockwood/SwiftFormat/releases/assets/322205691"}
 "platforms.linux-arm64-musl" = { checksum = "sha256:33c3b3b4d66d17513177e0a4f9b943611d64a16aa12ea52cbfba39595c098621", url = "https://github.com/nicklockwood/SwiftFormat/releases/download/0.58.7/swiftformat_linux_aarch64.zip", url_api = "https://api.github.com/repos/nicklockwood/SwiftFormat/releases/assets/322205691"}
 "platforms.linux-x64" = { checksum = "sha256:be1b4bb76ee134cbc6b30c55939ea5b4dbe947c7373cc2015e9718d4bad00ae9", url = "https://github.com/nicklockwood/SwiftFormat/releases/download/0.58.7/swiftformat_linux.zip", url_api = "https://api.github.com/repos/nicklockwood/SwiftFormat/releases/assets/322205688"}
@@ -138,14 +138,11 @@ backend = "aqua:realm/SwiftLint"
 "platforms.macos-x64" = { url = "https://github.com/realm/SwiftLint/releases/download/0.59.1/portable_swiftlint.zip"}
 
 [[tools.tuist]]
-version = "4.172.1"
+version = "4.176.1"
 backend = "aqua:tuist/tuist"
-"platforms.linux-arm64" = { checksum = "sha256:d0ab037c92739a8e6ec19dce3ca26b5ba8a201b4df8dd50a6977ec2432699a75", url = "https://github.com/tuist/tuist/releases/download/4.172.1/tuist-linux-aarch64.tar.gz"}
-"platforms.linux-arm64-musl" = { checksum = "sha256:d0ab037c92739a8e6ec19dce3ca26b5ba8a201b4df8dd50a6977ec2432699a75", url = "https://github.com/tuist/tuist/releases/download/4.172.1/tuist-linux-aarch64.tar.gz"}
-"platforms.linux-x64" = { checksum = "sha256:5d4f84476d4b3b7ffa2d64406310c16a9a50a2f733742d7013b2da9db3e9c3f2", url = "https://github.com/tuist/tuist/releases/download/4.172.1/tuist-linux-x86_64.tar.gz"}
-"platforms.linux-x64-musl" = { checksum = "sha256:5d4f84476d4b3b7ffa2d64406310c16a9a50a2f733742d7013b2da9db3e9c3f2", url = "https://github.com/tuist/tuist/releases/download/4.172.1/tuist-linux-x86_64.tar.gz"}
-"platforms.macos-arm64" = { checksum = "sha256:c23437851af6e570967285a0f87793185b5e411162b714d3e34a1443611f792b", url = "https://github.com/tuist/tuist/releases/download/4.172.1/tuist.zip"}
-"platforms.macos-x64" = { checksum = "sha256:c23437851af6e570967285a0f87793185b5e411162b714d3e34a1443611f792b", url = "https://github.com/tuist/tuist/releases/download/4.172.1/tuist.zip"}
+"platforms.linux-x64" = { checksum = "sha256:e7258921041a70487f3fe91a07e45dbd769aa0723558eb0288d6379a4153698d", url = "https://github.com/tuist/tuist/releases/download/4.176.1/tuist-linux-x86_64.tar.gz"}
+"platforms.macos-arm64" = { checksum = "sha256:481f6d898279331afbe4806ee067c5651172777868854d592554277e3c7556ba", url = "https://github.com/tuist/tuist/releases/download/4.176.1/tuist.zip"}
+"platforms.macos-x64" = { checksum = "sha256:481f6d898279331afbe4806ee067c5651172777868854d592554277e3c7556ba", url = "https://github.com/tuist/tuist/releases/download/4.176.1/tuist.zip"}
 
 [[tools.yq]]
 version = "4.52.5"

@@ -229,12 +229,28 @@ defmodule TuistWeb.Marketing.StructuredMarkup do
               "@type" => "Article",
               "headline" => entry.title,
               "datePublished" => Timex.format!(entry.date, "{ISO:Extended}"),
-              "url" => Tuist.Environment.app_url(path: "/changelog##{entry.id}"),
+              "url" => Tuist.Environment.app_url(path: "/changelog/#{entry.id}"),
               "articleSection" => entry.category,
               "description" => entry.body
             }
           }
         end)
+    }
+  end
+
+  def get_changelog_entry_structured_data(entry) do
+    %{
+      "@context" => "https://schema.org",
+      "@type" => "Article",
+      "mainEntityOfPage" => %{
+        "@type" => "WebPage",
+        "@id" => Tuist.Environment.app_url(path: "/changelog/#{entry.id}")
+      },
+      "headline" => entry.title,
+      "articleSection" => entry.category,
+      "publisher" => StructuredMarkup.get_organization_structured_data(),
+      "datePublished" => Timex.format!(entry.date, "{ISO:Extended}"),
+      "dateModified" => Timex.format!(entry.date, "{ISO:Extended}")
     }
   end
 

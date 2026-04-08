@@ -33,11 +33,11 @@ For CI environments that support OpenID Connect (OIDC), Tuist can authenticate a
 
 ### Setting up OIDC authentication {#setting-up-oidc-authentication}
 
-1. **Connect your repository to Tuist**: Follow the <LocalizedLink href="/guides/integrations/gitforge/github">GitHub integration guide</LocalizedLink> to connect your GitHub repository to your Tuist project.
+1. **Connect your repository to Tuist**: Follow the <.localized_link href="/guides/integrations/gitforge/github">GitHub integration guide</.localized_link> to connect your GitHub repository to your Tuist project.
 
 2. **Run `tuist auth login`**: In your CI workflow, run `tuist auth login` before any commands that require authentication. The CLI will automatically detect the CI environment and authenticate using OIDC.
 
-See the <LocalizedLink href="/guides/integrations/continuous-integration">Continuous Integration guide</LocalizedLink> for provider-specific configuration examples.
+See the <.localized_link href="/guides/integrations/continuous-integration">Continuous Integration guide</.localized_link> for provider-specific configuration examples.
 
 ### OIDC token scopes {#oidc-token-scopes}
 
@@ -56,7 +56,7 @@ OIDC tokens are granted the `ci` scope group, which provides access to all proje
 
 The Gradle plugin uses the Tuist CLI authentication state and does not define a separate login flow. Authenticate once with the CLI and the plugin will reuse those credentials.
 
-For project and server configuration, including `project` and `url`, use the canonical <LocalizedLink href="/references/tuist-toml">tuist.toml reference</LocalizedLink>.
+For project and server configuration, including `project` and `url`, use the canonical <.localized_link href="/references/tuist-toml">tuist.toml reference</.localized_link>.
 
 For local usage, run:
 
@@ -66,8 +66,8 @@ tuist auth login
 
 For CI, use either:
 
-- <LocalizedLink href="/guides/server/authentication#setting-up-oidc-authentication">OIDC authentication</LocalizedLink> (recommended when available)
-- <LocalizedLink href="/guides/server/authentication#continuous-integration">Account token authentication</LocalizedLink> via `TUIST_TOKEN`
+- <.localized_link href="/guides/server/authentication#setting-up-oidc-authentication">OIDC authentication</.localized_link> (recommended when available)
+- <.localized_link href="/guides/server/authentication#continuous-integration">Account token authentication</.localized_link> via `TUIST_TOKEN`
 
 For self-hosted Tuist servers, define the server URL in `tuist.toml` (for example `url = "https://tuist.your-company.com"`) and run the standard login flow. The URL is resolved from the same configuration file used by the plugin.
 
@@ -80,11 +80,14 @@ For CI environments that don't support OIDC, or when you need fine-grained contr
 ### Creating an account token {#creating-an-account-token}
 
 ```bash
-tuist account tokens create my-account \
+tuist account tokens create account-handle \
   --scopes project:cache:read project:cache:write \
   --name ci-cache-token \
   --expires 1y
 ```
+
+> [!IMPORTANT]
+> Replace `account-handle` with the handle of the account that owns the projects you want the token to access. This can be an organization account, not necessarily your personal account.
 
 The command accepts the following options:
 
@@ -132,7 +135,7 @@ Scope groups provide a convenient way to grant multiple related scopes with a si
 For CI environments that don't support OIDC, you can create an account token with the `ci` scope group to authenticate your CI workflows:
 
 ```bash
-tuist account tokens create my-account --scopes ci --name ci
+tuist account tokens create account-handle --scopes ci --name ci
 ```
 
 This creates a token with all the scopes needed for typical CI operations (cache, previews, bundles, tests, builds, and runs). Store the generated token as a secret in your CI environment and set it as the `TUIST_TOKEN` environment variable.
@@ -142,13 +145,13 @@ This creates a token with all the scopes needed for typical CI operations (cache
 To list all tokens for an account:
 
 ```bash
-tuist account tokens list my-account
+tuist account tokens list account-handle
 ```
 
 To revoke a token by name:
 
 ```bash
-tuist account tokens revoke my-account ci-cache-token
+tuist account tokens revoke account-handle ci-cache-token
 ```
 
 ### Using account tokens {#using-account-tokens}
@@ -167,4 +170,3 @@ export TUIST_TOKEN=your-account-token
 > - Fine-grained control over which operations the token can perform
 > - A token that can access multiple projects within an account
 > - Time-limited tokens that automatically expire
-

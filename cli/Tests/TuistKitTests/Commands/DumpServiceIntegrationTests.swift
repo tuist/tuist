@@ -134,6 +134,11 @@ final class DumpServiceTests: TuistTestCase {
                     "testingOptions": 0
                   }
                 },
+                "derivedDataPath": {
+                  "default": {
+
+                  }
+                },
                 "enableAutomaticXcodeSchemes": false,
                 "renderMarkdownReadme": false
               },
@@ -227,6 +232,7 @@ final class DumpServiceTests: TuistTestCase {
 
                     ],
                     "buildInsightsDisabled": false,
+                    "defaultSwiftVersion": "5",
                     "disablePackageVersionLocking": false,
                     "disableSandbox": true,
                     "enableCaching": false,

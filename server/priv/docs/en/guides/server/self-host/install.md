@@ -93,14 +93,14 @@ You’ll also need a solution to store files (e.g. framework and library binarie
 >
 > If your goal is primarily to bring your own bucket for storing binaries and reduce cache latency, you might not need to self-host the whole server. You can self-host cache nodes and connect them to the hosted Tuist server or your self-hosted server.
 >
-> See the <LocalizedLink href="/guides/cache/self-host">cache self-hosting guide</LocalizedLink>.
+> See the <.localized_link href="/guides/cache/self-host">cache self-hosting guide</.localized_link>.
 
 
 ### Self-hosted cache nodes {#self-hosted-cache-nodes}
 
 To use self-hosted cache nodes with a self-hosted Tuist server:
 
-1. Deploy your cache nodes following the <LocalizedLink href="/guides/cache/self-host">cache self-hosting guide</LocalizedLink>.
+1. Deploy your cache nodes following the <.localized_link href="/guides/cache/self-host">cache self-hosting guide</.localized_link>.
 2. Set `TUIST_CACHE_ENDPOINTS` to a comma-separated list of cache node URLs (for example, `https://cache-1.example.com,https://cache-2.example.com`).
 
 ## Configuration {#configuration}
@@ -204,7 +204,7 @@ You can set up authentication with Google using [OAuth 2](https://developers.goo
 
 #### Okta {#okta}
 
-You can enable authentication with Okta through the [OAuth 2.0](https://oauth.net/2/) protocol. You'll have to [create an app](https://developer.okta.com/docs/en/guides/implement-oauth-for-okta/main/#create-an-oauth-2-0-app-in-okta) on Okta following <LocalizedLink href="/guides/integrations/sso#okta">these instructions</LocalizedLink>.
+You can enable authentication with Okta through the [OAuth 2.0](https://oauth.net/2/) protocol. You'll have to [create an app](https://developer.okta.com/docs/en/guides/implement-oauth-for-okta/main/#create-an-oauth-2-0-app-in-okta) on Okta following <.localized_link href="/guides/integrations/sso#okta">these instructions</.localized_link>.
 
 You will need to set the following environment variables once you obtain the client id and secret during the set up of the Okta application:
 
@@ -277,7 +277,7 @@ Tuist requires email functionality for user authentication and transactional not
 
 ### Git platform configuration {#git-platform-configuration}
 
-Tuist can <LocalizedLink href="/guides/server/authentication">integrate with Git platforms</LocalizedLink> to provide extra features such as automatically posting comments in your pull requests.
+Tuist can <.localized_link href="/guides/server/authentication">integrate with Git platforms</.localized_link> to provide extra features such as automatically posting comments in your pull requests.
 
 #### GitHub {#platform-github}
 
@@ -368,12 +368,80 @@ docker compose down -v
 - [clickhouse-keeper-config.xml](/server/self-host/clickhouse-keeper-config.xml) - ClickHouse Keeper configuration
 - [.env.example](/server/self-host/.env.example) - Example environment variables file
 
+## Kubernetes with Helm {#kubernetes-with-helm}
+
+Tuist provides an official Helm chart for deploying on Kubernetes. The chart packages the Tuist server and cache service, along with embedded infrastructure dependencies that you can swap for external providers as needed.
+
+### Installing the chart {#installing-the-chart}
+
+```bash
+helm install tuist oci://ghcr.io/tuist/charts/tuist \
+  --set server.license.key="YOUR_LICENSE_KEY"
+```
+
+To pin a specific chart version:
+
+```bash
+helm install tuist oci://ghcr.io/tuist/charts/tuist \
+  --set server.license.key="YOUR_LICENSE_KEY" \
+  --version 0.1.0
+```
+
+### Infrastructure dependencies {#helm-infrastructure-dependencies}
+
+The chart manages three infrastructure dependencies: `postgresql`, `clickhouse`, and `objectStorage`. Each defaults to **embedded** mode, meaning the chart deploys them inside the cluster. To point at your own external instances instead, set the dependency's `mode` to `external` and fill in the connection details in your `values.yaml`. For example, to use an external PostgreSQL database:
+
+```yaml
+# values.yaml
+postgresql:
+  mode: external
+  external:
+    host: your-db-host
+    port: 5432
+    database: tuist
+    username: tuist
+    password: your-password
+```
+
+The same pattern applies to `clickhouse` and `objectStorage`. See the `external` block under each section in the chart's `values.yaml` for the full set of configurable fields.
+
+### Observability {#helm-observability}
+
+The chart includes an optional observability stack (OpenTelemetry Collector, Prometheus, Grafana, Loki, and Tempo). It is **disabled by default**. To enable it in your `values.yaml`:
+
+```yaml
+# values.yaml
+observability:
+  enabled: true
+```
+
+When enabled, Grafana is available with Logs, Traces, and Metrics drilldowns pre-configured. For external observability, keep this disabled and configure the endpoints via `server.extraEnv`:
+
+```yaml
+# values.yaml
+server:
+  extraEnv:
+    - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
+      value: "http://your-otel-collector:4317"
+    - name: TUIST_LOKI_URL
+      value: "http://your-loki:3100"
+```
+
+### Values reference {#helm-values-reference}
+
+For the full list of configurable values, see the chart's [`values.yaml`](https://github.com/tuist/tuist/blob/main/infra/helm/tuist/values.yaml).
+
 ## Deployment {#deployment}
 
 The official Tuist Docker image is available at:
 ```
 ghcr.io/tuist/tuist
 ```
+
+The published image includes embedded Linux build processing for `.xcactivitylog` archives, so self-hosted deployments can process builds without running a separate `processor` service. If you later want to offload build processing to dedicated workers, set `TUIST_PROCESSOR_URL` and `TUIST_PROCESSOR_WEBHOOK_SECRET` to enable the remote processor mode.
+
+> [!NOTE]
+> `.xcresult` processing remains a separate concern and still requires the macOS-based `xcode_processor` service.
 
 ### Pulling the Docker image {#pulling-the-docker-image}
 

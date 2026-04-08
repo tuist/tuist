@@ -267,6 +267,9 @@ defmodule Tuist.Authorization do
 
       desc("Allows users with ops access to read any projects.")
       allow([:authenticated_as_user, :ops_access])
+
+      desc("Allows an account token with project:admin:read scope to read projects.")
+      allow([:authenticated_as_account, scopes_permit: "project:admin:read"])
     end
 
     action :update do
@@ -332,6 +335,9 @@ defmodule Tuist.Authorization do
 
       desc("Allows users with ops access to read any projects.")
       allow([:authenticated_as_user, :ops_access])
+
+      desc("Allows an account token with project:admin:read scope to read projects.")
+      allow([:authenticated_as_account, scopes_permit: "project:admin:read"])
     end
   end
 
