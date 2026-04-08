@@ -226,6 +226,129 @@
     </.card>
 
     <.card
+      :if={Enum.any?(@test_case_run.arguments)}
+      title={dgettext("dashboard_tests", "Arguments")}
+      icon="chart_arcs"
+      data-part="arguments-card"
+    >
+      <.card_section data-part="arguments-card-section">
+        <div data-part="failures-list">
+          <div
+            :for={argument <- @test_case_run.arguments}
+            class="argument-collapsible"
+          >
+            <div data-part="argument-header">
+              <.badge
+                :if={argument.status == "success"}
+                label={dgettext("dashboard_tests", "Passed")}
+                color="success"
+                style="light-fill"
+                size="small"
+              />
+              <.badge
+                :if={argument.status == "failure"}
+                label={dgettext("dashboard_tests", "Failed")}
+                color="destructive"
+                style="light-fill"
+                size="small"
+              />
+              <span data-part="argument-name">{argument.name}</span>
+              <span data-part="argument-duration">
+                {Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(argument.duration)}
+              </span>
+              <.neutral_button
+                :if={Enum.any?(argument.failures) or Enum.any?(argument.repetitions)}
+                id={"overview-arg-closed-btn-#{argument.id}"}
+                variant="secondary"
+                size="small"
+                phx-click={
+                  JS.hide(to: "#overview-arg-closed-btn-#{argument.id}")
+                  |> JS.show(to: "#overview-arg-open-btn-#{argument.id}", display: "flex")
+                  |> JS.show(to: "#overview-arg-body-#{argument.id}", display: "flex")
+                }
+              >
+                <.chevron_down />
+              </.neutral_button>
+              <.neutral_button
+                :if={Enum.any?(argument.failures) or Enum.any?(argument.repetitions)}
+                id={"overview-arg-open-btn-#{argument.id}"}
+                variant="secondary"
+                size="small"
+                style="display:none"
+                phx-click={
+                  JS.show(to: "#overview-arg-closed-btn-#{argument.id}", display: "flex")
+                  |> JS.hide(to: "#overview-arg-open-btn-#{argument.id}")
+                  |> JS.hide(to: "#overview-arg-body-#{argument.id}")
+                }
+              >
+                <.chevron_up />
+              </.neutral_button>
+            </div>
+            <div
+              id={"overview-arg-body-#{argument.id}"}
+              data-part="argument-body"
+              style="display:none"
+            >
+              <div :if={Enum.any?(argument.repetitions)} data-part="repetitions">
+                <div
+                  :for={
+                    {repetition, rep_index} <-
+                      Enum.with_index(
+                        Enum.sort_by(argument.repetitions, & &1.repetition_number)
+                      )
+                  }
+                  data-part="repetition-wrapper"
+                >
+                  <div data-part="repetition-item">
+                    <.badge
+                      :if={repetition.status == "success"}
+                      label={dgettext("dashboard_tests", "Passed")}
+                      color="success"
+                      style="light-fill"
+                      size="small"
+                    />
+                    <.badge
+                      :if={repetition.status == "failure"}
+                      label={dgettext("dashboard_tests", "Failed")}
+                      color="destructive"
+                      style="light-fill"
+                      size="small"
+                    />
+                    <span data-part="repetition-name">{repetition.name}</span>
+                  </div>
+                  <.failure_message_span
+                    :if={
+                      repetition.status == "failure" and Enum.any?(argument.failures) and
+                        Enum.at(argument.failures, rep_index)
+                    }
+                    failure={Enum.at(argument.failures, rep_index)}
+                    context={
+                      %{
+                        project: @selected_project,
+                        git_commit_sha: @test_case_run.git_commit_sha
+                      }
+                    }
+                  />
+                </div>
+              </div>
+              <.failure_message_span
+                :for={failure <- argument.failures}
+                :if={!Enum.any?(argument.repetitions)}
+                failure={failure}
+                context={
+                  %{
+                    project: @selected_project,
+                    git_commit_sha: @test_case_run.git_commit_sha
+                  }
+                }
+              />
+            </div>
+          </div>
+        </div>
+      </.card_section>
+    </.card>
+
+    <.card
       :if={Enum.any?(@test_case_run.failures)}
       title={dgettext("dashboard_tests", "Failures")}
       icon="alert_circle"
@@ -297,19 +420,11 @@
               <div data-part="content">
                 <%= if Enum.any?(@test_case_run.arguments) do %>
                   <div
-                    :for={argument <- @test_case_run.arguments}
+                    :for={argument <- Enum.filter(@test_case_run.arguments, & &1.status == "failure")}
                     class="argument-collapsible"
                   >
                     <div data-part="argument-header">
                       <.badge
-                        :if={argument.status == "success"}
-                        label={dgettext("dashboard_tests", "Passed")}
-                        color="success"
-                        style="light-fill"
-                        size="small"
-                      />
-                      <.badge
-                        :if={argument.status == "failure"}
                         label={dgettext("dashboard_tests", "Failed")}
                         color="destructive"
                         style="light-fill"
@@ -317,6 +432,7 @@
                       />
                       <span data-part="argument-name">{argument.name}</span>
                       <.neutral_button
+                        :if={Enum.any?(argument.failures) or Enum.any?(argument.repetitions)}
                         id={"arg-detail-closed-btn-#{argument.id}"}
                         variant="secondary"
                         size="small"
@@ -329,6 +445,7 @@
                         <.chevron_down />
                       </.neutral_button>
                       <.neutral_button
+                        :if={Enum.any?(argument.failures) or Enum.any?(argument.repetitions)}
                         id={"arg-detail-open-btn-#{argument.id}"}
                         variant="secondary"
                         size="small"
@@ -375,9 +492,11 @@
                             <span data-part="repetition-name">{repetition.name}</span>
                           </div>
                           <.failure_message_span
-                            :for={failure <- argument.failures}
-                            :if={repetition.status == "failure"}
-                            failure={failure}
+                            :if={
+                              repetition.status == "failure" and Enum.any?(argument.failures) and
+                                Enum.at(argument.failures, rep_index)
+                            }
+                            failure={Enum.at(argument.failures, rep_index)}
                             context={
                               %{
                                 project: @selected_project,
@@ -1005,9 +1124,11 @@
                           <span data-part="repetition-name">{repetition.name}</span>
                         </div>
                         <.failure_message_span
-                          :for={failure <- argument.failures}
-                          :if={repetition.status == "failure"}
-                          failure={failure}
+                          :if={
+                            repetition.status == "failure" and Enum.any?(argument.failures) and
+                              Enum.at(argument.failures, rep_index)
+                          }
+                          failure={Enum.at(argument.failures, rep_index)}
                           context={
                             %{
                               project: @selected_project,

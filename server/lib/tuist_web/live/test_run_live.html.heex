@@ -552,19 +552,11 @@
               <div data-part="content" data-state="closed">
                 <%= if Enum.any?(test_case_run.arguments) do %>
                   <div
-                    :for={argument <- test_case_run.arguments}
+                    :for={argument <- Enum.filter(test_case_run.arguments, & &1.status == "failure")}
                     class="argument-collapsible"
                   >
                     <div data-part="argument-header">
                       <.badge
-                        :if={argument.status == "success"}
-                        label={dgettext("dashboard_tests", "Passed")}
-                        color="success"
-                        style="light-fill"
-                        size="small"
-                      />
-                      <.badge
-                        :if={argument.status == "failure"}
                         label={dgettext("dashboard_tests", "Failed")}
                         color="destructive"
                         style="light-fill"
@@ -572,6 +564,7 @@
                       />
                       <span data-part="argument-name">{argument.name}</span>
                       <.neutral_button
+                        :if={Enum.any?(argument.failures) or Enum.any?(argument.repetitions)}
                         id={"arg-closed-btn-#{argument.id}"}
                         variant="secondary"
                         size="small"
@@ -584,6 +577,7 @@
                         <.chevron_down />
                       </.neutral_button>
                       <.neutral_button
+                        :if={Enum.any?(argument.failures) or Enum.any?(argument.repetitions)}
                         id={"arg-open-btn-#{argument.id}"}
                         variant="secondary"
                         size="small"
@@ -630,9 +624,11 @@
                             <span data-part="repetition-name">{repetition.name}</span>
                           </div>
                           <.failure_message_span
-                            :for={failure <- argument.failures}
-                            :if={repetition.status == "failure"}
-                            failure={failure}
+                            :if={
+                              repetition.status == "failure" and Enum.any?(argument.failures) and
+                                Enum.at(argument.failures, rep_index)
+                            }
+                            failure={Enum.at(argument.failures, rep_index)}
                             context={@run}
                           />
                           <div
