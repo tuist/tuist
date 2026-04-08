@@ -239,9 +239,18 @@ public struct XCResultParser: Sendable {
                     failures: extractFailures(from: repNode, rootDirectory: rootDirectory)
                 )
             }
-            let argFailures = argRepetitions.filter { $0.status == .failed }.flatMap(\.failures)
-            let argStatus: TestStatus = argRepetitions.contains(where: { $0.status == .failed }) ? .failed : .passed
-            let argDuration = argRepetitions.compactMap(\.duration).max() ?? 0
+
+            let argFailures: [TestCaseFailure]
+            let argStatus: TestStatus
+            if !argRepetitions.isEmpty {
+                argFailures = argRepetitions.filter { $0.status == .failed }.flatMap(\.failures)
+                argStatus = argRepetitions.contains(where: { $0.status == .failed }) ? .failed : .passed
+            } else {
+                argFailures = extractFailures(from: argNode, rootDirectory: rootDirectory)
+                argStatus = testStatus(from: argNode.result)
+            }
+            let argDuration = argNode.durationInSeconds.map { secondsToMilliseconds($0) }
+                ?? argRepetitions.compactMap(\.duration).max() ?? 0
             return TestCaseArgument(
                 name: argName,
                 status: argStatus,
@@ -280,12 +289,23 @@ public struct XCResultParser: Sendable {
             }
         }
 
+        let status: TestStatus
+        let duration: Int?
+        if !arguments.isEmpty {
+            status = arguments.contains(where: { $0.status == .failed }) ? .failed : .passed
+            duration = node.durationInSeconds.map { secondsToMilliseconds($0) }
+                ?? arguments.map(\.duration).reduce(0, +)
+        } else {
+            status = testStatus(from: node.result)
+            duration = node.durationInSeconds.map { secondsToMilliseconds($0) }
+        }
+
         return TestCase(
             name: name,
             testSuite: suiteName,
             module: module,
-            duration: node.durationInSeconds.map { secondsToMilliseconds($0) },
-            status: testStatus(from: node.result),
+            duration: duration,
+            status: status,
             failures: failures,
             repetitions: repetitions,
             arguments: arguments
