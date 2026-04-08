@@ -100,12 +100,7 @@ jobs:
       - name: Test
         env:
           TUIST_EE: 1
-        run: |
-          tuist test TuistCacheEEAcceptanceTests --no-selective-testing \
-            --test-targets TuistCacheEEAcceptanceTests/TuistCacheEECanaryAcceptanceTests/multiplatform_app_module_cache \
-            --test-targets TuistCacheEEAcceptanceTests/TuistCacheEECanaryAcceptanceTests/generated_project_with_caching_enabled \
-            --test-targets TuistCacheEEAcceptanceTests/TuistCacheEECanaryAcceptanceTests/multiplatform_app_selective_testing \
-            -- -retry-tests-on-failure -test-iterations 2
+        run: tuist test TuistCacheEEAcceptanceTests --no-selective-testing -- -retry-tests-on-failure -test-iterations 2
   production:
     environment: server-production
     name: Production Deployment
