@@ -1,6 +1,6 @@
 service: tuist-search
 
-image: tuist-search
+image: tuist/search
 
 servers:
   web:
@@ -8,7 +8,7 @@ servers:
       - 91.99.179.13
 
 ssh:
-  user: github-actions
+  user: <%= ENV.fetch("KAMAL_SSH_USER", "github-actions") %>
 
 registry:
   server: ghcr.io
