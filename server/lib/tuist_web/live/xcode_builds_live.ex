@@ -237,8 +237,7 @@ defmodule TuistWeb.XcodeBuildsLive do
   defp assign_configuration_insights_options(socket, params) do
     configuration_insights_type = params["configuration-insights-type"] || "xcode-version"
 
-    socket
-    |> assign(:configuration_insights_type, configuration_insights_type)
+    assign(socket, :configuration_insights_type, configuration_insights_type)
   end
 
   defp assign_configuration_insights(

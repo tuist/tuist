@@ -185,8 +185,7 @@ defmodule TuistWeb.GradleBuildsLive do
   def assign_configuration_insights_options(socket, params) do
     configuration_insights_type = params["configuration-insights-type"] || "gradle-version"
 
-    socket
-    |> assign(:configuration_insights_type, configuration_insights_type)
+    assign(socket, :configuration_insights_type, configuration_insights_type)
   end
 
   def assign_initial_configuration_insights(%{assigns: %{current_params: current_params}} = socket) do

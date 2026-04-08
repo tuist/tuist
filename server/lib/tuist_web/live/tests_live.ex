@@ -153,7 +153,6 @@ defmodule TuistWeb.TestsLive do
     {:noreply, push_patch(socket, to: "/#{selected_account.name}/#{selected_project.name}/tests?#{query_params}")}
   end
 
-
   def handle_info({:test_created, %{name: "test"}}, socket) do
     if Query.has_pagination_params?(socket.assigns.uri.query) do
       {:noreply, socket}

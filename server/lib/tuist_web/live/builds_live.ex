@@ -82,5 +82,4 @@ defmodule TuistWeb.BuildsLive do
 
     {:noreply, push_patch(socket, to: "/#{selected_account.name}/#{selected_project.name}/builds?#{query_params}")}
   end
-
 end
