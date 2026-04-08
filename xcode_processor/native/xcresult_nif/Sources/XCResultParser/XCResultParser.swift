@@ -632,6 +632,8 @@ public struct XCResultParser: Sendable {
         #"[✔✘] Test "([^"]+)" (?:passed|failed) after ([\d.]+) seconds"#,
         #"✔ Test "([^"]+)" passed after ([\d.]+) seconds"#,
         #"✘ Test "([^"]+)" failed after ([\d.]+) seconds"#,
+        #"[✔✘] Test (\w+\([^)]*\)) with \d+ test cases? (?:passed|failed) after ([\d.]+) seconds"#,
+        #"[✔✘] Test "([^"]+)" with \d+ test cases? (?:passed|failed) after ([\d.]+) seconds"#,
     ].compactMap { try? NSRegularExpression(pattern: $0, options: []) }
 
     private static let suiteDurationPatterns = [
