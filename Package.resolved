@@ -499,14 +499,6 @@
       }
     },
     {
-      "identity" : "stephencelis.csqlite",
-      "kind" : "registry",
-      "location" : "",
-      "state" : {
-        "version" : "3.50.4"
-      }
-    },
-    {
       "identity" : "stephencelis.SQLite_swift",
       "kind" : "registry",
       "location" : "",
