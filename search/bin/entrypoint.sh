@@ -17,5 +17,8 @@ CRON
   cron
 fi
 
+# Ensure data directory exists
+mkdir -p "${TYPESENSE_DATA_DIR:-/data}"
+
 # Start TypeSense (exec replaces shell so signals propagate correctly)
 exec /opt/typesense-server "$@"
