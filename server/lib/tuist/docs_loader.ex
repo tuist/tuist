@@ -3,6 +3,8 @@ defmodule Tuist.Docs.Loader do
 
   use Noora
 
+  import TuistWeb.Docs.MarkdownComponents
+
   alias Phoenix.HTML.Safe
   alias Tuist.Docs.HTML
   alias Tuist.Docs.Page
@@ -10,7 +12,6 @@ defmodule Tuist.Docs.Loader do
 
   # Live doc pages reference these modules from HEEx templates at compile time.
   require Noora.Alert
-  import TuistWeb.Docs.MarkdownComponents
 
   # Paths
   @docs_root Path.expand("../../priv/docs", __DIR__)
@@ -57,7 +58,6 @@ defmodule Tuist.Docs.Loader do
     syntax_highlight: [formatter: {:html_inline, theme: "github_light"}]
   ]
 
-
   def load_pages! do
     source_paths =
       @locales
@@ -94,7 +94,6 @@ defmodule Tuist.Docs.Loader do
       {title, slug}
     end)
   end
-
 
   defp build_page!(source_path) do
     relative_path = Path.relative_to(source_path, @docs_root)
@@ -145,7 +144,6 @@ defmodule Tuist.Docs.Loader do
     }
   end
 
-
   defp render_markdown(markdown, source_path, locale, _live?) do
     custom_ids = extract_custom_heading_ids(markdown)
 
@@ -178,7 +176,6 @@ defmodule Tuist.Docs.Loader do
       :error -> {html, nil, []}
     end
   end
-
 
   defp compile_heex_template(html, path) do
     {:ok,
@@ -229,7 +226,6 @@ defmodule Tuist.Docs.Loader do
         else: String.replace(part, "{", "&#123;")
     end)
   end
-
 
   @alert_opening_regex ~r/<div class="markdown-alert markdown-alert-(\w+)">\s*<p class="markdown-alert-title">([^<]*)<\/p>\s*/s
 
@@ -370,7 +366,6 @@ defmodule Tuist.Docs.Loader do
     end
   end
 
-
   defp strip_custom_heading_ids(markdown) do
     Regex.replace(@custom_heading_id_regex, markdown, "\\1")
   end
@@ -488,7 +483,6 @@ defmodule Tuist.Docs.Loader do
         nil
     end
   end
-
 
   defp title_from_markdown(markdown) do
     case Regex.run(~r/^\s*#\s+(.+?)(?:\s+\{#.*\})?\s*$/m, markdown, capture: :all_but_first) do
