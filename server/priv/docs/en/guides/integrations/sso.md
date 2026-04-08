@@ -38,10 +38,10 @@ Okta SSO uses the OIDC protocol to allow members of your Okta organization to si
 1. In your Okta admin dashboard, go to **Applications > Applications > Create App Integration**.
 2. Select **OIDC - OpenID Connect** and **Web Application**.
 3. Set the application name (e.g., "Tuist"). Optionally upload the [Tuist logo](https://tuist.dev/images/tuist_dashboard.png).
-4. Set the **Sign-in redirect URI** to the value shown on the SSO settings page (e.g., `https://cloud.tuist.dev/users/auth/okta/callback`).
+4. Set the **Sign-in redirect URI** to the value shown on the SSO settings page (e.g., `https://tuist.dev/users/auth/okta/callback`).
 5. Under **Assignments**, choose the desired access control and save.
 6. Copy the **Client ID** and **Client Secret** from the application's general settings. Note your **Okta domain** (e.g., `your-company.okta.com`).
-7. Optionally, to allow login from the Okta dashboard, click **Edit** on General Settings, change **Login initiated by** to **Either Okta or App**, select **Display application icon to users**, and set the **Initiate login URI** to the value shown on the SSO settings page (e.g., `https://cloud.tuist.dev/users/auth/okta?organization_id=YOUR_ORG_ID`).
+7. Optionally, to allow login from the Okta dashboard, click **Edit** on General Settings, change **Login initiated by** to **Either Okta or App**, select **Display application icon to users**, and set the **Initiate login URI** to the value shown on the SSO settings page (e.g., `https://tuist.dev/users/auth/okta?organization_id=YOUR_ORG_ID`).
 
 ### Step 2: Configure Tuist {#okta-step-2}
 

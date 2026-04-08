@@ -1,0 +1,18 @@
+#!/bin/sh
+set -eu
+
+base_path="${PHX_SOCKET_PATH:?PHX_SOCKET_PATH is required}"
+host_name="${HOSTNAME:?HOSTNAME is required}"
+
+sanitize() {
+  printf '%s' "$1" | tr -c 'A-Za-z0-9._-' '-'
+}
+
+socket_path="${base_path%.sock}-$(sanitize "$host_name").sock"
+
+if [ ! -S "$socket_path" ]; then
+  echo "Healthcheck socket is unavailable: $socket_path" >&2
+  exit 1
+fi
+
+exec curl --silent --show-error --fail --max-time 35 --unix-socket "$socket_path" http://localhost/up

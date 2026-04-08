@@ -80,11 +80,14 @@ For CI environments that don't support OIDC, or when you need fine-grained contr
 ### Creating an account token {#creating-an-account-token}
 
 ```bash
-tuist account tokens create my-account \
+tuist account tokens create account-handle \
   --scopes project:cache:read project:cache:write \
   --name ci-cache-token \
   --expires 1y
 ```
+
+> [!IMPORTANT]
+> Replace `account-handle` with the handle of the account that owns the projects you want the token to access. This can be an organization account, not necessarily your personal account.
 
 The command accepts the following options:
 
@@ -132,7 +135,7 @@ Scope groups provide a convenient way to grant multiple related scopes with a si
 For CI environments that don't support OIDC, you can create an account token with the `ci` scope group to authenticate your CI workflows:
 
 ```bash
-tuist account tokens create my-account --scopes ci --name ci
+tuist account tokens create account-handle --scopes ci --name ci
 ```
 
 This creates a token with all the scopes needed for typical CI operations (cache, previews, bundles, tests, builds, and runs). Store the generated token as a secret in your CI environment and set it as the `TUIST_TOKEN` environment variable.
@@ -142,13 +145,13 @@ This creates a token with all the scopes needed for typical CI operations (cache
 To list all tokens for an account:
 
 ```bash
-tuist account tokens list my-account
+tuist account tokens list account-handle
 ```
 
 To revoke a token by name:
 
 ```bash
-tuist account tokens revoke my-account ci-cache-token
+tuist account tokens revoke account-handle ci-cache-token
 ```
 
 ### Using account tokens {#using-account-tokens}
@@ -167,4 +170,3 @@ export TUIST_TOKEN=your-account-token
 > - Fine-grained control over which operations the token can perform
 > - A token that can access multiple projects within an account
 > - Time-limited tokens that automatically expire
-

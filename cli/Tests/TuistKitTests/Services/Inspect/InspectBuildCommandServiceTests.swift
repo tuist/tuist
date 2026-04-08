@@ -2,15 +2,12 @@ import FileSystem
 import Foundation
 import Mockable
 import Testing
-import TuistCI
 import TuistConfigLoader
 import TuistConstants
 import TuistCore
 import TuistEnvironment
 import TuistEnvironmentTesting
-import TuistGit
 import TuistLoader
-import TuistMachineMetrics
 import TuistProcess
 import TuistServer
 import TuistSupport
@@ -20,6 +17,7 @@ import TuistXcodeProjectOrWorkspacePathLocator
 import XcodeGraph
 
 @testable import TuistInspectCommand
+@testable import TuistKit
 
 struct InspectBuildCommandServiceTests {
     private let subject: InspectBuildCommandService
@@ -28,115 +26,40 @@ struct InspectBuildCommandServiceTests {
     private let xcActivityLogController = MockXCActivityLogControlling()
     private let derivedDataLocator = MockDerivedDataLocating()
     private let fileSystem = FileSystem()
-    private let createBuildService = MockCreateBuildServicing()
-    private let uploadBuildService = MockUploadBuildServicing()
-    private let machineEnvironment = MockMachineEnvironmentRetrieving()
-    private let xcodeBuildController = MockXcodeBuildControlling()
     private let backgroundProcessRunner = MockBackgroundProcessRunning()
     private let dateService = MockDateServicing()
-    private let serverEnvironmentService = MockServerEnvironmentServicing()
-    private let gitController: MockGitControlling
-    private let ciController = MockCIControlling()
+    private let uploadBuildRunService = MockUploadBuildRunServicing()
     private let xcodeProjectOrWorkspacePathLocator = MockXcodeProjectOrWorkspacePathLocating()
 
     init() throws {
-        gitController = MockGitControlling()
         environment = try #require(Environment.mocked)
         subject = InspectBuildCommandService(
             derivedDataLocator: derivedDataLocator,
             fileSystem: fileSystem,
-            machineEnvironment: machineEnvironment,
-            xcodeBuildController: xcodeBuildController,
-            createBuildService: createBuildService,
-            uploadBuildService: uploadBuildService,
             configLoader: configLoader,
             xcActivityLogController: xcActivityLogController,
             backgroundProcessRunner: backgroundProcessRunner,
             dateService: dateService,
-            serverEnvironmentService: serverEnvironmentService,
-            gitController: gitController,
-            ciController: ciController,
+            uploadBuildRunService: uploadBuildRunService,
             xcodeProjectOrWorkspacePathLocator: xcodeProjectOrWorkspacePathLocator
         )
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(.test(fullHandle: "tuist/tuist"))
 
-        given(serverEnvironmentService)
-            .url(configServerURL: .any)
-            .willReturn(Constants.URLs.production)
-
-        given(createBuildService)
-            .createBuild(
-                fullHandle: .any,
-                serverURL: .any,
-                id: .any,
-                category: .any,
-                configuration: .any,
-                customMetadata: .any,
-                duration: .any,
-                files: .any,
-                gitBranch: .any,
-                gitCommitSHA: .any,
-                gitRef: .any,
-                gitRemoteURLOrigin: .any,
-                isCI: .any,
-                issues: .any,
-                modelIdentifier: .any,
-                macOSVersion: .any,
-                scheme: .any,
-                targets: .any,
-                xcodeCacheUploadEnabled: .any,
-                xcodeVersion: .any,
-                status: .any,
-                ciRunId: .any,
-                ciProjectHandle: .any,
-                ciHost: .any,
-                ciProvider: .any,
-                cacheableTasks: .any,
-                casOutputs: .any,
-                machineMetrics: .any
-            )
-            .willReturn(.test())
-
-        given(uploadBuildService)
-            .uploadBuild(buildId: .any, fullHandle: .any, serverURL: .any, filePath: .any)
-            .willReturn(())
-
-        given(machineEnvironment)
-            .modelIdentifier()
-            .willReturn("Mac15,3")
-
-        given(machineEnvironment)
-            .macOSVersion
-            .willReturn("13.2.0")
+        given(uploadBuildRunService)
+            .uploadBuildRun(activityLogPath: .any, projectPath: .any, config: .any, scheme: .any, configuration: .any)
+            .willReturn(URL(string: "https://tuist.dev/test")!)
 
         let mockedEnvironment = try #require(Environment.mocked)
         mockedEnvironment.schemeName = "App"
         mockedEnvironment.variables = ["TUIST_INSPECT_BUILD_WAIT": "YES"]
-
-        given(xcodeBuildController)
-            .version()
-            .willReturn(Version(16, 0, 0))
 
         given(dateService)
             .now()
             .willReturn(
                 Date(timeIntervalSinceReferenceDate: 20)
             )
-
-        given(gitController)
-            .gitInfo(workingDirectory: .any)
-            .willReturn(.test())
-
-        given(ciController)
-            .ciInfo()
-            .willReturn(.test())
-
-        Matcher.register([XCActivityIssue].self)
-        Matcher.register([XCActivityBuildFile].self)
-        Matcher.register([XCActivityTarget].self)
-        Matcher.register([MachineMetricSample].self)
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
@@ -146,7 +69,6 @@ struct InspectBuildCommandServiceTests {
         let projectPath = temporaryDirectory.appending(component: "App.xcodeproj")
         let mockedEnvironment = try #require(Environment.mocked)
         mockedEnvironment.workspacePath = projectPath
-        mockedEnvironment.variables["CONFIGURATION"] = "Debug"
 
         given(xcodeProjectOrWorkspacePathLocator)
             .locate(from: .any)
@@ -174,73 +96,17 @@ struct InspectBuildCommandServiceTests {
             )
         )
 
-        gitController.reset()
-        given(gitController)
-            .gitInfo(workingDirectory: .any)
-            .willReturn(
-                .test(
-                    ref: "git-ref",
-                    branch: "branch",
-                    sha: "sha",
-                    remoteURLOrigin: "https://github.com/tuist/tuist"
-                )
-            )
-
-        ciController.reset()
-        given(ciController)
-            .ciInfo()
-            .willReturn(
-                .test(
-                    provider: .github,
-                    runId: "123",
-                    projectHandle: "test-project",
-                    host: "github.com"
-                )
-            )
-
         // When
         try await subject.run(path: nil)
 
         // Then
-        verify(uploadBuildService)
-            .uploadBuild(
-                buildId: .value(activityLogUUID),
-                fullHandle: .value("tuist/tuist"),
-                serverURL: .any,
-                filePath: .any
-            )
-            .called(1)
-
-        verify(createBuildService)
-            .createBuild(
-                fullHandle: .value("tuist/tuist"),
-                serverURL: .any,
-                id: .value(activityLogUUID),
-                category: .value(.incremental),
-                configuration: .value("Debug"),
-                customMetadata: .any,
-                duration: .value(0),
-                files: .value([]),
-                gitBranch: .value("branch"),
-                gitCommitSHA: .value("sha"),
-                gitRef: .value("git-ref"),
-                gitRemoteURLOrigin: .value("https://github.com/tuist/tuist"),
-                isCI: .value(false),
-                issues: .value([]),
-                modelIdentifier: .value("Mac15,3"),
-                macOSVersion: .value("13.2.0"),
-                scheme: .value("App"),
-                targets: .value([]),
-                xcodeCacheUploadEnabled: .any,
-                xcodeVersion: .value("16.0.0"),
-                status: .value(.processing),
-                ciRunId: .value("123"),
-                ciProjectHandle: .value("test-project"),
-                ciHost: .value("github.com"),
-                ciProvider: .value(.github),
-                cacheableTasks: .value([]),
-                casOutputs: .value([]),
-                machineMetrics: .value([])
+        verify(uploadBuildRunService)
+            .uploadBuildRun(
+                activityLogPath: .value(activityLogPath),
+                projectPath: .value(projectPath),
+                config: .any,
+                scheme: .any,
+                configuration: .any
             )
             .called(1)
     }
@@ -281,51 +147,12 @@ struct InspectBuildCommandServiceTests {
             }
         }
 
-        gitController.reset()
-        given(gitController)
-            .gitInfo(workingDirectory: .any)
-            .willReturn(.test(ref: nil, branch: "branch", sha: "sha"))
-
-        ciController.reset()
-        given(ciController)
-            .ciInfo()
-            .willReturn(nil)
-
         // When
         try await subject.run(path: nil)
 
         // Then
-        verify(createBuildService)
-            .createBuild(
-                fullHandle: .any,
-                serverURL: .any,
-                id: .any,
-                category: .any,
-                configuration: .any,
-                customMetadata: .any,
-                duration: .any,
-                files: .any,
-                gitBranch: .any,
-                gitCommitSHA: .any,
-                gitRef: .any,
-                gitRemoteURLOrigin: .any,
-                isCI: .any,
-                issues: .any,
-                modelIdentifier: .any,
-                macOSVersion: .any,
-                scheme: .any,
-                targets: .any,
-                xcodeCacheUploadEnabled: .any,
-                xcodeVersion: .any,
-                status: .any,
-                ciRunId: .any,
-                ciProjectHandle: .any,
-                ciHost: .any,
-                ciProvider: .any,
-                cacheableTasks: .any,
-                casOutputs: .any,
-                machineMetrics: .any
-            )
+        verify(uploadBuildRunService)
+            .uploadBuildRun(activityLogPath: .any, projectPath: .any, config: .any, scheme: .any, configuration: .any)
             .called(1)
     }
 
@@ -395,10 +222,6 @@ struct InspectBuildCommandServiceTests {
             filter: .any
         ).willReturn(.test(path: activityLogPath))
 
-        given(gitController)
-            .gitInfo(workingDirectory: .any)
-            .willReturn(.test())
-
         // When / Then
         try await subject.run(path: temporaryDirectory.pathString)
     }
@@ -448,10 +271,6 @@ struct InspectBuildCommandServiceTests {
                 filter: .any
             ).willReturn(.test(path: activityLogPath))
 
-            given(gitController)
-                .gitInfo(workingDirectory: .any)
-                .willReturn(.test())
-
             // When
             try await subject.run(path: temporaryDirectory.pathString)
 
@@ -482,10 +301,6 @@ struct InspectBuildCommandServiceTests {
             projectDerivedDataDirectory: .value(derivedDataPath),
             filter: .any
         ).willReturn(nil)
-
-        given(gitController)
-            .gitInfo(workingDirectory: .any)
-            .willReturn(.test())
 
         // When / Then
         await #expect(
@@ -540,327 +355,19 @@ struct InspectBuildCommandServiceTests {
             .loadConfig(path: .any)
             .willReturn(.test(fullHandle: nil))
 
-        given(gitController)
-            .gitInfo(workingDirectory: .any)
-            .willReturn(.test())
+        uploadBuildRunService.reset()
+        given(uploadBuildRunService)
+            .uploadBuildRun(activityLogPath: .any, projectPath: .any, config: .any, scheme: .any, configuration: .any)
+            .willProduce { _, _, _, _, _ in
+                throw UploadBuildRunServiceError.missingFullHandle
+            }
 
         // When / Then
         await #expect(
-            throws: InspectBuildCommandServiceError.missingFullHandle
+            throws: UploadBuildRunServiceError.missingFullHandle
         ) {
             try await subject.run(path: projectPath.parentDirectory.pathString)
         }
-    }
-
-    @Test(.inTemporaryDirectory, .withMockedEnvironment())
-    func createsBuild_with_custom_metadata_from_TUIST_BUILD_TAGS() async throws {
-        // Given
-        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        let projectPath = temporaryDirectory.appending(component: "App.xcodeproj")
-        let mockedEnvironment = try #require(Environment.mocked)
-        mockedEnvironment.workspacePath = projectPath
-        mockedEnvironment.variables["TUIST_BUILD_TAGS"] = "nightly, release-candidate, ios-team"
-
-        given(xcodeProjectOrWorkspacePathLocator)
-            .locate(from: .any)
-            .willReturn(projectPath)
-
-        let derivedDataPath = temporaryDirectory.appending(component: "derived-data")
-        given(derivedDataLocator)
-            .locate(for: .any)
-            .willReturn(derivedDataPath)
-        let buildLogsPath = derivedDataPath.appending(components: "Logs", "Build")
-        let activityLogPath = buildLogsPath.appending(
-            components: "\(UUID().uuidString).xcactivitylog"
-        )
-        try await fileSystem.makeDirectory(at: buildLogsPath)
-        try await fileSystem.writeText("fake", at: activityLogPath)
-
-        given(xcActivityLogController).mostRecentActivityLogFile(
-            projectDerivedDataDirectory: .value(derivedDataPath),
-            filter: .any
-        ).willReturn(
-            .test(
-                path: activityLogPath,
-                timeStoppedRecording: Date(timeIntervalSinceReferenceDate: 20)
-            )
-        )
-
-        // When
-        try await subject.run(path: nil)
-
-        // Then
-        verify(createBuildService)
-            .createBuild(
-                fullHandle: .any,
-                serverURL: .any,
-                id: .any,
-                category: .any,
-                configuration: .any,
-                customMetadata: .matching { metadata in
-                    guard let metadata else { return false }
-                    let tags = metadata.tags ?? []
-                    return tags.sorted() == ["ios-team", "nightly", "release-candidate"]
-                },
-                duration: .any,
-                files: .any,
-                gitBranch: .any,
-                gitCommitSHA: .any,
-                gitRef: .any,
-                gitRemoteURLOrigin: .any,
-                isCI: .any,
-                issues: .any,
-                modelIdentifier: .any,
-                macOSVersion: .any,
-                scheme: .any,
-                targets: .any,
-                xcodeCacheUploadEnabled: .any,
-                xcodeVersion: .any,
-                status: .any,
-                ciRunId: .any,
-                ciProjectHandle: .any,
-                ciHost: .any,
-                ciProvider: .any,
-                cacheableTasks: .any,
-                casOutputs: .any,
-                machineMetrics: .any
-            )
-            .called(1)
-    }
-
-    @Test(.inTemporaryDirectory, .withMockedEnvironment())
-    func createsBuild_with_custom_metadata_from_TUIST_BUILD_VALUE_prefix() async throws {
-        // Given
-        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        let projectPath = temporaryDirectory.appending(component: "App.xcodeproj")
-        let mockedEnvironment = try #require(Environment.mocked)
-        mockedEnvironment.workspacePath = projectPath
-        mockedEnvironment.variables["TUIST_BUILD_VALUE_TICKET"] = "PROJ-1234"
-        mockedEnvironment.variables["TUIST_BUILD_VALUE_PR_URL"] = "https://github.com/tuist/tuist/pull/123"
-
-        given(xcodeProjectOrWorkspacePathLocator)
-            .locate(from: .any)
-            .willReturn(projectPath)
-
-        let derivedDataPath = temporaryDirectory.appending(component: "derived-data")
-        given(derivedDataLocator)
-            .locate(for: .any)
-            .willReturn(derivedDataPath)
-        let buildLogsPath = derivedDataPath.appending(components: "Logs", "Build")
-        let activityLogPath = buildLogsPath.appending(
-            components: "\(UUID().uuidString).xcactivitylog"
-        )
-        try await fileSystem.makeDirectory(at: buildLogsPath)
-        try await fileSystem.writeText("fake", at: activityLogPath)
-
-        given(xcActivityLogController).mostRecentActivityLogFile(
-            projectDerivedDataDirectory: .value(derivedDataPath),
-            filter: .any
-        ).willReturn(
-            .test(
-                path: activityLogPath,
-                timeStoppedRecording: Date(timeIntervalSinceReferenceDate: 20)
-            )
-        )
-
-        // When
-        try await subject.run(path: nil)
-
-        // Then
-        verify(createBuildService)
-            .createBuild(
-                fullHandle: .any,
-                serverURL: .any,
-                id: .any,
-                category: .any,
-                configuration: .any,
-                customMetadata: .matching { metadata in
-                    guard let metadata else { return false }
-                    let values = metadata.values?.additionalProperties ?? [:]
-                    return values == [
-                        "ticket": "PROJ-1234",
-                        "pr_url": "https://github.com/tuist/tuist/pull/123",
-                    ]
-                },
-                duration: .any,
-                files: .any,
-                gitBranch: .any,
-                gitCommitSHA: .any,
-                gitRef: .any,
-                gitRemoteURLOrigin: .any,
-                isCI: .any,
-                issues: .any,
-                modelIdentifier: .any,
-                macOSVersion: .any,
-                scheme: .any,
-                targets: .any,
-                xcodeCacheUploadEnabled: .any,
-                xcodeVersion: .any,
-                status: .any,
-                ciRunId: .any,
-                ciProjectHandle: .any,
-                ciHost: .any,
-                ciProvider: .any,
-                cacheableTasks: .any,
-                casOutputs: .any,
-                machineMetrics: .any
-            )
-            .called(1)
-    }
-
-    @Test(.inTemporaryDirectory, .withMockedEnvironment())
-    func createsBuild_with_combined_custom_metadata() async throws {
-        // Given
-        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        let projectPath = temporaryDirectory.appending(component: "App.xcodeproj")
-        let mockedEnvironment = try #require(Environment.mocked)
-        mockedEnvironment.workspacePath = projectPath
-        mockedEnvironment.variables["TUIST_BUILD_TAGS"] = "nightly,release"
-        mockedEnvironment.variables["TUIST_BUILD_VALUE_TICKET"] = "PROJ-1234"
-
-        given(xcodeProjectOrWorkspacePathLocator)
-            .locate(from: .any)
-            .willReturn(projectPath)
-
-        let derivedDataPath = temporaryDirectory.appending(component: "derived-data")
-        given(derivedDataLocator)
-            .locate(for: .any)
-            .willReturn(derivedDataPath)
-        let buildLogsPath = derivedDataPath.appending(components: "Logs", "Build")
-        let activityLogPath = buildLogsPath.appending(
-            components: "\(UUID().uuidString).xcactivitylog"
-        )
-        try await fileSystem.makeDirectory(at: buildLogsPath)
-        try await fileSystem.writeText("fake", at: activityLogPath)
-
-        given(xcActivityLogController).mostRecentActivityLogFile(
-            projectDerivedDataDirectory: .value(derivedDataPath),
-            filter: .any
-        ).willReturn(
-            .test(
-                path: activityLogPath,
-                timeStoppedRecording: Date(timeIntervalSinceReferenceDate: 20)
-            )
-        )
-
-        // When
-        try await subject.run(path: nil)
-
-        // Then
-        verify(createBuildService)
-            .createBuild(
-                fullHandle: .any,
-                serverURL: .any,
-                id: .any,
-                category: .any,
-                configuration: .any,
-                customMetadata: .matching { metadata in
-                    guard let metadata else { return false }
-                    let tags = metadata.tags ?? []
-                    let values = metadata.values?.additionalProperties ?? [:]
-                    return tags.sorted() == ["nightly", "release"] &&
-                        values == ["ticket": "PROJ-1234"]
-                },
-                duration: .any,
-                files: .any,
-                gitBranch: .any,
-                gitCommitSHA: .any,
-                gitRef: .any,
-                gitRemoteURLOrigin: .any,
-                isCI: .any,
-                issues: .any,
-                modelIdentifier: .any,
-                macOSVersion: .any,
-                scheme: .any,
-                targets: .any,
-                xcodeCacheUploadEnabled: .any,
-                xcodeVersion: .any,
-                status: .any,
-                ciRunId: .any,
-                ciProjectHandle: .any,
-                ciHost: .any,
-                ciProvider: .any,
-                cacheableTasks: .any,
-                casOutputs: .any,
-                machineMetrics: .any
-            )
-            .called(1)
-    }
-
-    @Test(.inTemporaryDirectory, .withMockedEnvironment())
-    func createsBuild_with_empty_custom_metadata_when_no_env_vars() async throws {
-        // Given
-        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        let projectPath = temporaryDirectory.appending(component: "App.xcodeproj")
-        let mockedEnvironment = try #require(Environment.mocked)
-        mockedEnvironment.workspacePath = projectPath
-
-        given(xcodeProjectOrWorkspacePathLocator)
-            .locate(from: .any)
-            .willReturn(projectPath)
-
-        let derivedDataPath = temporaryDirectory.appending(component: "derived-data")
-        given(derivedDataLocator)
-            .locate(for: .any)
-            .willReturn(derivedDataPath)
-        let buildLogsPath = derivedDataPath.appending(components: "Logs", "Build")
-        let activityLogPath = buildLogsPath.appending(
-            components: "\(UUID().uuidString).xcactivitylog"
-        )
-        try await fileSystem.makeDirectory(at: buildLogsPath)
-        try await fileSystem.writeText("fake", at: activityLogPath)
-
-        given(xcActivityLogController).mostRecentActivityLogFile(
-            projectDerivedDataDirectory: .value(derivedDataPath),
-            filter: .any
-        ).willReturn(
-            .test(
-                path: activityLogPath,
-                timeStoppedRecording: Date(timeIntervalSinceReferenceDate: 20)
-            )
-        )
-
-        // When
-        try await subject.run(path: nil)
-
-        // Then
-        verify(createBuildService)
-            .createBuild(
-                fullHandle: .any,
-                serverURL: .any,
-                id: .any,
-                category: .any,
-                configuration: .any,
-                customMetadata: .matching { metadata in
-                    guard let metadata else { return false }
-                    let tags = metadata.tags ?? []
-                    let values = metadata.values?.additionalProperties ?? [:]
-                    return tags.isEmpty && values.isEmpty
-                },
-                duration: .any,
-                files: .any,
-                gitBranch: .any,
-                gitCommitSHA: .any,
-                gitRef: .any,
-                gitRemoteURLOrigin: .any,
-                isCI: .any,
-                issues: .any,
-                modelIdentifier: .any,
-                macOSVersion: .any,
-                scheme: .any,
-                targets: .any,
-                xcodeCacheUploadEnabled: .any,
-                xcodeVersion: .any,
-                status: .any,
-                ciRunId: .any,
-                ciProjectHandle: .any,
-                ciHost: .any,
-                ciProvider: .any,
-                cacheableTasks: .any,
-                casOutputs: .any,
-                machineMetrics: .any
-            )
-            .called(1)
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
@@ -899,26 +406,13 @@ struct InspectBuildCommandServiceTests {
 
         try await subject.run(path: nil)
 
-        verify(createBuildService)
-            .createBuild(
-                fullHandle: .any, serverURL: .any, id: .value(activityLogUUID),
-                category: .any, configuration: .any, customMetadata: .any,
-                duration: .any, files: .any, gitBranch: .any, gitCommitSHA: .any,
-                gitRef: .any, gitRemoteURLOrigin: .any, isCI: .any, issues: .any,
-                modelIdentifier: .any, macOSVersion: .any, scheme: .any,
-                targets: .any, xcodeCacheUploadEnabled: .any, xcodeVersion: .any,
-                status: .any, ciRunId: .any, ciProjectHandle: .any,
-                ciHost: .any, ciProvider: .any, cacheableTasks: .any,
-                casOutputs: .any, machineMetrics: .any
-            )
-            .called(1)
-
-        verify(uploadBuildService)
-            .uploadBuild(
-                buildId: .value(activityLogUUID),
-                fullHandle: .any,
-                serverURL: .any,
-                filePath: .any
+        verify(uploadBuildRunService)
+            .uploadBuildRun(
+                activityLogPath: .value(activityLogPath),
+                projectPath: .value(projectPath),
+                config: .any,
+                scheme: .any,
+                configuration: .any
             )
             .called(1)
     }

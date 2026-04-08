@@ -368,12 +368,80 @@ docker compose down -v
 - [clickhouse-keeper-config.xml](/server/self-host/clickhouse-keeper-config.xml) - ClickHouse Keeper configuration
 - [.env.example](/server/self-host/.env.example) - Example environment variables file
 
+## Kubernetes with Helm {#kubernetes-with-helm}
+
+Tuist provides an official Helm chart for deploying on Kubernetes. The chart packages the Tuist server and cache service, along with embedded infrastructure dependencies that you can swap for external providers as needed.
+
+### Installing the chart {#installing-the-chart}
+
+```bash
+helm install tuist oci://ghcr.io/tuist/charts/tuist \
+  --set server.license.key="YOUR_LICENSE_KEY"
+```
+
+To pin a specific chart version:
+
+```bash
+helm install tuist oci://ghcr.io/tuist/charts/tuist \
+  --set server.license.key="YOUR_LICENSE_KEY" \
+  --version 0.1.0
+```
+
+### Infrastructure dependencies {#helm-infrastructure-dependencies}
+
+The chart manages three infrastructure dependencies: `postgresql`, `clickhouse`, and `objectStorage`. Each defaults to **embedded** mode, meaning the chart deploys them inside the cluster. To point at your own external instances instead, set the dependency's `mode` to `external` and fill in the connection details in your `values.yaml`. For example, to use an external PostgreSQL database:
+
+```yaml
+# values.yaml
+postgresql:
+  mode: external
+  external:
+    host: your-db-host
+    port: 5432
+    database: tuist
+    username: tuist
+    password: your-password
+```
+
+The same pattern applies to `clickhouse` and `objectStorage`. See the `external` block under each section in the chart's `values.yaml` for the full set of configurable fields.
+
+### Observability {#helm-observability}
+
+The chart includes an optional observability stack (OpenTelemetry Collector, Prometheus, Grafana, Loki, and Tempo). It is **disabled by default**. To enable it in your `values.yaml`:
+
+```yaml
+# values.yaml
+observability:
+  enabled: true
+```
+
+When enabled, Grafana is available with Logs, Traces, and Metrics drilldowns pre-configured. For external observability, keep this disabled and configure the endpoints via `server.extraEnv`:
+
+```yaml
+# values.yaml
+server:
+  extraEnv:
+    - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
+      value: "http://your-otel-collector:4317"
+    - name: TUIST_LOKI_URL
+      value: "http://your-loki:3100"
+```
+
+### Values reference {#helm-values-reference}
+
+For the full list of configurable values, see the chart's [`values.yaml`](https://github.com/tuist/tuist/blob/main/infra/helm/tuist/values.yaml).
+
 ## Deployment {#deployment}
 
 The official Tuist Docker image is available at:
 ```
 ghcr.io/tuist/tuist
 ```
+
+The published image includes embedded Linux build processing for `.xcactivitylog` archives, so self-hosted deployments can process builds without running a separate `processor` service. If you later want to offload build processing to dedicated workers, set `TUIST_PROCESSOR_URL` and `TUIST_PROCESSOR_WEBHOOK_SECRET` to enable the remote processor mode.
+
+> [!NOTE]
+> `.xcresult` processing remains a separate concern and still requires the macOS-based `xcode_processor` service.
 
 ### Pulling the Docker image {#pulling-the-docker-image}
 

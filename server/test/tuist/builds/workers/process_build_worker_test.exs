@@ -321,7 +321,10 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
                ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, project.id), 3, 3))
     end
 
-    test "marks build as failed when account is not found on final attempt", %{project: project, build: build} do
+    test "marks build as failed when account is not found on final attempt", %{
+      project: project,
+      build: build
+    } do
       expect(Tuist.Accounts, :get_account_by_id, fn _id ->
         {:error, :not_found}
       end)
@@ -400,7 +403,8 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
         {:ok, %{}}
       end)
 
-      args = build.id |> job_args(account.id, project.id) |> Map.put("vcs_comment_params", vcs_params)
+      args =
+        build.id |> job_args(account.id, project.id) |> Map.put("vcs_comment_params", vcs_params)
 
       assert ProcessBuildWorker.perform(oban_job(args))
     end
@@ -417,7 +421,8 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
       expect(Tuist.Builds, :create_build, fn _attrs -> {:ok, %{id: build.id}} end)
       reject(&Tuist.VCS.enqueue_vcs_pull_request_comment/1)
 
-      assert :ok == ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, project.id)))
+      assert :ok ==
+               ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, project.id)))
     end
 
     test "does not enqueue VCS comment on failed processing", %{

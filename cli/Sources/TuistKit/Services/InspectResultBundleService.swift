@@ -171,6 +171,8 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
             throw UploadResultBundleServiceError.missingFullHandle
         }
 
+        // xcodebuild creates result-bundle as a symlink to result-bundle.xcresult,
+        // so we resolve it to ensure the archiver zips the actual directory.
         let resolvedResultBundlePath = try await fileSystem.resolveSymbolicLink(resultBundlePath)
 
         if !quarantinedTests.isEmpty {

@@ -67,6 +67,12 @@ public actor RunMetadataStorage {
         self.testRunId = testRunId
     }
 
+    /// The URL of the uploaded build run.
+    public private(set) var buildRunURL: URL?
+    public func update(buildRunURL: URL?) {
+        self.buildRunURL = buildRunURL
+    }
+
     /// Cache endpoint used for the current run (regional module cache)
     public private(set) var cacheEndpoint: String = ""
     public func update(cacheEndpoint: String) {

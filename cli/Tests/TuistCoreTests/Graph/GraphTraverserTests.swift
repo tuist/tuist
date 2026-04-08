@@ -1722,6 +1722,36 @@ final class GraphTraverserTests: TuistUnitTestCase {
         XCTAssertTrue(got.isEmpty)
     }
 
+    func test_embeddableFrameworks_whenHostedTestTarget_withDirectFrameworkNotInHost() throws {
+        // Given: Unit test depends on a host app AND a framework that the host does NOT depend on.
+        // The framework should NOT be embedded in the .xctest bundle.
+        let featureFramework = Target.test(name: "FeatureA", product: .framework)
+        let app = Target.test(name: "SharedTestHost", product: .app)
+        let tests = Target.test(name: "FeatureATests", product: .unitTests)
+        let hostProject = Project.test(path: "/path/host", targets: [app])
+        let featureProject = Project.test(path: "/path/feature", targets: [featureFramework, tests])
+
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: app.name, path: hostProject.path): Set(),
+            .target(name: featureFramework.name, path: featureProject.path): Set(),
+            .target(name: tests.name, path: featureProject.path): Set([
+                .target(name: app.name, path: hostProject.path),
+                .target(name: featureFramework.name, path: featureProject.path),
+            ]),
+        ]
+        let graph = Graph.test(
+            projects: [hostProject.path: hostProject, featureProject.path: featureProject],
+            dependencies: dependencies
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.embeddableFrameworks(path: featureProject.path, name: tests.name).sorted()
+
+        // Then
+        XCTAssertTrue(got.isEmpty)
+    }
+
     func test_embeddableFrameworks_whenUITest_andAppPrecompiledDependencies() throws {
         // Given
         let app = Target.test(name: "App", product: .app)
@@ -4135,6 +4165,105 @@ final class GraphTraverserTests: TuistUnitTestCase {
             graphTargetC,
             graphTargetD,
         ])
+    }
+
+    func test_staticXCFrameworkAppIntentsMetadata_returns_direct_and_transitive_static_xcframework_metadata() throws {
+        // Given
+        let app = Target.test(name: "App", product: .app)
+        let feature = Target.test(name: "Feature", product: .framework)
+        let project = Project.test(targets: [app, feature])
+        let directXCFramework: GraphDependency = .testXCFramework(
+            path: "/xcframeworks/direct.xcframework",
+            infoPlist: .test(libraries: [.test(
+                identifier: "ios-arm64",
+                path: try RelativePath(validating: "Direct.framework"),
+                architectures: [.arm64]
+            )]),
+            linking: .static
+        )
+        let transitiveXCFramework: GraphDependency = .testXCFramework(
+            path: "/xcframeworks/transitive.xcframework",
+            infoPlist: .test(libraries: [.test(
+                identifier: "ios-arm64",
+                path: try RelativePath(validating: "Transitive.framework"),
+                architectures: [.arm64]
+            )]),
+            linking: .static
+        )
+        let dynamicXCFramework: GraphDependency = .testXCFramework(
+            path: "/xcframeworks/dynamic.xcframework",
+            infoPlist: .test(libraries: [.test(
+                identifier: "ios-arm64",
+                path: try RelativePath(validating: "Dynamic.framework"),
+                architectures: [.arm64]
+            )]),
+            linking: .dynamic
+        )
+
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: app.name, path: project.path): Set([
+                .target(name: feature.name, path: project.path),
+                dynamicXCFramework,
+            ]),
+            .target(name: feature.name, path: project.path): Set([
+                directXCFramework,
+            ]),
+            directXCFramework: Set([
+                transitiveXCFramework,
+            ]),
+        ]
+        let graph = Graph.test(
+            path: project.path,
+            projects: [project.path: project],
+            dependencies: dependencies
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = try subject.staticXCFrameworkAppIntentsMetadata(path: project.path, name: app.name)
+
+        // Then
+        XCTAssertEqual(got, Set([
+            .init(
+                frameworkName: "Direct",
+                metadataPath: "/xcframeworks/direct.xcframework/ios-arm64/Direct.framework/Metadata.appintents"
+            ),
+            .init(
+                frameworkName: "Transitive",
+                metadataPath: "/xcframeworks/transitive.xcframework/ios-arm64/Transitive.framework/Metadata.appintents"
+            ),
+        ]))
+    }
+
+    func test_staticXCFrameworkAppIntentsMetadata_ignores_non_framework_libraries() throws {
+        // Given
+        let app = Target.test(name: "App", product: .app)
+        let project = Project.test(targets: [app])
+        let staticLibraryXCFramework: GraphDependency = .testXCFramework(
+            path: "/xcframeworks/library.xcframework",
+            infoPlist: .test(libraries: [.test(
+                identifier: "ios-arm64",
+                path: try RelativePath(validating: "libLibrary.a"),
+                architectures: [.arm64]
+            )]),
+            linking: .static
+        )
+        let graph = Graph.test(
+            path: project.path,
+            projects: [project.path: project],
+            dependencies: [
+                .target(name: app.name, path: project.path): Set([
+                    staticLibraryXCFramework,
+                ]),
+            ]
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = try subject.staticXCFrameworkAppIntentsMetadata(path: project.path, name: app.name)
+
+        // Then
+        XCTAssertEmpty(got)
     }
 
     func test_copyProductDependencies_when_targetHasTransitiveStaticXCFrameworks() throws {

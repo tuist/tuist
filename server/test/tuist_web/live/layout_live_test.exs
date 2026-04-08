@@ -12,6 +12,7 @@ defmodule TuistWeb.LayoutLiveTest do
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.LayoutLive
+  alias TuistWeb.Locale
 
   setup %{conn: conn} = context do
     conn = init_test_session(conn, %{})
@@ -163,6 +164,18 @@ defmodule TuistWeb.LayoutLiveTest do
       assert socket.assigns.selected_project == project
       assert socket.assigns.selected_account.name == organization.account.name
       assert socket.assigns.selected_projects == [project]
+    end
+
+    @tag user_role: :user
+    test "uses the session locale for translated dashboard labels", %{
+      params: params,
+      session: session
+    } do
+      {:cont, socket} = Locale.on_mount(:assign_locale, %{}, Map.put(session, "locale", "es"), %LiveView.Socket{})
+
+      {:cont, socket} = LayoutLive.on_mount(:project, params, session, socket)
+
+      assert Enum.any?(Enum.at(socket.assigns.breadcrumbs, 0).items, &(&1.label == "Crear organización"))
     end
   end
 
