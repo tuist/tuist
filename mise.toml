@@ -9,6 +9,7 @@
     age = "1.2.1"
     protoc = "32.1"
     "1password-cli" = "2.32.0"
+    "github:render-oss/cli" = "2.6.1"
     bats = "1.11.1"
     rclone = "1.73.3"
     jq = "1.8.1"

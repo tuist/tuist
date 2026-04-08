@@ -62,6 +62,13 @@ backend = "aqua:orhun/git-cliff"
 "platforms.macos-x64" = { checksum = "sha512:0b6e4f4683f372bfb484d81e2e6ae4a305f571bfc9ddb63a618dae92346d3f91102a2e8eb7becca8937ed6d72b1df3f795e1f9e5b871704fa28f580e2ac6976c", url = "https://github.com/orhun/git-cliff/releases/download/v2.6.0/git-cliff-2.6.0-x86_64-apple-darwin.tar.gz"}
 "platforms.windows-x64" = { url = "https://github.com/orhun/git-cliff/releases/download/v2.6.0/git-cliff-2.6.0-x86_64-pc-windows-msvc.zip"}
 
+[[tools."github:render-oss/cli"]]
+version = "2.6.1"
+backend = "github:render-oss/cli"
+"platforms.linux-x64" = { checksum = "sha256:84a0085a9408f35daa23aed9aadcf9a01b2e39d0d0250ca4dc564283d1f8f6c2", url = "https://github.com/render-oss/cli/releases/download/v2.6.1/cli_2.6.1_linux_amd64.zip", url_api = "https://api.github.com/repos/render-oss/cli/releases/assets/326532423"}
+"platforms.linux-x64-musl" = { checksum = "sha256:84a0085a9408f35daa23aed9aadcf9a01b2e39d0d0250ca4dc564283d1f8f6c2", url = "https://github.com/render-oss/cli/releases/download/v2.6.1/cli_2.6.1_linux_amd64.zip", url_api = "https://api.github.com/repos/render-oss/cli/releases/assets/326532423"}
+"platforms.macos-arm64" = { checksum = "sha256:3766bf821cbff2509bc671a9e1dc37bccd92440eb74775fe0ad9dfe47c39a84b", url = "https://github.com/render-oss/cli/releases/download/v2.6.1/cli_2.6.1_darwin_arm64.zip", url_api = "https://api.github.com/repos/render-oss/cli/releases/assets/326532431"}
+
 [[tools.gradle]]
 version = "8.12.1"
 backend = "aqua:gradle/gradle"
