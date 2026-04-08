@@ -6,19 +6,19 @@ set -euo pipefail
 IMAGE_NAME="tuist/search:test"
 CONTAINER_NAME="search-test-$$"
 
+cleanup() { docker rm -f "$CONTAINER_NAME" 2>/dev/null || true; }
+trap cleanup EXIT
+
 echo "Building Docker image..."
 docker build -t "$IMAGE_NAME" .
 
 echo "Starting container..."
-docker run --rm -d --name "$CONTAINER_NAME" \
+docker run -d --name "$CONTAINER_NAME" \
   -e TYPESENSE_API_KEY=test \
   -e TYPESENSE_DATA_DIR=/data \
   -e TYPESENSE_ENABLE_CORS=true \
   -p 18108:8108 \
   "$IMAGE_NAME"
-
-cleanup() { docker stop "$CONTAINER_NAME" 2>/dev/null || true; }
-trap cleanup EXIT
 
 for i in $(seq 1 30); do
   if curl -sf http://localhost:18108/health > /dev/null 2>&1; then
