@@ -22,7 +22,7 @@ import XcodeProj
 
 struct TuistCacheEECanaryAcceptanceTests {
     @Test(
-        .disabled("Slow canary integration test; covered by multiplatform_app_module_cache and multiplatform_app_selective_testing"),
+        .disabled("Covered by multiplatform_app_module_cache and multiplatform_app_selective_testing"),
         .inTemporaryDirectory,
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
         .withMockedNoora,
