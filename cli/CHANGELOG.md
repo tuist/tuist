@@ -1,7 +1,18 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.176.0<!-- RELEASE NOTES START -->
+## What's Changed in 4.176.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* mkdir data race by [@fortmarek](https://github.com/fortmarek) in [#10211](https://github.com/tuist/tuist/pull/10211)
+* write empty shard matrix output when selective testing skips all tests by [@fortmarek](https://github.com/fortmarek) in [#10205](https://github.com/tuist/tuist/pull/10205)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.176.1...4.176.2
+
+## What's Changed in 4.176.1<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
 
@@ -13,7 +24,7 @@ All notable changes to this project will be documented in this file.
 
 
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.175.0...4.176.0
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.175.0...4.176.1
 
 ## What's Changed in 4.175.0<!-- RELEASE NOTES START -->
 

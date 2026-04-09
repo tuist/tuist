@@ -185,7 +185,7 @@
       background: var(--noora-surface-background-secondary);
     }
 
-    &:focus {
+    &:focus-visible {
       --border:
         0px 1px 1px 0px
           light-dark(oklch(20.9% 0.009 264.4 / 0.05), oklch(16.2% 0 0 / 0.2)),
@@ -214,7 +214,7 @@
         0px 1px 3px 0px
           light-dark(oklch(31.8% 0.011 248.2 / 0.1), oklch(0% 0 0 / 0.3));
 
-      &:focus {
+      &:focus-visible {
         --border:
           0px 1px 1px 0px
             light-dark(oklch(20.9% 0.009 264.4 / 0.05), oklch(16.2% 0 0 / 0.2)),
