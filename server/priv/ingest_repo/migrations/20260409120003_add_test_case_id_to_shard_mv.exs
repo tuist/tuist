@@ -84,20 +84,35 @@ defmodule Tuist.IngestRepo.Migrations.AddTestCaseIdToShardMv do
     for [partition] <- partitions do
       Logger.info("Backfilling partition #{partition} into test_case_runs_by_shard_id")
 
-      IngestRepo.query!(
-        """
-        INSERT INTO test_case_runs_by_shard_id
-          (id, shard_id, name, status, is_flaky, is_new, duration, shard_index, project_id, test_case_id, ran_at)
-        SELECT
-          id, assumeNotNull(shard_id), name,
-          status, is_flaky, is_new, duration, shard_index, project_id,
-          test_case_id, ran_at
-        FROM test_case_runs
-        WHERE toYYYYMM(inserted_at) = {partition:UInt32} AND shard_id IS NOT NULL
-        """,
-        %{partition: String.to_integer(partition)},
-        timeout: 1_200_000
-      )
+      retry_on_shutting_down(fn ->
+        IngestRepo.query!(
+          """
+          INSERT INTO test_case_runs_by_shard_id
+            (id, shard_id, name, status, is_flaky, is_new, duration, shard_index, project_id, test_case_id, ran_at)
+          SELECT
+            id, assumeNotNull(shard_id), name,
+            status, is_flaky, is_new, duration, shard_index, project_id,
+            test_case_id, ran_at
+          FROM test_case_runs
+          WHERE toYYYYMM(inserted_at) = {partition:UInt32} AND shard_id IS NOT NULL
+          """,
+          %{partition: String.to_integer(partition)},
+          timeout: 1_200_000
+        )
+      end)
     end
+  end
+
+  defp retry_on_shutting_down(fun, attempts \\ 5) do
+    fun.()
+  rescue
+    e in Ch.Error ->
+      if attempts > 1 and String.contains?(to_string(e.message), "TABLE_IS_READ_ONLY") do
+        Logger.warning("Table is shutting down, retrying in 5s (#{attempts - 1} attempts left)")
+        Process.sleep(:timer.seconds(5))
+        retry_on_shutting_down(fun, attempts - 1)
+      else
+        reraise e, __STACKTRACE__
+      end
   end
 end

@@ -29,7 +29,7 @@ defmodule Tuist.IngestRepo.Migrations.RecreateFlakyTestCaseRunsMv do
   @columns ~w(project_id test_case_id test_run_id inserted_at ran_at is_ci)
 
   def up do
-    IngestRepo.query!("DROP VIEW IF EXISTS flaky_test_case_runs")
+    IngestRepo.query!("DROP TABLE IF EXISTS flaky_test_case_runs")
 
     IngestRepo.query!("""
     CREATE TABLE IF NOT EXISTS flaky_test_case_runs (
@@ -92,22 +92,37 @@ defmodule Tuist.IngestRepo.Migrations.RecreateFlakyTestCaseRunsMv do
     for [partition] <- partitions do
       Logger.info("Backfilling partition #{partition} into flaky_test_case_runs")
 
-      IngestRepo.query!(
-        """
-        INSERT INTO flaky_test_case_runs (#{Enum.join(@columns, ", ")})
-        SELECT
-          project_id,
-          assumeNotNull(test_case_id),
-          test_run_id,
-          inserted_at,
-          ran_at,
-          is_ci
-        FROM test_case_runs
-        WHERE toYYYYMM(inserted_at) = {partition:UInt32} AND is_flaky = 1 AND test_case_id IS NOT NULL
-        """,
-        %{partition: String.to_integer(partition)},
-        timeout: 1_200_000
-      )
+      retry_on_shutting_down(fn ->
+        IngestRepo.query!(
+          """
+          INSERT INTO flaky_test_case_runs (#{Enum.join(@columns, ", ")})
+          SELECT
+            project_id,
+            assumeNotNull(test_case_id),
+            test_run_id,
+            inserted_at,
+            ran_at,
+            is_ci
+          FROM test_case_runs
+          WHERE toYYYYMM(inserted_at) = {partition:UInt32} AND is_flaky = 1 AND test_case_id IS NOT NULL
+          """,
+          %{partition: String.to_integer(partition)},
+          timeout: 1_200_000
+        )
+      end)
     end
+  end
+
+  defp retry_on_shutting_down(fun, attempts \\ 5) do
+    fun.()
+  rescue
+    e in Ch.Error ->
+      if attempts > 1 and String.contains?(to_string(e.message), "TABLE_IS_READ_ONLY") do
+        Logger.warning("Table is shutting down, retrying in 5s (#{attempts - 1} attempts left)")
+        Process.sleep(:timer.seconds(5))
+        retry_on_shutting_down(fun, attempts - 1)
+      else
+        reraise e, __STACKTRACE__
+      end
   end
 end
