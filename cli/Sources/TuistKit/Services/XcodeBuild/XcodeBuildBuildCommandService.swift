@@ -60,7 +60,8 @@ struct XcodeBuildBuildCommandService {
         shardMax: Int? = nil,
         shardTotal: Int? = nil,
         shardMaxDuration: Int? = nil,
-        shardSkipUpload: Bool = false
+        shardSkipUpload: Bool = false,
+        shardArchivePath: AbsolutePath? = nil
     ) async throws {
         var passthroughXcodebuildArguments = passthroughXcodebuildArguments
         try await passthroughXcodebuildArguments.append(
@@ -130,7 +131,8 @@ struct XcodeBuildBuildCommandService {
                 fullHandle: fullHandle,
                 serverURL: serverURL,
                 buildRunId: buildRunId,
-                skipUpload: shardSkipUpload
+                skipUpload: shardSkipUpload,
+                archivePath: shardArchivePath
             )
         }
     }

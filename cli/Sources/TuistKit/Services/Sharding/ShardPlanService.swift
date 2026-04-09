@@ -26,7 +26,8 @@
             fullHandle: String,
             serverURL: URL,
             buildRunId: String?,
-            skipUpload: Bool
+            skipUpload: Bool,
+            archivePath: AbsolutePath?
         ) async throws -> Components.Schemas.ShardPlan
     }
 
@@ -101,7 +102,8 @@
             fullHandle: String,
             serverURL: URL,
             buildRunId: String?,
-            skipUpload: Bool = false
+            skipUpload: Bool = false,
+            archivePath: AbsolutePath? = nil
         ) async throws -> Components.Schemas.ShardPlan {
             guard let reference = reference ?? ciController.ciInfo()?.shardReference else {
                 throw ShardPlanServiceError.cannotDeriveSessionId
@@ -150,7 +152,10 @@
 
             Logger.current.notice("Shard plan created: \(shardPlan.shard_count) shards", metadata: .section)
 
-            if skipUpload {
+            if let archivePath {
+                try await archiveXCTestProducts(xctestproductsPath, to: archivePath)
+                Logger.current.notice("Shard archive written to \(archivePath.pathString)", metadata: .section)
+            } else if skipUpload {
                 Logger.current
                     .notice("Skipping test products upload. Ensure shard runners can access the test products locally.")
             } else {
@@ -198,6 +203,9 @@
         /// Creates a compressed archive of the test products bundle, excluding dSYMs
         /// to reduce upload size.
         private func archiveXCTestProducts(_ xctestproductsPath: AbsolutePath, to archivePath: AbsolutePath) async throws {
+            if try await !fileSystem.exists(archivePath.parentDirectory, isDirectory: true) {
+                try await fileSystem.makeDirectory(at: archivePath.parentDirectory)
+            }
             try await appleArchiver.compress(
                 directory: xctestproductsPath,
                 to: archivePath,

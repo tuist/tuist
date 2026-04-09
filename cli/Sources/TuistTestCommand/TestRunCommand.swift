@@ -30,6 +30,17 @@
         }
     }
 
+    private let notAllowedPassthroughXcodeBuildArguments = [
+        "-scheme",
+        "-workspace",
+        "-project",
+        "-testPlan",
+        "-skip-test-configuration",
+        "-only-test-configuration",
+        "-only-testing",
+        "-skip-testing",
+    ]
+
     public struct TestRunCommand: AsyncParsableCommand, LogConfigurableCommand,
         RecentPathRememberableCommand, TrackableParsableCommand
     {
@@ -290,6 +301,14 @@
 
         @Option(
             name: .long,
+            help: "Path to a locally managed shard archive. In build-for-testing mode Tuist writes the optimized archive there; in shard execution mode Tuist extracts it instead of downloading test products from remote storage.",
+            completion: .file(),
+            envKey: .testShardArchivePath
+        )
+        var shardArchivePath: String?
+
+        @Option(
+            name: .long,
             help: "The zero-based shard index to execute.",
             envKey: .testShardIndex
         )
@@ -319,17 +338,6 @@
                 skipTestTargets: skipTestTargets
             )
         }
-
-        private var notAllowedPassthroughXcodeBuildArguments = [
-            "-scheme",
-            "-workspace",
-            "-project",
-            "-testPlan",
-            "-skip-test-configuration",
-            "-only-test-configuration",
-            "-only-testing",
-            "-skip-testing",
-        ]
 
         public func run() async throws {
             try notAllowedPassthroughXcodeBuildArguments.forEach {
@@ -416,6 +424,12 @@
                 shardMaxDuration: shardMaxDuration,
                 shardIndex: shardIndex,
                 shardSkipUpload: shardSkipUpload,
+                shardArchivePath: try await {
+                    if let shardArchivePath {
+                        return try await Environment.current.pathRelativeToWorkingDirectory(shardArchivePath)
+                    }
+                    return nil
+                }(),
                 mode: inspectMode
             )
         }

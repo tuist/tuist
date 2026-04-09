@@ -223,6 +223,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         shardMaxDuration: Int? = nil,
         shardIndex: Int? = nil,
         shardSkipUpload: Bool = false,
+        shardArchivePath: AbsolutePath? = nil,
         mode: TestProcessingMode = .local
     ) async throws {
         if validateTestTargetsParameters {
@@ -255,7 +256,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 skipTestTargets: skipTestTargets,
                 testPlanConfiguration: testPlanConfiguration,
                 passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
-                runId: runId
+                runId: runId,
+                shardArchivePath: shardArchivePath
             )
             return
         }
@@ -531,7 +533,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
                         fullHandle: fullHandle,
                         serverURL: serverURL,
                         buildRunId: buildRunId,
-                        skipUpload: shardSkipUpload
+                        skipUpload: shardSkipUpload,
+                        archivePath: shardArchivePath
                     )
                 }
             }
@@ -557,7 +560,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
         skipTestTargets: [TestIdentifier],
         testPlanConfiguration: TestPlanConfiguration?,
         passthroughXcodeBuildArguments: [String],
-        runId: String
+        runId: String,
+        shardArchivePath: AbsolutePath?
     ) async throws {
         guard let fullHandle = config.fullHandle else {
             throw TestServiceError.actionInvalid
@@ -569,7 +573,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
             shardIndex: shardIndex,
             fullHandle: fullHandle,
             serverURL: serverURL,
-            testProductsPath: localTestProductsPath
+            testProductsPath: localTestProductsPath,
+            testProductsArchivePath: shardArchivePath
         )
 
         let cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
