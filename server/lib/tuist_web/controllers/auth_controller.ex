@@ -6,9 +6,9 @@ defmodule TuistWeb.AuthController do
   use TuistWeb, :controller
 
   alias OAuth2.Client
-  alias OAuth2.Strategy.AuthCode
   alias Tuist.Accounts
   alias Tuist.Accounts.Organization
+  alias Tuist.OAuth2.AuthCodeBasicAuth
   alias TuistWeb.Authentication
   alias TuistWeb.Errors.UnauthorizedError
   alias Ueberauth.Auth
@@ -300,7 +300,7 @@ defmodule TuistWeb.AuthController do
 
   defp sso_client(config, redirect_uri) do
     [
-      strategy: AuthCode,
+      strategy: AuthCodeBasicAuth,
       client_id: config.client_id,
       client_secret: config.client_secret,
       site: config.site,
@@ -363,7 +363,7 @@ defmodule TuistWeb.AuthController do
 
     %Auth{
       provider: sso_provider,
-      strategy: AuthCode,
+      strategy: AuthCodeBasicAuth,
       uid: uid,
       info: %Info{
         name: name,
