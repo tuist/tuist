@@ -29,7 +29,7 @@ defmodule Tuist.IngestRepo.Migrations.AddTestCaseIdToTestRunMv do
   @columns ~w(id test_run_id status is_flaky is_new duration inserted_at ran_at name project_id test_case_id)
 
   def up do
-    IngestRepo.query!("DROP VIEW IF EXISTS test_case_runs_by_test_run")
+    IngestRepo.query!("DROP TABLE IF EXISTS test_case_runs_by_test_run")
 
     IngestRepo.query!("""
     CREATE TABLE IF NOT EXISTS test_case_runs_by_test_run (
