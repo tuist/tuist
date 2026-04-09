@@ -155,7 +155,7 @@ public struct SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerModuleMa
         let newContentHash = try contentHasher.hash(moduleMapContent)
         let currentContentHash = try? await contentHasher.hash(path: path)
         if currentContentHash != newContentHash {
-            try await fileSystem.writeText(moduleMapContent, at: path)
+            try await fileSystem.writeText(moduleMapContent, at: path, encoding: .utf8, options: [.overwrite])
         }
     }
 
