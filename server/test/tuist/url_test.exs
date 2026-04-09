@@ -1,5 +1,6 @@
 defmodule Tuist.URLTest do
   use TuistTestSupport.Cases.DataCase
+  use Mimic
 
   alias Tuist.URL
 
@@ -7,7 +8,18 @@ defmodule Tuist.URLTest do
     test "accepts valid public URLs" do
       assert URL.public_url?("https://auth.example.com/authorize")
       assert URL.public_url?("https://login.okta.com/oauth2/token")
+    end
+
+    test "accepts http URLs in dev and test environments" do
       assert URL.public_url?("http://sso.company.org/userinfo")
+    end
+
+    test "rejects http URLs outside of dev and test environments" do
+      stub(Tuist.Environment, :dev?, fn -> false end)
+      stub(Tuist.Environment, :test?, fn -> false end)
+
+      refute URL.public_url?("http://sso.company.org/userinfo")
+      assert URL.public_url?("https://sso.company.org/userinfo")
     end
 
     test "rejects non-URL values" do

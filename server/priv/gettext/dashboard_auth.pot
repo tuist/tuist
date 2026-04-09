@@ -102,7 +102,7 @@ msgid "Connection successful"
 msgstr ""
 
 #: lib/tuist_web/live/sso_login_live.ex:96
-#: lib/tuist_web/live/user_okta_login_live.ex:92
+#: lib/tuist_web/live/user_okta_login_live.ex:100
 #, elixir-autogen, elixir-format
 msgid "Contact us"
 msgstr ""
@@ -130,7 +130,7 @@ msgstr ""
 #: lib/tuist_web/live/sso_login_live.ex:79
 #: lib/tuist_web/live/user_forgot_password_live.ex:54
 #: lib/tuist_web/live/user_login_live.ex:138
-#: lib/tuist_web/live/user_okta_login_live.ex:74
+#: lib/tuist_web/live/user_okta_login_live.ex:82
 #: lib/tuist_web/live/user_registration_live.ex:148
 #, elixir-autogen, elixir-format
 msgid "Email address"
@@ -177,7 +177,7 @@ msgid "Instantly share your app using a URL."
 msgstr ""
 
 #: lib/tuist_web/live/sso_login_live.ex:91
-#: lib/tuist_web/live/user_okta_login_live.ex:86
+#: lib/tuist_web/live/user_okta_login_live.ex:94
 #, elixir-autogen, elixir-format
 msgid "Interested in SSO?"
 msgstr ""
@@ -190,7 +190,7 @@ msgstr ""
 #: lib/tuist_web/live/sso_login_live.ex:87
 #: lib/tuist_web/live/user_login_live.ex:17
 #: lib/tuist_web/live/user_login_live.ex:176
-#: lib/tuist_web/live/user_okta_login_live.ex:82
+#: lib/tuist_web/live/user_okta_login_live.ex:90
 #: lib/tuist_web/live/user_registration_live.ex:193
 #, elixir-autogen, elixir-format
 msgid "Log in"
@@ -198,12 +198,12 @@ msgstr ""
 
 #: lib/tuist_web/live/sso_login_live.ex:62
 #: lib/tuist_web/live/user_login_live.ex:48
-#: lib/tuist_web/live/user_okta_login_live.ex:57
+#: lib/tuist_web/live/user_okta_login_live.ex:65
 #, elixir-autogen, elixir-format
 msgid "Log in to Tuist"
 msgstr ""
 
-#: lib/tuist_web/live/user_okta_login_live.ex:59
+#: lib/tuist_web/live/user_okta_login_live.ex:67
 #, elixir-autogen, elixir-format
 msgid "Log in to your enterprise account via Okta"
 msgstr ""
@@ -213,7 +213,7 @@ msgstr ""
 msgid "Log in to your enterprise account via SSO"
 msgstr ""
 
-#: lib/tuist_web/live/user_okta_login_live.ex:36
+#: lib/tuist_web/live/user_okta_login_live.ex:44
 #, elixir-autogen, elixir-format
 msgid "Logging in via Okta failed"
 msgstr ""
@@ -313,7 +313,7 @@ msgstr ""
 #: lib/tuist_web/live/user_confirmation_live.ex:18
 #: lib/tuist_web/live/user_forgot_password_live.ex:23
 #: lib/tuist_web/live/user_login_live.ex:40
-#: lib/tuist_web/live/user_okta_login_live.ex:49
+#: lib/tuist_web/live/user_okta_login_live.ex:57
 #: lib/tuist_web/live/user_registration_live.ex:67
 #: lib/tuist_web/live/user_registration_live.ex:211
 #: lib/tuist_web/live/user_reset_password_live.ex:24

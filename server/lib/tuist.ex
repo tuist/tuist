@@ -135,6 +135,7 @@ defmodule Tuist do
       Storage,
       Tasks,
       Time,
+      URL,
       Utilities.ByteFormatter,
       Utilities.DateFormatter,
       Utilities.ThroughputFormatter,

@@ -28,9 +28,17 @@ defmodule TuistWeb.UserOktaLoginLive do
     email = String.trim(email)
 
     case Accounts.sso_organization_for_user_email(email) do
-      {:ok, organization} ->
+      {:ok, %{sso_provider: :okta} = organization} ->
         redirect_url = "/users/auth/okta?organization_id=#{organization.id}"
         {:noreply, redirect(socket, external: redirect_url)}
+
+      {:ok, _organization} ->
+        socket =
+          socket
+          |> put_flash(:email, email)
+          |> redirect(to: ~p"/users/log_in/sso")
+
+        {:noreply, socket}
 
       {:error, :not_found} ->
         socket = put_flash(socket, :error, dgettext("dashboard_auth", "Logging in via Okta failed"))

@@ -6,8 +6,8 @@ defmodule Tuist.URL do
   def public_url?(url) when is_binary(url) do
     case URI.parse(url) do
       %URI{scheme: scheme, host: host, query: nil, fragment: nil}
-      when scheme in ["http", "https"] and is_binary(host) and host != "" ->
-        not private_host?(host)
+      when is_binary(host) and host != "" ->
+        scheme_allowed?(scheme) and not private_host?(host)
 
       _ ->
         false
@@ -15,6 +15,10 @@ defmodule Tuist.URL do
   end
 
   def public_url?(_), do: false
+
+  defp scheme_allowed?("https"), do: true
+  defp scheme_allowed?("http"), do: Tuist.Environment.dev?() or Tuist.Environment.test?()
+  defp scheme_allowed?(_), do: false
 
   defp private_host?(host) do
     charlist = String.to_charlist(host)

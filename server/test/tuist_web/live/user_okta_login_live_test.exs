@@ -71,5 +71,29 @@ defmodule TuistWeb.UserOktaLoginLiveTest do
 
       assert html =~ "Logging in via Okta failed"
     end
+
+    test "redirects to generic SSO login when user belongs to a non-Okta SSO organization", %{conn: conn} do
+      user = user_fixture()
+
+      _organization =
+        organization_fixture(
+          creator: user,
+          sso_provider: :oauth2,
+          sso_organization_id: "https://auth.example.com",
+          oauth2_client_id: "client-id",
+          oauth2_client_secret: "client-secret",
+          oauth2_authorize_url: "https://auth.example.com/oauth2/authorize",
+          oauth2_token_url: "https://auth.example.com/oauth2/token",
+          oauth2_user_info_url: "https://auth.example.com/oauth2/userinfo"
+        )
+
+      {:ok, lv, _html} = live(conn, ~p"/users/log_in/okta")
+
+      lv
+      |> form("#okta_login_form", user: %{email: user.email})
+      |> render_submit()
+
+      assert_redirect(lv, ~p"/users/log_in/sso")
+    end
   end
 end

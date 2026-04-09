@@ -444,6 +444,64 @@ defmodule TuistWeb.AuthControllerTest do
       end
     end
 
+    test "refuses to auto-link an existing user who is not a member of the SSO organization", %{conn: conn} do
+      # An attacker org admin configures custom OAuth2 endpoints they control
+      # and returns a victim's email from /userinfo. The login must be refused
+      # because the victim does not belong to the attacker's organization.
+      attacker = AccountsFixtures.user_fixture(email: "attacker@example.com")
+      victim = AccountsFixtures.user_fixture(email: "victim@example.com")
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          creator: attacker,
+          sso_provider: :oauth2,
+          sso_organization_id: "https://evil.example.com",
+          oauth2_client_id: UUIDv7.generate(),
+          oauth2_client_secret: UUIDv7.generate(),
+          oauth2_authorize_url: "https://evil.example.com/oauth2/authorize",
+          oauth2_token_url: "https://evil.example.com/oauth2/token",
+          oauth2_user_info_url: "https://evil.example.com/oauth2/userinfo"
+        )
+
+      expect(OAuth2.Client, :get_token, fn _client, [code: "auth-code"] ->
+        {:ok,
+         %OAuth2.Client{
+           token:
+             AccessToken.new(%{
+               "access_token" => "access-token",
+               "token_type" => "Bearer",
+               "scope" => "openid email profile"
+             })
+         }}
+      end)
+
+      expect(OAuth2.Client, :get, fn %OAuth2.Client{}, "https://evil.example.com/oauth2/userinfo" ->
+        {:ok,
+         %{
+           status_code: 200,
+           body: %{
+             "sub" => "spoofed-uid",
+             "email" => victim.email,
+             "name" => "Spoofed Victim"
+           }
+         }}
+      end)
+
+      assert_error_sent 401, fn ->
+        conn
+        |> init_test_session(%{
+          sso_organization_id: organization.id,
+          sso_state: "expected-state",
+          sso_route_provider: :oauth2
+        })
+        |> get("/users/auth/custom_oauth2/callback?code=auth-code&state=expected-state")
+      end
+
+      # The victim's account must remain unlinked from the attacker's IdP
+      assert {:error, :not_found} =
+               Tuist.Accounts.get_oauth2_identity(:oauth2, "spoofed-uid")
+    end
+
     test "raises unauthorized error when the user info request fails", %{conn: conn} do
       user = AccountsFixtures.user_fixture()
 

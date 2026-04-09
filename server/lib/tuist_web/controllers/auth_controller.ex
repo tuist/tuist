@@ -88,7 +88,7 @@ defmodule TuistWeb.AuthController do
           |> delete_session(:sso_organization_id)
           |> delete_session(:sso_state)
           |> delete_session(:sso_route_provider)
-          |> complete_oauth_callback(auth)
+          |> complete_oauth_callback(auth, sso_organization: organization)
         else
           {:error, reason} ->
             log(:error, "Failed SSO callback: #{inspect(reason)}")
@@ -128,8 +128,9 @@ defmodule TuistWeb.AuthController do
     complete_oauth_callback(conn, auth)
   end
 
-  defp complete_oauth_callback(conn, auth) do
+  defp complete_oauth_callback(conn, auth, opts \\ []) do
     auth_params = %{auth_method: auth.provider}
+    sso_organization = Keyword.get(opts, :sso_organization)
 
     case Accounts.get_oauth2_identity(auth.provider, auth.uid) do
       {:ok, oauth2_identity} ->
@@ -166,23 +167,66 @@ defmodule TuistWeb.AuthController do
             |> halt()
 
           {:ok, existing_user} ->
-            {:ok, _oauth_identity} =
-              Accounts.link_oauth_identity_to_user(existing_user, %{
-                provider: auth.provider,
-                id_in_provider: to_string(auth.uid),
-                provider_organization_id: provider_organization_id
-              })
-
-            if oauth_return_url do
-              conn
-              |> put_session(:user_return_to, oauth_return_url)
-              |> delete_session(:oauth_return_to)
-              |> Authentication.log_in_user(existing_user, auth_params)
-            else
-              Authentication.log_in_user(conn, existing_user, auth_params)
-            end
+            link_existing_user_and_log_in(
+              conn,
+              existing_user,
+              auth,
+              auth_params,
+              sso_organization,
+              provider_organization_id,
+              oauth_return_url
+            )
         end
     end
+  end
+
+  defp link_existing_user_and_log_in(
+         conn,
+         existing_user,
+         auth,
+         auth_params,
+         sso_organization,
+         provider_organization_id,
+         oauth_return_url
+       ) do
+    if can_link_existing_user?(existing_user, auth.provider, sso_organization) do
+      {:ok, _oauth_identity} =
+        Accounts.link_oauth_identity_to_user(existing_user, %{
+          provider: auth.provider,
+          id_in_provider: to_string(auth.uid),
+          provider_organization_id: provider_organization_id
+        })
+
+      if oauth_return_url do
+        conn
+        |> put_session(:user_return_to, oauth_return_url)
+        |> delete_session(:oauth_return_to)
+        |> Authentication.log_in_user(existing_user, auth_params)
+      else
+        Authentication.log_in_user(conn, existing_user, auth_params)
+      end
+    else
+      log(
+        :warning,
+        "Refused to link existing user #{existing_user.id} via custom SSO provider #{auth.provider}: user is not a member of the authenticating organization."
+      )
+
+      raise UnauthorizedError,
+            dgettext("dashboard", "Failed to authenticate with the SSO provider.")
+    end
+  end
+
+  # Custom SSO providers (Okta, generic OAuth2) let an admin configure
+  # arbitrary authorize/token/userinfo endpoints. A malicious admin could
+  # return any email from /userinfo and take over an existing Tuist account
+  # via email-based auto-linking. We only auto-link when the existing user
+  # is already a member of the authenticating organization, since the admin
+  # already has access to manage that user.
+  defp can_link_existing_user?(_user, provider, _organization) when provider not in [:okta, :oauth2], do: true
+  defp can_link_existing_user?(_user, _provider, nil), do: false
+
+  defp can_link_existing_user?(user, _provider, %Organization{} = organization) do
+    Accounts.belongs_to_organization?(user, organization)
   end
 
   def authenticate_cli_deprecated(conn, params) do

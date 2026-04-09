@@ -11,15 +11,6 @@
 msgid ""
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:137
-#: lib/tuist_web/controllers/auth_controller.ex:145
-#: lib/tuist_web/controllers/auth_controller.ex:157
-#: lib/tuist_web/controllers/auth_controller.ex:172
-#: lib/tuist_web/controllers/auth_controller.ex:178
-#, elixir-autogen, elixir-format
-msgid "Failed to authenticate with the custom OAuth2 provider."
-msgstr ""
-
 #: lib/tuist_web/components/previews/app_preview.ex:24
 #, elixir-autogen, elixir-format
 msgid "%{app_name} icon"
@@ -330,7 +321,7 @@ msgstr ""
 msgid "The account you are looking for doesn't exist or has been moved."
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:25
+#: lib/tuist_web/controllers/auth_controller.ex:30
 #, elixir-autogen, elixir-format
 msgid "The authentication URL is not supported"
 msgstr ""
@@ -511,19 +502,9 @@ msgstr ""
 msgid "Metrics"
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:293
+#: lib/tuist_web/controllers/auth_controller.ex:277
 #, elixir-autogen, elixir-format
 msgid "Failed to authenticate."
-msgstr ""
-
-#: lib/tuist_web/controllers/auth_controller.ex:65
-#: lib/tuist_web/controllers/auth_controller.ex:75
-#: lib/tuist_web/controllers/auth_controller.ex:85
-#: lib/tuist_web/controllers/auth_controller.ex:204
-#: lib/tuist_web/controllers/auth_controller.ex:214
-#: lib/tuist_web/controllers/auth_controller.ex:224
-#, elixir-autogen, elixir-format
-msgid "Failed to authenticate with Okta."
 msgstr ""
 
 #: lib/tuist_web/controllers/error_html.ex:28
@@ -531,7 +512,7 @@ msgstr ""
 msgid "Authentication failed"
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:284
+#: lib/tuist_web/controllers/auth_controller.ex:268
 #, elixir-autogen, elixir-format
 msgid "Your identity provider denied access. Please ask your organization admin to assign you to the Tuist application."
 msgstr ""
@@ -540,4 +521,15 @@ msgstr ""
 #: lib/tuist_web/components/app_layout_components.ex:306
 #, elixir-autogen, elixir-format
 msgid "Shards"
+msgstr ""
+
+#: lib/tuist_web/controllers/auth_controller.ex:65
+#: lib/tuist_web/controllers/auth_controller.ex:70
+#: lib/tuist_web/controllers/auth_controller.ex:79
+#: lib/tuist_web/controllers/auth_controller.ex:97
+#: lib/tuist_web/controllers/auth_controller.ex:101
+#: lib/tuist_web/controllers/auth_controller.ex:106
+#: lib/tuist_web/controllers/auth_controller.ex:193
+#, elixir-autogen, elixir-format
+msgid "Failed to authenticate with the SSO provider."
 msgstr ""
