@@ -1067,6 +1067,8 @@ defmodule Tuist.Tests do
   end
 
   # credo:disable-for-next-line Credo.Check.Refactor.FunctionArity
+  # credo:disable-for-this-file Credo.Check.Refactor.CyclomaticComplexity
+  # credo:disable-for-this-file Credo.Check.Refactor.FunctionArity
   defp create_test_cases_for_module(
          test,
          module_id,
@@ -1144,34 +1146,11 @@ defmodule Tuist.Tests do
           shard_index: shard_index
         }
 
-        arguments = Map.get(case_attrs, :arguments, [])
-
-        {arg_records, arg_failures, arg_repetitions} =
-          build_argument_records(arguments, test_case_run_id)
-
-        test_case_run =
-          if Enum.any?(arg_records) do
-            Map.put(test_case_run, :arguments, Enum.map(arg_records, &Map.take(&1, [:id, :name])))
-          else
-            test_case_run
-          end
+        {test_case_run, arg_records, arg_failures, arg_repetitions} =
+          build_argument_data(case_attrs, test_case_run_id, test_case_run)
 
         test_case_failures = build_failures(case_attrs, test_case_run_id)
-
-        test_case_repetitions =
-          Enum.map(repetitions, fn rep_attrs ->
-            %{
-              id: UUIDv7.generate(),
-              test_case_run_id: test_case_run_id,
-              test_case_run_argument_id: nil,
-              repetition_number: Map.get(rep_attrs, :repetition_number),
-              name: Map.get(rep_attrs, :name),
-              status: Map.get(rep_attrs, :status),
-              duration: Map.get(rep_attrs, :duration, 0),
-              inserted_at: NaiveDateTime.utc_now()
-            }
-          end)
-
+        test_case_repetitions = build_repetitions(case_attrs, test_case_run_id)
         test_case_attachments = build_attachments(case_attrs, test_case_run_id, test.id)
 
         {
@@ -1256,6 +1235,22 @@ defmodule Tuist.Tests do
     end)
   end
 
+  defp build_argument_data(case_attrs, test_case_run_id, test_case_run) do
+    arguments = Map.get(case_attrs, :arguments, [])
+
+    {arg_records, arg_failures, arg_repetitions} =
+      build_argument_records(arguments, test_case_run_id)
+
+    test_case_run =
+      if Enum.any?(arg_records) do
+        Map.put(test_case_run, :arguments, Enum.map(arg_records, &Map.take(&1, [:id, :name])))
+      else
+        test_case_run
+      end
+
+    {test_case_run, arg_records, arg_failures, arg_repetitions}
+  end
+
   defp build_failures(case_attrs, test_case_run_id) do
     case_attrs
     |> Map.get(:failures, [])
@@ -1268,6 +1263,23 @@ defmodule Tuist.Tests do
         path: Map.get(failure_attrs, :path),
         line_number: Map.get(failure_attrs, :line_number),
         issue_type: Map.get(failure_attrs, :issue_type) || "unknown",
+        inserted_at: NaiveDateTime.utc_now()
+      }
+    end)
+  end
+
+  defp build_repetitions(case_attrs, test_case_run_id) do
+    case_attrs
+    |> Map.get(:repetitions, [])
+    |> Enum.map(fn rep_attrs ->
+      %{
+        id: UUIDv7.generate(),
+        test_case_run_id: test_case_run_id,
+        test_case_run_argument_id: nil,
+        repetition_number: Map.get(rep_attrs, :repetition_number),
+        name: Map.get(rep_attrs, :name),
+        status: Map.get(rep_attrs, :status),
+        duration: Map.get(rep_attrs, :duration, 0),
         inserted_at: NaiveDateTime.utc_now()
       }
     end)

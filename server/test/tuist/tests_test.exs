@@ -270,7 +270,7 @@ defmodule Tuist.TestsTest do
       # But the failure is at index 0 in arg.failures, NOT at index 1.
       # Using Enum.at(arg.failures, rep_index) would return nil for the failed rep.
       assert Enum.at(arg.failures, 1) == nil
-      assert Enum.at(arg.failures, 0) != nil
+      assert Enum.at(arg.failures, 0)
       assert Enum.at(arg.failures, 0).message == "Expected true"
     end
 
@@ -2601,7 +2601,7 @@ defmodule Tuist.TestsTest do
 
       case1 = Enum.find(test_case_run.arguments, &(&1.name == ".case1"))
       assert length(case1.failures) == 2
-      failure_messages = Enum.map(case1.failures, & &1.message) |> Enum.sort()
+      failure_messages = case1.failures |> Enum.map(& &1.message) |> Enum.sort()
       assert failure_messages == ["Failure 1", "Failure 2"]
 
       case2 = Enum.find(test_case_run.arguments, &(&1.name == ".case2"))
