@@ -14,7 +14,7 @@ public struct TestCase: Encodable, Sendable {
     public var isQuarantined: Bool
 
     enum CodingKeys: String, CodingKey {
-        case name, module, duration, status, failures, repetitions, attachments
+        case name, module, duration, status, failures, repetitions, arguments, attachments
         case testSuite = "test_suite_name"
         case crashReport = "crash_report"
         case isQuarantined = "is_quarantined"
