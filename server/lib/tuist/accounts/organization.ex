@@ -108,6 +108,11 @@ defmodule Tuist.Accounts.Organization do
 
   defp normalize_oauth2_urls(changeset) do
     case get_field(changeset, :sso_provider) do
+      :okta ->
+        changeset
+        |> derive_okta_endpoint_urls()
+        |> normalize_oauth2_endpoint_urls()
+
       :oauth2 ->
         changeset
         |> update_change(:sso_organization_id, &normalize_oauth2_site/1)
@@ -118,10 +123,41 @@ defmodule Tuist.Accounts.Organization do
     end
   end
 
+  # For Okta, the authorize/token/userinfo endpoints are conventionally derived
+  # from the org's Okta domain. Callers can pass `sso_organization_id` alone
+  # and we fill in the endpoint URLs; explicit values still take precedence.
+  defp derive_okta_endpoint_urls(changeset) do
+    case get_field(changeset, :sso_organization_id) do
+      domain when is_binary(domain) and domain != "" ->
+        changeset
+        |> maybe_put_oauth2_url(:oauth2_authorize_url, "https://#{domain}/oauth2/v1/authorize")
+        |> maybe_put_oauth2_url(:oauth2_token_url, "https://#{domain}/oauth2/v1/token")
+        |> maybe_put_oauth2_url(:oauth2_user_info_url, "https://#{domain}/oauth2/v1/userinfo")
+
+      _ ->
+        changeset
+    end
+  end
+
+  defp maybe_put_oauth2_url(changeset, field, value) do
+    case get_field(changeset, field) do
+      nil -> put_change(changeset, field, value)
+      "" -> put_change(changeset, field, value)
+      _ -> changeset
+    end
+  end
+
   defp validate_oauth2_urls(changeset) do
     case get_field(changeset, :sso_provider) do
       :oauth2 ->
         Enum.reduce([:sso_organization_id | @oauth2_endpoint_fields], changeset, fn field, changeset ->
+          validate_change(changeset, field, fn ^field, url ->
+            invalid_url_error(field, url)
+          end)
+        end)
+
+      :okta ->
+        Enum.reduce(@oauth2_endpoint_fields, changeset, fn field, changeset ->
           validate_change(changeset, field, fn ^field, url ->
             invalid_url_error(field, url)
           end)

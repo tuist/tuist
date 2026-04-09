@@ -68,7 +68,7 @@ defmodule Tuist.OrganizationTest do
       assert changeset.valid? == true
     end
 
-    test "requires all oauth2 fields for okta provider" do
+    test "requires client credentials for okta provider but derives endpoint URLs from the domain" do
       changeset =
         Organization.create_changeset(%Organization{}, %{
           sso_provider: :okta,
@@ -78,9 +78,19 @@ defmodule Tuist.OrganizationTest do
       assert changeset.valid? == false
       assert "can't be blank" in errors_on(changeset).oauth2_client_id
       assert "can't be blank" in errors_on(changeset).oauth2_encrypted_client_secret
-      assert "can't be blank" in errors_on(changeset).oauth2_authorize_url
-      assert "can't be blank" in errors_on(changeset).oauth2_token_url
-      assert "can't be blank" in errors_on(changeset).oauth2_user_info_url
+      # Endpoint URLs are auto-derived from the Okta domain so they are not required from callers.
+      refute Map.has_key?(errors_on(changeset), :oauth2_authorize_url)
+      refute Map.has_key?(errors_on(changeset), :oauth2_token_url)
+      refute Map.has_key?(errors_on(changeset), :oauth2_user_info_url)
+
+      assert Ecto.Changeset.get_change(changeset, :oauth2_authorize_url) ==
+               "https://tuist.okta.com/oauth2/v1/authorize"
+
+      assert Ecto.Changeset.get_change(changeset, :oauth2_token_url) ==
+               "https://tuist.okta.com/oauth2/v1/token"
+
+      assert Ecto.Changeset.get_change(changeset, :oauth2_user_info_url) ==
+               "https://tuist.okta.com/oauth2/v1/userinfo"
     end
 
     test "changeset is valid when sso_provider is oauth2" do
