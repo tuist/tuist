@@ -20,7 +20,7 @@ defmodule Tuist.IngestRepo.Migrations.AddTestCaseIdToShardMv do
   @disable_migration_lock true
 
   def up do
-    IngestRepo.query!("DROP VIEW IF EXISTS test_case_runs_by_shard_id")
+    IngestRepo.query!("DROP TABLE IF EXISTS test_case_runs_by_shard_id")
 
     IngestRepo.query!("""
     CREATE TABLE IF NOT EXISTS test_case_runs_by_shard_id (
