@@ -227,13 +227,7 @@ jobs:
         run: xcodebuild -downloadComponent MetalToolchain
       - name: Build tests
         id: shard
-        run: |
-          if [ "${{ github.event.pull_request.head.repo.fork }}" = "true" ]; then
-            tuist test --build-only TuistAcceptanceTests
-            echo 'matrix={"shard":[0]}' >> "$GITHUB_OUTPUT"
-          else
-            tuist test --build-only --shard-total 2 --shard-granularity suite TuistAcceptanceTests
-          fi
+        run: tuist test --build-only --shard-total 2 --shard-granularity suite TuistAcceptanceTests
 
   cli-acceptance-tests:
     name: Acceptance Tests
@@ -284,7 +278,7 @@ jobs:
       - name: Run shard ${{ matrix.shard }}
         run: tuist test --without-building --platform macOS TuistAcceptanceTests -- -retry-tests-on-failure -test-iterations 2
         env:
-          TUIST_SHARD_INDEX: ${{ github.event.pull_request.head.repo.fork != true && matrix.shard || '' }}
+          TUIST_SHARD_INDEX: ${{ matrix.shard }}
 
   cli-acceptance-tests-fork:
     name: Acceptance Tests (Fork)
