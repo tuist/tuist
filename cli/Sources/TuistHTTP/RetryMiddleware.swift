@@ -35,6 +35,8 @@ public struct RetryMiddleware: ClientMiddleware {
                 Logger.current.debug(
                     "Received HTTP \(response.status.code) for \(request.method.rawValue) \(request.path ?? ""), retrying (\(retry + 1)/\(maxRetries))..."
                 )
+            } catch is CancellationError {
+                throw CancellationError()
             } catch {
                 Logger.current.debug(
                     "HTTP request failed for \(request.method.rawValue) \(request.path ?? ""): \(error.localizedDescription), retrying (\(retry + 1)/\(maxRetries))..."
@@ -49,8 +51,8 @@ public struct RetryMiddleware: ClientMiddleware {
     }
 
     private func delay(for retry: Int) -> UInt64 {
-        let baseInterval = TimeInterval(1_000_000)
-        let randomInterval = Double.random(in: -1_000_000 ... 1_000_000)
-        return UInt64(baseInterval * pow(2, Double(retry)) + randomInterval)
+        let baseInterval = TimeInterval(100_000_000) // 100ms
+        let jitter = Double.random(in: 0 ... 100_000_000) // 0-100ms jitter
+        return UInt64(baseInterval * pow(2, Double(retry)) + jitter)
     }
 }
