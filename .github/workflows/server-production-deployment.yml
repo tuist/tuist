@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - server/**
+      - noora/**
       - .github/workflows/server-production-deployment.yml
       - server/pnpm-lock.yaml
 
@@ -20,7 +21,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: server-production-deployment-${{ github.head_ref }}
+  group: server-production-deployment-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
 env:
@@ -68,7 +69,7 @@ jobs:
   acceptance-tests:
     name: Acceptance Tests
     runs-on: namespace-profile-default-macos
-    timeout-minutes: 30
+    timeout-minutes: 15
     needs: canary
     environment: server-canary
     steps:
@@ -99,7 +100,7 @@ jobs:
       - name: Test
         env:
           TUIST_EE: 1
-        run: tuist test TuistCacheEEAcceptanceTests --no-selective-testing --test-targets TuistCacheEEAcceptanceTests/TuistCacheEECanaryAcceptanceTests/ios_app_with_frameworks -- -retry-tests-on-failure -test-iterations 2
+        run: tuist test TuistCacheEEAcceptanceTests --no-selective-testing -- -retry-tests-on-failure -test-iterations 2
   production:
     environment: server-production
     name: Production Deployment

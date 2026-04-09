@@ -42,10 +42,16 @@ defmodule Processor.BuildProcessor do
   defp process_zip(zip_path, temp_dir, xcode_cache_upload_enabled) do
     {:ok, _} = :zip.unzip(~c"#{zip_path}", [{:cwd, ~c"#{temp_dir}"}])
     xcactivitylog_path = find_xcactivitylog(temp_dir)
-    cas_path = Path.join(temp_dir, "cas_metadata")
+    cas_analytics_db_path = Path.join(temp_dir, "cas_analytics.db")
+    legacy_cas_metadata_path = Path.join(temp_dir, "cas_metadata")
 
     with {:ok, parsed_data} <-
-           parse_build(xcactivitylog_path, cas_path, xcode_cache_upload_enabled) do
+           parse_build(
+             xcactivitylog_path,
+             cas_analytics_db_path,
+             legacy_cas_metadata_path,
+             xcode_cache_upload_enabled
+           ) do
       machine_metrics =
         read_machine_metrics(
           Path.join(temp_dir, "machine_metrics.jsonl"),
@@ -62,12 +68,18 @@ defmodule Processor.BuildProcessor do
     end
   end
 
-  defp parse_build(xcactivitylog_path, cas_path, xcode_cache_upload_enabled) do
+  defp parse_build(
+         xcactivitylog_path,
+         cas_analytics_db_path,
+         legacy_cas_metadata_path,
+         xcode_cache_upload_enabled
+       ) do
     :telemetry.span([:processor, :build, :parse], %{}, fn ->
       result =
         Processor.XCActivityLogNIF.parse(
           xcactivitylog_path,
-          cas_path,
+          cas_analytics_db_path,
+          legacy_cas_metadata_path,
           xcode_cache_upload_enabled
         )
 

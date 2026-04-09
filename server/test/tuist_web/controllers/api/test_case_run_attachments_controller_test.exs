@@ -24,6 +24,8 @@ defmodule TuistWeb.API.TestCaseRunAttachmentsControllerTest do
       test_case_run_id = UUIDv7.generate()
       attachment_id = UUIDv7.generate()
 
+      test_run_id = UUIDv7.generate()
+
       stub(Tests, :get_test_case_run_by_id, fn id, _opts ->
         assert id == test_case_run_id
 
@@ -33,6 +35,7 @@ defmodule TuistWeb.API.TestCaseRunAttachmentsControllerTest do
            attachments: [
              %{
                id: attachment_id,
+               test_run_id: test_run_id,
                file_name: "screenshot.png"
              }
            ]
@@ -91,15 +94,17 @@ defmodule TuistWeb.API.TestCaseRunAttachmentsControllerTest do
       # Given
       test_case_run_id = UUIDv7.generate()
 
+      test_run_id = UUIDv7.generate()
+
       stub(Tests, :get_test_case_run_by_id, fn _id, _opts ->
         {:ok,
          %{
            project_id: project.id,
            attachments: [
-             %{id: UUIDv7.generate(), file_name: "log.txt"},
-             %{id: UUIDv7.generate(), file_name: "report.json"},
-             %{id: UUIDv7.generate(), file_name: "crash.ips"},
-             %{id: UUIDv7.generate(), file_name: "data.bin"}
+             %{id: UUIDv7.generate(), test_run_id: test_run_id, file_name: "log.txt"},
+             %{id: UUIDv7.generate(), test_run_id: test_run_id, file_name: "report.json"},
+             %{id: UUIDv7.generate(), test_run_id: test_run_id, file_name: "crash.ips"},
+             %{id: UUIDv7.generate(), test_run_id: test_run_id, file_name: "data.bin"}
            ]
          }}
       end)

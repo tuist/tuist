@@ -12,9 +12,11 @@ defmodule Cache.PromEx do
   def plugins do
     [
       PromEx.Plugins.Beam,
-      {PromEx.Plugins.Phoenix,
+      {TuistCommon.PromExPhoenixPlugin,
        router: CacheWeb.Router,
        endpoint: CacheWeb.Endpoint,
+       http_status_tag: :status_class,
+       include_controller_action_tags: false,
        duration_buckets: [10, 100, 500, 1000, 5000, 10_000, 30_000]},
       PromEx.Plugins.Oban,
       Cache.Xcode.PromExPlugin,

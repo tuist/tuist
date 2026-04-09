@@ -18,6 +18,7 @@ defmodule Tuist.Authorization.Checks do
       "project:runs:write"
     ],
     "mcp" => [
+      "project:admin:read",
       "project:cache:read",
       "project:previews:read",
       "project:bundles:read",
@@ -129,8 +130,14 @@ defmodule Tuist.Authorization.Checks do
   When `all_projects` is true, the token has access to all projects under the account.
   When `all_projects` is false, access is restricted to projects in `project_ids`.
   """
-  def project_access_permitted(%AuthenticatedAccount{all_projects: true}, _project) do
-    true
+  def project_access_permitted(%AuthenticatedAccount{issued_by: %User{} = user, all_projects: true}, %Project{} = project) do
+    Accounts.owns_account_or_belongs_to_account_organization?(user, %{id: project.account_id})
+  end
+
+  def project_access_permitted(%AuthenticatedAccount{account: %Account{id: account_id}, all_projects: true}, %Project{
+        account_id: project_account_id
+      }) do
+    account_id == project_account_id
   end
 
   def project_access_permitted(%AuthenticatedAccount{all_projects: false, project_ids: nil}, _project) do
@@ -141,14 +148,15 @@ defmodule Tuist.Authorization.Checks do
     false
   end
 
-  def project_access_permitted(%AuthenticatedAccount{all_projects: false, project_ids: project_ids}, %Project{
-        id: project_id
-      }) do
-    project_id in project_ids
+  def project_access_permitted(
+        %AuthenticatedAccount{account: %Account{id: account_id}, all_projects: false, project_ids: project_ids},
+        %Project{id: project_id, account_id: project_account_id}
+      ) do
+    account_id == project_account_id and project_id in project_ids
   end
 
   def project_access_permitted(_, _) do
-    true
+    false
   end
 
   def projects_match(%User{}, %Project{}) do

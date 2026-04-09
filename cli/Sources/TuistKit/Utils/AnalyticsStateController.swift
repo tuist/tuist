@@ -1,75 +1,52 @@
 import FileSystem
 import Foundation
 import Path
+import TuistCASAnalytics
 
-/// Cleans up stale analytics state directories (`cas/`, `keyvalue/`, `nodes/`)
-/// and the legacy `logs/` directory from the CLI state directory.
+/// Cleans up stale analytics state entries from the CAS analytics database
+/// and the legacy file-based directories and `logs/` directory.
 public struct AnalyticsStateController {
     private let fileSystem: FileSystem
+    private let database: CASAnalyticsDatabasing
 
-    public init(fileSystem: FileSystem = FileSystem()) {
+    public init(fileSystem: FileSystem = FileSystem(), database: CASAnalyticsDatabasing) {
         self.fileSystem = fileSystem
+        self.database = database
     }
 
-    /// Schedules best-effort cleanup of old analytics state files and legacy logs.
+    /// Schedules best-effort cleanup of old analytics state entries and legacy files.
     public func scheduleMaintenance(stateDirectory: AbsolutePath) {
-        Task.detached(priority: .background) { [fileSystem] in
-            try? await Self.clean(fileSystem: fileSystem, stateDirectory: stateDirectory)
+        Task.detached(priority: .background) { [fileSystem, database] in
+            try? await Self.clean(fileSystem: fileSystem, database: database, stateDirectory: stateDirectory)
         }
     }
 
-    /// Removes analytics state files older than `maxAge` and deletes the legacy `logs/` directory.
+    /// Removes analytics state entries older than `maxAge` and cleans up legacy directories.
     static func clean(
         fileSystem: FileSystem,
+        database: CASAnalyticsDatabasing,
         stateDirectory: AbsolutePath,
         maxAge: TimeInterval = 60 * 60
     ) async throws {
-        let analyticsDirectories = ["cas", "nodes"]
-        for directory in analyticsDirectories {
+        let cutoffDate = Date().addingTimeInterval(-maxAge)
+
+        try? database.removeOldEntries(olderThan: cutoffDate)
+
+        for directory in ["cas", "nodes"] {
             let directoryPath = stateDirectory.appending(component: directory)
-            try await removeOldFiles(
-                fileSystem: fileSystem,
-                directory: directoryPath,
-                include: ["*"],
-                maxAge: maxAge
-            )
+            if try await fileSystem.exists(directoryPath) {
+                try await fileSystem.remove(directoryPath)
+            }
         }
 
         let keyValueDirectory = stateDirectory.appending(component: "keyvalue")
-        for subdirectory in ["read", "write"] {
-            let subdirectoryPath = keyValueDirectory.appending(component: subdirectory)
-            try await removeOldFiles(
-                fileSystem: fileSystem,
-                directory: subdirectoryPath,
-                include: ["*"],
-                maxAge: maxAge
-            )
+        if try await fileSystem.exists(keyValueDirectory) {
+            try await fileSystem.remove(keyValueDirectory)
         }
 
         let logsDirectory = stateDirectory.appending(component: "logs")
         if try await fileSystem.exists(logsDirectory) {
             try await fileSystem.remove(logsDirectory)
-        }
-    }
-
-    private static func removeOldFiles(
-        fileSystem: FileSystem,
-        directory: AbsolutePath,
-        include: [String],
-        maxAge: TimeInterval
-    ) async throws {
-        guard try await fileSystem.exists(directory) else { return }
-
-        let cutoffDate = Date().addingTimeInterval(-maxAge)
-
-        for filePath in try await fileSystem.glob(directory: directory, include: include).collect() {
-            guard let creationDate = try FileManager.default.attributesOfItem(
-                atPath: filePath.pathString
-            )[.creationDate] as? Date else { continue }
-
-            if creationDate < cutoffDate {
-                try await fileSystem.remove(filePath)
-            }
         }
     }
 }

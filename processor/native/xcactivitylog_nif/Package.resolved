@@ -1,5 +1,5 @@
 {
-  "originHash" : "b044431242c767c72939217d570a8d61a4079e5ca86f2c3d70a137b4ca7800c8",
+  "originHash" : "72806d9520c25343cb9c1427cc732ed340ec187c03a698351f6359258af4cd34",
   "pins" : [
     {
       "identity" : "1024jp.gzipswift",
@@ -15,6 +15,46 @@
       "location" : "",
       "state" : {
         "version" : "1.7.0"
+      }
+    },
+    {
+      "identity" : "apple.swift-atomics",
+      "kind" : "registry",
+      "location" : "",
+      "state" : {
+        "version" : "1.3.0"
+      }
+    },
+    {
+      "identity" : "apple.swift-collections",
+      "kind" : "registry",
+      "location" : "",
+      "state" : {
+        "version" : "1.4.1"
+      }
+    },
+    {
+      "identity" : "apple.swift-log",
+      "kind" : "registry",
+      "location" : "",
+      "state" : {
+        "version" : "1.10.1"
+      }
+    },
+    {
+      "identity" : "apple.swift-nio",
+      "kind" : "registry",
+      "location" : "",
+      "state" : {
+        "version" : "2.97.1"
+      }
+    },
+    {
+      "identity" : "apple.swift-system",
+      "kind" : "registry",
+      "location" : "",
+      "state" : {
+        "version" : "1.6.4"
       }
     },
     {
@@ -47,6 +87,38 @@
       "location" : "",
       "state" : {
         "version" : "0.2.46"
+      }
+    },
+    {
+      "identity" : "stephencelis.SQLite_swift",
+      "kind" : "registry",
+      "location" : "",
+      "state" : {
+        "version" : "0.16.0"
+      }
+    },
+    {
+      "identity" : "tuist.FileSystem",
+      "kind" : "registry",
+      "location" : "",
+      "state" : {
+        "version" : "0.15.31"
+      }
+    },
+    {
+      "identity" : "tuist.Path",
+      "kind" : "registry",
+      "location" : "",
+      "state" : {
+        "version" : "0.3.8"
+      }
+    },
+    {
+      "identity" : "tuist.zipfoundation",
+      "kind" : "registry",
+      "location" : "",
+      "state" : {
+        "version" : "0.9.20"
       }
     }
   ],

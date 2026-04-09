@@ -85,7 +85,7 @@ config :esbuild,
       "--external:/images/*"
     ],
     cd: Path.expand("../assets/apidocs", __DIR__),
-    env: %{"NODE_PATH" => Path.expand("../deps", __DIR__)}
+    env: %{"NODE_PATH" => "#{Path.expand("../deps", __DIR__)}:#{node_modules_path}"}
   ]
 
 config :excellent_migrations, start_after: "20240926093919"

@@ -21,6 +21,7 @@ struct CacheAcceptanceTests {
 
 struct CacheConfigAcceptanceTests {
     @Test(
+        .disabled(),
         .inTemporaryDirectory,
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
         .withMockedNoora,

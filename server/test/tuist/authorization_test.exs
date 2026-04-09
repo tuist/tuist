@@ -981,7 +981,7 @@ defmodule Tuist.AuthorizationTest do
     assert Authorization.authorize(:account_token_create, user, account) == :ok
   end
 
-  test "can.create.account.token when the subject is a user of the account being read" do
+  test "cannot.create.account.token when the subject is a user of the account being read" do
     # Given
     user = AccountsFixtures.user_fixture()
     organization = AccountsFixtures.organization_fixture()
@@ -989,7 +989,7 @@ defmodule Tuist.AuthorizationTest do
     Accounts.add_user_to_organization(user, organization, role: :user)
 
     # When
-    assert Authorization.authorize(:account_token_create, user, account) == :ok
+    assert Authorization.authorize(:account_token_create, user, account) == {:error, :forbidden}
   end
 
   test "can.create.account.token when the subject does not belong to the account organization" do

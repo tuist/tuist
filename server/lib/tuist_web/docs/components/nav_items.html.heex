@@ -14,15 +14,6 @@
           label={item.label}
           data-selected={Sidebar.item_active?(item, @current_slug)}
         >
-          <:icon_left :if={item.icon}>
-            <img
-              src={item_icon_src(item.icon)}
-              alt=""
-              width="16"
-              height="16"
-              data-part="item-icon"
-            />
-          </:icon_left>
         </.tab_menu_vertical>
       </.link>
     <% else %>
@@ -39,15 +30,6 @@
                   label={item.label}
                   data-selected={Sidebar.item_active?(item, @current_slug)}
                 >
-                  <:icon_left :if={item.icon}>
-                    <img
-                      src={item_icon_src(item.icon)}
-                      alt=""
-                      width="16"
-                      height="16"
-                      data-part="item-icon"
-                    />
-                  </:icon_left>
                 </.tab_menu_vertical>
               </.link>
               <button
@@ -67,15 +49,6 @@
               data-part="trigger"
               data-selected={Sidebar.item_active?(item, @current_slug)}
             >
-              <:icon_left :if={item.icon}>
-                <img
-                  src={item_icon_src(item.icon)}
-                  alt=""
-                  width="16"
-                  height="16"
-                  data-part="item-icon"
-                />
-              </:icon_left>
               <:icon_right>
                 <div data-part="indicator">
                   <div data-part="indicator-down"><.chevron_down /></div>

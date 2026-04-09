@@ -4,14 +4,22 @@
     import Mockable
     import Path
     import TuistCore
+    import TuistHTTP
     import TuistSupport
 
     @Mockable
     public protocol AnalyticsArtifactUploadServicing {
-        func uploadResultBundle(
+        func uploadAndAnalyzeResultBundle(
             _ resultBundle: AbsolutePath,
             accountHandle: String,
             projectHandle: String,
+            commandEventId: String,
+            serverURL: URL
+        ) async throws
+
+        func uploadResultBundle(
+            _ resultBundle: AbsolutePath,
+            fullHandle: String,
             commandEventId: String,
             serverURL: URL
         ) async throws
@@ -30,6 +38,7 @@
         private let xcresultToolController: XCResultToolControlling
         private let fileArchiver: FileArchivingFactorying
         private let retryProvider: RetryProviding
+        private let fullHandleService: FullHandleServicing
         private let multipartUploadStartAnalyticsService: MultipartUploadStartAnalyticsServicing
         private let multipartUploadGenerateURLAnalyticsService:
             MultipartUploadGenerateURLAnalyticsServicing
@@ -43,6 +52,7 @@
                 xcresultToolController: XCResultToolController(),
                 fileArchiver: FileArchivingFactory(),
                 retryProvider: RetryProvider(),
+                fullHandleService: FullHandleService(),
                 multipartUploadStartAnalyticsService: MultipartUploadStartAnalyticsService(),
                 multipartUploadGenerateURLAnalyticsService:
                 MultipartUploadGenerateURLAnalyticsService(),
@@ -58,6 +68,7 @@
             xcresultToolController: XCResultToolControlling,
             fileArchiver: FileArchivingFactorying,
             retryProvider: RetryProviding,
+            fullHandleService: FullHandleServicing,
             multipartUploadStartAnalyticsService: MultipartUploadStartAnalyticsServicing,
             multipartUploadGenerateURLAnalyticsService: MultipartUploadGenerateURLAnalyticsServicing,
             multipartUploadArtifactService: MultipartUploadArtifactServicing,
@@ -68,6 +79,7 @@
             self.xcresultToolController = xcresultToolController
             self.fileArchiver = fileArchiver
             self.retryProvider = retryProvider
+            self.fullHandleService = fullHandleService
             self.multipartUploadStartAnalyticsService = multipartUploadStartAnalyticsService
             self.multipartUploadGenerateURLAnalyticsService = multipartUploadGenerateURLAnalyticsService
             self.multipartUploadArtifactService = multipartUploadArtifactService
@@ -75,7 +87,7 @@
             self.completeAnalyticsArtifactsUploadsService = completeAnalyticsArtifactsUploadsService
         }
 
-        public func uploadResultBundle(
+        public func uploadAndAnalyzeResultBundle(
             _ resultBundle: AbsolutePath,
             accountHandle: String,
             projectHandle: String,
@@ -146,6 +158,25 @@
                     serverURL: serverURL
                 )
             }
+        }
+
+        public func uploadResultBundle(
+            _ resultBundle: AbsolutePath,
+            fullHandle: String,
+            commandEventId: String,
+            serverURL: URL
+        ) async throws {
+            let handles = try fullHandleService.parse(fullHandle)
+            try await uploadAnalyticsArtifact(
+                ServerCommandEvent.Artifact(
+                    type: .resultBundle
+                ),
+                artifactPath: resultBundle,
+                accountHandle: handles.accountHandle,
+                projectHandle: handles.projectHandle,
+                commandEventId: commandEventId,
+                serverURL: serverURL
+            )
         }
 
         public func uploadSession(

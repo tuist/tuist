@@ -38,13 +38,6 @@ defmodule TuistWeb.Docs.Components do
 
   defp group_icon(label), do: Map.get(@group_icons, label, "file")
 
-  @item_icon_srcs %{
-    "xcode" => "/docs/images/guides/features/xcode-icon.png",
-    "gradle" => "/docs/images/guides/features/gradle-icon.svg"
-  }
-
-  defp item_icon_src(icon), do: Map.fetch!(@item_icon_srcs, icon)
-
   defp docs_path(slug), do: Paths.public_path_from_slug(slug)
 
   defp docs_markdown_path("/" <> _ = slug) do

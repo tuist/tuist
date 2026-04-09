@@ -284,7 +284,7 @@ defmodule TuistWeb.AuthControllerTest do
       conn = get(conn, "/auth/complete-signup?token=#{token}")
 
       # Then
-      assert redirected_to(conn) =~ "/#{user.account.name}"
+      assert redirected_to(conn) == "/organizations/new"
     end
 
     test "redirects to oauth_return_url when provided in token", %{conn: conn} do

@@ -5,13 +5,15 @@ import XCActivityLogParser
 @_cdecl("parse_xcactivitylog")
 public func parseXCActivityLog(
     _ pathPtr: UnsafePointer<CChar>,
-    _ casMetadataPathPtr: UnsafePointer<CChar>,
+    _ casAnalyticsDbPathPtr: UnsafePointer<CChar>,
+    _ legacyCASMetadataPathPtr: UnsafePointer<CChar>,
     _ cacheUploadEnabled: Int32,
     _ outputPtr: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>,
     _ outputLen: UnsafeMutablePointer<Int32>
 ) -> Int32 {
     let path = String(cString: pathPtr)
-    let casMetadataPath = String(cString: casMetadataPathPtr)
+    let casAnalyticsDbPath = String(cString: casAnalyticsDbPathPtr)
+    let legacyCASMetadataPath = String(cString: legacyCASMetadataPathPtr)
     let url = URL(fileURLWithPath: path)
 
     // nonisolated(unsafe) is needed because the Swift 6 concurrency checker doesn't understand
@@ -23,7 +25,8 @@ public func parseXCActivityLog(
         do {
             let parsed = try await XCActivityLogParser().parse(
                 xcactivitylogURL: url,
-                casMetadataPath: try AbsolutePath(validating: casMetadataPath)
+                casAnalyticsDatabasePath: try AbsolutePath(validating: casAnalyticsDbPath),
+                legacyCASMetadataPath: try AbsolutePath(validating: legacyCASMetadataPath)
             )
             result = .success(parsed)
         } catch {

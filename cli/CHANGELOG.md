@@ -1,6 +1,222 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.176.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* mkdir data race by [@fortmarek](https://github.com/fortmarek) in [#10211](https://github.com/tuist/tuist/pull/10211)
+* write empty shard matrix output when selective testing skips all tests by [@fortmarek](https://github.com/fortmarek) in [#10205](https://github.com/tuist/tuist/pull/10205)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.176.1...4.176.2
+
+## What's Changed in 4.176.1<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add workspace-level DerivedData location support by [@davidpasztor](https://github.com/davidpasztor) in [#9693](https://github.com/tuist/tuist/pull/9693)
+### 🐛 Bug Fixes
+
+* add retry logic to build uploads by [@fortmarek](https://github.com/fortmarek) in [#10210](https://github.com/tuist/tuist/pull/10210)
+* add nonisolated(unsafe) to generated plist accessors with Any type by [@fortmarek](https://github.com/fortmarek) in [#10195](https://github.com/tuist/tuist/pull/10195)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.175.0...4.176.1
+
+## What's Changed in 4.175.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* fix App Intents metadata for cached xcframeworks by [@pepicrft](https://github.com/pepicrft) in [#10168](https://github.com/tuist/tuist/pull/10168)
+* upload build data from tuist xcodebuild build by [@fortmarek](https://github.com/fortmarek) in [#10186](https://github.com/tuist/tuist/pull/10186)
+### 🐛 Bug Fixes
+
+* handle existing files during shard xctestrun write by [@fortmarek](https://github.com/fortmarek) in [#10188](https://github.com/tuist/tuist/pull/10188)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.174.7...4.175.0
+
+## What's Changed in 4.174.7<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* namespace dependency-derived artifacts by [@pepicrft](https://github.com/pepicrft) in [#10166](https://github.com/tuist/tuist/pull/10166)
+* fix cross-project test host embed and TEST_HOST settings by [@pepicrft](https://github.com/pepicrft) in [#10139](https://github.com/tuist/tuist/pull/10139)
+### 🚜 Refactor
+
+* remove local MCP command by [@pepicrft](https://github.com/pepicrft) in [#10171](https://github.com/tuist/tuist/pull/10171)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.174.4...4.174.7
+
+## What's Changed in 4.174.4<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* add missing TuistTesting dependency to TuistCASTests by [@jsj](https://github.com/jsj) in [#10182](https://github.com/tuist/tuist/pull/10182)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.174.3...4.174.4
+
+## What's Changed in 4.174.3<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* fix selective testing not skipping unchanged test targets by [@pepicrft](https://github.com/pepicrft) in [#10173](https://github.com/tuist/tuist/pull/10173)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.174.2...4.174.3
+
+## What's Changed in 4.174.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* deduplicate entries during Apple Archive compression by [@fortmarek](https://github.com/fortmarek) in [#10164](https://github.com/tuist/tuist/pull/10164)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.174.1...4.174.2
+
+## What's Changed in 4.174.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* dereference symlinks during Apple Archive compression by [@fortmarek](https://github.com/fortmarek) in [#10163](https://github.com/tuist/tuist/pull/10163)
+* resolve result bundle symlink before remote upload by [@fortmarek](https://github.com/fortmarek) in [#10161](https://github.com/tuist/tuist/pull/10161)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.174.0...4.174.1
+
+## What's Changed in 4.174.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add defaultSwiftVersion generation option and respect package-declared Swift versions by [@pepicrft](https://github.com/pepicrft) in [#10151](https://github.com/tuist/tuist/pull/10151)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.173.1...4.174.0
+
+## What's Changed in 4.173.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* resource/file glob excluding with ** pattern incorrectly excludes all sibling files by [@stefanomondino](https://github.com/stefanomondino) in [#10114](https://github.com/tuist/tuist/pull/10114)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.173.0...4.173.1
+
+## What's Changed in 4.173.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add --inspect-mode flag for remote xcresult processing by [@fortmarek](https://github.com/fortmarek) in [#10145](https://github.com/tuist/tuist/pull/10145)
+* support shared volumes for test shard distribution by [@fortmarek](https://github.com/fortmarek) in [#10144](https://github.com/tuist/tuist/pull/10144)
+### 🐛 Bug Fixes
+
+* preserve .swiftmodule directories in shard archives by [@fortmarek](https://github.com/fortmarek) in [#10137](https://github.com/tuist/tuist/pull/10137)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.172.0...4.173.0
+
+## What's Changed in 4.172.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add remote processing mode for tuist inspect test by [@fortmarek](https://github.com/fortmarek) in [#10094](https://github.com/tuist/tuist/pull/10094)
+### 🐛 Bug Fixes
+
+* focus to scope to scheme test targets by [@fortmarek](https://github.com/fortmarek) in [#10131](https://github.com/tuist/tuist/pull/10131)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.171.5...4.172.0
+
+## What's Changed in 4.171.5<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* fix xctestproducts lookup after AppleArchive extraction by [@fortmarek](https://github.com/fortmarek) in [#10126](https://github.com/tuist/tuist/pull/10126)
+* resolve incorrect storeKitConfigurationPath and GPX paths in generated xcschemes by [@fortmarek](https://github.com/fortmarek) in [#10122](https://github.com/tuist/tuist/pull/10122)
+* embed App Intents metadata in cached xcframeworks by [@fortmarek](https://github.com/fortmarek) in [#10120](https://github.com/tuist/tuist/pull/10120)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.171.3...4.171.5
+
+## What's Changed in 4.171.3<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* archive shard bundle directly from source with exclude patterns by [@fortmarek](https://github.com/fortmarek) in [#10121](https://github.com/tuist/tuist/pull/10121)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.171.2...4.171.3
+
+## What's Changed in 4.171.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* preserve external static xcframework deps for cached dynamics by [@pepicrft](https://github.com/pepicrft) in [#10089](https://github.com/tuist/tuist/pull/10089)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.171.1...4.171.2
+
+## What's Changed in 4.171.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* strip dSYMs and compress shard bundle before upload by [@fortmarek](https://github.com/fortmarek) in [#10112](https://github.com/tuist/tuist/pull/10112)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.171.0...4.171.1
+
+## What's Changed in 4.171.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add retries for OIDC token failures by [@cschmatzler](https://github.com/cschmatzler) in [#10085](https://github.com/tuist/tuist/pull/10085)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.170.1...4.171.0
+
+## What's Changed in 4.170.1<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add selective testing observability via MCP, API, CLI, and skills by [@pepicrft](https://github.com/pepicrft) in [#10013](https://github.com/tuist/tuist/pull/10013)
+### 🐛 Bug Fixes
+
+* replace file-based CAS analytics with SQLite for faster inspect build by [@fortmarek](https://github.com/fortmarek) in [#10062](https://github.com/tuist/tuist/pull/10062)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.169.2...4.170.1
+
+## What's Changed in 4.169.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* handle remote binary wrapper xcframework name collisions by [@pepicrft](https://github.com/pepicrft) in [#10054](https://github.com/tuist/tuist/pull/10054)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.169.1...4.169.2
+
 ## What's Changed in 4.169.1<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes

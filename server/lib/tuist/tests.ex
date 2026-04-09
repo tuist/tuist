@@ -123,6 +123,7 @@ defmodule Tuist.Tests do
 
         query =
           from(t in Test,
+            hints: ["FINAL"],
             where: t.id == ^uuid,
             order_by: [desc: t.inserted_at],
             limit: 1
@@ -236,6 +237,7 @@ defmodule Tuist.Tests do
   defp normalize_ci_provider(provider) when is_atom(provider), do: Atom.to_string(provider)
 
   def create_test(attrs) do
+    attrs = normalize_string_keys(attrs)
     shard_plan_id = Map.get(attrs, :shard_plan_id)
 
     if is_nil(shard_plan_id) do
@@ -244,6 +246,18 @@ defmodule Tuist.Tests do
       create_or_update_sharded_test(attrs)
     end
   end
+
+  defp normalize_string_keys(%_{} = struct), do: struct
+
+  defp normalize_string_keys(map) when is_map(map) do
+    Map.new(map, fn
+      {k, v} when is_binary(k) -> {String.to_atom(k), normalize_string_keys(v)}
+      {k, v} -> {k, normalize_string_keys(v)}
+    end)
+  end
+
+  defp normalize_string_keys(list) when is_list(list), do: Enum.map(list, &normalize_string_keys/1)
+  defp normalize_string_keys(value), do: value
 
   defp create_new_test(attrs, shard_index \\ nil, shard_plan \\ nil) do
     test_modules = Map.get(attrs, :test_modules, [])
@@ -594,7 +608,7 @@ defmodule Tuist.Tests do
         |> Map.merge(filtered_attrs)
         |> Map.put(:inserted_at, NaiveDateTime.utc_now())
 
-      {1, nil} = TestCase.Buffer.insert_all([attrs])
+      IngestRepo.insert_all(TestCase, [attrs])
 
       create_events_for_test_case_changes(test_case_id, test_case, filtered_attrs, actor_id)
 
@@ -1100,8 +1114,8 @@ defmodule Tuist.Tests do
     {test_case_id_map, test_case_ids_with_flaky_run, new_test_case_ids} =
       create_test_cases(test.project_id, test_case_data_list, existing_test_cases, test_run_id: test.id)
 
-    {test_case_runs, all_failures, all_repetitions} =
-      Enum.reduce(test_cases, {[], [], []}, fn case_attrs, {runs_acc, failures_acc, reps_acc} ->
+    {test_case_runs, all_failures, all_repetitions, all_attachments} =
+      Enum.reduce(test_cases, {[], [], [], []}, fn case_attrs, {runs_acc, failures_acc, reps_acc, attachments_acc} ->
         suite_name = Map.get(case_attrs, :test_suite_name, "") || ""
 
         test_suite_run_id = Map.get(suite_name_to_id, suite_name)
@@ -1142,20 +1156,7 @@ defmodule Tuist.Tests do
           shard_index: shard_index
         }
 
-        failures = Map.get(case_attrs, :failures, [])
-
-        test_case_failures =
-          Enum.map(failures, fn failure_attrs ->
-            %{
-              id: UUIDv7.generate(),
-              test_case_run_id: test_case_run_id,
-              message: Map.get(failure_attrs, :message),
-              path: Map.get(failure_attrs, :path),
-              line_number: Map.get(failure_attrs, :line_number),
-              issue_type: Map.get(failure_attrs, :issue_type) || "unknown",
-              inserted_at: NaiveDateTime.utc_now()
-            }
-          end)
+        test_case_failures = build_failures(case_attrs, test_case_run_id)
 
         test_case_repetitions =
           Enum.map(repetitions, fn rep_attrs ->
@@ -1170,7 +1171,10 @@ defmodule Tuist.Tests do
             }
           end)
 
-        {[test_case_run | runs_acc], test_case_failures ++ failures_acc, test_case_repetitions ++ reps_acc}
+        test_case_attachments = build_attachments(case_attrs, test_case_run_id, test.id)
+
+        {[test_case_run | runs_acc], test_case_failures ++ failures_acc, test_case_repetitions ++ reps_acc,
+         test_case_attachments ++ attachments_acc}
       end)
 
     Tuist.Tasks.run_async(fn ->
@@ -1180,11 +1184,46 @@ defmodule Tuist.Tests do
       if Enum.any?(all_repetitions) do
         TestCaseRunRepetition.Buffer.insert_all(all_repetitions)
       end
+
+      if Enum.any?(all_attachments) do
+        TestCaseRunAttachment.Buffer.insert_all(all_attachments)
+      end
     end)
 
     create_first_run_events(test_case_runs, new_test_case_ids)
 
     {test_case_ids_with_flaky_run, test_case_runs}
+  end
+
+  defp build_failures(case_attrs, test_case_run_id) do
+    case_attrs
+    |> Map.get(:failures, [])
+    |> Enum.map(fn failure_attrs ->
+      %{
+        id: UUIDv7.generate(),
+        test_case_run_id: test_case_run_id,
+        message: Map.get(failure_attrs, :message),
+        path: Map.get(failure_attrs, :path),
+        line_number: Map.get(failure_attrs, :line_number),
+        issue_type: Map.get(failure_attrs, :issue_type) || "unknown",
+        inserted_at: NaiveDateTime.utc_now()
+      }
+    end)
+  end
+
+  defp build_attachments(case_attrs, test_case_run_id, test_run_id) do
+    case_attrs
+    |> Map.get(:attachments, [])
+    |> Enum.map(fn att_attrs ->
+      %{
+        id: Map.get(att_attrs, :attachment_id) || UUIDv7.generate(),
+        test_case_run_id: test_case_run_id,
+        test_run_id: test_run_id,
+        file_name: Map.get(att_attrs, :file_name),
+        repetition_number: Map.get(att_attrs, :repetition_number),
+        inserted_at: NaiveDateTime.utc_now()
+      }
+    end)
   end
 
   defp create_first_run_events(test_case_runs, new_test_case_ids) do
@@ -2120,49 +2159,48 @@ defmodule Tuist.Tests do
   end
 
   @doc """
-  Clears stale flaky flags from test cases.
+  Clears cooled down flaky tests for a specific project.
 
-  A test case's is_flaky flag is considered stale if there have been no flaky
-  test case runs for that test case in the last 14 days.
+  A test case's flaky flag has cooled down if there have been no flaky
+  test case runs within the project's configured `flaky_cooldown_days`
+  window (defaults to 14 days).
 
-  Returns {:ok, count} where count is the number of test cases that had their
-  is_flaky flag cleared.
+  Returns {:ok, count} where count is the number of test cases cleared.
   """
-  def clear_stale_flaky_flags do
-    fourteen_days_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -14, :day)
-
-    recent_flaky_subquery =
-      from(flaky_run in FlakyTestCaseRun,
-        where: flaky_run.inserted_at >= ^fourteen_days_ago,
-        group_by: flaky_run.test_case_id,
-        select: flaky_run.test_case_id
+  def clear_cooled_down_flaky_tests(%Project{} = project) do
+    flaky_test_cases =
+      ClickHouseRepo.all(
+        from(test_case in TestCase,
+          hints: ["FINAL"],
+          where: test_case.is_flaky == true and test_case.project_id == ^project.id
+        )
       )
 
-    query =
-      from(test_case in TestCase,
-        hints: ["FINAL"],
-        where: test_case.is_flaky == true,
-        where: test_case.id not in subquery(recent_flaky_subquery)
-      )
-
-    stale_test_cases = ClickHouseRepo.all(query)
     now = NaiveDateTime.utc_now()
+    cutoff = NaiveDateTime.add(now, -project.flaky_cooldown_days, :day)
 
-    project_ids = stale_test_cases |> Enum.map(& &1.project_id) |> Enum.uniq()
+    test_case_ids = Enum.map(flaky_test_cases, & &1.id)
 
-    auto_quarantine_project_ids =
-      from(p in Project,
-        where: p.id in ^project_ids and p.auto_quarantine_flaky_tests == true,
-        select: p.id
+    latest_flaky_runs =
+      from(flaky_run in FlakyTestCaseRun,
+        where: flaky_run.test_case_id in ^test_case_ids,
+        group_by: flaky_run.test_case_id,
+        select: {flaky_run.test_case_id, max(flaky_run.inserted_at)}
       )
-      |> Repo.all()
-      |> MapSet.new()
+      |> ClickHouseRepo.all()
+      |> Map.new()
+
+    cooled_down_test_cases =
+      Enum.filter(flaky_test_cases, fn test_case ->
+        case Map.get(latest_flaky_runs, test_case.id) do
+          nil -> true
+          latest_run -> NaiveDateTime.before?(latest_run, cutoff)
+        end
+      end)
 
     test_cases_to_update =
-      Enum.map(stale_test_cases, fn test_case ->
-        should_unquarantine =
-          test_case.is_quarantined and
-            MapSet.member?(auto_quarantine_project_ids, test_case.project_id)
+      Enum.map(cooled_down_test_cases, fn test_case ->
+        should_unquarantine = test_case.is_quarantined and project.auto_quarantine_flaky_tests
 
         updates = %{is_flaky: false, inserted_at: now}
         updates = if should_unquarantine, do: Map.put(updates, :is_quarantined, false), else: updates
@@ -2175,12 +2213,10 @@ defmodule Tuist.Tests do
 
     TestCase.Buffer.insert_all(test_cases_to_update)
 
-    if Enum.any?(stale_test_cases) do
+    if Enum.any?(cooled_down_test_cases) do
       events =
-        Enum.flat_map(stale_test_cases, fn test_case ->
-          should_unquarantine =
-            test_case.is_quarantined and
-              MapSet.member?(auto_quarantine_project_ids, test_case.project_id)
+        Enum.flat_map(cooled_down_test_cases, fn test_case ->
+          should_unquarantine = test_case.is_quarantined and project.auto_quarantine_flaky_tests
 
           flaky_event = %{
             id: UUIDv7.generate(),
@@ -2244,6 +2280,15 @@ defmodule Tuist.Tests do
     end
   end
 
+  def attachment_storage_key(%{test_run_id: test_run_id} = params) when not is_nil(test_run_id) do
+    %{account_handle: account_handle, project_handle: project_handle, attachment_id: attachment_id, file_name: file_name} =
+      params
+
+    "#{String.downcase(account_handle)}/#{String.downcase(project_handle)}/tests/runs/#{test_run_id}/attachments/#{attachment_id}/#{file_name}"
+  end
+
+  # Legacy path for attachments created before test_run_id was added to the schema.
+  # New attachments use the test_run_id-based path above.
   def attachment_storage_key(%{
         account_handle: account_handle,
         project_handle: project_handle,

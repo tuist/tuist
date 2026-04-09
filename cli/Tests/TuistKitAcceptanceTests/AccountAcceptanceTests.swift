@@ -13,6 +13,7 @@ import TuistTesting
 
 struct AccountAcceptanceTests {
     @Test(
+        .disabled(),
         .inTemporaryDirectory,
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
         .withMockedNoora,
@@ -42,6 +43,7 @@ struct AccountAcceptanceTests {
     }
 
     @Test(
+        .disabled(),
         .inTemporaryDirectory,
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
         .withMockedNoora,

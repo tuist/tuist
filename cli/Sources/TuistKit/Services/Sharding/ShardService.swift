@@ -1,8 +1,8 @@
-import Command
 import FileSystem
 import Foundation
 import Mockable
 import Path
+import TuistAppleArchiver
 import TuistCI
 import TuistCore
 import TuistHTTP
@@ -14,6 +14,7 @@ public struct Shard {
     public let reference: String
     public let shardPlanId: String
     public let testProductsPath: AbsolutePath
+    public let xcTestRunPath: AbsolutePath?
     public let modules: [String]
     public let selectiveTestingGraph: SelectiveTestingGraph?
 }
@@ -23,15 +24,16 @@ public protocol ShardServicing {
     func shard(
         shardIndex: Int,
         fullHandle: String,
-        serverURL: URL
+        serverURL: URL,
+        testProductsPath: AbsolutePath?
     ) async throws -> Shard
 }
 
 public enum ShardServiceError: LocalizedError, Equatable {
     case cannotDeriveReference
     case invalidDownloadURL(String)
-    case testProductsNotFound
     case invalidXCTestRun
+    case xcTestRunNotFound(AbsolutePath)
 
     public var errorDescription: String? {
         switch self {
@@ -40,10 +42,10 @@ public enum ShardServiceError: LocalizedError, Equatable {
                 "Cannot derive a shard plan reference. Pass --shard-reference explicitly or run in a supported CI environment (GitHub Actions, GitLab CI, CircleCI, Buildkite, Codemagic)."
         case let .invalidDownloadURL(url):
             return "Invalid shard download URL: \(url)"
-        case .testProductsNotFound:
-            return "No .xctestproducts bundle found in the downloaded shard archive."
         case .invalidXCTestRun:
             return "The .xctestrun file has an invalid format."
+        case let .xcTestRunNotFound(path):
+            return "No .xctestrun file found in \(path.pathString)"
         }
     }
 }
@@ -53,26 +55,27 @@ public struct ShardService: ShardServicing {
     private let ciController: CIControlling
     private let fileClient: FileClienting
     private let fileSystem: FileSysteming
-    private let commandRunner: CommandRunning
+    private let appleArchiver: AppleArchiving
 
     public init(
         getShardService: GetShardServicing = GetShardService(),
         ciController: CIControlling = CIController(),
         fileClient: FileClienting = FileClient(),
         fileSystem: FileSysteming = FileSystem(),
-        commandRunner: CommandRunning = CommandRunner()
+        appleArchiver: AppleArchiving = AppleArchiver()
     ) {
         self.getShardService = getShardService
         self.ciController = ciController
         self.fileClient = fileClient
         self.fileSystem = fileSystem
-        self.commandRunner = commandRunner
+        self.appleArchiver = appleArchiver
     }
 
     public func shard(
         shardIndex: Int,
         fullHandle: String,
-        serverURL: URL
+        serverURL: URL,
+        testProductsPath: AbsolutePath? = nil
     ) async throws -> Shard {
         guard let reference = ciController.ciInfo()?.shardReference else {
             throw ShardServiceError.cannotDeriveReference
@@ -95,42 +98,51 @@ public struct ShardService: ShardServicing {
             Logger.current.notice("Shard \(shardIndex): \(names.joined(separator: ", "))", metadata: .section)
         }
 
-        guard let downloadURL = URL(string: shard.download_url) else {
-            throw ShardServiceError.invalidDownloadURL(shard.download_url)
+        let resolvedTestProductsPath: AbsolutePath
+        var xcTestRunPath: AbsolutePath?
+
+        if let testProductsPath {
+            resolvedTestProductsPath = testProductsPath
+            Logger.current.debug("Using local test products at \(testProductsPath.pathString)")
+        } else {
+            guard let downloadURL = URL(string: shard.download_url) else {
+                throw ShardServiceError.invalidDownloadURL(shard.download_url)
+            }
+            let shardArchivePath = try await fileClient.download(url: downloadURL)
+            Logger.current.debug("Downloaded test products bundle.")
+
+            resolvedTestProductsPath = try await fileSystem.makeTemporaryDirectory(prefix: "tuist-shard-unzip")
+            try await appleArchiver.decompress(archive: shardArchivePath, to: resolvedTestProductsPath)
+            try? await fileSystem.remove(shardArchivePath)
+            Logger.current.debug("Extracted test products to \(resolvedTestProductsPath.pathString)")
         }
-        let shardZipPath = try await fileClient.download(url: downloadURL)
-        Logger.current.debug("Downloaded test products bundle.")
 
-        // ditto is used instead of FileUnarchiver (ZIPFoundation) because .xctestproducts
-        // bundles contain symlinks which ZIPFoundation cannot handle.
-        let unzippedPath = try await fileSystem.makeTemporaryDirectory(prefix: "tuist-shard-unzip")
-        _ = try await commandRunner
-            .run(arguments: ["/usr/bin/ditto", "-x", "-k", shardZipPath.pathString, unzippedPath.pathString])
-            .concatenatedString()
-        try? await fileSystem.remove(shardZipPath)
-
-        guard let testProductsPath = try await fileSystem
-            .glob(directory: unzippedPath, include: ["*.xctestproducts"])
-            .first(where: { _ in true })
-        else {
-            throw ShardServiceError.testProductsNotFound
-        }
-        Logger.current.debug("Unzipped test products to \(testProductsPath.pathString)")
-
-        let xcTestRunPaths = try await fileSystem
-            .glob(directory: testProductsPath, include: ["**/*.xctestrun"])
+        guard let xcTestRunSourcePath = try await fileSystem
+            .glob(directory: resolvedTestProductsPath, include: ["**/*.xctestrun"])
             .collect()
-        for xcTestRunPath in xcTestRunPaths {
-            let plistData = try await fileSystem.readFile(at: xcTestRunPath)
-            let filteredData = try filterXCTestRun(
-                plistData: plistData,
-                modules: shard.modules,
-                suites: shard.suites.additionalProperties
-            )
-            try filteredData.write(to: URL(fileURLWithPath: xcTestRunPath.pathString))
+            .first(where: { !$0.basename.contains(".tuist-shard-") })
+        else {
+            throw ShardServiceError.xcTestRunNotFound(resolvedTestProductsPath)
         }
 
-        let selectiveTestingGraphPath = testProductsPath.appending(component: SelectiveTestingGraph.fileName)
+        let plistData = try await fileSystem.readFile(at: xcTestRunSourcePath)
+        let filteredData = try filterXCTestRun(
+            plistData: plistData,
+            modules: shard.modules,
+            suites: shard.suites.additionalProperties
+        )
+        let plistString = String(decoding: filteredData, as: UTF8.self)
+        if testProductsPath != nil {
+            let baseName = xcTestRunSourcePath.basenameWithoutExt
+            let destPath = xcTestRunSourcePath.parentDirectory
+                .appending(component: "\(baseName).tuist-shard-\(shardIndex).xctestrun")
+            try await fileSystem.writeText(plistString, at: destPath)
+            xcTestRunPath = destPath
+        } else {
+            try await fileSystem.writeText(plistString, at: xcTestRunSourcePath, encoding: .utf8, options: [.overwrite])
+        }
+
+        let selectiveTestingGraphPath = resolvedTestProductsPath.appending(component: SelectiveTestingGraph.fileName)
         var selectiveTestingGraph: SelectiveTestingGraph?
         if try await fileSystem.exists(selectiveTestingGraphPath) {
             selectiveTestingGraph = try? await fileSystem.readJSONFile(at: selectiveTestingGraphPath)
@@ -142,7 +154,8 @@ public struct ShardService: ShardServicing {
         return Shard(
             reference: reference,
             shardPlanId: shard.shard_plan_id,
-            testProductsPath: testProductsPath,
+            testProductsPath: resolvedTestProductsPath,
+            xcTestRunPath: xcTestRunPath,
             modules: shard.modules,
             selectiveTestingGraph: selectiveTestingGraph
         )

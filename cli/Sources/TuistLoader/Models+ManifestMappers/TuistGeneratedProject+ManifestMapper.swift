@@ -39,7 +39,8 @@ extension TuistConfig.TuistGeneratedProjectOptions.GenerationOptions {
             enableCaching: manifest.enableCaching,
             registryEnabled: manifest.registryEnabled,
             warningsAsErrors: TuistConfig.TuistGeneratedProjectOptions.GenerationOptions.WarningsAsErrors
-                .from(manifest: manifest.warningsAsErrors)
+                .from(manifest: manifest.warningsAsErrors),
+            defaultSwiftVersion: manifest.defaultSwiftVersion
         )
     }
 }

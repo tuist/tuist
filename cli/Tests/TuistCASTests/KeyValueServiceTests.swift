@@ -17,8 +17,7 @@
         private let cacheURLStore: MockCacheURLStoring
         private let putCacheValueService: MockPutCacheValueServicing
         private let getCacheValueService: MockGetCacheValueServicing
-        private let nodeStore: MockCASNodeStoring
-        private let metadataStore: MockKeyValueMetadataStoring
+        private let analyticsDatabase: MockCASAnalyticsDatabasing
         private let serverAuthenticationController: MockServerAuthenticationControlling
         private let fullHandle = "tuist/tuist"
         private let serverURL = URL(string: "https://example.com")!
@@ -32,8 +31,7 @@
             cacheURLStore = MockCacheURLStoring()
             putCacheValueService = MockPutCacheValueServicing()
             getCacheValueService = MockGetCacheValueServicing()
-            nodeStore = MockCASNodeStoring()
-            metadataStore = MockKeyValueMetadataStoring()
+            analyticsDatabase = MockCASAnalyticsDatabasing()
             serverAuthenticationController = MockServerAuthenticationControlling()
 
             given(cacheURLStore)
@@ -50,8 +48,7 @@
                 cacheURLStore: cacheURLStore,
                 putCacheValueService: putCacheValueService,
                 getCacheValueService: getCacheValueService,
-                nodeStore: nodeStore,
-                metadataStore: metadataStore,
+                analyticsDatabase: analyticsDatabase,
                 serverAuthenticationController: serverAuthenticationController
             )
         }
@@ -79,8 +76,8 @@
                 )
                 .willReturn()
 
-            given(metadataStore)
-                .storeMetadata(.any, for: .any, operationType: .any)
+            given(analyticsDatabase)
+                .storeKeyValueMetadata(key: .any, operationType: .any, duration: .any)
                 .willReturn()
 
             // When
@@ -103,11 +100,11 @@
             // Wait for async Task to complete
             try await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
 
-            verify(metadataStore)
-                .storeMetadata(
-                    .any,
-                    for: .value("0~SDVUUkZaeVZXcEdZVTVzY0VaVVdHaHFZa2hDV2xsWWIzZFFVVDA5"),
-                    operationType: .value(.write)
+            verify(analyticsDatabase)
+                .storeKeyValueMetadata(
+                    key: .value("0~SDVUUkZaeVZXcEdZVTVzY0VaVVdHaHFZa2hDV2xsWWIzZFFVVDA5"),
+                    operationType: .value(KeyValueOperationType.write.rawValue),
+                    duration: .any
                 )
                 .called(1)
         }
@@ -169,8 +166,8 @@
                 )
                 .willReturn(mockResponse)
 
-            given(metadataStore)
-                .storeMetadata(.any, for: .any, operationType: .any)
+            given(analyticsDatabase)
+                .storeKeyValueMetadata(key: .any, operationType: .any, duration: .any)
                 .willReturn()
 
             // When
@@ -189,8 +186,8 @@
             // Wait for async Task to complete
             try await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
 
-            verify(metadataStore)
-                .storeMetadata(.any, for: .any, operationType: .value(.read))
+            verify(analyticsDatabase)
+                .storeKeyValueMetadata(key: .any, operationType: .value(KeyValueOperationType.read.rawValue), duration: .any)
                 .called(1)
         }
 
@@ -214,8 +211,8 @@
                 )
                 .willReturn(nil)
 
-            given(metadataStore)
-                .storeMetadata(.any, for: .any, operationType: .any)
+            given(analyticsDatabase)
+                .storeKeyValueMetadata(key: .any, operationType: .any, duration: .any)
                 .willReturn()
 
             // When
@@ -227,8 +224,8 @@
             // Wait for async Task to complete
             try await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
 
-            verify(metadataStore)
-                .storeMetadata(.any, for: .any, operationType: .value(.read))
+            verify(analyticsDatabase)
+                .storeKeyValueMetadata(key: .any, operationType: .value(KeyValueOperationType.read.rawValue), duration: .any)
                 .called(1)
         }
 
@@ -253,8 +250,8 @@
                 )
                 .willThrow(expectedError)
 
-            given(metadataStore)
-                .storeMetadata(.any, for: .any, operationType: .any)
+            given(analyticsDatabase)
+                .storeKeyValueMetadata(key: .any, operationType: .any, duration: .any)
                 .willReturn()
 
             // When
@@ -267,8 +264,8 @@
             // Wait for async Task to complete
             try await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
 
-            verify(metadataStore)
-                .storeMetadata(.any, for: .any, operationType: .value(.read))
+            verify(analyticsDatabase)
+                .storeKeyValueMetadata(key: .any, operationType: .value(KeyValueOperationType.read.rawValue), duration: .any)
                 .called(1)
         }
 
@@ -291,8 +288,7 @@
                 upload: false,
                 putCacheValueService: putCacheValueService,
                 getCacheValueService: getCacheValueService,
-                nodeStore: nodeStore,
-                metadataStore: metadataStore,
+                analyticsDatabase: analyticsDatabase,
                 serverAuthenticationController: serverAuthenticationController
             )
 
@@ -315,8 +311,8 @@
 
             try await Task.sleep(nanoseconds: 100_000_000)
 
-            verify(metadataStore)
-                .storeMetadata(.any, for: .any, operationType: .any)
+            verify(analyticsDatabase)
+                .storeKeyValueMetadata(key: .any, operationType: .any, duration: .any)
                 .called(0)
         }
 
@@ -377,8 +373,8 @@
                 )
                 .willThrow(genericError)
 
-            given(metadataStore)
-                .storeMetadata(.any, for: .any, operationType: .any)
+            given(analyticsDatabase)
+                .storeKeyValueMetadata(key: .any, operationType: .any, duration: .any)
                 .willReturn()
 
             // When
@@ -391,8 +387,8 @@
             // Wait for async Task to complete
             try await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
 
-            verify(metadataStore)
-                .storeMetadata(.any, for: .any, operationType: .value(.read))
+            verify(analyticsDatabase)
+                .storeKeyValueMetadata(key: .any, operationType: .value(KeyValueOperationType.read.rawValue), duration: .any)
                 .called(1)
         }
 
@@ -418,12 +414,12 @@
                 )
                 .willReturn()
 
-            given(nodeStore)
-                .storeNode(.any, checksum: .any)
+            given(analyticsDatabase)
+                .storeNode(key: .any, checksum: .any)
                 .willReturn()
 
-            given(metadataStore)
-                .storeMetadata(.any, for: .any, operationType: .any)
+            given(analyticsDatabase)
+                .storeKeyValueMetadata(key: .any, operationType: .any, duration: .any)
                 .willReturn()
 
             // When
@@ -436,12 +432,12 @@
             try await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
 
             // Verify that CAS entries were found and stored (exact count based on sample data)
-            verify(nodeStore)
-                .storeNode(.any, checksum: .any)
+            verify(analyticsDatabase)
+                .storeNode(key: .any, checksum: .any)
                 .called(4)
 
-            verify(metadataStore)
-                .storeMetadata(.any, for: .any, operationType: .value(.write))
+            verify(analyticsDatabase)
+                .storeKeyValueMetadata(key: .any, operationType: .value(KeyValueOperationType.write.rawValue), duration: .any)
                 .called(1)
         }
 
@@ -471,12 +467,12 @@
                 )
                 .willReturn(mockResponse)
 
-            given(nodeStore)
-                .storeNode(.any, checksum: .any)
+            given(analyticsDatabase)
+                .storeNode(key: .any, checksum: .any)
                 .willReturn()
 
-            given(metadataStore)
-                .storeMetadata(.any, for: .any, operationType: .any)
+            given(analyticsDatabase)
+                .storeKeyValueMetadata(key: .any, operationType: .any, duration: .any)
                 .willReturn()
 
             // When
@@ -489,12 +485,12 @@
             try await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
 
             // Verify that node mappings were stored during getValue
-            verify(nodeStore)
-                .storeNode(.any, checksum: .any)
+            verify(analyticsDatabase)
+                .storeNode(key: .any, checksum: .any)
                 .called(4)
 
-            verify(metadataStore)
-                .storeMetadata(.any, for: .any, operationType: .value(.read))
+            verify(analyticsDatabase)
+                .storeKeyValueMetadata(key: .any, operationType: .value(KeyValueOperationType.read.rawValue), duration: .any)
                 .called(1)
         }
 
@@ -521,12 +517,12 @@
                 .willReturn()
 
             // Configure node store to fail
-            given(nodeStore)
-                .storeNode(.any, checksum: .any)
+            given(analyticsDatabase)
+                .storeNode(key: .any, checksum: .any)
                 .willThrow(NSError(domain: "TestError", code: 1))
 
-            given(metadataStore)
-                .storeMetadata(.any, for: .any, operationType: .any)
+            given(analyticsDatabase)
+                .storeKeyValueMetadata(key: .any, operationType: .any, duration: .any)
                 .willReturn()
 
             // When
@@ -539,12 +535,12 @@
             try await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
 
             // Verify storeNode was attempted
-            verify(nodeStore)
-                .storeNode(.any, checksum: .any)
+            verify(analyticsDatabase)
+                .storeNode(key: .any, checksum: .any)
                 .called(.atLeastOnce)
 
-            verify(metadataStore)
-                .storeMetadata(.any, for: .any, operationType: .value(.write))
+            verify(analyticsDatabase)
+                .storeKeyValueMetadata(key: .any, operationType: .value(KeyValueOperationType.write.rawValue), duration: .any)
                 .called(1)
         }
 
@@ -571,12 +567,12 @@
                 )
                 .willReturn()
 
-            given(nodeStore)
-                .storeNode(.any, checksum: .any)
+            given(analyticsDatabase)
+                .storeNode(key: .any, checksum: .any)
                 .willReturn()
 
-            given(metadataStore)
-                .storeMetadata(.any, for: .any, operationType: .any)
+            given(analyticsDatabase)
+                .storeKeyValueMetadata(key: .any, operationType: .any, duration: .any)
                 .willReturn()
 
             // When
@@ -589,12 +585,12 @@
             try await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
 
             // Verify no node mappings were stored for invalid data
-            verify(nodeStore)
-                .storeNode(.any, checksum: .any)
+            verify(analyticsDatabase)
+                .storeNode(key: .any, checksum: .any)
                 .called(0)
 
-            verify(metadataStore)
-                .storeMetadata(.any, for: .any, operationType: .value(.write))
+            verify(analyticsDatabase)
+                .storeKeyValueMetadata(key: .any, operationType: .value(KeyValueOperationType.write.rawValue), duration: .any)
                 .called(1)
         }
     }

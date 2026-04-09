@@ -110,7 +110,9 @@ public struct LoginCommandService: LoginCommandServicing {
     ) async throws {
         await onEvent(.oidcAuthenticating)
 
-        let oidcToken = try await ciOIDCAuthenticator.fetchOIDCToken()
+        let oidcToken = try await retryProvider.runWithRetries {
+            try await ciOIDCAuthenticator.fetchOIDCToken()
+        }
         let accessToken = try await retryProvider.runWithRetries {
             try await exchangeOIDCTokenService.exchangeOIDCToken(
                 oidcToken: oidcToken,

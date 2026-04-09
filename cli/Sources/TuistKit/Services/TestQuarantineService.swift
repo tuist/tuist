@@ -5,6 +5,7 @@ import TuistCore
 import TuistLogging
 import TuistServer
 import TuistXCResultService
+import XCResultParser
 
 @Mockable
 protocol TestQuarantineServicing {
@@ -20,6 +21,11 @@ protocol TestQuarantineServicing {
 
     func onlyQuarantinedTestsFailed(
         testSummary: TestSummary
+    ) -> Bool
+
+    func onlyQuarantinedTestsFailed(
+        testStatuses: TestResultStatuses,
+        quarantinedTests: [TestIdentifier]
     ) -> Bool
 }
 
@@ -112,5 +118,28 @@ struct TestQuarantineService: TestQuarantineServicing {
         let failedTests = testSummary.testCases.filter { $0.status == .failed }
         guard !failedTests.isEmpty else { return false }
         return failedTests.allSatisfy(\.isQuarantined)
+    }
+
+    func onlyQuarantinedTestsFailed(
+        testStatuses: TestResultStatuses,
+        quarantinedTests: [TestIdentifier]
+    ) -> Bool {
+        guard !quarantinedTests.isEmpty else { return false }
+        let failedTests = testStatuses.testCases.filter { $0.status == .failed }
+        guard !failedTests.isEmpty else { return false }
+        return failedTests.allSatisfy { testCase in
+            quarantinedTests.contains { matches(testCaseStatus: testCase, quarantined: $0) }
+        }
+    }
+
+    private func matches(testCaseStatus: TestResultStatuses.TestCaseStatus, quarantined: TestIdentifier) -> Bool {
+        guard testCaseStatus.module == quarantined.target else { return false }
+        if let quarantinedClass = quarantined.class, testCaseStatus.testSuite != quarantinedClass {
+            return false
+        }
+        if let quarantinedMethod = quarantined.method, testCaseStatus.name != quarantinedMethod {
+            return false
+        }
+        return true
     }
 }

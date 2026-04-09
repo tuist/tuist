@@ -272,6 +272,11 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}/artifacts`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}/artifacts/get(getBundleArtifactTree)`.
     func getBundleArtifactTree(_ input: Operations.getBundleArtifactTree.Input) async throws -> Operations.getBundleArtifactTree.Output
+    /// List targets for a test run.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/targets`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/targets/get(listTestTargets)`.
+    func listTestTargets(_ input: Operations.listTestTargets.Input) async throws -> Operations.listTestTargets.Output
     /// Get a cache run by ID.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/cache-runs/{cache_run_id}`.
@@ -1271,6 +1276,21 @@ extension APIProtocol {
             headers: headers
         ))
     }
+    /// List targets for a test run.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/targets`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/targets/get(listTestTargets)`.
+    public func listTestTargets(
+        path: Operations.listTestTargets.Input.Path,
+        query: Operations.listTestTargets.Input.Query = .init(),
+        headers: Operations.listTestTargets.Input.Headers = .init()
+    ) async throws -> Operations.listTestTargets.Output {
+        try await listTestTargets(Operations.listTestTargets.Input(
+            path: path,
+            query: query,
+            headers: headers
+        ))
+    }
     /// Get a cache run by ID.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/cache-runs/{cache_run_id}`.
@@ -2218,23 +2238,7 @@ extension APIProtocol {
 }
 
 /// Server URLs defined in the OpenAPI document.
-public enum Servers {
-    public enum Server1 {
-        public static func url() throws -> Foundation.URL {
-            try Foundation.URL(
-                validatingOpenAPIServerURL: "http://localhost:8080",
-                variables: []
-            )
-        }
-    }
-    @available(*, deprecated, renamed: "Servers.Server1.url")
-    public static func server1() throws -> Foundation.URL {
-        try Foundation.URL(
-            validatingOpenAPIServerURL: "http://localhost:8080",
-            variables: []
-        )
-    }
-}
+public enum Servers {}
 
 /// Types generated from the components section of the OpenAPI document.
 public enum Components {
@@ -3820,11 +3824,11 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/Project/repository_url`.
             public var repository_url: Swift.String?
-            /// The token that should be used to authenticate the project. For CI only.
+            /// Deprecated. Always returns an empty string.
             ///
             /// - Remark: Generated from `#/components/schemas/Project/token`.
             @available(*, deprecated)
-            public var token: Swift.String
+            public var token: Swift.String?
             /// The visibility of the project
             ///
             /// - Remark: Generated from `#/components/schemas/Project/visibility`.
@@ -3844,7 +3848,7 @@ public enum Components {
             ///   - full_name: The full name of the project (e.g. tuist/tuist)
             ///   - id: ID of the project
             ///   - repository_url: The URL of the connected git repository, such as https://github.com/tuist/tuist or https://github.com/tuist/tuist.git
-            ///   - token: The token that should be used to authenticate the project. For CI only.
+            ///   - token: Deprecated. Always returns an empty string.
             ///   - visibility: The visibility of the project
             public init(
                 build_system: Components.Schemas.Project.build_systemPayload? = nil,
@@ -3852,7 +3856,7 @@ public enum Components {
                 full_name: Swift.String,
                 id: Swift.Double,
                 repository_url: Swift.String? = nil,
-                token: Swift.String,
+                token: Swift.String? = nil,
                 visibility: Components.Schemas.Project.visibilityPayload
             ) {
                 self.build_system = build_system
@@ -4883,6 +4887,10 @@ public enum Components {
                 case message
             }
         }
+        /// The maximum number of targets to return in a single page.
+        ///
+        /// - Remark: Generated from `#/components/schemas/TestTargetsPageSize`.
+        public typealias TestTargetsPageSize = Swift.Int
         /// Parameters to create a single run.
         ///
         /// - Remark: Generated from `#/components/schemas/RunParams`.
@@ -7395,6 +7403,10 @@ public enum Components {
         }
         /// The page number to return.
         ///
+        /// - Remark: Generated from `#/components/schemas/TestTargetsPage`.
+        public typealias TestTargetsPage = Swift.Int
+        /// The page number to return.
+        ///
         /// - Remark: Generated from `#/components/schemas/RunsIndexPage`.
         public typealias RunsIndexPage = Swift.Int
         /// Parameters to create a single test run.
@@ -7467,6 +7479,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/gradle_build_id`.
             public var gradle_build_id: Swift.String?
+            /// Optional client-generated UUID for the test run. If not provided, the server generates one.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestParams/id`.
+            public var id: Swift.String?
             /// Indicates if the run was executed on a Continuous Integration (CI) system.
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/is_ci`.
@@ -7498,6 +7514,8 @@ public enum Components {
                 case success = "success"
                 case failure = "failure"
                 case skipped = "skipped"
+                case processing = "processing"
+                case failed_processing = "failed_processing"
             }
             /// The status of the test run.
             ///
@@ -7662,6 +7680,8 @@ public enum Components {
                         case success = "success"
                         case failure = "failure"
                         case skipped = "skipped"
+                        case processing = "processing"
+                        case failed_processing = "failed_processing"
                     }
                     /// The status of the test case.
                     ///
@@ -7733,6 +7753,8 @@ public enum Components {
                         case success = "success"
                         case failure = "failure"
                         case skipped = "skipped"
+                        case processing = "processing"
+                        case failed_processing = "failed_processing"
                     }
                     /// The status of the test suite.
                     ///
@@ -7823,6 +7845,7 @@ public enum Components {
             ///   - git_ref: The git reference.
             ///   - git_remote_url_origin: The git remote URL origin.
             ///   - gradle_build_id: The UUID of an associated Gradle build.
+            ///   - id: Optional client-generated UUID for the test run. If not provided, the server generates one.
             ///   - is_ci: Indicates if the run was executed on a Continuous Integration (CI) system.
             ///   - macos_version: The version of macOS used during the run.
             ///   - model_identifier: Identifier for the model where the run was executed, such as MacBookAir10,1.
@@ -7845,6 +7868,7 @@ public enum Components {
                 git_ref: Swift.String? = nil,
                 git_remote_url_origin: Swift.String? = nil,
                 gradle_build_id: Swift.String? = nil,
+                id: Swift.String? = nil,
                 is_ci: Swift.Bool,
                 macos_version: Swift.String? = nil,
                 model_identifier: Swift.String? = nil,
@@ -7867,6 +7891,7 @@ public enum Components {
                 self.git_ref = git_ref
                 self.git_remote_url_origin = git_remote_url_origin
                 self.gradle_build_id = gradle_build_id
+                self.id = id
                 self.is_ci = is_ci
                 self.macos_version = macos_version
                 self.model_identifier = model_identifier
@@ -7890,6 +7915,7 @@ public enum Components {
                 case git_ref
                 case git_remote_url_origin
                 case gradle_build_id
+                case id
                 case is_ci
                 case macos_version
                 case model_identifier
@@ -9588,6 +9614,12 @@ public enum Components {
                 case _type = "type"
                 case url
             }
+        }
+        /// - Remark: Generated from `#/components/schemas/SelectiveTestingHitStatus`.
+        @frozen public enum SelectiveTestingHitStatus: String, Codable, Hashable, Sendable, CaseIterable {
+            case miss = "miss"
+            case local = "local"
+            case remote = "remote"
         }
         /// Pagination metadata.
         ///
@@ -15563,28 +15595,28 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page`.
                 public var page: Swift.Int?
-                /// Number of items per page.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page_size`.
-                public var page_size: Swift.Int?
                 /// Filter bundles by git branch.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/git_branch`.
                 public var git_branch: Swift.String?
+                /// Number of items per page.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page_size`.
+                public var page_size: Swift.Int?
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
                 ///   - page: Page number for pagination.
-                ///   - page_size: Number of items per page.
                 ///   - git_branch: Filter bundles by git branch.
+                ///   - page_size: Number of items per page.
                 public init(
                     page: Swift.Int? = nil,
-                    page_size: Swift.Int? = nil,
-                    git_branch: Swift.String? = nil
+                    git_branch: Swift.String? = nil,
+                    page_size: Swift.Int? = nil
                 ) {
                     self.page = page
-                    self.page_size = page_size
                     self.git_branch = git_branch
+                    self.page_size = page_size
                 }
             }
             public var query: Operations.listBundles.Input.Query
@@ -24700,6 +24732,362 @@ public enum Operations {
             /// - Throws: An error if `self` is not `.notFound`.
             /// - SeeAlso: `.notFound`.
             public var notFound: Operations.getBundleArtifactTree.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// List targets for a test run.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/targets`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/targets/get(listTestTargets)`.
+    public enum listTestTargets {
+        public static let id: Swift.String = "listTestTargets"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/targets/GET/path`.
+            public struct Path: Sendable, Hashable {
+                /// The handle of the account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/targets/GET/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/targets/GET/path/project_handle`.
+                public var project_handle: Swift.String
+                /// The ID of the test run.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/targets/GET/path/test_run_id`.
+                public var test_run_id: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the account.
+                ///   - project_handle: The handle of the project.
+                ///   - test_run_id: The ID of the test run.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String,
+                    test_run_id: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                    self.test_run_id = test_run_id
+                }
+            }
+            public var path: Operations.listTestTargets.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/targets/GET/query`.
+            public struct Query: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/targets/GET/query/hit_status`.
+                @frozen public enum hit_statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case miss = "miss"
+                    case local = "local"
+                    case remote = "remote"
+                }
+                /// Filter by selective testing hit status.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/targets/GET/query/hit_status`.
+                public var hit_status: Operations.listTestTargets.Input.Query.hit_statusPayload?
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/targets/GET/query/page`.
+                public var page: Swift.Int?
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/targets/GET/query/page_size`.
+                public var page_size: Swift.Int?
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - hit_status: Filter by selective testing hit status.
+                ///   - page:
+                ///   - page_size:
+                public init(
+                    hit_status: Operations.listTestTargets.Input.Query.hit_statusPayload? = nil,
+                    page: Swift.Int? = nil,
+                    page_size: Swift.Int? = nil
+                ) {
+                    self.hit_status = hit_status
+                    self.page = page
+                    self.page_size = page_size
+                }
+            }
+            public var query: Operations.listTestTargets.Input.Query
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/targets/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listTestTargets.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listTestTargets.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.listTestTargets.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            public init(
+                path: Operations.listTestTargets.Input.Path,
+                query: Operations.listTestTargets.Input.Query = .init(),
+                headers: Operations.listTestTargets.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/targets/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/targets/GET/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/targets/GET/responses/200/content/json/pagination_metadata`.
+                        public var pagination_metadata: Components.Schemas.PaginationMetadata
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/targets/GET/responses/200/content/json/targetsPayload`.
+                        public struct targetsPayloadPayload: Codable, Hashable, Sendable {
+                            /// The selective testing hash.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/targets/GET/responses/200/content/json/targetsPayload/hash`.
+                            public var hash: Swift.String
+                            /// Selective testing hit status.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/targets/GET/responses/200/content/json/targetsPayload/hit_status`.
+                            @frozen public enum hit_statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case miss = "miss"
+                                case local = "local"
+                                case remote = "remote"
+                            }
+                            /// Selective testing hit status.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/targets/GET/responses/200/content/json/targetsPayload/hit_status`.
+                            public var hit_status: Operations.listTestTargets.Output.Ok.Body.jsonPayload.targetsPayloadPayload.hit_statusPayload
+                            /// The test target name.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/targets/GET/responses/200/content/json/targetsPayload/name`.
+                            public var name: Swift.String
+                            /// Creates a new `targetsPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - hash: The selective testing hash.
+                            ///   - hit_status: Selective testing hit status.
+                            ///   - name: The test target name.
+                            public init(
+                                hash: Swift.String,
+                                hit_status: Operations.listTestTargets.Output.Ok.Body.jsonPayload.targetsPayloadPayload.hit_statusPayload,
+                                name: Swift.String
+                            ) {
+                                self.hash = hash
+                                self.hit_status = hit_status
+                                self.name = name
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case hash
+                                case hit_status
+                                case name
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/targets/GET/responses/200/content/json/targets`.
+                        public typealias targetsPayload = [Operations.listTestTargets.Output.Ok.Body.jsonPayload.targetsPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/targets/GET/responses/200/content/json/targets`.
+                        public var targets: Operations.listTestTargets.Output.Ok.Body.jsonPayload.targetsPayload
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - pagination_metadata:
+                        ///   - targets:
+                        public init(
+                            pagination_metadata: Components.Schemas.PaginationMetadata,
+                            targets: Operations.listTestTargets.Output.Ok.Body.jsonPayload.targetsPayload
+                        ) {
+                            self.pagination_metadata = pagination_metadata
+                            self.targets = targets
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case pagination_metadata
+                            case targets
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/targets/GET/responses/200/content/application\/json`.
+                    case json(Operations.listTestTargets.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.listTestTargets.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listTestTargets.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listTestTargets.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// List of test targets
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/targets/get(listTestTargets)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.listTestTargets.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.listTestTargets.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/targets/GET/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/targets/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listTestTargets.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listTestTargets.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// You don't have permission to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/targets/get(listTestTargets)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.listTestTargets.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.listTestTargets.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/targets/GET/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/targets/GET/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listTestTargets.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listTestTargets.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// Test run not found
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/targets/get(listTestTargets)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.listTestTargets.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.listTestTargets.Output.NotFound {
                 get throws {
                     switch self {
                     case let .notFound(response):
@@ -48611,6 +48999,10 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/gradle_build_id`.
                     public var gradle_build_id: Swift.String?
+                    /// Optional client-generated UUID for the test run. If not provided, the server generates one.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/id`.
+                    public var id: Swift.String?
                     /// Indicates if the run was executed on a Continuous Integration (CI) system.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/is_ci`.
@@ -48642,6 +49034,8 @@ public enum Operations {
                         case success = "success"
                         case failure = "failure"
                         case skipped = "skipped"
+                        case processing = "processing"
+                        case failed_processing = "failed_processing"
                     }
                     /// The status of the test run.
                     ///
@@ -48806,6 +49200,8 @@ public enum Operations {
                                 case success = "success"
                                 case failure = "failure"
                                 case skipped = "skipped"
+                                case processing = "processing"
+                                case failed_processing = "failed_processing"
                             }
                             /// The status of the test case.
                             ///
@@ -48877,6 +49273,8 @@ public enum Operations {
                                 case success = "success"
                                 case failure = "failure"
                                 case skipped = "skipped"
+                                case processing = "processing"
+                                case failed_processing = "failed_processing"
                             }
                             /// The status of the test suite.
                             ///
@@ -48967,6 +49365,7 @@ public enum Operations {
                     ///   - git_ref: The git reference.
                     ///   - git_remote_url_origin: The git remote URL origin.
                     ///   - gradle_build_id: The UUID of an associated Gradle build.
+                    ///   - id: Optional client-generated UUID for the test run. If not provided, the server generates one.
                     ///   - is_ci: Indicates if the run was executed on a Continuous Integration (CI) system.
                     ///   - macos_version: The version of macOS used during the run.
                     ///   - model_identifier: Identifier for the model where the run was executed, such as MacBookAir10,1.
@@ -48989,6 +49388,7 @@ public enum Operations {
                         git_ref: Swift.String? = nil,
                         git_remote_url_origin: Swift.String? = nil,
                         gradle_build_id: Swift.String? = nil,
+                        id: Swift.String? = nil,
                         is_ci: Swift.Bool,
                         macos_version: Swift.String? = nil,
                         model_identifier: Swift.String? = nil,
@@ -49011,6 +49411,7 @@ public enum Operations {
                         self.git_ref = git_ref
                         self.git_remote_url_origin = git_remote_url_origin
                         self.gradle_build_id = gradle_build_id
+                        self.id = id
                         self.is_ci = is_ci
                         self.macos_version = macos_version
                         self.model_identifier = model_identifier
@@ -49034,6 +49435,7 @@ public enum Operations {
                         case git_ref
                         case git_remote_url_origin
                         case gradle_build_id
+                        case id
                         case is_ci
                         case macos_version
                         case model_identifier

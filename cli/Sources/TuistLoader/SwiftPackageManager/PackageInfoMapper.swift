@@ -442,11 +442,17 @@ public struct PackageInfoMapper: PackageInfoMapping {
                 }
 
                 if let depTarget = targetsByName[dependencyName] {
-                    if depTarget.type == .binary,
-                       let depPath = depTarget.path,
-                       (try? RelativePath(validating: depPath))?.basenameWithoutExt == singleProduct.name
-                    {
-                        return targetName
+                    if depTarget.type == .binary {
+                        // Remote binary targets don't expose a local xcframework path here, so we also fall back to
+                        // the binary target name to avoid renaming the wrapper target to a product name that Xcode
+                        // will already emit from ProcessXCFramework.
+                        let matchesProductNameInPath =
+                            depTarget.path.flatMap { try? RelativePath(validating: $0).basenameWithoutExt } == singleProduct.name
+                        let matchesProductNameInTargetName =
+                            depTarget.name == singleProduct.name || depTarget.name.hasPrefix(singleProduct.name)
+                        if matchesProductNameInPath || matchesProductNameInTargetName {
+                            return targetName
+                        }
                     }
                     queue.append(dependencyName)
                 }
@@ -1550,9 +1556,7 @@ extension PackageInfo {
             settingsDictionary["CLANG_CXX_LANGUAGE_STANDARD"] = .string(cxxLanguageStandard)
         }
 
-        if let swiftLanguageVersion = swiftVersion(for: swiftToolsVersion) {
-            settingsDictionary["SWIFT_VERSION"] = .string(swiftLanguageVersion)
-        }
+        settingsDictionary["SWIFT_VERSION"] = .string(swiftVersion(for: swiftToolsVersion))
 
         let configurations = baseSettings.configurations.lazy
             .sorted(by: { $0.key < $1.key })
@@ -1576,19 +1580,35 @@ extension PackageInfo {
         }
     }
 
-    private func swiftVersion(for configuredSwiftVersion: XcodeGraph.Version?) -> String? {
-        // Take the latest swift version compatible with the configured one
-        let maxAllowedSwiftLanguageVersion = swiftLanguageVersions?
-            .filter {
-                guard let configuredSwiftVersion else {
-                    return true
+    private func swiftVersion(for configuredSwiftVersion: XcodeGraph.Version?) -> String {
+        if let swiftLanguageVersions {
+            // Take the latest swift version compatible with the configured one
+            let maxAllowedSwiftLanguageVersion = swiftLanguageVersions
+                .filter {
+                    guard let configuredSwiftVersion else {
+                        return true
+                    }
+                    return $0 <= configuredSwiftVersion
                 }
-                return $0 <= configuredSwiftVersion
-            }
-            .sorted()
-            .last
+                .sorted()
+                .last
 
-        return maxAllowedSwiftLanguageVersion?.description
+            if let maxAllowedSwiftLanguageVersion {
+                return maxAllowedSwiftLanguageVersion.description
+            }
+        }
+
+        // When swiftLanguageVersions is not declared, derive from tools-version,
+        // matching SPM's behavior in ToolsVersion.swiftLanguageVersion:
+        // https://github.com/swiftlang/swift-package-manager/blob/main/Sources/PackageModel/ToolsVersion.swift
+        switch toolsVersion.major {
+        case 4:
+            return toolsVersion.minor < 2 ? "4" : "4.2"
+        case 5:
+            return "5"
+        default:
+            return "6"
+        }
     }
 }
 

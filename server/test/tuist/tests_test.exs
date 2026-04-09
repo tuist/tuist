@@ -5341,7 +5341,7 @@ defmodule Tuist.TestsTest do
     end
   end
 
-  describe "clear_stale_flaky_flags/0" do
+  describe "clear_cooled_down_flaky_tests/1" do
     test "does not clear flaky flag when test case has recent flaky runs" do
       project = ProjectsFixtures.project_fixture()
       test_case_id = Ecto.UUID.generate()
@@ -5365,7 +5365,7 @@ defmodule Tuist.TestsTest do
 
       RunsFixtures.optimize_test_case_runs()
 
-      {:ok, _count} = Tests.clear_stale_flaky_flags()
+      {:ok, _count} = Tests.clear_cooled_down_flaky_tests(project)
 
       {:ok, fetched_test_case} = Tests.get_test_case_by_id(test_case_id)
       assert fetched_test_case.is_flaky == true
@@ -5394,7 +5394,7 @@ defmodule Tuist.TestsTest do
 
       RunsFixtures.optimize_test_case_runs()
 
-      {:ok, count} = Tests.clear_stale_flaky_flags()
+      {:ok, count} = Tests.clear_cooled_down_flaky_tests(project)
 
       assert count >= 1
 
@@ -5425,7 +5425,7 @@ defmodule Tuist.TestsTest do
 
       RunsFixtures.optimize_test_case_runs()
 
-      {:ok, count} = Tests.clear_stale_flaky_flags()
+      {:ok, count} = Tests.clear_cooled_down_flaky_tests(project)
 
       assert count >= 1
 
@@ -5433,12 +5433,11 @@ defmodule Tuist.TestsTest do
       assert fetched_test_case.is_flaky == false
     end
 
-    test "only clears stale flaky flags, preserving recent ones" do
+    test "only clears cooled down flaky tests, preserving recent ones" do
       project = ProjectsFixtures.project_fixture()
       stale_test_case_id = Ecto.UUID.generate()
       recent_test_case_id = Ecto.UUID.generate()
 
-      # Create a test case with stale flaky runs
       stale_test_case =
         RunsFixtures.test_case_fixture(
           id: stale_test_case_id,
@@ -5447,7 +5446,6 @@ defmodule Tuist.TestsTest do
           is_flaky: true
         )
 
-      # Create a test case with recent flaky runs
       recent_test_case =
         RunsFixtures.test_case_fixture(
           id: recent_test_case_id,
@@ -5479,7 +5477,7 @@ defmodule Tuist.TestsTest do
 
       RunsFixtures.optimize_test_case_runs()
 
-      {:ok, count} = Tests.clear_stale_flaky_flags()
+      {:ok, count} = Tests.clear_cooled_down_flaky_tests(project)
 
       assert count >= 1
 
@@ -5503,7 +5501,7 @@ defmodule Tuist.TestsTest do
 
       IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
 
-      {:ok, _count} = Tests.clear_stale_flaky_flags()
+      {:ok, _count} = Tests.clear_cooled_down_flaky_tests(project)
 
       {:ok, fetched_test_case} = Tests.get_test_case_by_id(non_flaky_test_case_id)
       assert fetched_test_case.is_flaky == false
@@ -5523,7 +5521,7 @@ defmodule Tuist.TestsTest do
 
       IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
 
-      {:ok, _count} = Tests.clear_stale_flaky_flags()
+      {:ok, _count} = Tests.clear_cooled_down_flaky_tests(project)
 
       {:ok, fetched_test_case} = Tests.get_test_case_by_id(test_case_id)
       assert fetched_test_case.is_flaky == false
@@ -5533,9 +5531,10 @@ defmodule Tuist.TestsTest do
     test "unquarantines when project has auto_quarantine_flaky_tests enabled" do
       project = ProjectsFixtures.project_fixture()
 
-      project
-      |> Ecto.Changeset.change(auto_quarantine_flaky_tests: true)
-      |> Tuist.Repo.update!()
+      project =
+        project
+        |> Ecto.Changeset.change(auto_quarantine_flaky_tests: true)
+        |> Tuist.Repo.update!()
 
       test_case_id = Ecto.UUID.generate()
 
@@ -5549,11 +5548,81 @@ defmodule Tuist.TestsTest do
 
       IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
 
-      {:ok, _count} = Tests.clear_stale_flaky_flags()
+      {:ok, _count} = Tests.clear_cooled_down_flaky_tests(project)
 
       {:ok, fetched_test_case} = Tests.get_test_case_by_id(test_case_id)
       assert fetched_test_case.is_flaky == false
       assert fetched_test_case.is_quarantined == false
+    end
+
+    test "respects project-specific flaky_cooldown_days setting" do
+      project = ProjectsFixtures.project_fixture()
+
+      project =
+        project
+        |> Ecto.Changeset.change(flaky_cooldown_days: 3)
+        |> Tuist.Repo.update!()
+
+      test_case_id = Ecto.UUID.generate()
+
+      test_case =
+        RunsFixtures.test_case_fixture(
+          id: test_case_id,
+          project_id: project.id,
+          is_flaky: true
+        )
+
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: test_case_id,
+        is_flaky: true,
+        inserted_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -5, :day)
+      )
+
+      RunsFixtures.optimize_test_case_runs()
+
+      {:ok, count} = Tests.clear_cooled_down_flaky_tests(project)
+
+      assert count >= 1
+
+      {:ok, fetched_test_case} = Tests.get_test_case_by_id(test_case_id)
+      assert fetched_test_case.is_flaky == false
+    end
+
+    test "does not clear flaky flag when within project-specific flaky_cooldown_days" do
+      project = ProjectsFixtures.project_fixture()
+
+      project =
+        project
+        |> Ecto.Changeset.change(flaky_cooldown_days: 30)
+        |> Tuist.Repo.update!()
+
+      test_case_id = Ecto.UUID.generate()
+
+      test_case =
+        RunsFixtures.test_case_fixture(
+          id: test_case_id,
+          project_id: project.id,
+          is_flaky: true
+        )
+
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: test_case_id,
+        is_flaky: true,
+        inserted_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -20, :day)
+      )
+
+      RunsFixtures.optimize_test_case_runs()
+
+      {:ok, _count} = Tests.clear_cooled_down_flaky_tests(project)
+
+      {:ok, fetched_test_case} = Tests.get_test_case_by_id(test_case_id)
+      assert fetched_test_case.is_flaky == true
     end
   end
 
@@ -6760,19 +6829,45 @@ defmodule Tuist.TestsTest do
   end
 
   describe "attachment_storage_key/1" do
-    test "builds the correct S3 key with downcased handles" do
-      # When
+    test "uses test_run_id path when test_run_id is present" do
       key =
         Tests.attachment_storage_key(%{
           account_handle: "MyOrg",
           project_handle: "MyProject",
-          test_case_run_id: "run-123",
+          test_run_id: "run-789",
+          test_case_run_id: "tcr-123",
           attachment_id: "att-456",
           file_name: "crash-report.ips"
         })
 
-      # Then
-      assert key == "myorg/myproject/tests/test-case-runs/run-123/attachments/att-456/crash-report.ips"
+      assert key == "myorg/myproject/tests/runs/run-789/attachments/att-456/crash-report.ips"
+    end
+
+    test "falls back to test_case_run_id path when test_run_id is nil" do
+      key =
+        Tests.attachment_storage_key(%{
+          account_handle: "MyOrg",
+          project_handle: "MyProject",
+          test_run_id: nil,
+          test_case_run_id: "tcr-123",
+          attachment_id: "att-456",
+          file_name: "crash-report.ips"
+        })
+
+      assert key == "myorg/myproject/tests/test-case-runs/tcr-123/attachments/att-456/crash-report.ips"
+    end
+
+    test "falls back to test_case_run_id path when test_run_id is not provided" do
+      key =
+        Tests.attachment_storage_key(%{
+          account_handle: "MyOrg",
+          project_handle: "MyProject",
+          test_case_run_id: "tcr-123",
+          attachment_id: "att-456",
+          file_name: "crash-report.ips"
+        })
+
+      assert key == "myorg/myproject/tests/test-case-runs/tcr-123/attachments/att-456/crash-report.ips"
     end
   end
 

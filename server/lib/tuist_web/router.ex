@@ -10,6 +10,7 @@ defmodule TuistWeb.Router do
 
   alias TuistWeb.Marketing.Localization
   alias TuistWeb.Marketing.MarketingController
+  alias TuistWeb.Plugs.LocalePlug
   alias TuistWeb.Plugs.ObservabilityContextPlug
   alias TuistWeb.Plugs.SentryContextPlug
   alias TuistWeb.Plugs.UeberauthHostPlug
@@ -50,6 +51,7 @@ defmodule TuistWeb.Router do
     plug :accepts, ["html"]
     plug :disable_robot_indexing
     plug :fetch_session
+    plug LocalePlug
     plug TuistWeb.Plugs.TimezonePlug
     plug :fetch_live_flash
     plug :put_root_layout, html: {TuistWeb.Layouts, :app}
@@ -79,6 +81,7 @@ defmodule TuistWeb.Router do
     plug :accepts, ["html"]
     plug :disable_robot_indexing
     plug :fetch_session
+    plug LocalePlug
     plug :fetch_live_flash
     plug :protect_from_forgery
     plug :put_secure_browser_headers
@@ -92,6 +95,7 @@ defmodule TuistWeb.Router do
     plug :accepts, ["html"]
     plug :disable_robot_indexing
     plug :fetch_session
+    plug LocalePlug
     plug :fetch_live_flash
     plug :put_root_layout, html: {TuistWeb.Layouts, :app}
     plug :put_secure_browser_headers
@@ -136,6 +140,7 @@ defmodule TuistWeb.Router do
     plug :content_security_policy
     plug TuistWeb.OnPremisePlug, :forward_marketing_to_dashboard
     plug Localization, :put_locale
+    plug :fetch_current_user
   end
 
   pipeline :browser_marketing_feed do
@@ -219,6 +224,11 @@ defmodule TuistWeb.Router do
 
         live Path.join(locale_path_prefix, "/changelog"),
              TuistWeb.Marketing.MarketingChangelogLive,
+             metadata: %{type: :marketing},
+             private: private
+
+        live Path.join(locale_path_prefix, "/changelog/:id"),
+             TuistWeb.Marketing.MarketingChangelogEntryLive,
              metadata: %{type: :marketing},
              private: private
 
@@ -331,6 +341,7 @@ defmodule TuistWeb.Router do
     pipe_through [:open_api, :browser_docs]
 
     get "/docs", DocsRedirectController, :show, metadata: %{type: :docs}
+    get "/docs/login", UserSessionController, :new, metadata: %{type: :docs}
     get "/docs/:locale", DocsRedirectController, :show, metadata: %{type: :docs}
     get "/docs/:locale/*path", DocsRedirectController, :show, metadata: %{type: :docs}
     get "/:locale/docs-markdown/*path", DocsMarkdownController, :show, metadata: %{type: :docs}
@@ -338,7 +349,8 @@ defmodule TuistWeb.Router do
     for locale <- ["en"] ++ Localization.additional_locales() do
       private = %{locale: locale}
 
-      live_session String.to_atom("docs_#{locale}"), on_mount: Localization do
+      live_session String.to_atom("docs_#{locale}"),
+        on_mount: [{TuistWeb.Authentication, :mount_current_user}, Localization] do
         live "/#{locale}/docs", DocsLive, :overview, metadata: %{type: :docs}, private: private
         live "/#{locale}/docs/*path", DocsLive, :show, metadata: %{type: :docs}, private: private
       end
@@ -465,6 +477,7 @@ defmodule TuistWeb.Router do
 
           get "/:test_run_id/modules", TestModuleRunsController, :index
           get "/:test_run_id/suites", TestSuiteRunsController, :index
+          get "/:test_run_id/targets", SelectiveTestingTargetsController, :index
           get "/:test_run_id", TestsController, :show
           get "/:test_run_id/test-case-runs", TestCaseRunsController, :index_by_test_run
           post "/", TestsController, :create

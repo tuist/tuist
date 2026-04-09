@@ -3,6 +3,7 @@
 @import "noora/noora.css";
 @import "css/shared/tokens.css";
 @import "../shared/css/prose.css";
+@import "../shared/css/code-window.css";
 @import "css/shared/pages.css";
 @import "css/routes/shared/page.css";
 @import "css/routes/home.css";
@@ -12,6 +13,7 @@
 @import "css/routes/customers.css";
 @import "css/routes/case-study.css";
 @import "css/routes/changelog.css";
+@import "css/routes/changelog-entry.css";
 @import "css/routes/pricing.css";
 @import "css/routes/cache.css";
 @import "css/routes/build-insights.css";
@@ -25,7 +27,6 @@
 @import "css/layouts/components/navbar.css";
 @import "css/layouts/components/footer.css";
 @import "css/layouts/components/banner.css";
-@import "css/layouts/components/window.css";
 @import "css/layouts/components/agent-prompt.css";
 @import "../shared/css/code-group.css";
 @import "css/layouts/components/prose-banner.css";

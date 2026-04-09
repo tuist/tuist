@@ -109,7 +109,7 @@ config :esbuild,
     args:
       ~w(apidocs.js --bundle --target=es2017 --outfile=../../priv/static/apidocs/assets/bundle.js --external:/fonts/* --external:/images/*),
     cd: Path.expand("../assets/apidocs", __DIR__),
-    env: %{"NODE_PATH" => deps_path}
+    env: %{"NODE_PATH" => "#{deps_path}:#{node_modules_path}"}
   ]
 
 # Do not include metadata nor timestamps in development logs

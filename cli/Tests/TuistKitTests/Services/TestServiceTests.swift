@@ -16,6 +16,7 @@ import TuistServer
 import TuistSupport
 import TuistXCResultService
 import XcodeGraph
+import XCResultParser
 import XCTest
 
 @testable import TuistKit
@@ -46,6 +47,7 @@ final class TestServiceTests: TuistUnitTestCase {
     private var testQuarantineService: MockTestQuarantineServicing!
     private var serverEnvironmentService: MockServerEnvironmentServicing!
     private var shardPlanService: MockShardPlanServicing!
+    private var shardMatrixOutputService: MockShardMatrixOutputServicing!
     private var shardService: MockShardServicing!
 
     override func setUpWithError() throws {
@@ -69,6 +71,7 @@ final class TestServiceTests: TuistUnitTestCase {
         testQuarantineService = .init()
         serverEnvironmentService = .init()
         shardPlanService = .init()
+        shardMatrixOutputService = .init()
         shardService = .init()
 
         cacheStorageFactory = MockCacheStorageFactorying()
@@ -136,9 +139,12 @@ final class TestServiceTests: TuistUnitTestCase {
         given(testQuarantineService)
             .onlyQuarantinedTestsFailed(testSummary: .any)
             .willReturn(false)
+        given(testQuarantineService)
+            .onlyQuarantinedTestsFailed(testStatuses: .any, quarantinedTests: .any)
+            .willReturn(false)
 
         given(uploadResultBundleService)
-            .uploadResultBundle(
+            .uploadTestSummary(
                 testSummary: .any,
                 projectDerivedDataDirectory: .any,
                 config: .any,
@@ -159,6 +165,9 @@ final class TestServiceTests: TuistUnitTestCase {
         given(xcResultService)
             .parse(path: .any, rootDirectory: .any)
             .willReturn(nil)
+        given(xcResultService)
+            .parseTestStatuses(path: .any)
+            .willReturn(TestResultStatuses(testCases: []))
 
         subject = TestService(
             generatorFactory: generatorFactory,
@@ -177,6 +186,7 @@ final class TestServiceTests: TuistUnitTestCase {
             ciController: ciController,
             testQuarantineService: testQuarantineService,
             shardPlanService: shardPlanService,
+            shardMatrixOutputService: shardMatrixOutputService,
             shardService: shardService
         )
 
@@ -499,7 +509,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 ignoreBinaryCache: .any,
                 ignoreSelectiveTesting: .any,
                 cacheStorage: .any,
-                destination: .value(.test(device: .test(name: "Test iPhone")))
+                destination: .value(.test(device: .test(name: "Test iPhone"))),
+                schemeName: .any
             )
             .called(1)
         verify(xcodebuildController)
@@ -957,6 +968,47 @@ final class TestServiceTests: TuistUnitTestCase {
         }
     }
 
+    func test_writes_empty_shard_matrix_when_all_tests_are_cached_and_sharding_is_enabled() async throws {
+        try await withMockedDependencies {
+            // Given
+            givenGenerator()
+            var environment = MapperEnvironment()
+            environment.initialGraph = .test(
+                projects: [
+                    try temporaryPath(): .test(schemes: [.test(name: "ProjectSchemeOne")]),
+                ]
+            )
+            given(configLoader)
+                .loadConfig(path: .any)
+                .willReturn(.test(project: .testGeneratedProject()))
+            given(generator)
+                .generateWithGraph(path: .any, options: .any)
+                .willProduce { path, _ in
+                    (
+                        path,
+                        .test(),
+                        environment
+                    )
+                }
+            given(shardMatrixOutputService)
+                .output(.any)
+                .willReturn()
+
+            // When
+            try await testRun(
+                path: try temporaryPath(),
+                action: .build,
+                shardTotal: 2
+            )
+
+            // Then
+            XCTAssertEmpty(testedSchemes)
+            verify(shardMatrixOutputService)
+                .output(.any)
+                .called(1)
+        }
+    }
+
     func test_skips_running_tests_when_all_tests_are_cached_with_a_custom_result_bundle_path()
         async throws
     {
@@ -1378,6 +1430,19 @@ final class TestServiceTests: TuistUnitTestCase {
                     ]
                 )
             )
+        xcResultService.reset()
+        given(xcResultService)
+            .parse(path: .any, rootDirectory: .any)
+            .willReturn(nil)
+        given(xcResultService)
+            .parseTestStatuses(path: .any)
+            .willReturn(
+                TestResultStatuses(testCases: [
+                    .init(name: "testA", testSuite: nil, module: "FrameworkATests", status: .failed),
+                    .init(name: "testB", testSuite: nil, module: "FrameworkBTests", status: .passed),
+                ])
+            )
+
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(.test(project: .testGeneratedProject()))
@@ -1582,7 +1647,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 ignoreBinaryCache: .any,
                 ignoreSelectiveTesting: .any,
                 cacheStorage: .any,
-                destination: .any
+                destination: .any,
+                schemeName: .any
             )
             .willReturn(generator)
         given(buildGraphInspector)
@@ -1643,7 +1709,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 ignoreBinaryCache: .any,
                 ignoreSelectiveTesting: .any,
                 cacheStorage: .any,
-                destination: .any
+                destination: .any,
+                schemeName: .any
             )
             .willReturn(generator)
         given(generator)
@@ -2724,7 +2791,7 @@ final class TestServiceTests: TuistUnitTestCase {
 
             uploadResultBundleService.reset()
             given(uploadResultBundleService)
-                .uploadResultBundle(
+                .uploadTestSummary(
                     testSummary: .any,
                     projectDerivedDataDirectory: .any,
                     config: .any,
@@ -3106,7 +3173,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 ignoreBinaryCache: .any,
                 ignoreSelectiveTesting: .any,
                 cacheStorage: .any,
-                destination: .any
+                destination: .any,
+                schemeName: .any
             )
             .willReturn(generator)
     }
@@ -3154,7 +3222,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 ignoreBinaryCache: .any,
                 ignoreSelectiveTesting: .any,
                 cacheStorage: .any,
-                destination: .any
+                destination: .any,
+                schemeName: .any
             )
             .called(0)
 
@@ -3207,7 +3276,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 ignoreBinaryCache: .any,
                 ignoreSelectiveTesting: .any,
                 cacheStorage: .any,
-                destination: .any
+                destination: .any,
+                schemeName: .any
             )
             .called(1)
     }
@@ -3234,7 +3304,8 @@ final class TestServiceTests: TuistUnitTestCase {
         testPlanConfiguration: TestPlanConfiguration? = nil,
         generateOnly: Bool = false,
         passthroughXcodeBuildArguments: [String] = [],
-        skipQuarantine: Bool = false
+        skipQuarantine: Bool = false,
+        shardTotal: Int? = nil
     ) async throws {
         try await RunMetadataStorage.$current.withValue(runMetadataStorage) {
             try await subject.run(
@@ -3261,7 +3332,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 ignoreSelectiveTesting: false,
                 generateOnly: generateOnly,
                 passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
-                skipQuarantine: skipQuarantine
+                skipQuarantine: skipQuarantine,
+                shardTotal: shardTotal
             )
         }
     }

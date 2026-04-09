@@ -12,7 +12,8 @@
 /* Declared in the Swift dynamic library */
 extern int parse_xcactivitylog(
     const char *path,
-    const char *cas_metadata_path,
+    const char *cas_analytics_db_path,
+    const char *legacy_cas_metadata_path,
     int cache_upload_enabled,
     char **output_ptr,
     int *output_len
@@ -20,7 +21,7 @@ extern int parse_xcactivitylog(
 
 static ERL_NIF_TERM parse_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
 {
-    if (argc != 3) {
+    if (argc != 4) {
         return enif_make_badarg(env);
     }
 
@@ -30,15 +31,21 @@ static ERL_NIF_TERM parse_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[
         return enif_make_badarg(env);
     }
 
-    /* Get CAS metadata path */
-    ErlNifBinary cas_path_bin;
-    if (!enif_inspect_binary(env, argv[1], &cas_path_bin)) {
+    /* Get CAS analytics database path */
+    ErlNifBinary cas_db_path_bin;
+    if (!enif_inspect_binary(env, argv[1], &cas_db_path_bin)) {
+        return enif_make_badarg(env);
+    }
+
+    /* Get legacy CAS metadata directory path */
+    ErlNifBinary legacy_cas_path_bin;
+    if (!enif_inspect_binary(env, argv[2], &legacy_cas_path_bin)) {
         return enif_make_badarg(env);
     }
 
     /* Get cache_upload_enabled boolean */
     char atom_buf[16];
-    if (!enif_get_atom(env, argv[2], atom_buf, sizeof(atom_buf), ERL_NIF_LATIN1)) {
+    if (!enif_get_atom(env, argv[3], atom_buf, sizeof(atom_buf), ERL_NIF_LATIN1)) {
         return enif_make_badarg(env);
     }
     int cache_upload_enabled = (strcmp(atom_buf, "true") == 0) ? 1 : 0;
@@ -49,18 +56,24 @@ static ERL_NIF_TERM parse_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[
     memcpy(path, path_bin.data, path_bin.size);
     path[path_bin.size] = '\0';
 
-    char *cas_path = malloc(cas_path_bin.size + 1);
-    if (!cas_path) { free(path); return enif_make_badarg(env); }
-    memcpy(cas_path, cas_path_bin.data, cas_path_bin.size);
-    cas_path[cas_path_bin.size] = '\0';
+    char *cas_db_path = malloc(cas_db_path_bin.size + 1);
+    if (!cas_db_path) { free(path); return enif_make_badarg(env); }
+    memcpy(cas_db_path, cas_db_path_bin.data, cas_db_path_bin.size);
+    cas_db_path[cas_db_path_bin.size] = '\0';
+
+    char *legacy_cas_path = malloc(legacy_cas_path_bin.size + 1);
+    if (!legacy_cas_path) { free(path); free(cas_db_path); return enif_make_badarg(env); }
+    memcpy(legacy_cas_path, legacy_cas_path_bin.data, legacy_cas_path_bin.size);
+    legacy_cas_path[legacy_cas_path_bin.size] = '\0';
 
     char *output = NULL;
     int output_len = 0;
 
-    int result = parse_xcactivitylog(path, cas_path, cache_upload_enabled, &output, &output_len);
+    int result = parse_xcactivitylog(path, cas_db_path, legacy_cas_path, cache_upload_enabled, &output, &output_len);
 
     free(path);
-    free(cas_path);
+    free(cas_db_path);
+    free(legacy_cas_path);
 
     if (result != 0 || output == NULL) {
         if (output) free(output);
@@ -85,7 +98,7 @@ static ERL_NIF_TERM parse_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[
 }
 
 static ErlNifFunc nif_funcs[] = {
-    {"parse_nif", 3, parse_nif, ERL_NIF_DIRTY_JOB_CPU_BOUND}
+    {"parse_nif", 4, parse_nif, ERL_NIF_DIRTY_JOB_CPU_BOUND}
 };
 
 ERL_NIF_INIT(Elixir.Processor.XCActivityLogNIF, nif_funcs, NULL, NULL, NULL, NULL)

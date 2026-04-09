@@ -35,12 +35,14 @@ defmodule TuistWeb.API.ProjectsControllerTest do
       assert response == %{
                "id" => response["id"],
                "full_name" => "#{user.account.name}/my-project",
-               "token" => response["token"],
                "default_branch" => "main",
                "repository_url" => nil,
                "visibility" => "private",
-               "build_system" => "xcode"
+               "build_system" => "xcode",
+               "token" => ""
              }
+
+      assert response["token"] == ""
     end
 
     test "returns newly created personal project using just project_name", %{
@@ -62,12 +64,14 @@ defmodule TuistWeb.API.ProjectsControllerTest do
       assert response == %{
                "id" => response["id"],
                "full_name" => "tuist/my-project",
-               "token" => response["token"],
                "default_branch" => "main",
                "repository_url" => nil,
                "visibility" => "private",
-               "build_system" => "xcode"
+               "build_system" => "xcode",
+               "token" => ""
              }
+
+      assert response["token"] == ""
     end
 
     test "returns newly created project for a given organization",
@@ -90,12 +94,14 @@ defmodule TuistWeb.API.ProjectsControllerTest do
       assert response == %{
                "id" => response["id"],
                "full_name" => "tuist-org/my-project",
-               "token" => response["token"],
                "default_branch" => "main",
                "repository_url" => nil,
                "visibility" => "private",
-               "build_system" => "xcode"
+               "build_system" => "xcode",
+               "token" => ""
              }
+
+      assert response["token"] == ""
     end
 
     test "returns newly created project for a given organization using project and organization names",
@@ -118,12 +124,14 @@ defmodule TuistWeb.API.ProjectsControllerTest do
       assert response == %{
                "id" => response["id"],
                "full_name" => "tuist-org/my-project",
-               "token" => response["token"],
                "default_branch" => "main",
                "repository_url" => nil,
                "visibility" => "private",
-               "build_system" => "xcode"
+               "build_system" => "xcode",
+               "token" => ""
              }
+
+      assert response["token"] == ""
     end
 
     test "returns newly created project with gradle build system",
@@ -146,12 +154,14 @@ defmodule TuistWeb.API.ProjectsControllerTest do
       assert response == %{
                "id" => response["id"],
                "full_name" => "#{user.account.name}/my-gradle-project",
-               "token" => response["token"],
                "default_branch" => "main",
                "repository_url" => nil,
                "visibility" => "private",
-               "build_system" => "gradle"
+               "build_system" => "gradle",
+               "token" => ""
              }
+
+      assert response["token"] == ""
     end
 
     test "returns an error if the provided account doesn't exist", %{
@@ -292,6 +302,21 @@ defmodule TuistWeb.API.ProjectsControllerTest do
   end
 
   describe "GET /api/projects" do
+    test "includes deprecated empty token field for backward compatibility with older clients", %{
+      conn: conn,
+      user: user
+    } do
+      conn = Authentication.put_current_user(conn, user)
+      ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      conn = get(conn, "/api/projects")
+
+      response = json_response(conn, :ok)
+      project = hd(response["projects"])
+      assert Map.has_key?(project, "token")
+      assert project["token"] == ""
+    end
+
     test "lists all user projects", %{conn: conn, user: user} do
       # Given
       conn = Authentication.put_current_user(conn, user)
@@ -315,10 +340,10 @@ defmodule TuistWeb.API.ProjectsControllerTest do
                value == %{
                  "id" => project_one.id,
                  "full_name" => "tuist-org/#{project_one.name}",
-                 "token" => project_one.token,
                  "default_branch" => project_one.default_branch,
                  "visibility" => Atom.to_string(project_one.visibility),
-                 "build_system" => Atom.to_string(project_one.build_system)
+                 "build_system" => Atom.to_string(project_one.build_system),
+                 "token" => ""
                }
              end)
 
@@ -326,14 +351,15 @@ defmodule TuistWeb.API.ProjectsControllerTest do
                value == %{
                  "id" => project_two.id,
                  "full_name" => "tuist/#{project_two.name}",
-                 "token" => project_two.token,
                  "default_branch" => project_two.default_branch,
                  "visibility" => Atom.to_string(project_two.visibility),
-                 "build_system" => Atom.to_string(project_two.build_system)
+                 "build_system" => Atom.to_string(project_two.build_system),
+                 "token" => ""
                }
              end)
 
       assert length(response["projects"]) == 2
+      assert Enum.all?(response["projects"], &(&1["token"] == ""))
     end
 
     test "lists all user projects when associated with a google hosted domain", %{conn: conn} do
@@ -380,10 +406,10 @@ defmodule TuistWeb.API.ProjectsControllerTest do
                value == %{
                  "id" => project_one.id,
                  "full_name" => "tuist-org/#{project_one.name}",
-                 "token" => project_one.token,
                  "default_branch" => project_one.default_branch,
                  "visibility" => Atom.to_string(project_one.visibility),
-                 "build_system" => Atom.to_string(project_one.build_system)
+                 "build_system" => Atom.to_string(project_one.build_system),
+                 "token" => ""
                }
              end)
 
@@ -391,14 +417,15 @@ defmodule TuistWeb.API.ProjectsControllerTest do
                value == %{
                  "id" => project_two.id,
                  "full_name" => "tuist/#{project_two.name}",
-                 "token" => project_two.token,
                  "default_branch" => project_two.default_branch,
                  "visibility" => Atom.to_string(project_two.visibility),
-                 "build_system" => Atom.to_string(project_two.build_system)
+                 "build_system" => Atom.to_string(project_two.build_system),
+                 "token" => ""
                }
              end)
 
       assert length(response["projects"]) == 2
+      assert Enum.all?(response["projects"], &(&1["token"] == ""))
     end
 
     test "lists all projects for an authenticated account subject", %{conn: conn} do
@@ -408,7 +435,7 @@ defmodule TuistWeb.API.ProjectsControllerTest do
 
       conn =
         conn
-        |> assign(:current_subject, %AuthenticatedAccount{account: account, scopes: []})
+        |> assign(:current_subject, %AuthenticatedAccount{account: account, scopes: [], all_projects: true})
         |> get(~p"/api/projects")
 
       response = json_response(conn, :ok)
@@ -420,6 +447,39 @@ defmodule TuistWeb.API.ProjectsControllerTest do
                  "#{account.name}/#{project_one.name}",
                  "#{account.name}/#{project_two.name}"
                ])
+
+      assert Enum.all?(response["projects"], &(&1["token"] == ""))
+    end
+
+    test "lists only the permitted projects for a restricted authenticated account subject", %{conn: conn} do
+      account = AccountsFixtures.account_fixture()
+      allowed_project = ProjectsFixtures.project_fixture(account_id: account.id)
+      blocked_project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+      conn =
+        conn
+        |> assign(:current_subject, %AuthenticatedAccount{
+          account: account,
+          scopes: [],
+          all_projects: false,
+          project_ids: [allowed_project.id]
+        })
+        |> get(~p"/api/projects")
+
+      response = json_response(conn, :ok)
+
+      assert response["projects"] == [
+               %{
+                 "id" => allowed_project.id,
+                 "full_name" => "#{account.name}/#{allowed_project.name}",
+                 "default_branch" => allowed_project.default_branch,
+                 "visibility" => Atom.to_string(allowed_project.visibility),
+                 "build_system" => Atom.to_string(allowed_project.build_system),
+                 "token" => ""
+               }
+             ]
+
+      refute Enum.any?(response["projects"], &(&1["id"] == blocked_project.id))
     end
 
     test "lists the current project for a project token subject", %{conn: conn} do
@@ -436,10 +496,10 @@ defmodule TuistWeb.API.ProjectsControllerTest do
                %{
                  "id" => project.id,
                  "full_name" => "#{project.account.name}/#{project.name}",
-                 "token" => project.token,
                  "default_branch" => project.default_branch,
                  "visibility" => Atom.to_string(project.visibility),
-                 "build_system" => Atom.to_string(project.build_system)
+                 "build_system" => Atom.to_string(project.build_system),
+                 "token" => ""
                }
              ]
     end
@@ -468,12 +528,14 @@ defmodule TuistWeb.API.ProjectsControllerTest do
       assert response == %{
                "id" => project.id,
                "full_name" => "#{account.name}/#{project.name}",
-               "token" => project.token,
                "default_branch" => project.default_branch,
                "repository_url" => nil,
                "visibility" => "private",
-               "build_system" => "xcode"
+               "build_system" => "xcode",
+               "token" => ""
              }
+
+      assert response["token"] == ""
     end
 
     test "Returns an organization's project by its handle", %{
@@ -497,12 +559,14 @@ defmodule TuistWeb.API.ProjectsControllerTest do
       assert response == %{
                "id" => project.id,
                "full_name" => "#{account.name}/#{project.name}",
-               "token" => project.token,
                "default_branch" => project.default_branch,
                "repository_url" => nil,
                "visibility" => "private",
-               "build_system" => "xcode"
+               "build_system" => "xcode",
+               "token" => ""
              }
+
+      assert response["token"] == ""
     end
 
     test "Returns a not found error if an account does not exist", %{conn: conn, user: user} do

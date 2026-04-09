@@ -83,6 +83,10 @@ defmodule TuistWeb.TestRunLive do
         {:ok, %{has_result_bundle: (command_event && CommandEvents.has_result_bundle?(command_event)) || false}}
       end)
 
+    if connected?(socket) and run.status == "processing" do
+      Tuist.PubSub.subscribe("#{project.account.name}/#{project.name}")
+    end
+
     {:ok, socket}
   end
 
@@ -119,6 +123,46 @@ defmodule TuistWeb.TestRunLive do
       |> assign_tab_data(selected_tab, params)
 
     {:noreply, socket}
+  end
+
+  def handle_info({:test_created, test}, %{assigns: %{run: run, selected_project: project}} = socket) do
+    if test.id == run.id do
+      case Tests.get_test(run.id, preload: [:ran_by_account, :build_run, :gradle_build, :shard_plan]) do
+        {:ok, refreshed_run} ->
+          refreshed_run = Map.put(refreshed_run, :project, project)
+
+          {:noreply,
+           socket
+           |> assign(:run, refreshed_run)
+           |> assign_initial_analytics_state()
+           |> assign_initial_test_cases_state()
+           |> assign_initial_failures_state()
+           |> assign_initial_flaky_runs_state()}
+
+        {:error, :not_found} ->
+          {:noreply, socket}
+      end
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_event("refresh_test_run", _params, %{assigns: %{run: run, selected_project: project}} = socket) do
+    case Tests.get_test(run.id, preload: [:ran_by_account, :build_run, :gradle_build, :shard_plan]) do
+      {:ok, refreshed_run} ->
+        refreshed_run = Map.put(refreshed_run, :project, project)
+
+        {:noreply,
+         socket
+         |> assign(:run, refreshed_run)
+         |> assign_initial_analytics_state()
+         |> assign_initial_test_cases_state()
+         |> assign_initial_failures_state()
+         |> assign_initial_flaky_runs_state()}
+
+      {:error, :not_found} ->
+        {:noreply, socket}
+    end
   end
 
   def handle_event("search-selective-testing", %{"search" => search}, socket) do
@@ -1264,6 +1308,7 @@ defmodule TuistWeb.TestRunLive do
             Tests.attachment_storage_key(%{
               account_handle: project.account.name,
               project_handle: project.name,
+              test_run_id: att.test_run_id,
               test_case_run_id: tcr.id,
               attachment_id: att.id,
               file_name: att.file_name

@@ -102,7 +102,7 @@ struct UploadAnalyticsServiceTests {
         try await fileSystem.makeDirectory(at: resultBundle)
 
         given(analyticsArtifactUploadService)
-            .uploadResultBundle(
+            .uploadAndAnalyzeResultBundle(
                 .value(resultBundle),
                 accountHandle: .value("tuist-org"),
                 projectHandle: .value("tuist"),
@@ -157,7 +157,7 @@ struct UploadAnalyticsServiceTests {
         // Then
         #expect(got == serverCommandEvent)
         verify(analyticsArtifactUploadService)
-            .uploadResultBundle(
+            .uploadAndAnalyzeResultBundle(
                 .any,
                 accountHandle: .any,
                 projectHandle: .any,
@@ -195,7 +195,7 @@ struct UploadAnalyticsServiceTests {
             .willReturn(("tuist-org", "tuist"))
 
         given(analyticsArtifactUploadService)
-            .uploadResultBundle(
+            .uploadAndAnalyzeResultBundle(
                 .value(customResultBundlePath),
                 accountHandle: .value("tuist-org"),
                 projectHandle: .value("tuist"),
@@ -395,7 +395,7 @@ struct UploadAnalyticsServiceTests {
             .willReturn(("tuist-org", "tuist"))
 
         given(analyticsArtifactUploadService)
-            .uploadResultBundle(
+            .uploadAndAnalyzeResultBundle(
                 .value(customResultBundlePath),
                 accountHandle: .value("tuist-org"),
                 projectHandle: .value("tuist"),

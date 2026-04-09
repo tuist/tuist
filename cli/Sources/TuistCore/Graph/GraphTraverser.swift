@@ -114,6 +114,18 @@ public class GraphTraverser: GraphTraversing {
         projects.values.flatMap(\.schemes) + graph.workspace.schemes
     }
 
+    public func testTargets(for schemeName: String) -> Set<GraphTarget> {
+        guard let scheme = schemes().first(where: { $0.name == schemeName }),
+              let testTargetRefs = scheme.testAction?.targets.map(\.target)
+        else { return Set() }
+        let testTargetRefSet = Set(testTargetRefs)
+        return allTargets().filter { graphTarget in
+            testTargetRefSet.contains(
+                TargetReference(projectPath: graphTarget.path, name: graphTarget.target.name)
+            )
+        }
+    }
+
     public func precompiledFrameworksPaths() -> Set<Path.AbsolutePath> {
         let dependencies = graph.dependencies.reduce(into: Set<GraphDependency>()) { acc, next in
             acc.formUnion([next.key])
@@ -184,6 +196,41 @@ public class GraphTraverser: GraphTraversing {
                 return values
             }
         }
+    }
+
+    /// Collects App Intents metadata directories from transitive static XCFramework dependencies.
+    ///
+    /// This is intentionally limited to static XCFrameworks. Dynamic frameworks already expose their
+    /// App Intents metadata through the normal framework bundle layout that Xcode consumes as part of
+    /// its regular dependency metadata handling. The cached static XCFramework case is different: Tuist
+    /// needs to discover those metadata directories so project generation can recreate the sibling
+    /// `<Name>.appintents` layout and populate the dependency metadata file lists before Xcode processes
+    /// App Intents for the runnable target.
+    public func staticXCFrameworkAppIntentsMetadata(
+        path: AbsolutePath,
+        name: String
+    ) throws -> Set<StaticXCFrameworkAppIntentsMetadata> {
+        var queue = Array(graph.dependencies[.target(name: name, path: path), default: []])
+        var visited: Set<GraphDependency> = []
+        var result: Set<StaticXCFrameworkAppIntentsMetadata> = []
+
+        while let dependency = queue.popLast() {
+            guard visited.insert(dependency).inserted else { continue }
+
+            if case let .xcframework(xcframework) = dependency, xcframework.linking == .static {
+                for library in xcframework.infoPlist.libraries where library.path.extension == "framework" {
+                    let metadataPath = xcframework.path
+                        .appending(component: library.identifier)
+                        .appending(try RelativePath(validating: library.path.pathString))
+                        .appending(component: "Metadata.appintents")
+                    result.insert(.init(frameworkName: library.binaryName, metadataPath: metadataPath))
+                }
+            }
+
+            queue.append(contentsOf: graph.dependencies[dependency, default: []])
+        }
+
+        return result
     }
 
     public func directTargetDependencies(path: Path.AbsolutePath, name: String) -> Set<
@@ -444,15 +491,10 @@ public class GraphTraverser: GraphTraversing {
             }
         )
 
-        // Exclude any products embed in unit test host apps
+        // Unit tests never embed frameworks — they either run inside a host app
+        // (which embeds the frameworks) or standalone (where DYLD paths are used instead).
         if target.target.product == .unitTests {
-            if let hostApp = unitTestHost(path: path, name: name) {
-                references.subtract(
-                    embeddableFrameworks(path: hostApp.path, name: hostApp.target.name)
-                )
-            } else {
-                references = Set()
-            }
+            references = Set()
         }
 
         return references

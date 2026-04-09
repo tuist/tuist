@@ -1,0 +1,72 @@
+{{- if eq .Values.postgresql.mode "embedded" }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "postgresql") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+spec:
+  selector:
+    {{- include "tuist.componentLabels" (dict "root" . "component" "postgresql") | nindent 4 }}
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "postgresql") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+spec:
+  serviceName: {{ include "tuist.componentName" (dict "root" . "component" "postgresql") }}
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "tuist.componentLabels" (dict "root" . "component" "postgresql") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "tuist.componentLabels" (dict "root" . "component" "postgresql") | nindent 8 }}
+    spec:
+      containers:
+        - name: postgresql
+          image: "{{ .Values.postgresql.embedded.image.repository }}:{{ .Values.postgresql.embedded.image.tag }}"
+          imagePullPolicy: {{ .Values.postgresql.embedded.image.pullPolicy }}
+          ports:
+            - containerPort: 5432
+              name: postgres
+          env:
+            - name: POSTGRES_DB
+              value: {{ .Values.postgresql.embedded.database | quote }}
+            - name: POSTGRES_USER
+              value: {{ .Values.postgresql.embedded.username | quote }}
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
+                  key: postgres-password
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "{{ .Values.postgresql.embedded.username }}"]
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.postgresql.embedded.resources | nindent 12 }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          {{- toYaml .Values.postgresql.embedded.persistence.accessModes | nindent 10 }}
+        resources:
+          requests:
+            storage: {{ .Values.postgresql.embedded.persistence.size }}
+        {{- if .Values.postgresql.embedded.persistence.storageClassName }}
+        storageClassName: {{ .Values.postgresql.embedded.persistence.storageClassName }}
+        {{- end }}
+{{- end }}

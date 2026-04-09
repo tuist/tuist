@@ -13,6 +13,7 @@ on:
       - "*.swift"
       - ".github/workflows/cli.yml"
       - "mise/tasks/cli/lint.sh"
+      - "mise/tasks/cli/ee.sh"
       - "mise.toml"
       - "mise.lock"
       - "examples/xcode/**"
@@ -32,6 +33,7 @@ on:
       - "*.swift"
       - ".github/workflows/cli.yml"
       - "mise/tasks/cli/lint.sh"
+      - "mise/tasks/cli/ee.sh"
       - "mise.toml"
       - "mise.lock"
       - "examples/xcode/**"
@@ -47,12 +49,14 @@ permissions:
 
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  TUIST_GITHUB_TOKEN: ${{ secrets.TUIST_GITHUB_TOKEN }}
+  TUIST_EE: ${{ github.event.pull_request.head.repo.fork != true && '1' || '' }}
   TUIST_ENABLE_CACHING: ${{ github.event.pull_request.head.repo.fork != true }}
   MISE_GITHUB_ATTESTATIONS: 0
   MISE_LOCKED: 1
 
 concurrency:
-  group: cli-${{ github.head_ref }}
+  group: cli-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
 jobs:
@@ -62,6 +66,11 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.TUIST_GITHUB_TOKEN || github.token }}
+      - name: Initialize TuistCacheEE submodule
+        if: github.event.pull_request.head.repo.fork != true
+        run: bash mise/tasks/cli/ee.sh
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - uses: actions/cache/restore@v4
@@ -116,7 +125,7 @@ jobs:
         if: steps.cache.outputs.cache-matched-key == ''
         run: tuist install
       - name: Build
-        run: swift build --configuration debug --replace-scm-with-registry
+        run: swift build --configuration debug --replace-scm-with-registry --force-resolved-versions
 
   cli-cache:
     name: Cache
@@ -125,6 +134,11 @@ jobs:
     if: github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.TUIST_GITHUB_TOKEN || github.token }}
+      - name: Initialize TuistCacheEE submodule
+        if: github.event.pull_request.head.repo.fork != true
+        run: bash mise/tasks/cli/ee.sh
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - name: Restore cache
@@ -161,6 +175,11 @@ jobs:
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.TUIST_GITHUB_TOKEN || github.token }}
+      - name: Initialize TuistCacheEE submodule
+        if: github.event.pull_request.head.repo.fork != true
+        run: bash mise/tasks/cli/ee.sh
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - uses: namespacelabs/nscloud-cache-action@v1
@@ -187,24 +206,34 @@ jobs:
       - name: Run tests
         run: tuist test TuistUnitTests -- -retry-tests-on-failure -test-iterations 4
 
-  cli-automation-acceptance-tests:
-    name: Automation Acceptance Tests
-    runs-on: macos-26
+  cli-acceptance-tests-build:
+    name: Build Acceptance Tests
+    runs-on: namespace-profile-default-macos
     timeout-minutes: 60
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    outputs:
+      matrix: ${{ steps.shard.outputs.matrix }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.TUIST_GITHUB_TOKEN || github.token }}
+      - name: Initialize TuistCacheEE submodule
+        if: github.event.pull_request.head.repo.fork != true
+        run: bash mise/tasks/cli/ee.sh
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
-      - name: Restore cache
-        id: cache-restore
-        uses: actions/cache/restore@v4
+      - uses: namespacelabs/nscloud-cache-action@v1
+        with:
+          cache: mise
+      - uses: actions/cache/restore@v4
+        id: cache
         with:
           path: .build
           key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved') }}
       - uses: jdx/mise-action@v3.2.0
         with:
           install_args: "tuist"
+          cache: "false"
       - name: Authenticate with Tuist
         if: github.event.pull_request.head.repo.fork != true
         run: tuist auth login
@@ -212,7 +241,7 @@ jobs:
         if: github.event.pull_request.head.repo.fork != true
         run: tuist setup
       - name: Install Tuist dependencies
-        if: steps.cache-restore.outputs.cache-matched-key == ''
+        if: steps.cache.outputs.cache-matched-key == ''
         run: tuist install
       - name: Skip Xcode Macro Fingerprint Validation
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
@@ -220,34 +249,39 @@ jobs:
         run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidation -bool YES
       - name: Download Metal Toolchain
         run: xcodebuild -downloadComponent MetalToolchain
-      - name: Run TuistAutomationAcceptanceTests
-        run: tuist test TuistAutomationAcceptanceTests -- -retry-tests-on-failure -test-iterations 2
-      - name: Save cache
-        if: github.ref == 'refs/heads/main'
-        id: cache-save
-        uses: actions/cache/save@v4
-        with:
-          path: .build
-          key: ${{ steps.cache-restore.outputs.cache-primary-key }}
+      - name: Build tests
+        id: shard
+        run: tuist test --build-only --shard-total 2 --shard-granularity suite TuistAcceptanceTests
 
-  cli-dependencies-acceptance-tests:
-    name: Dependencies Acceptance Tests
-    runs-on: macos-26
+  cli-acceptance-tests:
+    name: Acceptance Tests
+    runs-on: namespace-profile-default-macos
     timeout-minutes: 60
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    needs: cli-acceptance-tests-build
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.cli-acceptance-tests-build.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.TUIST_GITHUB_TOKEN || github.token }}
+      - name: Initialize TuistCacheEE submodule
+        if: github.event.pull_request.head.repo.fork != true
+        run: bash mise/tasks/cli/ee.sh
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
-      - name: Restore cache
-        id: cache-restore
-        uses: actions/cache/restore@v4
+      - uses: namespacelabs/nscloud-cache-action@v1
+        with:
+          cache: mise
+      - uses: actions/cache/restore@v4
+        id: cache
         with:
           path: .build
           key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved') }}
       - uses: jdx/mise-action@v3.2.0
         with:
           install_args: "tuist"
+          cache: "false"
       - name: Authenticate with Tuist
         if: github.event.pull_request.head.repo.fork != true
         run: tuist auth login
@@ -255,7 +289,7 @@ jobs:
         if: github.event.pull_request.head.repo.fork != true
         run: tuist setup
       - name: Install Tuist dependencies
-        if: steps.cache-restore.outputs.cache-matched-key == ''
+        if: steps.cache.outputs.cache-matched-key == ''
         run: tuist install
       - name: Skip Xcode Macro Fingerprint Validation
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
@@ -270,131 +304,10 @@ jobs:
           security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
           security default-keychain -s $KEYCHAIN_PATH
           security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
-      - name: Run TuistDependenciesAcceptanceTests
-        run: tuist test TuistDependenciesAcceptanceTests -- -retry-tests-on-failure -test-iterations 2
-      - name: Save cache
-        if: github.ref == 'refs/heads/main'
-        id: cache-save
-        uses: actions/cache/save@v4
-        with:
-          path: .build
-          key: ${{ steps.cache-restore.outputs.cache-primary-key }}
-
-  cli-generator-acceptance-tests-build:
-    name: Build Generator Acceptance Tests
-    runs-on: macos-26
-    timeout-minutes: 60
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
-    outputs:
-      matrix: ${{ steps.shard.outputs.matrix }}
-    steps:
-      - uses: actions/checkout@v4
-      - name: Select Xcode
-        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
-      - name: Restore cache
-        id: cache-restore
-        uses: actions/cache/restore@v4
-        with:
-          path: .build
-          key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved') }}
-      - uses: jdx/mise-action@v3.2.0
-        with:
-          install_args: "tuist"
-      - name: Authenticate with Tuist
-        if: github.event.pull_request.head.repo.fork != true
-        run: tuist auth login
-      - name: Setup Tuist
-        if: github.event.pull_request.head.repo.fork != true
-        run: tuist setup
-      - name: Install Tuist dependencies
-        if: steps.cache-restore.outputs.cache-matched-key == ''
-        run: tuist install
-      - name: Skip Xcode Macro Fingerprint Validation
-        run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
-      - name: Skip Xcode Package Validation
-        run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidation -bool YES
-      - name: Download Metal Toolchain
-        run: xcodebuild -downloadComponent MetalToolchain
-      - name: Build tests
-        id: shard
-        run: tuist test --build-only --shard-total 2 --shard-granularity suite TuistGeneratorAcceptanceTests
-      - name: Save cache
-        if: github.ref == 'refs/heads/main'
-        id: cache-save
-        uses: actions/cache/save@v4
-        with:
-          path: .build
-          key: ${{ steps.cache-restore.outputs.cache-primary-key }}
-
-  cli-generator-acceptance-tests:
-    name: Generator Acceptance Tests
-    runs-on: macos-26
-    timeout-minutes: 60
-    needs: cli-generator-acceptance-tests-build
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJson(needs.cli-generator-acceptance-tests-build.outputs.matrix) }}
-    steps:
-      - uses: actions/checkout@v4
-      - name: Select Xcode
-        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
-      - name: Restore cache
-        id: cache-restore
-        uses: actions/cache/restore@v4
-        with:
-          path: .build
-          key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved') }}
-      - uses: jdx/mise-action@v3.2.0
-        with:
-          install_args: "tuist"
-      - name: Authenticate with Tuist
-        if: github.event.pull_request.head.repo.fork != true
-        run: tuist auth login
       - name: Run shard ${{ matrix.shard }}
-        run: tuist test --without-building --platform macOS TuistGeneratorAcceptanceTests
+        run: tuist test --without-building --platform macOS TuistAcceptanceTests -- -retry-tests-on-failure -test-iterations 2
         env:
           TUIST_SHARD_INDEX: ${{ matrix.shard }}
-
-  cli-kit-acceptance-tests:
-    name: Kit Acceptance Tests
-    runs-on: macos-26
-    timeout-minutes: 60
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
-    steps:
-      - uses: actions/checkout@v4
-      - name: Select Xcode
-        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
-      - name: Restore cache
-        id: cache-restore
-        uses: actions/cache/restore@v4
-        with:
-          path: .build
-          key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved') }}
-      - uses: jdx/mise-action@v3.2.0
-        with:
-          install_args: "tuist"
-      - name: Authenticate with Tuist
-        if: github.event.pull_request.head.repo.fork != true
-        run: tuist auth login
-      - name: Setup Tuist
-        if: github.event.pull_request.head.repo.fork != true
-        run: tuist setup
-      - name: Install Tuist dependencies
-        if: steps.cache-restore.outputs.cache-matched-key == ''
-        run: tuist install
-      - name: Skip Xcode Macro Fingerprint Validation
-        run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
-      - name: Skip Xcode Package Validation
-        run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidation -bool YES
-      - name: Run TuistKitAcceptanceTests
-        run: tuist test TuistKitAcceptanceTests -- -retry-tests-on-failure -test-iterations 2
-      - name: Save cache
-        if: github.ref == 'refs/heads/main'
-        id: cache-save
-        uses: actions/cache/save@v4
-        with:
-          path: .build
-          key: ${{ steps.cache-restore.outputs.cache-primary-key }}
 
   cli-linux-build:
     name: Linux Build
@@ -411,8 +324,11 @@ jobs:
         with:
           path: .build
           key: linux-cli-${{ hashFiles('Package.resolved') }}
+      - name: Resolve dependencies
+        if: steps.cache-restore.outputs.cache-hit != 'true'
+        run: swift package resolve --replace-scm-with-registry
       - name: Build tuist CLI
-        run: swift build --target tuist --replace-scm-with-registry
+        run: swift build --target tuist --replace-scm-with-registry --force-resolved-versions
       - name: Save cache
         if: github.ref == 'refs/heads/main'
         id: cache-save
@@ -436,6 +352,9 @@ jobs:
         with:
           path: .build
           key: linux-cli-${{ hashFiles('Package.resolved') }}
+      - name: Resolve dependencies
+        if: steps.cache-restore.outputs.cache-hit != 'true'
+        run: swift package resolve --replace-scm-with-registry
       - name: Run unit tests
         run: swift test --replace-scm-with-registry
       - name: Save cache

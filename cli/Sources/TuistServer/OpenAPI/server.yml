@@ -1152,7 +1152,7 @@ components:
           x-validate:
         token:
           deprecated: true
-          description: The token that should be used to authenticate the project. For CI only.
+          description: Deprecated. Always returns an empty string.
           type: string
           x-struct:
           x-validate:
@@ -1167,7 +1167,6 @@ components:
       required:
         - id
         - full_name
-        - token
         - default_branch
         - visibility
       title: Project
@@ -1943,6 +1942,15 @@ components:
       title: ValidationError
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.ValidationError
+      x-validate:
+    TestTargetsPageSize:
+      default: 20
+      description: The maximum number of targets to return in a single page.
+      maximum: 100
+      minimum: 1
+      title: TestTargetsPageSize
+      type: integer
+      x-struct:
       x-validate:
     RunParams:
       description: Parameters to create a single run.
@@ -3626,6 +3634,14 @@ components:
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Error
       x-validate:
+    TestTargetsPage:
+      default: 1
+      description: The page number to return.
+      minimum: 1
+      title: TestTargetsPage
+      type: integer
+      x-struct:
+      x-validate:
     RunsIndexPage:
       default: 1
       description: The page number to return.
@@ -3708,6 +3724,12 @@ components:
           type: string
           x-struct:
           x-validate:
+        id:
+          description: Optional client-generated UUID for the test run. If not provided, the server generates one.
+          format: uuid
+          type: string
+          x-struct:
+          x-validate:
         is_ci:
           description: Indicates if the run was executed on a Continuous Integration (CI) system.
           type: boolean
@@ -3745,6 +3767,8 @@ components:
             - success
             - failure
             - skipped
+            - processing
+            - failed_processing
           type: string
           x-struct:
           x-validate:
@@ -3868,6 +3892,8 @@ components:
                         - success
                         - failure
                         - skipped
+                        - processing
+                        - failed_processing
                       type: string
                       x-struct:
                       x-validate:
@@ -3906,6 +3932,8 @@ components:
                         - success
                         - failure
                         - skipped
+                        - processing
+                        - failed_processing
                       type: string
                       x-struct:
                       x-validate:
@@ -5153,6 +5181,15 @@ components:
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Tests.Test
       x-validate:
+    SelectiveTestingHitStatus:
+      enum:
+        - miss
+        - local
+        - remote
+      title: SelectiveTestingHitStatus
+      type: string
+      x-struct:
+      x-validate:
     PaginationMetadata:
       description: Pagination metadata.
       properties:
@@ -5387,7 +5424,7 @@ info:
   version: 0.1.0
   x-logo:
     altText: Tuist logo
-    url: http://localhost:8080/images/open-graph/squared.png
+    url: https://tuist.dev/images/open-graph/squared.png
 openapi: 3.0.0
 paths:
   /api/cache/multipart/complete:
@@ -7466,14 +7503,6 @@ paths:
       callbacks: {}
       operationId: listBundles
       parameters:
-        - description: Page number for pagination.
-          in: query
-          name: page
-          required: false
-          schema:
-            type: integer
-            x-struct:
-            x-validate:
         - description: The handle of the account.
           in: path
           name: account_handle
@@ -7482,9 +7511,17 @@ paths:
             type: string
             x-struct:
             x-validate:
-        - description: Number of items per page.
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Page number for pagination.
           in: query
-          name: page_size
+          name: page
           required: false
           schema:
             type: integer
@@ -7498,12 +7535,12 @@ paths:
             type: string
             x-struct:
             x-validate:
-        - description: The handle of the project.
-          in: path
-          name: project_handle
-          required: true
+        - description: Number of items per page.
+          in: query
+          name: page_size
+          required: false
           schema:
-            type: string
+            type: integer
             x-struct:
             x-validate:
       responses:
@@ -9668,6 +9705,136 @@ paths:
       summary: Get the artifact tree for a bundle.
       tags:
         - Bundles
+  /api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/targets:
+    get:
+      callbacks: {}
+      operationId: listTestTargets
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The ID of the test run.
+          in: path
+          name: test_run_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter by selective testing hit status.
+          in: query
+          name: hit_status
+          required: false
+          schema:
+            enum:
+              - miss
+              - local
+              - remote
+            title: SelectiveTestingHitStatus
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page
+          required: false
+          schema:
+            default: 1
+            description: The page number to return.
+            minimum: 1
+            title: TestTargetsPage
+            type: integer
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page_size
+          required: false
+          schema:
+            default: 20
+            description: The maximum number of targets to return in a single page.
+            maximum: 100
+            minimum: 1
+            title: TestTargetsPageSize
+            type: integer
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  pagination_metadata:
+                    $ref: '#/components/schemas/PaginationMetadata'
+                  targets:
+                    items:
+                      properties:
+                        hash:
+                          description: The selective testing hash.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        hit_status:
+                          description: Selective testing hit status.
+                          enum:
+                            - miss
+                            - local
+                            - remote
+                          type: string
+                          x-struct:
+                          x-validate:
+                        name:
+                          description: The test target name.
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - name
+                        - hit_status
+                        - hash
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - targets
+                  - pagination_metadata
+                type: object
+                x-struct:
+                x-validate:
+          description: List of test targets
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to access this resource
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Test run not found
+      summary: List targets for a test run.
+      tags:
+        - Tests
   /api/projects/{account_handle}/{project_handle}/cache-runs/{cache_run_id}:
     get:
       callbacks: {}
@@ -18139,6 +18306,12 @@ paths:
                   type: string
                   x-struct:
                   x-validate:
+                id:
+                  description: Optional client-generated UUID for the test run. If not provided, the server generates one.
+                  format: uuid
+                  type: string
+                  x-struct:
+                  x-validate:
                 is_ci:
                   description: Indicates if the run was executed on a Continuous Integration (CI) system.
                   type: boolean
@@ -18176,6 +18349,8 @@ paths:
                     - success
                     - failure
                     - skipped
+                    - processing
+                    - failed_processing
                   type: string
                   x-struct:
                   x-validate:
@@ -18299,6 +18474,8 @@ paths:
                                 - success
                                 - failure
                                 - skipped
+                                - processing
+                                - failed_processing
                               type: string
                               x-struct:
                               x-validate:
@@ -18337,6 +18514,8 @@ paths:
                                 - success
                                 - failure
                                 - skipped
+                                - processing
+                                - failed_processing
                               type: string
                               x-struct:
                               x-validate:
@@ -18642,7 +18821,5 @@ paths:
 security:
   - authorization: []
   - cookie: []
-servers:
-  - url: http://localhost:8080
-    variables: {}
+servers: []
 tags: []
