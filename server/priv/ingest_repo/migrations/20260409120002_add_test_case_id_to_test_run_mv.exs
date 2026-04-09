@@ -29,7 +29,7 @@ defmodule Tuist.IngestRepo.Migrations.AddTestCaseIdToTestRunMv do
   @columns ~w(id test_run_id status is_flaky is_new duration inserted_at ran_at name project_id test_case_id)
 
   def up do
-    IngestRepo.query!("DROP VIEW IF EXISTS test_case_runs_by_test_run")
+    IngestRepo.query!("DROP TABLE IF EXISTS test_case_runs_by_test_run")
 
     IngestRepo.query!("""
     CREATE TABLE IF NOT EXISTS test_case_runs_by_test_run (
@@ -86,16 +86,31 @@ defmodule Tuist.IngestRepo.Migrations.AddTestCaseIdToTestRunMv do
     for [partition] <- partitions do
       Logger.info("Backfilling partition #{partition} into test_case_runs_by_test_run")
 
-      IngestRepo.query!(
-        """
-        INSERT INTO test_case_runs_by_test_run (#{Enum.join(@columns, ", ")})
-        SELECT #{Enum.join(@columns, ", ")}
-        FROM test_case_runs
-        WHERE toYYYYMM(inserted_at) = {partition:UInt32}
-        """,
-        %{partition: String.to_integer(partition)},
-        timeout: 1_200_000
-      )
+      retry_on_shutting_down(fn ->
+        IngestRepo.query!(
+          """
+          INSERT INTO test_case_runs_by_test_run (#{Enum.join(@columns, ", ")})
+          SELECT #{Enum.join(@columns, ", ")}
+          FROM test_case_runs
+          WHERE toYYYYMM(inserted_at) = {partition:UInt32}
+          """,
+          %{partition: String.to_integer(partition)},
+          timeout: 1_200_000
+        )
+      end)
     end
+  end
+
+  defp retry_on_shutting_down(fun, attempts \\ 5) do
+    fun.()
+  rescue
+    e in Ch.Error ->
+      if attempts > 1 and String.contains?(to_string(e.message), "TABLE_IS_READ_ONLY") do
+        Logger.warning("Table is shutting down, retrying in 5s (#{attempts - 1} attempts left)")
+        Process.sleep(:timer.seconds(5))
+        retry_on_shutting_down(fun, attempts - 1)
+      else
+        reraise e, __STACKTRACE__
+      end
   end
 end
