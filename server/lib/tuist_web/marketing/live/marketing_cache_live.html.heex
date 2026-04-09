@@ -1,6 +1,9 @@
 <TuistWeb.Marketing.Layouts.marketing {assigns}>
   <main id="marketing-cache">
-    <TuistWeb.Marketing.MarketingComponents.navbar current_user={@current_user} />
+    <TuistWeb.Marketing.MarketingComponents.navbar
+      current_user={@current_user}
+      current_path={@current_path}
+    />
 
     <section data-part="header">
       <div data-part="titles">
@@ -20,7 +23,7 @@
         <.button
           href={
             TuistWeb.Marketing.MarketingHTML.localized_href(
-              "https://docs.tuist.dev/guides/features/cache"
+              "https://tuist.dev/en/docs/guides/features/cache"
             )
           }
           label={dgettext("marketing", "Read docs")}
@@ -201,7 +204,7 @@
 
     <TuistWeb.Marketing.MarketingComponents.feature_cta
       title={dgettext("marketing", "Speed up your builds with binary caching")}
-      docs_href="https://docs.tuist.dev/guides/features/cache"
+      docs_href="https://tuist.dev/en/docs/guides/features/cache"
     />
   </main>
 </TuistWeb.Marketing.Layouts.marketing>

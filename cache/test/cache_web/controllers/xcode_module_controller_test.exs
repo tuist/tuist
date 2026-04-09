@@ -148,6 +148,35 @@ defmodule CacheWeb.XcodeModuleControllerTest do
         assert conn.status == 404
       end)
     end
+
+    test "returns 422 when artifact path params contain traversal", %{conn: conn} do
+      expect(Authentication, :ensure_project_accessible, fn _conn, "test-account", "test-project" ->
+        {:ok, "Bearer valid-token"}
+      end)
+
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> get(
+          "/api/cache/module/some-artifact-id?account_handle=test-account&project_handle=test-project&hash=abc123&name=../escaped.zip"
+        )
+
+      assert conn.status == 422
+
+      response = json_response(conn, 422)
+
+      assert %{
+               "errors" => [
+                 %{
+                   "title" => "Invalid value",
+                   "source" => %{"pointer" => "/name"},
+                   "detail" => detail
+                 }
+               ]
+             } = response
+
+      assert is_binary(detail)
+    end
   end
 
   describe "HEAD /api/cache/module/:id (exists)" do
@@ -316,6 +345,35 @@ defmodule CacheWeb.XcodeModuleControllerTest do
       response = json_response(conn, 200)
       assert is_binary(response["upload_id"])
     end
+
+    test "returns 422 when artifact path params contain traversal", %{conn: conn} do
+      expect(Authentication, :ensure_project_accessible, fn _conn, "test-account", "test-project" ->
+        {:ok, "Bearer valid-token"}
+      end)
+
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> post(
+          "/api/cache/module/start?account_handle=test-account&project_handle=test-project&hash=abc123&name=../escaped.zip"
+        )
+
+      assert conn.status == 422
+
+      response = json_response(conn, 422)
+
+      assert %{
+               "errors" => [
+                 %{
+                   "title" => "Invalid value",
+                   "source" => %{"pointer" => "/name"},
+                   "detail" => detail
+                 }
+               ]
+             } = response
+
+      assert is_binary(detail)
+    end
   end
 
   describe "POST /api/cache/module/part (upload_part)" do
@@ -398,6 +456,8 @@ defmodule CacheWeb.XcodeModuleControllerTest do
     test "completes upload successfully", %{conn: conn} do
       hash = "abc123"
       name = "test.zip"
+      key = "test-account/test-project/module/builds/ab/c1/#{hash}/#{name}"
+      test_pid = self()
       {:ok, upload_id} = MultipartUploads.start_upload("test-account", "test-project", "builds", hash, name)
 
       tmp_path = Path.join(System.tmp_dir!(), "test-part-#{:erlang.unique_integer([:positive])}")
@@ -408,6 +468,12 @@ defmodule CacheWeb.XcodeModuleControllerTest do
 
       expect(Authentication, :ensure_project_accessible, fn _conn, "test-account", "test-project" ->
         {:ok, "Bearer valid-token"}
+      end)
+
+      expect(S3, :exists?, fn ^key, opts ->
+        assert Keyword.get(opts, :type) == :cache
+        send(test_pid, {:s3_exists_checked, self()})
+        false
       end)
 
       expect(XcodeModule.Disk, :complete_assembly, fn ^assembly_path, completed_upload, [^tmp_path] ->
@@ -425,13 +491,18 @@ defmodule CacheWeb.XcodeModuleControllerTest do
         |> put_req_header("content-type", "application/json")
         |> post(
           "/api/cache/module/complete?account_handle=test-account&project_handle=test-project&upload_id=#{upload_id}",
-          Jason.encode!(%{parts: [1]})
+          JSON.encode!(%{parts: [1]})
         )
 
       assert conn.status == 204
 
       # Upload should be removed from state after completion
       assert {:error, :not_found} = MultipartUploads.get_upload(upload_id)
+
+      assert_receive {:s3_exists_checked, task_pid}, 1_000
+      ref = Process.monitor(task_pid)
+      assert_receive {:DOWN, ^ref, :process, ^task_pid, reason}, 1_000
+      assert reason in [:normal, :noproc]
 
       # Verify S3 upload was enqueued via S3Transfers table
       :ok = Cache.S3TransfersBuffer.flush()
@@ -440,7 +511,55 @@ defmodule CacheWeb.XcodeModuleControllerTest do
       assert transfer.account_handle == "test-account"
       assert transfer.project_handle == "test-project"
       assert transfer.artifact_type == :xcode_module
-      assert transfer.key == "test-account/test-project/module/builds/ab/c1/abc123/test.zip"
+      assert transfer.key == key
+    end
+
+    test "does not enqueue multipart upload when artifact already exists in S3", %{conn: conn} do
+      hash = "abc123"
+      name = "test.zip"
+      key = "test-account/test-project/module/builds/ab/c1/#{hash}/#{name}"
+      test_pid = self()
+      {:ok, upload_id} = MultipartUploads.start_upload("test-account", "test-project", "builds", hash, name)
+
+      tmp_path = Path.join(System.tmp_dir!(), "test-part-#{:erlang.unique_integer([:positive])}")
+      File.write!(tmp_path, "test content")
+      MultipartUploads.add_part(upload_id, 1, tmp_path, 12)
+      {:ok, upload} = MultipartUploads.get_upload(upload_id)
+      assembly_path = upload.assembly_path
+
+      expect(Authentication, :ensure_project_accessible, fn _conn, "test-account", "test-project" ->
+        {:ok, "Bearer valid-token"}
+      end)
+
+      expect(S3, :exists?, fn ^key, opts ->
+        assert Keyword.get(opts, :type) == :cache
+        send(test_pid, {:s3_exists_checked, self()})
+        true
+      end)
+
+      expect(XcodeModule.Disk, :complete_assembly, fn ^assembly_path, _completed_upload, [^tmp_path] ->
+        :ok
+      end)
+
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          "/api/cache/module/complete?account_handle=test-account&project_handle=test-project&upload_id=#{upload_id}",
+          JSON.encode!(%{parts: [1]})
+        )
+
+      assert conn.status == 204
+      assert {:error, :not_found} = MultipartUploads.get_upload(upload_id)
+
+      assert_receive {:s3_exists_checked, task_pid}, 1_000
+      ref = Process.monitor(task_pid)
+      assert_receive {:DOWN, ^ref, :process, ^task_pid, reason}, 1_000
+      assert reason in [:normal, :noproc]
+
+      :ok = Cache.S3TransfersBuffer.flush()
+      assert S3Transfers.pending(:upload, 10) == []
     end
 
     test "returns 404 for unknown upload_id", %{conn: conn} do
@@ -454,7 +573,7 @@ defmodule CacheWeb.XcodeModuleControllerTest do
         |> put_req_header("content-type", "application/json")
         |> post(
           "/api/cache/module/complete?account_handle=test-account&project_handle=test-project&upload_id=nonexistent",
-          Jason.encode!(%{parts: [1]})
+          JSON.encode!(%{parts: [1]})
         )
 
       assert conn.status == 404
@@ -479,7 +598,7 @@ defmodule CacheWeb.XcodeModuleControllerTest do
         |> put_req_header("content-type", "application/json")
         |> post(
           "/api/cache/module/complete?account_handle=test-account&project_handle=test-project&upload_id=#{upload_id}",
-          Jason.encode!(%{parts: [1, 2]})
+          JSON.encode!(%{parts: [1, 2]})
         )
 
       assert conn.status == 400
@@ -492,6 +611,8 @@ defmodule CacheWeb.XcodeModuleControllerTest do
     test "assembles multiple parts in order", %{conn: conn} do
       hash = "xyz789"
       name = "multi.zip"
+      key = "test-account/test-project/module/builds/xy/z7/#{hash}/#{name}"
+      test_pid = self()
       {:ok, upload_id} = MultipartUploads.start_upload("test-account", "test-project", "builds", hash, name)
 
       tmp_path1 = Path.join(System.tmp_dir!(), "test-part-#{:erlang.unique_integer([:positive])}")
@@ -512,6 +633,12 @@ defmodule CacheWeb.XcodeModuleControllerTest do
         {:ok, "Bearer valid-token"}
       end)
 
+      expect(S3, :exists?, fn ^key, opts ->
+        assert Keyword.get(opts, :type) == :cache
+        send(test_pid, {:s3_exists_checked, self()})
+        true
+      end)
+
       expect(XcodeModule.Disk, :complete_assembly, fn ^assembly_path, completed_upload, part_paths ->
         assert completed_upload.account_handle == "test-account"
         assert completed_upload.project_handle == "test-project"
@@ -528,10 +655,15 @@ defmodule CacheWeb.XcodeModuleControllerTest do
         |> put_req_header("content-type", "application/json")
         |> post(
           "/api/cache/module/complete?account_handle=test-account&project_handle=test-project&upload_id=#{upload_id}",
-          Jason.encode!(%{parts: [1, 2, 3]})
+          JSON.encode!(%{parts: [1, 2, 3]})
         )
 
       assert conn.status == 204
+
+      assert_receive {:s3_exists_checked, task_pid}, 1_000
+      ref = Process.monitor(task_pid)
+      assert_receive {:DOWN, ^ref, :process, ^task_pid, reason}, 1_000
+      assert reason in [:normal, :noproc]
     end
   end
 end

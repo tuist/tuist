@@ -27,10 +27,6 @@ defmodule TuistWeb.TestRunsLive do
       |> assign(OpenGraph.og_image_assigns("test-runs"))
       |> assign(:available_filters, define_filters(project))
 
-    if connected?(socket) do
-      Tuist.PubSub.subscribe("#{account.name}/#{project.name}")
-    end
-
     {:ok, socket}
   end
 
@@ -63,6 +59,7 @@ defmodule TuistWeb.TestRunsLive do
     organization =
       if Accounts.organization?(project.account) do
         {:ok, organization} = Accounts.get_organization_by_id(project.account.organization_id)
+
         users = Accounts.get_organization_members(organization)
 
         [
@@ -71,6 +68,7 @@ defmodule TuistWeb.TestRunsLive do
             field: :ran_by,
             display_name: dgettext("dashboard_tests", "Ran by"),
             type: :option,
+            searchable: true,
             options: [:ci] ++ Enum.map(users, fn user -> user.account.id end),
             options_display_names:
               Map.merge(
@@ -237,18 +235,6 @@ defmodule TuistWeb.TestRunsLive do
     {:noreply, socket}
   end
 
-  def handle_info({:test_created, %{name: "test"}}, socket) do
-    # Only update when pagination is inactive
-    if Query.has_pagination_params?(socket.assigns.uri.query) do
-      {:noreply, socket}
-    else
-      {:noreply,
-       socket
-       |> assign_analytics(socket.assigns.current_params)
-       |> assign_test_runs(socket.assigns.current_params)}
-    end
-  end
-
   def handle_info(_event, socket) do
     {:noreply, socket}
   end
@@ -381,7 +367,8 @@ defmodule TuistWeb.TestRunsLive do
     search = params["search"] || ""
 
     flop_filters = [
-      %{field: :project_id, op: :==, value: project.id}
+      %{field: :project_id, op: :==, value: project.id},
+      %{field: :status, op: :!=, value: "in_progress"}
       | build_flop_filters(filters, search)
     ]
 

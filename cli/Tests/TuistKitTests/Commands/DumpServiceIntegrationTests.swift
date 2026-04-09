@@ -134,6 +134,11 @@ final class DumpServiceTests: TuistTestCase {
                     "testingOptions": 0
                   }
                 },
+                "derivedDataPath": {
+                  "default": {
+
+                  }
+                },
                 "enableAutomaticXcodeSchemes": false,
                 "renderMarkdownReadme": false
               },
@@ -227,6 +232,7 @@ final class DumpServiceTests: TuistTestCase {
 
                     ],
                     "buildInsightsDisabled": false,
+                    "defaultSwiftVersion": "5",
                     "disablePackageVersionLocking": false,
                     "disableSandbox": true,
                     "enableCaching": false,
@@ -332,7 +338,7 @@ final class DumpServiceTests: TuistTestCase {
             // Given
             let tmpDir = try temporaryPath()
             let tuistDir = tmpDir.appending(component: Constants.tuistDirectoryName)
-            try fileHandler.createFolder(tuistDir)
+            try await fileSystem.makeDirectory(at: tuistDir)
 
             let manifestLoader = MockManifestLoading()
             given(manifestLoader)
@@ -357,6 +363,7 @@ final class DumpServiceTests: TuistTestCase {
             // Then
             let expected = """
             {
+              "baseProductType": "staticFramework",
               "baseSettings": {
                 "base": {
 
@@ -421,6 +428,7 @@ final class DumpServiceTests: TuistTestCase {
             // Then
             let expected = """
             {
+              "baseProductType": "staticFramework",
               "baseSettings": {
                 "base": {
 
@@ -499,18 +507,17 @@ final class DumpServiceTests: TuistTestCase {
     // MARK: - Helpers
 
     private func assertLoadingRaisesWhenManifestNotFound(manifest: DumpableManifest) async throws {
-        try await fileHandler.inTemporaryDirectory { tmpDir in
-            var expectedDirectory = tmpDir
-            if manifest == .config {
-                if try await !self.fileSystem.exists(expectedDirectory) {
-                    try await self.fileSystem.makeDirectory(at: expectedDirectory)
-                }
+        let tmpDir = try temporaryPath()
+        let expectedDirectory = tmpDir
+        if manifest == .config {
+            if try await !fileSystem.exists(expectedDirectory) {
+                try await fileSystem.makeDirectory(at: expectedDirectory)
             }
-            await self.XCTAssertThrowsSpecific(
-                try await self.subject.run(path: tmpDir.pathString, manifest: manifest),
-                ManifestLoaderError.manifestNotFound(manifest.manifest, expectedDirectory)
-            )
         }
+        await XCTAssertThrowsSpecific(
+            try await subject.run(path: tmpDir.pathString, manifest: manifest),
+            ManifestLoaderError.manifestNotFound(manifest.manifest, expectedDirectory)
+        )
     }
 }
 

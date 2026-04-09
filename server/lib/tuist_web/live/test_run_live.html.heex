@@ -24,13 +24,31 @@
             <.alert_circle />
           </div>
         </div>
+        <div :if={@run.status == "in_progress"} data-part="badge-processing">
+          <div data-part="icon">
+            <.circle_dashed />
+          </div>
+        </div>
+        <div :if={@run.status == "processing"} data-part="badge-processing">
+          <div data-part="icon">
+            <.circle_dashed />
+          </div>
+        </div>
+        <div :if={@run.status == "failed_processing"} data-part="badge-failure">
+          <div data-part="icon">
+            <.alert_circle />
+          </div>
+        </div>
         <div :if={@run.status == "skipped"} data-part="badge-warning">
           <div data-part="icon">
             <.alert_hexagon />
           </div>
         </div>
         <h1 data-part="label">
-          {@run.scheme || dgettext("dashboard_tests", "Unknown")}
+          {if(@run.scheme in [nil, ""],
+            do: dgettext("dashboard_tests", "Unknown"),
+            else: @run.scheme
+          )}
         </h1>
         <.badge
           :if={@run.is_flaky}
@@ -81,7 +99,10 @@
     </div>
     <div data-part="actions">
       <.button
-        :if={@has_result_bundle.ok? && @has_result_bundle.result && @command_event}
+        :if={
+          @run.status != "processing" && @has_result_bundle.ok? && @has_result_bundle.result &&
+            @command_event
+        }
         href={
           ~p"/#{@selected_project.account.name}/#{@selected_project.name}/runs/#{@command_event.id}/download"
         }
@@ -92,7 +113,16 @@
         <:icon_left><.download /></:icon_left>
       </.button>
       <.button
-        :if={Tuist.Tests.test_ci_run_url(@run)}
+        :if={@run.status == "processing"}
+        label={dgettext("dashboard_tests", "Download result")}
+        variant="secondary"
+        size="medium"
+        disabled
+      >
+        <:icon_left><.download /></:icon_left>
+      </.button>
+      <.button
+        :if={@run.status != "processing" && Tuist.Tests.test_ci_run_url(@run)}
         href={Tuist.Tests.test_ci_run_url(@run)}
         label={dgettext("dashboard_tests", "CI Run")}
         variant="secondary"
@@ -101,10 +131,47 @@
       >
         <:icon_left><.external_link /></:icon_left>
       </.button>
+      <.button
+        :if={@run.status == "processing"}
+        label={dgettext("dashboard_tests", "CI Run")}
+        variant="secondary"
+        size="medium"
+        disabled
+      >
+        <:icon_left><.external_link /></:icon_left>
+      </.button>
     </div>
   </div>
 
-  <.tab_menu_horizontal>
+  <div :if={@run.status == "processing"} data-part="processing-state">
+    <div data-part="image">
+      <img src="/images/processing_build_light.png" data-theme="light" />
+      <img src="/images/processing_build_dark.png" data-theme="dark" />
+    </div>
+    <div data-part="labels">
+      <span data-part="title">
+        {dgettext("dashboard_tests", "Your test results are being processed")}
+      </span>
+      <span data-part="subtitle">
+        {dgettext(
+          "dashboard_tests",
+          "This usually takes a few seconds. If the page doesn't update automatically, click the refresh button."
+        )}
+      </span>
+    </div>
+    <.button
+      label={dgettext("dashboard_tests", "Refresh")}
+      variant="secondary"
+      size="medium"
+      phx-click="refresh_test_run"
+    >
+      <:icon_left>
+        <.reload />
+      </:icon_left>
+    </.button>
+  </div>
+
+  <.tab_menu_horizontal :if={@run.status != "processing"}>
     <.tab_menu_horizontal_item
       label={dgettext("dashboard_tests", "Overview")}
       selected={@selected_tab == "overview"}
@@ -141,7 +208,7 @@
     />
   </.tab_menu_horizontal>
 
-  <div :if={@selected_tab == "overview"} data-part="overview">
+  <div :if={@selected_tab == "overview" and @run.status != "processing"} data-part="overview">
     <.card
       title={dgettext("dashboard_tests", "Test Details")}
       icon="chart_arcs"
@@ -167,6 +234,13 @@
                 size="large"
               />
               <.badge
+                :if={@run.status == "in_progress"}
+                label={dgettext("dashboard_tests", "In progress")}
+                color="neutral"
+                style="fill"
+                size="large"
+              />
+              <.badge
                 :if={@run.status == "skipped"}
                 label={dgettext("dashboard_tests", "Skipped")}
                 color="warning"
@@ -182,11 +256,17 @@
             </div>
             <div data-part="metadata">
               <div data-part="title">{dgettext("dashboard_tests", "Duration")}</div>
-              <span data-part="value">
+              <span :if={@run.status != "in_progress"} data-part="value">
                 <.history />
-                {dgettext("dashboard_tests", "%{run_duration}s",
-                  run_duration: (@run.duration / 1000) |> Decimal.from_float() |> Decimal.round(2)
+                {Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                  @display_duration
                 )}
+              </span>
+              <span :if={@run.status == "in_progress"} data-part="value">
+                <.status_badge_cell
+                  label={dgettext("dashboard_tests", "In Progress")}
+                  status="in_progress"
+                />
               </span>
             </div>
             <div data-part="metadata">
@@ -315,6 +395,76 @@
     </.card>
 
     <.card
+      :if={@is_sharded}
+      title={dgettext("dashboard_tests", "Shards")}
+      icon="stack_2"
+      data-part="shards-card"
+    >
+      <.card_section :if={length(@shard_rows) > 0} data-part="shard-balance-section">
+        <div :if={@run.status == "in_progress"} data-part="shards-in-progress-section">
+          <div data-part="image">
+            <img src="/images/shards_in_progress_light.png" data-theme="light" />
+            <img src="/images/shards_in_progress_dark.png" data-theme="dark" />
+          </div>
+          <span data-part="title">
+            {dgettext("dashboard_tests", "The shards are in progress...")}
+          </span>
+        </div>
+        <.table id="shard-balance-table" rows={@shard_rows}>
+          <:col :let={shard} label={dgettext("dashboard_tests", "Shard")}>
+            <.text_cell label={
+              dgettext("dashboard_tests", "Shard %{index}", index: shard.shard_index)
+            } />
+          </:col>
+          <:col
+            :let={shard}
+            label={
+              if(@run.shard_plan && @run.shard_plan.granularity == "suite",
+                do: dgettext("dashboard_tests", "Test Suites"),
+                else: dgettext("dashboard_tests", "Modules")
+              )
+            }
+          >
+            <.text_cell label={"#{shard.target_count}"} />
+          </:col>
+          <:col :let={shard} label={dgettext("dashboard_tests", "Duration")}>
+            <.text_cell
+              :if={shard.actual_duration_ms}
+              label={
+                Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                  shard.actual_duration_ms
+                )
+              }
+              icon="history"
+            />
+            <.status_badge_cell
+              :if={!shard.actual_duration_ms}
+              label={dgettext("dashboard_tests", "In Progress")}
+              status="in_progress"
+            />
+          </:col>
+          <:col :let={shard} label={dgettext("dashboard_tests", "Status")}>
+            <.status_badge_cell
+              :if={shard.status == "success"}
+              label={dgettext("dashboard_tests", "Passed")}
+              status="success"
+            />
+            <.status_badge_cell
+              :if={shard.status == "failure"}
+              label={dgettext("dashboard_tests", "Failed")}
+              status="error"
+            />
+            <.status_badge_cell
+              :if={shard.status == "pending"}
+              label={dgettext("dashboard_tests", "Pending")}
+              status="warning"
+            />
+          </:col>
+        </.table>
+      </.card_section>
+    </.card>
+
+    <.card
       :if={@failures_count > 0}
       title={dgettext("dashboard_tests", "Failures")}
       icon="alert_circle"
@@ -356,6 +506,13 @@
                   <div data-part="title-and-subtitle">
                     <h3 data-part="title">
                       {test_case_run.name}
+                      <.badge
+                        :if={test_case_run.is_quarantined}
+                        label={dgettext("dashboard_tests", "Quarantined")}
+                        color="information"
+                        style="light-fill"
+                        size="large"
+                      />
                     </h3>
                     <span
                       :if={test_case_run.module_name && test_case_run.suite_name != ""}
@@ -584,6 +741,13 @@
                     >
                       {group.name}
                     </.link>
+                    <.badge
+                      :if={Enum.any?(group.runs, & &1.is_quarantined)}
+                      label={dgettext("dashboard_tests", "Quarantined")}
+                      color="information"
+                      style="light-fill"
+                      size="large"
+                    />
                   </h3>
                   <span
                     :if={group.module_name not in [nil, ""] and group.suite_name not in [nil, ""]}
@@ -835,6 +999,13 @@
                     style="light-fill"
                     size="large"
                   />
+                  <.badge
+                    :if={test_case.is_quarantined}
+                    label={dgettext("dashboard_tests", "Quarantined")}
+                    color="information"
+                    style="light-fill"
+                    size="large"
+                  />
                 </span>
                 <span data-part="description">
                   {case {test_case.module_name, test_case.suite_name} do
@@ -851,6 +1022,15 @@
                 </span>
               </div>
             </div>
+          </:col>
+          <:col
+            :let={test_case}
+            :if={@is_sharded}
+            label={dgettext("dashboard_tests", "Shard")}
+          >
+            <.text_cell label={
+              dgettext("dashboard_tests", "Shard %{index}", index: test_case.shard_index || 0)
+            } />
           </:col>
           <:col
             :let={test_case}
@@ -1022,6 +1202,15 @@
                 </span>
               </div>
             </div>
+          </:col>
+          <:col
+            :let={test_suite}
+            :if={@is_sharded}
+            label={dgettext("dashboard_tests", "Shard")}
+          >
+            <.text_cell label={
+              dgettext("dashboard_tests", "Shard %{index}", index: test_suite.shard_index || 0)
+            } />
           </:col>
           <:col
             :let={test_suite}
@@ -1239,6 +1428,15 @@
                 </span>
               </div>
             </div>
+          </:col>
+          <:col
+            :let={test_module}
+            :if={(@is_sharded and @run.shard_plan) && @run.shard_plan.granularity == "module"}
+            label={dgettext("dashboard_tests", "Shard")}
+          >
+            <.text_cell label={
+              dgettext("dashboard_tests", "Shard %{index}", index: test_module.shard_index || 0)
+            } />
           </:col>
           <:col
             :let={test_module}
@@ -1522,6 +1720,13 @@
                 <div data-part="title-and-subtitle">
                   <h3 data-part="title">
                     {test_case_run.name}
+                    <.badge
+                      :if={test_case_run.is_quarantined}
+                      label={dgettext("dashboard_tests", "Quarantined")}
+                      color="information"
+                      style="light-fill"
+                      size="large"
+                    />
                   </h3>
                   <span
                     :if={test_case_run.module_name && test_case_run.suite_name != ""}
@@ -1751,6 +1956,13 @@
                 >
                   {group.name}
                 </.link>
+                <.badge
+                  :if={Enum.any?(group.runs, & &1.is_quarantined)}
+                  label={dgettext("dashboard_tests", "Quarantined")}
+                  color="information"
+                  style="light-fill"
+                  size="large"
+                />
               </h3>
               <span
                 :if={group.module_name not in [nil, ""] and group.suite_name not in [nil, ""]}

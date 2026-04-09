@@ -120,7 +120,9 @@ defmodule Tuist.Accounts do
         on: ur.user_id == u.id,
         join: r in Role,
         on: ur.role_id == r.id,
-        where: r.resource_type == "Organization" and r.resource_id == ^organization_id
+        join: a in assoc(u, :account),
+        where: r.resource_type == "Organization" and r.resource_id == ^organization_id,
+        order_by: a.name
       )
     )
   end
@@ -1201,6 +1203,12 @@ defmodule Tuist.Accounts do
 
   def get_role_by_id(id) do
     Repo.get(Role, id)
+  end
+
+  def update_user_preferred_locale(%User{} = user, preferred_locale) do
+    user
+    |> User.preferred_locale_changeset(%{preferred_locale: preferred_locale})
+    |> Repo.update()
   end
 
   def update_last_visited_project(%User{} = user, last_visited_project_id) do

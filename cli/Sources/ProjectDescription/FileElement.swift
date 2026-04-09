@@ -5,7 +5,7 @@
 ///
 /// Note: For convenience, an element can be represented as a string literal
 ///       `"some/pattern/**"` is the equivalent of `FileElement.glob(pattern: "some/pattern/**")`
-public enum FileElement: Codable, Equatable, Sendable {
+public enum FileElement: Codable, Equatable, Sendable, ExpressibleByStringInterpolation {
     /// A file path (or glob pattern) to include, with optional exclusions.
     ///
     /// For convenience, a string literal can be used as an alternate way to specify this option.
@@ -36,9 +36,7 @@ public enum FileElement: Codable, Equatable, Sendable {
             return .folderReference
         }
     }
-}
 
-extension FileElement: ExpressibleByStringInterpolation {
     public init(stringLiteral value: String) {
         self = .glob(pattern: .path(value))
     }

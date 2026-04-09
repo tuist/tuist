@@ -325,7 +325,7 @@ struct SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
 
                 if case let .gpxFile(gpxPath) = locationScenario {
                     let fileRelativePath = gpxPath.relative(
-                        to: graphTraverser.workspace.xcWorkspacePath
+                        to: graphTraverser.workspace.xcWorkspacePath.parentDirectory
                     )
                     identifier = fileRelativePath.pathString
                 }
@@ -586,10 +586,11 @@ struct SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         let launchActionConstants: Constants.LaunchAction
         let launcherIdentifier: String
         let debuggerIdentifier: String
+        let hasExplicitExecutable = scheme.runAction?.executable != nil
         let isSchemeForAppExtension = isSchemeForAppExtension(
             scheme: scheme, graphTraverser: graphTraverser
         )
-        if isSchemeForAppExtension == true {
+        if isSchemeForAppExtension == true, !hasExplicitExecutable {
             launchActionConstants = .extension
             debuggerIdentifier = ""
             launcherIdentifier = launchActionConstants.launcher
@@ -631,9 +632,9 @@ struct SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         }
 
         if let storeKitFilePath = scheme.runAction?.options.storeKitConfigurationPath {
-            // the identifier is the relative path between the storekit file, and the xcode project
+            // Xcode resolves this path relative to the directory containing the .xcworkspace
             let fileRelativePath = storeKitFilePath.relative(
-                to: graphTraverser.workspace.xcWorkspacePath
+                to: graphTraverser.workspace.xcWorkspacePath.parentDirectory
             )
             storeKitConfigurationFileReference = .init(identifier: fileRelativePath.pathString)
         }
@@ -643,7 +644,7 @@ struct SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
 
             if case let .gpxFile(gpxPath) = locationScenario {
                 let fileRelativePath = gpxPath.relative(
-                    to: graphTraverser.workspace.xcWorkspacePath
+                    to: graphTraverser.workspace.xcWorkspacePath.parentDirectory
                 )
                 identifier = fileRelativePath.pathString
             }

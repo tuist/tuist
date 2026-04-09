@@ -10,18 +10,9 @@ defmodule TuistWeb.Marketing.Localization do
 
   import Plug.Conn
 
-  @languages [
-    %{code: "en", label: "English", native: "English"},
-    %{code: "ar", label: "Arabic", native: "العربية"},
-    %{code: "es", label: "Spanish", native: "Castellano"},
-    %{code: "ja", label: "Japanese", native: "日本語"},
-    %{code: "ko", label: "Korean", native: "한국어"},
-    %{code: "pl", label: "Polish", native: "Polski"},
-    %{code: "pt", label: "Portuguese", native: "Português"},
-    %{code: "ru", label: "Russian", native: "Русский"},
-    %{code: "yue_Hant", label: "Cantonese", native: "廣東話"},
-    %{code: "zh_Hans", label: "Chinese", native: "中文"}
-  ]
+  alias TuistWeb.Locale
+
+  @languages Tuist.Locale.languages()
 
   @additional_locales @languages
                       |> Enum.map(& &1.code)
@@ -124,50 +115,9 @@ defmodule TuistWeb.Marketing.Localization do
 
   defp fetch_locale_from_headers(conn) do
     conn
-    |> locales_from_accept_language()
-    |> Enum.map(fn locale -> validate_locale(locale) end)
-    |> Enum.find(&(not is_nil(&1)))
-  end
-
-  # Accept-Language: en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7
-  defp locales_from_accept_language(conn) do
-    case get_req_header(conn, "accept-language") do
-      [value | _] ->
-        values = String.split(value, ",")
-        Enum.map(values, &resolve_locale_from_accept_language/1)
-
-      _ ->
-        []
-    end
-  end
-
-  defp resolve_locale_from_accept_language(language) do
-    language
-    |> String.split(";")
+    |> get_req_header("accept-language")
     |> List.first()
-    |> language_to_locale()
-  end
-
-  defp language_to_locale(language) do
-    String.replace(language, "-", "_", global: false)
-  end
-
-  defp validate_locale(nil), do: nil
-
-  defp validate_locale(locale) do
-    supported_locales = Gettext.known_locales(TuistWeb.Gettext)
-
-    case String.split(locale, "_") do
-      [language, _] ->
-        Enum.find([language, locale], fn locale ->
-          locale in supported_locales
-        end)
-
-      [^locale] ->
-        if locale in supported_locales do
-          locale
-        end
-    end
+    |> Locale.locale_from_accept_language()
   end
 
   defp has_user_locale_preference?(conn) do
@@ -182,9 +132,9 @@ defmodule TuistWeb.Marketing.Localization do
   @doc """
   Localizes a URL path based on the current locale.
 
-  For docs.tuist.dev URLs, inserts the locale before the `/docs` section.
+  For tuist.dev docs URLs, updates the locale segment in the path.
   For relative marketing URLs, prepends locale (except for English which has no prefix).
-  External URLs that are not docs.tuist.dev are returned as-is.
+  External URLs that are not tuist.dev docs are returned as-is.
   """
   def localized_href(href) do
     locale = Gettext.get_locale(TuistWeb.Gettext)
@@ -194,9 +144,9 @@ defmodule TuistWeb.Marketing.Localization do
   @doc """
   Localizes a URL path to a specific target locale.
 
-  For docs.tuist.dev URLs, inserts the locale before the `/docs` section.
+  For tuist.dev docs URLs, updates the locale segment in the path.
   For relative marketing URLs, prepends locale (except for English which has no prefix).
-  External URLs that are not docs.tuist.dev are returned as-is.
+  External URLs that are not tuist.dev docs are returned as-is.
   """
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   def localized_href(href, target_locale) do
@@ -207,12 +157,10 @@ defmodule TuistWeb.Marketing.Localization do
       not is_nil(uri.scheme) and uri.scheme not in ["http", "https"] ->
         href
 
-      # Handle docs.tuist.dev URLs
-      uri.host == "docs.tuist.dev" ->
-        localized_path =
-          uri.path
-          |> normalize_docs_path()
-          |> then(&"/#{target_locale}#{&1}")
+      # Handle tuist.dev docs URLs (tuist.dev/LOCALE/docs/...)
+      uri.host == "tuist.dev" and docs_path?(uri.path) ->
+        docs_subpath = extract_docs_subpath(uri.path)
+        localized_path = "/#{target_locale}/docs#{docs_subpath}"
 
         uri
         |> Map.put(:path, localized_path)
@@ -250,14 +198,25 @@ defmodule TuistWeb.Marketing.Localization do
     end
   end
 
-  defp normalize_docs_path(path) do
-    localized_path = path_without_locale(path || "/")
+  defp docs_path?(nil), do: false
 
-    if localized_path == "/" do
-      "/"
-    else
-      localized_path
-    end
+  defp docs_path?(path) do
+    Enum.any?(all_locales(), fn locale -> String.starts_with?(path, "/#{locale}/docs") end)
+  end
+
+  defp extract_docs_subpath(path) do
+    result =
+      Enum.reduce(all_locales(), path, fn locale, acc ->
+        prefix = "/#{locale}/docs"
+
+        if String.starts_with?(acc, prefix) do
+          String.replace_prefix(acc, prefix, "")
+        else
+          acc
+        end
+      end)
+
+    if result == "" or result == path, do: "", else: result
   end
 
   @doc """

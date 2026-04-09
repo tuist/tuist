@@ -1,6 +1,358 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.176.4<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* write empty shard matrix on all early return paths by [@fortmarek](https://github.com/fortmarek) in [#10220](https://github.com/tuist/tuist/pull/10220)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.176.3...4.176.4
+
+## What's Changed in 4.176.3<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* use overwrite option when writing module maps by [@fortmarek](https://github.com/fortmarek) in [#10218](https://github.com/tuist/tuist/pull/10218)
+* update Package.resolved to match current dependencies by [@fortmarek](https://github.com/fortmarek) in [#10216](https://github.com/tuist/tuist/pull/10216)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.176.2...4.176.3
+
+## What's Changed in 4.176.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* fix xcstrings stale-string detection for multiplatform static frameworks by [@pepicrft](https://github.com/pepicrft) in [#10155](https://github.com/tuist/tuist/pull/10155)
+* mkdir data race by [@fortmarek](https://github.com/fortmarek) in [#10211](https://github.com/tuist/tuist/pull/10211)
+* write empty shard matrix output when selective testing skips all tests by [@fortmarek](https://github.com/fortmarek) in [#10205](https://github.com/tuist/tuist/pull/10205)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.176.1...4.176.2
+
+## What's Changed in 4.176.1<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add workspace-level DerivedData location support by [@davidpasztor](https://github.com/davidpasztor) in [#9693](https://github.com/tuist/tuist/pull/9693)
+### 🐛 Bug Fixes
+
+* add retry logic to build uploads by [@fortmarek](https://github.com/fortmarek) in [#10210](https://github.com/tuist/tuist/pull/10210)
+* add nonisolated(unsafe) to generated plist accessors with Any type by [@fortmarek](https://github.com/fortmarek) in [#10195](https://github.com/tuist/tuist/pull/10195)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.175.0...4.176.1
+
+## What's Changed in 4.175.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* fix App Intents metadata for cached xcframeworks by [@pepicrft](https://github.com/pepicrft) in [#10168](https://github.com/tuist/tuist/pull/10168)
+* upload build data from tuist xcodebuild build by [@fortmarek](https://github.com/fortmarek) in [#10186](https://github.com/tuist/tuist/pull/10186)
+### 🐛 Bug Fixes
+
+* handle existing files during shard xctestrun write by [@fortmarek](https://github.com/fortmarek) in [#10188](https://github.com/tuist/tuist/pull/10188)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.174.7...4.175.0
+
+## What's Changed in 4.174.7<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* namespace dependency-derived artifacts by [@pepicrft](https://github.com/pepicrft) in [#10166](https://github.com/tuist/tuist/pull/10166)
+* fix cross-project test host embed and TEST_HOST settings by [@pepicrft](https://github.com/pepicrft) in [#10139](https://github.com/tuist/tuist/pull/10139)
+### 🚜 Refactor
+
+* remove local MCP command by [@pepicrft](https://github.com/pepicrft) in [#10171](https://github.com/tuist/tuist/pull/10171)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.174.4...4.174.7
+
+## What's Changed in 4.174.4<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* add missing TuistTesting dependency to TuistCASTests by [@jsj](https://github.com/jsj) in [#10182](https://github.com/tuist/tuist/pull/10182)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.174.3...4.174.4
+
+## What's Changed in 4.174.3<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* fix selective testing not skipping unchanged test targets by [@pepicrft](https://github.com/pepicrft) in [#10173](https://github.com/tuist/tuist/pull/10173)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.174.2...4.174.3
+
+## What's Changed in 4.174.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* deduplicate entries during Apple Archive compression by [@fortmarek](https://github.com/fortmarek) in [#10164](https://github.com/tuist/tuist/pull/10164)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.174.1...4.174.2
+
+## What's Changed in 4.174.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* dereference symlinks during Apple Archive compression by [@fortmarek](https://github.com/fortmarek) in [#10163](https://github.com/tuist/tuist/pull/10163)
+* resolve result bundle symlink before remote upload by [@fortmarek](https://github.com/fortmarek) in [#10161](https://github.com/tuist/tuist/pull/10161)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.174.0...4.174.1
+
+## What's Changed in 4.174.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add defaultSwiftVersion generation option and respect package-declared Swift versions by [@pepicrft](https://github.com/pepicrft) in [#10151](https://github.com/tuist/tuist/pull/10151)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.173.1...4.174.0
+
+## What's Changed in 4.173.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* resource/file glob excluding with ** pattern incorrectly excludes all sibling files by [@stefanomondino](https://github.com/stefanomondino) in [#10114](https://github.com/tuist/tuist/pull/10114)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.173.0...4.173.1
+
+## What's Changed in 4.173.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add --inspect-mode flag for remote xcresult processing by [@fortmarek](https://github.com/fortmarek) in [#10145](https://github.com/tuist/tuist/pull/10145)
+* support shared volumes for test shard distribution by [@fortmarek](https://github.com/fortmarek) in [#10144](https://github.com/tuist/tuist/pull/10144)
+### 🐛 Bug Fixes
+
+* preserve .swiftmodule directories in shard archives by [@fortmarek](https://github.com/fortmarek) in [#10137](https://github.com/tuist/tuist/pull/10137)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.172.0...4.173.0
+
+## What's Changed in 4.172.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add remote processing mode for tuist inspect test by [@fortmarek](https://github.com/fortmarek) in [#10094](https://github.com/tuist/tuist/pull/10094)
+### 🐛 Bug Fixes
+
+* focus to scope to scheme test targets by [@fortmarek](https://github.com/fortmarek) in [#10131](https://github.com/tuist/tuist/pull/10131)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.171.5...4.172.0
+
+## What's Changed in 4.171.5<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* fix xctestproducts lookup after AppleArchive extraction by [@fortmarek](https://github.com/fortmarek) in [#10126](https://github.com/tuist/tuist/pull/10126)
+* resolve incorrect storeKitConfigurationPath and GPX paths in generated xcschemes by [@fortmarek](https://github.com/fortmarek) in [#10122](https://github.com/tuist/tuist/pull/10122)
+* embed App Intents metadata in cached xcframeworks by [@fortmarek](https://github.com/fortmarek) in [#10120](https://github.com/tuist/tuist/pull/10120)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.171.3...4.171.5
+
+## What's Changed in 4.171.3<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* archive shard bundle directly from source with exclude patterns by [@fortmarek](https://github.com/fortmarek) in [#10121](https://github.com/tuist/tuist/pull/10121)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.171.2...4.171.3
+
+## What's Changed in 4.171.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* preserve external static xcframework deps for cached dynamics by [@pepicrft](https://github.com/pepicrft) in [#10089](https://github.com/tuist/tuist/pull/10089)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.171.1...4.171.2
+
+## What's Changed in 4.171.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* strip dSYMs and compress shard bundle before upload by [@fortmarek](https://github.com/fortmarek) in [#10112](https://github.com/tuist/tuist/pull/10112)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.171.0...4.171.1
+
+## What's Changed in 4.171.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add retries for OIDC token failures by [@cschmatzler](https://github.com/cschmatzler) in [#10085](https://github.com/tuist/tuist/pull/10085)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.170.1...4.171.0
+
+## What's Changed in 4.170.1<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add selective testing observability via MCP, API, CLI, and skills by [@pepicrft](https://github.com/pepicrft) in [#10013](https://github.com/tuist/tuist/pull/10013)
+### 🐛 Bug Fixes
+
+* replace file-based CAS analytics with SQLite for faster inspect build by [@fortmarek](https://github.com/fortmarek) in [#10062](https://github.com/tuist/tuist/pull/10062)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.169.2...4.170.1
+
+## What's Changed in 4.169.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* handle remote binary wrapper xcframework name collisions by [@pepicrft](https://github.com/pepicrft) in [#10054](https://github.com/tuist/tuist/pull/10054)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.169.1...4.169.2
+
+## What's Changed in 4.169.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* honor explicit run executable for extension schemes by [@pepicrft](https://github.com/pepicrft) in [#10057](https://github.com/tuist/tuist/pull/10057)
+* preserve input order in bounded concurrentMap by [@fortmarek](https://github.com/fortmarek) in [#10041](https://github.com/tuist/tuist/pull/10041)
+### 🚜 Refactor
+
+* replace FileHandler with FileSystem by [@fortmarek](https://github.com/fortmarek) in [#10040](https://github.com/tuist/tuist/pull/10040)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.169.0...4.169.1
+
+## What's Changed in 4.169.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* link build runs to shard plans by [@fortmarek](https://github.com/fortmarek) in [#10032](https://github.com/tuist/tuist/pull/10032)
+* resolving SPM Targets with automatic product type using baseProductType by [@Loupehope](https://github.com/Loupehope) in [#9809](https://github.com/tuist/tuist/pull/9809)
+### 🐛 Bug Fixes
+
+* support .tbd stub files in xcframeworks by [@pepicrft](https://github.com/pepicrft) in [#9992](https://github.com/tuist/tuist/pull/9992)
+* add missing macOS platforms to mise.lock by [@fortmarek](https://github.com/fortmarek) in [#10030](https://github.com/tuist/tuist/pull/10030)
+### ⚡ Performance
+
+* use dictionary lookup for target resolution in PackageInfoMapper by [@inju2403](https://github.com/inju2403) in [#10021](https://github.com/tuist/tuist/pull/10021)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.167.0...4.169.0
+
+## What's Changed in 4.167.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add native shard matrix output for all CI providers by [@fortmarek](https://github.com/fortmarek) in [#10009](https://github.com/tuist/tuist/pull/10009)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.166.2...4.167.0
+
+## What's Changed in 4.166.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* show suite names in shard log for suite granularity by [@fortmarek](https://github.com/fortmarek) in [#10008](https://github.com/tuist/tuist/pull/10008)
+* use structural action log timing for test run duration reporting by [@fortmarek](https://github.com/fortmarek) in [#10007](https://github.com/tuist/tuist/pull/10007)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.166.0...4.166.2
+
+## What's Changed in 4.166.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* Allow configuring expected signatures for XCFrameworks exposed by Swift packages by [@pepicrft](https://github.com/pepicrft) in [#9914](https://github.com/tuist/tuist/pull/9914)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.165.0...4.166.0
+
+## What's Changed in 4.165.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* run quarantined tests instead of skipping them by [@fortmarek](https://github.com/fortmarek) in [#9978](https://github.com/tuist/tuist/pull/9978)
+### 🐛 Bug Fixes
+
+* remove containsResources special-casing for static frameworks by [@pepicrft](https://github.com/pepicrft) in [#10003](https://github.com/tuist/tuist/pull/10003)
+* sort concurrentMap results in content hashers for determinism by [@fortmarek](https://github.com/fortmarek) in [#9998](https://github.com/tuist/tuist/pull/9998)
+* infer platform destination for shard enumeration from graph by [@fortmarek](https://github.com/fortmarek) in [#9997](https://github.com/tuist/tuist/pull/9997)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.164.1...4.165.0
+
+## What's Changed in 4.164.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* pass destination to test enumeration for suite sharding by [@fortmarek](https://github.com/fortmarek) in [#9986](https://github.com/tuist/tuist/pull/9986)
+* fix macro copy script failing on clean builds by [@pepicrft](https://github.com/pepicrft) in [#9995](https://github.com/tuist/tuist/pull/9995)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.164.0...4.164.1
+
+## What's Changed in 4.164.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* skip project generation for --without-building with embedded selective testing graph by [@fortmarek](https://github.com/fortmarek) in [#9987](https://github.com/tuist/tuist/pull/9987)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.163.1...4.164.0
+
+## What's Changed in 4.163.1<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add test sharding support by [@fortmarek](https://github.com/fortmarek) in [#9796](https://github.com/tuist/tuist/pull/9796)
+### 🐛 Bug Fixes
+
+* support macOS app bundle layout by [@lechuckcaptain](https://github.com/lechuckcaptain) in [#9849](https://github.com/tuist/tuist/pull/9849)
+* always copy macro executable on incremental builds by [@ffittschen](https://github.com/ffittschen) in [#9962](https://github.com/tuist/tuist/pull/9962)
+* fix static framework resource bundle crash when using xcstrings by [@pepicrft](https://github.com/pepicrft) in [#9953](https://github.com/tuist/tuist/pull/9953)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.162.0...4.163.1
+
 ## What's Changed in 4.162.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features

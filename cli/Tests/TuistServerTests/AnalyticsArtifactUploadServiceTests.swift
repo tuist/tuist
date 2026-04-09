@@ -2,6 +2,7 @@ import FileSystem
 import Foundation
 import Mockable
 import TuistCore
+import TuistHTTP
 import TuistServer
 import TuistSupport
 import TuistTesting
@@ -39,6 +40,7 @@ final class AnalyticsArtifactUploadServiceTests: TuistTestCase {
             xcresultToolController: xcresultToolController,
             fileArchiver: fileArchiverFactory,
             retryProvider: RetryProvider(),
+            fullHandleService: FullHandleService(),
             multipartUploadStartAnalyticsService: multipartUploadStartAnalyticsService,
             multipartUploadGenerateURLAnalyticsService: multipartUploadGenerateURLAnalyticsService,
             multipartUploadArtifactService: multipartUploadArtifactService,
@@ -62,7 +64,7 @@ final class AnalyticsArtifactUploadServiceTests: TuistTestCase {
         // Given
         let temporaryDirectory = try temporaryPath()
         let resultBundle = temporaryDirectory.appending(component: "artifact.bundle")
-        try FileHandler.shared.touch(resultBundle)
+        try await FileSystem().touch(resultBundle)
         let accountHandle = "account-\(UUID().uuidString)"
         let projectHandle = "project-\(UUID().uuidString)"
 
@@ -190,7 +192,7 @@ final class AnalyticsArtifactUploadServiceTests: TuistTestCase {
             .willReturn(uploadPartURL)
 
         // When / Then
-        try await subject.uploadResultBundle(
+        try await subject.uploadAndAnalyzeResultBundle(
             resultBundle,
             accountHandle: accountHandle,
             projectHandle: projectHandle,
@@ -208,9 +210,9 @@ final class AnalyticsArtifactUploadServiceTests: TuistTestCase {
         // Given
         let temporaryDirectory = try temporaryPath()
         let sessionDirectory = temporaryDirectory.appending(component: "session")
-        try FileHandler.shared.createFolder(sessionDirectory)
-        try FileHandler.shared.touch(sessionDirectory.appending(component: "logs.txt"))
-        try FileHandler.shared.touch(sessionDirectory.appending(component: "network.har"))
+        try await FileSystem().makeDirectory(at: sessionDirectory)
+        try await FileSystem().touch(sessionDirectory.appending(component: "logs.txt"))
+        try await FileSystem().touch(sessionDirectory.appending(component: "network.har"))
 
         let accountHandle = "account-\(UUID().uuidString)"
         let projectHandle = "project-\(UUID().uuidString)"

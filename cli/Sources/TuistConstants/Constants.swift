@@ -1,7 +1,7 @@
 import Foundation
 
 public enum Constants {
-    @TaskLocal public static var version: String! = "4.162.0"
+    @TaskLocal public static var version: String! = "4.176.4"
     public static let versionFileName = ".tuist-version"
     public static let binFolderName = ".tuist-bin"
     public static let binName = "tuist"
@@ -28,7 +28,7 @@ public enum Constants {
 
     public static let tuistManifestFileName = "Tuist.swift"
     public static let tuistTomlFileName = "tuist.toml"
-    public static let gradlePluginVersion = "0.5.1"
+    public static let gradlePluginVersion = "0.8.0"
 
     /// The cache version.
     /// This should change only when it changes the logic to map a `XcodeGraph.Target` to a cached build artifact.
@@ -50,6 +50,10 @@ public enum Constants {
         public static let sources = "Sources"
         public static let signingKeychain = "signing.keychain"
         public static let dependenciesDerivedDirectory = "tuist-derived"
+        public static let dependenciesProjectDirectory = "Projects"
+        public static let dependenciesTargetDirectory = "Targets"
+        public static let dependenciesModuleMapsDirectory = "ModuleMaps"
+        public static let dependenciesXCFrameworkDirectory = "XCFrameworks"
     }
 
     /// Pass these variables to make custom configuration of tuist

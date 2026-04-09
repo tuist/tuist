@@ -1,0 +1,178 @@
+#docs-nav {
+  display: flex;
+  position: sticky;
+  top: 0;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  z-index: var(--noora-z-index-3);
+  border-bottom: 1px solid var(--noora-content-divider-line);
+  background: var(--noora-surface-background-tertiary);
+  padding: var(--noora-spacing-6) var(--noora-spacing-7);
+
+  & > [data-part="header"] {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: var(--noora-spacing-8);
+
+    & > [data-part="logo-link"] {
+      display: flex;
+      align-items: center;
+      gap: var(--noora-spacing-3);
+      text-decoration: none;
+
+      & > [data-part="logo"] {
+        width: 40px;
+        height: 40px;
+      }
+
+      & > [data-part="logo-divider"] {
+        align-self: stretch;
+        background: var(--noora-content-divider-line);
+        width: 1px;
+      }
+
+      & > [data-part="logo-text"] {
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
+        letter-spacing: -0.2px;
+      }
+    }
+  }
+
+  & > [data-part="cta"] {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: var(--noora-spacing-6);
+
+    & #docs-language-selector > [data-part="trigger"] {
+      box-shadow: var(--noora-light-border-default);
+      border-radius: var(--noora-radius-medium);
+      padding: var(--noora-spacing-3) var(--noora-spacing-4);
+      font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+    }
+
+    & > [data-part="socials"] {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: var(--noora-spacing-4);
+    }
+  }
+
+  & > [data-part="mobile-actions"] {
+    display: none;
+    flex-direction: row;
+    align-items: center;
+    gap: var(--noora-spacing-3);
+  }
+}
+
+#docs-mobile-menu-bar {
+  display: none;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--noora-content-divider-line);
+  background: var(--noora-surface-background-tertiary);
+  padding: var(--noora-spacing-4) var(--noora-spacing-6);
+
+  & [data-part="mobile-toc-btn"] {
+    flex: 1;
+    justify-content: flex-end;
+  }
+
+  & [data-part="mobile-menu-btn"],
+  & [data-part="mobile-toc-btn"] {
+    display: flex;
+    align-items: center;
+    gap: var(--noora-spacing-1);
+    cursor: pointer;
+    border: none;
+    background: none;
+    padding: 0;
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+
+    & svg {
+      width: var(--noora-icon-size-medium);
+      height: var(--noora-icon-size-medium);
+    }
+  }
+}
+
+#docs-mobile-toc-trigger {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+[data-part="mobile-toc"] {
+  display: none;
+}
+
+@media (max-width: 1024px) {
+  #docs-mobile-menu-bar {
+    display: flex;
+  }
+
+  #docs-nav {
+    padding: var(--noora-spacing-4) var(--noora-spacing-5);
+
+    & > [data-part="header"] {
+      & > .noora-button-group {
+        display: none;
+      }
+
+      & > [data-part="logo-link"] > [data-part="logo-divider"] {
+        display: none;
+      }
+    }
+
+    & > [data-part="cta"] {
+      display: none;
+    }
+
+    & > [data-part="mobile-actions"] {
+      display: flex;
+    }
+  }
+
+  [data-part="page"] {
+    position: relative;
+  }
+
+  [data-part="mobile-toc"] {
+    display: none;
+    position: absolute;
+    top: var(--noora-spacing-4);
+    right: var(--noora-spacing-5);
+    left: var(--noora-spacing-5);
+    flex-direction: column;
+    gap: var(--noora-spacing-5);
+    z-index: var(--noora-z-index-2);
+    box-shadow:
+      0px 1px 1px 0px rgba(14, 14, 14, 0.05),
+      0px 0px 0px 1px rgba(46, 51, 56, 0.08),
+      0px 1px 1px 0px rgba(46, 51, 56, 0.1);
+    border-radius: var(--noora-radius-medium);
+    background: var(--noora-surface-background-primary);
+    padding: var(--noora-spacing-5);
+  }
+
+  [data-part="mobile-toc"][data-state="open"] {
+    display: flex;
+  }
+
+  [data-part="mobile-toc-item"] {
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+    line-height: 16px;
+    text-decoration: none;
+  }
+
+  [data-part="mobile-toc-item"]:hover {
+    text-decoration: underline;
+  }
+}

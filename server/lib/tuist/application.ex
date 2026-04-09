@@ -15,12 +15,14 @@ defmodule Tuist.Application do
   alias Tuist.Tests.TestCaseEvent
   alias Tuist.Tests.TestCaseFailure
   alias Tuist.Tests.TestCaseRun
+  alias Tuist.Tests.TestCaseRunAttachment
   alias Tuist.Tests.TestCaseRunRepetition
   alias Tuist.Tests.TestModuleRun
   alias Tuist.Tests.TestSuiteRun
   alias Tuist.Xcode.XcodeGraph
   alias Tuist.Xcode.XcodeProject
   alias Tuist.Xcode.XcodeTarget
+  alias TuistCommon.HTTP.TransportLogger
 
   require Logger
 
@@ -67,6 +69,7 @@ defmodule Tuist.Application do
   defp start_telemetry do
     Oban.Telemetry.attach_default_logger()
     ReqTelemetry.attach_default_logger(:pipeline)
+    TransportLogger.attach(:tuist)
 
     if Application.get_env(:opentelemetry, :traces_exporter) != :none do
       OpentelemetryLoggerMetadata.setup()
@@ -74,6 +77,10 @@ defmodule Tuist.Application do
       OpentelemetryPhoenix.setup(adapter: :bandit)
       OpentelemetryFinch.setup()
       OpentelemetryBroadway.setup()
+      ecto_skip_metrics = [additional_span_attributes: %{:"metrics.skip" => true}]
+      OpentelemetryEcto.setup([event_prefix: [:tuist, :repo]] ++ ecto_skip_metrics)
+      OpentelemetryEcto.setup([event_prefix: [:tuist, :ingest_repo]] ++ ecto_skip_metrics)
+      OpentelemetryEcto.setup([event_prefix: [:tuist, :click_house_repo]] ++ ecto_skip_metrics)
     end
   end
 
@@ -105,7 +112,22 @@ defmodule Tuist.Application do
           :request_id,
           :auth_account_handle,
           :selected_account_handle,
-          :selected_project_handle
+          :selected_project_handle,
+          :method,
+          :route,
+          :request_path,
+          :reason,
+          :error,
+          :kind,
+          :event,
+          :duration_ms,
+          :remote_address,
+          :remote_port,
+          :recv_oct,
+          :send_oct,
+          :req_body_bytes,
+          :request_span_context,
+          :connection_span_context
         ]
       )
     end
@@ -131,6 +153,7 @@ defmodule Tuist.Application do
         Supervisor.child_spec(TestCase.Buffer, id: TestCase.Buffer),
         Supervisor.child_spec(TestCaseFailure.Buffer, id: TestCaseFailure.Buffer),
         Supervisor.child_spec(TestCaseRunRepetition.Buffer, id: TestCaseRunRepetition.Buffer),
+        Supervisor.child_spec(TestCaseRunAttachment.Buffer, id: TestCaseRunAttachment.Buffer),
         Supervisor.child_spec(TestCaseEvent.Buffer, id: TestCaseEvent.Buffer),
         Supervisor.child_spec(CASEvent.Buffer, id: CASEvent.Buffer),
         Tuist.Vault,

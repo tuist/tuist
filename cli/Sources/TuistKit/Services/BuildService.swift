@@ -5,6 +5,7 @@ import TuistAutomation
 import TuistConfig
 import TuistConfigLoader
 import TuistCore
+import TuistEnvironment
 import TuistLoader
 import TuistLogging
 import TuistServer
@@ -114,10 +115,11 @@ public struct BuildService {
         let graphTraverser = GraphTraverser(graph: graph)
         let buildableSchemes = buildGraphInspector.buildableSchemes(graphTraverser: graphTraverser)
 
+        let currentPath = try await Environment.current.pathRelativeToWorkingDirectory(nil)
         let derivedDataPath = try derivedDataPath.map {
             try AbsolutePath(
                 validating: $0,
-                relativeTo: FileHandler.shared.currentPath
+                relativeTo: currentPath
             )
         }
 

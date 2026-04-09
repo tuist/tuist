@@ -92,10 +92,7 @@
           }
           value={
             if @test_case_runs_analytics.ok?,
-              do:
-                Number.Delimit.number_to_delimited(@test_case_runs_analytics.result.count,
-                  precision: 0
-                )
+              do: format_number(@test_case_runs_analytics.result.count)
           }
           id="widget-test-case-run-count"
           legend_color="primary"
@@ -122,11 +119,7 @@
           }
           value={
             if @failed_test_case_runs_analytics.ok?,
-              do:
-                Number.Delimit.number_to_delimited(
-                  @failed_test_case_runs_analytics.result.count,
-                  precision: 0
-                )
+              do: format_number(@failed_test_case_runs_analytics.result.count)
           }
           id="widget-failed-test-case-run-count"
           legend_color="destructive"
@@ -635,7 +628,7 @@
       >
         <.empty_card_section
           title={dgettext("dashboard_tests", "No data yet")}
-          get_started_href="https://docs.tuist.dev/en/guides/features/insights#tests"
+          get_started_href="https://tuist.dev/en/docs/guides/features/build-insights#tests"
           data-part="empty-test-cases-table-card-section"
         >
           <:image>

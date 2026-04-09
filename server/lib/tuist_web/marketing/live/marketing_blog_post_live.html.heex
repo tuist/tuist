@@ -1,0 +1,77 @@
+<TuistWeb.Marketing.Layouts.marketing {assigns}>
+  <main id="marketing-blog-post" phx-hook="CodeCopy">
+    <TuistWeb.Marketing.MarketingComponents.navbar
+      current_user={@current_user}
+      current_path={@current_path}
+    />
+
+    <TuistWeb.Marketing.MarketingComponents.header_background />
+
+    <header data-part="header">
+      <div data-part="content">
+        <div data-part="category">
+          <a href={~p"/blog"}>{dgettext("marketing", "Blog")}</a>
+          <.math_slash />
+          <span>{@post.category |> to_string() |> String.capitalize()}</span>
+        </div>
+
+        <h1 data-part="title">
+          {@post.title}
+        </h1>
+
+        <div data-part="metadata">
+          <span>{@post.interviewee_name || @author["name"]}</span>
+          <span>&bull;</span>
+          <span>{Timex.format!(@post.date, "{Mfull} {D}, {YYYY}")}</span>
+        </div>
+      </div>
+
+      <img data-part="image" src={Blog.get_post_image_url(@post)} />
+    </header>
+
+    <section id="blog-post-content" data-part="content" data-prose>
+      {render_post_body(@post, assigns)}
+    </section>
+
+    <section data-part="cta">
+      <.marketing_banner title={
+        @post.cta_title || dgettext("marketing", "AI moves fast. So should your builds.")
+      } />
+    </section>
+  </main>
+
+  <script nonce={@csp_nonce}>
+    // Generic Intersection Observer for iframe visualizations
+    // Automatically starts/pauses/resumes iframe animations based on visibility
+    (function() {
+      const observerOptions = {
+        root: null,
+        rootMargin: '50px',
+        threshold: 0.1
+      };
+
+      const startedIframes = new WeakSet();
+
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          const iframe = entry.target;
+          if (entry.isIntersecting) {
+            if (!startedIframes.has(iframe)) {
+              startedIframes.add(iframe);
+              iframe.contentWindow?.postMessage({ action: 'start' }, '*');
+            } else {
+              iframe.contentWindow?.postMessage({ action: 'resume' }, '*');
+            }
+          } else {
+            iframe.contentWindow?.postMessage({ action: 'pause' }, '*');
+          }
+        });
+      }, observerOptions);
+
+      document.addEventListener('DOMContentLoaded', () => {
+        const iframes = document.querySelectorAll('iframe[data-visualization]');
+        iframes.forEach(iframe => observer.observe(iframe));
+      });
+    })();
+  </script>
+</TuistWeb.Marketing.Layouts.marketing>

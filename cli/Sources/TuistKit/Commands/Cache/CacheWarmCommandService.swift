@@ -7,6 +7,7 @@ import TuistCache
 import TuistConfig
 import TuistConfigLoader
 import TuistCore
+import TuistEnvironment
 import TuistExtension
 import TuistLoader
 import TuistPlugin
@@ -36,7 +37,6 @@ import XcodeGraph
         private let simulatorController: SimulatorControlling
         private let xcodeBuildController: XcodeBuildControlling
         private let xcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectoryLocating
-        private let fileHandler: FileHandling
         private let fileSystem: FileSysteming
         private let contentHasher: ContentHashing
         private let cacheGraphContentHasher: CacheGraphContentHashing
@@ -51,7 +51,6 @@ import XcodeGraph
                 xcodeBuildController: XcodeBuildController(),
                 simulatorController: SimulatorController(),
                 xcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectoryLocator(),
-                fileHandler: FileHandler.shared,
                 fileSystem: FileSystem(),
                 contentHasher: contentHasher,
                 cacheGraphContentHasher: CacheGraphContentHasher(contentHasher: contentHasher),
@@ -66,7 +65,6 @@ import XcodeGraph
             xcodeBuildController: XcodeBuildControlling,
             simulatorController: SimulatorControlling,
             xcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectoryLocating,
-            fileHandler: FileHandling,
             fileSystem: FileSysteming,
             contentHasher: ContentHashing,
             cacheGraphContentHasher: CacheGraphContentHashing,
@@ -81,7 +79,6 @@ import XcodeGraph
             self.xcodeBuildController = xcodeBuildController
             self.simulatorController = simulatorController
             self.xcodeProjectBuildDirectoryLocator = xcodeProjectBuildDirectoryLocator
-            self.fileHandler = fileHandler
             self.fileSystem = fileSystem
             self.contentHasher = contentHasher
             self.cacheGraphContentHasher = cacheGraphContentHasher
@@ -96,11 +93,7 @@ import XcodeGraph
             generateOnly: Bool,
             cacheProfile: String?
         ) async throws {
-            let path = if let directory {
-                try AbsolutePath(validating: directory, relativeTo: fileHandler.currentPath)
-            } else {
-                fileHandler.currentPath
-            }
+            let path = try await Environment.current.pathRelativeToWorkingDirectory(directory)
             let config = try await configLoader.loadConfig(path: path)
             let cacheStorage = try await CacheStorageFactory().cacheStorage(config: config)
             let generator = generatorFactory.binaryCacheWarmingPreload(
@@ -217,14 +210,14 @@ import XcodeGraph
                 .filter { !($0.buildAction?.targets ?? []).isEmpty }
                 .map { (scheme: $0, cacheOutputType: CacheOutputType.xcframework) }
 
-            try await FileHandler.shared.inTemporaryDirectory { temporaryDirectory in
+            try await fileSystem.runInTemporaryDirectory(prefix: "CacheWarm") { temporaryDirectory in
                 var artifactsToStore: [CacheGraphTargetBuiltArtifact] = []
 
                 let derivedDataPath = temporaryDirectory.appending(component: "derived-data")
                 let activityLogsDirectory = temporaryDirectory.appending(component: "activity-logs")
 
-                try fileHandler.createFolder(derivedDataPath)
-                try fileHandler.createFolder(activityLogsDirectory)
+                try await fileSystem.makeDirectory(at: derivedDataPath)
+                try await fileSystem.makeDirectory(at: activityLogsDirectory)
 
                 let xcodebuildTarget = XcodeBuildTarget(with: projectPath)
 
@@ -392,7 +385,7 @@ import XcodeGraph
                 guard try await fileSystem.exists(macroPath) else { continue }
                 // This will help us identify in the storage whether an executable represents or not a macro.
                 let macroWithExtension = temporaryDirectory.appending(component: "\(macroPath.basename).macro")
-                try fileHandler.copy(from: macroPath, to: macroWithExtension)
+                try await fileSystem.copy(macroPath, to: macroWithExtension)
                 macrosToStore.append(CacheGraphTargetBuiltArtifact(
                     type: .macro,
                     graphTarget: macro.0,
@@ -514,6 +507,35 @@ import XcodeGraph
                     output: xcframeworkPath
                 )
 
+                // Embed App Intents metadata if available.
+                // For static frameworks, appintentsmetadataprocessor writes a .appintents bundle
+                // as a sibling to the .framework in the build products directory. We copy the
+                // Metadata.appintents directory into each framework slice of the xcframework so
+                // the app target's AppIntentsSSUTraining phase can discover it.
+                // We derive the .appintents name from productNameWithExtension (which respects
+                // PRODUCT_NAME build setting overrides) to stay consistent with how the framework
+                // artifact itself is resolved.
+                let resolvedProductName = cacheableTarget.0.target.productNameWithExtension
+                    .replacingOccurrences(of: ".framework", with: "")
+                let appIntentsBundleName = "\(resolvedProductName).appintents"
+                for artifactDir in Set(platformBinaryArtifacts) {
+                    let metadataSource = artifactDir.appending(
+                        components: [appIntentsBundleName, "Metadata.appintents"]
+                    )
+                    guard try await fileSystem.exists(metadataSource) else { continue }
+                    let frameworkSlices = try await fileSystem.glob(
+                        directory: xcframeworkPath,
+                        include: ["*/*.framework"]
+                    ).collect()
+                    for slice in frameworkSlices {
+                        try await fileSystem.copy(
+                            metadataSource,
+                            to: slice.appending(component: "Metadata.appintents")
+                        )
+                    }
+                    break
+                }
+
                 xcframeworks.append(CacheGraphTargetBuiltArtifact(
                     type: .xcframework,
                     graphTarget: cacheableTarget.0,
@@ -546,7 +568,7 @@ import XcodeGraph
                 }
 
                 let destinationPath = temporaryDirectory.appending(component: outputPath.basename)
-                try fileHandler.copy(from: outputPath, to: destinationPath)
+                try await fileSystem.copy(outputPath, to: destinationPath)
 
                 artifacts.append(CacheGraphTargetBuiltArtifact(
                     type: .xcframework,
@@ -574,12 +596,12 @@ import XcodeGraph
             let platform = Platform.allCases.first { scheme.name.hasSuffix($0.caseValue) }!
             let platformArtifactsDirectory = temporaryDirectory.appending(components: ["artifacts", "\(platform.caseValue)"])
 
-            try fileHandler.createFolder(platformArtifactsDirectory)
+            try await fileSystem.makeDirectory(at: platformArtifactsDirectory)
 
             // Simulator
             if platform.hasSimulators {
                 let simulatorArtifactsDirectory = platformArtifactsDirectory.appending(component: "simulator")
-                try fileHandler.createFolder(simulatorArtifactsDirectory)
+                try await fileSystem.makeDirectory(at: simulatorArtifactsDirectory)
 
                 Logger.current.info("Building scheme \(scheme.name) for the simulator", metadata: .section)
                 try await xcodeBuildController.build(
@@ -634,7 +656,7 @@ import XcodeGraph
             Logger.current.info("Building scheme \(scheme.name) for device", metadata: .section)
 
             let deviceArtifactsDirectory = platformArtifactsDirectory.appending(component: "device")
-            try fileHandler.createFolder(deviceArtifactsDirectory)
+            try await fileSystem.makeDirectory(at: deviceArtifactsDirectory)
 
             var deviceArguments: [XcodeBuildArgument] = [
                 .xcarg("SKIP_INSTALL", "NO"),
@@ -703,12 +725,12 @@ import XcodeGraph
             isReleaseConfiguration: Bool
         ) async throws {
             let platformArtifactsDirectory = temporaryDirectory.appending(components: ["artifacts", "iOS"])
-            try fileHandler.createFolder(platformArtifactsDirectory)
+            try await fileSystem.makeDirectory(at: platformArtifactsDirectory)
 
             Logger.current.info("Building scheme \(scheme.name) for Mac Catalyst", metadata: .section)
 
             let macCatalystArtifactsDirectory = platformArtifactsDirectory.appending(component: "mac-catalyst")
-            try fileHandler.createFolder(macCatalystArtifactsDirectory)
+            try await fileSystem.makeDirectory(at: macCatalystArtifactsDirectory)
 
             try await xcodeBuildController.build(
                 xcodebuildTarget,
@@ -787,8 +809,8 @@ import XcodeGraph
             binaryArtifactDirectories: inout [Platform: Set<AbsolutePath>]
         ) async throws {
             for artifact in try await fileSystem.glob(directory: productsDirectory, include: ["*"]).collect() {
-                try fileHandler.copy(
-                    from: artifact,
+                try await fileSystem.copy(
+                    artifact,
                     to: into.appending(component: artifact.basename)
                 )
             }

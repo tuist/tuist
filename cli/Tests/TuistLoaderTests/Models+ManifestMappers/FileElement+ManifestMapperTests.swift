@@ -31,7 +31,7 @@ final class FileElementManifestMapperTests: TuistUnitTestCase {
                 manifest: manifest,
                 generatorPaths: generatorPaths,
                 fileSystem: fileSystem,
-                includeFiles: { !FileHandler.shared.isFolder($0) }
+                includeFiles: { try await !self.fileSystem.exists($0, isDirectory: true) }
             )
 
             // Then
@@ -62,7 +62,7 @@ final class FileElementManifestMapperTests: TuistUnitTestCase {
             manifest: manifest,
             generatorPaths: generatorPaths,
             fileSystem: fileSystem,
-            includeFiles: { !FileHandler.shared.isFolder($0) }
+            includeFiles: { try await !self.fileSystem.exists($0, isDirectory: true) }
         )
 
         // Then
@@ -144,6 +144,38 @@ final class FileElementManifestMapperTests: TuistUnitTestCase {
         XCTAssertEmpty(got)
     }
 
+    func test_excluding_glob_by_extension_does_not_exclude_siblings() async throws {
+        // Given
+        let temporaryPath = try temporaryPath()
+        let rootDirectory = temporaryPath
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: rootDirectory
+        )
+        let sourcesFolder = temporaryPath.appending(component: "Sources")
+        let jsonFile = sourcesFolder.appending(component: "config.json")
+        let txtFile = sourcesFolder.appending(component: "readme.txt")
+        try await fileSystem.makeDirectory(at: sourcesFolder)
+        try await fileSystem.writeText("{}", at: jsonFile)
+        try await fileSystem.writeText("", at: txtFile)
+        try await fileSystem.writeText("", at: sourcesFolder.appending(component: "MyApp.swift"))
+        let manifest = ProjectDescription.FileElement.glob(
+            pattern: "Sources/**",
+            excluding: ["Sources/**/*.swift"]
+        )
+
+        // When
+        let got = try await XcodeGraph.FileElement.from(
+            manifest: manifest,
+            generatorPaths: generatorPaths,
+            fileSystem: fileSystem,
+            includeFiles: { try await !self.fileSystem.exists($0, isDirectory: true) }
+        )
+
+        // Then
+        XCTAssertEqual(got.map(\.path).sorted(), [jsonFile, txtFile].sorted())
+    }
+
     func test_from_excludes_files_matching_excluding_pattern() async throws {
         // Given
         let temporaryPath = try temporaryPath()
@@ -168,7 +200,7 @@ final class FileElementManifestMapperTests: TuistUnitTestCase {
             manifest: manifest,
             generatorPaths: generatorPaths,
             fileSystem: fileSystem,
-            includeFiles: { !FileHandler.shared.isFolder($0) }
+            includeFiles: { try await !self.fileSystem.exists($0, isDirectory: true) }
         )
 
         // Then

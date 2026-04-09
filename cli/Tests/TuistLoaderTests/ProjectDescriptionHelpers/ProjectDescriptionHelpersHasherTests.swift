@@ -33,7 +33,7 @@ struct ProjectDescriptionHelpersHasherTests {
         let environmentMock = try #require(TuistEnvironment.Environment.mocked)
         let temporaryDir = try #require(FileSystem.temporaryTestDirectory)
         let helperPath = temporaryDir.appending(component: "Project+Templates.swift")
-        try FileHandler.shared.write("import ProjectDescription", path: helperPath, atomically: true)
+        try await FileSystem().writeText("import ProjectDescription", at: helperPath)
         environmentMock.manifestLoadingVariables = ["TUIST_VARIABLE": "TEST"]
 
         // Then

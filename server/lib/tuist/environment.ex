@@ -6,6 +6,16 @@ defmodule Tuist.Environment do
     @env
   end
 
+  def server_version_identifier do
+    System.get_env("TUIST_SERVER_VERSION_IDENTIFIER") ||
+      if dev?() do
+        case System.cmd("git", ["rev-parse", "--abbrev-ref", "HEAD"]) do
+          {branch, 0} -> String.trim(branch)
+          _ -> nil
+        end
+      end
+  end
+
   @doc ~S"""
   Returns an list with all the supported environments.
   """
@@ -282,7 +292,11 @@ defmodule Tuist.Environment do
     if dev_use_remote_storage?() do
       get([:s3, :endpoint], secrets)
     else
-      get([:local_s3_endpoint], secrets) || "http://localhost:9095"
+      System.get_env("TUIST_LOCAL_S3_ENDPOINT") ||
+        case System.get_env("TUIST_MINIO_API_PORT") do
+          port when is_binary(port) -> "http://localhost:#{port}"
+          _ -> get([:local_s3_endpoint], secrets) || "http://localhost:9095"
+        end
     end
   end
 
@@ -356,7 +370,10 @@ defmodule Tuist.Environment do
   end
 
   def minio_console_port(secrets \\ secrets()) do
-    get([:minio, :console_port], secrets, default_value: 9098)
+    case System.get_env("TUIST_MINIO_CONSOLE_PORT") do
+      port when is_binary(port) -> String.to_integer(port)
+      _ -> get([:minio, :console_port], secrets, default_value: 9098)
+    end
   end
 
   def mautic_username(secrets \\ secrets()) do
@@ -545,6 +562,14 @@ defmodule Tuist.Environment do
     get([:processor, :webhook_secret], secrets)
   end
 
+  def xcode_processor_url(secrets \\ secrets()) do
+    get([:xcode_processor, :url], secrets)
+  end
+
+  def xcode_processor_webhook_secret(secrets \\ secrets()) do
+    get([:xcode_processor, :webhook_secret], secrets)
+  end
+
   def clickhouse_flush_interval_ms(secrets \\ secrets()) do
     case get([:clickhouse, :flush_interval_ms], secrets) do
       flush_interval when is_binary(flush_interval) -> String.to_integer(flush_interval)
@@ -563,6 +588,13 @@ defmodule Tuist.Environment do
     case get([:clickhouse, :buffer_pool_size], secrets) do
       buffer_pool_size when is_binary(buffer_pool_size) -> String.to_integer(buffer_pool_size)
       _ -> 5
+    end
+  end
+
+  def clickhouse_max_threads(secrets \\ secrets()) do
+    case get([:clickhouse, :max_threads], secrets) do
+      max_threads when is_binary(max_threads) -> String.to_integer(max_threads)
+      _ -> 4
     end
   end
 
@@ -657,8 +689,15 @@ defmodule Tuist.Environment do
       # on-premis instance, it should point to the production routes.
       URI.to_string(%{URI.parse(get_url(:production)) | path: path})
     else
-      url = get([:app, :url], secrets) || "http://localhost:8080"
-      URI.to_string(%{URI.parse(url) | path: path})
+      URI.to_string(%{URI.parse(app_base_url(secrets)) | path: path})
+    end
+  end
+
+  defp app_base_url(secrets) do
+    if dev?() do
+      System.get_env("TUIST_SERVER_URL") || get([:app, :url], secrets) || "http://localhost:8080"
+    else
+      get([:app, :url], secrets) || "http://localhost:8080"
     end
   end
 
@@ -762,6 +801,14 @@ defmodule Tuist.Environment do
 
   def namespace_enabled?(secrets \\ secrets()) do
     namespace_partner_id(secrets) != nil and namespace_jwt_private_key(secrets) != nil
+  end
+
+  def typesense_host do
+    get([:typesense, :host], secrets(), default_value: "https://search.tuist.dev")
+  end
+
+  def typesense_search_api_key do
+    get([:typesense, :search_api_key], secrets(), default_value: "RgIpKytJBtSQf9CoYKxIfVxh8ma5kzs6")
   end
 
   def get(keys, secrets \\ secrets(), opts \\ []) do

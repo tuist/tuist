@@ -24,7 +24,7 @@ defmodule Cache.Registry.LockTest do
 
     test "acquires expired lock via etag replacement" do
       expired_at = System.system_time(:second) - 100
-      lock_body = Jason.encode!(%{acquired_at: expired_at - 60, expires_at: expired_at, node: "other@node"})
+      lock_body = JSON.encode!(%{acquired_at: expired_at - 60, expires_at: expired_at, node: "other@node"})
 
       # First put attempt: 412 Precondition Failed (lock exists)
       expect(ExAws, :request, fn %{http_method: :put} -> {:error, {:http_error, 412, ""}} end)
@@ -47,7 +47,7 @@ defmodule Cache.Registry.LockTest do
 
     test "returns already_locked when lock is held and not expired" do
       future = System.system_time(:second) + 600
-      lock_body = Jason.encode!(%{acquired_at: System.system_time(:second), expires_at: future, node: "other@node"})
+      lock_body = JSON.encode!(%{acquired_at: System.system_time(:second), expires_at: future, node: "other@node"})
 
       # First put: 412 (lock exists)
       expect(ExAws, :request, fn %{http_method: :put} -> {:error, {:http_error, 412, ""}} end)
@@ -78,7 +78,7 @@ defmodule Cache.Registry.LockTest do
 
     test "returns already_locked when expired lock replacement fails (race)" do
       expired_at = System.system_time(:second) - 100
-      lock_body = Jason.encode!(%{acquired_at: expired_at - 60, expires_at: expired_at, node: "other@node"})
+      lock_body = JSON.encode!(%{acquired_at: expired_at - 60, expires_at: expired_at, node: "other@node"})
 
       # First put: 412
       expect(ExAws, :request, fn %{http_method: :put} -> {:error, {:http_error, 412, ""}} end)

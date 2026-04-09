@@ -473,6 +473,11 @@
               label={dgettext("dashboard_tests", "Skipped")}
               status="warning"
             />
+            <.status_badge_cell
+              :if={test_run.status == "processing"}
+              label={dgettext("dashboard_tests", "Processing")}
+              status="in_progress"
+            />
           </:col>
           <:col :let={test_run} label={dgettext("dashboard_tests", "Branch")}>
             <.text_cell
@@ -511,7 +516,7 @@
       <div :if={Enum.empty?(@test_runs)} data-part="empty-test-runs">
         <.empty_card_section
           title={dgettext("dashboard_tests", "No data yet")}
-          get_started_href="https://docs.tuist.dev/en/guides/features/insights#tests"
+          get_started_href="https://tuist.dev/en/docs/guides/features/build-insights#tests"
           data-part="empty-test-runs-table-card-section"
         >
           <:image>

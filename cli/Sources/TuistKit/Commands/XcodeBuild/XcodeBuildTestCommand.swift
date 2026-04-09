@@ -1,5 +1,6 @@
 import ArgumentParser
 import Foundation
+import TuistEnvKey
 import TuistSupport
 
 public struct XcodeBuildTestCommand: AsyncParsableCommand, TrackableParsableCommand, RecentPathRememberableCommand {
@@ -15,16 +16,35 @@ public struct XcodeBuildTestCommand: AsyncParsableCommand, TrackableParsableComm
 
     public init() {}
 
+    @Flag(
+        name: .long,
+        help: "When passed, the quarantine feature is disabled and tests run regardless of whether they are quarantined on the server."
+    )
+    public var skipQuarantine: Bool = false
+
     @Argument(
         parsing: .captureForPassthrough,
         help: "Arguments that will be passed through to the xcodebuild CLI. All arguments are forwarded to xcodebuild. Example: tuist xcodebuild test -scheme MyAppTests -destination 'platform=iOS Simulator,name=iPhone 15' -parallel-testing-enabled YES"
     )
     public var passthroughXcodebuildArguments: [String] = []
 
+    @Option(name: .long, help: "The zero-based shard index to execute.")
+    var shardIndex: Int?
+
+    @Option(
+        name: .long,
+        help: "Inspect mode: 'local' parses the xcresult on this machine, 'remote' uploads it for server-side processing.",
+        envKey: .inspectTestMode
+    )
+    var inspectMode: TestProcessingMode = .local
+
     public func run() async throws {
         try await XcodeBuildTestCommandService()
             .run(
-                passthroughXcodebuildArguments: ["test"] + passthroughXcodebuildArguments
+                passthroughXcodebuildArguments: ["test"] + passthroughXcodebuildArguments,
+                skipQuarantine: skipQuarantine,
+                shardIndex: shardIndex ?? EnvKey.testShardIndex.envValue(),
+                mode: inspectMode
             )
     }
 }

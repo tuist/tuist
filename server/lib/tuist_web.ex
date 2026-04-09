@@ -21,7 +21,8 @@ defmodule TuistWeb do
   alias Plug.Conn
   alias TuistWeb.Controller
 
-  def static_paths, do: ~w(assets fonts images favicon.ico robots.txt js css .well-known marketing app apidocs skills)
+  def static_paths,
+    do: ~w(assets fonts images favicon.ico robots.txt js css .well-known marketing app apidocs skills docs)
 
   def router do
     quote do
@@ -74,6 +75,7 @@ defmodule TuistWeb do
 
       import TuistWeb.AppLayoutComponents
 
+      on_mount({TuistWeb.Locale, :assign_locale})
       on_mount(TuistWeb.CSP)
       on_mount({TuistWeb.Timezone, :assign_timezone})
 
@@ -120,8 +122,9 @@ defmodule TuistWeb do
       # HTML escaping functionality
       import Phoenix.HTML
       import TuistWeb.AppAuthComponents
-      # Core UI components and translation
       import TuistWeb.AppComponents
+      import TuistWeb.CldrHelpers
+      # Core UI components and translation
       import TuistWeb.Components.IconComponents
       import TuistWeb.Components.Skeleton
       import TuistWeb.Widget

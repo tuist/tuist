@@ -46,7 +46,7 @@ public struct CopyFilesContentHasher: CopyFilesContentHashing {
                     identifier: file.path.pathString,
                     children: fileChildren
                 )
-            }
+            }.sorted(by: { $0.hash < $1.hash })
             actionChildren.append(MerkleNode(
                 hash: try contentHasher.hash(actionFiles),
                 identifier: "files",
@@ -61,7 +61,7 @@ public struct CopyFilesContentHasher: CopyFilesContentHashing {
                 identifier: action.name,
                 children: actionChildren
             )
-        }
+        }.sorted(by: { $0.hash < $1.hash })
         return MerkleNode(
             hash: try contentHasher.hash(children),
 

@@ -9,6 +9,7 @@ defmodule Tuist.MixProject do
       elixirc_paths: elixirc_paths(Mix.env()),
       test_paths: ["test"],
       start_permanent: Enum.member?([:prod, :stag, :can], Mix.env()),
+      releases: releases(),
       aliases: aliases(),
       deps: deps(),
       compilers: [:boundary] ++ Mix.compilers(),
@@ -41,7 +42,7 @@ defmodule Tuist.MixProject do
       {:ecto_sql, "~> 3.12"},
       {:postgrex, ">= 0.0.0"},
       {:phoenix_html, "~> 4.0"},
-      {:phoenix_live_reload, "~> 1.2", only: :dev},
+      {:phoenix_live_reload, "~> 1.6.1", only: :dev},
       {:phoenix_live_view, "~> 1.1.0"},
       {:phoenix_view, "~> 2.0"},
       {:floki, ">= 0.33.0"},
@@ -67,6 +68,8 @@ defmodule Tuist.MixProject do
       {:ex_aws, "~> 2.6"},
       {:ex_aws_s3,
        git: "https://github.com/tuist/ex_aws_s3/", ref: "7f3278bef49cc3fa6b4138a4077804d328a41c9c", override: true},
+      {:ex_cldr, "~> 2.37"},
+      {:ex_cldr_numbers, "~> 2.38"},
       {:number, "~> 1.0"},
       {:mimic, "~> 2.0", only: :test},
       {:ymlr, "~> 5.0"},
@@ -140,6 +143,7 @@ defmodule Tuist.MixProject do
       {:langchain, "~> 0.4"},
       {:earmark, "~> 1.4"},
       {:mdex, "~> 0.11"},
+      {:mdex_mermaid, "~> 0.3"},
       {:html_sanitize_ex, "~> 1.4"},
       {:posthog, "~> 1.0", runtime: false},
       {:opentelemetry_api, "~> 1.4"},
@@ -153,7 +157,13 @@ defmodule Tuist.MixProject do
       {:opentelemetry_bandit, "~> 0.3"},
       {:opentelemetry_broadway, "~> 0.3"},
       {:loki_logger_handler, "~> 0.2"},
-      {:processor, path: "../processor", runtime: false}
+      {:processor, path: "../processor", runtime: false},
+      {:xcode_processor, path: "../xcode_processor", runtime: false},
+      {:tidewave, "~> 0.5", only: :dev},
+      {:carta, "~> 0.2.0"},
+      {:browse_chrome, "~> 0.4.0"},
+      {:browse, "~> 0.5.0", override: true},
+      {:muontrap, "~> 1.7", override: true}
     ]
   end
 
@@ -181,17 +191,33 @@ defmodule Tuist.MixProject do
         "ecto.migrate"
       ],
       test: ["ecto.create --quiet", "run priv/repo/timezone.exs", "ecto.migrate --quiet", "test"],
-      "assets.setup": ["esbuild.install --if-missing"],
+      "assets.setup": [
+        "cmd --cd .. pnpm install --filter noora",
+        "esbuild.install --if-missing"
+      ],
       "assets.build": [
+        "cmd --cd ../noora pnpm run build",
         "esbuild app",
         "esbuild marketing",
+        "esbuild docs",
         "esbuild apidocs"
       ],
       "assets.deploy": [
         "esbuild marketing --minify",
+        "esbuild docs --minify",
         "esbuild app --minify",
         "esbuild apidocs --minify",
         "phx.digest"
+      ]
+    ]
+  end
+
+  defp releases do
+    [
+      tuist: [
+        applications: [
+          processor: :load
+        ]
       ]
     ]
   end

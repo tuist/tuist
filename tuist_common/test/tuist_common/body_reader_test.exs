@@ -45,6 +45,14 @@ defmodule TuistCommon.BodyReaderTest do
       assert Keyword.get(opts, :read_timeout) <= 600_000
     end
 
+    test "bases the initial timeout on the configured first read length" do
+      conn = %Plug.Conn{req_headers: [{"content-length", "25000000"}]}
+      opts = BodyReader.read_opts(conn, length: 262_144)
+
+      assert Keyword.get(opts, :length) == 262_144
+      assert Keyword.get(opts, :read_timeout) == 60_000
+    end
+
     test "returns base opts with default timeout when content-length is missing" do
       conn = %Plug.Conn{req_headers: []}
       opts = BodyReader.read_opts(conn, length: 50_000_000)
@@ -131,7 +139,7 @@ defmodule TuistCommon.BodyReaderTest do
   describe "get_content_length/1" do
     test "returns content length as integer" do
       conn = %Plug.Conn{req_headers: [{"content-length", "12345"}]}
-      assert BodyReader.get_content_length(conn) == 12345
+      assert BodyReader.get_content_length(conn) == 12_345
     end
 
     test "returns nil when header is missing" do

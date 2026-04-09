@@ -26,18 +26,16 @@ public struct ServerCredentials: Sendable, Codable, Equatable {
         self.accessToken = accessToken
         self.refreshToken = refreshToken
     }
-}
 
-#if DEBUG
-    extension ServerCredentials {
+    #if DEBUG
         public static func test(
             accessToken: String = "access-token",
             refreshToken: String? = "refresh-token"
         ) -> ServerCredentials {
             return ServerCredentials(accessToken: accessToken, refreshToken: refreshToken)
         }
-    }
-#endif
+    #endif
+}
 
 @Mockable
 public protocol ServerCredentialsStoring: Sendable {
@@ -146,8 +144,9 @@ public enum ServerCredentialsStoreBackend: Sendable {
         public func read(serverURL: URL) async throws -> ServerCredentials? {
             switch backend {
             case .keychain:
-                let refreshToken = try keychain(serverURL: serverURL).get(serverURL.absoluteString + "_refresh_token")!
-                let accessToken = try keychain(serverURL: serverURL).get(serverURL.absoluteString + "_access_token")!
+                guard let accessToken = try keychain(serverURL: serverURL).get(serverURL.absoluteString + "_access_token")
+                else { return nil }
+                let refreshToken = try keychain(serverURL: serverURL).get(serverURL.absoluteString + "_refresh_token")
                 return ServerCredentials(
                     accessToken: accessToken,
                     refreshToken: refreshToken
@@ -218,6 +217,10 @@ public enum ServerCredentialsStoreBackend: Sendable {
                 .synchronizable(false)
                 .label("\(serverURL.absoluteString)")
         }
+
+        #if DEBUG
+            public static var mocked: MockServerCredentialsStoring? { current as? MockServerCredentialsStoring }
+        #endif
     }
 #else
     public final class ServerCredentialsStore: ServerCredentialsStoring {
@@ -311,11 +314,9 @@ public enum ServerCredentialsStoreBackend: Sendable {
             // swiftlint:disable:next force_try
             return configDirectory.appending(try! RelativePath(validating: "credentials/\(host).json"))
         }
-    }
-#endif
 
-#if DEBUG
-    extension ServerCredentialsStore {
-        public static var mocked: MockServerCredentialsStoring? { current as? MockServerCredentialsStoring }
+        #if DEBUG
+            public static var mocked: MockServerCredentialsStoring? { current as? MockServerCredentialsStoring }
+        #endif
     }
 #endif

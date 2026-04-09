@@ -825,7 +825,7 @@
         @selective_testing_analytics.ok? && @selective_testing_analytics.result.hit_rate == 0.0
       }
       title={dgettext("dashboard_tests", "Selective testing: no data yet")}
-      get_started_href="https://docs.tuist.dev/en/guides/develop/selective-testing"
+      get_started_href="https://tuist.dev/en/docs/guides/features/selective-testing"
     >
       <:image>
         <img src="/images/empty_line_chart_light.png" data-theme="light" />
@@ -985,7 +985,7 @@
     <.empty_card_section
       :if={@recent_test_runs.ok? && Enum.empty?(@recent_test_runs.result)}
       title={dgettext("dashboard_tests", "No data yet")}
-      get_started_href="https://docs.tuist.dev/en/guides/features/insights#tests"
+      get_started_href="https://tuist.dev/en/docs/guides/features/build-insights#tests"
     >
       <:image>
         <img src="/images/empty_bar_chart_light.png" data-theme="light" />
@@ -1123,7 +1123,7 @@
           @most_flaky_test_cases.ok? and Enum.empty?(@most_flaky_test_cases.result)
       }
       title={dgettext("dashboard_tests", "No test cases yet")}
-      get_started_href="https://docs.tuist.dev/en/guides/features/insights#tests"
+      get_started_href="https://tuist.dev/en/docs/guides/features/build-insights#tests"
     >
       <:image>
         <img src="/images/empty_table_light.png" data-theme="light" />

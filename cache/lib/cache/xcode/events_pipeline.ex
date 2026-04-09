@@ -67,7 +67,7 @@ defmodule Cache.Xcode.EventsPipeline do
         }
       end)
 
-    body = Jason.encode!(%{events: api_events})
+    body = JSON.encode!(%{events: api_events})
 
     Cache.WebhookClient.signed_post(url, body, "Xcode cache analytics")
   end

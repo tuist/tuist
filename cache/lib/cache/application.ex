@@ -4,6 +4,7 @@ defmodule Cache.Application do
   use Application
 
   alias Cache.DBConnection.TelemetryListener
+  alias TuistCommon.HTTP.TransportLogger
 
   require Logger
 
@@ -18,6 +19,7 @@ defmodule Cache.Application do
     end
 
     Oban.Telemetry.attach_default_logger()
+    TransportLogger.attach(:cache)
     start_sentry_logger()
     start_loki_logger()
     start_opentelemetry()
@@ -92,7 +94,22 @@ defmodule Cache.Application do
           :request_id,
           :auth_account_handle,
           :selected_account_handle,
-          :selected_project_handle
+          :selected_project_handle,
+          :method,
+          :route,
+          :request_path,
+          :reason,
+          :error,
+          :kind,
+          :event,
+          :duration_ms,
+          :remote_address,
+          :remote_port,
+          :recv_oct,
+          :send_oct,
+          :req_body_bytes,
+          :request_span_context,
+          :connection_span_context
         ]
       )
     end

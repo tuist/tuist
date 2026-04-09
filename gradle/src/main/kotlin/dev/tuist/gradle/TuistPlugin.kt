@@ -96,6 +96,7 @@ class TuistPlugin : Plugin<Settings> {
         val project = extension.project.ifBlank { null }
         settings.gradle.rootProject {
             pluginManager.apply(TuistTestInsightsPlugin::class.java)
+            pluginManager.apply(TuistTestShardingPlugin::class.java)
             val projectLabel = project ?: "(from tuist.toml)"
             logger.lifecycle("Tuist: Test insights configured for $projectLabel")
         }

@@ -4,10 +4,8 @@ public struct XCActivityLogSection {
     public let uniqueIdentifier: String
     public let timeStartedRecording: Double
     public var timeStoppedRecording: Double
-}
 
-#if DEBUG
-    extension XCActivityLogSection {
+    #if DEBUG
         public static func test(
             uniqueIdentifier: String = "id",
             timeStartedRecording: Double = 10,
@@ -19,5 +17,5 @@ public struct XCActivityLogSection {
                 timeStoppedRecording: timeStoppedRecording
             )
         }
-    }
-#endif
+    #endif
+}

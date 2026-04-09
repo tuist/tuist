@@ -2,12 +2,10 @@ import Foundation
 import Path
 
 /// A plugin which is loaded & editable as part of the `tuist edit` command.
-struct EditablePluginManifest {
+struct EditablePluginManifest: Hashable {
     let name: String
     let path: AbsolutePath
-}
 
-extension EditablePluginManifest: Hashable {
     func hash(into hasher: inout Hasher) {
         hasher.combine(path)
     }

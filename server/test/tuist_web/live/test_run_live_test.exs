@@ -7,9 +7,11 @@ defmodule TuistWeb.TestRunLiveTest do
   import Phoenix.LiveViewTest
 
   alias Tuist.CommandEvents
+  alias Tuist.Shards.Analytics, as: ShardsAnalytics
   alias Tuist.Storage
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
+  alias TuistTestSupport.Fixtures.ShardsFixtures
 
   setup %{conn: conn} do
     user = AccountsFixtures.user_fixture()
@@ -382,6 +384,65 @@ defmodule TuistWeb.TestRunLiveTest do
       # Then - test case should NOT have "New" badge
       assert has_element?(lv, "#test-cases-table", "testExistingCase")
       refute has_element?(lv, "#test-cases-table span", "New")
+    end
+  end
+
+  describe "shard card for sharded test runs" do
+    test "shows shard card for sharded test run", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      shard_plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+
+      {:ok, test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          scheme: "AppScheme",
+          shard_plan_id: shard_plan.id,
+          shard_index: 0
+        )
+
+      stub(ShardsAnalytics, :shard_metrics, fn _ ->
+        [
+          %{shard_index: 0, actual_duration_ms: 5000, status: "success", ran_at: NaiveDateTime.utc_now()},
+          %{shard_index: 1, actual_duration_ms: 4000, status: "success", ran_at: NaiveDateTime.utc_now()}
+        ]
+      end)
+
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
+
+      assert has_element?(lv, "[data-part='shards-card']")
+    end
+
+    test "shows pending shards when not all reported", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      shard_plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 3)
+
+      {:ok, test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          scheme: "AppScheme",
+          status: "in_progress",
+          shard_plan_id: shard_plan.id,
+          shard_index: 0
+        )
+
+      stub(ShardsAnalytics, :shard_metrics, fn _ ->
+        [
+          %{shard_index: 0, actual_duration_ms: 5000, status: "success", ran_at: NaiveDateTime.utc_now()}
+        ]
+      end)
+
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
+
+      assert has_element?(lv, "[data-part='shards-card']")
+      assert has_element?(lv, "#shard-balance-table", "Pending")
     end
   end
 end

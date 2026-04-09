@@ -2,6 +2,7 @@
     import ArgumentParser
     import Foundation
     import Path
+    import TuistEnvironment
     import TuistEnvKey
     import TuistExtension
     import TuistKit
@@ -172,12 +173,7 @@
                     )
             }
 
-            let absolutePath =
-                if let path = buildOptions.path {
-                    try AbsolutePath(validating: path, relativeTo: FileHandler.shared.currentPath)
-                } else {
-                    FileHandler.shared.currentPath
-                }
+            let absolutePath = try await Environment.current.pathRelativeToWorkingDirectory(buildOptions.path)
 
             try await BuildService(
                 generatorFactory: Extension.generatorFactory,
@@ -188,12 +184,12 @@
                 clean: buildOptions.clean,
                 configuration: buildOptions.configuration,
                 ignoreBinaryCache: !binaryCache,
-                buildOutputPath: buildOptions.buildOutputPath.map {
-                    try AbsolutePath(
-                        validating: $0,
-                        relativeTo: FileHandler.shared.currentPath
-                    )
-                },
+                buildOutputPath: try await {
+                    if let buildOutputPath = buildOptions.buildOutputPath {
+                        return try await Environment.current.pathRelativeToWorkingDirectory(buildOutputPath)
+                    }
+                    return nil
+                }(),
                 derivedDataPath: buildOptions.derivedDataPath,
                 path: absolutePath,
                 device: buildOptions.device,

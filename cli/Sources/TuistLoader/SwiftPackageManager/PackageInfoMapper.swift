@@ -91,7 +91,8 @@ public protocol PackageInfoMapping {
         packageInfos: [String: PackageInfo],
         packageToFolder: [String: AbsolutePath],
         packageToTargetsToArtifactPaths: [String: [String: AbsolutePath]],
-        packageModuleAliases: [String: [String: String]]
+        packageModuleAliases: [String: [String: String]],
+        packageSettings: TuistCore.PackageSettings
     ) async throws -> [String: [ProjectDescription.TargetDependency]]
 
     /// Maps a `PackageInfo` to a `ProjectDescription.Project`.
@@ -140,7 +141,8 @@ public struct PackageInfoMapper: PackageInfoMapping {
         packageInfos: [String: PackageInfo],
         packageToFolder: [String: AbsolutePath],
         packageToTargetsToArtifactPaths: [String: [String: AbsolutePath]],
-        packageModuleAliases: [String: [String: String]]
+        packageModuleAliases: [String: [String: String]],
+        packageSettings: TuistCore.PackageSettings
     ) async throws -> [String: [ProjectDescription.TargetDependency]] {
         let targetDependencyToFramework: [String: Path] = try packageInfos.reduce(into: [:]) { result, packageInfo in
             try packageInfo.value.targets.forEach { target in
@@ -185,7 +187,12 @@ public struct PackageInfoMapper: PackageInfoMapping {
                         .map {
                             switch $0 {
                             case let .xcframework(path, condition):
-                                return .xcframework(path: path, expectedSignature: nil, condition: condition)
+                                return .xcframework(
+                                    path: path,
+                                    expectedSignature: packageSettings.expectedSignatures[target]
+                                        .map(ProjectDescription.XCFrameworkSignature.from),
+                                    condition: condition
+                                )
                             case let .target(name, condition):
                                 let name = moduleAliases?[name] ?? name
                                 return .project(
@@ -217,7 +224,9 @@ public struct PackageInfoMapper: PackageInfoMapping {
             let dependencyName = xcframework.relative(to: remoteXcframeworksPath).basenameWithoutExt
             let xcframeworkPath = Path
                 .relativeToRoot(xcframework.relative(to: try await rootDirectoryLocator.locate(from: path)).pathString)
-            externalDependencies[dependencyName] = [.xcframework(path: xcframeworkPath, expectedSignature: nil)]
+            let signature = packageSettings.expectedSignatures[dependencyName]
+                .map(ProjectDescription.XCFrameworkSignature.from)
+            externalDependencies[dependencyName] = [.xcframework(path: xcframeworkPath, expectedSignature: signature)]
         }
         return externalDependencies
     }
@@ -293,6 +302,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
             uniquingKeysWith: { userDefined, _ in userDefined }
         )
 
+        let targetsByName = Dictionary(uniqueKeysWithValues: packageInfo.targets.map { ($0.name, $0) })
         var mutableTargetToProducts: [String: Set<PackageInfo.Product>] = [:]
         for product in packageInfo.products {
             var targetsToProcess = Set(product.targets)
@@ -303,12 +313,12 @@ public struct PackageInfoMapper: PackageInfoMapping {
                     continue
                 }
                 mutableTargetToProducts[target, default: []].insert(product)
-                let dependencies = packageInfo.targets.first(where: { $0.name == target })!.dependencies
-                for dependency in dependencies {
+                guard let targetInfo = targetsByName[target] else { continue }
+                for dependency in targetInfo.dependencies {
                     switch dependency {
                     case let .target(name, _):
                         targetsToProcess.insert(name)
-                    case let .byName(name, _) where packageInfo.targets.contains(where: { $0.name == name }):
+                    case let .byName(name, _) where targetsByName[name] != nil:
                         targetsToProcess.insert(name)
                     case .byName, .product:
                         continue
@@ -325,9 +335,11 @@ public struct PackageInfoMapper: PackageInfoMapping {
                     targetToProducts: targetToProducts,
                     packageInfo: packageInfo,
                     packageType: packageType,
+                    packageSettings: packageSettings,
                     path: path,
                     packageFolder: path,
                     productTypes: productTypes,
+                    baseProductType: packageSettings.baseProductType,
                     productDestinations: packageSettings.productDestinations,
                     baseSettings: packageSettings.baseSettings,
                     targetSettings: packageSettings.targetSettings,
@@ -430,11 +442,17 @@ public struct PackageInfoMapper: PackageInfoMapping {
                 }
 
                 if let depTarget = targetsByName[dependencyName] {
-                    if depTarget.type == .binary,
-                       let depPath = depTarget.path,
-                       (try? RelativePath(validating: depPath))?.basenameWithoutExt == singleProduct.name
-                    {
-                        return targetName
+                    if depTarget.type == .binary {
+                        // Remote binary targets don't expose a local xcframework path here, so we also fall back to
+                        // the binary target name to avoid renaming the wrapper target to a product name that Xcode
+                        // will already emit from ProcessXCFramework.
+                        let matchesProductNameInPath =
+                            depTarget.path.flatMap { try? RelativePath(validating: $0).basenameWithoutExt } == singleProduct.name
+                        let matchesProductNameInTargetName =
+                            depTarget.name == singleProduct.name || depTarget.name.hasPrefix(singleProduct.name)
+                        if matchesProductNameInPath || matchesProductNameInTargetName {
+                            return targetName
+                        }
                     }
                     queue.append(dependencyName)
                 }
@@ -450,9 +468,11 @@ public struct PackageInfoMapper: PackageInfoMapping {
         targetToProducts: [String: Set<PackageInfo.Product>],
         packageInfo: PackageInfo,
         packageType: PackageType,
+        packageSettings: TuistCore.PackageSettings,
         path: AbsolutePath,
         packageFolder: AbsolutePath,
         productTypes: [String: XcodeGraph.Product],
+        baseProductType: XcodeGraph.Product,
         productDestinations: [String: XcodeGraph.Destinations],
         baseSettings: XcodeGraph.Settings,
         targetSettings: [String: XcodeGraph.Settings],
@@ -484,7 +504,8 @@ public struct PackageInfoMapper: PackageInfoMapping {
             name: target.name,
             type: target.type,
             products: products,
-            productTypes: productTypes
+            productTypes: productTypes,
+            baseProductType: baseProductType
         )
         else {
             Logger.current.debug("Target \(target.name) ignored by product type")
@@ -501,7 +522,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
             let packagePath = try await target.basePath(packageFolder: path)
             let moduleMapPath = packagePath.appending(component: ModuleMap.filename)
 
-            guard try await fileSystem.exists(moduleMapPath), !FileHandler.shared.isFolder(moduleMapPath) else {
+            guard try await fileSystem.exists(moduleMapPath, isDirectory: false) else {
                 throw PackageInfoMapperError.modulemapMissing(
                     moduleMapPath: moduleMapPath.pathString,
                     package: packageInfo.name,
@@ -622,6 +643,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
                         name: name,
                         packageInfo: packageInfo,
                         packageType: packageType,
+                        packageSettings: packageSettings,
                         condition: condition,
                         moduleAliases: moduleAliases,
                         dependencyModuleAliases: &dependencyModuleAliases,
@@ -636,6 +658,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
                         name: name,
                         packageInfo: packageInfo,
                         packageType: packageType,
+                        packageSettings: packageSettings,
                         condition: condition,
                         moduleAliases: packageModuleAliases[packageInfo.name],
                         dependencyModuleAliases: &dependencyModuleAliases,
@@ -688,6 +711,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
         name: String,
         packageInfo: PackageInfo,
         packageType: PackageType,
+        packageSettings: TuistCore.PackageSettings,
         condition: PackageInfo.PackageConditionDescription?,
         moduleAliases: [String: String]?,
         dependencyModuleAliases: inout [String: String],
@@ -713,7 +737,8 @@ public struct PackageInfoMapper: PackageInfoMapping {
             {
                 return .xcframework(
                     path: .path(artifactPath.pathString),
-                    expectedSignature: nil,
+                    expectedSignature: packageSettings.expectedSignatures[target.name]
+                        .map(ProjectDescription.XCFrameworkSignature.from),
                     status: .required,
                     condition: platformCondition
                 )
@@ -747,6 +772,50 @@ public struct PackageInfoMapper: PackageInfoMapping {
                 return productToDestinations[product.name] ?? Set(Destination.allCases)
             }
         )
+    }
+
+    public enum ResolvedDependency: Equatable {
+        case target(name: String, condition: ProjectDescription.PlatformCondition? = nil)
+        case xcframework(path: Path, condition: ProjectDescription.PlatformCondition? = nil)
+        case externalTarget(package: String, target: String, condition: ProjectDescription.PlatformCondition? = nil)
+
+        fileprivate var condition: ProjectDescription.PlatformCondition? {
+            switch self {
+            case let .target(_, condition):
+                return condition
+            case let .xcframework(_, condition):
+                return condition
+            case let .externalTarget(_, _, condition):
+                return condition
+            }
+        }
+
+        fileprivate var targetName: String? {
+            switch self {
+            case let .target(targetName, _), let .externalTarget(_, targetName, _):
+                return targetName
+            case .xcframework:
+                return nil
+            }
+        }
+
+        fileprivate static func fromTarget(
+            name: String,
+            targetDependencyToFramework: [String: Path],
+            condition packageConditionDescription: PackageInfo.PackageConditionDescription?
+        ) -> [Self] {
+            do {
+                let condition = try ProjectDescription.PlatformCondition.from(packageConditionDescription)
+
+                if let framework = targetDependencyToFramework[name] {
+                    return [.xcframework(path: framework, condition: condition)]
+                } else {
+                    return [.target(name: PackageInfoMapper.sanitize(targetName: name), condition: condition)]
+                }
+            } catch {
+                return []
+            }
+        }
     }
 }
 
@@ -822,7 +891,8 @@ extension ProjectDescription.Product {
         name: String,
         type: PackageInfo.Target.TargetType,
         products: Set<PackageInfo.Product>,
-        productTypes: [String: XcodeGraph.Product]
+        productTypes: [String: XcodeGraph.Product],
+        baseProductType: XcodeGraph.Product
     ) -> Self? {
         // Swift Macros are command line tools that run in the host (macOS) at compilation time.
         switch type {
@@ -869,8 +939,8 @@ extension ProjectDescription.Product {
         }
 
         if hasAutomaticProduct {
-            // contains automatic product, default to static framework
-            return .staticFramework
+            // contains automatic product, default to base product type (usually static framework)
+            return ProjectDescription.Product.from(product: baseProductType)
         } else if product != nil {
             // return found product if there is no automatic products
             return product
@@ -969,7 +1039,9 @@ extension ProjectDescription.ResourceFileElements {
             switch $0.rule {
             case .copy:
                 // Single files or opaque directories are handled like a .process rule
-                if !FileHandler.shared.isFolder(resourceAbsolutePath) || resourceAbsolutePath.isOpaqueDirectory {
+                if try await !fileSystem.exists(resourceAbsolutePath, isDirectory: true) || resourceAbsolutePath
+                    .isOpaqueDirectory
+                {
                     return try await handleProcessResource(resourceAbsolutePath: resourceAbsolutePath)
                 } else {
                     return handleCopyResource(resourceAbsolutePath: resourceAbsolutePath)
@@ -1047,14 +1119,11 @@ extension ProjectDescription.ResourceFileElements {
 
     private static func defaultResourcePaths(
         from path: AbsolutePath,
-        filter: @escaping (Foundation.URL) -> Bool
-    ) -> [AbsolutePath] {
-        Array(FileHandler.shared.files(
-            in: path,
-            filter: filter,
-            nameFilter: nil,
-            extensionFilter: defaultSpmResourceFileExtensions
-        ))
+        fileSystem: FileSysteming
+    ) async throws -> [AbsolutePath] {
+        let extensions = defaultSpmResourceFileExtensions.joined(separator: ",")
+        return try await fileSystem.glob(directory: path, include: ["**/*.{\(extensions)}"])
+            .collect()
     }
 }
 
@@ -1487,9 +1556,7 @@ extension PackageInfo {
             settingsDictionary["CLANG_CXX_LANGUAGE_STANDARD"] = .string(cxxLanguageStandard)
         }
 
-        if let swiftLanguageVersion = swiftVersion(for: swiftToolsVersion) {
-            settingsDictionary["SWIFT_VERSION"] = .string(swiftLanguageVersion)
-        }
+        settingsDictionary["SWIFT_VERSION"] = .string(swiftVersion(for: swiftToolsVersion))
 
         let configurations = baseSettings.configurations.lazy
             .sorted(by: { $0.key < $1.key })
@@ -1513,19 +1580,35 @@ extension PackageInfo {
         }
     }
 
-    private func swiftVersion(for configuredSwiftVersion: XcodeGraph.Version?) -> String? {
-        // Take the latest swift version compatible with the configured one
-        let maxAllowedSwiftLanguageVersion = swiftLanguageVersions?
-            .filter {
-                guard let configuredSwiftVersion else {
-                    return true
+    private func swiftVersion(for configuredSwiftVersion: XcodeGraph.Version?) -> String {
+        if let swiftLanguageVersions {
+            // Take the latest swift version compatible with the configured one
+            let maxAllowedSwiftLanguageVersion = swiftLanguageVersions
+                .filter {
+                    guard let configuredSwiftVersion else {
+                        return true
+                    }
+                    return $0 <= configuredSwiftVersion
                 }
-                return $0 <= configuredSwiftVersion
-            }
-            .sorted()
-            .last
+                .sorted()
+                .last
 
-        return maxAllowedSwiftLanguageVersion?.description
+            if let maxAllowedSwiftLanguageVersion {
+                return maxAllowedSwiftLanguageVersion.description
+            }
+        }
+
+        // When swiftLanguageVersions is not declared, derive from tools-version,
+        // matching SPM's behavior in ToolsVersion.swiftLanguageVersion:
+        // https://github.com/swiftlang/swift-package-manager/blob/main/Sources/PackageModel/ToolsVersion.swift
+        switch toolsVersion.major {
+        case 4:
+            return toolsVersion.minor < 2 ? "4" : "4.2"
+        case 5:
+            return "5"
+        default:
+            return "6"
+        }
     }
 }
 
@@ -1605,52 +1688,6 @@ extension PackageInfo.Target.Dependency {
             return name
         case let .byName(name: name, _):
             return name
-        }
-    }
-}
-
-extension PackageInfoMapper {
-    public enum ResolvedDependency: Equatable {
-        case target(name: String, condition: ProjectDescription.PlatformCondition? = nil)
-        case xcframework(path: Path, condition: ProjectDescription.PlatformCondition? = nil)
-        case externalTarget(package: String, target: String, condition: ProjectDescription.PlatformCondition? = nil)
-
-        fileprivate var condition: ProjectDescription.PlatformCondition? {
-            switch self {
-            case let .target(_, condition):
-                return condition
-            case let .xcframework(_, condition):
-                return condition
-            case let .externalTarget(_, _, condition):
-                return condition
-            }
-        }
-
-        fileprivate var targetName: String? {
-            switch self {
-            case let .target(targetName, _), let .externalTarget(_, targetName, _):
-                return targetName
-            case .xcframework:
-                return nil
-            }
-        }
-
-        fileprivate static func fromTarget(
-            name: String,
-            targetDependencyToFramework: [String: Path],
-            condition packageConditionDescription: PackageInfo.PackageConditionDescription?
-        ) -> [Self] {
-            do {
-                let condition = try ProjectDescription.PlatformCondition.from(packageConditionDescription)
-
-                if let framework = targetDependencyToFramework[name] {
-                    return [.xcframework(path: framework, condition: condition)]
-                } else {
-                    return [.target(name: PackageInfoMapper.sanitize(targetName: name), condition: condition)]
-                }
-            } catch {
-                return []
-            }
         }
     }
 }

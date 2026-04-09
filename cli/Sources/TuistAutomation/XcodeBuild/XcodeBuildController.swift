@@ -389,12 +389,10 @@ public struct XcodeBuildController: XcodeBuildControlling {
             return result
         }.value
     }
-}
 
-// MARK: - Helpers
+    // MARK: - Helpers
 
-fileprivate extension XcodeBuildController {
-    func format(_ multiLineText: String) -> String {
+    fileprivate func format(_ multiLineText: String) -> String {
         multiLineText.split(separator: "\n").map {
             let line = String($0)
             let formattedLine = formatter.format(line)

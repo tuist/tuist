@@ -35,11 +35,11 @@ public class FileArchiver: FileArchiving {
         let destinationZipPath = temporaryDirectory.appending(component: "\(name).zip")
         // ZIPFoundation does not support zipping array of items, we instead copy them all to a single directory.
         let pathsDirectoryPath = temporaryDirectory.appending(component: "\(name)-paths")
-        try FileHandler.shared.createFolder(pathsDirectoryPath)
+        try await fileSystem.makeDirectory(at: pathsDirectoryPath)
         for path in paths {
             try await fileSystem.copy(path, to: pathsDirectoryPath.appending(component: path.basename))
         }
-        try FileHandler.shared.zipItem(at: pathsDirectoryPath, to: destinationZipPath)
+        try await fileSystem.zipFileOrDirectoryContent(at: pathsDirectoryPath, to: destinationZipPath)
         return destinationZipPath
     }
 

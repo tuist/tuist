@@ -49,7 +49,8 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
                 includeGenerateScheme: false,
                 enableCaching: false,
                 registryEnabled: false,
-                warningsAsErrors: .none
+                warningsAsErrors: .none,
+                defaultSwiftVersion: GenerationOptions.defaultSwiftVersionValue
             ),
             installOptions: .init(passthroughSwiftPackageManagerArguments: []),
             cacheOptions: CacheOptions(
@@ -58,10 +59,10 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
             )
         )
     }
-}
 
-extension TuistGeneratedProjectOptions {
     public struct GenerationOptions: Codable, Hashable, Equatable {
+        public static let defaultSwiftVersionValue = "5"
+
         public enum StaticSideEffectsWarningTargets: Codable, Hashable, Equatable {
             case all
             case none
@@ -107,6 +108,7 @@ extension TuistGeneratedProjectOptions {
         public let enableCaching: Bool
         public let registryEnabled: Bool
         public let warningsAsErrors: WarningsAsErrors
+        public let defaultSwiftVersion: String
 
         public init(
             resolveDependenciesWithSystemScm: Bool,
@@ -123,7 +125,8 @@ extension TuistGeneratedProjectOptions {
             includeGenerateScheme: Bool,
             enableCaching: Bool = false,
             registryEnabled: Bool = false,
-            warningsAsErrors: WarningsAsErrors = .none
+            warningsAsErrors: WarningsAsErrors = .none,
+            defaultSwiftVersion: String = GenerationOptions.defaultSwiftVersionValue
         ) {
             self.resolveDependenciesWithSystemScm = resolveDependenciesWithSystemScm
             self.disablePackageVersionLocking = disablePackageVersionLocking
@@ -140,7 +143,49 @@ extension TuistGeneratedProjectOptions {
             self.enableCaching = enableCaching
             self.registryEnabled = registryEnabled
             self.warningsAsErrors = warningsAsErrors
+            self.defaultSwiftVersion = defaultSwiftVersion
         }
+
+        #if DEBUG
+            public static func test(
+                resolveDependenciesWithSystemScm: Bool = false,
+                disablePackageVersionLocking: Bool = false,
+                clonedSourcePackagesDirPath: AbsolutePath? = nil,
+                additionalPackageResolutionArguments: [String] = [],
+                staticSideEffectsWarningTargets: TuistGeneratedProjectOptions.GenerationOptions
+                    .StaticSideEffectsWarningTargets = .all,
+                enforceExplicitDependencies: Bool = false,
+                defaultConfiguration: String? = nil,
+                optionalAuthentication: Bool = false,
+                buildInsightsDisabled: Bool = true,
+                testInsightsDisabled: Bool = true,
+                disableSandbox: Bool = true,
+                includeGenerateScheme: Bool = true,
+                enableCaching: Bool = false,
+                registryEnabled: Bool = false,
+                warningsAsErrors: TuistGeneratedProjectOptions.GenerationOptions.WarningsAsErrors = .none,
+                defaultSwiftVersion: String = GenerationOptions.defaultSwiftVersionValue
+            ) -> Self {
+                .init(
+                    resolveDependenciesWithSystemScm: resolveDependenciesWithSystemScm,
+                    disablePackageVersionLocking: disablePackageVersionLocking,
+                    clonedSourcePackagesDirPath: clonedSourcePackagesDirPath,
+                    additionalPackageResolutionArguments: additionalPackageResolutionArguments,
+                    staticSideEffectsWarningTargets: staticSideEffectsWarningTargets,
+                    enforceExplicitDependencies: enforceExplicitDependencies,
+                    defaultConfiguration: defaultConfiguration,
+                    optionalAuthentication: optionalAuthentication,
+                    buildInsightsDisabled: buildInsightsDisabled,
+                    testInsightsDisabled: testInsightsDisabled,
+                    disableSandbox: disableSandbox,
+                    includeGenerateScheme: includeGenerateScheme,
+                    enableCaching: enableCaching,
+                    registryEnabled: registryEnabled,
+                    warningsAsErrors: warningsAsErrors,
+                    defaultSwiftVersion: defaultSwiftVersion
+                )
+            }
+        #endif
     }
 
     public struct InstallOptions: Codable, Equatable, Sendable, Hashable {
@@ -151,11 +196,19 @@ extension TuistGeneratedProjectOptions {
         ) {
             self.passthroughSwiftPackageManagerArguments = passthroughSwiftPackageManagerArguments
         }
-    }
-}
 
-#if DEBUG
-    extension TuistGeneratedProjectOptions {
+        #if DEBUG
+            public static func test(
+                passthroughSwiftPackageManagerArguments: [String] = []
+            ) -> Self {
+                .init(
+                    passthroughSwiftPackageManagerArguments: passthroughSwiftPackageManagerArguments
+                )
+            }
+        #endif
+    }
+
+    #if DEBUG
         public static func test(
             compatibleXcodeVersions: CompatibleXcodeVersions = .all,
             swiftVersion: Version? = nil,
@@ -173,54 +226,5 @@ extension TuistGeneratedProjectOptions {
                 cacheOptions: cacheOptions
             )
         }
-    }
-
-    extension TuistGeneratedProjectOptions.GenerationOptions {
-        public static func test(
-            resolveDependenciesWithSystemScm: Bool = false,
-            disablePackageVersionLocking: Bool = false,
-            clonedSourcePackagesDirPath: AbsolutePath? = nil,
-            additionalPackageResolutionArguments: [String] = [],
-            staticSideEffectsWarningTargets: TuistGeneratedProjectOptions.GenerationOptions
-                .StaticSideEffectsWarningTargets = .all,
-            enforceExplicitDependencies: Bool = false,
-            defaultConfiguration: String? = nil,
-            optionalAuthentication: Bool = false,
-            buildInsightsDisabled: Bool = true,
-            testInsightsDisabled: Bool = true,
-            disableSandbox: Bool = true,
-            includeGenerateScheme: Bool = true,
-            enableCaching: Bool = false,
-            registryEnabled: Bool = false,
-            warningsAsErrors: TuistGeneratedProjectOptions.GenerationOptions.WarningsAsErrors = .none
-        ) -> Self {
-            .init(
-                resolveDependenciesWithSystemScm: resolveDependenciesWithSystemScm,
-                disablePackageVersionLocking: disablePackageVersionLocking,
-                clonedSourcePackagesDirPath: clonedSourcePackagesDirPath,
-                additionalPackageResolutionArguments: additionalPackageResolutionArguments,
-                staticSideEffectsWarningTargets: staticSideEffectsWarningTargets,
-                enforceExplicitDependencies: enforceExplicitDependencies,
-                defaultConfiguration: defaultConfiguration,
-                optionalAuthentication: optionalAuthentication,
-                buildInsightsDisabled: buildInsightsDisabled,
-                testInsightsDisabled: testInsightsDisabled,
-                disableSandbox: disableSandbox,
-                includeGenerateScheme: includeGenerateScheme,
-                enableCaching: enableCaching,
-                registryEnabled: registryEnabled,
-                warningsAsErrors: warningsAsErrors
-            )
-        }
-    }
-
-    extension TuistGeneratedProjectOptions.InstallOptions {
-        public static func test(
-            passthroughSwiftPackageManagerArguments: [String] = []
-        ) -> Self {
-            .init(
-                passthroughSwiftPackageManagerArguments: passthroughSwiftPackageManagerArguments
-            )
-        }
-    }
-#endif
+    #endif
+}

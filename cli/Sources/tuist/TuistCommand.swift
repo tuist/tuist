@@ -82,10 +82,6 @@ public struct TuistCommand: AsyncParsableCommand {
                     name: "Share",
                     subcommands: [ShareCommand.self]
                 ),
-                CommandGroup(
-                    name: "AI",
-                    subcommands: [MCPCommand.self]
-                ),
             ]
         #endif
 

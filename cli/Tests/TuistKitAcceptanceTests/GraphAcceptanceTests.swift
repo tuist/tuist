@@ -10,7 +10,7 @@
 //                graphFile.pathString,
 //            ]
 //        )
-//        try FileHandler.shared.delete(graphFile)
+//        try await FileSystem().remove(graphFile)
 //
 //        try await run(GraphCommand.self, "--output-path", fixturePath.pathString, "Data")
 //        try System.shared.runAndPrint(

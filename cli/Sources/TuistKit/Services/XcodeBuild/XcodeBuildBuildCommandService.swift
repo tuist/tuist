@@ -1,11 +1,14 @@
 import FileSystem
 import Foundation
 import Path
+import TuistAlert
 import TuistAutomation
 import TuistConfigLoader
 import TuistCore
 import TuistEnvironment
 import TuistLoader
+import TuistLogging
+import TuistServer
 import TuistSupport
 import TuistUniqueIDGenerator
 import TuistXCActivityLog
@@ -19,6 +22,9 @@ struct XcodeBuildBuildCommandService {
     private let xcodeBuildArgumentParser: XcodeBuildArgumentParsing
     private let derivedDataLocator: DerivedDataLocating
     private let xcActivityLogController: XCActivityLogControlling
+    private let shardPlanService: ShardPlanServicing
+    private let serverEnvironmentService: ServerEnvironmentServicing
+    private let uploadBuildRunService: UploadBuildRunServicing?
 
     init(
         fileSystem: FileSysteming = FileSystem(),
@@ -28,7 +34,10 @@ struct XcodeBuildBuildCommandService {
         uniqueIDGenerator: UniqueIDGenerating = UniqueIDGenerator(),
         xcodeBuildArgumentParser: XcodeBuildArgumentParsing = XcodeBuildArgumentParser(),
         derivedDataLocator: DerivedDataLocating = DerivedDataLocator(),
-        xcActivityLogController: XCActivityLogControlling = XCActivityLogController()
+        xcActivityLogController: XCActivityLogControlling = XCActivityLogController(),
+        shardPlanService: ShardPlanServicing = ShardPlanService(),
+        serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
+        uploadBuildRunService: UploadBuildRunServicing? = UploadBuildRunService()
     ) {
         self.fileSystem = fileSystem
         self.xcodeBuildController = xcodeBuildController
@@ -38,15 +47,41 @@ struct XcodeBuildBuildCommandService {
         self.xcodeBuildArgumentParser = xcodeBuildArgumentParser
         self.derivedDataLocator = derivedDataLocator
         self.xcActivityLogController = xcActivityLogController
+        self.shardPlanService = shardPlanService
+        self.serverEnvironmentService = serverEnvironmentService
+        self.uploadBuildRunService = uploadBuildRunService
     }
 
     func run(
-        passthroughXcodebuildArguments: [String]
+        passthroughXcodebuildArguments: [String],
+        shardReference: String? = nil,
+        shardGranularity: ShardGranularity = .module,
+        shardMin: Int? = nil,
+        shardMax: Int? = nil,
+        shardTotal: Int? = nil,
+        shardMaxDuration: Int? = nil,
+        shardSkipUpload: Bool = false
     ) async throws {
         var passthroughXcodebuildArguments = passthroughXcodebuildArguments
         try await passthroughXcodebuildArguments.append(
             contentsOf: resultBundlePathArguments(passthroughXcodebuildArguments: passthroughXcodebuildArguments)
         )
+
+        // When sharding, ensure -testProductsPath is set so xcodebuild produces
+        // a .xctestproducts bundle (required for shard distribution).
+        let isSharding = shardMin != nil || shardMax != nil || shardTotal != nil
+        let schemeName = passedValue(for: "-scheme", arguments: passthroughXcodebuildArguments)
+        if isSharding {
+            guard let schemeName else {
+                throw XcodeBuildBuildCommandServiceError.schemeRequired
+            }
+            if passedValue(for: "-testProductsPath", arguments: passthroughXcodebuildArguments) == nil {
+                let testProductsDir = try await fileSystem.makeTemporaryDirectory(prefix: "shard-test-products")
+                let productsPath = testProductsDir.appending(component: "\(schemeName).xctestproducts")
+                passthroughXcodebuildArguments += ["-testProductsPath", productsPath.pathString]
+            }
+        }
+
         try await xcodeBuildController.run(arguments: passthroughXcodebuildArguments)
         let xcodeBuildArguments = try await xcodeBuildArgumentParser.parse(passthroughXcodebuildArguments)
         var derivedDataPath: AbsolutePath? = xcodeBuildArguments.derivedDataPath
@@ -54,13 +89,71 @@ struct XcodeBuildBuildCommandService {
             guard let projectPath = try await projectPath(xcodeBuildArguments: xcodeBuildArguments) else { return }
             derivedDataPath = try await derivedDataLocator.locate(for: projectPath)
         }
-        guard let derivedDataPath,
-              let mostRecentActivityLogPath = try await xcActivityLogController.mostRecentActivityLogFile(
-                  projectDerivedDataDirectory: derivedDataPath
-              )
-        else { return }
+        if let derivedDataPath,
+           let mostRecentActivityLogFile = try await xcActivityLogController.mostRecentActivityLogFile(
+               projectDerivedDataDirectory: derivedDataPath
+           )
+        {
+            await RunMetadataStorage.current.update(buildRunId: mostRecentActivityLogFile.path.basenameWithoutExt)
 
-        await RunMetadataStorage.current.update(buildRunId: mostRecentActivityLogPath.path.basenameWithoutExt)
+            let buildPath = try await path(passthroughXcodebuildArguments: passthroughXcodebuildArguments)
+            await uploadBuildRunIfNeeded(
+                activityLogPath: mostRecentActivityLogFile.path,
+                projectPath: buildPath,
+                passthroughXcodebuildArguments: passthroughXcodebuildArguments
+            )
+        }
+
+        if isSharding, let schemeName {
+            let testProductsPath = try await resolveTestProductsPath(
+                passthroughXcodebuildArguments: passthroughXcodebuildArguments,
+                derivedDataPath: derivedDataPath
+            )
+            let buildPath = try await path(passthroughXcodebuildArguments: passthroughXcodebuildArguments)
+            let config = try await configLoader.loadConfig(path: buildPath)
+            guard let fullHandle = config.fullHandle else {
+                Logger.current.warning("Shard configuration provided but no project handle configured. Skipping shard plan.")
+                return
+            }
+            let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
+            let destination = passedValue(for: "-destination", arguments: passthroughXcodebuildArguments)
+            let buildRunId = await RunMetadataStorage.current.buildRunId
+            _ = try await shardPlanService.plan(
+                xctestproductsPath: testProductsPath,
+                destination: destination,
+                reference: shardReference,
+                shardGranularity: shardGranularity,
+                shardMin: shardMin,
+                shardMax: shardMax,
+                shardTotal: shardTotal,
+                shardMaxDuration: shardMaxDuration,
+                fullHandle: fullHandle,
+                serverURL: serverURL,
+                buildRunId: buildRunId,
+                skipUpload: shardSkipUpload
+            )
+        }
+    }
+
+    private func uploadBuildRunIfNeeded(
+        activityLogPath: AbsolutePath,
+        projectPath: AbsolutePath,
+        passthroughXcodebuildArguments: [String]
+    ) async {
+        guard let uploadBuildRunService else { return }
+        do {
+            let config = try await configLoader.loadConfig(path: projectPath)
+            guard config.fullHandle != nil else { return }
+            try await uploadBuildRunService.uploadBuildRun(
+                activityLogPath: activityLogPath,
+                projectPath: projectPath,
+                config: config,
+                scheme: passedValue(for: "-scheme", arguments: passthroughXcodebuildArguments),
+                configuration: passedValue(for: "-configuration", arguments: passthroughXcodebuildArguments)
+            )
+        } catch {
+            AlertController.current.warning(.alert("Failed to upload build: \(error.localizedDescription)"))
+        }
     }
 
     private func projectPath(xcodeBuildArguments: XcodeBuildArguments) async throws -> AbsolutePath? {
@@ -125,6 +218,36 @@ struct XcodeBuildBuildCommandService {
         }
     }
 
+    private func resolveTestProductsPath(
+        passthroughXcodebuildArguments: [String],
+        derivedDataPath: AbsolutePath?
+    ) async throws -> AbsolutePath {
+        if let explicitPath = passedValue(for: "-testProductsPath", arguments: passthroughXcodebuildArguments) {
+            let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
+            return try AbsolutePath(validating: explicitPath, relativeTo: currentWorkingDirectory)
+        }
+
+        guard let derivedDataPath else {
+            throw XcodeBuildBuildCommandServiceError.testProductsNotFound
+        }
+
+        let buildProductsPath = derivedDataPath.appending(components: "Build", "Products")
+        let matches = try await fileSystem
+            .glob(directory: buildProductsPath, include: ["*.xctestproducts"])
+            .collect()
+
+        let pathsWithDates = try await matches
+            .concurrentCompactMap { path -> (path: AbsolutePath, date: Date)? in
+                guard let metadata = try? await fileSystem.fileMetadata(at: path) else { return nil }
+                return (path, metadata.lastModificationDate)
+            }
+        guard let match = pathsWithDates.sorted(by: { $0.date > $1.date }).first?.path else {
+            throw XcodeBuildBuildCommandServiceError.testProductsNotFound
+        }
+
+        return match
+    }
+
     private func passedValue(
         for option: String,
         arguments: [String]
@@ -133,5 +256,19 @@ struct XcodeBuildBuildCommandService {
         let valueIndex = arguments.index(after: optionIndex)
         guard arguments.endIndex > valueIndex else { return nil }
         return arguments[valueIndex]
+    }
+}
+
+enum XcodeBuildBuildCommandServiceError: LocalizedError {
+    case testProductsNotFound
+    case schemeRequired
+
+    var errorDescription: String? {
+        switch self {
+        case .testProductsNotFound:
+            return "Could not find .xctestproducts bundle. Pass -testProductsPath or -derivedDataPath explicitly."
+        case .schemeRequired:
+            return "The -scheme argument is required when sharding is enabled."
+        }
     }
 }

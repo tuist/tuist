@@ -39,7 +39,10 @@ public struct ResourceSynthesizer: Codable, Equatable, Sendable { // swiftlint:d
         case yaml
         case files
 
-        public enum Option: Equatable, Codable, Sendable {
+        public enum Option: Equatable, Codable, Sendable, ExpressibleByStringInterpolation,
+            ExpressibleByIntegerLiteral, ExpressibleByFloatLiteral, ExpressibleByBooleanLiteral,
+            ExpressibleByDictionaryLiteral, ExpressibleByArrayLiteral
+        {
             /// It represents a string value.
             case string(String)
             /// It represents an integer value.
@@ -52,6 +55,30 @@ public struct ResourceSynthesizer: Codable, Equatable, Sendable { // swiftlint:d
             case dictionary([String: Option])
             /// It represents an array value.
             case array([Option])
+
+            public init(stringLiteral value: String) {
+                self = .string(value)
+            }
+
+            public init(integerLiteral value: Int) {
+                self = .integer(value)
+            }
+
+            public init(floatLiteral value: Double) {
+                self = .double(value)
+            }
+
+            public init(booleanLiteral value: Bool) {
+                self = .boolean(value)
+            }
+
+            public init(dictionaryLiteral elements: (String, Self)...) {
+                self = .dictionary(Dictionary(uniqueKeysWithValues: elements))
+            }
+
+            public init(arrayLiteral elements: Self...) {
+                self = .array(elements)
+            }
         }
     }
 
@@ -405,53 +432,5 @@ extension [ResourceSynthesizer] {
             .plists(),
             .fonts(),
         ]
-    }
-}
-
-// MARK: - ResourceSynthesizer.Parser.Option - ExpressibleByStringInterpolation
-
-extension ResourceSynthesizer.Parser.Option: ExpressibleByStringInterpolation {
-    public init(stringLiteral value: String) {
-        self = .string(value)
-    }
-}
-
-// MARK: - ResourceSynthesizer.Parser.Option - ExpressibleByIntegerLiteral
-
-extension ResourceSynthesizer.Parser.Option: ExpressibleByIntegerLiteral {
-    public init(integerLiteral value: Int) {
-        self = .integer(value)
-    }
-}
-
-// MARK: - ResourceSynthesizer.Parser.Option - ExpressibleByFloatLiteral
-
-extension ResourceSynthesizer.Parser.Option: ExpressibleByFloatLiteral {
-    public init(floatLiteral value: Double) {
-        self = .double(value)
-    }
-}
-
-// MARK: - ResourceSynthesizer.Parser.Option - ExpressibleByBooleanLiteral
-
-extension ResourceSynthesizer.Parser.Option: ExpressibleByBooleanLiteral {
-    public init(booleanLiteral value: Bool) {
-        self = .boolean(value)
-    }
-}
-
-// MARK: - ResourceSynthesizer.Parser.Option - ExpressibleByDictionaryLiteral
-
-extension ResourceSynthesizer.Parser.Option: ExpressibleByDictionaryLiteral {
-    public init(dictionaryLiteral elements: (String, Self)...) {
-        self = .dictionary(Dictionary(uniqueKeysWithValues: elements))
-    }
-}
-
-// MARK: - ResourceSynthesizer.Parser.Option - ExpressibleByArrayLiteral
-
-extension ResourceSynthesizer.Parser.Option: ExpressibleByArrayLiteral {
-    public init(arrayLiteral elements: Self...) {
-        self = .array(elements)
     }
 }

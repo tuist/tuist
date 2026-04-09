@@ -319,6 +319,22 @@ defmodule Tuist.Authorization.ChecksTest do
              ) == true
     end
 
+    test "returns false for project when scopes match but project belongs to another account", %{
+      organization: organization
+    } do
+      project = ProjectsFixtures.project_fixture()
+
+      assert Checks.scopes_permit(
+               %AuthenticatedAccount{
+                 account: organization.account,
+                 scopes: ["project:bundles:read"],
+                 all_projects: true
+               },
+               project,
+               "project:bundles:read"
+             ) == false
+    end
+
     test "returns true for project when scopes match and project is in project_ids", %{organization: organization} do
       # Given
       project = ProjectsFixtures.project_fixture(account_id: organization.account.id)

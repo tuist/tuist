@@ -14,17 +14,13 @@ public struct ForeignBuild: Equatable, Hashable, Codable, Sendable {
         self.inputs = inputs
         self.output = output
     }
-}
 
-extension ForeignBuild {
     public enum Input: Equatable, Hashable, Codable, Sendable {
         case file(AbsolutePath)
         case folder(AbsolutePath)
         case script(String)
     }
-}
 
-extension ForeignBuild {
     public enum Artifact: Equatable, Hashable, Codable, Sendable {
         case xcframework(path: AbsolutePath, linking: BinaryLinking)
 

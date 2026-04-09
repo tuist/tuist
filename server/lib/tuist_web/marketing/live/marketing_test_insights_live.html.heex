@@ -1,6 +1,9 @@
 <TuistWeb.Marketing.Layouts.marketing {assigns}>
   <main id="marketing-test-insights">
-    <TuistWeb.Marketing.MarketingComponents.navbar current_user={@current_user} />
+    <TuistWeb.Marketing.MarketingComponents.navbar
+      current_user={@current_user}
+      current_path={@current_path}
+    />
 
     <section data-part="header">
       <div data-part="titles">
@@ -20,7 +23,7 @@
         <.button
           href={
             TuistWeb.Marketing.MarketingHTML.localized_href(
-              "https://docs.tuist.dev/guides/features/test-insights"
+              "https://tuist.dev/en/docs/guides/features/test-insights"
             )
           }
           label={dgettext("marketing", "Read docs")}
@@ -207,7 +210,7 @@
 
     <TuistWeb.Marketing.MarketingComponents.feature_cta
       title={dgettext("marketing", "Get full visibility into your test suite")}
-      docs_href="https://docs.tuist.dev/guides/features/test-insights"
+      docs_href="https://tuist.dev/en/docs/guides/features/test-insights"
     />
   </main>
 </TuistWeb.Marketing.Layouts.marketing>

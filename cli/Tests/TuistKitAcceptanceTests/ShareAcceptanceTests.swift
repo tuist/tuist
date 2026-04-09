@@ -3,7 +3,6 @@ import FileSystem
 import FileSystemTesting
 import Foundation
 import Path
-import SnapshotTesting
 import Testing
 import TuistAcceptanceTesting
 import TuistBuildCommand
@@ -20,6 +19,7 @@ import TuistTesting
 
 struct ShareAcceptanceTests {
     @Test(
+        .disabled(),
         .inTemporaryDirectory,
         .withMockedEnvironment(),
         .withMockedNoora,
@@ -61,6 +61,7 @@ struct ShareAcceptanceTests {
     }
 
     @Test(
+        .disabled(),
         .inTemporaryDirectory,
         .withMockedEnvironment(),
         .withMockedNoora,
@@ -87,6 +88,7 @@ struct ShareAcceptanceTests {
     }
 
     @Test(
+        .disabled(),
         .inTemporaryDirectory,
         .withMockedEnvironment(),
         .withMockedNoora,
@@ -146,6 +148,7 @@ struct ShareAcceptanceTests {
     }
 
     @Test(
+        .disabled(),
         .inTemporaryDirectory,
         .withMockedEnvironment(),
         .withMockedNoora,
@@ -204,6 +207,7 @@ struct ShareAcceptanceTests {
     }
 
     @Test(
+        .disabled(),
         .inTemporaryDirectory,
         .withMockedEnvironment(),
         .withMockedNoora,

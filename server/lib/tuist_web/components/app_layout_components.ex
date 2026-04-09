@@ -127,6 +127,17 @@ defmodule TuistWeb.AppLayoutComponents do
             )
           }
         />
+        <.sidebar_item
+          label={dgettext("dashboard", "Shards")}
+          icon="stack_2"
+          navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/shards"}
+          selected={
+            String.starts_with?(
+              @current_path,
+              ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/shards"
+            )
+          }
+        />
       </.sidebar_group>
       <.sidebar_group
         :if={Project.xcode_project?(@selected_project)}
@@ -291,6 +302,17 @@ defmodule TuistWeb.AppLayoutComponents do
             )
           }
         />
+        <.sidebar_item
+          label={dgettext("dashboard", "Shards")}
+          icon="stack_2"
+          navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/shards"}
+          selected={
+            String.starts_with?(
+              @current_path,
+              ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/shards"
+            )
+          }
+        />
       </.sidebar_group>
       <.sidebar_item
         :if={Project.gradle_project?(@selected_project)}
@@ -328,7 +350,7 @@ defmodule TuistWeb.AppLayoutComponents do
       />
       <.sidebar_item
         :if={Tuist.Authorization.authorize(:project_update, @current_user, @selected_project) == :ok}
-        label={dgettext("dashboard", "Settings")}
+        label={dgettext("dashboard", "Project Settings")}
         icon="settings"
         navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/settings"}
         selected={
@@ -362,6 +384,15 @@ defmodule TuistWeb.AppLayoutComponents do
         <.headerbar_breadcrumbs breadcrumbs={@breadcrumbs} id="headerbar-breadcrumbs" />
       </div>
       <div data-part="right-section">
+        <.badge
+          :if={Tuist.Environment.server_version_identifier()}
+          label={Tuist.Environment.server_version_identifier()}
+          color="attention"
+          style="light-fill"
+          size="large"
+        >
+          <:icon><.git_branch /></:icon>
+        </.badge>
         <.link href={Tuist.Environment.get_url(:documentation)} target="_blank">
           <.button variant="secondary" icon_only>
             <.book />

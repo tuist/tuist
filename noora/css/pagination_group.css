@@ -34,7 +34,7 @@
 
     & > [data-part="label"] {
       display: inline-block;
-      width: 20px;
+      min-width: 20px;
       text-align: center;
     }
   }

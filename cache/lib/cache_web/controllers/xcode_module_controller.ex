@@ -10,6 +10,7 @@ defmodule CacheWeb.XcodeModuleController do
   alias Cache.XcodeModule.Disk
   alias CacheWeb.API.Schemas.CompleteMultipartUploadRequest
   alias CacheWeb.API.Schemas.Error
+  alias CacheWeb.API.Schemas.SafePathComponent
   alias CacheWeb.API.Schemas.StartMultipartUploadResponse
 
   require Logger
@@ -34,31 +35,31 @@ defmodule CacheWeb.XcodeModuleController do
       ],
       account_handle: [
         in: :query,
-        type: :string,
+        schema: SafePathComponent.schema(),
         required: true,
         description: "The handle of the account"
       ],
       project_handle: [
         in: :query,
-        type: :string,
+        schema: SafePathComponent.schema(),
         required: true,
         description: "The handle of the project"
       ],
       hash: [
         in: :query,
-        type: :string,
+        schema: SafePathComponent.schema(),
         required: true,
         description: "Artifact hash"
       ],
       name: [
         in: :query,
-        type: :string,
+        schema: SafePathComponent.schema(),
         required: true,
         description: "Artifact name"
       ],
       cache_category: [
         in: :query,
-        type: :string,
+        schema: SafePathComponent.schema(),
         required: false,
         description: "Cache category (builds)"
       ]
@@ -68,7 +69,7 @@ defmodule CacheWeb.XcodeModuleController do
       not_found: {"Artifact not found", "application/json", Error},
       unauthorized: {"Unauthorized", "application/json", Error},
       forbidden: {"Forbidden", "application/json", Error},
-      bad_request: {"Bad request", "application/json", Error}
+      unprocessable_entity: {"Invalid request parameters", "application/json", Error}
     }
   )
 
@@ -129,31 +130,31 @@ defmodule CacheWeb.XcodeModuleController do
       ],
       account_handle: [
         in: :query,
-        type: :string,
+        schema: SafePathComponent.schema(),
         required: true,
         description: "The handle of the account"
       ],
       project_handle: [
         in: :query,
-        type: :string,
+        schema: SafePathComponent.schema(),
         required: true,
         description: "The handle of the project"
       ],
       hash: [
         in: :query,
-        type: :string,
+        schema: SafePathComponent.schema(),
         required: true,
         description: "Artifact hash"
       ],
       name: [
         in: :query,
-        type: :string,
+        schema: SafePathComponent.schema(),
         required: true,
         description: "Artifact name"
       ],
       cache_category: [
         in: :query,
-        type: :string,
+        schema: SafePathComponent.schema(),
         required: false,
         description: "Cache category (builds)"
       ]
@@ -163,7 +164,7 @@ defmodule CacheWeb.XcodeModuleController do
       not_found: {"Artifact not found", "application/json", Error},
       unauthorized: {"Unauthorized", "application/json", Error},
       forbidden: {"Forbidden", "application/json", Error},
-      bad_request: {"Bad request", "application/json", Error}
+      unprocessable_entity: {"Invalid request parameters", "application/json", Error}
     }
   )
 
@@ -187,31 +188,31 @@ defmodule CacheWeb.XcodeModuleController do
     parameters: [
       account_handle: [
         in: :query,
-        type: :string,
+        schema: SafePathComponent.schema(),
         required: true,
         description: "The handle of the account"
       ],
       project_handle: [
         in: :query,
-        type: :string,
+        schema: SafePathComponent.schema(),
         required: true,
         description: "The handle of the project"
       ],
       hash: [
         in: :query,
-        type: :string,
+        schema: SafePathComponent.schema(),
         required: true,
         description: "Artifact hash"
       ],
       name: [
         in: :query,
-        type: :string,
+        schema: SafePathComponent.schema(),
         required: true,
         description: "Artifact name"
       ],
       cache_category: [
         in: :query,
-        type: :string,
+        schema: SafePathComponent.schema(),
         required: false,
         description: "Cache category (builds)"
       ]
@@ -220,7 +221,7 @@ defmodule CacheWeb.XcodeModuleController do
       ok: {"Upload started", "application/json", StartMultipartUploadResponse},
       unauthorized: {"Unauthorized", "application/json", Error},
       forbidden: {"Forbidden", "application/json", Error},
-      bad_request: {"Bad request", "application/json", Error}
+      unprocessable_entity: {"Invalid request parameters", "application/json", Error}
     }
   )
 
@@ -415,7 +416,7 @@ defmodule CacheWeb.XcodeModuleController do
               Disk.key(upload.account_handle, upload.project_handle, upload.category, upload.hash, upload.name)
 
             :ok = CacheArtifacts.track_artifact_access(key)
-            S3Transfers.enqueue_module_upload(upload.account_handle, upload.project_handle, key)
+            S3Transfers.enqueue_upload_if_missing(upload.account_handle, upload.project_handle, :xcode_module, key)
 
             :telemetry.execute(
               [:cache, :xcode_module, :multipart, :complete],

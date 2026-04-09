@@ -11,7 +11,7 @@ defmodule TuistWeb.API.ProjectsController do
   alias TuistWeb.API.Schemas.Project
   alias TuistWeb.Authentication
 
-  plug(OpenApiSpex.Plug.CastAndValidate,
+  plug(TuistWeb.Plugs.CastAndValidate,
     json_render_error_v2: true,
     render_error: TuistWeb.RenderAPIErrorPlug
   )
@@ -133,15 +133,7 @@ defmodule TuistWeb.API.ProjectsController do
 
           conn
           |> put_status(:ok)
-          |> json(%{
-            id: project.id,
-            full_name: Projects.get_project_slug_from_id(project.id),
-            token: project.token,
-            default_branch: project.default_branch,
-            repository_url: Projects.get_repository_url(project),
-            visibility: project.visibility,
-            build_system: project.build_system
-          })
+          |> json(project_response(project, Projects.get_project_slug_from_id(project.id), include_repository_url: true))
         rescue
           e in Ecto.InvalidChangesetError ->
             message =
@@ -189,14 +181,7 @@ defmodule TuistWeb.API.ProjectsController do
         subject
         |> Projects.get_all_project_accounts()
         |> Enum.map(fn project_account ->
-          %{
-            id: project_account.project.id,
-            full_name: project_account.handle,
-            token: project_account.project.token,
-            default_branch: project_account.project.default_branch,
-            visibility: project_account.project.visibility,
-            build_system: project_account.project.build_system
-          }
+          project_response(project_account.project, project_account.handle)
         end)
 
       conn
@@ -245,6 +230,11 @@ defmodule TuistWeb.API.ProjectsController do
         |> put_status(:not_found)
         |> json(%Error{message: "Account #{account_handle} not found."})
 
+      is_nil(project) ->
+        conn
+        |> put_status(:not_found)
+        |> json(%Error{message: "Project #{account_handle}/#{project_handle} not found."})
+
       Authorization.authorize(:project_read, user, account) != :ok ->
         conn
         |> put_status(:forbidden)
@@ -252,25 +242,12 @@ defmodule TuistWeb.API.ProjectsController do
           message: "You don't have permission to read the #{project.name} project."
         })
 
-      is_nil(project) ->
-        conn
-        |> put_status(:not_found)
-        |> json(%Error{message: "Project #{account_handle}/#{project_handle} not found."})
-
       !is_nil(project) ->
         Tuist.PubSub.broadcast(%{user: user}, "projects.#{project.id}", :show)
 
         conn
         |> put_status(:ok)
-        |> json(%{
-          id: project.id,
-          full_name: "#{account.name}/#{project.name}",
-          token: project.token,
-          default_branch: project.default_branch,
-          repository_url: Projects.get_repository_url(project),
-          visibility: project.visibility,
-          build_system: project.build_system
-        })
+        |> json(project_response(project, "#{account.name}/#{project.name}", include_repository_url: true))
     end
   end
 
@@ -366,14 +343,24 @@ defmodule TuistWeb.API.ProjectsController do
 
         conn
         |> put_status(:ok)
-        |> json(%{
-          id: project.id,
-          full_name: "#{account_handle}/#{project_handle}",
-          token: project.token,
-          default_branch: project.default_branch,
-          repository_url: Projects.get_repository_url(project),
-          visibility: project.visibility
-        })
+        |> json(project_response(project, "#{account_handle}/#{project_handle}", include_repository_url: true))
+    end
+  end
+
+  defp project_response(project, full_name, opts \\ []) do
+    response = %{
+      id: project.id,
+      full_name: full_name,
+      token: "",
+      default_branch: project.default_branch,
+      visibility: project.visibility,
+      build_system: project.build_system
+    }
+
+    if Keyword.get(opts, :include_repository_url, false) do
+      Map.put(response, :repository_url, Projects.get_repository_url(project))
+    else
+      response
     end
   end
 

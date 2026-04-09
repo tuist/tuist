@@ -177,10 +177,8 @@ public actor CachedValueStore: CachedValueStoring {
         #endif
         return value
     }
-}
 
-#if DEBUG
-    extension CachedValueStore {
+    #if DEBUG
         public static var mocked: MockCachedValueStoring? { current as? MockCachedValueStoring }
-    }
-#endif
+    #endif
+}

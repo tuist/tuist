@@ -415,24 +415,8 @@ public struct Target: Equatable, Hashable, Comparable, Codable, Sendable {
     public static func < (lhs: Target, rhs: Target) -> Bool {
         lhs.name < rhs.name
     }
-}
 
-extension Sequence<Target> {
-    /// Filters and returns only the targets that are test bundles.
-    var testBundles: [Target] {
-        filter(\.product.testsBundle)
-    }
-
-    /// Filters and returns only the targets that are apps and app clips.
-    var apps: [Target] {
-        filter { $0.product == .app || $0.product == .appClip }
-    }
-}
-
-#if DEBUG
-    extension Target {
-        /// Creates a Target with test data
-        /// Note: Referenced paths may not exist
+    #if DEBUG
         public static func test(
             name: String = "Target",
             destinations: Destinations = [.iPhone, .iPad],
@@ -495,8 +479,6 @@ extension Sequence<Target> {
             )
         }
 
-        /// Creates a Target with test data
-        /// Note: Referenced paths may not exist
         public static func test(
             name: String = "Target",
             platform: Platform,
@@ -559,7 +541,6 @@ extension Sequence<Target> {
             )
         }
 
-        /// Creates a bare bones Target with as little data as possible
         public static func empty(
             name: String = "Target",
             destinations: Destinations = [.iPhone, .iPad],
@@ -608,7 +589,6 @@ extension Sequence<Target> {
             )
         }
 
-        /// Maps a platform to a set of Destinations.  For migration purposes
         private static func destinationsFrom(_ platform: Platform) -> Destinations {
             switch platform {
             case .iOS:
@@ -623,5 +603,17 @@ extension Sequence<Target> {
                 return .visionOS
             }
         }
+    #endif
+}
+
+extension Sequence<Target> {
+    /// Filters and returns only the targets that are test bundles.
+    var testBundles: [Target] {
+        filter(\.product.testsBundle)
     }
-#endif
+
+    /// Filters and returns only the targets that are apps and app clips.
+    var apps: [Target] {
+        filter { $0.product == .app || $0.product == .appClip }
+    }
+}

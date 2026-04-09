@@ -27,6 +27,9 @@ public struct PackageSettings: Codable, Equatable, Sendable {
     /// The custom `Product` type to be used for SPM targets.
     public var productTypes: [String: Product]
 
+    /// The default product type (usually static framework)
+    public var baseProductType: Product
+
     /// Custom product destinations where key of the dictionary is the name of the SPM product and the value contains the
     /// supported destinations.
     /// **Note**: This setting should only be used when using Tuist for SPM package projects, _not_ for your external
@@ -39,6 +42,9 @@ public struct PackageSettings: Codable, Equatable, Sendable {
     /// The base settings to be used for targets generated from SwiftPackageManager
     public var baseSettings: Settings
 
+    /// Expected signatures for Swift Package Manager binary targets keyed by binary target name.
+    public var expectedSignatures: [String: XCFrameworkSignature]
+
     /// Additional settings to be added to targets generated from SwiftPackageManager.
     public var targetSettings: [String: Settings]
 
@@ -48,20 +54,26 @@ public struct PackageSettings: Codable, Equatable, Sendable {
     /// Creates `PackageSettings` instance for custom Swift Package Manager configuration.
     /// - Parameters:
     ///     - productTypes: The custom `Product` types to be used for SPM targets.
+    ///     - baseProductType: The default product type (usually static framework).
     ///     - productDestinations: Custom destinations to be used for SPM products.
     ///     - baseSettings: Additional settings to be added to targets generated from SwiftPackageManager.
+    ///     - expectedSignatures: Expected signatures keyed by binary target name.
     ///     - targetSettings: Additional settings to be added to targets generated from SwiftPackageManager.
     ///     - projectOptions: Custom project configurations to be used for projects generated from SwiftPackageManager.
     public init(
         productTypes: [String: Product] = [:],
+        baseProductType: Product = .staticFramework,
         productDestinations: [String: Destinations] = [:],
         baseSettings: Settings = .settings(),
+        expectedSignatures: [String: XCFrameworkSignature] = [:],
         targetSettings: [String: Settings] = [:],
         projectOptions: [String: Project.Options] = [:]
     ) {
         self.productTypes = productTypes
+        self.baseProductType = baseProductType
         self.productDestinations = productDestinations
         self.baseSettings = baseSettings
+        self.expectedSignatures = expectedSignatures
         self.targetSettings = targetSettings
         self.projectOptions = projectOptions
         dumpIfNeeded(self)
@@ -70,8 +82,10 @@ public struct PackageSettings: Codable, Equatable, Sendable {
     /// Creates `PackageSettings` instance for custom Swift Package Manager configuration.
     /// - Parameters:
     ///     - productTypes: The custom `Product` types to be used for SPM targets.
+    ///     - baseProductType: The default product type (usually static framework).
     ///     - productDestinations: Custom destinations to be used for SPM products.
     ///     - baseSettings: Additional settings to be added to targets generated from SwiftPackageManager.
+    ///     - expectedSignatures: Expected signatures keyed by binary target name.
     ///     - targetSettings: Additional settings to be added to targets generated from SwiftPackageManager.
     ///     - projectOptions: Custom project configurations to be used for projects generated from SwiftPackageManager.
     @available(
@@ -84,14 +98,18 @@ public struct PackageSettings: Codable, Equatable, Sendable {
     )
     public init(
         productTypes: [String: Product] = [:],
+        baseProductType: Product = .staticFramework,
         productDestinations: [String: Destinations] = [:],
         baseSettings: Settings = .settings(),
+        expectedSignatures: [String: XCFrameworkSignature] = [:],
         targetSettings: [String: SettingsDictionary],
         projectOptions: [String: Project.Options] = [:]
     ) {
         self.productTypes = productTypes
+        self.baseProductType = baseProductType
         self.productDestinations = productDestinations
         self.baseSettings = baseSettings
+        self.expectedSignatures = expectedSignatures
         self.targetSettings = targetSettings.mapValues { .settings(base: $0) }
         self.projectOptions = projectOptions
         dumpIfNeeded(self)

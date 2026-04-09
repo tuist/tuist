@@ -73,14 +73,16 @@ defmodule Tuist.PromEx do
         Tuist.Repo.PromExPlugin,
         Tuist.KeyValueStore.PromExPlugin,
         Tuist.Authentication.PromExPlugin,
-        Tuist.HTTP.PromExPlugin
+        Tuist.HTTP.PromExPlugin,
+        TuistCommon.HTTP.TransportPromExPlugin
       ]
 
     plugins =
       if Tuist.Environment.tuist_hosted?() do
         plugins ++
           [
-            {PromEx.Plugins.Phoenix, router: TuistWeb.Router, endpoint: TuistWeb.Endpoint}
+            {TuistCommon.PromExPhoenixPlugin,
+             router: TuistWeb.Router, endpoint: TuistWeb.Endpoint, include_controller_action_tags: false}
           ]
       else
         plugins

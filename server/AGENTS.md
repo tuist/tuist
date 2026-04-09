@@ -73,8 +73,8 @@ mise run dev
 - `mise run security`
 
 **Assets**
-- `mix assets.setup`
-- `mix assets.build`
+- `mix assets.setup` - Installs server esbuild and the local `noora` JS dependencies
+- `mix assets.build` - Builds local `noora` assets, then app/marketing/docs/apidocs bundles
 - `mix assets.deploy`
 
 **Database Utilities**

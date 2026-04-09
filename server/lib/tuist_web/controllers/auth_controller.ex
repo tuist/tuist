@@ -259,9 +259,13 @@ defmodule TuistWeb.AuthController do
             pending = get_session(conn, :pending_oauth_signup)
             auth_method = if pending, do: String.to_existing_atom(pending["provider"]), else: :password
 
+            return_to =
+              oauth_return_url ||
+                if user |> Accounts.get_user_organization_accounts() |> Enum.empty?(), do: ~p"/organizations/new"
+
             conn
             |> delete_session(:pending_oauth_signup)
-            |> put_session(:user_return_to, oauth_return_url)
+            |> put_session(:user_return_to, return_to)
             |> Authentication.log_in_user(user, %{auth_method: auth_method})
         end
 

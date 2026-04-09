@@ -147,7 +147,7 @@ final class AppBundleLoaderTests: TuistUnitTestCase {
         // Given
         let appBundlePath = try temporaryPath()
         let infoPlistPath = appBundlePath.appending(component: "Info.plist")
-        try fileHandler.write("""
+        try await fileSystem.writeText("""
         <?xml version="1.0" encoding="UTF-8"?>
         <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
         <plist version="1.0">
@@ -173,7 +173,7 @@ final class AppBundleLoaderTests: TuistUnitTestCase {
             <string>18.2</string>
         </dict>
         </plist>
-        """, path: infoPlistPath, atomically: true)
+        """, at: infoPlistPath)
 
         // When
         let appBundle = try await subject.load(appBundlePath)
@@ -206,7 +206,7 @@ final class AppBundleLoaderTests: TuistUnitTestCase {
         // Given
         let appBundlePath = try temporaryPath()
         let infoPlistPath = appBundlePath.appending(component: "Info.plist")
-        try fileHandler.write("""
+        try await fileSystem.writeText("""
         <?xml version="1.0" encoding="UTF-8"?>
         <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
         <plist version="1.0">
@@ -239,7 +239,7 @@ final class AppBundleLoaderTests: TuistUnitTestCase {
             <string>18.2</string>
         </dict>
         </plist>
-        """, path: infoPlistPath, atomically: true)
+        """, at: infoPlistPath)
 
         // When
         let appBundle = try await subject.load(appBundlePath)
@@ -268,6 +268,59 @@ final class AppBundleLoaderTests: TuistUnitTestCase {
         )
     }
 
+    func test_load_macos_app_bundle() async throws {
+        // Given
+        let appBundlePath = try temporaryPath().appending(component: "App.app")
+        let contentsPath = appBundlePath.appending(component: "Contents")
+        try await fileSystem.makeDirectory(at: contentsPath)
+        let infoPlistPath = contentsPath.appending(component: "Info.plist")
+        try await fileSystem.writeText("""
+        <?xml version="1.0" encoding="UTF-8"?>
+        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+        <plist version="1.0">
+        <dict>
+            <key>CFBundleIdentifier</key>
+            <string>io.tuist.MacApp</string>
+            <key>CFBundleName</key>
+            <string>MacApp</string>
+            <key>CFBundleExecutable</key>
+            <string>MacApp</string>
+            <key>CFBundleShortVersionString</key>
+            <string>1.0</string>
+            <key>CFBundleVersion</key>
+            <string>1</string>
+            <key>CFBundleSupportedPlatforms</key>
+            <array>
+                <string>MacOSX</string>
+            </array>
+            <key>LSMinimumSystemVersion</key>
+            <string>14.0</string>
+        </dict>
+        </plist>
+        """, at: infoPlistPath)
+
+        // When
+        let appBundle = try await subject.load(appBundlePath)
+
+        // Then
+        XCTAssertBetterEqual(
+            appBundle,
+            AppBundle(
+                path: appBundlePath,
+                infoPlist: AppBundle.InfoPlist(
+                    version: "1.0",
+                    buildVersion: "1",
+                    name: "MacApp",
+                    executableName: "MacApp",
+                    bundleId: "io.tuist.MacApp",
+                    minimumOSVersion: Version("14.0"),
+                    supportedPlatforms: [.device(.macOS)],
+                    bundleIcons: nil
+                )
+            )
+        )
+    }
+
     func test_load_app_bundle_when_info_plist_is_missing_does_not_exist() async throws {
         // Given
         let appBundlePath = try temporaryPath()
@@ -283,7 +336,7 @@ final class AppBundleLoaderTests: TuistUnitTestCase {
         // Given
         let appBundlePath = try temporaryPath()
         let infoPlistPath = appBundlePath.appending(component: "Info.plist")
-        try fileHandler.write("{}", path: infoPlistPath, atomically: true)
+        try await fileSystem.writeText("{}", at: infoPlistPath)
 
         // When / Then
         await XCTAssertThrowsSpecific(

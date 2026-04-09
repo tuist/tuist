@@ -10,6 +10,7 @@ defmodule TuistWeb.Router do
 
   alias TuistWeb.Marketing.Localization
   alias TuistWeb.Marketing.MarketingController
+  alias TuistWeb.Plugs.LocalePlug
   alias TuistWeb.Plugs.ObservabilityContextPlug
   alias TuistWeb.Plugs.SentryContextPlug
   alias TuistWeb.Plugs.UeberauthHostPlug
@@ -28,7 +29,7 @@ defmodule TuistWeb.Router do
     [
       frame_ancestors: "'self'",
       img_src:
-        "'self' data: https://github.com https://*.githubusercontent.com https://*.gravatar.com https://*.s3.amazonaws.com #{s3_endpoint}",
+        "'self' data: https://github.com https://*.githubusercontent.com https://*.gravatar.com https://*.s3.amazonaws.com https://videos.tuist.dev https://developer.apple.com https://tuist.dev https://*.tuist.dev #{s3_endpoint}",
       media_src: "'self' https://*.mastodon.social https://hachyderm.io https://fosstodon.org #{s3_endpoint}",
       style_src:
         "'self' 'unsafe-inline' https://fonts.googleapis.com https://chat.cdn-plain.com https://cdn.jsdelivr.net https://rsms.me",
@@ -41,7 +42,8 @@ defmodule TuistWeb.Router do
       font_src:
         "'self' https://fonts.gstatic.com https://chat.cdn-plain.com data: https://fonts.scalar.com https://rsms.me",
       frame_src: "'self' https://chat.cdn-plain.com https://*.tuist.dev https://newassets.hcaptcha.com",
-      connect_src: "'self' https://chat.cdn-plain.com https://chat.uk.plain.com https://*.posthog.com #{s3_endpoint}"
+      connect_src:
+        "'self' https://chat.cdn-plain.com https://chat.uk.plain.com https://*.posthog.com https://search.tuist.dev #{s3_endpoint}"
     ]
   end
 
@@ -49,6 +51,7 @@ defmodule TuistWeb.Router do
     plug :accepts, ["html"]
     plug :disable_robot_indexing
     plug :fetch_session
+    plug LocalePlug
     plug TuistWeb.Plugs.TimezonePlug
     plug :fetch_live_flash
     plug :put_root_layout, html: {TuistWeb.Layouts, :app}
@@ -78,6 +81,7 @@ defmodule TuistWeb.Router do
     plug :accepts, ["html"]
     plug :disable_robot_indexing
     plug :fetch_session
+    plug LocalePlug
     plug :fetch_live_flash
     plug :protect_from_forgery
     plug :put_secure_browser_headers
@@ -91,6 +95,7 @@ defmodule TuistWeb.Router do
     plug :accepts, ["html"]
     plug :disable_robot_indexing
     plug :fetch_session
+    plug LocalePlug
     plug :fetch_live_flash
     plug :put_root_layout, html: {TuistWeb.Layouts, :app}
     plug :put_secure_browser_headers
@@ -121,6 +126,21 @@ defmodule TuistWeb.Router do
     plug TuistWeb.OnPremisePlug, :forward_marketing_to_dashboard
     plug Localization, :redirect_to_localized_route
     plug Localization, :put_locale
+  end
+
+  pipeline :browser_docs do
+    plug :accepts, ["html"]
+    plug :enable_robot_indexing
+    plug :fetch_session
+    plug :fetch_live_flash
+    plug :put_root_layout, html: {TuistWeb.Docs.Layouts, :root}
+    plug :protect_from_forgery
+    plug :put_secure_browser_headers
+    plug SentryContextPlug
+    plug :content_security_policy
+    plug TuistWeb.OnPremisePlug, :forward_marketing_to_dashboard
+    plug Localization, :put_locale
+    plug :fetch_current_user
   end
 
   pipeline :browser_marketing_feed do
@@ -207,6 +227,11 @@ defmodule TuistWeb.Router do
              metadata: %{type: :marketing},
              private: private
 
+        live Path.join(locale_path_prefix, "/changelog/:id"),
+             TuistWeb.Marketing.MarketingChangelogEntryLive,
+             metadata: %{type: :marketing},
+             private: private
+
         live Path.join(locale_path_prefix, "/customers"),
              TuistWeb.Marketing.MarketingCustomersLive,
              metadata: %{type: :marketing},
@@ -241,6 +266,11 @@ defmodule TuistWeb.Router do
              TuistWeb.Marketing.MarketingPreviewsLive,
              metadata: %{type: :marketing},
              private: private
+
+        live Path.join(locale_path_prefix, "/blog/:year/:month/:day/:slug"),
+             TuistWeb.Marketing.MarketingBlogPostLive,
+             metadata: %{type: :marketing},
+             private: private
       end
 
       get locale_path_prefix, MarketingController, :home,
@@ -256,12 +286,6 @@ defmodule TuistWeb.Router do
       get Path.join(locale_path_prefix, "/blog/:year/:month/:day/:slug/iframe.html"),
           TuistWeb.Marketing.MarketingBlogIframeController,
           :show,
-          metadata: %{type: :marketing},
-          private: private
-
-      get Path.join(locale_path_prefix, "/blog/:year/:month/:day/:slug"),
-          MarketingController,
-          :blog_post,
           metadata: %{type: :marketing},
           private: private
 
@@ -310,6 +334,26 @@ defmodule TuistWeb.Router do
           :newsletter_issue,
           metadata: %{type: :marketing},
           private: private
+    end
+  end
+
+  scope "/", TuistWeb do
+    pipe_through [:open_api, :browser_docs]
+
+    get "/docs", DocsRedirectController, :show, metadata: %{type: :docs}
+    get "/docs/login", UserSessionController, :new, metadata: %{type: :docs}
+    get "/docs/:locale", DocsRedirectController, :show, metadata: %{type: :docs}
+    get "/docs/:locale/*path", DocsRedirectController, :show, metadata: %{type: :docs}
+    get "/:locale/docs-markdown/*path", DocsMarkdownController, :show, metadata: %{type: :docs}
+
+    for locale <- ["en"] ++ Localization.additional_locales() do
+      private = %{locale: locale}
+
+      live_session String.to_atom("docs_#{locale}"),
+        on_mount: [{TuistWeb.Authentication, :mount_current_user}, Localization] do
+        live "/#{locale}/docs", DocsLive, :overview, metadata: %{type: :docs}, private: private
+        live "/#{locale}/docs/*path", DocsLive, :show, metadata: %{type: :docs}, private: private
+      end
     end
   end
 
@@ -433,11 +477,20 @@ defmodule TuistWeb.Router do
 
           get "/:test_run_id/modules", TestModuleRunsController, :index
           get "/:test_run_id/suites", TestSuiteRunsController, :index
+          get "/:test_run_id/targets", SelectiveTestingTargetsController, :index
           get "/:test_run_id", TestsController, :show
           get "/:test_run_id/test-case-runs", TestCaseRunsController, :index_by_test_run
           post "/", TestsController, :create
           post "/crash-reports", CrashReportsController, :create
           post "/attachments", TestCaseRunAttachmentsController, :create
+
+          scope "/shards" do
+            post "/", ShardsController, :create
+            post "/upload/start", ShardsController, :start_upload
+            post "/upload/generate-url", ShardsController, :generate_url
+            post "/upload/complete", ShardsController, :complete
+            get "/:reference/:shard_index", ShardsController, :show
+          end
         end
 
         scope "/builds" do
@@ -643,7 +696,10 @@ defmodule TuistWeb.Router do
     pipe_through [:browser_app, :require_authenticated_user, :analytics]
 
     live_session :require_authenticated_user,
-      on_mount: [{TuistWeb.Authentication, :ensure_authenticated}] do
+      on_mount: [
+        {TuistWeb.Authentication, :ensure_authenticated},
+        {TuistWeb.Locale, :assign_locale}
+      ] do
       get "/dashboard", DashboardController, :dashboard
       live "/organizations/new", CreateOrganizationLive, :new
       live "/projects/new", CreateProjectLive, :new
@@ -779,7 +835,11 @@ defmodule TuistWeb.Router do
 
     live_session :account,
       layout: {TuistWeb.Layouts, :account},
-      on_mount: [{TuistWeb.Authentication, :ensure_authenticated}, {TuistWeb.LayoutLive, :account}] do
+      on_mount: [
+        {TuistWeb.Authentication, :ensure_authenticated},
+        {TuistWeb.Locale, :assign_locale},
+        {TuistWeb.LayoutLive, :account}
+      ] do
       live "/", ProjectsLive
       live "/projects", ProjectsLive
       live "/members", MembersLive
@@ -804,8 +864,9 @@ defmodule TuistWeb.Router do
     live_session :project,
       layout: {TuistWeb.Layouts, :project},
       on_mount: [
-        {TuistWeb.LayoutLive, :project},
-        {TuistWeb.Authentication, :mount_current_user}
+        {TuistWeb.Authentication, :mount_current_user},
+        {TuistWeb.Locale, :assign_locale},
+        {TuistWeb.LayoutLive, :project}
       ] do
       live "/tests", TestsLive
       live "/tests/test-runs", TestRunsLive
@@ -815,6 +876,7 @@ defmodule TuistWeb.Router do
       live "/tests/test-cases/runs/:test_case_run_id", TestCaseRunLive
       live "/tests/flaky-tests", FlakyTestsLive
       live "/tests/quarantined-tests", QuarantinedTestsLive
+      live "/tests/shards", ShardsLive
       live "/module-cache", ModuleCacheLive
       live "/module-cache/cache-runs", CacheRunsLive
       live "/module-cache/generate-runs", GenerateRunsLive

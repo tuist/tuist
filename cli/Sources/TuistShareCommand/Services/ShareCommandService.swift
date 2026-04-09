@@ -67,7 +67,6 @@ struct ShareCommandService {
     private let gitController: GitControlling
 
     #if os(macOS)
-        private let fileHandler: FileHandling
         private let xcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectoryLocating
         private let buildGraphInspector: BuildGraphInspecting
         private let manifestLoader: ManifestLoading
@@ -94,7 +93,6 @@ struct ShareCommandService {
                 apkMetadataService: APKMetadataService(),
                 fileArchiverFactory: FileArchivingFactory(),
                 gitController: GitController(),
-                fileHandler: FileHandler.shared,
                 xcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectoryLocator(),
                 buildGraphInspector: BuildGraphInspector(),
                 manifestLoader: manifestLoader,
@@ -125,7 +123,6 @@ struct ShareCommandService {
             apkMetadataService: APKMetadataServicing,
             fileArchiverFactory: FileArchivingFactorying,
             gitController: GitControlling,
-            fileHandler: FileHandling,
             xcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectoryLocating,
             buildGraphInspector: BuildGraphInspecting,
             manifestLoader: ManifestLoading,
@@ -141,7 +138,6 @@ struct ShareCommandService {
             self.apkMetadataService = apkMetadataService
             self.fileArchiverFactory = fileArchiverFactory
             self.gitController = gitController
-            self.fileHandler = fileHandler
             self.xcodeProjectBuildDirectoryLocator = xcodeProjectBuildDirectoryLocator
             self.buildGraphInspector = buildGraphInspector
             self.manifestLoader = manifestLoader
@@ -191,12 +187,12 @@ struct ShareCommandService {
                 throw ShareCommandServiceError.fullHandleNotFound
             }
 
-            let derivedDataPath = try derivedDataPath.map {
-                try AbsolutePath(
-                    validating: $0,
-                    relativeTo: fileHandler.currentPath
-                )
-            }
+            let derivedDataPath: AbsolutePath? = try await {
+                if let derivedDataPath {
+                    return try await Environment.current.pathRelativeToWorkingDirectory(derivedDataPath)
+                }
+                return nil
+            }()
 
             let appPaths = try await apps.concurrentMap {
                 try AbsolutePath(
@@ -502,7 +498,7 @@ struct ShareCommandService {
             json: Bool,
             track: String?
         ) async throws {
-            try await fileHandler.inTemporaryDirectory { temporaryPath in
+            try await fileSystem.runInTemporaryDirectory(prefix: "share") { temporaryPath in
                 let appPaths =
                     try await platforms
                         .concurrentFlatMap { platform -> [DestinationType] in

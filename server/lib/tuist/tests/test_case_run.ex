@@ -23,7 +23,10 @@ defmodule Tuist.Tests.TestCaseRun do
       :duration,
       :is_ci,
       :account_id,
-      :scheme
+      :scheme,
+      :git_branch,
+      :shard_id,
+      :shard_index
     ],
     sortable: [:inserted_at, :duration, :name, :ran_at]
   }
@@ -45,10 +48,13 @@ defmodule Tuist.Tests.TestCaseRun do
     field :status, Ch, type: "Enum8('success' = 0, 'failure' = 1, 'skipped' = 2)"
     field :is_flaky, :boolean, default: false
     field :is_new, :boolean, default: false
+    field :is_quarantined, :boolean, default: false
     field :duration, Ch, type: "Int32"
     field :inserted_at, Ch, type: "DateTime64(6)"
     field :module_name, Ch, type: "String"
     field :suite_name, Ch, type: "String"
+    field :shard_id, Ch, type: "Nullable(UUID)"
+    field :shard_index, Ch, type: "Nullable(Int32)"
 
     belongs_to :ran_by_account, Tuist.Accounts.Account, foreign_key: :account_id, define_field: false
 
@@ -77,10 +83,13 @@ defmodule Tuist.Tests.TestCaseRun do
       :status,
       :is_flaky,
       :is_new,
+      :is_quarantined,
       :duration,
       :inserted_at,
       :module_name,
-      :suite_name
+      :suite_name,
+      :shard_id,
+      :shard_index
     ])
     |> validate_required([
       :id,

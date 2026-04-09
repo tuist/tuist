@@ -10,9 +10,12 @@ This file provides guidance to AI agents when working with code in this reposito
 - `app/` - Tuist iOS and macOS app - see `app/AGENTS.md`
 - `android/` - Tuist Android app (Kotlin/Compose) - see `android/AGENTS.md`
 - `handbook/` - Company handbook (VitePress) - see `handbook/AGENTS.md`
-- `docs/` - Documentation and guides - see `docs/AGENTS.md`
 - `noora/` - Noora design system (Elixir/Phoenix web components) - see `noora/AGENTS.md`
+- `mise/tasks/registry/` - Operational scripts for Swift package registry management (purge, sync)
 - `skills/` - Agent Skills (published to [tuist/agent-skills](https://github.com/tuist/agent-skills))
+- `processor/` - Build processor service (Elixir/Phoenix + Swift NIF) - see `processor/AGENTS.md`
+- `xcode_processor/` - Xcode processor service for xcresult processing (Elixir/Phoenix + Swift NIF, macOS) - see `xcode_processor/AGENTS.md`
+- `search/` - Search infrastructure (TypeSense) - see `search/AGENTS.md`
 - `infra/` - Infrastructure and deployment assets - see `infra/AGENTS.md`
 
 ## Global Guardrails
@@ -33,6 +36,7 @@ When creating commits and pull requests, use these conventional commit scopes:
 - `cli` - Changes to the Tuist CLI (Swift)
 - `noora` - Changes to the Noora web component library
 - `skills` - Changes to the Agent Skills package
+- `search` - Changes to the search infrastructure (TypeSense)
 - `docs` - Changes to documentation
 - `handbook` - Changes to the handbook/guides
 

@@ -2,22 +2,18 @@ import CryptoKit
 import FileSystem
 import Foundation
 import Path
-import TuistSupport
 
 /// `ContentHasher`
 /// is the single source of truth for hashing content.
 /// It uses md5 checksum to uniquely hash strings and data
 /// Consider using CacheContentHasher to avoid computing the same hash twice
 public struct ContentHasher: ContentHashing {
-    private let fileHandler: FileHandling
     private let fileSystem: FileSysteming
     private let filesFilter = HashingFilesFilter()
 
     public init(
-        fileHandler: FileHandling = FileHandler.shared,
         fileSystem: FileSysteming = FileSystem()
     ) {
-        self.fileHandler = fileHandler
         self.fileSystem = fileSystem
     }
 
@@ -73,7 +69,7 @@ public struct ContentHasher: ContentHashing {
         }
 
         guard try await fileSystem.exists(filePath) else {
-            throw FileHandlerError.fileNotFound(filePath)
+            throw ContentHashingError.fileHashingFailed(filePath)
         }
         guard let sourceData = try? await fileSystem.readFile(at: filePath) else {
             throw ContentHashingError.failedToReadFile(filePath)

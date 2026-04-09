@@ -12,10 +12,8 @@ public struct XCActivityTarget: Equatable, Hashable {
     public let compilationDuration: Int
     /// The status of the build.
     public let status: XCActivityBuildStatus
-}
 
-#if DEBUG
-    extension XCActivityTarget {
+    #if DEBUG
         public static func test(
             name: String = "Target",
             project: String = "Project",
@@ -31,5 +29,5 @@ public struct XCActivityTarget: Equatable, Hashable {
                 status: status
             )
         }
-    }
-#endif
+    #endif
+}

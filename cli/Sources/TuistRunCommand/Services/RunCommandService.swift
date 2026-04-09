@@ -81,15 +81,13 @@ enum RunCommandServiceError: LocalizedError, Equatable {
     }
 }
 
-enum DestinationDevice: Equatable {
+enum DestinationDevice: Equatable, CustomStringConvertible {
     case android(AndroidDevice)
     #if os(macOS)
         case simulator(SimulatorDeviceAndRuntime)
         case physical(PhysicalDevice)
     #endif
-}
 
-extension DestinationDevice {
     var isReady: Bool {
         switch self {
         case .android:
@@ -102,9 +100,7 @@ extension DestinationDevice {
         #endif
         }
     }
-}
 
-extension DestinationDevice: CustomStringConvertible {
     var description: String {
         switch self {
         case let .android(device):
@@ -477,7 +473,7 @@ struct RunCommandService {
             let archivePath = try await remoteArtifactDownloader.download(url: buildURL)
             guard let archivePath else { throw RunCommandServiceError.appNotFound(previewLink.absoluteString) }
 
-            let unarchivedDirectory = try fileArchiverFactory.makeFileUnarchiver(for: archivePath).unzip()
+            let unarchivedDirectory = try await fileArchiverFactory.makeFileUnarchiver(for: archivePath).unzip()
             try await fileSystem.remove(archivePath)
 
             guard let apkPath = try await fileSystem.glob(directory: unarchivedDirectory, include: ["**/*.apk"])
@@ -565,7 +561,7 @@ struct RunCommandService {
             }
             guard let archivePath else { throw RunCommandServiceError.appNotFound(previewLink.absoluteString) }
 
-            let unarchivedDirectory = try fileArchiverFactory.makeFileUnarchiver(for: archivePath).unzip()
+            let unarchivedDirectory = try await fileArchiverFactory.makeFileUnarchiver(for: archivePath).unzip()
             try await fileSystem.remove(archivePath)
 
             guard let appBundlePath = try await

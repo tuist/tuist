@@ -1,3 +1,4 @@
+import FileSystem
 import Path
 import TuistSupport
 import XCTest
@@ -63,7 +64,7 @@ final class BundleLoaderTests: TuistUnitTestCase {
         let path = try temporaryPath()
         let bundlePath = path.appending(component: "tuist.bundle")
 
-        try FileHandler.shared.touch(bundlePath)
+        try await FileSystem().touch(bundlePath)
 
         // When
         let got = try await subject.load(path: bundlePath)

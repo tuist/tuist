@@ -52,14 +52,18 @@ public struct TargetScriptsContentHasher: TargetScriptsContentHashing {
             stringsToHash.append(contentsOf: try await pathsToHash.concurrentMap {
                 do {
                     return try await contentHasher.hash(path: $0)
-                } catch FileHandlerError.fileNotFound {
+                } catch ContentHashingError.fileHashingFailed {
                     return $0.relative(to: sourceRootPath).pathString
                 }
-            })
+            }.sorted())
             stringsToHash.append(
                 contentsOf: resolvePathStrings(script.outputPaths + script.outputFileListPaths, sourceRootPath: sourceRootPath)
                     .map { $0.relative(to: sourceRootPath).pathString }
             )
+
+            if let embeddedScript = script.embeddedScript {
+                stringsToHash.append(embeddedScript)
+            }
 
             stringsToHash.append(contentsOf: [
                 script.name,

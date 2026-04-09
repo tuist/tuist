@@ -14,7 +14,7 @@ Noora is a Phoenix LiveView component library published to hex.pm. It provides r
 
 ## Development Commands
 
-- `mise run noora:build` - Compile Elixir and build JS assets
+- `mise run noora:build` - Install JS dependencies, build JS/CSS assets, and compile Elixir
 - `mise run noora:test` - Run vitest JS tests
 - `mise run noora:lint` - Check formatting (Elixir + Prettier)
 - `mise run noora:lint --fix` - Auto-fix formatting

@@ -108,6 +108,7 @@ export default {
       closeOnSelect: getBooleanOption(this.el, "closeOnSelect"),
       typeahead: getBooleanOption(this.el, "typeahead"),
       positioning: {
+        placement: getOption(this.el, "positioningPlacement") || "bottom-start",
         offset: { mainAxis: getOption(this.el, "positioningOffsetMainAxis") },
       },
       onOpenChange: (details) => {
@@ -152,6 +153,8 @@ export default {
     this.menu = new Menu(this.el, this.context);
     this.menu.init();
 
+    this.setupSearch();
+
     this.handleOpenDropdown = (event) => {
       if (event.detail.id == this.el.id) {
         this.menu.api.setOpen(true);
@@ -164,6 +167,46 @@ export default {
     };
     window.addEventListener("phx:open-dropdown", this.handleOpenDropdown);
     window.addEventListener("phx:close-dropdown", this.handleCloseDropdown);
+  },
+
+  setupSearch() {
+    const searchInput = this.el.querySelector('[data-part="search-input"]');
+    if (!searchInput) return;
+
+    searchInput.addEventListener("input", () => {
+      const query = searchInput.value.toLowerCase();
+      const content = this.el.querySelector('[data-part="content"]');
+      if (!content) return;
+
+      let visibleCount = 0;
+      for (const item of content.querySelectorAll('[data-part="item"]')) {
+        const label = (
+          item.dataset.label ||
+          item.textContent ||
+          ""
+        ).toLowerCase();
+        const visible = label.includes(query);
+        item.style.display = visible ? "" : "none";
+        if (visible) visibleCount++;
+      }
+
+      let emptyState = content.querySelector('[data-part="search-empty"]');
+      if (visibleCount === 0) {
+        if (!emptyState) {
+          emptyState = document.createElement("span");
+          emptyState.setAttribute("data-part", "search-empty");
+          emptyState.textContent = "No results";
+          content.querySelector('[data-part="items"]')?.appendChild(emptyState);
+        }
+        emptyState.style.display = "";
+      } else if (emptyState) {
+        emptyState.style.display = "none";
+      }
+    });
+
+    searchInput.addEventListener("keydown", (e) => {
+      e.stopPropagation();
+    });
   },
 
   updated() {

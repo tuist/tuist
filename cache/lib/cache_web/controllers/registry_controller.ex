@@ -10,6 +10,7 @@ defmodule CacheWeb.RegistryController do
   alias Cache.Registry.RepositoryURL
   alias Cache.S3
   alias Cache.S3Transfers
+  alias CacheWeb.API.Schemas.SafePathComponent
 
   plug :ensure_registry_enabled
 
@@ -34,12 +35,15 @@ defmodule CacheWeb.RegistryController do
   def identifiers(conn, %{"url" => repository_url}) do
     with {:ok, :github} <- provider_from_repository_url(repository_url),
          {:ok, full_handle} <- repository_full_handle_from_url(repository_url),
-         %{scope: scope, name: name} <- scope_name_from_full_handle(full_handle),
+         {:ok, %{scope: scope, name: name}} <- scope_name_from_full_handle(full_handle),
          {:ok, _metadata} <- Metadata.get_package(scope, name) do
       conn
       |> put_resp_header("content-version", "1")
       |> json(%{identifiers: ["#{scope}.#{name}"]})
     else
+      {:error, :invalid_path_params} ->
+        invalid_path_params_response(conn)
+
       {:error, :invalid_repository_url} ->
         conn
         |> put_resp_header("content-version", "1")
@@ -74,37 +78,106 @@ defmodule CacheWeb.RegistryController do
   end
 
   def list_releases(conn, %{"scope" => scope, "name" => name}) do
-    {scope, name} = KeyNormalizer.normalize_scope_name(scope, name)
+    case normalize_registry_scope_name(scope, name) do
+      {:ok, {scope, name}} ->
+        case Metadata.get_package(scope, name) do
+          {:ok, metadata} ->
+            releases =
+              Map.new(metadata["releases"] || %{}, fn {version, _release_data} ->
+                {version, %{url: "/api/registry/swift/#{scope}/#{name}/#{version}"}}
+              end)
 
-    case Metadata.get_package(scope, name) do
-      {:ok, metadata} ->
-        releases =
-          Map.new(metadata["releases"] || %{}, fn {version, _release_data} ->
-            {version, %{url: "/api/registry/swift/#{scope}/#{name}/#{version}"}}
-          end)
+            conn
+            |> put_resp_header("content-version", "1")
+            |> put_status(:ok)
+            |> json(%{releases: releases})
 
-        conn
-        |> put_resp_header("content-version", "1")
-        |> put_status(:ok)
-        |> json(%{releases: releases})
+          {:error, :not_found} ->
+            conn
+            |> put_resp_header("content-version", "1")
+            |> put_status(:not_found)
+            |> json(%{message: "The package #{scope}/#{name} was not found in the registry."})
 
-      {:error, :not_found} ->
-        conn
-        |> put_resp_header("content-version", "1")
-        |> put_status(:not_found)
-        |> json(%{message: "The package #{scope}/#{name} was not found in the registry."})
+          {:error, {:s3_error, _reason}} ->
+            conn
+            |> put_resp_header("content-version", "1")
+            |> put_status(:service_unavailable)
+            |> json(%{message: "Registry is temporarily unavailable. Please try again later."})
+        end
 
-      {:error, {:s3_error, _reason}} ->
-        conn
-        |> put_resp_header("content-version", "1")
-        |> put_status(:service_unavailable)
-        |> json(%{message: "Registry is temporarily unavailable. Please try again later."})
+      {:error, :invalid_path_params} ->
+        invalid_path_params_response(conn)
     end
   end
 
   def show_release(conn, %{"scope" => scope, "name" => name, "version" => version}) do
-    {scope, name} = KeyNormalizer.normalize_scope_name(scope, name)
+    case normalize_registry_scope_name(scope, name) do
+      {:ok, {scope, name}} ->
+        do_show_release(conn, scope, name, version)
 
+      {:error, :invalid_path_params} ->
+        invalid_path_params_response(conn)
+    end
+  end
+
+  def download_archive(conn, %{"scope" => scope, "name" => name, "version" => version}) do
+    case normalize_registry_scope_name_version(scope, name, version) do
+      {:ok, {scope, name, normalized_version}} ->
+        do_download_archive(conn, scope, name, normalized_version)
+
+      {:error, :invalid_path_params} ->
+        invalid_path_params_response(conn)
+    end
+  end
+
+  def show_manifest(conn, %{"scope" => scope, "name" => name, "version" => version}) do
+    case normalize_registry_scope_name_version(scope, name, version) do
+      {:ok, {scope, name, normalized_version}} ->
+        swift_version = conn.query_params["swift-version"]
+
+        swift_version
+        |> manifest_candidates()
+        |> Enum.reduce_while(:not_found, fn filename, _acc ->
+          key =
+            KeyNormalizer.package_object_key(%{scope: scope, name: name}, version: normalized_version, path: filename)
+
+          cond do
+            Registry.Disk.exists?(scope, name, normalized_version, filename) ->
+              {:halt,
+               {:served, serve_manifest_from_disk(conn, scope, name, normalized_version, filename, swift_version, key)}}
+
+            S3.exists?(key, type: :registry) ->
+              {:halt,
+               {:served, serve_manifest_from_s3(conn, scope, name, normalized_version, filename, swift_version, key)}}
+
+            true ->
+              {:cont, :not_found}
+          end
+        end)
+        |> case do
+          {:served, conn} ->
+            conn
+
+          :not_found ->
+            if is_nil(swift_version) do
+              conn
+              |> put_resp_header("content-version", "1")
+              |> put_status(:not_found)
+              |> json(%{})
+            else
+              conn
+              |> put_resp_header("content-version", "1")
+              |> put_status(303)
+              |> redirect(to: "/api/registry/swift/#{scope}/#{name}/#{normalized_version}/Package.swift")
+            end
+        end
+
+      {:error, :invalid_path_params} ->
+        invalid_path_params_response(conn)
+    end
+  end
+
+  defp do_show_release(conn, scope, name, version) do
     if String.ends_with?(version, ".zip") do
       download_archive(conn, %{
         "scope" => scope,
@@ -112,53 +185,51 @@ defmodule CacheWeb.RegistryController do
         "version" => String.trim_trailing(version, ".zip")
       })
     else
-      case Metadata.get_package(scope, name) do
-        {:ok, metadata} ->
-          normalized_version = KeyNormalizer.normalize_version(version)
-          releases = metadata["releases"] || %{}
-
-          case Map.get(releases, normalized_version) do
-            nil ->
-              conn
-              |> put_resp_header("content-version", "1")
-              |> put_status(:not_found)
-              |> json(%{})
-
-            release_data ->
-              conn
-              |> put_resp_header("content-version", "1")
-              |> json(%{
-                id: "#{scope}.#{name}",
-                version: normalized_version,
-                resources: [
-                  %{
-                    name: "source-archive",
-                    type: "application/zip",
-                    checksum: release_data["checksum"]
-                  }
-                ]
-              })
-          end
-
-        {:error, :not_found} ->
-          conn
-          |> put_resp_header("content-version", "1")
-          |> put_status(:not_found)
-          |> json(%{message: "The package #{scope}/#{name} was not found in the registry."})
-
-        {:error, {:s3_error, _reason}} ->
-          conn
-          |> put_resp_header("content-version", "1")
-          |> put_status(:service_unavailable)
-          |> json(%{message: "Registry is temporarily unavailable. Please try again later."})
-      end
+      render_release_metadata(conn, scope, name, version)
     end
   end
 
-  def download_archive(conn, %{"scope" => scope, "name" => name, "version" => version}) do
-    {scope, name} = KeyNormalizer.normalize_scope_name(scope, name)
-    normalized_version = KeyNormalizer.normalize_version(version)
+  defp render_release_metadata(conn, scope, name, version) do
+    with {:ok, normalized_version} <- normalize_registry_version(version),
+         {:ok, metadata} <- Metadata.get_package(scope, name) do
+      render_release_response(conn, scope, name, normalized_version, metadata)
+    else
+      {:error, :invalid_path_params} ->
+        invalid_path_params_response(conn)
 
+      {:error, :not_found} ->
+        package_not_found_response(conn, scope, name)
+
+      {:error, {:s3_error, _reason}} ->
+        service_unavailable_response(conn)
+    end
+  end
+
+  defp render_release_response(conn, scope, name, normalized_version, metadata) do
+    releases = metadata["releases"] || %{}
+
+    case Map.get(releases, normalized_version) do
+      nil ->
+        registry_not_found_response(conn)
+
+      release_data ->
+        conn
+        |> put_resp_header("content-version", "1")
+        |> json(%{
+          id: "#{scope}.#{name}",
+          version: normalized_version,
+          resources: [
+            %{
+              name: "source-archive",
+              type: "application/zip",
+              checksum: release_data["checksum"]
+            }
+          ]
+        })
+    end
+  end
+
+  defp do_download_archive(conn, scope, name, normalized_version) do
     key =
       KeyNormalizer.package_object_key(%{scope: scope, name: name},
         version: normalized_version,
@@ -166,100 +237,55 @@ defmodule CacheWeb.RegistryController do
       )
 
     if Registry.Disk.exists?(scope, name, normalized_version, "source_archive.zip") do
-      :ok = CacheArtifacts.track_artifact_access(key)
-
-      if Config.analytics_enabled?() do
-        EventsPipeline.async_push(%{
-          scope: scope,
-          name: name,
-          version: normalized_version
-        })
-      end
-
-      local_path = Registry.Disk.local_accel_path(scope, name, normalized_version, "source_archive.zip")
-
-      conn
-      |> put_resp_header("content-version", "1")
-      |> put_resp_header("x-accel-redirect", local_path)
-      |> put_resp_content_type("application/zip")
-      |> put_resp_header("content-disposition", "attachment; filename=\"#{name}-#{normalized_version}.zip\"")
-      |> send_resp(:ok, "")
+      track_registry_download(scope, name, normalized_version, key)
+      render_local_archive(conn, scope, name, normalized_version)
     else
-      if S3.exists?(key, type: :registry) do
-        S3Transfers.enqueue_registry_download(key)
-        :ok = CacheArtifacts.track_artifact_access(key)
-
-        if Config.analytics_enabled?() do
-          EventsPipeline.async_push(%{
-            scope: scope,
-            name: name,
-            version: normalized_version
-          })
-        end
-
-        case S3.presign_download_url(key, type: :registry) do
-          {:ok, url} ->
-            conn
-            |> put_resp_header("content-version", "1")
-            |> put_resp_header("x-accel-redirect", S3.remote_accel_path(url))
-            |> put_resp_content_type("application/zip")
-            |> put_resp_header("content-disposition", "attachment; filename=\"#{name}-#{normalized_version}.zip\"")
-            |> send_resp(:ok, "")
-
-          {:error, _reason} ->
-            conn
-            |> put_resp_header("content-version", "1")
-            |> put_status(:not_found)
-            |> json(%{})
-        end
-      else
-        conn
-        |> put_resp_header("content-version", "1")
-        |> put_status(:not_found)
-        |> json(%{})
-      end
+      render_remote_archive(conn, scope, name, normalized_version, key)
     end
   end
 
-  def show_manifest(conn, %{"scope" => scope, "name" => name, "version" => version}) do
-    {scope, name} = KeyNormalizer.normalize_scope_name(scope, name)
-    normalized_version = KeyNormalizer.normalize_version(version)
-    swift_version = conn.query_params["swift-version"]
+  defp render_local_archive(conn, scope, name, normalized_version) do
+    local_path = Registry.Disk.local_accel_path(scope, name, normalized_version, "source_archive.zip")
 
-    swift_version
-    |> manifest_candidates()
-    |> Enum.reduce_while(:not_found, fn filename, _acc ->
-      key = KeyNormalizer.package_object_key(%{scope: scope, name: name}, version: normalized_version, path: filename)
+    conn
+    |> put_resp_header("content-version", "1")
+    |> put_resp_header("x-accel-redirect", local_path)
+    |> put_resp_content_type("application/zip")
+    |> put_resp_header("content-disposition", "attachment; filename=\"#{name}-#{normalized_version}.zip\"")
+    |> send_resp(:ok, "")
+  end
 
-      cond do
-        Registry.Disk.exists?(scope, name, normalized_version, filename) ->
-          {:halt,
-           {:served, serve_manifest_from_disk(conn, scope, name, normalized_version, filename, swift_version, key)}}
+  defp render_remote_archive(conn, scope, name, normalized_version, key) do
+    if S3.exists?(key, type: :registry) do
+      S3Transfers.enqueue_registry_download(key)
+      track_registry_download(scope, name, normalized_version, key)
 
-        S3.exists?(key, type: :registry) ->
-          {:halt,
-           {:served, serve_manifest_from_s3(conn, scope, name, normalized_version, filename, swift_version, key)}}
+      case S3.presign_download_url(key, type: :registry) do
+        {:ok, url} ->
+          conn
+          |> put_resp_header("content-version", "1")
+          |> put_resp_header("x-accel-redirect", S3.remote_accel_path(url))
+          |> put_resp_content_type("application/zip")
+          |> put_resp_header("content-disposition", "attachment; filename=\"#{name}-#{normalized_version}.zip\"")
+          |> send_resp(:ok, "")
 
-        true ->
-          {:cont, :not_found}
+        {:error, _reason} ->
+          registry_not_found_response(conn)
       end
-    end)
-    |> case do
-      {:served, conn} ->
-        conn
+    else
+      registry_not_found_response(conn)
+    end
+  end
 
-      :not_found ->
-        if is_nil(swift_version) do
-          conn
-          |> put_resp_header("content-version", "1")
-          |> put_status(:not_found)
-          |> json(%{})
-        else
-          conn
-          |> put_resp_header("content-version", "1")
-          |> put_status(303)
-          |> redirect(to: "/api/registry/swift/#{scope}/#{name}/#{normalized_version}/Package.swift")
-        end
+  defp track_registry_download(scope, name, normalized_version, key) do
+    :ok = CacheArtifacts.track_artifact_access(key)
+
+    if Config.analytics_enabled?() do
+      EventsPipeline.async_push(%{
+        scope: scope,
+        name: name,
+        version: normalized_version
+      })
     end
   end
 
@@ -388,10 +414,66 @@ defmodule CacheWeb.RegistryController do
     RepositoryURL.repository_full_handle_from_url(repository_url)
   end
 
-  defp scope_name_from_full_handle(repository_full_handle) do
-    [scope, name] = String.split(repository_full_handle, "/")
+  defp invalid_path_params_response(conn) do
+    conn
+    |> put_resp_header("content-version", "1")
+    |> put_status(:bad_request)
+    |> json(%{message: "Invalid path parameters."})
+  end
+
+  defp package_not_found_response(conn, scope, name) do
+    conn
+    |> put_resp_header("content-version", "1")
+    |> put_status(:not_found)
+    |> json(%{message: "The package #{scope}/#{name} was not found in the registry."})
+  end
+
+  defp registry_not_found_response(conn) do
+    conn
+    |> put_resp_header("content-version", "1")
+    |> put_status(:not_found)
+    |> json(%{})
+  end
+
+  defp service_unavailable_response(conn) do
+    conn
+    |> put_resp_header("content-version", "1")
+    |> put_status(:service_unavailable)
+    |> json(%{message: "Registry is temporarily unavailable. Please try again later."})
+  end
+
+  defp normalize_registry_scope_name(scope, name) do
     {scope, name} = KeyNormalizer.normalize_scope_name(scope, name)
 
-    %{scope: scope, name: name}
+    if SafePathComponent.valid_all?([scope, name]) do
+      {:ok, {scope, name}}
+    else
+      {:error, :invalid_path_params}
+    end
+  end
+
+  defp normalize_registry_scope_name_version(scope, name, version) do
+    with {:ok, {scope, name}} <- normalize_registry_scope_name(scope, name),
+         {:ok, normalized_version} <- normalize_registry_version(version) do
+      {:ok, {scope, name, normalized_version}}
+    end
+  end
+
+  defp normalize_registry_version(version) do
+    normalized_version = KeyNormalizer.normalize_version(version)
+
+    if SafePathComponent.valid?(normalized_version) do
+      {:ok, normalized_version}
+    else
+      {:error, :invalid_path_params}
+    end
+  end
+
+  defp scope_name_from_full_handle(repository_full_handle) do
+    [scope, name] = String.split(repository_full_handle, "/")
+
+    with {:ok, {scope, name}} <- normalize_registry_scope_name(scope, name) do
+      {:ok, %{scope: scope, name: name}}
+    end
   end
 end

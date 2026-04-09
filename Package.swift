@@ -420,7 +420,7 @@ tuistInspectCommandDependencies.append(contentsOf: [
     "TuistKit", "TuistCore", "TuistLoader", "TuistAutomation",
     "TuistXCActivityLog", "TuistXcodeProjectOrWorkspacePathLocator",
     "TuistXCResultService", "TuistCI", "TuistProcess", "TuistConfig",
-    "TuistRootDirectoryLocator", "TuistMachineMetrics",
+    "TuistRootDirectoryLocator", "TuistMachineMetrics", "TuistCASAnalytics",
     xcodeGraphDependency,
     commandDependency,
 ])
@@ -496,6 +496,7 @@ var targets: [Target] = [
         name: "TuistEnvironmentTesting",
         dependencies: [
             pathDependency,
+            fileSystemDependency,
             "TuistEnvironment",
         ],
         path: "cli/Sources/TuistEnvironmentTesting"
@@ -887,6 +888,7 @@ var targets: [Target] = [
             "TuistCAS",
             "TuistEnvironment",
             "TuistServer",
+            "TuistTesting",
             mockableDependency,
         ],
         path: "cli/Tests/TuistCASTests"
@@ -1083,6 +1085,27 @@ targets.append(contentsOf: [
             .define("MOCKING", .when(configuration: .debug))
         ]
     ),
+    .target(
+        name: "TuistAppleArchiver",
+        dependencies: [
+            mockableDependency,
+            pathDependency,
+        ],
+        path: "cli/Sources/TuistAppleArchiver",
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .testTarget(
+        name: "TuistAppleArchiverTests",
+        dependencies: [
+            "TuistAppleArchiver",
+            fileSystemDependency,
+            .product(name: "FileSystemTesting", package: "tuist.FileSystem"),
+            pathDependency,
+        ],
+        path: "cli/Tests/TuistAppleArchiverTests"
+    ),
     .executableTarget(
         name: "tuistbenchmark",
         dependencies: [
@@ -1147,6 +1170,7 @@ targets.append(contentsOf: [
             .product(name: "Noora", package: "tuist.Noora"),
             .product(name: "OpenAPIRuntime", package: "apple.swift-openapi-runtime"),
             "TuistCAS",
+            "TuistCASAnalytics",
             "TuistProcess",
             "TuistCore",
             "TuistSupport",
@@ -1167,6 +1191,7 @@ targets.append(contentsOf: [
             "TuistXcodeProjectOrWorkspacePathLocator",
             "TuistXCResultService",
             "TuistCI",
+            .target(name: "TuistAppleArchiver", condition: .when(platforms: [.macOS])),
             "TuistLaunchctl",
             "TuistMachineMetrics",
             "ProjectDescription",
@@ -1178,7 +1203,6 @@ targets.append(contentsOf: [
             xcodeGraphMapperDependency,
             anyCodableDependency,
             .product(name: "GRPCNIOTransportHTTP2", package: "grpc.grpc-swift-nio-transport"),
-            .product(name: "MCP", package: "modelcontextprotocol.swift-sdk"),
             .product(name: "SwiftyJSON", package: "swiftyJSON.SwiftyJSON"),
             .product(name: "Rosalind", package: "tuist.Rosalind"),
         ],
@@ -1453,8 +1477,7 @@ targets.append(contentsOf: [
         name: "TuistXCResultService",
         dependencies: [
             "TuistSupport",
-            "TuistXCActivityLog",
-            commandDependency,
+            .product(name: "XCResultParser", package: "XCResultNIF"),
             fileSystemDependency,
             mockableDependency,
             pathDependency,
@@ -1495,10 +1518,10 @@ targets.append(contentsOf: [
     .target(
         name: "TuistCASAnalytics",
         dependencies: [
-            "TuistSupport",
-            fileSystemDependency,
+            "TuistEnvironment",
             pathDependency,
             mockableDependency,
+            .product(name: "CASAnalyticsDatabase", package: "xcactivitylog_nif"),
         ],
         path: "cli/Sources/TuistCASAnalytics",
         exclude: ["AGENTS.md"],
@@ -1683,7 +1706,6 @@ let package = Package(
         .package(id: "chrisaljoudi.swift-log-oslog", .upToNextMajor(from: "0.2.2")),
         .package(id: "MobileNativeFoundation.XCLogParser", .upToNextMajor(from: "0.2.46")),
         .package(path: "processor/native/xcactivitylog_nif"),
-        .package(id: "modelcontextprotocol.swift-sdk", .upToNextMajor(from: "0.9.0")),
         .package(id: "swiftyJSON.SwiftyJSON", .upToNextMajor(from: "5.0.2")),
         .package(id: "tuist.Rosalind", .upToNextMajor(from: "0.7.22")),
         .package(id: "swiftGen.StencilSwiftKit", exact: "2.10.1"),
@@ -1702,6 +1724,8 @@ let package = Package(
         .package(id: "dduan.TOMLDecoder", from: "0.4.1"),
         .package(id: "apple.swift-algorithms", from: "1.2.1"),
         .package(id: "swiftlang.swift-docc-plugin", from: "1.4.6"),
+        .package(name: "XCResultNIF", path: "xcode_processor/native/xcresult_nif"),
+        .package(id: "stephencelis.SQLite_swift", from: "0.16.0"),
     ],
     targets: targets,
     swiftLanguageModes: [.v5]

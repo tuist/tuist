@@ -22,7 +22,7 @@ This service provides:
 - `POST /api/cache/cas/:id` - Store Xcode cache artifact (requires `account_handle` and `project_handle` query params)
 
 ### Health Check
-- `GET /up` - Health check endpoint
+- `GET /up` - Health check endpoint (returns 200 when healthy, 503 otherwise)
 
 ## Setup
 
@@ -58,7 +58,7 @@ mix test
 
 ## Development
 
-The service runs on port 4000 by default in development mode.
+The service uses a clone-local suffix from `.tuist-dev-instance` in development mode through mise shell env. That suffix scopes the cache port and the main server URL it talks to, so one repo clone can run its own paired `server/` and `cache/` instances without colliding with other clones.
 
 ## Architecture
 

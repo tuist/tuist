@@ -35,9 +35,7 @@ public struct ServerCommandEvent: Codable, Equatable {
             case resultBundle, invocationRecord, resultBundleObject, session
         }
     }
-}
 
-extension ServerCommandEvent {
     init(_ commandEvent: Components.Schemas.CommandEvent) {
         id = commandEvent.id
         name = commandEvent.name
@@ -48,6 +46,22 @@ extension ServerCommandEvent {
             testRunURL = nil
         }
     }
+
+    #if MOCKING
+        public static func test(
+            id: String = UUID().uuidString,
+            name: String = "generate",
+            url: URL = URL(string: "https://tuist.dev/tuist-org/tuist/runs/10")!,
+            testRunURL: URL? = nil
+        ) -> Self {
+            .init(
+                id: id,
+                name: name,
+                url: url,
+                testRunURL: testRunURL
+            )
+        }
+    #endif
 }
 
 extension Components.Schemas.CommandEventArtifact {
@@ -70,21 +84,3 @@ extension Components.Schemas.CommandEventArtifact._typePayload {
         }
     }
 }
-
-#if MOCKING
-    extension ServerCommandEvent {
-        public static func test(
-            id: String = UUID().uuidString,
-            name: String = "generate",
-            url: URL = URL(string: "https://tuist.dev/tuist-org/tuist/runs/10")!,
-            testRunURL: URL? = nil
-        ) -> Self {
-            .init(
-                id: id,
-                name: name,
-                url: url,
-                testRunURL: testRunURL
-            )
-        }
-    }
-#endif

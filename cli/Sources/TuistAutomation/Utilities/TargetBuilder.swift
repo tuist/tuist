@@ -158,7 +158,7 @@ public struct TargetBuilder: TargetBuilding {
 
         let buildOutputPath = outputPath.appending(component: xcodeSchemeBuildPath.basename)
         if try await !fileSystem.exists(buildOutputPath) {
-            try FileHandler.shared.createFolder(buildOutputPath)
+            try await fileSystem.makeDirectory(at: buildOutputPath)
         }
         Logger.current.log(
             level: .notice,
@@ -166,7 +166,7 @@ public struct TargetBuilder: TargetBuilding {
             metadata: .subsection
         )
 
-        for product in try FileHandler.shared.contentsOfDirectory(xcodeSchemeBuildPath) {
+        for product in try await fileSystem.contentsOfDirectory(xcodeSchemeBuildPath) {
             let productOutputPath = buildOutputPath.appending(component: product.basename)
             if try await fileSystem.exists(productOutputPath) {
                 try await fileSystem.remove(productOutputPath)

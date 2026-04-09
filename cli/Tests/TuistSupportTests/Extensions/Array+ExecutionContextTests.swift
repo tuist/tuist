@@ -64,6 +64,32 @@ final class ArrayExecutionContextTests: XCTestCase {
         XCTAssertThrowsSpecific(try numbers.forEach(context: .concurrent, perform), TestError.someError)
     }
 
+    func test_concurrentMap_withMaxConcurrentTasks_preservesInputOrder() async throws {
+        let elements = Array(0 ..< 50)
+
+        for _ in 0 ..< 10 {
+            let results = try await elements.concurrentMap(maxConcurrentTasks: 5) { element -> Int in
+                try await Task.sleep(nanoseconds: 1)
+                return element
+            }
+
+            XCTAssertEqual(results, elements)
+        }
+    }
+
+    func test_concurrentCompactMap_withMaxConcurrentTasks_preservesInputOrder() async throws {
+        let elements = Array(0 ..< 50)
+
+        for _ in 0 ..< 10 {
+            let results = try await elements.concurrentCompactMap(maxConcurrentTasks: 5) { element -> Int? in
+                try await Task.sleep(nanoseconds: 1)
+                return element
+            }
+
+            XCTAssertEqual(results, elements)
+        }
+    }
+
     // MARK: - Helpers
 
     private enum TestError: Error {

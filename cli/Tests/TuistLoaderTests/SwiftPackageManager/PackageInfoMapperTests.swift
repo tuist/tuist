@@ -51,7 +51,8 @@ struct PackageInfoMapperTests {
                 "Target_1": try!
                     .init(validating: "/artifacts/Package/Target_1.xcframework"),
             ]],
-            packageModuleAliases: [:]
+            packageModuleAliases: [:],
+            packageSettings: .test()
         )
 
         #expect(
@@ -91,7 +92,8 @@ struct PackageInfoMapperTests {
             ],
             packageToFolder: ["Package": basePath],
             packageToTargetsToArtifactPaths: [:],
-            packageModuleAliases: [:]
+            packageModuleAliases: [:],
+            packageSettings: .test()
         )
 
         #expect(
@@ -136,7 +138,8 @@ struct PackageInfoMapperTests {
                 "Target_1": try!
                     .init(validating: "/artifacts/Package/Target_1.xcframework"),
             ]],
-            packageModuleAliases: [:]
+            packageModuleAliases: [:],
+            packageSettings: .test()
         )
 
         #expect(
@@ -145,6 +148,51 @@ struct PackageInfoMapperTests {
                     "Product1": [
                         .xcframework(path: "/artifacts/Package/Target_1.xcframework"),
                         .project(target: "Target_2", path: .relativeToManifest(basePath.pathString)),
+                    ],
+                ]
+        )
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
+    ) func resolveDependencies_whenProductContainsBinaryTargetWithConfiguredSignature_mapsToSignedXcframework(
+    ) async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        let resolvedDependencies = try await subject.resolveExternalDependencies(
+            path: basePath,
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "Product", type: .library(.automatic), targets: ["Target"]),
+                    ],
+                    targets: [
+                        .test(name: "Target", type: .binary, url: "https://binary.target.com/target.xcframework.zip"),
+                    ],
+                    platforms: [.ios]
+                ),
+            ],
+            packageToFolder: ["Package": basePath],
+            packageToTargetsToArtifactPaths: ["Package": [
+                "Target": try .init(validating: "/artifacts/Package/Target.xcframework"),
+            ]],
+            packageModuleAliases: [:],
+            packageSettings: .test(
+                expectedSignatures: [
+                    "Target": .signedWithAppleCertificate(teamIdentifier: "TEAMID", teamName: "TEAMNAME"),
+                ]
+            )
+        )
+
+        #expect(
+            resolvedDependencies ==
+                [
+                    "Product": [
+                        .xcframework(
+                            path: "/artifacts/Package/Target.xcframework",
+                            expectedSignature: .signedWithAppleCertificate(teamIdentifier: "TEAMID", teamName: "TEAMNAME")
+                        ),
                     ],
                 ]
         )
@@ -186,7 +234,8 @@ struct PackageInfoMapperTests {
             ],
             packageToFolder: ["Package": basePath],
             packageToTargetsToArtifactPaths: [:],
-            packageModuleAliases: [:]
+            packageModuleAliases: [:],
+            packageSettings: .test()
         )
 
         // Verify that only ValidFramework is included (not the one in __MACOSX)
@@ -227,7 +276,8 @@ struct PackageInfoMapperTests {
             ],
             packageToFolder: ["Package": basePath],
             packageToTargetsToArtifactPaths: [:],
-            packageModuleAliases: [:]
+            packageModuleAliases: [:],
+            packageSettings: .test()
         )
 
         #expect(
@@ -294,7 +344,8 @@ struct PackageInfoMapperTests {
                 "Package2": basePath.appending(component: "Package2"),
             ],
             packageToTargetsToArtifactPaths: [:],
-            packageModuleAliases: [:]
+            packageModuleAliases: [:],
+            packageSettings: .test()
         )
 
         #expect(
@@ -375,7 +426,8 @@ struct PackageInfoMapperTests {
                 "Package2": basePath.appending(component: "Package2"),
             ],
             packageToTargetsToArtifactPaths: [:],
-            packageModuleAliases: ["Package2": ["Product": "Package2Product"]]
+            packageModuleAliases: ["Package2": ["Product": "Package2Product"]],
+            packageSettings: .test()
         )
 
         #expect(
@@ -454,7 +506,8 @@ struct PackageInfoMapperTests {
                 "com.example.dep-1": basePath.appending(component: "com.example.dep-1"),
             ],
             packageToTargetsToArtifactPaths: [:],
-            packageModuleAliases: [:]
+            packageModuleAliases: [:],
+            packageSettings: .test()
         )
 
         #expect(
@@ -515,7 +568,8 @@ struct PackageInfoMapperTests {
                 "Package": basePath.appending(component: "Package"),
             ],
             packageToTargetsToArtifactPaths: [:],
-            packageModuleAliases: [:]
+            packageModuleAliases: [:],
+            packageSettings: .test()
         )
 
         #expect(
@@ -593,7 +647,8 @@ struct PackageInfoMapperTests {
                 "Package_2": basePath.appending(component: "Package_2"),
             ],
             packageToTargetsToArtifactPaths: [:],
-            packageModuleAliases: [:]
+            packageModuleAliases: [:],
+            packageSettings: .test()
         )
 
         #expect(
@@ -3155,6 +3210,7 @@ struct PackageInfoMapperTests {
                     settings: .settings(
                         base: [
                             "EXCLUDED_ARCHS[sdk=iphonesimulator*]": .string("x86_64"),
+                            "SWIFT_VERSION": "5",
                         ],
                         configurations: [
                             .debug(
@@ -4022,7 +4078,7 @@ struct PackageInfoMapperTests {
             project ==
                 .testWithDefaultConfigs(
                     name: "Package",
-                    settings: .settings(base: ["GCC_C_LANGUAGE_STANDARD": "c99"]),
+                    settings: .settings(base: ["GCC_C_LANGUAGE_STANDARD": "c99", "SWIFT_VERSION": "5"]),
                     targets: [
                         .test("Target1", basePath: basePath),
                     ]
@@ -4061,7 +4117,7 @@ struct PackageInfoMapperTests {
             project ==
                 .testWithDefaultConfigs(
                     name: "Package",
-                    settings: .settings(base: ["CLANG_CXX_LANGUAGE_STANDARD": "gnu++14"]),
+                    settings: .settings(base: ["CLANG_CXX_LANGUAGE_STANDARD": "gnu++14", "SWIFT_VERSION": "5"]),
                     targets: [
                         .test("Target1", basePath: basePath),
                     ]
@@ -4572,7 +4628,7 @@ struct PackageInfoMapperTests {
                         automaticSchemesOptions: .enabled(),
                         disableSynthesizedResourceAccessors: true
                     ),
-                    settings: .settings(),
+                    settings: .settings(base: ["SWIFT_VERSION": "5"]),
                     targets: [
                         .test("Target", basePath: basePath),
                         .test(
@@ -4639,7 +4695,7 @@ struct PackageInfoMapperTests {
                         automaticSchemesOptions: .enabled(),
                         disableSynthesizedResourceAccessors: true
                     ),
-                    settings: .settings(),
+                    settings: .settings(base: ["SWIFT_VERSION": "5"]),
                     targets: [
                         .test(
                             "Target",
@@ -4739,7 +4795,7 @@ struct PackageInfoMapperTests {
                         automaticSchemesOptions: .enabled(),
                         disableSynthesizedResourceAccessors: true
                     ),
-                    settings: .settings(),
+                    settings: .settings(base: ["SWIFT_VERSION": "5"]),
                     targets: [
                         .test("Target", basePath: basePath),
                         .test(
@@ -4826,7 +4882,7 @@ struct PackageInfoMapperTests {
                         automaticSchemesOptions: .enabled(),
                         disableSynthesizedResourceAccessors: true
                     ),
-                    settings: .settings(),
+                    settings: .settings(base: ["SWIFT_VERSION": "5"]),
                     targets: [
                         .test("Target", basePath: basePath),
                         .test(
@@ -5948,6 +6004,38 @@ struct PackageInfoMapperTests {
 
     @Test(
         .inTemporaryDirectory, .withMockedSwiftVersionProvider
+    ) func map_whenWrapperTargetPattern_baseProductTypeUsed() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package/Sources/ATarget")))
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "A", type: .library(.automatic), targets: ["ATarget"]),
+                    ],
+                    targets: [
+                        .test(name: "ATarget"),
+                    ],
+                    platforms: [.ios],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ],
+            packageSettings: .test(
+                baseProductType: .framework
+            )
+        )
+        let mappedTarget = try #require(project?.targets.first(where: { $0.name == "ATarget" }))
+        #expect(mappedTarget.product == .framework)
+    }
+
+    @Test(
+        .inTemporaryDirectory, .withMockedSwiftVersionProvider
     ) func map_whenSameNameProductAndTarget_keepsTargetNameAsProductName() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package/Sources/Foo")))
@@ -6171,6 +6259,48 @@ struct PackageInfoMapperTests {
 
     @Test(
         .inTemporaryDirectory, .withMockedSwiftVersionProvider
+    ) func map_whenRemoteBinaryTargetNameMatchesProductPrefix_keepsTargetNameAsProductName() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        try await fileSystem.makeDirectory(
+            at: basePath.appending(try RelativePath(validating: "Package/Sources/NMapsMapTarget"))
+        )
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "NMapsMap", type: .library(.automatic), targets: ["NMapsMapTarget"]),
+                    ],
+                    targets: [
+                        .test(
+                            name: "NMapsMapTarget",
+                            dependencies: [
+                                .target(name: "NMapsMapBinary", condition: nil),
+                            ]
+                        ),
+                        .test(
+                            name: "NMapsMapBinary",
+                            type: .binary,
+                            url: "https://repository.map.naver.com/archive/pod/NMapsMap/3.23.1/NMapsMap.zip"
+                        ),
+                    ],
+                    platforms: [.ios],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ]
+        )
+
+        let mappedTarget = try #require(project?.targets.first(where: { $0.name == "NMapsMapTarget" }))
+        #expect(mappedTarget.productName == "NMapsMapTarget")
+    }
+
+    @Test(
+        .inTemporaryDirectory, .withMockedSwiftVersionProvider
     ) func map_whenTargetNameContainsSpacesAndDefaultPathUsesUnderscores_mapsTargetSources() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         try await fileSystem.makeDirectory(
@@ -6354,10 +6484,13 @@ extension ProjectDescription.Project {
             disableSynthesizedResourceAccessors: true,
             textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
         ),
-        settings: ProjectDescription.Settings = .settings(configurations: [
-            .debug(name: .debug),
-            .release(name: .release),
-        ]),
+        settings: ProjectDescription.Settings = .settings(
+            base: ["SWIFT_VERSION": "5"],
+            configurations: [
+                .debug(name: .debug),
+                .release(name: .release),
+            ]
+        ),
         customSettings: ProjectDescription.SettingsDictionary = [:],
         targets: [ProjectDescription.Target]
     ) -> Self {

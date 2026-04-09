@@ -16,37 +16,44 @@ import TuistSupport
 import TuistXCActivityLog
 import TuistXcodeProjectOrWorkspacePathLocator
 import TuistXCResultService
+import XCResultParser
 
-public enum InspectResultBundleServiceError: Equatable, LocalizedError {
+public enum UploadResultBundleServiceError: Equatable, LocalizedError {
     case missingFullHandle
-    case missingInvocationRecord
 
     public var errorDescription: String? {
         switch self {
         case .missingFullHandle:
             return
-                "The 'Tuist.swift' file is missing a fullHandle. See how to set up a Tuist project at: https://docs.tuist.dev/en/server/introduction/accounts-and-projects#projects"
-        case .missingInvocationRecord:
-            return "Failed to parse the test result bundle"
+                "The 'Tuist.swift' file is missing a fullHandle. See how to set up a Tuist project at: https://tuist.dev/en/docs/guides/server/accounts-and-projects#projects"
         }
     }
 }
 
 @Mockable
-public protocol InspectResultBundleServicing {
-    func inspectResultBundle(
-        resultBundlePath: AbsolutePath,
+public protocol UploadResultBundleServicing {
+    func uploadTestSummary(
+        testSummary: TestSummary,
         projectDerivedDataDirectory: AbsolutePath?,
-        config: Tuist
+        config: Tuist,
+        shardPlanId: String?,
+        shardIndex: Int?
+    ) async throws -> Components.Schemas.RunsTest
+
+    func uploadResultBundle(
+        resultBundlePath: AbsolutePath,
+        config: Tuist,
+        quarantinedTests: [TestIdentifier],
+        shardPlanId: String?,
+        shardIndex: Int?
     ) async throws -> Components.Schemas.RunsTest
 }
 
-public struct InspectResultBundleService: InspectResultBundleServicing {
+public struct UploadResultBundleService: UploadResultBundleServicing {
     private let machineEnvironment: MachineEnvironmentRetrieving
     private let createTestService: CreateTestServicing
     private let createCrashReportService: CreateCrashReportServicing
     private let createTestCaseRunAttachmentService: CreateTestCaseRunAttachmentServicing
-    private let xcResultService: XCResultServicing
     private let dateService: DateServicing
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let gitController: GitControlling
@@ -54,6 +61,7 @@ public struct InspectResultBundleService: InspectResultBundleServicing {
     private let xcodeBuildController: XcodeBuildControlling
     private let rootDirectoryLocator: RootDirectoryLocating
     private let xcActivityLogController: XCActivityLogControlling
+    private let analyticsArtifactUploadService: AnalyticsArtifactUploadServicing
     private let fileSystem: FileSysteming
 
     public init(
@@ -61,7 +69,6 @@ public struct InspectResultBundleService: InspectResultBundleServicing {
         createTestService: CreateTestServicing = CreateTestService(),
         createCrashReportService: CreateCrashReportServicing = CreateCrashReportService(),
         createTestCaseRunAttachmentService: CreateTestCaseRunAttachmentServicing = CreateTestCaseRunAttachmentService(),
-        xcResultService: XCResultServicing = XCResultService(),
         dateService: DateServicing = DateService(),
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         gitController: GitControlling = GitController(),
@@ -69,13 +76,13 @@ public struct InspectResultBundleService: InspectResultBundleServicing {
         xcodeBuildController: XcodeBuildControlling = XcodeBuildController(),
         rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator(),
         xcActivityLogController: XCActivityLogControlling = XCActivityLogController(),
+        analyticsArtifactUploadService: AnalyticsArtifactUploadServicing = AnalyticsArtifactUploadService(),
         fileSystem: FileSysteming = FileSystem()
     ) {
         self.machineEnvironment = machineEnvironment
         self.createTestService = createTestService
         self.createCrashReportService = createCrashReportService
         self.createTestCaseRunAttachmentService = createTestCaseRunAttachmentService
-        self.xcResultService = xcResultService
         self.dateService = dateService
         self.serverEnvironmentService = serverEnvironmentService
         self.gitController = gitController
@@ -83,26 +90,25 @@ public struct InspectResultBundleService: InspectResultBundleServicing {
         self.xcodeBuildController = xcodeBuildController
         self.rootDirectoryLocator = rootDirectoryLocator
         self.xcActivityLogController = xcActivityLogController
+        self.analyticsArtifactUploadService = analyticsArtifactUploadService
         self.fileSystem = fileSystem
     }
 
-    public func inspectResultBundle(
-        resultBundlePath: AbsolutePath,
+    public func uploadTestSummary(
+        testSummary: TestSummary,
         projectDerivedDataDirectory: AbsolutePath?,
-        config: Tuist
+        config: Tuist,
+        shardPlanId: String? = nil,
+        shardIndex: Int? = nil
     ) async throws -> Components.Schemas.RunsTest {
         let rootDirectory = try await rootDirectory()
         let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
         let gitInfoDirectory = rootDirectory ?? currentWorkingDirectory
 
-        guard let testSummary = try await xcResultService.parse(path: resultBundlePath, rootDirectory: rootDirectory) else {
-            throw InspectResultBundleServiceError.missingInvocationRecord
-        }
-
         let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
 
         guard let fullHandle = config.fullHandle else {
-            throw InspectResultBundleServiceError.missingFullHandle
+            throw UploadResultBundleServiceError.missingFullHandle
         }
 
         var buildRunId: String?
@@ -119,6 +125,7 @@ public struct InspectResultBundleService: InspectResultBundleServicing {
         let test = try await createTestService.createTest(
             fullHandle: fullHandle,
             serverURL: serverURL,
+            id: nil,
             testSummary: testSummary,
             buildRunId: buildRunId,
             gitBranch: gitInfo.branch,
@@ -132,7 +139,9 @@ public struct InspectResultBundleService: InspectResultBundleServicing {
             ciRunId: ciInfo?.runId,
             ciProjectHandle: ciInfo?.projectHandle,
             ciHost: ciInfo?.host,
-            ciProvider: ciInfo?.provider
+            ciProvider: ciInfo?.provider,
+            shardPlanId: shardPlanId,
+            shardIndex: shardIndex
         )
 
         let testCaseRunIdsByIdentity = testCaseRunIdsByIdentity(testCaseRuns: test.test_case_runs)
@@ -147,6 +156,72 @@ public struct InspectResultBundleService: InspectResultBundleServicing {
         }
 
         await RunMetadataStorage.current.update(testRunId: test.id)
+
+        return test
+    }
+
+    public func uploadResultBundle(
+        resultBundlePath: AbsolutePath,
+        config: Tuist,
+        quarantinedTests: [TestIdentifier] = [],
+        shardPlanId: String? = nil,
+        shardIndex: Int? = nil
+    ) async throws -> Components.Schemas.RunsTest {
+        guard let fullHandle = config.fullHandle else {
+            throw UploadResultBundleServiceError.missingFullHandle
+        }
+
+        // xcodebuild creates result-bundle as a symlink to result-bundle.xcresult,
+        // so we resolve it to ensure the archiver zips the actual directory.
+        let resolvedResultBundlePath = try await fileSystem.resolveSymbolicLink(resultBundlePath)
+
+        if !quarantinedTests.isEmpty {
+            try await writeQuarantinedTests(quarantinedTests, to: resolvedResultBundlePath)
+        }
+
+        let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
+
+        let rootDirectory = try await rootDirectory()
+        let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
+        let gitInfoDirectory = rootDirectory ?? currentWorkingDirectory
+        let gitInfo = try gitController.gitInfo(workingDirectory: gitInfoDirectory)
+        let ciInfo = ciController.ciInfo()
+
+        let testRunId = UUID().uuidString.lowercased()
+
+        try await analyticsArtifactUploadService.uploadResultBundle(
+            resolvedResultBundlePath,
+            fullHandle: fullHandle,
+            commandEventId: testRunId,
+            serverURL: serverURL
+        )
+
+        let test = try await createTestService.createTest(
+            fullHandle: fullHandle,
+            serverURL: serverURL,
+            id: testRunId,
+            testSummary: TestSummary(
+                testPlanName: nil,
+                status: .processing,
+                duration: 0,
+                testModules: []
+            ),
+            buildRunId: nil,
+            gitBranch: gitInfo.branch,
+            gitCommitSHA: gitInfo.sha,
+            gitRef: gitInfo.ref,
+            gitRemoteURLOrigin: gitInfo.remoteURLOrigin,
+            isCI: Environment.current.isCI,
+            modelIdentifier: machineEnvironment.modelIdentifier(),
+            macOSVersion: machineEnvironment.macOSVersion,
+            xcodeVersion: try await xcodeBuildController.version()?.description,
+            ciRunId: ciInfo?.runId,
+            ciProjectHandle: ciInfo?.projectHandle,
+            ciHost: ciInfo?.host,
+            ciProvider: ciInfo?.provider,
+            shardPlanId: shardPlanId,
+            shardIndex: shardIndex
+        )
 
         return test
     }
@@ -212,6 +287,21 @@ public struct InspectResultBundleService: InspectResultBundleServicing {
         }
     }
 
+    private func writeQuarantinedTests(
+        _ quarantinedTests: [TestIdentifier],
+        to resultBundlePath: AbsolutePath
+    ) async throws {
+        let entries = quarantinedTests.map { test in
+            QuarantinedTestEntry(
+                target: test.target,
+                class: test.class,
+                method: test.method
+            )
+        }
+        let filePath = resultBundlePath.appending(component: "quarantined_tests.json")
+        try await fileSystem.writeAsJSON(entries, at: filePath)
+    }
+
     private func rootDirectory() async throws -> AbsolutePath? {
         let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
         let workingDirectory = Environment.current.workspacePath ?? currentWorkingDirectory
@@ -221,4 +311,10 @@ public struct InspectResultBundleService: InspectResultBundleServicing {
             return try await rootDirectoryLocator.locate(from: workingDirectory)
         }
     }
+}
+
+private struct QuarantinedTestEntry: Codable {
+    let target: String
+    let `class`: String?
+    let method: String?
 }

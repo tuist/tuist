@@ -68,6 +68,20 @@ defmodule TuistWeb.UserSessionController do
     end
   end
 
+  def new(conn, %{"return_to" => "//" <> _}) do
+    redirect(conn, to: ~p"/users/log_in")
+  end
+
+  def new(conn, %{"return_to" => "/" <> _ = return_to}) do
+    conn
+    |> put_session(:user_return_to, return_to)
+    |> redirect(to: ~p"/users/log_in")
+  end
+
+  def new(conn, _params) do
+    redirect(conn, to: ~p"/users/log_in")
+  end
+
   def delete(conn, _params) do
     Authentication.log_out_user(conn)
   end

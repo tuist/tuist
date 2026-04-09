@@ -29,15 +29,16 @@ defmodule TuistWeb.Endpoint do
   # You should set gzip to true if you are running phx.digest
   # when deploying your static files in production.
   plug Plug.Static,
+    at: "/docs/images",
+    from: {:tuist, "priv/docs/images"},
+    gzip: false
+
+  plug Plug.Static,
     at: "/",
     from: :tuist,
     gzip: true,
-    cache_control_for_etags: "public, max-age=31536000, immutable",
+    cache_control_for_etags: "public, max-age=0, must-revalidate",
     only: TuistWeb.static_paths()
-
-  if Code.ensure_loaded?(Tidewave) do
-    plug Tidewave
-  end
 
   # Code reloading can be explicitly enabled under the
   # :code_reloader configuration of your endpoint.

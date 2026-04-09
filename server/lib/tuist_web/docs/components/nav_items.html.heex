@@ -1,0 +1,67 @@
+<%= for item <- @items do %>
+  <%= if item.url do %>
+    <.link href={item.url} target="_blank" rel="noopener noreferrer" data-part="nav-link">
+      <.tab_menu_vertical label={item.label}>
+        <:icon_right>
+          <.icon name="external_link" />
+        </:icon_right>
+      </.tab_menu_vertical>
+    </.link>
+  <% else %>
+    <%= if Enum.empty?(item.items) do %>
+      <.link patch={docs_path(item.slug)} data-part="nav-link">
+        <.tab_menu_vertical
+          label={item.label}
+          data-selected={Sidebar.item_active?(item, @current_slug)}
+        >
+        </.tab_menu_vertical>
+      </.link>
+    <% else %>
+      <div
+        id={"docs-nav-#{slugify(item.slug || item.label)}"}
+        phx-hook="NooraCollapsible"
+        data-open={Sidebar.item_or_children_active?(item, @current_slug)}
+      >
+        <div data-part="root">
+          <%= if item.slug do %>
+            <div data-part="nav-row">
+              <.link patch={docs_path(item.slug)} data-part="nav-link">
+                <.tab_menu_vertical
+                  label={item.label}
+                  data-selected={Sidebar.item_active?(item, @current_slug)}
+                >
+                </.tab_menu_vertical>
+              </.link>
+              <button
+                type="button"
+                data-part="trigger"
+                aria-label={"Toggle #{item.label} section"}
+              >
+                <div data-part="indicator">
+                  <div data-part="indicator-down"><.chevron_down /></div>
+                  <div data-part="indicator-up"><.chevron_up /></div>
+                </div>
+              </button>
+            </div>
+          <% else %>
+            <.tab_menu_vertical
+              label={item.label}
+              data-part="trigger"
+              data-selected={Sidebar.item_active?(item, @current_slug)}
+            >
+              <:icon_right>
+                <div data-part="indicator">
+                  <div data-part="indicator-down"><.chevron_down /></div>
+                  <div data-part="indicator-up"><.chevron_up /></div>
+                </div>
+              </:icon_right>
+            </.tab_menu_vertical>
+          <% end %>
+          <div data-part="content">
+            <.nav_items items={item.items} current_slug={@current_slug} />
+          </div>
+        </div>
+      </div>
+    <% end %>
+  <% end %>
+<% end %>

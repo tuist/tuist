@@ -1,920 +1,2357 @@
 msgid ""
-msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-05 17:58+0000\nPO-Revision-Date: 2025-12-24 11:48+0000\nLast-Translator: Weblate Admin <admin@cloudron.local>\nLanguage-Team: Russian <https://translate.tuist.dev/projects/tuist/marketing/ru/>\nLanguage: ru\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=3; plural=n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2;\nX-Generator: Weblate 5.15.1\n"
+msgstr ""
+"Language: ru\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=3; plural=n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2;\n"
 
-# # This file is a PO Template file.
-# #
-# # "msgid"s here are often extracted from source code.
-# # Add new messages manually only if they're dynamic
-# # messages that can't be statically extracted.
-# #
-# # Run "mix gettext.extract" to bring this file up to
-# # date. Leave "msgstr"s empty as changing them here has no
-# # effect: edit them in PO (.po) files instead.
-#
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:124
+#, elixir-autogen, elixir-format
 msgid "\"We could solve our immediate problems and do so while maintaining a familiar"
-msgstr "\"Мы смогли решить наши текущие проблемы и при этом сохранить привычный"
+msgstr "\"Мы могли решить наши неотложные проблемы и сделать это, сохраняя знакомую"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:75
+#, elixir-autogen, elixir-format
 msgid "105 remote binaries pulled"
-msgstr "105 удалённых бинарников загружено"
+msgstr "Загружено 105 удалённых бинарных файлов"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:606
+#, elixir-autogen, elixir-format
 msgid "10K+"
 msgstr "10K+"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:594
+#, elixir-autogen, elixir-format
 msgid "1400+"
 msgstr "1400+"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:616
+#, elixir-autogen, elixir-format
 msgid "300+"
 msgstr "300+"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:562
+#, elixir-autogen, elixir-format
 msgid "5K+"
 msgstr "5K+"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:584
+#, elixir-autogen, elixir-format
 msgid "8300+"
 msgstr "8300+"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:572
+#, elixir-autogen, elixir-format
 msgid "9+"
 msgstr "9+"
 
-msgid ""
-"<p>Our commitment to open-source and our core values shape our unique approach to pricing. Unlike many models that try to extract every dollar from you with \"contact sales\" calls, limited demos, and other sales tactics, we believe in fairness and transparency. We treat everyone equally and set prices that are fair for all. By choosing our services, you are not only getting a great product but also supporting the development of more open-source projects. We see building a thriving business as a long-term journey, not a short-term sprint filled with shady practices. You can %{read_more}  about our philosophy.</p>\n"
-"<p>By supporting Tuist, you are also supporting the development of more open-source software for the Swift ecosystem.</p>\n"
-msgstr "<p>Наша приверженность к open-source и наши основные ценности формируют наш уникальный подход к ценообразованию. В отличие от многих моделей, которые пытаются выжать из вас каждый доллар с помощью звонков \"Свяжитесь с отделом продаж\", ограниченных демо и других маркетинговых приёмов, мы верим в честность и прозрачность. Мы относимся ко всем одинаково и устанавливаем справедливые цены для всех. Выбирая наши сервисы, вы не только получаете отличный продукт, но и поддерживаете развитие новых open-source проектов. Мы рассматриваем построение успешного бизнеса как долгосрочное путешествие, а не как спринт, наполненный сомнительными практиками. Вы можете %{read_more} о нашей философии.</p>\n<p>Поддерживая Tuist, вы также поддерживаете развитие open-source программного обеспечения для экосистемы Swift.</p>\n"
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:599
+#, elixir-autogen, elixir-format
+msgid "<p>Our commitment to open-source and our core values shape our unique approach to pricing. Unlike many models that try to extract every dollar from you with \"contact sales\" calls, limited demos, and other sales tactics, we believe in fairness and transparency. We treat everyone equally and set prices that are fair for all. By choosing our services, you are not only getting a great product but also supporting the development of more open-source projects. We see building a thriving business as a long-term journey, not a short-term sprint filled with shady practices. You can %{read_more}  about our philosophy.</p>\n<p>By supporting Tuist, you are also supporting the development of more open-source software for the Swift ecosystem.</p>\n"
+msgstr "<p>Наша приверженность открытым исходным кодам и наши основные ценности формируют наш уникальный подход к ценообразованию. В отличие от многих моделей, которые пытаются заработать на вас каждый доллар с помощью звонков «связаться с отделом продаж», ограниченных демонстраций и других тактик продаж, мы верим в справедливость и прозрачность. Мы относимся ко всем одинаково и устанавливаем цены, которые справедливы для всех. Выбирая наши услуги, вы не только получаете отличный продукт, но и поддерживаете развитие большего количества проектов с открытым исходным кодом. Мы рассматриваем создание процветающего бизнеса как долгосрочное путешествие, а не краткосрочную гонку с сомнительными практиками. Вы можете %{read_more} о нашей философии.</p>\n<p>Поддерживая Tuist, вы также поддерживаете развитие большего количества программного обеспечения с открытым исходным кодом для экосистемы Swift.</p>\n"
 
-msgid "A confirmation email has been sent to your account with further details."
-msgstr "На ваш адрес отправлено письмо с подтверждением и подробностями."
-
+#: lib/tuist_web/marketing/controllers/marketing_html/newsletter.html.heex:65
+#, elixir-autogen, elixir-format
 msgid "A newsletter from the Tuist team sharing product updates, our perspective on modern app development, and what's on the horizon. Stay in the loop with where we're headed and why."
-msgstr "Рассылка от команды Tuist с обновлениями продукта, нашим взглядом на современную мобильную разработку и тем, что нас ждёт впереди. Будьте в курсе того, куда мы движемся и почему."
+msgstr "Рассылка от команды Tuist с обновлениями продукта, нашим взглядом на современную разработку приложений и тем, что нас ждёт впереди. Будьте в курсе наших планов и причин."
 
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:49
+#, elixir-autogen, elixir-format
 msgid "API Documentation"
 msgstr "Документация API"
 
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:187
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:70
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:242
+#, elixir-autogen, elixir-format
 msgid "About"
-msgstr "О Tuist"
+msgstr "О проекте"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:595
+#, elixir-autogen, elixir-format
 msgid "Active community members and counting"
-msgstr "Активных участников сообщества, и становится больше"
+msgstr "Активные участники сообщества и их число растёт"
 
-msgid "Agentic QA"
-msgstr "Агентное QA"
-
-msgid "Agentic testing of your app completed"
-msgstr "AI-тестирование завершено"
-
-msgid "Air"
-msgstr "Air"
-
-msgid "All"
-msgstr "Все"
-
-msgid "All features, no credit card required"
-msgstr "Все функции, без привязки карты"
-
-msgid "All systems normal"
-msgstr "Все системы в норме"
-
-msgid "All the features you need,"
-msgstr "Все нужные функции"
-
-msgid "Analyze build times per target and file with metadata like environment, Xcode version, and commit."
-msgstr "Анализируйте время сборки по целям и файлам с учётом окружения, версии Xcode и коммита."
-
-msgid "Automate testing your apps for Apple platforms using agents."
-msgstr "Автоматизируйте тестирование приложений для платформ Apple с помощью агентов."
-
-msgid "Base price"
-msgstr "Базовая цена"
-
-msgid "Best for teams and growing startups."
-msgstr "Лучший выбор для команд и растущих стартапов."
-
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:629
+#, elixir-autogen, elixir-format
 msgid "Beyond expectations"
 msgstr "Выше ожиданий"
 
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:190
+#: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:87
+#: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:193
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:267
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:476
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:546
+#: lib/tuist_web/marketing/controllers/marketing_html/blog_post.html.heex:10
+#: lib/tuist_web/marketing/live/marketing_blog_live.html.heex:10
+#: lib/tuist_web/marketing/live/marketing_blog_post_live.ex:49
+#: lib/tuist_web/marketing/live/marketing_blog_post_live.html.heex:10
+#, elixir-autogen, elixir-format
 msgid "Blog"
 msgstr "Блог"
 
+#: lib/tuist_web/marketing/controllers/marketing_xml/blog_atom.xml.eex:4
+#: lib/tuist_web/marketing/controllers/marketing_xml/blog_rss.xml.eex:5
+#, elixir-autogen, elixir-format
 msgid "Blog posts by the Tuist team."
-msgstr "Блог команды Tuist."
+msgstr "Посты в блоге от команды Tuist."
 
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:246
+#, elixir-autogen, elixir-format
 msgid "Bluesky"
 msgstr "Bluesky"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:166
+#: lib/tuist_web/marketing/live/marketing_build_insights_live.html.heex:7
+#, elixir-autogen, elixir-format
 msgid "Build Insights"
+msgstr "Информация о сборках"
+
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:60
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:10
+#, elixir-autogen, elixir-format
+msgid "Build insights"
 msgstr "Аналитика сборок"
 
-msgid "Build insights"
-msgstr "Аналитика сборки"
-
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:51
+#, elixir-autogen, elixir-format
 msgid "Build times reduced by 80%"
-msgstr "Сборка быстрее на 80%"
+msgstr "Время сборки сокращено на 80%"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/about.html.heex:9
+#, elixir-autogen, elixir-format
 msgid "Building the future of scalable app development"
-msgstr "Создаём будущее масштабируемой разработки приложений"
+msgstr "Строим будущее масштабируемой разработки приложений"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:158
+#, elixir-autogen, elixir-format
 msgid "Builds"
 msgstr "Сборки"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:538
+#, elixir-autogen, elixir-format
 msgid "Bumble solved key issues without changing the core dev experience"
-msgstr "Bumble решил ключевые проблемы, сохранив привычный опыт разработки"
+msgstr "Bumble решил ключевые проблемы, не меняя основного опыта разработки"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:180
+#, elixir-autogen, elixir-format
 msgid "Bundle Insights"
-msgstr "Аналитика бандлов"
+msgstr "Информация о пакетах"
 
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:102
+#, elixir-autogen, elixir-format
 msgid "Bundle analysis"
-msgstr "Аналитика бандлов"
+msgstr "Анализ пакетов"
 
-msgid "Bundle insights"
-msgstr "Аналитика бандлов"
-
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:54
+#: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:147
+#: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:269
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:4
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:174
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:192
+#: lib/tuist_web/marketing/live/marketing_cache_live.html.heex:7
+#, elixir-autogen, elixir-format
 msgid "Cache"
 msgstr "Кэш"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:485
+#, elixir-autogen, elixir-format
 msgid "Can I change or cancel my plan at any time?"
-msgstr "Могу ли я изменить или отменить свой план в любое время?"
+msgstr "Могу ли я в любое время изменить или отменить свой план?"
 
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:125
+#: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:169
+#: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:326
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:197
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:411
+#: lib/tuist_web/marketing/live/marketing_changelog_live.html.heex:5
+#: lib/tuist_web/marketing/structured_markup.ex:218
+#, elixir-autogen, elixir-format
 msgid "Changelog"
-msgstr "История изменений"
+msgstr "Журнал изменений"
 
+#: lib/tuist_web/marketing/components/marketing_layout_components/cta.html.heex:6
+#, elixir-autogen, elixir-format
 msgid "Chat with the founders"
-msgstr "Чат с основателями"
+msgstr "Общайтесь с основателями"
 
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:95
+#, elixir-autogen, elixir-format
 msgid "Check our sources, issues, and PRs"
-msgstr "Ознакомьтесь с нашим кодом, задачами и PR"
+msgstr "Проверьте наши исходники, проблемы и PR"
 
+#: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:375
+#, elixir-autogen, elixir-format
 msgid "Check out our GitHub to see all the action—where the magic happens and collaboration thrives."
-msgstr "Загляните на наш GitHub — там творится магия и кипит совместная работа."
+msgstr "Зайдите на наш GitHub, чтобы увидеть всю активность — место, где происходит магия и процветает сотрудничество."
 
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:50
+#, elixir-autogen, elixir-format
 msgid "Check out our REST API documentation"
-msgstr "Ознакомьтесь с нашей документацией REST API"
+msgstr "Ознакомьтесь с документацией нашего REST API"
 
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:44
+#, elixir-autogen, elixir-format
 msgid "Check out our documentation"
 msgstr "Ознакомьтесь с нашей документацией"
 
+#: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:127
+#, elixir-autogen, elixir-format
 msgid "Close menu"
 msgstr "Закрыть меню"
 
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:142
+#: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:339
+#, elixir-autogen, elixir-format
 msgid "Community"
 msgstr "Сообщество"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/support.html.heex:43
+#, elixir-autogen, elixir-format
 msgid "Community Forum"
 msgstr "Форум сообщества"
 
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:158
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:88
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:645
+#, elixir-autogen, elixir-format
 msgid "Community forum"
 msgstr "Форум сообщества"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:220
+#, elixir-autogen, elixir-format
 msgid "Community support"
 msgstr "Поддержка сообщества"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:17
+#, elixir-autogen, elixir-format
 msgid "Community support via forum"
-msgstr "Поддержка сообщества на форуме"
+msgstr "Поддержка сообщества через форум"
 
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:184
+#, elixir-autogen, elixir-format
 msgid "Company"
 msgstr "Компания"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:315
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:341
+#, elixir-autogen, elixir-format
 msgid "Compare our plans"
-msgstr "Сравнить наши планы"
+msgstr "Сравните наши планы"
 
-msgid "Concise Summary"
-msgstr "Краткое описание"
-
+#: lib/tuist_web/marketing/controllers/marketing_html/support.html.heex:46
+#, elixir-autogen, elixir-format
 msgid "Connect with other Tuist users, share experiences, and get help from the community."
-msgstr "Общайтесь с другими пользователями Tuist, делитесь опытом и получайте помощь от сообщества."
+msgstr "Свяжитесь с другими пользователями Tuist, поделитесь опытом и получите помощь от сообщества."
 
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:199
+#, elixir-autogen, elixir-format
 msgid "Contact"
 msgstr "Контакты"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:46
+#, elixir-autogen, elixir-format
 msgid "Contact us"
 msgstr "Свяжитесь с нами"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:617
+#, elixir-autogen, elixir-format
 msgid "Contributors"
-msgstr "контрибьюторов"
+msgstr "Участники"
 
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:282
+#, elixir-autogen, elixir-format
 msgid "Cookie policy"
-msgstr "Политика cookie"
+msgstr "Политика использования файлов cookie"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:41
+#, elixir-autogen, elixir-format
 msgid "Create your plan or self-host your instance."
-msgstr "Создайте свой план или разверните у себя."
+msgstr "Создайте свой план или разместите экземпляр на своих серверах."
 
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:206
+#, elixir-autogen, elixir-format
 msgid "Custom legal agreements and terms of service tailored to your organization's needs."
-msgstr "Индивидуальные юридические соглашения и условия обслуживания, адаптированные под потребности вашей организации."
+msgstr "Индивидуальные юридические соглашения и условия обслуживания, адаптированные под нужды вашей организации."
 
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:5
+#, elixir-autogen, elixir-format
 msgid "Cuts build times by caching and reusing binaries"
 msgstr "Сокращает время сборки за счёт кеширования и повторного использования бинарных файлов"
 
+#: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:95
+#: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:202
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:329
+#, elixir-autogen, elixir-format
 msgid "Dashboard"
-msgstr "Дашборд"
+msgstr "Dashboard"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:42
+#, elixir-autogen, elixir-format
 msgid "Designed for large scale organizations."
-msgstr "Предназначен для крупных организаций."
+msgstr "Разработано для крупных организаций."
 
+#: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:79
+#: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:163
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:160
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:380
+#, elixir-autogen, elixir-format
 msgid "Developers"
 msgstr "Разработчики"
 
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:642
+#, elixir-autogen, elixir-format
 msgid "Discover our flexible pricing plans at Tuist. Enjoy a free tier with no time limits, and pay only for what you use. Plus, it's free forever for open source projects."
-msgstr "Откройте гибкие тарифы Tuist. Бесплатный уровень без ограничений по времени — платите только за то, чем пользуетесь. Open-source проектам — бесплатно навсегда."
+msgstr "Откройте для себя наши гибкие тарифы в Tuist. Бесплатный уровень без ограничения по времени и оплата только за фактическое использование. К тому же, для проектов с открытым исходным кодом он бесплатен навсегда."
 
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:541
+#, elixir-autogen, elixir-format
 msgid "Do you offer annual billing discounts?"
-msgstr "Есть ли скидки при годовой оплате?"
+msgstr "Предоставляете ли вы скидки при годовой оплате?"
 
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:617
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:681
+#, elixir-autogen, elixir-format
 msgid "Do you offer discounts for non-profits and open-source?"
-msgstr "Есть ли скидки для некоммерческих организаций и open-source проектов?"
+msgstr "Предоставляете ли вы скидки для некоммерческих организаций и проектов с открытым исходным кодом?"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:432
+#, elixir-autogen, elixir-format
 msgid "Do you support a seat-based pricing model?"
-msgstr "Есть ли у вас тарифы, зависящие от числа пользователей?"
+msgstr "Поддерживаете ли вы модель ценообразования по числу пользователей?"
 
+#: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:166
+#: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:312
+#, elixir-autogen, elixir-format
 msgid "Docs"
 msgstr "Документация"
 
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:131
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:43
+#, elixir-autogen, elixir-format
 msgid "Documentation"
 msgstr "Документация"
 
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:137
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:61
+#, elixir-autogen, elixir-format
 msgid "Download"
 msgstr "Скачать"
 
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:62
+#, elixir-autogen, elixir-format
 msgid "Download our iOS and macOS apps"
 msgstr "Скачайте наши приложения для iOS и macOS"
 
+#: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:285
+#, elixir-autogen, elixir-format
 msgid "Effortlessly share your app with a single URL."
-msgstr "Легко делитесь своим приложением через одну ссылку."
+msgstr "Легко делитесь своим приложением по одной ссылке."
 
+#: lib/tuist_web/marketing/controllers/marketing_html/support.html.heex:22
+#, elixir-autogen, elixir-format
 msgid "Email Support"
-msgstr "Поддержка по почте"
+msgstr "Поддержка по электронной почте"
 
+#: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:299
+#, elixir-autogen, elixir-format
 msgid "Enhance your development environment with actionable insights."
-msgstr "Расширьте возможности своей среды разработки с помощью полезной аналитики."
+msgstr "Улучшайте вашу среду разработки с помощью полезной аналитики."
 
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:39
+#, elixir-autogen, elixir-format
 msgid "Enterprise"
-msgstr "Enterprise"
+msgstr "Корпоративный"
 
+#: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:315
+#, elixir-autogen, elixir-format
 msgid "Explore our documentation—your go-to guide for mastering all things."
-msgstr "Ознакомьтесь с нашей документацией — вашим путеводителем по всему, что нужно знать."
+msgstr "Изучите нашу документацию — ваш главный путеводитель по всему."
 
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:157
+#, elixir-autogen, elixir-format
 msgid "Faster & more lightweight OSS packages resolution"
-msgstr "Более быстрое и лёгкое разрешение OSS-пакетов"
+msgstr "Более быстрая и лёгкая сборка OSS-пакетов"
 
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:36
+#: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:68
+#: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:140
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:126
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:353
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:305
+#, elixir-autogen, elixir-format
 msgid "Features"
-msgstr "Возможности"
+msgstr "Функции"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/support.html.heex:25
+#, elixir-autogen, elixir-format
 msgid "For direct assistance with technical issues or account-related questions, reach out to our support team via email."
-msgstr "Для помощи с техническими проблемами или вопросами по аккаунту свяжитесь с нашей командой поддержки по почте."
+msgstr "Для непосредственной помощи по техническим проблемам или вопросам аккаунта обращайтесь в нашу службу поддержки по электронной почте."
 
+#: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:171
+#, elixir-autogen, elixir-format
 msgid "Forum"
 msgstr "Форум"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:15
+#, elixir-autogen, elixir-format
 msgid "Free under tier limits"
-msgstr "Бесплатно в рамках лимитов"
+msgstr "Бесплатно в пределах лимитов тарифа"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:420
+#, elixir-autogen, elixir-format
 msgid "Frequently Asked Questions"
 msgstr "Часто задаваемые вопросы"
 
+#: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:143
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:387
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:394
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:128
+#, elixir-autogen, elixir-format
 msgid "Generated Projects"
 msgstr "Сгенерированные проекты"
 
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:48
+#: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:255
+#, elixir-autogen, elixir-format
 msgid "Generated projects"
 msgstr "Сгенерированные проекты"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/support.html.heex:6
+#, elixir-autogen, elixir-format
 msgid "Get Support"
-msgstr "Связаться с поддержкой"
+msgstr "Получить поддержку"
 
-msgid "Get early access"
-msgstr "Получить ранний доступ"
-
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:216
+#, elixir-autogen, elixir-format
 msgid "Get help when you need it through various support channels."
-msgstr "Получайте помощь в любое время через разные каналы поддержки."
+msgstr "Получайте помощь, когда она вам нужна, через различные каналы поддержки."
 
+#: lib/tuist_web/marketing/components/marketing_components.ex:430
+#: lib/tuist_web/marketing/controllers/marketing_html.ex:32
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:33
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:10
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:28
+#, elixir-autogen, elixir-format
 msgid "Get started"
 msgstr "Начать"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:248
+#, elixir-autogen, elixir-format
 msgid "Get started with Tuist at no cost, and only invest more when you're ready for higher limits, personalized support, or alternative billing options."
-msgstr "Начните использовать Tuist бесплатно, а платить — только когда будете готовы перейти на повышенные лимиты, персональную поддержку или другие варианты оплаты."
+msgstr "Начните использовать Tuist бесплатно и платите только тогда, когда вам нужны более высокие лимиты, персональная поддержка или альтернативные варианты оплаты."
 
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:5
+#, elixir-autogen, elixir-format
 msgid "Get started with no credit card required."
-msgstr "Начните без привязки карты."
+msgstr "Начать без необходимости вводить данные кредитной карты."
 
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:238
+#: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:179
+#: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:372
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:94
+#, elixir-autogen, elixir-format
 msgid "GitHub"
 msgstr "GitHub"
 
+#: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:342
+#, elixir-autogen, elixir-format
 msgid "Got ideas or questions? Join the conversation in our community forum."
 msgstr "Есть идеи или вопросы? Присоединяйтесь к обсуждению на нашем форуме сообщества."
 
+#: lib/tuist_web/marketing/controllers/marketing_html/newsletter_verify.html.heex:11
+#, elixir-autogen, elixir-format
 msgid "Great! The email %{email} has been confirmed and subscribed to Tuist Digest."
 msgstr "Отлично! Электронная почта %{email} подтверждена и подписана на Tuist Digest."
 
+#: lib/tuist_web/marketing/controllers/marketing_html/about.html.heex:86
+#, elixir-autogen, elixir-format
 msgid "Happiness"
 msgstr "Счастье"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:632
+#, elixir-autogen, elixir-format
 msgid "Hear from our community about their experience with Tuist"
-msgstr "Узнайте, что говорит сообщество о своём опыте с Tuist"
+msgstr "Узнайте из опыта нашего сообщества об использовании Tuist"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:196
+#, elixir-autogen, elixir-format
 msgid "Host Tuist server on your own infrastructure for complete control and data sovereignty."
-msgstr "Разместите сервер Tuist на своей инфраструктуре для полного контроля и автономии данных."
+msgstr "Размещайте сервер Tuist на собственной инфраструктуре для полного контроля и суверенитета данных."
 
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:625
+#, elixir-autogen, elixir-format
 msgid "How can I estimate the cost for my project?"
-msgstr "Как я могу оценить стоимость своего проекта?"
+msgstr "Как я могу оценить стоимость моего проекта?"
 
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:607
+#, elixir-autogen, elixir-format
 msgid "How can I estimate the cost of my project?"
-msgstr "Как я могу оценить стоимость своего проекта?"
+msgstr "Как я могу оценить стоимость моего проекта?"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:82
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:115
+#, elixir-autogen, elixir-format
 msgid "How do we calculate units?"
-msgstr "Как мы считаем использование?"
+msgstr "Как мы рассчитываем единицы?"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:6
+#, elixir-autogen, elixir-format
 msgid "Ideal for individual developers."
 msgstr "Идеально для индивидуальных разработчиков."
 
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:288
+#, elixir-autogen, elixir-format
 msgid "Imprint"
-msgstr "Юридические сведения"
+msgstr "Импринт"
 
+#: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:155
+#: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:296
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:208
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:227
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:350
+#, elixir-autogen, elixir-format
 msgid "Insights"
 msgstr "Аналитика"
 
-msgid "Insights from your builds and test runs"
-msgstr "Аналитика сборок и тестов"
-
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:35
+#, elixir-autogen, elixir-format
 msgid "Instantly share your app using a URL"
-msgstr "Мгновенно делитесь приложением по ссылке"
+msgstr "Мгновенно делитесь своим приложением с помощью URL"
 
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:371
+#, elixir-autogen, elixir-format
 msgid "Invalid verification link. Please try signing up again."
-msgstr "Ссылка для подтверждения недействительна. Пожалуйста, попробуйте зарегистрироваться ещё раз."
+msgstr "Недействительная ссылка подтверждения. Пожалуйста, попробуйте зарегистрироваться снова."
 
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:653
+#, elixir-autogen, elixir-format
 msgid "Is there a free trial for paid plans?"
-msgstr "Есть ли пробный период для платных тарифов?"
+msgstr "Есть ли бесплатный пробный период для платных планов?"
 
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:612
+#, elixir-autogen, elixir-format
 msgid "Is there a free trial on paid plans?"
-msgstr "Есть ли пробный период для платных тарифов?"
+msgstr "Есть ли бесплатный пробный период для платных планов?"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:569
+#, elixir-autogen, elixir-format
 msgid "Is there a minimum contract length?"
-msgstr "Есть ли минимальный срок договора?"
+msgstr "Есть ли минимальный срок контракта?"
 
-msgid "Issue Tracking"
-msgstr "Отслеживание задач"
-
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:172
+#, elixir-autogen, elixir-format
 msgid "Issues"
-msgstr "Задачи"
+msgstr "Проблемы"
 
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:89
+#, elixir-autogen, elixir-format
 msgid "Join discussions and share ideas on our Discourse forum"
 msgstr "Присоединяйтесь к обсуждениям и делитесь идеями на нашем форуме Discourse"
 
+#: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:359
+#, elixir-autogen, elixir-format
 msgid "Join our Slack group for real-time conversations and to connect with the Tuist community"
-msgstr "Присоединяйтесь к нашему Slack, чтобы общаться в реальном времени и быть на связи с сообществом Tuist"
+msgstr "Присоединяйтесь к нашей группе Slack для общения в реальном времени и связи с сообществом Tuist"
 
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:83
+#, elixir-autogen, elixir-format
 msgid "Join the community on Slack"
-msgstr "Присоединяйтесь к нашему сообществу в Slack"
+msgstr "Присоединяйтесь к сообществу в Slack"
 
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:129
+#, elixir-autogen, elixir-format
 msgid "Jonathan Crooke, Bumble"
 msgstr "Jonathan Crooke, Bumble"
 
+#: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:329
+#, elixir-autogen, elixir-format
 msgid "Keep up with the latest and greatest changes in Tuist."
-msgstr "Будьте в курсе самых свежих и значимых изменений в Tuist."
+msgstr "Следите за последними и важнейшими изменениями в Tuist."
 
+#: lib/tuist_web/marketing/controllers/marketing_html/page.html.heex:9
+#, elixir-autogen, elixir-format
 msgid "Last updated %{date}"
 msgstr "Последнее обновление %{date}"
 
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:56
+#, elixir-autogen, elixir-format
 msgid "Learn & contribute to our source code"
-msgstr "Изучайте и вносите вклад в наш исходный код"
+msgstr "Учитесь и вносите свой вклад в наш исходный код"
 
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:71
+#, elixir-autogen, elixir-format
 msgid "Learn about Tuist and meet the team"
-msgstr "Познакомьтесь с Tuist и его командой"
+msgstr "Узнайте о Tuist и познакомьтесь с командой"
 
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:267
+#, elixir-autogen, elixir-format
 msgid "Legal"
-msgstr "Правовая информация"
+msgstr "Юридическая информация"
 
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:254
+#, elixir-autogen, elixir-format
 msgid "LinkedIn"
 msgstr "LinkedIn"
 
+#: lib/tuist_web/marketing/live/marketing_changelog_live.html.heex:92
+#, elixir-autogen, elixir-format
 msgid "Load more"
-msgstr "Показать ещё"
+msgstr "Загрузить ещё"
 
+#: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:93
+#: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:200
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:328
+#, elixir-autogen, elixir-format
 msgid "Log in"
 msgstr "Войти"
 
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:211
+#, elixir-autogen, elixir-format
 msgid "Longevity"
-msgstr "Устойчивость"
+msgstr "Долговечность"
 
-msgid "Make Xcode projects easier to manage and scale"
-msgstr "Управляйте и масштабируйте проекты Xcode проще"
-
-msgid "Make mobile"
-msgstr "Сделайте мобильную разработку"
-
+#: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:258
+#, elixir-autogen, elixir-format
 msgid "Make modular Xcode projects more manageable"
-msgstr "Упростите работу с модульными проектами Xcode"
+msgstr "Сделайте модульные проекты Xcode более управляемыми"
 
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:230
+#, elixir-autogen, elixir-format
 msgid "Mastodon"
 msgstr "Mastodon"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:76
+#: lib/tuist_web/marketing/live/marketing_cache_live.html.heex:45
+#, elixir-autogen, elixir-format
 msgid "Module cache"
 msgstr "Кэш модулей"
 
+#: lib/tuist_web/marketing/components/marketing_components.ex:362
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:271
+#, elixir-autogen, elixir-format
 msgid "Most popular"
-msgstr "Популярный"
+msgstr "Самый популярный"
 
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:164
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:76
+#, elixir-autogen, elixir-format
 msgid "Newsletter"
 msgstr "Рассылка"
 
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:363
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:380
+#, elixir-autogen, elixir-format
 msgid "Newsletter Verification Failed"
-msgstr "Не удалось подтвердить подписку на рассылку"
+msgstr "Ошибка подтверждения подписки на рассылку"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/newsletter.html.heex:75
+#, elixir-autogen, elixir-format
 msgid "Newsletter issues are sent every 6 weeks and you can unsubscribe at any time."
-msgstr "Мы рассылаем новости раз в 6 недель, и вы можете отписаться в любое время."
+msgstr "Выпуски рассылки отправляются каждые 6 недель, и вы можете отписаться в любое время."
 
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:580
+#, elixir-autogen, elixir-format
 msgid "No, there's no minimum contract length. You're free to cancel at any time."
-msgstr "Нет, минимальный срок договора не установлен. Вы можете расторгнуть его в любое время."
+msgstr "Нет, минимального срока контракта нет. Вы можете отменить подписку в любое время."
 
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:28
+#, elixir-autogen, elixir-format
 msgid "Ongoing incident"
 msgstr "Текущий инцидент"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:386
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:412
+#, elixir-autogen, elixir-format
 msgid "Open the %{feature} feature documentation"
 msgstr "Откройте документацию функции %{feature}"
 
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:205
+#: lib/tuist_web/marketing/controllers/marketing_html/about.html.heex:65
+#, elixir-autogen, elixir-format
 msgid "Openness"
 msgstr "Открытость"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:64
+#, elixir-autogen, elixir-format
 msgid "Optimized app bundles"
 msgstr "Оптимизированные пакеты приложений"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/about.html.heex:36
+#, elixir-autogen, elixir-format
 msgid "Our approach is rooted in curiosity and open collaboration. We share our journey, contribute tools as open source, and cultivate communities where developers learn and grow together. When we solve problems in the open, everyone wins."
-msgstr "Наш подход основан на любознательности и открытом сотрудничестве. Мы делимся своим опытом, публикуем инструменты с открытым исходным кодом и растим сообщества, где разработчики учатся и развиваются вместе. Когда мы решаем задачи открыто, выигрывают все."
+msgstr "Наш подход основан на любопытстве и открытом сотрудничестве. Мы делимся своим опытом, вносим инструменты с открытым исходным кодом и развиваем сообщества, где разработчики учатся и растут вместе. Когда мы решаем проблемы открыто, выигрывают все."
 
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:97
+#, elixir-autogen, elixir-format
 msgid "Our cache solution integrates with Xcode 26's build system cache capabilities."
-msgstr "Наше решение для кэша интегрируется с возможностями системы кэширования сборок Xcode 26."
+msgstr "Наше решение кэширования интегрируется со встроенными возможностями системы сборки кэша Xcode 26."
 
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:33
+#, elixir-autogen, elixir-format
 msgid "Pay nothing if below free tier limits"
-msgstr "Бесплатно в пределах лимитов"
+msgstr "Не платите ничего, если вы в пределах бесплатного тарифа"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:34
+#, elixir-autogen, elixir-format
 msgid "Pay only for what you use per feature"
-msgstr "Платите только за то, чем пользуетесь"
+msgstr "Платите только за то, что используете, по каждой функции"
 
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:179
+#, elixir-autogen, elixir-format
 msgid "People"
 msgstr "Люди"
 
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:315
+#, elixir-autogen, elixir-format
 msgid "Please check your email to confirm your subscription."
-msgstr "Пожалуйста, проверьте почту, чтобы подтвердить подписку."
+msgstr "Пожалуйста, проверьте вашу электронную почту, чтобы подтвердить подписку."
 
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:551
+#, elixir-autogen, elixir-format
 msgid "Powered by"
-msgstr "На базе"
+msgstr "Работает на"
 
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:108
+#: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:151
+#: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:282
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:34
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:142
+#: lib/tuist_web/marketing/live/marketing_previews_live.html.heex:7
+#, elixir-autogen, elixir-format
 msgid "Previews"
 msgstr "Превью"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:67
+#, elixir-autogen, elixir-format
 msgid "Price per unit above free tier"
-msgstr "Цена сверх бесплатного лимита"
+msgstr "Цена за единицу сверх бесплатного тарифа"
 
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:119
+#: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:84
+#: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:187
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:260
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:471
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:637
+#, elixir-autogen, elixir-format
 msgid "Pricing"
-msgstr "Тарифы"
+msgstr "Ценообразование"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:228
+#, elixir-autogen, elixir-format
 msgid "Priority support"
 msgstr "Приоритетная поддержка"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:53
+#, elixir-autogen, elixir-format
 msgid "Priority support via Slack channel"
-msgstr "Приоритетная поддержка в Slack"
+msgstr "Приоритетная поддержка через канал Slack"
 
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:276
+#, elixir-autogen, elixir-format
 msgid "Privacy policy"
 msgstr "Политика конфиденциальности"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:21
+#, elixir-autogen, elixir-format
 msgid "Pro"
 msgstr "Pro"
 
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:113
+#, elixir-autogen, elixir-format
 msgid "Product"
 msgstr "Продукт"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:585
+#, elixir-autogen, elixir-format
 msgid "Pull requests merged"
-msgstr "слитых pull requests"
+msgstr "Объединённые pull-запросы"
 
-msgid "QA"
-msgstr "QA"
-
+#: lib/tuist_web/marketing/live/marketing_blog_live.ex:113
+#: lib/tuist_web/marketing/structured_markup.ex:186
+#, elixir-autogen, elixir-format
 msgid "Read engaging stories and expert insights."
-msgstr "Читайте увлекательные истории и экспертные инсайты."
+msgstr "Читайте увлекательные истории и экспертные материалы."
 
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:516
+#, elixir-autogen, elixir-format
 msgid "Read the Bumble customer story"
-msgstr "Читайте историю Bumble"
+msgstr "Читать историю клиента Bumble"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:484
+#, elixir-autogen, elixir-format
 msgid "Read the Trendyol customer story"
-msgstr "Читайте историю Trendyol"
+msgstr "Читать историю клиента Trendyol"
 
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:78
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:413
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:420
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:156
+#, elixir-autogen, elixir-format
 msgid "Registry"
 msgstr "Реестр"
 
+#: lib/tuist_web/marketing/components/marketing_home_components.ex:67
+#, elixir-autogen, elixir-format
 msgid "Requires a generated project"
 msgstr "Требуется сгенерированный проект"
 
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:228
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:441
+#, elixir-autogen, elixir-format
 msgid "Resources"
 msgstr "Ресурсы"
 
-msgid "Right Inside Your Workflow"
-msgstr "Прямо в вашем рабочем процессе"
-
-msgid "Screenshots & Replays"
-msgstr "Скриншоты и воспроизведение"
-
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:217
+#, elixir-autogen, elixir-format
 msgid "Security"
 msgstr "Безопасность"
 
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:66
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:16
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:109
+#, elixir-autogen, elixir-format
 msgid "Selective testing"
 msgstr "Выборочное тестирование"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:52
+#, elixir-autogen, elixir-format
 msgid "Self-host your instance of Tuist"
-msgstr "Разверните свой инстанс Tuist на вашей инфраструктуре"
+msgstr "Разместите свой экземпляр Tuist самостоятельно"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:194
+#, elixir-autogen, elixir-format
 msgid "Self-hosting Tuist instance"
-msgstr "Самостоятельный хостинг Tuist"
+msgstr "Самостоятельное размещение экземпляра Tuist"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/support.html.heex:35
+#, elixir-autogen, elixir-format
 msgid "Send us an email"
-msgstr "Напишите нам письмо"
+msgstr "Отправьте нам письмо"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:144
+#, elixir-autogen, elixir-format
 msgid "Share your app builds with others via URL for testing on simulators or devices."
-msgstr "Делитесь своими сборками приложений с другими пользователями по URL для тестирования на симуляторах или устройствах."
+msgstr "Делитесь сборками вашего приложения с другими через URL для тестирования на симуляторах или устройствах."
 
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:70
+#, elixir-autogen, elixir-format
 msgid "Shared app preview with the team"
-msgstr "Предпросмотр отправлен команде"
+msgstr "Общее превью приложения с командой"
 
-msgid "Shrink your app by cleaning up code and assets"
-msgstr "Уменьшайте размер приложения, очищая код и ресурсы"
-
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:311
+#, elixir-autogen, elixir-format
 msgid "Sign up"
-msgstr "Регистрация"
+msgstr "Зарегистрироваться"
 
-msgid "Sign up to get early access to Tuist QA"
-msgstr "Зарегистрируйтесь, чтобы получить ранний доступ к Tuist QA"
-
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:140
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:181
+#, elixir-autogen, elixir-format
 msgid "Since adopting Tuist in our iOS project, we've seen major improvements in scalability and productivity. Overall, it has made our development process faster and more efficient, allowing the team to focus on building features without being slowed down by tool limitations."
-msgstr "С момента внедрения Tuist в наш iOS-проект мы заметили существенный рост масштабируемости и продуктивности. Это ускорило и сделало процесс разработки более эффективным, позволив команде сосредоточиться на создании новых фичей, не отвлекаясь на ограничения инструментов."
+msgstr "С тех пор как мы начали использовать Tuist в нашем iOS-проекте, мы заметили значительное улучшение масштабируемости и производительности. В целом, это сделало процесс разработки быстрее и эффективнее, позволив команде сосредоточиться на создании функционала без замедлений из-за ограничений инструментов."
 
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:57
+#, elixir-autogen, elixir-format
 msgid "Skipped repetitive tests"
-msgstr "Без повторных тестов"
+msgstr "Пропущены повторяющиеся тесты"
 
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:150
+#: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:175
+#: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:355
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:82
+#, elixir-autogen, elixir-format
 msgid "Slack"
 msgstr "Slack"
 
+#: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:221
+#, elixir-autogen, elixir-format
 msgid "Social Media Links"
-msgstr "Ссылки на социальные сети"
+msgstr "Ссылки на соцсети"
 
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:222
+#, elixir-autogen, elixir-format
 msgid "Socials"
 msgstr "Социальные сети"
 
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:324
+#, elixir-autogen, elixir-format
 msgid "Something went wrong. Please try again."
-msgstr "Что-то пошло не так. Пожалуйста, попробуйте снова."
+msgstr "Что-то пошло не так. Пожалуйста, попробуйте ещё раз."
 
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:55
+#, elixir-autogen, elixir-format
 msgid "Sources"
-msgstr "Исходный код"
+msgstr "Исходники"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:78
+#, elixir-autogen, elixir-format
 msgid "Speed up clean builds by caching binaries for cacheable targets and Swift tasks."
-msgstr "Ускоряйте чистые сборки за счёт кеширования бинарных файлов для кешируемых таргетов и Swift-задач."
+msgstr "Ускорьте чистую сборку, кэшируя бинарные файлы для кешируемых целей и Swift-задач."
 
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:111
+#, elixir-autogen, elixir-format
 msgid "Speed up test runs by skipping test suites whose tests are not impacted by the changes."
-msgstr "Ускоряйте тесты, пропуская наборы, не затронутые изменениями."
+msgstr "Ускорьте запуск тестов, пропуская тестовые пакеты, которые не затронуты изменениями."
 
+#: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:272
+#, elixir-autogen, elixir-format
 msgid "Speed up your builds and test runs."
-msgstr "Ускоряйте ваши сборки и запуск тестов."
+msgstr "Ускорьте сборки и запуск тестов."
 
-msgid "Speeds up builds by reusing compiled binaries, cutting down build times in both local development and CI."
-msgstr "Ускоряет сборку за счёт повторного использования уже скомпилированных бинарных файлов – как локально, так и в CI."
-
-msgid "Standard support"
-msgstr "Стандартная поддержка"
-
-msgid "Standard support via Slack and email"
-msgstr "Стандартная поддержка через Slack и почту"
-
-msgid "Standards"
-msgstr "Стандарты"
-
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:563
+#, elixir-autogen, elixir-format
 msgid "Stars on GitHub"
-msgstr "звёзд на GitHub"
+msgstr "Звезды на GitHub"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:243
+#, elixir-autogen, elixir-format
 msgid "Start free,"
 msgstr "Начните бесплатно,"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:703
+#, elixir-autogen, elixir-format
 msgid "Start free, scale as you grow"
-msgstr "Начните бесплатно, масштабируйтесь по мере роста"
+msgstr "Начните бесплатно и масштабируйтесь по мере роста"
 
+#: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:216
+#, elixir-autogen, elixir-format
 msgid "Stay in touch"
 msgstr "Оставайтесь на связи"
 
+#: lib/tuist_web/marketing/structured_markup.ex:219
+#, elixir-autogen, elixir-format
 msgid "Stay updated with the latest changes and improvements in Tuist."
-msgstr "Следите за обновлениями и улучшениями в Tuist."
+msgstr "Будьте в курсе последних изменений и улучшений Tuist."
 
+#: lib/tuist_web/marketing/live/marketing_changelog_live.ex:69
+#, elixir-autogen, elixir-format
 msgid "Stay updated with the latest changes and improvements in Tuist. Read our changelog for detailed information about new features, bug fixes, and enhancements."
-msgstr "Следите за обновлениями и улучшениями в Tuist. Ознакомьтесь с changelog, чтобы узнать подробности о новых функциях, исправлениях ошибок и улучшениях."
+msgstr "Будьте в курсе последних изменений и улучшений Tuist. Читайте наш журнал изменений для подробной информации о новых функциях, исправлениях ошибок и улучшениях."
 
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:77
+#, elixir-autogen, elixir-format
 msgid "Stay updated—subscribe to our newsletter"
-msgstr "Следите за обновлениями – подпишитесь на нашу рассылку"
+msgstr "Будьте в курсе — подпишитесь на нашу рассылку"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/newsletter.html.heex:73
+#: lib/tuist_web/marketing/controllers/marketing_html/newsletter.html.heex:116
+#, elixir-autogen, elixir-format
 msgid "Subscribe"
 msgstr "Подписаться"
 
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:335
+#: lib/tuist_web/marketing/controllers/marketing_html/newsletter_verify.html.heex:9
+#, elixir-autogen, elixir-format
 msgid "Successfully Subscribed!"
-msgstr "Подписка оформлена!"
+msgstr "Успешно подписано!"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:674
+#, elixir-autogen, elixir-format
 msgid "Supercharge your app development"
 msgstr "Ускорьте разработку вашего приложения"
 
+#: lib/mix/tasks/marketing/gen/og_images.ex:66
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:264
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:214
+#: lib/tuist_web/marketing/controllers/marketing_html/support.html.heex:2
+#, elixir-autogen, elixir-format
 msgid "Support"
 msgstr "Поддержка"
 
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:286
+#, elixir-autogen, elixir-format
 msgid "Swift Stories Newsletter"
 msgstr "Рассылка Swift Stories"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:51
+#, elixir-autogen, elixir-format
 msgid "Tailored agreement for specific needs"
-msgstr "Индивидуальные условия под ваши задачи"
+msgstr "Индивидуальное соглашение под конкретные нужды"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:204
+#, elixir-autogen, elixir-format
 msgid "Tailored legal terms"
-msgstr "Индивидуальные юридические соглашения"
+msgstr "Индивидуальные юридические условия"
 
+#: lib/tuist_web/marketing/components/marketing_components.ex:435
+#: lib/tuist_web/marketing/controllers/marketing_html.ex:40
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:41
+#: lib/tuist_web/marketing/live/marketing_customers_live.html.heex:27
+#, elixir-autogen, elixir-format
 msgid "Talk to us"
-msgstr "Связаться с нами"
+msgstr "Свяжитесь с нами"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:607
+#, elixir-autogen, elixir-format
 msgid "Teams using Tuist"
-msgstr "команд, использующие Tuist"
+msgstr "Команды, использующие Tuist"
 
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:270
+#, elixir-autogen, elixir-format
 msgid "Terms of service"
 msgstr "Условия обслуживания"
 
-msgid "Test only the code impacted by the changes"
-msgstr "Тестируйте только те части кода, на которые повлияли изменения"
-
+#: lib/tuist_web/marketing/controllers/marketing_html/about.html.heex:30
+#, elixir-autogen, elixir-format
 msgid "That's why Tuist exists—to restore the joy of development at any scale. We enhance Apple's native tooling by bringing innovative ideas from across the development ecosystem, so teams can focus on creating exceptional apps instead of fighting their build system."
-msgstr "Именно поэтому существует Tuist – вернуть удовольствие от разработки в проектах любого размера. Мы усиливаем нативные инструменты Apple, привнося в них передовые идеи из экосистемы разработки, чтобы команды могли сосредоточиться на создании отличных приложений, а не на разбор проблем со сборкой."
+msgstr "Именно для этого существует Tuist — чтобы вернуть радость разработки в любом масштабе. Мы улучшаем нативные инструменты Apple, внедряя инновационные идеи из всей экосистемы разработки, чтобы команды могли сосредоточиться на создании исключительных приложений, а не бороться с системой сборки."
 
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:413
+#, elixir-autogen, elixir-format
 msgid "The newsletter issue %{issue_number} was not found."
-msgstr "Выпуск рассылки %{issue_number} не найден."
+msgstr "Выпуск рассылки № %{issue_number} не найден."
 
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:405
+#, elixir-autogen, elixir-format
 msgid "The newsletter issue number %{issue_number} is not a valid number."
 msgstr "Номер выпуска рассылки %{issue_number} недействителен."
 
-msgid "The same iOS tooling that powers apps with millions of users, delivered as a service for your team"
-msgstr "Те же инструменты iOS, что используются в приложениях с миллионами пользователей, – теперь как сервис для вашей команды"
-
-msgid "The same iOS tooling that powers billion-user apps, delivered as a service for your team"
-msgstr "Те же инструменты iOS, что используются в приложениях с миллионами пользователей, – теперь как сервис для вашей команды"
-
+#: lib/tuist_web/marketing/controllers/marketing_html/about.html.heex:120
+#, elixir-autogen, elixir-format
 msgid "The team"
 msgstr "Команда"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/newsletter.html.heex:100
+#, elixir-autogen, elixir-format
 msgid "There was an error signing you up on the newsletter"
 msgstr "Произошла ошибка при оформлении подписки на рассылку"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:182
+#, elixir-autogen, elixir-format
 msgid "Track and reduce app size by spotting duplicate assets and bloated resources."
-msgstr "Отслеживайте и уменьшайте размер приложения, находя дубликаты ресурсов и избыточные данные."
+msgstr "Отслеживайте и уменьшайте размер приложения, обнаруживая дублирующиеся ассеты и раздутые ресурсы."
 
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:505
+#, elixir-autogen, elixir-format
 msgid "Trendyol reduced build times by 65% with Tuist"
-msgstr "С Tuist Trendyol ускорила сборки на 65%"
+msgstr "Trendyol сократил время сборки на 65% с помощью Tuist"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:90
+#, elixir-autogen, elixir-format
 msgid "Trusted by the world's best developer teams"
-msgstr "Нам доверяют лучшие команды разработчиков по всему миру"
+msgstr "Доверено лучшими командами разработчиков в мире"
 
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:241
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:263
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:285
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:545
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:581
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:636
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:674
+#: lib/tuist_web/marketing/live/marketing_blog_post_live.ex:48
+#, elixir-autogen, elixir-format
 msgid "Tuist"
 msgstr "Tuist"
 
+#: lib/tuist_web/marketing/layouts/root.html.heex:55
+#: lib/tuist_web/marketing/layouts/root.html.heex:61
+#, elixir-autogen, elixir-format
 msgid "Tuist Blog"
 msgstr "Блог Tuist"
 
+#: lib/tuist_web/marketing/layouts/root.html.heex:70
+#: lib/tuist_web/marketing/layouts/root.html.heex:76
+#, elixir-autogen, elixir-format
 msgid "Tuist Changelog"
-msgstr "История изменений Tuist"
+msgstr "Журнал изменений Tuist"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/newsletter.html.heex:63
+#, elixir-autogen, elixir-format
 msgid "Tuist Digest"
 msgstr "Tuist Digest"
 
+#: lib/mix/tasks/marketing/gen/og_images.ex:60
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:294
+#, elixir-autogen, elixir-format
 msgid "Tuist Digest Newsletter"
 msgstr "Рассылка Tuist Digest"
 
+#: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:52
+#: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:119
+#, elixir-autogen, elixir-format
 msgid "Tuist Icon"
 msgstr "Иконка Tuist"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:608
+#, elixir-autogen, elixir-format
 msgid "Tuist Pro includes support through our community forum and GitHub issues. Enterprise plans include dedicated support via Slack channels with high priority response times."
-msgstr "Tuist Pro включает поддержку через форум сообщества и GitHub Issues. В планах Enterprise доступна выделенная поддержка через Slack с высоким приоритетом ответов."
+msgstr "Tuist Pro включает поддержку через форум сообщества и задачи GitHub. Корпоративные планы включают выделенную поддержку через каналы Slack с приоритетным временем ответа."
 
-msgid "Tuist QA"
-msgstr "Tuist QA"
-
-msgid "Tuist QA runs AI-powered tests from your PRs, giving you summaries with issues, steps, and screenshots — so bugs are caught before they reach main."
-msgstr "Tuist QA запускает AI-тесты из PR и выдаёт сводку с проблемами, шагами и скриншотами – баги ловятся ещё до попадания в main."
-
+#: lib/tuist_web/marketing/controllers/marketing_html/about.html.heex:12
+#, elixir-autogen, elixir-format
 msgid "Tuist bridges the gaps in Apple's tooling that prevent teams from moving fast. We solve the build complexity, workflow friction, and collaboration challenges—so you can deliver exceptional apps at speed."
-msgstr "Tuist закрывает пробелы в инструментах Apple, которые мешают командам двигаться быстро. Мы решаем проблемы сложности сборки, трения в рабочих процессах и трудностей в совместной работе, чтобы вы могли быстрее выпускать отличные приложения."
+msgstr "Tuist устраняет пробелы в инструментах Apple, которые мешают командам работать быстро. Мы решаем сложности сборки, трения в рабочем процессе и проблемы сотрудничества — чтобы вы могли создавать исключительные приложения быстро."
 
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:220
+#, elixir-autogen, elixir-format
 msgid "Tuist has allowed us to migrate our existing monolythic codebase to a modular one. We extracted our different domains into specific modules. It allowed us to remove extra dependencies, ease testability and made our development cycles faster than ever. It even allowed us to bring up 'Test Apps' for speeding up our development on each module."
-msgstr "Tuist позволил нам перейти от монолитной кодовой базы к модульной. Мы выделили отдельные домены в специализированные модули. Это помогло убрать лишние зависимости, упростило тестирование и сделало циклы разработки быстрее, чем когда-либо. Tuist даже позволил нам запускать «Тестовые приложения», чтобы ускорить разработку каждого модуля."
+msgstr "Tuist позволил нам мигрировать нашу существующую монолитную кодовую базу в модульную. Мы вынесли разные домены в отдельные модули. Это позволило избавиться от лишних зависимостей, упростить тестирование и ускорить циклы разработки как никогда раньше. Также мы смогли запускать 'Тестовые приложения' для ускорения разработки каждого модуля."
 
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:154
+#, elixir-autogen, elixir-format
 msgid "Tuist has been a game-changer for our large codebase, where multiple engineers collaborate simultaneously. I've been using it since version 1, and it's been incredible to see how the product has evolved and expanded with new features over time."
-msgstr "Tuist кардинально изменил подход к работе с нашей обширной кодовой базой, над которой одновременно работают несколько инженеров. Я использую его ещё с версии 1, и было невероятно наблюдать, как продукт развивается и расширяется новыми возможностями со временем."
+msgstr "Tuist изменил правила игры для нашей большой кодовой базы, где одновременно работают несколько инженеров. Я использую его с первой версии, и это удивительно — видеть, как продукт развивался и расширялся с новыми функциями со временем."
 
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:169
+#, elixir-autogen, elixir-format
 msgid "Tuist has revolutionized our iOS development workflow at DraftKings. Its automation capabilities have streamlined project generation, build settings, and dependency management. Highly recommended for iOS teams seeking workflow optimization."
-msgstr "Tuist произвёл революцию в нашем процессе iOS-разработки в DraftKings. Благодаря автоматизации он упростил генерацию проектов, настройки сборки и управление зависимостями. Настоятельно рекомендуем командам iOS, которые хотят оптимизировать свой рабочий процесс."
+msgstr "Tuist революционизировал наш рабочий процесс разработки iOS в DraftKings. Его возможности автоматизации упростили генерацию проектов, настройки сборки и управление зависимостями. Настоятельно рекомендуется для команд iOS, стремящихся оптимизировать рабочий процесс."
 
+#: lib/tuist_web/marketing/structured_markup.ex:99
+#, elixir-autogen, elixir-format
 msgid "Tuist is designed to grow with you. Only add a card if you need more than the free tier limits or dedicated support."
-msgstr "Tuist создан, чтобы расти вместе с вами. Добавляйте карту только тогда, когда вам понадобится превышение бесплатных лимитов или выделенная поддержка."
+msgstr "Tuist разработан, чтобы расти вместе с вами. Добавляйте карту лишь при необходимости превысить лимиты бесплатного тарифа или для получения выделенной поддержки."
 
+#: lib/tuist_web/marketing/controllers/marketing_xml/blog_atom.xml.eex:3
+#: lib/tuist_web/marketing/controllers/marketing_xml/blog_rss.xml.eex:4
+#: lib/tuist_web/marketing/structured_markup.ex:185
+#, elixir-autogen, elixir-format
 msgid "Tuist's blog"
 msgstr "Блог Tuist"
 
+#: lib/tuist_web/marketing/controllers/marketing_xml/changelog_atom.xml.eex:3
+#: lib/tuist_web/marketing/controllers/marketing_xml/changelog_rss.xml.eex:4
+#, elixir-autogen, elixir-format
 msgid "Tuist's changelog"
-msgstr "История изменений Tuist"
+msgstr "Журнал изменений Tuist"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:130
+#, elixir-autogen, elixir-format
 msgid "Turn projects defined with a Swift-DSL into Xcode workspaces and projects."
-msgstr "Преобразуйте проекты на Swift-DSL в рабочие пространства и проекты Xcode."
+msgstr "Преобразуйте проекты, определённые с помощью Swift-DSL, в Xcode workspaces и проекты."
 
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:103
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:104
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:105
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:136
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:137
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:138
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:150
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:151
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:152
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:160
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:161
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:162
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:174
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:175
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:176
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:188
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:189
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:190
+#, elixir-autogen, elixir-format
 msgid "Unlimited"
 msgstr "Безлимитно"
 
+#: lib/tuist_web/marketing/components/marketing_layout_components/cta.html.heex:3
+#, elixir-autogen, elixir-format
 msgid "Unlock your iOS team's full potential"
 msgstr "Раскройте весь потенциал вашей команды iOS"
 
+#: lib/tuist_web/marketing/controllers/marketing_xml/changelog_atom.xml.eex:4
+#: lib/tuist_web/marketing/controllers/marketing_xml/changelog_rss.xml.eex:5
+#, elixir-autogen, elixir-format
 msgid "Updates to Tuist's features and improvements."
-msgstr "Обновления функциональности и улучшения Tuist."
+msgstr "Обновления функций и улучшений Tuist."
 
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:23
+#, elixir-autogen, elixir-format
 msgid "Usage-based pricing after free tier."
-msgstr "Тарифы на основе использования после бесплатного уровня."
+msgstr "Оплата по факту использования сверх бесплатного тарифа."
 
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:71
+#, elixir-autogen, elixir-format
 msgid "Usage/seat based pricing"
-msgstr "Оплата за использование/пользователей"
+msgstr "Ценообразование на основе использования/числа мест"
 
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:193
+#, elixir-autogen, elixir-format
 msgid "Using Tuist in our current project has been a game-changer. It has significantly de-stressed our build times and reduced conflicts within the team, allowing us to focus more on development and less on configuration issues. We're confident that it will continue to enhance our productivity and collaboration in future projects."
-msgstr "Использование Tuist в нашем текущем проекте стало настоящим прорывом. Он значительно снизил стресс, связанный со временем сборки, и сократил количество конфликтов внутри команды, позволяя нам больше сосредотачиваться на разработке, а не на проблемах конфигурации. Мы уверены, что Tuist и дальше будет повышать нашу продуктивность и улучшать взаимодействие в будущих проектах."
+msgstr "Использование Tuist в нашем текущем проекте изменило правила игры. Это значительно снизило нагрузку на время сборки и уменьшило конфликты внутри команды, позволяя нам больше сосредоточиться на разработке и меньше на проблемах конфигурации. Мы уверены, что Tuist продолжит повышать нашу продуктивность и сотрудничество в будущих проектах."
 
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:355
+#, elixir-autogen, elixir-format
 msgid "Verification failed. Please try signing up again."
-msgstr "Не удалось подтвердить. Пожалуйста, попробуйте пройти регистрацию ещё раз."
+msgstr "Подтверждение не удалось. Пожалуйста, попробуйте зарегистрироваться снова."
 
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:388
+#, elixir-autogen, elixir-format
 msgid "Verification link expired or invalid. Please try signing up again."
-msgstr "Ссылка просрочена или недействительна. Пожалуйста, попробуйте зарегистрироваться ещё раз."
+msgstr "Ссылка подтверждения истекла или недействительна. Пожалуйста, попробуйте зарегистрироваться снова."
 
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:262
+#, elixir-autogen, elixir-format
 msgid "Videos"
 msgstr "Видео"
 
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:199
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:413
+#, elixir-autogen, elixir-format
 msgid "View all"
-msgstr "Показать всё"
+msgstr "Смотреть всё"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/newsletter_issue.html.heex:75
+#, elixir-autogen, elixir-format
 msgid "View in web browser"
-msgstr "Открыть в браузере"
+msgstr "Просмотр в веб-браузере"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/support.html.heex:56
+#, elixir-autogen, elixir-format
 msgid "Visit the forum"
-msgstr "Перейти на форум"
+msgstr "Посетите форум"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:471
+#, elixir-autogen, elixir-format
 msgid "We accept credit card payments and wire transfers."
-msgstr "Мы принимаем оплату банковскими картами и банковскими переводами."
+msgstr "Мы принимаем платежи по кредитным картам и банковские переводы."
 
+#: lib/tuist_web/marketing/controllers/marketing_html/about.html.heex:67
+#, elixir-autogen, elixir-format
 msgid "We believe openness builds better tools, keeping only what’s needed closed for sustainable development."
-msgstr "Мы считаем, что открытость способствует созданию лучших инструментов, оставляя закрытым только то, что необходимо для устойчивого развития."
+msgstr "Мы верим, что открытость создает лучшие инструменты, оставляя закрытым только необходимое для устойчивого развития."
 
+#: lib/tuist_web/marketing/controllers/marketing_html/about.html.heex:109
+#, elixir-autogen, elixir-format
 msgid "We embrace standards for long-term success while respecting freedom of choice."
-msgstr "Мы придерживаемся стандартов ради долгосрочного успеха, уважая свободу выбора."
+msgstr "Мы принимаем стандарты для долгосрочного успеха, уважая свободу выбора."
 
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:613
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:664
+#, elixir-autogen, elixir-format
 msgid "We have a generous free tier on every paid plan so you can try out the features before paying any money."
-msgstr "В каждом платном тарифе есть щедрый бесплатный лимит, чтобы вы могли опробовать функции до оплаты."
+msgstr "У нас есть щедрый бесплатный уровень для каждого платного плана, чтобы вы могли опробовать функции до оплаты."
 
+#: lib/tuist_web/marketing/controllers/marketing_html/about.html.heex:88
+#, elixir-autogen, elixir-format
 msgid "We prioritize developer happiness because it's closely tied to creating better apps."
-msgstr "Мы ставим счастье разработчиков в приоритет, потому что оно напрямую влияет на создание лучших приложений."
+msgstr "Мы ставим счастье разработчиков на первое место, потому что оно тесно связано с созданием лучших приложений."
 
+#: lib/tuist_web/marketing/controllers/marketing_html/about.html.heex:20
+#, elixir-autogen, elixir-format
 msgid "We want to enable teams to scale with joy"
-msgstr "Мы хотим помочь командам расти с удовольствием"
+msgstr "Мы хотим дать командам возможность масштабироваться с радостью"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/about.html.heex:24
+#, elixir-autogen, elixir-format
 msgid "We're a group of builders who believe scaling your app shouldn't kill your creativity. We've experienced the frustration of watching exciting Swift projects turn into build-time nightmares and tooling headaches as they grow, so we decided to build something better."
-msgstr "Мы – команда создателей, которые верят: масштабирование приложения не должно убивать креативность. Мы сами сталкивались с тем, как перспективные Swift-проекты со временем превращаются в ад бесконечных сборок и головную боль из-за инструментов. Поэтому мы решили сделать что-то лучше."
+msgstr "Мы группа создателей, которые считают, что масштабирование вашего приложения не должно убивать вашу креативность. Мы испытали разочарование, наблюдая, как захватывающие проекты на Swift превращаются в кошмарные сборочные процессы и проблемы с инструментами по мере роста, поэтому решили создать что-то лучше."
 
+#: lib/tuist_web/marketing/controllers/marketing_html/support.html.heex:9
+#, elixir-autogen, elixir-format
 msgid "We're here to help you succeed with Tuist. Whether you need technical assistance, have questions about features or have ideas how to improve the project, we have multiple ways you can reach out to us."
-msgstr "Мы здесь, чтобы помочь вам добиться успеха с Tuist. Если вам нужна техническая помощь, есть вопросы о функциях или идеи по улучшению проекта – у нас есть несколько способов, как вы можете связаться с нами."
+msgstr "Мы здесь, чтобы помочь вам добиться успеха с Tuist. Независимо от того, нужна ли вам техническая помощь, есть ли вопросы о функциях или идеи по улучшению проекта — у нас есть множество способов связаться с нами."
 
+#: lib/tuist_web/marketing/controllers/marketing_html/about.html.heex:122
+#, elixir-autogen, elixir-format
 msgid "We’re a small, passionate team that cares deeply about developer experience and takes pride in crafting tools with care and attention to detail."
-msgstr "Мы – небольшая команда энтузиастов, которой действительно важен опыт разработчиков. Мы гордимся тем, что создаём инструменты с заботой и вниманием к деталям."
+msgstr "Мы маленькая, страстная команда, которая глубоко заботится об опыте разработчиков и гордится созданием инструментов с заботой и вниманием к деталям."
 
+#: lib/tuist_web/marketing/controllers/marketing_html/newsletter.html.heex:87
+#, elixir-autogen, elixir-format
 msgid "We’ve sent a confirmation email to your inbox. Please check your spam or promotions folder and confirm your subscription."
-msgstr "Мы отправили письмо с подтверждением на вашу почту. Пожалуйста, проверьте папки «Спам» или «Промоакции» и подтвердите подписку."
+msgstr "Мы отправили подтверждение на вашу электронную почту. Пожалуйста, проверьте папку спам или промоакции и подтвердите подписку."
 
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:513
+#, elixir-autogen, elixir-format
 msgid "What happens if I exceed my plan limits?"
-msgstr "Что произойдёт, если я превышу лимиты своего тарифа?"
+msgstr "Что произойдет, если я превыщу лимиты моего плана?"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:460
+#, elixir-autogen, elixir-format
 msgid "What payment methods do you accept?"
 msgstr "Какие способы оплаты вы принимаете?"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:597
+#, elixir-autogen, elixir-format
 msgid "What support is included with each plan?"
-msgstr "Что включено в поддержку каждого тарифа?"
+msgstr "Какая поддержка включена в каждый план?"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/about.html.heex:50
+#, elixir-autogen, elixir-format
 msgid "What we believe in"
 msgstr "Во что мы верим"
 
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:595
+#, elixir-autogen, elixir-format
 msgid "Why is your pricing model more accessible compared to traditional enterprise models?"
 msgstr "Почему ваша модель ценообразования более доступна по сравнению с традиционными корпоративными моделями?"
 
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:208
+#, elixir-autogen, elixir-format
 msgid "With macros, external SDKs, and many SPM modules (fully modularized app) Xcode was constantly slow or stuck on my M1 device. SPM kept resolving, code completion didn't work, and swift-syntax compiled forever. It's not just for big teams with big apps. Tuist gave me back my productivity as indie developer for my side projects."
-msgstr "С макросами, внешними SDK и множеством модулей SPM (полностью модульное приложение) Xcode постоянно тормозил или зависал на моём M1. SPM всё время пересобирал зависимости, автодополнение не работало, а swift-syntax компилировался бесконечно. Tuist — это не только для больших команд и крупных приложений. Он вернул мне продуктивность как независимому разработчику в моих сторонних проектах."
+msgstr "С макросами, внешними SDK и множеством модулей SPM (полностью модульное приложение) Xcode постоянно тормозил или зависал на моём устройстве M1. SPM постоянно решался, автодополнение не работало, а swift-syntax компилировался бесконечно. Это проблема не только для больших команд с крупными приложениями. Tuist вернул мне продуктивность как независимо разработчику моих побочных проектов."
 
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:95
+#, elixir-autogen, elixir-format
 msgid "Xcode Cache"
 msgstr "Кэш Xcode"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:573
+#, elixir-autogen, elixir-format
 msgid "Years of building OSS Foundation"
-msgstr "лет создания OSS Foundation"
+msgstr "Годы создания фонда OSS"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:443
+#, elixir-autogen, elixir-format
 msgid "Yes, we do. Please contact us at contact@tuist.dev to discuss your team's needs and we'll set up a custom plan that works for you."
-msgstr "Да, конечно. Пожалуйста, свяжитесь с нами по адресу contact@tuist.dev, расскажите о потребностях вашей команды, и мы подготовим индивидуальный план, который вам подойдёт."
+msgstr "Да, мы предоставляем. Пожалуйста, свяжитесь с нами по адресу contact@tuist.dev, чтобы обсудить потребности вашей команды, и мы разработаем индивидуальный план, который подойдёт вам."
 
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:692
+#, elixir-autogen, elixir-format
 msgid "Yes, we do. Please reach out to contact@tuist.dev for more information."
-msgstr "Да, конечно. Пожалуйста, напишите на contact@tuist.dev, чтобы получить дополнительную информацию."
+msgstr "Да, предоставляем. Пожалуйста, свяжитесь с contact@tuist.dev для получения дополнительной информации."
 
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:618
+#, elixir-autogen, elixir-format
 msgid "Yes, we do. Please reach out to oss@tuist.io for more information."
-msgstr "Да, конечно. Пожалуйста, напишите на oss@tuist.io, чтобы получить дополнительную информацию."
+msgstr "Да, предоставляем. Пожалуйста, свяжитесь с oss@tuist.io для получения дополнительной информации."
 
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:552
+#, elixir-autogen, elixir-format
 msgid "Yes, we offer discounts for yearly subscriptions. Please contact us at contact@tuist.dev to learn more."
-msgstr "Да, мы предлагаем скидки при годовой подписке. Пожалуйста, свяжитесь с нами по адресу contact@tuist.dev, чтобы узнать подробности."
+msgstr "Да, мы предлагаем скидки при годовой подписке. Пожалуйста, свяжитесь с contact@tuist.dev, чтобы узнать больше."
 
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:496
+#, elixir-autogen, elixir-format
 msgid "Yes, you can manage your plan at any time through our management interface."
-msgstr "Да, вы можете управлять своим тарифом в любой момент через интерфейс управления."
+msgstr "Да, вы можете управлять своим планом в любое время через наш интерфейс управления."
 
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:636
+#, elixir-autogen, elixir-format
 msgid "You can set up the Air plan and use the features for a few days to get a usage estimate. If you need a higher limit, let us know and we can help you set up a custom plan."
-msgstr "Вы можете подключить тариф Air и использовать функции несколько дней, чтобы оценить объём использования. Если вам потребуется больший лимит, просто сообщите нам – мы поможем настроить индивидуальный план."
+msgstr "Вы можете активировать план Air и использовать функции несколько дней для оценки использования. Если нужен более высокий лимит, сообщите нам, и мы поможем настроить индивидуальный план."
 
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:608
+#, elixir-autogen, elixir-format
 msgid "You can set up the Air plan, and use the features for a few days to get a usage estimate. If you need a higher limit, let us know and we can help you set up a custom plan."
-msgstr "Вы можете подключить тариф Air и использовать функции несколько дней, чтобы оценить объём использования. Если вам потребуется больший лимит, просто сообщите нам – мы поможем настроить индивидуальный план."
+msgstr "Вы можете активировать план Air и использовать функции несколько дней для оценки использования. Если нужен более высокий лимит, сообщите нам, и мы поможем настроить индивидуальный план."
 
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:524
+#, elixir-autogen, elixir-format
 msgid "You'll be warned before reaching your plan limits. Once reached, the plan will cap interactions to prevent unexpected charges."
-msgstr "Мы предупредим вас перед достижением лимитов тарифа. После превышения взаимодействия будут ограничены, чтобы избежать непредвиденных расходов."
+msgstr "Вы будете предупреждены до достижения лимитов вашего плана. После достижения лимитов план ограничит взаимодействия, чтобы избежать неожиданных расходов."
 
+#: lib/tuist_web/marketing/controllers/marketing_html/newsletter_verify.html.heex:21
+#, elixir-autogen, elixir-format
 msgid "You'll receive newsletter issues every 6 weeks with the most important work happening in Tuist and our vision for the future of app development at scale."
-msgstr "Вы будете получать рассылку каждые шесть недель с ключевыми новостями Tuist и нашим видением будущего масштабируемой разработки приложений."
+msgstr "Вы будете получать выпуски рассылки каждые 6 недель с важнейшими событиями в Tuist и нашим видением будущего масштабируемой разработки приложений."
 
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:307
+#, elixir-autogen, elixir-format
 msgid "You're only charged for the features you use, based on your usage, and only after you exceed a free threshold."
-msgstr "Вы платите только за используемые функции: по факту использования и только после превышения бесплатного лимита."
+msgstr "Плата взимается только за те функции, которыми вы пользуетесь, и только после превышения бесплатного порога."
 
+#: lib/tuist_web/marketing/controllers/marketing_html/about.html.heex:166
+#, elixir-autogen, elixir-format
 msgid "Your platform team, as a service"
-msgstr "Ваша платформенная команда как сервис"
+msgstr "Ваша команда платформы как сервис"
 
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:128
+#, elixir-autogen, elixir-format
 msgid "core development experience\""
-msgstr "ключевой опыт разработки»"
+msgstr "основной опыт разработки\""
 
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:152
+#, elixir-autogen, elixir-format
 msgid "in one platform"
 msgstr "в одной платформе"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:552
+#, elixir-autogen, elixir-format
 msgid "open source"
-msgstr "open source"
+msgstr "открытый исходный код"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:245
+#, elixir-autogen, elixir-format
 msgid "pay as you go"
-msgstr "оплата по факту"
+msgstr "плати по мере использования"
 
-msgid "pinpoint the exact moment of the issue during testing"
-msgstr "точно определить момент возникновения ошибки при тестировании"
-
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:605
+#, elixir-autogen, elixir-format
 msgid "read more"
-msgstr "подробнее"
+msgstr "читать далее"
 
-msgid "review every step the agent took with visual context"
-msgstr "проверьте каждый шаг агента с визуальным контекстом"
-
-msgid "see what was tested, issues found, and results at a glance"
-msgstr "сразу увидите, что протестировано, какие проблемы найдены и каковы результаты"
-
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:221
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:225
+#, elixir-autogen, elixir-format
 msgid "via Community Forum"
 msgstr "через форум сообщества"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:229
+#, elixir-autogen, elixir-format
 msgid "via dedicated Slack"
-msgstr "через выделенный канал Slack"
+msgstr "через выделенный Slack"
 
-msgid "your competitive advantage"
-msgstr "своим конкурентным преимуществом"
-
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:44
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:70
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:91
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:124
+#, elixir-autogen, elixir-format
 msgid "Custom"
 msgstr "Индивидуальный"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:8
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:64
+#, elixir-autogen, elixir-format
 msgid "Free"
 msgstr "Бесплатно"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:27
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:66
+#, elixir-autogen, elixir-format
 msgid "and up"
 msgstr "и выше"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:90
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:123
+#, elixir-autogen, elixir-format
 msgid "per additional unit"
-msgstr "per additional unit"
+msgstr "за дополнительную единицу"
 
-msgid "AI writes faster. So should your builds."
-msgstr "AI writes faster. So should your builds."
-
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:117
+#, elixir-autogen, elixir-format
 msgid "A Tuist command execution that interacts with the server pull test result information. As an estimate, this is roughly equivalent to the number of test runs on CI."
-msgstr "Выполнение команды Tuist, которая взаимодействует с сервером и извлекает информацию о результатах тестирования. По приблизительным оценкам, это примерно равно количеству прогонов тестов на CI."
+msgstr "Выполнение команды Tuist, взаимодействующей с сервером для получения информации о результатах тестов. По оценкам, примерно соответствует числу запусков тестов в CI."
 
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:84
+#, elixir-autogen, elixir-format
 msgid "A Tuist command execution that interacts with the server to pull module binaries. As an estimate, this is roughly equivalent to the number of clean builds on CI, plus local project generations that aren't cached locally."
-msgstr "Выполнение команды Tuist, которая взаимодействует с сервером для извлечения бинарных файлов модулей. По приблизительным оценкам, это примерно равно количеству чистых сборок на CI, плюс локальные генерации проектов, которые не кэшируются локально."
+msgstr "Выполнение команды Tuist, взаимодействующей с сервером для загрузки бинарников модулей. По оценкам, примерно соответствует количеству чистых сборок в CI плюс локальным генерациям проектов, не кэшируемым локально."
 
+#: lib/mix/tasks/marketing/gen/og_images.ex:54
+#, elixir-autogen, elixir-format
 msgid "About us"
 msgstr "О нас"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:374
+#, elixir-autogen, elixir-format
 msgid "Hits"
-msgstr "Обращения"
+msgstr "Попадания"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:499
+#, elixir-autogen, elixir-format
 msgid "Read customer story"
-msgstr "Прочитать историю клиента"
+msgstr "Читать историю клиента"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:443
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:452
+#, elixir-autogen, elixir-format
 msgid "Explore Tuist's features"
 msgstr "Изучите возможности Tuist"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:436
+#, elixir-autogen, elixir-format
 msgid "Explore features"
-msgstr "Изучите особенности"
+msgstr "Изучите функции"
 
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:437
+#, elixir-autogen, elixir-format
 msgid "live on our dashboard"
-msgstr "в прямом эфире на нашей приборной панели"
+msgstr "в реальном времени на нашей панели"
 
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:495
+#, elixir-autogen, elixir-format
 msgid "Language"
 msgstr "Язык"
 
-#~ msgid "%{count} minute"
-#~ msgid_plural "%{count} minutes"
-#~ msgstr[0] "%{count} минута"
-#~ msgstr[1] "%{count} минуты"
-#~ msgstr[2] "%{count} минут"
+#: lib/tuist_web/marketing/controllers/marketing_html/case_study.html.heex:74
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:531
+#: lib/tuist_web/marketing/live/marketing_customers_live.html.heex:61
+#, elixir-autogen, elixir-format
+msgid "Read story"
+msgstr "Читать историю"
+
+#: lib/tuist_web/marketing/controllers/marketing_html/case_study.html.heex:27
+#: lib/tuist_web/marketing/controllers/marketing_html/case_study.html.heex:69
+#: lib/tuist_web/marketing/live/marketing_customers_live.html.heex:56
+#, elixir-autogen, elixir-format
+msgid "%{company} case study"
+msgstr "Кейс %{company}"
+
+#: lib/tuist_web/marketing/controllers/marketing_html/case_study.html.heex:38
+#, elixir-autogen, elixir-format
+msgid "(opens in new tab)"
+msgstr "(открывается в новой вкладке)"
+
+#: lib/tuist_web/marketing/live/marketing_customers_live.html.heex:17
+#, elixir-autogen, elixir-format
+msgid "Discover how teams around the world use Tuist to build high-quality apps faster, streamline workflows, and save countless hours of engineering time."
+msgstr "Узнайте, как команды по всему миру используют Tuist для более быстрой разработки высококачественных приложений, оптимизации рабочих процессов и экономии бесчисленных часов инженерного труда."
+
+#: lib/tuist_web/marketing/controllers/marketing_html/case_study.html.heex:42
+#, elixir-autogen, elixir-format
+msgid "Founded"
+msgstr "Основана"
+
+#: lib/tuist_web/marketing/live/marketing_customers_live.ex:73
+#: lib/tuist_web/marketing/structured_markup.ex:280
+#, elixir-autogen, elixir-format
+msgid "Learn how teams use Tuist to scale their iOS development."
+msgstr "Узнайте, как команды используют Tuist для масштабирования разработки iOS."
+
+#: lib/tuist_web/marketing/controllers/marketing_html/case_study.html.heex:46
+#, elixir-autogen, elixir-format
+msgid "Onboarded"
+msgstr "Внедрение"
+
+#: lib/tuist_web/marketing/controllers/marketing_html/case_study.html.heex:59
+#, elixir-autogen, elixir-format
+msgid "Read next"
+msgstr "Читать далее"
+
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:101
+#, elixir-autogen, elixir-format
+msgid "Explore Tuist's features on the public dashboard"
+msgstr "Изучите функции Tuist на публичном Dashboard"
+
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:100
+#, elixir-autogen, elixir-format
+msgid "Public dashboard"
+msgstr "Публичный Dashboard"
+
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:107
+#, elixir-autogen, elixir-format
+msgid "See how leading teams scale with Tuist"
+msgstr "Узнайте, как ведущие команды масштабируются с Tuist"
+
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:254
+#, elixir-autogen, elixir-format
+msgid "See how leading tech companies are scaling their development with Tuist."
+msgstr "Узнайте, как ведущие технологические компании масштабируют разработку с Tuist."
+
+#: lib/tuist_web/marketing/controllers/marketing_html/blog_post.html.heex:35
+#: lib/tuist_web/marketing/controllers/marketing_html/case_study.html.heex:83
+#: lib/tuist_web/marketing/live/marketing_blog_post_live.html.heex:35
+#, elixir-autogen, elixir-format
+msgid "AI moves fast. So should your builds."
+msgstr "ИИ движется быстро. Так же должны быстро выполняться ваши сборки."
+
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:196
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:106
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:582
+#: lib/tuist_web/marketing/controllers/marketing_html/case_study.html.heex:10
+#: lib/tuist_web/marketing/live/marketing_customers_live.ex:67
+#: lib/tuist_web/marketing/live/marketing_customers_live.html.heex:14
+#, elixir-autogen, elixir-format
+msgid "Customers"
+msgstr "Клиенты"
+
+#: lib/tuist_web/marketing/structured_markup.ex:279
+#, elixir-autogen, elixir-format
+msgid "Tuist Customers"
+msgstr "Клиенты Tuist"
+
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:397
+#, elixir-autogen, elixir-format
+msgid "Conceptually compress the complexities of modular Xcode projects and make them more accessible to maintain and scale."
+msgstr "Концептуально упростите сложности модульных проектов Xcode и сделайте их более доступными для поддержки и масштабирования."
+
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:230
+#: lib/tuist_web/marketing/live/marketing_build_insights_live.ex:36
+#: lib/tuist_web/marketing/live/marketing_build_insights_live.html.heex:14
+#, elixir-autogen, elixir-format
+msgid "Monitor build performance across local and CI environments to catch slowdowns before they become bottlenecks."
+msgstr "Отслеживайте производительность сборки в локальной и CI-средах, чтобы выявлять замедления до того, как они станут узкими местами."
+
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:258
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:277
+#: lib/tuist_web/marketing/live/marketing_selective_testing_live.html.heex:7
+#, elixir-autogen, elixir-format
+msgid "Selective Testing"
+msgstr "Выборочное тестирование"
+
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:268
+#, elixir-autogen, elixir-format
+msgid "Selective testing dashboard showing tests skipped with 134/196 tests skipped and 15.8h saved this week"
+msgstr "Панель выборочного тестирования, показывающая пропущенные тесты: 134 из 196, сэкономлено 15,8 часов за неделю"
+
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:90
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:28
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:331
+#: lib/tuist_web/marketing/live/marketing_test_insights_live.html.heex:7
+#, elixir-autogen, elixir-format
+msgid "Test Insights"
+msgstr "Аналитика тестов"
+
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:341
+#, elixir-autogen, elixir-format
+msgid "Test insights showing test runs, flaky tests, failed test runs, and p90 test run duration metrics"
+msgstr "Аналитика тестов, показывающая запуски тестов, нестабильные тесты, проваленные запуски и метрики длительности тестов p90"
+
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:242
+#, elixir-autogen, elixir-format
+msgid "Tests"
+msgstr "Тесты"
+
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:423
+#, elixir-autogen, elixir-format
+msgid "Download only what you need — faster, lighter builds locally and on CI."
+msgstr "Скачивайте только необходимое — более быстрые и лёгкие сборки локально и в CI."
+
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:370
+#, elixir-autogen, elixir-format
+msgid "Extra features that simplify modular Xcode projects and speed up local and CI builds."
+msgstr "Дополнительные функции, упрощающие модульные проекты Xcode и ускоряющие локальные и CI-сборки."
+
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:367
+#, elixir-autogen, elixir-format
+msgid "Other features"
+msgstr "Другие функции"
+
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:244
+#, elixir-autogen, elixir-format
+msgid "Run only impacted tests based on your changes for faster feedback loops and less waiting — both locally and on CI."
+msgstr "Запускайте только затронутые тесты на основе ваших изменений для более быстрой обратной связи и меньшего ожидания — как локально, так и в CI."
+
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:160
+#, elixir-autogen, elixir-format
+msgid "Skip the manual steps, auto-generate projects, speed up builds, and explore insights with built-in analytics."
+msgstr "Пропускайте ручные шаги, автоматически генерируйте проекты, ускоряйте сборки и изучайте аналитику с встроенными инструментами."
+
+#: lib/tuist_web/marketing/live/marketing_cache_live.html.heex:139
+#, elixir-autogen, elixir-format
+msgid "A low-latency, layered caching system stores and serves artifacts close to where the compute happens."
+msgstr "Низкозадерживающая, многоуровневая система кэширования хранит и предоставляет артефакты близко к месту выполнения вычислений."
+
+#: lib/tuist_web/marketing/live/marketing_cache_live.html.heex:169
+#: lib/tuist_web/marketing/live/marketing_cache_live.html.heex:173
+#, elixir-autogen, elixir-format
+msgid "Adopt it easily"
+msgstr "Легко внедрять"
+
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:29
+#, elixir-autogen, elixir-format
+msgid "Analyze test runs to keep your CI fast and reliable"
+msgstr "Анализируйте запуски тестов, чтобы ваш CI был быстрым и надёжным"
+
+#: lib/tuist_web/marketing/live/marketing_selective_testing_live.html.heex:167
+#: lib/tuist_web/marketing/live/marketing_selective_testing_live.html.heex:171
+#, elixir-autogen, elixir-format
+msgid "Automatic PR comments"
+msgstr "Автоматические комментарии к PR"
+
+#: lib/tuist_web/marketing/live/marketing_flaky_tests_live.html.heex:45
+#, elixir-autogen, elixir-format
+msgid "Automatic flaky test detection"
+msgstr "Автоматическое обнаружение нестабильных тестов"
+
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:23
+#, elixir-autogen, elixir-format
+msgid "Automatically detect and track flaky tests across runs"
+msgstr "Автоматически обнаруживайте и отслеживайте нестабильные тесты в различных запусках"
+
+#: lib/tuist_web/marketing/live/marketing_cache_live.html.heex:10
+#, elixir-autogen, elixir-format
+msgid "Boost productivity."
+msgstr "Повышайте продуктивность."
+
+#: lib/tuist_web/marketing/live/marketing_cache_live.html.heex:69
+#, elixir-autogen, elixir-format
+msgid "Brings the same remote caching to Gradle builds for a unified cross-platform cache."
+msgstr "Предоставляет такое же удалённое кэширование для сборок Gradle, создавая единый кэш для разных платформ."
+
+#: lib/tuist_web/marketing/live/marketing_build_insights_live.html.heex:37
+#, elixir-autogen, elixir-format
+msgid "Build Insights dashboard illustration"
+msgstr "Иллюстрация панели аналитики сборок"
+
+#: lib/tuist_web/marketing/live/marketing_build_insights_live.ex:28
+#, elixir-autogen, elixir-format
+msgid "Build Insights · Tuist"
+msgstr "Информация о сборках · Tuist"
+
+#: lib/tuist_web/marketing/live/marketing_cache_live.html.heex:133
+#: lib/tuist_web/marketing/live/marketing_cache_live.html.heex:137
+#, elixir-autogen, elixir-format
+msgid "Build faster"
+msgstr "Собирайте быстрее"
+
+#: lib/tuist_web/marketing/live/marketing_build_insights_live.html.heex:181
+#, elixir-autogen, elixir-format
+msgid "Build insights are available with a single URL you can share with your team."
+msgstr "Информация о сборках доступна по одной ссылке, которую вы можете поделиться с вашей командой."
+
+#: lib/tuist_web/marketing/live/marketing_build_insights_live.html.heex:57
+#, elixir-autogen, elixir-format
+msgid "CI & local environment visibility"
+msgstr "Видимость CI и локальной среды"
+
+#: lib/tuist_web/marketing/live/marketing_cache_live.html.heex:37
+#, elixir-autogen, elixir-format
+msgid "Cache dashboard illustration"
+msgstr "Иллюстрация панели кэша"
+
+#: lib/tuist_web/marketing/live/marketing_cache_live.html.heex:47
+#, elixir-autogen, elixir-format
+msgid "Cache individual modules as binaries and share them across your team and CI using Tuist's project generation."
+msgstr "Кэшируйте отдельные модули в виде бинарников и делитесь ими с командой и CI через генерацию проектов Tuist."
+
+#: lib/tuist_web/marketing/live/marketing_cache_live.html.heex:156
+#, elixir-autogen, elixir-format
+msgid "Cache insights show you how your build graph is performing against the caching infrastructure."
+msgstr "Данные по кэшу показывают, как ваш граф сборки работает с инфраструктурой кэширования."
+
+#: lib/tuist_web/marketing/live/marketing_cache_live.ex:28
+#, elixir-autogen, elixir-format
+msgid "Cache · Tuist"
+msgstr "Кэш · Tuist"
+
+#: lib/tuist_web/marketing/live/marketing_selective_testing_live.html.heex:184
+#: lib/tuist_web/marketing/live/marketing_selective_testing_live.html.heex:188
+#, elixir-autogen, elixir-format
+msgid "Caching compounds the speed"
+msgstr "Кэширование увеличивает скорость"
+
+#: lib/tuist_web/marketing/live/marketing_build_insights_live.html.heex:135
+#: lib/tuist_web/marketing/live/marketing_build_insights_live.html.heex:140
+#, elixir-autogen, elixir-format
+msgid "Catch slowdowns before they snowball"
+msgstr "Выявляйте замедления до того, как они разрастутся"
+
+#: lib/tuist_web/marketing/live/marketing_selective_testing_live.html.heex:45
+#, elixir-autogen, elixir-format
+msgid "Change-based test selection"
+msgstr "Выбор тестов на основе изменений"
+
+#: lib/tuist_web/marketing/live/marketing_previews_live.html.heex:115
+#: lib/tuist_web/marketing/live/marketing_previews_live.html.heex:119
+#, elixir-autogen, elixir-format
+msgid "Click to run, no CLI needed"
+msgstr "Кликните для запуска, без необходимости в CLI"
+
+#: lib/tuist_web/marketing/live/marketing_previews_live.html.heex:121
+#, elixir-autogen, elixir-format
+msgid "Companion macOS and iOS apps let anyone on the team launch previews on their selected device with a single click."
+msgstr "Приложения-компаньоны для macOS и iOS позволяют каждому в команде запускать превью на выбранном устройстве одним кликом."
+
+#: lib/tuist_web/marketing/live/marketing_flaky_tests_live.html.heex:158
+#: lib/tuist_web/marketing/live/marketing_flaky_tests_live.html.heex:162
+#, elixir-autogen, elixir-format
+msgid "Debug with real execution data"
+msgstr "Отлаживайте с реальными данными выполнения"
+
+#: lib/tuist_web/marketing/live/marketing_flaky_tests_live.html.heex:9
+#, elixir-autogen, elixir-format
+msgid "Detect flaky tests."
+msgstr "Обнаружение нестабильных тестов."
+
+#: lib/tuist_web/marketing/live/marketing_selective_testing_live.html.heex:47
+#, elixir-autogen, elixir-format
+msgid "Detects which modules have changed since the last successful test run and filters the test suite down to only affected test targets."
+msgstr "Определяет, какие модули изменились с момента последнего успешного запуска тестов, и фильтрует набор тестов только до затронутых целей."
+
+#: lib/tuist_web/marketing/live/marketing_flaky_tests_live.html.heex:56
+#, elixir-autogen, elixir-format
+msgid "Diagnostic data download"
+msgstr "Скачивание диагностических данных"
+
+#: lib/tuist_web/marketing/live/marketing_flaky_tests_live.html.heex:164
+#, elixir-autogen, elixir-format
+msgid "Download the diagnostic data for any flaky run, including logs, screenshots, and timing information"
+msgstr "Скачивайте диагностические данные для любого нестабильного запуска, включая логи, скриншоты и информацию о времени."
+
+#: lib/tuist_web/marketing/live/marketing_test_insights_live.html.heex:158
+#, elixir-autogen, elixir-format
+msgid "Drill into any failed run to see exactly which tests failed and their history, no more scrolling through raw CI logs."
+msgstr "Изучайте любой неудачный запуск, чтобы точно узнать, какие тесты провалились и их историю, больше не нужно пролистывать сырые логи CI."
+
+#: lib/tuist_web/marketing/live/marketing_build_insights_live.html.heex:200
+#, elixir-autogen, elixir-format
+msgid "Each build includes environment metadata, so you can see how different setups impact performance."
+msgstr "Каждая сборка содержит метаданные окружения, чтобы вы могли видеть, как различные настройки влияют на производительность."
+
+#: lib/tuist_web/marketing/live/marketing_flaky_tests_live.html.heex:145
+#, elixir-autogen, elixir-format
+msgid "Each flaky test includes its run history, helping you correlate failures with environments, timing, or resource contention."
+msgstr "Каждый нестабильный тест содержит историю запусков, что помогает сопоставить сбои с окружениями, временем или конфликтами ресурсов."
+
+#: lib/tuist_web/marketing/live/marketing_selective_testing_live.html.heex:148
+#: lib/tuist_web/marketing/live/marketing_selective_testing_live.html.heex:152
+#, elixir-autogen, elixir-format
+msgid "Easy to adopt"
+msgstr "Легко внедрять"
+
+#: lib/tuist_web/marketing/live/marketing_test_insights_live.html.heex:56
+#, elixir-autogen, elixir-format
+msgid "Failure analysis"
+msgstr "Анализ сбоев"
+
+#: lib/tuist_web/marketing/live/marketing_selective_testing_live.html.heex:10
+#, elixir-autogen, elixir-format
+msgid "Faster CI feedback."
+msgstr "Более быстрая обратная связь в CI."
+
+#: lib/tuist_web/marketing/live/marketing_flaky_tests_live.html.heex:47
+#, elixir-autogen, elixir-format
+msgid "Flags tests that intermittently pass and fail across runs without code changes. The dashboard surfaces a flaky test list with associated run history."
+msgstr "Отмечает тесты, которые периодически проходят и не проходят в разных запусках без изменений кода. На панели отображается список нестабильных тестов с соответствующей историей запусков."
+
+#: lib/tuist_web/marketing/live/marketing_flaky_tests_live.html.heex:37
+#, elixir-autogen, elixir-format
+msgid "Flaky Tests dashboard illustration"
+msgstr "Иллюстрация панели нестабильных тестов"
+
+#: lib/tuist_web/marketing/live/marketing_flaky_tests_live.ex:28
+#, elixir-autogen, elixir-format
+msgid "Flaky Tests · Tuist"
+msgstr "Нестабильные тесты · Tuist"
+
+#: lib/tuist_web/marketing/live/marketing_test_insights_live.html.heex:67
+#, elixir-autogen, elixir-format
+msgid "Flaky test integration"
+msgstr "Интеграция нестабильных тестов"
+
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:84
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:22
+#, elixir-autogen, elixir-format
+msgid "Flaky tests"
+msgstr "Нестабильные тесты"
+
+#: lib/tuist_web/marketing/live/marketing_flaky_tests_live.html.heex:58
+#, elixir-autogen, elixir-format
+msgid "For each flaky test, download the execution data to investigate timing, environment conditions, and logs, so you can reproduce and fix the flakiness."
+msgstr "Для каждого нестабильного теста скачивайте данные выполнения для изучения времени, условий окружения и логов, чтобы воспроизвести и исправить нестабильность."
+
+#: lib/tuist_web/marketing/live/marketing_test_insights_live.html.heex:150
+#: lib/tuist_web/marketing/live/marketing_test_insights_live.html.heex:155
+#, elixir-autogen, elixir-format
+msgid "From red build to root cause in clicks"
+msgstr "От красной сборки к корневой причине за несколько кликов"
+
+#: lib/tuist_web/marketing/live/marketing_previews_live.html.heex:85
+#, elixir-autogen, elixir-format
+msgid "Generate a shareable build URL so teammates can run it on their devices without using the development toolchain."
+msgstr "Создайте ссылку на сборку для совместного использования, чтобы коллеги могли запускать её на своих устройствах без использования инструментов разработки."
+
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:11
+#, elixir-autogen, elixir-format
+msgid "Generate, build, and analyze — all automated"
+msgstr "Генерация, сборка и анализ — всё автоматически"
+
+#: lib/tuist_web/marketing/live/marketing_flaky_tests_live.html.heex:175
+#: lib/tuist_web/marketing/live/marketing_flaky_tests_live.html.heex:180
+#, elixir-autogen, elixir-format
+msgid "Get alerted and let agents fix it"
+msgstr "Получайте оповещения и позволяйте агентам решать проблемы"
+
+#: lib/tuist_web/marketing/live/marketing_previews_live.html.heex:10
+#, elixir-autogen, elixir-format
+msgid "Get feedback faster."
+msgstr "Получайте обратную связь быстрее."
+
+#: lib/tuist_web/marketing/live/marketing_build_insights_live.html.heex:60
+#, elixir-autogen, elixir-format
+msgid "Gives unified metrics across developer machines and CI runners, without wading through CI logs."
+msgstr "Предоставляет единые метрики по машинам разработчиков и CI-раннерам без необходимости просматривать логи CI."
+
+#: lib/tuist_web/marketing/live/marketing_cache_live.html.heex:67
+#, elixir-autogen, elixir-format
+msgid "Gradle cache"
+msgstr "Кэш Gradle"
+
+#: lib/tuist_web/marketing/live/marketing_build_insights_live.html.heex:45
+#, elixir-autogen, elixir-format
+msgid "Granular build time tracking"
+msgstr "Детальное отслеживание времени сборки"
+
+#: lib/tuist_web/marketing/live/marketing_test_insights_live.html.heex:10
+#, elixir-autogen, elixir-format
+msgid "Improve suite reliability."
+msgstr "Повышайте надёжность набора тестов."
+
+#: lib/tuist_web/marketing/live/marketing_test_insights_live.html.heex:198
+#, elixir-autogen, elixir-format
+msgid "Insights are captured automatically with minimal setup, so your test health data starts flowing right away."
+msgstr "Аналитика собирается автоматически при минимальной настройке, поэтому данные о состоянии тестов начинают поступать сразу."
+
+#: lib/tuist_web/marketing/live/marketing_cache_live.html.heex:175
+#, elixir-autogen, elixir-format
+msgid "Integrate with a single command or a few lines of configuration - no infrastructure to host or maintain."
+msgstr "Интегрируйте с помощью одной команды или нескольких строк конфигурации — без необходимости размещать или поддерживать инфраструктуру."
+
+#: lib/tuist_web/marketing/live/marketing_selective_testing_live.html.heex:69
+#, elixir-autogen, elixir-format
+msgid "Integrates with the build toolchains you already use with minimal changes to your scripts, pipelines, and configuration files."
+msgstr "Интегрируется с используемыми вами инструментами сборки с минимальными изменениями в скриптах, пайплайнах и файлах конфигурации."
+
+#: lib/tuist_web/marketing/live/marketing_selective_testing_live.html.heex:154
+#, elixir-autogen, elixir-format
+msgid "Integrates with your existing build toolchain with minimal configuration changes."
+msgstr "Интегрируется в ваш существующий инструмент сборки с минимальными изменениями конфигурации."
+
+#: lib/tuist_web/marketing/live/marketing_flaky_tests_live.html.heex:10
+#, elixir-autogen, elixir-format
+msgid "Keep your CI reliable."
+msgstr "Держите ваш CI надёжным."
+
+#: lib/tuist_web/marketing/live/marketing_build_insights_live.html.heex:154
+#: lib/tuist_web/marketing/live/marketing_build_insights_live.html.heex:158
+#, elixir-autogen, elixir-format
+msgid "Let AI pinpoint the bottleneck"
+msgstr "Позвольте ИИ определить узкое место"
+
+#: lib/tuist_web/marketing/live/marketing_previews_live.html.heex:96
+#: lib/tuist_web/marketing/live/marketing_previews_live.html.heex:100
+#, elixir-autogen, elixir-format
+msgid "Make code review hands-on"
+msgstr "Сделайте просмотр кода интерактивным"
+
+#: lib/tuist_web/marketing/live/marketing_build_insights_live.html.heex:173
+#: lib/tuist_web/marketing/live/marketing_build_insights_live.html.heex:178
+#, elixir-autogen, elixir-format
+msgid "Metrics are easily accessible and shareable"
+msgstr "Метрики легко доступны и доступны для совместного использования"
+
+#: lib/tuist_web/marketing/live/marketing_build_insights_live.html.heex:10
+#, elixir-autogen, elixir-format
+msgid "Monitor performance trends."
+msgstr "Отслеживайте тенденции производительности."
+
+#: lib/tuist_web/marketing/live/marketing_build_insights_live.html.heex:69
+#, elixir-autogen, elixir-format
+msgid "Multi-channel access"
+msgstr "Многоуровневый доступ"
+
+#: lib/tuist_web/marketing/live/marketing_selective_testing_live.html.heex:137
+#, elixir-autogen, elixir-format
+msgid "Only the tests affected by your changes are executed, skipping everything that hasn't changed."
+msgstr "Выполняются только тесты, затронутые вашими изменениями, пропуская всё остальное."
+
+#: lib/tuist_web/marketing/live/marketing_cache_live.html.heex:150
+#: lib/tuist_web/marketing/live/marketing_cache_live.html.heex:154
+#, elixir-autogen, elixir-format
+msgid "Optimize your cache usage"
+msgstr "Оптимизируйте использование кэша"
+
+#: lib/tuist_web/marketing/live/marketing_previews_live.html.heex:132
+#: lib/tuist_web/marketing/live/marketing_previews_live.html.heex:137
+#, elixir-autogen, elixir-format
+msgid "Organize builds for every audience"
+msgstr "Организуйте сборки для каждого сегмента аудитории"
+
+#: lib/tuist_web/marketing/live/marketing_previews_live.html.heex:37
+#, elixir-autogen, elixir-format
+msgid "Previews dashboard illustration"
+msgstr "Иллюстрация панели превью"
+
+#: lib/tuist_web/marketing/live/marketing_previews_live.ex:22
+#, elixir-autogen, elixir-format
+msgid "Previews · Tuist"
+msgstr "Превью · Tuist"
+
+#: lib/tuist_web/marketing/live/marketing_selective_testing_live.html.heex:58
+#, elixir-autogen, elixir-format
+msgid "Provides analytics on test selection effectiveness, helping you evaluate filtering accuracy and reorganize test targets to improve selection over time."
+msgstr "Предоставляет аналитику эффективности выбора тестов, помогая оценить точность фильтрации и реорганизовать тестовые цели для улучшения выбора со временем."
+
+#: lib/tuist_web/marketing/live/marketing_test_insights_live.html.heex:58
+#, elixir-autogen, elixir-format
+msgid "Quickly understand why a run failed by drilling into individual test results, seeing pass/fail history, and correlating failures with specific changes."
+msgstr "Быстро поймите, почему запуск не удался, изучая отдельные результаты тестов, историю прохождения/провала и сопоставляя сбои с конкретными изменениями."
+
+#: lib/tuist_web/marketing/live/marketing_build_insights_live.html.heex:26
+#: lib/tuist_web/marketing/live/marketing_cache_live.html.heex:26
+#: lib/tuist_web/marketing/live/marketing_flaky_tests_live.html.heex:26
+#: lib/tuist_web/marketing/live/marketing_previews_live.html.heex:26
+#: lib/tuist_web/marketing/live/marketing_selective_testing_live.html.heex:26
+#: lib/tuist_web/marketing/live/marketing_test_insights_live.html.heex:26
+#, elixir-autogen, elixir-format
+msgid "Read docs"
+msgstr "Читать документацию"
+
+#: lib/tuist_web/marketing/live/marketing_flaky_tests_live.html.heex:183
+#, elixir-autogen, elixir-format
+msgid "Receive Slack alerts for new flaky tests and use AI agents via the Tuist API to analyze patterns and propose fixes."
+msgstr "Получайте оповещения в Slack о новых нестабильных тестах и используйте ИИ-агентов через API Tuist для анализа шаблонов и предложения исправлений."
+
+#: lib/tuist_web/marketing/live/marketing_build_insights_live.html.heex:71
+#, elixir-autogen, elixir-format
+msgid "Receive insights via the dashboard, reports, the CLI, the API, and the MCP server."
+msgstr "Получайте аналитику через панель, отчёты, CLI, API и сервер MCP."
+
+#: lib/tuist_web/marketing/live/marketing_test_insights_live.html.heex:47
+#, elixir-autogen, elixir-format
+msgid "Records execution time for every test run across local and CI environments. Surfaces slow tests and duration trends over time on the Tuist dashboard."
+msgstr "Записывает время выполнения каждого запуска тестов в локальной и CI-среде. Отображает медленные тесты и тенденции длительности во времени на панели Tuist."
+
+#: lib/tuist_web/marketing/live/marketing_cache_live.html.heex:9
+#, elixir-autogen, elixir-format
+msgid "Reduce build times."
+msgstr "Сократите время сборки."
+
+#: lib/tuist_web/marketing/live/marketing_previews_live.html.heex:140
+#, elixir-autogen, elixir-format
+msgid "Route previews into custom-named tracks, so stakeholders always know exactly where to find the right build."
+msgstr "Маршрутизируйте превью в специально названные треки, чтобы заинтересованные лица всегда знали, где найти нужную сборку."
+
+#: lib/tuist_web/marketing/live/marketing_selective_testing_live.html.heex:9
+#, elixir-autogen, elixir-format
+msgid "Run impacted tests."
+msgstr "Запускайте затронутые тесты."
+
+#: lib/tuist_web/marketing/live/marketing_selective_testing_live.html.heex:131
+#: lib/tuist_web/marketing/live/marketing_selective_testing_live.html.heex:135
+#, elixir-autogen, elixir-format
+msgid "Run only what matters"
+msgstr "Запускайте только важное"
+
+#: lib/tuist_web/marketing/live/marketing_selective_testing_live.html.heex:67
+#, elixir-autogen, elixir-format
+msgid "Seamless toolchain integration"
+msgstr "Бесшовная интеграция инструментальной цепочки"
+
+#: lib/tuist_web/marketing/live/marketing_test_insights_live.html.heex:171
+#: lib/tuist_web/marketing/live/marketing_test_insights_live.html.heex:176
+#, elixir-autogen, elixir-format
+msgid "See the health of your test suite at a glance"
+msgstr "Взгляните на состояние вашего набора тестов одним взглядом"
+
+#: lib/tuist_web/marketing/live/marketing_flaky_tests_live.html.heex:139
+#: lib/tuist_web/marketing/live/marketing_flaky_tests_live.html.heex:143
+#, elixir-autogen, elixir-format
+msgid "See when and where it broke"
+msgstr "Узнайте, когда и где это ломалось"
+
+#: lib/tuist_web/marketing/live/marketing_selective_testing_live.html.heex:56
+#, elixir-autogen, elixir-format
+msgid "Selection insights"
+msgstr "Аналитика выбора"
+
+#: lib/tuist_web/marketing/live/marketing_selective_testing_live.html.heex:37
+#, elixir-autogen, elixir-format
+msgid "Selective Testing dashboard illustration"
+msgstr "Иллюстрация панели выборочного тестирования"
+
+#: lib/tuist_web/marketing/live/marketing_selective_testing_live.ex:28
+#, elixir-autogen, elixir-format
+msgid "Selective Testing · Tuist"
+msgstr "Выборочное тестирование · Tuist"
+
+#: lib/tuist_web/marketing/live/marketing_selective_testing_live.html.heex:190
+#, elixir-autogen, elixir-format
+msgid "Selective testing pairs with caching to reuse unchanged artifacts and skip unaffected tests."
+msgstr "Выборочное тестирование совмещается с кэшированием для повторного использования неизменённых артефактов и пропуска незатронутых тестов."
+
+#: lib/tuist_web/marketing/live/marketing_previews_live.html.heex:9
+#, elixir-autogen, elixir-format
+msgid "Share app previews instantly."
+msgstr "Мгновенно делитесь превью приложения."
+
+#: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:17
+#, elixir-autogen, elixir-format
+msgid "Speed up CI by testing only what changed"
+msgstr "Ускорьте CI, тестируя только изменённое"
+
+#: lib/tuist_web/marketing/live/marketing_test_insights_live.html.heex:133
+#: lib/tuist_web/marketing/live/marketing_test_insights_live.html.heex:137
+#, elixir-autogen, elixir-format
+msgid "Spot slow tests early"
+msgstr "Выявляйте медленные тесты заранее"
+
+#: lib/tuist_web/marketing/live/marketing_test_insights_live.html.heex:190
+#: lib/tuist_web/marketing/live/marketing_test_insights_live.html.heex:195
+#, elixir-autogen, elixir-format
+msgid "Start tracking with minimal effort"
+msgstr "Начните отслеживание с минимальными затратами"
+
+#: lib/tuist_web/marketing/live/marketing_flaky_tests_live.html.heex:122
+#: lib/tuist_web/marketing/live/marketing_flaky_tests_live.html.heex:126
+#, elixir-autogen, elixir-format
+msgid "Stop chasing false failures"
+msgstr "Прекратите гоняться за ложными сбоями"
+
+#: lib/tuist_web/marketing/live/marketing_cache_live.html.heex:58
+#, elixir-autogen, elixir-format
+msgid "Store and share Xcode compilation artifacts across local, CI, and agentic environments to speed up clean builds."
+msgstr "Храните и делитесь артефактами компиляции Xcode между локальной, CI и агентской средами для ускорения чистой сборки."
+
+#: lib/tuist_web/marketing/live/marketing_test_insights_live.html.heex:37
+#, elixir-autogen, elixir-format
+msgid "Test Insights dashboard illustration"
+msgstr "Иллюстрация панели аналитики тестов"
+
+#: lib/tuist_web/marketing/live/marketing_test_insights_live.html.heex:69
+#, elixir-autogen, elixir-format
+msgid "Test Insights feeds directly into flaky test detection, automatically surfacing tests whose results oscillate without code changes (see Flaky Tests above)."
+msgstr "Аналитика тестов напрямую интегрируется с обнаружением нестабильных тестов, автоматически выделяя тесты, результаты которых колеблются без изменений кода (см. раздел 'Нестабильные тесты')."
+
+#: lib/tuist_web/marketing/live/marketing_test_insights_live.ex:28
+#, elixir-autogen, elixir-format
+msgid "Test Insights · Tuist"
+msgstr "Аналитика тестов · Tuist"
+
+#: lib/tuist_web/marketing/live/marketing_test_insights_live.html.heex:45
+#, elixir-autogen, elixir-format
+msgid "Test duration tracking"
+msgstr "Отслеживание длительности тестов"
+
+#: lib/tuist_web/marketing/live/marketing_cache_live.html.heex:192
+#, elixir-autogen, elixir-format
+msgid "The cache runs transparently across local development, CI, and agentic environments without developers noticing it."
+msgstr "Кэш работает прозрачно в локальной разработке, CI и агентских средах без замечаний со стороны разработчиков."
+
+#: lib/tuist_web/marketing/live/marketing_test_insights_live.html.heex:179
+#, elixir-autogen, elixir-format
+msgid "The dashboard shows test pass rates, duration trends, and flaky tests over time."
+msgstr "Панель показывает процент прохождения тестов, тенденции по времени и нестабильные тесты с течением времени."
+
+#: lib/tuist_web/marketing/live/marketing_build_insights_live.html.heex:9
+#, elixir-autogen, elixir-format
+msgid "Track build health."
+msgstr "Отслеживайте состояние сборки."
+
+#: lib/tuist_web/marketing/live/marketing_build_insights_live.html.heex:143
+#, elixir-autogen, elixir-format
+msgid "Track build times over time and spot the moment a change introduces a significant regression."
+msgstr "Отслеживайте время сборки со временем и выявляйте момент, когда изменение вызывает значительное ухудшение."
+
+#: lib/tuist_web/marketing/live/marketing_test_insights_live.html.heex:139
+#, elixir-autogen, elixir-format
+msgid "Track test durations over time and identify tests that are gradually slowing down"
+msgstr "Отслеживайте длительность тестов со временем и определяйте тесты, которые постепенно замедляются"
+
+#: lib/tuist_web/marketing/live/marketing_test_insights_live.html.heex:9
+#, elixir-autogen, elixir-format
+msgid "Track test health."
+msgstr "Отслеживайте состояние тестов."
+
+#: lib/tuist_web/marketing/live/marketing_build_insights_live.html.heex:47
+#, elixir-autogen, elixir-format
+msgid "Tracks build durations at the module and file level across both local and CI environments."
+msgstr "Отслеживает длительность сборок на уровне модулей и файлов как в локальной, так и в CI-средах."
+
+#: lib/tuist_web/marketing/live/marketing_previews_live.html.heex:102
+#, elixir-autogen, elixir-format
+msgid "Tuist automatically adds a Run Preview link to each PR, letting reviewers test changes on-device before approving."
+msgstr "Tuist автоматически добавляет ссылку Запустить превью к каждому PR, позволяя рецензентам тестировать изменения на устройстве перед одобрением."
+
+#: lib/tuist_web/marketing/live/marketing_flaky_tests_live.html.heex:128
+#, elixir-autogen, elixir-format
+msgid "Tuist automatically detects tests that pass and fail without code changes and flags them in your dashboard."
+msgstr "Tuist автоматически обнаруживает тесты, которые проходят и не проходят без изменений кода, и отмечает их на вашей панели."
+
+#: lib/tuist_web/marketing/live/marketing_build_insights_live.html.heex:160
+#, elixir-autogen, elixir-format
+msgid "Tuist's MCP server and API expose your dependency graph and build data to AI coding agents"
+msgstr "Сервер MCP и API Tuist предоставляют граф зависимостей и данные сборки агентам ИИ для программирования."
+
+#: lib/tuist_web/marketing/live/marketing_previews_live.html.heex:79
+#: lib/tuist_web/marketing/live/marketing_previews_live.html.heex:83
+#, elixir-autogen, elixir-format
+msgid "URL-centric collaboration"
+msgstr "Совместная работа через URL"
+
+#: lib/tuist_web/marketing/live/marketing_build_insights_live.html.heex:192
+#: lib/tuist_web/marketing/live/marketing_build_insights_live.html.heex:197
+#, elixir-autogen, elixir-format
+msgid "Understand what impacts your builds"
+msgstr "Поймите, что влияет на ваши сборки"
+
+#: lib/tuist_web/marketing/live/marketing_cache_live.html.heex:186
+#: lib/tuist_web/marketing/live/marketing_cache_live.html.heex:190
+#, elixir-autogen, elixir-format
+msgid "Use it everywhere"
+msgstr "Используйте везде"
+
+#: lib/tuist_web/marketing/live/marketing_selective_testing_live.html.heex:173
+#, elixir-autogen, elixir-format
+msgid "When connected to GitHub, Tuist posts a summary in your PR showing exactly which tests ran and which were safely skipped."
+msgstr "При подключении к GitHub Tuist публикует в вашем PR сводку, показывающую, какие тесты были запущены, а какие безопасно пропущены."
+
+#: lib/tuist_web/marketing/live/marketing_cache_live.html.heex:56
+#, elixir-autogen, elixir-format
+msgid "Xcode cache"
+msgstr "Кэш Xcode"
+
+#: lib/tuist_web/marketing/live/marketing_build_insights_live.html.heex:85
+#, elixir-autogen, elixir-format
+msgid "Builds analyzed in the last 24 hours"
+msgstr "Сборок проанализировано за последние 24 часа"
+
+#: lib/tuist_web/marketing/live/marketing_cache_live.html.heex:83
+#, elixir-autogen, elixir-format
+msgid "Cache artifacts served in the last 24 hours"
+msgstr "Артефактов кэша обслужено за последние 24 часа"
+
+#: lib/tuist_web/marketing/live/marketing_flaky_tests_live.html.heex:72
+#, elixir-autogen, elixir-format
+msgid "Flaky tests detected in the last 24 hours"
+msgstr "Нестабильных тестов обнаружено за последние 24 часа"
+
+#: lib/tuist_web/marketing/live/marketing_test_insights_live.html.heex:83
+#, elixir-autogen, elixir-format
+msgid "Test cases processed in the last 24 hours"
+msgstr "Тестовых случаев обработано за последние 24 часа"
+
+#: lib/tuist_web/marketing/live/marketing_selective_testing_live.html.heex:82
+#, elixir-autogen, elixir-format
+msgid "Test runs in the last 24 hours"
+msgstr "Запусков тестов за последние 24 часа"
+
+#: lib/tuist_web/marketing/live/marketing_test_insights_live.html.heex:209
+#, elixir-autogen, elixir-format
+msgid "Get full visibility into your test suite"
+msgstr "Получите полную видимость вашего набора тестов"
+
+#: lib/tuist_web/marketing/live/marketing_build_insights_live.html.heex:211
+#, elixir-autogen, elixir-format
+msgid "Monitor and optimize your build performance"
+msgstr "Отслеживайте и оптимизируйте производительность сборки"
+
+#: lib/tuist_web/marketing/live/marketing_selective_testing_live.html.heex:201
+#, elixir-autogen, elixir-format
+msgid "Run only the tests that matter"
+msgstr "Запускайте только важные тесты"
+
+#: lib/tuist_web/marketing/live/marketing_previews_live.html.heex:151
+#, elixir-autogen, elixir-format
+msgid "Share your app instantly with a link"
+msgstr "Мгновенно делитесь своим приложением по ссылке"
+
+#: lib/tuist_web/marketing/live/marketing_cache_live.html.heex:203
+#, elixir-autogen, elixir-format
+msgid "Speed up your builds with binary caching"
+msgstr "Ускорьте сборки с помощью кэширования бинарных файлов"
+
+#: lib/tuist_web/marketing/live/marketing_flaky_tests_live.html.heex:194
+#, elixir-autogen, elixir-format
+msgid "Stop chasing flaky tests manually"
+msgstr "Хватит вручную искать нестабильные тесты"
+
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:3
+#, elixir-autogen, elixir-format
+msgid "Air"
+msgstr "Air"
+
+#: lib/tuist_web/marketing/live/marketing_blog_live.html.heex:48
+#: lib/tuist_web/marketing/live/marketing_changelog_live.html.heex:14
+#, elixir-autogen, elixir-format
+msgid "All"
+msgstr "Все"
+
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:16
+#, elixir-autogen, elixir-format
+msgid "All features, no credit card required"
+msgstr "Все функции, без необходимости кредитной карты"
+
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:22
+#, elixir-autogen, elixir-format
+msgid "All systems normal"
+msgstr "Все системы работают нормально"
+
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:151
+#, elixir-autogen, elixir-format
+msgid "All the features you need,"
+msgstr "Все необходимые вам функции,"
+
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:168
+#, elixir-autogen, elixir-format
+msgid "Analyze build times per target and file with metadata like environment, Xcode version, and commit."
+msgstr "Анализируйте время сборки по целям и файлам с метаданными, такими как окружение, версия Xcode и коммит."
+
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:317
+#: lib/tuist_web/marketing/live/marketing_flaky_tests_live.ex:36
+#: lib/tuist_web/marketing/live/marketing_flaky_tests_live.html.heex:14
+#, elixir-autogen, elixir-format
+msgid "Automatically detect flaky tests that fail without code changes and reduce time spent investigating false failures."
+msgstr "Автоматически обнаруживайте нестабильные тесты, которые падают без изменений кода, и сокращайте время на расследование ложных сбоев."
+
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:60
+#, elixir-autogen, elixir-format
+msgid "Base price"
+msgstr "Базовая цена"
+
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:24
+#, elixir-autogen, elixir-format
+msgid "Best for teams and growing startups."
+msgstr "Лучше всего для команд и растущих стартапов."
+
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:218
+#, elixir-autogen, elixir-format
+msgid "Build insights chart showing build duration metrics with p90, p99, and average percentiles"
+msgstr "График аналитики сборки с метриками длительности, включающими перцентили p90, p99 и средние значения"
+
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:184
+#, elixir-autogen, elixir-format
+msgid "Cache hit rate dashboard showing 90% hit rate and 14.2 hours saved this week"
+msgstr "Панель с показателем попаданий в кэш 90% и сэкономленными 14,2 часами на этой неделе"
+
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:295
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:314
+#: lib/tuist_web/marketing/live/marketing_flaky_tests_live.html.heex:7
+#, elixir-autogen, elixir-format
+msgid "Flaky Tests"
+msgstr "Нестабильные тесты"
+
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:305
+#, elixir-autogen, elixir-format
+msgid "Flaky tests dashboard showing test history and automation creation modal"
+msgstr "Панель нестабильных тестов, показывающая историю тестов и модальное окно создания автоматизации"
+
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:280
+#: lib/tuist_web/marketing/live/marketing_selective_testing_live.ex:36
+#: lib/tuist_web/marketing/live/marketing_selective_testing_live.html.heex:14
+#, elixir-autogen, elixir-format
+msgid "Run only the tests that matter by detecting changes since your last successful run, cutting down test times in both local development and CI."
+msgstr "Запускайте только важные тесты, обнаруживая изменения с момента последнего успешного запуска, сокращая время тестирования локально и в CI."
+
+#: lib/tuist_web/marketing/live/marketing_previews_live.ex:30
+#: lib/tuist_web/marketing/live/marketing_previews_live.html.heex:14
+#, elixir-autogen, elixir-format
+msgid "Share your app instantly with a URL. No TestFlight delays, just click and run on any simulator or device."
+msgstr "Мгновенно делитесь своим приложением по URL. Без задержек TestFlight — просто кликните и запустите на любом симуляторе или устройстве."
+
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:194
+#: lib/tuist_web/marketing/live/marketing_cache_live.ex:36
+#: lib/tuist_web/marketing/live/marketing_cache_live.html.heex:14
+#, elixir-autogen, elixir-format
+msgid "Speeds up builds by reusing compiled binaries, cutting down build times in both local development and CI."
+msgstr "Ускоряет сборки за счёт повторного использования скомпилированных бинарников, снижая время сборки как в локальной разработке, так и в CI."
+
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:224
+#, elixir-autogen, elixir-format
+msgid "Standard support"
+msgstr "Стандартная поддержка"
+
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:35
+#, elixir-autogen, elixir-format
+msgid "Standard support via Slack and email"
+msgstr "Стандартная поддержка через Slack и email"
+
+#: lib/tuist_web/marketing/controllers/marketing_html/about.html.heex:107
+#, elixir-autogen, elixir-format
+msgid "Standards"
+msgstr "Стандарты"
+
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:353
+#: lib/tuist_web/marketing/live/marketing_test_insights_live.ex:36
+#: lib/tuist_web/marketing/live/marketing_test_insights_live.html.heex:14
+#, elixir-autogen, elixir-format
+msgid "Track test performance, catch slow tests early, and debug CI failures without digging through logs."
+msgstr "Отслеживайте производительность тестов, выявляйте медленные тесты на ранних стадиях и отлаживайте сбои CI без просмотра логов."
+
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:14
+#, elixir-autogen, elixir-format
+msgid "Your mobile platform team,"
+msgstr "Ваша команда мобильной платформы,"
+
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:17
+#, elixir-autogen, elixir-format
+msgid "as a service"
+msgstr "как сервис"
+
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:41
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:23
+#, elixir-autogen, elixir-format
+msgid "Let us be your virtual companion that continuously optimizes and observes your setup, so you can focus on shipping"
+msgstr "Позвольте нам быть вашим виртуальным помощником, который постоянно оптимизирует и контролирует вашу среду, чтобы вы могли сосредоточиться на доставке продукта"
+
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:173
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:207
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:257
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:294
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:330
+#, elixir-autogen, elixir-format
+msgid "Open the %{feature} feature page"
+msgstr "Откройте страницу функции %{feature}"

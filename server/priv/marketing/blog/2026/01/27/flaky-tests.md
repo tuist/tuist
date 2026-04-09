@@ -28,7 +28,7 @@ If your test suite is flaky, your PR throughput doesn't scale with your team. It
 
 ## Detecting flaky tests automatically
 
-No developer should have to manually track which tests are unreliable. Flaky test detection builds on top of [Test Insights](https://docs.tuist.dev/en/guides/features/test-insights), so if you're already using it, you get flaky detection automatically. Tuist detects flaky tests in two ways:
+No developer should have to manually track which tests are unreliable. Flaky test detection builds on top of [Test Insights](https://tuist.dev/en/docs/guides/features/test-insights), so if you're already using it, you get flaky detection automatically. Tuist detects flaky tests in two ways:
 
 ### Retry-based detection
 
@@ -75,7 +75,7 @@ Once you've shipped a fix, unmark the test as flaky from the test case detail pa
 
 ## Stay informed with Slack notifications
 
-You don't want to find out about flaky tests by having them block a critical PR. With the [Slack integration](https://docs.tuist.dev/en/guides/integrations/slack), you get notified the moment a test becomes flaky.
+You don't want to find out about flaky tests by having them block a critical PR. With the [Slack integration](https://tuist.dev/en/docs/guides/integrations/slack), you get notified the moment a test becomes flaky.
 
 <img src="/marketing/images/blog/2026/01/27/flaky-tests/slack-alert.png" alt="Slack notification showing a new flaky test detected" style="max-width: 500px;" />
 
@@ -87,15 +87,15 @@ Additionally, when a PR has a flaky test run, it gets surfaced directly in the T
 
 ## Getting started
 
-To start detecting flaky tests, you need [Test Insights](https://docs.tuist.dev/en/guides/features/test-insights) configured for your project.
+To start detecting flaky tests, you need [Test Insights](https://tuist.dev/en/docs/guides/features/test-insights) configured for your project.
 
 Once Test Insights is running:
 
 1. Enable test retries in your CI with `-retry-tests-on-failure`
 2. Update your CI to skip quarantined tests using `tuist test case list --skip-testing`
-3. Set up [Slack alerts](https://docs.tuist.dev/en/guides/integrations/slack#flaky-test-alerts) to get notified when new flaky tests are detected
+3. Set up [Slack alerts](https://tuist.dev/en/docs/guides/integrations/slack#flaky-test-alerts) to get notified when new flaky tests are detected
 
-For detailed configuration options, see the [Flaky Tests documentation](https://docs.tuist.dev/en/guides/features/test-insights/flaky-tests).
+For detailed configuration options, see the [Flaky Tests documentation](https://tuist.dev/en/docs/guides/features/test-insights/flaky-tests).
 
 ## What's next
 
@@ -112,4 +112,4 @@ Flaky tests don't just waste time. They erode trust in your test suite, slow dow
 
 With automatic detection, quarantining, and notifications, Tuist turns flaky tests from an invisible drain on productivity into a visible, manageable problem. You can see exactly which tests are unreliable, stop them from blocking your PRs, and fix them on your own schedule rather than in the heat of a blocked deployment.
 
-Your test suite should give you confidence, not anxiety. [Get on top of your flaky tests](https://docs.tuist.dev/en/guides/features/test-insights/flaky-tests) and stop wasting time on retries.
+Your test suite should give you confidence, not anxiety. [Get on top of your flaky tests](https://tuist.dev/en/docs/guides/features/test-insights/flaky-tests) and stop wasting time on retries.

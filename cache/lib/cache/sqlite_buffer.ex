@@ -94,6 +94,13 @@ defmodule Cache.SQLiteBuffer do
   end
 
   @impl true
+  def handle_info(message, state) do
+    buffer_name = state.buffer_module.buffer_name()
+    Logger.warning("#{buffer_name} buffer received unexpected message: #{inspect(message)}")
+    {:noreply, state}
+  end
+
+  @impl true
   def terminate(_reason, state) do
     buffer_name = state.buffer_module.buffer_name()
     Logger.notice("Flushing #{buffer_name} buffer before shutdown...")

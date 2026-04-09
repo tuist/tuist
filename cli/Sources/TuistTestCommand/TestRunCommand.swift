@@ -4,6 +4,8 @@
     import Path
     import TuistBuildCommand
     import TuistCore
+    import TuistEnvironment
+    import TuistEnvKey
     import TuistExtension
     import TuistKit
     import TuistLogging
@@ -237,6 +239,69 @@
         )
         var skipQuarantine: Bool = false
 
+        @Option(
+            name: .long,
+            help: "Maximum number of shards to distribute tests across.",
+            envKey: .testShardMax
+        )
+        var shardMax: Int?
+
+        @Option(
+            name: .long,
+            help: "Minimum number of shards.",
+            envKey: .testShardMin
+        )
+        var shardMin: Int?
+
+        @Option(
+            name: .long,
+            help: "Exact number of shards (mutually exclusive with --shard-min/--shard-max).",
+            envKey: .testShardTotal
+        )
+        var shardTotal: Int?
+
+        @Option(
+            name: .long,
+            help: "Target maximum duration per shard in milliseconds.",
+            envKey: .testShardMaxDuration
+        )
+        var shardMaxDuration: Int?
+
+        @Option(
+            name: .long,
+            help: "Sharding granularity level: module (default) or suite.",
+            envKey: .testShardGranularity
+        )
+        var shardGranularity: ShardGranularity = .module
+
+        @Option(
+            name: .long,
+            help: "Explicit shard reference. Derived from environment variables for supported CI providers.",
+            envKey: .testShardReference
+        )
+        var shardReference: String?
+
+        @Flag(
+            name: .long,
+            help: "Skip uploading test products to remote storage. Use when you provide test products to shard runners yourself, for example via shared volumes.",
+            envKey: .testShardSkipUpload
+        )
+        var shardSkipUpload: Bool = false
+
+        @Option(
+            name: .long,
+            help: "The zero-based shard index to execute.",
+            envKey: .testShardIndex
+        )
+        var shardIndex: Int?
+
+        @Option(
+            name: .long,
+            help: "Inspect mode: 'local' parses the xcresult on this machine, 'remote' uploads it for server-side processing.",
+            envKey: .inspectTestMode
+        )
+        var inspectMode: TestProcessingMode = .local
+
         @Argument(
             parsing: .postTerminator,
             help:
@@ -292,12 +357,7 @@
                     )
             }
 
-            let absolutePath =
-                if let path {
-                    try AbsolutePath(validating: path, relativeTo: FileHandler.shared.currentPath)
-                } else {
-                    FileHandler.shared.currentPath
-                }
+            let absolutePath = try await Environment.current.pathRelativeToWorkingDirectory(path)
 
             let action: XcodeBuildTestAction =
                 if buildOnly {
@@ -325,12 +385,12 @@
                 rosetta: rosetta,
                 skipUITests: skipUITests,
                 skipUnitTests: skipUnitTests,
-                resultBundlePath: resultBundlePath.map {
-                    try AbsolutePath(
-                        validating: $0,
-                        relativeTo: FileHandler.shared.currentPath
-                    )
-                },
+                resultBundlePath: try await {
+                    if let resultBundlePath {
+                        return try await Environment.current.pathRelativeToWorkingDirectory(resultBundlePath)
+                    }
+                    return nil
+                }(),
                 derivedDataPath: derivedDataPath,
                 retryCount: retryCount,
                 testTargets: testTargets,
@@ -347,7 +407,16 @@
                 ignoreSelectiveTesting: !selectiveTesting,
                 generateOnly: generateOnly,
                 passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
-                skipQuarantine: skipQuarantine
+                skipQuarantine: skipQuarantine,
+                shardReference: shardReference,
+                shardGranularity: shardGranularity,
+                shardMin: shardMin,
+                shardMax: shardMax,
+                shardTotal: shardTotal,
+                shardMaxDuration: shardMaxDuration,
+                shardIndex: shardIndex,
+                shardSkipUpload: shardSkipUpload,
+                mode: inspectMode
             )
         }
     }

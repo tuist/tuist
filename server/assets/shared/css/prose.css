@@ -1,0 +1,167 @@
+[data-prose] {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  color: var(--noora-surface-label-primary);
+  font: var(--noora-font-weight-regular) var(--noora-font-body-large);
+
+  & :not(pre, .code-window, [data-part="code"]) > code {
+    box-shadow:
+      0 1px 1px 0 rgba(14, 14, 14, 0.05),
+      0 0 0 1px rgba(46, 51, 56, 0.08),
+      0 1px 1px 0 rgba(46, 51, 56, 0.1);
+    border-radius: var(--noora-radius-small);
+    background: var(--noora-surface-background-secondary);
+    padding: var(--noora-spacing-1);
+    color: var(--surface-label-primary);
+    font: var(--noora-font-weight-regular) var(--noora-font-code-large);
+    white-space: nowrap;
+  }
+
+  & blockquote {
+    margin-inline-start: 0px;
+    margin-inline-end: 0px;
+    box-shadow: var(--noora-light-border-default);
+    border-radius: var(--noora-radius-xlarge);
+    background: var(--noora-background-tertiary);
+    padding: var(--noora-spacing-7);
+
+    & > p {
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-regular) var(--noora-font-heading-small);
+    }
+  }
+
+  /* Add spacing between child elements using margin instead of gap */
+  & > * + * {
+    margin-top: var(--noora-spacing-7);
+  }
+
+  & p + p {
+    margin-top: var(--noora-spacing-7);
+  }
+
+  & img,
+  & video {
+    display: block;
+    margin-inline: auto;
+    margin: var(--noora-spacing-8) 0;
+    box-shadow: var(--noora-light-border-default);
+    border-radius: var(--noora-radius-xlarge);
+    max-width: 100%;
+    height: auto;
+    object-fit: contain;
+  }
+
+  & iframe {
+    display: block;
+    margin-inline: auto;
+    margin: var(--noora-spacing-8) 0;
+    box-shadow: var(--noora-light-border-default);
+    border-radius: var(--noora-radius-xlarge);
+    max-width: 100%;
+  }
+
+  & iframe[data-visualization] {
+    margin-top: var(--noora-spacing-8);
+    margin-bottom: var(--noora-spacing-8);
+    box-shadow: none;
+    border: none;
+    border-radius: var(--noora-radius-2xlarge);
+    width: 100%;
+    max-width: 100%;
+  }
+
+  & .noora-table th {
+    padding: var(--noora-spacing-4) var(--noora-spacing-7) var(--noora-spacing-5) var(--noora-spacing-7);
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+    text-align: left;
+  }
+
+  & .noora-table table tbody tr td {
+    vertical-align: middle;
+    background-color: var(--noora-surface-background-primary);
+    padding: 22px var(--noora-spacing-7);
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-body-medium);
+    line-height: 20px;
+  }
+
+  & .noora-table table tbody tr:not(:first-child) td {
+    box-shadow:
+      0 1px 0 0 light-dark(var(--noora-neutral-light-400), oklch(0% 0 0 / 80%)) inset,
+      0px 2px 0px 0px
+        light-dark(
+          oklch(from var(--noora-neutral-light-500) l c h / 30%),
+          oklch(from var(--noora-neutral-dark-900) l c h / 35%)
+        )
+        inset;
+  }
+
+  & b,
+  strong {
+    font: var(--noora-font-weight-semibold) var(--noora-font-body-large);
+  }
+
+  & a:not(.heading-anchor):not([data-part="feature-card"]) {
+    color: var(--noora-button-primary-background);
+    text-decoration: underline;
+  }
+
+  & h1 {
+    padding-top: var(--noora-spacing-8);
+    padding-bottom: var(--noora-spacing-4);
+    font: var(--noora-font-weight-medium) var(--noora-font-heading-2xlarge);
+  }
+
+  & h2 {
+    padding-top: var(--noora-spacing-8);
+    padding-bottom: var(--noora-spacing-4);
+    font: var(--noora-font-weight-medium) var(--noora-font-heading-xlarge);
+  }
+
+  & h3 {
+    padding-top: var(--noora-spacing-7);
+    padding-bottom: var(--noora-spacing-3);
+    font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
+  }
+
+  & h4 {
+    padding-top: var(--noora-spacing-6);
+    padding-bottom: var(--noora-spacing-3);
+    font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
+  }
+
+  & h2,
+  & h3,
+  & h4 {
+    scroll-margin-top: calc(var(--docs-nav-height, 0px) + var(--noora-spacing-5));
+
+    & a.heading-anchor {
+      display: inline-flex;
+      align-items: baseline;
+      gap: 4px;
+      cursor: pointer;
+      scroll-margin-top: calc(var(--docs-nav-height, 0px) + var(--noora-spacing-5));
+      color: inherit;
+      text-decoration: none;
+
+      & [data-part="hash"] {
+        opacity: 0;
+        transition: opacity 0.15s ease;
+        font: inherit;
+      }
+    }
+
+    &:hover a.heading-anchor {
+      & [data-part="heading-text"] {
+        text-decoration: underline;
+      }
+
+      & [data-part="hash"] {
+        opacity: 1;
+      }
+    }
+  }
+}

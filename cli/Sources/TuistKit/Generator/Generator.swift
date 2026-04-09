@@ -26,7 +26,6 @@ public protocol Generating {
 public class Generator: Generating {
     private let graphLinter: GraphLinting = GraphLinter()
     private let environmentLinter: EnvironmentLinting = EnvironmentLinter()
-    private let generator: DescriptorGenerating = DescriptorGenerator()
     private let writer: XcodeProjWriting = XcodeProjWriter()
     private let swiftPackageManagerInteractor: TuistGenerator.SwiftPackageManagerInteracting = TuistGenerator
         .SwiftPackageManagerInteractor()
@@ -68,6 +67,11 @@ public class Generator: Generating {
         try await lint(graphTraverser: GraphTraverser(graph: environment.initialGraphWithSources ?? graph))
 
         // Generate
+        let defaultSwiftVersion = options?.defaultSwiftVersion
+            ?? TuistGeneratedProjectOptions.GenerationOptions.defaultSwiftVersionValue
+        let generator = DescriptorGenerator(
+            defaultSettingsProvider: DefaultSettingsProvider(defaultSwiftVersion: defaultSwiftVersion)
+        )
         let workspaceDescriptor = try await generator.generateWorkspace(graphTraverser: graphTraverser)
 
         // Write

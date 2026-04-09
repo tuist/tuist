@@ -75,7 +75,6 @@ struct ShareCommandServiceTests {
             apkMetadataService: apkMetadataService,
             fileArchiverFactory: fileArchiverFactory,
             gitController: gitController,
-            fileHandler: FileHandler.shared,
             xcodeProjectBuildDirectoryLocator: xcodeProjectBuildDirectoryLocator,
             buildGraphInspector: buildGraphInspector,
             manifestLoader: manifestLoader,

@@ -40,12 +40,11 @@ final class ProjectDescriptionHelpersBuilderIntegrationTests: TuistTestCase {
         )
         let helpersPath = path
             .appending(try RelativePath(validating: "\(Constants.tuistDirectoryName)/\(Constants.helpersDirectoryName)"))
-        try FileHandler.shared.createFolder(path.appending(component: Constants.tuistDirectoryName))
-        try FileHandler.shared.createFolder(helpersPath)
-        try FileHandler.shared.write(
+        try await fileSystem.makeDirectory(at: path.appending(component: Constants.tuistDirectoryName))
+        try await fileSystem.makeDirectory(at: helpersPath)
+        try await fileSystem.writeText(
             "import Foundation; class Test {}",
-            path: helpersPath.appending(component: "Helper.swift"),
-            atomically: true
+            at: helpersPath.appending(component: "Helper.swift")
         )
         let projectDescriptionPath = try await resourceLocator.projectDescription()
         let searchPaths = ProjectDescriptionSearchPaths.paths(for: projectDescriptionPath)
@@ -80,12 +79,11 @@ final class ProjectDescriptionHelpersBuilderIntegrationTests: TuistTestCase {
         subject = ProjectDescriptionHelpersBuilder(cacheDirectory: path, helpersDirectoryLocator: helpersDirectoryLocator)
 
         let helpersPluginPath = path.appending(components: "Plugin", Constants.helpersDirectoryName)
-        try FileHandler.shared.createFolder(path.appending(component: "Plugin"))
-        try FileHandler.shared.createFolder(helpersPluginPath)
-        try FileHandler.shared.write(
+        try await fileSystem.makeDirectory(at: path.appending(component: "Plugin"))
+        try await fileSystem.makeDirectory(at: helpersPluginPath)
+        try await fileSystem.writeText(
             "import Foundation; class Test {}",
-            path: helpersPluginPath.appending(component: "Helper.swift"),
-            atomically: true
+            at: helpersPluginPath.appending(component: "Helper.swift")
         )
         let projectDescriptionPath = try await resourceLocator.projectDescription()
         let searchPaths = ProjectDescriptionSearchPaths.paths(for: projectDescriptionPath)

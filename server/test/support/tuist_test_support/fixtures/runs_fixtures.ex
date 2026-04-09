@@ -24,6 +24,10 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
     SQL.query!(IngestRepo, "OPTIMIZE TABLE test_runs FINAL", [])
   end
 
+  def optimize_shard_runs do
+    SQL.query!(IngestRepo, "OPTIMIZE TABLE shard_runs FINAL", [])
+  end
+
   def build_fixture(attrs \\ []) do
     project_id =
       Keyword.get_lazy(attrs, :project_id, fn ->
@@ -105,33 +109,43 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
         }
       ])
 
-    case Tests.create_test(%{
-           id: Keyword.get(attrs, :id, UUIDv7.generate()),
-           project_id: project_id,
-           account_id: account_id,
-           duration: Keyword.get(attrs, :duration, 2000),
-           status: Keyword.get(attrs, :status, "success"),
-           scheme: Keyword.get(attrs, :scheme),
-           model_identifier: Keyword.get(attrs, :model_identifier, "Mac15,6"),
-           macos_version: Keyword.get(attrs, :macos_version, "11.2.3"),
-           xcode_version: Keyword.get(attrs, :xcode_version, "12.4"),
-           git_branch: Keyword.get(attrs, :git_branch, "main"),
-           git_ref: Keyword.get(attrs, :git_ref),
-           git_commit_sha: Keyword.get(attrs, :git_commit_sha, "abc123"),
-           ran_at: Keyword.get(attrs, :ran_at, NaiveDateTime.utc_now()),
-           is_ci: Keyword.get(attrs, :is_ci, false),
-           build_run_id: Keyword.get(attrs, :build_run_id),
-           gradle_build_id: Keyword.get(attrs, :gradle_build_id),
-           build_system: Keyword.get(attrs, :build_system, "xcode"),
-           ci_run_id: Keyword.get(attrs, :ci_run_id),
-           ci_project_handle: Keyword.get(attrs, :ci_project_handle),
-           ci_host: Keyword.get(attrs, :ci_host),
-           ci_provider: Keyword.get(attrs, :ci_provider),
-           test_modules: test_modules
-         }) do
-      {:ok, test} -> {:ok, test}
-      {:error, changeset} -> {:error, changeset}
-    end
+    result =
+      Tests.create_test(%{
+        id: Keyword.get(attrs, :id, UUIDv7.generate()),
+        project_id: project_id,
+        account_id: account_id,
+        duration: Keyword.get(attrs, :duration, 2000),
+        status: Keyword.get(attrs, :status, "success"),
+        scheme: Keyword.get(attrs, :scheme),
+        model_identifier: Keyword.get(attrs, :model_identifier, "Mac15,6"),
+        macos_version: Keyword.get(attrs, :macos_version, "11.2.3"),
+        xcode_version: Keyword.get(attrs, :xcode_version, "12.4"),
+        git_branch: Keyword.get(attrs, :git_branch, "main"),
+        git_ref: Keyword.get(attrs, :git_ref),
+        git_commit_sha: Keyword.get(attrs, :git_commit_sha, "abc123"),
+        ran_at: Keyword.get(attrs, :ran_at, NaiveDateTime.utc_now()),
+        is_ci: Keyword.get(attrs, :is_ci, false),
+        build_run_id: Keyword.get(attrs, :build_run_id),
+        gradle_build_id: Keyword.get(attrs, :gradle_build_id),
+        build_system: Keyword.get(attrs, :build_system, "xcode"),
+        ci_run_id: Keyword.get(attrs, :ci_run_id),
+        ci_project_handle: Keyword.get(attrs, :ci_project_handle),
+        ci_host: Keyword.get(attrs, :ci_host),
+        ci_provider: Keyword.get(attrs, :ci_provider),
+        shard_plan_id: Keyword.get(attrs, :shard_plan_id),
+        shard_index: Keyword.get(attrs, :shard_index),
+        test_modules: test_modules
+      })
+
+    TestCase.Buffer.flush()
+    TestCaseRun.Buffer.flush()
+    Tuist.Tests.TestModuleRun.Buffer.flush()
+    Tuist.Tests.TestSuiteRun.Buffer.flush()
+    TestCaseFailure.Buffer.flush()
+    TestCaseRunRepetition.Buffer.flush()
+    TestCaseEvent.Buffer.flush()
+
+    result
   end
 
   def cas_output_fixture(attrs \\ []) do
@@ -271,6 +285,7 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
     attachment = %{
       id: Keyword.get_lazy(attrs, :id, fn -> UUIDv7.generate() end),
       test_case_run_id: Keyword.fetch!(attrs, :test_case_run_id),
+      test_run_id: Keyword.get(attrs, :test_run_id, nil),
       file_name: Keyword.get(attrs, :file_name, "crash-report.ips"),
       repetition_number: Keyword.get(attrs, :repetition_number, nil),
       inserted_at: Keyword.get(attrs, :inserted_at, NaiveDateTime.utc_now())

@@ -110,7 +110,7 @@ defmodule Tuist.BillingTest do
     end
   end
 
-  describe "get_estimated_next_payment/1" do
+  describe "get_estimated_next_payment_money/1" do
     test "when current_month_remote_cache_hits_count is under the threshold" do
       # Given
       remote_cache_hit_threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
@@ -118,12 +118,12 @@ defmodule Tuist.BillingTest do
 
       # When
       got =
-        Billing.get_estimated_next_payment(%{
+        Billing.get_estimated_next_payment_money(%{
           current_month_remote_cache_hits_count: current_month_remote_cache_hits_count
         })
 
       # Then
-      assert got == "$0.00"
+      assert got == Money.new(0, :USD)
     end
 
     test "when current_month_remote_cache_hits_count is above the threshold" do
@@ -133,7 +133,7 @@ defmodule Tuist.BillingTest do
 
       # When
       got =
-        Billing.get_estimated_next_payment(%{
+        Billing.get_estimated_next_payment_money(%{
           current_month_remote_cache_hits_count: current_month_remote_cache_hits_count
         })
 
@@ -142,7 +142,6 @@ defmodule Tuist.BillingTest do
                50
                |> Money.new(:USD)
                |> Money.multiply(current_month_remote_cache_hits_count - remote_cache_hit_threshold)
-               |> Money.to_string()
     end
   end
 

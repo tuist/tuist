@@ -2,6 +2,15 @@ defmodule Tuist.Tasks do
   @moduledoc false
   @task_timeout 60_000
 
+  def run_async(fun) do
+    if sync?() do
+      fun.()
+      {:ok, self()}
+    else
+      Task.start(fun)
+    end
+  end
+
   def parallel_tasks(queries, opts \\ []) do
     max_concurrency = Keyword.get(opts, :max_concurrency, 3)
 
@@ -12,5 +21,11 @@ defmodule Tuist.Tasks do
     )
     |> Enum.to_list()
     |> Enum.map(fn {:ok, result} -> result end)
+  end
+
+  defp sync? do
+    :tuist
+    |> Application.get_env(__MODULE__, [])
+    |> Keyword.get(:sync, false)
   end
 end

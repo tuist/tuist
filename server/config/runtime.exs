@@ -127,6 +127,7 @@ if Enum.member?([:prod, :stag, :can], env) do
     queue_interval: Tuist.Environment.clickhouse_queue_interval(secrets),
     settings: [
       readonly: 1,
+      max_threads: Tuist.Environment.clickhouse_max_threads(secrets),
       # Specifies the join algorithms to use in order of preference: direct (fastest for small tables),
       # parallel_hash (good for medium tables), and hash (fallback for large tables)
       join_algorithm: "direct,parallel_hash,hash"
@@ -145,6 +146,9 @@ if Enum.member?([:prod, :stag, :can], env) do
     flush_interval_ms: Tuist.Environment.clickhouse_flush_interval_ms(secrets),
     max_buffer_size: Tuist.Environment.clickhouse_max_buffer_size(secrets),
     pool_size: Tuist.Environment.clickhouse_buffer_pool_size(secrets),
+    settings: [
+      max_threads: Tuist.Environment.clickhouse_max_threads(secrets)
+    ],
     transport_opts: [
       keepalive: true,
       show_econnreset: true,
@@ -165,16 +169,28 @@ if env == :dev do
     for {env_var, key} <- [
           {"DATABASE_USERNAME", :username},
           {"DATABASE_PASSWORD", :password},
-          {"DATABASE_HOST", :hostname}
+          {"DATABASE_HOST", :hostname},
+          {"TUIST_SERVER_POSTGRES_DB", :database}
         ],
         value = System.get_env(env_var),
         do: {key, value}
 
   config :tuist, Tuist.Repo, dev_db_config
+
+  if clickhouse_database = System.get_env("TUIST_SERVER_CLICKHOUSE_DB") do
+    config :tuist, Tuist.ClickHouseRepo, database: clickhouse_database
+    config :tuist, Tuist.IngestRepo, database: clickhouse_database
+  end
 end
 
 if Enum.member?([:prod, :stag, :can, :dev], env) do
-  port = "8080"
+  port =
+    if env == :dev do
+      String.to_integer(System.get_env("TUIST_SERVER_PORT") || "8080")
+    else
+      8080
+    end
+
   app_url = Tuist.Environment.app_url([route_type: :app], secrets)
   %{host: app_url_host, port: app_url_port, scheme: app_url_scheme} = URI.parse(app_url)
 
@@ -341,7 +357,8 @@ config :tuist, Oban,
            {"*/10 * * * *", Tuist.Alerts.Workers.AlertWorker},
            {"@daily", Tuist.Billing.Workers.SyncStripeMetersWorker},
            {"@daily", Tuist.Accounts.Workers.UpdateAllAccountsUsageWorker},
-           {"@daily", Tuist.Tests.Workers.ClearStaleFlakyFlagsWorker}
+           {"@daily", Tuist.Tests.Workers.ClearCooledDownFlakyTestsScheduler},
+           {"@hourly", Tuist.Tests.Workers.ExpireStaleTestRunsWorker}
          ],
          else: []
        )}

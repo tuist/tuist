@@ -24,10 +24,6 @@ defmodule TuistWeb.ModuleCacheLive do
       |> assign(:head_title, "#{dgettext("dashboard_cache", "Module Cache")} · #{slug} · Tuist")
       |> assign(OpenGraph.og_image_assigns("module-cache"))
 
-    if connected?(socket) do
-      Tuist.PubSub.subscribe("#{account.name}/#{project.name}")
-    end
-
     {:ok, socket}
   end
 
@@ -114,13 +110,6 @@ defmodule TuistWeb.ModuleCacheLive do
       end
 
     {:noreply, push_patch(socket, to: "/#{selected_account.name}/#{selected_project.name}/module-cache?#{query_params}")}
-  end
-
-  def handle_info({:command_event_created, _event}, socket) do
-    {:noreply,
-     socket
-     |> assign_analytics(socket.assigns.current_params)
-     |> assign_recent_runs(socket.assigns.current_params)}
   end
 
   def handle_info(_event, socket) do

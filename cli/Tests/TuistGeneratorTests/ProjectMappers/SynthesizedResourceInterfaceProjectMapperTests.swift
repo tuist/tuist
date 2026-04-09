@@ -66,31 +66,28 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
                 "CoreDataModel.xcdatamodel"
             )
 
-            try fileHandler.createFolder(aAssets)
-            try fileHandler.touch(aAsset)
-            try fileHandler.touch(frenchStrings)
-            try fileHandler.touch(frenchStringsDict)
-            try fileHandler.touch(englishStrings)
-            try fileHandler.touch(englishStringsDict)
-            try fileHandler.touch(coreDataModelVersionFile)
-            try fileHandler.write("a", path: frenchStrings, atomically: true)
-            try fileHandler.write("a", path: frenchStringsDict, atomically: true)
-            try fileHandler.write("a", path: englishStrings, atomically: true)
-            try fileHandler.write("a", path: englishStringsDict, atomically: true)
-            try fileHandler.touch(emptyPlist)
-            try fileHandler.write("a", path: environmentPlist, atomically: true)
-            try fileHandler.write("a", path: ttfFont, atomically: true)
-            try fileHandler.write("a", path: otfFont, atomically: true)
-            try fileHandler.write("a", path: ttcFont, atomically: true)
+            try await fileSystem.makeDirectory(at: aAssets)
+            try await fileSystem.touch(aAsset)
+            try await fileSystem.makeDirectory(at: targetAPath.appending(component: "fr.lproj"))
+            try await fileSystem.makeDirectory(at: targetAPath.appending(component: "en.lproj"))
+            try await fileSystem.writeText("a", at: frenchStrings)
+            try await fileSystem.writeText("a", at: frenchStringsDict)
+            try await fileSystem.writeText("a", at: englishStrings)
+            try await fileSystem.writeText("a", at: englishStringsDict)
+            try await fileSystem.touch(emptyPlist)
+            try await fileSystem.writeText("a", at: environmentPlist)
+            try await fileSystem.writeText("a", at: ttfFont)
+            try await fileSystem.writeText("a", at: otfFont)
+            try await fileSystem.writeText("a", at: ttcFont)
             let lottieTemplatePath = projectPath.appending(component: "Lottie.stencil")
-            try fileHandler.write("lottie template", path: lottieTemplatePath, atomically: true)
-            try fileHandler.write("a", path: lottieFile, atomically: true)
+            try await fileSystem.writeText("lottie template", at: lottieTemplatePath)
+            try await fileSystem.writeText("a", at: lottieFile)
             let stringsTemplatePath = projectPath.appending(component: "Strings.stencil")
-            try fileHandler.write("strings template", path: stringsTemplatePath, atomically: true)
+            try await fileSystem.writeText("strings template", at: stringsTemplatePath)
             let coreDataTemplatePath = projectPath.appending(component: "CoreData.stencil")
-            try fileHandler.write("core data template", path: coreDataTemplatePath, atomically: true)
-            try fileHandler.createFolder(coreDataModelFolder)
-            try fileHandler.write("a", path: coreDataModelVersionFile, atomically: true)
+            try await fileSystem.writeText("core data template", at: coreDataTemplatePath)
+            try await fileSystem.makeDirectory(at: coreDataModelFolder)
+            try await fileSystem.writeText("a", at: coreDataModelVersionFile)
 
             let targetA = Target.test(
                 name: "TargetA",
@@ -198,7 +195,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
             )
 
             // When
-            let (mappedProject, sideEffects) = try subject.map(project: project)
+            let (mappedProject, sideEffects) = try await subject.map(project: project)
 
             // Then
             let derivedPath = projectPath
@@ -359,31 +356,28 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
                 "CoreDataModel.xcdatamodel"
             )
 
-            try fileHandler.createFolder(aAssets)
-            try fileHandler.touch(aAsset)
-            try fileHandler.touch(frenchStrings)
-            try fileHandler.touch(frenchStringsDict)
-            try fileHandler.touch(englishStrings)
-            try fileHandler.touch(englishStringsDict)
-            try fileHandler.touch(coreDataModelVersionFile)
-            try fileHandler.write("a", path: frenchStrings, atomically: true)
-            try fileHandler.write("a", path: frenchStringsDict, atomically: true)
-            try fileHandler.write("a", path: englishStrings, atomically: true)
-            try fileHandler.write("a", path: englishStringsDict, atomically: true)
-            try fileHandler.touch(emptyPlist)
-            try fileHandler.write("a", path: environmentPlist, atomically: true)
-            try fileHandler.write("a", path: ttfFont, atomically: true)
-            try fileHandler.write("a", path: otfFont, atomically: true)
-            try fileHandler.write("a", path: ttcFont, atomically: true)
+            try await fileSystem.makeDirectory(at: aAssets)
+            try await fileSystem.touch(aAsset)
+            try await fileSystem.makeDirectory(at: targetAPath.appending(component: "fr.lproj"))
+            try await fileSystem.makeDirectory(at: targetAPath.appending(component: "en.lproj"))
+            try await fileSystem.writeText("a", at: frenchStrings)
+            try await fileSystem.writeText("a", at: frenchStringsDict)
+            try await fileSystem.writeText("a", at: englishStrings)
+            try await fileSystem.writeText("a", at: englishStringsDict)
+            try await fileSystem.touch(emptyPlist)
+            try await fileSystem.writeText("a", at: environmentPlist)
+            try await fileSystem.writeText("a", at: ttfFont)
+            try await fileSystem.writeText("a", at: otfFont)
+            try await fileSystem.writeText("a", at: ttcFont)
             let lottieTemplatePath = projectPath.appending(component: "Lottie.stencil")
-            try fileHandler.write("lottie template", path: lottieTemplatePath, atomically: true)
-            try fileHandler.write("a", path: lottieFile, atomically: true)
+            try await fileSystem.writeText("lottie template", at: lottieTemplatePath)
+            try await fileSystem.writeText("a", at: lottieFile)
             let stringsTemplatePath = projectPath.appending(component: "Strings.stencil")
-            try fileHandler.write("strings template", path: stringsTemplatePath, atomically: true)
+            try await fileSystem.writeText("strings template", at: stringsTemplatePath)
             let coreDataTemplatePath = projectPath.appending(component: "CoreData.stencil")
-            try fileHandler.write("core data template", path: coreDataTemplatePath, atomically: true)
-            try fileHandler.createFolder(coreDataModelFolder)
-            try fileHandler.write("a", path: coreDataModelVersionFile, atomically: true)
+            try await fileSystem.writeText("core data template", at: coreDataTemplatePath)
+            try await fileSystem.makeDirectory(at: coreDataModelFolder)
+            try await fileSystem.writeText("a", at: coreDataModelVersionFile)
 
             let targetA = Target.test(
                 name: "TargetA",
@@ -491,7 +485,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
             )
 
             // When
-            let (mappedProject, sideEffects) = try subject.map(project: project)
+            let (mappedProject, sideEffects) = try await subject.map(project: project)
 
             // Then
             let derivedPath = projectPath
@@ -618,7 +612,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
         }
     }
 
-    func testMap_whenDisableSynthesizedResourceAccessors() throws {
+    func testMap_whenDisableSynthesizedResourceAccessors() async throws {
         // Given
         let templateStrings = ThreadSafe<[String]>([])
         synthesizedResourceInterfacesGenerator.renderStub = { _, _, templateString, _, _, paths in
@@ -647,30 +641,28 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
             "CoreDataModel.xcdatamodel"
         )
 
-        try fileHandler.createFolder(aAssets)
-        try fileHandler.touch(aAsset)
-        try fileHandler.touch(frenchStrings)
-        try fileHandler.touch(frenchStringsDict)
-        try fileHandler.touch(englishStrings)
-        try fileHandler.touch(englishStringsDict)
-        try fileHandler.write("a", path: frenchStrings, atomically: true)
-        try fileHandler.write("a", path: frenchStringsDict, atomically: true)
-        try fileHandler.write("a", path: englishStrings, atomically: true)
-        try fileHandler.write("a", path: englishStringsDict, atomically: true)
-        try fileHandler.touch(emptyPlist)
-        try fileHandler.write("a", path: environmentPlist, atomically: true)
-        try fileHandler.write("a", path: ttfFont, atomically: true)
-        try fileHandler.write("a", path: otfFont, atomically: true)
-        try fileHandler.write("a", path: ttcFont, atomically: true)
+        try await fileSystem.makeDirectory(at: aAssets)
+        try await fileSystem.touch(aAsset)
+        try await fileSystem.makeDirectory(at: targetAPath.appending(component: "fr.lproj"))
+        try await fileSystem.makeDirectory(at: targetAPath.appending(component: "en.lproj"))
+        try await fileSystem.writeText("a", at: frenchStrings)
+        try await fileSystem.writeText("a", at: frenchStringsDict)
+        try await fileSystem.writeText("a", at: englishStrings)
+        try await fileSystem.writeText("a", at: englishStringsDict)
+        try await fileSystem.touch(emptyPlist)
+        try await fileSystem.writeText("a", at: environmentPlist)
+        try await fileSystem.writeText("a", at: ttfFont)
+        try await fileSystem.writeText("a", at: otfFont)
+        try await fileSystem.writeText("a", at: ttcFont)
         let lottieTemplatePath = projectPath.appending(component: "Lottie.stencil")
-        try fileHandler.write("lottie template", path: lottieTemplatePath, atomically: true)
-        try fileHandler.write("a", path: lottieFile, atomically: true)
+        try await fileSystem.writeText("lottie template", at: lottieTemplatePath)
+        try await fileSystem.writeText("a", at: lottieFile)
         let stringsTemplatePath = projectPath.appending(component: "Strings.stencil")
-        try fileHandler.write("strings template", path: stringsTemplatePath, atomically: true)
+        try await fileSystem.writeText("strings template", at: stringsTemplatePath)
         let coreDataTemplatePath = projectPath.appending(component: "CoreData.stencil")
-        try fileHandler.write("core data template", path: coreDataTemplatePath, atomically: true)
-        try fileHandler.createFolder(coreDataModelFolder)
-        try fileHandler.write("a", path: coreDataModelVersionFile, atomically: true)
+        try await fileSystem.writeText("core data template", at: coreDataTemplatePath)
+        try await fileSystem.makeDirectory(at: coreDataModelFolder)
+        try await fileSystem.writeText("a", at: coreDataModelVersionFile)
 
         let targetA = Target.test(
             name: "TargetA",
@@ -747,14 +739,14 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let (mappedProject, sideEffects) = try subject.map(project: project)
+        let (mappedProject, sideEffects) = try await subject.map(project: project)
 
         // Then
         XCTAssertEqual(project, mappedProject)
         XCTAssertEqual(sideEffects, [])
     }
 
-    func testMap_bundleName_whenBundleAccessorsAreEnabled() throws {
+    func testMap_bundleName_whenBundleAccessorsAreEnabled() async throws {
         // Given
         let bundleNames = ThreadSafe<[String?]>([])
         synthesizedResourceInterfacesGenerator.renderStub = { _, _, _, _, bundleName, _ in
@@ -764,7 +756,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
         let projectPath = try temporaryPath()
         let targetPath = projectPath.appending(component: "TargetA")
         let ttfFont = targetPath.appending(component: "ttfFont.ttf")
-        try stub(file: ttfFont)
+        try await stub(file: ttfFont)
 
         let project: Project = .test(
             options: .test(
@@ -785,7 +777,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
         )
 
         // When
-        _ = try subject.map(project: project)
+        _ = try await subject.map(project: project)
 
         // Then
         XCTAssertEqual(bundleNames.value, [
@@ -793,7 +785,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
         ])
     }
 
-    func testMap_bundleName_whenBundleAccessorsAreDisabled() throws {
+    func testMap_bundleName_whenBundleAccessorsAreDisabled() async throws {
         // Given
         let bundleNames = ThreadSafe<[String?]>([])
         synthesizedResourceInterfacesGenerator.renderStub = { _, _, _, _, bundleName, _ in
@@ -803,7 +795,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
         let projectPath = try temporaryPath()
         let targetPath = projectPath.appending(component: "TargetA")
         let ttfFont = targetPath.appending(component: "ttfFont.ttf")
-        try stub(file: ttfFont)
+        try await stub(file: ttfFont)
 
         let project: Project = .test(
             options: .test(
@@ -824,7 +816,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
         )
 
         // When
-        _ = try subject.map(project: project)
+        _ = try await subject.map(project: project)
 
         // Then
         XCTAssertEqual(bundleNames.value, [
@@ -832,7 +824,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
         ])
     }
 
-    func testMap_whenResourceContainsBinaryPlist() throws {
+    func testMap_whenResourceContainsBinaryPlist() async throws {
         // Given
         let plistNames = ThreadSafe<[String]>([])
         synthesizedResourceInterfacesGenerator.renderStub = { _, _, _, _, _, paths in
@@ -843,7 +835,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
         let targetPath = projectPath.appending(component: "TargetA")
         let binaryPlist = targetPath.appending(component: "Binary.plist")
         let xmlPlist = targetPath.appending(component: "XML.plist")
-        try fileHandler.createFolder(targetPath)
+        try await fileSystem.makeDirectory(at: targetPath)
         // Create binary plist
         let binaryData = try PropertyListSerialization.data(
             fromPropertyList: ["key": "value"],
@@ -877,7 +869,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
         )
 
         // When
-        _ = try subject.map(project: project)
+        _ = try await subject.map(project: project)
 
         // Then
         XCTAssertFalse(plistNames.value.contains("Binary.plist"))
@@ -886,9 +878,9 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
 
     // MARK: - Helpers
 
-    private func stub(file: AbsolutePath) throws {
-        try fileHandler.touch(file)
-        try fileHandler.write("a", path: file, atomically: true)
+    private func stub(file: AbsolutePath) async throws {
+        try await fileSystem.makeDirectory(at: file.parentDirectory)
+        try await fileSystem.writeText("a", at: file)
     }
 
     private func makeResourceSynthesizers() -> [ResourceSynthesizer] {

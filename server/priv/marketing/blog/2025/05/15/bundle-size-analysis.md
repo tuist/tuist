@@ -67,4 +67,4 @@ Bundle size isn't just about technical optimizations—it's about creating a bet
 
 Ready to get started? Run `tuist inspect bundle` and discover opportunities to optimize your app size! 
 
-For more details, [head over to our documentation](https://docs.tuist.dev/en/guides/develop/bundle-size).
+For more details, [head over to our documentation](https://tuist.dev/en/docs/guides/features/bundle-size).
