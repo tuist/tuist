@@ -258,6 +258,7 @@ jobs:
     runs-on: namespace-profile-default-macos
     timeout-minutes: 60
     needs: cli-acceptance-tests-build
+    if: fromJson(needs.cli-acceptance-tests-build.outputs.matrix).shard[0] != null
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.cli-acceptance-tests-build.outputs.matrix) }}
