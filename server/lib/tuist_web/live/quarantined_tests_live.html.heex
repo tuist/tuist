@@ -299,7 +299,7 @@
             }
           >
             <.link_button
-              :if={test_case.last_run_id}
+              :if={test_case.last_run_id && test_case.last_run_id != "00000000-0000-0000-0000-000000000000"}
               navigate={
                 ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-runs/#{test_case.last_run_id}"
               }
@@ -309,7 +309,7 @@
               size="large"
               data-part="last-run-link"
             />
-            <span :if={is_nil(test_case.last_run_id)}>
+            <span :if={is_nil(test_case.last_run_id) || test_case.last_run_id == "00000000-0000-0000-0000-000000000000"}>
               {Tuist.Utilities.DateFormatter.from_now(test_case.last_ran_at)}
             </span>
           </:col>
