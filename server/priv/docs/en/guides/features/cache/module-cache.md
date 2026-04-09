@@ -34,7 +34,7 @@ The command re-uses binaries to speed up the process.
 
 When warming the cache without passing `--configuration`, Tuist selects the build configuration to use in the following order:
 
-1. The [`defaultConfiguration`](https://projectdescription.tuist.dev/documentation/projectdescription/project/options/generationoptions/defaultconfiguration) set in your manifest's `Project.Options.generationOptions`, if any.
+1. The [`defaultConfiguration`](https://projectdescription.tuist.dev/documentation/projectdescription/tuist/generationoptions/defaultconfiguration) set in your manifest's `Project.Options.generationOptions`, if any.
 2. Otherwise, the first build configuration of variant `debug`, sorted alphabetically by name.
 
 To warm the cache for a specific configuration, pass it explicitly:
