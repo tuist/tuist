@@ -27,7 +27,7 @@
   }
 
   &[data-selected] {
-    background: var(--noora-button-background-secondary);
+    background: var(--noora-surface-background-secondary);
   }
 }
 
