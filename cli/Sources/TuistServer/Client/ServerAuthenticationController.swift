@@ -649,13 +649,10 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
         refreshToken: JWT
     ) async throws -> ServerAuthenticationTokens {
         do {
-            let newTokens = try await RetryProvider()
-                .runWithRetries {
-                    return try await refreshAuthTokenService.refreshTokens(
-                        serverURL: serverURL,
-                        refreshToken: refreshToken.token
-                    )
-                }
+            let newTokens = try await refreshAuthTokenService.refreshTokens(
+                serverURL: serverURL,
+                refreshToken: refreshToken.token
+            )
             try await ServerCredentialsStore.current
                 .store(
                     credentials: ServerCredentials(

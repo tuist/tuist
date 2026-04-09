@@ -44,7 +44,6 @@ public struct LoginCommandService: LoginCommandServicing {
     private let authenticateService: AuthenticateServicing
     private let ciOIDCAuthenticator: CIOIDCAuthenticating
     private let exchangeOIDCTokenService: ExchangeOIDCTokenServicing
-    private let retryProvider: RetryProviding
     private let configLoader: ConfigLoading
 
     public init(
@@ -54,7 +53,6 @@ public struct LoginCommandService: LoginCommandServicing {
         authenticateService: AuthenticateServicing = AuthenticateService(),
         ciOIDCAuthenticator: CIOIDCAuthenticating = CIOIDCAuthenticator(),
         exchangeOIDCTokenService: ExchangeOIDCTokenServicing = ExchangeOIDCTokenService(),
-        retryProvider: RetryProviding = RetryProvider(),
         configLoader: ConfigLoading = ConfigLoader()
     ) {
         self.serverEnvironmentService = serverEnvironmentService
@@ -63,7 +61,6 @@ public struct LoginCommandService: LoginCommandServicing {
         self.authenticateService = authenticateService
         self.ciOIDCAuthenticator = ciOIDCAuthenticator
         self.exchangeOIDCTokenService = exchangeOIDCTokenService
-        self.retryProvider = retryProvider
         self.configLoader = configLoader
     }
 
@@ -110,15 +107,11 @@ public struct LoginCommandService: LoginCommandServicing {
     ) async throws {
         await onEvent(.oidcAuthenticating)
 
-        let oidcToken = try await retryProvider.runWithRetries {
-            try await ciOIDCAuthenticator.fetchOIDCToken()
-        }
-        let accessToken = try await retryProvider.runWithRetries {
-            try await exchangeOIDCTokenService.exchangeOIDCToken(
-                oidcToken: oidcToken,
-                serverURL: serverURL
-            )
-        }
+        let oidcToken = try await ciOIDCAuthenticator.fetchOIDCToken()
+        let accessToken = try await exchangeOIDCTokenService.exchangeOIDCToken(
+            oidcToken: oidcToken,
+            serverURL: serverURL
+        )
 
         try await ServerCredentialsStore.current.store(
             credentials: ServerCredentials(accessToken: accessToken),
