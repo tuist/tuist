@@ -1,6 +1,16 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.177.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add --cache-profile option to cache warm with profile-driven exclusions by [@gnejfejf2](https://github.com/gnejfejf2) in [#9946](https://github.com/tuist/tuist/pull/9946)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.176.4...4.177.0
+
 ## What's Changed in 4.176.4<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
