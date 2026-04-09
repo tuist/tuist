@@ -60,6 +60,15 @@ defmodule TuistWeb.API.TestCasesController do
         type: :string,
         description: "Filter by suite name."
       ],
+      state: [
+        in: :query,
+        type: %Schema{
+          title: "TestCasesIndexState",
+          type: :string,
+          enum: ["enabled", "muted"]
+        },
+        description: "Filter by test case state."
+      ],
       page_size: [
         in: :query,
         type: %Schema{
@@ -130,6 +139,7 @@ defmodule TuistWeb.API.TestCasesController do
             avg_duration: test_case.avg_duration,
             is_flaky: test_case.is_flaky,
             is_quarantined: test_case.is_quarantined,
+            state: test_case.state || "enabled",
             url: ~p"/#{selected_project.account.name}/#{selected_project.name}/tests/test-cases/#{test_case.id}"
           }
         end),
@@ -193,7 +203,11 @@ defmodule TuistWeb.API.TestCasesController do
                }
              },
              is_flaky: %Schema{type: :boolean, description: "Whether the test case is marked as flaky."},
-             is_quarantined: %Schema{type: :boolean, description: "Whether the test case is quarantined."},
+             is_quarantined: %Schema{
+               type: :boolean,
+               description: "Whether the test case is quarantined. Deprecated: use state instead."
+             },
+             state: %Schema{type: :string, enum: ["enabled", "muted"], description: "The state of the test case."},
              last_status: %Schema{
                type: :string,
                enum: ["success", "failure", "skipped"],
@@ -214,6 +228,7 @@ defmodule TuistWeb.API.TestCasesController do
              :module,
              :is_flaky,
              :is_quarantined,
+             :state,
              :last_status,
              :last_duration,
              :last_ran_at,
@@ -248,6 +263,7 @@ defmodule TuistWeb.API.TestCasesController do
             suite: build_suite(test_case.suite_name),
             is_flaky: test_case.is_flaky,
             is_quarantined: test_case.is_quarantined,
+            state: test_case.state || "enabled",
             last_status: to_string(test_case.last_status),
             last_duration: test_case.last_duration,
             last_ran_at: test_case.last_ran_at |> DateTime.from_naive!("Etc/UTC") |> DateTime.to_unix(),
@@ -278,6 +294,7 @@ defmodule TuistWeb.API.TestCasesController do
     |> maybe_add_filter(:module_name, Map.get(params, :module_name))
     |> maybe_add_filter(:name, Map.get(params, :name))
     |> maybe_add_filter(:suite_name, Map.get(params, :suite_name))
+    |> maybe_add_filter(:state, Map.get(params, :state))
   end
 
   defp maybe_add_filter(filters, _field, nil), do: filters

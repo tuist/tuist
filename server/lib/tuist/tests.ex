@@ -501,6 +501,7 @@ defmodule Tuist.Tests do
         current_run_is_flaky = Map.get(data, :is_flaky, false)
         existing_is_flaky = Map.get(existing, :is_flaky, false)
         existing_is_quarantined = Map.get(existing, :is_quarantined, false)
+        existing_state = Map.get(existing, :state, "enabled")
 
         test_case = %{
           id: id,
@@ -514,6 +515,7 @@ defmodule Tuist.Tests do
           is_flaky: existing_is_flaky,
           is_quarantined: existing_is_quarantined,
           last_run_id: test_run_id,
+          state: existing_state,
           inserted_at: now,
           recent_durations: new_durations,
           avg_duration: new_avg
@@ -547,7 +549,8 @@ defmodule Tuist.Tests do
         id: test_case.id,
         recent_durations: test_case.recent_durations,
         is_flaky: test_case.is_flaky,
-        is_quarantined: test_case.is_quarantined
+        is_quarantined: test_case.is_quarantined,
+        state: test_case.state
       }
     )
     |> IngestRepo.all()
@@ -597,8 +600,9 @@ defmodule Tuist.Tests do
   - `opts` - optional keyword list with `:actor_id` (account_id for user actions, nil for system)
   """
   def update_test_case(test_case_id, update_attrs, opts \\ []) when is_map(update_attrs) do
-    valid_keys = [:is_flaky, :is_quarantined]
+    valid_keys = [:is_flaky, :is_quarantined, :state]
     filtered_attrs = Map.take(update_attrs, valid_keys)
+    filtered_attrs = derive_state_and_quarantined(filtered_attrs)
     actor_id = Keyword.get(opts, :actor_id)
 
     with {:ok, test_case} <- get_test_case_by_id(test_case_id) do
@@ -614,6 +618,20 @@ defmodule Tuist.Tests do
       create_events_for_test_case_changes(test_case_id, test_case, filtered_attrs, actor_id)
 
       {:ok, Map.merge(test_case, filtered_attrs)}
+    end
+  end
+
+  defp derive_state_and_quarantined(attrs) do
+    cond do
+      Map.has_key?(attrs, :state) ->
+        Map.put(attrs, :is_quarantined, attrs.state == "muted")
+
+      Map.has_key?(attrs, :is_quarantined) ->
+        state = if attrs.is_quarantined, do: "muted", else: "enabled"
+        Map.put(attrs, :state, state)
+
+      true ->
+        attrs
     end
   end
 
@@ -639,6 +657,8 @@ defmodule Tuist.Tests do
   end
 
   defp determine_test_case_events(old_test_case, new_attrs) do
+    state_changed = Map.has_key?(new_attrs, :state)
+
     events = []
 
     events =
@@ -649,10 +669,22 @@ defmodule Tuist.Tests do
       end
 
     events =
-      case {Map.get(old_test_case, :is_quarantined, false), Map.get(new_attrs, :is_quarantined)} do
-        {false, true} -> [:quarantined | events]
-        {true, false} -> [:unquarantined | events]
+      case {Map.get(old_test_case, :state, "enabled"), Map.get(new_attrs, :state)} do
+        {old_state, "muted"} when old_state != "muted" -> [:muted | events]
+        {"muted", "enabled"} -> [:unmuted | events]
         _ -> events
+      end
+
+    # Only emit quarantine events if is_quarantined was set directly (not derived from state)
+    events =
+      if state_changed do
+        events
+      else
+        case {Map.get(old_test_case, :is_quarantined, false), Map.get(new_attrs, :is_quarantined)} do
+          {false, true} -> [:quarantined | events]
+          {true, false} -> [:unquarantined | events]
+          _ -> events
+        end
       end
 
     events
@@ -2204,7 +2236,11 @@ defmodule Tuist.Tests do
         should_unquarantine = test_case.is_quarantined and project.auto_quarantine_flaky_tests
 
         updates = %{is_flaky: false, inserted_at: now}
-        updates = if should_unquarantine, do: Map.put(updates, :is_quarantined, false), else: updates
+
+        updates =
+          if should_unquarantine,
+            do: Map.merge(updates, %{is_quarantined: false, state: "enabled"}),
+            else: updates
 
         test_case
         |> Map.from_struct()
@@ -2233,7 +2269,7 @@ defmodule Tuist.Tests do
               %{
                 id: UUIDv7.generate(),
                 test_case_id: test_case.id,
-                event_type: "unquarantined",
+                event_type: "unmuted",
                 actor_id: nil,
                 inserted_at: now
               }

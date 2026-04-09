@@ -40,8 +40,8 @@
           size="large"
         />
         <.badge
-          :if={@test_case_detail.is_quarantined}
-          label={dgettext("dashboard_tests", "Quarantined")}
+          :if={(@test_case_detail.state || "enabled") == "muted"}
+          label={dgettext("dashboard_tests", "Muted")}
           color="destructive"
           style="light-fill"
           size="large"
@@ -69,25 +69,25 @@
     </div>
     <div data-part="actions">
       <.button
-        :if={@test_case_detail.is_quarantined}
-        label={dgettext("dashboard_tests", "Unquarantine")}
+        :if={(@test_case_detail.state || "enabled") == "muted"}
+        label={dgettext("dashboard_tests", "Unmute")}
         variant="secondary"
         size="medium"
-        phx-click="unquarantine"
+        phx-click="unmute"
       >
         <:icon_left>
-          <.icon name="lock_open_2" />
+          <.icon name="volume_on" />
         </:icon_left>
       </.button>
       <.button
-        :if={!@test_case_detail.is_quarantined}
-        label={dgettext("dashboard_tests", "Quarantine")}
+        :if={(@test_case_detail.state || "enabled") != "muted"}
+        label={dgettext("dashboard_tests", "Mute")}
         variant="secondary"
         size="medium"
-        phx-click="quarantine"
+        phx-click="mute"
       >
         <:icon_left>
-          <.icon name="lock" />
+          <.icon name="volume_off" />
         </:icon_left>
       </.button>
       <.button

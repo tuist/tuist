@@ -271,7 +271,7 @@ defmodule TuistWeb.TestCaseLive do
 
     update_attrs =
       if was_auto_quarantined,
-        do: %{is_flaky: true, is_quarantined: true},
+        do: %{is_flaky: true, state: "muted"},
         else: %{is_flaky: true}
 
     {:ok, updated_test_case} =
@@ -281,7 +281,7 @@ defmodule TuistWeb.TestCaseLive do
         actor_id: current_user.account.id
       )
 
-    test_case_detail = Map.merge(test_case_detail, Map.take(updated_test_case, [:is_flaky, :is_quarantined]))
+    test_case_detail = Map.merge(test_case_detail, Map.take(updated_test_case, [:is_flaky, :is_quarantined, :state]))
 
     # Send Slack notification for manual flaky marking
     send_manual_flaky_alert(project, updated_test_case, current_user, was_auto_quarantined)
@@ -293,38 +293,44 @@ defmodule TuistWeb.TestCaseLive do
   end
 
   def handle_event(
-        "quarantine",
+        "mute",
         _params,
         %{assigns: %{test_case_id: test_case_id, test_case_detail: test_case_detail, current_user: current_user}} = socket
       ) do
     {:ok, updated_test_case} =
       Tests.update_test_case(
         test_case_id,
-        %{is_quarantined: true},
+        %{state: "muted"},
         actor_id: current_user.account.id
       )
 
+    test_case_detail =
+      Map.merge(test_case_detail, Map.take(updated_test_case, [:state, :is_quarantined]))
+
     {:noreply,
      socket
-     |> assign(:test_case_detail, %{test_case_detail | is_quarantined: updated_test_case.is_quarantined})
+     |> assign(:test_case_detail, test_case_detail)
      |> refresh_history_events()}
   end
 
   def handle_event(
-        "unquarantine",
+        "unmute",
         _params,
         %{assigns: %{test_case_id: test_case_id, test_case_detail: test_case_detail, current_user: current_user}} = socket
       ) do
     {:ok, updated_test_case} =
       Tests.update_test_case(
         test_case_id,
-        %{is_quarantined: false},
+        %{state: "enabled"},
         actor_id: current_user.account.id
       )
 
+    test_case_detail =
+      Map.merge(test_case_detail, Map.take(updated_test_case, [:state, :is_quarantined]))
+
     {:noreply,
      socket
-     |> assign(:test_case_detail, %{test_case_detail | is_quarantined: updated_test_case.is_quarantined})
+     |> assign(:test_case_detail, test_case_detail)
      |> refresh_history_events()}
   end
 
@@ -473,6 +479,8 @@ defmodule TuistWeb.TestCaseLive do
   defp event_icon("unmarked_flaky"), do: "circle_check"
   defp event_icon("quarantined"), do: "lock"
   defp event_icon("unquarantined"), do: "lock_open_2"
+  defp event_icon("muted"), do: "volume_off"
+  defp event_icon("unmuted"), do: "volume_on"
   defp event_icon(_), do: "info_circle"
 
   defp event_color("first_run"), do: "primary"
@@ -480,6 +488,8 @@ defmodule TuistWeb.TestCaseLive do
   defp event_color("unmarked_flaky"), do: "success"
   defp event_color("quarantined"), do: "destructive"
   defp event_color("unquarantined"), do: "information"
+  defp event_color("muted"), do: "destructive"
+  defp event_color("unmuted"), do: "information"
   defp event_color(_), do: "primary"
 
   defp event_title("first_run"), do: dgettext("dashboard_tests", "First run of this test")
@@ -487,6 +497,8 @@ defmodule TuistWeb.TestCaseLive do
   defp event_title("unmarked_flaky"), do: dgettext("dashboard_tests", "Unmarked as flaky")
   defp event_title("quarantined"), do: dgettext("dashboard_tests", "Marked as quarantined")
   defp event_title("unquarantined"), do: dgettext("dashboard_tests", "Marked as unquarantined")
+  defp event_title("muted"), do: dgettext("dashboard_tests", "Muted")
+  defp event_title("unmuted"), do: dgettext("dashboard_tests", "Unmuted")
   defp event_title(_), do: dgettext("dashboard_tests", "Event")
 
   defp format_event_subtitle(%{event_type: "first_run"}), do: nil

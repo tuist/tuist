@@ -493,6 +493,14 @@ defmodule TuistWeb.Router do
           end
         end
 
+        scope "/automations" do
+          get "/", AutomationsController, :index
+          post "/", AutomationsController, :create
+          get "/:automation_id", AutomationsController, :show
+          put "/:automation_id", AutomationsController, :update
+          delete "/:automation_id", AutomationsController, :delete
+        end
+
         scope "/builds" do
           get "/", BuildsController, :index
           get "/:build_id", BuildsController, :show

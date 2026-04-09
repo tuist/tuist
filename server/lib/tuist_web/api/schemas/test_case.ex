@@ -16,6 +16,7 @@ defmodule TuistWeb.API.Schemas.TestCase do
       :avg_duration,
       :is_flaky,
       :is_quarantined,
+      :state,
       :url
     ],
     properties: %{
@@ -69,7 +70,12 @@ defmodule TuistWeb.API.Schemas.TestCase do
       },
       is_quarantined: %Schema{
         type: :boolean,
-        description: "Whether the test case is quarantined"
+        description: "Whether the test case is quarantined. Deprecated: use state instead."
+      },
+      state: %Schema{
+        type: :string,
+        enum: ["enabled", "muted"],
+        description: "The state of the test case."
       },
       url: %Schema{
         type: :string,

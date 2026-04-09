@@ -48,7 +48,7 @@ defmodule Tuist.Alerts.Workers.FlakyThresholdCheckWorker do
          false <- test_case.is_flaky do
       update_attrs =
         if auto_quarantine do
-          %{is_flaky: true, is_quarantined: true}
+          %{is_flaky: true, is_quarantined: true, state: "muted"}
         else
           %{is_flaky: true}
         end
