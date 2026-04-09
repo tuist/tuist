@@ -346,10 +346,8 @@
                       <div :if={Enum.any?(argument.repetitions)} data-part="repetitions">
                         <div
                           :for={
-                            {repetition, rep_index} <-
-                              Enum.with_index(
-                                Enum.sort_by(argument.repetitions, & &1.repetition_number)
-                              )
+                            repetition <-
+                              Enum.sort_by(argument.repetitions, & &1.repetition_number)
                           }
                           data-part="repetition-wrapper"
                         >
@@ -370,24 +368,10 @@
                             />
                             <span data-part="repetition-name">{repetition.name}</span>
                           </div>
-                          <.failure_message_span
-                            :if={
-                              repetition.status == "failure" and Enum.any?(argument.failures) and
-                                Enum.at(argument.failures, rep_index)
-                            }
-                            failure={Enum.at(argument.failures, rep_index)}
-                            context={
-                              %{
-                                project: @selected_project,
-                                git_commit_sha: @test_case_run.git_commit_sha
-                              }
-                            }
-                          />
                         </div>
                       </div>
                       <.failure_message_span
                         :for={failure <- argument.failures}
-                        :if={!Enum.any?(argument.repetitions)}
                         failure={failure}
                         context={
                           %{
@@ -1005,10 +989,8 @@
                     <div :if={Enum.any?(argument.repetitions)} data-part="repetitions">
                       <div
                         :for={
-                          {repetition, rep_index} <-
-                            Enum.with_index(
-                              Enum.sort_by(argument.repetitions, & &1.repetition_number)
-                            )
+                          repetition <-
+                            Enum.sort_by(argument.repetitions, & &1.repetition_number)
                         }
                         data-part="repetition-wrapper"
                       >
@@ -1029,24 +1011,10 @@
                           />
                           <span data-part="repetition-name">{repetition.name}</span>
                         </div>
-                        <.failure_message_span
-                          :if={
-                            repetition.status == "failure" and Enum.any?(argument.failures) and
-                              Enum.at(argument.failures, rep_index)
-                          }
-                          failure={Enum.at(argument.failures, rep_index)}
-                          context={
-                            %{
-                              project: @selected_project,
-                              git_commit_sha: @test_case_run.git_commit_sha
-                            }
-                          }
-                        />
                       </div>
                     </div>
                     <.failure_message_span
                       :for={failure <- argument.failures}
-                      :if={!Enum.any?(argument.repetitions)}
                       failure={failure}
                       context={
                         %{

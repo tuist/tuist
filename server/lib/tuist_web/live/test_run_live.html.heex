@@ -625,14 +625,6 @@
                             />
                             <span data-part="repetition-name">{repetition.name}</span>
                           </div>
-                          <.failure_message_span
-                            :if={
-                              repetition.status == "failure" and Enum.any?(argument.failures) and
-                                Enum.at(argument.failures, rep_index)
-                            }
-                            failure={Enum.at(argument.failures, rep_index)}
-                            context={@run}
-                          />
                           <div
                             :if={
                               Enum.any?(
@@ -661,7 +653,6 @@
                       </div>
                       <.failure_message_span
                         :for={failure <- argument.failures}
-                        :if={!Enum.any?(argument.repetitions)}
                         failure={failure}
                         context={@run}
                       />
