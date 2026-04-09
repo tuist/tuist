@@ -14,6 +14,7 @@ import TuistGit
 import TuistLoader
 import TuistServer
 import TuistSupport
+import TuistXCActivityLog
 import TuistXCResultService
 import XcodeGraph
 import XCResultParser
@@ -49,6 +50,8 @@ final class TestServiceTests: TuistUnitTestCase {
     private var shardPlanService: MockShardPlanServicing!
     private var shardMatrixOutputService: MockShardMatrixOutputServicing!
     private var shardService: MockShardServicing!
+    private var xcActivityLogController: MockXCActivityLogControlling!
+    private var uploadBuildRunService: MockUploadBuildRunServicing!
 
     override func setUpWithError() throws {
         try super.setUpWithError()
@@ -73,6 +76,12 @@ final class TestServiceTests: TuistUnitTestCase {
         shardPlanService = .init()
         shardMatrixOutputService = .init()
         shardService = .init()
+        xcActivityLogController = .init()
+        uploadBuildRunService = .init()
+
+        given(xcActivityLogController)
+            .mostRecentActivityLogFile(projectDerivedDataDirectory: .any, filter: .any)
+            .willReturn(nil)
 
         cacheStorageFactory = MockCacheStorageFactorying()
         given(cacheStorageFactory)
@@ -190,7 +199,9 @@ final class TestServiceTests: TuistUnitTestCase {
             testQuarantineService: testQuarantineService,
             shardPlanService: shardPlanService,
             shardMatrixOutputService: shardMatrixOutputService,
-            shardService: shardService
+            shardService: shardService,
+            xcActivityLogController: xcActivityLogController,
+            uploadBuildRunService: uploadBuildRunService
         )
 
         given(simulatorController)

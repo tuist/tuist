@@ -144,6 +144,7 @@
                 resultBundlePath: resolvedResultBundlePath,
                 config: config,
                 quarantinedTests: [],
+                buildRunId: nil,
                 shardPlanId: nil,
                 shardIndex: nil
             )

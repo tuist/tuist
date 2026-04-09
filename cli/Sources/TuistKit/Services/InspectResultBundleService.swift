@@ -44,6 +44,7 @@ public protocol UploadResultBundleServicing {
         resultBundlePath: AbsolutePath,
         config: Tuist,
         quarantinedTests: [TestIdentifier],
+        buildRunId: String?,
         shardPlanId: String?,
         shardIndex: Int?
     ) async throws -> Components.Schemas.RunsTest
@@ -164,6 +165,7 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
         resultBundlePath: AbsolutePath,
         config: Tuist,
         quarantinedTests: [TestIdentifier] = [],
+        buildRunId: String? = nil,
         shardPlanId: String? = nil,
         shardIndex: Int? = nil
     ) async throws -> Components.Schemas.RunsTest {
@@ -206,7 +208,7 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
                 duration: 0,
                 testModules: []
             ),
-            buildRunId: nil,
+            buildRunId: buildRunId,
             gitBranch: gitInfo.branch,
             gitCommitSHA: gitInfo.sha,
             gitRef: gitInfo.ref,
