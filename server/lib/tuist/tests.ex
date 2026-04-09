@@ -198,6 +198,7 @@ defmodule Tuist.Tests do
   def get_test_run_failures_count(test_run_id) do
     query =
       from tcr in TestCaseRunByTestRun,
+        hints: ["FINAL"],
         where: tcr.test_run_id == ^test_run_id and tcr.status == "failure",
         select: count(tcr.id)
 
@@ -702,7 +703,7 @@ defmodule Tuist.Tests do
   end
 
   defp list_test_case_runs_via_test_run_mv(attrs, preloads) do
-    base_query = from(mv in TestCaseRunByTestRun)
+    base_query = from(mv in TestCaseRunByTestRun, hints: ["FINAL"])
 
     {slim_results, meta} =
       Tuist.ClickHouseFlop.validate_and_run!(base_query, attrs, for: TestCaseRunByTestRun)
