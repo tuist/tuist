@@ -30,6 +30,19 @@ tuist cache
 
 The command re-uses binaries to speed up the process.
 
+### Configuration selection {#configuration-selection}
+
+When warming the cache without passing `--configuration`, Tuist selects the build configuration to use in the following order:
+
+1. The [`defaultConfiguration`](https://projectdescription.tuist.dev/documentation/projectdescription/tuist/generationoptions/defaultconfiguration) set in your manifest's `Project.Options.generationOptions`, if any.
+2. Otherwise, the first build configuration of variant `debug`, sorted alphabetically by name.
+
+To warm the cache for a specific configuration, pass it explicitly:
+
+```bash
+tuist cache --configuration Release
+```
+
 ## Usage {#usage}
 
 By default, when Tuist commands necessitate project generation, they automatically substitute dependencies with their binary equivalents from the cache, if available. Additionally, if you specify a list of targets to focus on, Tuist will also replace any dependent targets with their cached binaries, provided they are available. For those who prefer a different approach, there is an option to opt out of this behavior entirely by using a specific flag:
