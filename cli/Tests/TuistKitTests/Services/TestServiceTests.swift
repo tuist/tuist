@@ -1009,6 +1009,91 @@ final class TestServiceTests: TuistUnitTestCase {
         }
     }
 
+    func test_writes_empty_shard_matrix_when_scheme_is_in_initial_graph_only_and_sharding_is_enabled() async throws {
+        try await withMockedDependencies {
+            // Given
+            givenGenerator()
+            var environment = MapperEnvironment()
+            environment.initialGraph = .test(
+                projects: [
+                    try temporaryPath(): .test(schemes: [.test(name: "ProjectSchemeOne")]),
+                ]
+            )
+            given(configLoader)
+                .loadConfig(path: .any)
+                .willReturn(.test(project: .testGeneratedProject()))
+            given(generator)
+                .generateWithGraph(path: .any, options: .any)
+                .willProduce { path, _ in
+                    (
+                        path,
+                        .test(),
+                        environment
+                    )
+                }
+            given(shardMatrixOutputService)
+                .output(.any)
+                .willReturn()
+
+            // When
+            try await testRun(
+                schemeName: "ProjectSchemeOne",
+                path: try temporaryPath(),
+                action: .build,
+                shardTotal: 2
+            )
+
+            // Then
+            XCTAssertEmpty(testedSchemes)
+            verify(shardMatrixOutputService)
+                .output(.any)
+                .called(1)
+        }
+    }
+
+    func test_writes_empty_shard_matrix_when_scheme_has_no_test_targets_and_sharding_is_enabled() async throws {
+        try await withMockedDependencies {
+            // Given
+            givenGenerator()
+            given(buildGraphInspector)
+                .testableSchemes(graphTraverser: .any)
+                .willReturn([])
+            given(generator)
+                .generateWithGraph(path: .any, options: .any)
+                .willProduce { path, _ in
+                    (
+                        path,
+                        .test(
+                            workspace: .test(schemes: [
+                                .test(name: "ProjectSchemeOne", testAction: .test(targets: [])),
+                            ])
+                        ),
+                        MapperEnvironment()
+                    )
+                }
+            given(configLoader)
+                .loadConfig(path: .any)
+                .willReturn(.test(project: .testGeneratedProject()))
+            given(shardMatrixOutputService)
+                .output(.any)
+                .willReturn()
+
+            // When
+            try await testRun(
+                schemeName: "ProjectSchemeOne",
+                path: try temporaryPath(),
+                action: .build,
+                shardTotal: 2
+            )
+
+            // Then
+            XCTAssertEmpty(testedSchemes)
+            verify(shardMatrixOutputService)
+                .output(.any)
+                .called(1)
+        }
+    }
+
     func test_skips_running_tests_when_all_tests_are_cached_with_a_custom_result_bundle_path()
         async throws
     {
