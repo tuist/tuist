@@ -52,6 +52,7 @@ defmodule Cache.SQLiteBufferTest do
   alias Cache.Config
   alias Cache.KeyValueBuffer
   alias Cache.KeyValueEntry
+  alias Cache.KeyValuePendingReplicationEntry
   alias Cache.KeyValueRepo
   alias Cache.KeyValueWriteRepo
   alias Cache.Repo
@@ -148,7 +149,7 @@ defmodule Cache.SQLiteBufferTest do
     assert Repo.get_by!(CacheArtifact, key: key).size_bytes == 123
   end
 
-  test "distributed writes mark source_updated_at and replication token" do
+  test "distributed writes enqueue pending replication rows" do
     stub(Config, :key_value_mode, fn -> :distributed end)
     stub(Config, :distributed_kv_enabled?, fn -> true end)
 
@@ -160,7 +161,9 @@ defmodule Cache.SQLiteBufferTest do
 
     record = KeyValueRepo.get_by!(KeyValueEntry, key: key)
     assert record.source_updated_at
-    assert record.replication_enqueued_at
+
+    pending = KeyValueRepo.get!(KeyValuePendingReplicationEntry, key)
+    assert pending.replication_enqueued_at
   end
 
   test "local writes clear distributed replication fields" do
@@ -174,9 +177,16 @@ defmodule Cache.SQLiteBufferTest do
       json_payload: Jason.encode!(%{entries: [%{"value" => "old"}]}),
       last_accessed_at: distributed_time,
       source_updated_at: distributed_time,
-      replication_enqueued_at: distributed_time,
       inserted_at: timestamp,
       updated_at: timestamp
+    })
+
+    KeyValueWriteRepo.insert!(%KeyValuePendingReplicationEntry{
+      key: key,
+      json_payload: Jason.encode!(%{entries: [%{"value" => "old"}]}),
+      source_updated_at: distributed_time,
+      last_accessed_at: distributed_time,
+      replication_enqueued_at: distributed_time
     })
 
     :ok = KeyValueBuffer.enqueue(key, payload)
@@ -185,7 +195,7 @@ defmodule Cache.SQLiteBufferTest do
     record = KeyValueRepo.get_by!(KeyValueEntry, key: key)
     assert record.json_payload == payload
     assert is_nil(record.source_updated_at)
-    assert is_nil(record.replication_enqueued_at)
+    assert KeyValueRepo.get(KeyValuePendingReplicationEntry, key) == nil
   end
 
   test "access-only entry updates last_accessed_at without changing payload" do
@@ -211,7 +221,7 @@ defmodule Cache.SQLiteBufferTest do
     assert DateTime.compare(record.last_accessed_at, initial_time) != :lt
   end
 
-  test "distributed access updates replication token only for shared-lineage rows" do
+  test "distributed access enqueues replication only for shared-lineage rows" do
     stub(Config, :key_value_mode, fn -> :distributed end)
     stub(Config, :distributed_kv_enabled?, fn -> true end)
 
@@ -244,11 +254,13 @@ defmodule Cache.SQLiteBufferTest do
     legacy_record = KeyValueRepo.get_by!(KeyValueEntry, key: legacy_key)
     shared_record = KeyValueRepo.get_by!(KeyValueEntry, key: shared_key)
 
-    assert is_nil(legacy_record.replication_enqueued_at)
-    assert shared_record.replication_enqueued_at
+    assert KeyValueRepo.get(KeyValuePendingReplicationEntry, legacy_key) == nil
+    assert KeyValueRepo.get!(KeyValuePendingReplicationEntry, shared_key).replication_enqueued_at
+    assert DateTime.after?(shared_record.last_accessed_at, initial_time)
+    assert DateTime.after?(legacy_record.last_accessed_at, initial_time)
   end
 
-  test "distributed access does not overwrite an existing replication token" do
+  test "distributed access does not overwrite an existing queue token" do
     stub(Config, :key_value_mode, fn -> :distributed end)
     stub(Config, :distributed_kv_enabled?, fn -> true end)
 
@@ -262,16 +274,23 @@ defmodule Cache.SQLiteBufferTest do
       json_payload: JSON.encode!(%{entries: []}),
       last_accessed_at: initial_time,
       source_updated_at: initial_time,
-      replication_enqueued_at: pending_token,
       inserted_at: timestamp,
       updated_at: timestamp
+    })
+
+    KeyValueWriteRepo.insert!(%KeyValuePendingReplicationEntry{
+      key: key,
+      json_payload: JSON.encode!(%{entries: []}),
+      source_updated_at: initial_time,
+      last_accessed_at: pending_token,
+      replication_enqueued_at: pending_token
     })
 
     :ok = KeyValueBuffer.enqueue_access(key)
     :ok = KeyValueBuffer.flush()
 
     record = KeyValueRepo.get_by!(KeyValueEntry, key: key)
-    assert record.replication_enqueued_at == pending_token
+    assert KeyValueRepo.get!(KeyValuePendingReplicationEntry, key).replication_enqueued_at == pending_token
     assert DateTime.after?(record.last_accessed_at, initial_time)
   end
 
@@ -293,7 +312,8 @@ defmodule Cache.SQLiteBufferTest do
     :ok = KeyValueBuffer.flush()
 
     record = KeyValueRepo.get_by!(KeyValueEntry, key: key)
-    assert is_nil(record.replication_enqueued_at)
+    assert KeyValueRepo.get(KeyValuePendingReplicationEntry, key) == nil
+    assert DateTime.after?(record.last_accessed_at, initial_time)
   end
 
   test "flush handles access batches at sqlite parameter limits" do

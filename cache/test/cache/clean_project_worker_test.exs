@@ -12,6 +12,7 @@ defmodule Cache.CleanProjectWorkerTest do
   alias Cache.KeyValueAccessTracker
   alias Cache.KeyValueEntries
   alias Cache.KeyValueEntry
+  alias Cache.KeyValuePendingReplicationEntry
   alias Cache.KeyValueRepo
   alias Cache.KeyValueStore
   alias Cache.KeyValueWriteRepo
@@ -583,7 +584,15 @@ defmodule Cache.CleanProjectWorkerTest do
         json_payload: stale_payload,
         source_node: "test-node",
         last_accessed_at: replication_enqueued_at,
+        source_updated_at: row_source_updated_at
+      })
+
+      KeyValueWriteRepo.insert!(%KeyValuePendingReplicationEntry{
+        key: key,
+        json_payload: stale_payload,
+        source_node: "test-node",
         source_updated_at: row_source_updated_at,
+        last_accessed_at: replication_enqueued_at,
         replication_enqueued_at: replication_enqueued_at
       })
 

@@ -25,7 +25,6 @@ defmodule Cache.KeyValueEntries do
     :last_accessed_at,
     :source_node,
     :source_updated_at,
-    :replication_enqueued_at,
     :updated_at
   ]
 
@@ -131,20 +130,12 @@ defmodule Cache.KeyValueEntries do
 
   def clear_replication_token(key, token) when is_binary(key) do
     {count, _} =
-      Cache.KeyValueWriteRepo.update_all(
-        from(entry in KeyValueEntry,
+      Cache.KeyValueWriteRepo.delete_all(
+        from(entry in KeyValuePendingReplicationEntry,
           where: entry.key == ^key,
           where: entry.replication_enqueued_at == ^token
-        ),
-        set: [replication_enqueued_at: nil]
+        )
       )
-
-    Cache.KeyValueWriteRepo.delete_all(
-      from(entry in KeyValuePendingReplicationEntry,
-        where: entry.key == ^key,
-        where: entry.replication_enqueued_at == ^token
-      )
-    )
 
     count
   end
@@ -158,10 +149,7 @@ defmodule Cache.KeyValueEntries do
       end
     end)
     |> Enum.chunk_every(@replication_token_clear_chunk_size)
-    |> Enum.reduce(0, fn refs, count_acc ->
-      clear_pending_replication_chunk(refs)
-      count_acc + clear_replication_token_chunk(refs)
-    end)
+    |> Enum.reduce(0, fn refs, count_acc -> count_acc + clear_pending_replication_chunk(refs) end)
   end
 
   def distributed_watermark do
@@ -235,9 +223,15 @@ defmodule Cache.KeyValueEntries do
 
     case Cache.KeyValueWriteRepo.transaction(
            fn ->
-             local_entries_by_key = fetch_local_entries_by_key(Enum.map(rows, & &1.key))
-             {upsert_rows, stats} = build_remote_upsert_rows(rows, local_entries_by_key, now)
+             keys = Enum.map(rows, & &1.key)
+             local_entries_by_key = fetch_local_entries_by_key(keys)
+             pending_entries_by_key = fetch_pending_entries_by_key(keys)
+
+             {upsert_rows, pending_rows, pending_clear_keys, stats} =
+               build_remote_apply_plan(rows, local_entries_by_key, pending_entries_by_key, now)
+
              upsert_remote_rows(upsert_rows)
+             sync_pending_replication_plan(pending_rows, pending_clear_keys)
 
              %{
                inserted_count: stats.inserted_count,
@@ -263,10 +257,15 @@ defmodule Cache.KeyValueEntries do
   defp apply_remote_batch_transaction(rows, alive_rows, tombstone_keys, now, signature) do
     case Cache.KeyValueWriteRepo.transaction(
            fn ->
-             local_entries_by_key = fetch_local_entries_by_key(Enum.map(rows, & &1.key))
+             keys = Enum.map(rows, & &1.key)
+             local_entries_by_key = fetch_local_entries_by_key(keys)
+             pending_entries_by_key = fetch_pending_entries_by_key(keys)
 
-             {upsert_rows, stats} = build_remote_upsert_rows(alive_rows, local_entries_by_key, now)
+             {upsert_rows, pending_rows, pending_clear_keys, stats} =
+               build_remote_apply_plan(alive_rows, local_entries_by_key, pending_entries_by_key, now)
+
              upsert_remote_rows(upsert_rows)
+             sync_pending_replication_plan(pending_rows, pending_clear_keys)
 
              result = %{
                processed_count: length(rows),
@@ -366,30 +365,55 @@ defmodule Cache.KeyValueEntries do
     |> Map.new(&{&1.key, &1})
   end
 
-  defp build_remote_upsert_rows(rows, local_entries_by_key, now) do
+  defp fetch_pending_entries_by_key([]), do: %{}
+
+  defp fetch_pending_entries_by_key(keys) do
+    KeyValuePendingReplicationEntry
+    |> where([entry], entry.key in ^keys)
+    |> Cache.KeyValueWriteRepo.all()
+    |> Map.new(&{&1.key, &1})
+  end
+
+  defp build_remote_apply_plan(rows, local_entries_by_key, pending_entries_by_key, now) do
     rows
-    |> Enum.reduce({[], empty_remote_batch_stats()}, fn row, {row_maps, stats} ->
+    |> Enum.reduce({[], [], [], empty_remote_batch_stats()}, fn row, {row_maps, pending_rows, clear_keys, stats} ->
       attrs =
         row
         |> Map.take([:key, :json_payload, :last_accessed_at, :source_updated_at, :source_node])
         |> remote_materialization_attrs(now)
 
       persisted_attrs = persisted_remote_attrs(attrs)
+      pending_entry = Map.get(pending_entries_by_key, row.key)
 
       case Map.get(local_entries_by_key, row.key) do
         nil ->
-          {[persisted_attrs | row_maps], record_remote_batch_status(stats, row.key, :inserted)}
+          next_clear_keys = if pending_entry, do: [row.key | clear_keys], else: clear_keys
+
+          {[persisted_attrs | row_maps], pending_rows, next_clear_keys,
+           record_remote_batch_status(stats, row.key, :inserted)}
 
         local_entry ->
-          merged_attrs = merge_remote_into_local(local_entry, attrs)
+          merged_attrs = merge_remote_into_local(local_entry, pending_entry, attrs)
           status = merged_remote_status(local_entry, merged_attrs)
           upsert_row = build_remote_upsert_row(local_entry, merged_attrs, persisted_attrs)
+          pending_row = build_pending_replication_row(upsert_row, merged_attrs)
 
-          {[upsert_row | row_maps], record_remote_batch_status(stats, row.key, status)}
+          {next_pending_rows, next_clear_keys} =
+            case pending_row do
+              nil ->
+                {pending_rows, if(pending_entry, do: [row.key | clear_keys], else: clear_keys)}
+
+              row ->
+                {[row | pending_rows], clear_keys}
+            end
+
+          {[upsert_row | row_maps], next_pending_rows, next_clear_keys,
+           record_remote_batch_status(stats, row.key, status)}
       end
     end)
-    |> then(fn {row_maps, stats} ->
-      {Enum.reverse(row_maps), %{stats | invalidate_keys: Enum.reverse(stats.invalidate_keys)}}
+    |> then(fn {row_maps, pending_rows, clear_keys, stats} ->
+      {Enum.reverse(row_maps), Enum.reverse(pending_rows), Enum.uniq(clear_keys),
+       %{stats | invalidate_keys: Enum.reverse(stats.invalidate_keys)}}
     end)
   end
 
@@ -429,11 +453,15 @@ defmodule Cache.KeyValueEntries do
     |> Map.put(:last_accessed_at, Map.get(merged_attrs, :last_accessed_at, local_entry.last_accessed_at))
     |> Map.put(:source_node, Map.get(merged_attrs, :source_node, local_entry.source_node))
     |> Map.put(:source_updated_at, Map.get(merged_attrs, :source_updated_at, local_entry.source_updated_at))
-    |> Map.put(
-      :replication_enqueued_at,
-      Map.get(merged_attrs, :replication_enqueued_at, local_entry.replication_enqueued_at)
-    )
   end
+
+  defp build_pending_replication_row(upsert_row, %{replication_enqueued_at: token}) when not is_nil(token) do
+    upsert_row
+    |> pending_replication_row()
+    |> Map.put(:replication_enqueued_at, token)
+  end
+
+  defp build_pending_replication_row(_upsert_row, _merged_attrs), do: nil
 
   defp merged_remote_status(local_entry, merged_attrs) do
     case merged_attrs do
@@ -454,23 +482,39 @@ defmodule Cache.KeyValueEntries do
       on_conflict: {:replace, @remote_apply_conflict_fields}
     )
 
-    sync_pending_replication_entries(rows)
-
     :ok
+  end
+
+  defp sync_pending_replication_plan(pending_rows, keys_to_clear) do
+    pending_keys = MapSet.new(Enum.map(pending_rows, & &1.key))
+
+    keys_to_clear
+    |> Enum.reject(&MapSet.member?(pending_keys, &1))
+    |> delete_pending_replication_entries()
+
+    sync_pending_replication_entries(pending_rows)
   end
 
   defp delete_tombstoned_rows([]), do: 0
 
   defp delete_tombstoned_rows(keys) do
+    pending_keys_query = from(entry in KeyValuePendingReplicationEntry, where: entry.key in ^keys, select: entry.key)
+
+    deletable_keys =
+      KeyValueEntry
+      |> where([entry], entry.key in ^keys)
+      |> where([entry], entry.key not in subquery(pending_keys_query))
+      |> select([entry], entry.key)
+      |> Cache.KeyValueWriteRepo.all()
+
     {count, _} =
       Cache.KeyValueWriteRepo.delete_all(
         from(entry in KeyValueEntry,
-          where: entry.key in ^keys,
-          where: is_nil(entry.replication_enqueued_at)
+          where: entry.key in ^deletable_keys
         )
       )
 
-    delete_pending_replication_entries(keys)
+    delete_pending_replication_entries(deletable_keys)
 
     count
   end
@@ -479,8 +523,7 @@ defmodule Cache.KeyValueEntries do
     Map.merge(
       %{
         inserted_at: now,
-        updated_at: now,
-        replication_enqueued_at: nil
+        updated_at: now
       },
       attrs
     )
@@ -493,7 +536,6 @@ defmodule Cache.KeyValueEntries do
       :last_accessed_at,
       :source_node,
       :source_updated_at,
-      :replication_enqueued_at,
       :inserted_at,
       :updated_at
     ])
@@ -912,7 +954,8 @@ defmodule Cache.KeyValueEntries do
 
   defp apply_evictable_filter(query, include_pending) do
     if Config.distributed_kv_enabled?() and not include_pending do
-      from(entry in query, where: is_nil(entry.replication_enqueued_at))
+      pending_keys_query = from(entry in KeyValuePendingReplicationEntry, select: entry.key)
+      from(entry in query, where: entry.key not in subquery(pending_keys_query))
     else
       query
     end
@@ -920,50 +963,19 @@ defmodule Cache.KeyValueEntries do
 
   defp replication_token_ref(%{replication_enqueued_at: nil}), do: nil
 
-  defp replication_token_ref(%{id: id, replication_enqueued_at: token, last_accessed_at: last_accessed_at})
-       when not is_nil(id) do
-    {:id, id, token, last_accessed_at}
-  end
-
   defp replication_token_ref(%{key: key, replication_enqueued_at: token, last_accessed_at: last_accessed_at})
        when is_binary(key) do
-    {:key, key, token, last_accessed_at}
-  end
-
-  defp clear_replication_token_chunk([]), do: 0
-
-  defp clear_replication_token_chunk(refs) do
-    predicate =
-      Enum.reduce(refs, dynamic(false), fn ref, dynamic ->
-        replication_token_predicate(ref, dynamic)
-      end)
-
-    {count, _} =
-      Cache.KeyValueWriteRepo.update_all(
-        from(entry in KeyValueEntry, where: ^predicate),
-        set: [replication_enqueued_at: nil]
-      )
-
-    count
+    {key, token, last_accessed_at}
   end
 
   defp clear_pending_replication_chunk(refs) do
-    keys_to_clear =
-      Enum.flat_map(refs, fn
-        {:key, key, token, last_accessed_at} ->
-          [{key, token, last_accessed_at}]
-
-        _ ->
-          []
-      end)
-
-    case keys_to_clear do
+    case refs do
       [] ->
         0
 
       _ ->
         predicate =
-          Enum.reduce(keys_to_clear, dynamic(false), fn {key, token, last_accessed_at}, dynamic ->
+          Enum.reduce(refs, dynamic(false), fn {key, token, last_accessed_at}, dynamic ->
             dynamic(
               [entry],
               ^dynamic or
@@ -979,24 +991,6 @@ defmodule Cache.KeyValueEntries do
     end
   end
 
-  defp replication_token_predicate({:id, id, token, last_accessed_at}, dynamic) do
-    dynamic(
-      [entry],
-      ^dynamic or
-        (entry.id == ^id and entry.replication_enqueued_at == ^token and
-           entry.last_accessed_at == ^last_accessed_at)
-    )
-  end
-
-  defp replication_token_predicate({:key, key, token, last_accessed_at}, dynamic) do
-    dynamic(
-      [entry],
-      ^dynamic or
-        (entry.key == ^key and entry.replication_enqueued_at == ^token and
-           entry.last_accessed_at == ^last_accessed_at)
-    )
-  end
-
   defp pending_replication_row(row) do
     Map.take(row, [
       :key,
@@ -1008,9 +1002,9 @@ defmodule Cache.KeyValueEntries do
     ])
   end
 
-  defp merge_remote_into_local(local_entry, remote_attrs) do
+  defp merge_remote_into_local(local_entry, pending_entry, remote_attrs) do
     local_wins? =
-      not is_nil(local_entry.replication_enqueued_at) and
+      not is_nil(pending_entry) and
         compare_source_versions(
           local_entry.source_updated_at,
           local_entry.source_node,
@@ -1019,17 +1013,23 @@ defmodule Cache.KeyValueEntries do
         ) == :gt
 
     if local_wins? do
-      %{last_accessed_at: max_datetime(local_entry.last_accessed_at, remote_attrs.last_accessed_at)}
+      %{
+        last_accessed_at: max_datetime(local_entry.last_accessed_at, remote_attrs.last_accessed_at),
+        replication_enqueued_at: pending_entry.replication_enqueued_at
+      }
     else
       %{
         json_payload: remote_attrs.json_payload,
         source_node: remote_attrs.source_node,
         source_updated_at: remote_attrs.source_updated_at,
         last_accessed_at: max_datetime(local_entry.last_accessed_at, remote_attrs.last_accessed_at),
-        replication_enqueued_at: remote_winner_replication_token(local_entry.replication_enqueued_at, remote_attrs)
+        replication_enqueued_at: remote_winner_replication_token(pending_replication_token(pending_entry), remote_attrs)
       }
     end
   end
+
+  defp pending_replication_token(nil), do: nil
+  defp pending_replication_token(%{replication_enqueued_at: token}), do: token
 
   defp remote_winner_replication_token(nil, _remote_attrs), do: nil
 

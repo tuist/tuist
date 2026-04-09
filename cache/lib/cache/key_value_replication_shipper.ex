@@ -236,6 +236,7 @@ defmodule Cache.KeyValueReplicationShipper do
       from(entry in Entry,
         join: row in values(rows, @shared_touch_types),
         on: entry.key == row.key,
+        where: row.last_accessed_at > entry.last_accessed_at,
         update: [
           set: [
             last_accessed_at: fragment("GREATEST(?, ?)", entry.last_accessed_at, row.last_accessed_at),
@@ -275,6 +276,14 @@ defmodule Cache.KeyValueReplicationShipper do
     # Shared rows resolve payload conflicts by source_updated_at, then source_node for equal timestamps.
     on_conflict =
       from(entry in Entry,
+        where:
+          fragment(
+            "EXCLUDED.source_updated_at > ? OR (EXCLUDED.source_updated_at = ? AND EXCLUDED.source_node > ?) OR EXCLUDED.last_accessed_at > ?",
+            entry.source_updated_at,
+            entry.source_updated_at,
+            entry.source_node,
+            entry.last_accessed_at
+          ),
         update: [
           set: [
             account_handle: fragment("EXCLUDED.account_handle"),

@@ -11,6 +11,7 @@ defmodule Cache.KeyValueEvictionWorkerTest do
   alias Cache.KeyValueEntries
   alias Cache.KeyValueEntry
   alias Cache.KeyValueEvictionWorker
+  alias Cache.KeyValuePendingReplicationEntry
   alias Cache.KeyValueRepo
   alias Cache.KeyValueWriteRepo
   alias Ecto.Adapters.SQL.Sandbox
@@ -78,7 +79,14 @@ defmodule Cache.KeyValueEvictionWorkerTest do
       key: "pending-entry",
       json_payload: ~s({"hash": "abc"}),
       last_accessed_at: old_time,
+      source_updated_at: old_time
+    })
+
+    KeyValueWriteRepo.insert!(%KeyValuePendingReplicationEntry{
+      key: "pending-entry",
+      json_payload: ~s({"hash": "abc"}),
       source_updated_at: old_time,
+      last_accessed_at: old_time,
       replication_enqueued_at: DateTime.utc_now()
     })
 

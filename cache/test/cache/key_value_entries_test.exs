@@ -9,6 +9,7 @@ defmodule Cache.KeyValueEntriesTest do
   alias Cache.DistributedKV.State
   alias Cache.KeyValueEntries
   alias Cache.KeyValueEntry
+  alias Cache.KeyValuePendingReplicationEntry
   alias Cache.KeyValueRepo
   alias Cache.KeyValueWriteRepo
   alias Cache.SQLiteHelpers
@@ -50,9 +51,16 @@ defmodule Cache.KeyValueEntriesTest do
         key: "pending-entry",
         json_payload: ~s({"hash": "pending"}),
         last_accessed_at: old_time,
-        source_updated_at: old_time,
-        replication_enqueued_at: DateTime.utc_now()
+        source_updated_at: old_time
       })
+
+    insert_pending_replication_entry(%{
+      key: pending_entry.key,
+      json_payload: pending_entry.json_payload,
+      source_updated_at: pending_entry.source_updated_at,
+      last_accessed_at: pending_entry.last_accessed_at,
+      replication_enqueued_at: DateTime.utc_now()
+    })
 
     expired_entry =
       KeyValueWriteRepo.insert!(%KeyValueEntry{
@@ -115,8 +123,7 @@ defmodule Cache.KeyValueEntriesTest do
         key: "keyvalue:acme:ios:first",
         json_payload: "{}",
         last_accessed_at: old_token,
-        source_updated_at: old_token,
-        replication_enqueued_at: old_token
+        source_updated_at: old_token
       })
 
     second_entry =
@@ -124,19 +131,34 @@ defmodule Cache.KeyValueEntriesTest do
         key: "keyvalue:acme:ios:second",
         json_payload: "{}",
         last_accessed_at: new_token,
-        source_updated_at: new_token,
-        replication_enqueued_at: new_token
+        source_updated_at: new_token
       })
+
+    insert_pending_replication_entry(%{
+      key: first_entry.key,
+      json_payload: first_entry.json_payload,
+      source_updated_at: first_entry.source_updated_at,
+      last_accessed_at: first_entry.last_accessed_at,
+      replication_enqueued_at: old_token
+    })
+
+    insert_pending_replication_entry(%{
+      key: second_entry.key,
+      json_payload: second_entry.json_payload,
+      source_updated_at: second_entry.source_updated_at,
+      last_accessed_at: second_entry.last_accessed_at,
+      replication_enqueued_at: new_token
+    })
 
     cleared_count =
       KeyValueEntries.clear_replication_tokens([
-        %{id: first_entry.id, replication_enqueued_at: old_token, last_accessed_at: first_entry.last_accessed_at},
-        %{id: second_entry.id, replication_enqueued_at: old_token, last_accessed_at: second_entry.last_accessed_at}
+        %{key: first_entry.key, replication_enqueued_at: old_token, last_accessed_at: first_entry.last_accessed_at},
+        %{key: second_entry.key, replication_enqueued_at: old_token, last_accessed_at: second_entry.last_accessed_at}
       ])
 
     assert cleared_count == 1
-    assert KeyValueRepo.get!(KeyValueEntry, first_entry.id).replication_enqueued_at == nil
-    assert KeyValueRepo.get!(KeyValueEntry, second_entry.id).replication_enqueued_at == new_token
+    assert KeyValueRepo.get(KeyValuePendingReplicationEntry, first_entry.key) == nil
+    assert KeyValueRepo.get!(KeyValuePendingReplicationEntry, second_entry.key).replication_enqueued_at == new_token
   end
 
   test "clear_replication_tokens keeps rows pending when last_accessed_at changed after selection" do
@@ -148,20 +170,27 @@ defmodule Cache.KeyValueEntriesTest do
         key: "keyvalue:acme:ios:pending-access",
         json_payload: "{}",
         last_accessed_at: selected_last_accessed_at,
-        source_updated_at: selected_last_accessed_at,
-        replication_enqueued_at: selected_last_accessed_at
+        source_updated_at: selected_last_accessed_at
       })
+
+    insert_pending_replication_entry(%{
+      key: entry.key,
+      json_payload: entry.json_payload,
+      source_updated_at: entry.source_updated_at,
+      last_accessed_at: selected_last_accessed_at,
+      replication_enqueued_at: selected_last_accessed_at
+    })
 
     {1, _} =
       KeyValueWriteRepo.update_all(
-        from(record in KeyValueEntry, where: record.id == ^entry.id),
+        from(record in KeyValuePendingReplicationEntry, where: record.key == ^entry.key),
         set: [last_accessed_at: newer_last_accessed_at]
       )
 
     cleared_count =
       KeyValueEntries.clear_replication_tokens([
         %{
-          id: entry.id,
+          key: entry.key,
           replication_enqueued_at: selected_last_accessed_at,
           last_accessed_at: selected_last_accessed_at
         }
@@ -169,7 +198,7 @@ defmodule Cache.KeyValueEntriesTest do
 
     assert cleared_count == 0
 
-    record = KeyValueRepo.get!(KeyValueEntry, entry.id)
+    record = KeyValueRepo.get!(KeyValuePendingReplicationEntry, entry.key)
     assert record.replication_enqueued_at == selected_last_accessed_at
     assert record.last_accessed_at == newer_last_accessed_at
   end
@@ -205,7 +234,15 @@ defmodule Cache.KeyValueEntriesTest do
       json_payload: Jason.encode!(%{entries: [%{"value" => "local"}]}),
       source_node: "test-node",
       last_accessed_at: local_source_updated_at,
+      source_updated_at: local_source_updated_at
+    })
+
+    insert_pending_replication_entry(%{
+      key: "keyvalue:acme:ios:cas",
+      json_payload: Jason.encode!(%{entries: [%{"value" => "local"}]}),
+      source_node: "test-node",
       source_updated_at: local_source_updated_at,
+      last_accessed_at: local_source_updated_at,
       replication_enqueued_at: local_source_updated_at
     })
 
@@ -220,7 +257,9 @@ defmodule Cache.KeyValueEntriesTest do
 
     record = KeyValueRepo.get_by!(KeyValueEntry, key: "keyvalue:acme:ios:cas")
     assert Jason.decode!(record.json_payload)["entries"] == [%{"value" => "local"}]
-    assert record.replication_enqueued_at == local_source_updated_at
+
+    pending = KeyValueRepo.get!(KeyValuePendingReplicationEntry, "keyvalue:acme:ios:cas")
+    assert pending.replication_enqueued_at == local_source_updated_at
   end
 
   test "materialize_remote_entry clears stale replication tokens when a newer remote payload wins" do
@@ -232,7 +271,15 @@ defmodule Cache.KeyValueEntriesTest do
       json_payload: Jason.encode!(%{entries: [%{"value" => "local"}]}),
       source_node: "node-a",
       last_accessed_at: local_source_updated_at,
+      source_updated_at: local_source_updated_at
+    })
+
+    insert_pending_replication_entry(%{
+      key: "keyvalue:acme:ios:cas",
+      json_payload: Jason.encode!(%{entries: [%{"value" => "local"}]}),
+      source_node: "node-a",
       source_updated_at: local_source_updated_at,
+      last_accessed_at: local_source_updated_at,
       replication_enqueued_at: local_source_updated_at
     })
 
@@ -249,7 +296,6 @@ defmodule Cache.KeyValueEntriesTest do
     assert Jason.decode!(record.json_payload)["entries"] == [%{"value" => "remote"}]
     assert record.source_node == "node-b"
     assert record.source_updated_at == remote_source_updated_at
-    assert record.replication_enqueued_at == nil
     assert KeyValueEntries.list_pending_replication() == []
   end
 
@@ -263,7 +309,15 @@ defmodule Cache.KeyValueEntriesTest do
       json_payload: Jason.encode!(%{entries: [%{"value" => "local"}]}),
       source_node: "node-a",
       last_accessed_at: local_access_token,
+      source_updated_at: local_source_updated_at
+    })
+
+    insert_pending_replication_entry(%{
+      key: "keyvalue:acme:ios:cas",
+      json_payload: Jason.encode!(%{entries: [%{"value" => "local"}]}),
+      source_node: "node-a",
       source_updated_at: local_source_updated_at,
+      last_accessed_at: local_access_token,
       replication_enqueued_at: local_access_token
     })
 
@@ -280,8 +334,9 @@ defmodule Cache.KeyValueEntriesTest do
     assert Jason.decode!(record.json_payload)["entries"] == [%{"value" => "remote"}]
     assert record.source_node == "node-b"
     assert record.source_updated_at == remote_source_updated_at
-    assert record.replication_enqueued_at == local_access_token
-    assert [%{key: "keyvalue:acme:ios:cas"}] = KeyValueEntries.list_pending_replication()
+
+    assert [%{key: "keyvalue:acme:ios:cas", replication_enqueued_at: ^local_access_token}] =
+             KeyValueEntries.list_pending_replication()
   end
 
   test "apply_remote_batch inserts rows and returns side effect metadata" do
@@ -467,7 +522,15 @@ defmodule Cache.KeyValueEntriesTest do
       json_payload: Jason.encode!(%{entries: [%{"value" => "local"}]}),
       source_node: "test-node",
       last_accessed_at: local_source_updated_at,
+      source_updated_at: local_source_updated_at
+    })
+
+    insert_pending_replication_entry(%{
+      key: "keyvalue:acme:ios:cas",
+      json_payload: Jason.encode!(%{entries: [%{"value" => "local"}]}),
+      source_node: "test-node",
       source_updated_at: local_source_updated_at,
+      last_accessed_at: local_source_updated_at,
       replication_enqueued_at: local_source_updated_at
     })
 
@@ -490,7 +553,9 @@ defmodule Cache.KeyValueEntriesTest do
     record = KeyValueRepo.get_by!(KeyValueEntry, key: row.key)
     assert Jason.decode!(record.json_payload)["entries"] == [%{"value" => "local"}]
     assert record.last_accessed_at == remote_last_accessed_at
-    assert record.replication_enqueued_at == local_source_updated_at
+
+    pending = KeyValueRepo.get!(KeyValuePendingReplicationEntry, row.key)
+    assert pending.replication_enqueued_at == local_source_updated_at
   end
 
   test "apply_remote_batch deletes tombstones only for non-pending rows" do
@@ -508,7 +573,15 @@ defmodule Cache.KeyValueEntriesTest do
       json_payload: Jason.encode!(%{entries: []}),
       source_node: "test-node",
       last_accessed_at: deleted_at,
+      source_updated_at: deleted_at
+    })
+
+    insert_pending_replication_entry(%{
+      key: "keyvalue:acme:ios:pending",
+      json_payload: Jason.encode!(%{entries: []}),
+      source_node: "test-node",
       source_updated_at: deleted_at,
+      last_accessed_at: deleted_at,
       replication_enqueued_at: deleted_at
     })
 
@@ -529,6 +602,7 @@ defmodule Cache.KeyValueEntriesTest do
 
     assert KeyValueRepo.get_by(KeyValueEntry, key: "keyvalue:acme:ios:stale") == nil
     assert KeyValueRepo.get_by(KeyValueEntry, key: "keyvalue:acme:ios:pending")
+    assert KeyValueRepo.get_by(KeyValuePendingReplicationEntry, key: "keyvalue:acme:ios:pending")
   end
 
   test "apply_remote_batch commits mixed inserts, updates, and deletes" do
@@ -652,7 +726,15 @@ defmodule Cache.KeyValueEntriesTest do
       json_payload: "{}",
       source_node: "test-node",
       last_accessed_at: old_time,
+      source_updated_at: old_time
+    })
+
+    insert_pending_replication_entry(%{
+      key: "keyvalue:acme:ios:legacy-pending",
+      json_payload: "{}",
+      source_node: "test-node",
       source_updated_at: old_time,
+      last_accessed_at: old_time,
       replication_enqueued_at: old_time
     })
 
@@ -691,7 +773,15 @@ defmodule Cache.KeyValueEntriesTest do
       json_payload: "{}",
       source_node: "test-node",
       last_accessed_at: old_time,
+      source_updated_at: old_time
+    })
+
+    insert_pending_replication_entry(%{
+      key: "keyvalue:acme:ios:pending",
+      json_payload: "{}",
+      source_node: "test-node",
       source_updated_at: old_time,
+      last_accessed_at: old_time,
       replication_enqueued_at: old_time
     })
 
@@ -730,7 +820,15 @@ defmodule Cache.KeyValueEntriesTest do
       json_payload: "{}",
       source_node: "test-node",
       last_accessed_at: new_time,
+      source_updated_at: old_time
+    })
+
+    insert_pending_replication_entry(%{
+      key: "keyvalue:acme:ios:pending",
+      json_payload: "{}",
+      source_node: "test-node",
       source_updated_at: old_time,
+      last_accessed_at: new_time,
       replication_enqueued_at: new_time
     })
 
@@ -912,5 +1010,9 @@ defmodule Cache.KeyValueEntriesTest do
       updated_at: timestamp,
       deleted_at: Keyword.get(attrs, :deleted_at)
     }
+  end
+
+  defp insert_pending_replication_entry(attrs) do
+    KeyValueWriteRepo.insert!(struct!(KeyValuePendingReplicationEntry, attrs))
   end
 end

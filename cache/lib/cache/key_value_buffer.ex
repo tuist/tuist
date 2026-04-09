@@ -8,6 +8,7 @@ defmodule Cache.KeyValueBuffer do
   alias Cache.Config
   alias Cache.KeyValueEntries
   alias Cache.KeyValueEntry
+  alias Cache.KeyValuePendingReplicationEntry
   alias Cache.KeyValueWriteRepo
   alias Cache.SQLiteBuffer
 
@@ -110,23 +111,23 @@ defmodule Cache.KeyValueBuffer do
           last_accessed_at: now,
           inserted_at: now_truncated,
           updated_at: now_truncated,
-          source_updated_at: if(distributed?, do: now),
-          replication_enqueued_at: if(distributed?, do: now)
+          source_updated_at: if(distributed?, do: now)
         }
       end)
 
     rows
     |> Enum.chunk_every(@query_chunk_size)
     |> Enum.each(fn rows_chunk ->
-      KeyValueWriteRepo.insert_all(KeyValueEntry, rows_chunk,
-        conflict_target: :key,
-        on_conflict:
-          {:replace,
-           [:json_payload, :source_node, :last_accessed_at, :updated_at, :source_updated_at, :replication_enqueued_at]}
-      )
-
       if distributed? do
-        KeyValueEntries.sync_pending_replication_entries(rows_chunk)
+        {:ok, :ok} =
+          KeyValueWriteRepo.transaction(fn ->
+            insert_key_value_rows(rows_chunk)
+            KeyValueEntries.sync_pending_replication_entries(add_replication_tokens(rows_chunk, now))
+            :ok
+          end)
+      else
+        insert_key_value_rows(rows_chunk)
+        KeyValueEntries.delete_pending_replication_entries(Enum.map(rows_chunk, & &1.key))
       end
     end)
   end
@@ -142,47 +143,54 @@ defmodule Cache.KeyValueBuffer do
     |> Enum.chunk_every(@query_chunk_size)
     |> Enum.each(fn keys_chunk ->
       if distributed? do
-        KeyValueWriteRepo.update_all(
-          from(entry in KeyValueEntry,
-            where: entry.key in ^keys_chunk,
-            update: [
-              set: [
-                last_accessed_at: ^now,
-                updated_at: ^now_truncated,
-                replication_enqueued_at:
-                  fragment(
-                    "CASE WHEN source_updated_at IS NOT NULL AND replication_enqueued_at IS NULL THEN ? ELSE replication_enqueued_at END",
-                    ^now
-                  )
-              ]
-            ]
-          ),
-          []
-        )
-
-        queue_rows =
-          KeyValueWriteRepo.all(
-            from(entry in KeyValueEntry,
-              where: entry.key in ^keys_chunk,
-              where: not is_nil(entry.source_updated_at),
-              where: not is_nil(entry.replication_enqueued_at),
-              select: %{
-                key: entry.key,
-                json_payload: entry.json_payload,
-                source_node: entry.source_node,
-                source_updated_at: entry.source_updated_at,
-                last_accessed_at: entry.last_accessed_at,
-                replication_enqueued_at: entry.replication_enqueued_at
-              }
+        {:ok, :ok} =
+          KeyValueWriteRepo.transaction(fn ->
+            KeyValueWriteRepo.update_all(
+              from(entry in KeyValueEntry,
+                where: entry.key in ^keys_chunk,
+                update: [set: [last_accessed_at: ^now, updated_at: ^now_truncated]]
+              ),
+              []
             )
-          )
 
-        KeyValueEntries.sync_pending_replication_entries(queue_rows)
+            queue_rows =
+              KeyValueWriteRepo.all(
+                from(entry in KeyValueEntry,
+                  left_join: pending in KeyValuePendingReplicationEntry,
+                  on: pending.key == entry.key,
+                  where: entry.key in ^keys_chunk,
+                  where: not is_nil(entry.source_updated_at),
+                  select: %{
+                    key: entry.key,
+                    json_payload: entry.json_payload,
+                    source_node: entry.source_node,
+                    source_updated_at: entry.source_updated_at,
+                    last_accessed_at: entry.last_accessed_at,
+                    replication_enqueued_at:
+                      type(fragment("COALESCE(?, ?)", pending.replication_enqueued_at, ^now), :utc_datetime_usec)
+                  }
+                )
+              )
+
+            KeyValueEntries.sync_pending_replication_entries(queue_rows)
+            :ok
+          end)
       else
         KeyValueWriteRepo.update_all(from(entry in KeyValueEntry, where: entry.key in ^keys_chunk),
           set: [last_accessed_at: now, updated_at: now_truncated]
         )
       end
     end)
+  end
+
+  defp insert_key_value_rows(rows) do
+    KeyValueWriteRepo.insert_all(KeyValueEntry, rows,
+      conflict_target: :key,
+      on_conflict: {:replace, [:json_payload, :source_node, :last_accessed_at, :updated_at, :source_updated_at]}
+    )
+  end
+
+  defp add_replication_tokens(rows, token) do
+    Enum.map(rows, &Map.put(&1, :replication_enqueued_at, token))
   end
 end
