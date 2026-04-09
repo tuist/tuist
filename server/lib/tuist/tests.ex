@@ -1116,8 +1116,6 @@ defmodule Tuist.Tests do
         identity_key = {case_name, module_name, suite_name}
         test_case_id = Map.get(test_case_id_map, identity_key)
 
-        repetitions = Map.get(case_attrs, :repetitions, [])
-
         %{status: status, is_flaky: is_flaky, is_new: is_new} = Map.get(test_case_run_data, identity_key)
 
         test_case_run = %{
