@@ -12,6 +12,7 @@ public protocol CacheServicing {
         path: String?,
         configuration: String?,
         targetsToBinaryCache: Set<String>,
+        externalOnly: Bool,
         generateOnly: Bool,
         cacheProfile: String?
     ) async throws
@@ -31,6 +32,7 @@ public struct EmptyCacheService: CacheServicing {
         path _: String?,
         configuration _: String?,
         targetsToBinaryCache _: Set<String>,
+        externalOnly _: Bool,
         generateOnly _: Bool,
         cacheProfile _: String?
     ) async throws {

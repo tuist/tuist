@@ -44,6 +44,12 @@
         var targets: [String] = []
 
         @Flag(
+            help: "If passed, the command doesn't cache the targets passed in the `--targets` argument, but only their dependencies. Deprecated: use `--cache-profile only-external` instead.",
+            envKey: .cacheExternalOnly
+        )
+        var externalOnly: Bool = false
+
+        @Flag(
             name: .long,
             help: "When passed, it generates the project and skips warming the cache. This is useful for debugging purposes.",
             envKey: .cacheGenerateOnly
@@ -74,10 +80,18 @@
                 return
             }
 
+            if externalOnly {
+                AlertController.current.warning(.alert(
+                    "The \(.command("--external-only")) flag is deprecated.",
+                    takeaway: "Use \(.command("--cache-profile only-external")) instead."
+                ))
+            }
+
             try await Extension.cacheService.run(
                 path: path,
                 configuration: configuration,
                 targetsToBinaryCache: Set(targets),
+                externalOnly: externalOnly,
                 generateOnly: generateOnly,
                 cacheProfile: cacheProfile
             )

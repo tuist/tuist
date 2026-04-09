@@ -90,6 +90,7 @@ import XcodeGraph
             path directory: String?,
             configuration: String?,
             targetsToBinaryCache: Set<String>,
+            externalOnly: Bool,
             generateOnly: Bool,
             cacheProfile: String?
         ) async throws {
@@ -116,14 +117,26 @@ import XcodeGraph
             // Lint
             try cacheWarmGraphLinter.lint(graph: graph)
 
-            // Resolve the cache profile using the same logic as `tuist generate`.
-            // When --cache-profile is omitted the config default (or onlyExternal fallback) applies.
-            let resolvedCacheProfileType = cacheProfile.map { CacheProfileType(stringLiteral: $0) }
-            let profile = try config.resolveCacheProfile(
-                ignoreBinaryCache: false,
-                includedTargets: [],
-                cacheProfile: resolvedCacheProfileType
-            )
+            // Resolve the effective cache profile.
+            // - When --cache-profile is specified, resolve it via the same logic as `tuist generate`.
+            // - When --external-only is used (deprecated), map to the .onlyExternal profile.
+            // - When neither is specified, default to .allPossible (cache everything) to preserve
+            //   the original behavior of `tuist cache` without flags.
+            // Note: includedTargets is [] because --targets filtering is applied separately below
+            // in cacheableTargets(), not through the profile resolver.
+            let profile: CacheProfile
+            if let cacheProfile {
+                let resolvedCacheProfileType = CacheProfileType(stringLiteral: cacheProfile)
+                profile = try config.resolveCacheProfile(
+                    ignoreBinaryCache: false,
+                    includedTargets: [],
+                    cacheProfile: resolvedCacheProfileType
+                )
+            } else if externalOnly {
+                profile = .onlyExternal
+            } else {
+                profile = .allPossible
+            }
 
             // Hash
             Logger.current.info("Hashing cacheable targets")

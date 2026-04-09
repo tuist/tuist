@@ -857,6 +857,7 @@ struct CommandEnvironmentVariableTests {
     }
 
     @Test(.withMockedEnvironment()) func cacheWarmCommandUsesEnvVars() throws {
+        setVariable(.cacheExternalOnly, value: "true")
         setVariable(.cacheProfile, value: "development")
         setVariable(.cacheGenerateOnly, value: "true")
         setVariable(.cachePrintHashes, value: "true")
@@ -865,6 +866,7 @@ struct CommandEnvironmentVariableTests {
         setVariable(.cacheTargets, value: "Fmk1,Fmk2")
 
         let commandWithEnvVars = try CacheWarmCommand.parse([])
+        #expect(commandWithEnvVars.externalOnly == true)
         #expect(commandWithEnvVars.cacheProfile == "development")
         #expect(commandWithEnvVars.generateOnly == true)
         #expect(commandWithEnvVars.printHashes == true)
@@ -873,6 +875,7 @@ struct CommandEnvironmentVariableTests {
         #expect(commandWithEnvVars.targets == ["Fmk1", "Fmk2"])
 
         let commandWithArgs = try CacheWarmCommand.parse([
+            "--external-only",
             "--cache-profile", "development",
             "--generate-only",
             "--print-hashes",
@@ -881,6 +884,7 @@ struct CommandEnvironmentVariableTests {
             "--",
             "Fmk1", "Fmk2",
         ])
+        #expect(commandWithArgs.externalOnly == true)
         #expect(commandWithArgs.cacheProfile == "development")
         #expect(commandWithArgs.generateOnly == true)
         #expect(commandWithArgs.printHashes == true)
