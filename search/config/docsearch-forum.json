@@ -1,0 +1,28 @@
+{
+  "index_name": "forum-topics",
+  "sitemap_urls": [
+    "https://community.tuist.dev/sitemap.xml"
+  ],
+  "start_urls": [],
+  "allowed_domains": ["community.tuist.dev"],
+  "stop_urls": [
+    "https://community.tuist.dev/u/",
+    "https://community.tuist.dev/badges",
+    "https://community.tuist.dev/admin",
+    "https://community.tuist.dev/search",
+    "https://community.tuist.dev/c/",
+    "https://community.tuist.dev/latest",
+    "https://community.tuist.dev/top",
+    "https://community.tuist.dev/categories"
+  ],
+  "selectors": {
+    "default": {
+      "lvl0": "h1",
+      "lvl1": ".post[itemprop='text'] h2",
+      "lvl2": ".post[itemprop='text'] h3",
+      "text": ".post[itemprop='text'] p, .post[itemprop='text'] li"
+    }
+  },
+  "scrape_start_urls": false,
+  "strip_chars": " .,;:#"
+}

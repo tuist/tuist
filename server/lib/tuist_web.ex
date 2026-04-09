@@ -75,6 +75,7 @@ defmodule TuistWeb do
 
       import TuistWeb.AppLayoutComponents
 
+      on_mount({TuistWeb.Locale, :assign_locale})
       on_mount(TuistWeb.CSP)
       on_mount({TuistWeb.Timezone, :assign_timezone})
 
@@ -121,8 +122,9 @@ defmodule TuistWeb do
       # HTML escaping functionality
       import Phoenix.HTML
       import TuistWeb.AppAuthComponents
-      # Core UI components and translation
       import TuistWeb.AppComponents
+      import TuistWeb.CldrHelpers
+      # Core UI components and translation
       import TuistWeb.Components.IconComponents
       import TuistWeb.Components.Skeleton
       import TuistWeb.Widget

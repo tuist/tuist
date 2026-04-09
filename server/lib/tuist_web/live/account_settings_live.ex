@@ -10,6 +10,7 @@ defmodule TuistWeb.AccountSettingsLive do
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.AccountCacheEndpoint
   alias Tuist.Authorization
+  alias Tuist.Locale, as: SharedLocale
 
   @impl true
   def mount(_params, _uri, %{assigns: %{selected_account: selected_account, current_user: current_user}} = socket) do
@@ -26,6 +27,9 @@ defmodule TuistWeb.AccountSettingsLive do
     cache_endpoints = Accounts.list_account_cache_endpoints(selected_account)
     custom_cache_endpoints_available = Accounts.custom_cache_endpoints_available?(selected_account)
 
+    preferred_locale_form =
+      to_form(%{"preferred_locale" => current_user.preferred_locale || "browser"})
+
     socket =
       socket
       |> assign(selected_tab: "settings")
@@ -36,6 +40,7 @@ defmodule TuistWeb.AccountSettingsLive do
       |> assign(add_cache_endpoint_form: add_cache_endpoint_form)
       |> assign(cache_endpoints: cache_endpoints)
       |> assign(custom_cache_endpoints_available: custom_cache_endpoints_available)
+      |> assign(preferred_locale_form: preferred_locale_form)
       |> assign(:head_title, "#{dgettext("dashboard_account", "Settings")} · #{selected_account.name} · Tuist")
 
     {:ok, socket}
@@ -117,6 +122,18 @@ defmodule TuistWeb.AccountSettingsLive do
       |> assign(delete_user_form: to_form(%{"name" => ""}))
 
     {:noreply, socket}
+  end
+
+  def handle_event(
+        "select_preferred_locale",
+        %{"value" => [value]},
+        %{assigns: %{current_user: current_user, selected_account: selected_account}} = socket
+      ) do
+    preferred_locale = if value == "browser", do: nil, else: value
+
+    {:ok, _user} = Accounts.update_user_preferred_locale(current_user, preferred_locale)
+
+    {:noreply, push_navigate(socket, to: ~p"/#{selected_account.name}/settings")}
   end
 
   def handle_event("select_region", %{"value" => [value]}, %{assigns: %{selected_account: selected_account}} = socket) do
@@ -218,6 +235,46 @@ defmodule TuistWeb.AccountSettingsLive do
     else
       _ -> :error
     end
+  end
+
+  attr(:preferred_locale_form, :any, required: true)
+
+  def preferred_locale_section(assigns) do
+    languages = [%{code: "browser", label: dgettext("dashboard_account", "Browser default")} | SharedLocale.languages()]
+    assigns = assign(assigns, :languages, languages)
+
+    ~H"""
+    <.card_section data-part="dashboard-language-card-section">
+      <div data-part="header">
+        <span data-part="title">
+          {dgettext("dashboard_account", "Dashboard language")}
+        </span>
+        <span data-part="subtitle">
+          {dgettext("dashboard_account", "Choose your preferred dashboard language.")}
+        </span>
+      </div>
+      <div data-part="content">
+        <label data-part="select-label">
+          {dgettext("dashboard_account", "Language")}
+        </label>
+        <.select
+          id="dashboard-language-selection"
+          field={@preferred_locale_form[:preferred_locale]}
+          label={dgettext("dashboard_account", "Language")}
+          on_value_change="select_preferred_locale"
+        >
+          <:item
+            :for={lang <- @languages}
+            value={lang.code}
+            label={
+              if Map.has_key?(lang, :native), do: "#{lang.native} (#{lang.label})", else: lang.label
+            }
+            icon="language"
+          />
+        </.select>
+      </div>
+    </.card_section>
+    """
   end
 
   attr(:region_form, Form, required: true)

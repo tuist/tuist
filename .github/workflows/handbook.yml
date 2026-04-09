@@ -19,7 +19,7 @@ on:
   merge_group:
 
 concurrency:
-  group: handbook-${{ github.head_ref }}
+  group: handbook-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
 permissions:

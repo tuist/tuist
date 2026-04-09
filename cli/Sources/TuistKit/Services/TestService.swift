@@ -111,6 +111,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
     private let clock: Clock
     private let testQuarantineService: TestQuarantineServicing
     private let shardPlanService: ShardPlanServicing
+    private let shardMatrixOutputService: ShardMatrixOutputServicing
     private let shardService: ShardServicing
 
     public init(
@@ -148,6 +149,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         clock: Clock = WallClock(),
         testQuarantineService: TestQuarantineServicing = TestQuarantineService(),
         shardPlanService: ShardPlanServicing = ShardPlanService(),
+        shardMatrixOutputService: ShardMatrixOutputServicing = ShardMatrixOutputService(),
         shardService: ShardServicing = ShardService()
     ) {
         self.generatorFactory = generatorFactory
@@ -171,6 +173,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         self.clock = clock
         self.testQuarantineService = testQuarantineService
         self.shardPlanService = shardPlanService
+        self.shardMatrixOutputService = shardMatrixOutputService
         self.shardService = shardService
     }
 
@@ -349,6 +352,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
             config: config
         )
 
+        let isSharding = shardMin != nil || shardMax != nil || shardTotal != nil
+
         let schemes: [Scheme]
         if let schemeName {
             guard let scheme = graphTraverser.schemes().first(where: { $0.name == schemeName })
@@ -367,6 +372,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                         testPlanConfiguration: testPlanConfiguration,
                         action: action
                     )
+                    try await outputEmptyShardMatrixIfNeeded(isSharding: isSharding, action: action)
                     return
                 } else {
                     throw TestServiceError.schemeNotFound(
@@ -395,12 +401,14 @@ public struct TestService { // swiftlint:disable:this type_body_length
                     level: .info,
                     "The scheme \(schemeName)'s test action has no tests to run, finishing early."
                 )
+                try await outputEmptyShardMatrixIfNeeded(isSharding: isSharding, action: action)
                 return
             case (_?, _, true), (_?, _, nil):
                 Logger.current.log(
                     level: .info,
                     "The scheme \(schemeName)'s test action has no test plans to run, finishing early."
                 )
+                try await outputEmptyShardMatrixIfNeeded(isSharding: isSharding, action: action)
                 return
             default:
                 break
@@ -417,9 +425,20 @@ public struct TestService { // swiftlint:disable:this type_body_length
             )
         }
 
+        if !shouldRunTest(
+            for: schemes,
+            testPlanConfiguration: testPlanConfiguration,
+            mapperEnvironment: mapperEnvironment,
+            graph: graph,
+            action: action
+        ), action == .build {
+            try await outputEmptyShardMatrixIfNeeded(isSharding: isSharding, action: action)
+            return
+        }
+
         var passthroughXcodeBuildArguments = passthroughXcodeBuildArguments
 
-        if shardMin != nil || shardMax != nil || shardTotal != nil, action == .build,
+        if isSharding, action == .build,
            !passthroughXcodeBuildArguments.contains("-testProductsPath")
         {
             let testProductsDir = try await fileSystem.makeTemporaryDirectory(prefix: "shard-test-products")
@@ -491,7 +510,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 )
                 try await fileSystem.writeAsJSON(selectiveTestingGraph, at: selectiveTestingGraphPath)
 
-                if shardMin != nil || shardMax != nil || shardTotal != nil,
+                if isSharding,
                    let fullHandle = config.fullHandle
                 {
                     let shardDestination = passedValue(for: "-destination", arguments: passthroughXcodeBuildArguments)
@@ -1099,6 +1118,14 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 to: runResultBundlePath.parentDirectory.appending(
                     components: "\(Constants.resultBundleName).xcresult"
                 )
+            )
+        }
+    }
+
+    private func outputEmptyShardMatrixIfNeeded(isSharding: Bool, action: XcodeBuildTestAction) async throws {
+        if isSharding, action == .build {
+            try await shardMatrixOutputService.output(
+                Components.Schemas.ShardPlan(id: "", reference: "", shard_count: 0, shards: [])
             )
         }
     }

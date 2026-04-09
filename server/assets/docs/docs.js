@@ -31,10 +31,21 @@ function closeMobileSidebar() {
   document.getElementById("docs-sidebar")?.removeAttribute("data-mobile-open");
 }
 
+function maybeScrollToTopForNavigation({ kind, to } = {}) {
+  if (!to || kind === "initial") return;
+
+  const destination = new URL(to, window.location.origin);
+  if (destination.hash) return;
+
+  requestAnimationFrame(() => {
+    window.scrollTo(0, 0);
+  });
+}
+
 window.addEventListener("phx:page-loading-start", (_info) => topbar.show(300));
-window.addEventListener("phx:page-loading-stop", (_info) => {
+window.addEventListener("phx:page-loading-stop", (info) => {
   topbar.hide();
-  window.scrollTo(0, 0);
+  maybeScrollToTopForNavigation(info.detail);
   closeMobileSidebar();
   initDocsSearch();
 });

@@ -1,0 +1,140 @@
+{{- if .Values.cache.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "cache") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: cache
+spec:
+  replicas: {{ .Values.cache.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "tuist.componentLabels" (dict "root" . "component" "cache") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "tuist.componentLabels" (dict "root" . "component" "cache") | nindent 8 }}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: {{ ternary "80" "4000" .Values.cache.nginx.enabled | quote }}
+    spec:
+      containers:
+        - name: cache
+          image: "{{ .Values.cache.image.repository }}:{{ .Values.cache.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.cache.image.pullPolicy }}
+          command:
+            - /app/bin/cache
+            - start
+          env:
+            - name: PUBLIC_HOST
+              value: {{ .Values.cache.publicHost | quote }}
+            - name: PORT
+              value: "4000"
+            - name: SECRET_KEY_BASE
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
+                  key: cache-secret-key-base
+            - name: SERVER_URL
+              value: {{ .Values.cache.serverUrl | default (printf "http://%s:%v" (include "tuist.componentName" (dict "root" . "component" "server")) .Values.server.service.port) | quote }}
+            - name: STORAGE_DIR
+              value: /storage
+            - name: PHX_SOCKET_PATH
+              value: /run/cache/cache.sock
+            - name: PHX_SOCKET_LINK
+              value: /run/cache/current.sock
+            - name: S3_ENDPOINT
+              value: {{ include "tuist.objectStorageEndpoint" . | quote }}
+            - name: S3_BUCKET
+              value: {{ .Values.cache.s3.bucket | quote }}
+            - name: S3_XCODE_CACHE_BUCKET
+              value: {{ .Values.cache.s3.xcodeCacheBucket | quote }}
+            - name: S3_REGISTRY_BUCKET
+              value: {{ .Values.cache.s3.registryBucket | quote }}
+            - name: S3_REGION
+              value: {{ .Values.cache.s3.region | quote }}
+            - name: S3_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
+                  key: object-storage-access-key
+            - name: S3_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
+                  key: object-storage-secret-key
+            - name: TUIST_CACHE_API_KEY
+              value: {{ .Values.cache.apiKey | quote }}
+            - name: GUARDIAN_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
+                  key: cache-guardian-secret-key
+            {{- if and .Values.observability.enabled (include "tuist.observabilityOtlpEndpoint" .) }}
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: {{ include "tuist.observabilityOtlpEndpoint" . | quote }}
+            {{- end }}
+            {{- with .Values.cache.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          volumeMounts:
+            - name: storage
+              mountPath: /storage
+            - name: data
+              mountPath: /data
+            - name: socket
+              mountPath: /run/cache
+          readinessProbe:
+            exec:
+              command: ["/bin/sh", "-c", "test -S /run/cache/current.sock"]
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command: ["/bin/sh", "-c", "test -S /run/cache/current.sock"]
+            initialDelaySeconds: 20
+            periodSeconds: 20
+          resources:
+            {{- toYaml .Values.cache.resources | nindent 12 }}
+        {{- if .Values.cache.nginx.enabled }}
+        - name: nginx
+          image: "{{ .Values.cache.nginx.image.repository }}:{{ .Values.cache.nginx.image.tag }}"
+          imagePullPolicy: {{ .Values.cache.nginx.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 80
+          volumeMounts:
+            - name: nginx-config
+              mountPath: /etc/nginx/nginx.conf
+              subPath: nginx.conf
+            - name: socket
+              mountPath: /run/cache
+            - name: storage
+              mountPath: /storage
+          readinessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 20
+        {{- end }}
+      volumes:
+        - name: storage
+          persistentVolumeClaim:
+            claimName: {{ include "tuist.componentName" (dict "root" . "component" "cache-storage") }}
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ include "tuist.componentName" (dict "root" . "component" "cache-data") }}
+        - name: socket
+          emptyDir: {}
+        {{- if .Values.cache.nginx.enabled }}
+        - name: nginx-config
+          configMap:
+            name: {{ include "tuist.componentName" (dict "root" . "component" "cache-nginx") }}
+        {{- end }}
+{{- end }}

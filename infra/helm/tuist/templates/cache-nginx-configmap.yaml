@@ -1,0 +1,43 @@
+{{- if and .Values.cache.enabled .Values.cache.nginx.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "cache-nginx") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+data:
+  nginx.conf: |
+    worker_processes auto;
+    events {
+      worker_connections 1024;
+    }
+    http {
+      include /etc/nginx/mime.types;
+      sendfile on;
+      upstream cache_upstream {
+        server unix:/run/cache/current.sock;
+      }
+      server {
+        listen 80;
+
+        location /up {
+          proxy_pass http://cache_upstream;
+          proxy_set_header Host $host;
+          proxy_set_header X-Forwarded-Proto $scheme;
+          proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        }
+
+        location /metrics {
+          proxy_pass http://cache_upstream;
+          proxy_set_header Host $host;
+        }
+
+        location / {
+          proxy_pass http://cache_upstream;
+          proxy_set_header Host $host;
+          proxy_set_header X-Forwarded-Proto $scheme;
+          proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        }
+      }
+    }
+{{- end }}

@@ -518,6 +518,7 @@
 
   & > [data-part="builds-feature"],
   & > [data-part="tests-feature"],
+  & > [data-part="quality-assurance"],
   & > [data-part="other-features"] {
     display: flex;
     flex-direction: column;

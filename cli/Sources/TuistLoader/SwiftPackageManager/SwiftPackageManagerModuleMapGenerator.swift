@@ -76,6 +76,7 @@ public struct SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerModuleMa
                 .parentDirectory
                 .appending(
                     components: Constants.DerivedDirectory.dependenciesDerivedDirectory,
+                    Constants.DerivedDirectory.dependenciesModuleMapsDirectory,
                     sanitizedModuleName,
                     "\(sanitizedModuleName).modulemap"
                 )
@@ -85,8 +86,11 @@ public struct SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerModuleMa
             )
         }
 
-        if try await !fileSystem.exists(generatedModuleMapPath.parentDirectory) {
+        do {
             try await fileSystem.makeDirectory(at: generatedModuleMapPath.parentDirectory)
+        } catch {
+            // Concurrent generation can create the directory first.
+            guard try await fileSystem.exists(generatedModuleMapPath.parentDirectory, isDirectory: true) else { throw error }
         }
 
         if try await fileSystem.exists(umbrellaHeaderPath) {
@@ -151,7 +155,7 @@ public struct SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerModuleMa
         let newContentHash = try contentHasher.hash(moduleMapContent)
         let currentContentHash = try? await contentHasher.hash(path: path)
         if currentContentHash != newContentHash {
-            try await fileSystem.writeText(moduleMapContent, at: path)
+            try await fileSystem.writeText(moduleMapContent, at: path, encoding: .utf8, options: [.overwrite])
         }
     }
 

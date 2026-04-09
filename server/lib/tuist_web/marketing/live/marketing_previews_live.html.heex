@@ -1,6 +1,9 @@
 <TuistWeb.Marketing.Layouts.marketing {assigns}>
   <main id="marketing-previews">
-    <TuistWeb.Marketing.MarketingComponents.navbar current_user={@current_user} />
+    <TuistWeb.Marketing.MarketingComponents.navbar
+      current_user={@current_user}
+      current_path={@current_path}
+    />
 
     <section data-part="header">
       <div data-part="titles">

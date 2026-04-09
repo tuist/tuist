@@ -66,18 +66,18 @@ tuist registry login
 ```
 
 > [!NOTE]
-> Authentication requires a <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and project</LocalizedLink>.
+> Authentication requires a <.localized_link href="/guides/server/accounts-and-projects">Tuist account and project</.localized_link>.
 
 
 ### Resolving dependencies {#resolving-dependencies}
 
 To resolve dependencies from the registry instead of from source control, continue reading based on your project setup:
-- <LocalizedLink href="/guides/features/registry/xcode-project">Xcode project</LocalizedLink>
-- <LocalizedLink href="/guides/features/registry/generated-project">Generated project with the Xcode package integration</LocalizedLink>
-- <LocalizedLink href="/guides/features/registry/xcodeproj-integration">Generated project with the XcodeProj-based package integration</LocalizedLink>
-- <LocalizedLink href="/guides/features/registry/swift-package">Swift package</LocalizedLink>
+- <.localized_link href="/guides/features/registry/xcode-project">Xcode project</.localized_link>
+- <.localized_link href="/guides/features/registry/generated-project">Generated project with the Xcode package integration</.localized_link>
+- <.localized_link href="/guides/features/registry/xcodeproj-integration">Generated project with the XcodeProj-based package integration</.localized_link>
+- <.localized_link href="/guides/features/registry/swift-package">Swift package</.localized_link>
 
-To set up the registry on the CI, follow this guide: <LocalizedLink href="/guides/features/registry/continuous-integration">Continuous integration</LocalizedLink>.
+To set up the registry on the CI, follow this guide: <.localized_link href="/guides/features/registry/continuous-integration">Continuous integration</.localized_link>.
 
 ### Package registry identifiers {#package-registry-identifiers}
 

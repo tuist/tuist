@@ -147,6 +147,37 @@ public struct XcodeProjWriter: XcodeProjWriting {
         }
         try workspaceSettingsDescriptor.settings
             .write(path: settingsPath.path, override: true)
+
+        try await writePerUserWorkspaceSettings(
+            workspaceSettingsDescriptor: workspaceSettingsDescriptor,
+            xccontainerPath: xccontainerPath
+        )
+    }
+
+    private func writePerUserWorkspaceSettings(
+        workspaceSettingsDescriptor: WorkspaceSettingsDescriptor,
+        xccontainerPath: AbsolutePath
+    ) async throws {
+        let settings = workspaceSettingsDescriptor.settings
+        guard settings.derivedDataLocationStyle != nil else { return }
+
+        let username = NSUserName()
+        let perUserSettingsPath = xccontainerPath
+            .appending(try RelativePath(validating: "xcuserdata/\(username).xcuserdatad/WorkspaceSettings.xcsettings"))
+        let parentFolder = perUserSettingsPath.removingLastComponent()
+        if try await !fileSystem.exists(parentFolder) {
+            try await fileSystem.makeDirectory(at: parentFolder)
+        }
+
+        let perUserSettings: WorkspaceSettings
+        if try await fileSystem.exists(perUserSettingsPath) {
+            perUserSettings = try WorkspaceSettings.at(path: perUserSettingsPath.path)
+        } else {
+            perUserSettings = WorkspaceSettings()
+        }
+        perUserSettings.derivedDataLocationStyle = settings.derivedDataLocationStyle
+        perUserSettings.derivedDataCustomLocation = settings.derivedDataCustomLocation
+        try perUserSettings.write(path: perUserSettingsPath.path, override: true)
     }
 
     private func deleteWorkspaceSettingsIfNeeded(xccontainerPath: AbsolutePath) async throws {

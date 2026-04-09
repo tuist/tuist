@@ -33,7 +33,7 @@ env:
   MISE_GITHUB_ATTESTATIONS: 0
 
 concurrency:
-  group: app-${{ github.head_ref }}
+  group: app-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
 jobs:
