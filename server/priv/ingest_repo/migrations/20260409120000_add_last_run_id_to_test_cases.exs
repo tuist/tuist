@@ -17,7 +17,7 @@ defmodule Tuist.IngestRepo.Migrations.AddLastRunIdToTestCases do
   def up do
     IngestRepo.query!("""
     ALTER TABLE test_cases
-    ADD COLUMN IF NOT EXISTS last_run_id UUID DEFAULT '00000000-0000-0000-0000-000000000000'
+    ADD COLUMN IF NOT EXISTS last_run_id Nullable(UUID) DEFAULT NULL
     """)
   end
 
