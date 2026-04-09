@@ -76,7 +76,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          token: ${{ secrets.TUIST_CLI_GITHUB_TOKEN }}
+          token: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN }}
           submodules: recursive
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
@@ -96,7 +96,7 @@ jobs:
         run: tuist install
       - name: Initialize TuistCacheEE submodule
         env:
-          TUIST_GITHUB_TOKEN: ${{ secrets.TUIST_CLI_GITHUB_TOKEN }}
+          TUIST_GITHUB_TOKEN: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN }}
         run: mise run cli:ee
       - name: Test
         env:
