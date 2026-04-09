@@ -1,5 +1,5 @@
 {
-  "originHash" : "4e8c23844269f6ec7212ffb6a8c99734f3df2f53d7fed06d1cfb69deb5e6a305",
+  "originHash" : "cd3e3dfedb722a2813eef25db82d035b62e22c527c127afcfc8fa16f79f4161e",
   "pins" : [
     {
       "identity" : "1024jp.gzipswift",
@@ -94,7 +94,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "1.10.1"
+        "version" : "1.11.0"
       }
     },
     {
@@ -499,14 +499,6 @@
       }
     },
     {
-      "identity" : "stephencelis.csqlite",
-      "kind" : "registry",
-      "location" : "",
-      "state" : {
-        "version" : "3.50.4"
-      }
-    },
-    {
       "identity" : "stephencelis.SQLite_swift",
       "kind" : "registry",
       "location" : "",
@@ -663,7 +655,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "0.9.20"
+        "version" : "0.9.21"
       }
     },
     {
