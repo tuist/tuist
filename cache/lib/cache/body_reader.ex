@@ -15,9 +15,45 @@ defmodule Cache.BodyReader do
   See `TuistCommon.BodyReader` for the timeout calculation logic.
   """
 
+  alias CacheWeb.RequestTimeoutError
+
   @max_upload_bytes 25 * 1024 * 1024
   @default_read_length 262_144
   @default_opts [length: @default_read_length, read_length: @default_read_length]
+
+  @doc """
+  Reads the request body for `Plug.Parsers`.
+
+  Raises `CacheWeb.RequestTimeoutError` for body read timeouts so Phoenix can
+  render a `408` JSON response through the normal error pipeline.
+  """
+  def read_body(conn, opts) do
+    case read_conn_body(conn, opts) do
+      {:ok, {:ok, body, conn_after}} ->
+        {:ok, body, conn_after}
+
+      {:ok, {:more, body, conn_after}} ->
+        {:more, body, conn_after}
+
+      {:ok, {:error, reason}} when reason in [:timeout, :econnaborted] ->
+        raise RequestTimeoutError, message: "Request body read timed out"
+
+      {:ok, {:error, reason}} ->
+        {:error, reason}
+
+      {:exception, error, stacktrace} ->
+        handle_parser_exception(error, stacktrace)
+    end
+  end
+
+  defp handle_parser_exception(%Bandit.TransportError{error: reason}, _stacktrace)
+       when reason in [:timeout, :econnaborted] do
+    raise RequestTimeoutError, message: "Request body read timed out"
+  end
+
+  defp handle_parser_exception(error, stacktrace) do
+    reraise error, stacktrace
+  end
 
   @doc """
   Reads the request body from the connection.
@@ -32,15 +68,10 @@ defmodule Cache.BodyReader do
     max_bytes = Keyword.get(opts, :max_bytes, @max_upload_bytes)
     merged_opts = merged_opts(conn, opts, max_bytes)
 
-    conn
-    |> Plug.Conn.read_body(plug_read_opts(merged_opts))
-    |> handle_read_result(conn, merged_opts, :store, max_bytes)
-  rescue
-    Bandit.HTTPError ->
-      {:error, :cancelled, conn}
-
-    e in [Bandit.TransportError] ->
-      normalize_transport_error(e, conn)
+    case read_conn_body(conn, plug_read_opts(merged_opts)) do
+      {:ok, result} -> handle_read_result(result, conn, merged_opts, :store, max_bytes)
+      {:exception, error, _stacktrace} -> normalize_read_exception(error, conn)
+    end
   end
 
   @doc """
@@ -54,15 +85,10 @@ defmodule Cache.BodyReader do
     merged_opts = merged_opts(conn, opts, max_bytes)
     writer = fn chunk -> :file.write(device, chunk) end
 
-    conn
-    |> Plug.Conn.read_body(plug_read_opts(merged_opts))
-    |> handle_device_result(conn, merged_opts, writer, max_bytes)
-  rescue
-    Bandit.HTTPError ->
-      {:error, :cancelled, conn}
-
-    e in [Bandit.TransportError] ->
-      normalize_transport_error(e, conn)
+    case read_conn_body(conn, plug_read_opts(merged_opts)) do
+      {:ok, result} -> handle_device_result(result, conn, merged_opts, writer, max_bytes)
+      {:exception, error, _stacktrace} -> normalize_read_exception(error, conn)
+    end
   end
 
   defp handle_device_result({:ok, body, conn_after}, _conn, _opts, writer, max_bytes) do
@@ -111,16 +137,17 @@ defmodule Cache.BodyReader do
     max_bytes = Keyword.get(opts, :max_bytes, @max_upload_bytes)
     merged_opts = merged_opts(conn, opts, max_bytes)
 
-    case conn
-         |> Plug.Conn.read_body(plug_read_opts(merged_opts))
-         |> handle_read_result(conn, merged_opts, :discard, max_bytes) do
+    result =
+      case read_conn_body(conn, plug_read_opts(merged_opts)) do
+        {:ok, read_result} -> handle_read_result(read_result, conn, merged_opts, :discard, max_bytes)
+        {:exception, error, _stacktrace} -> normalize_read_exception(error, conn)
+      end
+
+    case result do
       {:ok, :discarded, conn_after} -> {:ok, conn_after}
       {:ok, conn_after, _bytes_read} -> {:ok, conn_after}
       {:error, _reason, conn_after} -> {:error, conn_after}
     end
-  rescue
-    Bandit.HTTPError -> {:error, conn}
-    Bandit.TransportError -> {:error, conn}
   end
 
   defp handle_read_result(result, conn, opts, mode, max_bytes) do
@@ -194,16 +221,20 @@ defmodule Cache.BodyReader do
   defp read_loop(conn, opts, bytes_read, writer, max_bytes) do
     chunk_opts = Keyword.put(opts, :read_timeout, chunk_timeout(opts))
 
-    conn
-    |> Plug.Conn.read_body(plug_read_opts(chunk_opts))
-    |> handle_loop_result(conn, opts, bytes_read, writer, max_bytes)
-  rescue
-    Bandit.HTTPError ->
-      {:error, :cancelled, conn}
-
-    e in [Bandit.TransportError] ->
-      normalize_transport_error(e, conn)
+    case read_conn_body(conn, plug_read_opts(chunk_opts)) do
+      {:ok, result} -> handle_loop_result(result, conn, opts, bytes_read, writer, max_bytes)
+      {:exception, error, _stacktrace} -> normalize_read_exception(error, conn)
+    end
   end
+
+  defp read_conn_body(conn, opts) do
+    {:ok, Plug.Conn.read_body(conn, opts)}
+  rescue
+    e in [Bandit.HTTPError, Bandit.TransportError] -> {:exception, e, __STACKTRACE__}
+  end
+
+  defp normalize_read_exception(%Bandit.HTTPError{}, conn), do: {:error, :cancelled, conn}
+  defp normalize_read_exception(error, conn), do: normalize_transport_error(error, conn)
 
   defp handle_loop_result(result, conn, opts, bytes_read, writer, max_bytes) do
     case result do
