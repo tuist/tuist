@@ -297,7 +297,9 @@
               <div data-part="content">
                 <%= if Enum.any?(@test_case_run.arguments) do %>
                   <div
-                    :for={argument <- Enum.filter(@test_case_run.arguments, & &1.status == "failure")}
+                    :for={
+                      argument <- Enum.filter(@test_case_run.arguments, &(&1.status == "failure"))
+                    }
                     class="argument-collapsible"
                   >
                     <div data-part="argument-header">

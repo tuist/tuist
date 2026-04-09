@@ -21,7 +21,15 @@ defmodule Tuist.Tests.TestCaseRunAttachment do
 
   def create_changeset(attachment, attrs) do
     attachment
-    |> cast(attrs, [:id, :test_case_run_id, :test_case_run_argument_id, :test_run_id, :file_name, :repetition_number, :inserted_at])
+    |> cast(attrs, [
+      :id,
+      :test_case_run_id,
+      :test_case_run_argument_id,
+      :test_run_id,
+      :file_name,
+      :repetition_number,
+      :inserted_at
+    ])
     |> validate_required([:id, :test_case_run_id, :file_name])
   end
 end

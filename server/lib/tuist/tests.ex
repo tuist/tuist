@@ -1103,7 +1103,7 @@ defmodule Tuist.Tests do
 
     {test_case_runs, all_failures, all_repetitions, all_attachments, all_arguments} =
       Enum.reduce(test_cases, {[], [], [], [], []}, fn case_attrs,
-                                                      {runs_acc, failures_acc, reps_acc, attachments_acc, args_acc} ->
+                                                       {runs_acc, failures_acc, reps_acc, attachments_acc, args_acc} ->
         suite_name = Map.get(case_attrs, :test_suite_name, "") || ""
 
         test_suite_run_id = Map.get(suite_name_to_id, suite_name)
