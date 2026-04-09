@@ -1,10 +1,21 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.176.4<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* write empty shard matrix on all early return paths by [@fortmarek](https://github.com/fortmarek) in [#10220](https://github.com/tuist/tuist/pull/10220)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.176.3...4.176.4
+
 ## What's Changed in 4.176.3<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
 
+* use overwrite option when writing module maps by [@fortmarek](https://github.com/fortmarek) in [#10218](https://github.com/tuist/tuist/pull/10218)
 * update Package.resolved to match current dependencies by [@fortmarek](https://github.com/fortmarek) in [#10216](https://github.com/tuist/tuist/pull/10216)
 
 
