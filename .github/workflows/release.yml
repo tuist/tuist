@@ -545,7 +545,7 @@ jobs:
     runs-on: namespace-profile-default-macos
     timeout-minutes: 50
     env:
-      GITHUB_TOKEN: ${{ secrets.TUIST_GITHUB_TOKEN }}
+      GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
     outputs:
       artifacts-uploaded: ${{ steps.upload.outputs.uploaded }}
       release-notes: ${{ steps.release-notes.outputs.RELEASE_NOTES }}
@@ -553,7 +553,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.TUIST_GITHUB_TOKEN }}
+          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version-releases).app
       - name: Restore cache
@@ -575,7 +575,7 @@ jobs:
         run: tuist install
       - name: Initialize TuistCacheEE submodule
         env:
-          TUIST_GITHUB_TOKEN: ${{ secrets.TUIST_GITHUB_TOKEN }}
+          TUIST_GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
         run: mise run --no-prepare cli:ee
       - name: Get release notes
         id: release-notes
@@ -646,7 +646,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.TUIST_GITHUB_TOKEN }}
+          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
 
       - name: Cache Static Linux SDK
         uses: actions/cache@v4
@@ -692,7 +692,7 @@ jobs:
     runs-on: namespace-profile-default-macos
     timeout-minutes: 50
     env:
-      GITHUB_TOKEN: ${{ secrets.TUIST_GITHUB_TOKEN }}
+      GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
       OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
     outputs:
       artifacts-uploaded: ${{ steps.upload.outputs.uploaded }}
@@ -701,7 +701,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.TUIST_GITHUB_TOKEN }}
+          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - name: Install create-dmg
@@ -789,7 +789,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.TUIST_GITHUB_TOKEN }}
+          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - name: Skip Xcode Macro Fingerprint Validation
@@ -839,7 +839,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.TUIST_GITHUB_TOKEN }}
+          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
 
       - uses: namespacelabs/nscloud-cache-action@v1
         with:
@@ -1054,7 +1054,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.TUIST_GITHUB_TOKEN }}
+          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
       - uses: namespacelabs/nscloud-cache-action@v1
         with:
           cache: mise
@@ -1139,7 +1139,7 @@ jobs:
 
             ${{ steps.release-notes.outputs.RELEASE_NOTES }}
         env:
-          GITHUB_TOKEN: ${{ secrets.TUIST_GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
 
       - name: Upload Gradle artifacts
         id: upload
@@ -1159,7 +1159,7 @@ jobs:
     runs-on: namespace-profile-default-with-volume
     timeout-minutes: 15
     env:
-      GITHUB_TOKEN: ${{ secrets.TUIST_GITHUB_TOKEN }}
+      GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
     outputs:
       release-notes: ${{ steps.release-notes.outputs.RELEASE_NOTES }}
     steps:
@@ -1420,12 +1420,12 @@ jobs:
       group: commit-and-release-${{ github.run_id }}
       cancel-in-progress: false
     env:
-      GITHUB_TOKEN: ${{ secrets.TUIST_GITHUB_TOKEN }}
+      GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.TUIST_GITHUB_TOKEN }}
+          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
 
       - uses: namespacelabs/nscloud-cache-action@v1
         with:
@@ -1644,13 +1644,13 @@ jobs:
         if: needs.check-releases.outputs.cli-should-release == 'true' && needs.release-cli.result == 'success'
         run: |
           SHA256=$(cat build/SHASUMS256.txt | grep tuist.zip | awk '{print $1}')
-          mise run --no-prepare cli:release:homebrew-formula --version "${{ needs.check-releases.outputs.cli-next-version }}" --github-token "${{ secrets.TUIST_GITHUB_TOKEN }}" --sha256 "$SHA256"
+          mise run --no-prepare cli:release:homebrew-formula --version "${{ needs.check-releases.outputs.cli-next-version }}" --github-token "${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}" --sha256 "$SHA256"
 
       - name: Trigger Homebrew Cask Update
         if: needs.check-releases.outputs.app-should-release == 'true' && needs.release-app.result == 'success'
         run: |
           SHA256=$(cat app/build/artifacts/SHASUMS256.txt | grep Tuist.dmg | awk '{print $1}')
-          mise run --no-prepare app:release:homebrew-cask --version "${{ needs.check-releases.outputs.app-next-version-number }}" --github-token "${{ secrets.TUIST_GITHUB_TOKEN }}" --sha256 "$SHA256"
+          mise run --no-prepare app:release:homebrew-cask --version "${{ needs.check-releases.outputs.app-next-version-number }}" --github-token "${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}" --sha256 "$SHA256"
 
       - name: Commit all changes and push
         run: |
