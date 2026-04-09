@@ -175,39 +175,24 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
         )
 
         // Verify side effects: combined module map files for A and B1
-        let sideEffectPaths = gotSideEffects.compactMap { sideEffect -> AbsolutePath? in
-            if case let .file(descriptor) = sideEffect { return descriptor.path }
-            return nil
-        }.sorted()
-        XCTAssertEqual(sideEffectPaths, [combinedModuleMapPathA, combinedModuleMapPathB1].sorted())
+        let b1ModuleMapPath = projectBPath.appending(components: "B1", "B1.module").pathString
+        let b2ModuleMapPath = projectBPath.appending(components: "B2", "B2.module").pathString
 
-        // Verify combined module map content for target A (has B1 and B2 module maps)
-        let sideEffectA = gotSideEffects.first { sideEffect in
-            if case let .file(descriptor) = sideEffect { return descriptor.path == combinedModuleMapPathA }
-            return false
-        }
-        if case let .file(descriptorA) = sideEffectA {
-            let contentA = String(data: descriptorA.contents!, encoding: .utf8)!
-            let b1ModuleMapPath = projectBPath.appending(components: "B1", "B1.module").pathString
-            let b2ModuleMapPath = projectBPath.appending(components: "B2", "B2.module").pathString
-            XCTAssertTrue(contentA.contains("extern module B1 \"\(b1ModuleMapPath)\""))
-            XCTAssertTrue(contentA.contains("extern module B2 \"\(b2ModuleMapPath)\""))
-        } else {
-            XCTFail("Expected file side effect for target A combined module map")
-        }
-
-        // Verify combined module map content for target B1 (has only B2 module map)
-        let sideEffectB1 = gotSideEffects.first { sideEffect in
-            if case let .file(descriptor) = sideEffect { return descriptor.path == combinedModuleMapPathB1 }
-            return false
-        }
-        if case let .file(descriptorB1) = sideEffectB1 {
-            let contentB1 = String(data: descriptorB1.contents!, encoding: .utf8)!
-            let b2ModuleMapPath = projectBPath.appending(components: "B2", "B2.module").pathString
-            XCTAssertEqual(contentB1, "extern module B2 \"\(b2ModuleMapPath)\"\n")
-        } else {
-            XCTFail("Expected file side effect for target B1 combined module map")
-        }
+        XCTAssertBetterEqual(
+            gotSideEffects.sorted(by: { $0.description < $1.description }),
+            [
+                .file(FileDescriptor(
+                    path: combinedModuleMapPathA,
+                    contents: Data(
+                        "extern module B1 \"\(b1ModuleMapPath)\"\nextern module B2 \"\(b2ModuleMapPath)\"\n".utf8
+                    )
+                )),
+                .file(FileDescriptor(
+                    path: combinedModuleMapPathB1,
+                    contents: Data("extern module B2 \"\(b2ModuleMapPath)\"\n".utf8)
+                )),
+            ].sorted(by: { $0.description < $1.description })
+        )
     }
 
     func test_maps_modulemap_build_flag_to_target_with_empty_settings() throws {
@@ -329,15 +314,16 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
         )
 
         // Verify side effect: combined module map for A
-        XCTAssertEqual(gotSideEffects.count, 1)
-        if case let .file(descriptor) = gotSideEffects.first {
-            XCTAssertEqual(descriptor.path, combinedModuleMapPath)
-            let content = String(data: descriptor.contents!, encoding: .utf8)!
-            let bModuleMapPath = projectBPath.appending(components: "B", "B.module").pathString
-            XCTAssertEqual(content, "extern module B \"\(bModuleMapPath)\"\n")
-        } else {
-            XCTFail("Expected file side effect for combined module map")
-        }
+        let bModuleMapPath = projectBPath.appending(components: "B", "B.module").pathString
+        XCTAssertBetterEqual(
+            gotSideEffects,
+            [
+                .file(FileDescriptor(
+                    path: combinedModuleMapPath,
+                    contents: Data("extern module B \"\(bModuleMapPath)\"\n".utf8)
+                )),
+            ]
+        )
     }
 
     func test_maps_modulemap_flags_to_configurations_that_override_other_swift_flags() throws {
@@ -459,12 +445,16 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
         XCTAssertNil(releaseConfiguration.settings["OTHER_CFLAGS"])
 
         // Verify side effect
-        XCTAssertEqual(gotSideEffects.count, 1)
-        if case let .file(descriptor) = gotSideEffects.first {
-            let combinedModuleMapPath = projectAPath.appending(components: "Derived", "ModuleMaps", "A-deps.modulemap")
-            XCTAssertEqual(descriptor.path, combinedModuleMapPath)
-        } else {
-            XCTFail("Expected file side effect for combined module map")
-        }
+        let combinedModuleMapPath = projectAPath.appending(components: "Derived", "ModuleMaps", "A-deps.modulemap")
+        let bModuleMapPath = projectBPath.appending(components: "B", "B.module").pathString
+        XCTAssertBetterEqual(
+            gotSideEffects,
+            [
+                .file(FileDescriptor(
+                    path: combinedModuleMapPath,
+                    contents: Data("extern module B \"\(bModuleMapPath)\"\n".utf8)
+                )),
+            ]
+        )
     }
 }
