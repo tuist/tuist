@@ -1,3 +1,4 @@
+import Path
 import TuistCore
 import TuistGenerator
 import XcodeGraph
@@ -90,20 +91,20 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
         )
 
         // Then
+        let combinedModuleMapPathA = projectAPath.appending(components: "Derived", "ModuleMaps", "A-deps.modulemap")
+        let combinedModuleMapPathB1 = projectBPath.appending(components: "Derived", "ModuleMaps", "B1-deps.modulemap")
+
         let mappedTargetA = Target.test(
             name: "A",
             settings: .test(base: [
                 "OTHER_CFLAGS": .array([
                     "Other",
-                    "-fmodule-map-file=$(SRCROOT)/../B/B1/B1.module",
-                    "-fmodule-map-file=$(SRCROOT)/../B/B2/B2.module",
+                    "-fmodule-map-file=$(SRCROOT)/Derived/ModuleMaps/A-deps.modulemap",
                 ]),
                 "OTHER_SWIFT_FLAGS": .array([
                     "Other",
                     "-Xcc",
-                    "-fmodule-map-file=$(SRCROOT)/../B/B1/B1.module",
-                    "-Xcc",
-                    "-fmodule-map-file=$(SRCROOT)/../B/B2/B2.module",
+                    "-fmodule-map-file=$(SRCROOT)/Derived/ModuleMaps/A-deps.modulemap",
                 ]),
                 "HEADER_SEARCH_PATHS": .array(["$(inherited)", "$(SRCROOT)/../B/B1/include", "$(SRCROOT)/../B/B2/include"]),
             ]),
@@ -122,8 +123,15 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
         let mappedTargetB1 = Target.test(
             name: "B1",
             settings: .test(base: [
-                "OTHER_CFLAGS": .array(["$(inherited)", "-fmodule-map-file=$(SRCROOT)/B2/B2.module"]),
-                "OTHER_SWIFT_FLAGS": .array(["$(inherited)", "-Xcc", "-fmodule-map-file=$(SRCROOT)/B2/B2.module"]),
+                "OTHER_CFLAGS": .array([
+                    "$(inherited)",
+                    "-fmodule-map-file=$(SRCROOT)/Derived/ModuleMaps/B1-deps.modulemap",
+                ]),
+                "OTHER_SWIFT_FLAGS": .array([
+                    "$(inherited)",
+                    "-Xcc",
+                    "-fmodule-map-file=$(SRCROOT)/Derived/ModuleMaps/B1-deps.modulemap",
+                ]),
                 "HEADER_SEARCH_PATHS": .array(["$(SRCROOT)/B1/include", "$(SRCROOT)/B2/include"]),
             ]),
             dependencies: [
@@ -165,7 +173,41 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
             ),
             gotGraph
         )
-        XCTAssertEqual(gotSideEffects, [])
+
+        // Verify side effects: combined module map files for A and B1
+        let sideEffectPaths = gotSideEffects.compactMap { sideEffect -> AbsolutePath? in
+            if case let .file(descriptor) = sideEffect { return descriptor.path }
+            return nil
+        }.sorted()
+        XCTAssertEqual(sideEffectPaths, [combinedModuleMapPathA, combinedModuleMapPathB1].sorted())
+
+        // Verify combined module map content for target A (has B1 and B2 module maps)
+        let sideEffectA = gotSideEffects.first { sideEffect in
+            if case let .file(descriptor) = sideEffect { return descriptor.path == combinedModuleMapPathA }
+            return false
+        }
+        if case let .file(descriptorA) = sideEffectA {
+            let contentA = String(data: descriptorA.contents!, encoding: .utf8)!
+            let b1ModuleMapPath = projectBPath.appending(components: "B1", "B1.module").pathString
+            let b2ModuleMapPath = projectBPath.appending(components: "B2", "B2.module").pathString
+            XCTAssertTrue(contentA.contains("extern module B1 \"\(b1ModuleMapPath)\""))
+            XCTAssertTrue(contentA.contains("extern module B2 \"\(b2ModuleMapPath)\""))
+        } else {
+            XCTFail("Expected file side effect for target A combined module map")
+        }
+
+        // Verify combined module map content for target B1 (has only B2 module map)
+        let sideEffectB1 = gotSideEffects.first { sideEffect in
+            if case let .file(descriptor) = sideEffect { return descriptor.path == combinedModuleMapPathB1 }
+            return false
+        }
+        if case let .file(descriptorB1) = sideEffectB1 {
+            let contentB1 = String(data: descriptorB1.contents!, encoding: .utf8)!
+            let b2ModuleMapPath = projectBPath.appending(components: "B2", "B2.module").pathString
+            XCTAssertEqual(contentB1, "extern module B2 \"\(b2ModuleMapPath)\"\n")
+        } else {
+            XCTFail("Expected file side effect for target B1 combined module map")
+        }
     }
 
     func test_maps_modulemap_build_flag_to_target_with_empty_settings() throws {
@@ -222,18 +264,20 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
         )
 
         // Then
+        let combinedModuleMapPath = projectAPath.appending(components: "Derived", "ModuleMaps", "A-deps.modulemap")
+
         let mappedTargetA = Target.test(
             name: "A",
             settings: Settings(
                 base: [
                     "OTHER_CFLAGS": .array([
                         "$(inherited)",
-                        "-fmodule-map-file=$(SRCROOT)/../B/B/B.module",
+                        "-fmodule-map-file=$(SRCROOT)/Derived/ModuleMaps/A-deps.modulemap",
                     ]),
                     "OTHER_SWIFT_FLAGS": .array([
                         "$(inherited)",
                         "-Xcc",
-                        "-fmodule-map-file=$(SRCROOT)/../B/B/B.module",
+                        "-fmodule-map-file=$(SRCROOT)/Derived/ModuleMaps/A-deps.modulemap",
                     ]),
                     "HEADER_SEARCH_PATHS": .array(["$(inherited)", "$(SRCROOT)/../B/B/include"]),
                 ],
@@ -283,7 +327,17 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
             ),
             gotGraph
         )
-        XCTAssertEqual(gotSideEffects, [])
+
+        // Verify side effect: combined module map for A
+        XCTAssertEqual(gotSideEffects.count, 1)
+        if case let .file(descriptor) = gotSideEffects.first {
+            XCTAssertEqual(descriptor.path, combinedModuleMapPath)
+            let content = String(data: descriptor.contents!, encoding: .utf8)!
+            let bModuleMapPath = projectBPath.appending(components: "B", "B.module").pathString
+            XCTAssertEqual(content, "extern module B \"\(bModuleMapPath)\"\n")
+        } else {
+            XCTFail("Expected file side effect for combined module map")
+        }
     }
 
     func test_maps_modulemap_flags_to_configurations_that_override_other_swift_flags() throws {
@@ -359,24 +413,24 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
         // Then
         let gotTargetA = try XCTUnwrap(gotGraph.projects[projectAPath]?.targets["A"])
 
-        // Base settings should have the module map flags
+        // Base settings should have the combined module map flag
         XCTAssertBetterEqual(
             gotTargetA.settings?.base["OTHER_SWIFT_FLAGS"],
             .array([
                 "Other",
                 "-Xcc",
-                "-fmodule-map-file=$(SRCROOT)/../B/B/B.module",
+                "-fmodule-map-file=$(SRCROOT)/Derived/ModuleMaps/A-deps.modulemap",
             ])
         )
         XCTAssertBetterEqual(
             gotTargetA.settings?.base["OTHER_CFLAGS"],
             .array([
                 "Other",
-                "-fmodule-map-file=$(SRCROOT)/../B/B/B.module",
+                "-fmodule-map-file=$(SRCROOT)/Derived/ModuleMaps/A-deps.modulemap",
             ])
         )
 
-        // Debug configuration overrides OTHER_SWIFT_FLAGS and OTHER_CFLAGS, so it should also get the flags
+        // Debug configuration overrides OTHER_SWIFT_FLAGS and OTHER_CFLAGS, so it should also get the flag
         let debugConfiguration = try XCTUnwrap(gotTargetA.settings?.configurations[debugConfig] as? Configuration)
         XCTAssertBetterEqual(
             debugConfiguration.settings["OTHER_SWIFT_FLAGS"],
@@ -386,14 +440,14 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
                 "-D",
                 "FEATURE",
                 "-Xcc",
-                "-fmodule-map-file=$(SRCROOT)/../B/B/B.module",
+                "-fmodule-map-file=$(SRCROOT)/Derived/ModuleMaps/A-deps.modulemap",
             ])
         )
         XCTAssertBetterEqual(
             debugConfiguration.settings["OTHER_CFLAGS"],
             .array([
                 "-DDEBUG",
-                "-fmodule-map-file=$(SRCROOT)/../B/B/B.module",
+                "-fmodule-map-file=$(SRCROOT)/Derived/ModuleMaps/A-deps.modulemap",
             ])
         )
 
@@ -404,6 +458,13 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
         XCTAssertNil(releaseConfiguration.settings["OTHER_SWIFT_FLAGS"])
         XCTAssertNil(releaseConfiguration.settings["OTHER_CFLAGS"])
 
-        XCTAssertEqual(gotSideEffects, [])
+        // Verify side effect
+        XCTAssertEqual(gotSideEffects.count, 1)
+        if case let .file(descriptor) = gotSideEffects.first {
+            let combinedModuleMapPath = projectAPath.appending(components: "Derived", "ModuleMaps", "A-deps.modulemap")
+            XCTAssertEqual(descriptor.path, combinedModuleMapPath)
+        } else {
+            XCTFail("Expected file side effect for combined module map")
+        }
     }
 }
