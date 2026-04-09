@@ -190,6 +190,148 @@ defmodule TuistWeb.TestCaseRunLiveTest do
     end
   end
 
+  describe "parameterized test arguments" do
+    test "shows Arguments card when test case run has arguments", %{
+      conn: conn,
+      account: account,
+      project: project
+    } do
+      {:ok, test_run} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 2000,
+          status: "failure",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "main",
+          git_commit_sha: "abc123",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: false,
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "failure",
+              duration: 2000,
+              test_cases: [
+                %{
+                  name: "parameterized(value:)",
+                  test_suite_name: "Suite",
+                  status: "failure",
+                  duration: 1000,
+                  arguments: [
+                    %{name: ".hello", status: "success", duration: 400},
+                    %{
+                      name: ".failing",
+                      status: "failure",
+                      duration: 600,
+                      failures: [
+                        %{message: "Expected true", path: "Test.swift", line_number: 10, issue_type: "assertion_failure"}
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        })
+
+      RunsFixtures.optimize_test_case_runs()
+
+      test_case_run =
+        Tuist.ClickHouseRepo.one!(from(tcr in Tests.TestCaseRun, where: tcr.test_run_id == ^test_run.id))
+
+      {:ok, lv, html} =
+        live(conn, ~p"/#{account.name}/#{project.name}/tests/test-cases/runs/#{test_case_run.id}")
+
+      assert has_element?(lv, "[data-part='arguments-card']")
+      assert html =~ ".hello"
+      assert html =~ ".failing"
+      assert html =~ "Passed"
+      assert html =~ "Failed"
+    end
+
+    test "does not show Arguments card for non-parameterized tests", %{
+      conn: conn,
+      account: account,
+      project: project
+    } do
+      {:ok, test_run} = RunsFixtures.test_fixture(project_id: project.id, account_id: account.id)
+      test_run = Tuist.ClickHouseRepo.preload(test_run, :test_case_runs)
+      [test_case_run | _] = test_run.test_case_runs
+
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{account.name}/#{project.name}/tests/test-cases/runs/#{test_case_run.id}")
+
+      refute has_element?(lv, "[data-part='arguments-card']")
+    end
+
+    test "shows failures grouped by argument when arguments have failures", %{
+      conn: conn,
+      account: account,
+      project: project
+    } do
+      {:ok, test_run} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 2000,
+          status: "failure",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "main",
+          git_commit_sha: "abc123",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: false,
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "failure",
+              duration: 2000,
+              test_cases: [
+                %{
+                  name: "paramTest(input:)",
+                  test_suite_name: "Suite",
+                  status: "failure",
+                  duration: 1000,
+                  arguments: [
+                    %{
+                      name: ".variant1",
+                      status: "failure",
+                      duration: 500,
+                      failures: [
+                        %{
+                          message: "Assertion failed in variant1",
+                          path: "Test.swift",
+                          line_number: 10,
+                          issue_type: "assertion_failure"
+                        }
+                      ]
+                    },
+                    %{name: ".variant2", status: "success", duration: 500}
+                  ]
+                }
+              ]
+            }
+          ]
+        })
+
+      RunsFixtures.optimize_test_case_runs()
+
+      test_case_run =
+        Tuist.ClickHouseRepo.one!(from(tcr in Tests.TestCaseRun, where: tcr.test_run_id == ^test_run.id))
+
+      {:ok, lv, html} =
+        live(conn, ~p"/#{account.name}/#{project.name}/tests/test-cases/runs/#{test_case_run.id}")
+
+      assert has_element?(lv, "[data-part='failures-list']")
+      assert html =~ ".variant1"
+      assert html =~ "Assertion failed in variant1"
+    end
+  end
+
   describe "attachments" do
     test "shows Attachments card when test case run has image attachments", %{
       conn: conn,
