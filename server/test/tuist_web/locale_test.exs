@@ -3,6 +3,8 @@ defmodule TuistWeb.LocaleTest do
   use TuistTestSupport.Cases.LiveCase
 
   alias Phoenix.LiveView
+  alias Tuist.Accounts
+  alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistWeb.Gettext, as: GettextBackend
   alias TuistWeb.Locale
   alias TuistWeb.Plugs.LocalePlug
@@ -60,6 +62,49 @@ defmodule TuistWeb.LocaleTest do
 
       assert updated_socket.assigns.locale == "zh_Hans"
       assert Gettext.get_locale(GettextBackend) == "zh_Hans"
+    end
+
+    test "uses user's preferred_locale over session locale" do
+      user = AccountsFixtures.user_fixture()
+      {:ok, user} = Accounts.update_user_preferred_locale(user, "ja")
+
+      socket = Phoenix.Component.assign(%LiveView.Socket{}, :current_user, user)
+
+      {:cont, updated_socket} = Locale.on_mount(:assign_locale, %{}, %{"locale" => "es"}, socket)
+
+      assert updated_socket.assigns.locale == "ja"
+      assert Gettext.get_locale(GettextBackend) == "ja"
+    end
+
+    test "falls back to session locale when preferred_locale is nil" do
+      user = AccountsFixtures.user_fixture()
+
+      socket = Phoenix.Component.assign(%LiveView.Socket{}, :current_user, user)
+
+      {:cont, updated_socket} = Locale.on_mount(:assign_locale, %{}, %{"locale" => "ko"}, socket)
+
+      assert updated_socket.assigns.locale == "ko"
+      assert Gettext.get_locale(GettextBackend) == "ko"
+    end
+
+    test "ignores unsupported preferred_locale and falls back to session" do
+      user = AccountsFixtures.user_fixture()
+      Tuist.Repo.update!(Ecto.Changeset.change(user, preferred_locale: "xx"))
+      user = Accounts.get_user_by_id(user.id)
+
+      socket = Phoenix.Component.assign(%LiveView.Socket{}, :current_user, user)
+
+      {:cont, updated_socket} = Locale.on_mount(:assign_locale, %{}, %{"locale" => "ru"}, socket)
+
+      assert updated_socket.assigns.locale == "ru"
+      assert Gettext.get_locale(GettextBackend) == "ru"
+    end
+
+    test "falls back to session locale when no current_user is assigned" do
+      {:cont, updated_socket} = Locale.on_mount(:assign_locale, %{}, %{"locale" => "es"}, %LiveView.Socket{})
+
+      assert updated_socket.assigns.locale == "es"
+      assert Gettext.get_locale(GettextBackend) == "es"
     end
   end
 

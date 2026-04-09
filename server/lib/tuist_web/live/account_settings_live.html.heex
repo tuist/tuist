@@ -159,6 +159,7 @@
       </div>
     </.card_section>
   <% else %>
+    <.preferred_locale_section preferred_locale_form={@preferred_locale_form} />
     <.region_selection_section
       region_form={@region_form}
       selected_account={@selected_account}
