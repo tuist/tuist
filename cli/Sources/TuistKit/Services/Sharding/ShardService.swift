@@ -107,8 +107,9 @@ public struct ShardService: ShardServicing {
             resolvedTestProductsPath = testProductsPath
             Logger.current.debug("Using local test products at \(testProductsPath.pathString)")
         } else if let testProductsArchivePath {
-            resolvedTestProductsPath = try await fileSystem.makeTemporaryDirectory(prefix: "tuist-shard-unzip")
-            try await appleArchiver.decompress(archive: testProductsArchivePath, to: resolvedTestProductsPath)
+            let extractedTestProductsPath = try await fileSystem.makeTemporaryDirectory(prefix: "tuist-shard-unzip")
+            try await appleArchiver.decompress(archive: testProductsArchivePath, to: extractedTestProductsPath)
+            resolvedTestProductsPath = try await normalizeExtractedTestProductsPath(extractedTestProductsPath)
             Logger.current.debug("Extracted local shard archive to \(resolvedTestProductsPath.pathString)")
         } else {
             guard let downloadURL = URL(string: shard.download_url) else {
@@ -117,9 +118,10 @@ public struct ShardService: ShardServicing {
             let shardArchivePath = try await fileClient.download(url: downloadURL)
             Logger.current.debug("Downloaded test products bundle.")
 
-            resolvedTestProductsPath = try await fileSystem.makeTemporaryDirectory(prefix: "tuist-shard-unzip")
-            try await appleArchiver.decompress(archive: shardArchivePath, to: resolvedTestProductsPath)
+            let extractedTestProductsPath = try await fileSystem.makeTemporaryDirectory(prefix: "tuist-shard-unzip")
+            try await appleArchiver.decompress(archive: shardArchivePath, to: extractedTestProductsPath)
             try? await fileSystem.remove(shardArchivePath)
+            resolvedTestProductsPath = try await normalizeExtractedTestProductsPath(extractedTestProductsPath)
             Logger.current.debug("Extracted test products to \(resolvedTestProductsPath.pathString)")
         }
 
@@ -165,6 +167,17 @@ public struct ShardService: ShardServicing {
             modules: shard.modules,
             selectiveTestingGraph: selectiveTestingGraph
         )
+    }
+
+    private func normalizeExtractedTestProductsPath(_ extractedPath: AbsolutePath) async throws -> AbsolutePath {
+        guard !extractedPath.basename.hasSuffix(".xctestproducts") else {
+            return extractedPath
+        }
+
+        let normalizedPath = extractedPath.parentDirectory
+            .appending(component: "\(extractedPath.basename).xctestproducts")
+        try await fileSystem.move(from: extractedPath, to: normalizedPath)
+        return normalizedPath
     }
 
     /// Filters xctestrun plist data using raw PropertyListSerialization rather than Decodable because we need

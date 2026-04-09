@@ -488,6 +488,7 @@ struct ShardServiceTests {
 
         #expect(shard.xcTestRunPath == nil)
         #expect(shard.modules == ["AppTests"])
+        #expect(shard.testProductsPath.basename.hasSuffix(".xctestproducts"))
 
         let extractedXCTestRunPath = try #require(
             try await fileSystem
