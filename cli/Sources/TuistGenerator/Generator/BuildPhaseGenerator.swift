@@ -636,6 +636,11 @@ struct BuildPhaseGenerator: BuildPhaseGenerating {
         fileElements: ProjectFileElements,
         pbxproj: PBXProj
     ) throws {
+        // Unit test bundles must not embed extensions. When hosted by an extension
+        // (e.g. watchOS), embedding creates a cycle: the extension embeds the test
+        // bundle as a PlugIn, while the test bundle would embed the extension back.
+        guard target.product != .unitTests else { return }
+
         let appExtensions = graphTraverser.appExtensionDependencies(path: path, name: target.name).sorted()
         guard !appExtensions.isEmpty else { return }
 

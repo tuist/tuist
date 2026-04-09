@@ -1247,6 +1247,49 @@ struct BuildPhaseGeneratorTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
+    ) func generateAppExtensionsBuildPhase_noBuildPhase_when_unitTestDependsOnWatchExtension() throws {
+        // Given
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let watchExtension = Target.test(name: "WatchExtension", product: .watch2Extension)
+        let unitTests = Target.test(name: "WatchAppTests", product: .unitTests)
+        let pbxproj = PBXProj()
+        let nativeTarget = PBXNativeTarget(name: "Test")
+        let fileElements = createProductFileElements(for: [watchExtension])
+        let project = Project.test(path: path, targets: [watchExtension, unitTests])
+        let unitTestsDep: GraphDependency = .target(name: unitTests.name, path: project.path)
+        let watchExtensionDep: GraphDependency = .target(name: watchExtension.name, path: project.path)
+
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            unitTestsDep: Set([watchExtensionDep]),
+            watchExtensionDep: Set(),
+        ]
+
+        let graph = Graph.test(
+            path: path,
+            projects: [project.path: project],
+            dependencies: dependencies
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        try subject.generateAppExtensionsBuildPhase(
+            path: project.path,
+            target: unitTests,
+            graphTraverser: graphTraverser,
+            pbxTarget: nativeTarget,
+            fileElements: fileElements,
+            pbxproj: pbxproj
+        )
+
+        // Then — unit tests must not embed extensions to avoid circular dependency
+        // with the test host
+        #expect(nativeTarget.buildPhases.isEmpty == true)
+    }
+
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .withMockedXcodeController,
+        .inTemporaryDirectory
     ) func generateAppExtensionsBuildPhase_noBuildPhase_when_appDoesntHaveAppExtensions() throws {
         // Given
         let app = Target.test(name: "App", product: .app)
