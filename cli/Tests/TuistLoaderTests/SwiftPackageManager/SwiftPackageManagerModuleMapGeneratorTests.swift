@@ -103,6 +103,43 @@ final class SwiftPackageManagerModuleMapGeneratorTests: TuistUnitTestCase {
         )
     }
 
+    func test_generate_when_moduleMap_already_exists_on_disk() async throws {
+        // Given: an external package with an umbrella header
+        let packageDirectory = try temporaryPath()
+            .appending(components: ".build", "checkouts", "PackageDir")
+        let publicHeadersPath = packageDirectory.appending(components: "Sources", "Module", "include")
+        try await fileSystem.makeDirectory(at: publicHeadersPath)
+        try await fileSystem.touch(publicHeadersPath.appending(component: "Module.h"))
+
+        let moduleMapsDirectory = packageDirectory.parentDirectory.parentDirectory.appending(
+            components: [
+                Constants.DerivedDirectory.dependenciesDerivedDirectory,
+                Constants.DerivedDirectory.dependenciesModuleMapsDirectory,
+                "Module",
+            ]
+        )
+        try await fileSystem.makeDirectory(at: moduleMapsDirectory)
+
+        let moduleMapPath = moduleMapsDirectory.appending(component: "Module.modulemap")
+        try await fileSystem.writeText("existing content", at: moduleMapPath)
+
+        // When: generating again (simulates a concurrent write where the file already exists)
+        let got = try await subject.generate(
+            packageDirectory: packageDirectory,
+            moduleName: "Module",
+            publicHeadersPath: publicHeadersPath
+        )
+
+        // Then: should succeed by overwriting the existing file
+        XCTAssertEqual(
+            got,
+            .header(
+                publicHeadersPath.appending(component: "Module.h"),
+                moduleMapPath: moduleMapPath
+            )
+        )
+    }
+
     func test_generate_when_external_package_and_moduleMapsDirectoryAlreadyExists() async throws {
         // Given
         let packageDirectory = try temporaryPath()
