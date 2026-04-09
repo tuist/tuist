@@ -1607,6 +1607,7 @@ public enum Module: String, CaseIterable {
                 []
             case .kit:
                 [
+                    .target(name: Module.appleArchiver.targetName, condition: .when([.macos])),
                     .target(name: Module.config.targetName),
                     .target(name: Module.support.targetName),
                     .target(name: Module.automation.targetName),
