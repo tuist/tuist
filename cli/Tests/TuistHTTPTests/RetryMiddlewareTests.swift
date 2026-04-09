@@ -106,6 +106,45 @@ struct RetryMiddlewareTests {
         #expect(callCount == 3)
     }
 
+    @Test func throws_error_after_max_retries_exhausted() async throws {
+        struct TestError: Error {}
+        let subject = RetryMiddleware(maxRetries: 2)
+        var callCount = 0
+
+        await #expect(throws: TestError.self) {
+            try await subject.intercept(
+                HTTPRequest(method: .get, scheme: nil, authority: nil, path: "/test"),
+                body: nil,
+                baseURL: URL(string: "https://test.tuist.dev")!,
+                operationID: "test-op"
+            ) { _, _, _ in
+                callCount += 1
+                throw TestError()
+            }
+        }
+
+        // 2 retries in loop + 1 final attempt
+        #expect(callCount == 3)
+    }
+
+    @Test func passes_nil_body_without_error() async throws {
+        let subject = RetryMiddleware(maxRetries: 1)
+        var receivedBody: HTTPBody?
+
+        let (response, _) = try await subject.intercept(
+            HTTPRequest(method: .get, scheme: nil, authority: nil, path: "/test"),
+            body: nil,
+            baseURL: URL(string: "https://test.tuist.dev")!,
+            operationID: "test-op"
+        ) { _, body, _ in
+            receivedBody = body
+            return (HTTPResponse(status: 200), nil)
+        }
+
+        #expect(response.status.code == 200)
+        #expect(receivedBody == nil)
+    }
+
     @Test func replays_request_body_on_retries() async throws {
         let subject = RetryMiddleware(maxRetries: 2)
         let bodyContent = "test-body-content"
