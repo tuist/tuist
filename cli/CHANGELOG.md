@@ -1,7 +1,20 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.178.0<!-- RELEASE NOTES START -->
+## What's Changed in 4.179.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add parameterized test argument support by [@fortmarek](https://github.com/fortmarek) in [#10127](https://github.com/tuist/tuist/pull/10127)
+### 🐛 Bug Fixes
+
+* mark generated bundle accessors as nonisolated by [@DimaMishchenko](https://github.com/DimaMishchenko) in [#10065](https://github.com/tuist/tuist/pull/10065)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.178.1...4.179.0
+
+## What's Changed in 4.178.1<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
 
@@ -14,7 +27,7 @@ All notable changes to this project will be documented in this file.
 
 
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.177.0...4.178.0
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.177.0...4.178.1
 
 ## What's Changed in 4.177.0<!-- RELEASE NOTES START -->
 
