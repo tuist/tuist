@@ -131,6 +131,8 @@ server:
 cache:
   enabled: true
   replicaCount: 1
+  podSecurityContext:
+    fsGroup: 990
   image:
     repository: ghcr.io/tuist/cache
     tag: ""
