@@ -52,6 +52,8 @@ spec:
                 secretKeyRef:
                   name: {{ include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
                   key: postgres-password
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
           volumeMounts:
             - name: data
               mountPath: /var/lib/postgresql/data
