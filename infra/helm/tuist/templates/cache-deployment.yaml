@@ -23,6 +23,10 @@ spec:
         prometheus.io/port: {{ ternary "80" "4000" .Values.cache.nginx.enabled | quote }}
     spec:
 {{ include "tuist.podScheduling" . | nindent 6 }}
+      {{- with .Values.cache.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
         - name: cache
           image: "{{ .Values.cache.image.repository }}:{{ .Values.cache.image.tag | default .Chart.AppVersion }}"
