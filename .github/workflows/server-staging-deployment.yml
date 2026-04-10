@@ -18,6 +18,7 @@ env:
   CI: true
   RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  MISE_GITHUB_TOKEN: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN || github.token }}
   PNPM_HOME: ~/.pnpm
 
 defaults:
@@ -37,6 +38,7 @@ jobs:
       - uses: jdx/mise-action@v2
         with:
           install: false
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
       - name: "Get version"
         id: version
         run: |

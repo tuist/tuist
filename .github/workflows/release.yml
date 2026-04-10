@@ -17,6 +17,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
+  MISE_GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
   PNPM_HOME: ~/.pnpm
   TUIST_ENABLE_CACHING: "true"
   MISE_GITHUB_ATTESTATIONS: 0
@@ -63,6 +64,7 @@ jobs:
         with:
           install_args: "git-cliff"
           cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
 
       - name: Check CLI for releasable changes
         id: cli-check
@@ -566,6 +568,7 @@ jobs:
         with:
           install_args: "tuist git-cliff 1password-cli"
           cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
       - name: Authenticate with Tuist
         run: tuist auth login
       - name: Setup Tuist
@@ -710,6 +713,7 @@ jobs:
         with:
           install_args: "tuist git-cliff 1password-cli"
           cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
       - name: Authenticate with Tuist
         run: tuist auth login
       - name: Setup Tuist
@@ -800,6 +804,7 @@ jobs:
         with:
           install_args: "tuist 1password-cli"
           cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
       - name: Authenticate with Tuist
         run: tuist auth login
       - name: Setup Tuist
@@ -848,6 +853,7 @@ jobs:
         with:
           install_args: "java gradle 1password-cli"
           cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -895,6 +901,7 @@ jobs:
         with:
           install_args: "git-cliff"
           cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
 
       - name: Get release notes
         id: release-notes
@@ -979,6 +986,7 @@ jobs:
         with:
           install_args: "git-cliff"
           cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
 
       - name: Get release notes
         id: release-notes
@@ -1062,6 +1070,7 @@ jobs:
         with:
           install_args: "java gradle git-cliff 1password-cli"
           cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -1173,6 +1182,7 @@ jobs:
         with:
           install_args: "git-cliff"
           cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
 
       - name: Get release notes
         id: release-notes
@@ -1249,6 +1259,7 @@ jobs:
           install_args: "erlang elixir node pnpm git-cliff"
           cache: "false"
           working_directory: noora
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
 
       - name: Get release notes
         id: release-notes
@@ -1329,6 +1340,7 @@ jobs:
         with:
           install_args: "git-cliff"
           cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
 
       - name: Get release notes
         id: release-notes
@@ -1434,6 +1446,7 @@ jobs:
         with:
           install_args: "git-cliff"
           cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
 
       - name: Download CLI artifacts
         if: needs.check-releases.outputs.cli-should-release == 'true' && needs.release-cli.result == 'success'
