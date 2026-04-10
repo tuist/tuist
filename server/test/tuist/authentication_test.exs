@@ -100,6 +100,36 @@ defmodule Tuist.AuthenticationTest do
     assert account_id == account.id
   end
 
+  test "refresh/2 refreshes an account JWT" do
+    # Given
+    account = AccountsFixtures.organization_fixture(preload: [:account]).account
+
+    {:ok, refresh_token, _claims} =
+      Authentication.encode_and_sign(
+        account,
+        %{
+          "type" => "account",
+          "scopes" => ["preview_create"]
+        },
+        token_type: :refresh,
+        ttl: {60, :minute}
+      )
+
+    # When
+    {:ok, _old, {new_refresh_token, new_claims}} =
+      Authentication.refresh(refresh_token, ttl: {60, :minute})
+
+    # Then
+    assert new_claims["preferred_username"] == account.name
+    assert new_claims["type"] == "account"
+    assert new_claims["scopes"] == ["preview_create"]
+
+    {:ok, %AuthenticatedAccount{account: %Account{id: refreshed_account_id}}, _} =
+      Tuist.Guardian.resource_from_token(new_refresh_token)
+
+    assert refreshed_account_id == account.id
+  end
+
   test "refresh/2 refreshes the account handle" do
     # Given
     %User{id: id, account: %{name: name}} =
