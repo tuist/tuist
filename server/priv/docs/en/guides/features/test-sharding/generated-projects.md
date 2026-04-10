@@ -113,6 +113,7 @@ jobs:
   test:
     name: "Shard #${{ matrix.shard }}"
     needs: build
+    if: fromJson(needs.build.outputs.matrix).shard[0] != null
     runs-on: macos-latest
     strategy:
       fail-fast: false
@@ -477,6 +478,7 @@ jobs:
   test:
     name: "Shard #${{ matrix.shard }}"
     needs: build
+    if: fromJson(needs.build.outputs.matrix).shard[0] != null
     runs-on: namespace-profile-default-macos
     strategy:
       fail-fast: false
