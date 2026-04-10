@@ -1,6 +1,16 @@
 nameOverride: ""
 fullnameOverride: ""
 
+serviceAccount:
+  # If true, a ServiceAccount is created and assigned to server and migration job pods.
+  # Set annotations (e.g. eks.amazonaws.com/role-arn) for IRSA when using external AWS services.
+  # Defaults to false (opt-in) for backwards compatibility with existing deployments that rely on
+  # the namespace default service account. The upstream Helm chart convention (helm create) uses
+  # true as the default, but changing it here would silently reassign running pods.
+  create: false
+  name: ""
+  annotations: {}
+
 global:
   imagePullSecrets: []
   commonLabels: {}

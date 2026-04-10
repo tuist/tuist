@@ -35,6 +35,17 @@ app.kubernetes.io/component: {{ .component }}
 {{- end -}}
 
 {{/*
+Service account name to use for server and migration job pods.
+*/}}
+{{- define "tuist.serviceAccountName" -}}
+{{- if .Values.serviceAccount.create -}}
+  {{- default (include "tuist.fullname" .) .Values.serviceAccount.name -}}
+{{- else -}}
+  {{- default "default" .Values.serviceAccount.name -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
 Optional nodeSelector and tolerations for all pod specs (e.g. tainted node pools).
 */}}
 {{- define "tuist.podScheduling" -}}

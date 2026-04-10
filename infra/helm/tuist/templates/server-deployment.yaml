@@ -33,32 +33,13 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
     spec:
-      {{- if .Values.server.serviceAccount.create }}
-      serviceAccountName: {{ include "tuist.serverServiceAccountName" . }}
-      {{- end }}
+      serviceAccountName: {{ include "tuist.serviceAccountName" . }}
       terminationGracePeriodSeconds: {{ .Values.server.terminationGracePeriodSeconds }}
       {{- with .Values.global.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- if or .Values.server.nodeSelector .Values.global.nodeSelector }}
-      nodeSelector:
-        {{- with .Values.global.nodeSelector }}
-        {{- toYaml . | nindent 8 }}
-        {{- end }}
-        {{- with .Values.server.nodeSelector }}
-        {{- toYaml . | nindent 8 }}
-        {{- end }}
-      {{- end }}
-      {{- if or .Values.server.tolerations .Values.global.tolerations }}
-      tolerations:
-        {{- with .Values.global.tolerations }}
-        {{- toYaml . | nindent 8 }}
-        {{- end }}
-        {{- with .Values.server.tolerations }}
-        {{- toYaml . | nindent 8 }}
-        {{- end }}
-      {{- end }}
+      {{- include "tuist.podScheduling" . | nindent 6 }}
       {{- with .Values.server.affinity }}
       affinity:
         {{- toYaml . | nindent 8 }}

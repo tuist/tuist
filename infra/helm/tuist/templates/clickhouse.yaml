@@ -59,6 +59,7 @@ spec:
         {{- end }}
     spec:
 {{ include "tuist.podScheduling" . | nindent 6 }}
+      serviceAccountName: {{ include "tuist.serviceAccountName" . }}
       containers:
         - name: clickhouse
           image: "{{ .Values.clickhouse.embedded.image.repository }}:{{ .Values.clickhouse.embedded.image.tag }}"
@@ -116,6 +117,7 @@ spec:
         {{- end }}
     spec:
 {{ include "tuist.podScheduling" . | nindent 6 }}
+      serviceAccountName: {{ include "tuist.serviceAccountName" . }}
       restartPolicy: OnFailure
       containers:
         - name: clickhouse-init
