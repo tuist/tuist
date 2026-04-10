@@ -79,6 +79,8 @@ defmodule TuistWeb.AuthController do
                 dgettext("dashboard", "Failed to authenticate with the SSO provider.")
         end
 
+        validate_sso_callback_params!(conn.params)
+
         route_provider = get_session(conn, :sso_route_provider) || :oauth2
 
         with {:ok, %Organization{} = organization} <- Accounts.get_organization_by_id(organization_id),
@@ -326,6 +328,34 @@ defmodule TuistWeb.AuthController do
       {:error, reason} -> {:error, reason}
       error -> {:error, error}
     end
+  end
+
+  # The IdP can redirect back to our callback without a `code` (RFC 6749 §4.1.2.1):
+  # the user can deny consent, the IdP can refuse the request, the request can
+  # expire, etc. In all those cases the IdP sends `?error=...&error_description=...`
+  # and we must surface a clean 401 instead of trying to exchange a missing code.
+  defp validate_sso_callback_params!(%{"error" => error} = params) when is_binary(error) and error != "" do
+    description = params["error_description"]
+
+    log(
+      :warning,
+      "SSO provider returned error during callback: #{error}" <>
+        if(is_binary(description) and description != "", do: " — #{description}", else: "")
+    )
+
+    raise UnauthorizedError,
+          dgettext("dashboard", "Failed to authenticate with the SSO provider.")
+  end
+
+  defp validate_sso_callback_params!(%{"code" => code}) when is_binary(code) and code != "" do
+    :ok
+  end
+
+  defp validate_sso_callback_params!(_params) do
+    log(:warning, "SSO callback request is missing both `code` and `error` parameters")
+
+    raise UnauthorizedError,
+          dgettext("dashboard", "Failed to authenticate with the SSO provider.")
   end
 
   defp validate_sso_urls(config) do

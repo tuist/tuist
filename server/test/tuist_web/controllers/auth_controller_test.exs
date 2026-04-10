@@ -365,6 +365,68 @@ defmodule TuistWeb.AuthControllerTest do
       end
     end
 
+    test "raises unauthorized error when the IdP redirects back with an error parameter", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          creator: user,
+          sso_provider: :oauth2,
+          sso_organization_id: "https://auth.example.com",
+          oauth2_client_id: UUIDv7.generate(),
+          oauth2_client_secret: UUIDv7.generate(),
+          oauth2_authorize_url: "https://auth.example.com/oauth2/authorize",
+          oauth2_token_url: "https://auth.example.com/oauth2/token",
+          oauth2_user_info_url: "https://auth.example.com/oauth2/userinfo"
+        )
+
+      # The IdP must never reach the token endpoint when reporting an error,
+      # so any get_token/get call here would indicate the precondition is broken.
+      reject(&OAuth2.Client.get_token/2)
+      reject(&OAuth2.Client.get/3)
+
+      assert_error_sent 401, fn ->
+        conn
+        |> init_test_session(%{
+          sso_organization_id: organization.id,
+          sso_state: "expected-state",
+          sso_route_provider: :oauth2
+        })
+        |> get(
+          "/users/auth/custom_oauth2/callback?error=access_denied&error_description=User+denied+access&state=expected-state"
+        )
+      end
+    end
+
+    test "raises unauthorized error when the callback request has neither code nor error", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          creator: user,
+          sso_provider: :oauth2,
+          sso_organization_id: "https://auth.example.com",
+          oauth2_client_id: UUIDv7.generate(),
+          oauth2_client_secret: UUIDv7.generate(),
+          oauth2_authorize_url: "https://auth.example.com/oauth2/authorize",
+          oauth2_token_url: "https://auth.example.com/oauth2/token",
+          oauth2_user_info_url: "https://auth.example.com/oauth2/userinfo"
+        )
+
+      reject(&OAuth2.Client.get_token/2)
+      reject(&OAuth2.Client.get/3)
+
+      assert_error_sent 401, fn ->
+        conn
+        |> init_test_session(%{
+          sso_organization_id: organization.id,
+          sso_state: "expected-state",
+          sso_route_provider: :oauth2
+        })
+        |> get("/users/auth/custom_oauth2/callback?state=expected-state")
+      end
+    end
+
     test "raises unauthorized error when the token exchange fails", %{conn: conn} do
       user = AccountsFixtures.user_fixture()
 
