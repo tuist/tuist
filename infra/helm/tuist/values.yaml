@@ -4,6 +4,7 @@ fullnameOverride: ""
 global:
   imagePullSecrets: []
   commonLabels: {}
+  podLabels: {}
 
 server:
   enabled: true
