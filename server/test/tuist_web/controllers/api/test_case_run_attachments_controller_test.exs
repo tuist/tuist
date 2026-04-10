@@ -259,6 +259,37 @@ defmodule TuistWeb.API.TestCaseRunAttachmentsControllerTest do
       assert response["upload_url"] == "https://s3.example.com/upload?signed=true"
     end
 
+    test "creates attachment with test_case_run_argument_id", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      # Given
+      test_case_run = RunsFixtures.test_case_run_fixture(project_id: project.id)
+      argument_id = UUIDv7.generate()
+
+      stub(Storage, :generate_upload_url, fn _key, _account, _opts ->
+        "https://s3.example.com/upload?signed=true"
+      end)
+
+      # When
+      conn =
+        post(
+          conn,
+          "/api/projects/#{user.account.name}/#{project.name}/tests/attachments",
+          %{
+            test_case_run_id: test_case_run.id,
+            file_name: "arg-screenshot.png",
+            test_case_run_argument_id: argument_id
+          }
+        )
+
+      # Then
+      response = json_response(conn, :created)
+      assert response["id"]
+      assert response["upload_url"] == "https://s3.example.com/upload?signed=true"
+    end
+
     test "returns 403 when user is not authorized", %{conn: conn, project: project} do
       # Given
       other_user = AccountsFixtures.user_fixture(preload: [:account])

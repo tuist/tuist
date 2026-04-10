@@ -32,7 +32,7 @@ The HAR file records all HTTP requests and responses made during the session, wh
 - **[HAR Viewer](http://www.softwareishard.com/har/viewer/)**: A web-based HAR file viewer.
 
 > [!TIP]
-> Learn more about Tuist's directory organization and how to configure custom directories in the <LocalizedLink href="/cli/directories">Directories documentation</LocalizedLink>.
+> Learn more about Tuist's directory organization and how to configure custom directories in the <.localized_link href="/cli/directories">Directories documentation</.localized_link>.
 
 
 By default, the CLI outputs the session path when the execution exits unexpectedly. If it doesn't, you can find the session data in the path mentioned above (i.e., the most recent session directory).

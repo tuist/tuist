@@ -21,7 +21,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: server-production-deployment-${{ github.head_ref }}
+  group: server-production-deployment-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
 env:
@@ -64,18 +64,19 @@ jobs:
       - name: Trigger canary deploy with Render CLI
         env:
           MISE_GITHUB_ATTESTATIONS: 0
+          GITHUB_TOKEN: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN }}
         run: |
           mise exec "github:render-oss/cli@2.6.1" -- cli_v2.6.1 deploys create srv-d35uiopr0fns73bfve00 --output json --confirm --wait --commit "$GITHUB_SHA"
   acceptance-tests:
     name: Acceptance Tests
     runs-on: namespace-profile-default-macos
-    timeout-minutes: 30
+    timeout-minutes: 15
     needs: canary
     environment: server-canary
     steps:
       - uses: actions/checkout@v4
         with:
-          token: ${{ secrets.TUIST_GITHUB_TOKEN }}
+          token: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN }}
           submodules: recursive
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
@@ -95,12 +96,12 @@ jobs:
         run: tuist install
       - name: Initialize TuistCacheEE submodule
         env:
-          TUIST_GITHUB_TOKEN: ${{ secrets.TUIST_GITHUB_TOKEN }}
+          TUIST_GITHUB_TOKEN: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN }}
         run: mise run cli:ee
       - name: Test
         env:
           TUIST_EE: 1
-        run: tuist test TuistCacheEEAcceptanceTests --no-selective-testing --test-targets TuistCacheEEAcceptanceTests/TuistCacheEECanaryAcceptanceTests/ios_app_with_frameworks -- -retry-tests-on-failure -test-iterations 2
+        run: tuist test TuistCacheEEAcceptanceTests --no-selective-testing -- -retry-tests-on-failure -test-iterations 2
   production:
     environment: server-production
     name: Production Deployment
@@ -135,6 +136,7 @@ jobs:
       - name: Trigger production deploy with Render CLI
         env:
           MISE_GITHUB_ATTESTATIONS: 0
+          GITHUB_TOKEN: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN }}
         run: |
           mise exec "github:render-oss/cli@2.6.1" -- cli_v2.6.1 deploys create srv-d35an4ggjchc73evd8m0 --output json --confirm --wait --commit "$GITHUB_SHA"
   production-hotfix:
@@ -170,5 +172,6 @@ jobs:
       - name: Trigger production deploy with Render CLI
         env:
           MISE_GITHUB_ATTESTATIONS: 0
+          GITHUB_TOKEN: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN }}
         run: |
           mise exec "github:render-oss/cli@2.6.1" -- cli_v2.6.1 deploys create srv-d35an4ggjchc73evd8m0 --output json --confirm --wait --commit "$GITHUB_SHA"

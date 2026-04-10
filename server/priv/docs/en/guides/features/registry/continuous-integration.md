@@ -9,7 +9,7 @@
 
 The registry works out of the box on CI without any additional authentication setup. By default, unauthenticated requests are rate-limited to **1,000 requests per minute** per IP address.
 
-If you need a higher rate limit of **20,000 requests per minute**, you can authenticate by running `tuist registry login`. This requires the `TUIST_TOKEN` environment variable to be set. You can create a project token by following the documentation <LocalizedLink href="/guides/server/authentication#as-a-project">here</LocalizedLink>.
+If you need a higher rate limit of **20,000 requests per minute**, you can authenticate by running `tuist registry login`. This requires the `TUIST_TOKEN` environment variable to be set. You can create a project token by following the documentation <.localized_link href="/guides/server/authentication#as-a-project">here</.localized_link>.
 
 > [!NOTE]
 > The keychain setup below is only required if you use `tuist registry login` to get higher rate limits. In most cases, the default unauthenticated rate limit is sufficient and you can skip this entirely.

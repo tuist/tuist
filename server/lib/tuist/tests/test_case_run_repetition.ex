@@ -11,6 +11,7 @@ defmodule Tuist.Tests.TestCaseRunRepetition do
   @primary_key {:id, Ecto.UUID, autogenerate: false}
   schema "test_case_run_repetitions" do
     field :test_case_run_id, Ecto.UUID
+    field :test_case_run_argument_id, Ch, type: "Nullable(UUID)"
     field :repetition_number, Ch, type: "Int32"
     field :name, :string
     field :status, Ch, type: "LowCardinality(String)"
@@ -24,7 +25,16 @@ defmodule Tuist.Tests.TestCaseRunRepetition do
 
   def create_changeset(repetition, attrs) do
     repetition
-    |> cast(attrs, [:id, :test_case_run_id, :repetition_number, :name, :status, :duration, :inserted_at])
+    |> cast(attrs, [
+      :id,
+      :test_case_run_id,
+      :test_case_run_argument_id,
+      :repetition_number,
+      :name,
+      :status,
+      :duration,
+      :inserted_at
+    ])
     |> validate_required([:id, :test_case_run_id, :repetition_number, :name, :status])
     |> validate_inclusion(:status, ["success", "failure"])
   end

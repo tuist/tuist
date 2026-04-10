@@ -28,5 +28,6 @@ defmodule Tuist.Tests.TestCaseRunByTestRun do
     field :ran_at, Ch, type: "DateTime64(6)"
     field :name, Ch, type: "String"
     field :project_id, Ch, type: "Int64"
+    field :test_case_id, Ch, type: "Nullable(UUID)"
   end
 end

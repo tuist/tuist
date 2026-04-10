@@ -115,7 +115,7 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
   defp replace_test_run(parsed_data, args) do
     attrs =
       Map.merge(base_attrs(args), %{
-        test_plan_name: parsed_data["test_plan_name"],
+        scheme: parsed_data["test_plan_name"] || Map.get(args, "scheme"),
         status: parsed_data["status"] || "success",
         duration: parsed_data["duration"] || 0,
         test_modules: parsed_data["test_modules"] || []
@@ -155,8 +155,12 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
       model_identifier: Map.get(args, "model_identifier"),
       scheme: Map.get(args, "scheme"),
       ci_run_id: Map.get(args, "ci_run_id"),
+      ci_project_handle: Map.get(args, "ci_project_handle"),
       ci_host: Map.get(args, "ci_host"),
       ci_provider: Map.get(args, "ci_provider"),
+      build_run_id: Map.get(args, "build_run_id"),
+      shard_plan_id: Map.get(args, "shard_plan_id"),
+      shard_index: Map.get(args, "shard_index"),
       ran_at: NaiveDateTime.utc_now()
     }
   end

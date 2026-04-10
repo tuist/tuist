@@ -218,7 +218,7 @@
                 branch: @selected_project.default_branch
               )
             }
-            value={if @reliability.ok?, do: "#{@reliability.result}%"}
+            value={if @reliability.ok?, do: format_percent(@reliability.result)}
             id="widget-test-reliability"
             empty={@reliability.ok? && is_nil(@reliability.result)}
             empty_label={dgettext("dashboard_tests", "No data")}
@@ -232,11 +232,7 @@
                 "Total number of times this test case has been executed."
               )
             }
-            value={
-              if @analytics.ok?,
-                do:
-                  Number.Delimit.number_to_delimited(@analytics.result.total_count, precision: 0)
-            }
+            value={if @analytics.ok?, do: format_number(@analytics.result.total_count)}
             id="widget-test-case-runs"
             empty={@analytics.ok? && @analytics.result.total_count == 0}
           />
@@ -246,11 +242,7 @@
             description={
               dgettext("dashboard_tests", "Number of times this test case has failed.")
             }
-            value={
-              if @analytics.ok?,
-                do:
-                  Number.Delimit.number_to_delimited(@analytics.result.failed_count, precision: 0)
-            }
+            value={if @analytics.ok?, do: format_number(@analytics.result.failed_count)}
             id="widget-failed-test-case-runs"
             empty={@analytics.ok? && @analytics.result.total_count == 0}
           />

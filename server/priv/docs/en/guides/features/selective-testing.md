@@ -9,11 +9,11 @@
 
 As your project grows, so does the amount of your tests. For a long time, running all tests on every PR or push to `main` takes tens of seconds. But this solution does not scale to thousands of tests your team might have.
 
-On every test run on the CI, you most likely re-run all the tests, regardless of the changes. Tuist's selective testing helps you to drastically speed up running the tests themselves by running only the tests that have changed since the last successful test run based on our <LocalizedLink href="/guides/features/projects/hashing">hashing algorithm</LocalizedLink>.
+On every test run on the CI, you most likely re-run all the tests, regardless of the changes. Tuist's selective testing helps you to drastically speed up running the tests themselves by running only the tests that have changed since the last successful test run based on our <.localized_link href="/guides/features/projects/hashing">hashing algorithm</.localized_link>.
 
-To run tests selectively with your <LocalizedLink href="/guides/features/projects">generated project</LocalizedLink>, use the `tuist test` command. The command <LocalizedLink href="/guides/features/projects/hashing">hashes</LocalizedLink> your project the same way it does for the <LocalizedLink href="/guides/features/cache/module-cache">module cache</LocalizedLink>, and on success, it persists the hashes to determine what has changed in future runs. In future runs, `tuist test` transparently uses the hashes to filter down the tests and run only the ones that have changed since the last successful test run.
+To run tests selectively with your <.localized_link href="/guides/features/projects">generated project</.localized_link>, use the `tuist test` command. The command <.localized_link href="/guides/features/projects/hashing">hashes</.localized_link> your project the same way it does for the <.localized_link href="/guides/features/cache/module-cache">module cache</.localized_link>, and on success, it persists the hashes to determine what has changed in future runs. In future runs, `tuist test` transparently uses the hashes to filter down the tests and run only the ones that have changed since the last successful test run.
 
-`tuist test` integrates directly with the <LocalizedLink href="/guides/features/cache/module-cache">module cache</LocalizedLink> to use as many binaries from your local or remote storage to improve the build time when running your test suite. The combination of selective testing with module caching can dramatically reduce the time it takes to run tests on your CI.
+`tuist test` integrates directly with the <.localized_link href="/guides/features/cache/module-cache">module cache</.localized_link> to use as many binaries from your local or remote storage to improve the build time when running your test suite. The combination of selective testing with module caching can dramatically reduce the time it takes to run tests on your CI.
 
 > [!WARNING]
 > **Module Vs File-level Granularity**
@@ -32,7 +32,7 @@ To run tests selectively with your <LocalizedLink href="/guides/features/project
 > [!WARNING]
 > **Integration With Git Platform Required**
 >
-> To get automatic pull/merge request comments, integrate your <LocalizedLink href="/guides/server/accounts-and-projects">Tuist project</LocalizedLink> with a <LocalizedLink href="/guides/server/authentication">Git platform</LocalizedLink>.
+> To get automatic pull/merge request comments, integrate your <.localized_link href="/guides/server/accounts-and-projects">Tuist project</.localized_link> with a <.localized_link href="/guides/server/authentication">Git platform</.localized_link>.
 
 
 Once your Tuist project is connected with your Git platform such as [GitHub](https://github.com), and you start using `tuist test` as part of your CI workflow, Tuist will post a comment directly in your pull/merge requests, including which tests were run and which skipped:

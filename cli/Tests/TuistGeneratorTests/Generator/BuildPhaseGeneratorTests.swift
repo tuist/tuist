@@ -2023,7 +2023,13 @@ struct BuildPhaseGeneratorTests {
         let expectedScript =
             "if [[ -f \"$BUILD_DIR/$CONFIGURATION/macro\" ]]; then\n    mkdir -p \"$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/\"\n    if [[ \"$BUILD_DIR/$CONFIGURATION/macro\" != \"$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/macro\" ]]; then\n        cp -f \"$BUILD_DIR/$CONFIGURATION/macro\" \"$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/macro\"\n    fi\nfi"
         #expect(buildPhase?.shellScript?.contains(expectedScript) == true)
-        #expect(buildPhase?.inputPaths.contains("$BUILD_DIR/$CONFIGURATION/\(macroExecutable.productName)") == true)
+        #expect(
+            buildPhase?.inputPaths ==
+                [
+                    "$BUILD_DIR/$CONFIGURATION/\(macroExecutable.productName)",
+                    "$(OBJROOT)/UninstalledProducts/macosx/\(macroExecutable.productName)",
+                ]
+        )
         #expect(
             buildPhase?.outputPaths ==
                 [

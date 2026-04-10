@@ -567,7 +567,8 @@ struct UploadResultBundleServiceTests {
                 testCaseRunId: .any,
                 fileName: .any,
                 filePath: .any,
-                repetitionNumber: .any
+                repetitionNumber: .any,
+                testCaseRunArgumentId: .any
             )
             .willReturn("attachment-1")
 
@@ -598,7 +599,8 @@ struct UploadResultBundleServiceTests {
                 testCaseRunId: .any,
                 fileName: .any,
                 filePath: .any,
-                repetitionNumber: .any
+                repetitionNumber: .any,
+                testCaseRunArgumentId: .any
             )
             .called(2)
 
@@ -714,7 +716,8 @@ struct UploadResultBundleServiceTests {
                 testCaseRunId: .any,
                 fileName: .any,
                 filePath: .any,
-                repetitionNumber: .any
+                repetitionNumber: .any,
+                testCaseRunArgumentId: .any
             )
             .called(0)
 

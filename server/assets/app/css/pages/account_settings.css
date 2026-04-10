@@ -13,6 +13,7 @@
   & > [data-part="delete-organization-card-section"],
   & > [data-part="delete-user-card-section"],
   & > [data-part="region-card-section"],
+  & > [data-part="dashboard-language-card-section"],
   & > [data-part="cache-endpoints-card-section"] {
     display: flex;
     flex-direction: row;
@@ -63,6 +64,7 @@
     }
   }
 
+  & > [data-part="dashboard-language-card-section"],
   & > [data-part="region-card-section"] {
     & > [data-part="content"] {
       display: flex;

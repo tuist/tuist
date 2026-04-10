@@ -66,6 +66,8 @@ config :tuist, Tuist.Repo,
   queue_target: 5000,
   queue_interval: 1000
 
+config :tuist, Tuist.Tasks, sync: true
+
 # We don't run a server during test. If one is required,
 # you can enable the server option below.
 config :tuist, TuistWeb.Endpoint,

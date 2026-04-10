@@ -103,11 +103,12 @@ RUN mix compile --warnings-as-errors
 
 # Install Chromium for OG image generation (headless, no GPU)
 RUN apt-get update -y && \
-  apt-get install -y --no-install-recommends chromium && \
+  apt-get install -y --no-install-recommends chromium fonts-noto-cjk fonts-noto-core && \
   apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Generate docs OG images using headless Chromium
+# Generate OG images using headless Chromium
 RUN mix docs.gen.og_images
+RUN mix marketing.gen.og_images
 
 COPY server/config/runtime.exs config/
 COPY server/rel rel

@@ -16,6 +16,11 @@ This node covers the Tuist CLI workspace under `cli/`. Follow downlinks for subs
 - `cli/Sources/TuistKit` - Monolithic command wiring; new commands should be added to feature-specific modules.
 - `cli/Sources/TuistGenerator` - Monolithic generation pipeline; new generation logic should be added to smaller, focused modules.
 
+## Building
+- To generate the Xcode project for a faster build, run `tuist generate tuist ProjectDescription --no-open` (generates only the required targets instead of the full workspace).
+- To compile, use `xcodebuild build -workspace Tuist.xcworkspace -scheme tuist CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""`.
+- Prefer the `tuist` scheme over `Tuist-Workspace` for faster iteration.
+
 ## Code Style
 - Do not add one-line comments unless they are truly useful.
 

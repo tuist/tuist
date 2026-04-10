@@ -428,6 +428,7 @@ defmodule Tuist.Tests.Analytics do
   def get_test_run_metrics(test_run_id) do
     query =
       from t in TestCaseRunByTestRun,
+        hints: ["FINAL"],
         where: t.test_run_id == ^test_run_id,
         select: %{
           total_count: fragment("coalesce(count(?), 0)", t.id),

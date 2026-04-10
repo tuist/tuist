@@ -4,6 +4,13 @@ This node covers infrastructure and deployment assets under `infra/`.
 
 ## Components
 
+### Helm (`helm/`)
+Kubernetes deployment assets for self-hosted and customer-managed Tuist installations.
+
+- `tuist/` - Umbrella chart for the Tuist server, cache service, processor, and optional infrastructure dependencies
+- Supports embedded or external PostgreSQL, ClickHouse, object storage, and observability components
+- Includes local validation flows using `helm` and small clusters such as `kind`
+
 ### Grafana Alloy (`grafana-alloy/`)
 Prometheus metrics collector that scrapes metrics from Tuist server instances and forwards them to Grafana Cloud.
 
@@ -43,6 +50,7 @@ Cloudflare Worker that geo-routes requests to `registry.tuist.dev` to the neares
 Infrastructure components are deployed on Render as private services. Configuration changes should be tested in staging before production.
 
 The Registry Router is deployed as a Cloudflare Worker via `wrangler deploy` from `infra/registry-router/`.
+Helm charts under `infra/helm/` target Kubernetes-based self-hosted deployments.
 
 ## Environment Variables
 The Alloy service requires:

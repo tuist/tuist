@@ -25,7 +25,19 @@ defmodule TuistWeb.API.Schemas.Tests.Test do
             id: %Schema{type: :string, description: "The UUID of the test case run."},
             name: %Schema{type: :string, description: "The name of the test case."},
             module_name: %Schema{type: :string, description: "The module name of the test case."},
-            suite_name: %Schema{type: :string, description: "The suite name of the test case."}
+            suite_name: %Schema{type: :string, description: "The suite name of the test case."},
+            arguments: %Schema{
+              type: :array,
+              description: "The argument variants (for parameterized tests).",
+              items: %Schema{
+                type: :object,
+                properties: %{
+                  id: %Schema{type: :string, description: "The UUID of the argument."},
+                  name: %Schema{type: :string, description: "The argument label."}
+                },
+                required: [:id, :name]
+              }
+            }
           },
           required: [:id, :name, :module_name, :suite_name]
         }

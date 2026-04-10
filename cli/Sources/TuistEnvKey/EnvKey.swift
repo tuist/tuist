@@ -190,6 +190,7 @@ public enum EnvKey: String, CaseIterable {
     case testShardIndex = "TUIST_SHARD_INDEX"
     case testShardReference = "TUIST_SHARD_REFERENCE"
     case testShardSkipUpload = "TUIST_TEST_SHARD_SKIP_UPLOAD"
+    case testShardArchivePath = "TUIST_TEST_SHARD_ARCHIVE_PATH"
 
     // TEST SHOW
 
@@ -440,6 +441,7 @@ public enum EnvKey: String, CaseIterable {
     // CACHE
 
     case cacheExternalOnly = "TUIST_CACHE_EXTERNAL_ONLY"
+    case cacheProfile = "TUIST_CACHE_PROFILE"
     case cacheGenerateOnly = "TUIST_CACHE_GENERATE_ONLY"
     case cachePrintHashes = "TUIST_CACHE_PRINT_HASHES"
     case cacheConfiguration = "TUIST_CACHE_CONFIGURATION"

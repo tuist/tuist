@@ -36,8 +36,11 @@ if config_env() == :prod do
 
       path ->
         File.mkdir_p!(Path.dirname(path))
-        suffix = 4 |> :crypto.strong_rand_bytes() |> Base.encode16(case: :lower)
+
+        suffix = Regex.replace(~r/[^A-Za-z0-9._-]/, System.fetch_env!("HOSTNAME"), "-")
+
         unique_path = Path.rootname(path) <> "-#{suffix}" <> Path.extname(path)
+        _ = File.rm(unique_path)
         Application.put_env(:cache, :socket_path, unique_path)
 
         [

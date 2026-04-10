@@ -1,0 +1,41 @@
+name: Search
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - search/**
+      - .github/workflows/search.yml
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - search/**
+      - .github/workflows/search.yml
+  merge_group: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: search-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: search
+
+jobs:
+  build:
+    name: Build and health check
+    runs-on: namespace-profile-default
+    timeout-minutes: 10
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
+          working_directory: search
+      - name: Build and verify health
+        run: mise run test

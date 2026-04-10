@@ -10,7 +10,7 @@
 > [!WARNING]
 > **Requirements**
 >
-> - The <LocalizedLink href="/guides/install-gradle-plugin">Tuist Gradle plugin</LocalizedLink> installed and configured
+> - The <.localized_link href="/guides/install-gradle-plugin">Tuist Gradle plugin</.localized_link> installed and configured
 
 
 Flaky tests are tests that produce different results (pass or fail) when run multiple times with the same code. They erode trust in your test suite and waste developer time investigating false failures. Tuist automatically detects flaky tests and helps you track them over time.
@@ -100,4 +100,4 @@ When `enabled` is not set, it defaults to auto-detection: enabled on CI, disable
 
 ## Slack notifications {#slack-notifications}
 
-Get notified instantly when a test becomes flaky by setting up <LocalizedLink href="/guides/integrations/slack#flaky-test-alerts">flaky test alerts</LocalizedLink> in your Slack integration.
+Get notified instantly when a test becomes flaky by setting up <.localized_link href="/guides/integrations/slack#flaky-test-alerts">flaky test alerts</.localized_link> in your Slack integration.

@@ -25,7 +25,8 @@ public protocol ShardServicing {
         shardIndex: Int,
         fullHandle: String,
         serverURL: URL,
-        testProductsPath: AbsolutePath?
+        testProductsPath: AbsolutePath?,
+        testProductsArchivePath: AbsolutePath?
     ) async throws -> Shard
 }
 
@@ -75,7 +76,8 @@ public struct ShardService: ShardServicing {
         shardIndex: Int,
         fullHandle: String,
         serverURL: URL,
-        testProductsPath: AbsolutePath? = nil
+        testProductsPath: AbsolutePath? = nil,
+        testProductsArchivePath: AbsolutePath? = nil
     ) async throws -> Shard {
         guard let reference = ciController.ciInfo()?.shardReference else {
             throw ShardServiceError.cannotDeriveReference
@@ -104,6 +106,11 @@ public struct ShardService: ShardServicing {
         if let testProductsPath {
             resolvedTestProductsPath = testProductsPath
             Logger.current.debug("Using local test products at \(testProductsPath.pathString)")
+        } else if let testProductsArchivePath {
+            let extractedTestProductsPath = try await fileSystem.makeTemporaryDirectory(prefix: "tuist-shard-unzip")
+            try await appleArchiver.decompress(archive: testProductsArchivePath, to: extractedTestProductsPath)
+            resolvedTestProductsPath = try await normalizeExtractedTestProductsPath(extractedTestProductsPath)
+            Logger.current.debug("Extracted local shard archive to \(resolvedTestProductsPath.pathString)")
         } else {
             guard let downloadURL = URL(string: shard.download_url) else {
                 throw ShardServiceError.invalidDownloadURL(shard.download_url)
@@ -111,9 +118,10 @@ public struct ShardService: ShardServicing {
             let shardArchivePath = try await fileClient.download(url: downloadURL)
             Logger.current.debug("Downloaded test products bundle.")
 
-            resolvedTestProductsPath = try await fileSystem.makeTemporaryDirectory(prefix: "tuist-shard-unzip")
-            try await appleArchiver.decompress(archive: shardArchivePath, to: resolvedTestProductsPath)
+            let extractedTestProductsPath = try await fileSystem.makeTemporaryDirectory(prefix: "tuist-shard-unzip")
+            try await appleArchiver.decompress(archive: shardArchivePath, to: extractedTestProductsPath)
             try? await fileSystem.remove(shardArchivePath)
+            resolvedTestProductsPath = try await normalizeExtractedTestProductsPath(extractedTestProductsPath)
             Logger.current.debug("Extracted test products to \(resolvedTestProductsPath.pathString)")
         }
 
@@ -139,7 +147,7 @@ public struct ShardService: ShardServicing {
             try await fileSystem.writeText(plistString, at: destPath)
             xcTestRunPath = destPath
         } else {
-            try await fileSystem.writeText(plistString, at: xcTestRunSourcePath)
+            try await fileSystem.writeText(plistString, at: xcTestRunSourcePath, encoding: .utf8, options: [.overwrite])
         }
 
         let selectiveTestingGraphPath = resolvedTestProductsPath.appending(component: SelectiveTestingGraph.fileName)
@@ -159,6 +167,17 @@ public struct ShardService: ShardServicing {
             modules: shard.modules,
             selectiveTestingGraph: selectiveTestingGraph
         )
+    }
+
+    private func normalizeExtractedTestProductsPath(_ extractedPath: AbsolutePath) async throws -> AbsolutePath {
+        guard !extractedPath.basename.hasSuffix(".xctestproducts") else {
+            return extractedPath
+        }
+
+        let normalizedPath = extractedPath.parentDirectory
+            .appending(component: "\(extractedPath.basename).xctestproducts")
+        try await fileSystem.move(from: extractedPath, to: normalizedPath)
+        return normalizedPath
     }
 
     /// Filters xctestrun plist data using raw PropertyListSerialization rather than Decodable because we need

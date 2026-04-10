@@ -14,6 +14,7 @@ import TuistGit
 import TuistLoader
 import TuistServer
 import TuistSupport
+import TuistXCActivityLog
 import TuistXCResultService
 import XcodeGraph
 import XCResultParser
@@ -47,7 +48,10 @@ final class TestServiceTests: TuistUnitTestCase {
     private var testQuarantineService: MockTestQuarantineServicing!
     private var serverEnvironmentService: MockServerEnvironmentServicing!
     private var shardPlanService: MockShardPlanServicing!
+    private var shardMatrixOutputService: MockShardMatrixOutputServicing!
     private var shardService: MockShardServicing!
+    private var xcActivityLogController: MockXCActivityLogControlling!
+    private var uploadBuildRunService: MockUploadBuildRunServicing!
 
     override func setUpWithError() throws {
         try super.setUpWithError()
@@ -70,7 +74,14 @@ final class TestServiceTests: TuistUnitTestCase {
         testQuarantineService = .init()
         serverEnvironmentService = .init()
         shardPlanService = .init()
+        shardMatrixOutputService = .init()
         shardService = .init()
+        xcActivityLogController = .init()
+        uploadBuildRunService = .init()
+
+        given(xcActivityLogController)
+            .mostRecentActivityLogFile(projectDerivedDataDirectory: .any, filter: .any)
+            .willReturn(nil)
 
         cacheStorageFactory = MockCacheStorageFactorying()
         given(cacheStorageFactory)
@@ -140,6 +151,9 @@ final class TestServiceTests: TuistUnitTestCase {
         given(testQuarantineService)
             .onlyQuarantinedTestsFailed(testStatuses: .any, quarantinedTests: .any)
             .willReturn(false)
+        given(shardMatrixOutputService)
+            .output(.any)
+            .willReturn()
 
         given(uploadResultBundleService)
             .uploadTestSummary(
@@ -184,7 +198,10 @@ final class TestServiceTests: TuistUnitTestCase {
             ciController: ciController,
             testQuarantineService: testQuarantineService,
             shardPlanService: shardPlanService,
-            shardService: shardService
+            shardMatrixOutputService: shardMatrixOutputService,
+            shardService: shardService,
+            xcActivityLogController: xcActivityLogController,
+            uploadBuildRunService: uploadBuildRunService
         )
 
         given(simulatorController)
@@ -962,6 +979,132 @@ final class TestServiceTests: TuistUnitTestCase {
             // Then
             XCTAssertEmpty(testedSchemes)
             XCTAssertStandardOutput(pattern: "There are no tests to run, finishing early")
+        }
+    }
+
+    func test_writes_empty_shard_matrix_when_all_tests_are_cached_and_sharding_is_enabled() async throws {
+        try await withMockedDependencies {
+            // Given
+            givenGenerator()
+            var environment = MapperEnvironment()
+            environment.initialGraph = .test(
+                projects: [
+                    try temporaryPath(): .test(schemes: [.test(name: "ProjectSchemeOne")]),
+                ]
+            )
+            given(configLoader)
+                .loadConfig(path: .any)
+                .willReturn(.test(project: .testGeneratedProject()))
+            given(generator)
+                .generateWithGraph(path: .any, options: .any)
+                .willProduce { path, _ in
+                    (
+                        path,
+                        .test(),
+                        environment
+                    )
+                }
+            given(shardMatrixOutputService)
+                .output(.any)
+                .willReturn()
+
+            // When
+            try await testRun(
+                path: try temporaryPath(),
+                action: .build,
+                shardTotal: 2
+            )
+
+            // Then
+            XCTAssertEmpty(testedSchemes)
+            verify(shardMatrixOutputService)
+                .output(.any)
+                .called(1)
+        }
+    }
+
+    func test_writes_empty_shard_matrix_when_scheme_is_in_initial_graph_only_and_sharding_is_enabled() async throws {
+        try await withMockedDependencies {
+            // Given
+            givenGenerator()
+            var environment = MapperEnvironment()
+            environment.initialGraph = .test(
+                projects: [
+                    try temporaryPath(): .test(schemes: [.test(name: "ProjectSchemeOne")]),
+                ]
+            )
+            given(configLoader)
+                .loadConfig(path: .any)
+                .willReturn(.test(project: .testGeneratedProject()))
+            given(generator)
+                .generateWithGraph(path: .any, options: .any)
+                .willProduce { path, _ in
+                    (
+                        path,
+                        .test(),
+                        environment
+                    )
+                }
+            given(shardMatrixOutputService)
+                .output(.any)
+                .willReturn()
+
+            // When
+            try await testRun(
+                schemeName: "ProjectSchemeOne",
+                path: try temporaryPath(),
+                action: .build,
+                shardTotal: 2
+            )
+
+            // Then
+            XCTAssertEmpty(testedSchemes)
+            verify(shardMatrixOutputService)
+                .output(.any)
+                .called(1)
+        }
+    }
+
+    func test_writes_empty_shard_matrix_when_scheme_has_no_test_targets_and_sharding_is_enabled() async throws {
+        try await withMockedDependencies {
+            // Given
+            givenGenerator()
+            given(buildGraphInspector)
+                .testableSchemes(graphTraverser: .any)
+                .willReturn([])
+            given(generator)
+                .generateWithGraph(path: .any, options: .any)
+                .willProduce { path, _ in
+                    (
+                        path,
+                        .test(
+                            workspace: .test(schemes: [
+                                .test(name: "ProjectSchemeOne", testAction: .test(targets: [])),
+                            ])
+                        ),
+                        MapperEnvironment()
+                    )
+                }
+            given(configLoader)
+                .loadConfig(path: .any)
+                .willReturn(.test(project: .testGeneratedProject()))
+            given(shardMatrixOutputService)
+                .output(.any)
+                .willReturn()
+
+            // When
+            try await testRun(
+                schemeName: "ProjectSchemeOne",
+                path: try temporaryPath(),
+                action: .build,
+                shardTotal: 2
+            )
+
+            // Then
+            XCTAssertEmpty(testedSchemes)
+            verify(shardMatrixOutputService)
+                .output(.any)
+                .called(1)
         }
     }
 
@@ -3238,6 +3381,155 @@ final class TestServiceTests: TuistUnitTestCase {
             .called(1)
     }
 
+    func test_run_build_passesShardArchivePathToShardPlanService() async throws {
+        // Given
+        givenGenerator()
+        let path = try temporaryPath()
+        let testProductsPath = path.appending(component: "TestProducts.xctestproducts")
+        let shardArchivePath = path.appending(components: "artifacts", "bundle.aar")
+        let projectPath = AbsolutePath.root.appending(component: "Project")
+        let scheme = Scheme.test(name: "ProjectScheme")
+        let graph: Graph = .test(
+            workspace: .test(schemes: [scheme]),
+            projects: [
+                projectPath: .test(
+                    path: projectPath,
+                    targets: [
+                        .test(name: "AppTests", product: .unitTests),
+                    ]
+                ),
+            ]
+        )
+        try await fileSystem.makeDirectory(at: testProductsPath)
+
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject(), fullHandle: "tuist/tuist"))
+
+        given(generator)
+            .generateWithGraph(path: .any, options: .any)
+            .willProduce { path, _ in
+                (
+                    path, graph,
+                    MapperEnvironment()
+                )
+            }
+
+        given(buildGraphInspector)
+            .workspaceSchemes(graphTraverser: .any)
+            .willReturn([scheme])
+
+        given(shardPlanService)
+            .plan(
+                xctestproductsPath: .any,
+                destination: .any,
+                reference: .any,
+                shardGranularity: .any,
+                shardMin: .any,
+                shardMax: .any,
+                shardTotal: .any,
+                shardMaxDuration: .any,
+                fullHandle: .any,
+                serverURL: .any,
+                buildRunId: .any,
+                skipUpload: .any,
+                archivePath: .any
+            )
+            .willReturn(
+                Components.Schemas.ShardPlan(
+                    id: "plan-id",
+                    reference: "ref",
+                    shard_count: 2,
+                    shards: []
+                )
+            )
+
+        // When
+        try await testRun(
+            path: path,
+            platform: "iOS",
+            action: .build,
+            passthroughXcodeBuildArguments: ["-testProductsPath", testProductsPath.pathString],
+            shardTotal: 2,
+            shardArchivePath: shardArchivePath
+        )
+
+        // Then
+        verify(shardPlanService)
+            .plan(
+                xctestproductsPath: .value(testProductsPath),
+                destination: .value("platform=iOS"),
+                reference: .any,
+                shardGranularity: .any,
+                shardMin: .any,
+                shardMax: .any,
+                shardTotal: .value(2),
+                shardMaxDuration: .any,
+                fullHandle: .value("tuist/tuist"),
+                serverURL: .any,
+                buildRunId: .any,
+                skipUpload: .value(false),
+                archivePath: .value(shardArchivePath)
+            )
+            .called(1)
+    }
+
+    func test_run_testWithoutBuilding_passesShardArchivePathToShardService() async throws {
+        // Given
+        let path = try temporaryPath()
+        let shardArchivePath = path.appending(component: "bundle.aar")
+        let extractedTestProductsPath = path.appending(component: "Extracted.xctestproducts")
+        try await fileSystem.makeDirectory(at: extractedTestProductsPath)
+
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject(), fullHandle: "tuist/tuist"))
+
+        given(shardService)
+            .shard(
+                shardIndex: .any,
+                fullHandle: .any,
+                serverURL: .any,
+                testProductsPath: .any,
+                testProductsArchivePath: .any
+            )
+            .willReturn(
+                Shard(
+                    reference: "ref",
+                    shardPlanId: "plan-123",
+                    testProductsPath: extractedTestProductsPath,
+                    xcTestRunPath: nil,
+                    modules: ["AppTests"],
+                    selectiveTestingGraph: nil
+                )
+            )
+
+        given(xcodebuildController)
+            .run(arguments: .any)
+            .willReturn()
+
+        // When
+        try await AlertController.$current.withValue(AlertController()) {
+            try await testRun(
+                path: path,
+                action: .testWithoutBuilding,
+                shardIndex: 1,
+                shardArchivePath: shardArchivePath
+            )
+        }
+
+        // Then
+        verify(shardService)
+            .shard(
+                shardIndex: .value(1),
+                fullHandle: .value("tuist/tuist"),
+                serverURL: .any,
+                testProductsPath: .value(nil),
+                testProductsArchivePath: .value(shardArchivePath)
+            )
+            .called(1)
+    }
+
     fileprivate func testRun(
         runId: String = "run-id",
         schemeName: String? = nil,
@@ -3260,7 +3552,15 @@ final class TestServiceTests: TuistUnitTestCase {
         testPlanConfiguration: TestPlanConfiguration? = nil,
         generateOnly: Bool = false,
         passthroughXcodeBuildArguments: [String] = [],
-        skipQuarantine: Bool = false
+        skipQuarantine: Bool = false,
+        shardReference: String? = nil,
+        shardMin: Int? = nil,
+        shardMax: Int? = nil,
+        shardTotal: Int? = nil,
+        shardMaxDuration: Int? = nil,
+        shardIndex: Int? = nil,
+        shardSkipUpload: Bool = false,
+        shardArchivePath: AbsolutePath? = nil
     ) async throws {
         try await RunMetadataStorage.$current.withValue(runMetadataStorage) {
             try await subject.run(
@@ -3287,7 +3587,15 @@ final class TestServiceTests: TuistUnitTestCase {
                 ignoreSelectiveTesting: false,
                 generateOnly: generateOnly,
                 passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
-                skipQuarantine: skipQuarantine
+                skipQuarantine: skipQuarantine,
+                shardReference: shardReference,
+                shardMin: shardMin,
+                shardMax: shardMax,
+                shardTotal: shardTotal,
+                shardMaxDuration: shardMaxDuration,
+                shardIndex: shardIndex,
+                shardSkipUpload: shardSkipUpload,
+                shardArchivePath: shardArchivePath
             )
         }
     }
