@@ -155,6 +155,11 @@ defmodule TuistWeb.API.TestCaseRunAttachmentsController do
              type: :integer,
              nullable: true,
              description: "The repetition number (attempt) this attachment belongs to."
+           },
+           test_case_run_argument_id: %Schema{
+             type: :string,
+             nullable: true,
+             description: "The UUID of the argument this attachment belongs to (for parameterized tests)."
            }
          },
          required: [:test_case_run_id, :file_name]
@@ -193,9 +198,15 @@ defmodule TuistWeb.API.TestCaseRunAttachmentsController do
           inserted_at: NaiveDateTime.utc_now()
         },
         fn attrs ->
-          case Map.get(body_params, :repetition_number) do
+          attrs =
+            case Map.get(body_params, :repetition_number) do
+              nil -> attrs
+              repetition_number -> Map.put(attrs, :repetition_number, repetition_number)
+            end
+
+          case Map.get(body_params, :test_case_run_argument_id) do
             nil -> attrs
-            repetition_number -> Map.put(attrs, :repetition_number, repetition_number)
+            argument_id -> Map.put(attrs, :test_case_run_argument_id, argument_id)
           end
         end
       )

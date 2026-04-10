@@ -8,12 +8,13 @@ public struct TestCase: Encodable, Sendable {
     public let status: TestStatus
     public let failures: [TestCaseFailure]
     public let repetitions: [TestCaseRepetition]
+    public let arguments: [TestCaseArgument]
     public var crashReport: CrashReport?
     public var attachments: [TestAttachment]
     public var isQuarantined: Bool
 
     enum CodingKeys: String, CodingKey {
-        case name, module, duration, status, failures, repetitions, attachments
+        case name, module, duration, status, failures, repetitions, arguments, attachments
         case testSuite = "test_suite_name"
         case crashReport = "crash_report"
         case isQuarantined = "is_quarantined"
@@ -27,6 +28,7 @@ public struct TestCase: Encodable, Sendable {
         status: TestStatus,
         failures: [TestCaseFailure],
         repetitions: [TestCaseRepetition] = [],
+        arguments: [TestCaseArgument] = [],
         crashReport: CrashReport? = nil,
         attachments: [TestAttachment] = [],
         isQuarantined: Bool = false
@@ -38,6 +40,7 @@ public struct TestCase: Encodable, Sendable {
         self.status = status
         self.failures = failures
         self.repetitions = repetitions
+        self.arguments = arguments
         self.crashReport = crashReport
         self.attachments = attachments
         self.isQuarantined = isQuarantined

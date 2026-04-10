@@ -142,9 +142,44 @@ import TuistHTTP
                                 )
                         }
 
+                    let arguments = testCase.arguments.map { argument in
+                        let argFailures = argument.failures.map { failure in
+                            Operations.createTest.Input.Body.jsonPayload
+                                .test_modulesPayloadPayload
+                                .test_casesPayloadPayload.argumentsPayloadPayload
+                                .failuresPayloadPayload(
+                                    issue_type: mapArgumentIssueType(failure.issueType),
+                                    line_number: failure.lineNumber,
+                                    message: failure.message,
+                                    path: failure.path?.pathString
+                                )
+                        }
+                        let argRepetitions = argument.repetitions.map { repetition in
+                            Operations.createTest.Input.Body.jsonPayload
+                                .test_modulesPayloadPayload
+                                .test_casesPayloadPayload.argumentsPayloadPayload
+                                .repetitionsPayloadPayload(
+                                    duration: repetition.duration,
+                                    name: repetition.name,
+                                    repetition_number: repetition.repetitionNumber,
+                                    status: argumentRepetitionStatusToServerStatus(repetition.status)
+                                )
+                        }
+                        return Operations.createTest.Input.Body.jsonPayload
+                            .test_modulesPayloadPayload
+                            .test_casesPayloadPayload.argumentsPayloadPayload(
+                                duration: argument.duration,
+                                failures: argFailures,
+                                name: argument.name,
+                                repetitions: argRepetitions,
+                                status: argument.status == .failed ? .failure : .success
+                            )
+                    }
+
                     return Operations.createTest.Input.Body.jsonPayload
                         .test_modulesPayloadPayload
                         .test_casesPayloadPayload(
+                            arguments: arguments,
                             duration: testCase.duration ?? 0,
                             failures: failures,
                             is_quarantined: testCase.isQuarantined,
@@ -306,6 +341,35 @@ import TuistHTTP
             -> Operations.createTest.Input.Body.jsonPayload
             .test_modulesPayloadPayload.test_casesPayloadPayload.repetitionsPayloadPayload
             .statusPayload
+        {
+            switch status {
+            case .passed, .skipped, .processing:
+                return .success
+            case .failed:
+                return .failure
+            }
+        }
+
+        private func mapArgumentIssueType(_ issueType: TestCaseFailure.IssueType?) -> Operations.createTest
+            .Input.Body.jsonPayload
+            .test_modulesPayloadPayload.test_casesPayloadPayload.argumentsPayloadPayload
+            .failuresPayloadPayload.issue_typePayload?
+        {
+            guard let issueType else { return nil }
+            switch issueType {
+            case .errorThrown:
+                return .error_thrown
+            case .assertionFailure:
+                return .assertion_failure
+            case .issueRecorded:
+                return .issue_recorded
+            }
+        }
+
+        private func argumentRepetitionStatusToServerStatus(_ status: TestStatus)
+            -> Operations.createTest.Input.Body.jsonPayload
+            .test_modulesPayloadPayload.test_casesPayloadPayload.argumentsPayloadPayload
+            .repetitionsPayloadPayload.statusPayload
         {
             switch status {
             case .passed, .skipped, .processing:
