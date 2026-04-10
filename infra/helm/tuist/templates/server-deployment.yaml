@@ -26,6 +26,7 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      serviceAccountName: {{ include "tuist.serviceAccountName" . }}
 {{ include "tuist.podScheduling" . | nindent 6 }}
       containers:
         - name: server
