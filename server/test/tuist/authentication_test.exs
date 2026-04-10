@@ -100,7 +100,7 @@ defmodule Tuist.AuthenticationTest do
     assert account_id == account.id
   end
 
-  test "refresh/2 refreshes an account JWT without crashing" do
+  test "refresh/2 refreshes an account JWT" do
     # Given
     account = AccountsFixtures.organization_fixture(preload: [:account]).account
 
