@@ -58,6 +58,7 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
     spec:
+{{ include "tuist.podScheduling" . | nindent 6 }}
       containers:
         - name: clickhouse
           image: "{{ .Values.clickhouse.embedded.image.repository }}:{{ .Values.clickhouse.embedded.image.tag }}"
@@ -114,6 +115,7 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
     spec:
+{{ include "tuist.podScheduling" . | nindent 6 }}
       restartPolicy: OnFailure
       containers:
         - name: clickhouse-init

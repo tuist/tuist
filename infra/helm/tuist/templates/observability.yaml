@@ -77,6 +77,7 @@ spec:
       labels:
         {{- include "tuist.componentLabels" (dict "root" . "component" "otel-collector") | nindent 8 }}
     spec:
+{{ include "tuist.podScheduling" . | nindent 6 }}
       containers:
         - name: otel-collector
           image: "{{ .Values.observability.collector.image.repository }}:{{ .Values.observability.collector.image.tag }}"
@@ -148,6 +149,7 @@ spec:
       labels:
         {{- include "tuist.componentLabels" (dict "root" . "component" "prometheus") | nindent 8 }}
     spec:
+{{ include "tuist.podScheduling" . | nindent 6 }}
       containers:
         - name: prometheus
           image: "{{ .Values.observability.prometheus.image.repository }}:{{ .Values.observability.prometheus.image.tag }}"
@@ -200,6 +202,7 @@ spec:
       labels:
         {{- include "tuist.componentLabels" (dict "root" . "component" "loki") | nindent 8 }}
     spec:
+{{ include "tuist.podScheduling" . | nindent 6 }}
       containers:
         - name: loki
           image: "{{ .Values.observability.loki.image.repository }}:{{ .Values.observability.loki.image.tag }}"
@@ -291,6 +294,7 @@ spec:
       labels:
         {{- include "tuist.componentLabels" (dict "root" . "component" "tempo") | nindent 8 }}
     spec:
+{{ include "tuist.podScheduling" . | nindent 6 }}
       containers:
         - name: tempo
           image: "{{ .Values.observability.tempo.image.repository }}:{{ .Values.observability.tempo.image.tag }}"
@@ -374,6 +378,7 @@ spec:
       labels:
         {{- include "tuist.componentLabels" (dict "root" . "component" "grafana") | nindent 8 }}
     spec:
+{{ include "tuist.podScheduling" . | nindent 6 }}
       containers:
         - name: grafana
           image: "{{ .Values.observability.grafana.image.repository }}:{{ .Values.observability.grafana.image.tag }}"

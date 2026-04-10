@@ -30,6 +30,7 @@ spec:
       labels:
         {{- include "tuist.componentLabels" (dict "root" . "component" "postgresql") | nindent 8 }}
     spec:
+{{ include "tuist.podScheduling" . | nindent 6 }}
       containers:
         - name: postgresql
           image: "{{ .Values.postgresql.embedded.image.repository }}:{{ .Values.postgresql.embedded.image.tag }}"

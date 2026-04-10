@@ -5,6 +5,8 @@ global:
   imagePullSecrets: []
   commonLabels: {}
   podLabels: {}
+  nodeSelector: {}
+  tolerations: []
 
 server:
   enabled: true
