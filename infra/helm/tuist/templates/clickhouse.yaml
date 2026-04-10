@@ -35,7 +35,7 @@ spec:
       port: 8123
       targetPort: 8123
     - name: native
-      port: 9000
+      port: 9100
       targetPort: 9000
 ---
 apiVersion: apps/v1
@@ -127,8 +127,8 @@ spec:
             - /bin/sh
             - -ec
             - |
-              until clickhouse-client --host {{ include "tuist.componentName" (dict "root" . "component" "clickhouse") }} --query "SELECT 1"; do
+              until clickhouse-client --host {{ include "tuist.componentName" (dict "root" . "component" "clickhouse") }} --port 9100 --query "SELECT 1"; do
                 sleep 2
               done
-              clickhouse-client --host {{ include "tuist.componentName" (dict "root" . "component" "clickhouse") }} --query "CREATE DATABASE IF NOT EXISTS {{ .Values.clickhouse.embedded.database }}"
+              clickhouse-client --host {{ include "tuist.componentName" (dict "root" . "component" "clickhouse") }} --port 9100 --query "CREATE DATABASE IF NOT EXISTS {{ .Values.clickhouse.embedded.database }}"
 {{- end }}
