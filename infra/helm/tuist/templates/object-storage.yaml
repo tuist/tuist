@@ -36,6 +36,7 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
     spec:
+{{ include "tuist.podScheduling" . | nindent 6 }}
       containers:
         - name: minio
           image: "{{ .Values.objectStorage.embedded.image.repository }}:{{ .Values.objectStorage.embedded.image.tag }}"
@@ -101,6 +102,7 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
     spec:
+{{ include "tuist.podScheduling" . | nindent 6 }}
       restartPolicy: OnFailure
       containers:
         - name: bucket-init

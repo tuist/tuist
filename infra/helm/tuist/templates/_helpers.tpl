@@ -34,6 +34,20 @@ app.kubernetes.io/component: {{ .component }}
 {{ include "tuist.fullname" .root }}-{{ .component }}
 {{- end -}}
 
+{{/*
+Optional nodeSelector and tolerations for all pod specs (e.g. tainted node pools).
+*/}}
+{{- define "tuist.podScheduling" -}}
+{{- with .Values.global.nodeSelector }}
+nodeSelector:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- with .Values.global.tolerations }}
+tolerations:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- end }}
+
 {{- define "tuist.objectStorageEndpoint" -}}
 {{- if eq .Values.objectStorage.mode "embedded" -}}
 http://{{ include "tuist.componentName" (dict "root" . "component" "object-storage") }}:9000
