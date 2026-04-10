@@ -7,6 +7,7 @@ public struct StaticXCFrameworkAppIntentsMetadataGraphMapper: GraphMapping {
         static let scriptName = "Prepare App Intents Metadata for Static XCFrameworks"
         static let metadataFile = "${TARGET_TEMP_DIR}/${TARGET_NAME}.DependencyMetadataFileList"
         static let staticMetadataFile = "${TARGET_TEMP_DIR}/${TARGET_NAME}.DependencyStaticMetadataFileList"
+        static let stampFile = "${DERIVED_FILE_DIR}/tuist-static-xcframework-app-intents.stamp"
     }
 
     private let fileSystem: FileSysteming
@@ -71,25 +72,29 @@ public struct StaticXCFrameworkAppIntentsMetadataGraphMapper: GraphMapping {
         let script = """
         METADATA_FILE="\(Constants.metadataFile)"
         STATIC_METADATA_FILE="\(Constants.staticMetadataFile)"
+        STAMP_FILE="\(Constants.stampFile)"
 
         mkdir -p "$(dirname "$METADATA_FILE")"
+        mkdir -p "$(dirname "$STAMP_FILE")"
         touch "$METADATA_FILE" "$STATIC_METADATA_FILE"
 
         \(dependenciesScript)
+
+        : > "$STAMP_FILE"
         """
 
-        // The dependency file lists are also produced by Xcode's native App Intents metadata
-        // build phase on targets that contain their own App Intents sources. Declaring them as
-        // outputs here would make the build fail with "Multiple commands produce …". We instead
-        // append to the existing file lists without declaring them as outputs.
+        // The Dependency(Static)MetadataFileList paths are also written by Xcode's native
+        // App Intents build phase on targets with their own App Intents sources. Declaring them
+        // as outputs here triggers "Multiple commands produce …" errors, so we append to them
+        // in-place and use a target-local stamp file as the script's declared output instead.
         return TargetScript(
             name: Constants.scriptName,
             order: .pre,
             script: .embedded(script),
             inputPaths: dependencies.flatMap(\.inputPaths),
-            outputPaths: [],
+            outputPaths: [Constants.stampFile],
             showEnvVarsInLog: false,
-            basedOnDependencyAnalysis: false
+            basedOnDependencyAnalysis: true
         )
     }
 
