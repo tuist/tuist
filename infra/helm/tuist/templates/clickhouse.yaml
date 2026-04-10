@@ -54,6 +54,9 @@ spec:
     metadata:
       labels:
         {{- include "tuist.componentLabels" (dict "root" . "component" "clickhouse") | nindent 8 }}
+        {{- with .Values.global.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
     spec:
       containers:
         - name: clickhouse
@@ -107,6 +110,9 @@ spec:
     metadata:
       labels:
         {{- include "tuist.componentLabels" (dict "root" . "component" "clickhouse-init") | nindent 8 }}
+        {{- with .Values.global.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
     spec:
       restartPolicy: OnFailure
       containers:
