@@ -30,6 +30,7 @@ defmodule Tuist.OAuth2.AuthCodeBasicAuth do
     end
 
     client
+    |> put_header("Accept", "application/json")
     |> put_param(:code, code)
     |> put_param(:grant_type, "authorization_code")
     |> put_param(:redirect_uri, client.redirect_uri)
