@@ -35,6 +35,7 @@ defmodule Tuist.Tests.TestCase do
     field :last_ran_at, Ch, type: "DateTime64(6)"
     field :is_flaky, :boolean, default: false
     field :is_quarantined, :boolean, default: false
+    field :last_run_id, Ch, type: "Nullable(UUID)"
     field :inserted_at, Ch, type: "DateTime64(6)"
     field :recent_durations, Ch, type: "Array(Int32)"
     field :avg_duration, Ch, type: "Int64"
@@ -53,6 +54,7 @@ defmodule Tuist.Tests.TestCase do
       :last_ran_at,
       :is_flaky,
       :is_quarantined,
+      :last_run_id,
       :inserted_at,
       :recent_durations,
       :avg_duration

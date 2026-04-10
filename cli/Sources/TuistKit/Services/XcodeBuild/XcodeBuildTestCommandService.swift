@@ -70,6 +70,7 @@ struct XcodeBuildTestCommandService {
         passthroughXcodebuildArguments: [String],
         skipQuarantine: Bool = false,
         shardIndex: Int? = nil,
+        shardArchivePath: AbsolutePath? = nil,
         mode: TestProcessingMode = .local
     ) async throws {
         var passthroughXcodebuildArguments = passthroughXcodebuildArguments
@@ -98,7 +99,8 @@ struct XcodeBuildTestCommandService {
                 shardIndex: shardIndex,
                 fullHandle: fullHandle,
                 serverURL: serverURL,
-                testProductsPath: testProductsPath
+                testProductsPath: testProductsPath,
+                testProductsArchivePath: shardArchivePath
             )
             shardPlanId = shard.shardPlanId
 
@@ -346,13 +348,16 @@ struct XcodeBuildTestCommandService {
                 )
             case .remote:
                 guard let resultBundlePath else { return }
+                let buildRunId = await RunMetadataStorage.current.buildRunId
                 let test = try await uploadResultBundleService.uploadResultBundle(
                     resultBundlePath: resultBundlePath,
                     config: config,
                     quarantinedTests: quarantinedTests,
+                    buildRunId: buildRunId,
                     shardPlanId: shardPlanId,
                     shardIndex: shardIndex
                 )
+                await RunMetadataStorage.current.update(testRunId: test.id)
                 AlertController.current.success(
                     .alert("Result bundle uploaded for processing. View at \(test.url)")
                 )

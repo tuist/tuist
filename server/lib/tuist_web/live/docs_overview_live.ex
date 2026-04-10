@@ -190,11 +190,11 @@ defmodule TuistWeb.DocsOverviewLive do
               patch={docs_path("/en/guides/features/cache/module-cache")}
               data-part="feature-card"
             >
-              <div data-part="feature-card-image">
-                <span data-part="feature-card-icon"><.database /></span>
-                <span data-part="feature-card-title">Cache</span>
+              <div data-part="image">
+                <span data-part="icon"><.database /></span>
+                <span data-part="title">Cache</span>
               </div>
-              <div data-part="feature-card-body">
+              <div data-part="body">
                 <p>
                   Speeds up builds by caching compiled modules, cutting down load times in both local development and CI workflows.
                 </p>
@@ -204,11 +204,11 @@ defmodule TuistWeb.DocsOverviewLive do
               patch={docs_path("/en/guides/features/builds/insights")}
               data-part="feature-card"
             >
-              <div data-part="feature-card-image">
-                <span data-part="feature-card-icon"><.search /></span>
-                <span data-part="feature-card-title">Insights</span>
+              <div data-part="image">
+                <span data-part="icon"><.search /></span>
+                <span data-part="title">Insights</span>
               </div>
-              <div data-part="feature-card-body">
+              <div data-part="body">
                 <p>
                   Monitor build performance across your CI infrastructure to catch slowdowns before they impact development.
                 </p>
@@ -228,11 +228,11 @@ defmodule TuistWeb.DocsOverviewLive do
               patch={docs_path("/en/guides/features/tests/selective-testing")}
               data-part="feature-card"
             >
-              <div data-part="feature-card-image">
-                <span data-part="feature-card-icon"><.subtask /></span>
-                <span data-part="feature-card-title">Selective Testing</span>
+              <div data-part="image">
+                <span data-part="icon"><.subtask /></span>
+                <span data-part="title">Selective Testing</span>
               </div>
-              <div data-part="feature-card-body">
+              <div data-part="body">
                 <p>
                   Run only the tests that matter by detecting changes since your last successful run, cutting down test times both locally and on CI.
                 </p>
@@ -242,22 +242,22 @@ defmodule TuistWeb.DocsOverviewLive do
               patch={docs_path("/en/guides/features/tests/flaky-tests")}
               data-part="feature-card"
             >
-              <div data-part="feature-card-image">
-                <span data-part="feature-card-icon"><.progress_x /></span>
-                <span data-part="feature-card-title">Flaky Tests</span>
+              <div data-part="image">
+                <span data-part="icon"><.progress_x /></span>
+                <span data-part="title">Flaky Tests</span>
               </div>
-              <div data-part="feature-card-body">
+              <div data-part="body">
                 <p>
                   Automatically detect flaky tests that fail without code changes and save time spent investigating false failures.
                 </p>
               </div>
             </.link>
             <.link patch={docs_path("/en/guides/features/test-insights")} data-part="feature-card">
-              <div data-part="feature-card-image">
-                <span data-part="feature-card-icon"><.search /></span>
-                <span data-part="feature-card-title">Insights</span>
+              <div data-part="image">
+                <span data-part="icon"><.search /></span>
+                <span data-part="title">Insights</span>
               </div>
-              <div data-part="feature-card-body">
+              <div data-part="body">
                 <p>
                   Track test performance, catch slow tests early, and debug CI failures through real-time logs.
                 </p>
@@ -274,11 +274,11 @@ defmodule TuistWeb.DocsOverviewLive do
           </p>
           <div data-part="feature-cards">
             <.link patch={docs_path("/en/guides/features/previews")} data-part="feature-card">
-              <div data-part="feature-card-image">
-                <span data-part="feature-card-icon"><.devices /></span>
-                <span data-part="feature-card-title">Previews</span>
+              <div data-part="image">
+                <span data-part="icon"><.devices /></span>
+                <span data-part="title">Previews</span>
               </div>
-              <div data-part="feature-card-body">
+              <div data-part="body">
                 <p>
                   Share your app instantly with a URL, no TestFlight or setup needed, so others can run it on their device or simulator in seconds.
                 </p>

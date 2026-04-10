@@ -4,6 +4,7 @@ import Foundation
 import Mockable
 import Path
 import Testing
+import TuistAppleArchiver
 import TuistCI
 import TuistServer
 import TuistSupport
@@ -314,18 +315,21 @@ struct ShardServiceTests {
         let testProductsPath = temporaryDirectory.appending(component: "MyApp.xctestproducts")
         try await fileSystem.makeDirectory(at: testProductsPath)
 
-        let xctestrunData = try makePlist([
-            "TestConfigurations": [
-                [
-                    "TestTargets": [
-                        ["BlueprintName": "AppTests", "TestHostPath": "/path/to/host"],
-                        ["BlueprintName": "CoreTests", "TestHostPath": "/path/to/core"],
-                    ],
-                ],
-            ],
-        ])
         let xctestrunPath = testProductsPath.appending(component: "MyApp.xctestrun")
-        try xctestrunData.write(to: URL(fileURLWithPath: xctestrunPath.pathString))
+        try await fileSystem.writeAsPlist(
+            XCTestRunFixture(
+                testConfigurations: [
+                    .init(
+                        testTargets: [
+                            .init(blueprintName: "AppTests", testHostPath: "/path/to/host"),
+                            .init(blueprintName: "CoreTests", testHostPath: "/path/to/core"),
+                        ]
+                    ),
+                ]
+            ),
+            at: xctestrunPath,
+            encoder: plistEncoder()
+        )
 
         let ciController = MockCIControlling()
         given(ciController).ciInfo().willReturn(.test(provider: .github))
@@ -355,7 +359,8 @@ struct ShardServiceTests {
             shardIndex: 0,
             fullHandle: "org/project",
             serverURL: URL(string: "https://tuist.dev")!,
-            testProductsPath: testProductsPath
+            testProductsPath: testProductsPath,
+            testProductsArchivePath: nil
         )
 
         #expect(shard.testProductsPath == testProductsPath)
@@ -411,9 +416,93 @@ struct ShardServiceTests {
                 shardIndex: 0,
                 fullHandle: "org/project",
                 serverURL: URL(string: "https://tuist.dev")!,
-                testProductsPath: testProductsPath
+                testProductsPath: testProductsPath,
+                testProductsArchivePath: nil
             )
         }
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedDependencies())
+    func shard_withLocalTestProductsArchivePath_extractsArchiveAndFiltersXCTestRunInPlace() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let fileSystem = FileSystem()
+
+        let sourceProductsPath = temporaryDirectory.appending(component: "MyApp.xctestproducts")
+        try await fileSystem.makeDirectory(at: sourceProductsPath)
+
+        let originalXCTestRunPath = sourceProductsPath.appending(component: "MyApp.xctestrun")
+        try await fileSystem.writeAsPlist(
+            XCTestRunFixture(
+                testConfigurations: [
+                    .init(
+                        testTargets: [
+                            .init(blueprintName: "AppTests", testHostPath: "/path/to/host"),
+                            .init(blueprintName: "CoreTests", testHostPath: "/path/to/core"),
+                        ]
+                    ),
+                ]
+            ),
+            at: originalXCTestRunPath,
+            encoder: plistEncoder()
+        )
+        try await fileSystem.writeText("fixture", at: sourceProductsPath.appending(component: "file.txt"))
+
+        let archivePath = temporaryDirectory.appending(component: "bundle.aar")
+        try await AppleArchiver().compress(
+            directory: sourceProductsPath,
+            to: archivePath,
+            excludePatterns: []
+        )
+
+        let ciController = MockCIControlling()
+        given(ciController).ciInfo().willReturn(.test(provider: .github))
+
+        let getShardService = MockGetShardServicing()
+        given(getShardService).getShard(
+            fullHandle: .any,
+            serverURL: .any,
+            reference: .any,
+            shardIndex: .any
+        ).willReturn(
+            Components.Schemas.Shard(
+                download_url: "https://example.com/unused",
+                modules: ["AppTests"],
+                shard_plan_id: "plan-123",
+                suites: .init()
+            )
+        )
+
+        let subject = ShardService(
+            getShardService: getShardService,
+            ciController: ciController,
+            fileSystem: fileSystem
+        )
+
+        let shard = try await subject.shard(
+            shardIndex: 0,
+            fullHandle: "org/project",
+            serverURL: URL(string: "https://tuist.dev")!,
+            testProductsPath: nil,
+            testProductsArchivePath: archivePath
+        )
+
+        #expect(shard.xcTestRunPath == nil)
+        #expect(shard.modules == ["AppTests"])
+        #expect(shard.testProductsPath.basename.hasSuffix(".xctestproducts"))
+
+        let extractedXCTestRunPath = try #require(
+            try await fileSystem
+                .glob(directory: shard.testProductsPath, include: ["**/*.xctestrun"])
+                .collect()
+                .first
+        )
+        let filteredXCTestRunData = try await fileSystem.readFile(at: extractedXCTestRunPath)
+        let filteredPlist = try parsePlist(filteredXCTestRunData)
+        #expect(blueprintNames(from: filteredPlist) == ["AppTests"])
+
+        let extractedFilePath = shard.testProductsPath.appending(component: "file.txt")
+        let extractedContent = try await fileSystem.readTextFile(at: extractedFilePath)
+        #expect(extractedContent == "fixture")
     }
 
     // MARK: - Helpers
@@ -435,4 +524,36 @@ struct ShardServiceTests {
         let targets = config["TestTargets"] as? [[String: Any]] ?? []
         return targets.compactMap { $0["BlueprintName"] as? String }
     }
+}
+
+private struct XCTestRunFixture: Encodable {
+    let testConfigurations: [TestConfigurationFixture]
+
+    enum CodingKeys: String, CodingKey {
+        case testConfigurations = "TestConfigurations"
+    }
+}
+
+private struct TestConfigurationFixture: Encodable {
+    let testTargets: [TestTargetFixture]
+
+    enum CodingKeys: String, CodingKey {
+        case testTargets = "TestTargets"
+    }
+}
+
+private struct TestTargetFixture: Encodable {
+    let blueprintName: String
+    let testHostPath: String?
+
+    enum CodingKeys: String, CodingKey {
+        case blueprintName = "BlueprintName"
+        case testHostPath = "TestHostPath"
+    }
+}
+
+private func plistEncoder() -> PropertyListEncoder {
+    let encoder = PropertyListEncoder()
+    encoder.outputFormat = .xml
+    return encoder
 }

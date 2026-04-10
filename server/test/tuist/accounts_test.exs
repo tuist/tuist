@@ -3946,4 +3946,40 @@ defmodule Tuist.AccountsTest do
       assert endpoints == default_endpoints
     end
   end
+
+  describe "update_user_preferred_locale/2" do
+    test "sets a supported locale" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+
+      # When
+      {:ok, updated_user} = Accounts.update_user_preferred_locale(user, "es")
+
+      # Then
+      assert updated_user.preferred_locale == "es"
+    end
+
+    test "clears the locale when set to nil" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      {:ok, user} = Accounts.update_user_preferred_locale(user, "ja")
+
+      # When
+      {:ok, updated_user} = Accounts.update_user_preferred_locale(user, nil)
+
+      # Then
+      assert updated_user.preferred_locale == nil
+    end
+
+    test "returns an error for an unsupported locale" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+
+      # When
+      {:error, changeset} = Accounts.update_user_preferred_locale(user, "xx")
+
+      # Then
+      assert "is invalid" in errors_on(changeset).preferred_locale
+    end
+  end
 end

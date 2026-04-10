@@ -1,0 +1,124 @@
+{{- if eq .Values.clickhouse.mode "embedded" }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "clickhouse-config") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+data:
+  users.xml: |
+    <clickhouse>
+      <users>
+        <default>
+          <password>{{ .Values.clickhouse.embedded.password }}</password>
+          <networks>
+            <ip>::/0</ip>
+          </networks>
+          <profile>default</profile>
+          <quota>default</quota>
+          <access_management>1</access_management>
+        </default>
+      </users>
+    </clickhouse>
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "clickhouse") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+spec:
+  selector:
+    {{- include "tuist.componentLabels" (dict "root" . "component" "clickhouse") | nindent 4 }}
+  ports:
+    - name: http
+      port: 8123
+      targetPort: 8123
+    - name: native
+      port: 9000
+      targetPort: 9000
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "clickhouse") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+spec:
+  serviceName: {{ include "tuist.componentName" (dict "root" . "component" "clickhouse") }}
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "tuist.componentLabels" (dict "root" . "component" "clickhouse") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "tuist.componentLabels" (dict "root" . "component" "clickhouse") | nindent 8 }}
+    spec:
+      containers:
+        - name: clickhouse
+          image: "{{ .Values.clickhouse.embedded.image.repository }}:{{ .Values.clickhouse.embedded.image.tag }}"
+          imagePullPolicy: {{ .Values.clickhouse.embedded.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8123
+            - name: native
+              containerPort: 9000
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/clickhouse
+            - name: config
+              mountPath: /etc/clickhouse-server/users.d/users.xml
+              subPath: users.xml
+          readinessProbe:
+            httpGet:
+              path: /ping
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.clickhouse.embedded.resources | nindent 12 }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "tuist.componentName" (dict "root" . "component" "clickhouse-config") }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          {{- toYaml .Values.clickhouse.embedded.persistence.accessModes | nindent 10 }}
+        resources:
+          requests:
+            storage: {{ .Values.clickhouse.embedded.persistence.size }}
+        {{- if .Values.clickhouse.embedded.persistence.storageClassName }}
+        storageClassName: {{ .Values.clickhouse.embedded.persistence.storageClassName }}
+        {{- end }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "clickhouse-init") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+spec:
+  backoffLimit: 5
+  template:
+    metadata:
+      labels:
+        {{- include "tuist.componentLabels" (dict "root" . "component" "clickhouse-init") | nindent 8 }}
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: clickhouse-init
+          image: "{{ .Values.clickhouse.embedded.image.repository }}:{{ .Values.clickhouse.embedded.image.tag }}"
+          imagePullPolicy: {{ .Values.clickhouse.embedded.image.pullPolicy }}
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              until clickhouse-client --host {{ include "tuist.componentName" (dict "root" . "component" "clickhouse") }} --query "SELECT 1"; do
+                sleep 2
+              done
+              clickhouse-client --host {{ include "tuist.componentName" (dict "root" . "component" "clickhouse") }} --query "CREATE DATABASE IF NOT EXISTS {{ .Values.clickhouse.embedded.database }}"
+{{- end }}

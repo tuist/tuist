@@ -657,7 +657,7 @@
     background: var(--noora-surface-background-primary);
     padding: var(--noora-spacing-1);
 
-    &:focus-within {
+    &:has(:focus-visible) {
       box-shadow: var(--noora-border-light-focus);
     }
   }

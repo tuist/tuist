@@ -137,6 +137,7 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
                 components: [
                     Constants.SwiftPackageManager.packageBuildDirectoryName,
                     Constants.DerivedDirectory.dependenciesDerivedDirectory,
+                    Constants.DerivedDirectory.dependenciesXCFrameworkDirectory,
                 ]
             )
         } else {
@@ -145,6 +146,7 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
                     Constants.tuistDirectoryName,
                     Constants.SwiftPackageManager.packageBuildDirectoryName,
                     Constants.DerivedDirectory.dependenciesDerivedDirectory,
+                    Constants.DerivedDirectory.dependenciesXCFrameworkDirectory,
                 ]
             )
         }

@@ -21,12 +21,12 @@ tuist init
 <!-- -->
 :::
 
-The command will walk you through the steps to <LocalizedLink href="/guides/features/projects">create a generated project</LocalizedLink> or integrate an existing Xcode project or workspace. It helps you connect your setup to the remote server, giving you access to features like <LocalizedLink href="/guides/features/selective-testing">selective testing</LocalizedLink>, <LocalizedLink href="/guides/features/previews">previews</LocalizedLink>, and the <LocalizedLink href="/guides/features/registry">registry</LocalizedLink>.
+The command will walk you through the steps to <.localized_link href="/guides/features/projects">create a generated project</.localized_link> or integrate an existing Xcode project or workspace. It helps you connect your setup to the remote server, giving you access to features like <.localized_link href="/guides/features/selective-testing">selective testing</.localized_link>, <.localized_link href="/guides/features/previews">previews</.localized_link>, and the <.localized_link href="/guides/features/registry">registry</.localized_link>.
 
 > [!NOTE]
 > **Migrate An Existing Project**
 >
-> If you want to migrate an existing project to generated projects to improve the developer experience and take advantage of our <LocalizedLink href="/guides/features/cache">cache</LocalizedLink>, check out our <LocalizedLink href="/guides/features/projects/adoption/migrate/xcode-project">migration guide</LocalizedLink>.
+> If you want to migrate an existing project to generated projects to improve the developer experience and take advantage of our <.localized_link href="/guides/features/cache">cache</.localized_link>, check out our <.localized_link href="/guides/features/projects/adoption/migrate/xcode-project">migration guide</.localized_link>.
 
 
 ## Add dependencies {#add-dependencies}

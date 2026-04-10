@@ -101,7 +101,9 @@ defmodule TuistWeb.Marketing.MarketingBlogLive do
       |> assign(:total_pages, total_pages)
       |> assign(
         :head_image,
-        Tuist.Environment.app_url(path: "/marketing/images/og/blog.jpg")
+        Tuist.Environment.app_url(
+          path: TuistWeb.Helpers.OpenGraph.marketing_og_image_path("/marketing/images/og/generated/blog.jpg")
+        )
       )
       |> assign(:head_title, "The Tuist Blog")
       |> assign(:head_include_blog_rss_and_atom, true)

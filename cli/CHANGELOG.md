@@ -1,6 +1,126 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.178.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* support self-managed shard archives by [@pepicrft](https://github.com/pepicrft) in [#10169](https://github.com/tuist/tuist/pull/10169)
+### 🐛 Bug Fixes
+
+* avoid duplicate App Intents dependency file list outputs by [@pepicrft](https://github.com/pepicrft) in [#10235](https://github.com/tuist/tuist/pull/10235)
+* link test runs to builds and fix command event metadata by [@fortmarek](https://github.com/fortmarek) in [#10234](https://github.com/tuist/tuist/pull/10234)
+* declare symlink target in macro copy script input paths for sandbox compatibility by [@zippi-MD](https://github.com/zippi-MD) in [#10116](https://github.com/tuist/tuist/pull/10116)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.177.0...4.178.0
+
+## What's Changed in 4.177.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add --cache-profile option to cache warm with profile-driven exclusions by [@gnejfejf2](https://github.com/gnejfejf2) in [#9946](https://github.com/tuist/tuist/pull/9946)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.176.4...4.177.0
+
+## What's Changed in 4.176.4<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* write empty shard matrix on all early return paths by [@fortmarek](https://github.com/fortmarek) in [#10220](https://github.com/tuist/tuist/pull/10220)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.176.3...4.176.4
+
+## What's Changed in 4.176.3<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* use overwrite option when writing module maps by [@fortmarek](https://github.com/fortmarek) in [#10218](https://github.com/tuist/tuist/pull/10218)
+* update Package.resolved to match current dependencies by [@fortmarek](https://github.com/fortmarek) in [#10216](https://github.com/tuist/tuist/pull/10216)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.176.2...4.176.3
+
+## What's Changed in 4.176.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* fix xcstrings stale-string detection for multiplatform static frameworks by [@pepicrft](https://github.com/pepicrft) in [#10155](https://github.com/tuist/tuist/pull/10155)
+* mkdir data race by [@fortmarek](https://github.com/fortmarek) in [#10211](https://github.com/tuist/tuist/pull/10211)
+* write empty shard matrix output when selective testing skips all tests by [@fortmarek](https://github.com/fortmarek) in [#10205](https://github.com/tuist/tuist/pull/10205)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.176.1...4.176.2
+
+## What's Changed in 4.176.1<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add workspace-level DerivedData location support by [@davidpasztor](https://github.com/davidpasztor) in [#9693](https://github.com/tuist/tuist/pull/9693)
+### 🐛 Bug Fixes
+
+* add retry logic to build uploads by [@fortmarek](https://github.com/fortmarek) in [#10210](https://github.com/tuist/tuist/pull/10210)
+* add nonisolated(unsafe) to generated plist accessors with Any type by [@fortmarek](https://github.com/fortmarek) in [#10195](https://github.com/tuist/tuist/pull/10195)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.175.0...4.176.1
+
+## What's Changed in 4.175.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* fix App Intents metadata for cached xcframeworks by [@pepicrft](https://github.com/pepicrft) in [#10168](https://github.com/tuist/tuist/pull/10168)
+* upload build data from tuist xcodebuild build by [@fortmarek](https://github.com/fortmarek) in [#10186](https://github.com/tuist/tuist/pull/10186)
+### 🐛 Bug Fixes
+
+* handle existing files during shard xctestrun write by [@fortmarek](https://github.com/fortmarek) in [#10188](https://github.com/tuist/tuist/pull/10188)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.174.7...4.175.0
+
+## What's Changed in 4.174.7<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* namespace dependency-derived artifacts by [@pepicrft](https://github.com/pepicrft) in [#10166](https://github.com/tuist/tuist/pull/10166)
+* fix cross-project test host embed and TEST_HOST settings by [@pepicrft](https://github.com/pepicrft) in [#10139](https://github.com/tuist/tuist/pull/10139)
+### 🚜 Refactor
+
+* remove local MCP command by [@pepicrft](https://github.com/pepicrft) in [#10171](https://github.com/tuist/tuist/pull/10171)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.174.4...4.174.7
+
+## What's Changed in 4.174.4<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* add missing TuistTesting dependency to TuistCASTests by [@jsj](https://github.com/jsj) in [#10182](https://github.com/tuist/tuist/pull/10182)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.174.3...4.174.4
+
+## What's Changed in 4.174.3<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* fix selective testing not skipping unchanged test targets by [@pepicrft](https://github.com/pepicrft) in [#10173](https://github.com/tuist/tuist/pull/10173)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.174.2...4.174.3
+
 ## What's Changed in 4.174.2<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
@@ -1625,7 +1745,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* clean up warnings by [@waltflanagan](https://github.com/waltflanagan)
+* clean up warnings by [@waltflanagan](https://github.com/waltflanagan) in [#7666](https://github.com/tuist/tuist/pull/7666)
 * fix content hashing to use relative path when file does not exist by [@waltflanagan](https://github.com/waltflanagan) in [#8557](https://github.com/tuist/tuist/pull/8557)
 
 
@@ -2423,7 +2543,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* Add commands to list and read bundles by [@pepicrft](https://github.com/pepicrft)
+* Add commands to list and read bundles by [@pepicrft](https://github.com/pepicrft) in [#7893](https://github.com/tuist/tuist/pull/7893)
 
 
 
@@ -2568,7 +2688,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* Ignore internal server errors when interating with the cache by [@pepicrft](https://github.com/pepicrft)
+* Ignore internal server errors when interating with the cache by [@pepicrft](https://github.com/pepicrft) in [#7924](https://github.com/tuist/tuist/pull/7924)
 
 
 
@@ -2578,7 +2698,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* do not link cached frameworks with linking status .none by [@fortmarek](https://github.com/fortmarek)
+* do not link cached frameworks with linking status .none by [@fortmarek](https://github.com/fortmarek) in [#7918](https://github.com/tuist/tuist/pull/7918)
 
 
 
@@ -2599,7 +2719,7 @@ All notable changes to this project will be documented in this file.
 ### 🐛 Bug Fixes
 
 * fix cli not launching because ProjectAutomation's dynamic framework can't be found by [@pepicrft](https://github.com/pepicrft)
-* token refresh race condition by [@pepicrft](https://github.com/pepicrft)
+* token refresh race condition by [@pepicrft](https://github.com/pepicrft) in [#7907](https://github.com/tuist/tuist/pull/7907)
 
 
 

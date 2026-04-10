@@ -303,7 +303,7 @@ public struct DefaultSettingsProvider: DefaultSettingsProviding {
             return [:]
         }
 
-        let targetDependencies = graphTraverser.directLocalTargetDependencies(path: projectPath, name: target.name).sorted()
+        let targetDependencies = graphTraverser.directTargetDependencies(path: projectPath, name: target.name).sorted()
         let appDependency = targetDependencies.first { $0.target.product.canHostTests() }
 
         guard let app = appDependency else {
