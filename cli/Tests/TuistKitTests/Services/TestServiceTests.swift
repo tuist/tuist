@@ -3530,6 +3530,71 @@ final class TestServiceTests: TuistUnitTestCase {
             .called(1)
     }
 
+    func test_run_build_writesSelectiveTestingGraph_whenTestProductsPathIsRelative() async throws {
+        // Given
+        givenGenerator()
+        let path = try temporaryPath()
+        let bundleName = "MyApp.xctestproducts"
+        let testProductsPath = path.appending(component: bundleName)
+        try await fileSystem.makeDirectory(at: testProductsPath)
+
+        let projectPath = path.appending(component: "Project")
+        let scheme = Scheme.test(name: "TestScheme")
+        let graph: Graph = .test(
+            workspace: .test(schemes: [.test(name: "App-Workspace")]),
+            projects: [
+                projectPath: .test(
+                    path: projectPath,
+                    targets: [.test(name: "TargetA")],
+                    schemes: [scheme]
+                ),
+            ]
+        )
+        var environment = MapperEnvironment()
+        environment.initialGraph = graph
+        environment.targetTestHashes = [projectPath: ["TargetA": "hash-a"]]
+
+        given(generator)
+            .generateWithGraph(path: .any, options: .any)
+            .willProduce { path, _ in
+                (path, graph, environment)
+            }
+        given(buildGraphInspector)
+            .testableSchemes(graphTraverser: .any)
+            .willReturn([scheme])
+        given(buildGraphInspector)
+            .testableTarget(
+                scheme: .any,
+                testPlan: .any,
+                testTargets: .any,
+                skipTestTargets: .any,
+                graphTraverser: .any,
+                action: .any
+            )
+            .willProduce { scheme, _, _, _, _, _ in
+                GraphTarget.test(target: Target.test(name: scheme.name))
+            }
+        given(buildGraphInspector)
+            .workspaceSchemes(graphTraverser: .any)
+            .willReturn([])
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject()))
+
+        // When
+        try await testRun(
+            schemeName: "TestScheme",
+            path: path,
+            action: .build,
+            passthroughXcodeBuildArguments: ["-testProductsPath", bundleName]
+        )
+
+        // Then — the selective testing graph should have been written into the bundle
+        let graphPath = testProductsPath.appending(component: SelectiveTestingGraph.fileName)
+        let exists = try await fileSystem.exists(graphPath)
+        XCTAssertTrue(exists, "Expected selective testing graph at \(graphPath.pathString)")
+    }
+
     fileprivate func testRun(
         runId: String = "run-id",
         schemeName: String? = nil,
