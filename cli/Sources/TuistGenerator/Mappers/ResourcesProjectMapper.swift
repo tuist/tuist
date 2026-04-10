@@ -310,7 +310,7 @@ public struct ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this
         extern "C" {
         #endif
 
-        NSBundle* \(targetName)_SWIFTPM_MODULE_BUNDLE(void);
+        NSBundle* \(targetName)_SWIFTPM_MODULE_BUNDLE(void) NS_SWIFT_NONISOLATED;
 
         #define SWIFTPM_MODULE_BUNDLE \(targetName)_SWIFTPM_MODULE_BUNDLE()
 
@@ -381,7 +381,7 @@ public struct ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this
         // MARK: - Objective-C Bundle Accessor
         @objc
         public final class \(target.productName.toValidSwiftIdentifier())Resources: NSObject {
-        @objc public class var bundle: Bundle {
+        @objc public nonisolated class var bundle: Bundle {
             return .module
         }
         }
@@ -397,7 +397,7 @@ public struct ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this
             target
                 .product
         ), the bundle containing the resources is copied into the final product.
-            static let module: Bundle = {
+            nonisolated static let module: Bundle = {
                 let bundleName = "\(bundleName)"
                 let bundleFinderResourceURL = Bundle(for: BundleFinder.self).resourceURL
                 var candidates = [
@@ -450,7 +450,7 @@ public struct ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this
             target
                 .product
         ), the bundle for classes within this module can be used directly.
-            static let module = Bundle(for: BundleFinder.self)
+            nonisolated static let module = Bundle(for: BundleFinder.self)
         }
         """
     }
