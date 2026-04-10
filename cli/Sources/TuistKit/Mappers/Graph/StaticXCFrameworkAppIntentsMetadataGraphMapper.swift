@@ -57,10 +57,14 @@ public struct StaticXCFrameworkAppIntentsMetadataGraphMapper: GraphMapping {
             fi
 
             framework_actions_data="${framework_metadata}/extract.actionsdata"
-            [ -f "$framework_actions_data" ] && echo "$framework_actions_data" >> "$METADATA_FILE"
+            if [ -f "$framework_actions_data" ] && ! grep -qxF "$framework_actions_data" "$METADATA_FILE"; then
+                echo "$framework_actions_data" >> "$METADATA_FILE"
+            fi
 
             static_actions_data="${static_metadata}/extract.actionsdata"
-            [ -f "$static_actions_data" ] && echo "$static_actions_data" >> "$STATIC_METADATA_FILE"
+            if [ -f "$static_actions_data" ] && ! grep -qxF "$static_actions_data" "$STATIC_METADATA_FILE"; then
+                echo "$static_actions_data" >> "$STATIC_METADATA_FILE"
+            fi
             """
         }.joined(separator: "\n\n")
 
@@ -68,22 +72,24 @@ public struct StaticXCFrameworkAppIntentsMetadataGraphMapper: GraphMapping {
         METADATA_FILE="\(Constants.metadataFile)"
         STATIC_METADATA_FILE="\(Constants.staticMetadataFile)"
 
-        : > "$METADATA_FILE"
-        : > "$STATIC_METADATA_FILE"
+        mkdir -p "$(dirname "$METADATA_FILE")"
+        touch "$METADATA_FILE" "$STATIC_METADATA_FILE"
 
         \(dependenciesScript)
         """
 
-        // Keep the declared outputs target-local. Multiple runnable targets can share the same static XCFramework,
-        // and declaring the copied .appintents sidecar as an output would make Xcode see multiple producers.
+        // The dependency file lists are also produced by Xcode's native App Intents metadata
+        // build phase on targets that contain their own App Intents sources. Declaring them as
+        // outputs here would make the build fail with "Multiple commands produce …". We instead
+        // append to the existing file lists without declaring them as outputs.
         return TargetScript(
             name: Constants.scriptName,
             order: .pre,
             script: .embedded(script),
             inputPaths: dependencies.flatMap(\.inputPaths),
-            outputPaths: [Constants.metadataFile, Constants.staticMetadataFile],
+            outputPaths: [],
             showEnvVarsInLog: false,
-            basedOnDependencyAnalysis: true
+            basedOnDependencyAnalysis: false
         )
     }
 
@@ -97,9 +103,9 @@ public struct StaticXCFrameworkAppIntentsMetadataGraphMapper: GraphMapping {
             name: graphTarget.target.name
         )
 
-        var result: [AppIntentsMetadataDependency] = []
+        var result: Set<AppIntentsMetadataDependency> = []
         for dependency in dependencies where try await fileSystem.exists(dependency.metadataPath) {
-            result.append(.init(frameworkName: dependency.frameworkName))
+            result.insert(.init(frameworkName: dependency.frameworkName))
         }
 
         return result.sorted()
