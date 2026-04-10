@@ -64,9 +64,7 @@ final class StaticXCFrameworkAppIntentsMetadataGraphMapperTests: TuistUnitTestCa
             STATIC_METADATA_FILE="${TARGET_TEMP_DIR}/${TARGET_NAME}.DependencyStaticMetadataFileList"
             STAMP_FILE="${DERIVED_FILE_DIR}/tuist-static-xcframework-app-intents.stamp"
 
-            mkdir -p "$(dirname "$METADATA_FILE")"
             mkdir -p "$(dirname "$STAMP_FILE")"
-            touch "$METADATA_FILE" "$STATIC_METADATA_FILE"
 
             framework_name='IntentsFramework'
             framework_metadata="${BUILT_PRODUCTS_DIR}/IntentsFramework.framework/Metadata.appintents"
@@ -78,14 +76,10 @@ final class StaticXCFrameworkAppIntentsMetadataGraphMapperTests: TuistUnitTestCa
             fi
 
             framework_actions_data="${framework_metadata}/extract.actionsdata"
-            if [ -f "$framework_actions_data" ] && ! grep -qxF "$framework_actions_data" "$METADATA_FILE"; then
-                echo "$framework_actions_data" >> "$METADATA_FILE"
-            fi
+            [ -f "$framework_actions_data" ] && echo "$framework_actions_data" >> "$METADATA_FILE"
 
             static_actions_data="${static_metadata}/extract.actionsdata"
-            if [ -f "$static_actions_data" ] && ! grep -qxF "$static_actions_data" "$STATIC_METADATA_FILE"; then
-                echo "$static_actions_data" >> "$STATIC_METADATA_FILE"
-            fi
+            [ -f "$static_actions_data" ] && echo "$static_actions_data" >> "$STATIC_METADATA_FILE"
 
             : > "$STAMP_FILE"
             """
@@ -163,7 +157,11 @@ final class StaticXCFrameworkAppIntentsMetadataGraphMapperTests: TuistUnitTestCa
         let script = try XCTUnwrap(scripts.first(where: { $0.name == "Prepare App Intents Metadata for Static XCFrameworks" }))
         let embedded = try XCTUnwrap(script.embeddedScript)
         let occurrences = embedded.components(separatedBy: "framework_name='IntentsFramework'").count - 1
-        XCTAssertEqual(occurrences, 1, "The shell block for a framework should appear only once, even when the xcframework exposes multiple slices.")
+        XCTAssertEqual(
+            occurrences,
+            1,
+            "The shell block for a framework should appear only once, even when the xcframework exposes multiple slices."
+        )
     }
 
     func test_map_does_not_inject_a_script_when_metadata_is_not_present() async throws {

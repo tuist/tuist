@@ -58,14 +58,10 @@ public struct StaticXCFrameworkAppIntentsMetadataGraphMapper: GraphMapping {
             fi
 
             framework_actions_data="${framework_metadata}/extract.actionsdata"
-            if [ -f "$framework_actions_data" ] && ! grep -qxF "$framework_actions_data" "$METADATA_FILE"; then
-                echo "$framework_actions_data" >> "$METADATA_FILE"
-            fi
+            [ -f "$framework_actions_data" ] && echo "$framework_actions_data" >> "$METADATA_FILE"
 
             static_actions_data="${static_metadata}/extract.actionsdata"
-            if [ -f "$static_actions_data" ] && ! grep -qxF "$static_actions_data" "$STATIC_METADATA_FILE"; then
-                echo "$static_actions_data" >> "$STATIC_METADATA_FILE"
-            fi
+            [ -f "$static_actions_data" ] && echo "$static_actions_data" >> "$STATIC_METADATA_FILE"
             """
         }.joined(separator: "\n\n")
 
@@ -74,9 +70,7 @@ public struct StaticXCFrameworkAppIntentsMetadataGraphMapper: GraphMapping {
         STATIC_METADATA_FILE="\(Constants.staticMetadataFile)"
         STAMP_FILE="\(Constants.stampFile)"
 
-        mkdir -p "$(dirname "$METADATA_FILE")"
         mkdir -p "$(dirname "$STAMP_FILE")"
-        touch "$METADATA_FILE" "$STATIC_METADATA_FILE"
 
         \(dependenciesScript)
 
@@ -87,6 +81,9 @@ public struct StaticXCFrameworkAppIntentsMetadataGraphMapper: GraphMapping {
         // App Intents build phase on targets with their own App Intents sources. Declaring them
         // as outputs here triggers "Multiple commands produce …" errors, so we append to them
         // in-place and use a target-local stamp file as the script's declared output instead.
+        // Xcode's WriteAuxiliaryFile phase runs before this pre-script and resets the file
+        // lists to their upstream-dependency contents on every build, so no state from previous
+        // runs leaks through and we can simply append our entries.
         return TargetScript(
             name: Constants.scriptName,
             order: .pre,
