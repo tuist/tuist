@@ -198,15 +198,16 @@ defmodule TuistWeb.ModuleCacheLive do
           Map.put(event, :user_account_name, Map.get(user_map, event.id))
         end)
 
+      reversed_events = Enum.reverse(events)
+
       recent_runs_chart_data =
-        events
-        |> Enum.reverse()
-        |> Enum.map(fn event ->
+        Enum.map(reversed_events, fn event ->
           hit_rate = cache_hit_rate(event)
 
           %{
             value: hit_rate,
-            date: event.ran_at
+            date: event.ran_at,
+            url: ~p"/#{project.account.name}/#{project.name}/runs/#{event.id}"
           }
         end)
 
