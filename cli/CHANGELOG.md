@@ -1,6 +1,18 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.179.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* resolve StoreKit configuration paths relative to the xcworkspace bundle by [@jsj](https://github.com/jsj) in [#10179](https://github.com/tuist/tuist/pull/10179)
+* use Modules include path for source-built ProjectDescription by [@jsj](https://github.com/jsj) in [#10181](https://github.com/tuist/tuist/pull/10181)
+* resolve relative -testProductsPath when writing selective testing graph by [@fortmarek](https://github.com/fortmarek) in [#10239](https://github.com/tuist/tuist/pull/10239)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.179.0...4.179.1
+
 ## What's Changed in 4.179.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
