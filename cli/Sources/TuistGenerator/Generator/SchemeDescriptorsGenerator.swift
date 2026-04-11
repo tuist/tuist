@@ -632,9 +632,9 @@ struct SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         }
 
         if let storeKitFilePath = scheme.runAction?.options.storeKitConfigurationPath {
-            // Xcode resolves this path relative to the directory containing the .xcworkspace
+            // Xcode resolves this path relative to the .xcworkspace bundle path.
             let fileRelativePath = storeKitFilePath.relative(
-                to: graphTraverser.workspace.xcWorkspacePath.parentDirectory
+                to: graphTraverser.workspace.xcWorkspacePath
             )
             storeKitConfigurationFileReference = .init(identifier: fileRelativePath.pathString)
         }
