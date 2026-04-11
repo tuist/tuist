@@ -207,10 +207,10 @@ defmodule TuistWeb.GradleCacheLive do
     {builds, _meta} = Gradle.list_builds(project.id, %{page_size: @recent_builds_page_size})
     builds = Repo.preload(builds, :built_by_account)
 
-    reversed_builds = Enum.reverse(builds)
-
     recent_builds_chart_data =
-      Enum.map(reversed_builds, fn build ->
+      builds
+      |> Enum.reverse()
+      |> Enum.map(fn build ->
         hit_rate = Gradle.cache_hit_rate(build)
 
         %{

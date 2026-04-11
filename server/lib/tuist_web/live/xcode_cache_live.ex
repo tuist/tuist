@@ -201,10 +201,10 @@ defmodule TuistWeb.XcodeCacheLive do
 
     {builds, _} = Builds.list_build_runs(options, preload: [:ran_by_account])
 
-    reversed_builds = Enum.reverse(builds)
-
     recent_builds_chart_data =
-      Enum.map(reversed_builds, fn build ->
+      builds
+      |> Enum.reverse()
+      |> Enum.map(fn build ->
         hit_rate = cache_hit_rate(build)
 
         %{
