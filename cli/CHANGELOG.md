@@ -1,6 +1,16 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.179.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* add retry middleware for OpenAPI requests by [@fortmarek](https://github.com/fortmarek) in [#10233](https://github.com/tuist/tuist/pull/10233)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.179.1...4.179.2
+
 ## What's Changed in 4.179.1<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
