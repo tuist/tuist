@@ -114,9 +114,12 @@ export default {
     );
     this.chart.setOption(option);
 
-    const hasClickableData = option.series && option.series.some(
-      (s) => s.data && s.data.some((d) => d && typeof d === "object" && d.url)
-    );
+    const hasClickableData =
+      option.series &&
+      option.series.some(
+        (s) =>
+          s.data && s.data.some((d) => d && typeof d === "object" && d.url),
+      );
 
     if (hasClickableData) {
       this.chart.on("click", (params) => {
