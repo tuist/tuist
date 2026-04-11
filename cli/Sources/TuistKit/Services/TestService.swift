@@ -507,7 +507,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
         if action == .build {
             if let testProductsPath = try? await resolveTestProductsPath(
                 passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
-                derivedDataPath: derivedDataPath
+                derivedDataPath: derivedDataPath,
+                relativeTo: path
             ) {
                 let selectiveTestingGraph = computeSelectiveTestingGraph(
                     mapperEnvironment: mapperEnvironment,
@@ -853,12 +854,14 @@ public struct TestService { // swiftlint:disable:this type_body_length
 
     private func resolveTestProductsPath(
         passthroughXcodeBuildArguments: [String],
-        derivedDataPath: AbsolutePath?
+        derivedDataPath: AbsolutePath?,
+        relativeTo path: AbsolutePath
     ) async throws -> AbsolutePath {
-        if let index = passthroughXcodeBuildArguments.firstIndex(of: "-testProductsPath"),
-           passthroughXcodeBuildArguments.indices.contains(index + 1)
-        {
-            return try AbsolutePath(validating: passthroughXcodeBuildArguments[index + 1])
+        if let testProductsPath = testProductsPathFromArguments(
+            passthroughXcodeBuildArguments,
+            relativeTo: path
+        ) {
+            return testProductsPath
         }
 
         guard let derivedDataPath else {
