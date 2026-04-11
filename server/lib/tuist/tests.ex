@@ -1305,6 +1305,7 @@ defmodule Tuist.Tests do
       %{
         id: Map.get(att_attrs, :attachment_id) || UUIDv7.generate(),
         test_case_run_id: test_case_run_id,
+        test_case_run_argument_id: Map.get(att_attrs, :test_case_run_argument_id),
         test_run_id: test_run_id,
         file_name: Map.get(att_attrs, :file_name),
         repetition_number: Map.get(att_attrs, :repetition_number),

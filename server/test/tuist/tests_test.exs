@@ -1413,6 +1413,57 @@ defmodule Tuist.TestsTest do
       assert failure.line_number == 42
       assert failure.issue_type == "assertion"
     end
+
+    test "creates a test with attachments" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      attachment_id = UUIDv7.generate()
+
+      test_attrs = %{
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        account_id: account.id,
+        duration: 1000,
+        status: "success",
+        model_identifier: "Mac15,6",
+        macos_version: "14.0",
+        xcode_version: "15.0",
+        git_branch: "main",
+        git_commit_sha: "abc123",
+        ran_at: NaiveDateTime.utc_now(),
+        is_ci: true,
+        test_modules: [
+          %{
+            name: "AttachmentsTestModule",
+            status: "success",
+            duration: 1000,
+            test_cases: [
+              %{
+                name: "testWithAttachment",
+                status: "success",
+                duration: 500,
+                attachments: [
+                  %{
+                    attachment_id: attachment_id,
+                    file_name: "screenshot.png",
+                    repetition_number: nil
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+
+      # When
+      {:ok, _test} = Tests.create_test(test_attrs)
+
+      # Then
+      IngestRepo.query!("OPTIMIZE TABLE test_case_run_attachments FINAL", [])
+      {:ok, attachment} = Tests.get_attachment_by_id(attachment_id)
+      assert attachment.file_name == "screenshot.png"
+    end
   end
 
   describe "create_test/1 with sharding" do
