@@ -7,17 +7,16 @@ public enum TestProcessingMode: String, Sendable, CaseIterable, ExpressibleByArg
 
     /// Returns the default processing mode for the given Tuist server URL.
     ///
-    /// Defaults to `.remote` for the official Tuist hosts (`tuist.dev`, `staging.tuist.dev`,
-    /// `canary.tuist.dev`) and for `localhost`. All other URLs default to `.local` so
-    /// self-hosted instances continue to parse xcresults locally unless explicitly opted in.
+    /// Defaults to `.remote` for tuist-hosted instances and `.local` for self-hosted ones,
+    /// so self-hosted servers keep parsing xcresults locally unless they explicitly opt in.
     public static func `default`(for url: URL) -> TestProcessingMode {
-        let knownRemoteHosts: Set<String> = [
+        let tuistHostedHosts: Set<String> = [
             "tuist.dev",
             "staging.tuist.dev",
             "canary.tuist.dev",
             "localhost",
         ]
-        if let host = url.host, knownRemoteHosts.contains(host) {
+        if let host = url.host, tuistHostedHosts.contains(host) {
             return .remote
         }
         return .local
