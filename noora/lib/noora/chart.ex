@@ -269,7 +269,6 @@ defmodule Noora.Chart do
     """
   )
 
-
   attr(:rest, :global, doc: "Additional HTML attributes to add to the container div")
 
   def chart(assigns) do
