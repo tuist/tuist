@@ -39,7 +39,6 @@ final class AnalyticsArtifactUploadServiceTests: TuistTestCase {
             fileSystem: fileSystem,
             xcresultToolController: xcresultToolController,
             fileArchiver: fileArchiverFactory,
-            retryProvider: RetryProvider(),
             fullHandleService: FullHandleService(),
             multipartUploadStartAnalyticsService: multipartUploadStartAnalyticsService,
             multipartUploadGenerateURLAnalyticsService: multipartUploadGenerateURLAnalyticsService,
