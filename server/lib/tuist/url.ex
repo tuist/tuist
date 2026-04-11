@@ -20,6 +20,13 @@ defmodule Tuist.URL do
   defp scheme_allowed?("http"), do: Tuist.Environment.dev?() or Tuist.Environment.test?()
   defp scheme_allowed?(_), do: false
 
+  @doc """
+  Returns `true` when `ip` is a globally-routable IP address. The inverse of
+  `private_ip?/1`. Exposed so the SSRF guard that runs just before server-side
+  HTTP requests can validate a pre-resolved connection target.
+  """
+  def public_ip?(ip), do: not private_ip?(ip)
+
   defp private_host?(host) do
     charlist = String.to_charlist(host)
 

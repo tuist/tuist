@@ -141,6 +141,8 @@ defmodule Tuist do
       Utilities.ThroughputFormatter,
       VCS,
       UUIDv7,
-      OAuth.Apple
+      OAuth.Apple,
+      OAuth2.AuthCodeBasicAuth,
+      OAuth2.SsrfGuard
     ]
 end

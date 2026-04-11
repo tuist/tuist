@@ -4,8 +4,31 @@ defmodule TuistWeb.AuthControllerTest do
 
   alias OAuth2.AccessToken
   alias Tuist.Accounts.Oauth2Identity
+  alias Tuist.OAuth2.SsrfGuard
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias Ueberauth.Auth.Info
+
+  # SsrfGuard.pin/1 runs real DNS resolution against the hostname in the
+  # token/userinfo URLs, which is undesirable in unit tests: fake hostnames
+  # like `auth.example.com` would fail with {:error, :dns_failure} and
+  # short-circuit the callback flow before the mocked OAuth2.Client calls
+  # are reached. Stub it as a pass-through so the existing Client mocks
+  # still see the original URLs. SSRF behavior is covered directly in
+  # Tuist.OAuth2.SsrfGuardTest.
+  setup :stub_ssrf_guard_pass_through
+
+  defp stub_ssrf_guard_pass_through(_context) do
+    stub(SsrfGuard, :pin, fn url ->
+      case URI.parse(url) do
+        %URI{host: host} when is_binary(host) and host != "" -> {:ok, url, host}
+        _ -> {:error, :invalid_url}
+      end
+    end)
+
+    stub(SsrfGuard, :ssl_adapter_opts, fn _hostname -> [] end)
+
+    :ok
+  end
 
   describe "GET /auth/cli/:device_code" do
     test "redirects to log in when the user is not logged in", %{conn: conn} do
@@ -149,7 +172,7 @@ defmodule TuistWeb.AuthControllerTest do
           oauth2_client_secret: UUIDv7.generate()
         )
 
-      expect(OAuth2.Client, :get_token, fn _client, [code: "auth-code"] ->
+      expect(OAuth2.Client, :get_token, fn _client, [code: "auth-code"], _headers, _opts ->
         {:ok,
          %OAuth2.Client{
            token:
@@ -161,7 +184,7 @@ defmodule TuistWeb.AuthControllerTest do
          }}
       end)
 
-      expect(OAuth2.Client, :get, fn %OAuth2.Client{}, "https://dev-123456/oauth2/v1/userinfo" ->
+      expect(OAuth2.Client, :get, fn %OAuth2.Client{}, "https://dev-123456/oauth2/v1/userinfo", _headers, _opts ->
         {:ok,
          %{
            status_code: 200,
@@ -291,7 +314,7 @@ defmodule TuistWeb.AuthControllerTest do
           oauth2_user_info_url: "https://auth.example.com/oauth2/userinfo"
         )
 
-      expect(OAuth2.Client, :get_token, fn _client, [code: "auth-code"] ->
+      expect(OAuth2.Client, :get_token, fn _client, [code: "auth-code"], _headers, _opts ->
         {:ok,
          %OAuth2.Client{
            token:
@@ -303,7 +326,7 @@ defmodule TuistWeb.AuthControllerTest do
          }}
       end)
 
-      expect(OAuth2.Client, :get, fn %OAuth2.Client{}, "https://auth.example.com/oauth2/userinfo" ->
+      expect(OAuth2.Client, :get, fn %OAuth2.Client{}, "https://auth.example.com/oauth2/userinfo", _headers, _opts ->
         {:ok,
          %{
            status_code: 200,
@@ -442,7 +465,7 @@ defmodule TuistWeb.AuthControllerTest do
           oauth2_user_info_url: "https://auth.example.com/oauth2/userinfo"
         )
 
-      expect(OAuth2.Client, :get_token, fn _client, [code: "auth-code"] ->
+      expect(OAuth2.Client, :get_token, fn _client, [code: "auth-code"], _headers, _opts ->
         {:error, :invalid_grant}
       end)
 
@@ -472,7 +495,7 @@ defmodule TuistWeb.AuthControllerTest do
           oauth2_user_info_url: "https://auth.example.com/oauth2/userinfo"
         )
 
-      expect(OAuth2.Client, :get_token, fn _client, [code: "auth-code"] ->
+      expect(OAuth2.Client, :get_token, fn _client, [code: "auth-code"], _headers, _opts ->
         {:ok,
          %OAuth2.Client{
            token:
@@ -484,7 +507,7 @@ defmodule TuistWeb.AuthControllerTest do
          }}
       end)
 
-      expect(OAuth2.Client, :get, fn %OAuth2.Client{}, "https://auth.example.com/oauth2/userinfo" ->
+      expect(OAuth2.Client, :get, fn %OAuth2.Client{}, "https://auth.example.com/oauth2/userinfo", _headers, _opts ->
         {:ok,
          %{
            status_code: 200,
@@ -525,7 +548,7 @@ defmodule TuistWeb.AuthControllerTest do
           oauth2_user_info_url: "https://evil.example.com/oauth2/userinfo"
         )
 
-      expect(OAuth2.Client, :get_token, fn _client, [code: "auth-code"] ->
+      expect(OAuth2.Client, :get_token, fn _client, [code: "auth-code"], _headers, _opts ->
         {:ok,
          %OAuth2.Client{
            token:
@@ -537,7 +560,7 @@ defmodule TuistWeb.AuthControllerTest do
          }}
       end)
 
-      expect(OAuth2.Client, :get, fn %OAuth2.Client{}, "https://evil.example.com/oauth2/userinfo" ->
+      expect(OAuth2.Client, :get, fn %OAuth2.Client{}, "https://evil.example.com/oauth2/userinfo", _headers, _opts ->
         {:ok,
          %{
            status_code: 200,
@@ -608,7 +631,7 @@ defmodule TuistWeb.AuthControllerTest do
           oauth2_user_info_url: "https://idp-b.example.com/oauth2/userinfo"
         )
 
-      expect(OAuth2.Client, :get_token, fn _client, [code: "auth-code"] ->
+      expect(OAuth2.Client, :get_token, fn _client, [code: "auth-code"], _headers, _opts ->
         {:ok,
          %OAuth2.Client{
            token:
@@ -620,7 +643,7 @@ defmodule TuistWeb.AuthControllerTest do
          }}
       end)
 
-      expect(OAuth2.Client, :get, fn %OAuth2.Client{}, "https://idp-b.example.com/oauth2/userinfo" ->
+      expect(OAuth2.Client, :get, fn %OAuth2.Client{}, "https://idp-b.example.com/oauth2/userinfo", _headers, _opts ->
         {:ok,
          %{
            status_code: 200,
@@ -682,7 +705,7 @@ defmodule TuistWeb.AuthControllerTest do
           oauth2_user_info_url: "https://auth.example.com/oauth2/userinfo"
         )
 
-      expect(OAuth2.Client, :get_token, fn _client, [code: "auth-code"] ->
+      expect(OAuth2.Client, :get_token, fn _client, [code: "auth-code"], _headers, _opts ->
         {:ok,
          %OAuth2.Client{
            token:
@@ -694,7 +717,7 @@ defmodule TuistWeb.AuthControllerTest do
          }}
       end)
 
-      expect(OAuth2.Client, :get, fn %OAuth2.Client{}, "https://auth.example.com/oauth2/userinfo" ->
+      expect(OAuth2.Client, :get, fn %OAuth2.Client{}, "https://auth.example.com/oauth2/userinfo", _headers, _opts ->
         {:ok, %{status_code: 401, body: %{"error" => "unauthorized"}}}
       end)
 

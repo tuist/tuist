@@ -9,6 +9,7 @@ defmodule TuistWeb.AuthController do
   alias Tuist.Accounts
   alias Tuist.Accounts.Organization
   alias Tuist.OAuth2.AuthCodeBasicAuth
+  alias Tuist.OAuth2.SsrfGuard
   alias TuistWeb.Authentication
   alias TuistWeb.Errors.UnauthorizedError
   alias Ueberauth.Auth
@@ -318,9 +319,20 @@ defmodule TuistWeb.AuthController do
     params = [code: conn.params["code"]]
 
     with :ok <- validate_sso_urls(config),
+         {:ok, token_url_pinned, token_hostname} <- SsrfGuard.pin(config.token_url),
+         {:ok, user_info_url_pinned, user_info_hostname} <- SsrfGuard.pin(config.user_info_url),
+         pinned_config = %{config | token_url: token_url_pinned, user_info_url: user_info_url_pinned},
+         token_opts = SsrfGuard.ssl_adapter_opts(token_hostname),
+         user_info_opts = SsrfGuard.ssl_adapter_opts(user_info_hostname),
          {:ok, %Client{token: token} = client} <-
-           Client.get_token(sso_client(config, sso_callback_url(route_provider)), params),
-         {:ok, %{status_code: 200, body: userinfo}} <- Client.get(client, config.user_info_url),
+           Client.get_token(
+             sso_client(pinned_config, sso_callback_url(route_provider)),
+             params,
+             [],
+             token_opts
+           ),
+         {:ok, %{status_code: 200, body: userinfo}} <-
+           Client.get(client, pinned_config.user_info_url, [], user_info_opts),
          {:ok, uid, email} <- validate_sso_userinfo(userinfo) do
       {:ok, build_sso_auth(token, userinfo, uid, email, sso_provider, config.provider_organization_id)}
     else
