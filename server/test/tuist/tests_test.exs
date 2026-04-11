@@ -1460,7 +1460,6 @@ defmodule Tuist.TestsTest do
       {:ok, _test} = Tests.create_test(test_attrs)
 
       # Then
-      IngestRepo.query!("OPTIMIZE TABLE test_case_run_attachments FINAL", [])
       {:ok, attachment} = Tests.get_attachment_by_id(attachment_id)
       assert attachment.file_name == "screenshot.png"
     end
