@@ -317,10 +317,10 @@
 
         @Option(
             name: .long,
-            help: "Inspect mode: 'local' parses the xcresult on this machine, 'remote' uploads it for server-side processing.",
+            help: "Inspect mode: 'local' parses the xcresult on this machine, 'remote' uploads it for server-side processing. When omitted, defaults to 'remote' for tuist.dev hosts (and localhost) and 'local' otherwise.",
             envKey: .inspectTestMode
         )
-        var inspectMode: TestProcessingMode = .local
+        var inspectMode: TestProcessingMode?
 
         @Argument(
             parsing: .postTerminator,

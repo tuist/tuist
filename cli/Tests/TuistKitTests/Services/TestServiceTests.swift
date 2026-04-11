@@ -2879,7 +2879,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 .willReturn(
                     .test(
                         project: .testGeneratedProject(),
-                        fullHandle: "tuist/tuist"
+                        fullHandle: "tuist/tuist",
+                        url: URL(string: "https://example.com")!
                     )
                 )
 
@@ -3625,7 +3626,8 @@ final class TestServiceTests: TuistUnitTestCase {
         shardMaxDuration: Int? = nil,
         shardIndex: Int? = nil,
         shardSkipUpload: Bool = false,
-        shardArchivePath: AbsolutePath? = nil
+        shardArchivePath: AbsolutePath? = nil,
+        mode: TestProcessingMode? = .local
     ) async throws {
         try await RunMetadataStorage.$current.withValue(runMetadataStorage) {
             try await subject.run(
@@ -3660,7 +3662,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 shardMaxDuration: shardMaxDuration,
                 shardIndex: shardIndex,
                 shardSkipUpload: shardSkipUpload,
-                shardArchivePath: shardArchivePath
+                shardArchivePath: shardArchivePath,
+                mode: mode
             )
         }
     }
