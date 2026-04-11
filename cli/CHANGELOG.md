@@ -1,6 +1,16 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.179.3<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* skip embedding extensions in unit test targets by [@danieleformichelli](https://github.com/danieleformichelli) in [#10224](https://github.com/tuist/tuist/pull/10224)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.179.2...4.179.3
+
 ## What's Changed in 4.179.2<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
