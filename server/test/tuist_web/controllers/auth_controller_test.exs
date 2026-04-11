@@ -185,7 +185,7 @@ defmodule TuistWeb.AuthControllerTest do
       assert redirected_to(conn) =~ "/#{existing_user.account.name}"
 
       {:ok, oauth_identity} =
-        Tuist.Accounts.get_oauth2_identity(:okta, "okta-user-123")
+        Tuist.Accounts.get_oauth2_identity(:okta, "okta-user-123", "dev-123456")
 
       assert oauth_identity.user.id == existing_user.id
       assert oauth_identity.provider_organization_id == "dev-123456"
@@ -327,7 +327,7 @@ defmodule TuistWeb.AuthControllerTest do
       assert redirected_to(conn) =~ "/#{existing_user.account.name}"
 
       {:ok, oauth_identity} =
-        Tuist.Accounts.get_oauth2_identity(:oauth2, "custom-oauth2-user-123")
+        Tuist.Accounts.get_oauth2_identity(:oauth2, "custom-oauth2-user-123", "https://auth.example.com")
 
       assert oauth_identity.user.id == existing_user.id
       assert oauth_identity.provider_organization_id == "https://auth.example.com"
@@ -561,7 +561,110 @@ defmodule TuistWeb.AuthControllerTest do
 
       # The victim's account must remain unlinked from the attacker's IdP
       assert {:error, :not_found} =
-               Tuist.Accounts.get_oauth2_identity(:oauth2, "spoofed-uid")
+               Tuist.Accounts.get_oauth2_identity(:oauth2, "spoofed-uid", "https://evil.example.com")
+    end
+
+    test "refuses cross-tenant account takeover when two custom OAuth2 IdPs return the same sub",
+         %{conn: conn} do
+      # Customer A has a legitimate user whose identity came from their IdP.
+      # Their OIDC `sub` is some value, say "shared-sub".
+      victim = AccountsFixtures.user_fixture(email: "victim@customer-a.example")
+
+      _customer_a_org =
+        AccountsFixtures.organization_fixture(
+          creator: victim,
+          sso_provider: :oauth2,
+          sso_organization_id: "https://idp-a.example.com",
+          oauth2_client_id: UUIDv7.generate(),
+          oauth2_client_secret: UUIDv7.generate(),
+          oauth2_authorize_url: "https://idp-a.example.com/oauth2/authorize",
+          oauth2_token_url: "https://idp-a.example.com/oauth2/token",
+          oauth2_user_info_url: "https://idp-a.example.com/oauth2/userinfo"
+        )
+
+      {:ok, _victim_identity} =
+        Tuist.Repo.insert(
+          Oauth2Identity.create_changeset(%Oauth2Identity{}, %{
+            provider: :oauth2,
+            id_in_provider: "shared-sub",
+            user_id: victim.id,
+            provider_organization_id: "https://idp-a.example.com"
+          })
+        )
+
+      # Customer B (the attacker) configures a different IdP they control.
+      # Their IdP is going to return `sub = "shared-sub"` from /userinfo.
+      attacker = AccountsFixtures.user_fixture(email: "attacker@customer-b.example")
+
+      attacker_org =
+        AccountsFixtures.organization_fixture(
+          creator: attacker,
+          sso_provider: :oauth2,
+          sso_organization_id: "https://idp-b.example.com",
+          oauth2_client_id: UUIDv7.generate(),
+          oauth2_client_secret: UUIDv7.generate(),
+          oauth2_authorize_url: "https://idp-b.example.com/oauth2/authorize",
+          oauth2_token_url: "https://idp-b.example.com/oauth2/token",
+          oauth2_user_info_url: "https://idp-b.example.com/oauth2/userinfo"
+        )
+
+      expect(OAuth2.Client, :get_token, fn _client, [code: "auth-code"] ->
+        {:ok,
+         %OAuth2.Client{
+           token:
+             AccessToken.new(%{
+               "access_token" => "access-token",
+               "token_type" => "Bearer",
+               "scope" => "openid email profile"
+             })
+         }}
+      end)
+
+      expect(OAuth2.Client, :get, fn %OAuth2.Client{}, "https://idp-b.example.com/oauth2/userinfo" ->
+        {:ok,
+         %{
+           status_code: 200,
+           body: %{
+             "sub" => "shared-sub",
+             "email" => "attacker@customer-b.example",
+             "name" => "Attacker"
+           }
+         }}
+      end)
+
+      # The callback must NOT log the attacker in as the victim. Because the
+      # victim's identity row is scoped to customer A's issuer and the
+      # attacker is authenticating against customer B's issuer, the lookup
+      # for `(:oauth2, "shared-sub", "https://idp-b.example.com")` returns
+      # :not_found — so we fall through to the email-based path and link
+      # the attacker to THEIR OWN existing user (which they're allowed to,
+      # since they're a member of the attacker org).
+      conn =
+        conn
+        |> init_test_session(%{
+          sso_organization_id: attacker_org.id,
+          sso_state: "expected-state",
+          sso_route_provider: :oauth2
+        })
+        |> get("/users/auth/custom_oauth2/callback?code=auth-code&state=expected-state")
+
+      # Critical: attacker is NOT logged in as the victim.
+      refute redirected_to(conn) =~ "/#{victim.account.name}"
+
+      # The victim's identity row is still intact and still points at the victim.
+      assert {:ok, victim_identity_after} =
+               Tuist.Accounts.get_oauth2_identity(:oauth2, "shared-sub", "https://idp-a.example.com")
+
+      assert victim_identity_after.user_id == victim.id
+
+      # A new, separate identity row was created for the attacker against their
+      # own issuer — proving the per-issuer uniqueness key allows both rows to
+      # coexist with the same `sub`.
+      assert {:ok, attacker_identity} =
+               Tuist.Accounts.get_oauth2_identity(:oauth2, "shared-sub", "https://idp-b.example.com")
+
+      assert attacker_identity.user_id == attacker.id
+      refute attacker_identity.user_id == victim.id
     end
 
     test "raises unauthorized error when the user info request fails", %{conn: conn} do

@@ -485,14 +485,40 @@ defmodule Tuist.Accounts do
   Gets an OAuth2 identity by provider and id, preloading the user and account.
   Used to determine if a user signing in via OAuth is new or existing.
 
+  For per-issuer providers (`:okta`, `:oauth2`) the caller MUST pass the
+  `provider_organization_id` that identifies the issuer. OIDC `sub` is only
+  unique within a single issuer, so looking up without the issuer across these
+  providers would allow cross-tenant account takeover — two different
+  customer-configured IdPs can legally return the same `sub`. Passing `nil`
+  for a per-issuer provider returns `{:error, :not_found}` on purpose, as a
+  safer default: a buggy caller causes a loud login failure instead of a
+  silent authentication as the wrong user.
+
+  For global providers (`:github`, `:google`, `:apple`) the `sub` is globally
+  unique and `provider_organization_id` is ignored.
+
   Returns `{:ok, identity}` if found, `{:error, :not_found}` otherwise.
   """
-  def get_oauth2_identity(provider, id_in_provider) do
+  def get_oauth2_identity(provider, id_in_provider, provider_organization_id \\ nil)
+
+  def get_oauth2_identity(provider, _id_in_provider, provider_organization_id)
+      when provider in [:okta, :oauth2] and (is_nil(provider_organization_id) or provider_organization_id == "") do
+    {:error, :not_found}
+  end
+
+  def get_oauth2_identity(provider, id_in_provider, provider_organization_id) do
     query =
       from(o in Oauth2Identity,
         where: o.provider == ^provider and o.id_in_provider == ^to_string(id_in_provider),
         preload: [user: [:account]]
       )
+
+    query =
+      if provider in [:okta, :oauth2] do
+        from o in query, where: o.provider_organization_id == ^provider_organization_id
+      else
+        query
+      end
 
     case Repo.one(query) do
       nil -> {:error, :not_found}

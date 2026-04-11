@@ -133,8 +133,9 @@ defmodule TuistWeb.AuthController do
   defp complete_oauth_callback(conn, auth, opts \\ []) do
     auth_params = %{auth_method: auth.provider}
     sso_organization = Keyword.get(opts, :sso_organization)
+    provider_organization_id = Accounts.extract_provider_organization_id(auth)
 
-    case Accounts.get_oauth2_identity(auth.provider, auth.uid) do
+    case Accounts.get_oauth2_identity(auth.provider, auth.uid, provider_organization_id) do
       {:ok, oauth2_identity} ->
         user = oauth2_identity.user
         oauth_return_url = get_session(conn, :oauth_return_to)
@@ -149,7 +150,6 @@ defmodule TuistWeb.AuthController do
         end
 
       {:error, :not_found} ->
-        provider_organization_id = Accounts.extract_provider_organization_id(auth)
         oauth_return_url = get_session(conn, :oauth_return_to)
 
         case Accounts.get_user_by_email(auth.info.email) do
