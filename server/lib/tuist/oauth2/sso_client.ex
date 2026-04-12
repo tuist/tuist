@@ -26,7 +26,6 @@ defmodule Tuist.OAuth2.SSOClient do
                {"accept", "application/json"},
                {"authorization", "Basic " <> Base.encode64("#{client_id}:#{client_secret}")}
              ],
-             finch: Tuist.Finch,
              connect_options: SSRFGuard.connect_options(hostname),
              decode_body: false
            ) do
@@ -49,7 +48,6 @@ defmodule Tuist.OAuth2.SSOClient do
                {"authorization", "Bearer #{access_token}"},
                {"accept", "application/json"}
              ],
-             finch: Tuist.Finch,
              connect_options: SSRFGuard.connect_options(hostname),
              decode_body: false
            ) do
