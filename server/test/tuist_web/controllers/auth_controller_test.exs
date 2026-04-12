@@ -90,7 +90,13 @@ defmodule TuistWeb.AuthControllerTest do
 
       conn = get(conn, "/users/auth/okta?organization_id=#{organization.id}")
 
-      assert redirected_to(conn) =~ "https://dev-123456/oauth2/v1/authorize"
+      redirect_url = redirected_to(conn)
+      assert redirect_url =~ "https://dev-123456/oauth2/v1/authorize"
+      assert redirect_url =~ "response_type=code"
+      assert redirect_url =~ "scope=openid+email+profile"
+      assert redirect_url =~ "client_id=#{organization.oauth2_client_id}"
+      assert redirect_url =~ "redirect_uri="
+      assert redirect_url =~ "state="
     end
 
     test "includes login_hint in Okta OAuth redirect when provided", %{conn: conn} do
