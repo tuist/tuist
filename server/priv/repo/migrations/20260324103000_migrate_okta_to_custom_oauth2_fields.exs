@@ -2,9 +2,12 @@ defmodule Tuist.Repo.Migrations.MigrateOktaToOauth2Fields do
   # credo:disable-for-this-file ExcellentMigrations.CredoCheck.MigrationsSafety
   use Ecto.Migration
 
+  # Copies Okta credentials into the unified oauth2 fields. The old
+  # okta_client_id and okta_encrypted_client_secret columns are kept
+  # intentionally so we can revert the code without losing data. A
+  # follow-up PR will drop them once we're confident everything works.
+
   def up do
-    # Copy Okta credentials into the unified oauth2 fields
-    # and populate the endpoint URLs from the Okta domain
     execute """
     UPDATE organizations
     SET oauth2_client_id = okta_client_id,
@@ -15,19 +18,9 @@ defmodule Tuist.Repo.Migrations.MigrateOktaToOauth2Fields do
     WHERE sso_provider = 1
       AND okta_client_id IS NOT NULL
     """
-
-    alter table(:organizations) do
-      remove :okta_client_id
-      remove :okta_encrypted_client_secret
-    end
   end
 
   def down do
-    alter table(:organizations) do
-      add :okta_client_id, :string
-      add :okta_encrypted_client_secret, :binary
-    end
-
     execute """
     UPDATE organizations
     SET okta_client_id = oauth2_client_id,
