@@ -48,16 +48,15 @@ defmodule XcodeProcessor.XCResultProcessorTest do
       assert {:ok, ^parsed_data} = XCResultProcessor.process("some/key.zip")
     end
 
-    test "raises when S3 download fails" do
+    test "returns error when S3 download fails" do
       stub(ExAws.S3, :download_file, fn _bucket, _key, _dest_path ->
         %ExAws.Operation.S3{http_method: :get, bucket: "tuist", path: "key"}
       end)
 
       expect(ExAws, :request, fn _ -> {:error, {:http_error, 404, "not found"}} end)
 
-      assert_raise MatchError, fn ->
-        XCResultProcessor.process("some/key.zip")
-      end
+      assert {:error, {:http_error, 404, "not found"}} =
+               XCResultProcessor.process("some/key.zip")
     end
 
     test "returns error when NIF parse fails" do
@@ -236,9 +235,8 @@ defmodule XcodeProcessor.XCResultProcessorTest do
         Path.join(System.tmp_dir!(), "xcode_processor_*")
         |> Path.wildcard()
 
-      assert_raise MatchError, fn ->
-        XCResultProcessor.process("some/key.zip")
-      end
+      assert {:error, {:http_error, 500, "server error"}} =
+               XCResultProcessor.process("some/key.zip")
 
       temp_dirs_after =
         Path.join(System.tmp_dir!(), "xcode_processor_*")

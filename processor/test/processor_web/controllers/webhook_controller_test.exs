@@ -70,5 +70,22 @@ defmodule ProcessorWeb.WebhookControllerTest do
       assert response["targets"] == []
       assert response["project_id"] == "project-789"
     end
+
+    test "returns 422 when processing fails" do
+      expect(Processor.BuildProcessor, :process, fn _storage_key, true ->
+        {:error, "download failed"}
+      end)
+
+      body = JSON.encode!(@valid_payload)
+      signature = sign_body(body)
+
+      conn =
+        build_conn()
+        |> put_req_header("x-webhook-signature", signature)
+        |> post_webhook(body)
+
+      assert conn.status == 422
+      assert json_response(conn, 422)["error"] == "processing_failed"
+    end
   end
 end

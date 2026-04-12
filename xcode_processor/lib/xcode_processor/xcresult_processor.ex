@@ -25,17 +25,29 @@ defmodule XcodeProcessor.XCResultProcessor do
 
     try do
       :telemetry.span([:xcode_processor, :xcresult], %{}, fn ->
-        :telemetry.span([:xcode_processor, :s3, :download], %{}, fn ->
-          {:ok, _} = ExAws.S3.download_file(bucket, storage_key, zip_path) |> ExAws.request()
-          file_size = File.stat!(zip_path).size
-          {:ok, %{file_size: file_size}}
-        end)
+        download_result =
+          :telemetry.span([:xcode_processor, :s3, :download], %{}, fn ->
+            case ExAws.S3.download_file(bucket, storage_key, zip_path) |> ExAws.request() do
+              {:ok, _} ->
+                file_size = File.stat!(zip_path).size
+                {:ok, %{file_size: file_size}}
 
-        result = process_zip(zip_path, temp_dir)
+              {:error, reason} ->
+                {{:error, reason}, %{}}
+            end
+          end)
 
         result =
-          with {:ok, parsed_data} <- result do
-            upload_attachments(parsed_data, bucket, opts)
+          case download_result do
+            {:error, _} = error ->
+              error
+
+            _ ->
+              result = process_zip(zip_path, temp_dir)
+
+              with {:ok, parsed_data} <- result do
+                upload_attachments(parsed_data, bucket, opts)
+              end
           end
 
         status = if match?({:ok, _}, result), do: :ok, else: :error

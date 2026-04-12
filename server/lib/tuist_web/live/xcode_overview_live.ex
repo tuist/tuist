@@ -101,7 +101,8 @@ defmodule TuistWeb.XcodeOverviewLive do
         last: 40,
         filters: [
           %{field: :project_id, op: :==, value: project.id},
-          %{field: :status, op: :!=, value: "in_progress"}
+          %{field: :status, op: :!=, value: "in_progress"},
+          %{field: :status, op: :!=, value: "failed_processing"}
         ],
         order_by: [:ran_at],
         order_directions: [:asc]

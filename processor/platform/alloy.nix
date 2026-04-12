@@ -56,6 +56,11 @@
     }
 
     prometheus.remote_write "grafana_cloud" {
+      external_labels = {
+        "hostname" = "${config.networking.hostName}",
+        "service"  = "processor",
+      }
+
       endpoint {
         url = local.file.grafana_cloud_url.content
 
@@ -106,13 +111,12 @@
       targets = [
         {
           __address__ = "127.0.0.1:4002",
-          __scheme__ = "http",
-          __metrics_path__ = "/metrics",
-          instance = "${config.networking.hostName}",
+          job = "processor",
         },
       ]
 
-      scrape_interval = "30s"
+      metrics_path    = "/metrics"
+      scrape_interval = "15s"
 
       forward_to = [prometheus.remote_write.grafana_cloud.receiver]
     }
