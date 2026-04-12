@@ -483,6 +483,7 @@ var targets: [Target] = [
         name: "TuistEnvironment",
         dependencies: [
             pathDependency,
+            fileSystemDependency,
             mockableDependency,
         ],
         path: "cli/Sources/TuistEnvironment",

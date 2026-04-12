@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Mockable
 import Path
@@ -218,7 +219,7 @@ public struct Environment: Environmenting {
     }
 
     public func currentWorkingDirectory() async throws -> AbsolutePath {
-        return try AbsolutePath(validating: FileManager.default.currentDirectoryPath)
+        return try await FileSystem().currentWorkingDirectory()
     }
 
     private func variable(_ variableName: String) -> String? {
