@@ -682,7 +682,6 @@ defmodule TuistWeb.Router do
       on_mount: [{TuistWeb.Authentication, :redirect_if_user_is_authenticated}] do
       live "/users/register", UserRegistrationLive, :new
       live "/users/log_in", UserLoginLive, :new
-      live "/users/log_in/okta", UserOktaLoginLive, :new
       live "/users/log_in/sso", SSOLoginLive, :new
       live "/users/reset_password", UserForgotPasswordLive, :new
       live "/users/reset_password/:token", UserResetPasswordLive, :edit

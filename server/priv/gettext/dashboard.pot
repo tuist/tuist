@@ -321,7 +321,7 @@ msgstr ""
 msgid "The account you are looking for doesn't exist or has been moved."
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:30
+#: lib/tuist_web/controllers/auth_controller.ex:29
 #, elixir-autogen, elixir-format
 msgid "The authentication URL is not supported"
 msgstr ""
@@ -502,7 +502,7 @@ msgstr ""
 msgid "Metrics"
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:277
+#: lib/tuist_web/controllers/auth_controller.ex:301
 #, elixir-autogen, elixir-format
 msgid "Failed to authenticate."
 msgstr ""
@@ -512,7 +512,7 @@ msgstr ""
 msgid "Authentication failed"
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:268
+#: lib/tuist_web/controllers/auth_controller.ex:292
 #, elixir-autogen, elixir-format
 msgid "Your identity provider denied access. Please ask your organization admin to assign you to the Tuist application."
 msgstr ""
@@ -523,13 +523,15 @@ msgstr ""
 msgid "Shards"
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:65
-#: lib/tuist_web/controllers/auth_controller.ex:70
-#: lib/tuist_web/controllers/auth_controller.ex:79
-#: lib/tuist_web/controllers/auth_controller.ex:97
+#: lib/tuist_web/controllers/auth_controller.ex:67
+#: lib/tuist_web/controllers/auth_controller.ex:72
+#: lib/tuist_web/controllers/auth_controller.ex:81
 #: lib/tuist_web/controllers/auth_controller.ex:101
-#: lib/tuist_web/controllers/auth_controller.ex:106
-#: lib/tuist_web/controllers/auth_controller.ex:193
+#: lib/tuist_web/controllers/auth_controller.ex:105
+#: lib/tuist_web/controllers/auth_controller.ex:110
+#: lib/tuist_web/controllers/auth_controller.ex:219
+#: lib/tuist_web/controllers/auth_controller.ex:338
+#: lib/tuist_web/controllers/auth_controller.ex:349
 #, elixir-autogen, elixir-format
 msgid "Failed to authenticate with the SSO provider."
 msgstr ""
