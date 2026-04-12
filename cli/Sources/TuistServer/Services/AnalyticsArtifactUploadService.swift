@@ -37,7 +37,6 @@
         private let fileSystem: FileSysteming
         private let xcresultToolController: XCResultToolControlling
         private let fileArchiver: FileArchivingFactorying
-        private let retryProvider: RetryProviding
         private let fullHandleService: FullHandleServicing
         private let multipartUploadStartAnalyticsService: MultipartUploadStartAnalyticsServicing
         private let multipartUploadGenerateURLAnalyticsService:
@@ -51,7 +50,6 @@
                 fileSystem: FileSystem(),
                 xcresultToolController: XCResultToolController(),
                 fileArchiver: FileArchivingFactory(),
-                retryProvider: RetryProvider(),
                 fullHandleService: FullHandleService(),
                 multipartUploadStartAnalyticsService: MultipartUploadStartAnalyticsService(),
                 multipartUploadGenerateURLAnalyticsService:
@@ -67,7 +65,6 @@
             fileSystem: FileSysteming,
             xcresultToolController: XCResultToolControlling,
             fileArchiver: FileArchivingFactorying,
-            retryProvider: RetryProviding,
             fullHandleService: FullHandleServicing,
             multipartUploadStartAnalyticsService: MultipartUploadStartAnalyticsServicing,
             multipartUploadGenerateURLAnalyticsService: MultipartUploadGenerateURLAnalyticsServicing,
@@ -78,7 +75,6 @@
             self.fileSystem = fileSystem
             self.xcresultToolController = xcresultToolController
             self.fileArchiver = fileArchiver
-            self.retryProvider = retryProvider
             self.fullHandleService = fullHandleService
             self.multipartUploadStartAnalyticsService = multipartUploadStartAnalyticsService
             self.multipartUploadGenerateURLAnalyticsService = multipartUploadGenerateURLAnalyticsService
@@ -221,42 +217,40 @@
                 artifactPath = passedArtifactPath
             }
 
-            try await retryProvider.runWithRetries { [self] in
-                let uploadId = try await multipartUploadStartAnalyticsService.uploadAnalyticsArtifact(
-                    artifact,
-                    accountHandle: accountHandle,
-                    projectHandle: projectHandle,
-                    commandEventId: commandEventId,
-                    serverURL: serverURL
-                )
+            let uploadId = try await multipartUploadStartAnalyticsService.uploadAnalyticsArtifact(
+                artifact,
+                accountHandle: accountHandle,
+                projectHandle: projectHandle,
+                commandEventId: commandEventId,
+                serverURL: serverURL
+            )
 
-                let parts = try await multipartUploadArtifactService.multipartUploadArtifact(
-                    artifactPath: artifactPath,
-                    generateUploadURL: { part in
-                        try await multipartUploadGenerateURLAnalyticsService.uploadAnalytics(
-                            artifact,
-                            accountHandle: accountHandle,
-                            projectHandle: projectHandle,
-                            commandEventId: commandEventId,
-                            partNumber: part.number,
-                            uploadId: uploadId,
-                            serverURL: serverURL,
-                            contentLength: part.contentLength
-                        )
-                    },
-                    updateProgress: { _ in }
-                )
+            let parts = try await multipartUploadArtifactService.multipartUploadArtifact(
+                artifactPath: artifactPath,
+                generateUploadURL: { part in
+                    try await multipartUploadGenerateURLAnalyticsService.uploadAnalytics(
+                        artifact,
+                        accountHandle: accountHandle,
+                        projectHandle: projectHandle,
+                        commandEventId: commandEventId,
+                        partNumber: part.number,
+                        uploadId: uploadId,
+                        serverURL: serverURL,
+                        contentLength: part.contentLength
+                    )
+                },
+                updateProgress: { _ in }
+            )
 
-                try await multipartUploadCompleteAnalyticsService.uploadAnalyticsArtifact(
-                    artifact,
-                    accountHandle: accountHandle,
-                    projectHandle: projectHandle,
-                    commandEventId: commandEventId,
-                    uploadId: uploadId,
-                    parts: parts,
-                    serverURL: serverURL
-                )
-            }
+            try await multipartUploadCompleteAnalyticsService.uploadAnalyticsArtifact(
+                artifact,
+                accountHandle: accountHandle,
+                projectHandle: projectHandle,
+                commandEventId: commandEventId,
+                uploadId: uploadId,
+                parts: parts,
+                serverURL: serverURL
+            )
         }
     }
 #endif

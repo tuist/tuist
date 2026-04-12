@@ -36,8 +36,27 @@ defmodule TuistTestSupport.Fixtures.AccountsFixtures do
     creator = Keyword.get_lazy(opts, :creator, fn -> user_fixture() end)
     sso_provider = Keyword.get(opts, :sso_provider)
     sso_organization_id = Keyword.get(opts, :sso_organization_id)
-    okta_client_id = Keyword.get(opts, :okta_client_id)
-    okta_client_secret = Keyword.get(opts, :okta_client_secret)
+    oauth2_client_id = Keyword.get(opts, :oauth2_client_id)
+    oauth2_client_secret = Keyword.get(opts, :oauth2_client_secret)
+
+    oauth2_authorize_url =
+      Keyword.get_lazy(opts, :oauth2_authorize_url, fn ->
+        if sso_provider == :okta and sso_organization_id,
+          do: "https://#{sso_organization_id}/oauth2/v1/authorize"
+      end)
+
+    oauth2_token_url =
+      Keyword.get_lazy(opts, :oauth2_token_url, fn ->
+        if sso_provider == :okta and sso_organization_id,
+          do: "https://#{sso_organization_id}/oauth2/v1/token"
+      end)
+
+    oauth2_user_info_url =
+      Keyword.get_lazy(opts, :oauth2_user_info_url, fn ->
+        if sso_provider == :okta and sso_organization_id,
+          do: "https://#{sso_organization_id}/oauth2/v1/userinfo"
+      end)
+
     created_at = Keyword.get(opts, :created_at, DateTime.utc_now())
 
     customer_id =
@@ -53,8 +72,11 @@ defmodule TuistTestSupport.Fixtures.AccountsFixtures do
       Accounts.create_organization(%{name: name, creator: creator},
         sso_provider: sso_provider,
         sso_organization_id: sso_organization_id,
-        okta_client_id: okta_client_id,
-        okta_client_secret: okta_client_secret,
+        oauth2_client_id: oauth2_client_id,
+        oauth2_client_secret: oauth2_client_secret,
+        oauth2_authorize_url: oauth2_authorize_url,
+        oauth2_token_url: oauth2_token_url,
+        oauth2_user_info_url: oauth2_user_info_url,
         created_at: created_at,
         customer_id: customer_id,
         setup_billing: setup_billing,

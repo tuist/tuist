@@ -24,10 +24,18 @@ defmodule TuistWeb.SSOLoginLive do
   def handle_event("submit", %{"user" => %{"email" => email}}, socket) do
     email = String.trim(email)
 
-    case Accounts.okta_organization_for_user_email(email) do
+    case Accounts.sso_organization_for_user_email(email) do
       {:ok, organization} ->
         encoded_email = URI.encode_www_form(email)
-        redirect_url = "/users/auth/okta?organization_id=#{organization.id}&login_hint=#{encoded_email}"
+
+        provider_path =
+          case organization.sso_provider do
+            :okta -> "okta"
+            :oauth2 -> "oauth2"
+          end
+
+        redirect_url = "/users/auth/#{provider_path}?organization_id=#{organization.id}&login_hint=#{encoded_email}"
+
         {:noreply, redirect(socket, to: redirect_url)}
 
       {:error, :not_found} ->
@@ -53,7 +61,7 @@ defmodule TuistWeb.SSOLoginLive do
           <div data-part="header">
             <h1 data-part="title">{dgettext("dashboard_auth", "Log in to Tuist")}</h1>
             <span data-part="subtitle">
-              {dgettext("dashboard_auth", "Log in to your enterprise account via Okta")}
+              {dgettext("dashboard_auth", "Log in to your enterprise account via SSO")}
             </span>
           </div>
           <.form data-part="form" for={@form} id="sso_login_form" phx-submit="submit">

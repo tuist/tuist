@@ -29,6 +29,7 @@ permissions:
 
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  MISE_GITHUB_TOKEN: ${{ secrets.TUIST_APP_GITHUB_TOKEN || github.token }}
   TUIST_ENABLE_CACHING: ${{ github.event.pull_request.head.repo.fork != true }}
   MISE_GITHUB_ATTESTATIONS: 0
 
@@ -100,6 +101,8 @@ jobs:
           path: .build
           key: ${{ runner.os }}-app-${{ hashFiles('Package.resolved') }}
       - uses: jdx/mise-action@v2
+        with:
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
       - name: Authenticate with Tuist
         if: github.event.pull_request.head.repo.fork != true
         run: tuist auth login
@@ -154,6 +157,8 @@ jobs:
           path: .build
           key: ${{ runner.os }}-app-${{ hashFiles('Package.resolved') }}
       - uses: jdx/mise-action@v2
+        with:
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
       - name: Authenticate with Tuist
         if: github.event.pull_request.head.repo.fork != true
         run: tuist auth login
@@ -199,6 +204,8 @@ jobs:
           path: .build
           key: ${{ runner.os }}-app-${{ hashFiles('Package.resolved') }}
       - uses: jdx/mise-action@v2
+        with:
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
       - name: Authenticate with Tuist
         if: github.event.pull_request.head.repo.fork != true
         run: tuist auth login

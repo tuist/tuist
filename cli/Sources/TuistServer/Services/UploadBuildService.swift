@@ -35,16 +35,13 @@ enum UploadBuildServiceError: LocalizedError {
 public struct UploadBuildService: UploadBuildServicing {
     private let fullHandleService: FullHandleServicing
     private let multipartUploadArtifactService: MultipartUploadArtifactServicing
-    private let retryProvider: RetryProviding
 
     public init(
         fullHandleService: FullHandleServicing = FullHandleService(),
-        multipartUploadArtifactService: MultipartUploadArtifactServicing = MultipartUploadArtifactService(),
-        retryProvider: RetryProviding = RetryProvider()
+        multipartUploadArtifactService: MultipartUploadArtifactServicing = MultipartUploadArtifactService()
     ) {
         self.fullHandleService = fullHandleService
         self.multipartUploadArtifactService = multipartUploadArtifactService
-        self.retryProvider = retryProvider
     }
 
     public func uploadBuild(
@@ -58,14 +55,12 @@ public struct UploadBuildService: UploadBuildServicing {
         let accountHandle = handles.accountHandle
         let projectHandle = handles.projectHandle
 
-        let uploadId = try await retryProvider.runWithRetries { [self] in
-            try await startMultipartUpload(
-                client: client,
-                accountHandle: accountHandle,
-                projectHandle: projectHandle,
-                buildId: buildId
-            )
-        }
+        let uploadId = try await startMultipartUpload(
+            client: client,
+            accountHandle: accountHandle,
+            projectHandle: projectHandle,
+            buildId: buildId
+        )
 
         let parts = try await multipartUploadArtifactService.multipartUploadArtifact(
             artifactPath: filePath,
@@ -82,16 +77,14 @@ public struct UploadBuildService: UploadBuildServicing {
             updateProgress: { _ in }
         )
 
-        try await retryProvider.runWithRetries { [self] in
-            try await completeMultipartUpload(
-                client: client,
-                accountHandle: accountHandle,
-                projectHandle: projectHandle,
-                buildId: buildId,
-                uploadId: uploadId,
-                parts: parts
-            )
-        }
+        try await completeMultipartUpload(
+            client: client,
+            accountHandle: accountHandle,
+            projectHandle: projectHandle,
+            buildId: buildId,
+            uploadId: uploadId,
+            parts: parts
+        )
     }
 
     private func startMultipartUpload(

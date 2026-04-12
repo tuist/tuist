@@ -101,8 +101,7 @@ msgstr ""
 msgid "Connection successful"
 msgstr ""
 
-#: lib/tuist_web/live/sso_login_live.ex:88
-#: lib/tuist_web/live/user_okta_login_live.ex:92
+#: lib/tuist_web/live/sso_login_live.ex:96
 #, elixir-autogen, elixir-format
 msgid "Contact us"
 msgstr ""
@@ -122,15 +121,14 @@ msgstr ""
 msgid "Discover how selective testing is reducing your test time."
 msgstr ""
 
-#: lib/tuist_web/live/user_login_live.ex:201
+#: lib/tuist_web/live/user_login_live.ex:196
 #, elixir-autogen, elixir-format
 msgid "Don't have an account?"
 msgstr ""
 
-#: lib/tuist_web/live/sso_login_live.ex:71
+#: lib/tuist_web/live/sso_login_live.ex:79
 #: lib/tuist_web/live/user_forgot_password_live.ex:54
-#: lib/tuist_web/live/user_login_live.ex:138
-#: lib/tuist_web/live/user_okta_login_live.ex:74
+#: lib/tuist_web/live/user_login_live.ex:133
 #: lib/tuist_web/live/user_registration_live.ex:148
 #, elixir-autogen, elixir-format
 msgid "Email address"
@@ -151,7 +149,7 @@ msgstr ""
 msgid "Explore how binary caching is enhancing your build times."
 msgstr ""
 
-#: lib/tuist_web/live/user_login_live.ex:170
+#: lib/tuist_web/live/user_login_live.ex:165
 #, elixir-autogen, elixir-format
 msgid "Forgot password?"
 msgstr ""
@@ -176,42 +174,33 @@ msgstr ""
 msgid "Instantly share your app using a URL."
 msgstr ""
 
-#: lib/tuist_web/live/sso_login_live.ex:83
-#: lib/tuist_web/live/user_okta_login_live.ex:86
+#: lib/tuist_web/live/sso_login_live.ex:91
 #, elixir-autogen, elixir-format
 msgid "Interested in SSO?"
 msgstr ""
 
-#: lib/tuist_web/live/user_login_live.ex:163
+#: lib/tuist_web/live/user_login_live.ex:158
 #, elixir-autogen, elixir-format
 msgid "Keep me logged in"
 msgstr ""
 
-#: lib/tuist_web/live/sso_login_live.ex:79
+#: lib/tuist_web/live/sso_login_live.ex:87
 #: lib/tuist_web/live/user_login_live.ex:17
-#: lib/tuist_web/live/user_login_live.ex:176
-#: lib/tuist_web/live/user_okta_login_live.ex:82
+#: lib/tuist_web/live/user_login_live.ex:171
 #: lib/tuist_web/live/user_registration_live.ex:193
 #, elixir-autogen, elixir-format
 msgid "Log in"
 msgstr ""
 
-#: lib/tuist_web/live/sso_login_live.ex:54
+#: lib/tuist_web/live/sso_login_live.ex:62
 #: lib/tuist_web/live/user_login_live.ex:48
-#: lib/tuist_web/live/user_okta_login_live.ex:57
 #, elixir-autogen, elixir-format
 msgid "Log in to Tuist"
 msgstr ""
 
-#: lib/tuist_web/live/sso_login_live.ex:56
-#: lib/tuist_web/live/user_okta_login_live.ex:59
+#: lib/tuist_web/live/sso_login_live.ex:64
 #, elixir-autogen, elixir-format
-msgid "Log in to your enterprise account via Okta"
-msgstr ""
-
-#: lib/tuist_web/live/user_okta_login_live.ex:36
-#, elixir-autogen, elixir-format
-msgid "Logging in via Okta failed"
+msgid "Log in to your enterprise account via SSO"
 msgstr ""
 
 #: lib/tuist_web/live/user_reset_password_live.ex:45
@@ -224,7 +213,7 @@ msgstr ""
 msgid "Next steps"
 msgstr ""
 
-#: lib/tuist_web/live/sso_login_live.ex:34
+#: lib/tuist_web/live/sso_login_live.ex:42
 #, elixir-autogen, elixir-format
 msgid "No SSO organization found for this email"
 msgstr ""
@@ -234,12 +223,7 @@ msgstr ""
 msgid "OR"
 msgstr ""
 
-#: lib/tuist_web/live/user_okta_login_live.ex:17
-#, elixir-autogen, elixir-format
-msgid "Okta log in"
-msgstr ""
-
-#: lib/tuist_web/live/user_login_live.ex:149
+#: lib/tuist_web/live/user_login_live.ex:144
 #: lib/tuist_web/live/user_registration_live.ex:158
 #, elixir-autogen, elixir-format
 msgid "Password"
@@ -281,7 +265,7 @@ msgstr ""
 msgid "Selective testing"
 msgstr ""
 
-#: lib/tuist_web/live/user_login_live.ex:206
+#: lib/tuist_web/live/user_login_live.ex:201
 #: lib/tuist_web/live/user_registration_live.ex:182
 #: lib/tuist_web/live/user_registration_live.ex:265
 #, elixir-autogen, elixir-format
@@ -305,11 +289,10 @@ msgstr ""
 
 #: lib/tuist_web/live/choose_username_live.ex:42
 #: lib/tuist_web/live/device_codes_success_live.ex:28
-#: lib/tuist_web/live/sso_login_live.ex:46
+#: lib/tuist_web/live/sso_login_live.ex:54
 #: lib/tuist_web/live/user_confirmation_live.ex:18
 #: lib/tuist_web/live/user_forgot_password_live.ex:23
 #: lib/tuist_web/live/user_login_live.ex:40
-#: lib/tuist_web/live/user_okta_login_live.ex:49
 #: lib/tuist_web/live/user_registration_live.ex:67
 #: lib/tuist_web/live/user_registration_live.ex:211
 #: lib/tuist_web/live/user_reset_password_live.ex:24
@@ -446,7 +429,7 @@ msgstr ""
 msgid "and"
 msgstr ""
 
-#: lib/tuist_web/live/user_login_live.ex:196
+#: lib/tuist_web/live/user_login_live.ex:191
 #, elixir-autogen, elixir-format
 msgid "Log in as test user"
 msgstr ""
@@ -454,4 +437,9 @@ msgstr ""
 #: lib/tuist_web/live/choose_username_live.ex:52
 #, elixir-autogen, elixir-format
 msgid "Choose a username for your account"
+msgstr ""
+
+#: lib/tuist_web/live/user_login_live.ex:102
+#, elixir-autogen, elixir-format
+msgid "SSO"
 msgstr ""

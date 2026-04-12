@@ -137,12 +137,14 @@ defmodule Tuist do
       Storage,
       Tasks,
       Time,
+      URL,
       Utilities.ByteFormatter,
       Utilities.DateFormatter,
       Utilities.ThroughputFormatter,
       VCS,
       UUIDv7,
       OAuth.Apple,
-      OAuth.Okta
+      OAuth2.SSOClient,
+      OAuth2.SSRFGuard
     ]
 end

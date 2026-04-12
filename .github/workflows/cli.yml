@@ -49,6 +49,7 @@ permissions:
 
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  MISE_GITHUB_TOKEN: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
   TUIST_GITHUB_TOKEN: ${{ secrets.TUIST_CLI_GITHUB_TOKEN }}
   TUIST_EE: ${{ github.event.pull_request.head.repo.fork != true && '1' || '' }}
   TUIST_ENABLE_CACHING: ${{ github.event.pull_request.head.repo.fork != true }}
@@ -82,6 +83,7 @@ jobs:
         with:
           install_args: "tuist swiftlint swiftformat"
           cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
       - name: Authenticate with Tuist
         if: github.event.pull_request.head.repo.fork != true
         run: tuist auth login
@@ -115,6 +117,7 @@ jobs:
         with:
           install_args: "tuist"
           cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
       - name: Authenticate with Tuist
         if: github.event.pull_request.head.repo.fork != true
         run: tuist auth login
@@ -150,6 +153,7 @@ jobs:
       - uses: jdx/mise-action@v3.2.0
         with:
           install_args: "tuist"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
       - name: Authenticate with Tuist
         if: github.event.pull_request.head.repo.fork != true
         run: tuist auth login
@@ -194,6 +198,7 @@ jobs:
         with:
           install_args: "tuist"
           cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
       - name: Authenticate with Tuist
         if: github.event.pull_request.head.repo.fork != true
         run: tuist auth login
@@ -234,6 +239,7 @@ jobs:
         with:
           install_args: "tuist"
           cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
       - name: Authenticate with Tuist
         if: github.event.pull_request.head.repo.fork != true
         run: tuist auth login
@@ -283,6 +289,7 @@ jobs:
         with:
           install_args: "tuist"
           cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
       - name: Authenticate with Tuist
         if: github.event.pull_request.head.repo.fork != true
         run: tuist auth login
@@ -328,6 +335,7 @@ jobs:
         with:
           install_args: "tuist"
           cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
       - name: Install Tuist dependencies
         if: steps.cache.outputs.cache-matched-key == ''
         run: tuist install

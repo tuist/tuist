@@ -15,6 +15,7 @@ defmodule Tuist.Application do
   alias Tuist.Tests.TestCaseEvent
   alias Tuist.Tests.TestCaseFailure
   alias Tuist.Tests.TestCaseRun
+  alias Tuist.Tests.TestCaseRunArgument
   alias Tuist.Tests.TestCaseRunAttachment
   alias Tuist.Tests.TestCaseRunRepetition
   alias Tuist.Tests.TestModuleRun
@@ -68,6 +69,7 @@ defmodule Tuist.Application do
 
   defp start_telemetry do
     Oban.Telemetry.attach_default_logger()
+    TuistCommon.ObanTelemetry.attach()
     ReqTelemetry.attach_default_logger(:pipeline)
     TransportLogger.attach(:tuist)
 
@@ -153,6 +155,7 @@ defmodule Tuist.Application do
         Supervisor.child_spec(TestCase.Buffer, id: TestCase.Buffer),
         Supervisor.child_spec(TestCaseFailure.Buffer, id: TestCaseFailure.Buffer),
         Supervisor.child_spec(TestCaseRunRepetition.Buffer, id: TestCaseRunRepetition.Buffer),
+        Supervisor.child_spec(TestCaseRunArgument.Buffer, id: TestCaseRunArgument.Buffer),
         Supervisor.child_spec(TestCaseRunAttachment.Buffer, id: TestCaseRunAttachment.Buffer),
         Supervisor.child_spec(TestCaseEvent.Buffer, id: TestCaseEvent.Buffer),
         Supervisor.child_spec(CASEvent.Buffer, id: CASEvent.Buffer),

@@ -113,12 +113,10 @@ public struct LoginCommandService: LoginCommandServicing {
         let oidcToken = try await retryProvider.runWithRetries {
             try await ciOIDCAuthenticator.fetchOIDCToken()
         }
-        let accessToken = try await retryProvider.runWithRetries {
-            try await exchangeOIDCTokenService.exchangeOIDCToken(
-                oidcToken: oidcToken,
-                serverURL: serverURL
-            )
-        }
+        let accessToken = try await exchangeOIDCTokenService.exchangeOIDCToken(
+            oidcToken: oidcToken,
+            serverURL: serverURL
+        )
 
         try await ServerCredentialsStore.current.store(
             credentials: ServerCredentials(accessToken: accessToken),

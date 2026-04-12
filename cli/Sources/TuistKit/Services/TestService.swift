@@ -15,6 +15,7 @@ import TuistLogging
 import TuistRootDirectoryLocator
 import TuistServer
 import TuistSupport
+import TuistXCActivityLog
 import TuistXCResultService
 import XcodeGraph
 import XCResultParser
@@ -113,6 +114,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
     private let shardPlanService: ShardPlanServicing
     private let shardMatrixOutputService: ShardMatrixOutputServicing
     private let shardService: ShardServicing
+    private let xcActivityLogController: XCActivityLogControlling
+    private let uploadBuildRunService: UploadBuildRunServicing?
 
     public init(
         generatorFactory: GeneratorFactorying,
@@ -150,7 +153,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
         testQuarantineService: TestQuarantineServicing = TestQuarantineService(),
         shardPlanService: ShardPlanServicing = ShardPlanService(),
         shardMatrixOutputService: ShardMatrixOutputServicing = ShardMatrixOutputService(),
-        shardService: ShardServicing = ShardService()
+        shardService: ShardServicing = ShardService(),
+        xcActivityLogController: XCActivityLogControlling = XCActivityLogController(),
+        uploadBuildRunService: UploadBuildRunServicing? = UploadBuildRunService()
     ) {
         self.generatorFactory = generatorFactory
         self.cacheStorageFactory = cacheStorageFactory
@@ -175,6 +180,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
         self.shardPlanService = shardPlanService
         self.shardMatrixOutputService = shardMatrixOutputService
         self.shardService = shardService
+        self.xcActivityLogController = xcActivityLogController
+        self.uploadBuildRunService = uploadBuildRunService
     }
 
     public static func validateParameters(
@@ -224,7 +231,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         shardIndex: Int? = nil,
         shardSkipUpload: Bool = false,
         shardArchivePath: AbsolutePath? = nil,
-        mode: TestProcessingMode = .local
+        mode: TestProcessingMode? = nil
     ) async throws {
         if validateTestTargetsParameters {
             try Self.validateParameters(
@@ -238,6 +245,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 errorMessageOverride:
                 "The 'tuist test' command is for generated projects or Swift packages. Please use 'tuist xcodebuild test' instead."
             )
+
+        let mode = mode ?? TestProcessingMode.default(for: config.url)
 
         if let shardIndex, action == .testWithoutBuilding {
             try await runShard(
@@ -500,7 +509,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
         if action == .build {
             if let testProductsPath = try? await resolveTestProductsPath(
                 passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
-                derivedDataPath: derivedDataPath
+                derivedDataPath: derivedDataPath,
+                relativeTo: path
             ) {
                 let selectiveTestingGraph = computeSelectiveTestingGraph(
                     mapperEnvironment: mapperEnvironment,
@@ -846,12 +856,14 @@ public struct TestService { // swiftlint:disable:this type_body_length
 
     private func resolveTestProductsPath(
         passthroughXcodeBuildArguments: [String],
-        derivedDataPath: AbsolutePath?
+        derivedDataPath: AbsolutePath?,
+        relativeTo path: AbsolutePath
     ) async throws -> AbsolutePath {
-        if let index = passthroughXcodeBuildArguments.firstIndex(of: "-testProductsPath"),
-           passthroughXcodeBuildArguments.indices.contains(index + 1)
-        {
-            return try AbsolutePath(validating: passthroughXcodeBuildArguments[index + 1])
+        if let testProductsPath = testProductsPathFromArguments(
+            passthroughXcodeBuildArguments,
+            relativeTo: path
+        ) {
+            return testProductsPath
         }
 
         guard let derivedDataPath else {
@@ -1428,6 +1440,13 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
             )
         } catch {
+            await uploadBuildRunIfNeeded(
+                projectDerivedDataDirectory: projectDerivedDataDirectory,
+                projectPath: graphTraverser.workspace.xcWorkspacePath,
+                config: config,
+                scheme: scheme.name,
+                configuration: configuration
+            )
             let summary = mode == .local
                 ? await testSummary(resultBundlePath: resultBundlePath, quarantinedTests: quarantinedTests)
                 : nil
@@ -1443,6 +1462,13 @@ public struct TestService { // swiftlint:disable:this type_body_length
             throw error
         }
 
+        await uploadBuildRunIfNeeded(
+            projectDerivedDataDirectory: projectDerivedDataDirectory,
+            projectPath: graphTraverser.workspace.xcWorkspacePath,
+            config: config,
+            scheme: scheme.name,
+            configuration: configuration
+        )
         let summary = mode == .local
             ? await testSummary(resultBundlePath: resultBundlePath, quarantinedTests: quarantinedTests)
             : nil
@@ -1466,6 +1492,36 @@ public struct TestService { // swiftlint:disable:this type_body_length
               let parsed = try? await xcResultService.parse(path: resultBundlePath, rootDirectory: rootDir)
         else { return nil }
         return testQuarantineService.markQuarantinedTests(testSummary: parsed, quarantinedTests: quarantinedTests)
+    }
+
+    private func uploadBuildRunIfNeeded(
+        projectDerivedDataDirectory: AbsolutePath?,
+        projectPath: AbsolutePath,
+        config: Tuist,
+        scheme: String?,
+        configuration: String?
+    ) async {
+        guard config.fullHandle != nil,
+              let projectDerivedDataDirectory,
+              let mostRecentActivityLogFile = try? await xcActivityLogController.mostRecentActivityLogFile(
+                  projectDerivedDataDirectory: projectDerivedDataDirectory
+              )
+        else { return }
+
+        await RunMetadataStorage.current.update(buildRunId: mostRecentActivityLogFile.path.basenameWithoutExt)
+
+        guard let uploadBuildRunService else { return }
+        do {
+            try await uploadBuildRunService.uploadBuildRun(
+                activityLogPath: mostRecentActivityLogFile.path,
+                projectPath: projectPath,
+                config: config,
+                scheme: scheme,
+                configuration: configuration
+            )
+        } catch {
+            AlertController.current.warning(.alert("Failed to upload build: \(error.localizedDescription)"))
+        }
     }
 
     private func uploadResultBundleIfNeeded(
@@ -1495,13 +1551,16 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 )
             case .remote:
                 guard let resultBundlePath else { return }
+                let buildRunId = await RunMetadataStorage.current.buildRunId
                 let test = try await uploadResultBundleService.uploadResultBundle(
                     resultBundlePath: resultBundlePath,
                     config: config,
                     quarantinedTests: quarantinedTests,
+                    buildRunId: buildRunId,
                     shardPlanId: shardPlanId,
                     shardIndex: shardIndex
                 )
+                await RunMetadataStorage.current.update(testRunId: test.id)
                 AlertController.current.success(
                     .alert("Result bundle uploaded for processing. View at \(test.url)")
                 )

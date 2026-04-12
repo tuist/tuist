@@ -3,6 +3,7 @@ defmodule TuistWeb.AuthControllerTest do
   use Mimic
 
   alias Tuist.Accounts.Oauth2Identity
+  alias Tuist.OAuth2.SSOClient
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias Ueberauth.Auth.Info
 
@@ -76,7 +77,6 @@ defmodule TuistWeb.AuthControllerTest do
 
   describe "GET /users/auth/okta" do
     test "redirects to Okta OAuth when organization is found and configured", %{conn: conn} do
-      # Given
       user = AccountsFixtures.user_fixture()
 
       organization =
@@ -84,19 +84,22 @@ defmodule TuistWeb.AuthControllerTest do
           creator: user,
           sso_provider: :okta,
           sso_organization_id: "dev-123456",
-          okta_client_id: UUIDv7.generate(),
-          okta_client_secret: UUIDv7.generate()
+          oauth2_client_id: UUIDv7.generate(),
+          oauth2_client_secret: UUIDv7.generate()
         )
 
-      # When
       conn = get(conn, "/users/auth/okta?organization_id=#{organization.id}")
 
-      # Then
-      assert redirected_to(conn) =~ "https://dev-123456/oauth2/v1/authorize"
+      redirect_url = redirected_to(conn)
+      assert redirect_url =~ "https://dev-123456/oauth2/v1/authorize"
+      assert redirect_url =~ "response_type=code"
+      assert redirect_url =~ "scope=openid+email+profile"
+      assert redirect_url =~ "client_id=#{organization.oauth2_client_id}"
+      assert redirect_url =~ "redirect_uri="
+      assert redirect_url =~ "state="
     end
 
     test "includes login_hint in Okta OAuth redirect when provided", %{conn: conn} do
-      # Given
       user = AccountsFixtures.user_fixture()
 
       organization =
@@ -104,16 +107,14 @@ defmodule TuistWeb.AuthControllerTest do
           creator: user,
           sso_provider: :okta,
           sso_organization_id: "dev-123456",
-          okta_client_id: UUIDv7.generate(),
-          okta_client_secret: UUIDv7.generate()
+          oauth2_client_id: UUIDv7.generate(),
+          oauth2_client_secret: UUIDv7.generate()
         )
 
       login_hint = "user@example.com"
 
-      # When
       conn = get(conn, "/users/auth/okta?organization_id=#{organization.id}&login_hint=#{login_hint}")
 
-      # Then
       redirect_url = redirected_to(conn)
       assert redirect_url =~ "https://dev-123456/oauth2/v1/authorize"
       assert redirect_url =~ "login_hint=user%40example.com"
@@ -126,7 +127,6 @@ defmodule TuistWeb.AuthControllerTest do
     end
 
     test "raises unauthorized error when organization not configured for Okta", %{conn: conn} do
-      # Given
       user = AccountsFixtures.user_fixture()
 
       organization =
@@ -136,7 +136,6 @@ defmodule TuistWeb.AuthControllerTest do
           sso_organization_id: "example.com"
         )
 
-      # When/Then
       assert_error_sent 401, fn ->
         get(conn, "/users/auth/okta?organization_id=#{organization.id}")
       end
@@ -144,33 +143,45 @@ defmodule TuistWeb.AuthControllerTest do
   end
 
   describe "GET /users/auth/okta/callback" do
-    test "raises unauthorized error when organization has no Okta credentials", %{conn: conn} do
-      # Given
-      user = AccountsFixtures.user_fixture()
+    test "links the Okta identity to an existing user and logs them in", %{conn: conn} do
+      existing_user = AccountsFixtures.user_fixture(email: "existing-okta@example.com")
 
       organization =
         AccountsFixtures.organization_fixture(
-          creator: user,
+          creator: existing_user,
           sso_provider: :okta,
-          sso_organization_id: "dev-123456"
+          sso_organization_id: "dev-123456",
+          oauth2_client_id: UUIDv7.generate(),
+          oauth2_client_secret: UUIDv7.generate()
         )
 
-      # When/Then
-      assert_error_sent 401, fn ->
+      expect(SSOClient, :exchange_token, fn _token_url, "auth-code", _redirect_uri, _client_id, _client_secret ->
+        {:ok, %{"access_token" => "access-token", "token_type" => "Bearer", "scope" => "openid email profile"}}
+      end)
+
+      expect(SSOClient, :fetch_userinfo, fn _user_info_url, "access-token" ->
+        {:ok, %{"sub" => "okta-user-123", "email" => existing_user.email, "name" => "Existing User"}}
+      end)
+
+      conn =
         conn
-        |> init_test_session(%{okta_organization_id: organization.id})
-        |> get("/users/auth/okta/callback")
-      end
+        |> init_test_session(%{
+          sso_organization_id: organization.id,
+          sso_state: "expected-state",
+          sso_route_provider: :okta
+        })
+        |> get("/users/auth/okta/callback?code=auth-code&state=expected-state")
+
+      assert redirected_to(conn) =~ "/#{existing_user.account.name}"
+
+      {:ok, oauth_identity} =
+        Tuist.Accounts.get_oauth2_identity(:okta, "okta-user-123", "dev-123456")
+
+      assert oauth_identity.user.id == existing_user.id
+      assert oauth_identity.provider_organization_id == "dev-123456"
     end
 
-    test "raises unauthorized error when organization not found in session", %{conn: conn} do
-      assert_error_sent 401, fn ->
-        get(conn, "/users/auth/okta/callback")
-      end
-    end
-
-    test "raises unauthorized error when organization not configured for Okta", %{conn: conn} do
-      # Given
+    test "raises unauthorized error when organization is not configured for SSO", %{conn: conn} do
       user = AccountsFixtures.user_fixture()
 
       organization =
@@ -180,11 +191,440 @@ defmodule TuistWeb.AuthControllerTest do
           sso_organization_id: "example.com"
         )
 
-      # When/Then
       assert_error_sent 401, fn ->
         conn
-        |> init_test_session(%{okta_organization_id: organization.id})
-        |> get("/users/auth/okta/callback")
+        |> init_test_session(%{sso_organization_id: organization.id, sso_state: "state"})
+        |> get("/users/auth/okta/callback?state=state")
+      end
+    end
+
+    test "raises unauthorized error when session is missing", %{conn: conn} do
+      assert_error_sent 401, fn ->
+        get(conn, "/users/auth/okta/callback")
+      end
+    end
+  end
+
+  describe "GET /users/auth/oauth2" do
+    test "redirects to the custom OAuth2 provider when organization is found and configured", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          creator: user,
+          sso_provider: :oauth2,
+          sso_organization_id: "https://auth.example.com",
+          oauth2_client_id: UUIDv7.generate(),
+          oauth2_client_secret: UUIDv7.generate(),
+          oauth2_authorize_url: "https://auth.example.com/oauth2/authorize",
+          oauth2_token_url: "https://auth.example.com/oauth2/token",
+          oauth2_user_info_url: "https://auth.example.com/oauth2/userinfo"
+        )
+
+      conn = get(conn, "/users/auth/oauth2?organization_id=#{organization.id}")
+
+      assert redirected_to(conn) =~ "https://auth.example.com/oauth2/authorize"
+    end
+
+    test "includes login_hint in the custom OAuth2 redirect when provided", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          creator: user,
+          sso_provider: :oauth2,
+          sso_organization_id: "https://auth.example.com",
+          oauth2_client_id: UUIDv7.generate(),
+          oauth2_client_secret: UUIDv7.generate(),
+          oauth2_authorize_url: "https://auth.example.com/oauth2/authorize",
+          oauth2_token_url: "https://auth.example.com/oauth2/token",
+          oauth2_user_info_url: "https://auth.example.com/oauth2/userinfo"
+        )
+
+      login_hint = "user@example.com"
+      conn = get(conn, "/users/auth/oauth2?organization_id=#{organization.id}&login_hint=#{login_hint}")
+
+      redirect_url = redirected_to(conn)
+      assert redirect_url =~ "https://auth.example.com/oauth2/authorize"
+      assert redirect_url =~ "login_hint=user%40example.com"
+    end
+
+    test "raises unauthorized error when organization is not configured for custom OAuth2", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          creator: user,
+          sso_provider: :google,
+          sso_organization_id: "example.com"
+        )
+
+      assert_error_sent 401, fn ->
+        get(conn, "/users/auth/oauth2?organization_id=#{organization.id}")
+      end
+    end
+  end
+
+  describe "GET /users/auth/oauth2/callback" do
+    test "links the custom OAuth2 identity to an existing user and logs them in", %{conn: conn} do
+      existing_user = AccountsFixtures.user_fixture(email: "existing@example.com")
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          creator: existing_user,
+          sso_provider: :oauth2,
+          sso_organization_id: "https://auth.example.com",
+          oauth2_client_id: UUIDv7.generate(),
+          oauth2_client_secret: UUIDv7.generate(),
+          oauth2_authorize_url: "https://auth.example.com/oauth2/authorize",
+          oauth2_token_url: "https://auth.example.com/oauth2/token",
+          oauth2_user_info_url: "https://auth.example.com/oauth2/userinfo"
+        )
+
+      expect(SSOClient, :exchange_token, fn _token_url, "auth-code", _redirect_uri, _client_id, _client_secret ->
+        {:ok, %{"access_token" => "access-token", "token_type" => "Bearer", "scope" => "openid email profile"}}
+      end)
+
+      expect(SSOClient, :fetch_userinfo, fn _user_info_url, "access-token" ->
+        {:ok, %{"sub" => "custom-oauth2-user-123", "email" => existing_user.email, "name" => "Existing User"}}
+      end)
+
+      conn =
+        conn
+        |> init_test_session(%{
+          sso_organization_id: organization.id,
+          sso_state: "expected-state",
+          sso_route_provider: :oauth2
+        })
+        |> get("/users/auth/oauth2/callback?code=auth-code&state=expected-state")
+
+      assert redirected_to(conn) =~ "/#{existing_user.account.name}"
+
+      {:ok, oauth_identity} =
+        Tuist.Accounts.get_oauth2_identity(:oauth2, "custom-oauth2-user-123", "https://auth.example.com")
+
+      assert oauth_identity.user.id == existing_user.id
+      assert oauth_identity.provider_organization_id == "https://auth.example.com"
+    end
+
+    test "raises unauthorized error when the callback state does not match", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          creator: user,
+          sso_provider: :oauth2,
+          sso_organization_id: "https://auth.example.com",
+          oauth2_client_id: UUIDv7.generate(),
+          oauth2_client_secret: UUIDv7.generate(),
+          oauth2_authorize_url: "https://auth.example.com/oauth2/authorize",
+          oauth2_token_url: "https://auth.example.com/oauth2/token",
+          oauth2_user_info_url: "https://auth.example.com/oauth2/userinfo"
+        )
+
+      assert_error_sent 401, fn ->
+        conn
+        |> init_test_session(%{
+          sso_organization_id: organization.id,
+          sso_state: "expected-state",
+          sso_route_provider: :oauth2
+        })
+        |> get("/users/auth/oauth2/callback?code=auth-code&state=wrong-state")
+      end
+    end
+
+    test "raises unauthorized error when the callback session is missing", %{conn: conn} do
+      assert_error_sent 401, fn ->
+        get(conn, "/users/auth/oauth2/callback?code=auth-code&state=expected-state")
+      end
+    end
+
+    test "raises unauthorized error when the IdP redirects back with an error parameter", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          creator: user,
+          sso_provider: :oauth2,
+          sso_organization_id: "https://auth.example.com",
+          oauth2_client_id: UUIDv7.generate(),
+          oauth2_client_secret: UUIDv7.generate(),
+          oauth2_authorize_url: "https://auth.example.com/oauth2/authorize",
+          oauth2_token_url: "https://auth.example.com/oauth2/token",
+          oauth2_user_info_url: "https://auth.example.com/oauth2/userinfo"
+        )
+
+      # The IdP must never reach the token endpoint when reporting an error,
+      # so any get_token/get call here would indicate the precondition is broken.
+      reject(&SSOClient.exchange_token/5)
+      reject(&SSOClient.fetch_userinfo/2)
+
+      assert_error_sent 401, fn ->
+        conn
+        |> init_test_session(%{
+          sso_organization_id: organization.id,
+          sso_state: "expected-state",
+          sso_route_provider: :oauth2
+        })
+        |> get(
+          "/users/auth/oauth2/callback?error=access_denied&error_description=User+denied+access&state=expected-state"
+        )
+      end
+    end
+
+    test "raises unauthorized error when the callback request has neither code nor error", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          creator: user,
+          sso_provider: :oauth2,
+          sso_organization_id: "https://auth.example.com",
+          oauth2_client_id: UUIDv7.generate(),
+          oauth2_client_secret: UUIDv7.generate(),
+          oauth2_authorize_url: "https://auth.example.com/oauth2/authorize",
+          oauth2_token_url: "https://auth.example.com/oauth2/token",
+          oauth2_user_info_url: "https://auth.example.com/oauth2/userinfo"
+        )
+
+      reject(&SSOClient.exchange_token/5)
+      reject(&SSOClient.fetch_userinfo/2)
+
+      assert_error_sent 401, fn ->
+        conn
+        |> init_test_session(%{
+          sso_organization_id: organization.id,
+          sso_state: "expected-state",
+          sso_route_provider: :oauth2
+        })
+        |> get("/users/auth/oauth2/callback?state=expected-state")
+      end
+    end
+
+    test "raises unauthorized error when the token exchange fails", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          creator: user,
+          sso_provider: :oauth2,
+          sso_organization_id: "https://auth.example.com",
+          oauth2_client_id: UUIDv7.generate(),
+          oauth2_client_secret: UUIDv7.generate(),
+          oauth2_authorize_url: "https://auth.example.com/oauth2/authorize",
+          oauth2_token_url: "https://auth.example.com/oauth2/token",
+          oauth2_user_info_url: "https://auth.example.com/oauth2/userinfo"
+        )
+
+      expect(SSOClient, :exchange_token, fn _token_url, "auth-code", _redirect_uri, _client_id, _client_secret ->
+        {:error, :invalid_grant}
+      end)
+
+      assert_error_sent 401, fn ->
+        conn
+        |> init_test_session(%{
+          sso_organization_id: organization.id,
+          sso_state: "expected-state",
+          sso_route_provider: :oauth2
+        })
+        |> get("/users/auth/oauth2/callback?code=auth-code&state=expected-state")
+      end
+    end
+
+    test "raises unauthorized error when user info does not include an email", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          creator: user,
+          sso_provider: :oauth2,
+          sso_organization_id: "https://auth.example.com",
+          oauth2_client_id: UUIDv7.generate(),
+          oauth2_client_secret: UUIDv7.generate(),
+          oauth2_authorize_url: "https://auth.example.com/oauth2/authorize",
+          oauth2_token_url: "https://auth.example.com/oauth2/token",
+          oauth2_user_info_url: "https://auth.example.com/oauth2/userinfo"
+        )
+
+      expect(SSOClient, :exchange_token, fn _token_url, "auth-code", _redirect_uri, _client_id, _client_secret ->
+        {:ok, %{"access_token" => "access-token", "token_type" => "Bearer", "scope" => "openid email profile"}}
+      end)
+
+      expect(SSOClient, :fetch_userinfo, fn _user_info_url, "access-token" ->
+        {:ok, %{"sub" => "custom-oauth2-user-123", "name" => "Missing Email User"}}
+      end)
+
+      assert_error_sent 401, fn ->
+        conn
+        |> init_test_session(%{
+          sso_organization_id: organization.id,
+          sso_state: "expected-state",
+          sso_route_provider: :oauth2
+        })
+        |> get("/users/auth/oauth2/callback?code=auth-code&state=expected-state")
+      end
+    end
+
+    test "refuses to auto-link an existing user who is not a member of the SSO organization", %{conn: conn} do
+      # An attacker org admin configures custom OAuth2 endpoints they control
+      # and returns a victim's email from /userinfo. The login must be refused
+      # because the victim does not belong to the attacker's organization.
+      attacker = AccountsFixtures.user_fixture(email: "attacker@example.com")
+      victim = AccountsFixtures.user_fixture(email: "victim@example.com")
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          creator: attacker,
+          sso_provider: :oauth2,
+          sso_organization_id: "https://evil.example.com",
+          oauth2_client_id: UUIDv7.generate(),
+          oauth2_client_secret: UUIDv7.generate(),
+          oauth2_authorize_url: "https://evil.example.com/oauth2/authorize",
+          oauth2_token_url: "https://evil.example.com/oauth2/token",
+          oauth2_user_info_url: "https://evil.example.com/oauth2/userinfo"
+        )
+
+      expect(SSOClient, :exchange_token, fn _token_url, "auth-code", _redirect_uri, _client_id, _client_secret ->
+        {:ok, %{"access_token" => "access-token", "token_type" => "Bearer", "scope" => "openid email profile"}}
+      end)
+
+      expect(SSOClient, :fetch_userinfo, fn _user_info_url, "access-token" ->
+        {:ok, %{"sub" => "spoofed-uid", "email" => victim.email, "name" => "Spoofed Victim"}}
+      end)
+
+      assert_error_sent 401, fn ->
+        conn
+        |> init_test_session(%{
+          sso_organization_id: organization.id,
+          sso_state: "expected-state",
+          sso_route_provider: :oauth2
+        })
+        |> get("/users/auth/oauth2/callback?code=auth-code&state=expected-state")
+      end
+
+      # The victim's account must remain unlinked from the attacker's IdP
+      assert {:error, :not_found} =
+               Tuist.Accounts.get_oauth2_identity(:oauth2, "spoofed-uid", "https://evil.example.com")
+    end
+
+    test "refuses cross-tenant account takeover when two custom OAuth2 IdPs return the same sub",
+         %{conn: conn} do
+      # Customer A has a legitimate user whose identity came from their IdP.
+      # Their OIDC `sub` is some value, say "shared-sub".
+      victim = AccountsFixtures.user_fixture(email: "victim@customer-a.example")
+
+      _customer_a_org =
+        AccountsFixtures.organization_fixture(
+          creator: victim,
+          sso_provider: :oauth2,
+          sso_organization_id: "https://idp-a.example.com",
+          oauth2_client_id: UUIDv7.generate(),
+          oauth2_client_secret: UUIDv7.generate(),
+          oauth2_authorize_url: "https://idp-a.example.com/oauth2/authorize",
+          oauth2_token_url: "https://idp-a.example.com/oauth2/token",
+          oauth2_user_info_url: "https://idp-a.example.com/oauth2/userinfo"
+        )
+
+      {:ok, _victim_identity} =
+        Tuist.Repo.insert(
+          Oauth2Identity.create_changeset(%Oauth2Identity{}, %{
+            provider: :oauth2,
+            id_in_provider: "shared-sub",
+            user_id: victim.id,
+            provider_organization_id: "https://idp-a.example.com"
+          })
+        )
+
+      # Customer B (the attacker) configures a different IdP they control.
+      # Their IdP is going to return `sub = "shared-sub"` from /userinfo.
+      attacker = AccountsFixtures.user_fixture(email: "attacker@customer-b.example")
+
+      attacker_org =
+        AccountsFixtures.organization_fixture(
+          creator: attacker,
+          sso_provider: :oauth2,
+          sso_organization_id: "https://idp-b.example.com",
+          oauth2_client_id: UUIDv7.generate(),
+          oauth2_client_secret: UUIDv7.generate(),
+          oauth2_authorize_url: "https://idp-b.example.com/oauth2/authorize",
+          oauth2_token_url: "https://idp-b.example.com/oauth2/token",
+          oauth2_user_info_url: "https://idp-b.example.com/oauth2/userinfo"
+        )
+
+      expect(SSOClient, :exchange_token, fn _token_url, "auth-code", _redirect_uri, _client_id, _client_secret ->
+        {:ok, %{"access_token" => "access-token", "token_type" => "Bearer", "scope" => "openid email profile"}}
+      end)
+
+      expect(SSOClient, :fetch_userinfo, fn _user_info_url, "access-token" ->
+        {:ok, %{"sub" => "shared-sub", "email" => "attacker@customer-b.example", "name" => "Attacker"}}
+      end)
+
+      # The callback must NOT log the attacker in as the victim. Because the
+      # victim's identity row is scoped to customer A's issuer and the
+      # attacker is authenticating against customer B's issuer, the lookup
+      # for `(:oauth2, "shared-sub", "https://idp-b.example.com")` returns
+      # :not_found — so we fall through to the email-based path and link
+      # the attacker to THEIR OWN existing user (which they're allowed to,
+      # since they're a member of the attacker org).
+      conn =
+        conn
+        |> init_test_session(%{
+          sso_organization_id: attacker_org.id,
+          sso_state: "expected-state",
+          sso_route_provider: :oauth2
+        })
+        |> get("/users/auth/oauth2/callback?code=auth-code&state=expected-state")
+
+      # Critical: attacker is NOT logged in as the victim.
+      refute redirected_to(conn) =~ "/#{victim.account.name}"
+
+      # The victim's identity row is still intact and still points at the victim.
+      assert {:ok, victim_identity_after} =
+               Tuist.Accounts.get_oauth2_identity(:oauth2, "shared-sub", "https://idp-a.example.com")
+
+      assert victim_identity_after.user_id == victim.id
+
+      # A new, separate identity row was created for the attacker against their
+      # own issuer — proving the per-issuer uniqueness key allows both rows to
+      # coexist with the same `sub`.
+      assert {:ok, attacker_identity} =
+               Tuist.Accounts.get_oauth2_identity(:oauth2, "shared-sub", "https://idp-b.example.com")
+
+      assert attacker_identity.user_id == attacker.id
+      refute attacker_identity.user_id == victim.id
+    end
+
+    test "raises unauthorized error when the user info request fails", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          creator: user,
+          sso_provider: :oauth2,
+          sso_organization_id: "https://auth.example.com",
+          oauth2_client_id: UUIDv7.generate(),
+          oauth2_client_secret: UUIDv7.generate(),
+          oauth2_authorize_url: "https://auth.example.com/oauth2/authorize",
+          oauth2_token_url: "https://auth.example.com/oauth2/token",
+          oauth2_user_info_url: "https://auth.example.com/oauth2/userinfo"
+        )
+
+      expect(SSOClient, :exchange_token, fn _token_url, "auth-code", _redirect_uri, _client_id, _client_secret ->
+        {:ok, %{"access_token" => "access-token", "token_type" => "Bearer", "scope" => "openid email profile"}}
+      end)
+
+      expect(SSOClient, :fetch_userinfo, fn _user_info_url, "access-token" ->
+        {:error, {:userinfo_request_failed, 401, %{"error" => "unauthorized"}}}
+      end)
+
+      assert_error_sent 401, fn ->
+        conn
+        |> init_test_session(%{
+          sso_organization_id: organization.id,
+          sso_state: "expected-state",
+          sso_route_provider: :oauth2
+        })
+        |> get("/users/auth/oauth2/callback?code=auth-code&state=expected-state")
       end
     end
   end

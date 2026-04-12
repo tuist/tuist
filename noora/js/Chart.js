@@ -114,6 +114,32 @@ export default {
     );
     this.chart.setOption(option);
 
+    const hasClickableData =
+      option.series &&
+      option.series.some(
+        (s) =>
+          s.data && s.data.some((d) => d && typeof d === "object" && d.url),
+      );
+
+    if (hasClickableData) {
+      this.chart.on("click", (params) => {
+        const dataItem = params.data;
+        if (dataItem && dataItem.url) {
+          window.location.href = dataItem.url;
+        }
+      });
+
+      const chartDom = this.el.querySelector("[data-part='chart']");
+      this.chart.on("mouseover", (params) => {
+        if (params.data && params.data.url) {
+          chartDom.style.cursor = "pointer";
+        }
+      });
+      this.chart.on("mouseout", () => {
+        chartDom.style.cursor = "default";
+      });
+    }
+
     this.resizeListener = () => {
       this.chart.resize();
     };

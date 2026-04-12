@@ -276,7 +276,12 @@ defmodule TuistWeb.XcodeBuildsLive do
   defp assign_recent_builds(%{assigns: %{selected_project: project}} = socket) do
     assign_async(
       socket,
-      [:recent_builds, :recent_builds_chart_data, :successful_builds_count, :failed_builds_count],
+      [
+        :recent_builds,
+        :recent_builds_chart_data,
+        :successful_builds_count,
+        :failed_builds_count
+      ],
       fn ->
         {recent_builds, _meta} =
           Builds.list_build_runs(
@@ -303,9 +308,12 @@ defmodule TuistWeb.XcodeBuildsLive do
                 _ -> "var:noora-chart-destructive"
               end
 
-            value = run.duration
-
-            %{value: value, itemStyle: %{color: color}, date: run.inserted_at}
+            %{
+              value: run.duration,
+              itemStyle: %{color: color},
+              date: run.inserted_at,
+              url: ~p"/#{project.account.name}/#{project.name}/builds/build-runs/#{run.id}"
+            }
           end)
 
         %{successful_count: successful_builds_count, failed_count: failed_builds_count} =

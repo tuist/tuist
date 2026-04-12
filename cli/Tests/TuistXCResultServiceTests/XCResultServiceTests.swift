@@ -95,6 +95,46 @@ struct XCResultServiceTests {
         #expect(nonFlakyTest.failures.isEmpty)
     }
 
+    @Test
+    func parseTestWithArgumentsXCResult() async throws {
+        // Given
+        let xcresult = try AbsolutePath(validating: #file).parentDirectory
+            .appending(try RelativePath(validating: "../Fixtures/test-with-arguments.xcresult"))
+
+        // When
+        let got = try #require(try await subject.parse(path: xcresult, rootDirectory: nil))
+
+        // Then
+        #expect(got.status == .failed)
+
+        // Find the parameterized test case
+        let parameterizedTest = try #require(got.testCases.first { $0.name == "parameterized(value:)" })
+        #expect(parameterizedTest.status == .failed)
+        #expect(parameterizedTest.arguments.count == 3)
+
+        // Top-level failures should be empty (failures live in arguments)
+        #expect(parameterizedTest.failures.isEmpty)
+
+        // Verify each argument variant
+        let helloArg = try #require(parameterizedTest.arguments.first { $0.name.contains("hello") })
+        #expect(helloArg.status == .passed)
+        #expect(helloArg.failures.isEmpty)
+
+        let testArg = try #require(parameterizedTest.arguments.first { $0.name.contains("test") })
+        #expect(testArg.status == .failed)
+        #expect(testArg.failures.count == 1)
+        #expect(testArg.failures[0].message?.contains("Expected long string") == true)
+
+        let worldArg = try #require(parameterizedTest.arguments.first { $0.name.contains("world") })
+        #expect(worldArg.status == .passed)
+        #expect(worldArg.failures.isEmpty)
+
+        // Non-parameterized test should have no arguments
+        let regularTest = try #require(got.testCases.first { $0.name == "example()" })
+        #expect(regularTest.status == .passed)
+        #expect(regularTest.arguments.isEmpty)
+    }
+
     // MARK: - parseTestStatuses
 
     @Test

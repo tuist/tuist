@@ -638,9 +638,11 @@ public struct PackageInfoMapper: PackageInfoMapping {
 
             dependencies = try linkerDependencies + target.dependencies.compactMap {
                 switch $0 {
-                case let .product(name: name, package: _, moduleAliases: moduleAliases, condition: condition):
+                case let .product(name: name, package: package, moduleAliases: moduleAliases, condition: condition):
                     try mapDependency(
                         name: name,
+                        targetPackage: package,
+                        sourceTargetName: target.name,
                         packageInfo: packageInfo,
                         packageType: packageType,
                         packageSettings: packageSettings,
@@ -709,6 +711,8 @@ public struct PackageInfoMapper: PackageInfoMapping {
 
     private func mapDependency(
         name: String,
+        targetPackage: String? = nil,
+        sourceTargetName: String? = nil,
         packageInfo: PackageInfo,
         packageType: PackageType,
         packageSettings: TuistCore.PackageSettings,
@@ -731,6 +735,17 @@ public struct PackageInfoMapper: PackageInfoMapping {
         } catch {
             return nil
         }
+        // If this is a .product dependency that explicitly references a different package
+        // and the dependency name matches the source target name with no module alias
+        // to disambiguate (or the alias resolves to the same name), it would create a
+        // self-referential loop. Resolve as external to avoid the circular dependency.
+        if let targetPackage, targetPackage != packageInfo.name,
+           let sourceTargetName, sourceTargetName == name,
+           moduleAliases?[name].map({ $0 == sourceTargetName }) != false
+        {
+            return .external(name: name, condition: platformCondition)
+        }
+
         if let target = packageInfo.targets.first(where: { $0.name == name }) {
             if target.type == .binary, case let .external(artifactPaths: artifactPaths) = packageType,
                let artifactPath = artifactPaths[target.name]

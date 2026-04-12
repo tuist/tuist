@@ -2,6 +2,7 @@
     import ArgumentParser
     import Foundation
     import TuistEnvKey
+    import TuistKit
     import TuistNooraExtension
 
     struct InspectTestCommand: AsyncParsableCommand, NooraReadyCommand {
@@ -10,11 +11,6 @@
                 commandName: "test",
                 abstract: "Inspects the latest test results."
             )
-        }
-
-        enum ProcessingMode: String, ExpressibleByArgument, CaseIterable {
-            case local
-            case remote
         }
 
         @Option(
@@ -42,10 +38,10 @@
 
         @Option(
             name: .long,
-            help: "Processing mode: 'local' parses the xcresult on this machine, 'remote' uploads it for server-side processing.",
+            help: "Processing mode: 'local' parses the xcresult on this machine, 'remote' uploads it for server-side processing. When omitted, defaults to 'remote' for tuist-hosted instances and 'local' for self-hosted ones.",
             envKey: .inspectTestMode
         )
-        var mode: ProcessingMode = .local
+        var mode: TestProcessingMode?
 
         var jsonThroughNoora: Bool = false
 

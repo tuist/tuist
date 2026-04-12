@@ -62,9 +62,9 @@ final class StaticXCFrameworkAppIntentsMetadataGraphMapperTests: TuistUnitTestCa
             """
             METADATA_FILE="${TARGET_TEMP_DIR}/${TARGET_NAME}.DependencyMetadataFileList"
             STATIC_METADATA_FILE="${TARGET_TEMP_DIR}/${TARGET_NAME}.DependencyStaticMetadataFileList"
+            STAMP_FILE="${DERIVED_FILE_DIR}/tuist-static-xcframework-app-intents.stamp"
 
-            : > "$METADATA_FILE"
-            : > "$STATIC_METADATA_FILE"
+            mkdir -p "$(dirname "$STAMP_FILE")"
 
             framework_name='IntentsFramework'
             framework_metadata="${BUILT_PRODUCTS_DIR}/IntentsFramework.framework/Metadata.appintents"
@@ -80,6 +80,8 @@ final class StaticXCFrameworkAppIntentsMetadataGraphMapperTests: TuistUnitTestCa
 
             static_actions_data="${static_metadata}/extract.actionsdata"
             [ -f "$static_actions_data" ] && echo "$static_actions_data" >> "$STATIC_METADATA_FILE"
+
+            : > "$STAMP_FILE"
             """
         )
         XCTAssertEqual(
@@ -91,14 +93,75 @@ final class StaticXCFrameworkAppIntentsMetadataGraphMapperTests: TuistUnitTestCa
         )
         XCTAssertEqual(
             script.outputPaths,
-            [
-                "${TARGET_TEMP_DIR}/${TARGET_NAME}.DependencyMetadataFileList",
-                "${TARGET_TEMP_DIR}/${TARGET_NAME}.DependencyStaticMetadataFileList",
-            ]
+            ["${DERIVED_FILE_DIR}/tuist-static-xcframework-app-intents.stamp"]
         )
+        XCTAssertFalse(script.outputPaths.contains("${TARGET_TEMP_DIR}/${TARGET_NAME}.DependencyMetadataFileList"))
+        XCTAssertFalse(script.outputPaths.contains("${TARGET_TEMP_DIR}/${TARGET_NAME}.DependencyStaticMetadataFileList"))
         XCTAssertFalse(script.showEnvVarsInLog)
         XCTAssertEqual(script.basedOnDependencyAnalysis, true)
         XCTAssertEmpty(gotSideEffects)
+    }
+
+    func test_map_injects_a_single_shell_block_per_framework_when_xcframework_has_multiple_slices() async throws {
+        // Given
+        let projectPath = try temporaryPath().appending(component: "Project")
+        let intentsXCFrameworkPath = projectPath.parentDirectory.appending(component: "IntentsFramework.xcframework")
+        try await fileSystem.makeDirectory(
+            at: intentsXCFrameworkPath.appending(components: "ios-arm64", "IntentsFramework.framework", "Metadata.appintents")
+        )
+        try await fileSystem.makeDirectory(
+            at: intentsXCFrameworkPath.appending(
+                components: "ios-arm64_x86_64-simulator",
+                "IntentsFramework.framework",
+                "Metadata.appintents"
+            )
+        )
+        let xcframeworkDependency = GraphDependency.testXCFramework(
+            path: intentsXCFrameworkPath,
+            infoPlist: XCFrameworkInfoPlist(libraries: [
+                .test(
+                    identifier: "ios-arm64",
+                    path: try RelativePath(validating: "IntentsFramework.framework")
+                ),
+                .test(
+                    identifier: "ios-arm64_x86_64-simulator",
+                    path: try RelativePath(validating: "IntentsFramework.framework")
+                ),
+            ]),
+            linking: .static
+        )
+
+        let graph = Graph.test(
+            name: "App",
+            path: projectPath,
+            projects: [
+                projectPath: .test(
+                    path: projectPath,
+                    targets: [
+                        .test(name: "App", product: .app),
+                    ]
+                ),
+            ],
+            dependencies: [
+                .target(name: "App", path: projectPath): [
+                    xcframeworkDependency,
+                ],
+            ]
+        )
+
+        // When
+        let (gotGraph, _, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
+
+        // Then
+        let scripts = try XCTUnwrap(gotGraph.projects[projectPath]?.targets["App"]?.scripts)
+        let script = try XCTUnwrap(scripts.first(where: { $0.name == "Prepare App Intents Metadata for Static XCFrameworks" }))
+        let embedded = try XCTUnwrap(script.embeddedScript)
+        let occurrences = embedded.components(separatedBy: "framework_name='IntentsFramework'").count - 1
+        XCTAssertEqual(
+            occurrences,
+            1,
+            "The shell block for a framework should appear only once, even when the xcframework exposes multiple slices."
+        )
     }
 
     func test_map_does_not_inject_a_script_when_metadata_is_not_present() async throws {

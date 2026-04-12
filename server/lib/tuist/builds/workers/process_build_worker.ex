@@ -47,6 +47,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
 
       {:error, reason} ->
         if attempt >= max_attempts do
+          Logger.error("Build processing failed permanently for build #{build_id}: #{inspect(reason)}")
           mark_failed_build_processing(build_id, project_id, account_id, build_metadata)
         end
 

@@ -209,7 +209,8 @@ defmodule TuistWeb.XcodeCacheLive do
 
         %{
           value: hit_rate,
-          date: build.inserted_at
+          date: build.inserted_at,
+          url: ~p"/#{project.account.name}/#{project.name}/builds/build-runs/#{build.id}"
         }
       end)
 

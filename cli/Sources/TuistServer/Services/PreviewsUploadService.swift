@@ -66,7 +66,6 @@ public protocol PreviewsUploadServicing {
     public struct PreviewsUploadService: PreviewsUploadServicing {
         private let fileSystem: FileSysteming
         private let fileArchiver: FileArchivingFactorying
-        private let retryProvider: RetryProviding
         private let multipartUploadStartPreviewsService: MultipartUploadStartPreviewsServicing
         private let multipartUploadGenerateURLPreviewsService:
             MultipartUploadGenerateURLPreviewsServicing
@@ -84,7 +83,6 @@ public protocol PreviewsUploadServicing {
                 self.init(
                     fileSystem: FileSystem(),
                     fileArchiver: FileArchivingFactory(),
-                    retryProvider: RetryProvider(),
                     multipartUploadStartPreviewsService: MultipartUploadStartPreviewsService(),
                     multipartUploadGenerateURLPreviewsService:
                     MultipartUploadGenerateURLPreviewsService(),
@@ -99,7 +97,6 @@ public protocol PreviewsUploadServicing {
                 self.init(
                     fileSystem: FileSystem(),
                     fileArchiver: FileArchivingFactory(),
-                    retryProvider: RetryProvider(),
                     multipartUploadStartPreviewsService: MultipartUploadStartPreviewsService(),
                     multipartUploadGenerateURLPreviewsService:
                     MultipartUploadGenerateURLPreviewsService(),
@@ -115,7 +112,6 @@ public protocol PreviewsUploadServicing {
             init(
                 fileSystem: FileSysteming,
                 fileArchiver: FileArchivingFactorying,
-                retryProvider: RetryProviding,
                 multipartUploadStartPreviewsService: MultipartUploadStartPreviewsServicing,
                 multipartUploadGenerateURLPreviewsService: MultipartUploadGenerateURLPreviewsServicing,
                 multipartUploadArtifactService: MultipartUploadArtifactServicing,
@@ -126,7 +122,6 @@ public protocol PreviewsUploadServicing {
             ) {
                 self.fileSystem = fileSystem
                 self.fileArchiver = fileArchiver
-                self.retryProvider = retryProvider
                 self.multipartUploadStartPreviewsService = multipartUploadStartPreviewsService
                 self.multipartUploadGenerateURLPreviewsService = multipartUploadGenerateURLPreviewsService
                 self.multipartUploadArtifactService = multipartUploadArtifactService
@@ -139,7 +134,6 @@ public protocol PreviewsUploadServicing {
             init(
                 fileSystem: FileSysteming,
                 fileArchiver: FileArchivingFactorying,
-                retryProvider: RetryProviding,
                 multipartUploadStartPreviewsService: MultipartUploadStartPreviewsServicing,
                 multipartUploadGenerateURLPreviewsService: MultipartUploadGenerateURLPreviewsServicing,
                 multipartUploadArtifactService: MultipartUploadArtifactServicing,
@@ -148,7 +142,6 @@ public protocol PreviewsUploadServicing {
             ) {
                 self.fileSystem = fileSystem
                 self.fileArchiver = fileArchiver
-                self.retryProvider = retryProvider
                 self.multipartUploadStartPreviewsService = multipartUploadStartPreviewsService
                 self.multipartUploadGenerateURLPreviewsService = multipartUploadGenerateURLPreviewsService
                 self.multipartUploadArtifactService = multipartUploadArtifactService
@@ -325,51 +318,49 @@ public protocol PreviewsUploadServicing {
         ) async throws -> Components.Schemas.Preview {
             updateProgress(0.1)
 
-            return try await retryProvider.runWithRetries {
-                let previewUpload =
-                    try await multipartUploadStartPreviewsService.startPreviewsMultipartUpload(
-                        type: previewType,
-                        displayName: displayName,
-                        version: version,
-                        buildVersion: buildVersion,
-                        bundleIdentifier: bundleIdentifier,
-                        supportedPlatforms: supportedPlatforms,
-                        gitBranch: gitBranch,
-                        gitCommitSHA: gitCommitSHA,
-                        gitRef: gitRef,
-                        binaryId: binaryId,
+            let previewUpload =
+                try await multipartUploadStartPreviewsService.startPreviewsMultipartUpload(
+                    type: previewType,
+                    displayName: displayName,
+                    version: version,
+                    buildVersion: buildVersion,
+                    bundleIdentifier: bundleIdentifier,
+                    supportedPlatforms: supportedPlatforms,
+                    gitBranch: gitBranch,
+                    gitCommitSHA: gitCommitSHA,
+                    gitRef: gitRef,
+                    binaryId: binaryId,
+                    fullHandle: fullHandle,
+                    serverURL: serverURL,
+                    track: track
+                )
+
+            updateProgress(0.2)
+
+            let parts = try await multipartUploadArtifactService.multipartUploadArtifact(
+                artifactPath: buildPath,
+                generateUploadURL: { part in
+                    try await multipartUploadGenerateURLPreviewsService.uploadPreview(
+                        previewUpload.appBuildId,
+                        partNumber: part.number,
+                        uploadId: previewUpload.uploadId,
                         fullHandle: fullHandle,
                         serverURL: serverURL,
-                        track: track
+                        contentLength: part.contentLength
                     )
+                },
+                updateProgress: {
+                    updateProgress(0.2 + $0 * 0.7)
+                }
+            )
 
-                updateProgress(0.2)
-
-                let parts = try await multipartUploadArtifactService.multipartUploadArtifact(
-                    artifactPath: buildPath,
-                    generateUploadURL: { part in
-                        try await multipartUploadGenerateURLPreviewsService.uploadPreview(
-                            previewUpload.appBuildId,
-                            partNumber: part.number,
-                            uploadId: previewUpload.uploadId,
-                            fullHandle: fullHandle,
-                            serverURL: serverURL,
-                            contentLength: part.contentLength
-                        )
-                    },
-                    updateProgress: {
-                        updateProgress(0.2 + $0 * 0.7)
-                    }
-                )
-
-                return try await multipartUploadCompletePreviewsService.completePreviewUpload(
-                    previewUpload.appBuildId,
-                    uploadId: previewUpload.uploadId,
-                    parts: parts,
-                    fullHandle: fullHandle,
-                    serverURL: serverURL
-                )
-            }
+            return try await multipartUploadCompletePreviewsService.completePreviewUpload(
+                previewUpload.appBuildId,
+                uploadId: previewUpload.uploadId,
+                parts: parts,
+                fullHandle: fullHandle,
+                serverURL: serverURL
+            )
         }
 
         // MARK: - APK (cross-platform)

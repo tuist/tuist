@@ -399,7 +399,7 @@ struct LoginCommandServiceTests {
                 .fetchOIDCToken()
                 .called(3)
 
-            #expect(retryProvider.runWithRetriesCallCount == 2)
+            #expect(retryProvider.runWithRetriesCallCount == 1)
         }
     #endif
 }

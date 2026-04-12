@@ -49,6 +49,7 @@
         public static var configuration: CommandConfiguration {
             CommandConfiguration(
                 commandName: "run",
+                _superCommandName: "test",
                 abstract: "Tests a project",
                 usage:
                 "tuist test [<options>] [<scheme>] -- [<passthrough-xcode-build-arguments> ...]",
@@ -316,10 +317,10 @@
 
         @Option(
             name: .long,
-            help: "Inspect mode: 'local' parses the xcresult on this machine, 'remote' uploads it for server-side processing.",
+            help: "Inspect mode: 'local' parses the xcresult on this machine, 'remote' uploads it for server-side processing. When omitted, defaults to 'remote' for tuist-hosted instances and 'local' for self-hosted ones.",
             envKey: .inspectTestMode
         )
-        var inspectMode: TestProcessingMode = .local
+        var inspectMode: TestProcessingMode?
 
         @Argument(
             parsing: .postTerminator,

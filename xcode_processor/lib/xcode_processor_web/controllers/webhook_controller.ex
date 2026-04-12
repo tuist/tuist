@@ -19,11 +19,22 @@ defmodule XcodeProcessorWeb.WebhookController do
       project_handle: params["project_handle"]
     ]
 
-    {:ok, parsed_data} = XcodeProcessor.XCResultProcessor.process(storage_key, opts)
-    parsed_data = Map.put(parsed_data, "project_id", project_id)
+    case XcodeProcessor.XCResultProcessor.process(storage_key, opts) do
+      {:ok, parsed_data} ->
+        parsed_data = Map.put(parsed_data, "project_id", project_id)
 
-    conn
-    |> put_status(:ok)
-    |> json(parsed_data)
+        conn
+        |> put_status(:ok)
+        |> json(parsed_data)
+
+      {:error, reason} ->
+        Logger.warning(
+          "Failed to process xcresult for test run #{test_run_id}: #{inspect(reason)}"
+        )
+
+        conn
+        |> put_status(:unprocessable_entity)
+        |> json(%{error: "processing_failed", detail: inspect(reason)})
+    end
   end
 end
