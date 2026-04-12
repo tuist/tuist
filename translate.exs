@@ -412,7 +412,7 @@ defmodule L10n.Translator do
     {:ok, response} = ReqLLM.generate_text(resolved_model, messages,
       max_tokens: 64_000,
       receive_timeout: timeout,
-      finch: L10n.Finch
+      req_http_options: [finch: L10n.Finch]
     )
 
     text = ReqLLM.Response.text(response)
