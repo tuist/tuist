@@ -1008,11 +1008,14 @@ struct ResourcesProjectMapperTests {
 
         let resourcesTarget = try #require(gotProject.targets.values.sorted().first)
         #expect(resourcesTarget.product == .bundle)
-        #expect(resourcesTarget.resources.resources == resources)
+        let companionXcstrings = resourcesTarget.resources.resources.filter { $0.path.extension == "xcstrings" }
+        #expect(companionXcstrings.isEmpty)
+        let companionOtherResources = resourcesTarget.resources.resources.filter { $0.path.extension != "xcstrings" }
+        #expect(companionOtherResources.count == 1)
     }
 
     @Test
-    func mapWhenStaticTargetHasResourcesSetsPackageResourceBuildSettings() async throws {
+    func mapWhenStaticTargetHasResourcesDoesNotSetPackageResourceBuildSettings() async throws {
         // Given
         let resources: [ResourceFileElement] = [
             .file(path: "/Resources/Assets.xcassets"),
@@ -1027,11 +1030,10 @@ struct ResourcesProjectMapperTests {
 
         // Then
         let gotTarget = try #require(gotProject.targets.values.sorted().last)
-        let expectedBundleName = "\(project.name)_\(target.name)"
         let bundleNameSetting = gotTarget.settings?.base["PACKAGE_RESOURCE_BUNDLE_NAME"]
-        #expect(bundleNameSetting == .string(expectedBundleName))
+        #expect(bundleNameSetting == nil)
         let targetKindSetting = gotTarget.settings?.base["PACKAGE_RESOURCE_TARGET_KIND"]
-        #expect(targetKindSetting == .string("regular"))
+        #expect(targetKindSetting == nil)
     }
 
     // MARK: - Helpers

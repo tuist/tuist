@@ -82,7 +82,9 @@ public struct ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this
                     configurations: [:]
                 ),
                 sources: target.sources.filter { $0.path.extension == "metal" },
-                resources: target.resources,
+                resources: ResourceFileElements(
+                    target.resources.resources.filter { $0.path.extension != "xcstrings" }
+                ),
                 copyFiles: target.copyFiles,
                 coreDataModels: target.coreDataModels,
                 filesGroup: target.filesGroup,
@@ -97,11 +99,14 @@ public struct ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this
             //
             // String catalogs (.xcstrings) are kept in the main target's Resources build phase
             // (NOT Sources) so Xcode correctly runs string extraction in the context of this
-            // target's Swift sources. Adding xcstrings to the Sources phase does not trigger
-            // extraction in a regular xcodeproj (unlike PIF-based SPM builds). Combined with
-            // PACKAGE_RESOURCE_TARGET_KIND = "regular" (below), Xcode performs extraction here
-            // where the Swift source references live. The companion bundle declares
-            // PACKAGE_RESOURCE_TARGET_KIND = "resource" (above) so extraction is skipped there.
+            // target's Swift sources. They are excluded from the companion bundle to prevent
+            // duplicate compilation — the companion bundle has no Swift sources, so extraction
+            // there would incorrectly mark all strings as stale.
+            //
+            // IMPORTANT: PACKAGE_RESOURCE_BUNDLE_NAME is NOT set on the main target because
+            // swift-build's XCStringsCompiler.shouldCompileCatalog() skips xcstrings compilation
+            // when that setting is present, which breaks stale-string detection entirely.
+            // See: https://github.com/swiftlang/swift-build/blob/main/Sources/SWBApplePlatform/XCStringsCompiler.swift
             let codeGeneratingResourceExtensions: Set<String> = ["xcassets"]
             for resource in target.resources.resources {
                 if let ext = resource.path.extension, codeGeneratingResourceExtensions.contains(ext) {
@@ -118,22 +123,6 @@ public struct ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this
                 status: .required,
                 condition: .when(target.dependencyPlatformFilters)
             ))
-            // PACKAGE_RESOURCE_BUNDLE_NAME tells Xcode that a companion bundle target owns the
-            // compiled asset catalogs, which suppresses LinkAssetCatalog on this target while
-            // preserving GenerateAssetSymbols for typed resource accessors. Without this,
-            // xcodebuild archive fails for static targets because LinkAssetCatalog references
-            // an UninstalledProducts path that doesn't exist during archiving.
-            //
-            // PACKAGE_RESOURCE_TARGET_KIND = "regular" tells Xcode this is a normal compilation
-            // target (not a resource bundle) so string extraction runs here where the Swift
-            // source references live. This mirrors SwiftPM's PIF builder:
-            //   - https://github.com/swiftlang/swift-package-manager/blob/main/Sources/XCBuildSupport/PIFBuilder.swift#L642
-            //   - https://github.com/swiftlang/swift-package-manager/blob/main/Sources/SwiftBuildSupport/PackagePIFProjectBuilder%2BModules.swift#L524
-            var base = modifiedTarget.settings?.base ?? SettingsDictionary()
-            base["PACKAGE_RESOURCE_BUNDLE_NAME"] = .string(bundleName)
-            base["PACKAGE_RESOURCE_TARGET_KIND"] = .string("regular")
-            modifiedTarget.settings = modifiedTarget.settings?.with(base: base)
-                ?? Settings(base: base, configurations: [:])
             additionalTargets.append(resourcesTarget)
         }
 
