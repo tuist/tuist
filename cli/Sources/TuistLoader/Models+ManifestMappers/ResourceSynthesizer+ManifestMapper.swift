@@ -30,14 +30,17 @@ extension XcodeGraph.ResourceSynthesizer {
         }
 
         let parserOptions = manifest.parserOptions
-            .compactMapValues { XcodeGraph.ResourceSynthesizer.Parser.Option.from(manifest: $0)
-            }
+            .compactMapValues { XcodeGraph.ResourceSynthesizer.Parser.Option.from(manifest: $0) }
+
+        let context = manifest.context
+            .compactMapValues { XcodeGraph.ResourceSynthesizer.Parser.Option.from(manifest: $0) }
 
         return .init(
             parser: XcodeGraph.ResourceSynthesizer.Parser.from(manifest: manifest.parser),
             parserOptions: parserOptions,
             extensions: manifest.extensions,
-            template: template
+            template: template,
+            context: context
         )
     }
 }
