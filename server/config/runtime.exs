@@ -241,12 +241,7 @@ if Tuist.Environment.error_tracking_enabled?() do
     environment_name: env,
     enable_source_code_context: true,
     root_source_code_paths: [File.cwd!()],
-    before_send: {Tuist.SentryEventFilter, :before_send},
-    integrations: [
-      oban: [
-        capture_errors: true
-      ]
-    ]
+    before_send: {Tuist.SentryEventFilter, :before_send}
 end
 
 # Ex.AWS

@@ -117,12 +117,7 @@ config :sentry,
   client: TuistCommon.SentryHTTPClient,
   enable_source_code_context: true,
   root_source_code_paths: [File.cwd!()],
-  before_send: {TuistCommon.SentryEventFilter, :before_send},
-  integrations: [
-    oban: [
-      capture_errors: true
-    ]
-  ]
+  before_send: {TuistCommon.SentryEventFilter, :before_send}
 
 config :tuist_common, finch_name: Cache.Finch
 

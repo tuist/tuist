@@ -69,6 +69,7 @@ defmodule Tuist.Application do
 
   defp start_telemetry do
     Oban.Telemetry.attach_default_logger()
+    TuistCommon.ObanSentry.attach()
     ReqTelemetry.attach_default_logger(:pipeline)
     TransportLogger.attach(:tuist)
 
