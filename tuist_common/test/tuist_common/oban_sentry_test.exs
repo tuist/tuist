@@ -12,7 +12,7 @@ defmodule TuistCommon.ObanSentryTest do
     end)
   end
 
-  defp emit_exception(metadata) do
+  defp emit_exception(overrides) do
     defaults = %{
       state: :failure,
       job: %{
@@ -33,12 +33,12 @@ defmodule TuistCommon.ObanSentryTest do
     :telemetry.execute(
       [:oban, :job, :exception],
       %{duration: 1000, queue_time: 0},
-      Map.merge(defaults, metadata)
+      Map.merge(defaults, overrides)
     )
   end
 
   describe "[:oban, :job, :exception] telemetry" do
-    test "reports to Sentry when job is discarded" do
+    test "reports to Sentry when a job exhausts all attempts" do
       expect(Sentry, :capture_exception, fn exception, opts ->
         assert %RuntimeError{message: "boom"} = exception
         assert opts[:tags] == %{oban_worker: "MyApp.Worker", oban_queue: "default"}
@@ -62,7 +62,7 @@ defmodule TuistCommon.ObanSentryTest do
       })
     end
 
-    test "does not report to Sentry when job will be retried" do
+    test "does not report to Sentry when a job has remaining attempts" do
       reject(&Sentry.capture_exception/2)
 
       emit_exception(%{state: :failure})
