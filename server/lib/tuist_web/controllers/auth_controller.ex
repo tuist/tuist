@@ -422,7 +422,7 @@ defmodule TuistWeb.AuthController do
   end
 
   defp sso_callback_url(:okta), do: TuistWeb.Endpoint.url() <> ~p"/users/auth/okta/callback"
-  defp sso_callback_url(:oauth2), do: TuistWeb.Endpoint.url() <> ~p"/users/auth/custom_oauth2/callback"
+  defp sso_callback_url(:oauth2), do: TuistWeb.Endpoint.url() <> ~p"/users/auth/oauth2/callback"
 
   defp maybe_put_login_hint(params, login_hint) when is_binary(login_hint) and login_hint != "" do
     Map.put(params, :login_hint, login_hint)

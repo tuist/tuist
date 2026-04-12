@@ -267,7 +267,7 @@ defmodule TuistWeb.SSOSettingsLiveTest do
       render_hook(lv, "toggle_sso")
       html = render_hook(lv, "select_provider", %{"value" => ["oauth2"]})
 
-      assert html =~ "/users/auth/custom_oauth2/callback"
+      assert html =~ "/users/auth/oauth2/callback"
       assert html =~ "Provider URL"
       assert html =~ "Authorize URL"
     end

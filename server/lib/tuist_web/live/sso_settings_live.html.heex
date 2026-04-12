@@ -165,7 +165,7 @@
                 {dgettext("dashboard_account", "Set the sign-in redirect URI to:")}
                 <div data-part="read-only-value">
                   <code>
-                    {Tuist.Environment.app_url(path: "/users/auth/custom_oauth2/callback")}
+                    {Tuist.Environment.app_url(path: "/users/auth/oauth2/callback")}
                   </code>
                 </div>
               </li>
@@ -180,7 +180,7 @@
                 <div data-part="read-only-value">
                   <code>
                     {Tuist.Environment.app_url(
-                      path: "/users/auth/custom_oauth2?organization_id=#{@organization.id}"
+                      path: "/users/auth/oauth2?organization_id=#{@organization.id}"
                     )}
                   </code>
                 </div>
@@ -234,7 +234,7 @@
         </div>
       </div>
 
-      <%!-- Custom OAuth2 endpoint URLs (only for custom_oauth2, not okta) --%>
+      <%!-- Custom OAuth2 endpoint URLs (only for oauth2, not okta) --%>
       <div :if={@sso_enabled and @selected_provider == "oauth2"} data-part="section">
         <div data-part="label">
           <span data-part="title">

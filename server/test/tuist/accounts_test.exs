@@ -762,7 +762,7 @@ defmodule Tuist.AccountsTest do
       assert updated_org.sso_organization_id == "https://auth.example.com"
     end
 
-    test "returns error for custom_oauth2 when organization doesn't exist" do
+    test "returns error for oauth2 when organization doesn't exist" do
       result =
         Accounts.update_sso_configuration(999_999, :oauth2, %{
           oauth2_client_id: "test_client_id"

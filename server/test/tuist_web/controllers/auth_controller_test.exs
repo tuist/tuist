@@ -205,7 +205,7 @@ defmodule TuistWeb.AuthControllerTest do
     end
   end
 
-  describe "GET /users/auth/custom_oauth2" do
+  describe "GET /users/auth/oauth2" do
     test "redirects to the custom OAuth2 provider when organization is found and configured", %{conn: conn} do
       user = AccountsFixtures.user_fixture()
 
@@ -221,7 +221,7 @@ defmodule TuistWeb.AuthControllerTest do
           oauth2_user_info_url: "https://auth.example.com/oauth2/userinfo"
         )
 
-      conn = get(conn, "/users/auth/custom_oauth2?organization_id=#{organization.id}")
+      conn = get(conn, "/users/auth/oauth2?organization_id=#{organization.id}")
 
       assert redirected_to(conn) =~ "https://auth.example.com/oauth2/authorize"
     end
@@ -242,7 +242,7 @@ defmodule TuistWeb.AuthControllerTest do
         )
 
       login_hint = "user@example.com"
-      conn = get(conn, "/users/auth/custom_oauth2?organization_id=#{organization.id}&login_hint=#{login_hint}")
+      conn = get(conn, "/users/auth/oauth2?organization_id=#{organization.id}&login_hint=#{login_hint}")
 
       redirect_url = redirected_to(conn)
       assert redirect_url =~ "https://auth.example.com/oauth2/authorize"
@@ -260,12 +260,12 @@ defmodule TuistWeb.AuthControllerTest do
         )
 
       assert_error_sent 401, fn ->
-        get(conn, "/users/auth/custom_oauth2?organization_id=#{organization.id}")
+        get(conn, "/users/auth/oauth2?organization_id=#{organization.id}")
       end
     end
   end
 
-  describe "GET /users/auth/custom_oauth2/callback" do
+  describe "GET /users/auth/oauth2/callback" do
     test "links the custom OAuth2 identity to an existing user and logs them in", %{conn: conn} do
       existing_user = AccountsFixtures.user_fixture(email: "existing@example.com")
 
@@ -296,7 +296,7 @@ defmodule TuistWeb.AuthControllerTest do
           sso_state: "expected-state",
           sso_route_provider: :oauth2
         })
-        |> get("/users/auth/custom_oauth2/callback?code=auth-code&state=expected-state")
+        |> get("/users/auth/oauth2/callback?code=auth-code&state=expected-state")
 
       assert redirected_to(conn) =~ "/#{existing_user.account.name}"
 
@@ -329,13 +329,13 @@ defmodule TuistWeb.AuthControllerTest do
           sso_state: "expected-state",
           sso_route_provider: :oauth2
         })
-        |> get("/users/auth/custom_oauth2/callback?code=auth-code&state=wrong-state")
+        |> get("/users/auth/oauth2/callback?code=auth-code&state=wrong-state")
       end
     end
 
     test "raises unauthorized error when the callback session is missing", %{conn: conn} do
       assert_error_sent 401, fn ->
-        get(conn, "/users/auth/custom_oauth2/callback?code=auth-code&state=expected-state")
+        get(conn, "/users/auth/oauth2/callback?code=auth-code&state=expected-state")
       end
     end
 
@@ -367,7 +367,7 @@ defmodule TuistWeb.AuthControllerTest do
           sso_route_provider: :oauth2
         })
         |> get(
-          "/users/auth/custom_oauth2/callback?error=access_denied&error_description=User+denied+access&state=expected-state"
+          "/users/auth/oauth2/callback?error=access_denied&error_description=User+denied+access&state=expected-state"
         )
       end
     end
@@ -397,7 +397,7 @@ defmodule TuistWeb.AuthControllerTest do
           sso_state: "expected-state",
           sso_route_provider: :oauth2
         })
-        |> get("/users/auth/custom_oauth2/callback?state=expected-state")
+        |> get("/users/auth/oauth2/callback?state=expected-state")
       end
     end
 
@@ -427,7 +427,7 @@ defmodule TuistWeb.AuthControllerTest do
           sso_state: "expected-state",
           sso_route_provider: :oauth2
         })
-        |> get("/users/auth/custom_oauth2/callback?code=auth-code&state=expected-state")
+        |> get("/users/auth/oauth2/callback?code=auth-code&state=expected-state")
       end
     end
 
@@ -461,7 +461,7 @@ defmodule TuistWeb.AuthControllerTest do
           sso_state: "expected-state",
           sso_route_provider: :oauth2
         })
-        |> get("/users/auth/custom_oauth2/callback?code=auth-code&state=expected-state")
+        |> get("/users/auth/oauth2/callback?code=auth-code&state=expected-state")
       end
     end
 
@@ -499,7 +499,7 @@ defmodule TuistWeb.AuthControllerTest do
           sso_state: "expected-state",
           sso_route_provider: :oauth2
         })
-        |> get("/users/auth/custom_oauth2/callback?code=auth-code&state=expected-state")
+        |> get("/users/auth/oauth2/callback?code=auth-code&state=expected-state")
       end
 
       # The victim's account must remain unlinked from the attacker's IdP
@@ -573,7 +573,7 @@ defmodule TuistWeb.AuthControllerTest do
           sso_state: "expected-state",
           sso_route_provider: :oauth2
         })
-        |> get("/users/auth/custom_oauth2/callback?code=auth-code&state=expected-state")
+        |> get("/users/auth/oauth2/callback?code=auth-code&state=expected-state")
 
       # Critical: attacker is NOT logged in as the victim.
       refute redirected_to(conn) =~ "/#{victim.account.name}"
@@ -624,7 +624,7 @@ defmodule TuistWeb.AuthControllerTest do
           sso_state: "expected-state",
           sso_route_provider: :oauth2
         })
-        |> get("/users/auth/custom_oauth2/callback?code=auth-code&state=expected-state")
+        |> get("/users/auth/oauth2/callback?code=auth-code&state=expected-state")
       end
     end
   end

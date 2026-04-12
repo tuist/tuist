@@ -31,7 +31,7 @@ defmodule TuistWeb.SSOLoginLive do
         provider_path =
           case organization.sso_provider do
             :okta -> "okta"
-            :oauth2 -> "custom_oauth2"
+            :oauth2 -> "oauth2"
           end
 
         redirect_url = "/users/auth/#{provider_path}?organization_id=#{organization.id}&login_hint=#{encoded_email}"
