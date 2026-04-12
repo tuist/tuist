@@ -37,7 +37,9 @@ defmodule Processor.BuildProcessorTest do
         %ExAws.Operation.S3{}
       end)
 
-      expect(ExAws, :request, fn %ExAws.Operation.S3{} -> {:error, {:http_error, 404, "not found"}} end)
+      expect(ExAws, :request, fn %ExAws.Operation.S3{} ->
+        {:error, {:http_error, 404, "not found"}}
+      end)
 
       assert {:error, {:http_error, 404, "not found"}} =
                BuildProcessor.process(storage_key, true)
