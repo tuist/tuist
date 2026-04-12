@@ -3330,6 +3330,20 @@ defmodule Tuist.AccountsTest do
       assert {:error, :not_found} ==
                Accounts.sso_organization_for_user_email("someone@nomatch.com")
     end
+
+    test "domain-based fallback skips Google SSO organizations" do
+      creator = AccountsFixtures.user_fixture()
+
+      _google_org =
+        AccountsFixtures.organization_fixture(
+          creator: creator,
+          sso_provider: :google,
+          sso_organization_id: "example.com"
+        )
+
+      assert {:error, :not_found} ==
+               Accounts.sso_organization_for_user_email("someone@example.com")
+    end
   end
 
   describe "create_namespace_tenant_for_account/1" do

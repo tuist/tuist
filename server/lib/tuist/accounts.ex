@@ -1692,7 +1692,7 @@ defmodule Tuist.Accounts do
 
         case Repo.one(
                from(o in Organization,
-                 where: not is_nil(o.sso_provider),
+                 where: o.sso_provider in [:okta, :oauth2],
                  where:
                    o.sso_organization_id == ^domain or
                      o.sso_organization_id == ^okta_domain or
