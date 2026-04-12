@@ -1,14 +1,14 @@
-defmodule TuistCommon.ObanSentryTest do
+defmodule TuistCommon.ObanTelemetryTest do
   use ExUnit.Case, async: false
   use Mimic
 
   setup :set_mimic_from_context
 
   setup do
-    TuistCommon.ObanSentry.attach()
+    TuistCommon.ObanTelemetry.attach()
 
     on_exit(fn ->
-      :telemetry.detach("oban-sentry-discard")
+      :telemetry.detach("oban-discard-error-reporter")
     end)
   end
 

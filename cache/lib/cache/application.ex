@@ -19,7 +19,7 @@ defmodule Cache.Application do
     end
 
     Oban.Telemetry.attach_default_logger()
-    TuistCommon.ObanSentry.attach()
+    TuistCommon.ObanTelemetry.attach()
     TransportLogger.attach(:cache)
     start_sentry_logger()
     start_loki_logger()

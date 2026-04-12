@@ -1,18 +1,18 @@
-defmodule TuistCommon.ObanSentry do
+defmodule TuistCommon.ObanTelemetry do
   @moduledoc """
-  Reports Oban job failures to Sentry only when all retry attempts have been exhausted.
+  Shared Oban telemetry handlers for Tuist services.
   """
 
   def attach do
     :telemetry.attach(
-      "oban-sentry-discard",
+      "oban-discard-error-reporter",
       [:oban, :job, :exception],
-      &__MODULE__.handle_event/4,
+      &__MODULE__.handle_exception/4,
       :no_config
     )
   end
 
-  def handle_event(
+  def handle_exception(
         [:oban, :job, :exception],
         _measurements,
         %{state: :discard, job: job, kind: kind, reason: reason, stacktrace: stacktrace},
@@ -28,5 +28,5 @@ defmodule TuistCommon.ObanSentry do
     )
   end
 
-  def handle_event([:oban, :job, :exception], _measurements, _metadata, :no_config), do: :ok
+  def handle_exception([:oban, :job, :exception], _measurements, _metadata, :no_config), do: :ok
 end
