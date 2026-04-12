@@ -2,7 +2,7 @@
 #MISE description="Trigger a registry sync for a Swift package version on a production cache node"
 #USAGE arg "<package>" help="Package in scope/name format (e.g., onevcat/rainbow)"
 #USAGE arg "<version>" help="Version tag to sync (e.g., 4.2.1)"
-#USAGE option "--user <user>" help="SSH username for connecting to the cache node"
+#USAGE flag "--user <user>" help="SSH username for connecting to the cache node"
 
 set -euo pipefail
 
@@ -43,7 +43,9 @@ read_random_production_host() {
         fail "Missing production deploy config: ${DEPLOY_CONFIG}"
     fi
 
-    mapfile -t hosts < <(yq '.servers.web.hosts[]' "$DEPLOY_CONFIG")
+    while IFS= read -r host; do
+        hosts+=("$host")
+    done < <(yq '.servers.web.hosts[]' "$DEPLOY_CONFIG")
 
     if [[ "${#hosts[@]}" -eq 0 ]]; then
         fail "No production cache hosts found in ${DEPLOY_CONFIG}"
