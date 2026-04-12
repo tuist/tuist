@@ -178,21 +178,20 @@ defmodule Cache.S3TransferWorkerTest do
       assert count == 2
     end
 
-    test "processes cas uploads normalizing to type: :xcode_cache" do
+    @tag :tmp_dir
+    test "processes cas uploads normalizing to type: :xcode_cache", %{tmp_dir: tmp_dir} do
       suffix = :erlang.unique_integer([:positive])
       key = "account/project/xcode/ar/ti/cas-artifact-#{suffix}"
 
       :ok = S3TransfersBuffer.enqueue(:upload, "account", "project", :cas, key)
       :ok = S3TransfersBuffer.flush()
 
-      {:ok, tmp_dir} = Briefly.create(directory: true)
       tmp_file = Path.join(tmp_dir, "test_artifact")
       File.write!(tmp_file, "test content")
 
-      expect(Cache.Disk, :artifact_path, fn _key -> tmp_file end)
+      expect(Cache.Disk, :artifact_path, fn ^key -> tmp_file end)
 
-      expect(Cache.S3, :upload_file, fn _key, _path, opts ->
-        assert opts == [type: :xcode_cache]
+      expect(Cache.S3, :upload_file, fn ^key, ^tmp_file, [type: :xcode_cache] ->
         :ok
       end)
 
@@ -206,23 +205,22 @@ defmodule Cache.S3TransferWorkerTest do
       assert count == 0
     end
 
-    test "processes cas downloads normalizing to type: :xcode_cache" do
+    @tag :tmp_dir
+    test "processes cas downloads normalizing to type: :xcode_cache", %{tmp_dir: tmp_dir} do
       suffix = :erlang.unique_integer([:positive])
       key = "account/project/xcode/ar/ti/cas-artifact-#{suffix}"
 
       :ok = S3TransfersBuffer.enqueue(:download, "account", "project", :cas, key)
       :ok = S3TransfersBuffer.flush()
 
-      {:ok, tmp_dir} = Briefly.create(directory: true)
       tmp_file = Path.join(tmp_dir, "test_artifact")
       File.write!(tmp_file, "test content")
 
-      expect(Cache.S3, :download, fn _key, opts ->
-        assert opts == [type: :xcode_cache]
+      expect(Cache.S3, :download, fn ^key, [type: :xcode_cache] ->
         {:ok, :hit}
       end)
 
-      expect(Cache.Disk, :artifact_path, fn _key -> tmp_file end)
+      expect(Cache.Disk, :artifact_path, fn ^key -> tmp_file end)
 
       capture_log(fn ->
         assert :ok = S3TransferWorker.perform(%Oban.Job{})
