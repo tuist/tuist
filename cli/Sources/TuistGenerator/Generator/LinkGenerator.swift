@@ -1,6 +1,7 @@
 import Foundation
 import Path
 import PathKit
+import TuistConstants
 import TuistCore
 import TuistLogging
 import TuistSupport
@@ -40,7 +41,7 @@ protocol LinkGenerating {
         path: AbsolutePath,
         sourceRootPath: AbsolutePath,
         graphTraverser: GraphTraversing
-    ) throws
+    ) throws -> [SideEffectDescriptor]
 }
 
 /// When generating build settings like "framework search path", some of the path might be relative to paths
@@ -80,8 +81,8 @@ struct LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_lengt
         path: AbsolutePath,
         sourceRootPath: AbsolutePath,
         graphTraverser: GraphTraversing
-    ) throws {
-        try setupSearchAndIncludePaths(
+    ) throws -> [SideEffectDescriptor] {
+        let sideEffects = try setupSearchAndIncludePaths(
             target: target,
             pbxTarget: pbxTarget,
             sourceRootPath: sourceRootPath,
@@ -122,6 +123,8 @@ struct LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_lengt
             pbxproj: pbxproj,
             fileElements: fileElements
         )
+
+        return sideEffects
     }
 
     private func setupSearchAndIncludePaths(
@@ -130,8 +133,8 @@ struct LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_lengt
         sourceRootPath: AbsolutePath,
         path: AbsolutePath,
         graphTraverser: GraphTraversing
-    ) throws {
-        try setupFrameworkSearchPath(
+    ) throws -> [SideEffectDescriptor] {
+        let sideEffects = try setupFrameworkSearchPath(
             target: target,
             pbxTarget: pbxTarget,
             sourceRootPath: sourceRootPath,
@@ -170,6 +173,8 @@ struct LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_lengt
             path: path,
             graphTraverser: graphTraverser
         )
+
+        return sideEffects
     }
 
     func generatePackages(
@@ -293,13 +298,15 @@ struct LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_lengt
         pbxTarget.buildPhases.append(embedPhase)
     }
 
+    private static let frameworkSearchPathConsolidationThreshold = 20
+
     func setupFrameworkSearchPath(
         target: Target,
         pbxTarget: PBXTarget,
         sourceRootPath: AbsolutePath,
         path: AbsolutePath,
         graphTraverser: GraphTraversing
-    ) throws {
+    ) throws -> [SideEffectDescriptor] {
         let linkableModules = try graphTraverser.searchablePathDependencies(path: path, name: target.name).sorted()
 
         let precompiledPaths = linkableModules.compactMap(\.precompiledPath)
@@ -312,13 +319,80 @@ struct LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_lengt
             }
         }
 
-        let uniquePaths = Array(Set(precompiledPaths + sdkPaths))
+        let uniquePrecompiledPaths = Array(Set(precompiledPaths))
+        let uniqueSdkPaths = Array(Set(sdkPaths))
+
+        guard uniquePrecompiledPaths.count >= Self.frameworkSearchPathConsolidationThreshold else {
+            let uniquePaths = Array(Set(precompiledPaths + sdkPaths))
+            try setup(
+                setting: "FRAMEWORK_SEARCH_PATHS",
+                paths: uniquePaths,
+                pbxTarget: pbxTarget,
+                sourceRootPath: sourceRootPath
+            )
+            return []
+        }
+
+        // Write precompiled framework search paths to a response file.
+        // Clang and ld support @file syntax to read flags from a file,
+        // bypassing the ARG_MAX command-line limit that C/ObjC compilation hits.
+        let responseFilePath = sourceRootPath
+            .appending(
+                components: Constants.DerivedDirectory.name,
+                Constants.DerivedDirectory.frameworkSearchPaths,
+                "\(target.name).resp"
+            )
+
+        let precompiledXcodeValues = uniquePrecompiledPaths
+            .map { $0.xcodeValue(sourceRootPath: sourceRootPath) }
+            .uniqued()
+            .sorted()
+
+        // Response file must contain absolute paths since clang doesn't expand
+        // build setting variables. Convert $(SRCROOT)/... to absolute paths.
+        let responseFileContent = precompiledXcodeValues
+            .map { "-F" + $0.replacingOccurrences(of: "$(SRCROOT)", with: sourceRootPath.pathString) }
+            .joined(separator: "\n")
+            + "\n"
+
+        let sideEffect = SideEffectDescriptor.file(FileDescriptor(
+            path: responseFilePath,
+            contents: Data(responseFileContent.utf8)
+        ))
+
+        // FRAMEWORK_SEARCH_PATHS: only SDK paths (short, no ARG_MAX risk)
         try setup(
             setting: "FRAMEWORK_SEARCH_PATHS",
-            paths: uniquePaths,
+            paths: uniqueSdkPaths,
             pbxTarget: pbxTarget,
             sourceRootPath: sourceRootPath
         )
+
+        let responseFileRef = "@$(SRCROOT)/\(responseFilePath.relative(to: sourceRootPath))"
+
+        // OTHER_CFLAGS: add @response_file so clang reads -F flags from file
+        try setup(
+            setting: "OTHER_CFLAGS",
+            values: [responseFileRef],
+            pbxTarget: pbxTarget
+        )
+
+        // OTHER_SWIFT_FLAGS: add -Xcc @response_file so Swift's clang invocations
+        // also pick up the framework search paths
+        try setup(
+            setting: "OTHER_SWIFT_FLAGS",
+            values: ["-Xcc", responseFileRef],
+            pbxTarget: pbxTarget
+        )
+
+        // OTHER_LDFLAGS: add @response_file so the linker finds the frameworks
+        try setup(
+            setting: "OTHER_LDFLAGS",
+            values: [responseFileRef],
+            pbxTarget: pbxTarget
+        )
+
+        return [sideEffect]
     }
 
     func setupHeadersSearchPath(
@@ -427,6 +501,22 @@ struct LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_lengt
         }
         let value = SettingValue
             .array(["$(inherited)"] + paths.map { $0.xcodeValue(sourceRootPath: sourceRootPath) }.uniqued().sorted())
+        let newSetting = [name: value]
+        let helper = SettingsHelper()
+        for configuration in configurationList.buildConfigurations {
+            try helper.extend(buildSettings: &configuration.buildSettings, with: newSetting)
+        }
+    }
+
+    private func setup(
+        setting name: String,
+        values: [String],
+        pbxTarget: PBXTarget
+    ) throws {
+        guard let configurationList = pbxTarget.buildConfigurationList else {
+            throw LinkGeneratorError.missingConfigurationList(targetName: pbxTarget.name)
+        }
+        let value = SettingValue.array(["$(inherited)"] + values)
         let newSetting = [name: value]
         let helper = SettingsHelper()
         for configuration in configurationList.buildConfigurations {

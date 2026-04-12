@@ -1658,7 +1658,7 @@ struct BuildPhaseGeneratorTests {
         )
 
         // When
-        let pbxTarget = try await TargetGenerator().generateTarget(
+        let (pbxTarget, _) = try await TargetGenerator().generateTarget(
             target: target,
             project: project,
             pbxproj: pbxproj,
@@ -1742,7 +1742,7 @@ struct BuildPhaseGeneratorTests {
         )
 
         // When
-        let pbxTarget = try await TargetGenerator().generateTarget(
+        let (pbxTarget, _) = try await TargetGenerator().generateTarget(
             target: target,
             project: project,
             pbxproj: pbxproj,
@@ -1815,7 +1815,7 @@ struct BuildPhaseGeneratorTests {
         )
 
         // When
-        let pbxTarget = try await TargetGenerator().generateTarget(
+        let (pbxTarget, _) = try await TargetGenerator().generateTarget(
             target: target,
             project: project,
             pbxproj: pbxproj,

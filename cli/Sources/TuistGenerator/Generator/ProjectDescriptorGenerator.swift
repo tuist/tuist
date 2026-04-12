@@ -139,7 +139,7 @@ struct ProjectDescriptorGenerator: ProjectDescriptorGenerating {
         )
 
         Logger.current.debug("Generating targets for project \(project.name)")
-        let nativeTargets = try await generateTargets(
+        let (nativeTargets, targetSideEffects) = try await generateTargets(
             project: project,
             pbxproj: pbxproj,
             pbxProject: pbxProject,
@@ -186,7 +186,7 @@ struct ProjectDescriptorGenerator: ProjectDescriptorGenerating {
             xcodeprojPath: project.xcodeProjPath,
             xcodeProj: xcodeProj,
             schemeDescriptors: schemes,
-            sideEffectDescriptors: []
+            sideEffectDescriptors: targetSideEffects
         )
     }
 
@@ -231,13 +231,14 @@ struct ProjectDescriptorGenerator: ProjectDescriptorGenerating {
         pbxProject: PBXProject,
         fileElements: ProjectFileElements,
         graphTraverser: GraphTraversing
-    ) async throws -> [String: PBXTarget] {
+    ) async throws -> (nativeTargets: [String: PBXTarget], sideEffects: [SideEffectDescriptor]) {
         var nativeTargets: [String: PBXTarget] = [:]
+        var sideEffects: [SideEffectDescriptor] = []
         let sortedTargets = project.targets.values.sorted()
         Logger.current.debug("Generating \(sortedTargets.count) targets for project \(project.name)")
         for target in sortedTargets {
             Logger.current.debug("Generating target \(target.name) in project \(project.name)")
-            let nativeTarget = try await targetGenerator.generateTarget(
+            let (nativeTarget, targetSideEffects) = try await targetGenerator.generateTarget(
                 target: target,
                 project: project,
                 pbxproj: pbxproj,
@@ -248,6 +249,7 @@ struct ProjectDescriptorGenerator: ProjectDescriptorGenerating {
                 graphTraverser: graphTraverser
             )
             nativeTargets[target.name] = nativeTarget
+            sideEffects.append(contentsOf: targetSideEffects)
             Logger.current.debug("Finished generating target \(target.name) in project \(project.name)")
         }
 
@@ -260,7 +262,7 @@ struct ProjectDescriptorGenerator: ProjectDescriptorGenerating {
             graphTraverser: graphTraverser
         )
         Logger.current.debug("Finished generating target dependencies for project \(project.name)")
-        return nativeTargets
+        return (nativeTargets, sideEffects)
     }
 
     private func generateTestTargetIdentity(

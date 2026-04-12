@@ -18,8 +18,8 @@ class MockTargetGenerator: TargetGenerating {
         fileElements _: ProjectFileElements,
         path _: AbsolutePath,
         graphTraverser _: GraphTraversing
-    ) async throws -> PBXTarget {
-        generateTargetStub?() ?? PBXNativeTarget(name: target.name)
+    ) async throws -> (PBXTarget, [SideEffectDescriptor]) {
+        (generateTargetStub?() ?? PBXNativeTarget(name: target.name), [])
     }
 
     func generateTargetDependencies(
