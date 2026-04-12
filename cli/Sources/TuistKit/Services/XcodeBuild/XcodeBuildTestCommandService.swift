@@ -71,7 +71,7 @@ struct XcodeBuildTestCommandService {
         skipQuarantine: Bool = false,
         shardIndex: Int? = nil,
         shardArchivePath: AbsolutePath? = nil,
-        mode: TestProcessingMode = .local
+        mode: TestProcessingMode? = nil
     ) async throws {
         var passthroughXcodebuildArguments = passthroughXcodebuildArguments
         try await passthroughXcodebuildArguments.append(
@@ -80,6 +80,7 @@ struct XcodeBuildTestCommandService {
 
         let path = try await path(passthroughXcodebuildArguments: passthroughXcodebuildArguments)
         let config = try await configLoader.loadConfig(path: path)
+        let mode = mode ?? TestProcessingMode.default(for: config.url)
 
         var shardPlanId: String?
         var shardTestProductsPath: AbsolutePath?

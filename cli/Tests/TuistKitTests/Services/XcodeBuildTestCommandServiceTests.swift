@@ -188,7 +188,7 @@ struct XcodeBuildTestCommandServiceTests {
 
             given(configLoader)
                 .loadConfig(path: .any)
-                .willReturn(.test(fullHandle: "tuist/tuist"))
+                .willReturn(.test(fullHandle: "tuist/tuist", url: URL(string: "https://example.com")!))
 
             xcResultService.reset()
             given(xcResultService)
@@ -251,7 +251,7 @@ struct XcodeBuildTestCommandServiceTests {
 
         given(configLoader)
             .loadConfig(path: .any)
-            .willReturn(.test(fullHandle: "tuist/tuist"))
+            .willReturn(.test(fullHandle: "tuist/tuist", url: URL(string: "https://example.com")!))
 
         given(serverEnvironmentService)
             .url(configServerURL: .any)
