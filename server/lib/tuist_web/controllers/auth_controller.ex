@@ -5,11 +5,9 @@ defmodule TuistWeb.AuthController do
 
   use TuistWeb, :controller
 
-  alias OAuth2.Client
   alias Tuist.Accounts
   alias Tuist.Accounts.Organization
-  alias Tuist.OAuth2.AuthCodeBasicAuth
-  alias Tuist.OAuth2.SsrfGuard
+  alias Tuist.OAuth2.SSOClient
   alias TuistWeb.Authentication
   alias TuistWeb.Errors.UnauthorizedError
   alias Ueberauth.Auth
@@ -44,16 +42,19 @@ defmodule TuistWeb.AuthController do
              {:ok, config} <- Accounts.oauth2_config_for_organization(organization) do
           state = Base.url_encode64(:crypto.strong_rand_bytes(32), padding: false)
 
-          authorize_params =
+          query_params =
             maybe_put_login_hint(
-              [scope: "openid email profile", state: state],
+              %{
+                response_type: "code",
+                client_id: config.client_id,
+                redirect_uri: sso_callback_url(route_provider),
+                scope: "openid email profile",
+                state: state
+              },
               params["login_hint"]
             )
 
-          url =
-            config
-            |> sso_client(sso_callback_url(route_provider))
-            |> Client.authorize_url!(authorize_params)
+          url = config.authorize_url <> "?" <> URI.encode_query(query_params)
 
           conn
           |> put_session(:sso_organization_id, organization_id)
@@ -301,42 +302,20 @@ defmodule TuistWeb.AuthController do
     end
   end
 
-  defp sso_client(config, redirect_uri) do
-    [
-      strategy: AuthCodeBasicAuth,
-      client_id: config.client_id,
-      client_secret: config.client_secret,
-      site: config.site,
-      authorize_url: config.authorize_url,
-      token_url: config.token_url,
-      redirect_uri: redirect_uri
-    ]
-    |> Client.new()
-    |> Client.put_serializer("application/json", JSON)
-  end
-
   defp sso_auth(conn, config, sso_provider, route_provider) do
-    params = [code: conn.params["code"]]
-
     with :ok <- validate_sso_urls(config),
-         {:ok, token_url_pinned, token_hostname} <- SsrfGuard.pin(config.token_url),
-         {:ok, user_info_url_pinned, user_info_hostname} <- SsrfGuard.pin(config.user_info_url),
-         pinned_config = %{config | token_url: token_url_pinned, user_info_url: user_info_url_pinned},
-         token_opts = SsrfGuard.ssl_adapter_opts(token_hostname),
-         user_info_opts = SsrfGuard.ssl_adapter_opts(user_info_hostname),
-         {:ok, %Client{token: token} = client} <-
-           Client.get_token(
-             sso_client(pinned_config, sso_callback_url(route_provider)),
-             params,
-             [],
-             token_opts
+         {:ok, token_body} <-
+           SSOClient.exchange_token(
+             config.token_url,
+             conn.params["code"],
+             sso_callback_url(route_provider),
+             config.client_id,
+             config.client_secret
            ),
-         {:ok, %{status_code: 200, body: userinfo}} <-
-           Client.get(client, pinned_config.user_info_url, [], user_info_opts),
+         {:ok, userinfo} <- SSOClient.fetch_userinfo(config.user_info_url, token_body["access_token"]),
          {:ok, uid, email} <- validate_sso_userinfo(userinfo) do
-      {:ok, build_sso_auth(token, userinfo, uid, email, sso_provider, config.provider_organization_id)}
+      {:ok, build_sso_auth(token_body, userinfo, uid, email, sso_provider, config.provider_organization_id)}
     else
-      {:ok, %{status_code: status_code, body: body}} -> {:error, {:userinfo_request_failed, status_code, body}}
       {:error, reason} -> {:error, reason}
       error -> {:error, error}
     end
@@ -405,7 +384,7 @@ defmodule TuistWeb.AuthController do
 
     %Auth{
       provider: sso_provider,
-      strategy: AuthCodeBasicAuth,
+      strategy: Ueberauth.Strategy.OAuth2,
       uid: uid,
       info: %Info{
         name: name,
@@ -415,12 +394,12 @@ defmodule TuistWeb.AuthController do
         email: email
       },
       credentials: %Credentials{
-        token: token.access_token,
-        refresh_token: token.refresh_token,
-        expires_at: token.expires_at,
-        token_type: token.token_type,
-        expires: !!token.expires_at,
-        scopes: token.other_params["scope"]
+        token: token["access_token"],
+        refresh_token: token["refresh_token"],
+        expires_at: compute_expires_at(token["expires_in"]),
+        token_type: token["token_type"],
+        expires: not is_nil(token["expires_in"]),
+        scopes: String.split(token["scope"] || "", " ", trim: true)
       },
       extra: %Extra{
         raw_info: %{
@@ -432,11 +411,21 @@ defmodule TuistWeb.AuthController do
     }
   end
 
+  defp compute_expires_at(nil), do: nil
+  defp compute_expires_at(expires_in) when is_integer(expires_in), do: System.system_time(:second) + expires_in
+
+  defp compute_expires_at(expires_in) when is_binary(expires_in) do
+    case Integer.parse(expires_in) do
+      {seconds, _} -> System.system_time(:second) + seconds
+      :error -> nil
+    end
+  end
+
   defp sso_callback_url(:okta), do: TuistWeb.Endpoint.url() <> ~p"/users/auth/okta/callback"
   defp sso_callback_url(:oauth2), do: TuistWeb.Endpoint.url() <> ~p"/users/auth/custom_oauth2/callback"
 
   defp maybe_put_login_hint(params, login_hint) when is_binary(login_hint) and login_hint != "" do
-    Keyword.put(params, :login_hint, login_hint)
+    Map.put(params, :login_hint, login_hint)
   end
 
   defp maybe_put_login_hint(params, _login_hint), do: params

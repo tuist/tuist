@@ -1,4 +1,4 @@
-defmodule Tuist.OAuth2.SsrfGuard do
+defmodule Tuist.OAuth2.SSRFGuard do
   @moduledoc ~S"""
   Resolves a URL's hostname to an IP, rejects it if any resolved address is
   non-public, and returns a "pinned" URL that uses the validated IP directly —
@@ -45,15 +45,18 @@ defmodule Tuist.OAuth2.SsrfGuard do
   end
 
   @doc """
-  Returns the adapter options that need to be passed to the OAuth2/Tesla
-  client so that TLS handshake, SNI, and certificate verification continue
-  to use the original hostname (even though the TCP connection is opened
-  against a raw IP). Without these, connecting to an IP breaks SNI and the
-  server either serves the wrong certificate or rejects the handshake.
+  Returns Req/Finch/Mint `connect_options` that keep TLS working when the
+  URL's host component is a raw IP (from `pin/1`) instead of the original
+  hostname.
+
+  The `:hostname` key tells Mint to use the original hostname for SNI and
+  the `Host:` header. The `:transport_opts` configure peer verification
+  against the original hostname's certificate chain.
   """
-  def ssl_adapter_opts(hostname) do
+  def connect_options(hostname) do
     [
-      ssl: [
+      hostname: hostname,
+      transport_opts: [
         verify: :verify_peer,
         cacerts: :public_key.cacerts_get(),
         server_name_indication: String.to_charlist(hostname),

@@ -2,33 +2,10 @@ defmodule TuistWeb.AuthControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
 
-  alias OAuth2.AccessToken
   alias Tuist.Accounts.Oauth2Identity
-  alias Tuist.OAuth2.SsrfGuard
+  alias Tuist.OAuth2.SSOClient
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias Ueberauth.Auth.Info
-
-  # SsrfGuard.pin/1 runs real DNS resolution against the hostname in the
-  # token/userinfo URLs, which is undesirable in unit tests: fake hostnames
-  # like `auth.example.com` would fail with {:error, :dns_failure} and
-  # short-circuit the callback flow before the mocked OAuth2.Client calls
-  # are reached. Stub it as a pass-through so the existing Client mocks
-  # still see the original URLs. SSRF behavior is covered directly in
-  # Tuist.OAuth2.SsrfGuardTest.
-  setup :stub_ssrf_guard_pass_through
-
-  defp stub_ssrf_guard_pass_through(_context) do
-    stub(SsrfGuard, :pin, fn url ->
-      case URI.parse(url) do
-        %URI{host: host} when is_binary(host) and host != "" -> {:ok, url, host}
-        _ -> {:error, :invalid_url}
-      end
-    end)
-
-    stub(SsrfGuard, :ssl_adapter_opts, fn _hostname -> [] end)
-
-    :ok
-  end
 
   describe "GET /auth/cli/:device_code" do
     test "redirects to log in when the user is not logged in", %{conn: conn} do
@@ -172,28 +149,12 @@ defmodule TuistWeb.AuthControllerTest do
           oauth2_client_secret: UUIDv7.generate()
         )
 
-      expect(OAuth2.Client, :get_token, fn _client, [code: "auth-code"], _headers, _opts ->
-        {:ok,
-         %OAuth2.Client{
-           token:
-             AccessToken.new(%{
-               "access_token" => "access-token",
-               "token_type" => "Bearer",
-               "scope" => "openid email profile"
-             })
-         }}
+      expect(SSOClient, :exchange_token, fn _token_url, "auth-code", _redirect_uri, _client_id, _client_secret ->
+        {:ok, %{"access_token" => "access-token", "token_type" => "Bearer", "scope" => "openid email profile"}}
       end)
 
-      expect(OAuth2.Client, :get, fn %OAuth2.Client{}, "https://dev-123456/oauth2/v1/userinfo", _headers, _opts ->
-        {:ok,
-         %{
-           status_code: 200,
-           body: %{
-             "sub" => "okta-user-123",
-             "email" => existing_user.email,
-             "name" => "Existing User"
-           }
-         }}
+      expect(SSOClient, :fetch_userinfo, fn _user_info_url, "access-token" ->
+        {:ok, %{"sub" => "okta-user-123", "email" => existing_user.email, "name" => "Existing User"}}
       end)
 
       conn =
@@ -314,28 +275,12 @@ defmodule TuistWeb.AuthControllerTest do
           oauth2_user_info_url: "https://auth.example.com/oauth2/userinfo"
         )
 
-      expect(OAuth2.Client, :get_token, fn _client, [code: "auth-code"], _headers, _opts ->
-        {:ok,
-         %OAuth2.Client{
-           token:
-             AccessToken.new(%{
-               "access_token" => "access-token",
-               "token_type" => "Bearer",
-               "scope" => "openid email profile"
-             })
-         }}
+      expect(SSOClient, :exchange_token, fn _token_url, "auth-code", _redirect_uri, _client_id, _client_secret ->
+        {:ok, %{"access_token" => "access-token", "token_type" => "Bearer", "scope" => "openid email profile"}}
       end)
 
-      expect(OAuth2.Client, :get, fn %OAuth2.Client{}, "https://auth.example.com/oauth2/userinfo", _headers, _opts ->
-        {:ok,
-         %{
-           status_code: 200,
-           body: %{
-             "sub" => "custom-oauth2-user-123",
-             "email" => existing_user.email,
-             "name" => "Existing User"
-           }
-         }}
+      expect(SSOClient, :fetch_userinfo, fn _user_info_url, "access-token" ->
+        {:ok, %{"sub" => "custom-oauth2-user-123", "email" => existing_user.email, "name" => "Existing User"}}
       end)
 
       conn =
@@ -405,8 +350,8 @@ defmodule TuistWeb.AuthControllerTest do
 
       # The IdP must never reach the token endpoint when reporting an error,
       # so any get_token/get call here would indicate the precondition is broken.
-      reject(&OAuth2.Client.get_token/2)
-      reject(&OAuth2.Client.get/3)
+      reject(&SSOClient.exchange_token/5)
+      reject(&SSOClient.fetch_userinfo/2)
 
       assert_error_sent 401, fn ->
         conn
@@ -436,8 +381,8 @@ defmodule TuistWeb.AuthControllerTest do
           oauth2_user_info_url: "https://auth.example.com/oauth2/userinfo"
         )
 
-      reject(&OAuth2.Client.get_token/2)
-      reject(&OAuth2.Client.get/3)
+      reject(&SSOClient.exchange_token/5)
+      reject(&SSOClient.fetch_userinfo/2)
 
       assert_error_sent 401, fn ->
         conn
@@ -465,7 +410,7 @@ defmodule TuistWeb.AuthControllerTest do
           oauth2_user_info_url: "https://auth.example.com/oauth2/userinfo"
         )
 
-      expect(OAuth2.Client, :get_token, fn _client, [code: "auth-code"], _headers, _opts ->
+      expect(SSOClient, :exchange_token, fn _token_url, "auth-code", _redirect_uri, _client_id, _client_secret ->
         {:error, :invalid_grant}
       end)
 
@@ -495,27 +440,12 @@ defmodule TuistWeb.AuthControllerTest do
           oauth2_user_info_url: "https://auth.example.com/oauth2/userinfo"
         )
 
-      expect(OAuth2.Client, :get_token, fn _client, [code: "auth-code"], _headers, _opts ->
-        {:ok,
-         %OAuth2.Client{
-           token:
-             AccessToken.new(%{
-               "access_token" => "access-token",
-               "token_type" => "Bearer",
-               "scope" => "openid email profile"
-             })
-         }}
+      expect(SSOClient, :exchange_token, fn _token_url, "auth-code", _redirect_uri, _client_id, _client_secret ->
+        {:ok, %{"access_token" => "access-token", "token_type" => "Bearer", "scope" => "openid email profile"}}
       end)
 
-      expect(OAuth2.Client, :get, fn %OAuth2.Client{}, "https://auth.example.com/oauth2/userinfo", _headers, _opts ->
-        {:ok,
-         %{
-           status_code: 200,
-           body: %{
-             "sub" => "custom-oauth2-user-123",
-             "name" => "Missing Email User"
-           }
-         }}
+      expect(SSOClient, :fetch_userinfo, fn _user_info_url, "access-token" ->
+        {:ok, %{"sub" => "custom-oauth2-user-123", "name" => "Missing Email User"}}
       end)
 
       assert_error_sent 401, fn ->
@@ -548,28 +478,12 @@ defmodule TuistWeb.AuthControllerTest do
           oauth2_user_info_url: "https://evil.example.com/oauth2/userinfo"
         )
 
-      expect(OAuth2.Client, :get_token, fn _client, [code: "auth-code"], _headers, _opts ->
-        {:ok,
-         %OAuth2.Client{
-           token:
-             AccessToken.new(%{
-               "access_token" => "access-token",
-               "token_type" => "Bearer",
-               "scope" => "openid email profile"
-             })
-         }}
+      expect(SSOClient, :exchange_token, fn _token_url, "auth-code", _redirect_uri, _client_id, _client_secret ->
+        {:ok, %{"access_token" => "access-token", "token_type" => "Bearer", "scope" => "openid email profile"}}
       end)
 
-      expect(OAuth2.Client, :get, fn %OAuth2.Client{}, "https://evil.example.com/oauth2/userinfo", _headers, _opts ->
-        {:ok,
-         %{
-           status_code: 200,
-           body: %{
-             "sub" => "spoofed-uid",
-             "email" => victim.email,
-             "name" => "Spoofed Victim"
-           }
-         }}
+      expect(SSOClient, :fetch_userinfo, fn _user_info_url, "access-token" ->
+        {:ok, %{"sub" => "spoofed-uid", "email" => victim.email, "name" => "Spoofed Victim"}}
       end)
 
       assert_error_sent 401, fn ->
@@ -631,28 +545,12 @@ defmodule TuistWeb.AuthControllerTest do
           oauth2_user_info_url: "https://idp-b.example.com/oauth2/userinfo"
         )
 
-      expect(OAuth2.Client, :get_token, fn _client, [code: "auth-code"], _headers, _opts ->
-        {:ok,
-         %OAuth2.Client{
-           token:
-             AccessToken.new(%{
-               "access_token" => "access-token",
-               "token_type" => "Bearer",
-               "scope" => "openid email profile"
-             })
-         }}
+      expect(SSOClient, :exchange_token, fn _token_url, "auth-code", _redirect_uri, _client_id, _client_secret ->
+        {:ok, %{"access_token" => "access-token", "token_type" => "Bearer", "scope" => "openid email profile"}}
       end)
 
-      expect(OAuth2.Client, :get, fn %OAuth2.Client{}, "https://idp-b.example.com/oauth2/userinfo", _headers, _opts ->
-        {:ok,
-         %{
-           status_code: 200,
-           body: %{
-             "sub" => "shared-sub",
-             "email" => "attacker@customer-b.example",
-             "name" => "Attacker"
-           }
-         }}
+      expect(SSOClient, :fetch_userinfo, fn _user_info_url, "access-token" ->
+        {:ok, %{"sub" => "shared-sub", "email" => "attacker@customer-b.example", "name" => "Attacker"}}
       end)
 
       # The callback must NOT log the attacker in as the victim. Because the
@@ -705,20 +603,12 @@ defmodule TuistWeb.AuthControllerTest do
           oauth2_user_info_url: "https://auth.example.com/oauth2/userinfo"
         )
 
-      expect(OAuth2.Client, :get_token, fn _client, [code: "auth-code"], _headers, _opts ->
-        {:ok,
-         %OAuth2.Client{
-           token:
-             AccessToken.new(%{
-               "access_token" => "access-token",
-               "token_type" => "Bearer",
-               "scope" => "openid email profile"
-             })
-         }}
+      expect(SSOClient, :exchange_token, fn _token_url, "auth-code", _redirect_uri, _client_id, _client_secret ->
+        {:ok, %{"access_token" => "access-token", "token_type" => "Bearer", "scope" => "openid email profile"}}
       end)
 
-      expect(OAuth2.Client, :get, fn %OAuth2.Client{}, "https://auth.example.com/oauth2/userinfo", _headers, _opts ->
-        {:ok, %{status_code: 401, body: %{"error" => "unauthorized"}}}
+      expect(SSOClient, :fetch_userinfo, fn _user_info_url, "access-token" ->
+        {:error, {:userinfo_request_failed, 401, %{"error" => "unauthorized"}}}
       end)
 
       assert_error_sent 401, fn ->

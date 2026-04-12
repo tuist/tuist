@@ -142,7 +142,7 @@ defmodule Tuist do
       VCS,
       UUIDv7,
       OAuth.Apple,
-      OAuth2.AuthCodeBasicAuth,
-      OAuth2.SsrfGuard
+      OAuth2.SSOClient,
+      OAuth2.SSRFGuard
     ]
 end
