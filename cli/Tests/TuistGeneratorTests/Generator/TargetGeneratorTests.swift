@@ -77,7 +77,7 @@ struct TargetGeneratorTests {
         )
 
         // When
-        let generatedTarget = try await subject.generateTarget(
+        let (generatedTarget, _) = try await subject.generateTarget(
             target: target,
             project: project,
             pbxproj: pbxproj,
@@ -145,7 +145,7 @@ struct TargetGeneratorTests {
         )
 
         // When
-        let generatedTarget = try await subject.generateTarget(
+        let (generatedTarget, _) = try await subject.generateTarget(
             target: target,
             project: project,
             pbxproj: pbxproj,
@@ -216,7 +216,7 @@ struct TargetGeneratorTests {
         )
 
         // When
-        let generatedTarget = try await subject.generateTarget(
+        let (generatedTarget, _) = try await subject.generateTarget(
             target: target,
             project: project,
             pbxproj: pbxproj,
@@ -274,7 +274,7 @@ struct TargetGeneratorTests {
         )
 
         // When
-        let generatedTarget = try await subject.generateTarget(
+        let (generatedTarget, _) = try await subject.generateTarget(
             target: target,
             project: project,
             pbxproj: pbxproj,
@@ -395,7 +395,7 @@ struct TargetGeneratorTests {
         )
 
         // When
-        let pbxTarget = try await subject.generateTarget(
+        let (pbxTarget, _) = try await subject.generateTarget(
             target: target,
             project: project,
             pbxproj: pbxproj,
