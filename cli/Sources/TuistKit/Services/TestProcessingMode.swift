@@ -10,13 +10,8 @@ public enum TestProcessingMode: String, Sendable, CaseIterable, ExpressibleByArg
     /// Defaults to `.remote` for tuist-hosted instances and `.local` for self-hosted ones,
     /// so self-hosted servers keep parsing xcresults locally unless they explicitly opt in.
     public static func `default`(for url: URL) -> TestProcessingMode {
-        let tuistHostedHosts: Set<String> = [
-            "tuist.dev",
-            "staging.tuist.dev",
-            "canary.tuist.dev",
-            "localhost",
-        ]
-        if let host = url.host, tuistHostedHosts.contains(host) {
+        guard let host = url.host else { return .local }
+        if host.hasSuffix("tuist.dev") || host == "localhost" {
             return .remote
         }
         return .local
