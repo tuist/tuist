@@ -1,6 +1,6 @@
 defmodule Tuist.Builds.Workers.ProcessBuildWorker do
   @moduledoc false
-  use Oban.Worker, queue: :default, max_attempts: 3
+  use Oban.Worker, queue: :default, max_attempts: 5
 
   alias Tuist.Accounts
   alias Tuist.Builds
