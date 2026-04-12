@@ -30,7 +30,8 @@ defmodule TuistWeb.SSOSettingsLive do
       |> assign(organization: organization)
       |> assign(sso_enabled: sso_enabled)
       |> assign(sso_enforced: organization.sso_enforced)
-      |> assign(flash_message: nil)
+      |> assign(flash_message: nil, field_errors: %{})
+      |> assign(field_errors: %{})
       |> assign_form_from_organization(organization)
       |> assign_saved_state()
       |> assign(:head_title, "#{dgettext("dashboard_account", "SSO")} · #{selected_account.name} · Tuist")
@@ -43,7 +44,12 @@ defmodule TuistWeb.SSOSettingsLive do
     sso_enabled = not socket.assigns.sso_enabled
 
     socket
-    |> assign(sso_enabled: sso_enabled, sso_enforced: sso_enabled and socket.assigns.sso_enforced, flash_message: nil)
+    |> assign(
+      sso_enabled: sso_enabled,
+      sso_enforced: sso_enabled and socket.assigns.sso_enforced,
+      flash_message: nil,
+      field_errors: %{}
+    )
     |> compute_form_valid()
     |> compute_has_changes()
     |> then(&{:noreply, &1})
@@ -51,7 +57,7 @@ defmodule TuistWeb.SSOSettingsLive do
 
   def handle_event("toggle_sso_enforced", _params, socket) do
     socket
-    |> assign(sso_enforced: not socket.assigns.sso_enforced, flash_message: nil)
+    |> assign(sso_enforced: not socket.assigns.sso_enforced, flash_message: nil, field_errors: %{})
     |> compute_has_changes()
     |> then(&{:noreply, &1})
   end
@@ -60,7 +66,7 @@ defmodule TuistWeb.SSOSettingsLive do
     form_params = Map.put(socket.assigns.current_form_params, "provider", provider)
 
     socket
-    |> assign(selected_provider: provider, flash_message: nil)
+    |> assign(selected_provider: provider, flash_message: nil, field_errors: %{})
     |> assign(current_form_params: form_params)
     |> assign(form: to_form(form_params, as: "sso"))
     |> compute_form_valid()
@@ -123,7 +129,7 @@ defmodule TuistWeb.SSOSettingsLive do
        |> assign(sso_enforced: false)
        |> assign_form_from_organization(updated_organization)
        |> assign_saved_state()
-       |> assign(flash_message: nil)}
+       |> assign(flash_message: nil, field_errors: %{})}
     end
   end
 
@@ -144,7 +150,7 @@ defmodule TuistWeb.SSOSettingsLive do
          |> assign(organization: updated_organization)
          |> assign_form_from_organization(updated_organization)
          |> assign_saved_state()
-         |> assign(flash_message: nil)}
+         |> assign(flash_message: nil, field_errors: %{})}
 
       {:error, message} ->
         {:noreply, assign(socket, flash_message: {"error", message})}
@@ -162,16 +168,35 @@ defmodule TuistWeb.SSOSettingsLive do
          |> assign(organization: updated_organization)
          |> assign_form_from_organization(updated_organization)
          |> assign_saved_state()
-         |> assign(flash_message: nil)}
+         |> assign(flash_message: nil, field_errors: %{})}
 
       {:error, changeset} ->
-        message =
-          changeset
-          |> Ecto.Changeset.traverse_errors(fn {msg, _opts} -> msg end)
-          |> Enum.map_join(", ", fn {field, msgs} -> "#{field} #{Enum.join(msgs, ", ")}" end)
-
-        {:noreply, assign(socket, flash_message: {"error", message})}
+        {:noreply, assign(socket, field_errors: changeset_to_field_errors(changeset, selected_provider))}
     end
+  end
+
+  @changeset_to_form_field %{
+    sso_organization_id: %{"okta" => "okta_domain", "oauth2" => "oauth2_site"},
+    oauth2_authorize_url: "oauth2_authorize_url",
+    oauth2_token_url: "oauth2_token_url",
+    oauth2_user_info_url: "oauth2_user_info_url",
+    oauth2_client_id: "oauth2_client_id",
+    oauth2_encrypted_client_secret: "oauth2_client_secret"
+  }
+
+  defp changeset_to_field_errors(changeset, provider) do
+    changeset
+    |> Ecto.Changeset.traverse_errors(fn {msg, _opts} -> msg end)
+    |> Enum.reduce(%{}, fn {field, msgs}, acc ->
+      form_field =
+        case Map.get(@changeset_to_form_field, field) do
+          %{} = per_provider -> Map.get(per_provider, provider, to_string(field))
+          name when is_binary(name) -> name
+          nil -> to_string(field)
+        end
+
+      Map.put(acc, form_field, Enum.join(msgs, ", "))
+    end)
   end
 
   defp build_oauth2_attrs(selected_provider, form, sso_enforced) do

@@ -208,6 +208,7 @@
             field={@form[:okta_domain]}
             type="basic"
             placeholder="your-company.okta.com"
+            error={@field_errors["okta_domain"]}
           />
         </div>
       </div>
@@ -230,6 +231,7 @@
             field={@form[:oauth2_site]}
             type="basic"
             placeholder="https://auth.example.com"
+            error={@field_errors["oauth2_site"]}
           />
         </div>
       </div>
@@ -252,6 +254,7 @@
             field={@form[:oauth2_authorize_url]}
             type="basic"
             placeholder="https://auth.example.com/oauth2/authorize"
+            error={@field_errors["oauth2_authorize_url"]}
           />
         </div>
       </div>
@@ -273,6 +276,7 @@
             field={@form[:oauth2_token_url]}
             type="basic"
             placeholder="https://auth.example.com/oauth2/token"
+            error={@field_errors["oauth2_token_url"]}
           />
         </div>
       </div>
@@ -294,6 +298,7 @@
             field={@form[:oauth2_user_info_url]}
             type="basic"
             placeholder="https://auth.example.com/oauth2/userinfo"
+            error={@field_errors["oauth2_user_info_url"]}
           />
         </div>
       </div>
@@ -319,6 +324,7 @@
             field={@form[:oauth2_client_id]}
             type="basic"
             placeholder={dgettext("dashboard_account", "OAuth2 application client ID")}
+            error={@field_errors["oauth2_client_id"]}
           />
         </div>
       </div>
@@ -350,6 +356,7 @@
                  do: "••••••••••••",
                  else: nil
             }
+            error={@field_errors["oauth2_client_secret"]}
           />
         </div>
       </div>
