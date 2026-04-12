@@ -54,11 +54,11 @@ defmodule Cache.S3TransferWorker do
   end
 
   defp execute_transfer(:upload, %{artifact_type: artifact_type, key: key})
-       when artifact_type in [:registry, :xcode_cache, :cas] do
+       when artifact_type in [:registry, :xcode_cache] do
     local_path = Disk.artifact_path(key)
 
     if File.exists?(local_path) do
-      S3.upload_file(key, local_path, type: normalize_artifact_type(artifact_type))
+      S3.upload_file(key, local_path, type: artifact_type)
     else
       :ok
     end
@@ -67,8 +67,8 @@ defmodule Cache.S3TransferWorker do
   defp execute_transfer(:upload, %{key: key}), do: S3.upload(key)
 
   defp execute_transfer(:download, %{artifact_type: artifact_type, key: key})
-       when artifact_type in [:registry, :xcode_cache, :cas] do
-    S3.download(key, type: normalize_artifact_type(artifact_type))
+       when artifact_type in [:registry, :xcode_cache] do
+    S3.download(key, type: artifact_type)
   end
 
   defp execute_transfer(:download, %{key: key}), do: S3.download(key)
@@ -116,6 +116,4 @@ defmodule Cache.S3TransferWorker do
     nil
   end
 
-  defp normalize_artifact_type(:cas), do: :xcode_cache
-  defp normalize_artifact_type(type), do: type
 end

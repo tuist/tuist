@@ -15,10 +15,9 @@ defmodule TuistCommon.ObanSentry do
   def handle_event(
         [:oban, :job, :exception],
         _measurements,
-        %{job: %{attempt: attempt, max_attempts: max_attempts} = job, kind: kind, reason: reason, stacktrace: stacktrace},
+        %{state: :discard, job: job, kind: kind, reason: reason, stacktrace: stacktrace},
         :no_config
-      )
-      when attempt >= max_attempts do
+      ) do
     exception = Exception.normalize(kind, reason, stacktrace)
 
     Sentry.capture_exception(exception,

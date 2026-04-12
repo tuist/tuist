@@ -178,60 +178,6 @@ defmodule Cache.S3TransferWorkerTest do
       assert count == 2
     end
 
-    @tag :tmp_dir
-    test "processes cas uploads normalizing to type: :xcode_cache", %{tmp_dir: tmp_dir} do
-      suffix = :erlang.unique_integer([:positive])
-      key = "account/project/xcode/ar/ti/cas-artifact-#{suffix}"
-
-      :ok = S3TransfersBuffer.enqueue(:upload, "account", "project", :cas, key)
-      :ok = S3TransfersBuffer.flush()
-
-      tmp_file = Path.join(tmp_dir, "test_artifact")
-      File.write!(tmp_file, "test content")
-
-      expect(Cache.Disk, :artifact_path, fn ^key -> tmp_file end)
-
-      expect(Cache.S3, :upload_file, fn ^key, ^tmp_file, [type: :xcode_cache] ->
-        :ok
-      end)
-
-      capture_log(fn ->
-        assert :ok = S3TransferWorker.perform(%Oban.Job{})
-      end)
-
-      :ok = S3TransfersBuffer.flush()
-
-      count = Repo.aggregate(from(t in S3Transfer, where: t.key == ^key), :count, :id)
-      assert count == 0
-    end
-
-    @tag :tmp_dir
-    test "processes cas downloads normalizing to type: :xcode_cache", %{tmp_dir: tmp_dir} do
-      suffix = :erlang.unique_integer([:positive])
-      key = "account/project/xcode/ar/ti/cas-artifact-#{suffix}"
-
-      :ok = S3TransfersBuffer.enqueue(:download, "account", "project", :cas, key)
-      :ok = S3TransfersBuffer.flush()
-
-      tmp_file = Path.join(tmp_dir, "test_artifact")
-      File.write!(tmp_file, "test content")
-
-      expect(Cache.S3, :download, fn ^key, [type: :xcode_cache] ->
-        {:ok, :hit}
-      end)
-
-      expect(Cache.Disk, :artifact_path, fn ^key -> tmp_file end)
-
-      capture_log(fn ->
-        assert :ok = S3TransferWorker.perform(%Oban.Job{})
-      end)
-
-      :ok = S3TransfersBuffer.flush()
-
-      count = Repo.aggregate(from(t in S3Transfer, where: t.key == ^key), :count, :id)
-      assert count == 0
-    end
-
     test "does nothing when no pending transfers" do
       suffix = :erlang.unique_integer([:positive])
       key = "account/project/xcode/ar/ti/artifact-noop-#{suffix}"
