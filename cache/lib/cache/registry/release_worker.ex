@@ -227,8 +227,8 @@ defmodule Cache.Registry.ReleaseWorker do
     parent_dir = Path.dirname(directory)
     base_name = Path.basename(directory)
 
-    with :ok <- ensure_symlinks_within_root(directory),
-         :ok <- resolve_symlinks(directory) do
+    with :ok <- resolve_symlinks(directory),
+         :ok <- ensure_symlinks_within_root(directory) do
       case System.cmd("zip", ["-r", archive_path, base_name], cd: parent_dir) do
         {_, 0} -> :ok
         {output, status} -> {:error, {:zip_failed, status, output}}

@@ -134,6 +134,7 @@ defmodule Cache.S3Transfers do
   end
 
   defp storage_type(:xcode_cache), do: :xcode_cache
+  defp storage_type(:cas), do: :xcode_cache
   defp storage_type(:registry), do: :registry
   defp storage_type(_artifact_type), do: :cache
 end

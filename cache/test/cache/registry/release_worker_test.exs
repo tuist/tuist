@@ -316,7 +316,7 @@ defmodule Cache.Registry.ReleaseWorkerTest do
       refute Enum.any?(lines, &String.contains?(&1, "broken"))
     end
 
-    test "zip_directory rejects symlinks that point outside root" do
+    test "zip_directory resolves symlinks that point outside root" do
       root = Briefly.create!(directory: true)
       source_dir = Path.join(root, "repo")
       outside_path = Path.join(root, "outside.txt")
@@ -326,8 +326,11 @@ defmodule Cache.Registry.ReleaseWorkerTest do
       File.write!(outside_path, "secret")
       File.ln_s!("../outside.txt", Path.join(source_dir, "escaped.md"))
 
-      assert {:error, {:symlink_points_outside_root, _path, "../outside.txt"}} =
-               ReleaseWorker.zip_directory(source_dir, archive_path)
+      assert :ok = ReleaseWorker.zip_directory(source_dir, archive_path)
+
+      resolved_path = Path.join(source_dir, "escaped.md")
+      assert File.regular?(resolved_path)
+      assert File.read!(resolved_path) == "secret"
     end
 
     test "resolves symlinks in downloaded zipball" do
