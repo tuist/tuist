@@ -218,12 +218,12 @@ public struct TargetContentHasher: TargetContentHashing {
                 []
             }
 
-        let buildableFolderIgnoredFileNames = Set([".ds_store"])
+        let hashingFilesFilter = HashingFilesFilter()
         let buildableFolderHashes = try await graphTarget.target
             .buildableFolders.sorted(by: { $0.path < $1.path })
             .map { buildableFolder in
                 let resolvedFiles = buildableFolder.resolvedFiles
-                    .filter { !buildableFolderIgnoredFileNames.contains($0.path.basename.lowercased()) }
+                    .filter { hashingFilesFilter($0.path) }
                     .sorted(by: { $0.path < $1.path })
 
                 return (buildableFolder, resolvedFiles)
