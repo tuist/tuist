@@ -4,12 +4,15 @@ Mix.install([
   {:expo, "~> 1.1"}
 ])
 
-Finch.start_link(
-  name: Req.Finch,
-  pools: %{
-    default: [size: 25, count: 2]
-  }
-)
+case Finch.start_link(
+       name: L10n.Finch,
+       pools: %{
+         default: [protocols: [:http1], size: 25, count: 2]
+       }
+     ) do
+  {:ok, _pid} -> :ok
+  {:error, {:already_started, _pid}} -> :ok
+end
 
 defmodule L10n.Context do
   @moduledoc """
@@ -317,6 +320,8 @@ defmodule L10n.Translator do
   supports (Anthropic, OpenAI, Ollama, etc.).
   """
 
+  @default_timeout 900_000
+
   @plural_forms %{
     "es" => "nplurals=2; plural=n != 1;",
     "ja" => "nplurals=1; plural=0;",
@@ -358,7 +363,7 @@ defmodule L10n.Translator do
   sends the full .pot content as the user message, and returns the
   translated .po file content as a string.
   """
-  def translate(pot_content, locale, language, context_body, locale_override, model) do
+  def translate(pot_content, locale, language, context_body, locale_override, model, timeout) do
     plural_forms = Map.get(@plural_forms, locale, "nplurals=2; plural=n != 1;")
 
     system_prompt = """
@@ -404,16 +409,13 @@ defmodule L10n.Translator do
 
     resolved_model = resolve_model(model)
 
-    {:ok, stream_response} = ReqLLM.stream_text(resolved_model, messages,
+    {:ok, response} = ReqLLM.generate_text(resolved_model, messages,
       max_tokens: 64_000,
-      receive_timeout: 300_000
+      receive_timeout: timeout,
+      finch: L10n.Finch
     )
 
-    text =
-      stream_response.stream
-      |> Stream.filter(fn chunk -> chunk.type == :content end)
-      |> Enum.map(fn chunk -> chunk.text end)
-      |> Enum.join("")
+    text = ReqLLM.Response.text(response)
 
     text
     |> String.trim()
@@ -431,6 +433,7 @@ defmodule L10n.Translator do
   `{:skipped, locale}`, or `{:error, locale, reason}` tuples.
   """
   def translate_all(pot_content, targets, context_body, model, l10n_dir, repo_root, pot_relative_path, context_files, opts) do
+    request_timeout = Keyword.get(opts, :timeout, @default_timeout)
     force = Keyword.get(opts, :force, false)
     source_hash = L10n.Context.hash_content(pot_content)
 
@@ -454,7 +457,16 @@ defmodule L10n.Translator do
           {:skipped, locale}
         else
           try do
-            po_content = translate(pot_content, locale, language, context_body, locale_override, model)
+            po_content =
+              translate(
+                pot_content,
+                locale,
+                language,
+                context_body,
+                locale_override,
+                model,
+                request_timeout
+              )
 
             case L10n.Validator.validate(po_content) do
               :ok ->
@@ -483,9 +495,20 @@ defmodule L10n.Translator do
         end
       end,
       max_concurrency: Keyword.get(opts, :max_concurrency, 2),
-      timeout: Keyword.get(opts, :timeout, 1_200_000)
+      timeout: request_timeout + 30_000,
+      on_timeout: :kill_task
     )
-    |> Enum.map(fn {:ok, result} -> result end)
+    |> Enum.zip(targets)
+    |> Enum.map(fn
+      {{:ok, result}, _target} ->
+        result
+
+      {{:exit, :timeout}, target} ->
+        {:error, target["locale"], "timed out after #{request_timeout} ms"}
+
+      {{:exit, reason}, target} ->
+        {:error, target["locale"], inspect(reason)}
+    end)
   end
 end
 
@@ -528,8 +551,10 @@ defmodule L10n.CLI do
     * `--model`, `-m` — Override the LLM model from L10N.md (e.g., `--model openai:gpt-4.1`)
     * `--concurrency`, `-c` — Max parallel translations per locale within one source file (default: 2)
     * `--pot-concurrency` — Max parallel source files being translated at once (default: 1)
-    * `--timeout`, `-t` — Timeout in ms per translation (default: 300000)
+    * `--timeout`, `-t` — Timeout in ms per translation request (default: 900000)
   """
+
+  @default_timeout 900_000
 
   @doc """
   Main entry point. Parses argv and runs the translation pipeline.
@@ -607,7 +632,7 @@ defmodule L10n.CLI do
             force: Keyword.get(opts, :force, false),
             locale_override_fn: locale_override_fn,
             max_concurrency: Keyword.get(opts, :concurrency, 2),
-            timeout: Keyword.get(opts, :timeout, 300_000)
+            timeout: Keyword.get(opts, :timeout, @default_timeout)
           )
         end,
         max_concurrency: Keyword.get(opts, :pot_concurrency, 1),
