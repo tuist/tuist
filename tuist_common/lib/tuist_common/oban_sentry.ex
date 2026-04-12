@@ -7,7 +7,7 @@ defmodule TuistCommon.ObanSentry do
     :telemetry.attach(
       "oban-sentry-discard",
       [:oban, :job, :exception],
-      &handle_event/4,
+      &__MODULE__.handle_event/4,
       :no_config
     )
   end
