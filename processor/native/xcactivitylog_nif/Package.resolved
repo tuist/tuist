@@ -1,5 +1,5 @@
 {
-  "originHash" : "72806d9520c25343cb9c1427cc732ed340ec187c03a698351f6359258af4cd34",
+  "originHash" : "80fbc31303f5dc9c5987ad1c2104d4da3b8aca38e2130e5878a8def73b83bf01",
   "pins" : [
     {
       "identity" : "1024jp.gzipswift",
@@ -38,7 +38,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "1.10.1"
+        "version" : "1.11.0"
       }
     },
     {
@@ -98,11 +98,12 @@
       }
     },
     {
-      "identity" : "tuist.FileSystem",
-      "kind" : "registry",
-      "location" : "",
+      "identity" : "tuist.filesystem",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/tuist/FileSystem.git",
       "state" : {
-        "version" : "0.15.31"
+        "branch" : "feat/vendor-swift-file-system-backend",
+        "revision" : "c8d45f4d3c1e4c80f2e1ebb2bde842f6f2006531"
       }
     },
     {
@@ -118,7 +119,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "0.9.20"
+        "version" : "0.9.21"
       }
     }
   ],

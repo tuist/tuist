@@ -10,7 +10,7 @@ let loggingDependency: Target.Dependency = .product(name: "Logging", package: "a
 let argumentParserDependency: Target.Dependency = .product(
     name: "ArgumentParser", package: "apple.swift-argument-parser"
 )
-let fileSystemDependency: Target.Dependency = .product(name: "FileSystem", package: "tuist.FileSystem")
+let fileSystemDependency: Target.Dependency = .product(name: "FileSystem", package: "FileSystem")
 let commandDependency: Target.Dependency = .product(name: "Command", package: "tuist.Command")
 let xcodeGraphDependency: Target.Dependency = "XcodeGraph"
 let xcodeMetadataDependency: Target.Dependency = "XcodeMetadata"
@@ -303,7 +303,7 @@ var tuistConfigLoaderTestDependencies: [Target.Dependency] = [
     "TuistRootDirectoryLocator",
     pathDependency,
     fileSystemDependency,
-    .product(name: "FileSystemTesting", package: "tuist.FileSystem"),
+    .product(name: "FileSystemTesting", package: "FileSystem"),
     mockableDependency,
 ]
 var tuistShareCommandDependencies: [Target.Dependency] = [
@@ -483,9 +483,7 @@ var targets: [Target] = [
         name: "TuistEnvironment",
         dependencies: [
             pathDependency,
-            fileSystemDependency,
             mockableDependency,
-            .product(name: "NIOCore", package: "apple.swift-nio"),
         ],
         path: "cli/Sources/TuistEnvironment",
         swiftSettings: [
@@ -869,7 +867,7 @@ var targets: [Target] = [
             pathDependency,
             differenceDependency,
             fileSystemDependency,
-            .product(name: "FileSystemTesting", package: "tuist.FileSystem"),
+            .product(name: "FileSystemTesting", package: "FileSystem"),
             argumentParserDependency,
         ],
         path: "cli/Sources/TuistTesting",
@@ -928,7 +926,7 @@ var targets: [Target] = [
             "TuistUserInputReader",
             pathDependency,
             fileSystemDependency,
-            .product(name: "FileSystemTesting", package: "tuist.FileSystem"),
+            .product(name: "FileSystemTesting", package: "FileSystem"),
             mockableDependency,
         ],
         path: "cli/Tests/TuistAuthCommandTests"
@@ -1024,7 +1022,7 @@ var targets: [Target] = [
             "TuistTesting",
             pathDependency,
             fileSystemDependency,
-            .product(name: "FileSystemTesting", package: "tuist.FileSystem"),
+            .product(name: "FileSystemTesting", package: "FileSystem"),
             commandDependency,
             mockableDependency,
             .product(name: "Noora", package: "tuist.Noora"),
@@ -1037,7 +1035,7 @@ var targets: [Target] = [
             "TuistAndroid",
             pathDependency,
             fileSystemDependency,
-            .product(name: "FileSystemTesting", package: "tuist.FileSystem"),
+            .product(name: "FileSystemTesting", package: "FileSystem"),
             commandDependency,
             mockableDependency,
         ],
@@ -1101,7 +1099,7 @@ targets.append(contentsOf: [
         dependencies: [
             "TuistAppleArchiver",
             fileSystemDependency,
-            .product(name: "FileSystemTesting", package: "tuist.FileSystem"),
+            .product(name: "FileSystemTesting", package: "FileSystem"),
             pathDependency,
         ],
         path: "cli/Tests/TuistAppleArchiverTests"
@@ -1689,7 +1687,11 @@ let package = Package(
         ),
         .package(id: "tuist.Path", .upToNextMajor(from: "0.3.8")),
         .package(id: "p-x9.MachOKit", .upToNextMajor(from: "0.46.1")),
-        .package(id: "tuist.FileSystem", .upToNextMajor(from: "0.15.0")),
+        .package(
+            name: "FileSystem",
+            url: "https://github.com/tuist/FileSystem.git",
+            branch: "feat/vendor-swift-file-system-backend"
+        ),
         .package(id: "tuist.Command", .upToNextMajor(from: "0.14.0")),
         .package(id: "apple.swift-crypto", from: "3.0.0"),
         .package(id: "apple.swift-nio", from: "2.70.0"),
