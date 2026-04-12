@@ -130,7 +130,7 @@ defmodule Noora.Sidebar do
 
   def sidebar_item(assigns) do
     ~H"""
-    <.link navigate={@navigate} patch={@patch} href={@href} data-part="item">
+    <.link navigate={@navigate} patch={@patch} href={@href} data-part="item" {@rest}>
       <.tab_menu_vertical label={@label} data-selected={@selected}>
         <:icon_left>
           <.icon name={@icon} />

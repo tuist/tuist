@@ -64,7 +64,7 @@ defmodule TuistWeb.AccountDropdown do
               </.button>
               <.button
                 :if={Authorization.authorize(:ops_read, @current_user) == :ok}
-                navigate={~p"/ops/cache"}
+                navigate={~p"/ops"}
                 label={dgettext("dashboard", "Operations")}
                 variant="secondary"
               >
