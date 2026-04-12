@@ -25,30 +25,30 @@ defmodule TuistWeb.UserLoginLiveTest do
       assert {:ok, _conn} = result
     end
 
-    test "renders Okta button if Okta is configured", %{conn: conn} do
+    test "renders SSO button if Okta is configured", %{conn: conn} do
       stub(Tuist.Environment, :okta_oauth_configured?, fn -> true end)
       stub(Tuist.Environment, :tuist_hosted?, fn -> false end)
       {:ok, _lv, html} = live(conn, ~p"/users/log_in")
 
-      assert html =~ "Okta"
+      assert html =~ "SSO"
     end
 
-    test "does not render Okta button if Okta is not configured and not tuist hosted", %{
+    test "does not render SSO button if Okta is not configured and not tuist hosted", %{
       conn: conn
     } do
       stub(Tuist.Environment, :okta_oauth_configured?, fn -> false end)
       stub(Tuist.Environment, :tuist_hosted?, fn -> false end)
       {:ok, _lv, html} = live(conn, ~p"/users/log_in")
 
-      refute html =~ "Okta"
+      refute html =~ "SSO"
     end
 
-    test "renders Okta button if tuist hosted even when Okta is not configured", %{conn: conn} do
+    test "renders SSO button if tuist hosted even when Okta is not configured", %{conn: conn} do
       stub(Tuist.Environment, :okta_oauth_configured?, fn -> false end)
       stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
       {:ok, _lv, html} = live(conn, ~p"/users/log_in")
 
-      assert html =~ "Okta"
+      assert html =~ "SSO"
     end
 
     test "renders email and password fields regardless of mail configuration", %{conn: conn} do

@@ -96,17 +96,12 @@ defmodule TuistWeb.UserLoginLive do
             </.button>
             <.button
               :if={@okta_configured? or @tuist_hosted?}
-              href={if @tuist_hosted?, do: ~p"/users/log_in/sso", else: ~p"/users/log_in/okta"}
+              href={~p"/users/log_in/sso"}
               variant="secondary"
               size="medium"
-              label="Okta"
+              label={dgettext("dashboard_auth", "SSO")}
               icon_only={all_oauth_providers_configured?(assigns)}
-            >
-              <.brand_okta />
-              <:icon_left>
-                <.brand_okta />
-              </:icon_left>
-            </.button>
+            />
           </div>
           <.line_divider :if={oauth_configured?()} text="OR" />
           <.alert

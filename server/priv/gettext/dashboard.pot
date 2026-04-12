@@ -321,7 +321,7 @@ msgstr ""
 msgid "The account you are looking for doesn't exist or has been moved."
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:25
+#: lib/tuist_web/controllers/auth_controller.ex:29
 #, elixir-autogen, elixir-format
 msgid "The authentication URL is not supported"
 msgstr ""
@@ -502,19 +502,9 @@ msgstr ""
 msgid "Metrics"
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:293
+#: lib/tuist_web/controllers/auth_controller.ex:301
 #, elixir-autogen, elixir-format
 msgid "Failed to authenticate."
-msgstr ""
-
-#: lib/tuist_web/controllers/auth_controller.ex:65
-#: lib/tuist_web/controllers/auth_controller.ex:75
-#: lib/tuist_web/controllers/auth_controller.ex:85
-#: lib/tuist_web/controllers/auth_controller.ex:204
-#: lib/tuist_web/controllers/auth_controller.ex:214
-#: lib/tuist_web/controllers/auth_controller.ex:224
-#, elixir-autogen, elixir-format
-msgid "Failed to authenticate with Okta."
 msgstr ""
 
 #: lib/tuist_web/controllers/error_html.ex:28
@@ -522,7 +512,7 @@ msgstr ""
 msgid "Authentication failed"
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:284
+#: lib/tuist_web/controllers/auth_controller.ex:292
 #, elixir-autogen, elixir-format
 msgid "Your identity provider denied access. Please ask your organization admin to assign you to the Tuist application."
 msgstr ""
@@ -531,4 +521,17 @@ msgstr ""
 #: lib/tuist_web/components/app_layout_components.ex:306
 #, elixir-autogen, elixir-format
 msgid "Shards"
+msgstr ""
+
+#: lib/tuist_web/controllers/auth_controller.ex:67
+#: lib/tuist_web/controllers/auth_controller.ex:72
+#: lib/tuist_web/controllers/auth_controller.ex:81
+#: lib/tuist_web/controllers/auth_controller.ex:101
+#: lib/tuist_web/controllers/auth_controller.ex:105
+#: lib/tuist_web/controllers/auth_controller.ex:110
+#: lib/tuist_web/controllers/auth_controller.ex:219
+#: lib/tuist_web/controllers/auth_controller.ex:338
+#: lib/tuist_web/controllers/auth_controller.ex:349
+#, elixir-autogen, elixir-format
+msgid "Failed to authenticate with the SSO provider."
 msgstr ""
