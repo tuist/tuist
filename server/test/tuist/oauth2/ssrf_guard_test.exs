@@ -38,6 +38,13 @@ defmodule Tuist.OAuth2.SSRFGuardTest do
       assert {:error, :private_ip_resolved} =
                SSRFGuard.pin("https://[fd00::1]/oauth2/token")
     end
+
+    test "rejects IPv6 link-local addresses across the full fe80::/10 range" do
+      assert {:error, :private_ip_resolved} = SSRFGuard.pin("https://[fe80::1]/oauth2/token")
+      assert {:error, :private_ip_resolved} = SSRFGuard.pin("https://[fe90::1]/oauth2/token")
+      assert {:error, :private_ip_resolved} = SSRFGuard.pin("https://[feb0::1]/oauth2/token")
+      assert {:error, :private_ip_resolved} = SSRFGuard.pin("https://[febf::1]/oauth2/token")
+    end
   end
 
   describe "pin/1 — malformed URL rejection" do

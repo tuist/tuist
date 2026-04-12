@@ -71,7 +71,7 @@ defmodule Tuist.URL do
   defp private_ip?({0, 0, 0, 0, 0, 0, 0, 1}), do: true
   defp private_ip?({0, 0, 0, 0, 0, 0, 0, 0}), do: true
   defp private_ip?({first, _, _, _, _, _, _, _}) when first >= 0xFC00 and first <= 0xFDFF, do: true
-  defp private_ip?({0xFE80, _, _, _, _, _, _, _}), do: true
+  defp private_ip?({first, _, _, _, _, _, _, _}) when first >= 0xFE80 and first <= 0xFEBF, do: true
 
   defp private_ip?(_), do: false
 
