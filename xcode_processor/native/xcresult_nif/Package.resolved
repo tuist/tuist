@@ -1,5 +1,5 @@
 {
-  "originHash" : "f5d174ccf0d2972732847d086edcf1b3daf0f46555438b67167b8cef64a96f0e",
+  "originHash" : "fb6b9b29753f72bd7fdeb646251879df2a53853c5cacc5c1e5e8dcd51b8fa159",
   "pins" : [
     {
       "identity" : "apple.swift-atomics",
@@ -66,12 +66,11 @@
       }
     },
     {
-      "identity" : "tuist.filesystem",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/tuist/FileSystem.git",
+      "identity" : "tuist.FileSystem",
+      "kind" : "registry",
+      "location" : "",
       "state" : {
-        "branch" : "feat/vendor-swift-file-system-backend",
-        "revision" : "c8d45f4d3c1e4c80f2e1ebb2bde842f6f2006531"
+        "version" : "0.16.0"
       }
     },
     {

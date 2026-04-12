@@ -17,11 +17,7 @@ let package = Package(
     ],
     dependencies: [
         .package(id: "tuist.Path", from: "0.3.8"),
-        .package(
-            name: "FileSystem",
-            url: "https://github.com/tuist/FileSystem.git",
-            branch: "feat/vendor-swift-file-system-backend"
-        ),
+        .package(id: "tuist.FileSystem", from: "0.16.0"),
         .package(id: "tuist.Command", from: "0.12.0"),
         .package(id: "kolos65.Mockable", from: "0.3.0"),
     ],
@@ -30,7 +26,7 @@ let package = Package(
             name: "XCResultParser",
             dependencies: [
                 .product(name: "Path", package: "tuist.Path"),
-                .product(name: "FileSystem", package: "FileSystem"),
+                .product(name: "FileSystem", package: "tuist.FileSystem"),
                 .product(name: "Command", package: "tuist.Command"),
                 .product(name: "Mockable", package: "kolos65.Mockable"),
             ],

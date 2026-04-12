@@ -15,7 +15,7 @@ let targets: [Target] = [
     .target(
         name: "XcodeMetadata",
         dependencies: [
-            .product(name: "FileSystem", package: "FileSystem"),
+            .product(name: "FileSystem", package: "tuist.FileSystem"),
             .product(name: "Mockable", package: "kolos65.Mockable"),
             .product(name: "MachOKitC", package: "p-x9.MachOKit"),
             "XcodeGraph",
@@ -38,7 +38,7 @@ let targets: [Target] = [
             "XcodeGraph",
             "XcodeMetadata",
             .product(name: "Command", package: "tuist.Command"),
-            .product(name: "FileSystem", package: "FileSystem"),
+            .product(name: "FileSystem", package: "tuist.FileSystem"),
             .product(name: "Path", package: "tuist.Path"),
             .product(name: "XcodeProj", package: "tuist.XcodeProj"),
         ],
@@ -58,7 +58,7 @@ let targets: [Target] = [
         name: "XcodeGraphMapperTests",
         dependencies: [
             "XcodeGraphMapper",
-            .product(name: "FileSystem", package: "FileSystem"),
+            .product(name: "FileSystem", package: "tuist.FileSystem"),
         ],
         swiftSettings: [
             .enableExperimentalFeature("StrictConcurrency"),
@@ -83,11 +83,7 @@ let package = Package(
         .package(id: "tuist.Path", .upToNextMajor(from: "0.3.8")),
         .package(id: "tuist.XcodeProj", .upToNextMajor(from: "9.9.0")),
         .package(id: "tuist.Command", from: "0.13.0"),
-        .package(
-            name: "FileSystem",
-            url: "https://github.com/tuist/FileSystem.git",
-            branch: "feat/vendor-swift-file-system-backend"
-        ),
+        .package(id: "tuist.FileSystem", .upToNextMajor(from: "0.16.0")),
         .package(id: "kolos65.Mockable", .upToNextMajor(from: "0.6.1")),
         .package(id: "p-x9.MachOKit", .upToNextMajor(from: "0.46.1")),
         .package(id: "swiftlang.swift-docc-plugin", from: "1.4.6"),
