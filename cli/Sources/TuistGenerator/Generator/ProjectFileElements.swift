@@ -393,7 +393,7 @@ class ProjectFileElements {
     ) throws {
         guard products[targetName] == nil else { return }
         let fileType = try RelativePath(validating: productName).extension.flatMap {
-            Self.filetype(extension: $0)
+            Xcode.filetype(extension: $0)
         }
         let fileReference = PBXFileReference(
             sourceTree: .buildProductsDir,
@@ -613,7 +613,7 @@ class ProjectFileElements {
         pbxproj: PBXProj
     ) {
         let localizedFilePath = localizedFile.relative(to: localizedContainer.parentDirectory)
-        let lastKnownFileType = localizedFile.extension.flatMap { Self.filetype(extension: $0) }
+        let lastKnownFileType = localizedFile.extension.flatMap { Xcode.filetype(extension: $0) }
         let language = localizedContainer.basenameWithoutExt
         let localizedFileReference = PBXFileReference(
             sourceTree: .group,
@@ -690,7 +690,7 @@ class ProjectFileElements {
         toGroup: PBXGroup,
         pbxproj: PBXProj
     ) {
-        let lastKnownFileType = fileAbsolutePath.extension.flatMap { Self.filetype(extension: $0) }
+        let lastKnownFileType = fileAbsolutePath.extension.flatMap { Xcode.filetype(extension: $0) }
         let file = PBXFileReference(
             sourceTree: .group,
             name: name,
@@ -714,7 +714,7 @@ class ProjectFileElements {
         toGroup: PBXGroup,
         pbxproj: PBXProj
     ) -> PBXFileReference {
-        let lastKnownFileType = fileAbsolutePath.extension.flatMap { Self.filetype(extension: $0) }
+        let lastKnownFileType = fileAbsolutePath.extension.flatMap { Xcode.filetype(extension: $0) }
         let file = PBXFileReference(
             sourceTree: .absolute,
             name: name,
@@ -756,7 +756,7 @@ class ProjectFileElements {
         // swiftlint:disable:next force_try
         let sdkPath = sdkNodePath.relative(to: try! AbsolutePath(validating: "/")) // SDK paths are relative
 
-        let lastKnownFileType = sdkPath.extension.flatMap { Self.filetype(extension: $0) }
+        let lastKnownFileType = sdkPath.extension.flatMap { Xcode.filetype(extension: $0) }
         let file = PBXFileReference(
             sourceTree: .developerDir,
             name: sdkPath.basename,
@@ -867,24 +867,11 @@ class ProjectFileElements {
         case "xcdatamodeld":
             return "wrapper.xcdatamodel"
         case let fileExtension?:
-            return Self.filetype(extension: fileExtension)
+            return Xcode.filetype(extension: fileExtension)
         default:
             return nil
         }
     }
-
-    /// Returns the Xcode file type for a given extension, supplementing XcodeProj's
-    /// built-in mapping with types it doesn't yet know about.
-    static func filetype(extension ext: String) -> String? {
-        if let known = Xcode.filetype(extension: ext) {
-            return known
-        }
-        return additionalFileTypes[ext]
-    }
-
-    private static let additionalFileTypes: [String: String] = [
-        "xcstrings": "text.json.xcstrings",
-    ]
 
     /// Finds and returns the gpx files used by the Run Action for all schemes.
     func gpxFilesForRunAction(in schemes: [Scheme], filesGroup: ProjectGroup) -> [GroupFileElement] {
