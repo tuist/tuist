@@ -28,7 +28,9 @@ defmodule XcodeProcessorWeb.WebhookController do
         |> json(parsed_data)
 
       {:error, reason} ->
-        Logger.warning("Failed to process xcresult for test run #{test_run_id}: #{inspect(reason)}")
+        Logger.warning(
+          "Failed to process xcresult for test run #{test_run_id}: #{inspect(reason)}"
+        )
 
         conn
         |> put_status(:unprocessable_entity)
