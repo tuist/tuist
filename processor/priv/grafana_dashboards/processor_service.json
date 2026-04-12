@@ -60,7 +60,7 @@
         {
           "datasource": "$datasource",
           "editorMode": "code",
-          "expr": "sum(rate(processor_prom_ex_phoenix_http_requests_total{instance=~\"$instance\"}[$__rate_interval]))",
+          "expr": "sum(rate(processor_prom_ex_phoenix_http_requests_total{job=\"processor\", hostname=~\"$hostname\", instance=~\"$instance\"}[$__rate_interval]))",
           "instant": true,
           "range": false,
           "refId": "A"
@@ -105,7 +105,7 @@
         {
           "datasource": "$datasource",
           "editorMode": "code",
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(processor_prom_ex_phoenix_http_request_duration_milliseconds_bucket{instance=~\"$instance\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(processor_prom_ex_phoenix_http_request_duration_milliseconds_bucket{job=\"processor\", hostname=~\"$hostname\", instance=~\"$instance\"}[$__rate_interval])))",
           "instant": true,
           "range": false,
           "refId": "A"
@@ -152,7 +152,7 @@
         {
           "datasource": "$datasource",
           "editorMode": "code",
-          "expr": "100 * (1 - avg by (instance) (rate(node_cpu_seconds_total{instance=~\"$instance\", mode=\"idle\"}[$__rate_interval])))",
+          "expr": "100 * (1 - avg by (instance) (rate(node_cpu_seconds_total{hostname=~\"$hostname\", instance=~\"$instance\", mode=\"idle\"}[$__rate_interval])))",
           "instant": true,
           "range": false,
           "refId": "A"
@@ -199,7 +199,7 @@
         {
           "datasource": "$datasource",
           "editorMode": "code",
-          "expr": "100 * (1 - (node_memory_MemAvailable_bytes{instance=~\"$instance\"} / node_memory_MemTotal_bytes{instance=~\"$instance\"}))",
+          "expr": "100 * (1 - (node_memory_MemAvailable_bytes{hostname=~\"$hostname\", instance=~\"$instance\"} / node_memory_MemTotal_bytes{hostname=~\"$hostname\", instance=~\"$instance\"}))",
           "instant": true,
           "range": false,
           "refId": "A"
@@ -248,7 +248,7 @@
         {
           "datasource": "$datasource",
           "editorMode": "code",
-          "expr": "sum(increase(processor_build_total{instance=~\"$instance\", status=\"ok\"}[$__rate_interval]))",
+          "expr": "sum(increase(processor_build_total{job=\"processor\", hostname=~\"$hostname\", instance=~\"$instance\", status=\"ok\"}[$__rate_interval]))",
           "instant": true,
           "range": false,
           "refId": "A"
@@ -292,7 +292,7 @@
         {
           "datasource": "$datasource",
           "editorMode": "code",
-          "expr": "sum(increase(processor_build_total{instance=~\"$instance\", status!=\"ok\"}[$__rate_interval])) or vector(0)",
+          "expr": "sum(increase(processor_build_total{job=\"processor\", hostname=~\"$hostname\", instance=~\"$instance\", status!=\"ok\"}[$__rate_interval])) or vector(0)",
           "instant": true,
           "range": false,
           "refId": "A"
@@ -337,7 +337,7 @@
         {
           "datasource": "$datasource",
           "editorMode": "code",
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(processor_build_duration_milliseconds_bucket{instance=~\"$instance\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(processor_build_duration_milliseconds_bucket{job=\"processor\", hostname=~\"$hostname\", instance=~\"$instance\"}[$__rate_interval])))",
           "instant": true,
           "range": false,
           "refId": "A"
@@ -382,7 +382,7 @@
         {
           "datasource": "$datasource",
           "editorMode": "code",
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(processor_s3_download_duration_milliseconds_bucket{instance=~\"$instance\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(processor_s3_download_duration_milliseconds_bucket{job=\"processor\", hostname=~\"$hostname\", instance=~\"$instance\"}[$__rate_interval])))",
           "instant": true,
           "range": false,
           "refId": "A"
@@ -443,7 +443,7 @@
         {
           "datasource": "$datasource",
           "editorMode": "code",
-          "expr": "sum by (status) (increase(processor_build_total{instance=~\"$instance\"}[$__rate_interval]))",
+          "expr": "sum by (status) (increase(processor_build_total{job=\"processor\", hostname=~\"$hostname\", instance=~\"$instance\"}[$__rate_interval]))",
           "legendFormat": "{{status}}",
           "range": true,
           "refId": "A"
@@ -504,7 +504,7 @@
         {
           "datasource": "$datasource",
           "editorMode": "code",
-          "expr": "histogram_quantile(0.50, sum by (le) (rate(processor_build_duration_milliseconds_bucket{instance=~\"$instance\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(processor_build_duration_milliseconds_bucket{job=\"processor\", hostname=~\"$hostname\", instance=~\"$instance\"}[$__rate_interval])))",
           "legendFormat": "Build p50",
           "range": true,
           "refId": "A"
@@ -512,7 +512,7 @@
         {
           "datasource": "$datasource",
           "editorMode": "code",
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(processor_build_duration_milliseconds_bucket{instance=~\"$instance\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(processor_build_duration_milliseconds_bucket{job=\"processor\", hostname=~\"$hostname\", instance=~\"$instance\"}[$__rate_interval])))",
           "legendFormat": "Build p95",
           "range": true,
           "refId": "B"
@@ -520,7 +520,7 @@
         {
           "datasource": "$datasource",
           "editorMode": "code",
-          "expr": "histogram_quantile(0.99, sum by (le) (rate(processor_build_duration_milliseconds_bucket{instance=~\"$instance\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(processor_build_duration_milliseconds_bucket{job=\"processor\", hostname=~\"$hostname\", instance=~\"$instance\"}[$__rate_interval])))",
           "legendFormat": "Build p99",
           "range": true,
           "refId": "C"
@@ -581,7 +581,7 @@
         {
           "datasource": "$datasource",
           "editorMode": "code",
-          "expr": "histogram_quantile(0.50, sum by (le) (rate(processor_s3_download_duration_milliseconds_bucket{instance=~\"$instance\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(processor_s3_download_duration_milliseconds_bucket{job=\"processor\", hostname=~\"$hostname\", instance=~\"$instance\"}[$__rate_interval])))",
           "legendFormat": "S3 p50",
           "range": true,
           "refId": "A"
@@ -589,7 +589,7 @@
         {
           "datasource": "$datasource",
           "editorMode": "code",
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(processor_s3_download_duration_milliseconds_bucket{instance=~\"$instance\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(processor_s3_download_duration_milliseconds_bucket{job=\"processor\", hostname=~\"$hostname\", instance=~\"$instance\"}[$__rate_interval])))",
           "legendFormat": "S3 p95",
           "range": true,
           "refId": "B"
@@ -597,7 +597,7 @@
         {
           "datasource": "$datasource",
           "editorMode": "code",
-          "expr": "histogram_quantile(0.99, sum by (le) (rate(processor_s3_download_duration_milliseconds_bucket{instance=~\"$instance\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(processor_s3_download_duration_milliseconds_bucket{job=\"processor\", hostname=~\"$hostname\", instance=~\"$instance\"}[$__rate_interval])))",
           "legendFormat": "S3 p99",
           "range": true,
           "refId": "C"
@@ -658,7 +658,7 @@
         {
           "datasource": "$datasource",
           "editorMode": "code",
-          "expr": "histogram_quantile(0.50, sum by (le) (rate(processor_build_parse_duration_milliseconds_bucket{instance=~\"$instance\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(processor_build_parse_duration_milliseconds_bucket{job=\"processor\", hostname=~\"$hostname\", instance=~\"$instance\"}[$__rate_interval])))",
           "legendFormat": "Parse p50",
           "range": true,
           "refId": "A"
@@ -666,7 +666,7 @@
         {
           "datasource": "$datasource",
           "editorMode": "code",
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(processor_build_parse_duration_milliseconds_bucket{instance=~\"$instance\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(processor_build_parse_duration_milliseconds_bucket{job=\"processor\", hostname=~\"$hostname\", instance=~\"$instance\"}[$__rate_interval])))",
           "legendFormat": "Parse p95",
           "range": true,
           "refId": "B"
@@ -674,7 +674,7 @@
         {
           "datasource": "$datasource",
           "editorMode": "code",
-          "expr": "histogram_quantile(0.99, sum by (le) (rate(processor_build_parse_duration_milliseconds_bucket{instance=~\"$instance\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(processor_build_parse_duration_milliseconds_bucket{job=\"processor\", hostname=~\"$hostname\", instance=~\"$instance\"}[$__rate_interval])))",
           "legendFormat": "Parse p99",
           "range": true,
           "refId": "C"
@@ -745,7 +745,7 @@
         {
           "datasource": "$datasource",
           "editorMode": "code",
-          "expr": "100 * (1 - avg by (instance) (rate(node_cpu_seconds_total{instance=~\"$instance\", mode=\"idle\"}[$__rate_interval])))",
+          "expr": "100 * (1 - avg by (instance) (rate(node_cpu_seconds_total{hostname=~\"$hostname\", instance=~\"$instance\", mode=\"idle\"}[$__rate_interval])))",
           "legendFormat": "{{instance}}",
           "range": true,
           "refId": "A"
@@ -806,7 +806,7 @@
         {
           "datasource": "$datasource",
           "editorMode": "code",
-          "expr": "node_memory_MemTotal_bytes{instance=~\"$instance\"} - node_memory_MemAvailable_bytes{instance=~\"$instance\"}",
+          "expr": "node_memory_MemTotal_bytes{hostname=~\"$hostname\", instance=~\"$instance\"} - node_memory_MemAvailable_bytes{hostname=~\"$hostname\", instance=~\"$instance\"}",
           "legendFormat": "Used {{instance}}",
           "range": true,
           "refId": "A"
@@ -814,7 +814,7 @@
         {
           "datasource": "$datasource",
           "editorMode": "code",
-          "expr": "node_memory_MemAvailable_bytes{instance=~\"$instance\"}",
+          "expr": "node_memory_MemAvailable_bytes{hostname=~\"$hostname\", instance=~\"$instance\"}",
           "legendFormat": "Available {{instance}}",
           "range": true,
           "refId": "B"
@@ -877,7 +877,7 @@
         {
           "datasource": "$datasource",
           "editorMode": "code",
-          "expr": "100 * namedprocess_namegroup_cpu_seconds_total{groupname=\"processor\", instance=~\"$instance\"}",
+          "expr": "100 * namedprocess_namegroup_cpu_seconds_total{groupname=\"processor\", hostname=~\"$hostname\", instance=~\"$instance\"}",
           "legendFormat": "{{instance}}",
           "range": true,
           "refId": "A"
@@ -938,7 +938,7 @@
         {
           "datasource": "$datasource",
           "editorMode": "code",
-          "expr": "namedprocess_namegroup_memory_bytes{groupname=\"processor\", memtype=\"resident\", instance=~\"$instance\"}",
+          "expr": "namedprocess_namegroup_memory_bytes{groupname=\"processor\", memtype=\"resident\", hostname=~\"$hostname\", instance=~\"$instance\"}",
           "legendFormat": "RSS {{instance}}",
           "range": true,
           "refId": "A"
@@ -946,7 +946,7 @@
         {
           "datasource": "$datasource",
           "editorMode": "code",
-          "expr": "namedprocess_namegroup_memory_bytes{groupname=\"processor\", memtype=\"virtual\", instance=~\"$instance\"}",
+          "expr": "namedprocess_namegroup_memory_bytes{groupname=\"processor\", memtype=\"virtual\", hostname=~\"$hostname\", instance=~\"$instance\"}",
           "legendFormat": "Virtual {{instance}}",
           "range": true,
           "refId": "B"
@@ -982,40 +982,27 @@
       {
         "current": {
           "selected": true,
-          "text": "All",
-          "value": "processor-.*"
+          "text": ["All"],
+          "value": ["$__all"]
         },
+        "datasource": "$datasource",
+        "definition": "label_values({job=\"processor\"}, hostname)",
         "hide": 0,
-        "includeAll": false,
-        "label": "Deployment",
-        "multi": false,
-        "name": "deployment",
-        "options": [
-          {
-            "selected": true,
-            "text": "All",
-            "value": "processor-.*"
-          },
-          {
-            "selected": false,
-            "text": "Production",
-            "value": "processor-[^-]+-[^-]+$"
-          },
-          {
-            "selected": false,
-            "text": "Staging",
-            "value": "processor-.*-staging.*"
-          },
-          {
-            "selected": false,
-            "text": "Canary",
-            "value": "processor-.*-canary.*"
-          }
-        ],
-        "query": "All : processor-.*, Production : processor-[^-]+-[^-]+$, Staging : processor-.*-staging.*, Canary : processor-.*-canary.*",
-        "queryValue": "",
+        "includeAll": true,
+        "label": "Hostname",
+        "multi": true,
+        "name": "hostname",
+        "options": [],
+        "query": {
+          "qryType": 1,
+          "query": "label_values({job=\"processor\"}, hostname)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "refresh": 1,
+        "regex": "",
         "skipUrlSync": false,
-        "type": "custom"
+        "sort": 1,
+        "type": "query"
       },
       {
         "current": {
@@ -1024,7 +1011,7 @@
           "value": ["$__all"]
         },
         "datasource": "$datasource",
-        "definition": "label_values({instance=~\"$deployment\"}, instance)",
+        "definition": "label_values({job=\"processor\", hostname=~\"$hostname\"}, instance)",
         "hide": 0,
         "includeAll": true,
         "label": "Instance",
@@ -1033,11 +1020,11 @@
         "options": [],
         "query": {
           "qryType": 1,
-          "query": "label_values({instance=~\"$deployment\"}, instance)",
+          "query": "label_values({job=\"processor\", hostname=~\"$hostname\"}, instance)",
           "refId": "PrometheusVariableQueryEditor-VariableQuery"
         },
         "refresh": 1,
-        "regex": "/processor-.*/",
+        "regex": "",
         "skipUrlSync": false,
         "sort": 1,
         "type": "query"
