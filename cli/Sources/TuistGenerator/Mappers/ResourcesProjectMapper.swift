@@ -90,22 +90,27 @@ public struct ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this
                 buildableFolders: resourceBuildableFolders
             )
             modifiedTarget.sources = target.sources.filter { $0.path.extension != "metal" }
-            // Asset catalogs and string catalogs are added to the main target's Sources build
-            // phase so Xcode generates typed symbols. This mirrors SwiftPM's PIF builder:
+            // Asset catalogs are added to the main target's Sources build phase so Xcode
+            // generates typed asset symbols. This mirrors SwiftPM's PIF builder:
             //   - https://github.com/swiftlang/swift-package-manager/blob/main/Sources/XCBuildSupport/PIFBuilder.swift#L944-L952
-            //   - https://github.com/swiftlang/swift-package-manager/blob/main/Sources/SwiftBuildSupport/PackagePIFProjectBuilder.swift#L345-L360
-            // Both are also compiled into the companion resource bundle via its Resources phase.
-            // The companion bundle declares PACKAGE_RESOURCE_TARGET_KIND = "resource" (above)
-            // so Xcode treats it as a pure resource container and skips string extraction.
-            // The main target carries PACKAGE_RESOURCE_TARGET_KIND = "regular" (below) so Xcode
-            // runs extraction here where the Swift source references live.
-            let codeGeneratingResourceExtensions: Set<String> = ["xcassets", "xcstrings"]
+            // They are also compiled into the companion resource bundle via its Resources phase.
+            //
+            // String catalogs (.xcstrings) are kept in the main target's Resources build phase
+            // (NOT Sources) so Xcode correctly runs string extraction in the context of this
+            // target's Swift sources. Adding xcstrings to the Sources phase does not trigger
+            // extraction in a regular xcodeproj (unlike PIF-based SPM builds). Combined with
+            // PACKAGE_RESOURCE_TARGET_KIND = "regular" (below), Xcode performs extraction here
+            // where the Swift source references live. The companion bundle declares
+            // PACKAGE_RESOURCE_TARGET_KIND = "resource" (above) so extraction is skipped there.
+            let codeGeneratingResourceExtensions: Set<String> = ["xcassets"]
             for resource in target.resources.resources {
                 if let ext = resource.path.extension, codeGeneratingResourceExtensions.contains(ext) {
                     modifiedTarget.sources.append(SourceFile(path: resource.path))
                 }
             }
-            modifiedTarget.resources.resources = []
+            modifiedTarget.resources.resources = target.resources.resources.filter {
+                $0.path.extension == "xcstrings"
+            }
             modifiedTarget.copyFiles = []
             modifiedTarget.buildableFolders = remainingBuildableFolders
             modifiedTarget.dependencies.append(.target(
