@@ -868,7 +868,6 @@ public enum Module: String, CaseIterable {
                     .external(name: "FileSystem"),
                     .external(name: "XcodeProj"),
                     .external(name: "SwiftToolsSupport"),
-                    .external(name: "_NIOFileSystem"),
                 ]
             case .plugin:
                 [
@@ -1739,7 +1738,6 @@ public enum Module: String, CaseIterable {
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),
                     .target(name: Module.xcodeGraph.targetName),
-                    .external(name: "_NIOFileSystem"),
                 ]
             case .plugin:
                 [

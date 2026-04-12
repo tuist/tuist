@@ -98,7 +98,9 @@ purge_local_caches() {
     local hosts=()
     local host
 
-    mapfile -t hosts < <(read_all_production_hosts)
+    while IFS= read -r host; do
+        hosts+=("$host")
+    done < <(read_all_production_hosts)
 
     log "Purging local disk caches from ${#hosts[@]} production nodes"
 

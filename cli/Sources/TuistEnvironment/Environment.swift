@@ -1,8 +1,6 @@
-import _NIOFileSystem
 import FileSystem
 import Foundation
 import Mockable
-import NIOCore
 import Path
 
 #if canImport(Glibc)
@@ -221,7 +219,7 @@ public struct Environment: Environmenting {
     }
 
     public func currentWorkingDirectory() async throws -> AbsolutePath {
-        return try await AbsolutePath(validating: _NIOFileSystem.FileSystem.shared.currentWorkingDirectory.string)
+        return try await FileSystem().currentWorkingDirectory()
     }
 
     private func variable(_ variableName: String) -> String? {
