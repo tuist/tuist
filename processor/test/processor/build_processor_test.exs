@@ -29,6 +29,19 @@ defmodule Processor.BuildProcessorTest do
       assert {:ok, %{"duration" => 1000, "status" => "success"}} =
                BuildProcessor.process(storage_key, true)
     end
+
+    test "returns error when S3 download fails", %{tmp_dir: _tmp_dir} do
+      storage_key = "builds/missing.zip"
+
+      expect(ExAws.S3, :download_file, fn "tuist", ^storage_key, _path ->
+        %ExAws.Operation.S3{}
+      end)
+
+      expect(ExAws, :request, fn _ -> {:error, {:http_error, 404, "not found"}} end)
+
+      assert {:error, {:http_error, 404, "not found"}} =
+               BuildProcessor.process(storage_key, true)
+    end
   end
 
   describe "process_build/2" do

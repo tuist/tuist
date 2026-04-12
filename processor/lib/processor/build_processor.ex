@@ -10,13 +10,24 @@ defmodule Processor.BuildProcessor do
 
     try do
       :telemetry.span([:processor, :build], %{}, fn ->
-        :telemetry.span([:processor, :s3, :download], %{}, fn ->
-          {:ok, _} = ExAws.S3.download_file(bucket, storage_key, build_path) |> ExAws.request()
-          file_size = File.stat!(build_path).size
-          {:ok, %{file_size: file_size}}
-        end)
+        download_result =
+          :telemetry.span([:processor, :s3, :download], %{}, fn ->
+            case ExAws.S3.download_file(bucket, storage_key, build_path) |> ExAws.request() do
+              {:ok, _} ->
+                file_size = File.stat!(build_path).size
+                {:ok, %{file_size: file_size}}
 
-        result = process_zip(build_path, temp_dir, xcode_cache_upload_enabled)
+              {:error, reason} ->
+                {{:error, reason}, %{}}
+            end
+          end)
+
+        result =
+          case download_result do
+            {:error, _} = error -> error
+            _ -> process_zip(build_path, temp_dir, xcode_cache_upload_enabled)
+          end
+
         status = if match?({:ok, _}, result), do: :ok, else: :error
         {result, %{status: status}}
       end)
