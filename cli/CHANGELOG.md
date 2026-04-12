@@ -1,6 +1,19 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.180.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* process test insights remotely by [@fortmarek](https://github.com/fortmarek) in [#10243](https://github.com/tuist/tuist/pull/10243)
+### 🐛 Bug Fixes
+
+* ignore .DS_Store files when hashing buildable folders by [@heoblitz](https://github.com/heoblitz) in [#10240](https://github.com/tuist/tuist/pull/10240)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.179.3...4.180.0
+
 ## What's Changed in 4.179.3<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
