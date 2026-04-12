@@ -29,7 +29,7 @@ defmodule Tuist.Automations.Workers.AutomationEvaluationWorker do
     newly_triggered = Enum.reject(triggered_ids, &MapSet.member?(existing_triggered_ids, &1))
 
     Enum.each(newly_triggered, fn test_case_id ->
-      ActionExecutor.execute_actions(automation.trigger_actions, test_case_id)
+      ActionExecutor.execute_actions(automation.trigger_actions, automation, test_case_id)
 
       Automations.insert_automation_state(%{
         automation_id: automation.id,
@@ -49,8 +49,8 @@ defmodule Tuist.Automations.Workers.AutomationEvaluationWorker do
     all_ids_set = MapSet.new(all_ids)
 
     recovery_config = automation.recovery_config || %{}
-    days_without_trigger = recovery_config["days_without_trigger"] || 14
-    cutoff = NaiveDateTime.add(NaiveDateTime.utc_now(), -days_without_trigger, :day)
+    seconds = parse_window(recovery_config["window"] || "#{recovery_config["days_without_trigger"] || 14}d")
+    cutoff = NaiveDateTime.add(NaiveDateTime.utc_now(), -seconds, :second)
 
     recovered =
       Enum.filter(existing_states, fn state ->
@@ -60,10 +60,22 @@ defmodule Tuist.Automations.Workers.AutomationEvaluationWorker do
       end)
 
     Enum.each(recovered, fn state ->
-      ActionExecutor.execute_actions(automation.recovery_actions, state.test_case_id)
+      ActionExecutor.execute_actions(automation.recovery_actions, automation, state.test_case_id)
       Automations.mark_recovered(automation.id, state.test_case_id)
     end)
   end
+
+  defp parse_window(window) when is_binary(window) do
+    case Integer.parse(window) do
+      {value, "d"} -> value * 86_400
+      {value, "h"} -> value * 3600
+      {value, "m"} -> value * 60
+      {value, ""} -> value * 86_400
+      _ -> 14 * 86_400
+    end
+  end
+
+  defp parse_window(_), do: 14 * 86_400
 
   defp evaluate_type(%{automation_type: "flakiness_rate"} = automation) do
     FlakinessRateType.evaluate(automation)

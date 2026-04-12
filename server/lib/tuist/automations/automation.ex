@@ -7,7 +7,7 @@ defmodule Tuist.Automations.Automation do
   alias Tuist.Projects.Project
 
   @automation_types ~w(flakiness_rate flaky_run_count)
-  @action_types ~w(change_state)
+  @action_types ~w(change_state send_slack)
   @valid_states ~w(enabled muted)
 
   @primary_key {:id, UUIDv7, autogenerate: true}
@@ -57,10 +57,15 @@ defmodule Tuist.Automations.Automation do
         changeset
 
       actions when is_list(actions) ->
-        if Enum.all?(actions, &valid_action?/1) do
-          changeset
-        else
-          add_error(changeset, field, "contains invalid actions")
+        cond do
+          not Enum.all?(actions, &valid_action?/1) ->
+            add_error(changeset, field, "contains invalid actions")
+
+          Enum.count(actions, &change_state_action?/1) > 1 ->
+            add_error(changeset, field, "can only contain one change_state action")
+
+          true ->
+            changeset
         end
 
       _ ->
@@ -69,7 +74,15 @@ defmodule Tuist.Automations.Automation do
   end
 
   defp valid_action?(%{"type" => "change_state", "state" => state}) when state in @valid_states, do: true
+
+  defp valid_action?(%{"type" => "send_slack", "channel" => channel, "message" => message})
+       when is_binary(channel) and channel != "" and is_binary(message) and message != "",
+       do: true
+
   defp valid_action?(_), do: false
+
+  defp change_state_action?(%{"type" => "change_state"}), do: true
+  defp change_state_action?(_), do: false
 
   defp validate_config(changeset) do
     automation_type = get_field(changeset, :automation_type)

@@ -293,35 +293,15 @@ defmodule TuistWeb.TestCaseLive do
   end
 
   def handle_event(
-        "mute",
-        _params,
+        "set-state",
+        %{"data" => new_state},
         %{assigns: %{test_case_id: test_case_id, test_case_detail: test_case_detail, current_user: current_user}} = socket
-      ) do
-    {:ok, updated_test_case} =
-      Tests.update_test_case(
-        test_case_id,
-        %{state: "muted"},
-        actor_id: current_user.account.id
       )
-
-    test_case_detail =
-      Map.merge(test_case_detail, Map.take(updated_test_case, [:state, :is_quarantined]))
-
-    {:noreply,
-     socket
-     |> assign(:test_case_detail, test_case_detail)
-     |> refresh_history_events()}
-  end
-
-  def handle_event(
-        "unmute",
-        _params,
-        %{assigns: %{test_case_id: test_case_id, test_case_detail: test_case_detail, current_user: current_user}} = socket
-      ) do
+      when new_state in ["enabled", "muted"] do
     {:ok, updated_test_case} =
       Tests.update_test_case(
         test_case_id,
-        %{state: "enabled"},
+        %{state: new_state},
         actor_id: current_user.account.id
       )
 
@@ -474,13 +454,19 @@ defmodule TuistWeb.TestCaseLive do
     :ok
   end
 
+  defp state_label("muted"), do: dgettext("dashboard_tests", "Quarantined")
+  defp state_label(_), do: dgettext("dashboard_tests", "Enabled")
+
+  defp state_icon("muted"), do: "volume_3"
+  defp state_icon(_), do: "player_play"
+
   defp event_icon("first_run"), do: "info_circle"
   defp event_icon("marked_flaky"), do: "alert_triangle"
   defp event_icon("unmarked_flaky"), do: "circle_check"
   defp event_icon("quarantined"), do: "lock"
   defp event_icon("unquarantined"), do: "lock_open_2"
-  defp event_icon("muted"), do: "volume_off"
-  defp event_icon("unmuted"), do: "volume_on"
+  defp event_icon("muted"), do: "volume_3"
+  defp event_icon("unmuted"), do: "player_play"
   defp event_icon(_), do: "info_circle"
 
   defp event_color("first_run"), do: "primary"
@@ -497,8 +483,8 @@ defmodule TuistWeb.TestCaseLive do
   defp event_title("unmarked_flaky"), do: dgettext("dashboard_tests", "Unmarked as flaky")
   defp event_title("quarantined"), do: dgettext("dashboard_tests", "Marked as quarantined")
   defp event_title("unquarantined"), do: dgettext("dashboard_tests", "Marked as unquarantined")
-  defp event_title("muted"), do: dgettext("dashboard_tests", "Muted")
-  defp event_title("unmuted"), do: dgettext("dashboard_tests", "Unmuted")
+  defp event_title("muted"), do: dgettext("dashboard_tests", "Quarantined")
+  defp event_title("unmuted"), do: dgettext("dashboard_tests", "Enabled")
   defp event_title(_), do: dgettext("dashboard_tests", "Event")
 
   defp format_event_subtitle(%{event_type: "first_run"}), do: nil

@@ -41,7 +41,7 @@
         />
         <.badge
           :if={(@test_case_detail.state || "enabled") == "muted"}
-          label={dgettext("dashboard_tests", "Muted")}
+          label={dgettext("dashboard_tests", "Quarantined")}
           color="destructive"
           style="light-fill"
           size="large"
@@ -68,28 +68,32 @@
       </div>
     </div>
     <div data-part="actions">
-      <.button
-        :if={(@test_case_detail.state || "enabled") == "muted"}
-        label={dgettext("dashboard_tests", "Unmute")}
-        variant="secondary"
-        size="medium"
-        phx-click="unmute"
+      <.dropdown
+        id="test-case-state-dropdown"
+        label={state_label(@test_case_detail.state || "enabled")}
       >
-        <:icon_left>
-          <.icon name="volume_on" />
-        </:icon_left>
-      </.button>
-      <.button
-        :if={(@test_case_detail.state || "enabled") != "muted"}
-        label={dgettext("dashboard_tests", "Mute")}
-        variant="secondary"
-        size="medium"
-        phx-click="mute"
-      >
-        <:icon_left>
-          <.icon name="volume_off" />
-        </:icon_left>
-      </.button>
+        <:icon>
+          <.icon name={state_icon(@test_case_detail.state || "enabled")} />
+        </:icon>
+        <.dropdown_item
+          value="enabled"
+          label={dgettext("dashboard_tests", "Enabled")}
+          on_click="set-state"
+          data-selected={(@test_case_detail.state || "enabled") == "enabled"}
+        >
+          <:left_icon><.icon name="player_play" /></:left_icon>
+          <:right_icon><.check /></:right_icon>
+        </.dropdown_item>
+        <.dropdown_item
+          value="muted"
+          label={dgettext("dashboard_tests", "Quarantined")}
+          on_click="set-state"
+          data-selected={(@test_case_detail.state || "enabled") == "muted"}
+        >
+          <:left_icon><.icon name="volume_3" /></:left_icon>
+          <:right_icon><.check /></:right_icon>
+        </.dropdown_item>
+      </.dropdown>
       <.button
         :if={@test_case_detail.is_flaky}
         label={dgettext("dashboard_tests", "Unmark as flaky")}
