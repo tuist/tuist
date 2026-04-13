@@ -53,7 +53,7 @@ public struct Tuist: Codable, Equatable, Sendable {
     ///   different name (e.g. `"HTTP_PROXY"` or a custom variable) to read somewhere else.
     /// - ``url(_:)``: Tuist uses the proxy URL you pass directly. Include credentials inline
     ///   if the proxy requires authentication: `http://user:password@proxy.corp:8080`.
-    public enum Proxy: Codable, Equatable, Sendable {
+    public enum Proxy: Codable, Equatable, Sendable, ExpressibleByStringLiteral {
         /// No proxy. Tuist makes direct connections.
         case none
 
@@ -68,6 +68,58 @@ public struct Tuist: Codable, Equatable, Sendable {
         /// - Parameter url: The proxy URL, e.g. `http://proxy.corp:8080`. Credentials can be
         ///   encoded inline as `http://user:password@proxy.corp:8080`.
         case url(String)
+
+        /// Lets users write a proxy URL as a bare string literal in `Tuist.swift`:
+        ///
+        /// ```swift
+        /// let tuist = Tuist(proxy: "http://proxy.corp:8080", project: .tuist())
+        /// ```
+        ///
+        /// Equivalent to ``url(_:)``. Use the explicit cases when you need
+        /// ``environmentVariable(_:)``.
+        public init(stringLiteral value: String) {
+            self = .url(value)
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case kind
+            case value
+        }
+
+        private enum Kind: String, Codable {
+            case none
+            case environmentVariable
+            case url
+        }
+
+        public init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            let kind = try container.decode(Kind.self, forKey: .kind)
+            switch kind {
+            case .none:
+                self = .none
+            case .environmentVariable:
+                let value = try container.decodeIfPresent(String.self, forKey: .value)
+                self = .environmentVariable(value)
+            case .url:
+                let value = try container.decode(String.self, forKey: .value)
+                self = .url(value)
+            }
+        }
+
+        public func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            switch self {
+            case .none:
+                try container.encode(Kind.none, forKey: .kind)
+            case let .environmentVariable(name):
+                try container.encode(Kind.environmentVariable, forKey: .kind)
+                try container.encodeIfPresent(name, forKey: .value)
+            case let .url(url):
+                try container.encode(Kind.url, forKey: .kind)
+                try container.encode(url, forKey: .value)
+            }
+        }
     }
 
     /// Configures the project Tuist will interact with.
@@ -151,61 +203,5 @@ public struct Tuist: Codable, Equatable, Sendable {
         self.url = url
         self.proxy = proxy
         dumpIfNeeded(self)
-    }
-}
-
-extension Tuist.Proxy: ExpressibleByStringLiteral {
-    /// Lets users write a proxy URL as a bare string literal in `Tuist.swift`:
-    ///
-    /// ```swift
-    /// let tuist = Tuist(proxy: "http://proxy.corp:8080", project: .tuist())
-    /// ```
-    ///
-    /// Equivalent to ``url(_:)``. Use the explicit cases when you need
-    /// ``environmentVariable(_:)``.
-    public init(stringLiteral value: String) {
-        self = .url(value)
-    }
-}
-
-extension Tuist.Proxy {
-    private enum CodingKeys: String, CodingKey {
-        case kind
-        case value
-    }
-
-    private enum Kind: String, Codable {
-        case none
-        case environmentVariable
-        case url
-    }
-
-    public init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        let kind = try container.decode(Kind.self, forKey: .kind)
-        switch kind {
-        case .none:
-            self = .none
-        case .environmentVariable:
-            let value = try container.decodeIfPresent(String.self, forKey: .value)
-            self = .environmentVariable(value)
-        case .url:
-            let value = try container.decode(String.self, forKey: .value)
-            self = .url(value)
-        }
-    }
-
-    public func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        switch self {
-        case .none:
-            try container.encode(Kind.none, forKey: .kind)
-        case let .environmentVariable(name):
-            try container.encode(Kind.environmentVariable, forKey: .kind)
-            try container.encodeIfPresent(name, forKey: .value)
-        case let .url(url):
-            try container.encode(Kind.url, forKey: .kind)
-            try container.encode(url, forKey: .value)
-        }
     }
 }
