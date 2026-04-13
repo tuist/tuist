@@ -198,6 +198,11 @@ defmodule TuistWeb.LayoutLive do
     {:cont,
      socket
      |> assign_current_path()
+     |> append_breadcrumb(%{
+       label: dgettext("dashboard", "Tuist Ops"),
+       icon: "settings",
+       items: []
+     })
      |> assign_latest_app_release()
      |> assign_latest_cli_release()
      |> assign(:current_user, current_user)}
