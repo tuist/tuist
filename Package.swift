@@ -860,7 +860,7 @@ var targets: [Target] = [
         name: "TuistTesting",
         dependencies: [
             "TuistSupport",
-            .target(name: "TuistXcodeBuildProducts", condition: .when(platforms: [.macOS])),
+            "TuistXcodeBuildProducts",
             .target(name: "TuistServer", condition: .when(platforms: [.macOS])),
             .target(name: "TuistHTTP", condition: .when(platforms: [.macOS])),
             "TuistAlert",

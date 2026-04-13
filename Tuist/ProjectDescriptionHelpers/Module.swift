@@ -603,7 +603,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.core.targetName),
                     .target(name: Module.server.targetName),
                     .target(name: Module.support.targetName),
-                    .target(name: Module.xcodeBuildProducts.targetName, condition: .when([.macos])),
+                    .target(name: Module.xcodeBuildProducts.targetName),
                     .target(name: Module.http.targetName),
                     .target(name: Module.alert.targetName),
                     .target(name: Module.nooraTesting.targetName),
