@@ -400,36 +400,31 @@ defmodule TuistWeb.AppLayoutComponents do
         navigate={~p"/ops/sent_emails"}
         selected={String.starts_with?(@current_path, "/ops/sent_emails")}
       />
-      <.sidebar_group
-        id="sidebar-ops-external"
-        label={dgettext("dashboard", "External")}
-        icon="external_link"
-        default_open={true}
-        phx-update="ignore"
-      >
-        <.sidebar_item
-          :if={Tuist.Environment.dev?() and not Tuist.Environment.dev_use_remote_storage?()}
-          label={dgettext("dashboard", "Storage")}
-          icon="database"
-          href={"http://localhost:#{Tuist.Environment.minio_console_port()}"}
-          target="_blank"
-          rel="noopener noreferrer"
-        />
-        <.sidebar_item
-          label={dgettext("dashboard", "Errors")}
-          icon="alert_triangle"
-          href="https://sentry.io/organizations/tuist/issues/"
-          target="_blank"
-          rel="noopener noreferrer"
-        />
-        <.sidebar_item
-          label={dgettext("dashboard", "Grafana")}
-          icon="chart_column"
-          href="https://tuist.grafana.net"
-          target="_blank"
-          rel="noopener noreferrer"
-        />
-      </.sidebar_group>
+      <.sidebar_item
+        :if={Tuist.Environment.dev?() and not Tuist.Environment.dev_use_remote_storage?()}
+        label={dgettext("dashboard", "Storage")}
+        icon="database"
+        href={"http://localhost:#{Tuist.Environment.minio_console_port()}"}
+        target="_blank"
+        rel="noopener noreferrer"
+        external
+      />
+      <.sidebar_item
+        label={dgettext("dashboard", "Errors")}
+        icon="alert_triangle"
+        href="https://sentry.io/organizations/tuist/issues/"
+        target="_blank"
+        rel="noopener noreferrer"
+        external
+      />
+      <.sidebar_item
+        label={dgettext("dashboard", "Grafana")}
+        icon="chart_column"
+        href="https://tuist.grafana.net"
+        target="_blank"
+        rel="noopener noreferrer"
+        external
+      />
     </.sidebar>
     """
   end
