@@ -257,11 +257,14 @@ defmodule TuistWeb.TestsLive do
     |> assign(:duration_chart_type, duration_chart_type)
     |> assign(:duration_scatter_group_by, duration_scatter_group_by)
     |> assign_async(:test_run_scatter_data, fn ->
-      {:ok,
-       %{
-         test_run_scatter_data:
-           Analytics.test_run_duration_scatter_data(project.id, Keyword.put(opts, :group_by, scatter_group_by_atom))
-       }}
+      data =
+        if duration_chart_type == "scatter" do
+          Analytics.test_run_duration_scatter_data(project.id, Keyword.put(opts, :group_by, scatter_group_by_atom))
+        else
+          %{series: [], truncated: false, oldest_entry: nil}
+        end
+
+      {:ok, %{test_run_scatter_data: data}}
     end)
     |> assign_async(
       [
@@ -331,7 +334,14 @@ defmodule TuistWeb.TestsLive do
       {:ok, %{selective_testing_analytics: BuildsAnalytics.selective_testing_analytics_with_percentiles(opts)}}
     end)
     |> assign_async(:selective_testing_scatter_data, fn ->
-      {:ok, %{selective_testing_scatter_data: BuildsAnalytics.selective_testing_scatter_data(opts)}}
+      data =
+        if selective_testing_chart_type == "scatter" do
+          BuildsAnalytics.selective_testing_scatter_data(opts)
+        else
+          %{series: [], truncated: false, oldest_entry: nil}
+        end
+
+      {:ok, %{selective_testing_scatter_data: data}}
     end)
   end
 

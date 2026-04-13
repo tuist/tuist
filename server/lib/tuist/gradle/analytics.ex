@@ -118,7 +118,7 @@ defmodule Tuist.Gradle.Analytics do
               ts = NaiveDateTime.diff(build.inserted_at, ~N[1970-01-01 00:00:00], :millisecond)
 
               %{
-                value: [ts, build.hit_rate |> Decimal.from_float() |> Decimal.round(1)],
+                value: [ts, to_rounded_decimal(build.hit_rate)],
                 id: build.id,
                 tooltipExtra: [
                   %{
@@ -863,4 +863,10 @@ defmodule Tuist.Gradle.Analytics do
       status -> from(b in query, where: b.status == ^status)
     end
   end
+
+  defp to_rounded_decimal(value, places \\ 1)
+  defp to_rounded_decimal(nil, _places), do: Decimal.new(0)
+  defp to_rounded_decimal(%Decimal{} = value, places), do: Decimal.round(value, places)
+  defp to_rounded_decimal(value, places) when is_float(value), do: value |> Decimal.from_float() |> Decimal.round(places)
+  defp to_rounded_decimal(value, places) when is_integer(value), do: value |> Decimal.new() |> Decimal.round(places)
 end

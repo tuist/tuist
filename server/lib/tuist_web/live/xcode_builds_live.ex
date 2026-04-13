@@ -153,11 +153,14 @@ defmodule TuistWeb.XcodeBuildsLive do
       end
     )
     |> assign_async(:builds_scatter_data, fn ->
-      {:ok,
-       %{
-         builds_scatter_data:
-           Analytics.build_duration_scatter_data(project.id, Keyword.put(opts, :group_by, scatter_group_by_atom))
-       }}
+      data =
+        if build_duration_chart_type == "scatter" do
+          Analytics.build_duration_scatter_data(project.id, Keyword.put(opts, :group_by, scatter_group_by_atom))
+        else
+          %{series: [], truncated: false, oldest_entry: nil}
+        end
+
+      {:ok, %{builds_scatter_data: data}}
     end)
     |> assign_async(
       [:total_builds_analytics, :failed_builds_analytics, :build_success_rate_analytics, :analytics_chart_data],

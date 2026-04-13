@@ -179,11 +179,14 @@ defmodule TuistWeb.GradleCacheLive do
        }}
     end)
     |> assign_async(:cache_scatter_data, fn ->
-      {:ok,
-       %{
-         cache_scatter_data:
-           Analytics.cache_hit_rate_scatter_data(project.id, Keyword.put(opts, :group_by, scatter_group_by_atom))
-       }}
+      data =
+        if cache_hit_rate_chart_type == "scatter" do
+          Analytics.cache_hit_rate_scatter_data(project.id, Keyword.put(opts, :group_by, scatter_group_by_atom))
+        else
+          %{series: [], truncated: false, oldest_entry: nil}
+        end
+
+      {:ok, %{cache_scatter_data: data}}
     end)
     |> assign_async(:hit_rate_p99, fn ->
       {:ok, %{hit_rate_p99: Analytics.cache_hit_rate_percentile(project.id, 0.99, opts)}}

@@ -189,7 +189,7 @@ defmodule Tuist.Builds.Analytics do
               ts = NaiveDateTime.diff(build.inserted_at, ~N[1970-01-01 00:00:00], :millisecond)
 
               %{
-                value: [ts, (build.duration / 1000) |> Decimal.from_float() |> Decimal.round(1)],
+                value: [ts, to_rounded_decimal(build.duration / 1000)],
                 id: build.id,
                 tooltipExtra: [
                   %{label: "Scheme", value: if(build.scheme == "", do: "Unknown", else: build.scheme)},
@@ -718,7 +718,13 @@ defmodule Tuist.Builds.Analytics do
           data:
             Enum.map(events, fn %{ran_at: ran_at, hit_rate: hit_rate} ->
               ts = NaiveDateTime.diff(ran_at, ~N[1970-01-01 00:00:00], :millisecond)
-              [ts, hit_rate |> Decimal.from_float() |> Decimal.round(1)]
+
+              %{
+                value: [ts, to_rounded_decimal(hit_rate)],
+                tooltipExtra: [
+                  %{label: "Environment", value: if(is_ci_val, do: "CI", else: "Local")}
+                ]
+              }
             end)
         }
       end)
@@ -1188,7 +1194,7 @@ defmodule Tuist.Builds.Analytics do
               ts = NaiveDateTime.diff(build.inserted_at, ~N[1970-01-01 00:00:00], :millisecond)
 
               %{
-                value: [ts, build.hit_rate |> Decimal.from_float() |> Decimal.round(1)],
+                value: [ts, to_rounded_decimal(build.hit_rate)],
                 id: build.id,
                 tooltipExtra: [
                   %{label: "Scheme", value: if(build.scheme == "", do: "Unknown", else: build.scheme)},
@@ -1617,13 +1623,13 @@ defmodule Tuist.Builds.Analytics do
         %{
           name: if(is_ci_val, do: "CI", else: "Local"),
           data:
-            Enum.map(events, fn %{ran_at: ran_at, is_ci: event_is_ci, hit_rate: hit_rate} ->
+            Enum.map(events, fn %{ran_at: ran_at, hit_rate: hit_rate} ->
               ts = NaiveDateTime.diff(ran_at, ~N[1970-01-01 00:00:00], :millisecond)
 
               %{
-                value: [ts, hit_rate |> Decimal.from_float() |> Decimal.round(1)],
+                value: [ts, to_rounded_decimal(hit_rate)],
                 tooltipExtra: [
-                  %{label: "Environment", value: if(event_is_ci, do: "CI", else: "Local")}
+                  %{label: "Environment", value: if(is_ci_val, do: "CI", else: "Local")}
                 ]
               }
             end)
@@ -2247,6 +2253,12 @@ defmodule Tuist.Builds.Analytics do
   defp format_status("success"), do: "Passed"
   defp format_status("failure"), do: "Failed"
   defp format_status(status), do: String.capitalize(status)
+
+  defp to_rounded_decimal(value, places \\ 1)
+  defp to_rounded_decimal(nil, _places), do: Decimal.new(0)
+  defp to_rounded_decimal(%Decimal{} = value, places), do: Decimal.round(value, places)
+  defp to_rounded_decimal(value, places) when is_float(value), do: value |> Decimal.from_float() |> Decimal.round(places)
+  defp to_rounded_decimal(value, places) when is_integer(value), do: value |> Decimal.new() |> Decimal.round(places)
 
   defp date_range_for_date_period(:hour, opts) do
     start_datetime = DateTime.truncate(Keyword.fetch!(opts, :start_datetime), :second)

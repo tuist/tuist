@@ -188,7 +188,14 @@ defmodule TuistWeb.ModuleCacheLive do
       {:ok, %{hit_rate_p50: Analytics.module_cache_hit_rate_percentile(project.id, 0.5, opts)}}
     end)
     |> assign_async(:cache_scatter_data, fn ->
-      {:ok, %{cache_scatter_data: Analytics.module_cache_hit_rate_scatter_data(opts)}}
+      data =
+        if cache_hit_rate_chart_type == "scatter" do
+          Analytics.module_cache_hit_rate_scatter_data(opts)
+        else
+          %{series: [], truncated: false, oldest_entry: nil}
+        end
+
+      {:ok, %{cache_scatter_data: data}}
     end)
   end
 

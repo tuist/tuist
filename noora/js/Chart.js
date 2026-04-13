@@ -363,6 +363,16 @@ function transformColorProperty(colorProp) {
   return processColor(colorProp);
 }
 
+function escapeHtml(value) {
+  if (value === null || value === undefined) return "";
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 // Tooltip
 function tooltipFormatter(options = {}) {
   return (params) => {
@@ -420,7 +430,7 @@ function tooltipFormatter(options = {}) {
       const color = Array.isArray(paramsArray[0].color)
         ? paramsArray[0].color[0]
         : paramsArray[0].color;
-      titleExtra = `<span data-part="dot" style="--color: ${color}"></span>`;
+      titleExtra = `<span data-part="dot" style="--color: ${escapeHtml(color)}"></span>`;
 
       let rawValue = paramsArray[0].value;
       if (Array.isArray(rawValue) && rawValue.length > 1) {
@@ -439,7 +449,7 @@ function tooltipFormatter(options = {}) {
     }
 
     return `<div class="noora-chart-tooltip">
-      <span data-part="title">${titleExtra}${title}</span>
+      <span data-part="title">${titleExtra}${escapeHtml(title)}</span>
       <div class="noora-line-divider">
         <div data-part="line"></div>
       </div>
@@ -484,18 +494,19 @@ function tooltipSeries(param, options = {}) {
     const extraLines = data.tooltipExtra
       .map(
         ({ label, value: v }) =>
-          `<div data-part="series-item"><span data-part="label">${label}</span><span data-part="value">${v}</span></div>`,
+          `<div data-part="series-item"><span data-part="label">${escapeHtml(label)}</span><span data-part="value">${escapeHtml(v)}</span></div>`,
       )
       .join("");
 
     return extraLines;
   }
 
+  const dotColor = Array.isArray(color) ? color[0] : color;
   return `
   <div data-part="series-item">
-    <span data-part="dot" style="--color: ${Array.isArray(color) ? color[0] : color}"></span>
-    <span data-part="label">${seriesName}</span>
-    <span data-part="value">${formattedValue}</span>
+    <span data-part="dot" style="--color: ${escapeHtml(dotColor)}"></span>
+    <span data-part="label">${escapeHtml(seriesName)}</span>
+    <span data-part="value">${escapeHtml(formattedValue)}</span>
   </div>
   `;
 }
