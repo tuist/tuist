@@ -316,7 +316,7 @@ defmodule Cache.Registry.ReleaseWorkerTest do
       refute Enum.any?(lines, &String.contains?(&1, "broken"))
     end
 
-    test "zip_directory rejects symlinks that point outside root" do
+    test "zip_directory removes symlinks that point outside root" do
       root = Briefly.create!(directory: true)
       source_dir = Path.join(root, "repo")
       outside_path = Path.join(root, "outside.txt")
@@ -326,8 +326,11 @@ defmodule Cache.Registry.ReleaseWorkerTest do
       File.write!(outside_path, "secret")
       File.ln_s!("../outside.txt", Path.join(source_dir, "escaped.md"))
 
-      assert {:error, {:symlink_points_outside_root, _path, "../outside.txt"}} =
-               ReleaseWorker.zip_directory(source_dir, archive_path)
+      assert :ok = ReleaseWorker.zip_directory(source_dir, archive_path)
+
+      {output, 0} = System.cmd("unzip", ["-Z", archive_path])
+      refute String.contains?(output, "escaped.md")
+      refute String.contains?(output, "outside.txt")
     end
 
     test "resolves symlinks in downloaded zipball" do
@@ -349,6 +352,54 @@ defmodule Cache.Registry.ReleaseWorkerTest do
         {output, 0} = System.cmd("unzip", ["-Z", path])
         refute Enum.any?(String.split(output, "\n"), &String.starts_with?(&1, "l"))
         assert File.read!(path) != original_bytes
+        [File.read!(path)]
+      end)
+
+      expect(ExAws.S3, :upload, fn _stream, _bucket, key, _opts ->
+        assert key == "registry/swift/apple/swift-argument-parser/1.0.0/source_archive.zip"
+        %S3{http_method: :put, bucket: "test", path: key}
+      end)
+
+      expect(ExAws, :request, 2, fn _op ->
+        {:ok, %{status_code: 200, body: ""}}
+      end)
+
+      expect_manifest_fetch(@default_manifest_content)
+      expect_metadata_update_success()
+
+      assert :ok =
+               ReleaseWorker.perform(%Oban.Job{
+                 args: %{
+                   "scope" => "apple",
+                   "name" => "swift-argument-parser",
+                   "repository_full_handle" => "apple/swift-argument-parser",
+                   "tag" => "v1.0.0"
+                 }
+               })
+    end
+
+    test "removes symlinks outside root from downloaded zipball" do
+      expect_release_sync_prerequisites()
+
+      expect(TuistCommon.GitHub, :download_zipball, fn "apple/swift-argument-parser",
+                                                       "token",
+                                                       "v1.0.0",
+                                                       archive_path,
+                                                       _ ->
+        tmp = Path.join(Path.dirname(archive_path), "zipball_content")
+        top_dir = Path.join(tmp, "repo-v1.0.0")
+        File.mkdir_p!(Path.join(top_dir, "Fixtures/symlinks"))
+        File.write!(Path.join(top_dir, "Package.swift"), @default_manifest_content)
+        File.ln_s!("/usr/bin/swift", Path.join(top_dir, "Fixtures/symlinks/swift"))
+        {_, 0} = System.cmd("zip", ["--symlinks", "-r", archive_path, "repo-v1.0.0"], cd: tmp)
+        File.rm_rf!(tmp)
+        :ok
+      end)
+
+      expect(Upload, :stream_file, fn path ->
+        {output, 0} = System.cmd("unzip", ["-Z", path])
+        refute String.contains?(output, "Fixtures/symlinks/swift")
+        refute Enum.any?(String.split(output, "\n"), &String.starts_with?(&1, "l"))
         [File.read!(path)]
       end)
 

@@ -227,7 +227,7 @@ defmodule Cache.Registry.ReleaseWorker do
     parent_dir = Path.dirname(directory)
     base_name = Path.basename(directory)
 
-    with :ok <- ensure_symlinks_within_root(directory),
+    with :ok <- remove_symlinks_outside_root(directory),
          :ok <- resolve_symlinks(directory) do
       case System.cmd("zip", ["-r", archive_path, base_name], cd: parent_dir) do
         {_, 0} -> :ok
@@ -359,46 +359,54 @@ defmodule Cache.Registry.ReleaseWorker do
     end
   end
 
-  defp ensure_symlinks_within_root(root_directory) do
+  defp remove_symlinks_outside_root(root_directory) do
     expanded_root_directory = Path.expand(root_directory)
-    validate_symlinks_within_root([expanded_root_directory], expanded_root_directory)
+    prune_symlinks_outside_root([expanded_root_directory], expanded_root_directory)
   end
 
-  defp validate_symlinks_within_root([], _root_directory), do: :ok
+  defp prune_symlinks_outside_root([], _root_directory), do: :ok
 
-  defp validate_symlinks_within_root([path | rest], root_directory) do
+  defp prune_symlinks_outside_root([path | rest], root_directory) do
     case File.lstat(path) do
       {:ok, stat} ->
-        validate_symlink_path(stat, path, rest, root_directory)
+        prune_symlink_path(stat, path, rest, root_directory)
 
       {:error, reason} ->
         {:error, {:path_lstat_failed, path, reason}}
     end
   end
 
-  defp validate_symlink_path(%File.Stat{type: :symlink}, path, rest, root_directory) do
-    with {:ok, target} <- File.read_link(path),
-         :ok <- ensure_symlink_target_within_root(path, target, root_directory) do
-      validate_symlinks_within_root(rest, root_directory)
-    else
-      {:error, reason} -> {:error, {:symlink_read_failed, path, reason}}
-      {:symlink_outside_root, target} -> {:error, {:symlink_points_outside_root, path, target}}
+  defp prune_symlink_path(%File.Stat{type: :symlink}, path, rest, root_directory) do
+    case File.read_link(path) do
+      {:ok, target} ->
+        case ensure_symlink_target_within_root(path, target, root_directory) do
+          :ok ->
+            prune_symlinks_outside_root(rest, root_directory)
+
+          {:symlink_outside_root, _target} ->
+            Logger.warning("Removing symlink #{path} -> #{target} because it points outside #{root_directory}")
+            File.rm!(path)
+            prune_symlinks_outside_root(rest, root_directory)
+        end
+
+      {:error, reason} ->
+        {:error, {:symlink_read_failed, path, reason}}
     end
   end
 
-  defp validate_symlink_path(%File.Stat{type: :directory}, path, rest, root_directory) do
+  defp prune_symlink_path(%File.Stat{type: :directory}, path, rest, root_directory) do
     case File.ls(path) do
       {:ok, entries} ->
         next_paths = Enum.map(entries, &Path.join(path, &1))
-        validate_symlinks_within_root(next_paths ++ rest, root_directory)
+        prune_symlinks_outside_root(next_paths ++ rest, root_directory)
 
       {:error, reason} ->
         {:error, {:directory_list_failed, path, reason}}
     end
   end
 
-  defp validate_symlink_path(_stat, _path, rest, root_directory) do
-    validate_symlinks_within_root(rest, root_directory)
+  defp prune_symlink_path(_stat, _path, rest, root_directory) do
+    prune_symlinks_outside_root(rest, root_directory)
   end
 
   defp ensure_symlink_target_within_root(path, target, root_directory) do
