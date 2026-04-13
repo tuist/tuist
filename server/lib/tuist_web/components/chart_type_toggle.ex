@@ -26,7 +26,7 @@ defmodule TuistWeb.Components.ChartTypeToggle do
 
   def chart_type_toggle(assigns) do
     ~H"""
-    <div data-part="chart-type-toggle">
+    <div class="tuist-chart-type-toggle">
       <.dropdown
         :if={@chart_type == "scatter" and @group_by_options != []}
         id={"#{@id}-group-by-dropdown"}
