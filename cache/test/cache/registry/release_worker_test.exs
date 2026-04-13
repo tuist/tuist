@@ -77,13 +77,12 @@ defmodule Cache.Registry.ReleaseWorkerTest do
       {:error, :not_found}
     end)
 
-    # No submodules
-    expect(TuistCommon.GitHub, :get_file_content, fn "apple/swift-argument-parser",
-                                                     "token",
-                                                     ".gitmodules",
-                                                     "v1.0.0",
-                                                     _ ->
-      {:error, :not_found}
+    expect(TuistCommon.GitHub, :get_file_content, 2, fn
+      "apple/swift-argument-parser", "token", "Package.swift", "v1.0.0", _ ->
+        {:ok, @default_manifest_content}
+
+      "apple/swift-argument-parser", "token", ".gitmodules", "v1.0.0", _ ->
+        {:error, :not_found}
     end)
 
     # Download zipball — write a real file so checksum works
@@ -119,15 +118,6 @@ defmodule Cache.Registry.ReleaseWorkerTest do
       {:ok, [%{"path" => "Package.swift", "type" => "file"}]}
     end)
 
-    # Fetch the manifest content
-    expect(TuistCommon.GitHub, :get_file_content, fn "apple/swift-argument-parser",
-                                                     "token",
-                                                     "Package.swift",
-                                                     "v1.0.0",
-                                                     _ ->
-      {:ok, @default_manifest_content}
-    end)
-
     # Metadata lock for update
     expect(Lock, :try_acquire, fn {:package, "apple", "swift-argument-parser"}, _ ->
       {:ok, :acquired}
@@ -159,6 +149,236 @@ defmodule Cache.Registry.ReleaseWorkerTest do
                  "tag" => "v1.0.0"
                }
              })
+  end
+
+  test "does not prune archive contents based on Package.swift excludes" do
+    manifest_content = """
+    // swift-tools-version:5.9
+    import PackageDescription
+
+    let package = Package(
+      name: "swift-argument-parser",
+      targets: [
+        .target(
+          name: "ArgumentParser",
+          exclude: ["../../Generator"]
+        )
+      ]
+    )
+    """
+
+    expect(Lock, :try_acquire, fn {:release, "apple", "swift-argument-parser", "1.0.0"}, _ ->
+      {:ok, :acquired}
+    end)
+
+    expect(Metadata, :get_package, fn "apple", "swift-argument-parser", [fresh: true] ->
+      {:error, :not_found}
+    end)
+
+    expect(TuistCommon.GitHub, :list_repository_contents, fn "apple/swift-argument-parser", "token", "v1.0.0", _ ->
+      {:ok, [%{"path" => "Package.swift", "type" => "file"}]}
+    end)
+
+    expect(TuistCommon.GitHub, :get_file_content, 2, fn
+      "apple/swift-argument-parser", "token", "Package.swift", "v1.0.0", _ ->
+        {:ok, manifest_content}
+
+      "apple/swift-argument-parser", "token", ".gitmodules", "v1.0.0", _ ->
+        {:error, :not_found}
+    end)
+
+    expect(TuistCommon.GitHub, :download_zipball, fn "apple/swift-argument-parser",
+                                                     "token",
+                                                     "v1.0.0",
+                                                     archive_path,
+                                                     _ ->
+      write_zipball_with_generator(archive_path)
+      :ok
+    end)
+
+    expect(Upload, :stream_file, fn path ->
+      {output, 0} = System.cmd("unzip", ["-Z1", path])
+      assert String.contains?(output, "repo-v1.0.0/Generator/")
+      assert String.contains?(output, "repo-v1.0.0/Generator/template.txt")
+      assert String.contains?(output, "repo-v1.0.0/Sources/ArgumentParser/main.swift")
+      [File.read!(path)]
+    end)
+
+    expect(ExAws.S3, :upload, fn _stream, _bucket, key, _opts ->
+      assert key == "registry/swift/apple/swift-argument-parser/1.0.0/source_archive.zip"
+      %S3{http_method: :put, bucket: "test", path: key}
+    end)
+
+    expect(ExAws, :request, 2, fn _op ->
+      {:ok, %{status_code: 200, body: ""}}
+    end)
+
+    expect(Lock, :try_acquire, fn {:package, "apple", "swift-argument-parser"}, _ ->
+      {:ok, :acquired}
+    end)
+
+    expect(Metadata, :get_package, fn "apple", "swift-argument-parser", [fresh: true] ->
+      {:error, :not_found}
+    end)
+
+    expect(Metadata, :put_package, fn "apple", "swift-argument-parser", metadata ->
+      release = metadata["releases"]["1.0.0"]
+      assert is_binary(release["checksum"])
+      assert [%{"swift_version" => nil, "swift_tools_version" => "5.9"}] = release["manifests"]
+      :ok
+    end)
+
+    assert :ok =
+             ReleaseWorker.perform(%Oban.Job{
+               args: %{
+                 "scope" => "apple",
+                 "name" => "swift-argument-parser",
+                 "repository_full_handle" => "apple/swift-argument-parser",
+                 "tag" => "v1.0.0"
+               }
+             })
+  end
+
+  test "logs and skips submodules when updates fail" do
+    root = Briefly.create!(directory: true)
+
+    repo = create_gitlink_repo(root, ["Vendor/Required"])
+    submodule_path = "Vendor/Required"
+    stale_file = Path.join([repo, submodule_path, "stale.txt"])
+
+    File.mkdir_p!(Path.dirname(stale_file))
+    File.write!(stale_file, "stale")
+
+    log =
+      capture_log(fn ->
+        assert :ok =
+                 ReleaseWorker.update_submodules(%{
+                   destination: repo,
+                   repository_full_handle: "apple/swift-argument-parser",
+                   tag: "v1.0.0"
+                 })
+      end)
+
+    assert log =~ "Skipping submodule #{submodule_path}"
+    assert log =~ "No url found for submodule path"
+    refute File.exists?(Path.join(repo, submodule_path))
+  end
+
+  test "skips local file submodule URLs during updates" do
+    root = Briefly.create!(directory: true)
+
+    %{clone_dest: clone_dest, required_submodule_path: required_submodule_path} = setup_local_file_submodule_clone(root)
+
+    log =
+      capture_log(fn ->
+        assert :ok =
+                 ReleaseWorker.update_submodules(%{
+                   destination: clone_dest,
+                   repository_full_handle: "apple/swift-argument-parser",
+                   tag: "v1.0.0"
+                 })
+      end)
+
+    assert log =~ "Skipping submodule #{required_submodule_path}"
+    assert log =~ "transport 'file' not allowed"
+    refute File.exists?(Path.join(clone_dest, required_submodule_path))
+  end
+
+  test "returns an error for transient submodule fetch failures" do
+    root = Briefly.create!(directory: true)
+    submodule_path = "Vendor/Required"
+
+    repo =
+      create_gitlink_repo(root, [
+        %{path: submodule_path, url: "ssh://127.0.0.1:1/required.git"}
+      ])
+
+    stale_file = Path.join([repo, submodule_path, "stale.txt"])
+
+    File.mkdir_p!(Path.dirname(stale_file))
+    File.write!(stale_file, "stale")
+
+    assert {:error, {:git_submodule_update_failed, ^submodule_path, _status, output}} =
+             ReleaseWorker.update_submodules(%{
+               destination: repo,
+               repository_full_handle: "apple/swift-argument-parser",
+               tag: "v1.0.0"
+             })
+
+    assert output
+           |> String.downcase()
+           |> then(fn output ->
+             String.contains?(output, "connection refused") or
+               String.contains?(output, "could not read from remote repository") or
+               String.contains?(output, "failed to clone")
+           end)
+
+    assert File.exists?(stale_file)
+  end
+
+  test "fails instead of deleting the required parent when a nested submodule update fails" do
+    root = Briefly.create!(directory: true)
+    required_submodule_directory = Path.join(root, "required-submodule")
+    superproject = Path.join(root, "superproject")
+    clone_dest = Path.join(root, "clone")
+    required_submodule_path = "Vendor/Required"
+    nested_submodule_path = "NestedPrivateDep"
+
+    init_git_repo(required_submodule_directory)
+    File.write!(Path.join(required_submodule_directory, "README.md"), "required")
+    git!(required_submodule_directory, ["add", "README.md"])
+    git!(required_submodule_directory, ["commit", "-m", "initial"])
+
+    File.write!(
+      Path.join(required_submodule_directory, ".gitmodules"),
+      """
+      [submodule \"#{nested_submodule_path}\"]
+      	path = #{nested_submodule_path}
+      	url = ssh://127.0.0.1:1/nested-private-dep.git
+      """
+    )
+
+    git!(required_submodule_directory, ["add", ".gitmodules"])
+
+    git!(required_submodule_directory, [
+      "update-index",
+      "--add",
+      "--cacheinfo",
+      "160000,0123456789012345678901234567890123456789,#{nested_submodule_path}"
+    ])
+
+    git!(required_submodule_directory, ["commit", "-m", "add nested submodule"])
+
+    init_git_repo(superproject)
+    File.write!(Path.join(superproject, "Package.swift"), @default_manifest_content)
+    git!(superproject, ["add", "Package.swift"])
+    git!(superproject, ["commit", "-m", "initial"])
+
+    git!(superproject, [
+      "-c",
+      "protocol.file.allow=always",
+      "submodule",
+      "add",
+      required_submodule_directory,
+      required_submodule_path
+    ])
+
+    git!(superproject, ["commit", "-am", "add submodule"])
+    git!(root, ["-c", "protocol.file.allow=always", "clone", superproject, clone_dest])
+    git!(clone_dest, ["-c", "protocol.file.allow=always", "submodule", "update", "--init", required_submodule_path])
+
+    assert {:error,
+            {:nested_git_submodule_update_failed, ^required_submodule_path, "Vendor/Required/NestedPrivateDep", _status,
+             output}} =
+             ReleaseWorker.update_submodules(%{
+               destination: clone_dest,
+               repository_full_handle: "apple/swift-argument-parser",
+               tag: "v1.0.0"
+             })
+
+    assert output =~ "registered for path 'Vendor/Required/NestedPrivateDep'"
+    assert output =~ "Failed to recurse into submodule path 'Vendor/Required'"
+    assert File.exists?(Path.join(clone_dest, required_submodule_path))
   end
 
   test "downloads, uploads, and updates metadata with alternate manifests" do
@@ -364,7 +584,6 @@ defmodule Cache.Registry.ReleaseWorkerTest do
         {:ok, %{status_code: 200, body: ""}}
       end)
 
-      expect_manifest_fetch(@default_manifest_content)
       expect_metadata_update_success()
 
       assert :ok =
@@ -412,7 +631,6 @@ defmodule Cache.Registry.ReleaseWorkerTest do
         {:ok, %{status_code: 200, body: ""}}
       end)
 
-      expect_manifest_fetch(@default_manifest_content)
       expect_metadata_update_success()
 
       assert :ok =
@@ -454,7 +672,6 @@ defmodule Cache.Registry.ReleaseWorkerTest do
         {:ok, %{status_code: 200, body: ""}}
       end)
 
-      expect_manifest_fetch(@default_manifest_content)
       expect_metadata_update_success()
 
       assert :ok =
@@ -503,7 +720,6 @@ defmodule Cache.Registry.ReleaseWorkerTest do
         {:ok, %{status_code: 200, body: ""}}
       end)
 
-      expect_manifest_fetch(@default_manifest_content)
       expect_metadata_update_success()
 
       assert :ok =
@@ -549,7 +765,6 @@ defmodule Cache.Registry.ReleaseWorkerTest do
         {:ok, %{status_code: 200, body: ""}}
       end)
 
-      expect_manifest_fetch(@default_manifest_content)
       expect_metadata_update_success()
 
       assert :ok =
@@ -572,12 +787,16 @@ defmodule Cache.Registry.ReleaseWorkerTest do
         {:error, :not_found}
       end)
 
-      expect(TuistCommon.GitHub, :get_file_content, fn "apple/swift-argument-parser",
-                                                       "token",
-                                                       ".gitmodules",
-                                                       "v1.0.0",
-                                                       _ ->
-        {:error, :not_found}
+      expect(TuistCommon.GitHub, :list_repository_contents, fn "apple/swift-argument-parser", "token", "v1.0.0", _ ->
+        {:ok, [%{"path" => "Package.swift", "type" => "file"}]}
+      end)
+
+      expect(TuistCommon.GitHub, :get_file_content, 2, fn
+        "apple/swift-argument-parser", "token", "Package.swift", "v1.0.0", _ ->
+          {:ok, @default_manifest_content}
+
+        "apple/swift-argument-parser", "token", ".gitmodules", "v1.0.0", _ ->
+          {:error, :not_found}
       end)
 
       expect(TuistCommon.GitHub, :download_zipball, fn "apple/swift-argument-parser",
@@ -613,12 +832,16 @@ defmodule Cache.Registry.ReleaseWorkerTest do
         {:error, :not_found}
       end)
 
-      expect(TuistCommon.GitHub, :get_file_content, fn "apple/swift-argument-parser",
-                                                       "token",
-                                                       ".gitmodules",
-                                                       "v1.0.0",
-                                                       _ ->
-        {:error, :not_found}
+      expect(TuistCommon.GitHub, :list_repository_contents, fn "apple/swift-argument-parser", "token", "v1.0.0", _ ->
+        {:ok, [%{"path" => "Package.swift", "type" => "file"}]}
+      end)
+
+      expect(TuistCommon.GitHub, :get_file_content, 2, fn
+        "apple/swift-argument-parser", "token", "Package.swift", "v1.0.0", _ ->
+          {:ok, @default_manifest_content}
+
+        "apple/swift-argument-parser", "token", ".gitmodules", "v1.0.0", _ ->
+          {:error, :not_found}
       end)
 
       expect(TuistCommon.GitHub, :download_zipball, fn "apple/swift-argument-parser",
@@ -666,7 +889,125 @@ defmodule Cache.Registry.ReleaseWorkerTest do
     File.rm_rf!(tmp)
   end
 
-  defp expect_release_sync_prerequisites do
+  defp write_zipball_with_generator(archive_path) do
+    tmp = Path.join(Path.dirname(archive_path), "zipball_content")
+    top_dir = Path.join(tmp, "repo-v1.0.0")
+    sources_dir = Path.join(top_dir, "Sources/ArgumentParser")
+    generator_dir = Path.join(top_dir, "Generator")
+
+    File.mkdir_p!(sources_dir)
+    File.mkdir_p!(generator_dir)
+    File.write!(Path.join(top_dir, "Package.swift"), @default_manifest_content)
+    File.write!(Path.join(sources_dir, "main.swift"), "print(\"hello\")")
+    File.write!(Path.join(generator_dir, "template.txt"), "generator")
+    {_, 0} = System.cmd("zip", ["-r", archive_path, "repo-v1.0.0"], cd: tmp)
+    File.rm_rf!(tmp)
+  end
+
+  defp create_gitlink_repo(root, submodules) do
+    repo = Path.join(root, "repo")
+
+    init_git_repo(repo)
+    File.write!(Path.join(repo, "Package.swift"), @default_manifest_content)
+    git!(repo, ["add", "Package.swift"])
+    git!(repo, ["commit", "-m", "initial"])
+
+    if Enum.any?(submodules, &match?(%{url: _}, &1)) do
+      gitmodules_content =
+        Enum.map_join(submodules, "\n", fn %{path: path, url: url} ->
+          """
+          [submodule \"#{path}\"]
+          	path = #{path}
+          	url = #{url}
+          """
+        end)
+
+      File.write!(Path.join(repo, ".gitmodules"), gitmodules_content)
+      git!(repo, ["add", ".gitmodules"])
+    end
+
+    Enum.each(submodules, fn
+      path when is_binary(path) ->
+        File.mkdir_p!(Path.join([repo, Path.dirname(path)]))
+        git!(repo, ["update-index", "--add", "--cacheinfo", "160000,0123456789012345678901234567890123456789,#{path}"])
+
+      %{path: path} ->
+        File.mkdir_p!(Path.join([repo, Path.dirname(path)]))
+        git!(repo, ["update-index", "--add", "--cacheinfo", "160000,0123456789012345678901234567890123456789,#{path}"])
+    end)
+
+    git!(repo, ["commit", "-m", "add gitlinks"])
+    repo
+  end
+
+  defp setup_local_file_submodule_clone(root) do
+    required_submodule_directory = Path.join(root, "required-submodule")
+    excluded_submodule_directory = Path.join(root, "excluded-submodule")
+    superproject = Path.join(root, "superproject")
+    clone_dest = Path.join(root, "clone")
+    required_submodule_path = "Vendor/Required"
+    excluded_submodule_path = "Vendor/Skipped"
+
+    init_git_repo(required_submodule_directory)
+    File.write!(Path.join(required_submodule_directory, "README.md"), "required")
+    git!(required_submodule_directory, ["add", "README.md"])
+    git!(required_submodule_directory, ["commit", "-m", "initial"])
+
+    init_git_repo(excluded_submodule_directory)
+    File.write!(Path.join(excluded_submodule_directory, "README.md"), "excluded")
+    git!(excluded_submodule_directory, ["add", "README.md"])
+    git!(excluded_submodule_directory, ["commit", "-m", "initial"])
+
+    init_git_repo(superproject)
+    File.write!(Path.join(superproject, "Package.swift"), @default_manifest_content)
+    git!(superproject, ["add", "Package.swift"])
+    git!(superproject, ["commit", "-m", "initial"])
+
+    git!(superproject, [
+      "-c",
+      "protocol.file.allow=always",
+      "submodule",
+      "add",
+      required_submodule_directory,
+      required_submodule_path
+    ])
+
+    git!(superproject, [
+      "-c",
+      "protocol.file.allow=always",
+      "submodule",
+      "add",
+      excluded_submodule_directory,
+      excluded_submodule_path
+    ])
+
+    git!(superproject, ["commit", "-am", "add submodules"])
+    git!(root, ["-c", "protocol.file.allow=always", "clone", superproject, clone_dest])
+
+    %{
+      clone_dest: clone_dest,
+      excluded_submodule_directory: excluded_submodule_directory,
+      excluded_submodule_path: excluded_submodule_path,
+      required_submodule_directory: required_submodule_directory,
+      required_submodule_path: required_submodule_path
+    }
+  end
+
+  defp init_git_repo(path) do
+    File.mkdir_p!(path)
+    git!(path, ["init"])
+    git!(path, ["config", "user.name", "Pi Test"])
+    git!(path, ["config", "user.email", "pi@example.com"])
+  end
+
+  defp git!(working_directory, args) do
+    case System.cmd("git", args, cd: working_directory, stderr_to_stdout: true) do
+      {_, 0} -> :ok
+      {output, status} -> flunk("git #{Enum.join(args, " ")} failed with status #{status}: #{output}")
+    end
+  end
+
+  defp expect_release_sync_prerequisites(manifest_content \\ @default_manifest_content) do
     expect(Lock, :try_acquire, fn {:release, "apple", "swift-argument-parser", "1.0.0"}, _ ->
       {:ok, :acquired}
     end)
@@ -675,26 +1016,16 @@ defmodule Cache.Registry.ReleaseWorkerTest do
       {:error, :not_found}
     end)
 
-    expect(TuistCommon.GitHub, :get_file_content, fn "apple/swift-argument-parser",
-                                                     "token",
-                                                     ".gitmodules",
-                                                     "v1.0.0",
-                                                     _ ->
-      {:error, :not_found}
-    end)
-  end
-
-  defp expect_manifest_fetch(manifest_content) do
     expect(TuistCommon.GitHub, :list_repository_contents, fn "apple/swift-argument-parser", "token", "v1.0.0", _ ->
       {:ok, [%{"path" => "Package.swift", "type" => "file"}]}
     end)
 
-    expect(TuistCommon.GitHub, :get_file_content, fn "apple/swift-argument-parser",
-                                                     "token",
-                                                     "Package.swift",
-                                                     "v1.0.0",
-                                                     _ ->
-      {:ok, manifest_content}
+    expect(TuistCommon.GitHub, :get_file_content, 2, fn
+      "apple/swift-argument-parser", "token", "Package.swift", "v1.0.0", _ ->
+        {:ok, manifest_content}
+
+      "apple/swift-argument-parser", "token", ".gitmodules", "v1.0.0", _ ->
+        {:error, :not_found}
     end)
   end
 
