@@ -311,6 +311,32 @@ defmodule Tuist.GitHub.Client do
     )
   end
 
+  def generate_jit_config(%{
+        repository_full_name: repository_full_name,
+        installation_id: installation_id,
+        runner_name: runner_name,
+        runner_group_id: runner_group_id,
+        labels: labels
+      }) do
+    url = "https://api.github.com/repos/#{repository_full_name}/actions/runners/generate-jitconfig"
+
+    case github_request(&Req.post/1,
+           url: url,
+           installation_id: installation_id,
+           json: %{
+             "name" => runner_name,
+             "runner_group_id" => runner_group_id,
+             "labels" => labels
+           }
+         ) do
+      {:ok, %{"runner" => %{"id" => runner_id}, "encoded_jit_config" => encoded_jit_config}} ->
+        {:ok, %{runner_id: runner_id, encoded_jit_config: encoded_jit_config}}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
   def get_tags(%{repository_full_handle: repository_full_handle, token: token}, _opts \\ []) do
     case TuistCommon.GitHub.list_tags(repository_full_handle, token, finch_opts()) do
       {:ok, tags} ->
