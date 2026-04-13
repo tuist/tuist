@@ -19,7 +19,7 @@ variable "output_image" {
 
 variable "runner_version" {
   type        = string
-  default     = "2.325.0"
+  default     = "2.333.1"
   description = "GitHub Actions runner version to install"
 }
 
