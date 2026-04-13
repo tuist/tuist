@@ -2,6 +2,7 @@ package dev.tuist.gradle
 
 import org.slf4j.LoggerFactory
 import org.tomlj.Toml
+import org.tomlj.TomlParseResult
 import java.io.File
 
 /**
@@ -33,30 +34,31 @@ object TomlParser {
                     logger.warn("Tuist: Error parsing {}: {}", file, error.message)
                 }
             }
-            val proxy = result.getTable("proxy")?.let { table ->
-                val proxyUrl = table.getString("url")
-                val proxyEnv = table.getString("environment_variable")
-                when {
-                    !proxyUrl.isNullOrBlank() && !proxyEnv.isNullOrBlank() -> {
-                        logger.warn(
-                            "Tuist: {} has both `proxy.url` and `proxy.environment_variable` set — using `url` and ignoring `environment_variable`.",
-                            file
-                        )
-                        TomlProxyConfig(url = proxyUrl)
-                    }
-                    !proxyUrl.isNullOrBlank() -> TomlProxyConfig(url = proxyUrl)
-                    !proxyEnv.isNullOrBlank() -> TomlProxyConfig(environmentVariable = proxyEnv)
-                    else -> null
-                }
-            }
             TomlConfig(
                 project = result.getString("project"),
                 url = result.getString("url"),
-                proxy = proxy
+                proxy = parseProxyTable(result, file)
             )
         } catch (e: Exception) {
             logger.warn("Tuist: Failed to parse {}: {}", file, e.message)
             null
         }
+    }
+
+    private fun parseProxyTable(result: TomlParseResult, file: File): TomlProxyConfig? {
+        val table = result.getTable("proxy") ?: return null
+        val url = table.getString("url")?.takeIf { it.isNotBlank() }
+        val environmentVariable = table.getString("environment_variable")?.takeIf { it.isNotBlank() }
+
+        if (url != null && environmentVariable != null) {
+            logger.warn(
+                "Tuist: {} has both `proxy.url` and `proxy.environment_variable` set — using `url` and ignoring `environment_variable`.",
+                file
+            )
+            return TomlProxyConfig(url = url)
+        }
+        if (url != null) return TomlProxyConfig(url = url)
+        if (environmentVariable != null) return TomlProxyConfig(environmentVariable = environmentVariable)
+        return null
     }
 }
