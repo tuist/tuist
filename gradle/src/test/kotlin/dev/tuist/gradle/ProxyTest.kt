@@ -34,8 +34,11 @@ class ProxyTest {
     }
 
     @Test
-    fun `EnvironmentVariable defaults to HTTPS_PROXY`() {
-        assertEquals("HTTPS_PROXY", Proxy.EnvironmentVariable().name)
+    fun `EnvironmentVariable with null name reads HTTPS_PROXY at runtime`() {
+        // The DSL stores `null`, the runtime maps it to `DEFAULT_ENVIRONMENT_VARIABLE`
+        // (`HTTPS_PROXY`). Nothing in the case itself hardcodes the variable name.
+        assertNull(Proxy.EnvironmentVariable().name)
+        assertEquals("HTTPS_PROXY", Proxy.DEFAULT_ENVIRONMENT_VARIABLE)
         val env = mapOf("HTTPS_PROXY" to "http://secure.corp:9443")
         val proxy = Proxy.EnvironmentVariable().resolve { env[it] }!!
         val address = proxy.address() as java.net.InetSocketAddress

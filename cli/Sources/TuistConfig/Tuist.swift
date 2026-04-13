@@ -23,11 +23,19 @@ public struct Tuist: Equatable, Hashable, Sendable {
 
     /// The HTTP proxy Tuist uses when talking to the Tuist server and related services.
     public enum Proxy: Equatable, Hashable, Sendable {
+        /// The standard environment variable name Tuist reads when
+        /// `.environmentVariable(nil)` is configured.
+        public static let defaultEnvironmentVariable = "HTTPS_PROXY"
+
         /// No proxy. Tuist makes direct connections.
         case none
 
-        /// Read the proxy URL from the named environment variable at runtime.
-        case environmentVariable(String)
+        /// Read the proxy URL from an environment variable at runtime.
+        ///
+        /// `nil` means Tuist reads the standard ``defaultEnvironmentVariable`` — resolving
+        /// that name happens when `resolvedURL(environment:)` is called rather than being
+        /// baked into the manifest.
+        case environmentVariable(String?)
 
         /// Use the given proxy URL directly.
         case url(URL)
@@ -37,7 +45,8 @@ public struct Tuist: Equatable, Hashable, Sendable {
         /// - `.none` → `nil`.
         /// - `.url(u)` → `u`.
         /// - `.environmentVariable(name)` → the URL parsed from `environment[name]`,
-        ///   or `nil` when the variable is unset, empty, or not a valid URL.
+        ///   falling back to `HTTPS_PROXY` when `name` is `nil`. Returns `nil` when the
+        ///   variable is unset, empty, or not a valid URL.
         ///
         /// The caller passes the environment dictionary explicitly so that this method
         /// stays pure and testable without reaching for process-wide state.
@@ -48,7 +57,8 @@ public struct Tuist: Equatable, Hashable, Sendable {
             case let .url(url):
                 return url
             case let .environmentVariable(name):
-                guard let value = environment[name], !value.isEmpty else { return nil }
+                let resolvedName = name ?? Self.defaultEnvironmentVariable
+                guard let value = environment[resolvedName], !value.isEmpty else { return nil }
                 return URL(string: value)
             }
         }

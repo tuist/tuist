@@ -94,7 +94,7 @@ tuist {
 ```
 
 - `Proxy.None` is the default. The plugin makes direct connections.
-- `Proxy.EnvironmentVariable()` reads the proxy URL from the named environment variable. The parameter defaults to `"HTTPS_PROXY"` to match the convention used by `curl`, `git`, and most developer tools. Pass a different name — e.g. `Proxy.EnvironmentVariable("HTTP_PROXY")` or `Proxy.EnvironmentVariable("CORP_PROXY")` — to read somewhere else.
+- `Proxy.EnvironmentVariable()` reads the proxy URL from an environment variable at runtime. When called with no argument, the plugin reads `HTTPS_PROXY` — matching the convention used by `curl`, `git`, and most developer tools. Pass a name — e.g. `Proxy.EnvironmentVariable("HTTP_PROXY")` or `Proxy.EnvironmentVariable("CORP_PROXY")` — to read somewhere else.
 - `Proxy.Url("...")` uses the given URL directly. Credentials can be encoded inline as `http://user:password@proxy.corp:8080` if the proxy requires authentication.
 
 Proxy resolution happens at configure time, so the environment variables you reference must be set when Gradle evaluates `settings.gradle.kts`. On CI that means exporting them in the same job that invokes Gradle.

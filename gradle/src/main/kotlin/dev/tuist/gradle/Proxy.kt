@@ -11,7 +11,7 @@ import java.net.URI
  * Usage in settings.gradle.kts:
  * ```
  * tuist {
- *     proxy = Proxy.EnvironmentVariable()                  // reads HTTPS_PROXY (default)
+ *     proxy = Proxy.EnvironmentVariable()                  // reads HTTPS_PROXY at runtime
  *     // proxy = Proxy.EnvironmentVariable("HTTP_PROXY")
  *     // proxy = Proxy.EnvironmentVariable("CORP_PROXY")
  *     // proxy = Proxy.Url("http://proxy.corp:8080")
@@ -26,12 +26,14 @@ sealed class Proxy : Serializable {
     }
 
     /**
-     * Reads the proxy URL from the named environment variable.
+     * Reads the proxy URL from an environment variable.
      *
-     * @property name the environment variable to read. Defaults to `"HTTPS_PROXY"`,
-     * which matches the convention used by `curl`, `git`, and most developer tools.
+     * @property name the environment variable to read. When `null` (the default), the
+     * plugin reads [DEFAULT_ENVIRONMENT_VARIABLE] at runtime — matching the convention
+     * used by `curl`, `git`, and most developer tools. The actual variable name is
+     * applied during resolution, not stored in the DSL declaration.
      */
-    data class EnvironmentVariable(val name: String = "HTTPS_PROXY") : Proxy()
+    data class EnvironmentVariable(val name: String? = null) : Proxy()
 
     /**
      * Uses the given proxy URL directly.
@@ -60,11 +62,14 @@ sealed class Proxy : Serializable {
     internal fun resolveUrl(envProvider: (String) -> String? = { System.getenv(it) }): String? =
         when (this) {
             is None -> null
-            is EnvironmentVariable -> envProvider(name)?.takeIf { it.isNotBlank() }
+            is EnvironmentVariable -> envProvider(name ?: DEFAULT_ENVIRONMENT_VARIABLE)?.takeIf { it.isNotBlank() }
             is Url -> value
         }
 
     companion object {
+        /** The standard environment variable `Proxy.EnvironmentVariable(null)` reads at runtime. */
+        const val DEFAULT_ENVIRONMENT_VARIABLE: String = "HTTPS_PROXY"
+
         private fun parseProxy(url: String): java.net.Proxy? = try {
             val uri = URI(url)
             val host = uri.host ?: return null

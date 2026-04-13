@@ -47,20 +47,21 @@ public struct Tuist: Codable, Equatable, Sendable {
     /// are supported:
     ///
     /// - ``none`` (default): Tuist makes requests directly.
-    /// - ``environmentVariable(_:)``: Tuist reads the proxy URL from an environment variable,
-    ///   defaulting to `HTTPS_PROXY`. Pass a different name (e.g. `"HTTP_PROXY"` or a
-    ///   custom variable) to read somewhere else.
+    /// - ``environmentVariable(_:)``: Tuist reads the proxy URL from an environment variable.
+    ///   When the parameter is `nil` (the default), Tuist reads `HTTPS_PROXY` at runtime —
+    ///   matching the convention used by `curl`, `git`, and most developer tools. Pass a
+    ///   different name (e.g. `"HTTP_PROXY"` or a custom variable) to read somewhere else.
     /// - ``url(_:)``: Tuist uses the proxy URL you pass directly. Include credentials inline
     ///   if the proxy requires authentication: `http://user:password@proxy.corp:8080`.
     public enum Proxy: Codable, Equatable, Sendable {
         /// No proxy. Tuist makes direct connections.
         case none
 
-        /// Read the proxy URL from the named environment variable.
+        /// Read the proxy URL from an environment variable.
         ///
-        /// - Parameter name: The environment variable to read. Defaults to `"HTTPS_PROXY"`,
-        ///   which matches the convention used by `curl`, `git`, and most developer tools.
-        case environmentVariable(String = "HTTPS_PROXY")
+        /// - Parameter name: The environment variable to read. When `nil` (the default),
+        ///   Tuist reads `HTTPS_PROXY` at runtime.
+        case environmentVariable(String? = nil)
 
         /// Use the given proxy URL directly.
         ///
@@ -186,7 +187,7 @@ extension Tuist.Proxy {
         case .none:
             self = .none
         case .environmentVariable:
-            let value = try container.decode(String.self, forKey: .value)
+            let value = try container.decodeIfPresent(String.self, forKey: .value)
             self = .environmentVariable(value)
         case .url:
             let value = try container.decode(String.self, forKey: .value)
@@ -201,7 +202,7 @@ extension Tuist.Proxy {
             try container.encode(Kind.none, forKey: .kind)
         case let .environmentVariable(name):
             try container.encode(Kind.environmentVariable, forKey: .kind)
-            try container.encode(name, forKey: .value)
+            try container.encodeIfPresent(name, forKey: .value)
         case let .url(url):
             try container.encode(Kind.url, forKey: .kind)
             try container.encode(url, forKey: .value)

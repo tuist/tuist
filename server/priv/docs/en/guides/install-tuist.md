@@ -75,7 +75,7 @@ let tuist = Tuist(
 ```
 
 - `.none` is the default. Tuist makes direct connections.
-- `.environmentVariable()` reads the proxy URL from the named environment variable. The parameter defaults to `"HTTPS_PROXY"` to match the convention used by `curl`, `git`, and most developer tools. Pass a different name — e.g. `.environmentVariable("HTTP_PROXY")` or `.environmentVariable("CORP_PROXY")` — to read somewhere else.
+- `.environmentVariable()` reads the proxy URL from an environment variable at runtime. When called with no argument, Tuist reads `HTTPS_PROXY` — matching the convention used by `curl`, `git`, and most developer tools. Pass a name — e.g. `.environmentVariable("HTTP_PROXY")` or `.environmentVariable("CORP_PROXY")` — to read somewhere else.
 - `.url("...")` uses the given URL directly. Credentials can be encoded inline as `http://user:password@proxy.corp:8080` if the proxy requires authentication. Because `Tuist.Proxy` conforms to `ExpressibleByStringLiteral`, you can also write `proxy: "http://proxy.corp:8080"` as a shorthand.
 
 The proxy is applied as soon as Tuist loads `Tuist.swift`, so every subsequent network request Tuist makes — cache, previews, analytics, registry, etc. — goes through it.

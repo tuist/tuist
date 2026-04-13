@@ -11,9 +11,11 @@ struct ProxyManifestMapperTests {
         #expect(got == .none)
     }
 
-    @Test func from_environmentVariable_defaultsToHTTPS_PROXY() throws {
+    @Test func from_environmentVariable_passesNilThrough() throws {
+        // The DSL default is `nil` — the mapper preserves it verbatim so the HTTPS_PROXY
+        // fallback happens at resolution time, not at mapping time.
         let got = try TuistConfig.Tuist.Proxy.from(manifest: .environmentVariable())
-        #expect(got == .environmentVariable("HTTPS_PROXY"))
+        #expect(got == .environmentVariable(nil))
     }
 
     @Test func from_environmentVariable_withCustomName() throws {
@@ -58,6 +60,14 @@ struct ProxyManifestMapperTests {
 
     @Test func resolvedURL_environmentVariableReadsFromDict() {
         let proxy = TuistConfig.Tuist.Proxy.environmentVariable("HTTPS_PROXY")
+        let resolved = proxy.resolvedURL(environment: ["HTTPS_PROXY": "http://proxy.corp:8080"])
+        #expect(resolved == URL(string: "http://proxy.corp:8080"))
+    }
+
+    @Test func resolvedURL_environmentVariableNilDefaultsToHTTPS_PROXY() {
+        // The case accepts `nil` as a sentinel for "use the standard variable"; the
+        // actual name is resolved at runtime rather than baked into the case.
+        let proxy = TuistConfig.Tuist.Proxy.environmentVariable(nil)
         let resolved = proxy.resolvedURL(environment: ["HTTPS_PROXY": "http://proxy.corp:8080"])
         #expect(resolved == URL(string: "http://proxy.corp:8080"))
     }

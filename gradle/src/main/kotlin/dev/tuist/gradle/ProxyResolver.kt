@@ -24,7 +24,7 @@ object ProxyResolver {
         val tomlProxy = toml.proxy ?: return Proxy.None
         return when {
             !tomlProxy.url.isNullOrBlank() -> Proxy.Url(tomlProxy.url)
-            !tomlProxy.environmentVariable.isNullOrBlank() -> Proxy.EnvironmentVariable(tomlProxy.environmentVariable)
+            tomlProxy.environmentVariable != null -> Proxy.EnvironmentVariable(tomlProxy.environmentVariable)
             else -> Proxy.None
         }
     }
