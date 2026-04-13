@@ -4,6 +4,9 @@ defmodule TuistTestSupport.Fixtures.AccountsFixtures do
   alias Tuist.Accounts
 
   def user_fixture(opts \\ []) do
+    email = Keyword.get(opts, :email, unique_user_email())
+    handle = Keyword.get(opts, :handle, handle_from_email(email))
+
     create_opts =
       [
         password: Keyword.get(opts, :password, valid_user_password()),
@@ -13,17 +16,9 @@ defmodule TuistTestSupport.Fixtures.AccountsFixtures do
         setup_billing: Keyword.get(opts, :setup_billing, false),
         current_month_remote_cache_hits_count: Keyword.get(opts, :current_month_remote_cache_hits_count, 0),
         current_month_remote_cache_hits_count_updated_at:
-          Keyword.get(opts, :current_month_remote_cache_hits_count_updated_at)
+          Keyword.get(opts, :current_month_remote_cache_hits_count_updated_at),
+        handle: handle
       ]
-
-    create_opts =
-      if Keyword.has_key?(opts, :handle) do
-        Keyword.put(create_opts, :handle, Keyword.get(opts, :handle))
-      else
-        create_opts
-      end
-
-    email = Keyword.get(opts, :email, unique_user_email())
 
     {:ok, user} =
       Accounts.create_user(email, create_opts)
@@ -88,6 +83,16 @@ defmodule TuistTestSupport.Fixtures.AccountsFixtures do
 
   def unique_user_email, do: "#{TuistTestSupport.Utilities.unique_integer(6)}@tuist.io"
   def valid_user_password, do: "hello world!"
+
+  defp handle_from_email(email) do
+    email
+    |> String.split("@")
+    |> List.first()
+    |> String.replace(".", "-")
+    |> String.replace("_", "-")
+    |> String.replace(~r/[^a-zA-Z0-9-]/, "")
+    |> String.downcase()
+  end
 
   def valid_user_attributes(attrs \\ %{}) do
     Enum.into(attrs, %{
