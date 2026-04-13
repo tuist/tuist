@@ -55,6 +55,90 @@ defmodule Tuist.Gradle.Analytics do
     end
   end
 
+  @scatter_data_limit 10_000
+
+  def cache_hit_rate_scatter_data(project_id, opts \\ []) do
+    start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+    group_by = Keyword.get(opts, :group_by, :environment)
+
+    query =
+      maybe_filter_ci(
+        from(b in Build,
+          where: b.project_id == ^project_id,
+          where: b.inserted_at > ^DateTime.to_naive(start_datetime),
+          where: b.inserted_at < ^DateTime.to_naive(end_datetime),
+          where: b.cacheable_tasks_count > 0,
+          order_by: [desc: b.inserted_at],
+          limit: ^@scatter_data_limit,
+          select: %{
+            id: b.id,
+            inserted_at: b.inserted_at,
+            is_ci: b.is_ci,
+            root_project_name: b.root_project_name,
+            hit_rate:
+              fragment(
+                "(ifNull(?, 0) + ifNull(?, 0)) / ? * 100.0",
+                b.tasks_local_hit_count,
+                b.tasks_remote_hit_count,
+                b.cacheable_tasks_count
+              )
+          }
+        ),
+        opts
+      )
+
+    results = ClickHouseRepo.all(query)
+    truncated = length(results) >= @scatter_data_limit
+
+    oldest_entry =
+      if truncated do
+        results |> List.last() |> Map.get(:inserted_at)
+      end
+
+    series =
+      results
+      |> Enum.group_by(fn build ->
+        case group_by do
+          :project -> build.root_project_name
+          _ -> build.is_ci
+        end
+      end)
+      |> Enum.map(fn {group_key, builds} ->
+        name =
+          case group_by do
+            :project -> if(group_key == "", do: "Unknown", else: group_key)
+            _ -> if(group_key, do: "CI", else: "Local")
+          end
+
+        %{
+          name: name,
+          data:
+            Enum.map(builds, fn build ->
+              ts = NaiveDateTime.diff(build.inserted_at, ~N[1970-01-01 00:00:00], :millisecond)
+
+              %{
+                value: [ts, build.hit_rate |> Decimal.from_float() |> Decimal.round(1)],
+                id: build.id,
+                tooltipExtra: [
+                  %{
+                    label: "Project",
+                    value: if(build.root_project_name == "", do: "Unknown", else: build.root_project_name)
+                  },
+                  %{label: "Environment", value: if(build.is_ci, do: "CI", else: "Local")}
+                ]
+              }
+            end)
+        }
+      end)
+
+    %{
+      series: series,
+      truncated: truncated,
+      oldest_entry: oldest_entry
+    }
+  end
+
   @doc """
   Gets cache hit rate analytics with trend and time-series data.
 

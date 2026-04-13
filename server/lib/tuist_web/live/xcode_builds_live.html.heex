@@ -338,7 +338,62 @@
       }
       data-part="analytics-card-chart-section"
     >
+      <div data-part="chart-type-toggle">
+        <.dropdown
+          :if={@build_duration_chart_type == "scatter"}
+          id="build-duration-scatter-group-by-dropdown"
+          size="medium"
+          label={
+            case @build_duration_scatter_group_by do
+              "environment" -> dgettext("dashboard_builds", "Environment")
+              "category" -> dgettext("dashboard_builds", "Category")
+              _ -> dgettext("dashboard_builds", "Scheme")
+            end
+          }
+          secondary_text={dgettext("dashboard_builds", "Group by:")}
+        >
+          <.dropdown_item
+            value="scheme"
+            label={dgettext("dashboard_builds", "Scheme")}
+            patch={"?#{Query.put(@uri.query, "build-duration-scatter-group-by", "scheme")}"}
+            data-selected={@build_duration_scatter_group_by == "scheme"}
+          >
+            <:right_icon><.check /></:right_icon>
+          </.dropdown_item>
+          <.dropdown_item
+            value="environment"
+            label={dgettext("dashboard_builds", "Environment")}
+            patch={"?#{Query.put(@uri.query, "build-duration-scatter-group-by", "environment")}"}
+            data-selected={@build_duration_scatter_group_by == "environment"}
+          >
+            <:right_icon><.check /></:right_icon>
+          </.dropdown_item>
+          <.dropdown_item
+            value="category"
+            label={dgettext("dashboard_builds", "Category")}
+            patch={"?#{Query.put(@uri.query, "build-duration-scatter-group-by", "category")}"}
+            data-selected={@build_duration_scatter_group_by == "category"}
+          >
+            <:right_icon><.check /></:right_icon>
+          </.dropdown_item>
+        </.dropdown>
+        <.button_group size="medium">
+          <.button_group_item
+            label={dgettext("dashboard_builds", "Line")}
+            phx-click="select_build_duration_chart_type"
+            phx-value-type="line"
+            data-selected={@build_duration_chart_type == "line"}
+          />
+          <.button_group_item
+            label={dgettext("dashboard_builds", "Scatter plot")}
+            phx-click="select_build_duration_chart_type"
+            phx-value-type="scatter"
+            data-selected={@build_duration_chart_type == "scatter"}
+          />
+        </.button_group>
+      </div>
       <.chart
+        :if={@build_duration_chart_type == "line"}
         id="average-build-time-chart"
         type="line"
         extra_options={
@@ -457,6 +512,94 @@
           }
         ]}
         y_axis_min={0}
+      />
+      <div :if={@build_duration_chart_type == "scatter" and !@builds_scatter_data.ok?} data-part="analytics-chart">
+        <.skeleton_chart />
+      </div>
+      <.chart
+        :if={@build_duration_chart_type == "scatter" and @builds_scatter_data.ok?}
+        id="build-duration-scatter-chart"
+        type="scatter"
+        extra_options={
+          %{
+            grid: %{
+              width: "97%",
+              left: "0.4%",
+              height: "88%",
+              top: "5%"
+            },
+            xAxis: %{
+              type: "value",
+              min: DateTime.to_unix(elem(@analytics_period, 0), :millisecond),
+              max: DateTime.to_unix(elem(@analytics_period, 1), :millisecond),
+              interval:
+                DateTime.to_unix(elem(@analytics_period, 1), :millisecond) -
+                  DateTime.to_unix(elem(@analytics_period, 0), :millisecond),
+              axisLabel: %{
+                color: "var:noora-surface-label-secondary",
+                formatter: "fn:toLocaleDate",
+                padding: [10, 0, 0, 0]
+              }
+            },
+            yAxis: %{
+              splitNumber: 4,
+              splitLine: %{
+                lineStyle: %{
+                  color: "var:noora-chart-lines"
+                }
+              },
+              axisLabel: %{
+                color: "var:noora-surface-label-secondary",
+                formatter: "fn:formatSeconds"
+              }
+            },
+            tooltip: %{
+              trigger: "item",
+              valueFormat: "fn:formatSeconds"
+            },
+            legend: %{
+              show: false
+            }
+          }
+        }
+        series={
+          Enum.map(@builds_scatter_data.result.series, fn series_item ->
+            series_item
+            |> Map.put(:itemStyle, %{opacity: 0.55})
+            |> Map.update!(:data, fn data ->
+              Enum.map(data, fn point ->
+                Map.put(
+                  point,
+                  :url,
+                  ~p"/#{@selected_account.name}/#{@selected_project.name}/builds/build-runs/#{point.id}"
+                )
+              end)
+            end)
+          end)
+        }
+        y_axis_min={0}
+      />
+      <.alert
+        :if={
+          @build_duration_chart_type == "scatter" and @builds_scatter_data.ok? and
+            @builds_scatter_data.result.truncated
+        }
+        status="warning"
+        type="secondary"
+        size="small"
+        data-part="scatter-limit-alert"
+        title={
+          dgettext(
+            "dashboard_builds",
+            "The 10,000 entry limit has been reached, data is only included up to %{date}. Try filtering by scheme, configuration, or other properties to narrow down the dataset.",
+            date:
+              if @builds_scatter_data.result.oldest_entry do
+                NaiveDateTime.to_iso8601(@builds_scatter_data.result.oldest_entry)
+              else
+                ""
+              end
+          )
+        }
       />
     </.card_section>
     <.card_section

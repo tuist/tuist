@@ -48,9 +48,12 @@ defmodule TuistWeb.TestsLive do
               "analytics-date-range",
               "analytics-selected-widget",
               "duration-type",
+              "duration-chart-type",
+              "duration-scatter-group-by",
               "selective-testing-environment",
               "selective-testing-date-range",
-              "selective-testing-duration-type"
+              "selective-testing-duration-type",
+              "selective-testing-chart-type"
             ])
           )
       )
@@ -122,6 +125,28 @@ defmodule TuistWeb.TestsLive do
     else
       {:noreply, socket}
     end
+  end
+
+  def handle_event("select_duration_chart_type", %{"type" => type}, socket) do
+    query = Query.put(socket.assigns.uri.query, "duration-chart-type", type)
+    uri = URI.new!("?" <> query)
+
+    {:noreply,
+     socket
+     |> assign(:duration_chart_type, type)
+     |> assign(:uri, uri)
+     |> push_event("replace-url", %{url: "?" <> query})}
+  end
+
+  def handle_event("select_selective_testing_chart_type", %{"type" => type}, socket) do
+    query = Query.put(socket.assigns.uri.query, "selective-testing-chart-type", type)
+    uri = URI.new!("?" <> query)
+
+    {:noreply,
+     socket
+     |> assign(:selective_testing_chart_type, type)
+     |> assign(:uri, uri)
+     |> push_event("replace-url", %{url: "?" <> query})}
   end
 
   def handle_event("select_selective_testing_duration_type", %{"type" => type}, socket) do
@@ -209,6 +234,15 @@ defmodule TuistWeb.TestsLive do
 
     opts = opts_with_analytics_test_scheme(opts, analytics_test_scheme)
 
+    duration_chart_type = params["duration-chart-type"] || "line"
+    duration_scatter_group_by = params["duration-scatter-group-by"] || "scheme"
+
+    scatter_group_by_atom =
+      case duration_scatter_group_by do
+        "environment" -> :environment
+        _ -> :scheme
+      end
+
     socket
     |> assign(:analytics_environment, analytics_environment)
     |> assign(:analytics_environment_label, environment_label(analytics_environment))
@@ -219,6 +253,15 @@ defmodule TuistWeb.TestsLive do
     |> assign(:analytics_trend_label, trend_label(preset))
     |> assign(:analytics_selected_widget, analytics_selected_widget)
     |> assign(:selected_duration_type, selected_duration_type)
+    |> assign(:duration_chart_type, duration_chart_type)
+    |> assign(:duration_scatter_group_by, duration_scatter_group_by)
+    |> assign_async(:test_run_scatter_data, fn ->
+      {:ok,
+       %{
+         test_run_scatter_data:
+           Analytics.test_run_duration_scatter_data(project.id, Keyword.put(opts, :group_by, scatter_group_by_atom))
+       }}
+    end)
     |> assign_async(
       [
         :test_runs_analytics,
@@ -274,14 +317,20 @@ defmodule TuistWeb.TestsLive do
         _ -> opts
       end
 
+    selective_testing_chart_type = params["selective-testing-chart-type"] || "line"
+
     socket
     |> assign(:selective_testing_environment, selective_testing_environment)
     |> assign(:selective_testing_environment_label, environment_label(selective_testing_environment))
     |> assign(:selective_testing_preset, preset)
     |> assign(:selective_testing_period, period)
     |> assign(:selective_testing_duration_type, selective_testing_duration_type)
+    |> assign(:selective_testing_chart_type, selective_testing_chart_type)
     |> assign_async(:selective_testing_analytics, fn ->
       {:ok, %{selective_testing_analytics: BuildsAnalytics.selective_testing_analytics_with_percentiles(opts)}}
+    end)
+    |> assign_async(:selective_testing_scatter_data, fn ->
+      {:ok, %{selective_testing_scatter_data: BuildsAnalytics.selective_testing_scatter_data(opts)}}
     end)
   end
 

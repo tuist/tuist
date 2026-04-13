@@ -705,6 +705,8 @@ defmodule Noora.Chart do
             name: series_item[:name] || "",
             data: values
           }
+          |> maybe_add_to_map(:color, series_item[:color])
+          |> maybe_add_to_map(:itemStyle, series_item[:itemStyle])
         end)
 
       # Direct array of points: [[10, 20], [30, 40]]

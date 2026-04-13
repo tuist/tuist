@@ -251,8 +251,53 @@
       }
       data-part="analytics-card-chart-section"
     >
+      <div :if={@analytics_selected_widget == "test_run_duration"} data-part="chart-type-toggle">
+        <.dropdown
+          :if={@duration_chart_type == "scatter"}
+          id="test-duration-scatter-group-by-dropdown"
+          size="medium"
+          label={
+            case @duration_scatter_group_by do
+              "environment" -> dgettext("dashboard_tests", "Environment")
+              _ -> dgettext("dashboard_tests", "Scheme")
+            end
+          }
+          secondary_text={dgettext("dashboard_tests", "Group by:")}
+        >
+          <.dropdown_item
+            value="scheme"
+            label={dgettext("dashboard_tests", "Scheme")}
+            patch={"?#{Query.put(@uri.query, "duration-scatter-group-by", "scheme")}"}
+            data-selected={@duration_scatter_group_by == "scheme"}
+          >
+            <:right_icon><.check /></:right_icon>
+          </.dropdown_item>
+          <.dropdown_item
+            value="environment"
+            label={dgettext("dashboard_tests", "Environment")}
+            patch={"?#{Query.put(@uri.query, "duration-scatter-group-by", "environment")}"}
+            data-selected={@duration_scatter_group_by == "environment"}
+          >
+            <:right_icon><.check /></:right_icon>
+          </.dropdown_item>
+        </.dropdown>
+        <.button_group size="medium">
+          <.button_group_item
+            label={dgettext("dashboard_tests", "Line")}
+            phx-click="select_duration_chart_type"
+            phx-value-type="line"
+            data-selected={@duration_chart_type == "line"}
+          />
+          <.button_group_item
+            label={dgettext("dashboard_tests", "Scatter plot")}
+            phx-click="select_duration_chart_type"
+            phx-value-type="scatter"
+            data-selected={@duration_chart_type == "scatter"}
+          />
+        </.button_group>
+      </div>
       <.chart
-        :if={@analytics_selected_widget == "test_run_duration"}
+        :if={@analytics_selected_widget == "test_run_duration" and @duration_chart_type == "line"}
         id="test-run-duration-chart"
         type="line"
         extra_options={
@@ -367,6 +412,103 @@
           }
         ]}
         y_axis_min={0}
+      />
+      <div
+        :if={
+          @analytics_selected_widget == "test_run_duration" and @duration_chart_type == "scatter" and
+            !@test_run_scatter_data.ok?
+        }
+        data-part="analytics-chart"
+      >
+        <.skeleton_chart />
+      </div>
+      <.chart
+        :if={
+          @analytics_selected_widget == "test_run_duration" and @duration_chart_type == "scatter" and
+            @test_run_scatter_data.ok?
+        }
+        id="test-run-duration-scatter-chart"
+        type="scatter"
+        extra_options={
+          %{
+            grid: %{
+              width: "97%",
+              left: "0.4%",
+              height: "88%",
+              top: "5%"
+            },
+            xAxis: %{
+              type: "value",
+              min: DateTime.to_unix(elem(@analytics_period, 0), :millisecond),
+              max: DateTime.to_unix(elem(@analytics_period, 1), :millisecond),
+              interval:
+                DateTime.to_unix(elem(@analytics_period, 1), :millisecond) -
+                  DateTime.to_unix(elem(@analytics_period, 0), :millisecond),
+              axisLabel: %{
+                color: "var:noora-surface-label-secondary",
+                formatter: "fn:toLocaleDate",
+                padding: [10, 0, 0, 0]
+              }
+            },
+            yAxis: %{
+              splitNumber: 4,
+              splitLine: %{
+                lineStyle: %{
+                  color: "var:noora-chart-lines"
+                }
+              },
+              axisLabel: %{
+                color: "var:noora-surface-label-secondary",
+                formatter: "fn:formatMilliseconds"
+              }
+            },
+            tooltip: %{
+              trigger: "item",
+              valueFormat: "fn:formatMilliseconds"
+            },
+            legend: %{
+              show: false
+            }
+          }
+        }
+        series={
+          Enum.map(@test_run_scatter_data.result.series, fn series_item ->
+            series_item
+            |> Map.put(:itemStyle, %{opacity: 0.55})
+            |> Map.update!(:data, fn data ->
+              Enum.map(data, fn point ->
+                Map.put(
+                  point,
+                  :url,
+                  ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-runs/#{point.id}"
+                )
+              end)
+            end)
+          end)
+        }
+        y_axis_min={0}
+      />
+      <.alert
+        :if={
+          @analytics_selected_widget == "test_run_duration" and @duration_chart_type == "scatter" and
+            @test_run_scatter_data.ok? and @test_run_scatter_data.result.truncated
+        }
+        status="warning"
+        type="secondary"
+        size="small"
+        data-part="scatter-limit-alert"
+        title={
+          dgettext(
+            "dashboard_tests",
+            "The 10,000 entry limit has been reached, data is only included up to %{date}. Try filtering by scheme or other properties to narrow down the dataset.",
+            date:
+              if @test_run_scatter_data.result.oldest_entry do
+                NaiveDateTime.to_iso8601(@test_run_scatter_data.result.oldest_entry)
+              else
+                ""
+              end
+          )
+        }
       />
       <.chart
         :if={@analytics_selected_widget == "test_run_count"}
@@ -679,21 +821,40 @@
       }
       data-part="selective-testing-chart-section"
     >
-      <div data-part="legends">
-        <.legend
-          title={dgettext("dashboard_tests", "Selective test effectiveness")}
-          value={
-            dgettext("dashboard_tests", "%{selective_test_effectiveness}%",
-              selective_test_effectiveness:
-                (@selective_testing_analytics.result.hit_rate * 100)
-                |> Decimal.from_float()
-                |> Decimal.round(1)
-            )
-          }
-          style="primary"
-        />
+      <div data-part="legends-and-toggle">
+        <div data-part="legends">
+          <.legend
+            title={dgettext("dashboard_tests", "Selective test effectiveness")}
+            value={
+              dgettext("dashboard_tests", "%{selective_test_effectiveness}%",
+                selective_test_effectiveness:
+                  (@selective_testing_analytics.result.hit_rate * 100)
+                  |> Decimal.from_float()
+                  |> Decimal.round(1)
+              )
+            }
+            style="primary"
+          />
+        </div>
+        <div data-part="chart-type-toggle">
+          <.button_group size="medium">
+            <.button_group_item
+              label={dgettext("dashboard_tests", "Line")}
+              phx-click="select_selective_testing_chart_type"
+              phx-value-type="line"
+              data-selected={@selective_testing_chart_type == "line"}
+            />
+            <.button_group_item
+              label={dgettext("dashboard_tests", "Scatter plot")}
+              phx-click="select_selective_testing_chart_type"
+              phx-value-type="scatter"
+              data-selected={@selective_testing_chart_type == "scatter"}
+            />
+          </.button_group>
+        </div>
       </div>
       <.chart
+        :if={@selective_testing_chart_type == "line"}
         id="selective-testing-effectiveness-chart"
         type="line"
         extra_options={
@@ -818,6 +979,86 @@
         ]}
         y_axis_min={0}
         y_axis_max={100}
+      />
+      <div
+        :if={@selective_testing_chart_type == "scatter" and !@selective_testing_scatter_data.ok?}
+        data-part="analytics-chart"
+      >
+        <.skeleton_chart />
+      </div>
+      <.chart
+        :if={@selective_testing_chart_type == "scatter" and @selective_testing_scatter_data.ok?}
+        id="selective-testing-scatter-chart"
+        type="scatter"
+        extra_options={
+          %{
+            grid: %{
+              width: "93%",
+              left: "0%",
+              right: "7%",
+              height: "88%",
+              top: "5%"
+            },
+            xAxis: %{
+              type: "value",
+              min: DateTime.to_unix(elem(@selective_testing_period, 0), :millisecond),
+              max: DateTime.to_unix(elem(@selective_testing_period, 1), :millisecond),
+              interval:
+                DateTime.to_unix(elem(@selective_testing_period, 1), :millisecond) -
+                  DateTime.to_unix(elem(@selective_testing_period, 0), :millisecond),
+              axisLabel: %{
+                color: "var:noora-surface-label-secondary",
+                formatter: "fn:toLocaleDate",
+                padding: [10, 0, 0, 0]
+              }
+            },
+            yAxis: %{
+              splitNumber: 4,
+              splitLine: %{
+                lineStyle: %{
+                  color: "var:noora-chart-lines"
+                }
+              },
+              axisLabel: %{color: "var:noora-surface-label-secondary", formatter: "{value}%"}
+            },
+            tooltip: %{
+              trigger: "item",
+              valueFormat: "{value}%"
+            },
+            legend: %{
+              show: false
+            }
+          }
+        }
+        series={
+          Enum.map(@selective_testing_scatter_data.result.series, fn series_item ->
+            Map.put(series_item, :itemStyle, %{opacity: 0.55})
+          end)
+        }
+        y_axis_min={0}
+        y_axis_max={100}
+      />
+      <.alert
+        :if={
+          @selective_testing_chart_type == "scatter" and @selective_testing_scatter_data.ok? and
+            @selective_testing_scatter_data.result.truncated
+        }
+        status="warning"
+        type="secondary"
+        size="small"
+        data-part="scatter-limit-alert"
+        title={
+          dgettext(
+            "dashboard_tests",
+            "The 10,000 entry limit has been reached, data is only included up to %{date}. Try filtering to narrow down the dataset.",
+            date:
+              if @selective_testing_scatter_data.result.oldest_entry do
+                NaiveDateTime.to_iso8601(@selective_testing_scatter_data.result.oldest_entry)
+              else
+                ""
+              end
+          )
+        }
       />
     </.card_section>
     <.empty_card_section

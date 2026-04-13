@@ -189,6 +189,83 @@ defmodule Tuist.Tests.Analytics do
     ClickHouseRepo.one(from(tc in subquery(inner), select: count())) || 0
   end
 
+  @scatter_data_limit 10_000
+
+  def test_run_duration_scatter_data(project_id, opts \\ []) do
+    start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+    group_by = Keyword.get(opts, :group_by, :scheme)
+
+    query =
+      apply_test_run_filters(
+        from(t in Test,
+          where: t.project_id == ^project_id,
+          where: t.ran_at > ^start_datetime,
+          where: t.ran_at < ^end_datetime,
+          order_by: [desc: t.ran_at],
+          limit: ^@scatter_data_limit,
+          select: %{
+            id: t.id,
+            ran_at: t.ran_at,
+            duration: t.duration,
+            scheme: t.scheme,
+            status: t.status,
+            is_ci: t.is_ci,
+            is_flaky: t.is_flaky
+          }
+        ),
+        opts
+      )
+
+    results = ClickHouseRepo.all(query)
+    truncated = length(results) >= @scatter_data_limit
+
+    oldest_entry =
+      if truncated do
+        results |> List.last() |> Map.get(:ran_at)
+      end
+
+    series =
+      results
+      |> Enum.group_by(fn run ->
+        case group_by do
+          :environment -> run.is_ci
+          _ -> run.scheme
+        end
+      end)
+      |> Enum.map(fn {group_key, runs} ->
+        name =
+          case group_by do
+            :environment -> if(group_key, do: "CI", else: "Local")
+            _ -> if(group_key == "", do: "Unknown", else: group_key)
+          end
+
+        %{
+          name: name,
+          data:
+            Enum.map(runs, fn run ->
+              ts = NaiveDateTime.diff(run.ran_at, ~N[1970-01-01 00:00:00], :millisecond)
+
+              %{
+                value: [ts, run.duration],
+                id: run.id,
+                tooltipExtra: [
+                  %{label: "Scheme", value: if(run.scheme == "", do: "Unknown", else: run.scheme)},
+                  %{label: "Status", value: format_test_status(run.status, run.is_flaky)},
+                  %{label: "Environment", value: if(run.is_ci, do: "CI", else: "Local")}
+                ]
+              }
+            end)
+        }
+      end)
+
+    %{
+      series: series,
+      truncated: truncated,
+      oldest_entry: oldest_entry
+    }
+  end
+
   def test_run_duration_analytics(project_id, opts \\ []) do
     start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
     end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
@@ -1227,4 +1304,9 @@ defmodule Tuist.Tests.Analytics do
   defp get_clickhouse_date_format("1 day"), do: "%Y-%m-%d"
   defp get_clickhouse_date_format("1 month"), do: "%Y-%m"
   defp get_clickhouse_date_format(_), do: "%Y-%m-%d"
+
+  defp format_test_status("success", true), do: "Passed (flaky)"
+  defp format_test_status("success", _), do: "Passed"
+  defp format_test_status("failure", _), do: "Failed"
+  defp format_test_status(status, _), do: String.capitalize(status)
 end

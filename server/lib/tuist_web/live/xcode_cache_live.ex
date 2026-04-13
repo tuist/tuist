@@ -81,6 +81,17 @@ defmodule TuistWeb.XcodeCacheLive do
     {:noreply, socket}
   end
 
+  def handle_event("select_cache_hit_rate_chart_type", %{"type" => type}, socket) do
+    query = Query.put(socket.assigns.uri.query, "cache-hit-rate-chart-type", type)
+    uri = URI.new!("?" <> query)
+
+    {:noreply,
+     socket
+     |> assign(:cache_hit_rate_chart_type, type)
+     |> assign(:uri, uri)
+     |> push_event("replace-url", %{url: "?" <> query})}
+  end
+
   def handle_event(
         "analytics_period_changed",
         %{"value" => %{"start" => start_date, "end" => end_date}, "preset" => preset},
@@ -117,12 +128,23 @@ defmodule TuistWeb.XcodeCacheLive do
 
     analytics_selected_widget = params["analytics-selected-widget"] || "cache_hit_rate"
 
+    cache_hit_rate_chart_type = params["cache-hit-rate-chart-type"] || "line"
+    cache_hit_rate_scatter_group_by = params["cache-hit-rate-scatter-group-by"] || "scheme"
+
+    scatter_group_by_atom =
+      case cache_hit_rate_scatter_group_by do
+        "environment" -> :environment
+        _ -> :scheme
+      end
+
     socket
     |> assign(:analytics_preset, preset)
     |> assign(:analytics_period, period)
     |> assign(:analytics_trend_label, analytics_trend_label(preset))
     |> assign(:analytics_selected_widget, analytics_selected_widget)
     |> assign(:selected_hit_rate_type, params["hit-rate-type"] || "avg")
+    |> assign(:cache_hit_rate_chart_type, cache_hit_rate_chart_type)
+    |> assign(:cache_hit_rate_scatter_group_by, cache_hit_rate_scatter_group_by)
     |> assign(:uri, uri)
     |> assign_async([:uploads_analytics, :downloads_analytics, :hit_rate_analytics, :analytics_chart_data], fn ->
       uploads_analytics = Analytics.cas_uploads_analytics(project.id, opts)
@@ -141,6 +163,13 @@ defmodule TuistWeb.XcodeCacheLive do
              downloads_analytics,
              hit_rate_analytics
            )
+       }}
+    end)
+    |> assign_async(:cache_scatter_data, fn ->
+      {:ok,
+       %{
+         cache_scatter_data:
+           Analytics.build_cache_hit_rate_scatter_data(project.id, Keyword.put(opts, :group_by, scatter_group_by_atom))
        }}
     end)
     |> assign_async(:hit_rate_p99, fn ->

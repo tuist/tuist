@@ -38,7 +38,8 @@ defmodule TuistWeb.ModuleCacheLive do
               "analytics-selected-widget",
               "analytics-environment",
               "analytics-date-range",
-              "hit-rate-type"
+              "hit-rate-type",
+              "cache-hit-rate-chart-type"
             ])
           )
       )
@@ -94,6 +95,17 @@ defmodule TuistWeb.ModuleCacheLive do
     {:noreply, socket}
   end
 
+  def handle_event("select_cache_hit_rate_chart_type", %{"type" => type}, socket) do
+    query = Query.put(socket.assigns.uri.query, "cache-hit-rate-chart-type", type)
+    uri = URI.new!("?" <> query)
+
+    {:noreply,
+     socket
+     |> assign(:cache_hit_rate_chart_type, type)
+     |> assign(:uri, uri)
+     |> push_event("replace-url", %{url: "?" <> query})}
+  end
+
   def handle_event(
         "analytics_period_changed",
         %{"value" => %{"start" => start_date, "end" => end_date}, "preset" => preset},
@@ -136,6 +148,7 @@ defmodule TuistWeb.ModuleCacheLive do
       end
 
     analytics_selected_widget = params["analytics-selected-widget"] || "cache_hit_rate"
+    cache_hit_rate_chart_type = params["cache-hit-rate-chart-type"] || "line"
 
     socket
     |> assign(:analytics_preset, preset)
@@ -144,6 +157,7 @@ defmodule TuistWeb.ModuleCacheLive do
     |> assign(:analytics_selected_widget, analytics_selected_widget)
     |> assign(:analytics_environment, analytics_environment)
     |> assign(:selected_hit_rate_type, params["hit-rate-type"] || "avg")
+    |> assign(:cache_hit_rate_chart_type, cache_hit_rate_chart_type)
     |> assign_async([:hit_rate_analytics, :hits_analytics, :misses_analytics, :analytics_chart_data], fn ->
       hit_rate_analytics = Analytics.module_cache_hit_rate_analytics(opts)
       hits_analytics = Analytics.module_cache_hits_analytics(opts)
@@ -171,6 +185,9 @@ defmodule TuistWeb.ModuleCacheLive do
     end)
     |> assign_async(:hit_rate_p50, fn ->
       {:ok, %{hit_rate_p50: Analytics.module_cache_hit_rate_percentile(project.id, 0.5, opts)}}
+    end)
+    |> assign_async(:cache_scatter_data, fn ->
+      {:ok, %{cache_scatter_data: Analytics.module_cache_hit_rate_scatter_data(opts)}}
     end)
   end
 

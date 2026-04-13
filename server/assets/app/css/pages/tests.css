@@ -33,6 +33,15 @@
     & .noora-dropdown-item:not([data-selected]) svg {
       visibility: hidden;
     }
+    & [data-part="chart-type-toggle"] {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      gap: var(--noora-spacing-4);
+    }
+    & [data-part="scatter-limit-alert"] [data-part="icon"] {
+      display: none;
+    }
   }
 
   & > [data-part="selective-testing"] {
@@ -41,12 +50,24 @@
     }
     & > [data-part="selective-testing-chart-section"] {
       padding: var(--noora-spacing-9) var(--noora-spacing-7);
+      & > [data-part="legends-and-toggle"] {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        & > [data-part="legends"] {
+          margin-left: var(--noora-spacing-5);
+          padding-bottom: unset;
+        }
+      }
       & > [data-part="legends"] {
         margin-left: var(--noora-spacing-5);
         padding-bottom: unset;
       }
       & .noora-chart {
         height: 200px;
+      }
+      & [data-part="scatter-limit-alert"] [data-part="icon"] {
+        display: none;
       }
     }
   }

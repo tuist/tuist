@@ -129,6 +129,89 @@ defmodule Tuist.Builds.Analytics do
     ClickHouseRepo.one(query) || 0
   end
 
+  @scatter_data_limit 10_000
+
+  def build_duration_scatter_data(project_id, opts \\ []) do
+    start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+    group_by = Keyword.get(opts, :group_by, :scheme)
+
+    query =
+      apply_filters(
+        from(b in Build,
+          where: b.project_id == ^project_id,
+          where: b.inserted_at > ^start_datetime,
+          where: b.inserted_at < ^end_datetime,
+          order_by: [desc: b.inserted_at],
+          limit: ^@scatter_data_limit,
+          select: %{
+            id: b.id,
+            inserted_at: b.inserted_at,
+            duration: b.duration,
+            scheme: b.scheme,
+            status: b.status,
+            category: b.category,
+            is_ci: b.is_ci
+          }
+        ),
+        opts
+      )
+
+    results = ClickHouseRepo.all(query)
+    truncated = length(results) >= @scatter_data_limit
+
+    oldest_entry =
+      if truncated do
+        results |> List.last() |> Map.get(:inserted_at)
+      end
+
+    series =
+      results
+      |> Enum.group_by(fn build ->
+        case group_by do
+          :environment -> build.is_ci
+          :category -> build.category
+          _ -> build.scheme
+        end
+      end)
+      |> Enum.map(fn {group_key, builds} ->
+        name =
+          case group_by do
+            :environment -> if(group_key, do: "CI", else: "Local")
+            :category -> if(group_key == "", do: "Unknown", else: String.capitalize(group_key))
+            _ -> if(group_key == "", do: "Unknown", else: group_key)
+          end
+
+        %{
+          name: name,
+          data:
+            Enum.map(builds, fn build ->
+              ts = NaiveDateTime.diff(build.inserted_at, ~N[1970-01-01 00:00:00], :millisecond)
+
+              %{
+                value: [ts, (build.duration / 1000) |> Decimal.from_float() |> Decimal.round(1)],
+                id: build.id,
+                tooltipExtra: [
+                  %{label: "Scheme", value: if(build.scheme == "", do: "Unknown", else: build.scheme)},
+                  %{label: "Status", value: format_status(build.status)},
+                  %{label: "Environment", value: if(build.is_ci, do: "CI", else: "Local")},
+                  %{
+                    label: "Category",
+                    value: if(build.category == "", do: "Unknown", else: String.capitalize(build.category))
+                  }
+                ]
+              }
+            end)
+        }
+      end)
+
+    %{
+      series: series,
+      truncated: truncated,
+      oldest_entry: oldest_entry
+    }
+  end
+
   def build_duration_analytics(project_id, opts \\ []) do
     start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
     end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
@@ -584,6 +667,69 @@ defmodule Tuist.Builds.Analytics do
     end)
   end
 
+  def selective_testing_scatter_data(opts \\ []) do
+    project_id = Keyword.get(opts, :project_id)
+    start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+    is_ci = Keyword.get(opts, :is_ci)
+
+    query =
+      from(e in Event,
+        where: e.project_id == ^project_id,
+        where: e.ran_at > ^DateTime.to_naive(start_datetime),
+        where: e.ran_at < ^DateTime.to_naive(end_datetime),
+        where: e.test_targets_count > 0,
+        order_by: [desc: e.ran_at],
+        limit: ^@scatter_data_limit,
+        select: %{
+          ran_at: e.ran_at,
+          is_ci: e.is_ci,
+          hit_rate:
+            fragment(
+              "(ifNull(?, 0) + ifNull(?, 0)) / ? * 100.0",
+              e.local_test_hits_count,
+              e.remote_test_hits_count,
+              e.test_targets_count
+            )
+        }
+      )
+
+    query =
+      case is_ci do
+        true -> where(query, [e], e.is_ci == true)
+        false -> where(query, [e], e.is_ci == false)
+        _ -> query
+      end
+
+    results = ClickHouseRepo.all(query)
+    truncated = length(results) >= @scatter_data_limit
+
+    oldest_entry =
+      if truncated do
+        results |> List.last() |> Map.get(:ran_at)
+      end
+
+    series =
+      results
+      |> Enum.group_by(& &1.is_ci)
+      |> Enum.map(fn {is_ci_val, events} ->
+        %{
+          name: if(is_ci_val, do: "CI", else: "Local"),
+          data:
+            Enum.map(events, fn %{ran_at: ran_at, hit_rate: hit_rate} ->
+              ts = NaiveDateTime.diff(ran_at, ~N[1970-01-01 00:00:00], :millisecond)
+              [ts, hit_rate |> Decimal.from_float() |> Decimal.round(1)]
+            end)
+        }
+      end)
+
+    %{
+      series: series,
+      truncated: truncated,
+      oldest_entry: oldest_entry
+    }
+  end
+
   def selective_testing_analytics(opts \\ []) do
     project_id = Keyword.get(opts, :project_id)
     start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
@@ -979,6 +1125,88 @@ defmodule Tuist.Builds.Analytics do
     end)
   end
 
+  def build_cache_hit_rate_scatter_data(project_id, opts \\ []) do
+    start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+    group_by = Keyword.get(opts, :group_by, :scheme)
+
+    query =
+      apply_filters(
+        from(b in Build,
+          where: b.project_id == ^project_id,
+          where: b.inserted_at > ^start_datetime,
+          where: b.inserted_at < ^end_datetime,
+          where: b.cacheable_tasks_count > 0,
+          order_by: [desc: b.inserted_at],
+          limit: ^@scatter_data_limit,
+          select: %{
+            id: b.id,
+            inserted_at: b.inserted_at,
+            scheme: b.scheme,
+            status: b.status,
+            is_ci: b.is_ci,
+            hit_rate:
+              fragment(
+                "CASE WHEN ? = 0 THEN 0.0 ELSE (ifNull(?, 0) + ifNull(?, 0)) / ? * 100.0 END",
+                b.cacheable_tasks_count,
+                b.cacheable_task_local_hits_count,
+                b.cacheable_task_remote_hits_count,
+                b.cacheable_tasks_count
+              )
+          }
+        ),
+        opts
+      )
+
+    results = ClickHouseRepo.all(query)
+    truncated = length(results) >= @scatter_data_limit
+
+    oldest_entry =
+      if truncated do
+        results |> List.last() |> Map.get(:inserted_at)
+      end
+
+    series =
+      results
+      |> Enum.group_by(fn build ->
+        case group_by do
+          :environment -> build.is_ci
+          _ -> build.scheme
+        end
+      end)
+      |> Enum.map(fn {group_key, builds} ->
+        name =
+          case group_by do
+            :environment -> if(group_key, do: "CI", else: "Local")
+            _ -> if(group_key == "", do: "Unknown", else: group_key)
+          end
+
+        %{
+          name: name,
+          data:
+            Enum.map(builds, fn build ->
+              ts = NaiveDateTime.diff(build.inserted_at, ~N[1970-01-01 00:00:00], :millisecond)
+
+              %{
+                value: [ts, build.hit_rate |> Decimal.from_float() |> Decimal.round(1)],
+                id: build.id,
+                tooltipExtra: [
+                  %{label: "Scheme", value: if(build.scheme == "", do: "Unknown", else: build.scheme)},
+                  %{label: "Status", value: format_status(build.status)},
+                  %{label: "Environment", value: if(build.is_ci, do: "CI", else: "Local")}
+                ]
+              }
+            end)
+        }
+      end)
+
+    %{
+      series: series,
+      truncated: truncated,
+      oldest_entry: oldest_entry
+    }
+  end
+
   @doc """
   Gets build cache hit rate analytics for a project over a time period.
 
@@ -1338,6 +1566,75 @@ defmodule Tuist.Builds.Analytics do
         cacheable_task_remote_hits: remote_hits || 0
       }
     end)
+  end
+
+  def module_cache_hit_rate_scatter_data(opts \\ []) do
+    project_id = Keyword.get(opts, :project_id)
+    start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+    is_ci = Keyword.get(opts, :is_ci)
+
+    query =
+      from(e in Event,
+        where: e.project_id == ^project_id,
+        where: e.ran_at > ^DateTime.to_naive(start_datetime),
+        where: e.ran_at < ^DateTime.to_naive(end_datetime),
+        where: e.cacheable_targets_count > 0,
+        order_by: [desc: e.ran_at],
+        limit: ^@scatter_data_limit,
+        select: %{
+          ran_at: e.ran_at,
+          is_ci: e.is_ci,
+          hit_rate:
+            fragment(
+              "(ifNull(?, 0) + ifNull(?, 0)) / ? * 100.0",
+              e.local_cache_hits_count,
+              e.remote_cache_hits_count,
+              e.cacheable_targets_count
+            )
+        }
+      )
+
+    query =
+      case is_ci do
+        true -> where(query, [e], e.is_ci == true)
+        false -> where(query, [e], e.is_ci == false)
+        _ -> query
+      end
+
+    results = ClickHouseRepo.all(query)
+    truncated = length(results) >= @scatter_data_limit
+
+    oldest_entry =
+      if truncated do
+        results |> List.last() |> Map.get(:ran_at)
+      end
+
+    series =
+      results
+      |> Enum.group_by(& &1.is_ci)
+      |> Enum.map(fn {is_ci_val, events} ->
+        %{
+          name: if(is_ci_val, do: "CI", else: "Local"),
+          data:
+            Enum.map(events, fn %{ran_at: ran_at, is_ci: event_is_ci, hit_rate: hit_rate} ->
+              ts = NaiveDateTime.diff(ran_at, ~N[1970-01-01 00:00:00], :millisecond)
+
+              %{
+                value: [ts, hit_rate |> Decimal.from_float() |> Decimal.round(1)],
+                tooltipExtra: [
+                  %{label: "Environment", value: if(event_is_ci, do: "CI", else: "Local")}
+                ]
+              }
+            end)
+        }
+      end)
+
+    %{
+      series: series,
+      truncated: truncated,
+      oldest_entry: oldest_entry
+    }
   end
 
   @doc """
@@ -1946,6 +2243,10 @@ defmodule Tuist.Builds.Analytics do
   defp normalize_string_filter(value) when is_atom(value), do: Atom.to_string(value)
   defp normalize_string_filter(value) when is_binary(value), do: value
   defp normalize_string_filter(_), do: nil
+
+  defp format_status("success"), do: "Passed"
+  defp format_status("failure"), do: "Failed"
+  defp format_status(status), do: String.capitalize(status)
 
   defp date_range_for_date_period(:hour, opts) do
     start_datetime = DateTime.truncate(Keyword.fetch!(opts, :start_datetime), :second)

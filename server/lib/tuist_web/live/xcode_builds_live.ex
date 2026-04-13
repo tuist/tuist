@@ -30,7 +30,9 @@ defmodule TuistWeb.XcodeBuildsLive do
               "analytics-build-configuration",
               "analytics-build-category",
               "analytics-build-tag",
-              "build-duration-type"
+              "build-duration-type",
+              "build-duration-chart-type",
+              "build-duration-scatter-group-by"
             ])
           )
       )
@@ -108,6 +110,16 @@ defmodule TuistWeb.XcodeBuildsLive do
 
     analytics_selected_widget = params["analytics-selected-widget"] || "build-duration"
 
+    build_duration_chart_type = params["build-duration-chart-type"] || "line"
+    build_duration_scatter_group_by = params["build-duration-scatter-group-by"] || "scheme"
+
+    scatter_group_by_atom =
+      case build_duration_scatter_group_by do
+        "environment" -> :environment
+        "category" -> :category
+        _ -> :scheme
+      end
+
     socket
     |> assign(:analytics_selected_widget, analytics_selected_widget)
     |> assign(
@@ -125,6 +137,8 @@ defmodule TuistWeb.XcodeBuildsLive do
     |> assign(:build_configurations, Builds.project_build_configurations(project))
     |> assign(:build_tags, Builds.project_build_tags(project))
     |> assign(:selected_build_duration_type, params["build-duration-type"] || "avg")
+    |> assign(:build_duration_chart_type, build_duration_chart_type)
+    |> assign(:build_duration_scatter_group_by, build_duration_scatter_group_by)
     |> assign_async(
       [:builds_duration_analytics, :builds_p99_durations, :builds_p90_durations, :builds_p50_durations],
       fn ->
@@ -137,6 +151,13 @@ defmodule TuistWeb.XcodeBuildsLive do
          }}
       end
     )
+    |> assign_async(:builds_scatter_data, fn ->
+      {:ok,
+       %{
+         builds_scatter_data:
+           Analytics.build_duration_scatter_data(project.id, Keyword.put(opts, :group_by, scatter_group_by_atom))
+       }}
+    end)
     |> assign_async(
       [:total_builds_analytics, :failed_builds_analytics, :build_success_rate_analytics, :analytics_chart_data],
       fn ->

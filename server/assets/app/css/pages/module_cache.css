@@ -29,6 +29,15 @@
     & .noora-dropdown-item:not([data-selected]) svg {
       visibility: hidden;
     }
+    & [data-part="chart-type-toggle"] {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      gap: var(--noora-spacing-4);
+    }
+    & [data-part="scatter-limit-alert"] [data-part="icon"] {
+      display: none;
+    }
   }
 
   & > [data-part="recent-runs"] {
