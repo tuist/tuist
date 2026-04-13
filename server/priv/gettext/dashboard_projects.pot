@@ -23,7 +23,6 @@ msgid "%{binary_cache_effectiveness}%"
 msgstr ""
 
 #: lib/tuist_web/live/xcode_overview_live.html.heex:164
-#: lib/tuist_web/live/xcode_overview_live.html.heex:186
 #, elixir-autogen, elixir-format
 msgid "%{duration}s"
 msgstr ""
@@ -50,7 +49,7 @@ msgstr ""
 
 #: lib/tuist_web/live/project_notifications_live.ex:689
 #: lib/tuist_web/live/project_notifications_live.ex:692
-#: lib/tuist_web/live/xcode_overview_live.ex:212
+#: lib/tuist_web/live/xcode_overview_live.ex:222
 #: lib/tuist_web/live/xcode_overview_live.html.heex:15
 #: lib/tuist_web/live/xcode_overview_live.html.heex:755
 #, elixir-autogen, elixir-format
@@ -80,19 +79,9 @@ msgstr ""
 msgid "Average build time"
 msgstr ""
 
-#: lib/tuist_web/live/xcode_overview_live.html.heex:176
-#, elixir-autogen, elixir-format
-msgid "Average test time"
-msgstr ""
-
 #: lib/tuist_web/live/xcode_overview_live.html.heex:156
 #, elixir-autogen, elixir-format
 msgid "Average time it takes to build a project as reported from Xcode post actions."
-msgstr ""
-
-#: lib/tuist_web/live/xcode_overview_live.html.heex:178
-#, elixir-autogen, elixir-format
-msgid "Average time it takes to test a project when using the 'tuist test' command."
 msgstr ""
 
 #: lib/tuist_web/live/xcode_overview_live.html.heex:439
@@ -132,7 +121,7 @@ msgid "Bundles"
 msgstr ""
 
 #: lib/tuist_web/live/project_notifications_live.ex:691
-#: lib/tuist_web/live/xcode_overview_live.ex:214
+#: lib/tuist_web/live/xcode_overview_live.ex:224
 #: lib/tuist_web/live/xcode_overview_live.html.heex:31
 #: lib/tuist_web/live/xcode_overview_live.html.heex:771
 #, elixir-autogen, elixir-format
@@ -273,7 +262,7 @@ msgid "Latest app previews"
 msgstr ""
 
 #: lib/tuist_web/live/project_notifications_live.ex:690
-#: lib/tuist_web/live/xcode_overview_live.ex:213
+#: lib/tuist_web/live/xcode_overview_live.ex:223
 #: lib/tuist_web/live/xcode_overview_live.html.heex:23
 #: lib/tuist_web/live/xcode_overview_live.html.heex:763
 #, elixir-autogen, elixir-format
@@ -472,17 +461,17 @@ msgstr ""
 msgid "You are not authorized to perform this action."
 msgstr ""
 
-#: lib/tuist_web/live/xcode_overview_live.ex:210
+#: lib/tuist_web/live/xcode_overview_live.ex:220
 #, elixir-autogen, elixir-format
 msgid "since last month"
 msgstr ""
 
-#: lib/tuist_web/live/xcode_overview_live.ex:207
+#: lib/tuist_web/live/xcode_overview_live.ex:217
 #, elixir-autogen, elixir-format
 msgid "since last week"
 msgstr ""
 
-#: lib/tuist_web/live/xcode_overview_live.ex:208
+#: lib/tuist_web/live/xcode_overview_live.ex:218
 #, elixir-autogen, elixir-format
 msgid "since last year"
 msgstr ""
@@ -528,12 +517,12 @@ msgstr ""
 msgid "Last 7 days"
 msgstr ""
 
-#: lib/tuist_web/live/xcode_overview_live.ex:209
+#: lib/tuist_web/live/xcode_overview_live.ex:219
 #, elixir-autogen, elixir-format
 msgid "since last period"
 msgstr ""
 
-#: lib/tuist_web/live/xcode_overview_live.ex:206
+#: lib/tuist_web/live/xcode_overview_live.ex:216
 #, elixir-autogen, elixir-format
 msgid "since yesterday"
 msgstr ""
