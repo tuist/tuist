@@ -43,9 +43,6 @@
       align-items: center;
       gap: var(--noora-spacing-4);
     }
-    & [data-part="scatter-limit-alert"] [data-part="icon"] {
-      display: none;
-    }
   }
 
   & > [data-part="recent-builds"] {

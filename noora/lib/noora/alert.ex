@@ -41,6 +41,8 @@ defmodule Noora.Alert do
     doc: "Whether the alert can be dismissed."
   )
 
+  attr(:show_icon, :boolean, default: true, doc: "Whether to show the status icon.")
+
   attr(:title, :string, required: true, doc: "The title of the alert.")
 
   attr(:description, :string,
@@ -68,7 +70,7 @@ defmodule Noora.Alert do
       {@rest}
     >
       <%= if @size in ["small", "medium"] do %>
-        <.icon status={@status} />
+        <.icon :if={@show_icon} status={@status} />
         <span data-part="title">{@title}</span>
         <div :if={@action != []} data-part="actions">
           <%= for action <- @action do %>
@@ -83,7 +85,7 @@ defmodule Noora.Alert do
         />
       <% end %>
       <%= if @size == "large" do %>
-        <.icon status={@status} />
+        <.icon :if={@show_icon} status={@status} />
         <div data-part="column">
           <span data-part="title">{@title}</span>
           <div :if={@inner_block != []} data-part="description">
