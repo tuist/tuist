@@ -11,7 +11,6 @@ defmodule TuistWeb.XcodeOverviewLive do
   alias Tuist.Builds.Analytics, as: BuildsAnalytics
   alias Tuist.Bundles
   alias Tuist.Cache
-  alias Tuist.Runs.Analytics, as: RunsAnalytics
   alias Tuist.Tests
   alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Utilities.Query
@@ -69,7 +68,7 @@ defmodule TuistWeb.XcodeOverviewLive do
       {:ok, %{build_analytics: BuildsAnalytics.build_duration_analytics(project.id, analytics_opts)}}
     end)
     |> assign_async(:test_analytics, fn ->
-      {:ok, %{test_analytics: RunsAnalytics.runs_duration_analytics("test", analytics_opts)}}
+      {:ok, %{test_analytics: Tests.Analytics.test_run_duration_analytics(project.id, analytics_opts)}}
     end)
     |> assign_async(:build_time_analytics, fn ->
       {:ok, %{build_time_analytics: BuildsAnalytics.build_time_analytics(analytics_opts)}}
