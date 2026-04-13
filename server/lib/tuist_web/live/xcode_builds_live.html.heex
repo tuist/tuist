@@ -513,7 +513,10 @@
         ]}
         y_axis_min={0}
       />
-      <div :if={@build_duration_chart_type == "scatter" and !@builds_scatter_data.ok?} data-part="analytics-chart">
+      <div
+        :if={@build_duration_chart_type == "scatter" and !@builds_scatter_data.ok?}
+        data-part="analytics-chart"
+      >
         <.skeleton_chart />
       </div>
       <.chart

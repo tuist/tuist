@@ -52,8 +52,8 @@
       padding: var(--noora-spacing-9) var(--noora-spacing-7);
       & > [data-part="legends-and-toggle"] {
         display: flex;
-        align-items: flex-start;
         justify-content: space-between;
+        align-items: flex-start;
         & > [data-part="legends"] {
           margin-left: var(--noora-spacing-5);
           padding-bottom: unset;
