@@ -13,19 +13,22 @@ defmodule Tuist.Slack.Workers.ReportWorker do
   alias Tuist.Projects
   alias Tuist.Projects.Project
   alias Tuist.Repo
+  alias Tuist.Slack
   alias Tuist.Slack.Client, as: SlackClient
   alias Tuist.Slack.Reports
 
+  require Logger
+
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"project_id" => project_id}}) do
-    project = Projects.get_project_by_id(project_id)
+    case Projects.get_project_by_id(project_id) do
+      nil ->
+        :ok
 
-    if project do
-      project = Repo.preload(project, account: :slack_installation)
-      :ok = send_report(project)
+      project ->
+        project = Repo.preload(project, account: :slack_installation)
+        send_report(project)
     end
-
-    :ok
   end
 
   def perform(_job) do
@@ -72,7 +75,22 @@ defmodule Tuist.Slack.Workers.ReportWorker do
     if slack_installation && project.slack_channel_id do
       last_report_at = get_last_report_time(project.id)
       blocks = Reports.report(project, last_report_at: last_report_at)
-      SlackClient.post_message(slack_installation.access_token, project.slack_channel_id, blocks)
+
+      case SlackClient.post_message(slack_installation.access_token, project.slack_channel_id, blocks) do
+        :ok ->
+          :ok
+
+        {:error, "account_inactive"} ->
+          Logger.warning("Deleting inactive Slack installation for account #{project.account_id}")
+
+          case Slack.delete_installation(slack_installation) do
+            {:ok, _installation} -> {:discard, :account_inactive}
+            {:error, reason} -> {:error, reason}
+          end
+
+        {:error, reason} ->
+          {:error, reason}
+      end
     else
       :ok
     end
