@@ -44,4 +44,27 @@ struct ProxyManifestMapperTests {
             _ = try TuistConfig.Tuist.Proxy.from(manifest: .url("http://proxy with spaces"))
         }
     }
+
+    // MARK: - resolvedURL(environment:)
+
+    @Test func resolvedURL_noneReturnsNil() {
+        #expect(TuistConfig.Tuist.Proxy.none.resolvedURL(environment: [:]) == nil)
+    }
+
+    @Test func resolvedURL_urlReturnsItself() {
+        let url = URL(string: "http://proxy.corp:8080")!
+        #expect(TuistConfig.Tuist.Proxy.url(url).resolvedURL(environment: [:]) == url)
+    }
+
+    @Test func resolvedURL_environmentVariableReadsFromDict() {
+        let proxy = TuistConfig.Tuist.Proxy.environmentVariable("HTTPS_PROXY")
+        let resolved = proxy.resolvedURL(environment: ["HTTPS_PROXY": "http://proxy.corp:8080"])
+        #expect(resolved == URL(string: "http://proxy.corp:8080"))
+    }
+
+    @Test func resolvedURL_environmentVariableReturnsNilWhenUnset() {
+        let proxy = TuistConfig.Tuist.Proxy.environmentVariable("HTTPS_PROXY")
+        #expect(proxy.resolvedURL(environment: [:]) == nil)
+        #expect(proxy.resolvedURL(environment: ["HTTPS_PROXY": ""]) == nil)
+    }
 }

@@ -80,3 +80,25 @@ let tuist = Tuist(
 
 The proxy is applied as soon as Tuist loads `Tuist.swift`, so every subsequent network request Tuist makes — cache, previews, analytics, registry, etc. — goes through it.
 
+### Configuring the proxy from `tuist.toml` {#http-proxy-toml}
+
+When you don't use a `Tuist.swift` manifest, the same proxy setting can live in `tuist.toml` alongside `project` and `url`. Add a `[proxy]` table with exactly one key:
+
+```toml
+project = "my-org/my-project"
+
+[proxy]
+url = "http://proxy.corp:8080"
+```
+
+or
+
+```toml
+project = "my-org/my-project"
+
+[proxy]
+environment_variable = "HTTPS_PROXY"
+```
+
+Setting both `url` and `environment_variable` — or neither — is a configuration error. Tuist also reuses this table from the Gradle plugin, so the CLI and the plugin go through the same proxy when you keep the configuration in `tuist.toml`.
+

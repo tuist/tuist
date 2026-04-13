@@ -314,11 +314,12 @@ abstract class TuistBuildInsightsService :
     private fun sendReport(machineMetrics: List<MachineMetricSample>) {
         val projectValue = parameters.project.orNull
         val httpClients = TuistHttpClients(resolveProxyFromParameters(parameters.proxyUrl.orNull))
+        val projectDir = java.io.File(System.getProperty("user.dir"))
 
         val configProvider = DefaultConfigurationProvider(
             project = projectValue,
             serverUrl = parameters.url.get(),
-            projectDir = java.io.File(System.getProperty("user.dir")),
+            projectDir = projectDir,
             httpClients = httpClients
         )
 

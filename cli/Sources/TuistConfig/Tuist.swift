@@ -31,6 +31,27 @@ public struct Tuist: Equatable, Hashable, Sendable {
 
         /// Use the given proxy URL directly.
         case url(URL)
+
+        /// Resolves this configuration to a concrete proxy URL.
+        ///
+        /// - `.none` → `nil`.
+        /// - `.url(u)` → `u`.
+        /// - `.environmentVariable(name)` → the URL parsed from `environment[name]`,
+        ///   or `nil` when the variable is unset, empty, or not a valid URL.
+        ///
+        /// The caller passes the environment dictionary explicitly so that this method
+        /// stays pure and testable without reaching for process-wide state.
+        public func resolvedURL(environment: [String: String]) -> URL? {
+            switch self {
+            case .none:
+                return nil
+            case let .url(url):
+                return url
+            case let .environmentVariable(name):
+                guard let value = environment[name], !value.isEmpty else { return nil }
+                return URL(string: value)
+            }
+        }
     }
 
     public let project: TuistProject

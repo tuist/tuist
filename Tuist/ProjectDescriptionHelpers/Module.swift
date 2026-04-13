@@ -1023,6 +1023,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.support.targetName),
                     .target(name: Module.projectDescription.targetName),
                     .target(name: Module.http.targetName),
+                    .target(name: Module.environment.targetName),
                     .external(name: "FileSystem"),
                     .external(name: "TOMLDecoder"),
                 ]

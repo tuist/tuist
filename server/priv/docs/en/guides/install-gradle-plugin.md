@@ -66,7 +66,7 @@ The following options are available in the `tuist` extension block in `settings.
 | `executablePath` | `String?` | `null` (uses `tuist` from PATH) | Path to the Tuist CLI executable. |
 | `url` | `String?` | `null` | The base URL of the Tuist server. If not set, it defaults to `"https://tuist.dev"` or the value defined in `tuist.toml`. |
 | `uploadInBackground` | `Boolean?` | `null` | Whether to upload build and test insights in the background. When `null` (default), uploads run in the background for local builds and in the foreground on CI. |
-| `proxy` | `Proxy` | `Proxy.None` | The HTTP proxy the plugin routes its traffic through. See <.localized_link href="#http-proxy">HTTP proxy</.localized_link>. |
+| `proxy` | `Proxy` | `Proxy.None` | The HTTP proxy the plugin routes its traffic through. See [HTTP proxy](#http-proxy). |
 
 > [!NOTE]
 > **Tuist.toml**
@@ -98,6 +98,28 @@ tuist {
 - `Proxy.Url("...")` uses the given URL directly. Credentials can be encoded inline as `http://user:password@proxy.corp:8080` if the proxy requires authentication.
 
 Proxy resolution happens at configure time, so the environment variables you reference must be set when Gradle evaluates `settings.gradle.kts`. On CI that means exporting them in the same job that invokes Gradle.
+
+### Configuring the proxy from `tuist.toml` {#http-proxy-toml}
+
+The proxy can also live in `tuist.toml` alongside `project` and `url`, which keeps the setting in sync with the Tuist CLI (so both tools go through the same proxy). Add a `[proxy]` table with exactly one key:
+
+```toml
+project = "my-org/my-project"
+
+[proxy]
+url = "http://proxy.corp:8080"
+```
+
+or
+
+```toml
+project = "my-org/my-project"
+
+[proxy]
+environment_variable = "HTTPS_PROXY"
+```
+
+When the `proxy` value on the `tuist` extension is left at its default (`Proxy.None`), the Gradle plugin falls back to the `[proxy]` table in `tuist.toml`. Setting `proxy` on the extension explicitly overrides anything in `tuist.toml`.
 
 
 ## Next steps {#next-steps}

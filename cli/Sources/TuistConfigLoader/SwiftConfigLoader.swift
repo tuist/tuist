@@ -7,7 +7,6 @@
     import TuistAlert
     import TuistConfig
     import TuistConstants
-    import TuistHTTP
     import TuistLoader
     import TuistRootDirectoryLocator
     import TuistSupport
@@ -42,7 +41,6 @@
             guard let configPath = try await locateConfig(at: path) else {
                 let config = try await defaultConfig(at: path)
                 cachedConfigs[path] = config
-                applyProxy(from: config)
                 return config
             }
 
@@ -61,14 +59,7 @@
                 at: configPath
             )
             cachedConfigs[path] = config
-            applyProxy(from: config)
             return config
-        }
-
-        /// Applies the proxy configured in `Tuist.swift` to the shared URLSession so that
-        /// every subsequent network request Tuist makes goes through it.
-        private func applyProxy(from config: TuistConfig.Tuist) {
-            URLSession.configureTuistProxy(config.proxy.toHTTPProxy())
         }
 
         func locateConfig(at path: AbsolutePath) async throws -> AbsolutePath? {
@@ -124,20 +115,4 @@
             }
         }
     }
-
-    extension TuistConfig.Tuist.Proxy {
-        /// Translates the config-level proxy into the HTTP-layer proxy so that callers
-        /// that live below `TuistConfig` don't need to depend on it.
-        func toHTTPProxy() -> TuistHTTPProxy {
-            switch self {
-            case .none:
-                return .none
-            case let .environmentVariable(name):
-                return .environmentVariable(name)
-            case let .url(url):
-                return .url(url)
-            }
-        }
-    }
-
 #endif

@@ -66,6 +66,67 @@ class TomlParserTest {
         val config = TomlParser.parse(toml)
         assertEquals("spaced/project", config?.project)
     }
+
+    @Test
+    fun `parse extracts proxy url from a proxy table`() {
+        val toml = File(tempDir, "tuist.toml")
+        toml.writeText("""
+            project = "org/project"
+
+            [proxy]
+            url = "http://proxy.corp:8080"
+        """.trimIndent())
+
+        val config = TomlParser.parse(toml)
+
+        assertEquals("http://proxy.corp:8080", config?.proxy?.url)
+        assertNull(config?.proxy?.environmentVariable)
+    }
+
+    @Test
+    fun `parse extracts proxy environment variable from a proxy table`() {
+        val toml = File(tempDir, "tuist.toml")
+        toml.writeText("""
+            project = "org/project"
+
+            [proxy]
+            environment_variable = "HTTPS_PROXY"
+        """.trimIndent())
+
+        val config = TomlParser.parse(toml)
+
+        assertNull(config?.proxy?.url)
+        assertEquals("HTTPS_PROXY", config?.proxy?.environmentVariable)
+    }
+
+    @Test
+    fun `parse returns null proxy when the table is absent`() {
+        val toml = File(tempDir, "tuist.toml")
+        toml.writeText("""project = "org/project"""")
+
+        val config = TomlParser.parse(toml)
+
+        assertNull(config?.proxy)
+    }
+
+    @Test
+    fun `parse prefers proxy url when both keys are set`() {
+        // Ambiguous configs log a warning and fall through to the `url` branch,
+        // mirroring the CLI's stricter validation without breaking the build.
+        val toml = File(tempDir, "tuist.toml")
+        toml.writeText("""
+            project = "org/project"
+
+            [proxy]
+            url = "http://proxy.corp:8080"
+            environment_variable = "HTTPS_PROXY"
+        """.trimIndent())
+
+        val config = TomlParser.parse(toml)
+
+        assertEquals("http://proxy.corp:8080", config?.proxy?.url)
+        assertNull(config?.proxy?.environmentVariable)
+    }
 }
 
 class ServerUrlResolverTest {

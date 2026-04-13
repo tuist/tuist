@@ -81,12 +81,13 @@ class TuistPlugin : Plugin<Settings> {
     private fun configureBuildInsights(settings: Settings, extension: TuistExtension) {
         val project = extension.project.ifBlank { null }
         settings.gradle.rootProject {
+            val effectiveProxy = ProxyResolver.resolve(extension.proxy, projectDir)
             extensions.extraProperties.set(TuistGradleConfig.EXTRA_PROPERTY_KEY, TuistGradleConfig(
                 url = extension.url,
                 project = project,
                 uploadInBackground = extension.uploadInBackground,
                 testQuarantineEnabled = extension.testQuarantine.enabled,
-                proxy = extension.proxy
+                proxy = effectiveProxy
             ))
             pluginManager.apply(TuistBuildInsightsPlugin::class.java)
             val projectLabel = project ?: "(from tuist.toml)"
