@@ -313,20 +313,20 @@ abstract class TuistBuildInsightsService :
 
     private fun sendReport(machineMetrics: List<MachineMetricSample>) {
         val projectValue = parameters.project.orNull
-        val proxy = resolveProxyFromParameters(parameters.proxyUrl.orNull)
+        val httpClients = TuistHttpClients(resolveProxyFromParameters(parameters.proxyUrl.orNull))
 
         val configProvider = DefaultConfigurationProvider(
             project = projectValue,
             serverUrl = parameters.url.get(),
             projectDir = java.io.File(System.getProperty("user.dir")),
-            proxy = proxy
+            httpClients = httpClients
         )
 
         val httpClient = TuistHttpClient(
             configurationProvider = configProvider,
+            httpClients = httpClients,
             connectTimeoutMs = 10_000,
-            readTimeoutMs = 10_000,
-            proxy = proxy
+            readTimeoutMs = 10_000
         )
 
         val totalDurationMs = System.currentTimeMillis() - buildStartTime

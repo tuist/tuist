@@ -373,20 +373,20 @@ abstract class TuistTestInsightsService :
 
     private fun sendReport() {
         val projectValue = parameters.project.orNull
-        val proxy = resolveProxyFromParameters(parameters.proxyUrl.orNull)
+        val httpClients = TuistHttpClients(resolveProxyFromParameters(parameters.proxyUrl.orNull))
 
         val configProvider = DefaultConfigurationProvider(
             project = projectValue,
             serverUrl = parameters.url.get(),
             projectDir = java.io.File(System.getProperty("user.dir")),
-            proxy = proxy
+            httpClients = httpClients
         )
 
         val httpClient = TuistHttpClient(
             configurationProvider = configProvider,
+            httpClients = httpClients,
             connectTimeoutMs = 10_000,
-            readTimeoutMs = 10_000,
-            proxy = proxy
+            readTimeoutMs = 10_000
         )
 
         val totalDurationMs = latestEndTime - earliestStartTime
@@ -471,17 +471,18 @@ internal abstract class TuistTestInsightsPlugin @Inject constructor() : Plugin<P
 
         val quarantineEnabled = config.testQuarantineEnabled ?: ciDetector.isCi()
         val quarantineService = if (quarantineEnabled) {
+            val httpClients = TuistHttpClients(config.proxy)
             val configProvider = DefaultConfigurationProvider(
                 project = config.project,
                 serverUrl = config.url,
                 projectDir = java.io.File(System.getProperty("user.dir")),
-                proxy = config.proxy
+                httpClients = httpClients
             )
             val httpClient = TuistHttpClient(
                 configurationProvider = configProvider,
+                httpClients = httpClients,
                 connectTimeoutMs = 10_000,
-                readTimeoutMs = 10_000,
-                proxy = config.proxy
+                readTimeoutMs = 10_000
             )
             TuistTestQuarantineService(httpClient = httpClient, baseUrl = config.url)
         } else {

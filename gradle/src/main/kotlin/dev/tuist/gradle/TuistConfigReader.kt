@@ -57,20 +57,15 @@ object CacheEndpointResolver {
         accountHandle: String,
         tokenProvider: TokenProvider,
         envProvider: (String) -> String? = { System.getenv(it) },
-        getCacheEndpointsService: GetCacheEndpointsService = GetCacheEndpointsService(),
-        proxy: Proxy = Proxy.None
+        httpClients: TuistHttpClients = TuistHttpClients.NONE,
+        getCacheEndpointsService: GetCacheEndpointsService = GetCacheEndpointsService(httpClients)
     ): String {
         val envEndpoint = envProvider("TUIST_CACHE_ENDPOINT")
         if (!envEndpoint.isNullOrBlank()) {
             return envEndpoint
         }
 
-        val endpointsService = if (proxy is Proxy.None) {
-            getCacheEndpointsService
-        } else {
-            GetCacheEndpointsService(proxy)
-        }
-        val endpoints = endpointsService.getCacheEndpoints(serverURL, accountHandle, tokenProvider)
+        val endpoints = getCacheEndpointsService.getCacheEndpoints(serverURL, accountHandle, tokenProvider)
 
         if (endpoints.isEmpty()) {
             throw NoCacheEndpointsException(accountHandle)
@@ -79,21 +74,20 @@ object CacheEndpointResolver {
         return if (endpoints.size == 1) {
             endpoints[0]
         } else {
-            pickFastestEndpoint(endpoints, proxy)
+            pickFastestEndpoint(endpoints, httpClients)
                 ?: throw CacheEndpointsUnreachableException(endpoints)
         }
     }
 
-    internal fun pickFastestEndpoint(endpoints: List<String>, proxy: Proxy = Proxy.None): String? {
+    internal fun pickFastestEndpoint(
+        endpoints: List<String>,
+        httpClients: TuistHttpClients = TuistHttpClients.NONE
+    ): String? {
         val bestEndpoint = AtomicReference<String?>(null)
         val bestLatency = AtomicReference(Long.MAX_VALUE)
         val latch = CountDownLatch(endpoints.size)
 
-        val latencyClient = OkHttpClient.Builder()
-            .connectTimeout(5, TimeUnit.SECONDS)
-            .readTimeout(5, TimeUnit.SECONDS)
-            .apply { proxy.resolve()?.let { proxy(it) } }
-            .build()
+        val latencyClient = httpClients.latencyClient
 
         for (endpoint in endpoints) {
             Thread {

@@ -18,13 +18,12 @@ open class TokenProvider(
                 "token_$sanitizedUrl.lock"
             )
         )
-    },
-    internal val proxy: Proxy = Proxy.None
+    }
 ) {
-    constructor(serverURL: URI, proxy: Proxy) : this(
+    /** Convenience constructor: wires an internal [RefreshAuthTokenService] from the given [httpClients]. */
+    constructor(serverURL: URI, httpClients: TuistHttpClients) : this(
         serverURL = serverURL,
-        refreshAuthTokenService = RefreshAuthTokenService(proxy),
-        proxy = proxy
+        refreshAuthTokenService = RefreshAuthTokenService(httpClients)
     )
 
     private val tokenCache: CachedValueStore<String> by lazy {

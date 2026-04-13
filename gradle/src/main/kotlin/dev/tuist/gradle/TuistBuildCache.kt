@@ -36,14 +36,15 @@ class TuistBuildCacheServiceFactory : BuildCacheServiceFactory<TuistBuildCache> 
             .type("Tuist")
             .config("project", configuration.project ?: "(from tuist.toml)")
 
+        val httpClients = TuistHttpClients(configuration.proxy)
         val configurationProvider = DefaultConfigurationProvider(
             project = configuration.project,
             serverUrl = configuration.url ?: "https://tuist.dev",
             projectDir = java.io.File(System.getProperty("user.dir")),
-            proxy = configuration.proxy
+            httpClients = httpClients
         )
 
-        val httpClient = TuistHttpClient(configurationProvider, proxy = configuration.proxy)
+        val httpClient = TuistHttpClient(configurationProvider, httpClients = httpClients)
 
         return TuistBuildCacheService(
             httpClient = httpClient,
@@ -78,7 +79,7 @@ class DefaultConfigurationProvider(
     private val project: String?,
     private val serverUrl: String,
     private val projectDir: java.io.File,
-    private val proxy: Proxy = Proxy.None
+    private val httpClients: TuistHttpClients = TuistHttpClients.NONE
 ) : ConfigurationProvider {
 
     private val resolvedServerUrl: java.net.URI by lazy {
@@ -98,7 +99,7 @@ class DefaultConfigurationProvider(
     }
 
     private val tokenProvider: TokenProvider by lazy {
-        TokenProvider(resolvedServerUrl, proxy = proxy)
+        TokenProvider(resolvedServerUrl, httpClients = httpClients)
     }
 
     private val cacheEndpointCache: CachedValueStore<String> = CachedValueStore()
@@ -121,10 +122,10 @@ class DefaultConfigurationProvider(
 
     private fun resolveCacheEndpoint(accountHandle: String): Pair<String, Long?> {
         val endpoint = CacheEndpointResolver.resolve(
-            resolvedServerUrl,
-            accountHandle,
-            tokenProvider,
-            proxy = proxy
+            serverURL = resolvedServerUrl,
+            accountHandle = accountHandle,
+            tokenProvider = tokenProvider,
+            httpClients = httpClients
         )
         val expiresAtMs = System.currentTimeMillis() + CACHE_ENDPOINT_TTL_MS
         return Pair(endpoint, expiresAtMs)

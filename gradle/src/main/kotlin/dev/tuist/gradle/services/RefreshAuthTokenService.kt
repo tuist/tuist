@@ -1,7 +1,6 @@
 package dev.tuist.gradle.services
 
-import dev.tuist.gradle.Proxy
-import dev.tuist.gradle.ServerClient
+import dev.tuist.gradle.TuistHttpClients
 import dev.tuist.gradle.api.AuthenticationApi
 import dev.tuist.gradle.api.model.AuthenticationTokens
 import dev.tuist.gradle.api.model.RefreshTokenBody
@@ -9,10 +8,11 @@ import retrofit2.Retrofit
 import java.net.URI
 
 open class RefreshAuthTokenService(
-    private val retrofitProvider: (URI) -> Retrofit = { ServerClient.unauthenticated(it) }
+    private val retrofitProvider: (URI) -> Retrofit
 ) {
-    constructor(proxy: Proxy) : this(
-        retrofitProvider = { ServerClient.unauthenticated(it, proxy) }
+    /** Convenience constructor for the common case where callers already have a [TuistHttpClients]. */
+    constructor(httpClients: TuistHttpClients = TuistHttpClients.NONE) : this(
+        retrofitProvider = { httpClients.unauthenticatedRetrofit(it) }
     )
 
     open fun refreshTokens(serverURL: URI, refreshToken: String): AuthenticationTokens {

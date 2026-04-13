@@ -80,13 +80,14 @@ class TuistHttpClientTest {
     }
 
     @Test
-    fun `openConnection routes through proxy when configured`() {
+    fun `openConnection routes through the httpClients proxy when configured`() {
         mockWebServer.enqueue(MockResponse().setResponseCode(200))
 
         val baseUrl = mockWebServer.url("/").toString().trimEnd('/')
-        // We point `Proxy.Url` at the mock web server itself — any request made through
-        // the client should therefore land on the mock server, regardless of the target
-        // URL we pass to `openConnection`. This proves the proxy is being applied.
+        // Point a `TuistHttpClients` at the mock web server as its proxy — any
+        // request made through the wrapping `TuistHttpClient` should therefore
+        // land on the mock, regardless of the target URL. This proves the
+        // factory's proxy is being honoured end-to-end.
         val httpClient = TuistHttpClient(
             configurationProvider = object : ConfigurationProvider {
                 override fun getConfiguration(forceRefresh: Boolean): CacheConfiguration = CacheConfiguration(
@@ -96,9 +97,9 @@ class TuistHttpClientTest {
                     projectHandle = "test-project"
                 )
             },
+            httpClients = TuistHttpClients(Proxy.Url(baseUrl)),
             connectTimeoutMs = 10_000,
-            readTimeoutMs = 10_000,
-            proxy = Proxy.Url(baseUrl)
+            readTimeoutMs = 10_000
         )
 
         // A hostname that would fail to resolve if the proxy weren't intercepting the
