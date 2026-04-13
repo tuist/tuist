@@ -5,6 +5,7 @@
     selected_account={@current_user && @current_user.account}
     latest_cli_release={@latest_cli_release}
     latest_app_release={@latest_app_release}
+    title={dgettext("dashboard", "Tuist Ops")}
   />
   <section class="layout__main">
     <TuistWeb.AppLayoutComponents.ops_sidebar current_path={@current_path} />

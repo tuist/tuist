@@ -400,28 +400,36 @@ defmodule TuistWeb.AppLayoutComponents do
         navigate={~p"/ops/sent_emails"}
         selected={String.starts_with?(@current_path, "/ops/sent_emails")}
       />
-      <.sidebar_item
-        :if={Tuist.Environment.dev?() and not Tuist.Environment.dev_use_remote_storage?()}
-        label={dgettext("dashboard", "Storage")}
-        icon="database"
-        href={"http://localhost:#{Tuist.Environment.minio_console_port()}"}
-        target="_blank"
-        rel="noopener noreferrer"
-      />
-      <.sidebar_item
-        label={dgettext("dashboard", "Errors")}
-        icon="alert_triangle"
-        href="https://sentry.io/organizations/tuist/issues/"
-        target="_blank"
-        rel="noopener noreferrer"
-      />
-      <.sidebar_item
-        label={dgettext("dashboard", "Grafana")}
-        icon="chart_column"
-        href="https://tuist.grafana.net"
-        target="_blank"
-        rel="noopener noreferrer"
-      />
+      <.sidebar_group
+        id="sidebar-ops-external"
+        label={dgettext("dashboard", "External")}
+        icon="external_link"
+        default_open={true}
+        phx-update="ignore"
+      >
+        <.sidebar_item
+          :if={Tuist.Environment.dev?() and not Tuist.Environment.dev_use_remote_storage?()}
+          label={dgettext("dashboard", "Storage")}
+          icon="database"
+          href={"http://localhost:#{Tuist.Environment.minio_console_port()}"}
+          target="_blank"
+          rel="noopener noreferrer"
+        />
+        <.sidebar_item
+          label={dgettext("dashboard", "Errors")}
+          icon="alert_triangle"
+          href="https://sentry.io/organizations/tuist/issues/"
+          target="_blank"
+          rel="noopener noreferrer"
+        />
+        <.sidebar_item
+          label={dgettext("dashboard", "Grafana")}
+          icon="chart_column"
+          href="https://tuist.grafana.net"
+          target="_blank"
+          rel="noopener noreferrer"
+        />
+      </.sidebar_group>
     </.sidebar>
     """
   end
@@ -431,6 +439,7 @@ defmodule TuistWeb.AppLayoutComponents do
   attr(:selected_account, :map, required: true)
   attr(:latest_cli_release, :map, required: true)
   attr(:latest_app_release, :map, required: true)
+  attr(:title, :string, default: nil)
 
   def headerbar(assigns) do
     ~H"""
@@ -443,6 +452,7 @@ defmodule TuistWeb.AppLayoutComponents do
             class="headerbar__logo"
           />
         </.link>
+        <span :if={@title} data-part="title">{@title}</span>
         <.headerbar_breadcrumbs breadcrumbs={@breadcrumbs} id="headerbar-breadcrumbs" />
       </div>
       <div data-part="right-section">
@@ -479,6 +489,7 @@ defmodule TuistWeb.AppLayoutComponents do
               class="headerbar__logo"
             />
           </.link>
+          <span :if={@title} data-part="title">{@title}</span>
         </div>
         <div data-part="right-section">
           <%= if not is_nil(@current_user) do %>
