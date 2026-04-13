@@ -6,15 +6,12 @@ on:
       base_image:
         description: "Base Tart image (e.g. ghcr.io/cirruslabs/macos-tahoe-xcode:26.4)"
         required: true
-        default: "ghcr.io/cirruslabs/macos-tahoe-xcode:26.4"
       output_image:
         description: "Output image name (e.g. tuist-runner-xcode-26.4)"
         required: true
-        default: "tuist-runner-xcode-26.4"
       runner_version:
-        description: "GitHub Actions runner version"
+        description: "GitHub Actions runner version (e.g. 2.325.0)"
         required: true
-        default: "2.325.0"
 
 jobs:
   build:
