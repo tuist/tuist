@@ -370,11 +370,21 @@ jobs:
           file: ./server/Dockerfile
           target: runner
           push: false
+          load: true
           tags: tuist/tuist
           build-args: |
             TUIST_HOSTED=0
             TUIST_VERSION=1.24.11.11
             MIX_ENV=prod
+      - name: Install Trivy
+        env:
+          TRIVY_VERSION: "0.69.3"
+        run: |
+          curl -sfL "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz" -o /tmp/trivy.tar.gz
+          sudo tar xzf /tmp/trivy.tar.gz -C /usr/local/bin trivy
+          rm /tmp/trivy.tar.gz
+      - name: Scan image for vulnerabilities
+        run: trivy image --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 --no-progress tuist/tuist
   # The Codegen produces non-deterministic results, so we're skipping it for now
   # api-codegen:
   #   name: API Codegen Check
