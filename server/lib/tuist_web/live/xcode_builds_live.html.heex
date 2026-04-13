@@ -351,8 +351,17 @@
         group_by_query_param="build-duration-scatter-group-by"
         uri={@uri}
       />
+      <div
+        :if={@build_duration_chart.loading || !@build_duration_chart.ok?}
+        data-part="analytics-chart"
+      >
+        <.skeleton_chart />
+      </div>
       <.chart
-        :if={@build_duration_chart_type == "line"}
+        :if={
+          @build_duration_chart.ok? and !@build_duration_chart.loading and
+            @build_duration_chart.result == :line
+        }
         id="average-build-time-chart"
         type="line"
         extra_options={
@@ -472,14 +481,10 @@
         ]}
         y_axis_min={0}
       />
-      <div
-        :if={@build_duration_chart_type == "scatter" and !@builds_scatter_data.ok?}
-        data-part="analytics-chart"
-      >
-        <.skeleton_chart />
-      </div>
       <.chart
-        :if={@build_duration_chart_type == "scatter" and @builds_scatter_data.ok?}
+        :if={
+          match?({:scatter, _}, @build_duration_chart.result) and !@build_duration_chart.loading
+        }
         id="build-duration-scatter-chart"
         type="scatter"
         extra_options={
@@ -525,26 +530,32 @@
           }
         }
         series={
-          Enum.map(@builds_scatter_data.result.series, fn series_item ->
-            series_item
-            |> Map.put(:itemStyle, %{opacity: 0.55})
-            |> Map.update!(:data, fn data ->
-              Enum.map(data, fn point ->
-                Map.put(
-                  point,
-                  :url,
-                  ~p"/#{@selected_account.name}/#{@selected_project.name}/builds/build-runs/#{point.id}"
-                )
+          case @build_duration_chart.result do
+            {:scatter, data} ->
+              Enum.map(data.series, fn series_item ->
+                series_item
+                |> Map.put(:itemStyle, %{opacity: 0.55})
+                |> Map.update!(:data, fn points ->
+                  Enum.map(points, fn point ->
+                    Map.put(
+                      point,
+                      :url,
+                      ~p"/#{@selected_account.name}/#{@selected_project.name}/builds/build-runs/#{point.id}"
+                    )
+                  end)
+                end)
               end)
-            end)
-          end)
+
+            _ ->
+              []
+          end
         }
         y_axis_min={0}
       />
       <.alert
         :if={
-          @build_duration_chart_type == "scatter" and @builds_scatter_data.ok? and
-            @builds_scatter_data.result.truncated
+          match?({:scatter, %{truncated: true}}, @build_duration_chart.result) and
+            !@build_duration_chart.loading
         }
         status="warning"
         type="secondary"
@@ -555,10 +566,12 @@
             "dashboard_builds",
             "The 10,000 entry limit has been reached, data is only included up to %{date}. Try filtering by scheme, configuration, or other properties to narrow down the dataset.",
             date:
-              if @builds_scatter_data.result.oldest_entry do
-                NaiveDateTime.to_iso8601(@builds_scatter_data.result.oldest_entry)
-              else
-                ""
+              case @build_duration_chart.result do
+                {:scatter, %{oldest_entry: %NaiveDateTime{} = entry}} ->
+                  NaiveDateTime.to_iso8601(entry)
+
+                _ ->
+                  ""
               end
           )
         }

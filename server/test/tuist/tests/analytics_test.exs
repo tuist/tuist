@@ -1559,24 +1559,24 @@ defmodule Tuist.Tests.AnalyticsTest do
       app_series = Enum.find(got.series, &(&1.name == "AppScheme"))
       test_series = Enum.find(got.series, &(&1.name == "TestScheme"))
 
-      assert app_series != nil
-      assert test_series != nil
+      assert app_series
+      assert test_series
 
       [app_point] = app_series.data
       assert [_ts, 1500] = app_point.value
       assert app_point.id == test_run_1.id
 
-      assert Enum.find(app_point.tooltipExtra, &(&1.label == "Scheme")).value == "AppScheme"
-      assert Enum.find(app_point.tooltipExtra, &(&1.label == "Status")).value == "Passed"
-      assert Enum.find(app_point.tooltipExtra, &(&1.label == "Environment")).value == "CI"
+      assert app_point.meta.scheme == "AppScheme"
+      assert app_point.meta.status == "success"
+      assert app_point.meta.is_ci == true
 
       [test_point] = test_series.data
       assert [_ts, 3000] = test_point.value
       assert test_point.id == test_run_2.id
 
-      assert Enum.find(test_point.tooltipExtra, &(&1.label == "Scheme")).value == "TestScheme"
-      assert Enum.find(test_point.tooltipExtra, &(&1.label == "Status")).value == "Failed"
-      assert Enum.find(test_point.tooltipExtra, &(&1.label == "Environment")).value == "Local"
+      assert test_point.meta.scheme == "TestScheme"
+      assert test_point.meta.status == "failure"
+      assert test_point.meta.is_ci == false
     end
 
     test "respects group_by: :environment option" do
@@ -1618,11 +1618,11 @@ defmodule Tuist.Tests.AnalyticsTest do
       # Then
       assert length(got.series) == 2
 
-      ci_series = Enum.find(got.series, &(&1.name == "CI"))
-      local_series = Enum.find(got.series, &(&1.name == "Local"))
+      ci_series = Enum.find(got.series, &(&1.name == true))
+      local_series = Enum.find(got.series, &(&1.name == false))
 
-      assert ci_series != nil
-      assert local_series != nil
+      assert ci_series
+      assert local_series
       assert length(ci_series.data) == 1
       assert length(local_series.data) == 1
     end

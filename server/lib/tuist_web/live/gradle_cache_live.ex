@@ -10,6 +10,7 @@ defmodule TuistWeb.GradleCacheLive do
   import TuistWeb.PercentileDropdownWidget
   import TuistWeb.Runs.RanByBadge
 
+  alias Phoenix.LiveView.AsyncResult
   alias Tuist.Gradle
   alias Tuist.Gradle.Analytics
   alias Tuist.Repo
@@ -86,12 +87,13 @@ defmodule TuistWeb.GradleCacheLive do
   def handle_event("select_cache_hit_rate_chart_type", %{"type" => type}, socket) do
     query = Query.put(socket.assigns.uri.query, "cache-hit-rate-chart-type", type)
     uri = URI.new!("?" <> query)
+    socket = assign(socket, cache_hit_rate_chart_type: type, uri: uri)
+    opts = analytics_opts(socket.assigns)
 
     {:noreply,
      socket
-     |> assign(:cache_hit_rate_chart_type, type)
-     |> assign(:uri, uri)
-     |> push_event("replace-url", %{url: "?" <> query})}
+     |> push_event("replace-url", %{url: "?" <> query})
+     |> assign_cache_hit_rate_chart(type, scatter_group_by_atom(socket.assigns.cache_hit_rate_scatter_group_by), opts)}
   end
 
   def handle_event(
@@ -178,16 +180,7 @@ defmodule TuistWeb.GradleCacheLive do
            )
        }}
     end)
-    |> assign_async(:cache_scatter_data, fn ->
-      data =
-        if cache_hit_rate_chart_type == "scatter" do
-          Analytics.cache_hit_rate_scatter_data(project.id, Keyword.put(opts, :group_by, scatter_group_by_atom))
-        else
-          %{series: [], truncated: false, oldest_entry: nil}
-        end
-
-      {:ok, %{cache_scatter_data: data}}
-    end)
+    |> assign_cache_hit_rate_chart(cache_hit_rate_chart_type, scatter_group_by_atom, opts)
     |> assign_async(:hit_rate_p99, fn ->
       {:ok, %{hit_rate_p99: Analytics.cache_hit_rate_percentile(project.id, 0.99, opts)}}
     end)
@@ -229,6 +222,37 @@ defmodule TuistWeb.GradleCacheLive do
   defp environment_label("any"), do: dgettext("dashboard_gradle", "Any")
   defp environment_label("local"), do: dgettext("dashboard_gradle", "Local")
   defp environment_label("ci"), do: dgettext("dashboard_gradle", "CI")
+  defp environment_label(true), do: dgettext("dashboard_gradle", "CI")
+  defp environment_label(false), do: dgettext("dashboard_gradle", "Local")
+
+  defp localize_scatter(scatter_data, group_by) do
+    Map.update!(scatter_data, :series, fn series ->
+      Enum.map(series, fn s ->
+        %{
+          name: scatter_name_label(s.name, group_by),
+          data:
+            Enum.map(s.data, fn point ->
+              point
+              |> Map.take([:value, :id])
+              |> Map.put(:tooltipExtra, tooltip_extra(point.meta))
+            end)
+        }
+      end)
+    end)
+  end
+
+  defp scatter_name_label(value, :project), do: project_label(value)
+  defp scatter_name_label(value, _), do: environment_label(value)
+
+  defp tooltip_extra(meta) do
+    [
+      %{label: dgettext("dashboard_gradle", "Project"), value: project_label(meta.root_project_name)},
+      %{label: dgettext("dashboard_gradle", "Environment"), value: environment_label(meta.is_ci)}
+    ]
+  end
+
+  defp project_label(value) when value in ["", nil], do: dgettext("dashboard_gradle", "Unknown")
+  defp project_label(value), do: value
 
   defp analytics_trend_label("last-24-hours"), do: dgettext("dashboard_gradle", "since yesterday")
   defp analytics_trend_label("last-7-days"), do: dgettext("dashboard_gradle", "since last week")
@@ -270,4 +294,38 @@ defmodule TuistWeb.GradleCacheLive do
     |> assign(:recent_builds_chart_data, recent_builds_chart_data)
     |> assign(:avg_recent_hit_rate, avg_recent_hit_rate)
   end
+
+  defp assign_cache_hit_rate_chart(socket, "scatter", group_by, opts) do
+    project_id = socket.assigns.selected_project.id
+
+    assign_async(socket, :cache_hit_rate_chart, fn ->
+      data =
+        project_id
+        |> Analytics.cache_hit_rate_scatter_data(Keyword.put(opts, :group_by, group_by))
+        |> localize_scatter(group_by)
+
+      {:ok, %{cache_hit_rate_chart: {:scatter, data}}}
+    end)
+  end
+
+  defp assign_cache_hit_rate_chart(socket, _line, _group_by, _opts) do
+    assign(socket, :cache_hit_rate_chart, AsyncResult.ok(:line))
+  end
+
+  defp analytics_opts(%{
+         selected_project: project,
+         analytics_period: {start_datetime, end_datetime},
+         analytics_environment: env
+       }) do
+    opts = [project_id: project.id, start_datetime: start_datetime, end_datetime: end_datetime]
+
+    case env do
+      "ci" -> Keyword.put(opts, :is_ci, true)
+      "local" -> Keyword.put(opts, :is_ci, false)
+      _ -> opts
+    end
+  end
+
+  defp scatter_group_by_atom("project"), do: :project
+  defp scatter_group_by_atom(_), do: :environment
 end

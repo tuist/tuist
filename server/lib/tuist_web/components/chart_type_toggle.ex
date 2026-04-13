@@ -7,7 +7,7 @@ defmodule TuistWeb.Components.ChartTypeToggle do
   alias TuistWeb.Utilities.Query
 
   attr(:id, :string, required: true, doc: "Unique ID prefix for the component elements.")
-  attr(:chart_type, :string, required: true, doc: "Current chart type: \"line\" or \"scatter\".")
+  attr(:chart_type, :string, required: true, doc: ~s(Current chart type: "line" or "scatter".))
   attr(:chart_type_event, :string, required: true, doc: "Event name for toggling the chart type.")
 
   attr(:group_by_options, :list,

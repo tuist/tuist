@@ -264,8 +264,20 @@
         group_by_query_param="duration-scatter-group-by"
         uri={@uri}
       />
+      <div
+        :if={
+          @analytics_selected_widget == "test_run_duration" and
+            (@test_run_duration_chart.loading || !@test_run_duration_chart.ok?)
+        }
+        data-part="analytics-chart"
+      >
+        <.skeleton_chart />
+      </div>
       <.chart
-        :if={@analytics_selected_widget == "test_run_duration" and @duration_chart_type == "line"}
+        :if={
+          @analytics_selected_widget == "test_run_duration" and @test_run_duration_chart.ok? and
+            !@test_run_duration_chart.loading and @test_run_duration_chart.result == :line
+        }
         id="test-run-duration-chart"
         type="line"
         extra_options={
@@ -381,19 +393,11 @@
         ]}
         y_axis_min={0}
       />
-      <div
-        :if={
-          @analytics_selected_widget == "test_run_duration" and @duration_chart_type == "scatter" and
-            !@test_run_scatter_data.ok?
-        }
-        data-part="analytics-chart"
-      >
-        <.skeleton_chart />
-      </div>
       <.chart
         :if={
-          @analytics_selected_widget == "test_run_duration" and @duration_chart_type == "scatter" and
-            @test_run_scatter_data.ok?
+          @analytics_selected_widget == "test_run_duration" and
+            match?({:scatter, _}, @test_run_duration_chart.result) and
+            !@test_run_duration_chart.loading
         }
         id="test-run-duration-scatter-chart"
         type="scatter"
@@ -440,26 +444,33 @@
           }
         }
         series={
-          Enum.map(@test_run_scatter_data.result.series, fn series_item ->
-            series_item
-            |> Map.put(:itemStyle, %{opacity: 0.55})
-            |> Map.update!(:data, fn data ->
-              Enum.map(data, fn point ->
-                Map.put(
-                  point,
-                  :url,
-                  ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-runs/#{point.id}"
-                )
+          case @test_run_duration_chart.result do
+            {:scatter, data} ->
+              Enum.map(data.series, fn series_item ->
+                series_item
+                |> Map.put(:itemStyle, %{opacity: 0.55})
+                |> Map.update!(:data, fn points ->
+                  Enum.map(points, fn point ->
+                    Map.put(
+                      point,
+                      :url,
+                      ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-runs/#{point.id}"
+                    )
+                  end)
+                end)
               end)
-            end)
-          end)
+
+            _ ->
+              []
+          end
         }
         y_axis_min={0}
       />
       <.alert
         :if={
-          @analytics_selected_widget == "test_run_duration" and @duration_chart_type == "scatter" and
-            @test_run_scatter_data.ok? and @test_run_scatter_data.result.truncated
+          @analytics_selected_widget == "test_run_duration" and
+            match?({:scatter, %{truncated: true}}, @test_run_duration_chart.result) and
+            !@test_run_duration_chart.loading
         }
         status="warning"
         type="secondary"
@@ -470,10 +481,12 @@
             "dashboard_tests",
             "The 10,000 entry limit has been reached, data is only included up to %{date}. Try filtering by scheme or other properties to narrow down the dataset.",
             date:
-              if @test_run_scatter_data.result.oldest_entry do
-                NaiveDateTime.to_iso8601(@test_run_scatter_data.result.oldest_entry)
-              else
-                ""
+              case @test_run_duration_chart.result do
+                {:scatter, %{oldest_entry: %NaiveDateTime{} = entry}} ->
+                  NaiveDateTime.to_iso8601(entry)
+
+                _ ->
+                  ""
               end
           )
         }
@@ -812,8 +825,17 @@
           uri={@uri}
         />
       </div>
+      <div
+        :if={@selective_testing_chart.loading || !@selective_testing_chart.ok?}
+        data-part="analytics-chart"
+      >
+        <.skeleton_chart />
+      </div>
       <.chart
-        :if={@selective_testing_chart_type == "line"}
+        :if={
+          @selective_testing_chart.ok? and !@selective_testing_chart.loading and
+            @selective_testing_chart.result == :line
+        }
         id="selective-testing-effectiveness-chart"
         type="line"
         extra_options={
@@ -939,14 +961,11 @@
         y_axis_min={0}
         y_axis_max={100}
       />
-      <div
-        :if={@selective_testing_chart_type == "scatter" and !@selective_testing_scatter_data.ok?}
-        data-part="analytics-chart"
-      >
-        <.skeleton_chart />
-      </div>
       <.chart
-        :if={@selective_testing_chart_type == "scatter" and @selective_testing_scatter_data.ok?}
+        :if={
+          match?({:scatter, _}, @selective_testing_chart.result) and
+            !@selective_testing_chart.loading
+        }
         id="selective-testing-scatter-chart"
         type="scatter"
         extra_options={
@@ -990,17 +1009,18 @@
           }
         }
         series={
-          Enum.map(@selective_testing_scatter_data.result.series, fn series_item ->
-            Map.put(series_item, :itemStyle, %{opacity: 0.55})
-          end)
+          case @selective_testing_chart.result do
+            {:scatter, data} -> Enum.map(data.series, &Map.put(&1, :itemStyle, %{opacity: 0.55}))
+            _ -> []
+          end
         }
         y_axis_min={0}
         y_axis_max={100}
       />
       <.alert
         :if={
-          @selective_testing_chart_type == "scatter" and @selective_testing_scatter_data.ok? and
-            @selective_testing_scatter_data.result.truncated
+          match?({:scatter, %{truncated: true}}, @selective_testing_chart.result) and
+            !@selective_testing_chart.loading
         }
         status="warning"
         type="secondary"
@@ -1011,10 +1031,12 @@
             "dashboard_tests",
             "The 10,000 entry limit has been reached, data is only included up to %{date}. Try filtering to narrow down the dataset.",
             date:
-              if @selective_testing_scatter_data.result.oldest_entry do
-                NaiveDateTime.to_iso8601(@selective_testing_scatter_data.result.oldest_entry)
-              else
-                ""
+              case @selective_testing_chart.result do
+                {:scatter, %{oldest_entry: %NaiveDateTime{} = entry}} ->
+                  NaiveDateTime.to_iso8601(entry)
+
+                _ ->
+                  ""
               end
           )
         }

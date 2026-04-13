@@ -291,8 +291,17 @@
         group_by_query_param="cache-hit-rate-scatter-group-by"
         uri={@uri}
       />
+      <div
+        :if={@cache_hit_rate_chart.loading || !@cache_hit_rate_chart.ok?}
+        data-part="analytics-chart"
+      >
+        <.skeleton_chart />
+      </div>
       <.chart
-        :if={@cache_hit_rate_chart_type == "line"}
+        :if={
+          @cache_hit_rate_chart.ok? and !@cache_hit_rate_chart.loading and
+            @cache_hit_rate_chart.result == :line
+        }
         id="gradle-cache-hit-rate-chart"
         type="line"
         extra_options={
@@ -409,14 +418,10 @@
         y_axis_min={0}
         y_axis_max={100}
       />
-      <div
-        :if={@cache_hit_rate_chart_type == "scatter" and !@cache_scatter_data.ok?}
-        data-part="analytics-chart"
-      >
-        <.skeleton_chart />
-      </div>
       <.chart
-        :if={@cache_hit_rate_chart_type == "scatter" and @cache_scatter_data.ok?}
+        :if={
+          match?({:scatter, _}, @cache_hit_rate_chart.result) and !@cache_hit_rate_chart.loading
+        }
         id="gradle-cache-hit-rate-scatter-chart"
         type="scatter"
         extra_options={
@@ -459,17 +464,18 @@
           }
         }
         series={
-          Enum.map(@cache_scatter_data.result.series, fn series_item ->
-            Map.put(series_item, :itemStyle, %{opacity: 0.55})
-          end)
+          case @cache_hit_rate_chart.result do
+            {:scatter, data} -> Enum.map(data.series, &Map.put(&1, :itemStyle, %{opacity: 0.55}))
+            _ -> []
+          end
         }
         y_axis_min={0}
         y_axis_max={100}
       />
       <.alert
         :if={
-          @cache_hit_rate_chart_type == "scatter" and @cache_scatter_data.ok? and
-            @cache_scatter_data.result.truncated
+          match?({:scatter, %{truncated: true}}, @cache_hit_rate_chart.result) and
+            !@cache_hit_rate_chart.loading
         }
         status="warning"
         type="secondary"
@@ -480,10 +486,12 @@
             "dashboard_gradle",
             "The 10,000 entry limit has been reached, data is only included up to %{date}. Try filtering to narrow down the dataset.",
             date:
-              if @cache_scatter_data.result.oldest_entry do
-                NaiveDateTime.to_iso8601(@cache_scatter_data.result.oldest_entry)
-              else
-                ""
+              case @cache_hit_rate_chart.result do
+                {:scatter, %{oldest_entry: %NaiveDateTime{} = entry}} ->
+                  NaiveDateTime.to_iso8601(entry)
+
+                _ ->
+                  ""
               end
           )
         }

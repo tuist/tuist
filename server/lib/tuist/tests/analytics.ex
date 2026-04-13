@@ -210,7 +210,8 @@ defmodule Tuist.Tests.Analytics do
             duration: t.duration,
             scheme: t.scheme,
             status: t.status,
-            is_ci: t.is_ci
+            is_ci: t.is_ci,
+            is_flaky: t.is_flaky
           }
         ),
         opts
@@ -233,14 +234,8 @@ defmodule Tuist.Tests.Analytics do
         end
       end)
       |> Enum.map(fn {group_key, runs} ->
-        name =
-          case group_by do
-            :environment -> if(group_key, do: "CI", else: "Local")
-            _ -> if(group_key == "", do: "Unknown", else: group_key)
-          end
-
         %{
-          name: name,
+          name: group_key,
           data:
             Enum.map(runs, fn run ->
               ts = NaiveDateTime.diff(run.ran_at, ~N[1970-01-01 00:00:00], :millisecond)
@@ -248,11 +243,12 @@ defmodule Tuist.Tests.Analytics do
               %{
                 value: [ts, run.duration],
                 id: run.id,
-                tooltipExtra: [
-                  %{label: "Scheme", value: if(run.scheme == "", do: "Unknown", else: run.scheme)},
-                  %{label: "Status", value: format_test_status(run.status)},
-                  %{label: "Environment", value: if(run.is_ci, do: "CI", else: "Local")}
-                ]
+                meta: %{
+                  scheme: run.scheme,
+                  status: run.status,
+                  is_ci: run.is_ci,
+                  is_flaky: run.is_flaky
+                }
               }
             end)
         }
@@ -1303,8 +1299,4 @@ defmodule Tuist.Tests.Analytics do
   defp get_clickhouse_date_format("1 day"), do: "%Y-%m-%d"
   defp get_clickhouse_date_format("1 month"), do: "%Y-%m"
   defp get_clickhouse_date_format(_), do: "%Y-%m-%d"
-
-  defp format_test_status("success"), do: "Passed"
-  defp format_test_status("failure"), do: "Failed"
-  defp format_test_status(status), do: String.capitalize(status)
 end

@@ -207,19 +207,19 @@ defmodule Tuist.Gradle.AnalyticsTest do
       assert got.oldest_entry == nil
       assert length(got.series) == 2
 
-      ci_series = Enum.find(got.series, &(&1.name == "CI"))
-      local_series = Enum.find(got.series, &(&1.name == "Local"))
+      ci_series = Enum.find(got.series, &(&1.name == true))
+      local_series = Enum.find(got.series, &(&1.name == false))
 
-      assert ci_series != nil
-      assert local_series != nil
+      assert ci_series
+      assert local_series
 
       [ci_point] = ci_series.data
       assert [_ts, hit_rate] = ci_point.value
       assert Decimal.equal?(hit_rate, Decimal.new("50.0"))
       assert ci_point.id == ci_build_id
 
-      assert Enum.find(ci_point.tooltipExtra, &(&1.label == "Project")).value == "my-app"
-      assert Enum.find(ci_point.tooltipExtra, &(&1.label == "Environment")).value == "CI"
+      assert ci_point.meta.root_project_name == "my-app"
+      assert ci_point.meta.is_ci == true
 
       [local_point] = local_series.data
       assert [_ts, local_hit_rate] = local_point.value
@@ -261,8 +261,8 @@ defmodule Tuist.Gradle.AnalyticsTest do
       app_one_series = Enum.find(got.series, &(&1.name == "app-one"))
       app_two_series = Enum.find(got.series, &(&1.name == "app-two"))
 
-      assert app_one_series != nil
-      assert app_two_series != nil
+      assert app_one_series
+      assert app_two_series
     end
 
     test "returns empty series when no builds exist" do

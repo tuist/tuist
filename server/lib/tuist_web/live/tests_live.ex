@@ -10,6 +10,7 @@ defmodule TuistWeb.TestsLive do
   import TuistWeb.PercentileDropdownWidget
   import TuistWeb.Runs.RanByBadge
 
+  alias Phoenix.LiveView.AsyncResult
   alias Tuist.Builds.Analytics, as: BuildsAnalytics
   alias Tuist.Tests
   alias Tuist.Tests.Analytics
@@ -131,23 +132,26 @@ defmodule TuistWeb.TestsLive do
   def handle_event("select_duration_chart_type", %{"type" => type}, socket) do
     query = Query.put(socket.assigns.uri.query, "duration-chart-type", type)
     uri = URI.new!("?" <> query)
+    socket = assign(socket, duration_chart_type: type, uri: uri)
+    opts = duration_opts(socket.assigns)
+    group_by = duration_scatter_group_by_atom(socket.assigns.duration_scatter_group_by)
 
     {:noreply,
      socket
-     |> assign(:duration_chart_type, type)
-     |> assign(:uri, uri)
-     |> push_event("replace-url", %{url: "?" <> query})}
+     |> push_event("replace-url", %{url: "?" <> query})
+     |> assign_test_run_duration_chart(type, group_by, opts)}
   end
 
   def handle_event("select_selective_testing_chart_type", %{"type" => type}, socket) do
     query = Query.put(socket.assigns.uri.query, "selective-testing-chart-type", type)
     uri = URI.new!("?" <> query)
+    socket = assign(socket, selective_testing_chart_type: type, uri: uri)
+    opts = selective_testing_opts(socket.assigns)
 
     {:noreply,
      socket
-     |> assign(:selective_testing_chart_type, type)
-     |> assign(:uri, uri)
-     |> push_event("replace-url", %{url: "?" <> query})}
+     |> push_event("replace-url", %{url: "?" <> query})
+     |> assign_selective_testing_chart(type, opts)}
   end
 
   def handle_event("select_selective_testing_duration_type", %{"type" => type}, socket) do
@@ -256,16 +260,7 @@ defmodule TuistWeb.TestsLive do
     |> assign(:selected_duration_type, selected_duration_type)
     |> assign(:duration_chart_type, duration_chart_type)
     |> assign(:duration_scatter_group_by, duration_scatter_group_by)
-    |> assign_async(:test_run_scatter_data, fn ->
-      data =
-        if duration_chart_type == "scatter" do
-          Analytics.test_run_duration_scatter_data(project.id, Keyword.put(opts, :group_by, scatter_group_by_atom))
-        else
-          %{series: [], truncated: false, oldest_entry: nil}
-        end
-
-      {:ok, %{test_run_scatter_data: data}}
-    end)
+    |> assign_test_run_duration_chart(duration_chart_type, scatter_group_by_atom, opts)
     |> assign_async(
       [
         :test_runs_analytics,
@@ -333,16 +328,7 @@ defmodule TuistWeb.TestsLive do
     |> assign_async(:selective_testing_analytics, fn ->
       {:ok, %{selective_testing_analytics: BuildsAnalytics.selective_testing_analytics_with_percentiles(opts)}}
     end)
-    |> assign_async(:selective_testing_scatter_data, fn ->
-      data =
-        if selective_testing_chart_type == "scatter" do
-          BuildsAnalytics.selective_testing_scatter_data(opts)
-        else
-          %{series: [], truncated: false, oldest_entry: nil}
-        end
-
-      {:ok, %{selective_testing_scatter_data: data}}
-    end)
+    |> assign_selective_testing_chart(selective_testing_chart_type, opts)
   end
 
   defp assign_recent_test_runs(%{assigns: %{selected_project: project}} = socket) do
@@ -467,10 +453,130 @@ defmodule TuistWeb.TestsLive do
   defp environment_label("any"), do: dgettext("dashboard_tests", "Any")
   defp environment_label("local"), do: dgettext("dashboard_tests", "Local")
   defp environment_label("ci"), do: dgettext("dashboard_tests", "CI")
+  defp environment_label(true), do: dgettext("dashboard_tests", "CI")
+  defp environment_label(false), do: dgettext("dashboard_tests", "Local")
 
   defp opts_with_analytics_test_scheme(opts, "any"), do: opts
   defp opts_with_analytics_test_scheme(opts, scheme), do: Keyword.put(opts, :scheme, scheme)
 
   def test_scheme_label("any"), do: dgettext("dashboard_tests", "Any")
   def test_scheme_label(scheme), do: scheme
+
+  defp localize_test_run_scatter(scatter_data, group_by) do
+    Map.update!(scatter_data, :series, fn series ->
+      Enum.map(series, fn s ->
+        %{
+          name: scatter_name_label(s.name, group_by),
+          data:
+            Enum.map(s.data, fn point ->
+              point
+              |> Map.take([:value, :id])
+              |> Map.put(:tooltipExtra, test_run_tooltip_extra(point.meta))
+            end)
+        }
+      end)
+    end)
+  end
+
+  defp localize_selective_testing_scatter(scatter_data) do
+    Map.update!(scatter_data, :series, fn series ->
+      Enum.map(series, fn s ->
+        %{
+          name: environment_label(s.name),
+          data:
+            Enum.map(s.data, fn point ->
+              point
+              |> Map.take([:value, :id])
+              |> Map.put(:tooltipExtra, selective_testing_tooltip_extra(point.meta))
+            end)
+        }
+      end)
+    end)
+  end
+
+  defp scatter_name_label(value, :environment), do: environment_label(value)
+  defp scatter_name_label(value, _), do: scheme_value_label(value)
+
+  defp test_run_tooltip_extra(meta) do
+    [
+      %{label: dgettext("dashboard_tests", "Scheme"), value: scheme_value_label(meta.scheme)},
+      %{label: dgettext("dashboard_tests", "Status"), value: test_status_label(meta.status, meta.is_flaky)},
+      %{label: dgettext("dashboard_tests", "Environment"), value: environment_label(meta.is_ci)}
+    ]
+  end
+
+  defp selective_testing_tooltip_extra(meta) do
+    [
+      %{label: dgettext("dashboard_tests", "Environment"), value: environment_label(meta.is_ci)}
+    ]
+  end
+
+  defp scheme_value_label(value) when value in ["", nil], do: dgettext("dashboard_tests", "Unknown")
+  defp scheme_value_label(value), do: value
+
+  defp test_status_label("success", true), do: dgettext("dashboard_tests", "Passed (flaky)")
+  defp test_status_label("success", _), do: dgettext("dashboard_tests", "Passed")
+  defp test_status_label("failure", _), do: dgettext("dashboard_tests", "Failed")
+  defp test_status_label(status, _), do: String.capitalize(status)
+
+  defp assign_test_run_duration_chart(socket, "scatter", group_by, opts) do
+    project_id = socket.assigns.selected_project.id
+
+    assign_async(socket, :test_run_duration_chart, fn ->
+      data =
+        project_id
+        |> Analytics.test_run_duration_scatter_data(Keyword.put(opts, :group_by, group_by))
+        |> localize_test_run_scatter(group_by)
+
+      {:ok, %{test_run_duration_chart: {:scatter, data}}}
+    end)
+  end
+
+  defp assign_test_run_duration_chart(socket, _line, _group_by, _opts) do
+    assign(socket, :test_run_duration_chart, AsyncResult.ok(:line))
+  end
+
+  defp assign_selective_testing_chart(socket, "scatter", opts) do
+    assign_async(socket, :selective_testing_chart, fn ->
+      data = opts |> BuildsAnalytics.selective_testing_scatter_data() |> localize_selective_testing_scatter()
+      {:ok, %{selective_testing_chart: {:scatter, data}}}
+    end)
+  end
+
+  defp assign_selective_testing_chart(socket, _line, _opts) do
+    assign(socket, :selective_testing_chart, AsyncResult.ok(:line))
+  end
+
+  defp duration_opts(%{
+         analytics_period: {start_datetime, end_datetime},
+         analytics_environment: env,
+         analytics_test_scheme: scheme
+       }) do
+    [start_datetime: start_datetime, end_datetime: end_datetime]
+    |> then(fn opts ->
+      case env do
+        "ci" -> Keyword.put(opts, :is_ci, true)
+        "local" -> Keyword.put(opts, :is_ci, false)
+        _ -> opts
+      end
+    end)
+    |> opts_with_analytics_test_scheme(scheme)
+  end
+
+  defp selective_testing_opts(%{
+         selected_project: project,
+         selective_testing_period: {start_datetime, end_datetime},
+         selective_testing_environment: env
+       }) do
+    opts = [project_id: project.id, start_datetime: start_datetime, end_datetime: end_datetime]
+
+    case env do
+      "ci" -> Keyword.put(opts, :is_ci, true)
+      "local" -> Keyword.put(opts, :is_ci, false)
+      _ -> opts
+    end
+  end
+
+  defp duration_scatter_group_by_atom("environment"), do: :environment
+  defp duration_scatter_group_by_atom(_), do: :scheme
 end

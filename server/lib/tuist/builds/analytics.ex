@@ -175,15 +175,8 @@ defmodule Tuist.Builds.Analytics do
         end
       end)
       |> Enum.map(fn {group_key, builds} ->
-        name =
-          case group_by do
-            :environment -> if(group_key, do: "CI", else: "Local")
-            :category -> if(group_key == "", do: "Unknown", else: String.capitalize(group_key))
-            _ -> if(group_key == "", do: "Unknown", else: group_key)
-          end
-
         %{
-          name: name,
+          name: group_key,
           data:
             Enum.map(builds, fn build ->
               ts = NaiveDateTime.diff(build.inserted_at, ~N[1970-01-01 00:00:00], :millisecond)
@@ -191,15 +184,12 @@ defmodule Tuist.Builds.Analytics do
               %{
                 value: [ts, to_rounded_decimal(build.duration / 1000)],
                 id: build.id,
-                tooltipExtra: [
-                  %{label: "Scheme", value: if(build.scheme == "", do: "Unknown", else: build.scheme)},
-                  %{label: "Status", value: format_status(build.status)},
-                  %{label: "Environment", value: if(build.is_ci, do: "CI", else: "Local")},
-                  %{
-                    label: "Category",
-                    value: if(build.category == "", do: "Unknown", else: String.capitalize(build.category))
-                  }
-                ]
+                meta: %{
+                  scheme: build.scheme,
+                  status: build.status,
+                  is_ci: build.is_ci,
+                  category: build.category
+                }
               }
             end)
         }
@@ -712,18 +702,16 @@ defmodule Tuist.Builds.Analytics do
     series =
       results
       |> Enum.group_by(& &1.is_ci)
-      |> Enum.map(fn {is_ci_val, events} ->
+      |> Enum.map(fn {is_ci, events} ->
         %{
-          name: if(is_ci_val, do: "CI", else: "Local"),
+          name: is_ci,
           data:
             Enum.map(events, fn %{ran_at: ran_at, hit_rate: hit_rate} ->
               ts = NaiveDateTime.diff(ran_at, ~N[1970-01-01 00:00:00], :millisecond)
 
               %{
                 value: [ts, to_rounded_decimal(hit_rate)],
-                tooltipExtra: [
-                  %{label: "Environment", value: if(is_ci_val, do: "CI", else: "Local")}
-                ]
+                meta: %{is_ci: is_ci}
               }
             end)
         }
@@ -1181,14 +1169,8 @@ defmodule Tuist.Builds.Analytics do
         end
       end)
       |> Enum.map(fn {group_key, builds} ->
-        name =
-          case group_by do
-            :environment -> if(group_key, do: "CI", else: "Local")
-            _ -> if(group_key == "", do: "Unknown", else: group_key)
-          end
-
         %{
-          name: name,
+          name: group_key,
           data:
             Enum.map(builds, fn build ->
               ts = NaiveDateTime.diff(build.inserted_at, ~N[1970-01-01 00:00:00], :millisecond)
@@ -1196,11 +1178,11 @@ defmodule Tuist.Builds.Analytics do
               %{
                 value: [ts, to_rounded_decimal(build.hit_rate)],
                 id: build.id,
-                tooltipExtra: [
-                  %{label: "Scheme", value: if(build.scheme == "", do: "Unknown", else: build.scheme)},
-                  %{label: "Status", value: format_status(build.status)},
-                  %{label: "Environment", value: if(build.is_ci, do: "CI", else: "Local")}
-                ]
+                meta: %{
+                  scheme: build.scheme,
+                  status: build.status,
+                  is_ci: build.is_ci
+                }
               }
             end)
         }
@@ -1619,18 +1601,16 @@ defmodule Tuist.Builds.Analytics do
     series =
       results
       |> Enum.group_by(& &1.is_ci)
-      |> Enum.map(fn {is_ci_val, events} ->
+      |> Enum.map(fn {is_ci, events} ->
         %{
-          name: if(is_ci_val, do: "CI", else: "Local"),
+          name: is_ci,
           data:
             Enum.map(events, fn %{ran_at: ran_at, hit_rate: hit_rate} ->
               ts = NaiveDateTime.diff(ran_at, ~N[1970-01-01 00:00:00], :millisecond)
 
               %{
                 value: [ts, to_rounded_decimal(hit_rate)],
-                tooltipExtra: [
-                  %{label: "Environment", value: if(is_ci_val, do: "CI", else: "Local")}
-                ]
+                meta: %{is_ci: is_ci}
               }
             end)
         }
@@ -2249,10 +2229,6 @@ defmodule Tuist.Builds.Analytics do
   defp normalize_string_filter(value) when is_atom(value), do: Atom.to_string(value)
   defp normalize_string_filter(value) when is_binary(value), do: value
   defp normalize_string_filter(_), do: nil
-
-  defp format_status("success"), do: "Passed"
-  defp format_status("failure"), do: "Failed"
-  defp format_status(status), do: String.capitalize(status)
 
   defp to_rounded_decimal(value, places \\ 1)
   defp to_rounded_decimal(nil, _places), do: Decimal.new(0)

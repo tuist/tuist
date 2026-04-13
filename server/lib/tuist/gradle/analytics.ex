@@ -105,14 +105,8 @@ defmodule Tuist.Gradle.Analytics do
         end
       end)
       |> Enum.map(fn {group_key, builds} ->
-        name =
-          case group_by do
-            :project -> if(group_key == "", do: "Unknown", else: group_key)
-            _ -> if(group_key, do: "CI", else: "Local")
-          end
-
         %{
-          name: name,
+          name: group_key,
           data:
             Enum.map(builds, fn build ->
               ts = NaiveDateTime.diff(build.inserted_at, ~N[1970-01-01 00:00:00], :millisecond)
@@ -120,13 +114,10 @@ defmodule Tuist.Gradle.Analytics do
               %{
                 value: [ts, to_rounded_decimal(build.hit_rate)],
                 id: build.id,
-                tooltipExtra: [
-                  %{
-                    label: "Project",
-                    value: if(build.root_project_name == "", do: "Unknown", else: build.root_project_name)
-                  },
-                  %{label: "Environment", value: if(build.is_ci, do: "CI", else: "Local")}
-                ]
+                meta: %{
+                  root_project_name: build.root_project_name,
+                  is_ci: build.is_ci
+                }
               }
             end)
         }

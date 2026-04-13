@@ -261,7 +261,19 @@
         group_by_query_param="cache-hit-rate-scatter-group-by"
         uri={@uri}
       />
-      <div :if={@cache_hit_rate_chart_type == "line"} data-part="analytics-chart">
+      <div
+        :if={@cache_hit_rate_chart.loading || !@cache_hit_rate_chart.ok?}
+        data-part="analytics-chart"
+      >
+        <.skeleton_chart />
+      </div>
+      <div
+        :if={
+          @cache_hit_rate_chart.ok? and !@cache_hit_rate_chart.loading and
+            @cache_hit_rate_chart.result == :line
+        }
+        data-part="analytics-chart"
+      >
         <.chart
           id="xcode-cache-hit-rate-chart"
           type="line"
@@ -380,14 +392,10 @@
           y_axis_max={100}
         />
       </div>
-      <div
-        :if={@cache_hit_rate_chart_type == "scatter" and !@cache_scatter_data.ok?}
-        data-part="analytics-chart"
-      >
-        <.skeleton_chart />
-      </div>
       <.chart
-        :if={@cache_hit_rate_chart_type == "scatter" and @cache_scatter_data.ok?}
+        :if={
+          match?({:scatter, _}, @cache_hit_rate_chart.result) and !@cache_hit_rate_chart.loading
+        }
         id="cache-hit-rate-scatter-chart"
         type="scatter"
         extra_options={
@@ -433,27 +441,33 @@
           }
         }
         series={
-          Enum.map(@cache_scatter_data.result.series, fn series_item ->
-            series_item
-            |> Map.put(:itemStyle, %{opacity: 0.55})
-            |> Map.update!(:data, fn data ->
-              Enum.map(data, fn point ->
-                Map.put(
-                  point,
-                  :url,
-                  ~p"/#{@selected_account.name}/#{@selected_project.name}/builds/build-runs/#{point.id}"
-                )
+          case @cache_hit_rate_chart.result do
+            {:scatter, data} ->
+              Enum.map(data.series, fn series_item ->
+                series_item
+                |> Map.put(:itemStyle, %{opacity: 0.55})
+                |> Map.update!(:data, fn points ->
+                  Enum.map(points, fn point ->
+                    Map.put(
+                      point,
+                      :url,
+                      ~p"/#{@selected_account.name}/#{@selected_project.name}/builds/build-runs/#{point.id}"
+                    )
+                  end)
+                end)
               end)
-            end)
-          end)
+
+            _ ->
+              []
+          end
         }
         y_axis_min={0}
         y_axis_max={100}
       />
       <.alert
         :if={
-          @cache_hit_rate_chart_type == "scatter" and @cache_scatter_data.ok? and
-            @cache_scatter_data.result.truncated
+          match?({:scatter, %{truncated: true}}, @cache_hit_rate_chart.result) and
+            !@cache_hit_rate_chart.loading
         }
         status="warning"
         type="secondary"
@@ -464,10 +478,12 @@
             "dashboard_cache",
             "The 10,000 entry limit has been reached, data is only included up to %{date}. Try narrowing the date range to see more recent data.",
             date:
-              if @cache_scatter_data.result.oldest_entry do
-                NaiveDateTime.to_iso8601(@cache_scatter_data.result.oldest_entry)
-              else
-                ""
+              case @cache_hit_rate_chart.result do
+                {:scatter, %{oldest_entry: %NaiveDateTime{} = entry}} ->
+                  NaiveDateTime.to_iso8601(entry)
+
+                _ ->
+                  ""
               end
           )
         }

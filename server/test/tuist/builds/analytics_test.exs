@@ -2362,16 +2362,16 @@ defmodule Tuist.Builds.AnalyticsTest do
       assert data_point.id == build_id_1
       assert [_ts, duration] = data_point.value
       assert duration == Decimal.new("3.0")
-      assert Enum.any?(data_point.tooltipExtra, &(&1.label == "Scheme" and &1.value == "App"))
-      assert Enum.any?(data_point.tooltipExtra, &(&1.label == "Status" and &1.value == "Passed"))
+      assert data_point.meta.scheme == "App"
+      assert data_point.meta.status == "success"
 
       assert tests_series.name == "Tests"
       assert [data_point_2] = tests_series.data
       assert data_point_2.id == build_id_2
       assert [_ts2, duration_2] = data_point_2.value
       assert duration_2 == Decimal.new("1.5")
-      assert Enum.any?(data_point_2.tooltipExtra, &(&1.label == "Status" and &1.value == "Failed"))
-      assert Enum.any?(data_point_2.tooltipExtra, &(&1.label == "Environment" and &1.value == "CI"))
+      assert data_point_2.meta.status == "failure"
+      assert data_point_2.meta.is_ci == true
     end
 
     test "groups by environment when group_by: :environment is set" do
@@ -2404,7 +2404,7 @@ defmodule Tuist.Builds.AnalyticsTest do
         )
 
       series_names = got.series |> Enum.map(& &1.name) |> Enum.sort()
-      assert series_names == ["CI", "Local"]
+      assert series_names == [false, true]
     end
 
     test "groups by category when group_by: :category is set" do
@@ -2435,7 +2435,7 @@ defmodule Tuist.Builds.AnalyticsTest do
         )
 
       series_names = got.series |> Enum.map(& &1.name) |> Enum.sort()
-      assert series_names == ["Clean", "Incremental"]
+      assert series_names == ["clean", "incremental"]
     end
 
     test "applies scheme filter" do
@@ -2503,8 +2503,8 @@ defmodule Tuist.Builds.AnalyticsTest do
       assert data_point.id == build_id
       assert [_ts, hit_rate] = data_point.value
       assert hit_rate == Decimal.new("80.0")
-      assert Enum.any?(data_point.tooltipExtra, &(&1.label == "Scheme" and &1.value == "App"))
-      assert Enum.any?(data_point.tooltipExtra, &(&1.label == "Environment" and &1.value == "CI"))
+      assert data_point.meta.scheme == "App"
+      assert data_point.meta.is_ci == true
     end
 
     test "only includes builds with cacheable_tasks_count > 0" do
@@ -2577,7 +2577,7 @@ defmodule Tuist.Builds.AnalyticsTest do
         )
 
       series_names = got.series |> Enum.map(& &1.name) |> Enum.sort()
-      assert series_names == ["CI", "Local"]
+      assert series_names == [false, true]
     end
   end
 
@@ -2615,14 +2615,14 @@ defmodule Tuist.Builds.AnalyticsTest do
 
       assert got.truncated == false
       series = Enum.sort_by(got.series, & &1.name)
-      assert [ci_series, local_series] = series
-      assert ci_series.name == "CI"
-      assert local_series.name == "Local"
+      assert [local_series, ci_series] = series
+      assert ci_series.name == true
+      assert local_series.name == false
 
       assert [ci_point] = ci_series.data
       assert [_ts, ci_hit_rate] = ci_point.value
       assert ci_hit_rate == Decimal.new("100.0")
-      assert Enum.any?(ci_point.tooltipExtra, &(&1.label == "Environment" and &1.value == "CI"))
+      assert ci_point.meta.is_ci == true
 
       assert [local_point] = local_series.data
       assert [_ts2, local_hit_rate] = local_point.value
@@ -2688,16 +2688,17 @@ defmodule Tuist.Builds.AnalyticsTest do
 
       assert got.truncated == false
       series = Enum.sort_by(got.series, & &1.name)
-      assert [ci_series, local_series] = series
-      assert ci_series.name == "CI"
-      assert local_series.name == "Local"
+      assert [local_series, ci_series] = series
+      assert ci_series.name == true
+      assert local_series.name == false
 
       assert [ci_point] = ci_series.data
-      assert [_ts, ci_hit_rate] = ci_point
+      assert [_ts, ci_hit_rate] = ci_point.value
       assert ci_hit_rate == Decimal.new("100.0")
+      assert ci_point.meta.is_ci == true
 
       assert [local_point] = local_series.data
-      assert [_ts2, local_hit_rate] = local_point
+      assert [_ts2, local_hit_rate] = local_point.value
       assert local_hit_rate == Decimal.new("50.0")
     end
 
