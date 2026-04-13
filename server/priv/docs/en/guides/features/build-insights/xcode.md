@@ -53,6 +53,12 @@ $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect build
 >
 > Your environment's `PATH` is not inherited by the scheme post action, so use Mise's absolute path. This depends on how you installed Mise. Build settings should be inherited from a target so `mise` can run from `$SRCROOT`.
 
+For [Homebrew](https://brew.sh/), add the Homebrew paths to the post-action environment:
+
+```sh
+export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
+tuist inspect build
+```
 
 Once logged in, local builds are tracked and available from the Tuist dashboard:
 
@@ -101,7 +107,7 @@ let project = Project(
 )
 ```
 
-If you are not using Mise, simplify to:
+If you are not using Mise, you need to ensure `tuist` is available in the scheme's environment since Xcode post-actions don't inherit your shell's `PATH`. For Homebrew installations:
 
 ```swift
 buildAction: .buildAction(
@@ -109,7 +115,10 @@ buildAction: .buildAction(
     postActions: [
         .executionAction(
             title: "Inspect Build",
-            scriptText: "tuist inspect build",
+            scriptText: """
+            export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
+            tuist inspect build
+            """,
             target: "MyApp"
         )
     ],
