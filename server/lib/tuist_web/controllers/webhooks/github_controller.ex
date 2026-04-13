@@ -1,6 +1,7 @@
 defmodule TuistWeb.Webhooks.GitHubController do
   use TuistWeb, :controller
 
+  alias Tuist.Runners
   alias Tuist.VCS
 
   require Logger
@@ -14,6 +15,9 @@ defmodule TuistWeb.Webhooks.GitHubController do
 
       "check_run" ->
         handle_check_run(conn, params)
+
+      "workflow_job" ->
+        handle_workflow_job(conn, params)
 
       _ ->
         conn
@@ -91,6 +95,83 @@ defmodule TuistWeb.Webhooks.GitHubController do
   end
 
   defp handle_check_run(conn, _params) do
+    conn
+    |> put_status(:ok)
+    |> json(%{status: "ok"})
+  end
+
+  defp handle_workflow_job(conn, %{
+         "action" => "queued",
+         "workflow_job" => workflow_job,
+         "installation" => %{"id" => installation_id},
+         "repository" => %{"full_name" => repository_full_name}
+       }) do
+    labels = Map.get(workflow_job, "labels", [])
+    github_job_id = workflow_job["id"]
+    github_run_id = workflow_job["run_id"]
+
+    with {:ok, config} <- Runners.get_runner_configuration_by_installation_id(installation_id),
+         true <- Runners.labels_match?(labels, config.label_prefix),
+         {:error, :not_found} <- Runners.get_runner_job_by_github_id(github_job_id) do
+      {:ok, job} =
+        Runners.create_runner_job(%{
+          runner_configuration_id: config.id,
+          account_id: config.account_id,
+          github_workflow_job_id: github_job_id,
+          github_run_id: github_run_id,
+          github_repository_full_name: repository_full_name,
+          labels: labels,
+          queued_at: DateTime.utc_now()
+        })
+
+      %{runner_job_id: job.id}
+      |> Tuist.Runners.Workers.ProvisionRunnerWorker.new()
+      |> Oban.insert()
+    end
+
+    conn
+    |> put_status(:ok)
+    |> json(%{status: "ok"})
+  end
+
+  defp handle_workflow_job(conn, %{"action" => "in_progress", "workflow_job" => %{"id" => github_job_id}}) do
+    with {:ok, job} <- Runners.get_runner_job_by_github_id(github_job_id) do
+      Runners.update_runner_job(job, %{
+        status: :in_progress,
+        started_at: DateTime.utc_now()
+      })
+    end
+
+    conn
+    |> put_status(:ok)
+    |> json(%{status: "ok"})
+  end
+
+  defp handle_workflow_job(conn, %{
+         "action" => "completed",
+         "workflow_job" => %{"id" => github_job_id, "conclusion" => conclusion}
+       }) do
+    with {:ok, job} <- Runners.get_runner_job_by_github_id(github_job_id) do
+      {:ok, job} =
+        Runners.update_runner_job(job, %{
+          status: :completed,
+          conclusion: conclusion,
+          completed_at: DateTime.utc_now()
+        })
+
+      if job.orchard_vm_name do
+        %{runner_job_id: job.id}
+        |> Tuist.Runners.Workers.CleanupRunnerWorker.new()
+        |> Oban.insert()
+      end
+    end
+
+    conn
+    |> put_status(:ok)
+    |> json(%{status: "ok"})
+  end
+
+  defp handle_workflow_job(conn, _params) do
     conn
     |> put_status(:ok)
     |> json(%{status: "ok"})
