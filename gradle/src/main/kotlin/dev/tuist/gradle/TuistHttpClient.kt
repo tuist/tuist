@@ -8,7 +8,8 @@ class TokenExpiredException : Exception()
 class TuistHttpClient(
     private val configurationProvider: ConfigurationProvider,
     private val connectTimeoutMs: Int = 30_000,
-    private val readTimeoutMs: Int = 60_000
+    private val readTimeoutMs: Int = 60_000,
+    private val proxy: Proxy = Proxy.None
 ) {
     @Volatile
     private var cachedConfig: CacheConfiguration? = null
@@ -16,7 +17,13 @@ class TuistHttpClient(
     private val configLock = Any()
 
     fun openConnection(url: URI, config: CacheConfiguration): HttpURLConnection {
-        val connection = url.toURL().openConnection() as HttpURLConnection
+        val javaProxy = proxy.resolve()
+        val rawConnection = if (javaProxy != null) {
+            url.toURL().openConnection(javaProxy)
+        } else {
+            url.toURL().openConnection()
+        }
+        val connection = rawConnection as HttpURLConnection
         connection.connectTimeout = connectTimeoutMs
         connection.readTimeout = readTimeoutMs
         connection.setRequestProperty("Authorization", "Bearer ${config.token}")

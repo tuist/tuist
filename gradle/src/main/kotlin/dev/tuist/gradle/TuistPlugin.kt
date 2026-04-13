@@ -39,7 +39,8 @@ data class TuistGradleConfig(
     val url: String,
     val project: String?,
     val uploadInBackground: Boolean? = null,
-    val testQuarantineEnabled: Boolean? = null
+    val testQuarantineEnabled: Boolean? = null,
+    val proxy: Proxy = Proxy.None
 ) {
     companion object {
         internal const val EXTRA_PROPERTY_KEY = "tuist.config"
@@ -84,7 +85,8 @@ class TuistPlugin : Plugin<Settings> {
                 url = extension.url,
                 project = project,
                 uploadInBackground = extension.uploadInBackground,
-                testQuarantineEnabled = extension.testQuarantine.enabled
+                testQuarantineEnabled = extension.testQuarantine.enabled,
+                proxy = extension.proxy
             ))
             pluginManager.apply(TuistBuildInsightsPlugin::class.java)
             val projectLabel = project ?: "(from tuist.toml)"
@@ -117,6 +119,7 @@ class TuistPlugin : Plugin<Settings> {
                 this.url = extension.url
                 isPush = buildCacheConfig.push
                 this.allowInsecureProtocol = buildCacheConfig.allowInsecureProtocol
+                this.proxy = extension.proxy
             }
         }
 
@@ -151,6 +154,20 @@ open class TuistExtension {
      * to ensure it completes before ephemeral agents exit.
      */
     var uploadInBackground: Boolean? = null
+
+    /**
+     * The HTTP proxy the plugin uses when talking to the Tuist server and related
+     * services. Defaults to [Proxy.None] (direct connections).
+     *
+     * Three modes are supported:
+     * - [Proxy.None]: no proxy. The plugin makes direct connections.
+     * - [Proxy.StandardEnvironment]: reads `HTTPS_PROXY`, falling back to `HTTP_PROXY`.
+     *   Mirrors the convention used by `curl`, `git`, and most developer tools.
+     * - [Proxy.EnvironmentVariable]: reads the proxy URL from a custom env variable.
+     * - [Proxy.Url]: uses the given URL directly. Inline credentials
+     *   (`http://user:password@proxy.corp:8080`) are supported.
+     */
+    var proxy: Proxy = Proxy.None
 
     /**
      * Build cache configuration.

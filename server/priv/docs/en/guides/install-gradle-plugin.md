@@ -66,11 +66,39 @@ The following options are available in the `tuist` extension block in `settings.
 | `executablePath` | `String?` | `null` (uses `tuist` from PATH) | Path to the Tuist CLI executable. |
 | `url` | `String?` | `null` | The base URL of the Tuist server. If not set, it defaults to `"https://tuist.dev"` or the value defined in `tuist.toml`. |
 | `uploadInBackground` | `Boolean?` | `null` | Whether to upload build and test insights in the background. When `null` (default), uploads run in the background for local builds and in the foreground on CI. |
+| `proxy` | `Proxy` | `Proxy.None` | The HTTP proxy the plugin routes its traffic through. See <.localized_link href="#http-proxy">HTTP proxy</.localized_link>. |
 
 > [!NOTE]
 > **Tuist.toml**
 >
 > The recommended way to configure `project` (and optionally `url`) is through a `tuist.toml` file in your project root. This way the configuration is shared between the Tuist CLI and the Gradle plugin. You can still override these values in `settings.gradle.kts` if needed.
+
+## HTTP proxy {#http-proxy}
+
+If your network routes outbound traffic through an HTTP proxy, you can tell the Gradle plugin which proxy to use via the `proxy` option. The same setting applies to every HTTP client the plugin creates — the remote build cache, build insights, test insights, test quarantine, and test sharding all honor it.
+
+Four modes are supported:
+
+```kotlin
+import dev.tuist.gradle.Proxy
+
+tuist {
+    project = "my-org/my-project"
+
+    // Choose one:
+    proxy = Proxy.None                                   // default — direct connections
+    proxy = Proxy.StandardEnvironment                    // reads HTTPS_PROXY, then HTTP_PROXY
+    proxy = Proxy.EnvironmentVariable("CORP_PROXY")      // reads the named env variable
+    proxy = Proxy.Url("http://proxy.corp:8080")          // hardcoded URL
+}
+```
+
+- `Proxy.None` is the default. The plugin makes direct connections.
+- `Proxy.StandardEnvironment` reads the proxy URL from `HTTPS_PROXY`, falling back to `HTTP_PROXY`. Both the uppercase and lowercase variants are accepted. This mirrors the convention used by `curl`, `git`, and most developer tools, so it's the right choice when you're already exporting those variables at the shell or CI level.
+- `Proxy.EnvironmentVariable("NAME")` reads the proxy URL from the named environment variable. Use this when you want to point the plugin at a different variable than the standard ones.
+- `Proxy.Url("...")` uses the given URL directly. Credentials can be encoded inline as `http://user:password@proxy.corp:8080` if the proxy requires authentication.
+
+Proxy resolution happens at configure time, so the environment variables you reference must be set when Gradle evaluates `settings.gradle.kts`. On CI that means exporting them in the same job that invokes Gradle.
 
 
 ## Next steps {#next-steps}

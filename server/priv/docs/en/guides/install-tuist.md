@@ -53,3 +53,30 @@ brew install --formula tuist@x.y.z
 > curl -fsSL "https://docs.tuist.dev/verify.sh" | bash
 > ```
 
+## HTTP proxy {#http-proxy}
+
+If your network routes outbound traffic through an HTTP proxy, you can tell Tuist which proxy to use from your `Tuist.swift` manifest. Four modes are supported:
+
+```swift
+import ProjectDescription
+
+let tuist = Tuist(
+    fullHandle: "my-org/my-project",
+
+    // Choose one:
+    proxy: .none,                                // default — direct connections
+    proxy: .environmentVariable(),               // reads HTTPS_PROXY, then HTTP_PROXY
+    proxy: .environmentVariable("CORP_PROXY"),   // reads the named env variable
+    proxy: .url("http://proxy.corp:8080"),       // hardcoded URL
+
+    project: .tuist()
+)
+```
+
+- `.none` is the default. Tuist makes direct connections.
+- `.environmentVariable()` (no argument) reads the proxy URL from `HTTPS_PROXY`, falling back to `HTTP_PROXY`. Both the uppercase and lowercase variants are accepted. This mirrors the convention used by `curl`, `git`, and most developer tools.
+- `.environmentVariable("NAME")` reads the proxy URL from the named environment variable. Use this when you want to point Tuist at a different variable than the standard ones.
+- `.url("...")` uses the given URL directly. Credentials can be encoded inline as `http://user:password@proxy.corp:8080` if the proxy requires authentication.
+
+The proxy is applied as soon as Tuist loads `Tuist.swift`, so every subsequent network request Tuist makes — cache, previews, analytics, registry, etc. — goes through it.
+

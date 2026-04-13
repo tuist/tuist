@@ -1022,6 +1022,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.alert.targetName),
                     .target(name: Module.support.targetName),
                     .target(name: Module.projectDescription.targetName),
+                    .target(name: Module.http.targetName),
                     .external(name: "FileSystem"),
                     .external(name: "TOMLDecoder"),
                 ]

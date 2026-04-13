@@ -1,5 +1,6 @@
 package dev.tuist.gradle.services
 
+import dev.tuist.gradle.Proxy
 import dev.tuist.gradle.ServerClient
 import dev.tuist.gradle.TokenProvider
 import dev.tuist.gradle.api.CacheApi
@@ -10,6 +11,10 @@ open class GetCacheEndpointsService(
     private val retrofitProvider: (URI, TokenProvider) -> Retrofit =
         { url, tokenProvider -> ServerClient.authenticated(url, tokenProvider) }
 ) {
+    constructor(proxy: Proxy) : this(
+        retrofitProvider = { url, tokenProvider -> ServerClient.authenticated(url, tokenProvider, proxy) }
+    )
+
     open fun getCacheEndpoints(
         serverURL: URI,
         accountHandle: String,

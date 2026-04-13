@@ -30,9 +30,10 @@ class TuistTestShardingService(
         baseUrl: String,
         token: String,
         accountHandle: String,
-        projectHandle: String
+        projectHandle: String,
+        proxy: Proxy = Proxy.None
     ) : this(
-        shardsApi = createShardsApi(baseUrl, token),
+        shardsApi = createShardsApi(baseUrl, token, proxy),
         accountHandle = accountHandle,
         projectHandle = projectHandle
     )
@@ -83,7 +84,7 @@ class TuistTestShardingService(
     }
 }
 
-private fun createShardsApi(baseUrl: String, token: String): ShardsApi {
+private fun createShardsApi(baseUrl: String, token: String, proxy: Proxy = Proxy.None): ShardsApi {
     val client = OkHttpClient.Builder()
         .addInterceptor { chain ->
             val request = chain.request().newBuilder()
@@ -93,6 +94,7 @@ private fun createShardsApi(baseUrl: String, token: String): ShardsApi {
         }
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(10, TimeUnit.SECONDS)
+        .apply { proxy.resolve()?.let { proxy(it) } }
         .build()
 
     return Retrofit.Builder()
@@ -286,17 +288,20 @@ abstract class TuistPrepareTestShardsTask : DefaultTask() {
     }
 
     private fun createShardingService(): TuistTestShardingService {
+        val proxy = TuistGradleConfig.from(project)?.proxy ?: Proxy.None
         val configProvider = DefaultConfigurationProvider(
             project = tuistProject,
             serverUrl = serverUrl,
-            projectDir = project.rootDir
+            projectDir = project.rootDir,
+            proxy = proxy
         )
         val config = configProvider.getConfiguration()
         return TuistTestShardingService(
             baseUrl = serverUrl,
             token = config.token,
             accountHandle = config.accountHandle,
-            projectHandle = config.projectHandle
+            projectHandle = config.projectHandle,
+            proxy = proxy
         )
     }
 }
@@ -344,14 +349,16 @@ abstract class TuistTestShardingPlugin : Plugin<Project> {
         val configProvider = DefaultConfigurationProvider(
             project = config.project,
             serverUrl = config.url,
-            projectDir = java.io.File(System.getProperty("user.dir"))
+            projectDir = java.io.File(System.getProperty("user.dir")),
+            proxy = config.proxy
         )
         val cacheConfig = configProvider.getConfiguration()
         val shardingService = TuistTestShardingService(
             baseUrl = config.url,
             token = cacheConfig.token,
             accountHandle = cacheConfig.accountHandle,
-            projectHandle = cacheConfig.projectHandle
+            projectHandle = cacheConfig.projectHandle,
+            proxy = config.proxy
         )
 
         val reference = System.getenv("TUIST_SHARD_REFERENCE") ?: shardingService.deriveReference()

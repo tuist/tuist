@@ -113,6 +113,7 @@ abstract class TuistBuildInsightsService :
         val project: Property<String>
         val gradleVersion: Property<String>
         val rootProjectName: Property<String>
+        val proxyUrl: Property<String>
     }
 
     private val logger = Logging.getLogger(TuistBuildInsightsService::class.java)
@@ -312,17 +313,20 @@ abstract class TuistBuildInsightsService :
 
     private fun sendReport(machineMetrics: List<MachineMetricSample>) {
         val projectValue = parameters.project.orNull
+        val proxy = resolveProxyFromParameters(parameters.proxyUrl.orNull)
 
         val configProvider = DefaultConfigurationProvider(
             project = projectValue,
             serverUrl = parameters.url.get(),
-            projectDir = java.io.File(System.getProperty("user.dir"))
+            projectDir = java.io.File(System.getProperty("user.dir")),
+            proxy = proxy
         )
 
         val httpClient = TuistHttpClient(
             configurationProvider = configProvider,
             connectTimeoutMs = 10_000,
-            readTimeoutMs = 10_000
+            readTimeoutMs = 10_000,
+            proxy = proxy
         )
 
         val totalDurationMs = System.currentTimeMillis() - buildStartTime
@@ -456,6 +460,7 @@ internal abstract class TuistBuildInsightsPlugin @Inject constructor(
             config.project?.let { parameters.project.set(it) }
             parameters.gradleVersion.set(project.gradle.gradleVersion)
             parameters.rootProjectName.set(project.rootProject.name)
+            config.proxy.resolveUrl()?.let { parameters.proxyUrl.set(it) }
         }
 
         eventsListenerRegistry.onTaskCompletion(serviceProvider)

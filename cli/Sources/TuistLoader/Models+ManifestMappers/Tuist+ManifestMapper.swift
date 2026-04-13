@@ -11,10 +11,13 @@ enum ConfigManifestMapperError: FatalError {
     /// Thrown when the server URL is invalid.
     case invalidServerURL(String)
 
+    /// Thrown when the proxy URL configured via `Tuist.Proxy.url(_:)` is not a valid URL.
+    case invalidProxyURL(String)
+
     /// Error type.
     var type: ErrorType {
         switch self {
-        case .invalidServerURL: return .abort
+        case .invalidServerURL, .invalidProxyURL: return .abort
         }
     }
 
@@ -23,6 +26,8 @@ enum ConfigManifestMapperError: FatalError {
         switch self {
         case let .invalidServerURL(url):
             return "The server URL '\(url)' is not a valid URL"
+        case let .invalidProxyURL(url):
+            return "The proxy URL '\(url)' is not a valid URL"
         }
     }
 }
@@ -45,6 +50,8 @@ extension TuistConfig.Tuist {
         guard let url = URL(string: urlString.dropSuffix("/")) else {
             throw ConfigManifestMapperError.invalidServerURL(manifest.url)
         }
+
+        let proxy = try TuistConfig.Tuist.Proxy.from(manifest: manifest.proxy)
 
         switch manifest.project {
         case let .tuist(
@@ -90,7 +97,8 @@ extension TuistConfig.Tuist {
                 fullHandle: fullHandle,
                 inspectOptions: inspectOptions,
                 cache: cache,
-                url: url
+                url: url,
+                proxy: proxy
             )
         case .xcode:
             return TuistConfig.Tuist(
@@ -98,8 +106,25 @@ extension TuistConfig.Tuist {
                 fullHandle: fullHandle,
                 inspectOptions: inspectOptions,
                 cache: cache,
-                url: url
+                url: url,
+                proxy: proxy
             )
+        }
+    }
+}
+
+extension TuistConfig.Tuist.Proxy {
+    static func from(manifest: ProjectDescription.Config.Proxy) throws -> TuistConfig.Tuist.Proxy {
+        switch manifest {
+        case .none:
+            return .none
+        case let .environmentVariable(name):
+            return .environmentVariable(name)
+        case let .url(urlString):
+            guard let url = URL(string: urlString) else {
+                throw ConfigManifestMapperError.invalidProxyURL(urlString)
+            }
+            return .url(url)
         }
     }
 }

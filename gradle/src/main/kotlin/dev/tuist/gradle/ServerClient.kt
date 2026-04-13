@@ -8,10 +8,11 @@ import java.util.concurrent.TimeUnit
 
 object ServerClient {
 
-    fun unauthenticated(serverURL: URI): Retrofit {
+    fun unauthenticated(serverURL: URI, proxy: Proxy = Proxy.None): Retrofit {
         val client = OkHttpClient.Builder()
             .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(60, TimeUnit.SECONDS)
+            .applyProxy(proxy)
             .build()
         return Retrofit.Builder()
             .baseUrl(normalizeBaseUrl(serverURL))
@@ -20,11 +21,12 @@ object ServerClient {
             .build()
     }
 
-    fun authenticated(serverURL: URI, tokenProvider: TokenProvider): Retrofit {
+    fun authenticated(serverURL: URI, tokenProvider: TokenProvider, proxy: Proxy = Proxy.None): Retrofit {
         val client = OkHttpClient.Builder()
             .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(60, TimeUnit.SECONDS)
             .addInterceptor(AuthInterceptor(tokenProvider))
+            .applyProxy(proxy)
             .build()
         return Retrofit.Builder()
             .baseUrl(normalizeBaseUrl(serverURL))
@@ -36,5 +38,10 @@ object ServerClient {
     private fun normalizeBaseUrl(serverURL: URI): String {
         val base = serverURL.resolve("/")
         return base.toASCIIString()
+    }
+
+    internal fun OkHttpClient.Builder.applyProxy(proxy: Proxy): OkHttpClient.Builder {
+        proxy.resolve()?.let { proxy(it) }
+        return this
     }
 }

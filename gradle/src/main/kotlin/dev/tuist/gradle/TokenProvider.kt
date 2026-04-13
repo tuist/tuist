@@ -18,8 +18,15 @@ open class TokenProvider(
                 "token_$sanitizedUrl.lock"
             )
         )
-    }
+    },
+    internal val proxy: Proxy = Proxy.None
 ) {
+    constructor(serverURL: URI, proxy: Proxy) : this(
+        serverURL = serverURL,
+        refreshAuthTokenService = RefreshAuthTokenService(proxy),
+        proxy = proxy
+    )
+
     private val tokenCache: CachedValueStore<String> by lazy {
         tokenCacheFactory(serverURL)
     }

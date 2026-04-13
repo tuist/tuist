@@ -289,6 +289,7 @@ abstract class TuistTestInsightsService :
         val url: Property<String>
         val project: Property<String>
         val rootProjectName: Property<String>
+        val proxyUrl: Property<String>
     }
 
     private val logger = Logging.getLogger(TuistTestInsightsService::class.java)
@@ -372,17 +373,20 @@ abstract class TuistTestInsightsService :
 
     private fun sendReport() {
         val projectValue = parameters.project.orNull
+        val proxy = resolveProxyFromParameters(parameters.proxyUrl.orNull)
 
         val configProvider = DefaultConfigurationProvider(
             project = projectValue,
             serverUrl = parameters.url.get(),
-            projectDir = java.io.File(System.getProperty("user.dir"))
+            projectDir = java.io.File(System.getProperty("user.dir")),
+            proxy = proxy
         )
 
         val httpClient = TuistHttpClient(
             configurationProvider = configProvider,
             connectTimeoutMs = 10_000,
-            readTimeoutMs = 10_000
+            readTimeoutMs = 10_000,
+            proxy = proxy
         )
 
         val totalDurationMs = latestEndTime - earliestStartTime
@@ -462,6 +466,7 @@ internal abstract class TuistTestInsightsPlugin @Inject constructor() : Plugin<P
             parameters.url.set(config.url)
             config.project?.let { parameters.project.set(it) }
             parameters.rootProjectName.set(project.rootProject.name)
+            config.proxy.resolveUrl()?.let { parameters.proxyUrl.set(it) }
         }
 
         val quarantineEnabled = config.testQuarantineEnabled ?: ciDetector.isCi()
@@ -469,12 +474,14 @@ internal abstract class TuistTestInsightsPlugin @Inject constructor() : Plugin<P
             val configProvider = DefaultConfigurationProvider(
                 project = config.project,
                 serverUrl = config.url,
-                projectDir = java.io.File(System.getProperty("user.dir"))
+                projectDir = java.io.File(System.getProperty("user.dir")),
+                proxy = config.proxy
             )
             val httpClient = TuistHttpClient(
                 configurationProvider = configProvider,
                 connectTimeoutMs = 10_000,
-                readTimeoutMs = 10_000
+                readTimeoutMs = 10_000,
+                proxy = config.proxy
             )
             TuistTestQuarantineService(httpClient = httpClient, baseUrl = config.url)
         } else {
