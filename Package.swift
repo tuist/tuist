@@ -103,6 +103,7 @@ var tuistServerDependencies: [Target.Dependency] = [
     "TuistOpener",
     "TuistUniqueIDGenerator",
     "TuistSupport",
+    "TuistSimulator",
     fileSystemDependency,
     mockableDependency,
     pathDependency,
@@ -373,7 +374,7 @@ tuistAuthCommandDependencies.append(contentsOf: ["TuistLoader", "TuistSupport"])
 tuistServerDependencies.append(contentsOf: [
     "TuistCore", "TuistProcess", "TuistCI",
     "TuistAutomation", "TuistXCActivityLog",
-    "TuistXCResultService", "TuistSimulator",
+    "TuistXCResultService",
     xcodeGraphDependency,
 ])
 tuistHTTPDependencies.append(contentsOf: ["TuistSupport", "TuistHAR"])
