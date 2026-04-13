@@ -162,6 +162,7 @@ defmodule Tuist.Docs.Sidebar do
             slug: "/en/guides/features/build-insights",
             items: [
               %Item{label: "Xcode", slug: "/en/guides/features/build-insights/xcode"},
+              %Item{label: "Generated projects", slug: "/en/guides/features/build-insights/generated-projects"},
               %Item{label: "Gradle", slug: "/en/guides/features/build-insights/gradle"}
             ]
           }

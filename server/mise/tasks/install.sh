@@ -13,5 +13,6 @@ pnpm run build
 popd >/dev/null
 
 if [ -z "${CI:-}" ]; then
-  mise run db:reset
+  mise run db:migrate
+  mise run db:seed
 fi
