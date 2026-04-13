@@ -119,51 +119,30 @@ defmodule TuistWeb.GradleCacheLive do
   end
 
   defp assign_analytics(%{assigns: %{selected_project: project}} = socket, params) do
-    %{preset: preset, period: {start_datetime, end_datetime} = period} =
-      DatePicker.date_picker_params(params, "analytics")
-
+    %{preset: preset, period: period} = DatePicker.date_picker_params(params, "analytics")
     analytics_environment = params["analytics-environment"] || "any"
-
-    opts =
-      then(
-        [
-          project_id: project.id,
-          start_datetime: start_datetime,
-          end_datetime: end_datetime
-        ],
-        fn opts ->
-          case analytics_environment do
-            "ci" -> Keyword.put(opts, :is_ci, true)
-            "local" -> Keyword.put(opts, :is_ci, false)
-            _ -> opts
-          end
-        end
-      )
-
-    uri = URI.new!("?" <> URI.encode_query(params))
-
     analytics_selected_widget = params["analytics-selected-widget"] || "cache_hit_rate"
-
     cache_hit_rate_chart_type = params["cache-hit-rate-chart-type"] || "line"
     cache_hit_rate_scatter_group_by = params["cache-hit-rate-scatter-group-by"] || "environment"
+    uri = URI.new!("?" <> URI.encode_query(params))
 
-    scatter_group_by_atom =
-      case cache_hit_rate_scatter_group_by do
-        "project" -> :project
-        _ -> :environment
-      end
+    socket =
+      socket
+      |> assign(:analytics_preset, preset)
+      |> assign(:analytics_period, period)
+      |> assign(:analytics_trend_label, analytics_trend_label(preset))
+      |> assign(:analytics_selected_widget, analytics_selected_widget)
+      |> assign(:selected_hit_rate_type, params["hit-rate-type"] || "avg")
+      |> assign(:cache_hit_rate_chart_type, cache_hit_rate_chart_type)
+      |> assign(:cache_hit_rate_scatter_group_by, cache_hit_rate_scatter_group_by)
+      |> assign(:analytics_environment, analytics_environment)
+      |> assign(:analytics_environment_label, environment_label(analytics_environment))
+      |> assign(:uri, uri)
+
+    opts = analytics_opts(socket.assigns)
+    scatter_group_by_atom = scatter_group_by_atom(cache_hit_rate_scatter_group_by)
 
     socket
-    |> assign(:analytics_preset, preset)
-    |> assign(:analytics_period, period)
-    |> assign(:analytics_trend_label, analytics_trend_label(preset))
-    |> assign(:analytics_selected_widget, analytics_selected_widget)
-    |> assign(:selected_hit_rate_type, params["hit-rate-type"] || "avg")
-    |> assign(:cache_hit_rate_chart_type, cache_hit_rate_chart_type)
-    |> assign(:cache_hit_rate_scatter_group_by, cache_hit_rate_scatter_group_by)
-    |> assign(:analytics_environment, analytics_environment)
-    |> assign(:analytics_environment_label, environment_label(analytics_environment))
-    |> assign(:uri, uri)
     |> assign_async([:hit_rate_analytics, :cache_events, :analytics_chart_data], fn ->
       hit_rate_analytics = Analytics.cache_hit_rate_analytics(project.id, opts)
       cache_events = Analytics.cache_event_analytics(project.id, opts)

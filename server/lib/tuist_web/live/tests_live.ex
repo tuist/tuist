@@ -224,42 +224,29 @@ defmodule TuistWeb.TestsLive do
     analytics_test_scheme = params["analytics-test-scheme"] || "any"
     analytics_selected_widget = params["analytics-selected-widget"] || "test_run_count"
     selected_duration_type = params["duration-type"] || "avg"
-
-    %{preset: preset, period: {start_datetime, end_datetime} = period} =
-      DatePicker.date_picker_params(params, "analytics")
-
-    opts = [start_datetime: start_datetime, end_datetime: end_datetime]
-
-    opts =
-      case analytics_environment do
-        "ci" -> Keyword.put(opts, :is_ci, true)
-        "local" -> Keyword.put(opts, :is_ci, false)
-        _ -> opts
-      end
-
-    opts = opts_with_analytics_test_scheme(opts, analytics_test_scheme)
-
     duration_chart_type = params["duration-chart-type"] || "line"
     duration_scatter_group_by = params["duration-scatter-group-by"] || "scheme"
 
-    scatter_group_by_atom =
-      case duration_scatter_group_by do
-        "environment" -> :environment
-        _ -> :scheme
-      end
+    %{preset: preset, period: period} = DatePicker.date_picker_params(params, "analytics")
+
+    socket =
+      socket
+      |> assign(:analytics_environment, analytics_environment)
+      |> assign(:analytics_environment_label, environment_label(analytics_environment))
+      |> assign(:analytics_test_scheme, analytics_test_scheme)
+      |> assign(:test_schemes, Tests.project_test_schemes(project))
+      |> assign(:analytics_preset, preset)
+      |> assign(:analytics_period, period)
+      |> assign(:analytics_trend_label, trend_label(preset))
+      |> assign(:analytics_selected_widget, analytics_selected_widget)
+      |> assign(:selected_duration_type, selected_duration_type)
+      |> assign(:duration_chart_type, duration_chart_type)
+      |> assign(:duration_scatter_group_by, duration_scatter_group_by)
+
+    opts = duration_opts(socket.assigns)
+    scatter_group_by_atom = duration_scatter_group_by_atom(duration_scatter_group_by)
 
     socket
-    |> assign(:analytics_environment, analytics_environment)
-    |> assign(:analytics_environment_label, environment_label(analytics_environment))
-    |> assign(:analytics_test_scheme, analytics_test_scheme)
-    |> assign(:test_schemes, Tests.project_test_schemes(project))
-    |> assign(:analytics_preset, preset)
-    |> assign(:analytics_period, period)
-    |> assign(:analytics_trend_label, trend_label(preset))
-    |> assign(:analytics_selected_widget, analytics_selected_widget)
-    |> assign(:selected_duration_type, selected_duration_type)
-    |> assign(:duration_chart_type, duration_chart_type)
-    |> assign(:duration_scatter_group_by, duration_scatter_group_by)
     |> assign_test_run_duration_chart(duration_chart_type, scatter_group_by_atom, opts)
     |> assign_async(
       [

@@ -443,7 +443,8 @@ function tooltipFormatter(options = {}) {
       if (options.valueFormat && typeof options.valueFormat === "string") {
         if (options.valueFormat.startsWith("fn:")) {
           const fn = options.valueFormat.substring(3);
-          if (fn in tooltipFormatters) formatted = tooltipFormatters[fn](rawValue);
+          if (fn in tooltipFormatters)
+            formatted = tooltipFormatters[fn](rawValue);
         } else {
           formatted = options.valueFormat.replace("{value}", rawValue);
         }
