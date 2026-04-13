@@ -418,81 +418,17 @@
         y_axis_min={0}
         y_axis_max={100}
       />
-      <.chart
-        :if={
-          match?({:scatter, _}, @cache_hit_rate_chart.result) and !@cache_hit_rate_chart.loading
-        }
+      <.scatter_chart
         id="gradle-cache-hit-rate-scatter-chart"
-        type="scatter"
-        extra_options={
-          %{
-            grid: %{
-              width: "97%",
-              left: "0.4%",
-              height: "88%",
-              top: "5%"
-            },
-            xAxis: %{
-              type: "value",
-              min: DateTime.to_unix(elem(@analytics_period, 0), :millisecond),
-              max: DateTime.to_unix(elem(@analytics_period, 1), :millisecond),
-              interval:
-                DateTime.to_unix(elem(@analytics_period, 1), :millisecond) -
-                  DateTime.to_unix(elem(@analytics_period, 0), :millisecond),
-              axisLabel: %{
-                color: "var:noora-surface-label-secondary",
-                formatter: "fn:toLocaleDate",
-                padding: [10, 0, 0, 0]
-              }
-            },
-            yAxis: %{
-              splitNumber: 4,
-              splitLine: %{
-                lineStyle: %{
-                  color: "var:noora-chart-lines"
-                }
-              },
-              axisLabel: %{color: "var:noora-surface-label-secondary", formatter: "{value}%"}
-            },
-            tooltip: %{
-              trigger: "item",
-              valueFormat: "{value}%"
-            },
-            legend: %{
-              show: false
-            }
-          }
-        }
-        series={
-          case @cache_hit_rate_chart.result do
-            {:scatter, data} -> Enum.map(data.series, &Map.put(&1, :itemStyle, %{opacity: 0.55}))
-            _ -> []
-          end
-        }
-        y_axis_min={0}
+        chart={@cache_hit_rate_chart}
+        period={@analytics_period}
+        value_format="{value}%"
         y_axis_max={100}
-      />
-      <.alert
-        :if={
-          match?({:scatter, %{truncated: true}}, @cache_hit_rate_chart.result) and
-            !@cache_hit_rate_chart.loading
-        }
-        status="warning"
-        type="secondary"
-        size="small"
-        show_icon={false}
-        title={
+        truncation_title={
           dgettext(
             "dashboard_gradle",
             "The 10,000 entry limit has been reached, data is only included up to %{date}. Try filtering to narrow down the dataset.",
-            date:
-              case @cache_hit_rate_chart.result do
-                {:scatter, %{oldest_entry: %NaiveDateTime{} = entry}} ->
-                  NaiveDateTime.to_iso8601(entry)
-
-                _ ->
-                  ""
-              end
+            date: scatter_oldest_entry_iso(@cache_hit_rate_chart.result)
           )
         }
       />

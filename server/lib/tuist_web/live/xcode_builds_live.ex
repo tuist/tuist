@@ -5,6 +5,7 @@ defmodule TuistWeb.XcodeBuildsLive do
 
   import TuistWeb.Components.ChartTypeToggle
   import TuistWeb.Components.EmptyCardSection
+  import TuistWeb.Components.ScatterChart
   import TuistWeb.Components.Skeleton
   import TuistWeb.PercentileDropdownWidget
   import TuistWeb.Runs.RanByBadge

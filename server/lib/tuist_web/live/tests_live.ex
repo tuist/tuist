@@ -5,6 +5,7 @@ defmodule TuistWeb.TestsLive do
 
   import TuistWeb.Components.ChartTypeToggle
   import TuistWeb.Components.EmptyCardSection
+  import TuistWeb.Components.ScatterChart
   import TuistWeb.Components.Skeleton
   import TuistWeb.Helpers.TestLabels
   import TuistWeb.PercentileDropdownWidget

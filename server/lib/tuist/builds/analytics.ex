@@ -8,6 +8,7 @@ defmodule Tuist.Builds.Analytics do
   alias Tuist.ClickHouseRepo
   alias Tuist.CommandEvents
   alias Tuist.CommandEvents.Event
+  alias Tuist.Utilities.Decimals
   alias Tuist.Xcode.XcodeGraph
 
   def build_duration_analytics_by_category(project_id, category, opts \\ []) do
@@ -182,7 +183,7 @@ defmodule Tuist.Builds.Analytics do
               ts = NaiveDateTime.diff(build.inserted_at, ~N[1970-01-01 00:00:00], :millisecond)
 
               %{
-                value: [ts, to_rounded_decimal(build.duration / 1000)],
+                value: [ts, Decimals.to_rounded(build.duration / 1000)],
                 id: build.id,
                 meta: %{
                   scheme: build.scheme,
@@ -710,7 +711,7 @@ defmodule Tuist.Builds.Analytics do
               ts = NaiveDateTime.diff(ran_at, ~N[1970-01-01 00:00:00], :millisecond)
 
               %{
-                value: [ts, to_rounded_decimal(hit_rate)],
+                value: [ts, Decimals.to_rounded(hit_rate)],
                 meta: %{is_ci: is_ci}
               }
             end)
@@ -1176,7 +1177,7 @@ defmodule Tuist.Builds.Analytics do
               ts = NaiveDateTime.diff(build.inserted_at, ~N[1970-01-01 00:00:00], :millisecond)
 
               %{
-                value: [ts, to_rounded_decimal(build.hit_rate)],
+                value: [ts, Decimals.to_rounded(build.hit_rate)],
                 id: build.id,
                 meta: %{
                   scheme: build.scheme,
@@ -1609,7 +1610,7 @@ defmodule Tuist.Builds.Analytics do
               ts = NaiveDateTime.diff(ran_at, ~N[1970-01-01 00:00:00], :millisecond)
 
               %{
-                value: [ts, to_rounded_decimal(hit_rate)],
+                value: [ts, Decimals.to_rounded(hit_rate)],
                 meta: %{is_ci: is_ci}
               }
             end)
@@ -2229,11 +2230,6 @@ defmodule Tuist.Builds.Analytics do
   defp normalize_string_filter(value) when is_atom(value), do: Atom.to_string(value)
   defp normalize_string_filter(value) when is_binary(value), do: value
   defp normalize_string_filter(_), do: nil
-
-  defp to_rounded_decimal(nil), do: Decimal.new(0)
-  defp to_rounded_decimal(%Decimal{} = value), do: Decimal.round(value, 1)
-  defp to_rounded_decimal(value) when is_float(value), do: value |> Decimal.from_float() |> Decimal.round(1)
-  defp to_rounded_decimal(value) when is_integer(value), do: value |> Decimal.new() |> Decimal.round(1)
 
   defp date_range_for_date_period(:hour, opts) do
     start_datetime = DateTime.truncate(Keyword.fetch!(opts, :start_datetime), :second)

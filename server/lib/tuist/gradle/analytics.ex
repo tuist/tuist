@@ -12,6 +12,7 @@ defmodule Tuist.Gradle.Analytics do
   alias Tuist.ClickHouseRepo
   alias Tuist.Gradle.Build
   alias Tuist.Gradle.CacheEvent
+  alias Tuist.Utilities.Decimals
 
   @doc """
   Calculates the cache hit rate for a project over a time period.
@@ -112,7 +113,7 @@ defmodule Tuist.Gradle.Analytics do
               ts = NaiveDateTime.diff(build.inserted_at, ~N[1970-01-01 00:00:00], :millisecond)
 
               %{
-                value: [ts, to_rounded_decimal(build.hit_rate)],
+                value: [ts, Decimals.to_rounded(build.hit_rate)],
                 id: build.id,
                 meta: %{
                   root_project_name: build.root_project_name,
@@ -854,9 +855,4 @@ defmodule Tuist.Gradle.Analytics do
       status -> from(b in query, where: b.status == ^status)
     end
   end
-
-  defp to_rounded_decimal(nil), do: Decimal.new(0)
-  defp to_rounded_decimal(%Decimal{} = value), do: Decimal.round(value, 1)
-  defp to_rounded_decimal(value) when is_float(value), do: value |> Decimal.from_float() |> Decimal.round(1)
-  defp to_rounded_decimal(value) when is_integer(value), do: value |> Decimal.new() |> Decimal.round(1)
 end

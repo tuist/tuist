@@ -392,99 +392,22 @@
           y_axis_max={100}
         />
       </div>
-      <.chart
-        :if={
-          match?({:scatter, _}, @cache_hit_rate_chart.result) and !@cache_hit_rate_chart.loading
-        }
+      <.scatter_chart
         id="cache-hit-rate-scatter-chart"
-        type="scatter"
-        extra_options={
-          %{
-            grid: %{
-              width: "97%",
-              left: "0.4%",
-              height: "88%",
-              top: "5%"
-            },
-            xAxis: %{
-              type: "value",
-              min: DateTime.to_unix(elem(@analytics_period, 0), :millisecond),
-              max: DateTime.to_unix(elem(@analytics_period, 1), :millisecond),
-              interval:
-                DateTime.to_unix(elem(@analytics_period, 1), :millisecond) -
-                  DateTime.to_unix(elem(@analytics_period, 0), :millisecond),
-              axisLabel: %{
-                color: "var:noora-surface-label-secondary",
-                formatter: "fn:toLocaleDate",
-                padding: [10, 0, 0, 0]
-              }
-            },
-            yAxis: %{
-              splitNumber: 4,
-              splitLine: %{
-                lineStyle: %{
-                  color: "var:noora-chart-lines"
-                }
-              },
-              axisLabel: %{
-                color: "var:noora-surface-label-secondary",
-                formatter: "{value}%"
-              }
-            },
-            tooltip: %{
-              trigger: "item",
-              valueFormat: "{value}%"
-            },
-            legend: %{
-              show: false
-            }
-          }
-        }
-        series={
-          case @cache_hit_rate_chart.result do
-            {:scatter, data} ->
-              Enum.map(data.series, fn series_item ->
-                series_item
-                |> Map.put(:itemStyle, %{opacity: 0.55})
-                |> Map.update!(:data, fn points ->
-                  Enum.map(points, fn point ->
-                    Map.put(
-                      point,
-                      :url,
-                      ~p"/#{@selected_account.name}/#{@selected_project.name}/builds/build-runs/#{point.id}"
-                    )
-                  end)
-                end)
-              end)
-
-            _ ->
-              []
+        chart={@cache_hit_rate_chart}
+        period={@analytics_period}
+        value_format="{value}%"
+        y_axis_max={100}
+        url_fn={
+          fn point ->
+            ~p"/#{@selected_account.name}/#{@selected_project.name}/builds/build-runs/#{point.id}"
           end
         }
-        y_axis_min={0}
-        y_axis_max={100}
-      />
-      <.alert
-        :if={
-          match?({:scatter, %{truncated: true}}, @cache_hit_rate_chart.result) and
-            !@cache_hit_rate_chart.loading
-        }
-        status="warning"
-        type="secondary"
-        size="small"
-        show_icon={false}
-        title={
+        truncation_title={
           dgettext(
             "dashboard_cache",
             "The 10,000 entry limit has been reached, data is only included up to %{date}. Try narrowing the date range to see more recent data.",
-            date:
-              case @cache_hit_rate_chart.result do
-                {:scatter, %{oldest_entry: %NaiveDateTime{} = entry}} ->
-                  NaiveDateTime.to_iso8601(entry)
-
-                _ ->
-                  ""
-              end
+            date: scatter_oldest_entry_iso(@cache_hit_rate_chart.result)
           )
         }
       />

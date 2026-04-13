@@ -5,6 +5,7 @@ defmodule TuistWeb.GradleCacheLive do
 
   import TuistWeb.Components.ChartTypeToggle
   import TuistWeb.Components.EmptyCardSection
+  import TuistWeb.Components.ScatterChart
   import TuistWeb.Components.Skeleton
   import TuistWeb.EmptyState
   import TuistWeb.PercentileDropdownWidget
