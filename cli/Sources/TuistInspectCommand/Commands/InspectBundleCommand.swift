@@ -3,7 +3,10 @@ import FileSystem
 import Foundation
 import Path
 import TuistEnvKey
-import XcodeGraph
+
+#if os(macOS)
+    import XcodeGraph
+#endif
 
 public struct InspectBundleCommand: AsyncParsableCommand {
     public init() {}
@@ -22,26 +25,28 @@ public struct InspectBundleCommand: AsyncParsableCommand {
     )
     var bundle: String
 
-    @Option(
-        name: [.long, .customShort("C")],
-        help: "The configuration of the app to inspect.",
-        envKey: .inspectBundleConfiguration
-    )
-    var configuration: String?
+    #if os(macOS)
+        @Option(
+            name: [.long, .customShort("C")],
+            help: "The configuration of the app to inspect.",
+            envKey: .inspectBundleConfiguration
+        )
+        var configuration: String?
 
-    @Option(
-        help: "The platforms (iOS, tvOS, visionOS, watchOS or macOS) to inspect the app for.",
-        completion: .list(["iOS", "tvOS", "macOS", "visionOS", "watchOS"]),
-        envKey: .inspectBundlePlatform
-    )
-    var platforms: [XcodeGraph.Platform] = []
+        @Option(
+            help: "The platforms (iOS, tvOS, visionOS, watchOS or macOS) to inspect the app for.",
+            completion: .list(["iOS", "tvOS", "macOS", "visionOS", "watchOS"]),
+            envKey: .inspectBundlePlatform
+        )
+        var platforms: [XcodeGraph.Platform] = []
 
-    @Option(
-        help: "The derived data path to find the app in. When absent, the system-configured one.",
-        completion: .directory,
-        envKey: .inspectBundleDerivedDataPath
-    )
-    var derivedDataPath: String?
+        @Option(
+            help: "The derived data path to find the app in. When absent, the system-configured one.",
+            completion: .directory,
+            envKey: .inspectBundleDerivedDataPath
+        )
+        var derivedDataPath: String?
+    #endif
 
     @Flag(
         help: "The output in JSON format.",
@@ -58,14 +63,23 @@ public struct InspectBundleCommand: AsyncParsableCommand {
     var path: String?
 
     public func run() async throws {
-        try await InspectBundleCommandService()
-            .run(
-                path: path,
-                bundle: bundle,
-                configuration: configuration,
-                platforms: platforms,
-                derivedDataPath: derivedDataPath,
-                json: json
-            )
+        #if os(macOS)
+            try await InspectBundleCommandService()
+                .run(
+                    path: path,
+                    bundle: bundle,
+                    configuration: configuration,
+                    platforms: platforms,
+                    derivedDataPath: derivedDataPath,
+                    json: json
+                )
+        #else
+            try await InspectBundleCommandService()
+                .run(
+                    path: path,
+                    bundle: bundle,
+                    json: json
+                )
+        #endif
     }
 }

@@ -57,9 +57,9 @@ struct ShareCommandService {
     private let gitController: GitControlling
 
     #if os(macOS)
-        private let builtAppBundleLocator: BuiltAppBundleLocating
+        private let buildProductService: BuildProductServicing
         private let buildGraphInspector: BuildGraphInspecting
-        private let appBundlePathResolver: AppBundlePathResolving
+        private let appBundleTargetResolver: AppBundleTargetResolving
         private let appBundleLoader: AppBundleLoading
     #endif
 
@@ -73,9 +73,9 @@ struct ShareCommandService {
                 apkMetadataService: APKMetadataService(),
                 fileArchiverFactory: FileArchivingFactory(),
                 gitController: GitController(),
-                builtAppBundleLocator: BuiltAppBundleLocator(),
+                buildProductService: BuildProductService(),
                 buildGraphInspector: BuildGraphInspector(),
-                appBundlePathResolver: AppBundlePathResolver(),
+                appBundleTargetResolver: AppBundleTargetResolver(),
                 appBundleLoader: AppBundleLoader()
             )
         #else
@@ -100,9 +100,9 @@ struct ShareCommandService {
             apkMetadataService: APKMetadataServicing,
             fileArchiverFactory: FileArchivingFactorying,
             gitController: GitControlling,
-            builtAppBundleLocator: BuiltAppBundleLocating,
+            buildProductService: BuildProductServicing,
             buildGraphInspector: BuildGraphInspecting,
-            appBundlePathResolver: AppBundlePathResolving,
+            appBundleTargetResolver: AppBundleTargetResolving,
             appBundleLoader: AppBundleLoading
         ) {
             self.fileSystem = fileSystem
@@ -112,9 +112,9 @@ struct ShareCommandService {
             self.apkMetadataService = apkMetadataService
             self.fileArchiverFactory = fileArchiverFactory
             self.gitController = gitController
-            self.builtAppBundleLocator = builtAppBundleLocator
+            self.buildProductService = buildProductService
             self.buildGraphInspector = buildGraphInspector
-            self.appBundlePathResolver = appBundlePathResolver
+            self.appBundleTargetResolver = appBundleTargetResolver
             self.appBundleLoader = appBundleLoader
         }
     #else
@@ -201,7 +201,7 @@ struct ShareCommandService {
             } else {
                 guard apps.count < 2 else { throw ShareCommandServiceError.multipleAppsSpecified(apps) }
 
-                let resolved = try await appBundlePathResolver.resolve(
+                let appBundleTarget = try await appBundleTargetResolver.resolve(
                     app: apps.first,
                     path: path,
                     configuration: configuration,
@@ -210,11 +210,11 @@ struct ShareCommandService {
                 )
 
                 try await uploadApplePreview(
-                    for: resolved.platforms,
-                    workspacePath: resolved.workspacePath,
-                    configuration: resolved.configuration,
-                    app: resolved.app,
-                    derivedDataPath: resolved.derivedDataPath,
+                    for: appBundleTarget.platforms,
+                    workspacePath: appBundleTarget.workspacePath,
+                    configuration: appBundleTarget.configuration,
+                    app: appBundleTarget.app,
+                    derivedDataPath: appBundleTarget.derivedDataPath,
                     path: path,
                     fullHandle: fullHandle,
                     serverURL: serverURL,
@@ -372,19 +372,23 @@ struct ShareCommandService {
         }
 
         private func copyAppBundle(
-            _ builtAppBundle: BuiltAppBundle,
+            _ appBundle: AppBundle,
             app: String,
             configuration: String,
             temporaryPath: AbsolutePath
-        ) async throws -> AbsolutePath {
+        ) async throws -> AppBundle {
             let newAppPath = temporaryPath.appending(
                 component:
-                "\(builtAppBundle.destinationType.buildProductDestinationPathComponent(for: configuration))-\(app).app"
+                "\(appBundle.destinationType.buildProductDestinationPathComponent(for: configuration))-\(app).app"
             )
 
-            try await fileSystem.copy(builtAppBundle.path, to: newAppPath)
+            try await fileSystem.copy(appBundle.path, to: newAppPath)
 
-            return newAppPath
+            return AppBundle(
+                path: newAppPath,
+                infoPlist: appBundle.infoPlist,
+                destinationType: appBundle.destinationType
+            )
         }
 
         private func uploadApplePreview(
@@ -400,7 +404,7 @@ struct ShareCommandService {
             track: String?
         ) async throws {
             try await fileSystem.runInTemporaryDirectory(prefix: "share") { temporaryPath in
-                let builtAppBundles = try await builtAppBundleLocator.locateBuiltAppBundles(
+                let builtAppBundles = try await buildProductService.appBundles(
                     app: app,
                     projectPath: workspacePath,
                     derivedDataPath: derivedDataPath,
@@ -409,10 +413,11 @@ struct ShareCommandService {
                 )
 
                 if builtAppBundles.isEmpty {
-                    throw AppBundlePathResolverError.noAppsFound(app: app, configuration: configuration)
+                    throw AppBundleTargetResolverError.noAppsFound(app: app, configuration: configuration)
                 }
 
-                let appPaths = try await builtAppBundles.concurrentMap {
+                var seenPaths = Set<AbsolutePath>()
+                let appBundles = try await builtAppBundles.concurrentMap {
                     try await copyAppBundle(
                         $0,
                         app: app,
@@ -420,11 +425,7 @@ struct ShareCommandService {
                         temporaryPath: temporaryPath
                     )
                 }
-                .uniqued()
-
-                let appBundles = try await appPaths.concurrentMap {
-                    try await appBundleLoader.load($0)
-                }
+                .filter { seenPaths.insert($0.path).inserted }
 
                 let preview = try await uploadApplePreviewType(
                     .appBundles(appBundles),

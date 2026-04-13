@@ -15,8 +15,8 @@ import TuistServer
 import TuistSupport
 import TuistUniqueIDGenerator
 import TuistXCActivityLog
-import TuistXCResultService
 import TuistXcodeBuildProducts
+import TuistXCResultService
 import XCResultParser
 
 struct XcodeBuildTestCommandService {

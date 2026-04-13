@@ -31,7 +31,7 @@ public struct ResolvedAppBundleTarget: Sendable {
     }
 }
 
-public enum AppBundlePathResolverError: Equatable, LocalizedError {
+public enum AppBundleTargetResolverError: Equatable, LocalizedError {
     case appNotSpecified
     case projectOrWorkspaceNotFound(path: String)
     case noAppsFound(app: String, configuration: String)
@@ -52,7 +52,7 @@ public enum AppBundlePathResolverError: Equatable, LocalizedError {
 }
 
 @Mockable
-public protocol AppBundlePathResolving {
+public protocol AppBundleTargetResolving {
     func resolve(
         app: String?,
         path: AbsolutePath,
@@ -62,7 +62,7 @@ public protocol AppBundlePathResolving {
     ) async throws -> ResolvedAppBundleTarget
 }
 
-public struct AppBundlePathResolver: AppBundlePathResolving {
+public struct AppBundleTargetResolver: AppBundleTargetResolving {
     private let manifestLoader: ManifestLoading
     private let manifestGraphLoader: ManifestGraphLoading
     private let configLoader: ConfigLoading
@@ -149,7 +149,7 @@ public struct AppBundlePathResolver: AppBundlePathResolving {
         )
 
         guard !appTargets.isEmpty else {
-            throw AppBundlePathResolverError.noAppsFound(
+            throw AppBundleTargetResolverError.noAppsFound(
                 app: app ?? "",
                 configuration: resolvedConfiguration
             )
@@ -187,11 +187,11 @@ public struct AppBundlePathResolver: AppBundlePathResolving {
         derivedDataPath: AbsolutePath?
     ) async throws -> ResolvedAppBundleTarget {
         guard let app else {
-            throw AppBundlePathResolverError.appNotSpecified
+            throw AppBundleTargetResolverError.appNotSpecified
         }
 
         guard !platforms.isEmpty else {
-            throw AppBundlePathResolverError.platformsNotSpecified
+            throw AppBundleTargetResolverError.platformsNotSpecified
         }
 
         let workspace = try await fileSystem.glob(directory: path, include: ["*.xcworkspace"])
@@ -202,7 +202,7 @@ public struct AppBundlePathResolver: AppBundlePathResolving {
             .first
 
         guard let workspacePath = workspace ?? project else {
-            throw AppBundlePathResolverError.projectOrWorkspaceNotFound(path: path.pathString)
+            throw AppBundleTargetResolverError.projectOrWorkspaceNotFound(path: path.pathString)
         }
 
         return ResolvedAppBundleTarget(

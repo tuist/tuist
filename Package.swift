@@ -413,7 +413,7 @@ tuistShareCommandDependencies.append(contentsOf: [
 ])
 tuistRunCommandDependencies.append(contentsOf: [
     "TuistKit", "TuistAutomation", "TuistCore", "TuistLoader",
-    "TuistSimulator",
+    "TuistSimulator", "TuistXcodeBuildProducts",
     xcodeGraphDependency,
 ])
 tuistInspectCommandDependencies.append(contentsOf: [

@@ -23,9 +23,8 @@ struct InspectBundleCommandServiceTests {
     private let configLoader = MockConfigLoading()
     private let serverEnvironmentService = MockServerEnvironmentServicing()
     private let gitController = MockGitControlling()
-    private let fileHandler = FileHandler.shared
-    private let builtAppBundleLocator = MockBuiltAppBundleLocating()
-    private let appBundlePathResolver = MockAppBundlePathResolving()
+    private let buildProductService = MockBuildProductServicing()
+    private let appBundleTargetResolver = MockAppBundleTargetResolving()
     private let subject: InspectBundleCommandService
 
     init() {
@@ -36,9 +35,8 @@ struct InspectBundleCommandServiceTests {
             serverEnvironmentService: serverEnvironmentService,
             gitController: gitController,
             fileSystem: fileSystem,
-            fileHandler: fileHandler,
-            builtAppBundleLocator: builtAppBundleLocator,
-            appBundlePathResolver: appBundlePathResolver
+            buildProductService: buildProductService,
+            appBundleTargetResolver: appBundleTargetResolver
         )
 
         given(configLoader)
@@ -131,7 +129,7 @@ struct InspectBundleCommandServiceTests {
             let workspacePath = temporaryDirectory.appending(component: "App.xcworkspace")
             let bundlePath = temporaryDirectory.appending(component: "App.app")
 
-            given(appBundlePathResolver)
+            given(appBundleTargetResolver)
                 .resolve(
                     app: .value("App"),
                     path: .value(temporaryDirectory),
@@ -147,8 +145,8 @@ struct InspectBundleCommandServiceTests {
                     derivedDataPath: nil
                 ))
 
-            given(builtAppBundleLocator)
-                .locateBuiltAppBundlePath(
+            given(buildProductService)
+                .appBundlePath(
                     app: .value("App"),
                     projectPath: .value(workspacePath),
                     derivedDataPath: .value(nil),

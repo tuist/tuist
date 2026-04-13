@@ -14,17 +14,17 @@ import XcodeGraph
 
 @testable import TuistKit
 
-struct AppBundlePathResolverTests {
+struct AppBundleTargetResolverTests {
     private let manifestLoader = MockManifestLoading()
     private let manifestGraphLoader = MockManifestGraphLoading()
     private let configLoader = MockConfigLoading()
     private let defaultConfigurationFetcher = MockDefaultConfigurationFetching()
     private let userInputReader = MockUserInputReading()
     private let fileSystem = FileSystem()
-    private let subject: AppBundlePathResolver
+    private let subject: AppBundleTargetResolver
 
     init() {
-        subject = AppBundlePathResolver(
+        subject = AppBundleTargetResolver(
             manifestLoader: manifestLoader,
             manifestGraphLoader: manifestGraphLoader,
             configLoader: configLoader,
@@ -205,7 +205,7 @@ struct AppBundlePathResolverTests {
             .willReturn("Debug")
 
         await #expect(
-            throws: AppBundlePathResolverError.noAppsFound(app: "MyApp", configuration: "Debug")
+            throws: AppBundleTargetResolverError.noAppsFound(app: "MyApp", configuration: "Debug")
         ) {
             try await subject.resolve(
                 app: "MyApp",
@@ -275,7 +275,7 @@ struct AppBundlePathResolverTests {
             .hasRootManifest(at: .any)
             .willReturn(false)
 
-        await #expect(throws: AppBundlePathResolverError.appNotSpecified) {
+        await #expect(throws: AppBundleTargetResolverError.appNotSpecified) {
             try await subject.resolve(
                 app: nil,
                 path: path,
@@ -294,7 +294,7 @@ struct AppBundlePathResolverTests {
             .hasRootManifest(at: .any)
             .willReturn(false)
 
-        await #expect(throws: AppBundlePathResolverError.platformsNotSpecified) {
+        await #expect(throws: AppBundleTargetResolverError.platformsNotSpecified) {
             try await subject.resolve(
                 app: "App",
                 path: path,
@@ -314,7 +314,7 @@ struct AppBundlePathResolverTests {
             .willReturn(false)
 
         await #expect(
-            throws: AppBundlePathResolverError.projectOrWorkspaceNotFound(path: path.pathString)
+            throws: AppBundleTargetResolverError.projectOrWorkspaceNotFound(path: path.pathString)
         ) {
             try await subject.resolve(
                 app: "App",

@@ -11,6 +11,7 @@ import TuistEnvironment
     import TuistAutomation
     import TuistCore
     import TuistSimulator
+    import TuistXcodeBuildProducts
 #endif
 
 #if canImport(TuistSupport)

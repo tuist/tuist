@@ -25,12 +25,12 @@ import XcodeGraph
 @Suite(.snapshots)
 struct ShareCommandServiceTests {
     private let subject: ShareCommandService
-    private let xcodeProjectBuildDirectoryLocator: MockXcodeProjectBuildDirectoryLocating
+    private let buildProductService: MockBuildProductServicing
     private let buildGraphInspector: MockBuildGraphInspecting
     private let previewsUploadService: MockPreviewsUploadServicing
     private let configLoader: MockConfigLoading
     private let serverEnvironmentService: MockServerEnvironmentServicing
-    private let appBundlePathResolver: MockAppBundlePathResolving
+    private let appBundleTargetResolver: MockAppBundleTargetResolving
     private let appBundleLoader: MockAppBundleLoading
     private let fileUnarchiver: MockFileUnarchiving
     private let fileArchiverFactory: MockFileArchivingFactorying
@@ -40,12 +40,12 @@ struct ShareCommandServiceTests {
     private let shareURL: URL = .test()
 
     init() {
-        xcodeProjectBuildDirectoryLocator = .init()
+        buildProductService = .init()
         buildGraphInspector = .init()
         previewsUploadService = .init()
         configLoader = .init()
         serverEnvironmentService = .init()
-        appBundlePathResolver = .init()
+        appBundleTargetResolver = .init()
         appBundleLoader = .init()
         fileUnarchiver = .init()
         fileArchiverFactory = MockFileArchivingFactorying()
@@ -68,9 +68,9 @@ struct ShareCommandServiceTests {
             apkMetadataService: apkMetadataService,
             fileArchiverFactory: fileArchiverFactory,
             gitController: gitController,
-            xcodeProjectBuildDirectoryLocator: xcodeProjectBuildDirectoryLocator,
+            buildProductService: buildProductService,
             buildGraphInspector: buildGraphInspector,
-            appBundlePathResolver: appBundlePathResolver,
+            appBundleTargetResolver: appBundleTargetResolver,
             appBundleLoader: appBundleLoader
         )
 
@@ -124,7 +124,7 @@ struct ShareCommandServiceTests {
         let projectPath = try #require(FileSystem.temporaryTestDirectory)
         let workspacePath = projectPath.appending(component: "App.xcworkspace")
 
-        given(appBundlePathResolver)
+        given(appBundleTargetResolver)
             .resolve(
                 app: .any,
                 path: .any,
@@ -140,52 +140,20 @@ struct ShareCommandServiceTests {
                 derivedDataPath: nil
             ))
 
-        let iosPath = projectPath.appending(component: "ios-simulator")
-        let iosDevicePath = projectPath.appending(component: "iphoneos")
-        try await fileSystem.makeDirectory(at: iosPath)
-        try await fileSystem.makeDirectory(at: iosDevicePath)
+        let iosSimulatorAppPath = projectPath.appending(components: "ios-simulator", "App.app")
+        let iosDeviceAppPath = projectPath.appending(components: "iphoneos", "App.app")
+        let visionOSSimulatorAppPath = projectPath.appending(components: "visionos-simulator", "App.app")
+        try await fileSystem.makeDirectory(at: iosSimulatorAppPath)
+        try await fileSystem.makeDirectory(at: iosDeviceAppPath)
+        try await fileSystem.makeDirectory(at: visionOSSimulatorAppPath)
 
-        given(xcodeProjectBuildDirectoryLocator)
-            .locate(
-                destinationType: .value(.simulator(.iOS)),
-                projectPath: .any,
-                derivedDataPath: .any,
-                configuration: .any
-            )
-            .willReturn(iosPath)
-        given(xcodeProjectBuildDirectoryLocator)
-            .locate(
-                destinationType: .value(.device(.iOS)),
-                projectPath: .any,
-                derivedDataPath: .any,
-                configuration: .any
-            )
-            .willReturn(iosDevicePath)
-        try await fileSystem.makeDirectory(at: iosPath.appending(component: "App.app"))
-        try await fileSystem.makeDirectory(at: iosDevicePath.appending(component: "App.app"))
-
-        let visionOSPath = projectPath.appending(component: "visionos-simulator")
-        let visionOSDevicePath = projectPath.appending(component: "visionOS")
-        try await fileSystem.makeDirectory(at: visionOSPath)
-        try await fileSystem.makeDirectory(at: visionOSDevicePath)
-
-        given(xcodeProjectBuildDirectoryLocator)
-            .locate(
-                destinationType: .value(.simulator(.visionOS)),
-                projectPath: .any,
-                derivedDataPath: .any,
-                configuration: .any
-            )
-            .willReturn(visionOSPath)
-        given(xcodeProjectBuildDirectoryLocator)
-            .locate(
-                destinationType: .value(.device(.visionOS)),
-                projectPath: .any,
-                derivedDataPath: .any,
-                configuration: .any
-            )
-            .willReturn(visionOSDevicePath)
-        try await fileSystem.makeDirectory(at: visionOSPath.appending(component: "App.app"))
+        given(buildProductService)
+            .appBundles(app: .any, projectPath: .any, derivedDataPath: .any, configuration: .any, platforms: .any)
+            .willReturn([
+                AppBundle.test(path: iosSimulatorAppPath, destinationType: .simulator(.iOS)),
+                AppBundle.test(path: iosDeviceAppPath, destinationType: .device(.iOS)),
+                AppBundle.test(path: visionOSSimulatorAppPath, destinationType: .simulator(.visionOS)),
+            ])
 
         given(appBundleLoader)
             .load(.any)
@@ -225,7 +193,7 @@ struct ShareCommandServiceTests {
         let projectPath = try #require(FileSystem.temporaryTestDirectory)
         let workspacePath = projectPath.appending(component: "App.xcworkspace")
 
-        given(appBundlePathResolver)
+        given(appBundleTargetResolver)
             .resolve(
                 app: .any,
                 path: .any,
@@ -241,27 +209,9 @@ struct ShareCommandServiceTests {
                 derivedDataPath: nil
             ))
 
-        let iosPath = projectPath.appending(component: "ios-simulator")
-        let iosDevicePath = projectPath.appending(component: "iphoneos")
-        try await fileSystem.makeDirectory(at: iosPath)
-        try await fileSystem.makeDirectory(at: iosDevicePath)
-
-        given(xcodeProjectBuildDirectoryLocator)
-            .locate(
-                destinationType: .value(.simulator(.iOS)),
-                projectPath: .any,
-                derivedDataPath: .any,
-                configuration: .any
-            )
-            .willReturn(iosPath)
-        given(xcodeProjectBuildDirectoryLocator)
-            .locate(
-                destinationType: .value(.device(.iOS)),
-                projectPath: .any,
-                derivedDataPath: .any,
-                configuration: .any
-            )
-            .willReturn(iosDevicePath)
+        given(buildProductService)
+            .appBundles(app: .any, projectPath: .any, derivedDataPath: .any, configuration: .any, platforms: .any)
+            .willReturn([])
 
         given(appBundleLoader)
             .load(.any)
@@ -269,7 +219,7 @@ struct ShareCommandServiceTests {
 
         // When / Then
         await #expect(
-            throws: AppBundlePathResolverError.noAppsFound(app: "App", configuration: "Debug")
+            throws: AppBundleTargetResolverError.noAppsFound(app: "App", configuration: "Debug")
         ) {
             try await subject.run(
                 path: nil,
@@ -289,7 +239,7 @@ struct ShareCommandServiceTests {
         let projectPath = try #require(FileSystem.temporaryTestDirectory)
         let workspacePath = projectPath.appending(component: "App.xcworkspace")
 
-        given(appBundlePathResolver)
+        given(appBundleTargetResolver)
             .resolve(
                 app: .value("AppTwo"),
                 path: .any,
@@ -305,28 +255,14 @@ struct ShareCommandServiceTests {
                 derivedDataPath: nil
             ))
 
-        let iosPath = projectPath.appending(component: "ios-simulator")
-        let iosDevicePath = projectPath.appending(component: "iphoneos")
-        try await fileSystem.makeDirectory(at: iosPath)
-        try await fileSystem.makeDirectory(at: iosDevicePath)
+        let iosSimulatorAppPath = projectPath.appending(components: "ios-simulator", "AppTwo.app")
+        try await fileSystem.makeDirectory(at: iosSimulatorAppPath)
 
-        given(xcodeProjectBuildDirectoryLocator)
-            .locate(
-                destinationType: .value(.simulator(.iOS)),
-                projectPath: .any,
-                derivedDataPath: .any,
-                configuration: .any
-            )
-            .willReturn(iosPath)
-        given(xcodeProjectBuildDirectoryLocator)
-            .locate(
-                destinationType: .value(.device(.iOS)),
-                projectPath: .any,
-                derivedDataPath: .any,
-                configuration: .any
-            )
-            .willReturn(iosDevicePath)
-        try await fileSystem.makeDirectory(at: iosPath.appending(component: "AppTwo.app"))
+        given(buildProductService)
+            .appBundles(app: .any, projectPath: .any, derivedDataPath: .any, configuration: .any, platforms: .any)
+            .willReturn([
+                AppBundle.test(path: iosSimulatorAppPath, destinationType: .simulator(.iOS)),
+            ])
 
         given(appBundleLoader)
             .load(.any)
@@ -374,7 +310,7 @@ struct ShareCommandServiceTests {
         let projectPath = try #require(FileSystem.temporaryTestDirectory)
         let workspacePath = projectPath.appending(component: "App.xcworkspace")
 
-        given(appBundlePathResolver)
+        given(appBundleTargetResolver)
             .resolve(
                 app: .any,
                 path: .any,
@@ -394,28 +330,14 @@ struct ShareCommandServiceTests {
             .load(.any)
             .willReturn(.test())
 
-        let iosPath = projectPath.appending(component: "ios-simulator")
-        let iosDevicePath = projectPath.appending(component: "iphoneos")
-        try await fileSystem.makeDirectory(at: iosPath)
-        try await fileSystem.makeDirectory(at: iosDevicePath)
+        let iosSimulatorAppPath = projectPath.appending(components: "ios-simulator", "App.app")
+        try await fileSystem.makeDirectory(at: iosSimulatorAppPath)
 
-        given(xcodeProjectBuildDirectoryLocator)
-            .locate(
-                destinationType: .value(.simulator(.iOS)),
-                projectPath: .any,
-                derivedDataPath: .any,
-                configuration: .any
-            )
-            .willReturn(iosPath)
-        given(xcodeProjectBuildDirectoryLocator)
-            .locate(
-                destinationType: .value(.device(.iOS)),
-                projectPath: .any,
-                derivedDataPath: .any,
-                configuration: .any
-            )
-            .willReturn(iosDevicePath)
-        try await fileSystem.makeDirectory(at: iosPath.appending(component: "App.app"))
+        given(buildProductService)
+            .appBundles(app: .any, projectPath: .any, derivedDataPath: .any, configuration: .any, platforms: .any)
+            .willReturn([
+                AppBundle.test(path: iosSimulatorAppPath, destinationType: .simulator(.iOS)),
+            ])
 
         // When
         try await subject.run(
@@ -438,7 +360,7 @@ struct ShareCommandServiceTests {
         let projectPath = try #require(FileSystem.temporaryTestDirectory)
         let workspacePath = projectPath.appending(component: "App.xcworkspace")
 
-        given(appBundlePathResolver)
+        given(appBundleTargetResolver)
             .resolve(
                 app: .value("AppClip"),
                 path: .any,
@@ -454,28 +376,14 @@ struct ShareCommandServiceTests {
                 derivedDataPath: nil
             ))
 
-        let iosPath = projectPath.appending(component: "ios-simulator")
-        let iosDevicePath = projectPath.appending(component: "iphoneos")
-        try await fileSystem.makeDirectory(at: iosPath)
-        try await fileSystem.makeDirectory(at: iosDevicePath)
+        let iosSimulatorAppPath = projectPath.appending(components: "ios-simulator", "AppClip.app")
+        try await fileSystem.makeDirectory(at: iosSimulatorAppPath)
 
-        given(xcodeProjectBuildDirectoryLocator)
-            .locate(
-                destinationType: .value(.simulator(.iOS)),
-                projectPath: .any,
-                derivedDataPath: .any,
-                configuration: .any
-            )
-            .willReturn(iosPath)
-        given(xcodeProjectBuildDirectoryLocator)
-            .locate(
-                destinationType: .value(.device(.iOS)),
-                projectPath: .any,
-                derivedDataPath: .any,
-                configuration: .any
-            )
-            .willReturn(iosDevicePath)
-        try await fileSystem.makeDirectory(at: iosPath.appending(component: "AppClip.app"))
+        given(buildProductService)
+            .appBundles(app: .any, projectPath: .any, derivedDataPath: .any, configuration: .any, platforms: .any)
+            .willReturn([
+                AppBundle.test(path: iosSimulatorAppPath, destinationType: .simulator(.iOS)),
+            ])
 
         given(appBundleLoader)
             .load(.any)
@@ -498,7 +406,7 @@ struct ShareCommandServiceTests {
 
     @Test func share_xcode_app_when_no_app_specified() async throws {
         // Given
-        given(appBundlePathResolver)
+        given(appBundleTargetResolver)
             .resolve(
                 app: .value(nil),
                 path: .any,
@@ -506,11 +414,11 @@ struct ShareCommandServiceTests {
                 platforms: .any,
                 derivedDataPath: .any
             )
-            .willThrow(AppBundlePathResolverError.appNotSpecified)
+            .willThrow(AppBundleTargetResolverError.appNotSpecified)
 
         // When / Then
         await #expect(
-            throws: AppBundlePathResolverError.appNotSpecified
+            throws: AppBundleTargetResolverError.appNotSpecified
         ) {
             try await subject.run(
                 path: nil,
@@ -548,7 +456,7 @@ struct ShareCommandServiceTests {
 
     @Test func share_xcode_app_when_no_platforms_specified() async throws {
         // Given
-        given(appBundlePathResolver)
+        given(appBundleTargetResolver)
             .resolve(
                 app: .value("App"),
                 path: .any,
@@ -556,11 +464,11 @@ struct ShareCommandServiceTests {
                 platforms: .any,
                 derivedDataPath: .any
             )
-            .willThrow(AppBundlePathResolverError.platformsNotSpecified)
+            .willThrow(AppBundleTargetResolverError.platformsNotSpecified)
 
         // When / Then
         await #expect(
-            throws: AppBundlePathResolverError.platformsNotSpecified
+            throws: AppBundleTargetResolverError.platformsNotSpecified
         ) {
             try await subject.run(
                 path: nil,
@@ -579,7 +487,7 @@ struct ShareCommandServiceTests {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
 
-        given(appBundlePathResolver)
+        given(appBundleTargetResolver)
             .resolve(
                 app: .value("App"),
                 path: .any,
@@ -587,11 +495,11 @@ struct ShareCommandServiceTests {
                 platforms: .any,
                 derivedDataPath: .any
             )
-            .willThrow(AppBundlePathResolverError.projectOrWorkspaceNotFound(path: path.pathString))
+            .willThrow(AppBundleTargetResolverError.projectOrWorkspaceNotFound(path: path.pathString))
 
         // When / Then
         await #expect(
-            throws: AppBundlePathResolverError.projectOrWorkspaceNotFound(path: path.pathString)
+            throws: AppBundleTargetResolverError.projectOrWorkspaceNotFound(path: path.pathString)
         ) {
             try await subject.run(
                 path: path.pathString,
@@ -611,7 +519,7 @@ struct ShareCommandServiceTests {
         let path = try #require(FileSystem.temporaryTestDirectory)
         let xcodeprojPath = path.appending(component: "App.xcodeproj")
 
-        given(appBundlePathResolver)
+        given(appBundleTargetResolver)
             .resolve(
                 app: .value("App"),
                 path: .any,
@@ -627,28 +535,14 @@ struct ShareCommandServiceTests {
                 derivedDataPath: nil
             ))
 
-        let iosPath = path.appending(component: "ios-simulator")
-        let iosDevicePath = path.appending(component: "iphoneos")
-        try await fileSystem.makeDirectory(at: iosPath)
-        try await fileSystem.makeDirectory(at: iosDevicePath)
+        let iosSimulatorAppPath = path.appending(components: "ios-simulator", "App.app")
+        try await fileSystem.makeDirectory(at: iosSimulatorAppPath)
 
-        given(xcodeProjectBuildDirectoryLocator)
-            .locate(
-                destinationType: .value(.simulator(.iOS)),
-                projectPath: .any,
-                derivedDataPath: .any,
-                configuration: .any
-            )
-            .willReturn(iosPath)
-        given(xcodeProjectBuildDirectoryLocator)
-            .locate(
-                destinationType: .value(.device(.iOS)),
-                projectPath: .any,
-                derivedDataPath: .any,
-                configuration: .any
-            )
-            .willReturn(iosDevicePath)
-        try await fileSystem.makeDirectory(at: iosPath.appending(component: "App.app"))
+        given(buildProductService)
+            .appBundles(app: .any, projectPath: .any, derivedDataPath: .any, configuration: .any, platforms: .any)
+            .willReturn([
+                AppBundle.test(path: iosSimulatorAppPath, destinationType: .simulator(.iOS)),
+            ])
 
         given(appBundleLoader)
             .load(.any)

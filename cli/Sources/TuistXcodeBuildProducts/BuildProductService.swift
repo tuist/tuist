@@ -6,17 +6,7 @@ import TuistSimulator
 import TuistSupport
 import XcodeGraph
 
-public struct BuiltAppBundle: Equatable, Sendable {
-    public let destinationType: DestinationType
-    public let path: AbsolutePath
-
-    public init(destinationType: DestinationType, path: AbsolutePath) {
-        self.destinationType = destinationType
-        self.path = path
-    }
-}
-
-public enum BuiltAppBundleLocatorError: Equatable, LocalizedError {
+public enum BuildProductServiceError: Equatable, LocalizedError {
     case noAppsFound(app: String, configuration: String)
     case multipleBuiltBundlesFound(app: String, paths: [String])
 
@@ -31,16 +21,16 @@ public enum BuiltAppBundleLocatorError: Equatable, LocalizedError {
 }
 
 @Mockable
-public protocol BuiltAppBundleLocating {
-    func locateBuiltAppBundles(
+public protocol BuildProductServicing {
+    func appBundles(
         app: String,
         projectPath: AbsolutePath,
         derivedDataPath: AbsolutePath?,
         configuration: String,
         platforms: [Platform]
-    ) async throws -> [BuiltAppBundle]
+    ) async throws -> [AppBundle]
 
-    func locateBuiltAppBundlePath(
+    func appBundlePath(
         app: String,
         projectPath: AbsolutePath,
         derivedDataPath: AbsolutePath?,
@@ -49,25 +39,28 @@ public protocol BuiltAppBundleLocating {
     ) async throws -> AbsolutePath
 }
 
-public struct BuiltAppBundleLocator: BuiltAppBundleLocating {
+public struct BuildProductService: BuildProductServicing {
     private let fileSystem: FileSysteming
     private let xcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectoryLocating
+    private let appBundleLoader: AppBundleLoading
 
     public init(
         fileSystem: FileSysteming = FileSystem(),
-        xcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectoryLocating = XcodeProjectBuildDirectoryLocator()
+        xcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectoryLocating = XcodeProjectBuildDirectoryLocator(),
+        appBundleLoader: AppBundleLoading = AppBundleLoader()
     ) {
         self.fileSystem = fileSystem
         self.xcodeProjectBuildDirectoryLocator = xcodeProjectBuildDirectoryLocator
+        self.appBundleLoader = appBundleLoader
     }
 
-    public func locateBuiltAppBundles(
+    public func appBundles(
         app: String,
         projectPath: AbsolutePath,
         derivedDataPath: AbsolutePath?,
         configuration: String,
         platforms: [Platform]
-    ) async throws -> [BuiltAppBundle] {
+    ) async throws -> [AppBundle] {
         let destinationTypes = platforms.flatMap { platform -> [DestinationType] in
             switch platform {
             case .iOS, .tvOS, .visionOS, .watchOS:
@@ -89,18 +82,18 @@ public struct BuiltAppBundleLocator: BuiltAppBundleLocating {
             )
             let appPath = buildDirectory.appending(component: "\(app).app")
             guard try await fileSystem.exists(appPath) else { return nil }
-            return BuiltAppBundle(destinationType: destinationType, path: appPath)
+            return try await appBundleLoader.load(appPath, destinationType: destinationType)
         }
     }
 
-    public func locateBuiltAppBundlePath(
+    public func appBundlePath(
         app: String,
         projectPath: AbsolutePath,
         derivedDataPath: AbsolutePath?,
         configuration: String,
         platforms: [Platform]
     ) async throws -> AbsolutePath {
-        let appPaths = try await locateBuiltAppBundles(
+        let appPaths = try await appBundles(
             app: app,
             projectPath: projectPath,
             derivedDataPath: derivedDataPath,
@@ -110,12 +103,12 @@ public struct BuiltAppBundleLocator: BuiltAppBundleLocating {
         .map(\.path)
 
         guard !appPaths.isEmpty else {
-            throw BuiltAppBundleLocatorError.noAppsFound(app: app, configuration: configuration)
+            throw BuildProductServiceError.noAppsFound(app: app, configuration: configuration)
         }
 
         let uniquePaths = Array(Set(appPaths)).sorted { $0.pathString < $1.pathString }
         guard uniquePaths.count == 1, let bundlePath = uniquePaths.first else {
-            throw BuiltAppBundleLocatorError.multipleBuiltBundlesFound(
+            throw BuildProductServiceError.multipleBuiltBundlesFound(
                 app: app,
                 paths: uniquePaths.map(\.pathString)
             )

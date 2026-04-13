@@ -2,12 +2,13 @@ import FileSystem
 import Foundation
 import Mockable
 import Path
+import TuistSimulator
 import TuistSupport
 import TuistTesting
 import XcodeGraph
 import XCTest
 
-@testable import TuistAutomation
+@testable import TuistXcodeBuildProducts
 
 final class AppBundleLoaderTests: TuistUnitTestCase {
     private var subject: AppBundleLoader!
@@ -79,7 +80,8 @@ final class AppBundleLoaderTests: TuistUnitTestCase {
                             iconFiles: ["AppIcon60x60"]
                         )
                     )
-                )
+                ),
+                destinationType: .device(.iOS)
             )
         )
     }
@@ -110,7 +112,8 @@ final class AppBundleLoaderTests: TuistUnitTestCase {
                             iconFiles: ["AppIcon60x60"]
                         )
                     )
-                )
+                ),
+                destinationType: .simulator(.iOS)
             )
         )
     }
@@ -138,7 +141,8 @@ final class AppBundleLoaderTests: TuistUnitTestCase {
                     minimumOSVersion: Version("17.0"),
                     supportedPlatforms: [.device(.iOS)],
                     bundleIcons: nil
-                )
+                ),
+                destinationType: .device(.iOS)
             )
         )
     }
@@ -197,7 +201,8 @@ final class AppBundleLoaderTests: TuistUnitTestCase {
                             iconFiles: nil
                         )
                     )
-                )
+                ),
+                destinationType: .device(.tvOS)
             )
         )
     }
@@ -263,7 +268,8 @@ final class AppBundleLoaderTests: TuistUnitTestCase {
                             iconFiles: ["AppIcon"]
                         )
                     )
-                )
+                ),
+                destinationType: .device(.tvOS)
             )
         )
     }
@@ -316,7 +322,8 @@ final class AppBundleLoaderTests: TuistUnitTestCase {
                     minimumOSVersion: Version("14.0"),
                     supportedPlatforms: [.device(.macOS)],
                     bundleIcons: nil
-                )
+                ),
+                destinationType: .device(.macOS)
             )
         )
     }
