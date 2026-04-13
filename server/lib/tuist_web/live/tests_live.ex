@@ -462,7 +462,7 @@ defmodule TuistWeb.TestsLive do
   def test_scheme_label("any"), do: dgettext("dashboard_tests", "Any")
   def test_scheme_label(scheme), do: scheme
 
-  defp localize_test_run_scatter(scatter_data, group_by) do
+  defp with_test_run_tooltip_extra(scatter_data, group_by) do
     Map.update!(scatter_data, :series, fn series ->
       Enum.map(series, fn s ->
         %{
@@ -478,7 +478,7 @@ defmodule TuistWeb.TestsLive do
     end)
   end
 
-  defp localize_selective_testing_scatter(scatter_data) do
+  defp with_selective_testing_tooltip_extra(scatter_data) do
     Map.update!(scatter_data, :series, fn series ->
       Enum.map(series, fn s ->
         %{
@@ -526,7 +526,7 @@ defmodule TuistWeb.TestsLive do
       data =
         project_id
         |> Analytics.test_run_duration_scatter_data(Keyword.put(opts, :group_by, group_by))
-        |> localize_test_run_scatter(group_by)
+        |> with_test_run_tooltip_extra(group_by)
 
       {:ok, %{test_run_duration_chart: {:scatter, data}}}
     end)
@@ -538,7 +538,7 @@ defmodule TuistWeb.TestsLive do
 
   defp assign_selective_testing_chart(socket, "scatter", opts) do
     assign_async(socket, :selective_testing_chart, fn ->
-      data = opts |> BuildsAnalytics.selective_testing_scatter_data() |> localize_selective_testing_scatter()
+      data = opts |> BuildsAnalytics.selective_testing_scatter_data() |> with_selective_testing_tooltip_extra()
       {:ok, %{selective_testing_chart: {:scatter, data}}}
     end)
   end

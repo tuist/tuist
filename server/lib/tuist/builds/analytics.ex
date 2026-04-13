@@ -2230,11 +2230,10 @@ defmodule Tuist.Builds.Analytics do
   defp normalize_string_filter(value) when is_binary(value), do: value
   defp normalize_string_filter(_), do: nil
 
-  defp to_rounded_decimal(value, places \\ 1)
-  defp to_rounded_decimal(nil, _places), do: Decimal.new(0)
-  defp to_rounded_decimal(%Decimal{} = value, places), do: Decimal.round(value, places)
-  defp to_rounded_decimal(value, places) when is_float(value), do: value |> Decimal.from_float() |> Decimal.round(places)
-  defp to_rounded_decimal(value, places) when is_integer(value), do: value |> Decimal.new() |> Decimal.round(places)
+  defp to_rounded_decimal(nil), do: Decimal.new(0)
+  defp to_rounded_decimal(%Decimal{} = value), do: Decimal.round(value, 1)
+  defp to_rounded_decimal(value) when is_float(value), do: value |> Decimal.from_float() |> Decimal.round(1)
+  defp to_rounded_decimal(value) when is_integer(value), do: value |> Decimal.new() |> Decimal.round(1)
 
   defp date_range_for_date_period(:hour, opts) do
     start_datetime = DateTime.truncate(Keyword.fetch!(opts, :start_datetime), :second)

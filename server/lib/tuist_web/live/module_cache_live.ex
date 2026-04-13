@@ -187,7 +187,7 @@ defmodule TuistWeb.ModuleCacheLive do
   defp assign_cache_hit_rate_chart(socket, "scatter", opts) do
     assign_async(socket, :cache_hit_rate_chart, fn ->
       {:ok,
-       %{cache_hit_rate_chart: {:scatter, opts |> Analytics.module_cache_hit_rate_scatter_data() |> localize_scatter()}}}
+       %{cache_hit_rate_chart: {:scatter, opts |> Analytics.module_cache_hit_rate_scatter_data() |> with_tooltip_extra()}}}
     end)
   end
 
@@ -318,7 +318,7 @@ defmodule TuistWeb.ModuleCacheLive do
   defp environment_label(true), do: dgettext("dashboard_cache", "CI")
   defp environment_label(false), do: dgettext("dashboard_cache", "Local")
 
-  defp localize_scatter(scatter_data) do
+  defp with_tooltip_extra(scatter_data) do
     Map.update!(scatter_data, :series, fn series ->
       Enum.map(series, fn s ->
         %{

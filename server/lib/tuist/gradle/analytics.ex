@@ -855,9 +855,8 @@ defmodule Tuist.Gradle.Analytics do
     end
   end
 
-  defp to_rounded_decimal(value, places \\ 1)
-  defp to_rounded_decimal(nil, _places), do: Decimal.new(0)
-  defp to_rounded_decimal(%Decimal{} = value, places), do: Decimal.round(value, places)
-  defp to_rounded_decimal(value, places) when is_float(value), do: value |> Decimal.from_float() |> Decimal.round(places)
-  defp to_rounded_decimal(value, places) when is_integer(value), do: value |> Decimal.new() |> Decimal.round(places)
+  defp to_rounded_decimal(nil), do: Decimal.new(0)
+  defp to_rounded_decimal(%Decimal{} = value), do: Decimal.round(value, 1)
+  defp to_rounded_decimal(value) when is_float(value), do: value |> Decimal.from_float() |> Decimal.round(1)
+  defp to_rounded_decimal(value) when is_integer(value), do: value |> Decimal.new() |> Decimal.round(1)
 end

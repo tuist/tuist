@@ -270,7 +270,7 @@ defmodule TuistWeb.XcodeCacheLive do
     end
   end
 
-  defp localize_scatter(scatter_data, group_by) do
+  defp with_tooltip_extra(scatter_data, group_by) do
     Map.update!(scatter_data, :series, fn series ->
       Enum.map(series, fn s ->
         %{
@@ -314,7 +314,7 @@ defmodule TuistWeb.XcodeCacheLive do
       data =
         project_id
         |> Analytics.build_cache_hit_rate_scatter_data(Keyword.put(opts, :group_by, group_by))
-        |> localize_scatter(group_by)
+        |> with_tooltip_extra(group_by)
 
       {:ok, %{cache_hit_rate_chart: {:scatter, data}}}
     end)
