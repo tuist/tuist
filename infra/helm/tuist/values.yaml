@@ -60,7 +60,7 @@ cache:
     fsGroup: 990
   image:
     repository: ghcr.io/tuist/cache
-    tag: ""
+    tag: "0.29.0"
     pullPolicy: IfNotPresent
   nginx:
     enabled: true
