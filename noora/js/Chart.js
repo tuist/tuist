@@ -363,6 +363,9 @@ function transformColorProperty(colorProp) {
   return processColor(colorProp);
 }
 
+// Tooltip strings are returned to ECharts and rendered via innerHTML
+// (renderMode defaults to "html"), so any interpolated value derived from
+// user-uploaded data (scheme, project name, category, etc.) must be escaped.
 function escapeHtml(value) {
   if (value === null || value === undefined) return "";
   return String(value)
