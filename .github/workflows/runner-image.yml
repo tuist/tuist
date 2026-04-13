@@ -10,7 +10,7 @@ on:
         description: "Output image name (e.g. tuist-runner-xcode-26.4)"
         required: true
       runner_version:
-        description: "GitHub Actions runner version (e.g. 2.325.0)"
+        description: "GitHub Actions runner version (e.g. 2.333.1)"
         required: true
 
 jobs:
