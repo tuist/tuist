@@ -1065,6 +1065,37 @@ targets.append(contentsOf: [
         path: "cli/Sources/TuistMachineMetrics",
         exclude: ["AGENTS.md"]
     ),
+    .target(
+        name: "TuistSimulator",
+        dependencies: [
+            xcodeGraphDependency,
+            mockableDependency,
+            pathDependency,
+        ],
+        path: "cli/Sources/TuistSimulator",
+        exclude: ["AGENTS.md"],
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
+        name: "TuistXcodeBuildProducts",
+        dependencies: [
+            "TuistEnvironment",
+            "TuistSimulator",
+            "TuistSupport",
+            fileSystemDependency,
+            mockableDependency,
+            pathDependency,
+            xcodeGraphDependency,
+            .product(name: "Crypto", package: "apple.swift-crypto"),
+        ],
+        path: "cli/Sources/TuistXcodeBuildProducts",
+        exclude: ["AGENTS.md"],
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
 ])
 
 // MARK: - macOS-only targets
@@ -1445,19 +1476,6 @@ targets.append(contentsOf: [
         ]
     ),
     .target(
-        name: "TuistSimulator",
-        dependencies: [
-            xcodeGraphDependency,
-            mockableDependency,
-            pathDependency,
-        ],
-        path: "cli/Sources/TuistSimulator",
-        exclude: ["AGENTS.md"],
-        swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug)),
-        ]
-    ),
-    .target(
         name: "TuistXCActivityLog",
         dependencies: [
             "TuistCore",
@@ -1500,24 +1518,6 @@ targets.append(contentsOf: [
             pathDependency,
         ],
         path: "cli/Sources/TuistXcodeProjectOrWorkspacePathLocator",
-        exclude: ["AGENTS.md"],
-        swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug)),
-        ]
-    ),
-    .target(
-        name: "TuistXcodeBuildProducts",
-        dependencies: [
-            "TuistEnvironment",
-            "TuistSimulator",
-            "TuistSupport",
-            fileSystemDependency,
-            mockableDependency,
-            pathDependency,
-            xcodeGraphDependency,
-            .product(name: "Crypto", package: "apple.swift-crypto"),
-        ],
-        path: "cli/Sources/TuistXcodeBuildProducts",
         exclude: ["AGENTS.md"],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
