@@ -55,7 +55,7 @@ brew install --formula tuist@x.y.z
 
 ## HTTP proxy {#http-proxy}
 
-If your network routes outbound traffic through an HTTP proxy, you can tell Tuist which proxy to use from your `Tuist.swift` manifest. Four modes are supported:
+If your network routes outbound traffic through an HTTP proxy, you can tell Tuist which proxy to use from your `Tuist.swift` manifest. Three modes are supported:
 
 ```swift
 import ProjectDescription
@@ -65,18 +65,18 @@ let tuist = Tuist(
 
     // Choose one:
     proxy: .none,                                // default — direct connections
-    proxy: .environmentVariable(),               // reads HTTPS_PROXY, then HTTP_PROXY
-    proxy: .environmentVariable("CORP_PROXY"),   // reads the named env variable
+    proxy: .environmentVariable(),               // reads HTTPS_PROXY (default name)
+    proxy: .environmentVariable("HTTP_PROXY"),   // or any other env variable
     proxy: .url("http://proxy.corp:8080"),       // hardcoded URL
+    proxy: "http://proxy.corp:8080",             // shorthand — same as .url(...)
 
     project: .tuist()
 )
 ```
 
 - `.none` is the default. Tuist makes direct connections.
-- `.environmentVariable()` (no argument) reads the proxy URL from `HTTPS_PROXY`, falling back to `HTTP_PROXY`. Both the uppercase and lowercase variants are accepted. This mirrors the convention used by `curl`, `git`, and most developer tools.
-- `.environmentVariable("NAME")` reads the proxy URL from the named environment variable. Use this when you want to point Tuist at a different variable than the standard ones.
-- `.url("...")` uses the given URL directly. Credentials can be encoded inline as `http://user:password@proxy.corp:8080` if the proxy requires authentication.
+- `.environmentVariable()` reads the proxy URL from the named environment variable. The parameter defaults to `"HTTPS_PROXY"` to match the convention used by `curl`, `git`, and most developer tools. Pass a different name — e.g. `.environmentVariable("HTTP_PROXY")` or `.environmentVariable("CORP_PROXY")` — to read somewhere else.
+- `.url("...")` uses the given URL directly. Credentials can be encoded inline as `http://user:password@proxy.corp:8080` if the proxy requires authentication. Because `Tuist.Proxy` conforms to `ExpressibleByStringLiteral`, you can also write `proxy: "http://proxy.corp:8080"` as a shorthand.
 
 The proxy is applied as soon as Tuist loads `Tuist.swift`, so every subsequent network request Tuist makes — cache, previews, analytics, registry, etc. — goes through it.
 

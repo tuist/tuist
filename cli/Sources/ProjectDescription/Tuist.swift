@@ -47,25 +47,20 @@ public struct Tuist: Codable, Equatable, Sendable {
     /// are supported:
     ///
     /// - ``none`` (default): Tuist makes requests directly.
-    /// - ``environmentVariable(_:)`` without a name: Tuist reads the proxy URL from `HTTPS_PROXY`,
-    ///   falling back to `HTTP_PROXY`. This mirrors the convention used by `curl`, `git`, and
-    ///   most other developer tools.
-    /// - ``environmentVariable(_:)`` with a name: Tuist reads the proxy URL from the given
-    ///   environment variable.
+    /// - ``environmentVariable(_:)``: Tuist reads the proxy URL from an environment variable,
+    ///   defaulting to `HTTPS_PROXY`. Pass a different name (e.g. `"HTTP_PROXY"` or a
+    ///   custom variable) to read somewhere else.
     /// - ``url(_:)``: Tuist uses the proxy URL you pass directly. Include credentials inline
     ///   if the proxy requires authentication: `http://user:password@proxy.corp:8080`.
     public enum Proxy: Codable, Equatable, Sendable {
         /// No proxy. Tuist makes direct connections.
         case none
 
-        /// Read the proxy URL from an environment variable.
+        /// Read the proxy URL from the named environment variable.
         ///
-        /// When `name` is `nil`, Tuist reads `HTTPS_PROXY` and falls back to `HTTP_PROXY`.
-        /// Both the uppercase and lowercase forms of the variables are accepted.
-        ///
-        /// - Parameter name: The environment variable to read. Defaults to `nil` for the
-        ///   standard `HTTPS_PROXY` / `HTTP_PROXY` lookup.
-        case environmentVariable(String? = nil)
+        /// - Parameter name: The environment variable to read. Defaults to `"HTTPS_PROXY"`,
+        ///   which matches the convention used by `curl`, `git`, and most developer tools.
+        case environmentVariable(String = "HTTPS_PROXY")
 
         /// Use the given proxy URL directly.
         ///
@@ -158,6 +153,20 @@ public struct Tuist: Codable, Equatable, Sendable {
     }
 }
 
+extension Tuist.Proxy: ExpressibleByStringLiteral {
+    /// Lets users write a proxy URL as a bare string literal in `Tuist.swift`:
+    ///
+    /// ```swift
+    /// let tuist = Tuist(proxy: "http://proxy.corp:8080", project: .tuist())
+    /// ```
+    ///
+    /// Equivalent to ``url(_:)``. Use the explicit cases when you need
+    /// ``environmentVariable(_:)``.
+    public init(stringLiteral value: String) {
+        self = .url(value)
+    }
+}
+
 extension Tuist.Proxy {
     private enum CodingKeys: String, CodingKey {
         case kind
@@ -177,7 +186,7 @@ extension Tuist.Proxy {
         case .none:
             self = .none
         case .environmentVariable:
-            let value = try container.decodeIfPresent(String.self, forKey: .value)
+            let value = try container.decode(String.self, forKey: .value)
             self = .environmentVariable(value)
         case .url:
             let value = try container.decode(String.self, forKey: .value)
@@ -192,7 +201,7 @@ extension Tuist.Proxy {
             try container.encode(Kind.none, forKey: .kind)
         case let .environmentVariable(name):
             try container.encode(Kind.environmentVariable, forKey: .kind)
-            try container.encodeIfPresent(name, forKey: .value)
+            try container.encode(name, forKey: .value)
         case let .url(url):
             try container.encode(Kind.url, forKey: .kind)
             try container.encode(url, forKey: .value)

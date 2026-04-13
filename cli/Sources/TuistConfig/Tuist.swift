@@ -26,11 +26,8 @@ public struct Tuist: Equatable, Hashable, Sendable {
         /// No proxy. Tuist makes direct connections.
         case none
 
-        /// Read the proxy URL from an environment variable at runtime.
-        ///
-        /// When `name` is `nil`, Tuist reads `HTTPS_PROXY` and falls back to `HTTP_PROXY`
-        /// (both uppercase and lowercase variants are checked).
-        case environmentVariable(String?)
+        /// Read the proxy URL from the named environment variable at runtime.
+        case environmentVariable(String)
 
         /// Use the given proxy URL directly.
         case url(URL)

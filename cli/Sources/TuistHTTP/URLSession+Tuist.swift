@@ -16,11 +16,8 @@ public enum TuistHTTPProxy: Equatable, Sendable {
     /// No proxy. Tuist makes direct connections.
     case none
 
-    /// Read the proxy URL from an environment variable.
-    ///
-    /// When `name` is `nil`, Tuist reads `HTTPS_PROXY` and falls back to `HTTP_PROXY`.
-    /// Both uppercase and lowercase variants are checked.
-    case environmentVariable(String?)
+    /// Read the proxy URL from the named environment variable.
+    case environmentVariable(String)
 
     /// Use the given proxy URL directly.
     case url(URL)
@@ -109,26 +106,10 @@ extension URLSession {
         case let .url(url):
             return url
         case let .environmentVariable(name):
-            guard let value = resolveProxyEnvironmentValue(name: name) else {
-                return nil
-            }
+            let value = ProcessInfo.processInfo.environment[name]
+            guard let value, !value.isEmpty else { return nil }
             return URL(string: value)
         }
-    }
-
-    private func resolveProxyEnvironmentValue(name: String?) -> String? {
-        let env = ProcessInfo.processInfo.environment
-        if let name {
-            let value = env[name]
-            return (value?.isEmpty == false) ? value : nil
-        }
-        let candidates = ["HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy"]
-        for candidate in candidates {
-            if let value = env[candidate], !value.isEmpty {
-                return value
-            }
-        }
-        return nil
     }
 
     private func defaultProxyPort(for scheme: String?) -> Int {

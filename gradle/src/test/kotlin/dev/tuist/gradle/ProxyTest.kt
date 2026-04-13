@@ -34,42 +34,17 @@ class ProxyTest {
     }
 
     @Test
-    fun `StandardEnvironment reads HTTPS_PROXY first`() {
-        val env = mapOf(
-            "HTTPS_PROXY" to "http://secure.corp:9443",
-            "HTTP_PROXY" to "http://plain.corp:8080"
-        )
-        val proxy = Proxy.StandardEnvironment.resolve { env[it] }!!
+    fun `EnvironmentVariable defaults to HTTPS_PROXY`() {
+        assertEquals("HTTPS_PROXY", Proxy.EnvironmentVariable().name)
+        val env = mapOf("HTTPS_PROXY" to "http://secure.corp:9443")
+        val proxy = Proxy.EnvironmentVariable().resolve { env[it] }!!
         val address = proxy.address() as java.net.InetSocketAddress
         assertEquals("secure.corp", address.hostString)
         assertEquals(9443, address.port)
     }
 
     @Test
-    fun `StandardEnvironment falls back to HTTP_PROXY when HTTPS_PROXY is unset`() {
-        val env = mapOf("HTTP_PROXY" to "http://plain.corp:8080")
-        val proxy = Proxy.StandardEnvironment.resolve { env[it] }!!
-        val address = proxy.address() as java.net.InetSocketAddress
-        assertEquals("plain.corp", address.hostString)
-        assertEquals(8080, address.port)
-    }
-
-    @Test
-    fun `StandardEnvironment honors lowercase variants`() {
-        val env = mapOf("https_proxy" to "http://lower.corp:7777")
-        val proxy = Proxy.StandardEnvironment.resolve { env[it] }!!
-        val address = proxy.address() as java.net.InetSocketAddress
-        assertEquals("lower.corp", address.hostString)
-        assertEquals(7777, address.port)
-    }
-
-    @Test
-    fun `StandardEnvironment returns null when no env var is set`() {
-        assertNull(Proxy.StandardEnvironment.resolve { null })
-    }
-
-    @Test
-    fun `EnvironmentVariable reads the custom env var`() {
+    fun `EnvironmentVariable reads a custom env var`() {
         val env = mapOf("CORP_PROXY" to "http://custom.corp:6666")
         val proxy = Proxy.EnvironmentVariable("CORP_PROXY").resolve { env[it] }!!
         val address = proxy.address() as java.net.InetSocketAddress
@@ -82,6 +57,15 @@ class ProxyTest {
         assertNull(Proxy.EnvironmentVariable("CORP_PROXY").resolve { null })
         assertNull(Proxy.EnvironmentVariable("CORP_PROXY").resolve { "" })
         assertNull(Proxy.EnvironmentVariable("CORP_PROXY").resolve { "   " })
+    }
+
+    @Test
+    fun `EnvironmentVariable reads HTTP_PROXY when explicitly requested`() {
+        val env = mapOf("HTTP_PROXY" to "http://plain.corp:8080")
+        val proxy = Proxy.EnvironmentVariable("HTTP_PROXY").resolve { env[it] }!!
+        val address = proxy.address() as java.net.InetSocketAddress
+        assertEquals("plain.corp", address.hostString)
+        assertEquals(8080, address.port)
     }
 
     @Test

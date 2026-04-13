@@ -47,7 +47,7 @@
             #expect(TuistHTTPProxy.none == TuistHTTPProxy.none)
             let url = URL(string: "http://proxy.corp:8080")!
             #expect(TuistHTTPProxy.url(url) == TuistHTTPProxy.url(url))
-            #expect(TuistHTTPProxy.environmentVariable(nil) == TuistHTTPProxy.environmentVariable(nil))
+            #expect(TuistHTTPProxy.environmentVariable("HTTPS_PROXY") == TuistHTTPProxy.environmentVariable("HTTPS_PROXY"))
             #expect(TuistHTTPProxy.environmentVariable("FOO") != TuistHTTPProxy.environmentVariable("BAR"))
         }
     }

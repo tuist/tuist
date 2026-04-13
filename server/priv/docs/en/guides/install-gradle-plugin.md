@@ -77,7 +77,7 @@ The following options are available in the `tuist` extension block in `settings.
 
 If your network routes outbound traffic through an HTTP proxy, you can tell the Gradle plugin which proxy to use via the `proxy` option. The same setting applies to every HTTP client the plugin creates — the remote build cache, build insights, test insights, test quarantine, and test sharding all honor it.
 
-Four modes are supported:
+Three modes are supported:
 
 ```kotlin
 import dev.tuist.gradle.Proxy
@@ -87,15 +87,14 @@ tuist {
 
     // Choose one:
     proxy = Proxy.None                                   // default — direct connections
-    proxy = Proxy.StandardEnvironment                    // reads HTTPS_PROXY, then HTTP_PROXY
-    proxy = Proxy.EnvironmentVariable("CORP_PROXY")      // reads the named env variable
+    proxy = Proxy.EnvironmentVariable()                  // reads HTTPS_PROXY (default name)
+    proxy = Proxy.EnvironmentVariable("HTTP_PROXY")      // or any other env variable
     proxy = Proxy.Url("http://proxy.corp:8080")          // hardcoded URL
 }
 ```
 
 - `Proxy.None` is the default. The plugin makes direct connections.
-- `Proxy.StandardEnvironment` reads the proxy URL from `HTTPS_PROXY`, falling back to `HTTP_PROXY`. Both the uppercase and lowercase variants are accepted. This mirrors the convention used by `curl`, `git`, and most developer tools, so it's the right choice when you're already exporting those variables at the shell or CI level.
-- `Proxy.EnvironmentVariable("NAME")` reads the proxy URL from the named environment variable. Use this when you want to point the plugin at a different variable than the standard ones.
+- `Proxy.EnvironmentVariable()` reads the proxy URL from the named environment variable. The parameter defaults to `"HTTPS_PROXY"` to match the convention used by `curl`, `git`, and most developer tools. Pass a different name — e.g. `Proxy.EnvironmentVariable("HTTP_PROXY")` or `Proxy.EnvironmentVariable("CORP_PROXY")` — to read somewhere else.
 - `Proxy.Url("...")` uses the given URL directly. Credentials can be encoded inline as `http://user:password@proxy.corp:8080` if the proxy requires authentication.
 
 Proxy resolution happens at configure time, so the environment variables you reference must be set when Gradle evaluates `settings.gradle.kts`. On CI that means exporting them in the same job that invokes Gradle.

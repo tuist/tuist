@@ -11,10 +11,11 @@ import java.net.URI
  * Usage in settings.gradle.kts:
  * ```
  * tuist {
- *     proxy = Proxy.StandardEnvironment      // reads HTTPS_PROXY then HTTP_PROXY
+ *     proxy = Proxy.EnvironmentVariable()                  // reads HTTPS_PROXY (default)
+ *     // proxy = Proxy.EnvironmentVariable("HTTP_PROXY")
  *     // proxy = Proxy.EnvironmentVariable("CORP_PROXY")
  *     // proxy = Proxy.Url("http://proxy.corp:8080")
- *     // proxy = Proxy.None                  // default — direct connections
+ *     // proxy = Proxy.None                                // default — direct connections
  * }
  * ```
  */
@@ -22,28 +23,15 @@ sealed class Proxy : Serializable {
     /** No proxy. The plugin makes direct connections. */
     object None : Proxy() {
         private fun readResolve(): Any = None
-        private const val serialVersionUID = 1L
     }
 
     /**
-     * Reads the proxy URL from the standard `HTTPS_PROXY` environment variable,
-     * falling back to `HTTP_PROXY`. Both the uppercase and lowercase forms are checked.
-     */
-    object StandardEnvironment : Proxy() {
-        private fun readResolve(): Any = StandardEnvironment
-        private const val serialVersionUID = 1L
-    }
-
-    /**
-     * Reads the proxy URL from a custom environment variable.
+     * Reads the proxy URL from the named environment variable.
      *
-     * @property name the environment variable to read.
+     * @property name the environment variable to read. Defaults to `"HTTPS_PROXY"`,
+     * which matches the convention used by `curl`, `git`, and most developer tools.
      */
-    data class EnvironmentVariable(val name: String) : Proxy() {
-        companion object {
-            private const val serialVersionUID = 1L
-        }
-    }
+    data class EnvironmentVariable(val name: String = "HTTPS_PROXY") : Proxy()
 
     /**
      * Uses the given proxy URL directly.
@@ -51,11 +39,7 @@ sealed class Proxy : Serializable {
      * @property value the proxy URL, e.g. `http://proxy.corp:8080`. Credentials can be
      * encoded inline as `http://user:password@proxy.corp:8080`.
      */
-    data class Url(val value: String) : Proxy() {
-        companion object {
-            private const val serialVersionUID = 1L
-        }
-    }
+    data class Url(val value: String) : Proxy()
 
     /**
      * Resolves this configuration to a `java.net.Proxy` that can be passed to OkHttp or
@@ -76,22 +60,11 @@ sealed class Proxy : Serializable {
     internal fun resolveUrl(envProvider: (String) -> String? = { System.getenv(it) }): String? =
         when (this) {
             is None -> null
-            is StandardEnvironment -> firstNonBlank(
-                envProvider("HTTPS_PROXY"),
-                envProvider("https_proxy"),
-                envProvider("HTTP_PROXY"),
-                envProvider("http_proxy")
-            )
             is EnvironmentVariable -> envProvider(name)?.takeIf { it.isNotBlank() }
             is Url -> value
         }
 
     companion object {
-        private const val serialVersionUID = 1L
-
-        private fun firstNonBlank(vararg values: String?): String? =
-            values.firstOrNull { !it.isNullOrBlank() }
-
         private fun parseProxy(url: String): java.net.Proxy? = try {
             val uri = URI(url)
             val host = uri.host ?: return null
