@@ -654,14 +654,14 @@ defmodule TuistWeb.Router do
         script: :csp_nonce
       }
 
-    live_session :ops_cache,
+    live_session :ops,
       layout: {TuistWeb.Layouts, :ops},
       on_mount: [
         {TuistWeb.Authentication, :ensure_authenticated},
         {TuistWeb.Authorization, [:current_user, :read, :ops]},
         {TuistWeb.LayoutLive, :ops}
       ] do
-      live "/cache", TuistWeb.OpsCacheLive
+      live "/", TuistWeb.OpsCacheLive
     end
   end
 

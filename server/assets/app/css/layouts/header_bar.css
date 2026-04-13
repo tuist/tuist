@@ -11,7 +11,13 @@
     display: flex;
     flex-grow: 1;
     flex-direction: row;
+    align-items: center;
     gap: var(--noora-spacing-5);
+
+    & > [data-part="title"] {
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
+    }
   }
 
   & [data-part="right-section"] {
@@ -42,7 +48,13 @@
       display: flex;
       flex-grow: 1;
       flex-direction: row;
+      align-items: center;
       gap: var(--noora-spacing-5);
+
+      & > [data-part="title"] {
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-medium) var(--noora-font-heading-small);
+      }
     }
 
     & [data-part="right-section"] {
