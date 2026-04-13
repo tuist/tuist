@@ -23,7 +23,7 @@ jobs:
   translate:
     name: Translate
     runs-on: namespace-profile-default-with-volume
-    timeout-minutes: 30
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: namespacelabs/nscloud-cache-action@v1
