@@ -367,8 +367,6 @@ public enum Module: String, CaseIterable {
         switch self {
         case .tuist, .tuistBenchmark, .tuistFixtureGenerator:
             return .commandLineTool
-        case .xcodeGraph, .xcodeMetadata, .xcodeGraphMapper:
-            return .staticLibrary
         case .projectAutomation, .projectDescription:
             return forceStaticLinking() ? .staticFramework : .framework
         default:
