@@ -166,6 +166,121 @@ defmodule Tuist.Gradle.AnalyticsTest do
     end
   end
 
+  describe "cache_hit_rate_scatter_data/2" do
+    test "returns individual build cache hit rates grouped by environment" do
+      project = ProjectsFixtures.project_fixture()
+
+      ci_build_id =
+        GradleFixtures.build_fixture(
+          project_id: project.id,
+          inserted_at: @now,
+          is_ci: true,
+          root_project_name: "my-app",
+          tasks: [
+            %{task_path: ":app:compileKotlin", outcome: "local_hit", cacheable: true},
+            %{task_path: ":app:assembleDebug", outcome: "executed", cacheable: true}
+          ]
+        )
+
+      local_build_id =
+        GradleFixtures.build_fixture(
+          project_id: project.id,
+          inserted_at: @now,
+          is_ci: false,
+          root_project_name: "my-app",
+          tasks: [
+            %{task_path: ":app:compileKotlin", outcome: "local_hit", cacheable: true},
+            %{task_path: ":app:compileJava", outcome: "remote_hit", cacheable: true},
+            %{task_path: ":app:assembleDebug", outcome: "local_hit", cacheable: true},
+            %{task_path: ":app:test", outcome: "executed", cacheable: true}
+          ]
+        )
+
+      got =
+        Analytics.cache_hit_rate_scatter_data(
+          project.id,
+          start_datetime: @start_datetime,
+          end_datetime: @end_datetime
+        )
+
+      assert got.truncated == false
+      assert got.oldest_entry == nil
+      assert length(got.series) == 2
+
+      ci_series = Enum.find(got.series, &(&1.name == "CI"))
+      local_series = Enum.find(got.series, &(&1.name == "Local"))
+
+      assert ci_series != nil
+      assert local_series != nil
+
+      [ci_point] = ci_series.data
+      assert [_ts, hit_rate] = ci_point.value
+      assert Decimal.equal?(hit_rate, Decimal.new("50.0"))
+      assert ci_point.id == ci_build_id
+
+      assert Enum.find(ci_point.tooltipExtra, &(&1.label == "Project")).value == "my-app"
+      assert Enum.find(ci_point.tooltipExtra, &(&1.label == "Environment")).value == "CI"
+
+      [local_point] = local_series.data
+      assert [_ts, local_hit_rate] = local_point.value
+      assert Decimal.equal?(local_hit_rate, Decimal.new("75.0"))
+      assert local_point.id == local_build_id
+    end
+
+    test "groups by project name when group_by is :project" do
+      project = ProjectsFixtures.project_fixture()
+
+      GradleFixtures.build_fixture(
+        project_id: project.id,
+        inserted_at: @now,
+        root_project_name: "app-one",
+        tasks: [
+          %{task_path: ":app:compileKotlin", outcome: "local_hit", cacheable: true}
+        ]
+      )
+
+      GradleFixtures.build_fixture(
+        project_id: project.id,
+        inserted_at: @now,
+        root_project_name: "app-two",
+        tasks: [
+          %{task_path: ":app:compileKotlin", outcome: "executed", cacheable: true}
+        ]
+      )
+
+      got =
+        Analytics.cache_hit_rate_scatter_data(
+          project.id,
+          start_datetime: @start_datetime,
+          end_datetime: @end_datetime,
+          group_by: :project
+        )
+
+      assert length(got.series) == 2
+
+      app_one_series = Enum.find(got.series, &(&1.name == "app-one"))
+      app_two_series = Enum.find(got.series, &(&1.name == "app-two"))
+
+      assert app_one_series != nil
+      assert app_two_series != nil
+    end
+
+    test "returns empty series when no builds exist" do
+      project = ProjectsFixtures.project_fixture()
+
+      got =
+        Analytics.cache_hit_rate_scatter_data(
+          project.id,
+          start_datetime: @start_datetime,
+          end_datetime: @end_datetime
+        )
+
+      assert got.series == []
+      assert got.truncated == false
+      assert got.oldest_entry == nil
+    end
+  end
+
   describe "cache_event_analytics/2" do
     test "returns upload and download statistics" do
       project = ProjectsFixtures.project_fixture()

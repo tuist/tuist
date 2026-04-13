@@ -210,8 +210,7 @@ defmodule Tuist.Tests.Analytics do
             duration: t.duration,
             scheme: t.scheme,
             status: t.status,
-            is_ci: t.is_ci,
-            is_flaky: t.is_flaky
+            is_ci: t.is_ci
           }
         ),
         opts
@@ -251,7 +250,7 @@ defmodule Tuist.Tests.Analytics do
                 id: run.id,
                 tooltipExtra: [
                   %{label: "Scheme", value: if(run.scheme == "", do: "Unknown", else: run.scheme)},
-                  %{label: "Status", value: format_test_status(run.status, run.is_flaky)},
+                  %{label: "Status", value: format_test_status(run.status)},
                   %{label: "Environment", value: if(run.is_ci, do: "CI", else: "Local")}
                 ]
               }
@@ -1305,8 +1304,7 @@ defmodule Tuist.Tests.Analytics do
   defp get_clickhouse_date_format("1 month"), do: "%Y-%m"
   defp get_clickhouse_date_format(_), do: "%Y-%m-%d"
 
-  defp format_test_status("success", true), do: "Passed (flaky)"
-  defp format_test_status("success", _), do: "Passed"
-  defp format_test_status("failure", _), do: "Failed"
-  defp format_test_status(status, _), do: String.capitalize(status)
+  defp format_test_status("success"), do: "Passed"
+  defp format_test_status("failure"), do: "Failed"
+  defp format_test_status(status), do: String.capitalize(status)
 end

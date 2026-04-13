@@ -1515,6 +1515,138 @@ defmodule Tuist.Tests.AnalyticsTest do
     end
   end
 
+  describe "test_run_duration_scatter_data/2" do
+    test "returns individual test run data points grouped by scheme by default" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, test_run_1} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          scheme: "AppScheme",
+          duration: 1500,
+          status: "success",
+          is_ci: true,
+          ran_at: ~N[2024-04-30 08:00:00.000000]
+        )
+
+      {:ok, test_run_2} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          scheme: "TestScheme",
+          duration: 3000,
+          status: "failure",
+          is_ci: false,
+          ran_at: ~N[2024-04-30 09:00:00.000000]
+        )
+
+      RunsFixtures.optimize_test_runs()
+
+      # When
+      got =
+        Analytics.test_run_duration_scatter_data(
+          project.id,
+          start_datetime: ~U[2024-04-28 00:00:00Z],
+          end_datetime: ~U[2024-04-30 23:59:59Z]
+        )
+
+      # Then
+      assert got.truncated == false
+      assert got.oldest_entry == nil
+      assert length(got.series) == 2
+
+      app_series = Enum.find(got.series, &(&1.name == "AppScheme"))
+      test_series = Enum.find(got.series, &(&1.name == "TestScheme"))
+
+      assert app_series != nil
+      assert test_series != nil
+
+      [app_point] = app_series.data
+      assert [_ts, 1500] = app_point.value
+      assert app_point.id == test_run_1.id
+
+      assert Enum.find(app_point.tooltipExtra, &(&1.label == "Scheme")).value == "AppScheme"
+      assert Enum.find(app_point.tooltipExtra, &(&1.label == "Status")).value == "Passed"
+      assert Enum.find(app_point.tooltipExtra, &(&1.label == "Environment")).value == "CI"
+
+      [test_point] = test_series.data
+      assert [_ts, 3000] = test_point.value
+      assert test_point.id == test_run_2.id
+
+      assert Enum.find(test_point.tooltipExtra, &(&1.label == "Scheme")).value == "TestScheme"
+      assert Enum.find(test_point.tooltipExtra, &(&1.label == "Status")).value == "Failed"
+      assert Enum.find(test_point.tooltipExtra, &(&1.label == "Environment")).value == "Local"
+    end
+
+    test "respects group_by: :environment option" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, _ci_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          scheme: "AppScheme",
+          duration: 1000,
+          status: "success",
+          is_ci: true,
+          ran_at: ~N[2024-04-30 08:00:00.000000]
+        )
+
+      {:ok, _local_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          scheme: "AppScheme",
+          duration: 2000,
+          status: "success",
+          is_ci: false,
+          ran_at: ~N[2024-04-30 09:00:00.000000]
+        )
+
+      RunsFixtures.optimize_test_runs()
+
+      # When
+      got =
+        Analytics.test_run_duration_scatter_data(
+          project.id,
+          start_datetime: ~U[2024-04-28 00:00:00Z],
+          end_datetime: ~U[2024-04-30 23:59:59Z],
+          group_by: :environment
+        )
+
+      # Then
+      assert length(got.series) == 2
+
+      ci_series = Enum.find(got.series, &(&1.name == "CI"))
+      local_series = Enum.find(got.series, &(&1.name == "Local"))
+
+      assert ci_series != nil
+      assert local_series != nil
+      assert length(ci_series.data) == 1
+      assert length(local_series.data) == 1
+    end
+
+    test "returns empty series when no test runs exist" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      # When
+      got =
+        Analytics.test_run_duration_scatter_data(
+          project.id,
+          start_datetime: ~U[2024-04-28 00:00:00Z],
+          end_datetime: ~U[2024-04-30 23:59:59Z]
+        )
+
+      # Then
+      assert got.series == []
+      assert got.truncated == false
+      assert got.oldest_entry == nil
+    end
+  end
+
   describe "quarantined_tests_analytics/2" do
     test "returns empty analytics when no quarantine events exist" do
       # Given

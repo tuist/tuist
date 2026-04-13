@@ -44,6 +44,32 @@ defmodule TuistWeb.BuildsLiveTest do
     assert has_element?(lv, "span", "AppTwo")
   end
 
+  test "displays chart type toggle when build-duration widget is selected", %{
+    conn: conn,
+    project: project
+  } do
+    yesterday = DateTime.add(DateTime.utc_now(), -1, :day)
+
+    RunsFixtures.build_fixture(
+      project_id: project.id,
+      duration: 5000,
+      status: "success",
+      inserted_at: yesterday
+    )
+
+    # When - navigate with build-duration widget selected
+    {:ok, lv, _html} =
+      live(
+        conn,
+        ~p"/#{project.account.name}/#{project.name}/builds?analytics-selected-widget=build-duration"
+      )
+
+    render_async(lv)
+
+    # Then
+    assert has_element?(lv, ".tuist-chart-type-toggle")
+  end
+
   test "displays build success rate widget", %{
     conn: conn,
     project: project

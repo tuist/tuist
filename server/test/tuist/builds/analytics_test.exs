@@ -2314,4 +2314,415 @@ defmodule Tuist.Builds.AnalyticsTest do
       assert_in_delta previous, 0.7, 0.001
     end
   end
+
+  describe "build_duration_scatter_data/2" do
+    test "returns individual build data points grouped by scheme by default" do
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      build_id_1 = UUIDv7.generate()
+      build_id_2 = UUIDv7.generate()
+
+      RunsFixtures.build_fixture(
+        id: build_id_1,
+        project_id: project.id,
+        duration: 3000,
+        scheme: "App",
+        status: "success",
+        is_ci: false,
+        category: "clean",
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: build_id_2,
+        project_id: project.id,
+        duration: 1500,
+        scheme: "Tests",
+        status: "failure",
+        is_ci: true,
+        category: "incremental",
+        inserted_at: ~U[2024-04-29 10:00:00Z]
+      )
+
+      got =
+        Analytics.build_duration_scatter_data(
+          project.id,
+          start_datetime: DateTime.add(DateTime.utc_now(), -30, :day)
+        )
+
+      assert got.truncated == false
+      assert got.oldest_entry == nil
+
+      series = Enum.sort_by(got.series, & &1.name)
+
+      assert [app_series, tests_series] = series
+      assert app_series.name == "App"
+      assert [data_point] = app_series.data
+      assert data_point.id == build_id_1
+      assert [_ts, duration] = data_point.value
+      assert duration == Decimal.new("3.0")
+      assert Enum.any?(data_point.tooltipExtra, &(&1.label == "Scheme" and &1.value == "App"))
+      assert Enum.any?(data_point.tooltipExtra, &(&1.label == "Status" and &1.value == "Passed"))
+
+      assert tests_series.name == "Tests"
+      assert [data_point_2] = tests_series.data
+      assert data_point_2.id == build_id_2
+      assert [_ts2, duration_2] = data_point_2.value
+      assert duration_2 == Decimal.new("1.5")
+      assert Enum.any?(data_point_2.tooltipExtra, &(&1.label == "Status" and &1.value == "Failed"))
+      assert Enum.any?(data_point_2.tooltipExtra, &(&1.label == "Environment" and &1.value == "CI"))
+    end
+
+    test "groups by environment when group_by: :environment is set" do
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 2000,
+        scheme: "App",
+        is_ci: true,
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 1000,
+        scheme: "Tests",
+        is_ci: false,
+        inserted_at: ~U[2024-04-29 10:00:00Z]
+      )
+
+      got =
+        Analytics.build_duration_scatter_data(
+          project.id,
+          start_datetime: DateTime.add(DateTime.utc_now(), -30, :day),
+          group_by: :environment
+        )
+
+      series_names = got.series |> Enum.map(& &1.name) |> Enum.sort()
+      assert series_names == ["CI", "Local"]
+    end
+
+    test "groups by category when group_by: :category is set" do
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 2000,
+        category: "clean",
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 1000,
+        category: "incremental",
+        inserted_at: ~U[2024-04-29 10:00:00Z]
+      )
+
+      got =
+        Analytics.build_duration_scatter_data(
+          project.id,
+          start_datetime: DateTime.add(DateTime.utc_now(), -30, :day),
+          group_by: :category
+        )
+
+      series_names = got.series |> Enum.map(& &1.name) |> Enum.sort()
+      assert series_names == ["Clean", "Incremental"]
+    end
+
+    test "applies scheme filter" do
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 2000,
+        scheme: "App",
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 1000,
+        scheme: "Tests",
+        inserted_at: ~U[2024-04-29 10:00:00Z]
+      )
+
+      got =
+        Analytics.build_duration_scatter_data(
+          project.id,
+          start_datetime: DateTime.add(DateTime.utc_now(), -30, :day),
+          scheme: "App"
+        )
+
+      assert length(got.series) == 1
+      assert hd(got.series).name == "App"
+    end
+  end
+
+  describe "build_cache_hit_rate_scatter_data/2" do
+    test "returns individual build cache hit rates grouped by scheme" do
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      build_id = UUIDv7.generate()
+
+      RunsFixtures.build_fixture(
+        id: build_id,
+        project_id: project.id,
+        duration: 2000,
+        scheme: "App",
+        status: "success",
+        is_ci: true,
+        cacheable_tasks_count: 10,
+        cacheable_task_local_hits_count: 3,
+        cacheable_task_remote_hits_count: 5,
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
+
+      got =
+        Analytics.build_cache_hit_rate_scatter_data(
+          project.id,
+          start_datetime: DateTime.add(DateTime.utc_now(), -30, :day)
+        )
+
+      assert got.truncated == false
+      assert [series] = got.series
+      assert series.name == "App"
+      assert [data_point] = series.data
+      assert data_point.id == build_id
+      assert [_ts, hit_rate] = data_point.value
+      assert hit_rate == Decimal.new("80.0")
+      assert Enum.any?(data_point.tooltipExtra, &(&1.label == "Scheme" and &1.value == "App"))
+      assert Enum.any?(data_point.tooltipExtra, &(&1.label == "Environment" and &1.value == "CI"))
+    end
+
+    test "only includes builds with cacheable_tasks_count > 0" do
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 2000,
+        cacheable_tasks_count: 0,
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 1000,
+        cacheable_tasks_count: 5,
+        cacheable_task_local_hits_count: 2,
+        cacheable_task_remote_hits_count: 1,
+        inserted_at: ~U[2024-04-29 10:00:00Z]
+      )
+
+      got =
+        Analytics.build_cache_hit_rate_scatter_data(
+          project.id,
+          start_datetime: DateTime.add(DateTime.utc_now(), -30, :day)
+        )
+
+      total_data_points =
+        got.series
+        |> Enum.flat_map(& &1.data)
+        |> length()
+
+      assert total_data_points == 1
+    end
+
+    test "groups by environment when group_by: :environment is set" do
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 2000,
+        is_ci: true,
+        cacheable_tasks_count: 10,
+        cacheable_task_local_hits_count: 5,
+        cacheable_task_remote_hits_count: 3,
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 1000,
+        is_ci: false,
+        cacheable_tasks_count: 4,
+        cacheable_task_local_hits_count: 2,
+        cacheable_task_remote_hits_count: 0,
+        inserted_at: ~U[2024-04-29 10:00:00Z]
+      )
+
+      got =
+        Analytics.build_cache_hit_rate_scatter_data(
+          project.id,
+          start_datetime: DateTime.add(DateTime.utc_now(), -30, :day),
+          group_by: :environment
+        )
+
+      series_names = got.series |> Enum.map(& &1.name) |> Enum.sort()
+      assert series_names == ["CI", "Local"]
+    end
+  end
+
+  describe "module_cache_hit_rate_scatter_data/1" do
+    test "returns individual command event hit rates grouped by environment" do
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "generate",
+        cacheable_targets: ["A", "B", "C", "D"],
+        local_cache_target_hits: ["A"],
+        remote_cache_target_hits: ["B"],
+        is_ci: false,
+        created_at: ~N[2024-04-30 03:00:00]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "generate",
+        cacheable_targets: ["A", "B"],
+        local_cache_target_hits: ["A"],
+        remote_cache_target_hits: ["B"],
+        is_ci: true,
+        created_at: ~N[2024-04-29 10:00:00]
+      )
+
+      got =
+        Analytics.module_cache_hit_rate_scatter_data(
+          project_id: project.id,
+          start_datetime: DateTime.add(DateTime.utc_now(), -30, :day),
+          end_datetime: DateTime.utc_now()
+        )
+
+      assert got.truncated == false
+      series = Enum.sort_by(got.series, & &1.name)
+      assert [ci_series, local_series] = series
+      assert ci_series.name == "CI"
+      assert local_series.name == "Local"
+
+      assert [ci_point] = ci_series.data
+      assert [_ts, ci_hit_rate] = ci_point.value
+      assert ci_hit_rate == Decimal.new("100.0")
+      assert Enum.any?(ci_point.tooltipExtra, &(&1.label == "Environment" and &1.value == "CI"))
+
+      assert [local_point] = local_series.data
+      assert [_ts2, local_hit_rate] = local_point.value
+      assert local_hit_rate == Decimal.new("50.0")
+    end
+
+    test "only includes events with cacheable_targets_count > 0" do
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "generate",
+        cacheable_targets: [],
+        local_cache_target_hits: [],
+        remote_cache_target_hits: [],
+        is_ci: false,
+        created_at: ~N[2024-04-30 03:00:00]
+      )
+
+      got =
+        Analytics.module_cache_hit_rate_scatter_data(
+          project_id: project.id,
+          start_datetime: DateTime.add(DateTime.utc_now(), -30, :day),
+          end_datetime: DateTime.utc_now()
+        )
+
+      assert got.series == []
+    end
+  end
+
+  describe "selective_testing_scatter_data/1" do
+    test "returns individual event hit rates grouped by environment" do
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        test_targets: ["A", "B", "C", "D"],
+        local_test_target_hits: ["A"],
+        remote_test_target_hits: ["B"],
+        is_ci: false,
+        created_at: ~N[2024-04-30 03:00:00]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        test_targets: ["A", "B"],
+        local_test_target_hits: ["A"],
+        remote_test_target_hits: ["B"],
+        is_ci: true,
+        created_at: ~N[2024-04-29 10:00:00]
+      )
+
+      got =
+        Analytics.selective_testing_scatter_data(
+          project_id: project.id,
+          start_datetime: DateTime.add(DateTime.utc_now(), -30, :day),
+          end_datetime: DateTime.utc_now()
+        )
+
+      assert got.truncated == false
+      series = Enum.sort_by(got.series, & &1.name)
+      assert [ci_series, local_series] = series
+      assert ci_series.name == "CI"
+      assert local_series.name == "Local"
+
+      assert [ci_point] = ci_series.data
+      assert [_ts, ci_hit_rate] = ci_point
+      assert ci_hit_rate == Decimal.new("100.0")
+
+      assert [local_point] = local_series.data
+      assert [_ts2, local_hit_rate] = local_point
+      assert local_hit_rate == Decimal.new("50.0")
+    end
+
+    test "only includes events with test_targets_count > 0" do
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        test_targets: [],
+        local_test_target_hits: [],
+        remote_test_target_hits: [],
+        is_ci: false,
+        created_at: ~N[2024-04-30 03:00:00]
+      )
+
+      got =
+        Analytics.selective_testing_scatter_data(
+          project_id: project.id,
+          start_datetime: DateTime.add(DateTime.utc_now(), -30, :day),
+          end_datetime: DateTime.utc_now()
+        )
+
+      assert got.series == []
+    end
+  end
 end
