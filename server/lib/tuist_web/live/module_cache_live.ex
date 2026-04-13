@@ -4,6 +4,7 @@ defmodule TuistWeb.ModuleCacheLive do
   use Noora
 
   import Ecto.Query
+  import TuistWeb.Components.ChartTypeToggle
   import TuistWeb.Components.EmptyCardSection
   import TuistWeb.Components.Skeleton
   import TuistWeb.PercentileDropdownWidget

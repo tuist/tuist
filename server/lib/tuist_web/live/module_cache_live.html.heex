@@ -320,22 +320,13 @@
            (@hits_analytics.ok? and @hits_analytics.result.total_count != 0) or
            (@misses_analytics.ok? and @misses_analytics.result.total_count != 0))
     }>
-      <div data-part="chart-type-toggle">
-        <.button_group size="medium">
-          <.button_group_item
-            label={dgettext("dashboard_cache", "Line")}
-            phx-click="select_cache_hit_rate_chart_type"
-            phx-value-type="line"
-            data-selected={@cache_hit_rate_chart_type == "line"}
-          />
-          <.button_group_item
-            label={dgettext("dashboard_cache", "Scatter plot")}
-            phx-click="select_cache_hit_rate_chart_type"
-            phx-value-type="scatter"
-            data-selected={@cache_hit_rate_chart_type == "scatter"}
-          />
-        </.button_group>
-      </div>
+      <.chart_type_toggle
+        id="cache-hit-rate"
+        chart_type={@cache_hit_rate_chart_type}
+        chart_type_event="select_cache_hit_rate_chart_type"
+        group_by_options={[]}
+        uri={@uri}
+      />
       <.chart
         :if={@cache_hit_rate_chart_type == "line"}
         id="module-cache-hit-rate-chart"

@@ -251,51 +251,19 @@
       }
       data-part="analytics-card-chart-section"
     >
-      <div :if={@analytics_selected_widget == "test_run_duration"} data-part="chart-type-toggle">
-        <.dropdown
-          :if={@duration_chart_type == "scatter"}
-          id="test-duration-scatter-group-by-dropdown"
-          size="medium"
-          label={
-            case @duration_scatter_group_by do
-              "environment" -> dgettext("dashboard_tests", "Environment")
-              _ -> dgettext("dashboard_tests", "Scheme")
-            end
-          }
-          secondary_text={dgettext("dashboard_tests", "Group by:")}
-        >
-          <.dropdown_item
-            value="scheme"
-            label={dgettext("dashboard_tests", "Scheme")}
-            patch={"?#{Query.put(@uri.query, "duration-scatter-group-by", "scheme")}"}
-            data-selected={@duration_scatter_group_by == "scheme"}
-          >
-            <:right_icon><.check /></:right_icon>
-          </.dropdown_item>
-          <.dropdown_item
-            value="environment"
-            label={dgettext("dashboard_tests", "Environment")}
-            patch={"?#{Query.put(@uri.query, "duration-scatter-group-by", "environment")}"}
-            data-selected={@duration_scatter_group_by == "environment"}
-          >
-            <:right_icon><.check /></:right_icon>
-          </.dropdown_item>
-        </.dropdown>
-        <.button_group size="medium">
-          <.button_group_item
-            label={dgettext("dashboard_tests", "Line")}
-            phx-click="select_duration_chart_type"
-            phx-value-type="line"
-            data-selected={@duration_chart_type == "line"}
-          />
-          <.button_group_item
-            label={dgettext("dashboard_tests", "Scatter plot")}
-            phx-click="select_duration_chart_type"
-            phx-value-type="scatter"
-            data-selected={@duration_chart_type == "scatter"}
-          />
-        </.button_group>
-      </div>
+      <.chart_type_toggle
+        :if={@analytics_selected_widget == "test_run_duration"}
+        id="test-duration"
+        chart_type={@duration_chart_type}
+        chart_type_event="select_duration_chart_type"
+        group_by_options={[
+          %{value: "scheme", label: dgettext("dashboard_tests", "Scheme")},
+          %{value: "environment", label: dgettext("dashboard_tests", "Environment")}
+        ]}
+        selected_group_by={@duration_scatter_group_by}
+        group_by_query_param="duration-scatter-group-by"
+        uri={@uri}
+      />
       <.chart
         :if={@analytics_selected_widget == "test_run_duration" and @duration_chart_type == "line"}
         id="test-run-duration-chart"
@@ -836,22 +804,13 @@
             style="primary"
           />
         </div>
-        <div data-part="chart-type-toggle">
-          <.button_group size="medium">
-            <.button_group_item
-              label={dgettext("dashboard_tests", "Line")}
-              phx-click="select_selective_testing_chart_type"
-              phx-value-type="line"
-              data-selected={@selective_testing_chart_type == "line"}
-            />
-            <.button_group_item
-              label={dgettext("dashboard_tests", "Scatter plot")}
-              phx-click="select_selective_testing_chart_type"
-              phx-value-type="scatter"
-              data-selected={@selective_testing_chart_type == "scatter"}
-            />
-          </.button_group>
-        </div>
+        <.chart_type_toggle
+          id="selective-testing"
+          chart_type={@selective_testing_chart_type}
+          chart_type_event="select_selective_testing_chart_type"
+          group_by_options={[]}
+          uri={@uri}
+        />
       </div>
       <.chart
         :if={@selective_testing_chart_type == "line"}

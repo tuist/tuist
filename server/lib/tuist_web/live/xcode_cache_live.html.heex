@@ -249,51 +249,18 @@
            (@downloads_analytics.ok? and @downloads_analytics.result.total_size != 0) or
            (@uploads_analytics.ok? and @uploads_analytics.result.total_size != 0))
     }>
-      <div data-part="chart-type-toggle">
-        <.dropdown
-          :if={@cache_hit_rate_chart_type == "scatter"}
-          id="cache-hit-rate-scatter-group-by-dropdown"
-          size="medium"
-          label={
-            case @cache_hit_rate_scatter_group_by do
-              "environment" -> dgettext("dashboard_cache", "Environment")
-              _ -> dgettext("dashboard_cache", "Scheme")
-            end
-          }
-          secondary_text={dgettext("dashboard_cache", "Group by:")}
-        >
-          <.dropdown_item
-            value="scheme"
-            label={dgettext("dashboard_cache", "Scheme")}
-            patch={"?#{Query.put(@uri.query, "cache-hit-rate-scatter-group-by", "scheme")}"}
-            data-selected={@cache_hit_rate_scatter_group_by == "scheme"}
-          >
-            <:right_icon><.check /></:right_icon>
-          </.dropdown_item>
-          <.dropdown_item
-            value="environment"
-            label={dgettext("dashboard_cache", "Environment")}
-            patch={"?#{Query.put(@uri.query, "cache-hit-rate-scatter-group-by", "environment")}"}
-            data-selected={@cache_hit_rate_scatter_group_by == "environment"}
-          >
-            <:right_icon><.check /></:right_icon>
-          </.dropdown_item>
-        </.dropdown>
-        <.button_group size="medium">
-          <.button_group_item
-            label={dgettext("dashboard_cache", "Line")}
-            phx-click="select_cache_hit_rate_chart_type"
-            phx-value-type="line"
-            data-selected={@cache_hit_rate_chart_type == "line"}
-          />
-          <.button_group_item
-            label={dgettext("dashboard_cache", "Scatter plot")}
-            phx-click="select_cache_hit_rate_chart_type"
-            phx-value-type="scatter"
-            data-selected={@cache_hit_rate_chart_type == "scatter"}
-          />
-        </.button_group>
-      </div>
+      <.chart_type_toggle
+        id="cache-hit-rate"
+        chart_type={@cache_hit_rate_chart_type}
+        chart_type_event="select_cache_hit_rate_chart_type"
+        group_by_options={[
+          %{value: "scheme", label: dgettext("dashboard_cache", "Scheme")},
+          %{value: "environment", label: dgettext("dashboard_cache", "Environment")}
+        ]}
+        selected_group_by={@cache_hit_rate_scatter_group_by}
+        group_by_query_param="cache-hit-rate-scatter-group-by"
+        uri={@uri}
+      />
       <div :if={@cache_hit_rate_chart_type == "line"} data-part="analytics-chart">
         <.chart
           id="xcode-cache-hit-rate-chart"

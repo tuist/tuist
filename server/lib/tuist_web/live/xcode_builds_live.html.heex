@@ -338,60 +338,19 @@
       }
       data-part="analytics-card-chart-section"
     >
-      <div data-part="chart-type-toggle">
-        <.dropdown
-          :if={@build_duration_chart_type == "scatter"}
-          id="build-duration-scatter-group-by-dropdown"
-          size="medium"
-          label={
-            case @build_duration_scatter_group_by do
-              "environment" -> dgettext("dashboard_builds", "Environment")
-              "category" -> dgettext("dashboard_builds", "Category")
-              _ -> dgettext("dashboard_builds", "Scheme")
-            end
-          }
-          secondary_text={dgettext("dashboard_builds", "Group by:")}
-        >
-          <.dropdown_item
-            value="scheme"
-            label={dgettext("dashboard_builds", "Scheme")}
-            patch={"?#{Query.put(@uri.query, "build-duration-scatter-group-by", "scheme")}"}
-            data-selected={@build_duration_scatter_group_by == "scheme"}
-          >
-            <:right_icon><.check /></:right_icon>
-          </.dropdown_item>
-          <.dropdown_item
-            value="environment"
-            label={dgettext("dashboard_builds", "Environment")}
-            patch={"?#{Query.put(@uri.query, "build-duration-scatter-group-by", "environment")}"}
-            data-selected={@build_duration_scatter_group_by == "environment"}
-          >
-            <:right_icon><.check /></:right_icon>
-          </.dropdown_item>
-          <.dropdown_item
-            value="category"
-            label={dgettext("dashboard_builds", "Category")}
-            patch={"?#{Query.put(@uri.query, "build-duration-scatter-group-by", "category")}"}
-            data-selected={@build_duration_scatter_group_by == "category"}
-          >
-            <:right_icon><.check /></:right_icon>
-          </.dropdown_item>
-        </.dropdown>
-        <.button_group size="medium">
-          <.button_group_item
-            label={dgettext("dashboard_builds", "Line")}
-            phx-click="select_build_duration_chart_type"
-            phx-value-type="line"
-            data-selected={@build_duration_chart_type == "line"}
-          />
-          <.button_group_item
-            label={dgettext("dashboard_builds", "Scatter plot")}
-            phx-click="select_build_duration_chart_type"
-            phx-value-type="scatter"
-            data-selected={@build_duration_chart_type == "scatter"}
-          />
-        </.button_group>
-      </div>
+      <.chart_type_toggle
+        id="build-duration"
+        chart_type={@build_duration_chart_type}
+        chart_type_event="select_build_duration_chart_type"
+        group_by_options={[
+          %{value: "scheme", label: dgettext("dashboard_builds", "Scheme")},
+          %{value: "environment", label: dgettext("dashboard_builds", "Environment")},
+          %{value: "category", label: dgettext("dashboard_builds", "Category")}
+        ]}
+        selected_group_by={@build_duration_scatter_group_by}
+        group_by_query_param="build-duration-scatter-group-by"
+        uri={@uri}
+      />
       <.chart
         :if={@build_duration_chart_type == "line"}
         id="average-build-time-chart"

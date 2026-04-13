@@ -3,6 +3,7 @@ defmodule TuistWeb.XcodeBuildsLive do
   use TuistWeb, :live_view
   use Noora
 
+  import TuistWeb.Components.ChartTypeToggle
   import TuistWeb.Components.EmptyCardSection
   import TuistWeb.Components.Skeleton
   import TuistWeb.PercentileDropdownWidget
