@@ -1,15 +1,24 @@
+import FileSystem
 import Foundation
+import Path
 import TuistConstants
 import TuistCore
 import TuistSupport
 import XcodeGraph
 
 public struct ExternalDependencyPathWorkspaceMapper: WorkspaceMapping {
-    public init() {}
+    private let fileSystem: FileSysteming
 
-    public func map(workspace: WorkspaceWithProjects) throws -> (WorkspaceWithProjects, [SideEffectDescriptor]) {
+    public init(fileSystem: FileSysteming = FileSystem()) {
+        self.fileSystem = fileSystem
+    }
+
+    public func map(workspace: WorkspaceWithProjects) async throws -> (WorkspaceWithProjects, [SideEffectDescriptor]) {
         var workspace = workspace
-        let mappedProjects = try workspace.projects.map(map(project:))
+        var mappedProjects: [(Project, [SideEffectDescriptor])] = []
+        for project in workspace.projects {
+            mappedProjects.append(try await map(project: project))
+        }
         workspace.projects = mappedProjects.map(\.0)
         return (
             workspace,
@@ -19,7 +28,7 @@ public struct ExternalDependencyPathWorkspaceMapper: WorkspaceMapping {
 
     // MARK: - Helpers
 
-    private func map(project: Project) throws -> (Project, [SideEffectDescriptor]) {
+    private func map(project: Project) async throws -> (Project, [SideEffectDescriptor]) {
         guard case .external = project.type,
               // We don't want to update local packages (which are defined outside the `checkouts` directory in `.build`
               project.path.parentDirectory.parentDirectory.basename == Constants.SwiftPackageManager.packageBuildDirectoryName
@@ -33,6 +42,12 @@ public struct ExternalDependencyPathWorkspaceMapper: WorkspaceMapping {
                 project.name,
             ]
         )
+        // Remove any stale derived directory so it is recreated with the correct casing.
+        // On case-insensitive filesystems (macOS), a leftover directory from a previous run
+        // may have different casing, which Xcode 26+ flags as an error.
+        if try await fileSystem.exists(derivedDirectory, isDirectory: true) {
+            try await fileSystem.remove(derivedDirectory)
+        }
         project.xcodeProjPath = derivedDirectory.appending(component: xcodeProjBasename)
 
         var base = project.settings.base
