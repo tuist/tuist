@@ -252,13 +252,11 @@
             font: var(--noora-font-weight-regular) var(--noora-font-body-small);
 
             & a {
-              color: var(--noora-interactive-label-primary-default);
+              color: var(--noora-button-primary-background);
               text-decoration: none;
 
-              & svg {
-                width: 12px;
-                height: 12px;
-                vertical-align: middle;
+              &:hover {
+                text-decoration: underline;
               }
             }
           }

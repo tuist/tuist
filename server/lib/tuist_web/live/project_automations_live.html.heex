@@ -266,8 +266,7 @@
                           variant="secondary"
                           phx-click="delete_create_automation_form_trigger_action"
                           phx-value-index={index}
-                          disabled={length(@create_automation_form_trigger_actions) <= 1}
-                        >
+                                >
                           <.icon name="trash" />
                         </.button>
                       </div>
@@ -279,8 +278,7 @@
                           <span data-part="sublabel">
                             {dgettext("dashboard_projects", "Supports Slack")}
                             <a href="https://api.slack.com/reference/surfaces/formatting" target="_blank" rel="noopener noreferrer">
-                              mrkdwn
-                              <.icon name="external_link" />
+                              markdown
                             </a>
                             {dgettext("dashboard_projects", "formatting.")}
                           </span>
@@ -315,8 +313,7 @@
                     variant="secondary"
                     phx-click="delete_create_automation_form_trigger_action"
                     phx-value-index={index}
-                    disabled={length(@create_automation_form_trigger_actions) <= 1}
-                  >
+                    >
                     <.icon name="trash" />
                   </.button>
                 <% end %>
@@ -365,7 +362,7 @@
               </div>
               <div data-part="builder-section-header-toggle">
                 <.toggle
-                  id="create-automation-recovery-toggle"
+                  id={"create-automation-recovery-toggle-#{@editing_automation_id || "new"}"}
                   checked={@create_automation_form_recovery_enabled}
                   phx-click="toggle_create_automation_form_recovery"
                 />
@@ -461,8 +458,7 @@
                           variant="secondary"
                           phx-click="delete_create_automation_form_recovery_action"
                           phx-value-index={index}
-                          disabled={length(@create_automation_form_recovery_actions) <= 1}
-                        >
+                                >
                           <.icon name="trash" />
                         </.button>
                       </div>
@@ -474,8 +470,7 @@
                           <span data-part="sublabel">
                             {dgettext("dashboard_projects", "Supports Slack")}
                             <a href="https://api.slack.com/reference/surfaces/formatting" target="_blank" rel="noopener noreferrer">
-                              mrkdwn
-                              <.icon name="external_link" />
+                              markdown
                             </a>
                             {dgettext("dashboard_projects", "formatting.")}
                           </span>
@@ -510,8 +505,7 @@
                     variant="secondary"
                     phx-click="delete_create_automation_form_recovery_action"
                     phx-value-index={index}
-                    disabled={length(@create_automation_form_recovery_actions) <= 1}
-                  >
+                    >
                     <.icon name="trash" />
                   </.button>
                 <% end %>

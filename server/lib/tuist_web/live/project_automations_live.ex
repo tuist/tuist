@@ -66,10 +66,14 @@ defmodule TuistWeb.ProjectAutomationsLive do
 
   defp default_change_state_action(state), do: %{"type" => "change_state", "state" => state}
 
-  @default_slack_message ":warning: *{{test_case.name}}* in module `{{test_case.module_name}}` matched the automation condition.\n\n<{{test_case.url}}|View test case>"
+  @default_trigger_slack_message ":warning: *{{test_case.name}}* in module `{{test_case.module_name}}` has been detected as flaky by automation *{{automation.name}}*.\n\n<{{test_case.url}}|View test case>"
+  @default_recovery_slack_message ":white_check_mark: *{{test_case.name}}* in module `{{test_case.module_name}}` has recovered.\n\n<{{test_case.url}}|View test case>"
 
-  defp default_send_slack_action,
-    do: %{"type" => "send_slack", "channel" => "", "channel_name" => "", "message" => @default_slack_message}
+  defp default_send_slack_action(:trigger),
+    do: %{"type" => "send_slack", "channel" => "", "channel_name" => "", "message" => @default_trigger_slack_message}
+
+  defp default_send_slack_action(:recovery),
+    do: %{"type" => "send_slack", "channel" => "", "channel_name" => "", "message" => @default_recovery_slack_message}
 
   defp automation_to_form(automation) do
     %{
@@ -170,7 +174,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
   end
 
   def handle_event("add_create_automation_form_trigger_action", %{"data" => type}, socket) do
-    actions = socket.assigns.create_automation_form_trigger_actions ++ [new_action(type)]
+    actions = socket.assigns.create_automation_form_trigger_actions ++ [new_action(type, :trigger)]
     {:noreply, assign(socket, create_automation_form_trigger_actions: actions)}
   end
 
@@ -239,13 +243,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
   end
 
   def handle_event("add_create_automation_form_recovery_action", %{"data" => type}, socket) do
-    default =
-      case type do
-        "change_state" -> default_change_state_action("enabled")
-        _ -> new_action(type)
-      end
-
-    actions = socket.assigns.create_automation_form_recovery_actions ++ [default]
+    actions = socket.assigns.create_automation_form_recovery_actions ++ [new_action(type, :recovery)]
     {:noreply, assign(socket, create_automation_form_recovery_actions: actions)}
   end
 
@@ -304,9 +302,11 @@ defmodule TuistWeb.ProjectAutomationsLive do
     {:noreply, assign(socket, create_automation_form_recovery_actions: actions)}
   end
 
-  defp new_action("change_state"), do: default_change_state_action("muted")
-  defp new_action("send_slack"), do: default_send_slack_action()
-  defp new_action(_), do: default_change_state_action("muted")
+  defp new_action("change_state", :trigger), do: default_change_state_action("muted")
+  defp new_action("change_state", :recovery), do: default_change_state_action("enabled")
+  defp new_action("send_slack", context), do: default_send_slack_action(context)
+  defp new_action(_, :recovery), do: default_change_state_action("enabled")
+  defp new_action(_, _), do: default_change_state_action("muted")
 
   defp update_action_at(actions, index, fun) do
     case Enum.at(actions, index) do
