@@ -1,0 +1,6 @@
+[data-part="chart-type-toggle"] {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--noora-spacing-4);
+}

@@ -1,4 +1,5 @@
 @import "./components/account_dropdown.css";
+@import "./components/chart_type_toggle.css";
 @import "./components/empty_state.css";
 @import "./components/empty_card_section.css";
 @import "./components/terminal.css";
