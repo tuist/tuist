@@ -9,23 +9,20 @@
 
 Use Build Insights to track local and CI build performance. It currently supports both Xcode and Gradle build systems.
 
-> [!WARNING]
-> **Requirements**
->
-> - A <.localized_link href="/guides/server/accounts-and-projects">Tuist account and project</.localized_link>
-
-
-<HomeCards>
-    <HomeCard
-        icon="<img src='/images/guides/features/xcode-icon.png' alt='Xcode' width='32' height='32' />"
-        title="Xcode"
-        details="Track Xcode scheme post-action timings, build settings, and build metadata in the Tuist dashboard."
-        linkText="Set up Xcode build insights"
-        link="/guides/features/build-insights/xcode"/>
-    <HomeCard
-        icon="<img src='/images/guides/features/gradle-icon.svg' alt='Gradle' width='32' height='32' />"
-        title="Gradle"
-        details="Track Gradle task timing and cache effectiveness with the Tuist Gradle plugin."
-        linkText="Set up Gradle build insights"
-        link="/guides/features/build-insights/gradle"/>
-</HomeCards>
+<.home_cards>
+  <.home_card
+    title="Xcode"
+    details="Track Xcode scheme post-action timings, build settings, and build metadata in the Tuist dashboard."
+    link="/guides/features/build-insights/xcode"
+/>
+  <.home_card
+    title="Generated projects"
+    details="Track build insights in Tuist generated projects with custom schemes."
+    link="/guides/features/build-insights/generated-projects"
+/>
+  <.home_card
+    title="Gradle"
+    details="Track Gradle task timing and cache effectiveness with the Tuist Gradle plugin."
+    link="/guides/features/build-insights/gradle"
+/>
+</.home_cards>

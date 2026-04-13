@@ -1,6 +1,6 @@
 defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
   @moduledoc false
-  use Oban.Worker, queue: :default, max_attempts: 3, unique: [keys: [:test_run_id]]
+  use Oban.Worker, queue: :default, max_attempts: 5, unique: [keys: [:test_run_id]]
 
   alias Tuist.Accounts
   alias Tuist.Storage

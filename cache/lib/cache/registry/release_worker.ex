@@ -18,6 +18,20 @@ defmodule Cache.Registry.ReleaseWorker do
   @alternate_manifest_regex ~r/\APackage@swift-(\d+)(?:\.(\d+))?(?:\.(\d+))?\.swift\z/
   @lock_ttl_seconds 1_800
   @metadata_lock_ttl_seconds 300
+  @skippable_submodule_failure_markers [
+    "no url found for submodule path",
+    "transport 'file' not allowed",
+    "url using bad/illegal format or missing url",
+    "repository not found",
+    "does not appear to be a git repository",
+    "the requested url returned error: 404",
+    "fatal: could not read username for",
+    "not our ref",
+    "did not contain",
+    "unable to find current revision in submodule path",
+    "reference is not a tree",
+    "needed a single revision"
+  ]
 
   @impl Oban.Worker
   def perform(%Oban.Job{
@@ -67,10 +81,11 @@ defmodule Cache.Registry.ReleaseWorker do
     {:ok, tmp_dir} = Briefly.create(directory: true)
     archive_path = Path.join(tmp_dir, "source_archive.zip")
 
-    with :ok <- fetch_source_archive(full_handle, tag, token, tmp_dir, archive_path),
+    with {:ok, manifest_payloads} <- fetch_manifests(full_handle, tag, token),
+         :ok <- fetch_source_archive(full_handle, tag, token, tmp_dir, archive_path),
          {:ok, checksum} <- checksum_for_file(archive_path),
          :ok <- upload_source_archive(scope, name, version, archive_path),
-         {:ok, manifests} <- fetch_and_upload_manifests(scope, name, version, full_handle, tag, token) do
+         {:ok, manifests} <- upload_manifests(scope, name, version, manifest_payloads) do
       update_metadata_with_release(scope, name, full_handle, version, checksum, manifests)
     else
       {:error, reason} ->
@@ -80,10 +95,14 @@ defmodule Cache.Registry.ReleaseWorker do
   end
 
   defp fetch_source_archive(full_handle, tag, token, tmp_dir, archive_path) do
-    if has_submodules?(full_handle, tag, token) do
-      build_archive_from_clone(full_handle, tag, token, tmp_dir, archive_path)
-    else
-      build_archive_from_zipball(full_handle, tag, token, tmp_dir, archive_path)
+    with {:ok, submodule_paths} <- fetch_submodule_paths(full_handle, tag, token) do
+      case submodule_paths do
+        [] ->
+          build_archive_from_zipball(full_handle, tag, token, tmp_dir, archive_path)
+
+        _submodule_paths ->
+          build_archive_from_clone(full_handle, tag, token, tmp_dir, archive_path)
+      end
     end
   end
 
@@ -95,7 +114,7 @@ defmodule Cache.Registry.ReleaseWorker do
 
   defp build_archive_from_zipball(full_handle, tag, token, tmp_dir, archive_path) do
     with :ok <- TuistCommon.GitHub.download_zipball(full_handle, token, tag, archive_path, @github_opts) do
-      ensure_archive_without_symlinks(tmp_dir, archive_path)
+      normalize_archive(tmp_dir, archive_path)
     end
   end
 
@@ -103,20 +122,36 @@ defmodule Cache.Registry.ReleaseWorker do
   # packages that contain them (e.g. CLAUDE.md -> AGENTS.md symlinks).
   # This workaround resolves symlinks by repacking the archive before upload.
   # Upstream fix: https://github.com/swiftlang/swift-package-manager/pull/9411
-  defp ensure_archive_without_symlinks(tmp_dir, archive_path) do
+  defp normalize_archive(tmp_dir, archive_path) do
     case archive_has_symlinks?(archive_path) do
-      {:ok, true} -> resolve_symlinks_in_archive(tmp_dir, archive_path)
-      {:ok, false} -> :ok
-      {:error, reason} -> {:error, reason}
+      {:ok, has_symlinks} ->
+        if has_symlinks do
+          repackage_archive(tmp_dir, archive_path)
+        else
+          :ok
+        end
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
-  defp has_submodules?(full_handle, tag, token) do
+  defp fetch_submodule_paths(full_handle, tag, token) do
     case TuistCommon.GitHub.get_file_content(full_handle, token, ".gitmodules", tag, @github_opts) do
-      {:ok, content} -> content != ""
-      {:error, :not_found} -> false
-      {:error, _reason} -> false
+      {:ok, content} -> {:ok, parse_gitmodules_paths(content)}
+      {:error, :not_found} -> {:ok, []}
+      {:error, reason} -> {:error, {:gitmodules_fetch_failed, reason}}
     end
+  end
+
+  defp parse_gitmodules_paths(content) do
+    ~r/^\s*path\s*=\s*(.+?)\s*$/m
+    |> Regex.scan(content, capture: :all_but_first)
+    |> Enum.map(fn [path] -> String.trim(path) end)
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.map(&normalize_package_relative_path/1)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq()
   end
 
   defp clone_with_submodules(full_handle, tag, token, tmp_dir) do
@@ -140,7 +175,11 @@ defmodule Cache.Registry.ReleaseWorker do
            stderr_to_stdout: true
          ) do
       {_, 0} ->
-        case update_submodules(%{destination: clone_dest, repository_full_handle: full_handle, tag: tag}) do
+        case update_submodules(%{
+               destination: clone_dest,
+               repository_full_handle: full_handle,
+               tag: tag
+             }) do
           :ok ->
             remove_git_metadata(clone_dest)
             {:ok, clone_dest}
@@ -154,62 +193,125 @@ defmodule Cache.Registry.ReleaseWorker do
     end
   end
 
-  defp update_submodules(%{destination: destination, repository_full_handle: full_handle, tag: tag}) do
-    destination
-    |> submodule_paths()
-    |> Enum.reduce_while(:ok, fn submodule_path, :ok ->
-      case System.cmd(
-             "git",
-             [
-               "-c",
-               "url.https://github.com/.insteadOf=git@github.com:",
-               "-C",
-               destination,
-               "submodule",
-               "update",
-               "--init",
-               "--recursive",
-               "--depth",
-               "1",
-               submodule_path
-             ],
-             stderr_to_stdout: true
-           ) do
-        {_, 0} ->
-          {:cont, :ok}
-
-        {output, status} ->
-          if private_submodule_error?(output) do
-            Logger.info("Skipping private submodule #{submodule_path} for #{full_handle}@#{tag}")
+  @doc false
+  def update_submodules(%{destination: destination, repository_full_handle: full_handle, tag: tag}) do
+    with {:ok, submodule_paths} <- submodule_paths(destination) do
+      Enum.reduce_while(submodule_paths, :ok, fn submodule_path, :ok ->
+        case update_submodule(destination, submodule_path) do
+          :ok ->
             {:cont, :ok}
-          else
-            {:halt, {:error, {:git_submodule_failed, status, output}}}
+
+          {:skip, output} ->
+            case remove_failed_submodule_contents(destination, submodule_path) do
+              :ok ->
+                Logger.warning(
+                  "Skipping submodule #{submodule_path} for #{full_handle}@#{tag} after permanent git submodule update failure: #{output}"
+                )
+
+                {:cont, :ok}
+
+              {:error, reason} ->
+                {:halt, {:error, reason}}
+            end
+
+          {:error, reason} ->
+            {:halt, {:error, reason}}
+        end
+      end)
+    end
+  end
+
+  defp update_submodule(destination, submodule_path) do
+    case System.cmd(
+           "git",
+           [
+             "-c",
+             "url.https://github.com/.insteadOf=git@github.com:",
+             "-C",
+             destination,
+             "submodule",
+             "update",
+             "--init",
+             "--recursive",
+             "--depth",
+             "1",
+             submodule_path
+           ],
+           stderr_to_stdout: true
+         ) do
+      {_, 0} ->
+        :ok
+
+      {output, status} ->
+        output =
+          output
+          |> String.trim()
+          |> case do
+            "" -> "(no output)"
+            trimmed -> trimmed
           end
-      end
-    end)
+
+        nested_submodule_path = nested_submodule_path(output)
+
+        cond do
+          nested_submodule_failure?(output, submodule_path, nested_submodule_path) ->
+            {:error, {:nested_git_submodule_update_failed, submodule_path, nested_submodule_path, status, output}}
+
+          skippable_submodule_failure?(output) ->
+            {:skip, output}
+
+          true ->
+            {:error, {:git_submodule_update_failed, submodule_path, status, output}}
+        end
+    end
+  end
+
+  defp nested_submodule_path(output) do
+    case Regex.run(~r/registered for path '([^']+)'/, output, capture: :all_but_first) ||
+           Regex.run(~r/submodule path '([^']+)'/, output, capture: :all_but_first) do
+      [nested_submodule_path] -> nested_submodule_path
+      _ -> nil
+    end
+  end
+
+  defp nested_submodule_failure?(output, submodule_path, nested_submodule_path) do
+    output =~ "Failed to recurse into submodule path '#{submodule_path}'" and
+      is_binary(nested_submodule_path) and
+      nested_submodule_path != submodule_path and
+      String.starts_with?(nested_submodule_path, submodule_path <> "/")
+  end
+
+  defp skippable_submodule_failure?(output) do
+    Enum.any?(@skippable_submodule_failure_markers, &(output |> String.downcase() |> String.contains?(&1)))
+  end
+
+  defp remove_failed_submodule_contents(destination, submodule_path) do
+    case File.rm_rf(Path.join(destination, submodule_path)) do
+      {:ok, _removed_paths} -> :ok
+      {:error, reason, path} -> {:error, {:remove_failed_submodule_contents_failed, path, reason}}
+    end
   end
 
   defp submodule_paths(destination) do
     case System.cmd("git", ["-C", destination, "ls-files", "--stage"], stderr_to_stdout: true) do
       {output, 0} ->
-        output
-        |> String.split("\n", trim: true)
-        |> Enum.filter(&String.starts_with?(&1, "160000"))
-        |> Enum.map(fn line ->
-          case String.split(line, "\t", parts: 2) do
-            [_, path] -> String.trim(path)
-            _ -> nil
-          end
-        end)
-        |> Enum.reject(&is_nil/1)
+        paths =
+          output
+          |> String.split("\n", trim: true)
+          |> Enum.filter(&String.starts_with?(&1, "160000"))
+          |> Enum.map(fn line ->
+            case String.split(line, "\t", parts: 2) do
+              [_, path] -> String.trim(path)
+              _ -> nil
+            end
+          end)
+          |> Enum.reject(&is_nil/1)
 
-      _ ->
-        []
+        {:ok, paths}
+
+      {output, status} ->
+        {:error, {:git_list_submodules_failed, status, String.trim(output)}}
     end
-  end
-
-  defp private_submodule_error?(output) do
-    String.contains?(output, "fatal: could not read Username for")
   end
 
   defp remove_git_metadata(directory) do
@@ -227,7 +329,7 @@ defmodule Cache.Registry.ReleaseWorker do
     parent_dir = Path.dirname(directory)
     base_name = Path.basename(directory)
 
-    with :ok <- ensure_symlinks_within_root(directory),
+    with :ok <- remove_symlinks_outside_root(directory),
          :ok <- resolve_symlinks(directory) do
       case System.cmd("zip", ["-r", archive_path, base_name], cd: parent_dir) do
         {_, 0} -> :ok
@@ -307,15 +409,27 @@ defmodule Cache.Registry.ReleaseWorker do
     symlink_path == resolved_target or String.starts_with?(symlink_path, resolved_target <> "/")
   end
 
-  defp resolve_symlinks_in_archive(tmp_dir, archive_path) do
+  defp repackage_archive(tmp_dir, archive_path) do
     extract_dir = Path.join(tmp_dir, "extract")
-    Logger.info("Resolving symlinks in source archive at #{archive_path}")
+    Logger.info("Repacking source archive at #{archive_path}")
 
     with :ok <- ensure_extract_directory(extract_dir),
          :ok <- unzip_archive(archive_path, extract_dir),
          {:ok, top_level_directory} <- extract_archive_root_directory(extract_dir),
          :ok <- remove_archive(archive_path) do
       zip_directory(top_level_directory, archive_path)
+    end
+  end
+
+  defp normalize_package_relative_path(path, base_path \\ ".") do
+    package_root = "/package"
+    expanded_base_path = Path.expand(base_path, package_root)
+    expanded_path = Path.expand(path, expanded_base_path)
+
+    cond do
+      expanded_path == package_root -> nil
+      path_within_root?(expanded_path, package_root) -> Path.relative_to(expanded_path, package_root)
+      true -> nil
     end
   end
 
@@ -359,46 +473,54 @@ defmodule Cache.Registry.ReleaseWorker do
     end
   end
 
-  defp ensure_symlinks_within_root(root_directory) do
+  defp remove_symlinks_outside_root(root_directory) do
     expanded_root_directory = Path.expand(root_directory)
-    validate_symlinks_within_root([expanded_root_directory], expanded_root_directory)
+    prune_symlinks_outside_root([expanded_root_directory], expanded_root_directory)
   end
 
-  defp validate_symlinks_within_root([], _root_directory), do: :ok
+  defp prune_symlinks_outside_root([], _root_directory), do: :ok
 
-  defp validate_symlinks_within_root([path | rest], root_directory) do
+  defp prune_symlinks_outside_root([path | rest], root_directory) do
     case File.lstat(path) do
       {:ok, stat} ->
-        validate_symlink_path(stat, path, rest, root_directory)
+        prune_symlink_path(stat, path, rest, root_directory)
 
       {:error, reason} ->
         {:error, {:path_lstat_failed, path, reason}}
     end
   end
 
-  defp validate_symlink_path(%File.Stat{type: :symlink}, path, rest, root_directory) do
-    with {:ok, target} <- File.read_link(path),
-         :ok <- ensure_symlink_target_within_root(path, target, root_directory) do
-      validate_symlinks_within_root(rest, root_directory)
-    else
-      {:error, reason} -> {:error, {:symlink_read_failed, path, reason}}
-      {:symlink_outside_root, target} -> {:error, {:symlink_points_outside_root, path, target}}
+  defp prune_symlink_path(%File.Stat{type: :symlink}, path, rest, root_directory) do
+    case File.read_link(path) do
+      {:ok, target} ->
+        case ensure_symlink_target_within_root(path, target, root_directory) do
+          :ok ->
+            prune_symlinks_outside_root(rest, root_directory)
+
+          {:symlink_outside_root, _target} ->
+            Logger.warning("Removing symlink #{path} -> #{target} because it points outside #{root_directory}")
+            File.rm!(path)
+            prune_symlinks_outside_root(rest, root_directory)
+        end
+
+      {:error, reason} ->
+        {:error, {:symlink_read_failed, path, reason}}
     end
   end
 
-  defp validate_symlink_path(%File.Stat{type: :directory}, path, rest, root_directory) do
+  defp prune_symlink_path(%File.Stat{type: :directory}, path, rest, root_directory) do
     case File.ls(path) do
       {:ok, entries} ->
         next_paths = Enum.map(entries, &Path.join(path, &1))
-        validate_symlinks_within_root(next_paths ++ rest, root_directory)
+        prune_symlinks_outside_root(next_paths ++ rest, root_directory)
 
       {:error, reason} ->
         {:error, {:directory_list_failed, path, reason}}
     end
   end
 
-  defp validate_symlink_path(_stat, _path, rest, root_directory) do
-    validate_symlinks_within_root(rest, root_directory)
+  defp prune_symlink_path(_stat, _path, rest, root_directory) do
+    prune_symlinks_outside_root(rest, root_directory)
   end
 
   defp ensure_symlink_target_within_root(path, target, root_directory) do
@@ -446,32 +568,54 @@ defmodule Cache.Registry.ReleaseWorker do
     S3.upload_file(key, archive_path, type: :registry, content_type: "application/zip")
   end
 
-  defp fetch_and_upload_manifests(scope, name, version, full_handle, tag, token) do
+  defp fetch_manifests(full_handle, tag, token) do
     with {:ok, contents} <- TuistCommon.GitHub.list_repository_contents(full_handle, token, tag, @github_opts) do
-      manifests =
+      manifest_payloads =
         contents
         |> Enum.map(&Map.get(&1, "path"))
         |> Enum.filter(&manifest_path?/1)
         |> Enum.map(fn path ->
           filename = Path.basename(path)
-          swift_version = manifest_swift_version(filename)
 
-          with {:ok, content} <- TuistCommon.GitHub.get_file_content(full_handle, token, path, tag, @github_opts),
-               :ok <- upload_manifest(scope, name, version, filename, content) do
-            %{
-              "swift_version" => swift_version,
-              "swift_tools_version" => swift_tools_version(content)
-            }
-          else
+          case TuistCommon.GitHub.get_file_content(full_handle, token, path, tag, @github_opts) do
+            {:ok, content} ->
+              %{
+                content: content,
+                filename: filename,
+                path: path,
+                swift_version: manifest_swift_version(filename)
+              }
+
             {:error, reason} ->
-              Logger.warning("Failed to fetch manifest #{path} for #{scope}/#{name}@#{tag}: #{inspect(reason)}")
+              Logger.warning("Failed to fetch manifest #{path} for #{full_handle}@#{tag}: #{inspect(reason)}")
               nil
           end
         end)
         |> Enum.reject(&is_nil/1)
 
-      {:ok, manifests}
+      {:ok, manifest_payloads}
     end
+  end
+
+  defp upload_manifests(scope, name, version, manifest_payloads) do
+    manifests =
+      manifest_payloads
+      |> Enum.map(fn %{content: content, filename: filename, path: path, swift_version: swift_version} ->
+        case upload_manifest(scope, name, version, filename, content) do
+          :ok ->
+            %{
+              "swift_version" => swift_version,
+              "swift_tools_version" => swift_tools_version(content)
+            }
+
+          {:error, reason} ->
+            Logger.warning("Failed to upload manifest #{path} for #{scope}/#{name}@#{version}: #{inspect(reason)}")
+            nil
+        end
+      end)
+      |> Enum.reject(&is_nil/1)
+
+    {:ok, manifests}
   end
 
   defp update_metadata_with_release(scope, name, full_handle, version, checksum, manifests) do

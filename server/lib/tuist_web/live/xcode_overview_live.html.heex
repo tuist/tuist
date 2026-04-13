@@ -173,21 +173,21 @@
         />
         <.widget
           loading={!@test_analytics.ok?}
-          title={dgettext("dashboard_projects", "Average test time")}
+          title={dgettext("dashboard_tests", "Avg. test run duration")}
           description={
             dgettext(
-              "dashboard_projects",
-              "Average time it takes to test a project when using the 'tuist test' command."
+              "dashboard_tests",
+              "The average test run duration."
             )
           }
           value={
-            if @test_analytics.ok?,
-              do:
-                dgettext("dashboard_projects", "%{duration}s",
-                  duration: Float.round(@test_analytics.result.total_average_duration / 1000, 1)
-                )
+            if @test_analytics.ok? do
+              Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                @test_analytics.result.total_average_duration
+              )
+            end
           }
-          id="widget-average-test-time"
+          id="widget-test-run-duration"
           trend_value={if @test_analytics.ok?, do: @test_analytics.result.trend, else: nil}
           trend_label={@analytics_trend_label}
           trend_type={:inverse}

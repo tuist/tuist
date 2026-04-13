@@ -7,8 +7,8 @@
 }
 
 .tuist-docs [data-part="feature-cards"] {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
   gap: var(--noora-spacing-7);
 }
 
@@ -22,7 +22,7 @@
   box-shadow: var(--noora-light-border-default);
   border-radius: var(--noora-radius-xlarge);
   background: var(--noora-surface-background-primary);
-  width: 370px;
+  width: 100%;
   overflow: hidden;
   color: var(--noora-text-body);
   text-decoration: none;

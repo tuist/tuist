@@ -50,58 +50,64 @@ defmodule TuistWeb.UserLoginLive do
               {dgettext("dashboard_auth", "Welcome back! Please log in to continue")}
             </span>
           </div>
-          <div
-            :if={oauth_configured?()}
-            data-part="oauth"
-            data-compact={all_oauth_providers_configured?(assigns)}
-          >
-            <.button
-              :if={@github_configured?}
-              href={~p"/users/auth/github"}
-              variant="secondary"
-              size="medium"
-              label="GitHub"
-              icon_only={all_oauth_providers_configured?(assigns)}
+          <div :if={oauth_configured?()} data-part="oauth-providers">
+            <div
+              :if={social_oauth_configured?(assigns)}
+              data-part="oauth"
+              data-compact={all_social_providers_configured?(assigns)}
             >
-              <.brand_github />
-              <:icon_left>
+              <.button
+                :if={@github_configured?}
+                href={~p"/users/auth/github"}
+                variant="secondary"
+                size="medium"
+                label="GitHub"
+                icon_only={all_social_providers_configured?(assigns)}
+              >
                 <.brand_github />
-              </:icon_left>
-            </.button>
-            <.button
-              :if={@google_configured?}
-              href={~p"/users/auth/google"}
-              variant="secondary"
-              size="medium"
-              label="Google"
-              icon_only={all_oauth_providers_configured?(assigns)}
-            >
-              <.brand_google />
-              <:icon_left>
+                <:icon_left>
+                  <.brand_github />
+                </:icon_left>
+              </.button>
+              <.button
+                :if={@google_configured?}
+                href={~p"/users/auth/google"}
+                variant="secondary"
+                size="medium"
+                label="Google"
+                icon_only={all_social_providers_configured?(assigns)}
+              >
                 <.brand_google />
-              </:icon_left>
-            </.button>
-            <.button
-              :if={@apple_configured?}
-              href={~p"/users/auth/apple"}
-              variant="secondary"
-              size="medium"
-              label="Apple"
-              icon_only={all_oauth_providers_configured?(assigns)}
-            >
-              <.brand_apple />
-              <:icon_left>
+                <:icon_left>
+                  <.brand_google />
+                </:icon_left>
+              </.button>
+              <.button
+                :if={@apple_configured?}
+                href={~p"/users/auth/apple"}
+                variant="secondary"
+                size="medium"
+                label="Apple"
+                icon_only={all_social_providers_configured?(assigns)}
+              >
                 <.brand_apple />
-              </:icon_left>
-            </.button>
-            <.button
-              :if={@okta_configured? or @tuist_hosted?}
-              href={~p"/users/log_in/sso"}
-              variant="secondary"
-              size="medium"
-              label={dgettext("dashboard_auth", "SSO")}
-              icon_only={all_oauth_providers_configured?(assigns)}
-            />
+                <:icon_left>
+                  <.brand_apple />
+                </:icon_left>
+              </.button>
+            </div>
+            <div :if={@okta_configured? or @tuist_hosted?} data-part="sso">
+              <.button
+                href={~p"/users/log_in/sso"}
+                variant="secondary"
+                size="medium"
+                label={dgettext("dashboard_auth", "Log in with SSO")}
+              >
+                <:icon_left>
+                  <.lock />
+                </:icon_left>
+              </.button>
+            </div>
           </div>
           <.line_divider :if={oauth_configured?()} text="OR" />
           <.alert
@@ -218,8 +224,11 @@ defmodule TuistWeb.UserLoginLive do
       Environment.tuist_hosted?()
   end
 
-  defp all_oauth_providers_configured?(assigns) do
-    assigns.github_configured? and assigns.google_configured? and
-      (assigns.okta_configured? or assigns.tuist_hosted?) and assigns.apple_configured?
+  defp social_oauth_configured?(assigns) do
+    assigns.github_configured? or assigns.google_configured? or assigns.apple_configured?
+  end
+
+  defp all_social_providers_configured?(assigns) do
+    assigns.github_configured? and assigns.google_configured? and assigns.apple_configured?
   end
 end
