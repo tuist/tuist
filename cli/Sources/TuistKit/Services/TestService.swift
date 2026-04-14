@@ -1037,7 +1037,11 @@ public struct TestService { // swiftlint:disable:this type_body_length
         } catch {
             guard action != .build, let resultBundlePath else { throw error }
 
-            let testStatuses = try await xcResultService.parseTestStatuses(path: resultBundlePath)
+            guard let testStatuses = try? await xcResultService.parseTestStatuses(path: resultBundlePath),
+                  !testStatuses.testCases.isEmpty
+            else {
+                throw error
+            }
 
             let testTargets = testActionTargets(
                 for: schemes, testPlanConfiguration: testPlanConfiguration, graph: graph, action: action
