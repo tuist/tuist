@@ -8,8 +8,8 @@ import Foundation
 #endif
 
 private let _sessionLock = NSLock()
-nonisolated(unsafe) private var _currentProxyURL: URL? = nil
-nonisolated(unsafe) private var _tuistURLSession: URLSession = makeTuistURLSession(proxyURL: nil)
+private nonisolated(unsafe) var _currentProxyURL: URL?
+private nonisolated(unsafe) var _tuistURLSession: URLSession = makeTuistURLSession(proxyURL: nil)
 
 private func tuistURLSessionConfiguration(proxyURL: URL?) -> URLSessionConfiguration {
     let configuration: URLSessionConfiguration = .ephemeral
