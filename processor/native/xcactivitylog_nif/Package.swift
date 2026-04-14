@@ -22,7 +22,7 @@ let package = Package(
     dependencies: [
         .package(id: "MobileNativeFoundation.XCLogParser", from: "0.2.46"),
         .package(id: "tuist.Path", from: "0.3.8"),
-        .package(id: "tuist.FileSystem", from: "0.16.0"),
+        .package(id: "tuist.FileSystem", from: "0.16.1"),
         .package(id: "stephencelis.SQLite_swift", from: "0.16.0"),
     ],
     targets: [
