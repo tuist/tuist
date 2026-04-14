@@ -599,7 +599,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "0.16.0"
+        "version" : "0.16.1"
       }
     },
     {

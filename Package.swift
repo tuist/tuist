@@ -1688,7 +1688,7 @@ let package = Package(
         ),
         .package(id: "tuist.Path", .upToNextMajor(from: "0.3.8")),
         .package(id: "p-x9.MachOKit", .upToNextMajor(from: "0.46.1")),
-        .package(id: "tuist.FileSystem", .upToNextMajor(from: "0.16.0")),
+        .package(id: "tuist.FileSystem", .upToNextMajor(from: "0.16.1")),
         .package(id: "tuist.Command", .upToNextMajor(from: "0.14.0")),
         .package(id: "apple.swift-crypto", from: "3.0.0"),
         .package(id: "apple.swift-nio", from: "2.70.0"),
