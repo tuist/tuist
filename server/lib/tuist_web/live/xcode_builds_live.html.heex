@@ -34,6 +34,13 @@
         label={TuistWeb.XcodeBuildsLive.build_scheme_label(@analytics_build_scheme)}
         secondary_text={dgettext("dashboard_builds", "Scheme:")}
       >
+        <:search>
+          <input
+            type="text"
+            placeholder={dgettext("dashboard_builds", "Search...")}
+            data-part="search-input"
+          />
+        </:search>
         <.dropdown_item
           value="any"
           label={dgettext("dashboard_builds", "Any")}
