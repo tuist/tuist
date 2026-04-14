@@ -6,6 +6,9 @@ import TuistConfig
 import TuistConstants
 import TuistEnvironment
 import TuistHTTP
+#if canImport(FoundationNetworking)
+    import FoundationNetworking
+#endif
 
 @Mockable
 public protocol ConfigLoading: Sendable {
