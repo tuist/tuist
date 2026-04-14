@@ -250,7 +250,7 @@
   & [data-part="items"] {
     align-self: stretch;
     padding: var(--noora-spacing-2);
-    max-height: 16rem;
+    max-height: 15rem;
     overflow-y: auto;
 
     & [data-part="search-empty"] {
