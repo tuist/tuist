@@ -84,6 +84,31 @@ defmodule TuistWeb.GradleBuildLiveTest do
     assert has_element?(lv, "td", ":app:assembleDebug")
   end
 
+  test "preserves the build runs query in the back button", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    build_id =
+      GradleFixtures.build_fixture(
+        project_id: project.id,
+        inserted_at: @now,
+        status: "success",
+        root_project_name: "my-android-app"
+      )
+
+    {:ok, lv, _html} =
+      live(
+        conn,
+        ~p"/#{organization.account.name}/#{project.name}/builds/build-runs/#{build_id}?filter_status_op===&filter_status_val=success"
+      )
+
+    assert has_element?(
+             lv,
+             ~s([data-part="back-button"][href="/#{organization.account.name}/#{project.name}/builds/build-runs?filter_status_op=%3D%3D&filter_status_val=success"])
+           )
+  end
+
   test "search filters tasks by task path via URL params", %{
     conn: conn,
     organization: organization,

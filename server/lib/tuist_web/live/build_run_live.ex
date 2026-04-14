@@ -141,6 +141,10 @@ defmodule TuistWeb.BuildRunLive do
     {:noreply, socket}
   end
 
+  def build_runs_path(%{selected_project: project, uri: uri}) do
+    Query.append(~p"/#{project.account.name}/#{project.name}/builds/build-runs", uri.query)
+  end
+
   @impl true
   def handle_params(_params, uri, %{assigns: %{selected_project: project}} = socket) do
     params = Query.query_params(uri)

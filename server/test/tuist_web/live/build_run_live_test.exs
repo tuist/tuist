@@ -211,4 +211,27 @@ defmodule TuistWeb.BuildRunLiveTest do
     # Then - Check that the Xcode Cache tab is not present in the horizontal tab menu
     refute has_element?(lv, ".noora-tab-menu-horizontal-item", "Xcode Cache")
   end
+
+  test "preserves the build runs query in the back button", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    {:ok, build_run} =
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        scheme: "App"
+      )
+
+    {:ok, lv, _html} =
+      live(
+        conn,
+        ~p"/#{organization.account.name}/#{project.name}/builds/build-runs/#{build_run.id}?filter_scheme_op===&filter_scheme_val=App"
+      )
+
+    assert has_element?(
+             lv,
+             ~s([data-part="back-button"][href="/#{organization.account.name}/#{project.name}/builds/build-runs?filter_scheme_op=%3D%3D&filter_scheme_val=App"])
+           )
+  end
 end

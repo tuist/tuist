@@ -48,11 +48,7 @@
           id="build-runs-table"
           rows={@build_runs}
           row_navigate={
-            fn build_run ->
-              url(
-                ~p"/#{@selected_project.account.name}/#{@selected_project.name}/builds/build-runs/#{build_run.id}"
-              )
-            end
+            fn build_run -> TuistWeb.XcodeBuildRunsLive.build_run_path(assigns, build_run.id) end
           }
         >
           <:col :let={build_run} label={dgettext("dashboard_builds", "Scheme")}>

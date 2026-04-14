@@ -59,11 +59,7 @@
           id="gradle-build-runs-table"
           rows={@build_runs}
           row_navigate={
-            fn build ->
-              url(
-                ~p"/#{@selected_account.name}/#{@selected_project.name}/builds/build-runs/#{build.id}"
-              )
-            end
+            fn build -> TuistWeb.GradleBuildRunsLive.build_run_path(assigns, build.id) end
           }
         >
           <:col :let={build} label={dgettext("dashboard_gradle", "Project")}>
