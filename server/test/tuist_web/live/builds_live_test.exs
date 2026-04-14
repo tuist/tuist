@@ -77,4 +77,14 @@ defmodule TuistWeb.BuildsLiveTest do
     assert has_element?(lv, "span", "Build success rate")
     assert has_element?(lv, "span", "66.7%")
   end
+
+  test "renders a searchable scheme dropdown", %{
+    conn: conn,
+    project: project
+  } do
+    {:ok, lv, _html} = live(conn, ~p"/#{project.account.name}/#{project.name}/builds")
+    render_async(lv)
+
+    assert has_element?(lv, "#builds-analytics-scheme-dropdown [data-part='search-input']")
+  end
 end

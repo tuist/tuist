@@ -6,6 +6,13 @@
         label={TuistWeb.TestsLive.test_scheme_label(@analytics_test_scheme)}
         secondary_text={dgettext("dashboard_tests", "Scheme:")}
       >
+        <:search>
+          <input
+            type="text"
+            placeholder={dgettext("dashboard_tests", "Search...")}
+            data-part="search-input"
+          />
+        </:search>
         <.dropdown_item
           value="any"
           label={dgettext("dashboard_tests", "Any")}
