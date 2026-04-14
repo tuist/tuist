@@ -363,13 +363,43 @@ function transformColorProperty(colorProp) {
   return processColor(colorProp);
 }
 
+// Tooltip strings are returned to ECharts and rendered via innerHTML
+// (renderMode defaults to "html"), so any interpolated value derived from
+// user-uploaded data (scheme, project name, category, etc.) must be escaped.
+function escapeHtml(value) {
+  if (value === null || value === undefined) return "";
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 // Tooltip
 function tooltipFormatter(options = {}) {
   return (params) => {
-    const content = Array.isArray(params)
-      ? params.map((param) => tooltipSeries(param, options)).join("")
-      : tooltipSeries(params, options);
-    let title = params[0].name;
+    const paramsArray = Array.isArray(params) ? params : [params];
+    const content = paramsArray
+      .map((param) => tooltipSeries(param, options))
+      .join("");
+    let title = paramsArray[0].name;
+    if (
+      !title &&
+      Array.isArray(paramsArray[0].value) &&
+      paramsArray[0].value.length >= 2
+    ) {
+      const date = new Date(paramsArray[0].value[0]);
+      if (!isNaN(date.getTime())) {
+        title = date.toLocaleDateString(navigator.language, {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+          hour: "numeric",
+          minute: "numeric",
+        });
+      }
+    }
     if (!Number.isNaN(Date.parse(title))) {
       const date = new Date(title);
       if (options.dateFormat == "minute") {
@@ -396,8 +426,34 @@ function tooltipFormatter(options = {}) {
         });
       }
     }
+    // For scatter data points with tooltipExtra, add color dot and duration to header
+    const firstData = paramsArray[0].data;
+    let titleExtra = "";
+    if (firstData && typeof firstData === "object" && firstData.tooltipExtra) {
+      const color = Array.isArray(paramsArray[0].color)
+        ? paramsArray[0].color[0]
+        : paramsArray[0].color;
+      titleExtra = `<span data-part="dot" style="--color: ${escapeHtml(color)}"></span>`;
+
+      let rawValue = paramsArray[0].value;
+      if (Array.isArray(rawValue) && rawValue.length > 1) {
+        rawValue = rawValue[rawValue.length - 1];
+      }
+      let formatted;
+      if (options.valueFormat && typeof options.valueFormat === "string") {
+        if (options.valueFormat.startsWith("fn:")) {
+          const fn = options.valueFormat.substring(3);
+          if (fn in tooltipFormatters)
+            formatted = tooltipFormatters[fn](rawValue);
+        } else {
+          formatted = options.valueFormat.replace("{value}", rawValue);
+        }
+      }
+      if (formatted) title = `${title} · ${formatted}`;
+    }
+
     return `<div class="noora-chart-tooltip">
-      <span data-part="title">${title}</span>
+      <span data-part="title">${titleExtra}${escapeHtml(title)}</span>
       <div class="noora-line-divider">
         <div data-part="line"></div>
       </div>
@@ -406,7 +462,8 @@ function tooltipFormatter(options = {}) {
   };
 }
 
-function tooltipSeries({ color, seriesName, value }, options = {}) {
+function tooltipSeries(param, options = {}) {
+  let { color, seriesName, value, data } = param;
   if (!seriesName && Array.isArray(value)) {
     const date = new Date(value[0]);
     if (date instanceof Date && !isNaN(date)) {
@@ -435,11 +492,25 @@ function tooltipSeries({ color, seriesName, value }, options = {}) {
     formattedValue = value;
   }
 
+  const hasExtra = data && typeof data === "object" && data.tooltipExtra;
+
+  if (hasExtra) {
+    const extraLines = data.tooltipExtra
+      .map(
+        ({ label, value: v }) =>
+          `<div data-part="series-item"><span data-part="label">${escapeHtml(label)}</span><span data-part="value">${escapeHtml(v)}</span></div>`,
+      )
+      .join("");
+
+    return extraLines;
+  }
+
+  const dotColor = Array.isArray(color) ? color[0] : color;
   return `
   <div data-part="series-item">
-    <span data-part="dot" style="--color: ${Array.isArray(color) ? color[0] : color}"></span>
-    <span data-part="label">${seriesName}</span>
-    <span data-part="value">${formattedValue}</span>
+    <span data-part="dot" style="--color: ${escapeHtml(dotColor)}"></span>
+    <span data-part="label">${escapeHtml(seriesName)}</span>
+    <span data-part="value">${escapeHtml(formattedValue)}</span>
   </div>
   `;
 }

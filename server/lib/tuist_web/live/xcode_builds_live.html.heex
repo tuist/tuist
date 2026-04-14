@@ -338,7 +338,30 @@
       }
       data-part="analytics-card-chart-section"
     >
+      <.chart_type_toggle
+        id="build-duration"
+        chart_type={@build_duration_chart_type}
+        chart_type_event="select_build_duration_chart_type"
+        group_by_options={[
+          %{value: "scheme", label: dgettext("dashboard_builds", "Scheme")},
+          %{value: "environment", label: dgettext("dashboard_builds", "Environment")},
+          %{value: "category", label: dgettext("dashboard_builds", "Category")}
+        ]}
+        selected_group_by={@build_duration_scatter_group_by}
+        group_by_query_param="build-duration-scatter-group-by"
+        uri={@uri}
+      />
+      <div
+        :if={@build_duration_chart.loading || !@build_duration_chart.ok?}
+        data-part="analytics-chart"
+      >
+        <.skeleton_chart />
+      </div>
       <.chart
+        :if={
+          @build_duration_chart.ok? and !@build_duration_chart.loading and
+            @build_duration_chart.result == :line
+        }
         id="average-build-time-chart"
         type="line"
         extra_options={
@@ -457,6 +480,24 @@
           }
         ]}
         y_axis_min={0}
+      />
+      <.scatter_chart
+        id="build-duration-scatter-chart"
+        chart={@build_duration_chart}
+        period={@analytics_period}
+        value_format="fn:formatSeconds"
+        url_fn={
+          fn point ->
+            ~p"/#{@selected_account.name}/#{@selected_project.name}/builds/build-runs/#{point.id}"
+          end
+        }
+        truncation_title={
+          dgettext(
+            "dashboard_builds",
+            "The 10,000 entry limit has been reached, data is only included up to %{date}. Try filtering by scheme, configuration, or other properties to narrow down the dataset.",
+            date: scatter_oldest_entry_iso(@build_duration_chart.result)
+          )
+        }
       />
     </.card_section>
     <.card_section

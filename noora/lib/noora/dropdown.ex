@@ -21,6 +21,12 @@ defmodule Noora.Dropdown do
   attr(:id, :string, required: true, doc: "Unique identifier for the dropdown component")
   attr(:label, :string, default: nil, doc: "Main text displayed in the dropdown trigger")
 
+  attr(:size, :string,
+    values: ~w(medium large),
+    default: "large",
+    doc: "The size of the dropdown trigger"
+  )
+
   attr(:secondary_text, :string,
     default: nil,
     doc: "Secondary text displayed to the left of the main label"
@@ -85,6 +91,7 @@ defmodule Noora.Dropdown do
       class="noora-dropdown"
       phx-hook="NooraDropdown"
       phx-update="ignore"
+      data-size={@size}
       data-loop-focus
       data-typeahead
       data-close-on-select={@close_on_select}

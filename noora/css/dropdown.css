@@ -101,6 +101,18 @@
     }
   }
 
+  &[data-size="medium"] [data-part="trigger"] {
+    font: var(--noora-font-body-small);
+    border-radius: var(--noora-radius-small);
+    gap: var(--noora-spacing-3);
+    padding: var(--noora-spacing-3) var(--noora-spacing-4);
+
+    & [data-part="indicator"] > div {
+      width: var(--noora-icon-size-medium);
+      height: var(--noora-icon-size-medium);
+    }
+  }
+
   & [data-part="positioner"] {
     display: none;
   }
