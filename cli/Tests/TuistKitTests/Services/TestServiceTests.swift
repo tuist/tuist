@@ -1464,6 +1464,7 @@ final class TestServiceTests: TuistUnitTestCase {
         xcodebuildController.reset()
 
         let xcresultPath = try temporaryPath().appending(component: "bundle.xcresult")
+        try await fileSystem.makeDirectory(at: xcresultPath)
         given(xcodebuildController)
             .test(
                 .any,
@@ -1582,6 +1583,141 @@ final class TestServiceTests: TuistUnitTestCase {
                 cacheCategory: .value(.selectiveTests)
             )
             .called(1)
+    }
+
+    func test_run_tests_preserves_original_error_when_result_bundle_does_not_exist() async throws {
+        // Given
+        givenGenerator()
+
+        let scheme = Scheme.test(
+            name: "UnitTests",
+            testAction: .test(
+                targets: [
+                    .test(target: .init(projectPath: try temporaryPath(), name: "TargetTests")),
+                ]
+            )
+        )
+        given(buildGraphInspector)
+            .workspaceSchemes(graphTraverser: .any)
+            .willReturn([scheme])
+
+        given(generator)
+            .generateWithGraph(path: .any, options: .any)
+            .willProduce { path, _ in
+                (path, .test(), MapperEnvironment())
+            }
+
+        given(buildGraphInspector)
+            .testableSchemes(graphTraverser: .any)
+            .willReturn([])
+
+        let xcresultPath = try temporaryPath().appending(component: "bundle.xcresult")
+        let originalError = NSError(domain: "xcodebuild", code: 70, userInfo: [
+            NSLocalizedDescriptionKey: "Unable to find a device matching the provided destination specifier",
+        ])
+
+        xcodebuildController.reset()
+        given(xcodebuildController)
+            .test(
+                .any, scheme: .any, clean: .any, destination: .any, action: .any, rosetta: .any,
+                derivedDataPath: .any, resultBundlePath: .value(xcresultPath), arguments: .any,
+                retryCount: .any, testTargets: .any, skipTestTargets: .any,
+                testPlanConfiguration: .any, passthroughXcodeBuildArguments: .any
+            )
+            .willProduce { _, scheme, _, _, _, _, _, _, _, _, _, _, _, _ in
+                self.testedSchemes.append(scheme)
+                throw originalError
+            }
+
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject()))
+
+        // When / Then
+        do {
+            try await testRun(
+                path: try temporaryPath(),
+                resultBundlePath: xcresultPath
+            )
+            XCTFail("Should throw")
+        } catch {
+            XCTAssertEqual((error as NSError).domain, "xcodebuild")
+            XCTAssertEqual((error as NSError).code, 70)
+        }
+        verify(xcResultService)
+            .parseTestStatuses(path: .any)
+            .called(0)
+    }
+
+    func test_run_tests_preserves_original_error_when_no_test_cases_in_result() async throws {
+        // Given
+        givenGenerator()
+
+        let scheme = Scheme.test(
+            name: "UnitTests",
+            testAction: .test(
+                targets: [
+                    .test(target: .init(projectPath: try temporaryPath(), name: "TargetTests")),
+                ]
+            )
+        )
+        given(buildGraphInspector)
+            .workspaceSchemes(graphTraverser: .any)
+            .willReturn([scheme])
+
+        given(generator)
+            .generateWithGraph(path: .any, options: .any)
+            .willProduce { path, _ in
+                (path, .test(), MapperEnvironment())
+            }
+
+        given(buildGraphInspector)
+            .testableSchemes(graphTraverser: .any)
+            .willReturn([])
+
+        let xcresultPath = try temporaryPath().appending(component: "bundle.xcresult")
+        try await fileSystem.makeDirectory(at: xcresultPath)
+
+        let originalError = NSError(domain: "xcodebuild", code: 70, userInfo: [
+            NSLocalizedDescriptionKey: "Unable to find a device matching the provided destination specifier",
+        ])
+
+        xcodebuildController.reset()
+        given(xcodebuildController)
+            .test(
+                .any, scheme: .any, clean: .any, destination: .any, action: .any, rosetta: .any,
+                derivedDataPath: .any, resultBundlePath: .value(xcresultPath), arguments: .any,
+                retryCount: .any, testTargets: .any, skipTestTargets: .any,
+                testPlanConfiguration: .any, passthroughXcodeBuildArguments: .any
+            )
+            .willProduce { _, scheme, _, _, _, _, _, _, _, _, _, _, _, _ in
+                self.testedSchemes.append(scheme)
+                throw originalError
+            }
+
+        xcResultService.reset()
+        given(xcResultService)
+            .parse(path: .any, rootDirectory: .any)
+            .willReturn(nil)
+        given(xcResultService)
+            .parseTestStatuses(path: .any)
+            .willReturn(TestResultStatuses(testCases: []))
+
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject()))
+
+        // When / Then
+        do {
+            try await testRun(
+                path: try temporaryPath(),
+                resultBundlePath: xcresultPath
+            )
+            XCTFail("Should throw")
+        } catch {
+            XCTAssertEqual((error as NSError).domain, "xcodebuild")
+            XCTAssertEqual((error as NSError).code, 70)
+        }
     }
 
     func test_run_tests_when_part_is_cached_and_scheme_is_passed() async throws {
