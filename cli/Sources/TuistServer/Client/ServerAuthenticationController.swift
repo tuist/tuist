@@ -270,7 +270,7 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
             return try await authenticationTokenRefreshingIfNeeded(
                 serverURL: serverURL, forceRefresh: false,
                 inBackground: ServerAuthenticationConfig.current.backgroundRefresh,
-                locking: false
+                locking: true
             )
         #endif
     }
