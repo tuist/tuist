@@ -67,8 +67,8 @@ defmodule Tuist.Gradle.Analytics do
       maybe_filter_ci(
         from(b in Build,
           where: b.project_id == ^project_id,
-          where: b.inserted_at > ^DateTime.to_naive(start_datetime),
-          where: b.inserted_at < ^DateTime.to_naive(end_datetime),
+          where: b.inserted_at >= ^DateTime.to_naive(start_datetime),
+          where: b.inserted_at <= ^DateTime.to_naive(end_datetime),
           where: b.cacheable_tasks_count > 0,
           order_by: [desc: b.inserted_at],
           limit: ^@scatter_data_limit,

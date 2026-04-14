@@ -41,6 +41,8 @@ defmodule TuistWeb.ModuleCacheLive do
               "analytics-selected-widget",
               "analytics-environment",
               "analytics-date-range",
+              "analytics-start-date",
+              "analytics-end-date",
               "hit-rate-type",
               "cache-hit-rate-chart-type"
             ])

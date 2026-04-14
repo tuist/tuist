@@ -29,6 +29,8 @@ defmodule TuistWeb.XcodeBuildsLive do
               "analytics-selected-widget",
               "analytics-environment",
               "analytics-date-range",
+              "analytics-start-date",
+              "analytics-end-date",
               "analytics-build-scheme",
               "analytics-build-configuration",
               "analytics-build-category",

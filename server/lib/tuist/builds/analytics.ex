@@ -1129,8 +1129,8 @@ defmodule Tuist.Builds.Analytics do
       apply_filters(
         from(b in Build,
           where: b.project_id == ^project_id,
-          where: b.inserted_at > ^start_datetime,
-          where: b.inserted_at < ^end_datetime,
+          where: b.inserted_at >= ^start_datetime,
+          where: b.inserted_at <= ^end_datetime,
           where: b.cacheable_tasks_count > 0,
           order_by: [desc: b.inserted_at],
           limit: ^@scatter_data_limit,

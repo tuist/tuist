@@ -200,8 +200,8 @@ defmodule Tuist.Tests.Analytics do
       apply_test_run_filters(
         from(t in Test,
           where: t.project_id == ^project_id,
-          where: t.ran_at > ^start_datetime,
-          where: t.ran_at < ^end_datetime,
+          where: t.ran_at >= ^start_datetime,
+          where: t.ran_at <= ^end_datetime,
           order_by: [desc: t.ran_at],
           limit: ^@scatter_data_limit,
           select: %{

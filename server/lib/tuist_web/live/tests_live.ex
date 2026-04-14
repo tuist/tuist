@@ -49,12 +49,16 @@ defmodule TuistWeb.TestsLive do
               "analytics-environment",
               "analytics-test-scheme",
               "analytics-date-range",
+              "analytics-start-date",
+              "analytics-end-date",
               "analytics-selected-widget",
               "duration-type",
               "duration-chart-type",
               "duration-scatter-group-by",
               "selective-testing-environment",
               "selective-testing-date-range",
+              "selective-testing-start-date",
+              "selective-testing-end-date",
               "selective-testing-duration-type",
               "selective-testing-chart-type"
             ])
