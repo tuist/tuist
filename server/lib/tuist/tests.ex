@@ -105,6 +105,7 @@ defmodule Tuist.Tests do
         where: t.project_id == ^project.id,
         where: t.scheme != "",
         where: t.ran_at > ^thirty_days_ago,
+        order_by: [asc: t.scheme],
         distinct: true,
         select: t.scheme
       )

@@ -7330,7 +7330,7 @@ defmodule Tuist.TestsTest do
       schemes = Tests.project_test_schemes(project)
 
       # Then
-      assert Enum.sort(schemes) == ["App", "Framework"]
+      assert schemes == ["App", "Framework"]
     end
 
     test "returns an empty list when no tests exist for the project" do

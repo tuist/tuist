@@ -89,18 +89,18 @@
           <:right_icon><.check /></:right_icon>
         </.dropdown_item>
         <.dropdown_item
-          value="incremental"
-          label={dgettext("dashboard_builds", "Incremental")}
-          patch={"?#{Query.put(@uri.query, "analytics-build-category", "incremental")}"}
-          data-selected={@analytics_build_category == "incremental"}
-        >
-          <:right_icon><.check /></:right_icon>
-        </.dropdown_item>
-        <.dropdown_item
           value="clean"
           label={dgettext("dashboard_builds", "Clean")}
           patch={"?#{Query.put(@uri.query, "analytics-build-category", "clean")}"}
           data-selected={@analytics_build_category == "clean"}
+        >
+          <:right_icon><.check /></:right_icon>
+        </.dropdown_item>
+        <.dropdown_item
+          value="incremental"
+          label={dgettext("dashboard_builds", "Incremental")}
+          patch={"?#{Query.put(@uri.query, "analytics-build-category", "incremental")}"}
+          data-selected={@analytics_build_category == "incremental"}
         >
           <:right_icon><.check /></:right_icon>
         </.dropdown_item>
@@ -119,18 +119,18 @@
           <:right_icon><.check /></:right_icon>
         </.dropdown_item>
         <.dropdown_item
-          value="local"
-          label={dgettext("dashboard_builds", "Local")}
-          patch={"?#{Query.put(@uri.query, "analytics-environment", "local")}"}
-          data-selected={@analytics_environment == "local"}
-        >
-          <:right_icon><.check /></:right_icon>
-        </.dropdown_item>
-        <.dropdown_item
           value="ci"
           label={dgettext("dashboard_builds", "CI")}
           patch={"?#{Query.put(@uri.query, "analytics-environment", "ci")}"}
           data-selected={@analytics_environment == "ci"}
+        >
+          <:right_icon><.check /></:right_icon>
+        </.dropdown_item>
+        <.dropdown_item
+          value="local"
+          label={dgettext("dashboard_builds", "Local")}
+          patch={"?#{Query.put(@uri.query, "analytics-environment", "local")}"}
+          data-selected={@analytics_environment == "local"}
         >
           <:right_icon><.check /></:right_icon>
         </.dropdown_item>
