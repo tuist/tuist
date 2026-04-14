@@ -36,6 +36,11 @@
     mkColmenaNode = hostname: {
       deployment = {
         targetHost = "${hostname}.tuist.dev";
+        # Defer SSH user to the operator's ~/.ssh/config so the flake stays
+        # pure (no --impure / env vars). Privilege escalation via passwordless
+        # sudo for wheel users.
+        targetUser = null;
+        privilegeEscalationCommand = ["sudo" "-H" "--"];
         buildOnTarget = true;
       };
       imports = mkModules hostname;

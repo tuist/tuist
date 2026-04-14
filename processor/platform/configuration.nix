@@ -42,6 +42,7 @@
   virtualisation.docker = {
     enable = true;
     logDriver = "json-file";
+    liveRestore = true;
   };
 
   environment.systemPackages = map lib.lowPrio [

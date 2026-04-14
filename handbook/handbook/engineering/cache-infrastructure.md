@@ -160,14 +160,14 @@ Grafana Alloy configuration for:
 
 3. **Configure secrets**
 
-   After the server reboots, SSH in and set up the 1Password token:
+   After the server reboots, SSH in as your user and set up the 1Password token
+   (stored in 1Password as `OPNIX_SERVICE_ACCOUNT_TOKEN` in the `cache` vault,
+   also mirrored to the `CACHE_OP_SERVICE_ACCOUNT_TOKEN` GitHub repo secret):
 
    ```bash
-   ssh root@cache-new-region.tuist.dev
-
-   # Create the opnix token file (get token from 1Password)
-   echo "YOUR_1PASSWORD_SERVICE_ACCOUNT_TOKEN" > /etc/opnix-token
-   chmod 600 /etc/opnix-token
+   op read "op://cache/OPNIX_SERVICE_ACCOUNT_TOKEN/password" \
+     | ssh <your-username>@cache-new-region.tuist.dev \
+       "sudo tee /etc/opnix-token > /dev/null && sudo chmod 600 /etc/opnix-token"
    ```
 
 4. **Apply the full configuration**
@@ -192,13 +192,23 @@ Grafana Alloy configuration for:
 
 ### Prerequisites
 
-1. SSH access to the target servers (keys configured in `users.nix`)
+1. SSH access to the target servers (keys configured in `users.nix`) — add
+   a `User <your-username>` entry for `*.tuist.dev` to your `~/.ssh/config`
+   so Colmena and plain `ssh` resolve the right user without per-invocation
+   flags:
+   ```
+   Host *.tuist.dev
+     User <your-username>
+   ```
 2. 1Password CLI with access to the `cache` vault
 3. Nix with flakes enabled
 
 ### Deploying NixOS Configuration
 
-NixOS configuration changes are deployed using Colmena:
+NixOS configuration changes are deployed using Colmena. The flake leaves
+`deployment.targetUser = null`, so Colmena defers to your `~/.ssh/config`
+for the SSH user. Privilege escalation uses passwordless sudo (all wheel
+users).
 
 ```bash
 # Deploy to all machines

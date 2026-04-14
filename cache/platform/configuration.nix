@@ -163,6 +163,7 @@
   virtualisation.docker = {
     enable = true;
     logDriver = "json-file";
+    liveRestore = true;
     daemon.settings = {
       "default-ulimits" = {
         nofile = {
