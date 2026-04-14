@@ -56,8 +56,6 @@ sealed class Proxy : Serializable {
 
     /**
      * Resolves this configuration to a proxy URL string, or `null` if no proxy applies.
-     * Used by Gradle build services that need to capture the proxy at configure time and
-     * re-hydrate it inside a task execution.
      */
     internal fun resolveUrl(envProvider: (String) -> String? = { System.getenv(it) }): String? =
         when (this) {
@@ -66,9 +64,26 @@ sealed class Proxy : Serializable {
             is Url -> value
         }
 
+    /**
+     * Serializes the declarative proxy configuration for Gradle managed parameters.
+     *
+     * Environment-backed proxies store the environment variable name, not the
+     * current value, so the proxy can still be resolved at task execution time.
+     */
+    internal fun toParameterValue(): String =
+        when (this) {
+            is None -> PARAMETER_NONE
+            is EnvironmentVariable -> "$PARAMETER_ENVIRONMENT_VARIABLE${name ?: DEFAULT_ENVIRONMENT_VARIABLE}"
+            is Url -> "$PARAMETER_URL$value"
+        }
+
     companion object {
         /** The standard environment variable `Proxy.EnvironmentVariable(null)` reads at runtime. */
         const val DEFAULT_ENVIRONMENT_VARIABLE: String = "HTTPS_PROXY"
+
+        private const val PARAMETER_NONE = "none"
+        private const val PARAMETER_ENVIRONMENT_VARIABLE = "env:"
+        private const val PARAMETER_URL = "url:"
 
         private fun parseProxy(url: String): java.net.Proxy? = try {
             val uri = URI(url)
@@ -88,15 +103,23 @@ sealed class Proxy : Serializable {
         }
 
         /**
-         * Reverse of [Proxy.resolveUrl]: given the resolved proxy URL captured at configure
-         * time (or `null` when there's no proxy), return the [Proxy] to hand to HTTP clients.
+         * Reverse of [Proxy.toParameterValue].
          *
-         * Build services serialize the resolved URL as a plain string so the sealed class
-         * does not need to survive Gradle's managed parameter boundary.
+         * Accepts the current serialized forms and falls back to treating any
+         * non-blank un-prefixed value as a direct URL for backwards compatibility.
          */
-        internal fun fromResolvedUrl(url: String?): Proxy =
-            url?.takeIf { it.isNotBlank() }?.let { Url(it) } ?: None
+        internal fun fromParameterValue(value: String?): Proxy {
+            val serialized = value?.takeIf { it.isNotBlank() } ?: return None
+            return when {
+                serialized == PARAMETER_NONE -> None
+                serialized.startsWith(PARAMETER_ENVIRONMENT_VARIABLE) -> {
+                    val name = serialized.removePrefix(PARAMETER_ENVIRONMENT_VARIABLE)
+                        .ifBlank { DEFAULT_ENVIRONMENT_VARIABLE }
+                    EnvironmentVariable(name)
+                }
+                serialized.startsWith(PARAMETER_URL) -> Url(serialized.removePrefix(PARAMETER_URL))
+                else -> Url(serialized)
+            }
+        }
     }
 }
-
-internal fun resolveProxyFromParameters(url: String?): Proxy = Proxy.fromResolvedUrl(url)

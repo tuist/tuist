@@ -62,11 +62,11 @@ The following options are available in the `tuist` extension block in `settings.
 
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
-| `project` | `String?` | `null` (optional) | The project identifier in `account/project` format. If not set, the plugin reads it from `tuist.toml` through the Tuist CLI. |
+| `project` | `String?` | `null` (optional) | The project identifier in `account/project` format. If not set, the plugin reads it from `tuist.toml`. |
 | `executablePath` | `String?` | `null` (uses `tuist` from PATH) | Path to the Tuist CLI executable. |
 | `url` | `String?` | `null` | The base URL of the Tuist server. If not set, it defaults to `"https://tuist.dev"` or the value defined in `tuist.toml`. |
 | `uploadInBackground` | `Boolean?` | `null` | Whether to upload build and test insights in the background. When `null` (default), uploads run in the background for local builds and in the foreground on CI. |
-| `proxy` | `Proxy` | `Proxy.None` | The HTTP proxy the plugin routes its traffic through. See [HTTP proxy](#http-proxy). |
+| `proxy` | `Proxy` | `Proxy.None` | The HTTP proxy the plugin uses for Tuist-managed client traffic. See the <.localized_link href="/guides/integrations/http-proxy">HTTP proxy guide</.localized_link>. |
 
 > [!NOTE]
 > **Tuist.toml**
@@ -75,51 +75,13 @@ The following options are available in the `tuist` extension block in `settings.
 
 ## HTTP proxy {#http-proxy}
 
-If your network routes outbound traffic through an HTTP proxy, you can tell the Gradle plugin which proxy to use via the `proxy` option. The same setting applies to every HTTP client the plugin creates — the remote build cache, build insights, test insights, test quarantine, and test sharding all honor it.
+If your network routes outbound traffic through an HTTP proxy, see the <.localized_link href="/guides/integrations/http-proxy">HTTP proxy guide</.localized_link> for the Tuist-managed connections that the plugin creates.
 
-Three modes are supported:
+That guide covers:
 
-```kotlin
-import dev.tuist.gradle.Proxy
-
-tuist {
-    project = "my-org/my-project"
-
-    // Choose one:
-    proxy = Proxy.None                                   // default — direct connections
-    proxy = Proxy.EnvironmentVariable()                  // reads HTTPS_PROXY (default name)
-    proxy = Proxy.EnvironmentVariable("HTTP_PROXY")      // or any other env variable
-    proxy = Proxy.Url("http://proxy.corp:8080")          // hardcoded URL
-}
-```
-
-- `Proxy.None` is the default. The plugin makes direct connections.
-- `Proxy.EnvironmentVariable()` reads the proxy URL from an environment variable at runtime. When called with no argument, the plugin reads `HTTPS_PROXY` — matching the convention used by `curl`, `git`, and most developer tools. Pass a name — e.g. `Proxy.EnvironmentVariable("HTTP_PROXY")` or `Proxy.EnvironmentVariable("CORP_PROXY")` — to read somewhere else.
-- `Proxy.Url("...")` uses the given URL directly. Credentials can be encoded inline as `http://user:password@proxy.corp:8080` if the proxy requires authentication.
-
-Proxy resolution happens at configure time, so the environment variables you reference must be set when Gradle evaluates `settings.gradle.kts`. On CI that means exporting them in the same job that invokes Gradle.
-
-### Configuring the proxy from `tuist.toml` {#http-proxy-toml}
-
-The proxy can also live in `tuist.toml` alongside `project` and `url`, which keeps the setting in sync with the Tuist CLI (so both tools go through the same proxy). Add a `[proxy]` table with exactly one key:
-
-```toml
-project = "my-org/my-project"
-
-[proxy]
-url = "http://proxy.corp:8080"
-```
-
-or
-
-```toml
-project = "my-org/my-project"
-
-[proxy]
-environment_variable = "HTTPS_PROXY"
-```
-
-When the `proxy` value on the `tuist` extension is left at its default (`Proxy.None`), the Gradle plugin falls back to the `[proxy]` table in `tuist.toml`. Setting `proxy` on the extension explicitly overrides anything in `tuist.toml`.
+- configuring the proxy in `settings.gradle.kts` for the Gradle plugin
+- configuring the proxy in `Tuist.swift` for generated projects
+- sharing one proxy configuration through `tuist.toml`
 
 
 ## Next steps {#next-steps}

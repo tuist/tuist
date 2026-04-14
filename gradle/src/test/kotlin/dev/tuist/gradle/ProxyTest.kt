@@ -77,17 +77,31 @@ class ProxyTest {
     }
 
     @Test
-    fun `resolveUrl round-trips via fromResolvedUrl`() {
-        val resolved = Proxy.Url("http://proxy.corp:8080").resolveUrl { null }
-        val hydrated = resolveProxyFromParameters(resolved)
+    fun `parameter value round-trips url proxies via fromParameterValue`() {
+        val serialized = Proxy.Url("http://proxy.corp:8080").toParameterValue()
+        val hydrated = Proxy.fromParameterValue(serialized)
         assertTrue(hydrated is Proxy.Url)
         assertEquals("http://proxy.corp:8080", (hydrated as Proxy.Url).value)
     }
 
     @Test
-    fun `fromResolvedUrl maps null or blank to None`() {
-        assertEquals(Proxy.None, resolveProxyFromParameters(null))
-        assertEquals(Proxy.None, resolveProxyFromParameters(""))
-        assertEquals(Proxy.None, resolveProxyFromParameters("   "))
+    fun `parameter value preserves environment variable proxies without resolving them`() {
+        val serialized = Proxy.EnvironmentVariable().toParameterValue()
+        assertEquals(Proxy.EnvironmentVariable("HTTPS_PROXY"), Proxy.fromParameterValue(serialized))
+    }
+
+    @Test
+    fun `fromParameterValue maps null or blank to None`() {
+        assertEquals(Proxy.None, Proxy.fromParameterValue(null))
+        assertEquals(Proxy.None, Proxy.fromParameterValue(""))
+        assertEquals(Proxy.None, Proxy.fromParameterValue("   "))
+    }
+
+    @Test
+    fun `fromParameterValue treats unprefixed nonblank values as urls for backwards compatibility`() {
+        assertEquals(
+            Proxy.Url("http://proxy.corp:8080"),
+            Proxy.fromParameterValue("http://proxy.corp:8080")
+        )
     }
 }

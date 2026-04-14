@@ -55,50 +55,10 @@ brew install --formula tuist@x.y.z
 
 ## HTTP proxy {#http-proxy}
 
-If your network routes outbound traffic through an HTTP proxy, you can tell Tuist which proxy to use from your `Tuist.swift` manifest. Three modes are supported:
+If your network routes outbound traffic through an HTTP proxy, see the <.localized_link href="/guides/integrations/http-proxy">HTTP proxy guide</.localized_link> for the client-side connections managed by Tuist.
 
-```swift
-import ProjectDescription
+That guide covers:
 
-let tuist = Tuist(
-    fullHandle: "my-org/my-project",
-
-    // Choose one:
-    proxy: .none,                                // default — direct connections
-    proxy: .environmentVariable(),               // reads HTTPS_PROXY (default name)
-    proxy: .environmentVariable("HTTP_PROXY"),   // or any other env variable
-    proxy: .url("http://proxy.corp:8080"),       // hardcoded URL
-    proxy: "http://proxy.corp:8080",             // shorthand — same as .url(...)
-
-    project: .tuist()
-)
-```
-
-- `.none` is the default. Tuist makes direct connections.
-- `.environmentVariable()` reads the proxy URL from an environment variable at runtime. When called with no argument, Tuist reads `HTTPS_PROXY` — matching the convention used by `curl`, `git`, and most developer tools. Pass a name — e.g. `.environmentVariable("HTTP_PROXY")` or `.environmentVariable("CORP_PROXY")` — to read somewhere else.
-- `.url("...")` uses the given URL directly. Credentials can be encoded inline as `http://user:password@proxy.corp:8080` if the proxy requires authentication. Because `Tuist.Proxy` conforms to `ExpressibleByStringLiteral`, you can also write `proxy: "http://proxy.corp:8080"` as a shorthand.
-
-The proxy is applied as soon as Tuist loads `Tuist.swift`, so every subsequent network request Tuist makes — cache, previews, analytics, registry, etc. — goes through it.
-
-### Configuring the proxy from `tuist.toml` {#http-proxy-toml}
-
-When you don't use a `Tuist.swift` manifest, the same proxy setting can live in `tuist.toml` alongside `project` and `url`. Add a `[proxy]` table with exactly one key:
-
-```toml
-project = "my-org/my-project"
-
-[proxy]
-url = "http://proxy.corp:8080"
-```
-
-or
-
-```toml
-project = "my-org/my-project"
-
-[proxy]
-environment_variable = "HTTPS_PROXY"
-```
-
-Setting both `url` and `environment_variable` — or neither — is a configuration error. Tuist also reuses this table from the Gradle plugin, so the CLI and the plugin go through the same proxy when you keep the configuration in `tuist.toml`.
-
+- configuring the proxy in `Tuist.swift` for generated projects
+- configuring the proxy in `settings.gradle.kts` for the Gradle plugin
+- sharing one proxy configuration through `tuist.toml`

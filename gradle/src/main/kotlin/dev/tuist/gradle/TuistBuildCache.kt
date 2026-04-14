@@ -37,8 +37,7 @@ class TuistBuildCacheServiceFactory : BuildCacheServiceFactory<TuistBuildCache> 
             .config("project", configuration.project ?: "(from tuist.toml)")
 
         val projectDir = java.io.File(System.getProperty("user.dir"))
-        val effectiveProxy = ProxyResolver.resolve(configuration.proxy, projectDir)
-        val httpClients = TuistHttpClients(effectiveProxy)
+        val httpClients = TuistHttpClients(configuration.proxy)
         val configurationProvider = DefaultConfigurationProvider(
             project = configuration.project,
             serverUrl = configuration.url ?: "https://tuist.dev",

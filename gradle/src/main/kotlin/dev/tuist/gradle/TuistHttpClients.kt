@@ -106,6 +106,10 @@ open class TuistHttpClients(val proxy: Proxy = Proxy.None) {
         /** Convenience factory used by call sites that don't need a proxy. */
         val NONE: TuistHttpClients = TuistHttpClients(Proxy.None)
 
+        /** Rehydrates proxy-aware clients from Gradle managed parameters. */
+        internal fun from(parameters: TuistProxyParameters): TuistHttpClients =
+            TuistHttpClients(parameters.toProxy())
+
         private const val DEFAULT_CONNECT_TIMEOUT_SECONDS = 30L
         private const val DEFAULT_READ_TIMEOUT_SECONDS = 60L
         private const val LATENCY_TIMEOUT_SECONDS = 5L
