@@ -1464,6 +1464,7 @@ final class TestServiceTests: TuistUnitTestCase {
         xcodebuildController.reset()
 
         let xcresultPath = try temporaryPath().appending(component: "bundle.xcresult")
+        try await fileSystem.makeDirectory(at: xcresultPath)
         given(xcodebuildController)
             .test(
                 .any,
@@ -1584,7 +1585,7 @@ final class TestServiceTests: TuistUnitTestCase {
             .called(1)
     }
 
-    func test_run_tests_preserves_original_error_when_parseTestStatuses_throws() async throws {
+    func test_run_tests_preserves_original_error_when_result_bundle_does_not_exist() async throws {
         // Given
         givenGenerator()
 
@@ -1628,14 +1629,6 @@ final class TestServiceTests: TuistUnitTestCase {
                 throw originalError
             }
 
-        xcResultService.reset()
-        given(xcResultService)
-            .parse(path: .any, rootDirectory: .any)
-            .willReturn(nil)
-        given(xcResultService)
-            .parseTestStatuses(path: .any)
-            .willThrow(NSError(domain: "xcresult", code: 1, userInfo: nil))
-
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(.test(project: .testGeneratedProject()))
@@ -1651,6 +1644,9 @@ final class TestServiceTests: TuistUnitTestCase {
             XCTAssertEqual((error as NSError).domain, "xcodebuild")
             XCTAssertEqual((error as NSError).code, 70)
         }
+        verify(xcResultService)
+            .parseTestStatuses(path: .any)
+            .called(0)
     }
 
     func test_run_tests_preserves_original_error_when_no_test_cases_in_result() async throws {
@@ -1680,6 +1676,8 @@ final class TestServiceTests: TuistUnitTestCase {
             .willReturn([])
 
         let xcresultPath = try temporaryPath().appending(component: "bundle.xcresult")
+        try await fileSystem.makeDirectory(at: xcresultPath)
+
         let originalError = NSError(domain: "xcodebuild", code: 70, userInfo: [
             NSLocalizedDescriptionKey: "Unable to find a device matching the provided destination specifier",
         ])
