@@ -206,6 +206,10 @@ defmodule TuistWeb.GradleBuildRunsLive do
     "?#{URI.encode_query(query_params)}"
   end
 
+  def build_run_path(%{selected_account: account, selected_project: project, uri: uri}, build_run_id) do
+    Query.append(~p"/#{account.name}/#{project.name}/builds/build-runs/#{build_run_id}", uri.query)
+  end
+
   defp define_filters(project) do
     base = [
       %Filter.Filter{

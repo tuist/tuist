@@ -43,6 +43,30 @@ defmodule TuistWeb.GradleBuildRunsLiveTest do
     assert has_element?(lv, "span", "my-other-app")
   end
 
+  test "preserves the current query in build run links", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    build_id =
+      GradleFixtures.build_fixture(
+        project_id: project.id,
+        root_project_name: "my-android-app",
+        status: "success"
+      )
+
+    {:ok, lv, _html} =
+      live(
+        conn,
+        ~p"/#{organization.account.name}/#{project.name}/builds/build-runs?filter_status_op===&filter_status_val=success"
+      )
+
+    assert has_element?(
+             lv,
+             ~s([data-part="link"][href="/#{organization.account.name}/#{project.name}/builds/build-runs/#{build_id}?filter_status_op=%3D%3D&filter_status_val=success"])
+           )
+  end
+
   test "filters build runs by status", %{
     conn: conn,
     organization: organization,
