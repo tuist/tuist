@@ -12,6 +12,7 @@ on:
       - ".swiftpm/**"
       - "Package.swift"
       - "Package.resolved"
+      - "cli/Sources/**"
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
@@ -22,6 +23,7 @@ on:
       - ".swiftpm/**"
       - "Package.swift"
       - "Package.resolved"
+      - "cli/Sources/**"
 
 permissions:
   id-token: write
