@@ -1,0 +1,73 @@
+defmodule Tuist.Automations.ActionExecutorTest do
+  use TuistTestSupport.Cases.DataCase, async: true
+  use Mimic
+
+  alias Tuist.Automations.ActionExecutor
+  alias Tuist.Automations.Actions.ChangeStateAction
+  alias Tuist.Automations.Actions.MarkAsFlakyAction
+  alias Tuist.Automations.Actions.SendSlackAction
+  alias Tuist.Automations.Actions.UnmarkAsFlakyAction
+
+  setup do
+    %{automation: %{name: "Auto", project_id: 1}, test_case_id: Ecto.UUID.generate()}
+  end
+
+  test "no-ops on empty action list", %{automation: automation, test_case_id: tc_id} do
+    assert :ok = ActionExecutor.execute_actions([], automation, tc_id)
+  end
+
+  test "dispatches change_state to ChangeStateAction", %{automation: automation, test_case_id: tc_id} do
+    expect(ChangeStateAction, :execute, fn ^tc_id, %{"state" => "muted"} -> :ok end)
+
+    ActionExecutor.execute_actions(
+      [%{"type" => "change_state", "state" => "muted"}],
+      automation,
+      tc_id
+    )
+  end
+
+  test "dispatches send_slack to SendSlackAction", %{automation: automation, test_case_id: tc_id} do
+    expect(SendSlackAction, :execute, fn ^automation, ^tc_id, %{"type" => "send_slack"} -> :ok end)
+
+    ActionExecutor.execute_actions(
+      [%{"type" => "send_slack", "channel" => "C1", "message" => "hi"}],
+      automation,
+      tc_id
+    )
+  end
+
+  test "dispatches mark_as_flaky to MarkAsFlakyAction", %{automation: automation, test_case_id: tc_id} do
+    expect(MarkAsFlakyAction, :execute, fn ^tc_id -> :ok end)
+    ActionExecutor.execute_actions([%{"type" => "mark_as_flaky"}], automation, tc_id)
+  end
+
+  test "dispatches unmark_as_flaky to UnmarkAsFlakyAction", %{automation: automation, test_case_id: tc_id} do
+    expect(UnmarkAsFlakyAction, :execute, fn ^tc_id -> :ok end)
+    ActionExecutor.execute_actions([%{"type" => "unmark_as_flaky"}], automation, tc_id)
+  end
+
+  test "executes multiple actions in order", %{automation: automation, test_case_id: tc_id} do
+    expect(MarkAsFlakyAction, :execute, fn ^tc_id -> :ok end)
+    expect(ChangeStateAction, :execute, fn ^tc_id, %{"state" => "muted"} -> :ok end)
+
+    ActionExecutor.execute_actions(
+      [%{"type" => "mark_as_flaky"}, %{"type" => "change_state", "state" => "muted"}],
+      automation,
+      tc_id
+    )
+  end
+
+  test "silently skips unknown action types", %{automation: automation, test_case_id: tc_id} do
+    reject(&ChangeStateAction.execute/2)
+    reject(&SendSlackAction.execute/3)
+    reject(&MarkAsFlakyAction.execute/1)
+    reject(&UnmarkAsFlakyAction.execute/1)
+
+    assert :ok =
+             ActionExecutor.execute_actions(
+               [%{"type" => "fly_to_moon"}],
+               automation,
+               tc_id
+             )
+  end
+end

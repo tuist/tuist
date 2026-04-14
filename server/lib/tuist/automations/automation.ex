@@ -7,7 +7,7 @@ defmodule Tuist.Automations.Automation do
   alias Tuist.Projects.Project
 
   @automation_types ~w(flakiness_rate flaky_run_count)
-  @action_types ~w(change_state send_slack)
+  @action_types ~w(change_state send_slack mark_as_flaky unmark_as_flaky)
   @valid_states ~w(enabled muted)
 
   @primary_key {:id, UUIDv7, autogenerate: true}
@@ -43,18 +43,23 @@ defmodule Tuist.Automations.Automation do
       :recovery_config,
       :recovery_actions
     ])
-    |> validate_required([:project_id, :name, :automation_type, :trigger_actions])
+    |> validate_required([:project_id, :name, :automation_type])
     |> validate_inclusion(:automation_type, @automation_types)
-    |> validate_actions(:trigger_actions)
-    |> validate_actions(:recovery_actions)
+    |> validate_actions(:trigger_actions, require_present: true)
+    |> validate_actions(:recovery_actions, require_present: false)
     |> validate_config()
     |> foreign_key_constraint(:project_id)
   end
 
-  defp validate_actions(changeset, field) do
+  defp validate_actions(changeset, field, opts) do
+    require_present = Keyword.get(opts, :require_present, false)
+
     case get_field(changeset, field) do
       nil ->
-        changeset
+        if require_present, do: add_error(changeset, field, "can't be blank"), else: changeset
+
+      [] ->
+        if require_present, do: add_error(changeset, field, "can't be blank"), else: changeset
 
       actions when is_list(actions) ->
         cond do
@@ -63,6 +68,12 @@ defmodule Tuist.Automations.Automation do
 
           Enum.count(actions, &change_state_action?/1) > 1 ->
             add_error(changeset, field, "can only contain one change_state action")
+
+          Enum.count(actions, &mark_as_flaky_action?/1) > 1 ->
+            add_error(changeset, field, "can only contain one mark_as_flaky action")
+
+          Enum.count(actions, &unmark_as_flaky_action?/1) > 1 ->
+            add_error(changeset, field, "can only contain one unmark_as_flaky action")
 
           true ->
             changeset
@@ -79,10 +90,19 @@ defmodule Tuist.Automations.Automation do
        when is_binary(channel) and channel != "" and is_binary(message) and message != "",
        do: true
 
+  defp valid_action?(%{"type" => "mark_as_flaky"}), do: true
+  defp valid_action?(%{"type" => "unmark_as_flaky"}), do: true
+
   defp valid_action?(_), do: false
 
   defp change_state_action?(%{"type" => "change_state"}), do: true
   defp change_state_action?(_), do: false
+
+  defp mark_as_flaky_action?(%{"type" => "mark_as_flaky"}), do: true
+  defp mark_as_flaky_action?(_), do: false
+
+  defp unmark_as_flaky_action?(%{"type" => "unmark_as_flaky"}), do: true
+  defp unmark_as_flaky_action?(_), do: false
 
   defp validate_config(changeset) do
     automation_type = get_field(changeset, :automation_type)

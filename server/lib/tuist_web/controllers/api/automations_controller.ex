@@ -12,7 +12,7 @@ defmodule TuistWeb.API.AutomationsController do
   )
 
   plug(TuistWeb.Plugs.LoaderPlug)
-  plug(TuistWeb.API.Authorization.AuthorizationPlug, :test)
+  plug(TuistWeb.API.Authorization.AuthorizationPlug, :automation)
 
   tags ["Automations"]
 
@@ -316,9 +316,15 @@ defmodule TuistWeb.API.AutomationsController do
     }
   end
 
-  defp normalize_params(params) do
-    Map.new(params, fn {key, value} -> {to_string(key), value} end)
+  defp normalize_params(params) when is_map(params) and not is_struct(params) do
+    Map.new(params, fn {key, value} -> {to_string(key), normalize_params(value)} end)
   end
+
+  defp normalize_params(params) when is_list(params) do
+    Enum.map(params, &normalize_params/1)
+  end
+
+  defp normalize_params(value), do: value
 
   defp format_errors(changeset) do
     changeset

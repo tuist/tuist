@@ -289,6 +289,14 @@
                         </div>
                       </div>
                     </div>
+                  <% "mark_as_flaky" -> %>
+                    <span data-part="action-label">
+                      {dgettext("dashboard_projects", "Mark test as flaky")}
+                    </span>
+                  <% "unmark_as_flaky" -> %>
+                    <span data-part="action-label">
+                      {dgettext("dashboard_projects", "Unmark test as flaky")}
+                    </span>
                 <% end %>
                 <%= if action["type"] != "send_slack" do %>
                   <.button
@@ -308,9 +316,21 @@
                   label={dgettext("dashboard_projects", "Add action")}
                 >
                   <.dropdown_item
-                    :if={not has_change_state_action?(@create_automation_form_trigger_actions)}
+                    :if={not has_action_type?(@create_automation_form_trigger_actions, "change_state")}
                     value="change_state"
                     label={dgettext("dashboard_projects", "Change state")}
+                    on_click="add_create_automation_form_trigger_action"
+                  />
+                  <.dropdown_item
+                    :if={not has_action_type?(@create_automation_form_trigger_actions, "mark_as_flaky")}
+                    value="mark_as_flaky"
+                    label={dgettext("dashboard_projects", "Mark as flaky")}
+                    on_click="add_create_automation_form_trigger_action"
+                  />
+                  <.dropdown_item
+                    :if={not has_action_type?(@create_automation_form_trigger_actions, "unmark_as_flaky")}
+                    value="unmark_as_flaky"
+                    label={dgettext("dashboard_projects", "Unmark as flaky")}
                     on_click="add_create_automation_form_trigger_action"
                   />
                   <.dropdown_item
@@ -478,6 +498,14 @@
                         </div>
                       </div>
                     </div>
+                  <% "mark_as_flaky" -> %>
+                    <span data-part="action-label">
+                      {dgettext("dashboard_projects", "Mark test as flaky")}
+                    </span>
+                  <% "unmark_as_flaky" -> %>
+                    <span data-part="action-label">
+                      {dgettext("dashboard_projects", "Unmark test as flaky")}
+                    </span>
                 <% end %>
                 <%= if action["type"] != "send_slack" do %>
                   <.button
@@ -497,9 +525,21 @@
                   label={dgettext("dashboard_projects", "Add recovery action")}
                 >
                   <.dropdown_item
-                    :if={not has_change_state_action?(@create_automation_form_recovery_actions)}
+                    :if={not has_action_type?(@create_automation_form_recovery_actions, "change_state")}
                     value="change_state"
                     label={dgettext("dashboard_projects", "Change state")}
+                    on_click="add_create_automation_form_recovery_action"
+                  />
+                  <.dropdown_item
+                    :if={not has_action_type?(@create_automation_form_recovery_actions, "mark_as_flaky")}
+                    value="mark_as_flaky"
+                    label={dgettext("dashboard_projects", "Mark as flaky")}
+                    on_click="add_create_automation_form_recovery_action"
+                  />
+                  <.dropdown_item
+                    :if={not has_action_type?(@create_automation_form_recovery_actions, "unmark_as_flaky")}
+                    value="unmark_as_flaky"
+                    label={dgettext("dashboard_projects", "Unmark as flaky")}
                     on_click="add_create_automation_form_recovery_action"
                   />
                   <.dropdown_item

@@ -29,7 +29,7 @@ defmodule Tuist.Repo.Migrations.BackfillAutomationsFromProjectSettings do
       projects_with_flaky_detection
       |> Enum.map(fn project ->
         trigger_actions = build_trigger_actions(project)
-        recovery_actions = [%{"type" => "change_state", "state" => "enabled"}]
+        recovery_actions = [%{"type" => "change_state", "state" => "enabled"}, %{"type" => "unmark_as_flaky"}]
 
         %{
           id: Ecto.UUID.bingenerate(),
@@ -59,11 +59,13 @@ defmodule Tuist.Repo.Migrations.BackfillAutomationsFromProjectSettings do
   end
 
   defp build_trigger_actions(project) do
+    actions = [%{"type" => "mark_as_flaky"}]
+
     actions =
       if project.auto_quarantine do
-        [%{"type" => "change_state", "state" => "muted"}]
+        actions ++ [%{"type" => "change_state", "state" => "muted"}]
       else
-        []
+        actions
       end
 
     if project.flaky_alerts_enabled && project.slack_channel_id do
