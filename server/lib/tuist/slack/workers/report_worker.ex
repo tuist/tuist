@@ -70,31 +70,37 @@ defmodule Tuist.Slack.Workers.ReportWorker do
   end
 
   defp send_report(project) do
-    slack_installation = project.account.slack_installation
-
-    if slack_installation && project.slack_channel_id do
-      last_report_at = get_last_report_time(project.id)
-      blocks = Reports.report(project, last_report_at: last_report_at)
-
-      case SlackClient.post_message(slack_installation.access_token, project.slack_channel_id, blocks) do
-        :ok ->
-          :ok
-
-        {:error, "account_inactive"} ->
-          Logger.warning("Deleting inactive Slack installation for account #{project.account_id}")
-
-          case Slack.delete_installation(slack_installation) do
-            {:ok, _installation} -> {:discard, :account_inactive}
-            {:error, reason} -> {:error, reason}
-          end
-
-        {:error, reason} ->
-          {:error, reason}
-      end
-    else
+    with %{account: %{slack_installation: slack_installation}, slack_channel_id: slack_channel_id}
+         when not is_nil(slack_installation) and not is_nil(slack_channel_id) <- project,
+         last_report_at = get_last_report_time(project.id),
+         blocks = Reports.report(project, last_report_at: last_report_at),
+         :ok <- SlackClient.post_message(slack_installation.access_token, slack_channel_id, blocks) do
       :ok
+    else
+      {:error, reason} -> handle_post_report_error(reason, project)
+      _ -> :ok
     end
   end
+
+  defp handle_post_report_error("account_inactive", project) do
+    Logger.warning("Deleting inactive Slack installation for account #{project.account_id}")
+
+    case Slack.delete_installation(project.account.slack_installation) do
+      {:ok, _installation} -> {:discard, :account_inactive}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp handle_post_report_error("channel_not_found", project) do
+    Logger.warning("Clearing missing Slack report channel for project #{project.id}")
+
+    case Projects.update_project(project, %{slack_channel_id: nil, slack_channel_name: nil}) do
+      {:ok, _project} -> {:discard, :channel_not_found}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp handle_post_report_error(reason, _project), do: {:error, reason}
 
   defp get_last_report_time(project_id) do
     worker_name = to_string(__MODULE__)
