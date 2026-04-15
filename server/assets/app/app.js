@@ -45,10 +45,7 @@ let cspNonce = document.querySelector("meta[name='csp-nonce']").getAttribute("co
 
 function getTabId() {
   let id = sessionStorage.getItem("tuist:tab_id");
-  if (!id) {
-    id = (crypto.randomUUID && crypto.randomUUID()) || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    sessionStorage.setItem("tuist:tab_id", id);
-  }
+  if (!id) sessionStorage.setItem("tuist:tab_id", (id = crypto.randomUUID()));
   return id;
 }
 
