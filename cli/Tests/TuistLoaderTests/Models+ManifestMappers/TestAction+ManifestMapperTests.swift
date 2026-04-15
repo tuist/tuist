@@ -1,8 +1,11 @@
 import FileSystem
 import FileSystemTesting
 import Foundation
+import Logging
 import ProjectDescription
 import Testing
+import TuistLoggerTesting
+import TuistTesting
 import XcodeGraph
 
 @testable import TuistLoader
@@ -184,6 +187,27 @@ struct TestActionManifestMapperTests {
         // Then
         #expect(testAction.testPlans?.count == 1)
         #expect(testAction.testPlans?.first?.path == testPlanPath)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedLogger()) func action_with_literal_test_plan_missing_file_warns() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let missingPlanPath = temporaryDirectory.appending(component: "MissingPlan.xctestplan")
+
+        let manifest = ProjectDescription.TestAction.testPlans([
+            .path(missingPlanPath.pathString),
+        ])
+        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryDirectory, rootDirectory: temporaryDirectory)
+
+        // When
+        let testAction = try await XcodeGraph.TestAction.from(
+            manifest: manifest,
+            generatorPaths: generatorPaths
+        )
+
+        // Then
+        #expect(testAction.testPlans?.isEmpty == true)
+        TuistTest.expectLogs("\(missingPlanPath.pathString) does not exist")
     }
 }
 

@@ -3,6 +3,7 @@ import Foundation
 import Path
 import ProjectDescription
 import TuistCore
+import TuistLogging
 import TuistSupport
 import XcodeGraph
 
@@ -61,13 +62,17 @@ extension XcodeGraph.TestAction {
                     }
                 } else {
                     // Handle as literal path
-                    if try await fileSystem.exists(resolvedPath) && resolvedPath.extension == "xctestplan" {
-                        let testPlan = try await TestPlan.from(
-                            path: resolvedPath,
-                            isDefault: resolvedTestPlans.isEmpty,
-                            generatorPaths: generatorPaths
-                        )
-                        resolvedTestPlans.append(testPlan)
+                    if try await fileSystem.exists(resolvedPath) {
+                        if resolvedPath.extension == "xctestplan" {
+                            let testPlan = try await TestPlan.from(
+                                path: resolvedPath,
+                                isDefault: resolvedTestPlans.isEmpty,
+                                generatorPaths: generatorPaths
+                            )
+                            resolvedTestPlans.append(testPlan)
+                        }
+                    } else {
+                        Logger.current.warning("\(resolvedPath.pathString) does not exist")
                     }
                 }
             }

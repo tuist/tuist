@@ -1728,6 +1728,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.support.targetName),
                     .target(name: Module.testing.targetName),
                     .target(name: Module.nooraTesting.targetName),
+                    .target(name: Module.loggerTesting.targetName),
                     .target(name: Module.rootDirectoryLocator.targetName),
                     .target(name: Module.git.targetName),
                     .target(name: Module.constants.targetName),
