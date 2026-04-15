@@ -22,6 +22,7 @@ on:
       - ".swiftpm/**"
       - "Package.swift"
       - "Package.resolved"
+  workflow_dispatch:
 
 permissions:
   id-token: write
