@@ -119,7 +119,6 @@ defmodule Tuist do
       # a good rule of thumb is to ask if they can work as a standalone library.
       Analytics,
       Environment,
-      FilterMemory,
       Ecto.Utils,
       GitHub.Releases,
       Incidents,

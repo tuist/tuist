@@ -9,14 +9,11 @@ defmodule TuistWeb.AppLayoutComponents do
 
   alias Tuist.Projects.Project
 
-  defdelegate with_memory(path, last_queries, key), to: TuistWeb.FilterMemoryHook
-
   attr(:selected_project, :map, required: true)
   attr(:selected_account, :map, required: true)
   attr(:selected_run, :map, required: true)
   attr(:current_path, :string, required: true)
   attr(:current_user, :map, required: true)
-  attr(:last_queries, :map, default: %{})
 
   def project_sidebar(assigns) do
     ~H"""
@@ -35,11 +32,7 @@ defmodule TuistWeb.AppLayoutComponents do
         icon="versions"
         navigate={
           @current_path != ~p"/#{@selected_account.name}/#{@selected_project.name}/builds" &&
-            with_memory(
-              ~p"/#{@selected_account.name}/#{@selected_project.name}/builds",
-              @last_queries,
-              "builds"
-            )
+            ~p"/#{@selected_account.name}/#{@selected_project.name}/builds"
         }
         selected={@current_path == ~p"/#{@selected_account.name}/#{@selected_project.name}/builds"}
         disabled={@current_path != ~p"/#{@selected_account.name}/#{@selected_project.name}/builds"}
@@ -52,18 +45,9 @@ defmodule TuistWeb.AppLayoutComponents do
         phx-update="ignore"
       >
         <.sidebar_item
-          id="sidebar-xcode-build-runs"
-          phx-hook="FilterMemoryLink"
-          data-route-key="build-runs"
           label={dgettext("dashboard", "Build Runs")}
           icon="chart_column"
-          navigate={
-            with_memory(
-              ~p"/#{@selected_account.name}/#{@selected_project.name}/builds/build-runs",
-              @last_queries,
-              "build-runs"
-            )
-          }
+          navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/builds/build-runs"}
           selected={
             String.starts_with?(
               @current_path,
@@ -79,11 +63,7 @@ defmodule TuistWeb.AppLayoutComponents do
         icon="subtask"
         navigate={
           @current_path != ~p"/#{@selected_account.name}/#{@selected_project.name}/tests" &&
-            with_memory(
-              ~p"/#{@selected_account.name}/#{@selected_project.name}/tests",
-              @last_queries,
-              "tests"
-            )
+            ~p"/#{@selected_account.name}/#{@selected_project.name}/tests"
         }
         selected={@current_path == ~p"/#{@selected_account.name}/#{@selected_project.name}/tests"}
         disabled={@current_path != ~p"/#{@selected_account.name}/#{@selected_project.name}/tests"}
@@ -96,18 +76,9 @@ defmodule TuistWeb.AppLayoutComponents do
         phx-update="ignore"
       >
         <.sidebar_item
-          id="sidebar-xcode-test-runs"
-          phx-hook="FilterMemoryLink"
-          data-route-key="test-runs"
           label={dgettext("dashboard", "Test Runs")}
           icon="dashboard"
-          navigate={
-            with_memory(
-              ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-runs",
-              @last_queries,
-              "test-runs"
-            )
-          }
+          navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-runs"}
           selected={
             String.starts_with?(
               @current_path,
@@ -120,18 +91,9 @@ defmodule TuistWeb.AppLayoutComponents do
           }
         />
         <.sidebar_item
-          id="sidebar-xcode-test-cases"
-          phx-hook="FilterMemoryLink"
-          data-route-key="test-cases"
           label={dgettext("dashboard", "Test Cases")}
           icon="exchange"
-          navigate={
-            with_memory(
-              ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-cases",
-              @last_queries,
-              "test-cases"
-            )
-          }
+          navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-cases"}
           selected={
             String.starts_with?(
               @current_path,
@@ -144,18 +106,9 @@ defmodule TuistWeb.AppLayoutComponents do
           }
         />
         <.sidebar_item
-          id="sidebar-xcode-flaky-tests"
-          phx-hook="FilterMemoryLink"
-          data-route-key="flaky-tests"
           label={dgettext("dashboard", "Flaky Tests")}
           icon="progress_x"
-          navigate={
-            with_memory(
-              ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/flaky-tests",
-              @last_queries,
-              "flaky-tests"
-            )
-          }
+          navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/flaky-tests"}
           selected={
             String.starts_with?(
               @current_path,
@@ -164,18 +117,9 @@ defmodule TuistWeb.AppLayoutComponents do
           }
         />
         <.sidebar_item
-          id="sidebar-xcode-quarantined-tests"
-          phx-hook="FilterMemoryLink"
-          data-route-key="quarantined-tests"
           label={dgettext("dashboard", "Quarantined Tests")}
           icon="lock"
-          navigate={
-            with_memory(
-              ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/quarantined-tests",
-              @last_queries,
-              "quarantined-tests"
-            )
-          }
+          navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/quarantined-tests"}
           selected={
             String.starts_with?(
               @current_path,
@@ -184,18 +128,9 @@ defmodule TuistWeb.AppLayoutComponents do
           }
         />
         <.sidebar_item
-          id="sidebar-xcode-shards"
-          phx-hook="FilterMemoryLink"
-          data-route-key="shards"
           label={dgettext("dashboard", "Shards")}
           icon="stack_2"
-          navigate={
-            with_memory(
-              ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/shards",
-              @last_queries,
-              "shards"
-            )
-          }
+          navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/shards"}
           selected={
             String.starts_with?(
               @current_path,
@@ -211,11 +146,7 @@ defmodule TuistWeb.AppLayoutComponents do
         icon="database"
         navigate={
           @current_path != ~p"/#{@selected_account.name}/#{@selected_project.name}/module-cache" &&
-            with_memory(
-              ~p"/#{@selected_account.name}/#{@selected_project.name}/module-cache",
-              @last_queries,
-              "module-cache"
-            )
+            ~p"/#{@selected_account.name}/#{@selected_project.name}/module-cache"
         }
         selected={
           @current_path == ~p"/#{@selected_account.name}/#{@selected_project.name}/module-cache"
@@ -234,18 +165,9 @@ defmodule TuistWeb.AppLayoutComponents do
         phx-update="ignore"
       >
         <.sidebar_item
-          id="sidebar-cache-runs"
-          phx-hook="FilterMemoryLink"
-          data-route-key="cache-runs"
           label={dgettext("dashboard", "Cache Runs")}
           icon="schema"
-          navigate={
-            with_memory(
-              ~p"/#{@selected_account.name}/#{@selected_project.name}/module-cache/cache-runs",
-              @last_queries,
-              "cache-runs"
-            )
-          }
+          navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/module-cache/cache-runs"}
           selected={
             String.starts_with?(
               @current_path,
@@ -255,17 +177,10 @@ defmodule TuistWeb.AppLayoutComponents do
           }
         />
         <.sidebar_item
-          id="sidebar-generate-runs"
-          phx-hook="FilterMemoryLink"
-          data-route-key="generate-runs"
           label={dgettext("dashboard", "Generations")}
           icon="filters"
           navigate={
-            with_memory(
-              ~p"/#{@selected_account.name}/#{@selected_project.name}/module-cache/generate-runs",
-              @last_queries,
-              "generate-runs"
-            )
+            ~p"/#{@selected_account.name}/#{@selected_project.name}/module-cache/generate-runs"
           }
           selected={
             String.starts_with?(
@@ -280,13 +195,7 @@ defmodule TuistWeb.AppLayoutComponents do
         :if={Project.xcode_project?(@selected_project)}
         label={dgettext("dashboard", "Xcode Cache")}
         icon="server"
-        navigate={
-          with_memory(
-            ~p"/#{@selected_account.name}/#{@selected_project.name}/xcode-cache",
-            @last_queries,
-            "xcode-cache"
-          )
-        }
+        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/xcode-cache"}
         selected={
           ~p"/#{@selected_account.name}/#{@selected_project.name}/xcode-cache" == @current_path
         }
@@ -298,11 +207,7 @@ defmodule TuistWeb.AppLayoutComponents do
         icon="versions"
         navigate={
           @current_path != ~p"/#{@selected_account.name}/#{@selected_project.name}/builds" &&
-            with_memory(
-              ~p"/#{@selected_account.name}/#{@selected_project.name}/builds",
-              @last_queries,
-              "builds"
-            )
+            ~p"/#{@selected_account.name}/#{@selected_project.name}/builds"
         }
         selected={@current_path == ~p"/#{@selected_account.name}/#{@selected_project.name}/builds"}
         disabled={@current_path != ~p"/#{@selected_account.name}/#{@selected_project.name}/builds"}
@@ -315,18 +220,9 @@ defmodule TuistWeb.AppLayoutComponents do
         phx-update="ignore"
       >
         <.sidebar_item
-          id="sidebar-gradle-build-runs"
-          phx-hook="FilterMemoryLink"
-          data-route-key="build-runs"
           label={dgettext("dashboard", "Build Runs")}
           icon="chart_column"
-          navigate={
-            with_memory(
-              ~p"/#{@selected_account.name}/#{@selected_project.name}/builds/build-runs",
-              @last_queries,
-              "build-runs"
-            )
-          }
+          navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/builds/build-runs"}
           selected={
             String.starts_with?(
               @current_path,
@@ -342,11 +238,7 @@ defmodule TuistWeb.AppLayoutComponents do
         icon="subtask"
         navigate={
           @current_path != ~p"/#{@selected_account.name}/#{@selected_project.name}/tests" &&
-            with_memory(
-              ~p"/#{@selected_account.name}/#{@selected_project.name}/tests",
-              @last_queries,
-              "tests"
-            )
+            ~p"/#{@selected_account.name}/#{@selected_project.name}/tests"
         }
         selected={@current_path == ~p"/#{@selected_account.name}/#{@selected_project.name}/tests"}
         disabled={@current_path != ~p"/#{@selected_account.name}/#{@selected_project.name}/tests"}
@@ -359,18 +251,9 @@ defmodule TuistWeb.AppLayoutComponents do
         phx-update="ignore"
       >
         <.sidebar_item
-          id="sidebar-gradle-test-runs"
-          phx-hook="FilterMemoryLink"
-          data-route-key="test-runs"
           label={dgettext("dashboard", "Test Runs")}
           icon="dashboard"
-          navigate={
-            with_memory(
-              ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-runs",
-              @last_queries,
-              "test-runs"
-            )
-          }
+          navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-runs"}
           selected={
             String.starts_with?(
               @current_path,
@@ -383,18 +266,9 @@ defmodule TuistWeb.AppLayoutComponents do
           }
         />
         <.sidebar_item
-          id="sidebar-gradle-test-cases"
-          phx-hook="FilterMemoryLink"
-          data-route-key="test-cases"
           label={dgettext("dashboard", "Test Cases")}
           icon="exchange"
-          navigate={
-            with_memory(
-              ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-cases",
-              @last_queries,
-              "test-cases"
-            )
-          }
+          navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-cases"}
           selected={
             String.starts_with?(
               @current_path,
@@ -407,18 +281,9 @@ defmodule TuistWeb.AppLayoutComponents do
           }
         />
         <.sidebar_item
-          id="sidebar-gradle-flaky-tests"
-          phx-hook="FilterMemoryLink"
-          data-route-key="flaky-tests"
           label={dgettext("dashboard", "Flaky Tests")}
           icon="progress_x"
-          navigate={
-            with_memory(
-              ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/flaky-tests",
-              @last_queries,
-              "flaky-tests"
-            )
-          }
+          navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/flaky-tests"}
           selected={
             String.starts_with?(
               @current_path,
@@ -427,18 +292,9 @@ defmodule TuistWeb.AppLayoutComponents do
           }
         />
         <.sidebar_item
-          id="sidebar-gradle-quarantined-tests"
-          phx-hook="FilterMemoryLink"
-          data-route-key="quarantined-tests"
           label={dgettext("dashboard", "Quarantined Tests")}
           icon="lock"
-          navigate={
-            with_memory(
-              ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/quarantined-tests",
-              @last_queries,
-              "quarantined-tests"
-            )
-          }
+          navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/quarantined-tests"}
           selected={
             String.starts_with?(
               @current_path,
@@ -447,18 +303,9 @@ defmodule TuistWeb.AppLayoutComponents do
           }
         />
         <.sidebar_item
-          id="sidebar-gradle-shards"
-          phx-hook="FilterMemoryLink"
-          data-route-key="shards"
           label={dgettext("dashboard", "Shards")}
           icon="stack_2"
-          navigate={
-            with_memory(
-              ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/shards",
-              @last_queries,
-              "shards"
-            )
-          }
+          navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/shards"}
           selected={
             String.starts_with?(
               @current_path,
@@ -471,13 +318,7 @@ defmodule TuistWeb.AppLayoutComponents do
         :if={Project.gradle_project?(@selected_project)}
         label={dgettext("dashboard", "Gradle Cache")}
         icon="server"
-        navigate={
-          with_memory(
-            ~p"/#{@selected_account.name}/#{@selected_project.name}/gradle-cache",
-            @last_queries,
-            "gradle-cache"
-          )
-        }
+        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/gradle-cache"}
         selected={
           String.starts_with?(
             @current_path,
@@ -488,13 +329,7 @@ defmodule TuistWeb.AppLayoutComponents do
       <.sidebar_item
         label={dgettext("dashboard", "Previews")}
         icon="devices"
-        navigate={
-          with_memory(
-            ~p"/#{@selected_account.name}/#{@selected_project.name}/previews",
-            @last_queries,
-            "previews"
-          )
-        }
+        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/previews"}
         selected={
           String.starts_with?(
             @current_path,
@@ -505,13 +340,7 @@ defmodule TuistWeb.AppLayoutComponents do
       <.sidebar_item
         label={dgettext("dashboard", "Bundles")}
         icon="chart_donut_4"
-        navigate={
-          with_memory(
-            ~p"/#{@selected_account.name}/#{@selected_project.name}/bundles",
-            @last_queries,
-            "bundles"
-          )
-        }
+        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/bundles"}
         selected={
           String.starts_with?(
             @current_path,

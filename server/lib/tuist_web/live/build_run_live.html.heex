@@ -7,13 +7,7 @@
       data-part="back-button"
       variant="secondary"
       size="medium"
-      navigate={
-        TuistWeb.FilterMemoryHook.with_memory(
-          ~p"/#{@selected_project.account.name}/#{@selected_project.name}/builds/build-runs",
-          @last_queries,
-          "build-runs"
-        )
-      }
+      navigate={~p"/#{@selected_project.account.name}/#{@selected_project.name}/builds/build-runs"}
     >
       <:icon_left>
         <.icon name="arrow_left" />

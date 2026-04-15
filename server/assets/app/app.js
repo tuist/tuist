@@ -36,18 +36,12 @@ import StopPropagationOnDrag from "./js/StopPropagationOnDrag.js";
 import SelectSlackChannelPopup from "./js/SelectSlackChannelPopup.js";
 import PublicProjectCTABanner from "./js/PublicProjectCTABanner.js";
 import TextAttachmentContent from "./js/hooks/TextAttachmentContent.js";
-import FilterMemoryLink from "./js/FilterMemoryLink.js";
+import { installFilterMemory } from "./js/FilterMemory.js";
 import { getUserLocale } from "./js/UserLocale.js";
 import { getUserTimezone } from "./js/UserTimezone.js";
 
 let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content");
 let cspNonce = document.querySelector("meta[name='csp-nonce']").getAttribute("content");
-
-function getTabId() {
-  let id = sessionStorage.getItem("tuist:tab_id");
-  if (!id) sessionStorage.setItem("tuist:tab_id", (id = crypto.randomUUID()));
-  return id;
-}
 
 let Hooks = {};
 Hooks.ImageFallback = ImageFallback;
@@ -62,7 +56,6 @@ Hooks.StopPropagationOnDrag = StopPropagationOnDrag;
 Hooks.SelectSlackChannelPopup = SelectSlackChannelPopup;
 Hooks.PublicProjectCTABanner = PublicProjectCTABanner;
 Hooks.TextAttachmentContent = TextAttachmentContent;
-Hooks.FilterMemoryLink = FilterMemoryLink;
 
 observeThemeChanges();
 Hooks.ThemeSwitcher = ThemeSwitcher;
@@ -74,7 +67,6 @@ let liveSocket = new LiveSocket("/live", Socket, {
     _csp_nonce: cspNonce,
     user_locale: getUserLocale(),
     user_timezone: getUserTimezone(),
-    tab_id: getTabId(),
   },
   hooks: { ...Hooks, ...Noora.Hooks },
 });
@@ -89,6 +81,8 @@ window.addEventListener("phx:page-loading-stop", (_info) => topbar.hide());
 
 // connect if there are any LiveViews on the page
 liveSocket.connect();
+
+installFilterMemory();
 
 // Analytics
 window.addEventListener("phx:navigate", (info) => {
