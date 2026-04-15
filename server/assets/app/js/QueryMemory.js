@@ -1,3 +1,27 @@
+/**
+ * Per-tab query-string memory for dashboard pages.
+ *
+ * Remembers the query string (filters, sort, pagination, selected tab, etc.)
+ * seen on each pathname and restores it when the user navigates back to that
+ * pathname via a plain link — sidebar items, breadcrumbs, detail-page back
+ * buttons — without any per-link wiring.
+ *
+ * Remember side: whenever the URL changes under a `[data-query-memory]`
+ * marker, write `sessionStorage["tuist:query-memory:" + pathname] = search`.
+ * We listen to both `phx:navigate` (link clicks, server `push_patch`,
+ * popstate) and `phx:replace-url` (the app-custom silent URL update) because
+ * `phx:page-loading-stop` does not fire for server-initiated patches.
+ *
+ * Restore side: a capture-phase `click` listener on `document` runs before
+ * LiveView's own bubble-phase click handler. If the clicked `<a>` has a bare
+ * `/...` href with no query of its own, and we have a remembered query for
+ * that pathname, we rewrite the `href` in place. LiveView then reads the
+ * rewritten href and navigates with the restored query.
+ *
+ * Per-tab isolation is inherited from sessionStorage. No server state, no
+ * per-link annotations, no tab-id plumbing.
+ */
+
 const STORAGE_PREFIX = "tuist:query-memory:";
 const MARKER_ATTR = "data-query-memory";
 
@@ -23,13 +47,16 @@ function onLinkClick(event) {
   if (remembered) anchor.setAttribute("href", `${href}?${remembered}`);
 }
 
-export function installQueryMemory() {
+/**
+ * Attach the global listeners. Call once on app startup, after the DOM is
+ * ready and after LiveSocket is set up so that our capture-phase click
+ * listener runs before LiveView's bubble-phase one.
+ */
+export function setupQueryMemory() {
   document.addEventListener("click", onLinkClick, true);
-  // Covers server push_patch, link navigations, and popstate (back/forward).
   window.addEventListener("phx:navigate", rememberCurrent);
-  // phx:replace-url silently updates the URL via history.replaceState with no
-  // LiveView event of its own. Defer to the next tick so the URL is updated
-  // regardless of listener registration order.
+  // Deferred to the next tick so the URL has been updated by the existing
+  // `phx:replace-url` listener before we read `window.location`.
   window.addEventListener("phx:replace-url", () => setTimeout(rememberCurrent, 0));
   rememberCurrent();
 }
