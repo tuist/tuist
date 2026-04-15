@@ -101,7 +101,7 @@ msgstr ""
 msgid "Connection successful"
 msgstr ""
 
-#: lib/tuist_web/live/sso_login_live.ex:96
+#: lib/tuist_web/live/sso_login_live.ex:105
 #, elixir-autogen, elixir-format
 msgid "Contact us"
 msgstr ""
@@ -121,14 +121,14 @@ msgstr ""
 msgid "Discover how selective testing is reducing your test time."
 msgstr ""
 
-#: lib/tuist_web/live/user_login_live.ex:196
+#: lib/tuist_web/live/user_login_live.ex:202
 #, elixir-autogen, elixir-format
 msgid "Don't have an account?"
 msgstr ""
 
-#: lib/tuist_web/live/sso_login_live.ex:79
+#: lib/tuist_web/live/sso_login_live.ex:88
 #: lib/tuist_web/live/user_forgot_password_live.ex:54
-#: lib/tuist_web/live/user_login_live.ex:133
+#: lib/tuist_web/live/user_login_live.ex:139
 #: lib/tuist_web/live/user_registration_live.ex:148
 #, elixir-autogen, elixir-format
 msgid "Email address"
@@ -149,7 +149,7 @@ msgstr ""
 msgid "Explore how binary caching is enhancing your build times."
 msgstr ""
 
-#: lib/tuist_web/live/user_login_live.ex:165
+#: lib/tuist_web/live/user_login_live.ex:171
 #, elixir-autogen, elixir-format
 msgid "Forgot password?"
 msgstr ""
@@ -174,31 +174,31 @@ msgstr ""
 msgid "Instantly share your app using a URL."
 msgstr ""
 
-#: lib/tuist_web/live/sso_login_live.ex:91
+#: lib/tuist_web/live/sso_login_live.ex:100
 #, elixir-autogen, elixir-format
 msgid "Interested in SSO?"
 msgstr ""
 
-#: lib/tuist_web/live/user_login_live.ex:158
+#: lib/tuist_web/live/user_login_live.ex:164
 #, elixir-autogen, elixir-format
 msgid "Keep me logged in"
 msgstr ""
 
-#: lib/tuist_web/live/sso_login_live.ex:87
+#: lib/tuist_web/live/sso_login_live.ex:96
 #: lib/tuist_web/live/user_login_live.ex:17
-#: lib/tuist_web/live/user_login_live.ex:171
+#: lib/tuist_web/live/user_login_live.ex:177
 #: lib/tuist_web/live/user_registration_live.ex:193
 #, elixir-autogen, elixir-format
 msgid "Log in"
 msgstr ""
 
-#: lib/tuist_web/live/sso_login_live.ex:62
+#: lib/tuist_web/live/sso_login_live.ex:71
 #: lib/tuist_web/live/user_login_live.ex:48
 #, elixir-autogen, elixir-format
 msgid "Log in to Tuist"
 msgstr ""
 
-#: lib/tuist_web/live/sso_login_live.ex:64
+#: lib/tuist_web/live/sso_login_live.ex:73
 #, elixir-autogen, elixir-format
 msgid "Log in to your enterprise account via SSO"
 msgstr ""
@@ -213,17 +213,12 @@ msgstr ""
 msgid "Next steps"
 msgstr ""
 
-#: lib/tuist_web/live/sso_login_live.ex:42
-#, elixir-autogen, elixir-format
-msgid "No SSO organization found for this email"
-msgstr ""
-
 #: lib/tuist_web/live/connect_live.ex:91
 #, elixir-autogen, elixir-format
 msgid "OR"
 msgstr ""
 
-#: lib/tuist_web/live/user_login_live.ex:144
+#: lib/tuist_web/live/user_login_live.ex:150
 #: lib/tuist_web/live/user_registration_live.ex:158
 #, elixir-autogen, elixir-format
 msgid "Password"
@@ -265,7 +260,7 @@ msgstr ""
 msgid "Selective testing"
 msgstr ""
 
-#: lib/tuist_web/live/user_login_live.ex:201
+#: lib/tuist_web/live/user_login_live.ex:207
 #: lib/tuist_web/live/user_registration_live.ex:182
 #: lib/tuist_web/live/user_registration_live.ex:265
 #, elixir-autogen, elixir-format
@@ -289,7 +284,7 @@ msgstr ""
 
 #: lib/tuist_web/live/choose_username_live.ex:42
 #: lib/tuist_web/live/device_codes_success_live.ex:28
-#: lib/tuist_web/live/sso_login_live.ex:54
+#: lib/tuist_web/live/sso_login_live.ex:63
 #: lib/tuist_web/live/user_confirmation_live.ex:18
 #: lib/tuist_web/live/user_forgot_password_live.ex:23
 #: lib/tuist_web/live/user_login_live.ex:40
@@ -429,7 +424,7 @@ msgstr ""
 msgid "and"
 msgstr ""
 
-#: lib/tuist_web/live/user_login_live.ex:191
+#: lib/tuist_web/live/user_login_live.ex:197
 #, elixir-autogen, elixir-format
 msgid "Log in as test user"
 msgstr ""
@@ -439,7 +434,12 @@ msgstr ""
 msgid "Choose a username for your account"
 msgstr ""
 
-#: lib/tuist_web/live/user_login_live.ex:102
+#: lib/tuist_web/live/user_login_live.ex:104
 #, elixir-autogen, elixir-format
-msgid "SSO"
+msgid "Log in with SSO"
+msgstr ""
+
+#: lib/tuist_web/live/sso_login_live.ex:46
+#, elixir-autogen, elixir-format
+msgid "No SSO organization is configured for this email. Check the address and ask your organization admin to verify the SSO domain setup."
 msgstr ""

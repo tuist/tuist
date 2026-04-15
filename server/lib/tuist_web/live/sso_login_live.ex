@@ -39,7 +39,16 @@ defmodule TuistWeb.SSOLoginLive do
         {:noreply, redirect(socket, to: redirect_url)}
 
       {:error, :not_found} ->
-        socket = put_flash(socket, :error, dgettext("dashboard_auth", "No SSO organization found for this email"))
+        socket =
+          put_flash(
+            socket,
+            :error,
+            dgettext(
+              "dashboard_auth",
+              "No SSO organization is configured for this email. Check the address and ask your organization admin to verify the SSO domain setup."
+            )
+          )
+
         {:noreply, socket}
     end
   end
