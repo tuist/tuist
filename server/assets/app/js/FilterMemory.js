@@ -25,6 +25,11 @@ function onLinkClick(event) {
 
 export function installFilterMemory() {
   document.addEventListener("click", onLinkClick, true);
-  window.addEventListener("phx:page-loading-stop", rememberCurrent);
+  // Covers server push_patch, link navigations, and popstate (back/forward).
+  window.addEventListener("phx:navigate", rememberCurrent);
+  // phx:replace-url silently updates the URL via history.replaceState with no
+  // LiveView event of its own. Defer to the next tick so the URL is updated
+  // regardless of listener registration order.
+  window.addEventListener("phx:replace-url", () => setTimeout(rememberCurrent, 0));
   rememberCurrent();
 }
