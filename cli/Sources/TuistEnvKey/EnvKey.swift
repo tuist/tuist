@@ -217,6 +217,15 @@ public enum EnvKey: String, CaseIterable {
     case testCaseShowPath = "TUIST_TEST_CASE_SHOW_PATH"
     case testCaseShowJson = "TUIST_TEST_CASE_SHOW_JSON"
 
+    // TEST CASE EVENTS
+
+    case testCaseEventsIdentifier = "TUIST_TEST_CASE_EVENTS_IDENTIFIER"
+    case testCaseEventsProject = "TUIST_TEST_CASE_EVENTS_PROJECT"
+    case testCaseEventsPath = "TUIST_TEST_CASE_EVENTS_PATH"
+    case testCaseEventsJson = "TUIST_TEST_CASE_EVENTS_JSON"
+    case testCaseEventsPage = "TUIST_TEST_CASE_EVENTS_PAGE"
+    case testCaseEventsPageSize = "TUIST_TEST_CASE_EVENTS_PAGE_SIZE"
+
     // TEST CASE RUN LIST
 
     case testCaseRunListIdentifier = "TUIST_TEST_CASE_RUN_LIST_IDENTIFIER"

@@ -271,6 +271,140 @@ defmodule TuistWeb.API.TestCasesController do
     end
   end
 
+  operation(:events,
+    summary: "List events for a test case.",
+    operation_id: "listTestCaseEvents",
+    parameters: [
+      account_handle: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The handle of the account."
+      ],
+      project_handle: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The handle of the project."
+      ],
+      test_case_id: [
+        in: :path,
+        schema: %Schema{type: :string, format: :uuid},
+        required: true,
+        description: "The ID of the test case."
+      ],
+      page_size: [
+        in: :query,
+        type: %Schema{
+          title: "TestCaseEventsPageSize",
+          description: "The maximum number of events to return in a single page.",
+          type: :integer,
+          default: 20,
+          minimum: 1,
+          maximum: 100
+        }
+      ],
+      page: [
+        in: :query,
+        type: %Schema{
+          title: "TestCaseEventsPage",
+          description: "The page number to return.",
+          type: :integer,
+          default: 1,
+          minimum: 1
+        }
+      ]
+    ],
+    responses: %{
+      ok:
+        {"List of test case events", "application/json",
+         %Schema{
+           type: :object,
+           properties: %{
+             events: %Schema{
+               type: :array,
+               items: %Schema{
+                 type: :object,
+                 properties: %{
+                   event_type: %Schema{
+                     type: :string,
+                     enum: ["first_run", "marked_flaky", "unmarked_flaky", "quarantined", "unquarantined"],
+                     description: "The type of event."
+                   },
+                   inserted_at: %Schema{type: :integer, description: "Unix timestamp of when the event occurred."},
+                   actor: %Schema{
+                     type: :object,
+                     nullable: true,
+                     description: "The user who triggered the event, or null for system events.",
+                     properties: %{
+                       id: %Schema{type: :integer, description: "The actor's account ID."},
+                       name: %Schema{type: :string, description: "The actor's account handle."}
+                     },
+                     required: [:id, :name]
+                   }
+                 },
+                 required: [:event_type, :inserted_at]
+               }
+             },
+             pagination_metadata: PaginationMetadata
+           },
+           required: [:events, :pagination_metadata]
+         }},
+      not_found: {"Test case not found", "application/json", Error},
+      forbidden: {"You don't have permission to access this resource", "application/json", Error}
+    }
+  )
+
+  def events(
+        %{assigns: %{selected_project: selected_project}, params: %{test_case_id: test_case_id} = params} = conn,
+        _params
+      ) do
+    case Tests.get_test_case_by_id(test_case_id) do
+      {:ok, test_case} ->
+        if test_case.project_id == selected_project.id do
+          page = Map.get(params, :page, 1)
+          page_size = Map.get(params, :page_size, 20)
+
+          {events, meta} = Tests.list_test_case_events(test_case_id, %{page: page, page_size: page_size})
+
+          json(conn, %{
+            events:
+              Enum.map(events, fn event ->
+                %{
+                  event_type: event.event_type,
+                  inserted_at:
+                    event.inserted_at
+                    |> NaiveDateTime.truncate(:second)
+                    |> DateTime.from_naive!("Etc/UTC")
+                    |> DateTime.to_unix(),
+                  actor: build_actor(event.actor)
+                }
+              end),
+            pagination_metadata: %{
+              has_next_page: meta.has_next_page?,
+              has_previous_page: meta.has_previous_page?,
+              current_page: meta.current_page,
+              page_size: meta.page_size,
+              total_count: meta.total_count,
+              total_pages: meta.total_pages
+            }
+          })
+        else
+          conn
+          |> put_status(:not_found)
+          |> json(%{message: "Test case not found."})
+        end
+
+      {:error, :not_found} ->
+        conn
+        |> put_status(:not_found)
+        |> json(%{message: "Test case not found."})
+    end
+  end
+
+  defp build_actor(nil), do: nil
+  defp build_actor(actor), do: %{id: actor.id, name: actor.name}
+
   defp build_filters(params) do
     []
     |> maybe_add_filter(:is_flaky, Map.get(params, :flaky))
