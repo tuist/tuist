@@ -62,14 +62,18 @@ defmodule TuistWeb.AuthController do
           |> put_session(:sso_route_provider, route_provider)
           |> redirect(external: url)
         else
+          {:error, :not_found} ->
+            raise_sso_unauthorized(:organization_not_found)
+
+          {:error, :oauth2_not_configured} ->
+            raise_sso_unauthorized(:sso_not_configured)
+
           _ ->
-            raise UnauthorizedError,
-                  dgettext("dashboard", "Failed to authenticate with the SSO provider.")
+            raise_sso_unauthorized(:sso_request_failed)
         end
 
       _ ->
-        raise UnauthorizedError,
-              dgettext("dashboard", "Failed to authenticate with the SSO provider.")
+        raise_sso_unauthorized(:missing_organization_id)
     end
   end
 
@@ -77,8 +81,7 @@ defmodule TuistWeb.AuthController do
     case {get_session(conn, :sso_organization_id), get_session(conn, :sso_state)} do
       {organization_id, state} when not is_nil(organization_id) and not is_nil(state) ->
         if conn.params["state"] != state do
-          raise UnauthorizedError,
-                dgettext("dashboard", "Failed to authenticate with the SSO provider.")
+          raise_sso_unauthorized(:state_mismatch)
         end
 
         validate_sso_callback_params!(conn.params)
@@ -94,20 +97,22 @@ defmodule TuistWeb.AuthController do
           |> delete_session(:sso_route_provider)
           |> complete_oauth_callback(auth, sso_organization: organization)
         else
+          {:error, :not_found} ->
+            raise_sso_unauthorized(:organization_not_found)
+
+          {:error, :oauth2_not_configured} ->
+            raise_sso_unauthorized(:sso_not_configured)
+
           {:error, reason} ->
             log(:error, "Failed SSO callback: #{inspect(reason)}")
-
-            raise UnauthorizedError,
-                  dgettext("dashboard", "Failed to authenticate with the SSO provider.")
+            raise_sso_unauthorized(reason)
 
           _ ->
-            raise UnauthorizedError,
-                  dgettext("dashboard", "Failed to authenticate with the SSO provider.")
+            raise_sso_unauthorized(:sso_callback_failed)
         end
 
       _ ->
-        raise UnauthorizedError,
-              dgettext("dashboard", "Failed to authenticate with the SSO provider.")
+        raise_sso_unauthorized(:expired_session)
     end
   end
 
@@ -215,8 +220,7 @@ defmodule TuistWeb.AuthController do
         "Refused to link existing user #{existing_user.id} via custom SSO provider #{auth.provider}: user is not a member of the authenticating organization."
       )
 
-      raise UnauthorizedError,
-            dgettext("dashboard", "Failed to authenticate with the SSO provider.")
+      raise_sso_unauthorized(:existing_user_not_member)
     end
   end
 
@@ -298,7 +302,10 @@ defmodule TuistWeb.AuthController do
         message
 
       _ ->
-        dgettext("dashboard", "Failed to authenticate.")
+        dgettext(
+          "dashboard",
+          "Authentication with the identity provider failed. Please try again."
+        )
     end
   end
 
@@ -334,8 +341,7 @@ defmodule TuistWeb.AuthController do
         if(is_binary(description) and description != "", do: " — #{description}", else: "")
     )
 
-    raise UnauthorizedError,
-          dgettext("dashboard", "Failed to authenticate with the SSO provider.")
+    raise_sso_unauthorized({:provider_returned_error, error})
   end
 
   defp validate_sso_callback_params!(%{"code" => code}) when is_binary(code) and code != "" do
@@ -344,9 +350,7 @@ defmodule TuistWeb.AuthController do
 
   defp validate_sso_callback_params!(_params) do
     log(:warning, "SSO callback request is missing both `code` and `error` parameters")
-
-    raise UnauthorizedError,
-          dgettext("dashboard", "Failed to authenticate with the SSO provider.")
+    raise_sso_unauthorized(:missing_authorization_code)
   end
 
   defp validate_sso_urls(config) do
@@ -419,6 +423,136 @@ defmodule TuistWeb.AuthController do
       {seconds, _} -> System.system_time(:second) + seconds
       :error -> nil
     end
+  end
+
+  defp raise_sso_unauthorized(reason) do
+    raise UnauthorizedError, sso_unauthorized_message(reason)
+  end
+
+  defp sso_unauthorized_message(:missing_organization_id) do
+    dgettext(
+      "dashboard",
+      "The SSO request is missing an organization identifier. Please start the sign-in flow again from the login page."
+    )
+  end
+
+  defp sso_unauthorized_message(:organization_not_found) do
+    dgettext(
+      "dashboard",
+      "We couldn't find the organization for this SSO request. Please verify that you are using the correct SSO link."
+    )
+  end
+
+  defp sso_unauthorized_message(:sso_not_configured) do
+    dgettext(
+      "dashboard",
+      "SSO is not fully configured for this organization. Ask an organization admin to review the SSO settings."
+    )
+  end
+
+  defp sso_unauthorized_message(:expired_session) do
+    dgettext(
+      "dashboard",
+      "Your SSO session has expired. Please restart the sign-in flow from the login page."
+    )
+  end
+
+  defp sso_unauthorized_message(:state_mismatch) do
+    dgettext(
+      "dashboard",
+      "The SSO response could not be validated because the request state did not match. Please try again."
+    )
+  end
+
+  defp sso_unauthorized_message({:provider_returned_error, "access_denied"}) do
+    dgettext(
+      "dashboard",
+      "Your identity provider denied access. Please ask your organization admin to assign you to the Tuist application."
+    )
+  end
+
+  defp sso_unauthorized_message({:provider_returned_error, _error}) do
+    dgettext(
+      "dashboard",
+      "Your identity provider returned an authentication error. Please try again or contact your organization admin."
+    )
+  end
+
+  defp sso_unauthorized_message(:missing_authorization_code) do
+    dgettext(
+      "dashboard",
+      "The SSO provider callback is missing an authorization code. Please restart the sign-in flow."
+    )
+  end
+
+  defp sso_unauthorized_message(:unsafe_sso_url) do
+    dgettext(
+      "dashboard",
+      "The configured SSO endpoints are invalid. Ask your organization admin to review the SSO settings."
+    )
+  end
+
+  defp sso_unauthorized_message({:token_exchange_failed, _status, _body}) do
+    dgettext(
+      "dashboard",
+      "Tuist couldn't exchange the authorization code with your identity provider. Ask your organization admin to verify the SSO credentials and callback URL."
+    )
+  end
+
+  defp sso_unauthorized_message({:userinfo_request_failed, _status, _body}) do
+    dgettext(
+      "dashboard",
+      "Tuist couldn't fetch your profile from your identity provider. Ask your organization admin to verify the user info endpoint and configured scopes."
+    )
+  end
+
+  defp sso_unauthorized_message(:invalid_grant) do
+    dgettext(
+      "dashboard",
+      "The SSO authorization code is invalid or expired. Please restart the sign-in flow."
+    )
+  end
+
+  defp sso_unauthorized_message(:missing_user_identifier) do
+    dgettext(
+      "dashboard",
+      "Your identity provider response is missing a stable user identifier. Ask your organization admin to review the user info claims."
+    )
+  end
+
+  defp sso_unauthorized_message(:missing_email) do
+    dgettext(
+      "dashboard",
+      "Your identity provider response is missing an email address. Ask your organization admin to include the email claim."
+    )
+  end
+
+  defp sso_unauthorized_message(:existing_user_not_member) do
+    dgettext(
+      "dashboard",
+      "Your Tuist account already exists, but it isn't a member of this organization. Ask an organization admin to add you, then sign in with SSO again."
+    )
+  end
+
+  defp sso_unauthorized_message(:sso_request_failed) do
+    dgettext(
+      "dashboard",
+      "We couldn't start the SSO flow for this organization. Please verify the SSO configuration and try again."
+    )
+  end
+
+  defp sso_unauthorized_message(:sso_callback_failed) do
+    dgettext(
+      "dashboard",
+      "We couldn't complete the SSO callback for this request. Please try again."
+    )
+  end
+
+  defp sso_unauthorized_message(_reason) do
+    dgettext(
+      "dashboard",
+      "Failed to authenticate with the SSO provider. Please try again."
+    )
   end
 
   defp sso_callback_url(:okta), do: TuistWeb.Endpoint.url() <> ~p"/users/auth/okta/callback"
