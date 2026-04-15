@@ -94,7 +94,7 @@ defmodule Tuist.PromEx do
   @impl true
   def dashboard_assigns do
     [
-      datasource_id: "tuist",
+      datasource_id: "grafanacloud-tuist-prom",
       default_selected_interval: "30s"
     ]
   end
