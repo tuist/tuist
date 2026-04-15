@@ -11,15 +11,35 @@ extension XcodeGraph.Graph {
     public func filter(
         skipTestTargets: Bool,
         skipExternalDependencies: Bool,
+        skipMacroSupportTargets: Bool,
         platformToFilter: Platform?,
         targetsToFilter: [String]
     ) -> [GraphTarget: Set<GraphDependency>] {
         let graphTraverser = GraphTraverser(graph: self)
 
+        // Compute the set of macro support target names to exclude:
+        // SwiftCompilerPlugin and everything it transitively depends on.
+        let macroSupportTargetNames: Set<String>
+        if skipMacroSupportTargets {
+            let roots = Array(graphTraverser.allTargets().filter { $0.target.name == "SwiftCompilerPlugin" })
+            let allMacroSupportTargets = Set(roots).union(
+                transitiveClosure(roots) { target in
+                    Array(graphTraverser.directTargetDependencies(path: target.path, name: target.target.name).map(\.graphTarget))
+                }
+            )
+            macroSupportTargetNames = Set(allMacroSupportTargets.map(\.target.name))
+        } else {
+            macroSupportTargetNames = []
+        }
+
         let allTargets: Set<GraphTarget> = skipExternalDependencies ? graphTraverser.allInternalTargets() : graphTraverser
             .allTargets()
         let filteredTargets: Set<GraphTarget> = allTargets.filter { target in
             if skipTestTargets, graphTraverser.dependsOnXCTest(path: target.path, name: target.target.name) {
+                return false
+            }
+
+            if !macroSupportTargetNames.isEmpty, macroSupportTargetNames.contains(target.target.name) {
                 return false
             }
 
@@ -36,7 +56,11 @@ extension XcodeGraph.Graph {
 
         let filteredTargetsAndDependencies: Set<GraphTarget> = filteredTargets.union(
             transitiveClosure(Array(filteredTargets)) { target in
-                Array(graphTraverser.directTargetDependencies(path: target.path, name: target.target.name).map(\.graphTarget))
+                let deps = graphTraverser.directTargetDependencies(path: target.path, name: target.target.name).map(\.graphTarget)
+                if !macroSupportTargetNames.isEmpty {
+                    return deps.filter { !macroSupportTargetNames.contains($0.target.name) }
+                }
+                return Array(deps)
             }
         )
 
@@ -53,6 +77,8 @@ extension XcodeGraph.Graph {
             result[target] = targetDependencies
                 .filter { dependency in
                     if skipExternalDependencies, dependency.isExternal(projects) { return false }
+                    if !macroSupportTargetNames.isEmpty, case let .target(name, _, _) = dependency,
+                       macroSupportTargetNames.contains(name) { return false }
                     return true
                 }
         }
