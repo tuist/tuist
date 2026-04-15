@@ -1,5 +1,5 @@
-const STORAGE_PREFIX = "tuist:filter-memory:";
-const MARKER_ATTR = "data-filter-memory";
+const STORAGE_PREFIX = "tuist:query-memory:";
+const MARKER_ATTR = "data-query-memory";
 
 function storageKey(pathname) {
   return STORAGE_PREFIX + pathname;
@@ -23,7 +23,7 @@ function onLinkClick(event) {
   if (remembered) anchor.setAttribute("href", `${href}?${remembered}`);
 }
 
-export function installFilterMemory() {
+export function installQueryMemory() {
   document.addEventListener("click", onLinkClick, true);
   // Covers server push_patch, link navigations, and popstate (back/forward).
   window.addEventListener("phx:navigate", rememberCurrent);
