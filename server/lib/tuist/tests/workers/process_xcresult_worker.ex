@@ -1,6 +1,6 @@
 defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
   @moduledoc false
-  use Oban.Worker, queue: :default, max_attempts: 5, unique: [keys: [:test_run_id]]
+  use Oban.Worker, queue: :process_xcresult, max_attempts: 5, unique: [keys: [:test_run_id]]
 
   alias Tuist.Accounts
   alias Tuist.Storage
@@ -94,7 +94,7 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
                {"content-type", "application/json"},
                {"x-webhook-signature", signature}
              ],
-             receive_timeout: 300_000
+             receive_timeout: 1_200_000
            ) do
         {:ok, %{status: 200, body: parsed_data}} ->
           {:ok, parsed_data}
