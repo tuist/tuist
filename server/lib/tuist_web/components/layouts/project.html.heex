@@ -14,6 +14,7 @@
       selected_account={@selected_account}
       selected_run={@selected_run}
       current_user={@current_user}
+      last_queries={Map.get(assigns, :last_queries, %{})}
     />
     <div class="layout__content">
       <TuistWeb.Components.PublicProjectCTABanner.public_project_cta_banner

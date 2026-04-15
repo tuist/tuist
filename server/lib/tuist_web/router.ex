@@ -867,7 +867,8 @@ defmodule TuistWeb.Router do
       on_mount: [
         {TuistWeb.Authentication, :mount_current_user},
         {TuistWeb.Locale, :assign_locale},
-        {TuistWeb.LayoutLive, :project}
+        {TuistWeb.LayoutLive, :project},
+        {TuistWeb.FilterMemoryHook, :default}
       ] do
       live "/tests", TestsLive
       live "/tests/test-runs", TestRunsLive
