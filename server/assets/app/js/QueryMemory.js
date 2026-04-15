@@ -18,8 +18,8 @@
  * that pathname, we rewrite the `href` in place. LiveView then reads the
  * rewritten href and navigates with the restored query.
  *
- * Per-tab isolation is inherited from sessionStorage. No server state, no
- * per-link annotations, no tab-id plumbing.
+ * State lives in `sessionStorage`, which is scoped to the browsing context
+ * and cleared when the tab closes.
  */
 
 const STORAGE_PREFIX = "tuist:query-memory:";
