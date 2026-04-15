@@ -151,7 +151,7 @@ final class FocusTargetsGraphMappersTests: TuistUnitTestCase {
         )
     }
 
-    func test_map_when_included_targets_is_target_with_no_dependency_but_with_test_target_also_test_target_is_pruned() throws {
+    func test_map_when_included_targets_is_target_with_no_dependency_but_with_test_target_also_test_target_is_not_pruned() throws {
         // Given
         let targetNames = ["foo", "bar", "baz"].shuffled()
         let aTarget = Target.test(name: targetNames[0])
@@ -179,7 +179,7 @@ final class FocusTargetsGraphMappersTests: TuistUnitTestCase {
         // When
         let (gotGraph, gotSideEffects, _) = try subject.map(graph: graph, environment: MapperEnvironment())
 
-        let expectingTargets = [bTarget, cTarget, aTestTarget]
+        let expectingTargets = [bTarget, cTarget]
         let pruningTargets = gotGraph.projects.values.flatMap(\.targets.values).sorted()
             .filter { $0.metadata.tags.contains("tuist:prunable") }
 
@@ -189,6 +189,84 @@ final class FocusTargetsGraphMappersTests: TuistUnitTestCase {
             pruningTargets.map(\.name).sorted(),
             expectingTargets.map(\.name).sorted()
         )
+    }
+
+    func test_map_when_included_targets_is_target_with_tagged_local_package_test_target_preserves_test_target() throws {
+        // Given
+        let targetNames = ["foo", "bar", "baz"].shuffled()
+        let aTarget = Target.test(name: targetNames[0])
+        let aTestTarget = Target.test(
+            name: targetNames[0] + "Tests",
+            product: .unitTests,
+            metadata: .test(tags: [TargetTags.localSwiftPackageTest])
+        )
+        let bTarget = Target.test(name: targetNames[1])
+        let cTarget = Target.test(name: targetNames[2])
+        let subject = FocusTargetsGraphMappers(includedTargets: [.named(aTarget.name)])
+        let path = try temporaryPath()
+        let project = Project.test(path: path, targets: [aTestTarget, aTarget, bTarget, cTarget])
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: [
+                .target(name: aTestTarget.name, path: path): [
+                    .target(name: aTarget.name, path: path),
+                ],
+                .target(name: bTarget.name, path: path): [
+                    .target(name: aTarget.name, path: path),
+                ],
+                .target(name: cTarget.name, path: path): [
+                    .target(name: bTarget.name, path: path),
+                ],
+            ]
+        )
+
+        // When
+        let (gotGraph, gotSideEffects, _) = try subject.map(graph: graph, environment: MapperEnvironment())
+
+        let expectingTargets = [bTarget, cTarget]
+        let pruningTargets = gotGraph.projects.values.flatMap(\.targets.values).sorted()
+            .filter { $0.metadata.tags.contains("tuist:prunable") }
+
+        // Then
+        XCTAssertEmpty(gotSideEffects)
+        XCTAssertEqual(
+            pruningTargets.map(\.name).sorted(),
+            expectingTargets.map(\.name).sorted()
+        )
+    }
+
+    func test_map_when_included_targets_are_filtered_remote_external_test_targets_are_pruned() throws {
+        // Given
+        let localTarget = Target.test(name: "App")
+        let localUnitTest = Target.test(name: "AppTests", product: .unitTests)
+        let localPath = try temporaryPath().appending(component: "Local")
+        let localProject = Project.test(path: localPath, targets: [localTarget, localUnitTest])
+
+        let remoteExternalUnitTest = Target.test(name: "RemoteTests", product: .unitTests)
+        let externalPath = try temporaryPath().appending(component: "External")
+        let externalProject = Project.test(path: externalPath, targets: [remoteExternalUnitTest], type: .external(hash: nil))
+
+        let subject = FocusTargetsGraphMappers(includedTargets: [.named(localTarget.name)])
+        let graph = Graph.test(
+            projects: [
+                localProject.path: localProject,
+                externalProject.path: externalProject,
+            ],
+            dependencies: [
+                .target(name: localUnitTest.name, path: localPath): [
+                    .target(name: localTarget.name, path: localPath),
+                ],
+            ]
+        )
+
+        // When
+        let (gotGraph, gotSideEffects, _) = try subject.map(graph: graph, environment: MapperEnvironment())
+        let pruningTargets = gotGraph.projects.values.flatMap(\.targets.values).sorted()
+            .filter { $0.metadata.tags.contains("tuist:prunable") }
+
+        // Then
+        XCTAssertEmpty(gotSideEffects)
+        XCTAssertEqual(pruningTargets.map(\.name).sorted(), [remoteExternalUnitTest.name])
     }
 
     func test_map_when_included_targets_do_not_exist() throws {

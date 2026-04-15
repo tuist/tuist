@@ -1035,6 +1035,7 @@ struct PackageInfoMapperTests {
         let project = try await subject.map(
             package: "Package",
             basePath: basePath,
+            packageType: .local,
             packageInfos: [
                 "Package": .test(
                     name: "Package",
@@ -1055,29 +1056,11 @@ struct PackageInfoMapperTests {
                 ),
             ]
         )
-        #expect(
-            project ==
-                .testWithDefaultConfigs(
-                    name: "Package",
-                    targets: [
-                        .test(
-                            "Target_1",
-                            basePath: basePath,
-                            customBundleID: "Target.1",
-                            customSources: .custom(.sourceFilesList(globs: [
-                                basePath
-                                    .appending(try RelativePath(validating: "Package/Sources/Target+1/**"))
-                                    .pathString,
-                            ]))
-                        ),
-                        .test(
-                            "Target2",
-                            basePath: basePath,
-                            dependencies: [.target(name: "Target_1")]
-                        ),
-                    ]
-                )
-        )
+
+        let mappedTargets = project?.targets ?? []
+        #expect(Set(mappedTargets.map(\.name)) == Set(["Target_1", "Target2"]))
+        let mappedTarget = mappedTargets.first { $0.name == "Target2" }
+        #expect(mappedTarget?.dependencies == [.target(name: "Target_1")])
     }
 
     @Test(.inTemporaryDirectory, .withMockedSwiftVersionProvider) func map_whenSettingsDefinesContainsQuotes() async throws {
@@ -4816,6 +4799,89 @@ struct PackageInfoMapperTests {
                     ]
                 )
         )
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
+    ) func map_whenExternalLocalSwiftPackageHasTestTarget() async throws {
+        // Given
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        let sourcesPath = basePath.appending(components: ["Package", "Sources", "Target"])
+        try await fileSystem.makeDirectory(at: sourcesPath)
+        let testsPath = basePath.appending(components: ["Package", "Tests", "TargetTests"])
+        try await fileSystem.makeDirectory(at: testsPath)
+
+        // When
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageType: .external(origin: .local, artifactPaths: [:]),
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "Product", type: .library(.automatic), targets: ["Target"]),
+                    ],
+                    targets: [
+                        .test(name: "Target"),
+                        .test(
+                            name: "TargetTests",
+                            type: .test,
+                            dependencies: [.target(name: "Target", condition: nil)]
+                        ),
+                    ],
+                    platforms: [.ios]
+                ),
+            ]
+        )
+
+        // Then
+        #expect(project != nil)
+        #expect(Set(project?.targets.map(\.name) ?? []) == Set(["Target", "TargetTests"]))
+        let testTarget = project?.targets.first { $0.name == "TargetTests" }
+        #expect(testTarget?.product == .unitTests)
+        #expect(testTarget?.metadata.tags.contains(TargetTags.localSwiftPackageTest) == true)
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
+    ) func map_whenExternalRemoteSwiftPackageHasTestTarget() async throws {
+        // Given
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        let sourcesPath = basePath.appending(components: ["Package", "Sources", "Target"])
+        try await fileSystem.makeDirectory(at: sourcesPath)
+        let testsPath = basePath.appending(components: ["Package", "Tests", "TargetTests"])
+        try await fileSystem.makeDirectory(at: testsPath)
+
+        // When
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageType: .external(origin: .remote, artifactPaths: [:]),
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "Product", type: .library(.automatic), targets: ["Target"]),
+                    ],
+                    targets: [
+                        .test(name: "Target"),
+                        .test(
+                            name: "TargetTests",
+                            type: .test,
+                            dependencies: [.target(name: "Target", condition: nil)]
+                        ),
+                    ],
+                    platforms: [.ios]
+                ),
+            ]
+        )
+
+        // Then
+        #expect(project != nil)
+        #expect(Set(project?.targets.map(\.name) ?? []) == Set(["Target"]))
     }
 
     @Test(

@@ -176,7 +176,7 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
         })
         .compactMap { _, groupedPackageInfos in
             if let localPackage = groupedPackageInfos.first(where: {
-                ["local", "fileSystem", "localSourceControl"].contains($0.kind)
+                Self.isLocalDependencyKind($0.kind)
             }) {
                 return localPackage
             } else if let registryPackage = groupedPackageInfos.first(where: { $0.kind == "registry" }) {
@@ -239,7 +239,10 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
                 projectManifest: try await packageInfoMapper.map(
                     packageInfo: packageInfo.info,
                     path: packageInfo.folder,
-                    packageType: .external(artifactPaths: packageToTargetsToArtifactPaths[packageInfo.name] ?? [:]),
+                    packageType: .external(
+                        origin: Self.packageOrigin(for: packageInfo.kind),
+                        artifactPaths: packageToTargetsToArtifactPaths[packageInfo.name] ?? [:]
+                    ),
                     packageSettings: packageSettings,
                     packageModuleAliases: packageModuleAliases,
                     enabledTraits: enabledTraitsPerPackage[packageInfo.id] ?? []
@@ -264,6 +267,14 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
             ),
             outdatedDependencyIssues
         )
+    }
+
+    private static func isLocalDependencyKind(_ kind: String) -> Bool {
+        ["local", "fileSystem", "localSourceControl"].contains(kind)
+    }
+
+    private static func packageOrigin(for kind: String) -> PackageType.ExternalOrigin {
+        isLocalDependencyKind(kind) ? .local : .remote
     }
 
     private func validatePackageResolved(at path: AbsolutePath) async throws -> [LintingIssue] {

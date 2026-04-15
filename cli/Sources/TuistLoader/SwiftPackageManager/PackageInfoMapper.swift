@@ -75,8 +75,29 @@ enum PackageInfoMapperError: LocalizedError, Equatable {
 }
 
 public enum PackageType {
+    public enum ExternalOrigin {
+        case local
+        case remote
+    }
+
     case local
-    case external(artifactPaths: [String: AbsolutePath])
+    case external(origin: ExternalOrigin = .remote, artifactPaths: [String: AbsolutePath])
+
+    fileprivate var includesTestTargets: Bool {
+        switch self {
+        case .local, .external(origin: .local, artifactPaths: _):
+            return true
+        case .external:
+            return false
+        }
+    }
+
+    fileprivate var isLocalExternal: Bool {
+        if case .external(origin: .local, artifactPaths: _) = self {
+            return true
+        }
+        return false
+    }
 }
 
 // MARK: - PackageInfo Mapper
@@ -529,9 +550,12 @@ public struct PackageInfoMapper: PackageInfoMapping {
         // Ignores or passes a target based on the `type` and the `packageType`.
         // After that, it assumes that no target is ignored.
         switch target.type {
-        case .regular, .system, .macro:
+        case .test where !packageType.includesTestTargets:
+            Logger.current.debug("Target \(target.name) of type \(target.type) ignored")
+            return nil
+        case .regular, .system, .macro, .test:
             break
-        case .test, .executable:
+        case .executable:
             switch packageType {
             case .external:
                 Logger.current.debug("Target \(target.name) of type \(target.type) ignored")
@@ -577,7 +601,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
             }
 
             moduleMap = ModuleMap.custom(moduleMapPath, umbrellaHeaderPath: nil)
-        case .regular:
+        case .regular, .test:
             let effectiveName = PackageInfoMapper.effectiveModuleName(
                 targetName: target.name, products: products, packageTargets: packageInfo.targets
             )
@@ -738,6 +762,11 @@ public struct PackageInfoMapper: PackageInfoMapping {
             enabledTraits: enabledTraits
         )
 
+        var metadataTags: [String] = []
+        if target.type == .test, packageType.isLocalExternal {
+            metadataTags.append(TargetTags.localSwiftPackageTest)
+        }
+
         return .target(
             name: sanitizedTargetName,
             destinations: destinations,
@@ -751,7 +780,8 @@ public struct PackageInfoMapper: PackageInfoMapping {
             buildableFolders: [],
             headers: headers,
             dependencies: dependencies,
-            settings: settings
+            settings: settings,
+            metadata: .metadata(tags: metadataTags)
         )
     }
 
@@ -793,7 +823,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
         }
 
         if let target = packageInfo.targets.first(where: { $0.name == name }) {
-            if target.type == .binary, case let .external(artifactPaths: artifactPaths) = packageType,
+            if target.type == .binary, case let .external(origin: _, artifactPaths: artifactPaths) = packageType,
                let artifactPath = artifactPaths[target.name]
             {
                 return .xcframework(
