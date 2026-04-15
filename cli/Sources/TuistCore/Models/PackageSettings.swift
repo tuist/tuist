@@ -24,6 +24,9 @@ public struct PackageSettings: Equatable, Codable {
     /// The custom project options for each project generated from a swift package.
     public let projectOptions: [String: XcodeGraph.Project.Options]
 
+    /// Targets that should use buildable folders instead of explicit file references.
+    public let targetBuildableFolders: Set<String>
+
     /// Initializes a new `PackageSettings` instance.
     /// - Parameters:
     ///    - productTypes: The custom `Product` types to be used for SPM targets.
@@ -31,6 +34,7 @@ public struct PackageSettings: Equatable, Codable {
     ///    - baseSettings: The base settings to be used for targets generated from SwiftPackageManager
     ///    - targetSettings: The custom `SettingsDictionary` to be applied to denoted targets
     ///    - projectOptions: The custom project options for each project generated from a swift package
+    ///    - targetBuildableFolders: Targets that should use buildable folders
     public init(
         productTypes: [String: Product],
         baseProductType: Product,
@@ -38,7 +42,8 @@ public struct PackageSettings: Equatable, Codable {
         baseSettings: Settings,
         expectedSignatures: [String: XCFrameworkSignature],
         targetSettings: [String: Settings],
-        projectOptions: [String: XcodeGraph.Project.Options] = [:]
+        projectOptions: [String: XcodeGraph.Project.Options] = [:],
+        targetBuildableFolders: Set<String> = []
     ) {
         self.productTypes = productTypes
         self.baseProductType = baseProductType
@@ -47,6 +52,7 @@ public struct PackageSettings: Equatable, Codable {
         self.expectedSignatures = expectedSignatures
         self.targetSettings = targetSettings
         self.projectOptions = projectOptions
+        self.targetBuildableFolders = targetBuildableFolders
     }
 
     #if DEBUG
@@ -57,7 +63,8 @@ public struct PackageSettings: Equatable, Codable {
             baseSettings: Settings = Settings.default,
             expectedSignatures: [String: XCFrameworkSignature] = [:],
             targetSettings: [String: Settings] = [:],
-            projectOptions: [String: XcodeGraph.Project.Options] = [:]
+            projectOptions: [String: XcodeGraph.Project.Options] = [:],
+            targetBuildableFolders: Set<String> = []
         ) -> PackageSettings {
             PackageSettings(
                 productTypes: productTypes,
@@ -66,7 +73,8 @@ public struct PackageSettings: Equatable, Codable {
                 baseSettings: baseSettings,
                 expectedSignatures: expectedSignatures,
                 targetSettings: targetSettings,
-                projectOptions: projectOptions
+                projectOptions: projectOptions,
+                targetBuildableFolders: targetBuildableFolders
             )
         }
     #endif
