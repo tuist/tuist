@@ -329,12 +329,12 @@
               <div data-part="value">
                 <div data-part="run-destinations">
                   <div :for={destination <- @run.run_destinations} data-part="run-destination">
-                    <.icon name={
-                      platform_icon_name(TestRunDestination.platform_atom(destination))
-                    } />
+                    <.icon name={platform_icon_name(destination.platform)} />
                     <span>{destination.name}</span>
                     <span data-part="subtitle">
-                      {String.trim("#{destination.platform} #{destination.os_version}")}
+                      {String.trim(
+                        "#{TestRunDestination.humanize_platform(destination)} #{destination.os_version}"
+                      )}
                     </span>
                   </div>
                 </div>

@@ -26,23 +26,43 @@ defmodule Tuist.Tests.TestRunDestination do
   end
 
   @doc """
-  Normalises the xcresult `platform` string into the atom convention used by
-  `TuistWeb.Previews.PlatformIcon.platform_icon_name/1` (e.g. "iOS Simulator"
-  becomes `:ios_simulator`, "macOS" becomes `:macos`). `iPadOS` variants are
-  mapped onto the iOS family since the icon set has no separate iPad glyph.
-  Returns `:unknown` for unrecognised or missing platforms.
+  Normalises a raw xcresult `platform` value (e.g. "iOS Simulator", "macOS")
+  into the snake-case form stored in `test_run_destinations.platform`. The
+  stored form mirrors the atom convention used elsewhere in the codebase
+  (preview platforms etc.), but as a string — ClickHouse is the source of
+  truth for these values, and we don't round-trip them through atoms.
+
+  `iPadOS` variants fold onto the iOS family since the icon set has no
+  separate iPad glyph. Returns `"unknown"` for unrecognised or missing input.
   """
-  def platform_atom(%__MODULE__{platform: platform}), do: platform_atom(platform)
-  def platform_atom("macOS"), do: :macos
-  def platform_atom("iOS"), do: :ios
-  def platform_atom("iOS Simulator"), do: :ios_simulator
-  def platform_atom("iPadOS"), do: :ios
-  def platform_atom("iPadOS Simulator"), do: :ios_simulator
-  def platform_atom("tvOS"), do: :tvos
-  def platform_atom("tvOS Simulator"), do: :tvos_simulator
-  def platform_atom("watchOS"), do: :watchos
-  def platform_atom("watchOS Simulator"), do: :watchos_simulator
-  def platform_atom("visionOS"), do: :visionos
-  def platform_atom("visionOS Simulator"), do: :visionos_simulator
-  def platform_atom(_), do: :unknown
+  def normalize_platform("macOS"), do: "macos"
+  def normalize_platform("iOS"), do: "ios"
+  def normalize_platform("iOS Simulator"), do: "ios_simulator"
+  def normalize_platform("iPadOS"), do: "ios"
+  def normalize_platform("iPadOS Simulator"), do: "ios_simulator"
+  def normalize_platform("tvOS"), do: "tvos"
+  def normalize_platform("tvOS Simulator"), do: "tvos_simulator"
+  def normalize_platform("watchOS"), do: "watchos"
+  def normalize_platform("watchOS Simulator"), do: "watchos_simulator"
+  def normalize_platform("visionOS"), do: "visionos"
+  def normalize_platform("visionOS Simulator"), do: "visionos_simulator"
+  def normalize_platform(_), do: "unknown"
+
+  @doc """
+  Reverses `normalize_platform/1` for display (e.g. "watchos_simulator" →
+  "watchOS Simulator"). Falls back to the raw value when the stored string
+  isn't a recognised platform.
+  """
+  def humanize_platform(%__MODULE__{platform: platform}), do: humanize_platform(platform)
+  def humanize_platform("macos"), do: "macOS"
+  def humanize_platform("ios"), do: "iOS"
+  def humanize_platform("ios_simulator"), do: "iOS Simulator"
+  def humanize_platform("tvos"), do: "tvOS"
+  def humanize_platform("tvos_simulator"), do: "tvOS Simulator"
+  def humanize_platform("watchos"), do: "watchOS"
+  def humanize_platform("watchos_simulator"), do: "watchOS Simulator"
+  def humanize_platform("visionos"), do: "visionOS"
+  def humanize_platform("visionos_simulator"), do: "visionOS Simulator"
+  def humanize_platform(other) when is_binary(other), do: other
+  def humanize_platform(_), do: ""
 end

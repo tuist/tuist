@@ -89,39 +89,55 @@ defmodule Tuist.Tests.TestRunDestinationTest do
     end
   end
 
-  describe "platform_atom/1" do
-    test "maps known real-device platforms to atoms" do
-      assert TestRunDestination.platform_atom("macOS") == :macos
-      assert TestRunDestination.platform_atom("iOS") == :ios
-      assert TestRunDestination.platform_atom("tvOS") == :tvos
-      assert TestRunDestination.platform_atom("watchOS") == :watchos
-      assert TestRunDestination.platform_atom("visionOS") == :visionos
+  describe "normalize_platform/1" do
+    test "maps known real-device platforms to snake-case strings" do
+      assert TestRunDestination.normalize_platform("macOS") == "macos"
+      assert TestRunDestination.normalize_platform("iOS") == "ios"
+      assert TestRunDestination.normalize_platform("tvOS") == "tvos"
+      assert TestRunDestination.normalize_platform("watchOS") == "watchos"
+      assert TestRunDestination.normalize_platform("visionOS") == "visionos"
     end
 
-    test "maps known simulator platforms to atoms" do
-      assert TestRunDestination.platform_atom("iOS Simulator") == :ios_simulator
-      assert TestRunDestination.platform_atom("tvOS Simulator") == :tvos_simulator
-      assert TestRunDestination.platform_atom("watchOS Simulator") == :watchos_simulator
-      assert TestRunDestination.platform_atom("visionOS Simulator") == :visionos_simulator
+    test "maps known simulator platforms to snake-case strings" do
+      assert TestRunDestination.normalize_platform("iOS Simulator") == "ios_simulator"
+      assert TestRunDestination.normalize_platform("tvOS Simulator") == "tvos_simulator"
+      assert TestRunDestination.normalize_platform("watchOS Simulator") == "watchos_simulator"
+      assert TestRunDestination.normalize_platform("visionOS Simulator") == "visionos_simulator"
     end
 
-    test "maps iPadOS onto the iOS family" do
-      assert TestRunDestination.platform_atom("iPadOS") == :ios
-      assert TestRunDestination.platform_atom("iPadOS Simulator") == :ios_simulator
+    test "folds iPadOS onto the iOS family" do
+      assert TestRunDestination.normalize_platform("iPadOS") == "ios"
+      assert TestRunDestination.normalize_platform("iPadOS Simulator") == "ios_simulator"
+    end
+
+    test "returns \"unknown\" for unrecognised platforms" do
+      assert TestRunDestination.normalize_platform("Linux") == "unknown"
+      assert TestRunDestination.normalize_platform(nil) == "unknown"
+    end
+  end
+
+  describe "humanize_platform/1" do
+    test "reverses the normalised form back to the xcresult-style display string" do
+      assert TestRunDestination.humanize_platform("macos") == "macOS"
+      assert TestRunDestination.humanize_platform("ios") == "iOS"
+      assert TestRunDestination.humanize_platform("ios_simulator") == "iOS Simulator"
+      assert TestRunDestination.humanize_platform("tvos_simulator") == "tvOS Simulator"
+      assert TestRunDestination.humanize_platform("watchos_simulator") == "watchOS Simulator"
+      assert TestRunDestination.humanize_platform("visionos_simulator") == "visionOS Simulator"
     end
 
     test "accepts a struct and delegates on its platform" do
-      destination = %TestRunDestination{platform: "iOS Simulator"}
-      assert TestRunDestination.platform_atom(destination) == :ios_simulator
+      destination = %TestRunDestination{platform: "ios_simulator"}
+      assert TestRunDestination.humanize_platform(destination) == "iOS Simulator"
     end
 
-    test "returns :unknown for unrecognised platforms" do
-      assert TestRunDestination.platform_atom("Linux") == :unknown
+    test "passes unrecognised binary platforms through unchanged" do
+      assert TestRunDestination.humanize_platform("freebsd") == "freebsd"
     end
 
-    test "returns :unknown for nil and non-string inputs" do
-      assert TestRunDestination.platform_atom(nil) == :unknown
-      assert TestRunDestination.platform_atom(%TestRunDestination{platform: nil}) == :unknown
+    test "returns an empty string for nil platforms" do
+      assert TestRunDestination.humanize_platform(nil) == ""
+      assert TestRunDestination.humanize_platform(%TestRunDestination{platform: nil}) == ""
     end
   end
 end

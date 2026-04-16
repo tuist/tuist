@@ -1196,9 +1196,10 @@ defmodule Tuist.TestsTest do
       assert length(destinations) == 2
       [iphone_17, iphone_17_pro] = destinations
       assert iphone_17.name == "iPhone 17"
-      assert iphone_17.platform == "iOS Simulator"
+      assert iphone_17.platform == "ios_simulator"
       assert iphone_17.os_version == "26.4"
       assert iphone_17_pro.name == "iPhone 17 Pro"
+      assert iphone_17_pro.platform == "ios_simulator"
     end
 
     test "accepts run_destinations with string keys from the worker payload" do
@@ -1227,7 +1228,7 @@ defmodule Tuist.TestsTest do
         ClickHouseRepo.all(from(d in TestRunDestination, where: d.test_run_id == ^test.id))
 
       assert destination.name == "iPhone Air"
-      assert destination.platform == "iOS Simulator"
+      assert destination.platform == "ios_simulator"
       assert destination.os_version == "26.4"
     end
 
