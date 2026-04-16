@@ -1,0 +1,16 @@
+# ImageMagick 6 advisories published 2026-04-15/16. The fixed Debian
+# package (imagemagick-6-common 8:6.9.11.60+dfsg-1.6+deb12u8) has not
+# yet propagated to the bookworm-slim base image we use, so apt-get
+# upgrade cannot pull it. ImageMagick is only present transitively
+# (Chromium / libvips) and is not invoked by the server.
+#
+# Re-evaluate after the next Debian point release lands in
+# library/debian:bookworm-slim and remove the ones that no longer fire.
+CVE-2026-25796
+CVE-2026-25985
+CVE-2026-26284
+CVE-2026-28494
+CVE-2026-28691
+CVE-2026-28693
+CVE-2026-30883
+CVE-2026-32636

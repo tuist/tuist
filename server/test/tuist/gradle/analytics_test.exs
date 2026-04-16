@@ -5,17 +5,28 @@ defmodule Tuist.Gradle.AnalyticsTest do
   alias TuistTestSupport.Fixtures.GradleFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
-  @now ~N[2026-01-15 10:20:30]
-  @start_datetime ~U[2026-01-13 00:00:00Z]
-  @end_datetime ~U[2026-01-15 23:59:59Z]
+  # The ClickHouse `gradle_*` tables apply `TTL inserted_at + INTERVAL 90 DAY`,
+  # so anchoring fixtures at "now" keeps this suite stable as the calendar
+  # advances. A previous version pinned `@now` to 2026-01-15 and silently
+  # broke every run after 2026-04-15 when the data fell outside the TTL.
+  setup do
+    now = NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
+    start_datetime = now |> NaiveDateTime.add(-2, :day) |> DateTime.from_naive!("Etc/UTC")
+    end_datetime = now |> NaiveDateTime.add(1, :day) |> DateTime.from_naive!("Etc/UTC")
+    {:ok, now: now, start_datetime: start_datetime, end_datetime: end_datetime}
+  end
 
   describe "cache_hit_rate/4" do
-    test "calculates cache hit rate from build data" do
+    test "calculates cache hit rate from build data", %{
+      now: now,
+      start_datetime: start_datetime,
+      end_datetime: end_datetime
+    } do
       project = ProjectsFixtures.project_fixture()
 
       GradleFixtures.build_fixture(
         project_id: project.id,
-        inserted_at: @now,
+        inserted_at: now,
         tasks: [
           %{task_path: ":app:compileKotlin", outcome: "local_hit", cacheable: true},
           %{task_path: ":app:compileJava", outcome: "local_hit", cacheable: true},
@@ -24,25 +35,32 @@ defmodule Tuist.Gradle.AnalyticsTest do
         ]
       )
 
-      got = Analytics.cache_hit_rate(project.id, @start_datetime, @end_datetime)
+      got = Analytics.cache_hit_rate(project.id, start_datetime, end_datetime)
 
       assert got == 50.0
     end
 
-    test "returns zero when no data exists" do
+    test "returns zero when no data exists", %{
+      start_datetime: start_datetime,
+      end_datetime: end_datetime
+    } do
       project = ProjectsFixtures.project_fixture()
 
-      got = Analytics.cache_hit_rate(project.id, @start_datetime, @end_datetime)
+      got = Analytics.cache_hit_rate(project.id, start_datetime, end_datetime)
 
       assert got == 0.0
     end
 
-    test "only considers cacheable tasks" do
+    test "only considers cacheable tasks", %{
+      now: now,
+      start_datetime: start_datetime,
+      end_datetime: end_datetime
+    } do
       project = ProjectsFixtures.project_fixture()
 
       GradleFixtures.build_fixture(
         project_id: project.id,
-        inserted_at: @now,
+        inserted_at: now,
         tasks: [
           %{task_path: ":app:compileKotlin", outcome: "local_hit", cacheable: true},
           %{task_path: ":app:clean", outcome: "executed", cacheable: false},
@@ -50,17 +68,21 @@ defmodule Tuist.Gradle.AnalyticsTest do
         ]
       )
 
-      got = Analytics.cache_hit_rate(project.id, @start_datetime, @end_datetime)
+      got = Analytics.cache_hit_rate(project.id, start_datetime, end_datetime)
 
       assert got == 50.0
     end
 
-    test "aggregates across multiple builds" do
+    test "aggregates across multiple builds", %{
+      now: now,
+      start_datetime: start_datetime,
+      end_datetime: end_datetime
+    } do
       project = ProjectsFixtures.project_fixture()
 
       GradleFixtures.build_fixture(
         project_id: project.id,
-        inserted_at: @now,
+        inserted_at: now,
         tasks: [
           %{task_path: ":app:compileKotlin", outcome: "local_hit", cacheable: true}
         ]
@@ -68,25 +90,29 @@ defmodule Tuist.Gradle.AnalyticsTest do
 
       GradleFixtures.build_fixture(
         project_id: project.id,
-        inserted_at: @now,
+        inserted_at: now,
         tasks: [
           %{task_path: ":app:compileJava", outcome: "executed", cacheable: true}
         ]
       )
 
-      got = Analytics.cache_hit_rate(project.id, @start_datetime, @end_datetime)
+      got = Analytics.cache_hit_rate(project.id, start_datetime, end_datetime)
 
       assert got == 50.0
     end
   end
 
   describe "cache_hit_rate_analytics/2" do
-    test "returns analytics with trend and time-series data" do
+    test "returns analytics with trend and time-series data", %{
+      now: now,
+      start_datetime: start_datetime,
+      end_datetime: end_datetime
+    } do
       project = ProjectsFixtures.project_fixture()
 
       GradleFixtures.build_fixture(
         project_id: project.id,
-        inserted_at: @now,
+        inserted_at: now,
         tasks: [
           %{task_path: ":app:compileKotlin", outcome: "local_hit", cacheable: true},
           %{task_path: ":app:assembleDebug", outcome: "executed", cacheable: true}
@@ -96,8 +122,8 @@ defmodule Tuist.Gradle.AnalyticsTest do
       got =
         Analytics.cache_hit_rate_analytics(
           project.id,
-          start_datetime: @start_datetime,
-          end_datetime: @end_datetime
+          start_datetime: start_datetime,
+          end_datetime: end_datetime
         )
 
       assert got.avg_hit_rate == 50.0
@@ -106,30 +132,37 @@ defmodule Tuist.Gradle.AnalyticsTest do
       assert length(got.values) == 3
     end
 
-    test "returns zero trend and rate when no data exists" do
+    test "returns zero trend and rate when no data exists", %{
+      start_datetime: start_datetime,
+      end_datetime: end_datetime
+    } do
       project = ProjectsFixtures.project_fixture()
 
       got =
         Analytics.cache_hit_rate_analytics(
           project.id,
-          start_datetime: @start_datetime,
-          end_datetime: @end_datetime
+          start_datetime: start_datetime,
+          end_datetime: end_datetime
         )
 
       assert got.avg_hit_rate == 0.0
       assert got.trend == 0.0
-      assert got.dates == [~D[2026-01-13], ~D[2026-01-14], ~D[2026-01-15]]
+      assert length(got.dates) == 3
       assert got.values == [0.0, 0.0, 0.0]
     end
   end
 
   describe "cache_hit_rate_percentile/3" do
-    test "returns percentile analytics" do
+    test "returns percentile analytics", %{
+      now: now,
+      start_datetime: start_datetime,
+      end_datetime: end_datetime
+    } do
       project = ProjectsFixtures.project_fixture()
 
       GradleFixtures.build_fixture(
         project_id: project.id,
-        inserted_at: @now,
+        inserted_at: now,
         tasks: [
           %{task_path: ":app:compileKotlin", outcome: "local_hit", cacheable: true},
           %{task_path: ":app:assembleDebug", outcome: "executed", cacheable: true}
@@ -140,8 +173,8 @@ defmodule Tuist.Gradle.AnalyticsTest do
         Analytics.cache_hit_rate_percentile(
           project.id,
           0.5,
-          start_datetime: @start_datetime,
-          end_datetime: @end_datetime
+          start_datetime: start_datetime,
+          end_datetime: end_datetime
         )
 
       assert is_number(got.total_percentile_hit_rate)
@@ -150,15 +183,18 @@ defmodule Tuist.Gradle.AnalyticsTest do
       assert length(got.values) == 3
     end
 
-    test "returns zero when no data exists" do
+    test "returns zero when no data exists", %{
+      start_datetime: start_datetime,
+      end_datetime: end_datetime
+    } do
       project = ProjectsFixtures.project_fixture()
 
       got =
         Analytics.cache_hit_rate_percentile(
           project.id,
           0.99,
-          start_datetime: @start_datetime,
-          end_datetime: @end_datetime
+          start_datetime: start_datetime,
+          end_datetime: end_datetime
         )
 
       assert got.total_percentile_hit_rate == 0.0
@@ -167,13 +203,17 @@ defmodule Tuist.Gradle.AnalyticsTest do
   end
 
   describe "cache_hit_rate_scatter_data/2" do
-    test "returns individual build cache hit rates grouped by environment" do
+    test "returns individual build cache hit rates grouped by environment", %{
+      now: now,
+      start_datetime: start_datetime,
+      end_datetime: end_datetime
+    } do
       project = ProjectsFixtures.project_fixture()
 
       ci_build_id =
         GradleFixtures.build_fixture(
           project_id: project.id,
-          inserted_at: @now,
+          inserted_at: now,
           is_ci: true,
           root_project_name: "my-app",
           tasks: [
@@ -185,7 +225,7 @@ defmodule Tuist.Gradle.AnalyticsTest do
       local_build_id =
         GradleFixtures.build_fixture(
           project_id: project.id,
-          inserted_at: @now,
+          inserted_at: now,
           is_ci: false,
           root_project_name: "my-app",
           tasks: [
@@ -199,8 +239,8 @@ defmodule Tuist.Gradle.AnalyticsTest do
       got =
         Analytics.cache_hit_rate_scatter_data(
           project.id,
-          start_datetime: @start_datetime,
-          end_datetime: @end_datetime
+          start_datetime: start_datetime,
+          end_datetime: end_datetime
         )
 
       assert got.truncated == false
@@ -227,12 +267,16 @@ defmodule Tuist.Gradle.AnalyticsTest do
       assert local_point.id == local_build_id
     end
 
-    test "groups by project name when group_by is :project" do
+    test "groups by project name when group_by is :project", %{
+      now: now,
+      start_datetime: start_datetime,
+      end_datetime: end_datetime
+    } do
       project = ProjectsFixtures.project_fixture()
 
       GradleFixtures.build_fixture(
         project_id: project.id,
-        inserted_at: @now,
+        inserted_at: now,
         root_project_name: "app-one",
         tasks: [
           %{task_path: ":app:compileKotlin", outcome: "local_hit", cacheable: true}
@@ -241,7 +285,7 @@ defmodule Tuist.Gradle.AnalyticsTest do
 
       GradleFixtures.build_fixture(
         project_id: project.id,
-        inserted_at: @now,
+        inserted_at: now,
         root_project_name: "app-two",
         tasks: [
           %{task_path: ":app:compileKotlin", outcome: "executed", cacheable: true}
@@ -251,8 +295,8 @@ defmodule Tuist.Gradle.AnalyticsTest do
       got =
         Analytics.cache_hit_rate_scatter_data(
           project.id,
-          start_datetime: @start_datetime,
-          end_datetime: @end_datetime,
+          start_datetime: start_datetime,
+          end_datetime: end_datetime,
           group_by: :project
         )
 
@@ -265,14 +309,17 @@ defmodule Tuist.Gradle.AnalyticsTest do
       assert app_two_series
     end
 
-    test "returns empty series when no builds exist" do
+    test "returns empty series when no builds exist", %{
+      start_datetime: start_datetime,
+      end_datetime: end_datetime
+    } do
       project = ProjectsFixtures.project_fixture()
 
       got =
         Analytics.cache_hit_rate_scatter_data(
           project.id,
-          start_datetime: @start_datetime,
-          end_datetime: @end_datetime
+          start_datetime: start_datetime,
+          end_datetime: end_datetime
         )
 
       assert got.series == []
@@ -282,35 +329,39 @@ defmodule Tuist.Gradle.AnalyticsTest do
   end
 
   describe "cache_event_analytics/2" do
-    test "returns upload and download statistics" do
+    test "returns upload and download statistics", %{
+      now: now,
+      start_datetime: start_datetime,
+      end_datetime: end_datetime
+    } do
       project = ProjectsFixtures.project_fixture()
 
       GradleFixtures.cache_event_fixture(
         project_id: project.id,
         action: "upload",
         size: 1_000_000,
-        inserted_at: @now
+        inserted_at: now
       )
 
       GradleFixtures.cache_event_fixture(
         project_id: project.id,
         action: "upload",
         size: 2_000_000,
-        inserted_at: @now
+        inserted_at: now
       )
 
       GradleFixtures.cache_event_fixture(
         project_id: project.id,
         action: "download",
         size: 500_000,
-        inserted_at: @now
+        inserted_at: now
       )
 
       got =
         Analytics.cache_event_analytics(
           project.id,
-          start_datetime: @start_datetime,
-          end_datetime: @end_datetime
+          start_datetime: start_datetime,
+          end_datetime: end_datetime
         )
 
       assert got.uploads.total_size == 3_000_000
@@ -319,14 +370,17 @@ defmodule Tuist.Gradle.AnalyticsTest do
       assert got.downloads.count == 1
     end
 
-    test "returns zeros when no data exists" do
+    test "returns zeros when no data exists", %{
+      start_datetime: start_datetime,
+      end_datetime: end_datetime
+    } do
       project = ProjectsFixtures.project_fixture()
 
       got =
         Analytics.cache_event_analytics(
           project.id,
-          start_datetime: @start_datetime,
-          end_datetime: @end_datetime
+          start_datetime: start_datetime,
+          end_datetime: end_datetime
         )
 
       assert got.uploads.total_size == 0
@@ -335,21 +389,25 @@ defmodule Tuist.Gradle.AnalyticsTest do
       assert got.downloads.count == 0
     end
 
-    test "includes trend calculation" do
+    test "includes trend calculation", %{
+      now: now,
+      start_datetime: start_datetime,
+      end_datetime: end_datetime
+    } do
       project = ProjectsFixtures.project_fixture()
 
       GradleFixtures.cache_event_fixture(
         project_id: project.id,
         action: "upload",
         size: 1_000_000,
-        inserted_at: @now
+        inserted_at: now
       )
 
       got =
         Analytics.cache_event_analytics(
           project.id,
-          start_datetime: @start_datetime,
-          end_datetime: @end_datetime
+          start_datetime: start_datetime,
+          end_datetime: end_datetime
         )
 
       assert is_number(got.uploads.trend)
