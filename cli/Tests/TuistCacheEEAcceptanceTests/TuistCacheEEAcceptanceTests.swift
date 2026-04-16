@@ -294,11 +294,6 @@ struct TuistCacheEEAcceptanceTests {
         try TuistTest.expectLinked("Framework1.xcframework", by: "App", inXcodeProj: xcodeprojPath)
     }
 
-    // Regression test for https://github.com/tuist/tuist/pull/9946: passing a positional target
-    // whose dependency tree includes internal targets caused the cache command to short-circuit
-    // with "All cacheable targets are already cached" because the dependencies were excluded
-    // from hashing, which in turn made the root target itself fail the transitive-hashability
-    // check in GraphContentHasher.
     @Test(
         .inTemporaryDirectory,
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
