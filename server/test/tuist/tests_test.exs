@@ -339,7 +339,7 @@ defmodule Tuist.TestsTest do
           ran_at: NaiveDateTime.utc_now(),
           is_ci: false,
           run_destinations: [
-            %{name: "iPhone 17", platform: "iOS Simulator", os_version: "26.4"}
+            %{name: "iPhone 17", platform: "ios_simulator", os_version: "26.4"}
           ]
         })
 
@@ -1181,8 +1181,8 @@ defmodule Tuist.TestsTest do
         ran_at: NaiveDateTime.utc_now(),
         is_ci: false,
         run_destinations: [
-          %{name: "iPhone 17", platform: "iOS Simulator", os_version: "26.4"},
-          %{name: "iPhone 17 Pro", platform: "iOS Simulator", os_version: "26.4"}
+          %{name: "iPhone 17", platform: "ios_simulator", os_version: "26.4"},
+          %{name: "iPhone 17 Pro", platform: "ios_simulator", os_version: "26.4"}
         ]
       }
 
@@ -1216,7 +1216,7 @@ defmodule Tuist.TestsTest do
         ran_at: NaiveDateTime.utc_now(),
         is_ci: false,
         run_destinations: [
-          %{"name" => "iPhone Air", "platform" => "iOS Simulator", "os_version" => "26.4"}
+          %{"name" => "iPhone Air", "platform" => "ios_simulator", "os_version" => "26.4"}
         ]
       }
 
@@ -1246,9 +1246,9 @@ defmodule Tuist.TestsTest do
         ran_at: NaiveDateTime.utc_now(),
         is_ci: false,
         run_destinations: [
-          %{name: "iPhone 17", platform: "iOS Simulator", os_version: "26.4"},
+          %{name: "iPhone 17", platform: "ios_simulator", os_version: "26.4"},
           %{name: "iPhone 17 Pro", platform: nil, os_version: "26.4"},
-          %{name: nil, platform: "iOS Simulator", os_version: "26.4"}
+          %{name: nil, platform: "ios_simulator", os_version: "26.4"}
         ]
       }
 

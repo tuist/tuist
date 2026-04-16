@@ -89,33 +89,6 @@ defmodule Tuist.Tests.TestRunDestinationTest do
     end
   end
 
-  describe "normalize_platform/1" do
-    test "maps known real-device platforms to snake-case strings" do
-      assert TestRunDestination.normalize_platform("macOS") == "macos"
-      assert TestRunDestination.normalize_platform("iOS") == "ios"
-      assert TestRunDestination.normalize_platform("tvOS") == "tvos"
-      assert TestRunDestination.normalize_platform("watchOS") == "watchos"
-      assert TestRunDestination.normalize_platform("visionOS") == "visionos"
-    end
-
-    test "maps known simulator platforms to snake-case strings" do
-      assert TestRunDestination.normalize_platform("iOS Simulator") == "ios_simulator"
-      assert TestRunDestination.normalize_platform("tvOS Simulator") == "tvos_simulator"
-      assert TestRunDestination.normalize_platform("watchOS Simulator") == "watchos_simulator"
-      assert TestRunDestination.normalize_platform("visionOS Simulator") == "visionos_simulator"
-    end
-
-    test "folds iPadOS onto the iOS family" do
-      assert TestRunDestination.normalize_platform("iPadOS") == "ios"
-      assert TestRunDestination.normalize_platform("iPadOS Simulator") == "ios_simulator"
-    end
-
-    test "returns \"unknown\" for unrecognised platforms" do
-      assert TestRunDestination.normalize_platform("Linux") == "unknown"
-      assert TestRunDestination.normalize_platform(nil) == "unknown"
-    end
-  end
-
   describe "humanize_platform/1" do
     test "reverses the normalised form back to the xcresult-style display string" do
       assert TestRunDestination.humanize_platform("macos") == "macOS"

@@ -47,8 +47,8 @@ defmodule TuistWeb.TestRunLiveTest do
       RunsFixtures.test_fixture(
         project_id: project.id,
         run_destinations: [
-          %{name: "iPhone 17", platform: "iOS Simulator", os_version: "26.4"},
-          %{name: "iPhone 17 Pro", platform: "iOS Simulator", os_version: "26.4"}
+          %{name: "iPhone 17", platform: "ios_simulator", os_version: "26.4"},
+          %{name: "iPhone 17 Pro", platform: "ios_simulator", os_version: "26.4"}
         ]
       )
 

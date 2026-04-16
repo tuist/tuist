@@ -324,13 +324,11 @@ defmodule Tuist.Tests do
     rows =
       destinations
       |> Enum.map(fn destination ->
-        platform = destination_field(destination, :platform)
-
         %{
           id: UUIDv7.generate(),
           test_run_id: test_run_id,
           name: destination_field(destination, :name),
-          platform: platform && TestRunDestination.normalize_platform(platform),
+          platform: destination_field(destination, :platform),
           os_version: destination_field(destination, :os_version),
           inserted_at: now
         }
