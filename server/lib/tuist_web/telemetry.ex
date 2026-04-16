@@ -13,10 +13,8 @@ defmodule TuistWeb.Telemetry do
     children = [
       # Telemetry poller will execute the given period measurements
       # every 10_000ms. Learn more here: https://hexdocs.pm/telemetry_metrics
-      {:telemetry_poller, measurements: periodic_measurements(), period: 10_000},
-      # Add reporters as children of your supervision tree.
-      # {Telemetry.Metrics.ConsoleReporter, metrics: metrics()}
-      Tuist.PromEx
+      {:telemetry_poller, measurements: periodic_measurements(), period: 10_000}
+      # Tuist.PromEx is started from Tuist.Application as the first child so it catches Oban/Ecto init events.
     ]
 
     Supervisor.init(children, strategy: :one_for_one)

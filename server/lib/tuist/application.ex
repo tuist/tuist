@@ -138,6 +138,7 @@ defmodule Tuist.Application do
   defp get_children do
     children =
       [
+        Tuist.PromEx,
         {DBConnection.TelemetryListener, name: TelemetryListener},
         {Tuist.Repo, connection_listeners: {[TelemetryListener], :postgres}},
         {Tuist.ClickHouseRepo, connection_listeners: {[TelemetryListener], :clickhouse_read}},
