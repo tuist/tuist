@@ -103,10 +103,6 @@ defmodule TuistWeb.GradleBuildLive do
     |> assign_tab_data(selected_tab, params)
   end
 
-  def build_runs_path(%{selected_account: account, selected_project: project, uri: uri}) do
-    Query.append(~p"/#{account.name}/#{project.name}/builds/build-runs", uri.query)
-  end
-
   defp build_run_path(socket) do
     %{selected_account: account, selected_project: project, build: build} = socket.assigns
     "/#{account.name}/#{project.name}/builds/build-runs/#{build.id}"

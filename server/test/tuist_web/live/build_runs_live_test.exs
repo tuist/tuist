@@ -89,27 +89,4 @@ defmodule TuistWeb.BuildRunsLiveTest do
     assert has_element?(lv, "[data-part='build-runs-table'] span", "App")
     refute has_element?(lv, "[data-part='build-runs-table'] span", "Framework")
   end
-
-  test "preserves the current query in build run links", %{
-    conn: conn,
-    organization: organization,
-    project: project
-  } do
-    {:ok, build_run} =
-      RunsFixtures.build_fixture(
-        project_id: project.id,
-        scheme: "App"
-      )
-
-    {:ok, lv, _html} =
-      live(
-        conn,
-        ~p"/#{organization.account.name}/#{project.name}/builds/build-runs?filter_scheme_op===&filter_scheme_val=App"
-      )
-
-    assert has_element?(
-             lv,
-             ~s([data-part="link"][href="/#{organization.account.name}/#{project.name}/builds/build-runs/#{build_run.id}?filter_scheme_op=%3D%3D&filter_scheme_val=App"])
-           )
-  end
 end
