@@ -252,6 +252,55 @@ defmodule CacheWeb.GradleControllerTest do
       assert S3Transfers.pending(:upload, 10) == []
     end
 
+    test "rejects truncated uploads without persisting the partial body", %{conn: conn} do
+      # Regression test for a class of bug where a client disconnect mid-PUT
+      # produced an `{:ok, partial, conn}` result from the HTTP adapter. The
+      # partial bytes were previously persisted as a complete cache entry
+      # and served back with `200 OK` on every subsequent download, causing
+      # clients to fail deep inside their snapshot parsers with null-message
+      # errors. The reader must now reject the request before anything is
+      # written to disk.
+      account_handle = "test-account"
+      project_handle = "test-project"
+      cache_key = "abc123"
+      partial_chunk = String.duplicate("x", 512)
+      declared_length = 10_000
+
+      expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
+        {:ok, "Bearer valid-token"}
+      end)
+
+      expect(Gradle.Disk, :exists?, fn ^account_handle, ^project_handle, ^cache_key ->
+        false
+      end)
+
+      reject(Gradle.Disk, :put, 4)
+
+      expect(Plug.Conn, :read_body, fn conn, _opts ->
+        {:ok, partial_chunk, conn}
+      end)
+
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> put_req_header("content-type", "application/octet-stream")
+        |> put_req_header("content-length", Integer.to_string(declared_length))
+        |> put(
+          "/api/cache/gradle/#{cache_key}?account_handle=#{account_handle}&project_handle=#{project_handle}",
+          partial_chunk
+        )
+
+      assert conn.status == 400
+
+      response = json_response(conn, 400)
+
+      assert response["message"] ==
+               "Request body was truncated before reaching the declared Content-Length"
+
+      :ok = Cache.S3TransfersBuffer.flush()
+      assert S3Transfers.pending(:upload, 10) == []
+    end
+
     test "skips save when artifact already exists", %{conn: conn} do
       account_handle = "test-account"
       project_handle = "test-project"
