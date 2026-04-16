@@ -186,13 +186,7 @@ public struct XCResultParser: Sendable {
 
         let overallStatus = overallStatus(from: allTestCases)
         let testModules = testModules(from: allTestCases, suiteDurations: suiteDurations, moduleDurations: moduleDurations)
-        let runDestinations = (output.devices ?? []).compactMap { device -> RunDestination? in
-            guard let name = device.deviceName,
-                  let platform = device.platform,
-                  let osVersion = device.osVersion
-            else { return nil }
-            return RunDestination(name: name, platform: platform, osVersion: osVersion)
-        }
+        let runDestinations = Self.extractRunDestinations(from: output.devices)
 
         return TestSummary(
             testPlanName: output.testNodes.first?.name ?? actionLog.title?.components(separatedBy: .whitespacesAndNewlines).last,
@@ -201,6 +195,19 @@ public struct XCResultParser: Sendable {
             testModules: testModules,
             runDestinations: runDestinations
         )
+    }
+
+    /// Maps the raw `devices` array from `xcresulttool` into the public
+    /// `RunDestination` shape, dropping entries that are missing any of the
+    /// three fields surfaced to the server (name, platform, OS version).
+    static func extractRunDestinations(from devices: [Device]?) -> [RunDestination] {
+        (devices ?? []).compactMap { device in
+            guard let name = device.deviceName,
+                  let platform = device.platform,
+                  let osVersion = device.osVersion
+            else { return nil }
+            return RunDestination(name: name, platform: platform, osVersion: osVersion)
+        }
     }
 
     private func overallStatus(from testCases: [TestCase]) -> TestStatus {
