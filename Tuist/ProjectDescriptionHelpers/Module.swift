@@ -1092,6 +1092,7 @@ public enum Module: String, CaseIterable {
                 [
                     .target(name: Module.alert.targetName, condition: .when([.macos])),
                     .target(name: Module.support.targetName, condition: .when([.macos])),
+                    .target(name: Module.environment.targetName),
                     .target(name: Module.logging.targetName),
                     .target(name: Module.har.targetName, condition: .when([.macos])),
                     .external(name: "OpenAPIRuntime"),
