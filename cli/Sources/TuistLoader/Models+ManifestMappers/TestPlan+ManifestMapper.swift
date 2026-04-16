@@ -15,10 +15,15 @@ extension TestPlan {
         return try TestPlan(
             path: path,
             testTargets: xcTestPlan.testTargets.map { testTarget in
-                try TestableTarget(
+                let projectPath: AbsolutePath = if testTarget.target.projectPath.isEmpty {
+                    generatorPaths.manifestDirectory
+                } else {
+                    try generatorPaths.resolve(path: .relativeToManifest(testTarget.target.projectPath))
+                        .removingLastComponent()
+                }
+                return try TestableTarget(
                     target: TargetReference(
-                        projectPath: generatorPaths.resolve(path: .relativeToManifest(testTarget.target.projectPath))
-                            .removingLastComponent(),
+                        projectPath: projectPath,
                         name: testTarget.target.name
                     ),
                     skipped: !testTarget.enabled

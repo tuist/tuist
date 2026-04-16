@@ -17,7 +17,7 @@ let package = Package(
     ],
     dependencies: [
         .package(id: "tuist.Path", from: "0.3.8"),
-        .package(id: "tuist.FileSystem", .upToNextMinor(from: "0.15.0")),
+        .package(id: "tuist.FileSystem", .upToNextMajor(from: "0.16.2")),
         .package(id: "tuist.Command", from: "0.12.0"),
         .package(id: "kolos65.Mockable", from: "0.3.0"),
     ],

@@ -338,6 +338,7 @@ defmodule Tuist.Docs.Sidebar do
             label: "Continuous integration",
             slug: "/en/guides/integrations/continuous-integration"
           },
+          %Item{label: "HTTP proxy", slug: "/en/guides/integrations/http-proxy"},
           %Item{label: "SSO", slug: "/en/guides/integrations/sso"},
           %Item{label: "Slack", slug: "/en/guides/integrations/slack"},
           %Item{

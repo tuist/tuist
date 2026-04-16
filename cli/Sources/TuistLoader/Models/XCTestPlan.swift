@@ -14,7 +14,11 @@ struct XCTestPlan: Decodable {
             let container = try decoder.container(keyedBy: CodingKeys.self)
 
             let containerPath = try container.decode(String.self, forKey: .containerPath)
-            let containerInfo = containerPath.split(separator: ":")
+            let containerInfo = containerPath.split(
+                separator: ":",
+                maxSplits: 1,
+                omittingEmptySubsequences: false
+            )
             switch containerInfo.count {
             case 1:
                 projectPath = containerPath

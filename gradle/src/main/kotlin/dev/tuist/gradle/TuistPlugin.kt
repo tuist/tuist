@@ -44,6 +44,14 @@ data class TuistGradleConfig(
     companion object {
         internal const val EXTRA_PROPERTY_KEY = "tuist.config"
 
+        fun from(settings: Settings, extension: TuistExtension): TuistGradleConfig =
+            TuistGradleConfig(
+                url = extension.url,
+                project = extension.project.ifBlank { null },
+                uploadInBackground = extension.uploadInBackground,
+                testQuarantineEnabled = extension.testQuarantine.enabled
+            )
+
         fun from(project: org.gradle.api.Project): TuistGradleConfig? =
             project.extensions.extraProperties.let {
                 if (it.has(EXTRA_PROPERTY_KEY)) it.get(EXTRA_PROPERTY_KEY) as? TuistGradleConfig else null
@@ -72,56 +80,57 @@ class TuistPlugin : Plugin<Settings> {
     }
 
     private fun configure(settings: Settings, extension: TuistExtension) {
-        configureBuildCache(settings, extension)
-        configureBuildInsights(settings, extension)
-        configureTestInsights(settings, extension)
+        val config = TuistGradleConfig.from(settings, extension)
+        publishSharedConfig(settings, config)
+        configureBuildCache(settings, config, extension.buildCache)
+        configureBuildInsights(settings, config)
+        configureTestInsights(settings, config)
     }
 
-    private fun configureBuildInsights(settings: Settings, extension: TuistExtension) {
-        val project = extension.project.ifBlank { null }
+    private fun publishSharedConfig(settings: Settings, config: TuistGradleConfig) {
         settings.gradle.rootProject {
-            extensions.extraProperties.set(TuistGradleConfig.EXTRA_PROPERTY_KEY, TuistGradleConfig(
-                url = extension.url,
-                project = project,
-                uploadInBackground = extension.uploadInBackground,
-                testQuarantineEnabled = extension.testQuarantine.enabled
-            ))
+            extensions.extraProperties.set(TuistGradleConfig.EXTRA_PROPERTY_KEY, config)
+        }
+    }
+
+    private fun configureBuildInsights(settings: Settings, config: TuistGradleConfig) {
+        settings.gradle.rootProject {
             pluginManager.apply(TuistBuildInsightsPlugin::class.java)
-            val projectLabel = project ?: "(from tuist.toml)"
+            val projectLabel = config.project ?: "(from tuist.toml)"
             logger.lifecycle("Tuist: Build insights configured for $projectLabel")
         }
     }
 
-    private fun configureTestInsights(settings: Settings, extension: TuistExtension) {
-        val project = extension.project.ifBlank { null }
+    private fun configureTestInsights(settings: Settings, config: TuistGradleConfig) {
         settings.gradle.rootProject {
             pluginManager.apply(TuistTestInsightsPlugin::class.java)
             pluginManager.apply(TuistTestShardingPlugin::class.java)
-            val projectLabel = project ?: "(from tuist.toml)"
+            val projectLabel = config.project ?: "(from tuist.toml)"
             logger.lifecycle("Tuist: Test insights configured for $projectLabel")
         }
     }
 
-    private fun configureBuildCache(settings: Settings, extension: TuistExtension) {
-        val buildCacheConfig = extension.buildCache
+    private fun configureBuildCache(
+        settings: Settings,
+        config: TuistGradleConfig,
+        buildCacheConfig: BuildCacheExtension
+    ) {
         if (!buildCacheConfig.enabled) {
             logger.info("Tuist: Build cache is disabled.")
             return
         }
 
-        val project = extension.project.ifBlank { null }
-
         settings.buildCache {
             remote(TuistBuildCache::class.java) {
-                this.project = project
-                this.url = extension.url
+                this.project = config.project
+                this.url = config.url
                 isPush = buildCacheConfig.push
                 this.allowInsecureProtocol = buildCacheConfig.allowInsecureProtocol
             }
         }
 
         settings.gradle.rootProject {
-            val projectLabel = project ?: "(from tuist.toml)"
+            val projectLabel = config.project ?: "(from tuist.toml)"
             logger.lifecycle("Tuist: Remote build cache configured for $projectLabel")
         }
     }

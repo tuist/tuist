@@ -167,10 +167,6 @@ defmodule TuistWeb.XcodeBuildRunsLive do
     "?#{URI.encode_query(query_params)}"
   end
 
-  def build_run_path(%{selected_project: project, uri: uri}, build_run_id) do
-    Query.append(~p"/#{project.account.name}/#{project.name}/builds/build-runs/#{build_run_id}", uri.query)
-  end
-
   defp build_flop_filters(filters) do
     {ran_by, filters} = Enum.split_with(filters, &(&1.id == "ran_by"))
     {tags_filters, filters} = Enum.split_with(filters, &(&1.id == "custom_tags"))
