@@ -1,0 +1,29 @@
+name: Build Runner Image
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_image:
+        description: "Base Tart image (e.g. ghcr.io/cirruslabs/macos-tahoe-xcode:26.4)"
+        required: true
+      output_image:
+        description: "Output image name (e.g. tuist-runner-xcode-26.4)"
+        required: true
+      runner_version:
+        description: "GitHub Actions runner version (e.g. 2.333.1)"
+        required: true
+
+jobs:
+  build:
+    runs-on: [self-hosted, macos, bare-metal, vm-image-builder]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image
+        run: mise run runner:build-image "${{ inputs.base_image }}" "${{ inputs.output_image }}" "${{ inputs.runner_version }}"
+
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | tart login ghcr.io --username tuist-bot --password-stdin
+
+      - name: Push image to GHCR
+        run: tart push "${{ inputs.output_image }}" "ghcr.io/tuist/${{ inputs.output_image }}:latest"
