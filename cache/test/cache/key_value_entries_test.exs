@@ -99,6 +99,19 @@ defmodule Cache.KeyValueEntriesTest do
     assert Enum.sort(Agent.get(deleted_keys_ref, & &1)) == ["old-entry-1", "old-entry-2"]
   end
 
+  test "delete_one_expired_batch wraps candidate fetch with maintenance busy timeout" do
+    maintenance_timeout_ms = 11
+
+    stub(Config, :key_value_maintenance_busy_timeout_ms, fn -> maintenance_timeout_ms end)
+
+    expect(SQLiteHelpers, :with_repo_busy_timeout, fn
+      KeyValueRepo, ^maintenance_timeout_ms, _fun ->
+        raise %Exqlite.Error{message: "database is locked"}
+    end)
+
+    assert {0, :busy} == KeyValueEntries.delete_one_expired_batch(30)
+  end
+
   test "estimated_size_bytes reads SQLite file sizes instead of scanning rows" do
     KeyValueWriteRepo.insert!(%KeyValueEntry{
       key: "size-entry",

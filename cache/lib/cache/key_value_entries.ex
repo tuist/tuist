@@ -692,7 +692,11 @@ defmodule Cache.KeyValueEntries do
   end
 
   defp candidate_batch_result(cutoff, batch_size, cursor) do
-    candidate_batch(cutoff, batch_size, cursor)
+    maintenance_timeout_ms = Config.key_value_maintenance_busy_timeout_ms()
+
+    SQLiteHelpers.with_repo_busy_timeout(KeyValueRepo, maintenance_timeout_ms, fn ->
+      candidate_batch(cutoff, batch_size, cursor)
+    end)
   rescue
     error ->
       if SQLiteHelpers.contention_error?(error) do
