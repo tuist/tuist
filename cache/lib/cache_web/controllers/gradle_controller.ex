@@ -143,7 +143,8 @@ defmodule CacheWeb.GradleController do
     responses: %{
       ok: {"Upload successful (artifact existed)", nil, nil},
       created: {"Upload successful (new artifact)", nil, nil},
-      bad_request: {"Request body was truncated before reaching the declared Content-Length", "application/json", Error},
+      bad_request:
+        {"Request body was truncated before reaching the declared Content-Length", "application/json", Error},
       length_required: {"Request did not declare a Content-Length", "application/json", Error},
       request_entity_too_large: {"Request body exceeded allowed size", "application/json", Error},
       request_timeout: {"Request body read timed out", "application/json", Error},

@@ -271,9 +271,7 @@ defmodule Cache.BodyReaderTest do
       # Simulates the HTTP adapter returning {:ok, partial, conn} after the
       # client disconnects mid-upload — the path that can persist corrupt
       # cache objects if left unchecked.
-      conn =
-        %Plug.Conn{adapter: {Conn, nil}}
-        |> put_req_header("content-length", "10000")
+      conn = put_req_header(%Plug.Conn{adapter: {Conn, nil}}, "content-length", "10000")
 
       expect(Plug.Conn, :read_body, fn conn, _opts ->
         {:ok, String.duplicate("x", 200), conn}
@@ -285,9 +283,7 @@ defmodule Cache.BodyReaderTest do
     test "returns :truncated and deletes tmp file for truncated streamed bodies" do
       {:ok, tmp_dir} = Briefly.create(directory: true)
 
-      conn =
-        %Plug.Conn{adapter: {Conn, nil}}
-        |> put_req_header("content-length", "800000")
+      conn = put_req_header(%Plug.Conn{adapter: {Conn, nil}}, "content-length", "800000")
 
       chunk = String.duplicate("x", 200_000)
 
@@ -318,9 +314,7 @@ defmodule Cache.BodyReaderTest do
       {:ok, path} = Briefly.create()
       {:ok, device} = :file.open(path, [:write, :binary])
 
-      conn =
-        %Plug.Conn{adapter: {Conn, nil}}
-        |> put_req_header("content-length", "10000")
+      conn = put_req_header(%Plug.Conn{adapter: {Conn, nil}}, "content-length", "10000")
 
       expect(Plug.Conn, :read_body, fn conn, _opts ->
         {:ok, String.duplicate("x", 200), conn}

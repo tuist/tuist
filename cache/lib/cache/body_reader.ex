@@ -361,12 +361,10 @@ defmodule Cache.BodyReader do
 
   defp enforce_device_content_length(result, nil), do: result
 
-  defp enforce_device_content_length({:ok, bytes, conn}, expected_length)
-       when bytes == expected_length,
-       do: {:ok, bytes, conn}
+  defp enforce_device_content_length({:ok, bytes, conn}, expected_length) when bytes == expected_length,
+    do: {:ok, bytes, conn}
 
-  defp enforce_device_content_length({:ok, _bytes, conn}, _expected_length),
-    do: {:error, :truncated, conn}
+  defp enforce_device_content_length({:ok, _bytes, conn}, _expected_length), do: {:error, :truncated, conn}
 
   defp enforce_device_content_length(other, _expected_length), do: other
 end
