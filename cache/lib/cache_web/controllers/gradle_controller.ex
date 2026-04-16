@@ -144,6 +144,7 @@ defmodule CacheWeb.GradleController do
       ok: {"Upload successful (artifact existed)", nil, nil},
       created: {"Upload successful (new artifact)", nil, nil},
       bad_request: {"Request body was truncated before reaching the declared Content-Length", "application/json", Error},
+      length_required: {"Request did not declare a Content-Length", "application/json", Error},
       request_entity_too_large: {"Request body exceeded allowed size", "application/json", Error},
       request_timeout: {"Request body read timed out", "application/json", Error},
       internal_server_error: {"Failed to persist artifact", "application/json", Error},
@@ -162,11 +163,30 @@ defmodule CacheWeb.GradleController do
   # bytes with a 200 — the client then fails deep inside its snapshot parser
   # with a null-message exception that is very hard to trace back to the
   # upload path.
+  #
+  # The enforcement only works when the client declares a Content-Length,
+  # so we require one up-front: chunked transfer encoding (no Content-Length)
+  # would bypass the check and allow the same truncation class of bug back
+  # in. Every legitimate uploader of a Gradle cache entry knows the size
+  # ahead of time (it comes from `BuildCacheEntryWriter.getSize()` on the
+  # client), so this requirement costs nothing for real workloads.
   def save(conn, %{cache_key: cache_key, account_handle: account_handle, project_handle: project_handle}) do
-    if Gradle.Disk.exists?(account_handle, project_handle, cache_key) do
-      handle_existing_artifact(conn)
-    else
-      save_new_artifact(conn, account_handle, project_handle, cache_key)
+    case TuistCommon.BodyReader.get_content_length(conn) do
+      nil ->
+        :telemetry.execute([:cache, :gradle, :upload, :error], %{count: 1}, %{reason: :missing_content_length})
+
+        send_error(
+          conn,
+          :length_required,
+          "PUT /api/cache/gradle/:cache_key requires a Content-Length header"
+        )
+
+      _length ->
+        if Gradle.Disk.exists?(account_handle, project_handle, cache_key) do
+          handle_existing_artifact(conn)
+        else
+          save_new_artifact(conn, account_handle, project_handle, cache_key)
+        end
     end
   end
 

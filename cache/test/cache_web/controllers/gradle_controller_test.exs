@@ -64,6 +64,7 @@ defmodule CacheWeb.GradleControllerTest do
           conn
           |> put_req_header("authorization", "Bearer valid-token")
           |> put_req_header("content-type", "application/octet-stream")
+          |> put_req_header("content-length", Integer.to_string(byte_size(body)))
           |> put(
             "/api/cache/gradle/#{cache_key}?account_handle=#{account_handle}&project_handle=#{project_handle}",
             body
@@ -131,6 +132,7 @@ defmodule CacheWeb.GradleControllerTest do
           conn
           |> put_req_header("authorization", "Bearer valid-token")
           |> put_req_header("content-type", "application/octet-stream")
+          |> put_req_header("content-length", Integer.to_string(byte_size(large_body)))
           |> Plug.Conn.put_private(:body_read_opts, length: 128_000, read_length: 128_000, read_timeout: 60_000)
           |> put(
             "/api/cache/gradle/#{cache_key}?account_handle=#{account_handle}&project_handle=#{project_handle}",
@@ -188,6 +190,7 @@ defmodule CacheWeb.GradleControllerTest do
         conn
         |> put_req_header("authorization", "Bearer valid-token")
         |> put_req_header("content-type", "application/octet-stream")
+        |> put_req_header("content-length", Integer.to_string(byte_size(body)))
         |> put(
           "/api/cache/gradle/#{cache_key}?account_handle=#{account_handle}&project_handle=#{project_handle}",
           body
@@ -238,6 +241,7 @@ defmodule CacheWeb.GradleControllerTest do
           conn
           |> put_req_header("authorization", "Bearer valid-token")
           |> put_req_header("content-type", "application/octet-stream")
+          |> put_req_header("content-length", Integer.to_string(byte_size(chunk)))
           |> put(
             "/api/cache/gradle/#{cache_key}?account_handle=#{account_handle}&project_handle=#{project_handle}",
             chunk
@@ -247,6 +251,45 @@ defmodule CacheWeb.GradleControllerTest do
         response = json_response(conn, 408)
         assert response["message"] == "Request body read timed out"
       end)
+
+      :ok = Cache.S3TransfersBuffer.flush()
+      assert S3Transfers.pending(:upload, 10) == []
+    end
+
+    test "rejects uploads without a Content-Length header with 411", %{conn: conn} do
+      # Without Content-Length the server cannot verify the body arrived
+      # whole, so the truncation check in Cache.BodyReader would be a
+      # no-op. Reject such requests before any persistence happens.
+      account_handle = "test-account"
+      project_handle = "test-project"
+      cache_key = "abc123"
+
+      reject(Gradle.Disk, :exists?, 3)
+      reject(Gradle.Disk, :put, 4)
+
+      expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
+        {:ok, "Bearer valid-token"}
+      end)
+
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> put_req_header("content-type", "application/octet-stream")
+        |> put_req_header("transfer-encoding", "chunked")
+        |> Map.update!(:req_headers, fn headers ->
+          Enum.reject(headers, fn {name, _} -> name == "content-length" end)
+        end)
+        |> put(
+          "/api/cache/gradle/#{cache_key}?account_handle=#{account_handle}&project_handle=#{project_handle}",
+          "whatever"
+        )
+
+      assert conn.status == 411
+
+      response = json_response(conn, 411)
+
+      assert response["message"] ==
+               "PUT /api/cache/gradle/:cache_key requires a Content-Length header"
 
       :ok = Cache.S3TransfersBuffer.flush()
       assert S3Transfers.pending(:upload, 10) == []
@@ -319,6 +362,7 @@ defmodule CacheWeb.GradleControllerTest do
         conn
         |> put_req_header("authorization", "Bearer valid-token")
         |> put_req_header("content-type", "application/octet-stream")
+        |> put_req_header("content-length", Integer.to_string(byte_size(body)))
         |> put(
           "/api/cache/gradle/#{cache_key}?account_handle=#{account_handle}&project_handle=#{project_handle}",
           body
@@ -348,6 +392,7 @@ defmodule CacheWeb.GradleControllerTest do
         conn
         |> put_req_header("authorization", "Bearer valid-token")
         |> put_req_header("content-type", "application/octet-stream")
+        |> put_req_header("content-length", Integer.to_string(byte_size(body)))
         |> Plug.Conn.put_private(:body_read_opts, length: 128_000, read_length: 128_000, read_timeout: 60_000)
         |> put(
           "/api/cache/gradle/#{cache_key}?account_handle=#{account_handle}&project_handle=#{project_handle}",
@@ -381,6 +426,7 @@ defmodule CacheWeb.GradleControllerTest do
           conn
           |> put_req_header("authorization", "Bearer valid-token")
           |> put_req_header("content-type", "application/octet-stream")
+          |> put_req_header("content-length", Integer.to_string(byte_size(body)))
           |> put(
             "/api/cache/gradle/#{cache_key}?account_handle=#{account_handle}&project_handle=#{project_handle}",
             body
@@ -416,6 +462,7 @@ defmodule CacheWeb.GradleControllerTest do
         conn
         |> put_req_header("authorization", "Bearer valid-token")
         |> put_req_header("content-type", "application/octet-stream")
+        |> put_req_header("content-length", Integer.to_string(byte_size(large_body)))
         |> Plug.Conn.put_private(:body_read_opts, length: 128_000, read_length: 128_000, read_timeout: 60_000)
         |> put(
           "/api/cache/gradle/#{cache_key}?account_handle=#{account_handle}&project_handle=#{project_handle}",
