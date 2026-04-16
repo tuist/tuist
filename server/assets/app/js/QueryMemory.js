@@ -6,7 +6,7 @@
  * pathname via a plain link — sidebar items, breadcrumbs, detail-page back
  * buttons — without any per-link wiring.
  *
- * Remember side: whenever the URL changes under a `[data-query-memory]`
+ * Remember side: whenever the URL changes under a `[data-remember-url-query]`
  * marker, write `sessionStorage["tuist:query-memory:" + pathname] = search`.
  * We listen to both `phx:navigate` (link clicks, server `push_patch`,
  * popstate) and `phx:replace-url` (the app-custom silent URL update) because
@@ -23,7 +23,7 @@
  */
 
 const STORAGE_PREFIX = "tuist:query-memory:";
-const MARKER_ATTR = "data-query-memory";
+const MARKER_ATTR = "data-remember-url-query";
 
 function storageKey(pathname) {
   return STORAGE_PREFIX + pathname;
