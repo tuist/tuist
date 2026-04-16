@@ -12,19 +12,22 @@
     import TuistServer
     import TuistSupport
 
-    enum TuistTestFlagError: FatalError, Equatable {
+    public enum TuistTestFlagError: FatalError, Equatable {
         case invalidCombination([String])
+        case passthroughActionVerbConflict(String)
 
-        var description: String {
+        public var description: String {
             switch self {
             case let .invalidCombination(arguments):
                 "The arguments \(arguments.joined(separator: ", ")) are mutually exclusive, only of them can be used."
+            case let .passthroughActionVerbConflict(verb):
+                "The xcodebuild action '\(verb)' cannot be passed after the terminator (--) because Tuist already specifies an action. Remove '\(verb)' from the passthrough arguments (the action is derived from the command and flags like --build-only)."
             }
         }
 
-        var type: ErrorType {
+        public var type: ErrorType {
             switch self {
-            case .invalidCombination:
+            case .invalidCombination, .passthroughActionVerbConflict:
                 .abort
             }
         }
@@ -39,6 +42,21 @@
         "-only-test-configuration",
         "-only-testing",
         "-skip-testing",
+    ]
+
+    private let xcodeBuildActionVerbs: Set<String> = [
+        "build",
+        "build-for-testing",
+        "analyze",
+        "archive",
+        "test",
+        "test-without-building",
+        "install",
+        "install-src",
+        "installsrc",
+        "installhdrs",
+        "clean",
+        "docbuild",
     ]
 
     public struct TestRunCommand: AsyncParsableCommand, LogConfigurableCommand,
@@ -347,10 +365,10 @@
                 }
             }
 
-            if let verb = XcodeBuildActionVerbs.conflictingActionVerb(
-                in: passthroughXcodeBuildArguments
-            ) {
-                throw XcodeBuildPassthroughArgumentError.actionVerbConflict(verb)
+            if let firstPassthroughArgument = passthroughXcodeBuildArguments.first,
+               xcodeBuildActionVerbs.contains(firstPassthroughArgument)
+            {
+                throw TuistTestFlagError.passthroughActionVerbConflict(firstPassthroughArgument)
             }
 
             if skipUITests, skipUnitTests {

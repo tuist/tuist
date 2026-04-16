@@ -286,7 +286,7 @@ struct TestAcceptanceTestInvalidArguments {
                 ]
             )
         }
-        await #expect(throws: XcodeBuildPassthroughArgumentError.actionVerbConflict("build-for-testing")) {
+        await #expect(throws: TuistTestFlagError.passthroughActionVerbConflict("build-for-testing")) {
             try await TuistTest.run(
                 TestCommand.self,
                 [
@@ -303,7 +303,7 @@ struct TestAcceptanceTestInvalidArguments {
                 ]
             )
         }
-        await #expect(throws: XcodeBuildPassthroughArgumentError.actionVerbConflict("test")) {
+        await #expect(throws: TuistTestFlagError.passthroughActionVerbConflict("test")) {
             try await TuistTest.run(
                 TestCommand.self,
                 [
