@@ -329,6 +329,44 @@ class TuistPluginTest {
     }
 
     @Test
+    fun `quarantine configuration stores no unserializable clients in task actions`() {
+        settingsFile.writeText("""
+            plugins {
+                id("dev.tuist")
+            }
+
+            tuist {
+                project = "test-account/test-project"
+                testQuarantine {
+                    enabled = true
+                }
+                buildCache {
+                    enabled = false
+                }
+            }
+
+            rootProject.name = "test-project"
+        """.trimIndent())
+
+        buildFile.writeText("""
+            plugins { java }
+
+            repositories { mavenCentral() }
+        """.trimIndent())
+
+        val result = GradleRunner.create()
+            .withProjectDir(testProjectDir)
+            .withArguments("test", "--configuration-cache", "--dry-run")
+            .withPluginClasspath()
+            .build()
+
+        assertTrue(
+            !result.output.contains("Configuration cache state could not be cached"),
+            "Unexpected configuration cache serialization error:\n${result.output}"
+        )
+    }
+
+    @Test
     fun `plugin logs message when build cache is configured`() {
         settingsFile.writeText("""
             plugins {

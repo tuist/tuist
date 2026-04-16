@@ -468,21 +468,15 @@ internal abstract class TuistTestInsightsPlugin @Inject constructor() : Plugin<P
         }
 
         val quarantineEnabled = config.testQuarantineEnabled ?: ciDetector.isCi()
-        val quarantineService = if (quarantineEnabled) {
-            val httpClients = TuistHttpClients()
-            val configProvider = DefaultConfigurationProvider(
-                project = config.project,
-                serverUrl = config.url,
-                projectDir = java.io.File(System.getProperty("user.dir")),
-                httpClients = httpClients
-            )
-            val httpClient = TuistHttpClient(
-                configurationProvider = configProvider,
-                httpClients = httpClients,
-                connectTimeoutMs = 10_000,
-                readTimeoutMs = 10_000
-            )
-            TuistTestQuarantineService(httpClient = httpClient, baseUrl = config.url)
+        val quarantineServiceProvider = if (quarantineEnabled) {
+            project.gradle.sharedServices.registerIfAbsent(
+                "tuistTestQuarantine",
+                TuistTestQuarantineBuildService::class.java
+            ) {
+                parameters.serverUrl.set(config.url)
+                config.project?.let { parameters.tuistProject.set(it) }
+                parameters.projectDir.set(System.getProperty("user.dir"))
+            }
         } else {
             null
         }
@@ -502,11 +496,12 @@ internal abstract class TuistTestInsightsPlugin @Inject constructor() : Plugin<P
                     }
                 })
 
-                if (quarantineService != null) {
+                if (quarantineServiceProvider != null) {
+                    testTask.usesService(quarantineServiceProvider)
                     testTask.ignoreFailures = true
 
                     testTask.doFirst {
-                        val quarantineMap = quarantineService.getQuarantinedTests()
+                        val quarantineMap = quarantineServiceProvider.get().getQuarantinedTests()
                         serviceProvider.get().quarantineMap = quarantineMap
                         val modulePatterns = quarantineMap[moduleName]
                         if (modulePatterns != null) {

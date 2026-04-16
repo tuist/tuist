@@ -3,6 +3,9 @@ package dev.tuist.gradle
 import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
 import org.gradle.api.logging.Logging
+import org.gradle.api.provider.Property
+import org.gradle.api.services.BuildService
+import org.gradle.api.services.BuildServiceParameters
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.net.HttpURLConnection
@@ -107,5 +110,55 @@ class TuistTestQuarantineService(
                 )
             }
         )
+    }
+}
+
+/**
+ * Gradle [BuildService] wrapper around [TuistTestQuarantineService].
+ *
+ * The HTTP plumbing (OkHttp clients, configuration provider, token provider) is
+ * built lazily inside the service rather than captured in task action closures.
+ * This keeps the configuration cache happy: only serializable parameters
+ * (server URL, project handle, working directory) are written to disk — the
+ * non-serializable OkHttp machinery is rebuilt on demand at execution time.
+ */
+abstract class TuistTestQuarantineBuildService :
+    BuildService<TuistTestQuarantineBuildService.Params> {
+
+    interface Params : BuildServiceParameters {
+        val serverUrl: Property<String>
+        val tuistProject: Property<String>
+        val projectDir: Property<String>
+    }
+
+    @Volatile
+    private var delegate: TuistTestQuarantineService? = null
+    private val lock = Any()
+
+    fun getQuarantinedTests(): Map<String, List<TestIdentifier>> = resolveDelegate().getQuarantinedTests()
+
+    private fun resolveDelegate(): TuistTestQuarantineService {
+        delegate?.let { return it }
+        return synchronized(lock) {
+            delegate ?: createDelegate().also { delegate = it }
+        }
+    }
+
+    private fun createDelegate(): TuistTestQuarantineService {
+        val serverUrl = parameters.serverUrl.get()
+        val httpClients = TuistHttpClients()
+        val configProvider = DefaultConfigurationProvider(
+            project = parameters.tuistProject.orNull,
+            serverUrl = serverUrl,
+            projectDir = java.io.File(parameters.projectDir.get()),
+            httpClients = httpClients
+        )
+        val httpClient = TuistHttpClient(
+            configurationProvider = configProvider,
+            httpClients = httpClients,
+            connectTimeoutMs = 10_000,
+            readTimeoutMs = 10_000
+        )
+        return TuistTestQuarantineService(httpClient = httpClient, baseUrl = serverUrl)
     }
 }
