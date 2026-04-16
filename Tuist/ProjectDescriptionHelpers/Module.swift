@@ -1722,6 +1722,7 @@ public enum Module: String, CaseIterable {
                 ]
             case .loader:
                 [
+                    .target(name: Module.alert.targetName),
                     .target(name: Module.config.targetName),
                     .target(name: Module.projectDescription.targetName),
                     .target(name: Module.core.targetName),
