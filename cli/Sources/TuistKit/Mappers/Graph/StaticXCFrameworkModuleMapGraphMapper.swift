@@ -351,7 +351,7 @@ extension XCFrameworkInfoPlist.Library {
             }
             return "sdk=\(graphPlatform.xcodeSdkRoot)*"
         case .maccatalyst:
-            return "sdk=iphoneos*"
+            return "sdk=macosx*"
         case nil:
             return "sdk=\(graphPlatform.xcodeSdkRoot)*"
         }
