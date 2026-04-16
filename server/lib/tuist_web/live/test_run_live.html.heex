@@ -313,10 +313,7 @@
               </span>
             </div>
           </div>
-          <div
-            :if={@run.build_system != "gradle" and @run.run_destinations != []}
-            data-part="metadata-row"
-          >
+          <div :if={@run.run_destinations != []} data-part="metadata-row">
             <div data-part="metadata">
               <div data-part="title">
                 {dngettext(
