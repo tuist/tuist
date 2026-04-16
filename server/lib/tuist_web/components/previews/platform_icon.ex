@@ -23,4 +23,5 @@ defmodule TuistWeb.Previews.PlatformIcon do
   def platform_icon_name(:visionos), do: "device_vision_pro"
   def platform_icon_name(:visionos_simulator), do: "device_vision_pro_share"
   def platform_icon_name(:android), do: "brand_android"
+  def platform_icon_name(_), do: "devices"
 end

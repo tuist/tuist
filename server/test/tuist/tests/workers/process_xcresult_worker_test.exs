@@ -298,6 +298,54 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
                ProcessXcresultWorker.perform(oban_job(job_args(test_run_id, account.id, project.id)))
     end
 
+    test "forwards run_destinations from parsed data into create_test attrs", %{
+      account: account,
+      project: project
+    } do
+      test_run_id = Ecto.UUID.generate()
+
+      body =
+        Map.put(parsed_data(), "run_destinations", [
+          %{"name" => "iPhone 17", "platform" => "iOS Simulator", "os_version" => "26.4"},
+          %{"name" => "iPhone 17 Pro", "platform" => "iOS Simulator", "os_version" => "26.4"}
+        ])
+
+      expect(Req, :post, fn _url, _opts -> {:ok, %{status: 200, body: body}} end)
+
+      expect(Tuist.Tests, :create_test, fn attrs ->
+        assert attrs.run_destinations == [
+                 %{"name" => "iPhone 17", "platform" => "iOS Simulator", "os_version" => "26.4"},
+                 %{
+                   "name" => "iPhone 17 Pro",
+                   "platform" => "iOS Simulator",
+                   "os_version" => "26.4"
+                 }
+               ]
+
+        {:ok, %{id: test_run_id}}
+      end)
+
+      assert :ok ==
+               ProcessXcresultWorker.perform(oban_job(job_args(test_run_id, account.id, project.id)))
+    end
+
+    test "defaults run_destinations to an empty list when parsed data omits them", %{
+      account: account,
+      project: project
+    } do
+      test_run_id = Ecto.UUID.generate()
+
+      expect(Req, :post, fn _url, _opts -> {:ok, %{status: 200, body: parsed_data()}} end)
+
+      expect(Tuist.Tests, :create_test, fn attrs ->
+        assert attrs.run_destinations == []
+        {:ok, %{id: test_run_id}}
+      end)
+
+      assert :ok ==
+               ProcessXcresultWorker.perform(oban_job(job_args(test_run_id, account.id, project.id)))
+    end
+
     test "signs webhook request with HMAC-SHA256", %{account: account, project: project} do
       test_run_id = Ecto.UUID.generate()
 

@@ -329,7 +329,9 @@
               <div data-part="value">
                 <div data-part="run-destinations">
                   <div :for={destination <- @run.run_destinations} data-part="run-destination">
-                    <.icon name={TestRunDestination.icon_name(destination)} />
+                    <.icon name={
+                      platform_icon_name(TestRunDestination.platform_atom(destination))
+                    } />
                     <span>{destination.name}</span>
                     <span data-part="subtitle">
                       {String.trim("#{destination.platform} #{destination.os_version}")}

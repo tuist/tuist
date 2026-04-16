@@ -8,6 +8,7 @@ defmodule TuistWeb.TestRunLive do
   import TuistWeb.Helpers.StackFrames
   import TuistWeb.Helpers.TestLabels
   import TuistWeb.Helpers.VCSLinks
+  import TuistWeb.Previews.PlatformIcon
   import TuistWeb.Runs.ModuleCacheTab
   import TuistWeb.Runs.RanByBadge
 

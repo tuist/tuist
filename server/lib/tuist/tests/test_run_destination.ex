@@ -26,21 +26,23 @@ defmodule Tuist.Tests.TestRunDestination do
   end
 
   @doc """
-  Maps an xcresult platform string (e.g. "iOS Simulator", "macOS") to the
-  corresponding Noora icon name. Falls back to a generic device icon when the
-  platform is unrecognised.
+  Normalises the xcresult `platform` string into the atom convention used by
+  `TuistWeb.Previews.PlatformIcon.platform_icon_name/1` (e.g. "iOS Simulator"
+  becomes `:ios_simulator`, "macOS" becomes `:macos`). `iPadOS` variants are
+  mapped onto the iOS family since the icon set has no separate iPad glyph.
+  Returns `:unknown` for unrecognised or missing platforms.
   """
-  def icon_name(%__MODULE__{platform: platform}), do: icon_name(platform)
-  def icon_name("macOS"), do: "device_laptop"
-  def icon_name("iOS"), do: "device_mobile"
-  def icon_name("iOS Simulator"), do: "device_mobile_share"
-  def icon_name("iPadOS"), do: "device_mobile"
-  def icon_name("iPadOS Simulator"), do: "device_mobile_share"
-  def icon_name("tvOS"), do: "device_desktop"
-  def icon_name("tvOS Simulator"), do: "device_desktop_share"
-  def icon_name("watchOS"), do: "device_watch"
-  def icon_name("watchOS Simulator"), do: "device_watch_share"
-  def icon_name("visionOS"), do: "device_vision_pro"
-  def icon_name("visionOS Simulator"), do: "device_vision_pro_share"
-  def icon_name(_), do: "devices"
+  def platform_atom(%__MODULE__{platform: platform}), do: platform_atom(platform)
+  def platform_atom("macOS"), do: :macos
+  def platform_atom("iOS"), do: :ios
+  def platform_atom("iOS Simulator"), do: :ios_simulator
+  def platform_atom("iPadOS"), do: :ios
+  def platform_atom("iPadOS Simulator"), do: :ios_simulator
+  def platform_atom("tvOS"), do: :tvos
+  def platform_atom("tvOS Simulator"), do: :tvos_simulator
+  def platform_atom("watchOS"), do: :watchos
+  def platform_atom("watchOS Simulator"), do: :watchos_simulator
+  def platform_atom("visionOS"), do: :visionos
+  def platform_atom("visionOS Simulator"), do: :visionos_simulator
+  def platform_atom(_), do: :unknown
 end
