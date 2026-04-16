@@ -924,7 +924,7 @@ extension ProjectDescription.Product {
         if let productType = productTypes[name] {
             return ProjectDescription.Product.from(product: productType)
         }
-        for product in products {
+        for product in products where product.targets.contains(name) {
             if let productType = productTypes[product.name] {
                 return ProjectDescription.Product.from(product: productType)
             }

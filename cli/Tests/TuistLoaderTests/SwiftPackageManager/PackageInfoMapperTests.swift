@@ -6209,6 +6209,51 @@ struct PackageInfoMapperTests {
 
     @Test(
         .inTemporaryDirectory, .withMockedSwiftVersionProvider
+    ) func map_whenProductTypeLookedUpByProductName_doesNotApplyToTransitiveDependencies() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        try await fileSystem.makeDirectory(
+            at: basePath.appending(try RelativePath(validating: "Package/Sources/WrapperTarget"))
+        )
+        try await fileSystem.makeDirectory(
+            at: basePath.appending(try RelativePath(validating: "Package/Sources/InternalTarget"))
+        )
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "MyProduct", type: .library(.automatic), targets: ["WrapperTarget"]),
+                    ],
+                    targets: [
+                        .test(
+                            name: "WrapperTarget",
+                            dependencies: [.target(name: "InternalTarget", condition: nil)]
+                        ),
+                        .test(name: "InternalTarget"),
+                    ],
+                    platforms: [.ios],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ],
+            packageSettings: .test(
+                productTypes: ["MyProduct": .framework],
+                baseSettings: .default
+            )
+        )
+        let wrapperTarget = try #require(project?.targets.first(where: { $0.name == "WrapperTarget" }))
+        #expect(wrapperTarget.product == .framework)
+
+        let internalTarget = try #require(project?.targets.first(where: { $0.name == "InternalTarget" }))
+        #expect(internalTarget.product == .staticFramework)
+    }
+
+    @Test(
+        .inTemporaryDirectory, .withMockedSwiftVersionProvider
     ) func map_whenSameNameProductAndTarget_keepsTargetNameAsProductName() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package/Sources/Foo")))
