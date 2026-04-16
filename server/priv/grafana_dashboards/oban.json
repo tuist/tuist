@@ -2743,7 +2743,11 @@
   "refresh": "5s",
   "schemaVersion": 26,
   "style": "dark",
-  "tags": ["PromEx", "Oban", "tuist"],
+  "tags": [
+    "PromEx",
+    "Oban",
+    "tuist"
+  ],
   "templating": {
     "list": [
       {
@@ -2754,14 +2758,14 @@
           "value": "elixir_app"
         },
         "datasource": "grafanacloud-tuist-prom",
-        "definition": "label_values(tuist_prom_ex_prom_ex_status_info, job)",
+        "definition": "label_values(tuist_prom_ex_oban_queue_length_count, job)",
         "hide": 0,
         "includeAll": false,
         "label": "Prometheus Job",
         "multi": false,
         "name": "job",
         "options": [],
-        "query": "label_values(tuist_prom_ex_prom_ex_status_info, job)",
+        "query": "label_values(tuist_prom_ex_oban_queue_length_count, job)",
         "refresh": 2,
         "regex": "",
         "skipUrlSync": false,
@@ -2780,14 +2784,14 @@
           "value": "elixir_app_one:4000"
         },
         "datasource": "grafanacloud-tuist-prom",
-        "definition": "label_values(tuist_prom_ex_prom_ex_status_info, instance)",
+        "definition": "label_values(tuist_prom_ex_oban_queue_length_count, instance)",
         "hide": 0,
         "includeAll": false,
         "label": "Application Instance",
         "multi": false,
         "name": "instance",
         "options": [],
-        "query": "label_values(tuist_prom_ex_prom_ex_status_info{job=\"$job\"}, instance)",
+        "query": "label_values(tuist_prom_ex_oban_queue_length_count{job=\"$job\"}, instance)",
         "refresh": 2,
         "regex": "",
         "skipUrlSync": false,
@@ -2801,14 +2805,14 @@
       {
         "allValue": null,
         "datasource": "grafanacloud-tuist-prom",
-        "definition": "label_values(tuist_prom_ex_oban_init_status_info, name)",
+        "definition": "label_values(tuist_prom_ex_oban_queue_length_count, name)",
         "hide": 0,
         "includeAll": false,
         "label": "Oban Instance",
         "multi": false,
         "name": "oban",
         "options": [],
-        "query": "label_values(tuist_prom_ex_oban_init_status_info, name)",
+        "query": "label_values(tuist_prom_ex_oban_queue_length_count, name)",
         "refresh": 1,
         "regex": "",
         "skipUrlSync": false,
@@ -2894,4 +2898,3 @@
   "uid": "7AEB65A64E38EA64A4BCAFD2690A3C83",
   "version": 1
 }
-
