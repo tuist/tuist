@@ -293,4 +293,33 @@ struct TuistCacheEEAcceptanceTests {
         try TuistTest.expectContainsTarget("App", inXcodeProj: xcodeprojPath)
         try TuistTest.expectLinked("Framework1.xcframework", by: "App", inXcodeProj: xcodeprojPath)
     }
+
+    // Regression test for https://github.com/tuist/tuist/pull/9946: passing a positional target
+    // whose dependency tree includes internal targets caused the cache command to short-circuit
+    // with "All cacheable targets are already cached" because the dependencies were excluded
+    // from hashing, which in turn made the root target itself fail the transitive-hashability
+    // check in GraphContentHasher.
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
+        .withFixture("generated_ios_app_with_cache_profiles")
+    ) func cache_warm_with_positional_target_hashes_transitive_dependencies() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        try await TuistTest.run(InstallCommand.self, ["--path", fixtureDirectory.pathString])
+
+        try await TuistTest.run(
+            CacheCommand.self,
+            [
+                "--path", fixtureDirectory.pathString,
+                "--cache-profile", "all-possible",
+                "--generate-only",
+                "NonCacheableModule",
+            ]
+        )
+
+        TuistTest.expectLogs("Targets to be cached: ExpensiveModule, NonCacheableModule")
+        TuistTest.doesntExpectLogs("All cacheable targets are already cached")
+    }
 }
