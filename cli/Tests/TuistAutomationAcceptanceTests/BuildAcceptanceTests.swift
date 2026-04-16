@@ -260,6 +260,22 @@ struct BuildAcceptanceTestInvalidArguments {
                 ]
             )
         }
+        await #expect(throws: XcodeBuildPassthroughArgumentError.actionVerbConflict("build")) {
+            try await TuistTest.run(
+                BuildCommand.self,
+                [
+                    "MyApp",
+                    "--path",
+                    fixturePath.pathString,
+                    "--derived-data-path",
+                    derivedDataPath.pathString,
+                    "--",
+                    "build",
+                    "-configuration",
+                    "Debug",
+                ]
+            )
+        }
     }
 }
 

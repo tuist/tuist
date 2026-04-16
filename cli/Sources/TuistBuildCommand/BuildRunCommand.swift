@@ -13,19 +13,44 @@
 
     public enum XcodeBuildPassthroughArgumentError: FatalError, Equatable {
         case alreadyHandled(String)
+        case actionVerbConflict(String)
 
         public var description: String {
             switch self {
             case let .alreadyHandled(argument):
                 "The argument \(argument) added after the terminator (--) cannot be passed through to xcodebuild because it is handled by Tuist."
+            case let .actionVerbConflict(verb):
+                "The xcodebuild action '\(verb)' cannot be passed after the terminator (--) because Tuist already specifies an action. Remove '\(verb)' from the passthrough arguments (the action is derived from the command and flags like --build-only)."
             }
         }
 
         public var type: ErrorType {
             switch self {
-            case .alreadyHandled:
+            case .alreadyHandled, .actionVerbConflict:
                 .abort
             }
+        }
+    }
+
+    public enum XcodeBuildActionVerbs {
+        public static let all: Set<String> = [
+            "build",
+            "build-for-testing",
+            "analyze",
+            "archive",
+            "test",
+            "test-without-building",
+            "install",
+            "install-src",
+            "installsrc",
+            "installhdrs",
+            "clean",
+            "docbuild",
+        ]
+
+        public static func conflictingActionVerb(in passthroughArguments: [String]) -> String? {
+            guard let first = passthroughArguments.first else { return nil }
+            return all.contains(first) ? first : nil
         }
     }
 
@@ -164,6 +189,12 @@
                 if buildOptions.passthroughXcodeBuildArguments.contains($0) {
                     throw XcodeBuildPassthroughArgumentError.alreadyHandled($0)
                 }
+            }
+
+            if let verb = XcodeBuildActionVerbs.conflictingActionVerb(
+                in: buildOptions.passthroughXcodeBuildArguments
+            ) {
+                throw XcodeBuildPassthroughArgumentError.actionVerbConflict(verb)
             }
 
             if let derivedDataPath = buildOptions.derivedDataPath {

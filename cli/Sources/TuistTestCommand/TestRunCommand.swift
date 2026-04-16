@@ -347,6 +347,12 @@
                 }
             }
 
+            if let verb = XcodeBuildActionVerbs.conflictingActionVerb(
+                in: passthroughXcodeBuildArguments
+            ) {
+                throw XcodeBuildPassthroughArgumentError.actionVerbConflict(verb)
+            }
+
             if skipUITests, skipUnitTests {
                 throw TuistTestFlagError.invalidCombination(
                     ["--skip-ui-tests", "--skip-unit-tests"]
