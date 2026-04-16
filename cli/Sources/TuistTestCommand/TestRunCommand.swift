@@ -21,7 +21,7 @@
             case let .invalidCombination(arguments):
                 "The arguments \(arguments.joined(separator: ", ")) are mutually exclusive, only of them can be used."
             case let .passthroughActionVerbConflict(verb):
-                "The xcodebuild action '\(verb)' cannot be passed after the terminator (--) because Tuist already specifies an action. Remove '\(verb)' from the passthrough arguments (the action is derived from the command and flags like --build-only)."
+                "The xcodebuild action '\(verb)' cannot be passed after the terminator (--). 'tuist test' already picks the action based on its flags: 'test' by default, 'build-for-testing' with --build-only, and 'test-without-building' with --without-building. Drop '\(verb)' from the passthrough arguments, and use --build-only or --without-building if you need a different action."
             }
         }
 
@@ -45,18 +45,9 @@
     ]
 
     private let xcodeBuildActionVerbs: Set<String> = [
-        "build",
-        "build-for-testing",
-        "analyze",
-        "archive",
         "test",
+        "build-for-testing",
         "test-without-building",
-        "install",
-        "install-src",
-        "installsrc",
-        "installhdrs",
-        "clean",
-        "docbuild",
     ]
 
     public struct TestRunCommand: AsyncParsableCommand, LogConfigurableCommand,
