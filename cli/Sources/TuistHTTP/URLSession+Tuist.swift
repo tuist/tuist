@@ -7,14 +7,23 @@ import Foundation
     import TuistHAR
 #endif
 
-private let _sessionLock = NSLock()
-private nonisolated(unsafe) var _currentProxyURL: URL?
-private nonisolated(unsafe) var _tuistURLSession: URLSession = makeTuistURLSession(proxyURL: nil)
+private let _tuistURLSession: URLSession = makeTuistURLSession()
 
-private func tuistURLSessionConfiguration(proxyURL: URL?) -> URLSessionConfiguration {
+private func environmentProxyURL() -> URL? {
+    let environment = ProcessInfo.processInfo.environment
+    let candidates = ["HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy"]
+    for key in candidates {
+        if let value = environment[key], !value.isEmpty, let url = URL(string: value) {
+            return url
+        }
+    }
+    return nil
+}
+
+private func tuistURLSessionConfiguration() -> URLSessionConfiguration {
     let configuration: URLSessionConfiguration = .ephemeral
-    configuration.timeoutIntervalForRequest = 120 // 2 minutes
-    configuration.timeoutIntervalForResource = 300 // 5 minutes
+    configuration.timeoutIntervalForRequest = 120
+    configuration.timeoutIntervalForResource = 300
     configuration.httpMaximumConnectionsPerHost = 20
     #if os(macOS) || os(iOS) || os(tvOS) || os(watchOS)
         configuration.allowsCellularAccess = true
@@ -22,50 +31,32 @@ private func tuistURLSessionConfiguration(proxyURL: URL?) -> URLSessionConfigura
         configuration.allowsExpensiveNetworkAccess = true
     #endif
     #if os(macOS)
-        if let proxyURL, let dictionary = proxyDictionary(for: proxyURL) {
+        if let proxyURL = environmentProxyURL(), let dictionary = proxyDictionary(for: proxyURL) {
             configuration.connectionProxyDictionary = dictionary
         }
     #endif
     return configuration
 }
 
-private func makeTuistURLSession(proxyURL: URL?) -> URLSession {
+private func makeTuistURLSession() -> URLSession {
     #if canImport(TuistHAR)
         return URLSession(
-            configuration: tuistURLSessionConfiguration(proxyURL: proxyURL),
+            configuration: tuistURLSessionConfiguration(),
             delegate: URLSessionMetricsDelegate.shared,
             delegateQueue: nil
         )
     #else
-        return URLSession(configuration: tuistURLSessionConfiguration(proxyURL: proxyURL))
+        return URLSession(configuration: tuistURLSessionConfiguration())
     #endif
 }
 
 extension URLSession {
     public static var tuistShared: URLSession {
-        _sessionLock.lock()
-        defer { _sessionLock.unlock() }
-        return _tuistURLSession
-    }
-
-    /// Configures the HTTP proxy URL used by `URLSession.tuistShared`. Pass `nil` to
-    /// disable the proxy.
-    ///
-    /// Callers are expected to have already resolved their user-facing proxy configuration
-    /// (e.g. `.environmentVariable("HTTPS_PROXY")`) into a concrete URL before reaching this
-    /// function — the HTTP layer intentionally does not know about env variables.
-    public static func configureTuistProxy(_ proxyURL: URL?) {
-        _sessionLock.lock()
-        defer { _sessionLock.unlock() }
-        guard proxyURL != _currentProxyURL else { return }
-        _currentProxyURL = proxyURL
-        _tuistURLSession = makeTuistURLSession(proxyURL: proxyURL)
+        _tuistURLSession
     }
 }
 
 #if os(macOS)
-    /// Builds a `connectionProxyDictionary` compatible with `URLSessionConfiguration`
-    /// for the given proxy URL, or `nil` when the URL has no host.
     func proxyDictionary(for proxyURL: URL) -> [AnyHashable: Any]? {
         guard let host = proxyURL.host else { return nil }
         let port = proxyURL.port ?? defaultProxyPort(for: proxyURL.scheme)

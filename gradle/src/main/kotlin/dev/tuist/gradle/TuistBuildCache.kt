@@ -20,7 +20,6 @@ open class TuistBuildCache : AbstractBuildCache() {
     var executablePath: String? = null
     var url: String? = null
     var allowInsecureProtocol: Boolean = false
-    var proxy: Proxy = Proxy.None
 }
 
 /**
@@ -37,7 +36,7 @@ class TuistBuildCacheServiceFactory : BuildCacheServiceFactory<TuistBuildCache> 
             .config("project", configuration.project ?: "(from tuist.toml)")
 
         val projectDir = java.io.File(System.getProperty("user.dir"))
-        val httpClients = TuistHttpClients(configuration.proxy)
+        val httpClients = TuistHttpClients()
         val configurationProvider = DefaultConfigurationProvider(
             project = configuration.project,
             serverUrl = configuration.url ?: "https://tuist.dev",
@@ -80,7 +79,7 @@ class DefaultConfigurationProvider(
     private val project: String?,
     private val serverUrl: String,
     private val projectDir: java.io.File,
-    private val httpClients: TuistHttpClients = TuistHttpClients.NONE
+    private val httpClients: TuistHttpClients = TuistHttpClients()
 ) : ConfigurationProvider {
 
     private val resolvedServerUrl: java.net.URI by lazy {

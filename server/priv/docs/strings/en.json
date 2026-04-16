@@ -440,9 +440,6 @@
             "continuous-integration": {
               "text": "Continuous integration"
             },
-            "http-proxy": {
-              "text": "HTTP proxy"
-            },
             "sso": {
               "text": "SSO"
             },

@@ -57,7 +57,7 @@ object CacheEndpointResolver {
         accountHandle: String,
         tokenProvider: TokenProvider,
         envProvider: (String) -> String? = { System.getenv(it) },
-        httpClients: TuistHttpClients = TuistHttpClients.NONE,
+        httpClients: TuistHttpClients = TuistHttpClients(),
         getCacheEndpointsService: GetCacheEndpointsService = GetCacheEndpointsService(httpClients)
     ): String {
         val envEndpoint = envProvider("TUIST_CACHE_ENDPOINT")
@@ -81,7 +81,7 @@ object CacheEndpointResolver {
 
     internal fun pickFastestEndpoint(
         endpoints: List<String>,
-        httpClients: TuistHttpClients = TuistHttpClients.NONE
+        httpClients: TuistHttpClients = TuistHttpClients()
     ): String? {
         val bestEndpoint = AtomicReference<String?>(null)
         val bestLatency = AtomicReference(Long.MAX_VALUE)

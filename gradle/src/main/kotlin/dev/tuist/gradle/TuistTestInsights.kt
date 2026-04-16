@@ -285,7 +285,7 @@ abstract class TuistTestInsightsService :
     BuildService<TuistTestInsightsService.Params>,
     AutoCloseable {
 
-    interface Params : BuildServiceParameters, TuistProxyParameters {
+    interface Params : BuildServiceParameters {
         val url: Property<String>
         val project: Property<String>
         val rootProjectName: Property<String>
@@ -372,7 +372,7 @@ abstract class TuistTestInsightsService :
 
     private fun sendReport() {
         val projectValue = parameters.project.orNull
-        val httpClients = TuistHttpClients.from(parameters)
+        val httpClients = TuistHttpClients()
 
         val configProvider = DefaultConfigurationProvider(
             project = projectValue,
@@ -465,12 +465,11 @@ internal abstract class TuistTestInsightsPlugin @Inject constructor() : Plugin<P
             parameters.url.set(config.url)
             config.project?.let { parameters.project.set(it) }
             parameters.rootProjectName.set(project.rootProject.name)
-            parameters.setProxyConfiguration(config.proxy)
         }
 
         val quarantineEnabled = config.testQuarantineEnabled ?: ciDetector.isCi()
         val quarantineService = if (quarantineEnabled) {
-            val httpClients = TuistHttpClients(config.proxy)
+            val httpClients = TuistHttpClients()
             val configProvider = DefaultConfigurationProvider(
                 project = config.project,
                 serverUrl = config.url,

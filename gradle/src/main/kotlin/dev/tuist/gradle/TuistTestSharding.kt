@@ -31,7 +31,7 @@ class TuistTestShardingService(
         token: String,
         accountHandle: String,
         projectHandle: String,
-        httpClients: TuistHttpClients = TuistHttpClients.NONE
+        httpClients: TuistHttpClients = TuistHttpClients()
     ) : this(
         shardsApi = createShardsApi(baseUrl, token, httpClients),
         accountHandle = accountHandle,
@@ -87,7 +87,7 @@ class TuistTestShardingService(
 private fun createShardsApi(
     baseUrl: String,
     token: String,
-    httpClients: TuistHttpClients = TuistHttpClients.NONE
+    httpClients: TuistHttpClients = TuistHttpClients()
 ): ShardsApi {
     // Branch a short-timeout variant off the shared OkHttp client so the
     // proxy (and connection pool) from [httpClients] is reused.
@@ -293,7 +293,7 @@ abstract class TuistPrepareTestShardsTask : DefaultTask() {
     }
 
     private fun createShardingService(): TuistTestShardingService {
-        val httpClients = TuistHttpClients(TuistGradleConfig.from(project)?.proxy ?: Proxy.None)
+        val httpClients = TuistHttpClients()
         val configProvider = DefaultConfigurationProvider(
             project = tuistProject,
             serverUrl = serverUrl,
@@ -351,7 +351,7 @@ abstract class TuistTestShardingPlugin : Plugin<Project> {
             return
         }
 
-        val httpClients = TuistHttpClients(config.proxy)
+        val httpClients = TuistHttpClients()
         val configProvider = DefaultConfigurationProvider(
             project = config.project,
             serverUrl = config.url,

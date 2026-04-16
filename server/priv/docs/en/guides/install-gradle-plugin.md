@@ -66,7 +66,6 @@ The following options are available in the `tuist` extension block in `settings.
 | `executablePath` | `String?` | `null` (uses `tuist` from PATH) | Path to the Tuist CLI executable. |
 | `url` | `String?` | `null` | The base URL of the Tuist server. If not set, it defaults to `"https://tuist.dev"` or the value defined in `tuist.toml`. |
 | `uploadInBackground` | `Boolean?` | `null` | Whether to upload build and test insights in the background. When `null` (default), uploads run in the background for local builds and in the foreground on CI. |
-| `proxy` | `Proxy` | `Proxy.None` | The HTTP proxy the plugin uses for Tuist-managed client traffic. See the <.localized_link href="/guides/integrations/http-proxy">HTTP proxy guide</.localized_link>. |
 
 > [!NOTE]
 > **Tuist.toml**
@@ -75,14 +74,7 @@ The following options are available in the `tuist` extension block in `settings.
 
 ## HTTP proxy {#http-proxy}
 
-If your network routes outbound traffic through an HTTP proxy, see the <.localized_link href="/guides/integrations/http-proxy">HTTP proxy guide</.localized_link> for the Tuist-managed connections that the plugin creates.
-
-That guide covers:
-
-- configuring the proxy in `settings.gradle.kts` for the Gradle plugin
-- configuring the proxy in `Tuist.swift` for generated projects
-- sharing one proxy configuration through `tuist.toml`
-
+If `HTTPS_PROXY` or `HTTP_PROXY` is set in the environment, the plugin automatically routes its Tuist-managed HTTP connections through that proxy. No extra configuration is required.
 
 ## Next steps {#next-steps}
 

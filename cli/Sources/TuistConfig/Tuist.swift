@@ -21,55 +21,11 @@ public struct Tuist: Equatable, Hashable, Sendable {
         }
     }
 
-    /// The HTTP proxy Tuist uses when talking to the Tuist server and related services.
-    public enum Proxy: Equatable, Hashable, Sendable {
-        /// The standard environment variable name Tuist reads when
-        /// `.environmentVariable(nil)` is configured.
-        public static let defaultEnvironmentVariable = "HTTPS_PROXY"
-
-        /// No proxy. Tuist makes direct connections.
-        case none
-
-        /// Read the proxy URL from an environment variable at runtime.
-        ///
-        /// `nil` means Tuist reads the standard ``defaultEnvironmentVariable`` — resolving
-        /// that name happens when `resolvedURL(environment:)` is called rather than being
-        /// baked into the manifest.
-        case environmentVariable(String?)
-
-        /// Use the given proxy URL directly.
-        case url(URL)
-
-        /// Resolves this configuration to a concrete proxy URL.
-        ///
-        /// - `.none` → `nil`.
-        /// - `.url(u)` → `u`.
-        /// - `.environmentVariable(name)` → the URL parsed from `environment[name]`,
-        ///   falling back to `HTTPS_PROXY` when `name` is `nil`. Returns `nil` when the
-        ///   variable is unset, empty, or not a valid URL.
-        ///
-        /// The caller passes the environment dictionary explicitly so that this method
-        /// stays pure and testable without reaching for process-wide state.
-        public func resolvedURL(environment: [String: String]) -> URL? {
-            switch self {
-            case .none:
-                return nil
-            case let .url(url):
-                return url
-            case let .environmentVariable(name):
-                let resolvedName = name ?? Self.defaultEnvironmentVariable
-                guard let value = environment[resolvedName], !value.isEmpty else { return nil }
-                return URL(string: value)
-            }
-        }
-    }
-
     public let project: TuistProject
     public let fullHandle: String?
     public let inspectOptions: InspectOptions
     public let cache: Cache
     public let url: URL
-    public let proxy: Proxy
 
     public static var `default`: Tuist {
         return Tuist(
@@ -86,22 +42,19 @@ public struct Tuist: Equatable, Hashable, Sendable {
         fullHandle: String?,
         inspectOptions: InspectOptions,
         cache: Cache = Cache(),
-        url: URL,
-        proxy: Proxy = .none
+        url: URL
     ) {
         self.project = project
         self.fullHandle = fullHandle
         self.inspectOptions = inspectOptions
         self.cache = cache
         self.url = url
-        self.proxy = proxy
     }
 
     public func hash(into hasher: inout Hasher) {
         hasher.combine(project)
         hasher.combine(fullHandle)
         hasher.combine(url)
-        hasher.combine(proxy)
     }
 
     public func assertingIsGeneratedProjectOrSwiftPackage(errorMessageOverride: String?) throws -> Self {
@@ -117,16 +70,14 @@ public struct Tuist: Equatable, Hashable, Sendable {
             fullHandle: String? = nil,
             inspectOptions: InspectOptions = .init(redundantDependencies: .init(ignoreTagsMatching: [])),
             cache: Cache = Cache(),
-            url: URL = Constants.URLs.production,
-            proxy: Proxy = .none
+            url: URL = Constants.URLs.production
         ) -> Self {
             return Tuist(
                 project: project,
                 fullHandle: fullHandle,
                 inspectOptions: inspectOptions,
                 cache: cache,
-                url: url,
-                proxy: proxy
+                url: url
             )
         }
     #endif

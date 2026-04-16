@@ -55,10 +55,4 @@ brew install --formula tuist@x.y.z
 
 ## HTTP proxy {#http-proxy}
 
-If your network routes outbound traffic through an HTTP proxy, see the <.localized_link href="/guides/integrations/http-proxy">HTTP proxy guide</.localized_link> for the client-side connections managed by Tuist.
-
-That guide covers:
-
-- configuring the proxy in `Tuist.swift` for generated projects
-- configuring the proxy in `settings.gradle.kts` for the Gradle plugin
-- sharing one proxy configuration through `tuist.toml`
+If `HTTPS_PROXY` or `HTTP_PROXY` is set in the environment, Tuist automatically routes the HTTP connections it manages through that proxy. No extra configuration is required.

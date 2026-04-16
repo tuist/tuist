@@ -11,7 +11,7 @@ open class RefreshAuthTokenService(
     private val retrofitProvider: (URI) -> Retrofit
 ) {
     /** Convenience constructor for the common case where callers already have a [TuistHttpClients]. */
-    constructor(httpClients: TuistHttpClients = TuistHttpClients.NONE) : this(
+    constructor(httpClients: TuistHttpClients = TuistHttpClients()) : this(
         retrofitProvider = { httpClients.unauthenticatedRetrofit(it) }
     )
 

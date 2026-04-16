@@ -10,7 +10,7 @@ open class GetCacheEndpointsService(
     private val retrofitProvider: (URI, TokenProvider) -> Retrofit
 ) {
     /** Convenience constructor for the common case where callers already have a [TuistHttpClients]. */
-    constructor(httpClients: TuistHttpClients = TuistHttpClients.NONE) : this(
+    constructor(httpClients: TuistHttpClients = TuistHttpClients()) : this(
         retrofitProvider = { url, tokenProvider -> httpClients.authenticatedRetrofit(url, tokenProvider) }
     )
 

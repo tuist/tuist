@@ -108,7 +108,7 @@ abstract class TuistBuildInsightsService :
     BuildOperationListener,
     AutoCloseable {
 
-    interface Params : BuildServiceParameters, TuistProxyParameters {
+    interface Params : BuildServiceParameters {
         val url: Property<String>
         val project: Property<String>
         val gradleVersion: Property<String>
@@ -312,7 +312,7 @@ abstract class TuistBuildInsightsService :
 
     private fun sendReport(machineMetrics: List<MachineMetricSample>) {
         val projectValue = parameters.project.orNull
-        val httpClients = TuistHttpClients.from(parameters)
+        val httpClients = TuistHttpClients()
         val projectDir = java.io.File(System.getProperty("user.dir"))
 
         val configProvider = DefaultConfigurationProvider(
@@ -460,7 +460,6 @@ internal abstract class TuistBuildInsightsPlugin @Inject constructor(
             config.project?.let { parameters.project.set(it) }
             parameters.gradleVersion.set(project.gradle.gradleVersion)
             parameters.rootProjectName.set(project.rootProject.name)
-            parameters.setProxyConfiguration(config.proxy)
         }
 
         eventsListenerRegistry.onTaskCompletion(serviceProvider)

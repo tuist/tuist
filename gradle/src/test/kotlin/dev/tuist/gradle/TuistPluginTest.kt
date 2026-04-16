@@ -293,40 +293,6 @@ class TuistPluginTest {
     }
 
     @Test
-    fun `proxy DSL accepts all four configurations`() {
-        settingsFile.writeText("""
-            import dev.tuist.gradle.Proxy
-
-            plugins {
-                id("dev.tuist")
-            }
-
-            tuist {
-                project = "test-account/test-project"
-                proxy = Proxy.Url("http://proxy.corp:8080")
-            }
-
-            rootProject.name = "test-project"
-        """.trimIndent())
-
-        buildFile.writeText("""
-            tasks.register("hello") {
-                doLast {
-                    println("Hello!")
-                }
-            }
-        """.trimIndent())
-
-        val result = GradleRunner.create()
-            .withProjectDir(testProjectDir)
-            .withArguments("hello")
-            .withPluginClasspath()
-            .build()
-
-        assertEquals(TaskOutcome.SUCCESS, result.task(":hello")?.outcome)
-    }
-
-    @Test
     fun `build insights logs message when configured`() {
         settingsFile.writeText("""
             plugins {

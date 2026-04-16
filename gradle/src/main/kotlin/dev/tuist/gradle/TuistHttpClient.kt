@@ -14,7 +14,7 @@ class TokenExpiredException : Exception()
  */
 class TuistHttpClient(
     private val configurationProvider: ConfigurationProvider,
-    private val httpClients: TuistHttpClients = TuistHttpClients.NONE,
+    private val httpClients: TuistHttpClients = TuistHttpClients(),
     private val connectTimeoutMs: Int = 30_000,
     private val readTimeoutMs: Int = 60_000
 ) {
