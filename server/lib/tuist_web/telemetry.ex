@@ -14,7 +14,6 @@ defmodule TuistWeb.Telemetry do
       # Telemetry poller will execute the given period measurements
       # every 10_000ms. Learn more here: https://hexdocs.pm/telemetry_metrics
       {:telemetry_poller, measurements: periodic_measurements(), period: 10_000}
-      # Tuist.PromEx is started from Tuist.Application as the first child so it catches Oban/Ecto init events.
     ]
 
     Supervisor.init(children, strategy: :one_for_one)
