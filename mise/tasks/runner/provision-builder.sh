@@ -3,7 +3,7 @@
 #MISE raw=true
 #USAGE arg "<name>" help="Hostname for the machine (e.g. vm-image-builder-01)"
 #USAGE arg "[runner_version]" help="GitHub Actions runner version (default: 2.333.1)"
-#USAGE option "-t --type" help="Server type" default="M2-L"
+#USAGE option "-t --type" help="Server type" default="M1-M"
 #USAGE option "--zone" help="Scaleway zone" default="fr-par-3"
 #USAGE option "--os" help="macOS version to install" default="macos-tahoe-26.0"
 #USAGE option "--ip" help="IP of an existing machine (skip creation)"
@@ -13,24 +13,29 @@
 # This machine's sole purpose is building Tart VM images via Packer.
 # It is NOT part of the Orchard cluster and does NOT run user workloads.
 #
-# The GitHub Actions runner registration token must be provided via the
-# GITHUB_RUNNER_TOKEN environment variable. Generate one at:
-#   https://github.com/organizations/tuist/settings/actions/runners/new
+# The GitHub Actions runner registration token is read from 1Password:
+#   op://<vault>/GITHUB_ACTIONS_VM_IMAGE_BUILDER_TOKEN/notesPlain
 
 set -euo pipefail
 
 SERVER_NAME="${usage_name?}"
-SERVER_TYPE="${usage_type:-M2-L}"
+SERVER_TYPE="${usage_type:-M1-M}"
 ZONE="${usage_zone:-fr-par-3}"
 OS="${usage_os:-macos-tahoe-26.0}"
 RUNNER_VERSION="${usage_runner_version:-2.333.1}"
 GITHUB_URL="${usage_github_url:-https://github.com/tuist}"
 RUNNER_LABELS="self-hosted,macos,bare-metal,vm-image-builder"
 
-if [ -z "${GITHUB_RUNNER_TOKEN:-}" ]; then
-    echo "ERROR: GITHUB_RUNNER_TOKEN environment variable is required."
-    echo "Generate a registration token at:"
-    echo "  https://github.com/organizations/tuist/settings/actions/runners/new"
+echo "==> Reading GitHub Actions runner token from 1Password..."
+if ! command -v op &>/dev/null; then
+    echo "ERROR: 1Password CLI (op) is not installed. Install with: brew install 1password-cli"
+    exit 1
+fi
+
+GITHUB_RUNNER_TOKEN=$(op read "op://cache/GITHUB_ACTIONS_VM_IMAGE_BUILDER_TOKEN/notesPlain" 2>/dev/null || true)
+if [ -z "${GITHUB_RUNNER_TOKEN}" ]; then
+    echo "ERROR: Could not read GITHUB_ACTIONS_VM_IMAGE_BUILDER_TOKEN from 1Password."
+    echo "Ensure the item exists in the 'cache' vault and you are signed in to 1Password."
     exit 1
 fi
 
