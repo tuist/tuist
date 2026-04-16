@@ -160,7 +160,7 @@ struct TestActionManifestMapperTests {
         )
 
         // Then
-        #expect(testAction.testPlans?.isEmpty == true)
+        #expect(testAction.testPlans == nil)
     }
 
     @Test(.inTemporaryDirectory) func action_with_non_xctestplan_files_filtered_out() async throws {
@@ -208,7 +208,7 @@ struct TestActionManifestMapperTests {
         )
 
         // Then
-        #expect(testAction.testPlans?.isEmpty == true)
+        #expect(testAction.testPlans == nil)
         let warnings = AlertController.current.warnings().map(\.message).map { $0.plain() }
         #expect(
             warnings == [

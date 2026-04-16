@@ -2,8 +2,8 @@ import FileSystem
 import Foundation
 import Path
 import ProjectDescription
-import TuistCore
 import TuistAlert
+import TuistCore
 import TuistSupport
 import XcodeGraph
 
@@ -78,13 +78,15 @@ extension XcodeGraph.TestAction {
                     } else {
                         let schemeContext = schemeName.map { " referenced by the scheme '\($0)'" } ?? ""
                         AlertController.current.warning(
-                            .alert("Test plan \(resolvedPath.basename) does not exist at \(resolvedPath.pathString)\(schemeContext)")
+                            .alert(
+                                "Test plan \(resolvedPath.basename) does not exist at \(resolvedPath.pathString)\(schemeContext)"
+                            )
                         )
                     }
                 }
             }
 
-            testPlans = resolvedTestPlans
+            testPlans = resolvedTestPlans.isEmpty ? nil : resolvedTestPlans
 
             // not used when using test plans
             targets = []
