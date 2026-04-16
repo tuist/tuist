@@ -134,8 +134,13 @@ struct TestCaseEventsCommandServiceTests {
             json: false
         )
 
-        // Then
-        assertSnapshot(of: ui(), as: .lines)
+        // Then — normalize locale-dependent dates before snapshotting
+        let normalized = ui().replacingOccurrences(
+            of: #"  .+ — "#,
+            with: "  [date] — ",
+            options: .regularExpression
+        )
+        assertSnapshot(of: normalized, as: .lines)
     }
 
     @Test(
