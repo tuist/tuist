@@ -872,10 +872,6 @@ import XcodeGraph
 
             // Apply the same profile-based filtering used by `tuist generate`.
             // Targets where shouldReplace returns false are excluded from cache warming.
-            // Positional-target filtering (the `targets` argument of `tuist cache`) is applied
-            // earlier by FocusTargetsGraphMappers, which scopes the graph to the requested
-            // targets and their transitive dependencies. Excluding non-requested targets here
-            // would break the transitive hashability check in GraphContentHasher.
             let decider = CacheProfileTargetReplacementDecider(profile: cacheProfile, exceptions: [])
             var excludedTargets = Set<String>()
             for graphTarget in graphTraverser.allTargets() {
