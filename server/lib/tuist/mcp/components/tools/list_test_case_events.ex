@@ -1,25 +1,16 @@
 defmodule Tuist.MCP.Components.Tools.ListTestCaseEvents do
   @moduledoc """
-  List events for a test case (e.g. marked_flaky, quarantined, first_run). The account_handle and project_handle can be extracted from a Tuist dashboard URL: https://tuist.dev/{account_handle}/{project_handle}.
+  List events for a test case (e.g. marked_flaky, quarantined, first_run). The test_case_id can also be a Tuist dashboard URL, e.g. https://tuist.dev/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}.
   """
 
   use Tuist.MCP.Tool,
     name: "list_test_case_events",
-    authorize: [action: :read, category: :test],
     schema: %{
       "type" => "object",
       "properties" => %{
-        "account_handle" => %{
-          "type" => "string",
-          "description" => "The account handle (organization or user)."
-        },
-        "project_handle" => %{
-          "type" => "string",
-          "description" => "The project handle."
-        },
         "test_case_id" => %{
           "type" => "string",
-          "description" => "The ID of the test case."
+          "description" => "The ID of the test case, or a Tuist dashboard URL."
         },
         "page" => %{
           "type" => "integer",
@@ -30,46 +21,53 @@ defmodule Tuist.MCP.Components.Tools.ListTestCaseEvents do
           "description" => "Results per page (default: 20, max: 100)."
         }
       },
-      "required" => ["account_handle", "project_handle", "test_case_id"]
+      "required" => ["test_case_id"]
     }
 
   alias Tuist.MCP.Formatter
   alias Tuist.MCP.Tool, as: MCPTool
   alias Tuist.Tests
 
+  @authorization_action :read
+  @authorization_category :test
+
   @impl EMCP.Tool
   def description,
     do:
-      "List events for a test case (e.g. marked_flaky, quarantined, first_run). The account_handle and project_handle can be extracted from a Tuist dashboard URL: #{Tuist.Environment.app_url()}/{account_handle}/{project_handle}."
+      "List events for a test case (e.g. marked_flaky, quarantined, first_run). The test_case_id can also be a Tuist dashboard URL, e.g. #{Tuist.Environment.app_url()}/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}."
 
-  def execute(_conn, args, project) do
-    test_case_id = Map.fetch!(args, "test_case_id")
-    page = MCPTool.page(args)
-    page_size = MCPTool.page_size(args)
+  @impl EMCP.Tool
+  def call(conn, %{"test_case_id" => test_case_id} = args) when is_binary(test_case_id) do
+    case MCPTool.load_and_authorize(
+           Tests.get_test_case_by_id(test_case_id),
+           conn.assigns,
+           @authorization_action,
+           @authorization_category,
+           "Test case not found: #{test_case_id}"
+         ) do
+      {:ok, test_case, _project} ->
+        page = MCPTool.page(args)
+        page_size = MCPTool.page_size(args)
+        {events, meta} = Tests.list_test_case_events(test_case.id, %{page: page, page_size: page_size})
 
-    case Tests.get_test_case_by_id(test_case_id) do
-      {:ok, test_case} ->
-        if test_case.project_id == project.id do
-          {events, meta} = Tests.list_test_case_events(test_case_id, %{page: page, page_size: page_size})
+        MCPTool.json_response(%{
+          events:
+            Enum.map(events, fn event ->
+              %{
+                event_type: event.event_type,
+                inserted_at: Formatter.iso8601(event.inserted_at, naive: :utc),
+                actor: if(event.actor, do: %{id: event.actor.id, name: event.actor.name})
+              }
+            end),
+          pagination_metadata: MCPTool.pagination_metadata(meta)
+        })
 
-          {:ok,
-           %{
-             events:
-               Enum.map(events, fn event ->
-                 %{
-                   event_type: event.event_type,
-                   inserted_at: Formatter.iso8601(event.inserted_at, naive: :utc),
-                   actor: if(event.actor, do: %{id: event.actor.id, name: event.actor.name})
-                 }
-               end),
-             pagination_metadata: MCPTool.pagination_metadata(meta)
-           }}
-        else
-          {:error, "Test case not found: #{test_case_id}"}
-        end
-
-      {:error, :not_found} ->
-        {:error, "Test case not found: #{test_case_id}"}
+      {:error, message} ->
+        EMCP.Tool.error(message)
     end
+  end
+
+  def call(_conn, _args) do
+    EMCP.Tool.error("Provide a test_case_id.")
   end
 end

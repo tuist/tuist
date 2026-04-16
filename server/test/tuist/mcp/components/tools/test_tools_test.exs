@@ -263,12 +263,12 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
     test "returns events for a test case" do
       project = %{id: 1, name: "app"}
 
-      stub(Projects, :get_project_by_account_and_project_handles, fn "acme", "app" -> project end)
-      stub(Tuist.Authorization, :authorize, fn :test_read, :subject, ^project -> :ok end)
-
       stub(Tests, :get_test_case_by_id, fn "tc-1" ->
         {:ok, %{id: "tc-1", project_id: 1}}
       end)
+
+      stub(Projects, :get_project_by_id, fn 1 -> project end)
+      stub(Tuist.Authorization, :authorize, fn :test_read, :subject, ^project -> :ok end)
 
       stub(Tests, :list_test_case_events, fn "tc-1", _attrs ->
         {[
@@ -296,41 +296,58 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
       conn = %Plug.Conn{assigns: %{current_subject: :subject}}
 
       assert %{"content" => [%{"type" => "text", "text" => text}]} =
-               ListTestCaseEvents.call(conn, %{
-                 "account_handle" => "acme",
-                 "project_handle" => "app",
-                 "test_case_id" => "tc-1"
-               })
+               ListTestCaseEvents.call(conn, %{"test_case_id" => "tc-1"})
 
-      result = JSON.decode!(text)
-      assert length(result["events"]) == 2
-
-      first_event = hd(result["events"])
-      assert first_event["event_type"] == "marked_flaky"
-      assert first_event["actor"]["name"] == "alice"
-
-      second_event = Enum.at(result["events"], 1)
-      assert second_event["event_type"] == "first_run"
-      assert second_event["actor"] == nil
+      assert JSON.decode!(text) == %{
+               "events" => [
+                 %{
+                   "event_type" => "marked_flaky",
+                   "inserted_at" => "2024-06-15T10:30:00Z",
+                   "actor" => %{"id" => 1, "name" => "alice"}
+                 },
+                 %{
+                   "event_type" => "first_run",
+                   "inserted_at" => "2024-06-01T08:00:00Z",
+                   "actor" => nil
+                 }
+               ],
+               "pagination_metadata" => %{
+                 "has_next_page" => false,
+                 "has_previous_page" => false,
+                 "current_page" => 1,
+                 "page_size" => 20,
+                 "total_count" => 2,
+                 "total_pages" => 1
+               }
+             }
     end
 
     test "returns error when test case not found" do
-      project = %{id: 1, name: "app"}
-
-      stub(Projects, :get_project_by_account_and_project_handles, fn "acme", "app" -> project end)
-      stub(Tuist.Authorization, :authorize, fn :test_read, :subject, ^project -> :ok end)
       stub(Tests, :get_test_case_by_id, fn "tc-404" -> {:error, :not_found} end)
 
       conn = %Plug.Conn{assigns: %{current_subject: :subject}}
 
       assert %{"content" => [%{"type" => "text", "text" => text}], "isError" => true} =
-               ListTestCaseEvents.call(conn, %{
-                 "account_handle" => "acme",
-                 "project_handle" => "app",
-                 "test_case_id" => "tc-404"
-               })
+               ListTestCaseEvents.call(conn, %{"test_case_id" => "tc-404"})
 
       assert text =~ "Test case not found"
+    end
+
+    test "requires :test_read authorization" do
+      project = %{id: 1, name: "app"}
+      stub(Tests, :get_test_case_by_id, fn "tc-1" -> {:ok, %{id: "tc-1", project_id: 1}} end)
+      stub(Projects, :get_project_by_id, fn 1 -> project end)
+
+      expect(Tuist.Authorization, :authorize, fn :test_read, :subject, ^project ->
+        {:error, :forbidden}
+      end)
+
+      conn = %Plug.Conn{assigns: %{current_subject: :subject}}
+
+      assert %{"content" => [%{"type" => "text", "text" => text}], "isError" => true} =
+               ListTestCaseEvents.call(conn, %{"test_case_id" => "tc-1"})
+
+      assert text =~ "You do not have access to this resource."
     end
   end
 

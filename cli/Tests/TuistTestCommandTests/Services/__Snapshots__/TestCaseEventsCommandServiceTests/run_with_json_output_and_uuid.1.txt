@@ -1,0 +1,18 @@
+{
+  "events" : [
+    {
+      "event_type" : "marked_flaky",
+      "inserted_at" : 1700000000
+    },
+    {
+      "event_type" : "first_run",
+      "inserted_at" : 1699000000
+    }
+  ],
+  "pagination_metadata" : {
+    "has_next_page" : false,
+    "has_previous_page" : false,
+    "page_size" : 20,
+    "total_count" : 2
+  }
+}
