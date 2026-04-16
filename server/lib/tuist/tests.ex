@@ -51,6 +51,19 @@ defmodule Tuist.Tests do
 
   require OpenTelemetry.Tracer
 
+  # Keys present on the `Test` struct that are NOT columns on the `test_runs`
+  # ClickHouse table (Ecto metadata + association loaders). Used to scrub the
+  # struct when re-inserting an updated row via `IngestRepo.insert_all/2`.
+  @test_struct_non_field_keys [
+    :__meta__,
+    :ran_by_account,
+    :build_run,
+    :gradle_build,
+    :test_case_runs,
+    :shard_plan,
+    :run_destinations
+  ]
+
   def valid_ci_providers, do: ["github", "gitlab", "bitrise", "circleci", "buildkite", "codemagic"]
 
   def total_test_run_count do
@@ -314,9 +327,9 @@ defmodule Tuist.Tests do
         %{
           id: UUIDv7.generate(),
           test_run_id: test_run_id,
-          name: Map.get(destination, :name),
-          platform: Map.get(destination, :platform),
-          os_version: Map.get(destination, :os_version),
+          name: destination_field(destination, :name),
+          platform: destination_field(destination, :platform),
+          os_version: destination_field(destination, :os_version),
           inserted_at: now
         }
       end)
@@ -329,6 +342,10 @@ defmodule Tuist.Tests do
   end
 
   defp create_run_destinations(_, _), do: :ok
+
+  defp destination_field(destination, key) when is_atom(key) do
+    Map.get(destination, key) || Map.get(destination, Atom.to_string(key))
+  end
 
   defp create_or_update_sharded_test(attrs) do
     shard_plan_id = Map.fetch!(attrs, :shard_plan_id)
@@ -388,15 +405,7 @@ defmodule Tuist.Tests do
           update_attrs =
             updated_test
             |> Map.from_struct()
-            |> Map.drop([
-              :__meta__,
-              :ran_by_account,
-              :build_run,
-              :gradle_build,
-              :test_case_runs,
-              :shard_plan,
-              :run_destinations
-            ])
+            |> Map.drop(@test_struct_non_field_keys)
             |> Map.put(:inserted_at, NaiveDateTime.utc_now())
 
           IngestRepo.insert_all(Test, [update_attrs])
@@ -486,15 +495,7 @@ defmodule Tuist.Tests do
     attrs =
       updated_test
       |> Map.from_struct()
-      |> Map.drop([
-        :__meta__,
-        :ran_by_account,
-        :build_run,
-        :gradle_build,
-        :test_case_runs,
-        :shard_plan,
-        :run_destinations
-      ])
+      |> Map.drop(@test_struct_non_field_keys)
       |> Map.put(:inserted_at, NaiveDateTime.utc_now())
 
     IngestRepo.insert_all(Test, [attrs])
@@ -2236,15 +2237,7 @@ defmodule Tuist.Tests do
       Enum.map(stale_runs, fn run ->
         run
         |> Map.from_struct()
-        |> Map.drop([
-          :__meta__,
-          :ran_by_account,
-          :build_run,
-          :gradle_build,
-          :test_case_runs,
-          :shard_plan,
-          :run_destinations
-        ])
+        |> Map.drop(@test_struct_non_field_keys)
         |> Map.merge(%{status: "failure", inserted_at: now})
       end)
 
