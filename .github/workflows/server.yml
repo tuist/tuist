@@ -376,6 +376,7 @@ jobs:
             TUIST_HOSTED=0
             TUIST_VERSION=1.24.11.11
             MIX_ENV=prod
+            APT_CACHE_BUST=${{ github.sha }}
       - name: Install Trivy
         env:
           TRIVY_VERSION: "0.69.3"
