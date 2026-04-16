@@ -31,10 +31,7 @@ function storageKey(pathname) {
 
 function rememberCurrent() {
   if (!document.querySelector(`[${MARKER_ATTR}]`)) return;
-  sessionStorage.setItem(
-    storageKey(window.location.pathname),
-    window.location.search.slice(1),
-  );
+  sessionStorage.setItem(storageKey(window.location.pathname), window.location.search.slice(1));
 }
 
 function onLinkClick(event) {

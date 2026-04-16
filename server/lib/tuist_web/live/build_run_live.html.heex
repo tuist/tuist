@@ -7,7 +7,9 @@
       data-part="back-button"
       variant="secondary"
       size="medium"
-      navigate={~p"/#{@selected_project.account.name}/#{@selected_project.name}/builds/build-runs"}
+      navigate={
+        ~p"/#{@selected_project.account.name}/#{@selected_project.name}/builds/build-runs"
+      }
     >
       <:icon_left>
         <.icon name="arrow_left" />
