@@ -74,7 +74,7 @@ The following options are available in the `tuist` extension block in `settings.
 
 ## HTTP proxy {#http-proxy}
 
-If `HTTPS_PROXY` or `HTTP_PROXY` is set in the environment, the plugin automatically routes its Tuist-managed HTTP connections through that proxy. No extra configuration is required.
+If your network routes outbound traffic through an HTTP proxy, see the <.localized_link href="/guides/integrations/http-proxy">HTTP proxy guide</.localized_link>.
 
 ## Next steps {#next-steps}
 

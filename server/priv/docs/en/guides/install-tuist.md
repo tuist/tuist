@@ -55,4 +55,4 @@ brew install --formula tuist@x.y.z
 
 ## HTTP proxy {#http-proxy}
 
-If `HTTPS_PROXY` or `HTTP_PROXY` is set in the environment, Tuist automatically routes the HTTP connections it manages through that proxy. No extra configuration is required.
+If your network routes outbound traffic through an HTTP proxy, see the <.localized_link href="/guides/integrations/http-proxy">HTTP proxy guide</.localized_link>.

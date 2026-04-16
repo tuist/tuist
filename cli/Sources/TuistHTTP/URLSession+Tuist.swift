@@ -1,4 +1,5 @@
 import Foundation
+import TuistEnvironment
 #if canImport(FoundationNetworking)
     import FoundationNetworking
 #endif
@@ -10,7 +11,7 @@ import Foundation
 private let _tuistURLSession: URLSession = makeTuistURLSession()
 
 private func environmentProxyURL() -> URL? {
-    let environment = ProcessInfo.processInfo.environment
+    let environment = Environment.current.variables
     let candidates = ["HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy"]
     for key in candidates {
         if let value = environment[key], !value.isEmpty, let url = URL(string: value) {
