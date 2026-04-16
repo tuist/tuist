@@ -374,14 +374,28 @@ defmodule Tuist.CommandEvents do
   end
 
   def get_command_event_by_build_run_id(build_run_id) do
-    case ClickHouseRepo.get_by(Event, build_run_id: build_run_id) do
+    query =
+      from(e in Event,
+        where: e.build_run_id == ^build_run_id,
+        order_by: [desc: e.ran_at, desc: e.created_at],
+        limit: 1
+      )
+
+    case ClickHouseRepo.one(query) do
       nil -> {:error, :not_found}
       event -> {:ok, Event.normalize_enums(event)}
     end
   end
 
   def get_command_event_by_test_run_id(test_run_id) do
-    case ClickHouseRepo.get_by(Event, test_run_id: test_run_id) do
+    query =
+      from(e in Event,
+        where: e.test_run_id == ^test_run_id,
+        order_by: [desc: e.ran_at, desc: e.created_at],
+        limit: 1
+      )
+
+    case ClickHouseRepo.one(query) do
       nil -> {:error, :not_found}
       event -> {:ok, Event.normalize_enums(event)}
     end
