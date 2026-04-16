@@ -6,10 +6,10 @@ import TuistAcceptanceTesting
 import TuistBuildCommand
 import TuistEnvironment
 import TuistSupport
-import TuistTestCommand
 import TuistTesting
 
 @testable import TuistKit
+@testable import TuistTestCommand
 
 struct TestAcceptanceTestiOSAppWithFrameworks {
     @Test(

@@ -12,11 +12,11 @@
     import TuistServer
     import TuistSupport
 
-    public enum TuistTestFlagError: FatalError, Equatable {
+    enum TuistTestFlagError: FatalError, Equatable {
         case invalidCombination([String])
         case passthroughActionVerbConflict(String)
 
-        public var description: String {
+        var description: String {
             switch self {
             case let .invalidCombination(arguments):
                 "The arguments \(arguments.joined(separator: ", ")) are mutually exclusive, only of them can be used."
@@ -25,7 +25,7 @@
             }
         }
 
-        public var type: ErrorType {
+        var type: ErrorType {
             switch self {
             case .invalidCombination, .passthroughActionVerbConflict:
                 .abort
