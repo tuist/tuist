@@ -51,12 +51,7 @@ WORKDIR /app
 # ========================================
 FROM ${BUILDER_IMAGE} AS deps-builder
 
-# APT_CACHE_BUST is passed from CI (e.g. the commit SHA) to invalidate the
-# apt layer so `apt-get upgrade` picks up the latest security patches instead
-# of reusing a stale cached layer.
-ARG APT_CACHE_BUST=0
-RUN : "APT_CACHE_BUST=${APT_CACHE_BUST}" \
-  && apt-get update -y && apt-get upgrade -y && apt-get install -y build-essential git \
+RUN apt-get update -y && apt-get upgrade -y && apt-get install -y build-essential git \
   && apt-get clean && rm -f /var/lib/apt/lists/*_*
 
 WORKDIR /app
@@ -107,9 +102,7 @@ COPY server/lib lib
 RUN mix compile --warnings-as-errors
 
 # Install Chromium for OG image generation (headless, no GPU)
-ARG APT_CACHE_BUST=0
-RUN : "APT_CACHE_BUST=${APT_CACHE_BUST}" \
-  && apt-get update -y && apt-get upgrade -y && \
+RUN apt-get update -y && \
   apt-get install -y --no-install-recommends chromium fonts-noto-cjk fonts-noto-core && \
   apt-get clean && rm -rf /var/lib/apt/lists/*
 
