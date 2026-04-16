@@ -138,7 +138,6 @@ defmodule Tuist.Application do
   defp get_children do
     children =
       [
-        Tuist.PromEx,
         {DBConnection.TelemetryListener, name: TelemetryListener},
         {Tuist.Repo, connection_listeners: {[TelemetryListener], :postgres}},
         {Tuist.ClickHouseRepo, connection_listeners: {[TelemetryListener], :clickhouse_read}},
@@ -161,6 +160,7 @@ defmodule Tuist.Application do
         Supervisor.child_spec(TestCaseEvent.Buffer, id: TestCaseEvent.Buffer),
         Supervisor.child_spec(CASEvent.Buffer, id: CASEvent.Buffer),
         Tuist.Vault,
+        Tuist.PromEx,
         {Oban, Application.fetch_env!(:tuist, Oban)},
         {Cachex, [:tuist, []]},
         {Finch, name: Tuist.Finch, pools: finch_pools()},
