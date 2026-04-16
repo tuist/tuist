@@ -312,15 +312,19 @@ abstract class TuistBuildInsightsService :
 
     private fun sendReport(machineMetrics: List<MachineMetricSample>) {
         val projectValue = parameters.project.orNull
+        val httpClients = TuistHttpClients()
+        val projectDir = java.io.File(System.getProperty("user.dir"))
 
         val configProvider = DefaultConfigurationProvider(
             project = projectValue,
             serverUrl = parameters.url.get(),
-            projectDir = java.io.File(System.getProperty("user.dir"))
+            projectDir = projectDir,
+            httpClients = httpClients
         )
 
         val httpClient = TuistHttpClient(
             configurationProvider = configProvider,
+            httpClients = httpClients,
             connectTimeoutMs = 10_000,
             readTimeoutMs = 10_000
         )
@@ -487,4 +491,3 @@ internal abstract class TuistBuildInsightsPlugin @Inject constructor(
         }
     }
 }
-

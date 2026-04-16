@@ -104,8 +104,16 @@ class CacheEndpointResolverTest {
 
         val envProvider: (String) -> String? = { null }
 
-        CacheEndpointResolver.resolve(serverURL, accountHandle, stubTokenProvider, envProvider, countingService)
-        CacheEndpointResolver.resolve(serverURL, accountHandle, stubTokenProvider, envProvider, countingService)
+        CacheEndpointResolver.resolve(
+            serverURL, accountHandle, stubTokenProvider,
+            envProvider = envProvider,
+            getCacheEndpointsService = countingService
+        )
+        CacheEndpointResolver.resolve(
+            serverURL, accountHandle, stubTokenProvider,
+            envProvider = envProvider,
+            getCacheEndpointsService = countingService
+        )
 
         assertEquals(2, callCount)
     }
