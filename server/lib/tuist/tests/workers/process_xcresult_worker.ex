@@ -118,7 +118,8 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
         scheme: parsed_data["test_plan_name"] || Map.get(args, "scheme"),
         status: parsed_data["status"] || "success",
         duration: parsed_data["duration"] || 0,
-        test_modules: parsed_data["test_modules"] || []
+        test_modules: parsed_data["test_modules"] || [],
+        run_destinations: parsed_data["run_destinations"] || []
       })
 
     case Tests.create_test(attrs) do

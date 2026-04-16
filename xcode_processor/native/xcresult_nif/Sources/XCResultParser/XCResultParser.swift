@@ -186,12 +186,20 @@ public struct XCResultParser: Sendable {
 
         let overallStatus = overallStatus(from: allTestCases)
         let testModules = testModules(from: allTestCases, suiteDurations: suiteDurations, moduleDurations: moduleDurations)
+        let runDestinations = (output.devices ?? []).compactMap { device -> RunDestination? in
+            guard let name = device.deviceName,
+                  let platform = device.platform,
+                  let osVersion = device.osVersion
+            else { return nil }
+            return RunDestination(name: name, platform: platform, osVersion: osVersion)
+        }
 
         return TestSummary(
             testPlanName: output.testNodes.first?.name ?? actionLog.title?.components(separatedBy: .whitespacesAndNewlines).last,
             status: overallStatus,
             duration: overallDuration,
-            testModules: testModules
+            testModules: testModules,
+            runDestinations: runDestinations
         )
     }
 

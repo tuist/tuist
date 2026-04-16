@@ -53,6 +53,7 @@ defmodule Tuist.Tests.Test do
     belongs_to :gradle_build, Tuist.Gradle.Build, foreign_key: :gradle_build_id, define_field: false
     belongs_to :shard_plan, Tuist.Shards.ShardPlan, foreign_key: :shard_plan_id, define_field: false
     has_many :test_case_runs, Tuist.Tests.TestCaseRun, foreign_key: :test_run_id
+    has_many :run_destinations, Tuist.Tests.TestRunDestination, foreign_key: :test_run_id
 
     field :inserted_at, Ch, type: "DateTime64(6)"
   end
