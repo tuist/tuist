@@ -147,9 +147,10 @@
 
             & > [data-part="run-destinations"] {
               display: flex;
-              flex-direction: column;
-              align-items: flex-start;
-              gap: var(--noora-spacing-3);
+              flex-direction: row;
+              flex-wrap: wrap;
+              align-items: center;
+              gap: var(--noora-spacing-6);
 
               & > [data-part="run-destination"] {
                 display: flex;
@@ -164,16 +165,8 @@
                   color: var(--noora-surface-label-secondary);
                 }
 
-                & > [data-part="run-destination-labels"] {
-                  display: flex;
-                  flex-direction: column;
-                  align-items: flex-start;
-                  line-height: 1.2;
-
-                  & > [data-part="subtitle"] {
-                    color: var(--noora-surface-label-secondary);
-                    font: var(--noora-font-weight-regular) var(--noora-font-body-xsmall);
-                  }
+                & > [data-part="subtitle"] {
+                  color: var(--noora-surface-label-secondary);
                 }
               }
             }
