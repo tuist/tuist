@@ -58,4 +58,54 @@ struct TestPlanManifestMapperTests {
             )
         }
     }
+
+    @Test func plan_with_bare_container_path_resolves_to_manifest_directory() async throws {
+        try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
+            // Given
+            let testPlanPath = temporaryDirectory.appending(component: "TestPlan.xctestplan")
+            let manifestDirectory = temporaryDirectory.appending(component: "App")
+            try await fileSystem.writeText(
+                """
+                {
+                  "testTargets" : [
+                    {
+                      "target" : {
+                        "containerPath" : "container:",
+                        "identifier" : "AppTests",
+                        "name" : "AppTests"
+                      }
+                    }
+                  ]
+                }
+                """,
+                at: testPlanPath
+            )
+
+            // When
+            let got = try await TestPlan.from(
+                path: testPlanPath,
+                isDefault: false,
+                generatorPaths: GeneratorPaths(
+                    manifestDirectory: manifestDirectory,
+                    rootDirectory: temporaryDirectory
+                )
+            )
+
+            // Then
+            #expect(
+                got == TestPlan(
+                    path: testPlanPath,
+                    testTargets: [
+                        TestableTarget(
+                            target: TargetReference(
+                                projectPath: manifestDirectory,
+                                name: "AppTests"
+                            )
+                        ),
+                    ],
+                    isDefault: false
+                )
+            )
+        }
+    }
 }
