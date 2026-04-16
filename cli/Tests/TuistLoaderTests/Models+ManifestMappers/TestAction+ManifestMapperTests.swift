@@ -1,10 +1,9 @@
 import FileSystem
 import FileSystemTesting
 import Foundation
-import Logging
 import ProjectDescription
 import Testing
-import TuistLoggerTesting
+import TuistAlert
 import TuistTesting
 import XcodeGraph
 
@@ -189,10 +188,12 @@ struct TestActionManifestMapperTests {
         #expect(testAction.testPlans?.first?.path == testPlanPath)
     }
 
-    @Test(.inTemporaryDirectory, .withMockedLogger()) func action_with_literal_test_plan_missing_file_warns() async throws {
+    @Test(.inTemporaryDirectory, .withScopedAlertController())
+    func action_with_literal_test_plan_missing_file_warns() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let missingPlanPath = temporaryDirectory.appending(component: "MissingPlan.xctestplan")
+        let schemeName = "MyScheme"
 
         let manifest = ProjectDescription.TestAction.testPlans([
             .path(missingPlanPath.pathString),
@@ -202,12 +203,18 @@ struct TestActionManifestMapperTests {
         // When
         let testAction = try await XcodeGraph.TestAction.from(
             manifest: manifest,
-            generatorPaths: generatorPaths
+            generatorPaths: generatorPaths,
+            schemeName: schemeName
         )
 
         // Then
         #expect(testAction.testPlans?.isEmpty == true)
-        TuistTest.expectLogs("\(missingPlanPath.pathString) does not exist")
+        let warnings = AlertController.current.warnings().map(\.message).map { $0.plain() }
+        #expect(
+            warnings == [
+                "Test plan MissingPlan.xctestplan does not exist at \(missingPlanPath.pathString) referenced by the scheme 'MyScheme'",
+            ]
+        )
     }
 }
 

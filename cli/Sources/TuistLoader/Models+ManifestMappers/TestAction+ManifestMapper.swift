@@ -3,7 +3,7 @@ import Foundation
 import Path
 import ProjectDescription
 import TuistCore
-import TuistLogging
+import TuistAlert
 import TuistSupport
 import XcodeGraph
 
@@ -13,7 +13,11 @@ extension XcodeGraph.TestAction {
     // - Parameters:
     //   - manifest: Manifest representation of test action model.
     //   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.TestAction, generatorPaths: GeneratorPaths) async throws -> XcodeGraph
+    static func from(
+        manifest: ProjectDescription.TestAction,
+        generatorPaths: GeneratorPaths,
+        schemeName: String? = nil
+    ) async throws -> XcodeGraph
         .TestAction
     {
         // swiftlint:enable function_body_length
@@ -72,7 +76,10 @@ extension XcodeGraph.TestAction {
                             resolvedTestPlans.append(testPlan)
                         }
                     } else {
-                        Logger.current.warning("\(resolvedPath.pathString) does not exist")
+                        let schemeContext = schemeName.map { " referenced by the scheme '\($0)'" } ?? ""
+                        AlertController.current.warning(
+                            .alert("Test plan \(resolvedPath.basename) does not exist at \(resolvedPath.pathString)\(schemeContext)")
+                        )
                     }
                 }
             }
