@@ -291,11 +291,14 @@ struct SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         var preActions: [XCScheme.ExecutionAction] = []
         var postActions: [XCScheme.ExecutionAction] = []
 
-        let testPlans: [XCScheme.TestPlanReference]? = testAction.testPlans?.map {
-            XCScheme.TestPlanReference(
-                reference: "container:\($0.path.relative(to: rootPath))",
-                default: $0.isDefault
-            )
+        let testPlans: [XCScheme.TestPlanReference]? = testAction.testPlans.flatMap { plans in
+            guard !plans.isEmpty else { return nil }
+            return plans.map {
+                XCScheme.TestPlanReference(
+                    reference: "container:\($0.path.relative(to: rootPath))",
+                    default: $0.isDefault
+                )
+            }
         }
 
         let skippedTests =
