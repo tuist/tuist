@@ -1201,6 +1201,84 @@ defmodule Tuist.CommandEventsTest do
       # Then
       assert got == {:error, :not_found}
     end
+
+    test "returns the most recent event when multiple events share the same test_run_id" do
+      # Given
+      test_run_id = UUIDv7.generate()
+
+      _older =
+        CommandEventsFixtures.command_event_fixture(
+          name: "test",
+          test_run_id: test_run_id,
+          ran_at: ~U[2024-01-01 10:00:00Z]
+        )
+
+      newer =
+        CommandEventsFixtures.command_event_fixture(
+          name: "test",
+          test_run_id: test_run_id,
+          ran_at: ~U[2024-01-02 10:00:00Z]
+        )
+
+      # When
+      got = CommandEvents.get_command_event_by_test_run_id(test_run_id)
+
+      # Then
+      assert {:ok, event} = got
+      assert event.id == newer.id
+    end
+  end
+
+  describe "get_command_event_by_build_run_id/1" do
+    test "returns a command event when build_run_id exists" do
+      # Given
+      build_run_id = UUIDv7.generate()
+
+      command_event =
+        CommandEventsFixtures.command_event_fixture(build_run_id: build_run_id)
+
+      # When
+      got = CommandEvents.get_command_event_by_build_run_id(build_run_id)
+
+      # Then
+      assert {:ok, event} = got
+      assert event.id == command_event.id
+    end
+
+    test "returns {:error, :not_found} when build_run_id does not exist" do
+      # Given
+      non_existent_build_run_id = UUIDv7.generate()
+
+      # When
+      got = CommandEvents.get_command_event_by_build_run_id(non_existent_build_run_id)
+
+      # Then
+      assert got == {:error, :not_found}
+    end
+
+    test "returns the most recent event when multiple events share the same build_run_id" do
+      # Given
+      build_run_id = UUIDv7.generate()
+
+      _older =
+        CommandEventsFixtures.command_event_fixture(
+          build_run_id: build_run_id,
+          ran_at: ~U[2024-01-01 10:00:00Z]
+        )
+
+      newer =
+        CommandEventsFixtures.command_event_fixture(
+          build_run_id: build_run_id,
+          ran_at: ~U[2024-01-02 10:00:00Z]
+        )
+
+      # When
+      got = CommandEvents.get_command_event_by_build_run_id(build_run_id)
+
+      # Then
+      assert {:ok, event} = got
+      assert event.id == newer.id
+    end
   end
 
   describe "cache_hit_rate_period_percentile/4" do
