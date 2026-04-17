@@ -99,7 +99,7 @@ defmodule Tuist.Ingestion.Buffer do
     do_flush(state)
   end
 
-  defp do_flush(state, retries_left \\ 3) do
+  defp do_flush(state) do
     %{
       buffer: buffer,
       buffer_size: buffer_size,
@@ -115,22 +115,7 @@ defmodule Tuist.Ingestion.Buffer do
 
       _not_empty ->
         Logger.notice("Flushing #{buffer_size} byte(s) RowBinary from #{name}")
-
-        try do
-          IngestRepo.query!(insert_sql, [header | buffer], insert_opts)
-        rescue
-          e in [Mint.TransportError, DBConnection.ConnectionError] ->
-            if retries_left > 0 do
-              Logger.warning(
-                "#{name} flush failed (#{Exception.message(e)}), retrying (#{retries_left} retries left)"
-              )
-
-              Process.sleep(100)
-              do_flush(state, retries_left - 1)
-            else
-              reraise e, __STACKTRACE__
-            end
-        end
+        IngestRepo.query!(insert_sql, [header | buffer], insert_opts)
     end
   end
 
