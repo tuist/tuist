@@ -181,7 +181,6 @@ services:
     runtime: docker
     repo: https://github.com/tuist/tuist
     dockerfilePath: slack/Dockerfile
-    dockerContext: .
     plan: starter
     numInstances: 1
     autoDeployTrigger: "off"
