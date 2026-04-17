@@ -6,11 +6,14 @@ defmodule Tuist.Docs.Redirects do
   after `/<locale>/docs`, i.e. the "logical" docs path that always starts
   with "/". The plug fills in the locale and the `/docs` segment.
 
-      {:exact,  "/cli",  "/references/cli"}
+      {:exact, "/cli", "/references/cli"}
       {:prefix, "/cli/", "/references/cli/"}
+      {:prefix, "/references/cli/", "/references/cli/commands/",
+       except_starts_with: ["debugging", "directories", "shell-completions", "commands/"]}
 
-  Exact rules match the path exactly. Prefix rules match when the path
-  starts with `from` and carry any suffix over to `to`.
+  Rules are applied in a loop: if a rule matches, the result is fed back
+  through all rules until none match. That way compound moves (e.g. a
+  page that moved twice across different PRs) resolve in a single 301.
 
   This module is the place to add redirects when docs are renamed or
   reorganized. Keep entries grouped with a comment explaining the move.
@@ -19,18 +22,25 @@ defmodule Tuist.Docs.Redirects do
   @rules [
     # CLI docs moved under References (Diataxis: CLI is reference material)
     {:exact, "/cli", "/references/cli"},
-    {:prefix, "/cli/", "/references/cli/"}
+    {:prefix, "/cli/", "/references/cli/"},
+    # Auto-generated command pages nested under /references/cli/commands/.
+    # The three hand-written pages (debugging, directories, shell-completions)
+    # and the /commands/ namespace itself stay flat.
+    {:prefix, "/references/cli/", "/references/cli/commands/",
+     except_starts_with: ["debugging", "directories", "shell-completions", "commands/"]}
   ]
 
   @docs_path_regex ~r{^/(?<locale>[^/]+)/docs(?<rest>/.*)?$}
+  @max_iterations 8
 
   def rules, do: @rules
 
   @doc """
   Resolves a request path against the docs redirect rules.
 
-  Returns `{:ok, new_path}` if a rule matches (query string preserved),
-  or `:none` otherwise.
+  Returns `{:ok, new_path}` if any rule matches (query string preserved),
+  or `:none` otherwise. Rules chain — the result of one rule is fed back
+  through all rules until none match further.
   """
   def resolve(request_path, query_string \\ "")
 
@@ -39,16 +49,24 @@ defmodule Tuist.Docs.Redirects do
       %{"locale" => locale, "rest" => rest} ->
         rest = rest || ""
 
-        case apply_rules(rest, @rules) do
-          {:ok, new_rest} ->
-            {:ok, build_path(locale, new_rest, query_string)}
-
-          :none ->
-            :none
+        case apply_chain(rest, @rules, false, @max_iterations) do
+          {:ok, new_rest} -> {:ok, build_path(locale, new_rest, query_string)}
+          :none -> :none
         end
 
       nil ->
         :none
+    end
+  end
+
+  defp apply_chain(path, _rules, changed?, 0) do
+    if changed?, do: {:ok, path}, else: :none
+  end
+
+  defp apply_chain(path, rules, changed?, remaining) do
+    case apply_rules(path, rules) do
+      {:ok, new_path} -> apply_chain(new_path, rules, true, remaining - 1)
+      :none -> if changed?, do: {:ok, path}, else: :none
     end
   end
 
@@ -63,7 +81,23 @@ defmodule Tuist.Docs.Redirects do
     end
   end
 
+  defp apply_rules(path, [{:prefix, from, to, opts} | rest]) do
+    case path do
+      ^from <> suffix ->
+        if excluded?(suffix, Keyword.get(opts, :except_starts_with, [])) do
+          apply_rules(path, rest)
+        else
+          {:ok, to <> suffix}
+        end
+
+      _ ->
+        apply_rules(path, rest)
+    end
+  end
+
   defp apply_rules(path, [_rule | rest]), do: apply_rules(path, rest)
+
+  defp excluded?(suffix, prefixes), do: Enum.any?(prefixes, &String.starts_with?(suffix, &1))
 
   defp build_path(locale, rest, "") do
     "/#{locale}/docs#{rest}"

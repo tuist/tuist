@@ -59,7 +59,7 @@ defmodule TuistWeb.Plugs.LegacyRedirectsPlugTest do
       conn = LegacyRedirectsPlug.call(conn, [])
 
       assert conn.status == 301
-      assert redirected_to(conn, 301) == "/ja/docs/references/cli/cache/warm"
+      assert redirected_to(conn, 301) == "/ja/docs/references/cli/commands/cache/warm"
       assert conn.halted
     end
 

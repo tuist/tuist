@@ -69,9 +69,9 @@ defmodule Tuist.Docs.CLITest do
 
       assert length(pages) == 3
       slugs = Enum.map(pages, & &1.slug)
-      assert "/en/references/cli/generate" in slugs
-      assert "/en/references/cli/build" in slugs
-      assert "/en/references/cli/build/start" in slugs
+      assert "/en/references/cli/commands/generate" in slugs
+      assert "/en/references/cli/commands/build" in slugs
+      assert "/en/references/cli/commands/build/start" in slugs
     end
 
     test "returns empty list when GitHub API fails", %{cache: cache} do
@@ -124,9 +124,9 @@ defmodule Tuist.Docs.CLITest do
         end
       end)
 
-      page = CLI.get_page("/en/references/cli/generate", cache: cache)
+      page = CLI.get_page("/en/references/cli/commands/generate", cache: cache)
 
-      assert page.slug == "/en/references/cli/generate"
+      assert page.slug == "/en/references/cli/commands/generate"
       assert page.title == "tuist generate"
       assert page.body =~ "Generates an Xcode workspace"
     end
@@ -142,7 +142,7 @@ defmodule Tuist.Docs.CLITest do
         end
       end)
 
-      assert is_nil(CLI.get_page("/en/references/cli/nonexistent", cache: cache))
+      assert is_nil(CLI.get_page("/en/references/cli/commands/nonexistent", cache: cache))
     end
   end
 
@@ -158,13 +158,18 @@ defmodule Tuist.Docs.CLITest do
         end
       end)
 
-      [cli_group, commands_group] = CLI.sidebar_items(cache: cache)
+      [cli_group] = CLI.sidebar_items(cache: cache)
 
       assert cli_group.label == "CLI"
-      assert length(cli_group.items) == 3
 
-      assert commands_group.label == "Commands"
-      command_labels = Enum.map(commands_group.items, & &1.label)
+      labels = Enum.map(cli_group.items, & &1.label)
+      assert "Debugging" in labels
+      assert "Directories" in labels
+      assert "Shell completions" in labels
+      assert "Commands" in labels
+
+      commands_item = Enum.find(cli_group.items, &(&1.label == "Commands"))
+      command_labels = Enum.map(commands_item.items, & &1.label)
       assert "build" in command_labels
       assert "generate" in command_labels
     end

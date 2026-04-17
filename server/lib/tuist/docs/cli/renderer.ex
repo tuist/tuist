@@ -25,7 +25,7 @@ defmodule Tuist.Docs.CLI.Renderer do
       |> get_in(["command", "subcommands"])
       |> List.wrap()
       |> Enum.filter(&(&1["shouldDisplay"] != false))
-      |> Enum.map(&command_to_sidebar_item(&1, "/en/references/cli/"))
+      |> Enum.map(&command_to_sidebar_item(&1, "/en/references/cli/commands/"))
       |> Enum.sort_by(& &1.label)
 
     [
@@ -34,12 +34,9 @@ defmodule Tuist.Docs.CLI.Renderer do
         items: [
           %Item{label: "Debugging", slug: "/en/references/cli/debugging"},
           %Item{label: "Directories", slug: "/en/references/cli/directories"},
-          %Item{label: "Shell completions", slug: "/en/references/cli/shell-completions"}
+          %Item{label: "Shell completions", slug: "/en/references/cli/shell-completions"},
+          %Item{label: "Commands", items: commands}
         ]
-      },
-      %Group{
-        label: "Commands",
-        items: commands
       }
     ]
   end
@@ -83,7 +80,7 @@ defmodule Tuist.Docs.CLI.Renderer do
       |> Enum.drop(1)
       |> Enum.join("/")
 
-    "/en/references/cli/#{path}"
+    "/en/references/cli/commands/#{path}"
   end
 
   defp build_command_page(command, full_command, slug) do
@@ -116,7 +113,7 @@ defmodule Tuist.Docs.CLI.Renderer do
       description: command["abstract"],
       body: html,
       markdown: markdown,
-      source_path: "references/cli/#{slug}",
+      source_path: "references/cli/commands/#{slug}",
       headings: headings
     }
   end

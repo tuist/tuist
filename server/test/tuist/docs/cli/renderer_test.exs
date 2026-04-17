@@ -77,16 +77,16 @@ defmodule Tuist.Docs.CLI.RendererTest do
       pages = Renderer.build_pages(@spec_fixture)
 
       slugs = Enum.map(pages, & &1.slug)
-      assert "/en/references/cli/generate" in slugs
-      assert "/en/references/cli/cache" in slugs
-      assert "/en/references/cli/cache/warm" in slugs
+      assert "/en/references/cli/commands/generate" in slugs
+      assert "/en/references/cli/commands/cache" in slugs
+      assert "/en/references/cli/commands/cache/warm" in slugs
     end
 
     test "excludes hidden commands" do
       pages = Renderer.build_pages(@spec_fixture)
 
       slugs = Enum.map(pages, & &1.slug)
-      refute "/en/references/cli/hidden-cmd" in slugs
+      refute "/en/references/cli/commands/hidden-cmd" in slugs
     end
 
     test "generates valid Page structs" do
@@ -102,14 +102,14 @@ defmodule Tuist.Docs.CLI.RendererTest do
 
     test "includes command abstract in page body" do
       pages = Renderer.build_pages(@spec_fixture)
-      generate_page = Enum.find(pages, &(&1.slug == "/en/references/cli/generate"))
+      generate_page = Enum.find(pages, &(&1.slug == "/en/references/cli/commands/generate"))
 
       assert generate_page.body =~ "Generates an Xcode workspace"
     end
 
     test "renders arguments with usage examples" do
       pages = Renderer.build_pages(@spec_fixture)
-      generate_page = Enum.find(pages, &(&1.slug == "/en/references/cli/generate"))
+      generate_page = Enum.find(pages, &(&1.slug == "/en/references/cli/commands/generate"))
 
       assert generate_page.body =~ "--path"
       assert generate_page.body =~ "-p"
@@ -118,21 +118,21 @@ defmodule Tuist.Docs.CLI.RendererTest do
 
     test "extracts environment variables from argument abstracts" do
       pages = Renderer.build_pages(@spec_fixture)
-      generate_page = Enum.find(pages, &(&1.slug == "/en/references/cli/generate"))
+      generate_page = Enum.find(pages, &(&1.slug == "/en/references/cli/commands/generate"))
 
       assert generate_page.body =~ "TUIST_GENERATE_PATH"
     end
 
     test "excludes help arguments" do
       pages = Renderer.build_pages(@spec_fixture)
-      generate_page = Enum.find(pages, &(&1.slug == "/en/references/cli/generate"))
+      generate_page = Enum.find(pages, &(&1.slug == "/en/references/cli/commands/generate"))
 
       refute generate_page.markdown =~ "### help"
     end
 
     test "extracts headings from rendered HTML" do
       pages = Renderer.build_pages(@spec_fixture)
-      generate_page = Enum.find(pages, &(&1.slug == "/en/references/cli/generate"))
+      generate_page = Enum.find(pages, &(&1.slug == "/en/references/cli/commands/generate"))
 
       heading_texts = Enum.map(generate_page.headings, & &1.text)
       assert "Arguments" in heading_texts
@@ -143,7 +143,7 @@ defmodule Tuist.Docs.CLI.RendererTest do
 
     test "heading IDs match the anchor IDs in the HTML" do
       pages = Renderer.build_pages(@spec_fixture)
-      generate_page = Enum.find(pages, &(&1.slug == "/en/references/cli/generate"))
+      generate_page = Enum.find(pages, &(&1.slug == "/en/references/cli/commands/generate"))
 
       for heading <- generate_page.headings do
         assert generate_page.body =~ ~s(id="#{heading.id}")
@@ -152,47 +152,58 @@ defmodule Tuist.Docs.CLI.RendererTest do
 
     test "sets title_template for CLI pages" do
       pages = Renderer.build_pages(@spec_fixture)
-      generate_page = Enum.find(pages, &(&1.slug == "/en/references/cli/generate"))
+      generate_page = Enum.find(pages, &(&1.slug == "/en/references/cli/commands/generate"))
 
       assert generate_page.title_template == ":title · CLI · References · Tuist"
     end
   end
 
   describe "build_sidebar/1" do
-    test "returns CLI static pages and command groups" do
-      [cli_group, commands_group] = Renderer.build_sidebar(@spec_fixture)
+    test "returns a single CLI group" do
+      [cli_group] = Renderer.build_sidebar(@spec_fixture)
 
       assert %Group{label: "CLI"} = cli_group
-      assert %Group{label: "Commands"} = commands_group
     end
 
-    test "includes static CLI pages" do
-      [cli_group, _] = Renderer.build_sidebar(@spec_fixture)
+    test "includes static CLI pages alongside a Commands sub-item" do
+      [cli_group] = Renderer.build_sidebar(@spec_fixture)
 
       labels = Enum.map(cli_group.items, & &1.label)
       assert "Debugging" in labels
       assert "Directories" in labels
       assert "Shell completions" in labels
+      assert "Commands" in labels
+    end
+
+    test "Commands sub-item has no slug and nests command items" do
+      [cli_group] = Renderer.build_sidebar(@spec_fixture)
+
+      commands_item = Enum.find(cli_group.items, &(&1.label == "Commands"))
+      assert %Item{slug: nil} = commands_item
+      assert length(commands_item.items) > 0
     end
 
     test "excludes hidden commands from sidebar" do
-      [_, commands_group] = Renderer.build_sidebar(@spec_fixture)
+      [cli_group] = Renderer.build_sidebar(@spec_fixture)
+      commands_item = Enum.find(cli_group.items, &(&1.label == "Commands"))
 
-      labels = Enum.map(commands_group.items, & &1.label)
+      labels = Enum.map(commands_item.items, & &1.label)
       refute "hidden-cmd" in labels
     end
 
     test "sorts commands alphabetically" do
-      [_, commands_group] = Renderer.build_sidebar(@spec_fixture)
+      [cli_group] = Renderer.build_sidebar(@spec_fixture)
+      commands_item = Enum.find(cli_group.items, &(&1.label == "Commands"))
 
-      labels = Enum.map(commands_group.items, & &1.label)
+      labels = Enum.map(commands_item.items, & &1.label)
       assert labels == Enum.sort(labels)
     end
 
     test "includes subcommands as nested items" do
-      [_, commands_group] = Renderer.build_sidebar(@spec_fixture)
+      [cli_group] = Renderer.build_sidebar(@spec_fixture)
+      commands_item = Enum.find(cli_group.items, &(&1.label == "Commands"))
 
-      cache_item = Enum.find(commands_group.items, &(&1.label == "cache"))
+      cache_item = Enum.find(commands_item.items, &(&1.label == "cache"))
       assert %Item{} = cache_item
       assert length(cache_item.items) == 1
       assert hd(cache_item.items).label == "warm"
