@@ -1553,6 +1553,62 @@ jobs:
           name: helm-artifacts
           path: infra/helm
 
+      - name: Verify no source changes since build
+        run: |
+          # The build jobs checked out and compiled from ${{ github.sha }}.
+          # If main has advanced with source changes since then, the binary
+          # would not include those changes. Abort to avoid shipping a stale binary.
+          git fetch origin ${{ github.ref_name }}
+          BUILD_SHA="${{ github.sha }}"
+          CURRENT_SHA=$(git rev-parse "origin/${{ github.ref_name }}")
+
+          if [ "$BUILD_SHA" = "$CURRENT_SHA" ]; then
+            echo "main has not advanced since the build commit, safe to release."
+            exit 0
+          fi
+
+          echo "main has advanced: build=$BUILD_SHA current=$CURRENT_SHA"
+          echo "Checking for source changes that would affect released components..."
+
+          STALE_COMPONENTS=""
+
+          if [ "${{ needs.check-releases.outputs.cli-should-release }}" == "true" ] && [ "${{ needs.release-cli.result }}" == "success" ]; then
+            if git diff --name-only "$BUILD_SHA" "$CURRENT_SHA" -- 'cli/Sources/' 'cli/TuistCacheEE/' | grep -q .; then
+              STALE_COMPONENTS="$STALE_COMPONENTS CLI"
+            fi
+          fi
+
+          if [ "${{ needs.check-releases.outputs.server-should-release }}" == "true" ] && [ "${{ needs.release-server.result }}" == "success" ]; then
+            if git diff --name-only "$BUILD_SHA" "$CURRENT_SHA" -- 'server/lib/' 'server/config/' | grep -q .; then
+              STALE_COMPONENTS="$STALE_COMPONENTS Server"
+            fi
+          fi
+
+          if [ "${{ needs.check-releases.outputs.cache-should-release }}" == "true" ] && [ "${{ needs.release-cache.result }}" == "success" ]; then
+            if git diff --name-only "$BUILD_SHA" "$CURRENT_SHA" -- 'cache/lib/' 'cache/config/' | grep -q .; then
+              STALE_COMPONENTS="$STALE_COMPONENTS Cache"
+            fi
+          fi
+
+          if [ "${{ needs.check-releases.outputs.gradle-should-release }}" == "true" ] && [ "${{ needs.release-gradle.result }}" == "success" ]; then
+            if git diff --name-only "$BUILD_SHA" "$CURRENT_SHA" -- 'gradle/src/' | grep -q .; then
+              STALE_COMPONENTS="$STALE_COMPONENTS Gradle"
+            fi
+          fi
+
+          if [ "${{ needs.check-releases.outputs.app-should-release }}" == "true" ] && [ "${{ needs.release-app.result }}" == "success" ]; then
+            if git diff --name-only "$BUILD_SHA" "$CURRENT_SHA" -- 'app/' | grep -q .; then
+              STALE_COMPONENTS="$STALE_COMPONENTS App"
+            fi
+          fi
+
+          if [ -n "$STALE_COMPONENTS" ]; then
+            echo "::error::Source code changed on main after the build for:$STALE_COMPONENTS. The release binary would be stale. Aborting release -- a new workflow run will pick up the changes."
+            exit 1
+          fi
+
+          echo "No source changes affect released components, safe to proceed."
+
       - name: Create tags for successfully released components
         run: |
           # Create tags for successfully released components
