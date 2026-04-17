@@ -456,12 +456,19 @@ public struct PackageInfoMapper: PackageInfoMapping {
 
             for dependency in currentTarget.dependencies {
                 let dependencyName: String
+                let isSamePackageDependency: Bool
                 switch dependency {
-                case let .target(name, _), let .byName(name, _), let .product(name, _, _, _):
+                case let .target(name, _), let .byName(name, _):
                     dependencyName = name
+                    isSamePackageDependency = true
+                case let .product(name, _, _, _):
+                    dependencyName = name
+                    isSamePackageDependency = false
                 }
 
-                if dependencyName == productName {
+                // A same-package target already uses the product name, so renaming would collide.
+                // Skip .product deps since those reference external packages and won't collide.
+                if isSamePackageDependency, dependencyName == productName {
                     return true
                 }
 
