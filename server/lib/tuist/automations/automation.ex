@@ -6,17 +6,19 @@ defmodule Tuist.Automations.Automation do
 
   alias Tuist.Projects.Project
 
-  @automation_types ~w(flakiness_rate flaky_run_count)
+  @monitor_types ~w(flakiness_rate flaky_run_count)
   @action_types ~w(change_state send_slack add_label remove_label)
   @valid_states ~w(enabled muted)
+  @kinds ~w(alert)
 
   @primary_key {:id, UUIDv7, autogenerate: true}
   @foreign_key_type UUIDv7
 
   schema "automations" do
     field :name, :string
+    field :kind, :string, default: "alert"
     field :enabled, :boolean, default: true
-    field :automation_type, :string
+    field :automation_type, :string, source: :automation_type
     field :config, :map, default: %{}
     field :cadence, :string, default: "5m"
     field :trigger_actions, {:array, :map}, default: []
@@ -29,11 +31,14 @@ defmodule Tuist.Automations.Automation do
     timestamps(type: :utc_datetime)
   end
 
+  def monitor_type(automation), do: automation.automation_type
+
   def changeset(automation \\ %__MODULE__{}, attrs) do
     automation
     |> cast(attrs, [
       :project_id,
       :name,
+      :kind,
       :enabled,
       :automation_type,
       :config,
@@ -44,7 +49,8 @@ defmodule Tuist.Automations.Automation do
       :recovery_actions
     ])
     |> validate_required([:project_id, :name, :automation_type])
-    |> validate_inclusion(:automation_type, @automation_types)
+    |> validate_inclusion(:kind, @kinds)
+    |> validate_inclusion(:automation_type, @monitor_types)
     |> validate_actions(:trigger_actions, require_present: true)
     |> validate_actions(:recovery_actions, require_present: false)
     |> validate_config()

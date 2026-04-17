@@ -74,44 +74,44 @@ defmodule Tuist.AutomationsTest do
     end
   end
 
-  describe "automation triggers" do
-    test "insert_trigger and list_triggers roundtrip" do
+  describe "alerts" do
+    test "create_alert and list_active_alerts roundtrip" do
       automation = AutomationsFixtures.automation_fixture()
       test_case_id = Ecto.UUID.generate()
 
       assert :ok =
-               Automations.insert_trigger(%{
+               Automations.create_alert(%{
                  automation_id: automation.id,
                  test_case_id: test_case_id,
                  status: "triggered",
                  triggered_at: NaiveDateTime.utc_now()
                })
 
-      triggers = Automations.list_triggers(automation.id)
-      assert Enum.any?(triggers, &(&1.test_case_id == test_case_id))
+      alerts = Automations.list_active_alerts(automation.id)
+      assert Enum.any?(alerts, &(&1.test_case_id == test_case_id))
     end
 
-    test "mark_recovered appends a recovery event so test case is no longer listed as triggered" do
+    test "resolve_alert appends a recovery event so test case is no longer listed as active" do
       automation = AutomationsFixtures.automation_fixture()
       test_case_id = Ecto.UUID.generate()
 
       :ok =
-        Automations.insert_trigger(%{
+        Automations.create_alert(%{
           automation_id: automation.id,
           test_case_id: test_case_id,
           status: "triggered",
           triggered_at: NaiveDateTime.utc_now()
         })
 
-      assert :ok = Automations.mark_recovered(automation.id, test_case_id)
+      assert :ok = Automations.resolve_alert(automation.id, test_case_id)
 
-      triggers = Automations.list_triggers(automation.id)
-      refute Enum.any?(triggers, &(&1.test_case_id == test_case_id))
+      alerts = Automations.list_active_alerts(automation.id)
+      refute Enum.any?(alerts, &(&1.test_case_id == test_case_id))
     end
 
-    test "mark_recovered is safe to call when no triggered event exists" do
+    test "resolve_alert is safe to call when no active alert exists" do
       automation = AutomationsFixtures.automation_fixture()
-      assert :ok = Automations.mark_recovered(automation.id, Ecto.UUID.generate())
+      assert :ok = Automations.resolve_alert(automation.id, Ecto.UUID.generate())
     end
   end
 end

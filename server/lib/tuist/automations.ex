@@ -2,8 +2,8 @@ defmodule Tuist.Automations do
   @moduledoc false
   import Ecto.Query
 
+  alias Tuist.Automations.Alerts.Alert
   alias Tuist.Automations.Automation
-  alias Tuist.Automations.AutomationTrigger
   alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
   alias Tuist.Repo
@@ -38,28 +38,30 @@ defmodule Tuist.Automations do
     Repo.delete(automation)
   end
 
+  # --- Alerts ---
+
   @doc """
-  Returns currently active triggers for an automation (latest status = "triggered").
+  Returns currently active alerts for an automation (latest status = "triggered").
   Uses argMax to find the most recent status per test_case_id from the append-only log.
   """
-  def list_triggers(automation_id) do
+  def list_active_alerts(automation_id) do
     ClickHouseRepo.all(
-      from(t in AutomationTrigger,
-        where: t.automation_id == ^automation_id,
-        group_by: t.test_case_id,
-        having: fragment("argMax(?, ?) = 'triggered'", t.status, t.inserted_at),
+      from(a in Alert,
+        where: a.automation_id == ^automation_id,
+        group_by: a.test_case_id,
+        having: fragment("argMax(?, ?) = 'triggered'", a.status, a.inserted_at),
         select: %{
-          test_case_id: t.test_case_id,
-          triggered_at: fragment("argMax(?, ?)", t.triggered_at, t.inserted_at)
+          test_case_id: a.test_case_id,
+          triggered_at: fragment("argMax(?, ?)", a.triggered_at, a.inserted_at)
         }
       )
     )
   end
 
   @doc """
-  Appends a trigger event to the log.
+  Appends an alert event to the log.
   """
-  def insert_trigger(attrs) do
+  def create_alert(attrs) do
     now = NaiveDateTime.utc_now()
 
     record =
@@ -67,15 +69,15 @@ defmodule Tuist.Automations do
       |> Map.put_new(:id, UUIDv7.generate())
       |> Map.put_new(:inserted_at, now)
 
-    IngestRepo.insert_all(AutomationTrigger, [record])
+    IngestRepo.insert_all(Alert, [record])
     :ok
   end
 
   @doc """
-  Appends a recovery event to the log. Simple insert, no read needed.
+  Appends a recovery event to the alert log.
   """
-  def mark_recovered(automation_id, test_case_id) do
-    insert_trigger(%{
+  def resolve_alert(automation_id, test_case_id) do
+    create_alert(%{
       automation_id: automation_id,
       test_case_id: test_case_id,
       status: "recovered",

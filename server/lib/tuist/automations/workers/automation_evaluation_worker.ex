@@ -4,7 +4,7 @@ defmodule Tuist.Automations.Workers.AutomationEvaluationWorker do
 
   alias Tuist.Automations
   alias Tuist.Automations.ActionExecutor
-  alias Tuist.Automations.Types.FlakinessRateType
+  alias Tuist.Automations.Monitors.FlakinessRateMonitor
 
   require Logger
 
@@ -24,18 +24,18 @@ defmodule Tuist.Automations.Workers.AutomationEvaluationWorker do
   end
 
   defp evaluate_and_execute(automation) do
-    %{triggered: triggered_ids, all: all_ids} = evaluate_type(automation)
-    existing_states = Automations.list_triggers(automation.id)
-    existing_triggered_ids = MapSet.new(existing_states, & &1.test_case_id)
+    %{triggered: triggered_ids, all: all_ids} = evaluate_monitor(automation)
+    active_alerts = Automations.list_active_alerts(automation.id)
+    already_triggered_ids = MapSet.new(active_alerts, & &1.test_case_id)
 
-    newly_triggered = Enum.reject(triggered_ids, &MapSet.member?(existing_triggered_ids, &1))
+    newly_triggered = Enum.reject(triggered_ids, &MapSet.member?(already_triggered_ids, &1))
 
     Enum.each(newly_triggered, fn test_case_id ->
       entity = %{type: :test_case, id: test_case_id}
 
       case ActionExecutor.execute_actions(automation.trigger_actions, automation, entity) do
         :ok ->
-          Automations.insert_trigger(%{
+          Automations.create_alert(%{
             automation_id: automation.id,
             test_case_id: test_case_id,
             status: "triggered",
@@ -50,13 +50,13 @@ defmodule Tuist.Automations.Workers.AutomationEvaluationWorker do
     end)
 
     if automation.recovery_enabled do
-      handle_recovery(automation, triggered_ids, existing_states, all_ids)
+      handle_recovery(automation, triggered_ids, active_alerts, all_ids)
     end
 
     :ok
   end
 
-  defp handle_recovery(automation, currently_triggered_ids, existing_states, all_ids) do
+  defp handle_recovery(automation, currently_triggered_ids, active_alerts, all_ids) do
     currently_triggered_set = MapSet.new(currently_triggered_ids)
     all_ids_set = MapSet.new(all_ids)
 
@@ -65,15 +65,15 @@ defmodule Tuist.Automations.Workers.AutomationEvaluationWorker do
     cutoff = NaiveDateTime.add(NaiveDateTime.utc_now(), -seconds, :second)
 
     recovered =
-      Enum.filter(existing_states, fn state ->
-        MapSet.member?(all_ids_set, state.test_case_id) and
-          not MapSet.member?(currently_triggered_set, state.test_case_id) and
-          NaiveDateTime.before?(state.triggered_at, cutoff)
+      Enum.filter(active_alerts, fn alert ->
+        MapSet.member?(all_ids_set, alert.test_case_id) and
+          not MapSet.member?(currently_triggered_set, alert.test_case_id) and
+          NaiveDateTime.before?(alert.triggered_at, cutoff)
       end)
 
-    Enum.each(recovered, fn state ->
-      Automations.mark_recovered(automation.id, state.test_case_id)
-      entity = %{type: :test_case, id: state.test_case_id}
+    Enum.each(recovered, fn alert ->
+      Automations.resolve_alert(automation.id, alert.test_case_id)
+      entity = %{type: :test_case, id: alert.test_case_id}
 
       case ActionExecutor.execute_actions(automation.recovery_actions, automation, entity) do
         :ok ->
@@ -81,7 +81,7 @@ defmodule Tuist.Automations.Workers.AutomationEvaluationWorker do
 
         {:error, reason} ->
           Logger.error(
-            "Automation #{automation.id} recovery actions failed for test_case #{state.test_case_id}: #{inspect(reason)}"
+            "Automation #{automation.id} recovery actions failed for test_case #{alert.test_case_id}: #{inspect(reason)}"
           )
       end
     end)
@@ -99,16 +99,16 @@ defmodule Tuist.Automations.Workers.AutomationEvaluationWorker do
 
   defp parse_window(_), do: 14 * 86_400
 
-  defp evaluate_type(%{automation_type: "flakiness_rate"} = automation) do
-    FlakinessRateType.evaluate(automation)
+  defp evaluate_monitor(%{automation_type: "flakiness_rate"} = automation) do
+    FlakinessRateMonitor.evaluate(automation)
   end
 
-  defp evaluate_type(%{automation_type: "flaky_run_count"} = automation) do
-    FlakinessRateType.evaluate_by_run_count(automation)
+  defp evaluate_monitor(%{automation_type: "flaky_run_count"} = automation) do
+    FlakinessRateMonitor.evaluate_by_run_count(automation)
   end
 
-  defp evaluate_type(automation) do
-    Logger.warning("Unknown automation type: #{automation.automation_type}")
+  defp evaluate_monitor(automation) do
+    Logger.warning("Unknown monitor type: #{automation.automation_type}")
     %{triggered: [], all: []}
   end
 end

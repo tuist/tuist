@@ -37,8 +37,13 @@ defmodule TuistWeb.API.AutomationsController do
     properties: %{
       id: %Schema{type: :string, format: :uuid},
       name: %Schema{type: :string},
+      kind: %Schema{type: :string, enum: ["alert"], description: "The kind of automation."},
       enabled: %Schema{type: :boolean},
-      automation_type: %Schema{type: :string, enum: ["flakiness_rate", "flaky_run_count"]},
+      automation_type: %Schema{
+        type: :string,
+        enum: ["flakiness_rate", "flaky_run_count"],
+        description: "The monitor type that evaluates the condition."
+      },
       config: %Schema{type: :object},
       cadence: %Schema{type: :string},
       trigger_actions: %Schema{type: :array, items: @action_schema},
@@ -312,6 +317,7 @@ defmodule TuistWeb.API.AutomationsController do
     %{
       id: automation.id,
       name: automation.name,
+      kind: automation.kind,
       enabled: automation.enabled,
       automation_type: automation.automation_type,
       config: automation.config,

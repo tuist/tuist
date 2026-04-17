@@ -4,7 +4,7 @@ defmodule Tuist.Automations.Workers.AutomationEvaluationWorkerTest do
 
   alias Tuist.Automations
   alias Tuist.Automations.ActionExecutor
-  alias Tuist.Automations.Types.FlakinessRateType
+  alias Tuist.Automations.Monitors.FlakinessRateMonitor
   alias Tuist.Automations.Workers.AutomationEvaluationWorker
   alias TuistTestSupport.Fixtures.AutomationsFixtures
 
@@ -13,27 +13,27 @@ defmodule Tuist.Automations.Workers.AutomationEvaluationWorkerTest do
   end
 
   test "no-op when automation is missing" do
-    reject(&FlakinessRateType.evaluate/1)
+    reject(&FlakinessRateMonitor.evaluate/1)
     assert :ok = run(UUIDv7.generate())
   end
 
   test "no-op when automation is disabled" do
     automation = AutomationsFixtures.automation_fixture(enabled: false)
-    reject(&FlakinessRateType.evaluate/1)
+    reject(&FlakinessRateMonitor.evaluate/1)
     assert :ok = run(automation.id)
   end
 
-  test "executes trigger actions for newly triggered test cases and inserts state" do
+  test "executes trigger actions for newly triggered test cases and creates alert" do
     automation =
       AutomationsFixtures.automation_fixture(trigger_actions: [%{"type" => "change_state", "state" => "muted"}])
 
     triggered_id = Ecto.UUID.generate()
 
-    expect(FlakinessRateType, :evaluate, fn _automation ->
+    expect(FlakinessRateMonitor, :evaluate, fn _automation ->
       %{triggered: [triggered_id], all: [triggered_id]}
     end)
 
-    expect(Automations, :list_triggers, fn _id -> [] end)
+    expect(Automations, :list_active_alerts, fn _id -> [] end)
 
     expected_entity = %{type: :test_case, id: triggered_id}
 
@@ -42,7 +42,7 @@ defmodule Tuist.Automations.Workers.AutomationEvaluationWorkerTest do
       :ok
     end)
 
-    expect(Automations, :insert_trigger, fn %{automation_id: id, test_case_id: tc, status: "triggered"} ->
+    expect(Automations, :create_alert, fn %{automation_id: id, test_case_id: tc, status: "triggered"} ->
       assert id == automation.id
       assert tc == triggered_id
       :ok
@@ -51,25 +51,25 @@ defmodule Tuist.Automations.Workers.AutomationEvaluationWorkerTest do
     assert :ok = run(automation.id)
   end
 
-  test "skips test cases that already have a triggered state" do
+  test "skips test cases that already have an active alert" do
     automation = AutomationsFixtures.automation_fixture()
     already = Ecto.UUID.generate()
 
-    expect(FlakinessRateType, :evaluate, fn _automation ->
+    expect(FlakinessRateMonitor, :evaluate, fn _automation ->
       %{triggered: [already], all: [already]}
     end)
 
-    expect(Automations, :list_triggers, fn _id ->
+    expect(Automations, :list_active_alerts, fn _id ->
       [%{test_case_id: already, triggered_at: NaiveDateTime.utc_now()}]
     end)
 
     reject(&ActionExecutor.execute_actions/3)
-    reject(&Automations.insert_trigger/1)
+    reject(&Automations.create_alert/1)
 
     assert :ok = run(automation.id)
   end
 
-  test "executes recovery actions when condition no longer holds and recovery window elapsed" do
+  test "executes recovery actions and resolves alert when condition clears" do
     automation =
       AutomationsFixtures.automation_fixture(
         recovery_enabled: true,
@@ -79,13 +79,13 @@ defmodule Tuist.Automations.Workers.AutomationEvaluationWorkerTest do
 
     recovered_id = Ecto.UUID.generate()
 
-    expect(FlakinessRateType, :evaluate, fn _automation ->
+    expect(FlakinessRateMonitor, :evaluate, fn _automation ->
       %{triggered: [], all: [recovered_id]}
     end)
 
     triggered_long_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -3, :day)
 
-    expect(Automations, :list_triggers, fn _id ->
+    expect(Automations, :list_active_alerts, fn _id ->
       [%{test_case_id: recovered_id, triggered_at: triggered_long_ago}]
     end)
 
@@ -96,7 +96,7 @@ defmodule Tuist.Automations.Workers.AutomationEvaluationWorkerTest do
       :ok
     end)
 
-    expect(Automations, :mark_recovered, fn id, ^recovered_id ->
+    expect(Automations, :resolve_alert, fn id, ^recovered_id ->
       assert id == automation.id
       :ok
     end)
@@ -113,18 +113,18 @@ defmodule Tuist.Automations.Workers.AutomationEvaluationWorkerTest do
 
     recovered_id = Ecto.UUID.generate()
 
-    expect(FlakinessRateType, :evaluate, fn _automation ->
+    expect(FlakinessRateMonitor, :evaluate, fn _automation ->
       %{triggered: [], all: [recovered_id]}
     end)
 
     triggered_recently = NaiveDateTime.add(NaiveDateTime.utc_now(), -1, :day)
 
-    expect(Automations, :list_triggers, fn _id ->
+    expect(Automations, :list_active_alerts, fn _id ->
       [%{test_case_id: recovered_id, triggered_at: triggered_recently}]
     end)
 
     reject(&ActionExecutor.execute_actions/3)
-    reject(&Automations.mark_recovered/2)
+    reject(&Automations.resolve_alert/2)
 
     assert :ok = run(automation.id)
   end
@@ -132,9 +132,9 @@ defmodule Tuist.Automations.Workers.AutomationEvaluationWorkerTest do
   test "does not run recovery when recovery_enabled is false" do
     automation = AutomationsFixtures.automation_fixture(recovery_enabled: false)
 
-    expect(FlakinessRateType, :evaluate, fn _automation -> %{triggered: [], all: []} end)
-    expect(Automations, :list_triggers, fn _id -> [] end)
-    reject(&Automations.mark_recovered/2)
+    expect(FlakinessRateMonitor, :evaluate, fn _automation -> %{triggered: [], all: []} end)
+    expect(Automations, :list_active_alerts, fn _id -> [] end)
+    reject(&Automations.resolve_alert/2)
 
     assert :ok = run(automation.id)
   end

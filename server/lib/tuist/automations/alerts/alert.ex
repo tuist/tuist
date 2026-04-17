@@ -1,11 +1,17 @@
-defmodule Tuist.Automations.AutomationTrigger do
-  @moduledoc false
+defmodule Tuist.Automations.Alerts.Alert do
+  @moduledoc """
+  Represents an alert event in the automation system.
+
+  Alerts are append-only log entries tracking when an automation's
+  condition was met (status: "triggered") or cleared (status: "recovered")
+  for a given entity.
+  """
   use Ecto.Schema
 
   import Ecto.Changeset
 
   @primary_key {:id, Ecto.UUID, autogenerate: false}
-  schema "automation_triggers" do
+  schema "automation_alerts" do
     field :automation_id, Ecto.UUID
     field :test_case_id, Ecto.UUID
     field :status, Ch, type: "LowCardinality(String)"
@@ -14,8 +20,8 @@ defmodule Tuist.Automations.AutomationTrigger do
     field :inserted_at, Ch, type: "DateTime64(6)"
   end
 
-  def changeset(trigger, attrs) do
-    trigger
+  def changeset(alert, attrs) do
+    alert
     |> cast(attrs, [:id, :automation_id, :test_case_id, :status, :triggered_at, :recovered_at, :inserted_at])
     |> validate_required([:id, :automation_id, :test_case_id, :status, :triggered_at])
   end
