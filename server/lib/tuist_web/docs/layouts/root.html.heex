@@ -1,10 +1,5 @@
 <!DOCTYPE html>
-<html
-  lang={Gettext.get_locale(TuistWeb.Gettext)}
-  class="[scrollbar-gutter:stable]"
-  data-theme="light"
-  style="color-scheme: light"
->
+<html lang={Gettext.get_locale(TuistWeb.Gettext)} class="[scrollbar-gutter:stable]">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
@@ -24,27 +19,89 @@
     </style>
     <script nonce={get_csp_nonce()} type="module">
       import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
-      mermaid.initialize({
-        startOnLoad: true,
-        securityLevel: "loose",
-        theme: "base",
-        themeVariables: {
-          primaryColor: "#f1f2f4",
-          primaryBorderColor: "#c7ccd1",
-          primaryTextColor: "#171a1c",
-          secondaryColor: "#f9fafa",
-          tertiaryColor: "#fdfdfd",
-          lineColor: "#848f9a",
-          textColor: "#171a1c",
-          fontFamily: "Inter, sans-serif",
-          fontSize: "14px",
-          nodeBorder: "#c7ccd1",
-          nodeTextColor: "#171a1c",
-          edgeLabelBackground: "#fdfdfd",
-        },
-      });
+
+      const lightTheme = {
+        primaryColor: "#f1f2f4",
+        primaryBorderColor: "#c7ccd1",
+        primaryTextColor: "#171a1c",
+        secondaryColor: "#f9fafa",
+        tertiaryColor: "#fdfdfd",
+        lineColor: "#848f9a",
+        textColor: "#171a1c",
+        fontFamily: "Inter, sans-serif",
+        fontSize: "14px",
+        nodeBorder: "#c7ccd1",
+        nodeTextColor: "#171a1c",
+        edgeLabelBackground: "#fdfdfd",
+      };
+
+      const darkTheme = {
+        primaryColor: "#22262a",
+        primaryBorderColor: "#464646",
+        primaryTextColor: "#f1f2f4",
+        secondaryColor: "#1b1e22",
+        tertiaryColor: "#131619",
+        lineColor: "#848f9a",
+        textColor: "#f1f2f4",
+        fontFamily: "Inter, sans-serif",
+        fontSize: "14px",
+        nodeBorder: "#464646",
+        nodeTextColor: "#f1f2f4",
+        edgeLabelBackground: "#131619",
+      };
+
+      function currentThemeVariables() {
+        return document.documentElement.dataset.theme === "dark" ? darkTheme : lightTheme;
+      }
+
+      function configureMermaid() {
+        mermaid.initialize({
+          startOnLoad: false,
+          securityLevel: "loose",
+          theme: "base",
+          themeVariables: currentThemeVariables(),
+        });
+      }
+
+      function renderNewDiagrams() {
+        const elements = Array.from(
+          document.querySelectorAll("pre.mermaid:not([data-processed='true'])"),
+        );
+        elements.forEach((el) => {
+          if (el.dataset.mermaidSource === undefined) {
+            el.dataset.mermaidSource = el.textContent.trim();
+          }
+        });
+        if (elements.length > 0) {
+          mermaid.run({ nodes: elements });
+        }
+      }
+
+      function rerenderAllDiagrams() {
+        const elements = Array.from(document.querySelectorAll("pre.mermaid"));
+        elements.forEach((el) => {
+          if (el.dataset.mermaidSource === undefined) {
+            el.dataset.mermaidSource = el.textContent.trim();
+          } else {
+            el.textContent = el.dataset.mermaidSource;
+          }
+          el.removeAttribute("data-processed");
+        });
+        if (elements.length > 0) {
+          mermaid.run({ nodes: elements });
+        }
+      }
+
+      configureMermaid();
+      renderNewDiagrams();
+
       document.addEventListener("phx:page-loading-stop", () => {
-        mermaid.run({ querySelector: ".mermaid" });
+        renderNewDiagrams();
+      });
+
+      window.addEventListener("changed-preferred-theme", () => {
+        configureMermaid();
+        rerenderAllDiagrams();
       });
     </script>
     <!-- Fonts -->
@@ -177,7 +234,6 @@
           current_user={@current_user}
           log_out_return_to={@current_path}
           primary_action="dashboard"
-          show_theme_switcher={false}
         />
       </div>
       <div data-part="mobile-actions">
@@ -195,7 +251,6 @@
           current_user={@current_user}
           log_out_return_to={@current_path}
           primary_action="dashboard"
-          show_theme_switcher={false}
         />
         <.neutral_button
           id="docs-nav-mobile-search"

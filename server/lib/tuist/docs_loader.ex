@@ -55,7 +55,11 @@ defmodule Tuist.Docs.Loader do
       phoenix_heex: true
     ],
     render: [unsafe: true],
-    syntax_highlight: [formatter: {:html_inline, theme: "github_light"}]
+    syntax_highlight: [
+      formatter:
+        {:html_multi_themes,
+         themes: [light: "github_light", dark: "github_dark"], default_theme: "light-dark()"}
+    ]
   ]
 
   def load_pages! do

@@ -84,7 +84,19 @@
       transform: translate(-50%, -50%);
       opacity: 0.7;
       filter: blur(13px);
-      background: linear-gradient(180deg, #f4f5fe 0%, #efe8ff 100%);
+      background: linear-gradient(
+        180deg,
+        light-dark(
+            var(--noora-purple-50),
+            color-mix(in oklch, var(--noora-purple-700) 24%, transparent)
+          )
+          0%,
+        light-dark(
+            color-mix(in oklch, var(--noora-purple-200) 32%, var(--noora-purple-50)),
+            color-mix(in oklch, var(--noora-purple-800) 36%, transparent)
+          )
+          100%
+      );
       width: 640px;
       height: 360px;
       content: "";
@@ -109,7 +121,7 @@
   }
 
   & [data-part="hero-card-link"] {
-    color: #6f2cff;
+    color: light-dark(var(--noora-purple-500), var(--noora-purple-300));
     font: var(--noora-font-body-xsmall);
     text-decoration: none;
 
@@ -236,7 +248,8 @@
     &::after {
       position: absolute;
       inset: 0;
-      box-shadow: inset 0px 1px 0px 0px rgba(255, 255, 255, 0.9);
+      box-shadow: inset 0px 1px 0px 0px
+        light-dark(oklch(100% 0 0 / 0.9), oklch(100% 0 0 / 0.06));
       border-radius: inherit;
       pointer-events: none;
       content: "";
@@ -454,7 +467,19 @@
     align-items: center;
     box-shadow: var(--noora-light-border-default);
     border-radius: var(--noora-radius-xlarge);
-    background: linear-gradient(180deg, #f4f5fe 0%, #efe8ff 100%);
+    background: linear-gradient(
+      180deg,
+      light-dark(
+          var(--noora-purple-50),
+          color-mix(in oklch, var(--noora-purple-700) 18%, transparent)
+        )
+        0%,
+      light-dark(
+          color-mix(in oklch, var(--noora-purple-200) 32%, var(--noora-purple-50)),
+          color-mix(in oklch, var(--noora-purple-800) 32%, transparent)
+        )
+        100%
+    );
     height: 208px;
     overflow: hidden;
   }
@@ -538,7 +563,10 @@
     align-items: center;
     transform: translate(-50%, -50%);
     border-radius: 50%;
-    background: rgba(255, 255, 255, 0.85);
+    background: light-dark(
+      oklch(100% 0 0 / 0.85),
+      color-mix(in oklch, var(--noora-surface-background-primary) 85%, transparent)
+    );
     width: 48px;
     height: 48px;
     pointer-events: none;

@@ -3,6 +3,7 @@ import { Socket } from "phoenix";
 import { LiveSocket } from "phoenix_live_view";
 import topbar from "../app/js/vendor/topbar.js";
 import Noora from "noora";
+import ThemeSwitcher, { observeThemeChanges } from "../app/js/ThemeSwitcher.js";
 import DocsContentHook from "./hooks/docs-content-hook.js";
 import DocsInstallTabsHook from "./hooks/docs-install-tabs-hook.js";
 import { initDocsSearch } from "./hooks/docs-search-hook.js";
@@ -12,6 +13,8 @@ import "./docs.css";
 let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content");
 let cspNonce = document.querySelector("meta[name='csp-nonce']").getAttribute("content");
 
+observeThemeChanges();
+
 let liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: { _csrf_token: csrfToken, _csp_nonce: cspNonce },
@@ -19,6 +22,7 @@ let liveSocket = new LiveSocket("/live", Socket, {
     ...Noora.Hooks,
     DocsContent: DocsContentHook,
     DocsInstallTabs: DocsInstallTabsHook,
+    ThemeSwitcher,
   },
 });
 

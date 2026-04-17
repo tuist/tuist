@@ -13,7 +13,6 @@
 @import "./css/components/page-footer.css";
 
 :root {
-  color-scheme: light;
   --docs-nav-height: 73px;
   --docs-sidebar-width: 220px;
   --docs-content-width: 800px;
@@ -36,7 +35,7 @@ body {
   flex-direction: column;
   box-sizing: border-box;
   margin: 0;
-  background: oklch(98.5% 0.004 264.5);
+  background: var(--noora-surface-background-tertiary);
   padding: 0;
   font-family: var(--noora-font-body);
 }

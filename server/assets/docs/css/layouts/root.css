@@ -213,7 +213,7 @@
   z-index: var(--noora-z-index-4);
   backdrop-filter: blur(2.5px);
   inset: 0;
-  background: rgba(46, 51, 56, 0.24);
+  background: var(--noora-surface-overlay);
 }
 
 body[data-sidebar-open] #docs-mobile-sidebar-overlay {
