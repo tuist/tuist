@@ -4,6 +4,8 @@ import Mockable
 import Path
 import Testing
 import TuistCore
+import TuistEnvironment
+import TuistEnvironmentTesting
 import TuistRootDirectoryLocator
 import TuistTesting
 import XcodeGraph
@@ -108,5 +110,70 @@ struct GraphContentHasherTests {
 
         // Then
         #expect(hashedTargets == expectedCachableTargets)
+    }
+
+    @Test(.withMockedEnvironment())
+    func contentHashes_withSwiftFileSystemBackend_producesSameResultsAsSerial() async throws {
+        // Given
+        let path: AbsolutePath = "/project"
+        let frameworkATarget: Target = .test(
+            name: "FrameworkA",
+            product: .framework,
+            infoPlist: nil,
+            entitlements: nil
+        )
+        let frameworkBTarget: Target = .test(
+            name: "FrameworkB",
+            product: .framework,
+            infoPlist: nil,
+            entitlements: nil,
+            dependencies: [.target(name: "FrameworkA")]
+        )
+        let frameworkCTarget: Target = .test(
+            name: "FrameworkC",
+            product: .framework,
+            infoPlist: nil,
+            entitlements: nil,
+            dependencies: [.target(name: "FrameworkB")]
+        )
+        let project: Project = .test(
+            path: path,
+            targets: [frameworkATarget, frameworkBTarget, frameworkCTarget]
+        )
+        let graph = Graph.test(
+            path: path,
+            projects: [project.path: project],
+            dependencies: [
+                .target(name: frameworkBTarget.name, path: project.path): [
+                    .target(name: frameworkATarget.name, path: project.path),
+                ],
+                .target(name: frameworkCTarget.name, path: project.path): [
+                    .target(name: frameworkBTarget.name, path: project.path),
+                ],
+            ]
+        )
+
+        // When: serial (default)
+        let serialHashes = try await subject.contentHashes(
+            for: graph,
+            include: { _ in true },
+            destination: nil,
+            additionalStrings: []
+        )
+
+        // When: concurrent (swift-file-system backend)
+        Environment.mocked?.variables["TUIST_FILESYSTEM_BACKEND"] = "swift-file-system"
+        let concurrentHashes = try await subject.contentHashes(
+            for: graph,
+            include: { _ in true },
+            destination: nil,
+            additionalStrings: []
+        )
+
+        // Then: same set of targets, same hashes per target
+        #expect(Set(serialHashes.keys) == Set(concurrentHashes.keys))
+        for (target, hash) in serialHashes {
+            #expect(concurrentHashes[target]?.hash == hash.hash)
+        }
     }
 }
