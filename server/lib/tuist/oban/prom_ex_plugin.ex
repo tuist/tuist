@@ -1,10 +1,8 @@
 defmodule Tuist.Oban.PromExPlugin do
   @moduledoc """
-  Tuist's own Oban metrics plugin, replacing PromEx.Plugins.Oban.
-
-  Emits job event metrics (with extended duration histogram buckets),
-  queue length polling metrics, and producer event metrics. Drops
-  circuit breaker and init-event metrics that were never useful.
+  Oban metrics plugin emitting job event metrics (with extended
+  duration histogram buckets), queue length polling metrics, and
+  producer event metrics.
   """
   use PromEx.Plugin
 
