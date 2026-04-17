@@ -3,6 +3,8 @@ defmodule TuistWeb.Docs.Layouts do
   use TuistWeb, :html
   use Noora
 
+  import TuistWeb.AccountDropdown
+
   alias Tuist.Docs.Paths
 
   embed_templates "layouts/*"

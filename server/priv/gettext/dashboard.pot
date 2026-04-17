@@ -42,7 +42,7 @@ msgstr ""
 msgid "500"
 msgstr ""
 
-#: lib/tuist_web/components/account_dropdown.ex:60
+#: lib/tuist_web/components/account_dropdown.ex:64
 #, elixir-autogen, elixir-format
 msgid "Account settings"
 msgstr ""
@@ -99,7 +99,7 @@ msgstr ""
 msgid "Create organization"
 msgstr ""
 
-#: lib/tuist_web/components/account_dropdown.ex:75
+#: lib/tuist_web/components/account_dropdown.ex:90
 #, elixir-autogen, elixir-format
 msgid "Download macOS app"
 msgstr ""
@@ -171,7 +171,7 @@ msgstr ""
 msgid "LiveDashboard"
 msgstr ""
 
-#: lib/tuist_web/components/account_dropdown.ex:93
+#: lib/tuist_web/components/account_dropdown.ex:108
 #, elixir-autogen, elixir-format
 msgid "Log out"
 msgstr ""
@@ -222,7 +222,7 @@ msgstr ""
 msgid "Oops, we couldn't find that page"
 msgstr ""
 
-#: lib/tuist_web/components/account_dropdown.ex:68
+#: lib/tuist_web/components/account_dropdown.ex:80
 #, elixir-autogen, elixir-format
 msgid "Operations"
 msgstr ""
@@ -287,7 +287,7 @@ msgstr ""
 msgid "Storage"
 msgstr ""
 
-#: lib/tuist_web/components/account_dropdown.ex:84
+#: lib/tuist_web/components/account_dropdown.ex:99
 #, elixir-autogen, elixir-format
 msgid "Switch to your preferred theme"
 msgstr ""
@@ -612,4 +612,9 @@ msgstr ""
 #: lib/tuist_web/controllers/auth_controller.ex:475
 #, elixir-autogen, elixir-format
 msgid "Your identity provider returned an authentication error. Please try again or contact your organization admin."
+msgstr ""
+
+#: lib/tuist_web/components/account_dropdown.ex:72
+#, elixir-autogen, elixir-format
+msgid "Dashboard"
 msgstr ""

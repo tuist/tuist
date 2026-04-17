@@ -11,7 +11,7 @@
 msgid ""
 msgstr ""
 
-#: lib/tuist_web/live/test_run_live.html.heex:403
+#: lib/tuist_web/live/test_run_live.html.heex:402
 #, elixir-autogen, elixir-format
 msgid "%{duration}s"
 msgstr ""
@@ -22,7 +22,7 @@ msgid "%{selective_test_effectiveness}%"
 msgstr ""
 
 #: lib/tuist_web/live/test_case_run_live.html.heex:1094
-#: lib/tuist_web/live/test_run_live.html.heex:2043
+#: lib/tuist_web/live/test_run_live.html.heex:2042
 #, elixir-autogen, elixir-format
 msgid "All tests passed!"
 msgstr ""
@@ -80,7 +80,7 @@ msgstr ""
 msgid "Average"
 msgstr ""
 
-#: lib/tuist_web/live/test_run_live.html.heex:366
+#: lib/tuist_web/live/test_run_live.html.heex:365
 #, elixir-autogen, elixir-format
 msgid "Average duration of all test cases."
 msgstr ""
@@ -107,15 +107,15 @@ msgstr ""
 msgid "Avg. duration"
 msgstr ""
 
-#: lib/tuist_web/live/test_run_live.ex:975
-#: lib/tuist_web/live/test_run_live.ex:1032
-#: lib/tuist_web/live/test_run_live.html.heex:365
-#: lib/tuist_web/live/test_run_live.html.heex:1260
-#: lib/tuist_web/live/test_run_live.html.heex:1289
-#: lib/tuist_web/live/test_run_live.html.heex:1367
-#: lib/tuist_web/live/test_run_live.html.heex:1478
-#: lib/tuist_web/live/test_run_live.html.heex:1515
-#: lib/tuist_web/live/test_run_live.html.heex:1607
+#: lib/tuist_web/live/test_run_live.ex:976
+#: lib/tuist_web/live/test_run_live.ex:1033
+#: lib/tuist_web/live/test_run_live.html.heex:364
+#: lib/tuist_web/live/test_run_live.html.heex:1259
+#: lib/tuist_web/live/test_run_live.html.heex:1288
+#: lib/tuist_web/live/test_run_live.html.heex:1366
+#: lib/tuist_web/live/test_run_live.html.heex:1477
+#: lib/tuist_web/live/test_run_live.html.heex:1514
+#: lib/tuist_web/live/test_run_live.html.heex:1606
 #, elixir-autogen, elixir-format
 msgid "Avg. test case duration"
 msgstr ""
@@ -212,12 +212,12 @@ msgstr ""
 msgid "Class"
 msgstr ""
 
-#: lib/tuist_web/live/test_run_live.html.heex:380
+#: lib/tuist_web/live/test_run_live.html.heex:379
 #, elixir-autogen, elixir-format
 msgid "Command"
 msgstr ""
 
-#: lib/tuist_web/live/test_run_live.html.heex:400
+#: lib/tuist_web/live/test_run_live.html.heex:399
 #, elixir-autogen, elixir-format
 msgid "Command duration"
 msgstr ""
@@ -230,8 +230,8 @@ msgstr ""
 
 #: lib/tuist_web/helpers/attachment_helpers.ex:28
 #: lib/tuist_web/live/test_case_run_live.html.heex:443
-#: lib/tuist_web/live/test_run_live.html.heex:754
-#: lib/tuist_web/live/test_run_live.html.heex:1968
+#: lib/tuist_web/live/test_run_live.html.heex:753
+#: lib/tuist_web/live/test_run_live.html.heex:1967
 #, elixir-autogen, elixir-format
 msgid "Crash Report"
 msgstr ""
@@ -259,20 +259,20 @@ msgstr ""
 #: lib/tuist_web/live/test_case_live.html.heex:487
 #: lib/tuist_web/live/test_case_live.html.heex:563
 #: lib/tuist_web/live/test_case_run_live.html.heex:149
-#: lib/tuist_web/live/test_run_live.ex:921
-#: lib/tuist_web/live/test_run_live.ex:983
-#: lib/tuist_web/live/test_run_live.ex:1040
+#: lib/tuist_web/live/test_run_live.ex:922
+#: lib/tuist_web/live/test_run_live.ex:984
+#: lib/tuist_web/live/test_run_live.ex:1041
 #: lib/tuist_web/live/test_run_live.html.heex:258
-#: lib/tuist_web/live/test_run_live.html.heex:456
-#: lib/tuist_web/live/test_run_live.html.heex:1065
-#: lib/tuist_web/live/test_run_live.html.heex:1080
-#: lib/tuist_web/live/test_run_live.html.heex:1173
-#: lib/tuist_web/live/test_run_live.html.heex:1263
-#: lib/tuist_web/live/test_run_live.html.heex:1297
-#: lib/tuist_web/live/test_run_live.html.heex:1405
-#: lib/tuist_web/live/test_run_live.html.heex:1481
-#: lib/tuist_web/live/test_run_live.html.heex:1523
-#: lib/tuist_web/live/test_run_live.html.heex:1640
+#: lib/tuist_web/live/test_run_live.html.heex:455
+#: lib/tuist_web/live/test_run_live.html.heex:1064
+#: lib/tuist_web/live/test_run_live.html.heex:1079
+#: lib/tuist_web/live/test_run_live.html.heex:1172
+#: lib/tuist_web/live/test_run_live.html.heex:1262
+#: lib/tuist_web/live/test_run_live.html.heex:1296
+#: lib/tuist_web/live/test_run_live.html.heex:1404
+#: lib/tuist_web/live/test_run_live.html.heex:1480
+#: lib/tuist_web/live/test_run_live.html.heex:1522
+#: lib/tuist_web/live/test_run_live.html.heex:1639
 #: lib/tuist_web/live/test_runs_live.html.heex:495
 #: lib/tuist_web/live/tests_live.html.heex:1057
 #, elixir-autogen, elixir-format
@@ -299,8 +299,8 @@ msgid "Events will appear here when the test case status changes."
 msgstr ""
 
 #: lib/tuist_web/live/test_case_run_live.html.heex:466
-#: lib/tuist_web/live/test_run_live.html.heex:773
-#: lib/tuist_web/live/test_run_live.html.heex:1986
+#: lib/tuist_web/live/test_run_live.html.heex:772
+#: lib/tuist_web/live/test_run_live.html.heex:1985
 #, elixir-autogen, elixir-format
 msgid "Exception"
 msgstr ""
@@ -346,22 +346,22 @@ msgstr ""
 #: lib/tuist_web/live/test_case_run_live.html.heex:1044
 #: lib/tuist_web/live/test_cases_live.ex:45
 #: lib/tuist_web/live/test_cases_live.html.heex:590
-#: lib/tuist_web/live/test_run_live.ex:934
-#: lib/tuist_web/live/test_run_live.ex:996
-#: lib/tuist_web/live/test_run_live.ex:1053
+#: lib/tuist_web/live/test_run_live.ex:935
+#: lib/tuist_web/live/test_run_live.ex:997
+#: lib/tuist_web/live/test_run_live.ex:1054
 #: lib/tuist_web/live/test_run_live.html.heex:231
-#: lib/tuist_web/live/test_run_live.html.heex:480
-#: lib/tuist_web/live/test_run_live.html.heex:588
-#: lib/tuist_web/live/test_run_live.html.heex:647
-#: lib/tuist_web/live/test_run_live.html.heex:703
-#: lib/tuist_web/live/test_run_live.html.heex:941
-#: lib/tuist_web/live/test_run_live.html.heex:986
-#: lib/tuist_web/live/test_run_live.html.heex:1200
-#: lib/tuist_web/live/test_run_live.html.heex:1394
-#: lib/tuist_web/live/test_run_live.html.heex:1634
-#: lib/tuist_web/live/test_run_live.html.heex:1918
-#: lib/tuist_web/live/test_run_live.html.heex:2156
-#: lib/tuist_web/live/test_run_live.html.heex:2201
+#: lib/tuist_web/live/test_run_live.html.heex:479
+#: lib/tuist_web/live/test_run_live.html.heex:587
+#: lib/tuist_web/live/test_run_live.html.heex:646
+#: lib/tuist_web/live/test_run_live.html.heex:702
+#: lib/tuist_web/live/test_run_live.html.heex:940
+#: lib/tuist_web/live/test_run_live.html.heex:985
+#: lib/tuist_web/live/test_run_live.html.heex:1199
+#: lib/tuist_web/live/test_run_live.html.heex:1393
+#: lib/tuist_web/live/test_run_live.html.heex:1633
+#: lib/tuist_web/live/test_run_live.html.heex:1917
+#: lib/tuist_web/live/test_run_live.html.heex:2155
+#: lib/tuist_web/live/test_run_live.html.heex:2200
 #: lib/tuist_web/live/test_runs_live.ex:43
 #: lib/tuist_web/live/test_runs_live.html.heex:468
 #: lib/tuist_web/live/tests_live.ex:511
@@ -398,7 +398,7 @@ msgstr ""
 msgid "Failed test case runs represents the number of individual test case executions that failed during a given period."
 msgstr ""
 
-#: lib/tuist_web/live/test_run_live.html.heex:351
+#: lib/tuist_web/live/test_run_live.html.heex:350
 #, elixir-autogen, elixir-format
 msgid "Failed test cases"
 msgstr ""
@@ -413,10 +413,10 @@ msgstr ""
 #: lib/tuist_web/live/test_case_run_live.html.heex:230
 #: lib/tuist_web/live/test_case_run_live.html.heex:864
 #: lib/tuist_web/live/test_run_live.html.heex:197
-#: lib/tuist_web/live/test_run_live.html.heex:495
-#: lib/tuist_web/live/test_run_live.html.heex:502
-#: lib/tuist_web/live/test_run_live.html.heex:1825
-#: lib/tuist_web/live/test_run_live.html.heex:1832
+#: lib/tuist_web/live/test_run_live.html.heex:494
+#: lib/tuist_web/live/test_run_live.html.heex:501
+#: lib/tuist_web/live/test_run_live.html.heex:1824
+#: lib/tuist_web/live/test_run_live.html.heex:1831
 #, elixir-autogen, elixir-format
 msgid "Failures"
 msgstr ""
@@ -431,9 +431,9 @@ msgstr ""
 #: lib/tuist_web/live/shards_live.html.heex:531
 #: lib/tuist_web/live/test_case_live.html.heex:496
 #: lib/tuist_web/live/test_cases_live.html.heex:484
-#: lib/tuist_web/live/test_run_live.html.heex:1089
-#: lib/tuist_web/live/test_run_live.html.heex:1306
-#: lib/tuist_web/live/test_run_live.html.heex:1532
+#: lib/tuist_web/live/test_run_live.html.heex:1088
+#: lib/tuist_web/live/test_run_live.html.heex:1305
+#: lib/tuist_web/live/test_run_live.html.heex:1531
 #: lib/tuist_web/live/test_runs_live.html.heex:434
 #, elixir-autogen, elixir-format
 msgid "Filter"
@@ -454,11 +454,11 @@ msgstr ""
 #: lib/tuist_web/live/test_case_run_live.html.heex:40
 #: lib/tuist_web/live/test_cases_live.ex:74
 #: lib/tuist_web/live/test_cases_live.html.heex:533
-#: lib/tuist_web/live/test_run_live.ex:948
+#: lib/tuist_web/live/test_run_live.ex:949
 #: lib/tuist_web/live/test_run_live.html.heex:55
-#: lib/tuist_web/live/test_run_live.html.heex:1126
-#: lib/tuist_web/live/test_run_live.html.heex:1333
-#: lib/tuist_web/live/test_run_live.html.heex:1559
+#: lib/tuist_web/live/test_run_live.html.heex:1125
+#: lib/tuist_web/live/test_run_live.html.heex:1332
+#: lib/tuist_web/live/test_run_live.html.heex:1558
 #, elixir-autogen, elixir-format
 msgid "Flaky"
 msgstr ""
@@ -468,10 +468,10 @@ msgstr ""
 #: lib/tuist_web/live/test_case_live.html.heex:315
 #: lib/tuist_web/live/test_case_run_live.html.heex:667
 #: lib/tuist_web/live/test_run_live.html.heex:204
-#: lib/tuist_web/live/test_run_live.html.heex:838
-#: lib/tuist_web/live/test_run_live.html.heex:845
-#: lib/tuist_web/live/test_run_live.html.heex:2060
-#: lib/tuist_web/live/test_run_live.html.heex:2067
+#: lib/tuist_web/live/test_run_live.html.heex:837
+#: lib/tuist_web/live/test_run_live.html.heex:844
+#: lib/tuist_web/live/test_run_live.html.heex:2059
+#: lib/tuist_web/live/test_run_live.html.heex:2066
 #, elixir-autogen, elixir-format
 msgid "Flaky Runs"
 msgstr ""
@@ -490,7 +490,7 @@ msgstr ""
 msgid "Flaky runs"
 msgstr ""
 
-#: lib/tuist_web/live/test_run_live.html.heex:357
+#: lib/tuist_web/live/test_run_live.html.heex:356
 #, elixir-autogen, elixir-format
 msgid "Flaky test cases"
 msgstr ""
@@ -501,12 +501,12 @@ msgstr ""
 msgid "Flaky test runs"
 msgstr ""
 
-#: lib/tuist_web/live/test_run_live.html.heex:1780
+#: lib/tuist_web/live/test_run_live.html.heex:1779
 #, elixir-autogen, elixir-format
 msgid "Hash"
 msgstr ""
 
-#: lib/tuist_web/live/test_run_live.html.heex:1760
+#: lib/tuist_web/live/test_run_live.html.heex:1759
 #, elixir-autogen, elixir-format
 msgid "Hit"
 msgstr ""
@@ -625,7 +625,7 @@ msgid "Load more"
 msgstr ""
 
 #: lib/tuist_web/live/test_case_run_live.ex:217
-#: lib/tuist_web/live/test_run_live.ex:1251
+#: lib/tuist_web/live/test_run_live.ex:1252
 #, elixir-autogen, elixir-format
 msgid "Loading..."
 msgstr ""
@@ -634,7 +634,7 @@ msgstr ""
 #: lib/tuist_web/live/flaky_tests_live.html.heex:23
 #: lib/tuist_web/live/test_cases_live.ex:367
 #: lib/tuist_web/live/test_cases_live.html.heex:19
-#: lib/tuist_web/live/test_run_live.html.heex:1769
+#: lib/tuist_web/live/test_run_live.html.heex:1768
 #: lib/tuist_web/live/test_runs_live.ex:360
 #: lib/tuist_web/live/tests_live.ex:446
 #: lib/tuist_web/live/tests_live.ex:449
@@ -649,7 +649,7 @@ msgstr ""
 msgid "Log File"
 msgstr ""
 
-#: lib/tuist_web/live/test_run_live.html.heex:326
+#: lib/tuist_web/live/test_run_live.html.heex:300
 #, elixir-autogen, elixir-format
 msgid "Mac device"
 msgstr ""
@@ -679,13 +679,13 @@ msgstr ""
 msgid "Marked as unquarantined"
 msgstr ""
 
-#: lib/tuist_web/live/test_run_live.html.heex:1775
+#: lib/tuist_web/live/test_run_live.html.heex:1774
 #, elixir-autogen, elixir-format
 msgid "Missed"
 msgstr ""
 
 #: lib/tuist_web/helpers/test_labels.ex:14
-#: lib/tuist_web/live/test_run_live.html.heex:1746
+#: lib/tuist_web/live/test_run_live.html.heex:1745
 #, elixir-autogen, elixir-format
 msgid "Module"
 msgstr ""
@@ -696,7 +696,7 @@ msgid "Module Cache"
 msgstr ""
 
 #: lib/tuist_web/helpers/test_labels.ex:16
-#: lib/tuist_web/live/test_run_live.html.heex:450
+#: lib/tuist_web/live/test_run_live.html.heex:449
 #, elixir-autogen, elixir-format
 msgid "Modules"
 msgstr ""
@@ -707,8 +707,8 @@ msgid "Most occurring flaky tests"
 msgstr ""
 
 #: lib/tuist_web/live/test_case_run_live.html.heex:47
-#: lib/tuist_web/live/test_run_live.ex:947
-#: lib/tuist_web/live/test_run_live.html.heex:1133
+#: lib/tuist_web/live/test_run_live.ex:948
+#: lib/tuist_web/live/test_run_live.html.heex:1132
 #, elixir-autogen, elixir-format
 msgid "New"
 msgstr ""
@@ -736,7 +736,7 @@ msgid "No data yet"
 msgstr ""
 
 #: lib/tuist_web/live/test_case_run_live.html.heex:1093
-#: lib/tuist_web/live/test_run_live.html.heex:2042
+#: lib/tuist_web/live/test_run_live.html.heex:2041
 #, elixir-autogen, elixir-format
 msgid "No failures detected"
 msgstr ""
@@ -751,7 +751,7 @@ msgstr ""
 msgid "No history available"
 msgstr ""
 
-#: lib/tuist_web/live/test_run_live.html.heex:1788
+#: lib/tuist_web/live/test_run_live.html.heex:1787
 #, elixir-autogen, elixir-format
 msgid "No modules found"
 msgstr ""
@@ -766,7 +766,7 @@ msgstr ""
 msgid "No test case runs found"
 msgstr ""
 
-#: lib/tuist_web/live/test_run_live.html.heex:1212
+#: lib/tuist_web/live/test_run_live.html.heex:1211
 #, elixir-autogen, elixir-format
 msgid "No test cases found"
 msgstr ""
@@ -776,22 +776,22 @@ msgstr ""
 msgid "No test cases yet"
 msgstr ""
 
-#: lib/tuist_web/live/test_run_live.html.heex:1662
+#: lib/tuist_web/live/test_run_live.html.heex:1661
 #, elixir-autogen, elixir-format
 msgid "No test modules found"
 msgstr ""
 
-#: lib/tuist_web/live/test_run_live.html.heex:1427
+#: lib/tuist_web/live/test_run_live.html.heex:1426
 #, elixir-autogen, elixir-format
 msgid "No test suites found"
 msgstr ""
 
-#: lib/tuist_web/live/test_run_live.html.heex:352
+#: lib/tuist_web/live/test_run_live.html.heex:351
 #, elixir-autogen, elixir-format
 msgid "Number of test cases that failed."
 msgstr ""
 
-#: lib/tuist_web/live/test_run_live.html.heex:359
+#: lib/tuist_web/live/test_run_live.html.heex:358
 #, elixir-autogen, elixir-format
 msgid "Number of test cases that passed after retry."
 msgstr ""
@@ -801,7 +801,7 @@ msgstr ""
 msgid "Number of times this test case has failed."
 msgstr ""
 
-#: lib/tuist_web/live/test_run_live.html.heex:1683
+#: lib/tuist_web/live/test_run_live.html.heex:1682
 #, elixir-autogen, elixir-format
 msgid "Optimization Summary"
 msgstr ""
@@ -838,21 +838,21 @@ msgstr ""
 #: lib/tuist_web/live/test_case_run_live.html.heex:1037
 #: lib/tuist_web/live/test_cases_live.ex:44
 #: lib/tuist_web/live/test_cases_live.html.heex:586
-#: lib/tuist_web/live/test_run_live.ex:933
-#: lib/tuist_web/live/test_run_live.ex:995
-#: lib/tuist_web/live/test_run_live.ex:1052
+#: lib/tuist_web/live/test_run_live.ex:934
+#: lib/tuist_web/live/test_run_live.ex:996
+#: lib/tuist_web/live/test_run_live.ex:1053
 #: lib/tuist_web/live/test_run_live.html.heex:224
-#: lib/tuist_web/live/test_run_live.html.heex:475
-#: lib/tuist_web/live/test_run_live.html.heex:640
-#: lib/tuist_web/live/test_run_live.html.heex:696
-#: lib/tuist_web/live/test_run_live.html.heex:934
-#: lib/tuist_web/live/test_run_live.html.heex:979
-#: lib/tuist_web/live/test_run_live.html.heex:1195
-#: lib/tuist_web/live/test_run_live.html.heex:1389
-#: lib/tuist_web/live/test_run_live.html.heex:1629
-#: lib/tuist_web/live/test_run_live.html.heex:1911
-#: lib/tuist_web/live/test_run_live.html.heex:2149
-#: lib/tuist_web/live/test_run_live.html.heex:2194
+#: lib/tuist_web/live/test_run_live.html.heex:474
+#: lib/tuist_web/live/test_run_live.html.heex:639
+#: lib/tuist_web/live/test_run_live.html.heex:695
+#: lib/tuist_web/live/test_run_live.html.heex:933
+#: lib/tuist_web/live/test_run_live.html.heex:978
+#: lib/tuist_web/live/test_run_live.html.heex:1194
+#: lib/tuist_web/live/test_run_live.html.heex:1388
+#: lib/tuist_web/live/test_run_live.html.heex:1628
+#: lib/tuist_web/live/test_run_live.html.heex:1910
+#: lib/tuist_web/live/test_run_live.html.heex:2148
+#: lib/tuist_web/live/test_run_live.html.heex:2193
 #: lib/tuist_web/live/test_runs_live.ex:42
 #: lib/tuist_web/live/test_runs_live.html.heex:463
 #: lib/tuist_web/live/tests_live.ex:510
@@ -885,11 +885,11 @@ msgstr ""
 #: lib/tuist_web/live/test_case_run_live.html.heex:54
 #: lib/tuist_web/live/test_cases_live.ex:75
 #: lib/tuist_web/live/test_cases_live.html.heex:540
-#: lib/tuist_web/live/test_run_live.html.heex:537
-#: lib/tuist_web/live/test_run_live.html.heex:882
-#: lib/tuist_web/live/test_run_live.html.heex:1140
-#: lib/tuist_web/live/test_run_live.html.heex:1861
-#: lib/tuist_web/live/test_run_live.html.heex:2097
+#: lib/tuist_web/live/test_run_live.html.heex:536
+#: lib/tuist_web/live/test_run_live.html.heex:881
+#: lib/tuist_web/live/test_run_live.html.heex:1139
+#: lib/tuist_web/live/test_run_live.html.heex:1860
+#: lib/tuist_web/live/test_run_live.html.heex:2096
 #, elixir-autogen, elixir-format
 msgid "Quarantined"
 msgstr ""
@@ -918,7 +918,7 @@ msgstr ""
 #: lib/tuist_web/live/test_case_live.html.heex:584
 #: lib/tuist_web/live/test_case_run_live.html.heex:158
 #: lib/tuist_web/live/test_run_live.html.heex:273
-#: lib/tuist_web/live/test_run_live.html.heex:410
+#: lib/tuist_web/live/test_run_live.html.heex:409
 #: lib/tuist_web/live/test_runs_live.html.heex:503
 #: lib/tuist_web/live/tests_live.html.heex:1065
 #, elixir-autogen, elixir-format
@@ -941,7 +941,7 @@ msgstr ""
 msgid "Recent Test Runs"
 msgstr ""
 
-#: lib/tuist_web/live/test_run_live.html.heex:1763
+#: lib/tuist_web/live/test_run_live.html.heex:1762
 #, elixir-autogen, elixir-format
 msgid "Remote"
 msgstr ""
@@ -969,17 +969,17 @@ msgstr ""
 #: lib/tuist_web/live/shards_live.html.heex:523
 #: lib/tuist_web/live/test_case_live.html.heex:461
 #: lib/tuist_web/live/test_cases_live.html.heex:440
-#: lib/tuist_web/live/test_run_live.html.heex:1054
-#: lib/tuist_web/live/test_run_live.html.heex:1243
-#: lib/tuist_web/live/test_run_live.html.heex:1458
-#: lib/tuist_web/live/test_run_live.html.heex:1737
+#: lib/tuist_web/live/test_run_live.html.heex:1053
+#: lib/tuist_web/live/test_run_live.html.heex:1242
+#: lib/tuist_web/live/test_run_live.html.heex:1457
+#: lib/tuist_web/live/test_run_live.html.heex:1736
 #: lib/tuist_web/live/test_runs_live.html.heex:426
 #: lib/tuist_web/live/tests_live.html.heex:12
 #, elixir-autogen, elixir-format
 msgid "Search..."
 msgstr ""
 
-#: lib/tuist_web/live/test_run_live.html.heex:1727
+#: lib/tuist_web/live/test_run_live.html.heex:1726
 #: lib/tuist_web/live/tests_live.html.heex:631
 #, elixir-autogen, elixir-format
 msgid "Selective Testing"
@@ -990,22 +990,22 @@ msgstr ""
 msgid "Selective test effectiveness"
 msgstr ""
 
-#: lib/tuist_web/live/test_run_live.html.heex:1700
+#: lib/tuist_web/live/test_run_live.html.heex:1699
 #, elixir-autogen, elixir-format
 msgid "Selective test hits"
 msgstr ""
 
-#: lib/tuist_web/live/test_run_live.html.heex:1702
+#: lib/tuist_web/live/test_run_live.html.heex:1701
 #, elixir-autogen, elixir-format
 msgid "Selective test hits represents the number of test modules that were skipped thanks to the selective testing."
 msgstr ""
 
-#: lib/tuist_web/live/test_run_live.html.heex:1714
+#: lib/tuist_web/live/test_run_live.html.heex:1713
 #, elixir-autogen, elixir-format
 msgid "Selective test misses"
 msgstr ""
 
-#: lib/tuist_web/live/test_run_live.html.heex:1716
+#: lib/tuist_web/live/test_run_live.html.heex:1715
 #, elixir-autogen, elixir-format
 msgid "Selective test misses represents the number of test modules that were run as they were not successfully run before."
 msgstr ""
@@ -1016,8 +1016,8 @@ msgid "Selective testing: no data yet"
 msgstr ""
 
 #: lib/tuist_web/live/test_case_run_live.html.heex:473
-#: lib/tuist_web/live/test_run_live.html.heex:783
-#: lib/tuist_web/live/test_run_live.html.heex:1995
+#: lib/tuist_web/live/test_run_live.html.heex:782
+#: lib/tuist_web/live/test_run_live.html.heex:1994
 #, elixir-autogen, elixir-format
 msgid "Signal"
 msgstr ""
@@ -1030,11 +1030,11 @@ msgstr ""
 #: lib/tuist_web/live/test_case_run_live.html.heex:136
 #: lib/tuist_web/live/test_cases_live.ex:46
 #: lib/tuist_web/live/test_cases_live.html.heex:593
-#: lib/tuist_web/live/test_run_live.ex:935
-#: lib/tuist_web/live/test_run_live.ex:997
+#: lib/tuist_web/live/test_run_live.ex:936
+#: lib/tuist_web/live/test_run_live.ex:998
 #: lib/tuist_web/live/test_run_live.html.heex:245
-#: lib/tuist_web/live/test_run_live.html.heex:1205
-#: lib/tuist_web/live/test_run_live.html.heex:1399
+#: lib/tuist_web/live/test_run_live.html.heex:1204
+#: lib/tuist_web/live/test_run_live.html.heex:1398
 #: lib/tuist_web/live/test_runs_live.ex:44
 #: lib/tuist_web/live/test_runs_live.html.heex:473
 #: lib/tuist_web/live/tests_live.html.heex:1040
@@ -1051,9 +1051,9 @@ msgstr ""
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:185
 #: lib/tuist_web/live/test_case_live.html.heex:475
 #: lib/tuist_web/live/test_cases_live.html.heex:455
-#: lib/tuist_web/live/test_run_live.html.heex:1068
-#: lib/tuist_web/live/test_run_live.html.heex:1269
-#: lib/tuist_web/live/test_run_live.html.heex:1487
+#: lib/tuist_web/live/test_run_live.html.heex:1067
+#: lib/tuist_web/live/test_run_live.html.heex:1268
+#: lib/tuist_web/live/test_run_live.html.heex:1486
 #, elixir-autogen, elixir-format
 msgid "Sort by:"
 msgstr ""
@@ -1064,13 +1064,13 @@ msgstr ""
 #: lib/tuist_web/live/test_case_live.html.heex:531
 #: lib/tuist_web/live/test_case_run_live.html.heex:119
 #: lib/tuist_web/live/test_case_run_live.html.heex:845
-#: lib/tuist_web/live/test_run_live.ex:929
-#: lib/tuist_web/live/test_run_live.ex:991
-#: lib/tuist_web/live/test_run_live.ex:1048
+#: lib/tuist_web/live/test_run_live.ex:930
+#: lib/tuist_web/live/test_run_live.ex:992
+#: lib/tuist_web/live/test_run_live.ex:1049
 #: lib/tuist_web/live/test_run_live.html.heex:221
-#: lib/tuist_web/live/test_run_live.html.heex:472
-#: lib/tuist_web/live/test_run_live.html.heex:1386
-#: lib/tuist_web/live/test_run_live.html.heex:1626
+#: lib/tuist_web/live/test_run_live.html.heex:471
+#: lib/tuist_web/live/test_run_live.html.heex:1385
+#: lib/tuist_web/live/test_run_live.html.heex:1625
 #: lib/tuist_web/live/test_runs_live.ex:38
 #: lib/tuist_web/live/tests_live.ex:495
 #, elixir-autogen, elixir-format
@@ -1078,8 +1078,8 @@ msgid "Status"
 msgstr ""
 
 #: lib/tuist_web/live/test_case_run_live.html.heex:480
-#: lib/tuist_web/live/test_run_live.html.heex:790
-#: lib/tuist_web/live/test_run_live.html.heex:2002
+#: lib/tuist_web/live/test_run_live.html.heex:789
+#: lib/tuist_web/live/test_run_live.html.heex:2001
 #, elixir-autogen, elixir-format
 msgid "Subtype"
 msgstr ""
@@ -1108,7 +1108,7 @@ msgstr ""
 #: lib/tuist_web/live/test_cases_live.html.heex:450
 #: lib/tuist_web/live/test_cases_live.html.heex:467
 #: lib/tuist_web/live/test_cases_live.html.heex:517
-#: lib/tuist_web/live/test_run_live.ex:943
+#: lib/tuist_web/live/test_run_live.ex:944
 #, elixir-autogen, elixir-format
 msgid "Test Case"
 msgstr ""
@@ -1126,8 +1126,8 @@ msgstr ""
 #: lib/tuist_web/live/test_case_live.html.heex:3
 #: lib/tuist_web/live/test_cases_live.ex:24
 #: lib/tuist_web/live/test_cases_live.html.heex:432
-#: lib/tuist_web/live/test_run_live.html.heex:1025
-#: lib/tuist_web/live/test_run_live.html.heex:1043
+#: lib/tuist_web/live/test_run_live.html.heex:1024
+#: lib/tuist_web/live/test_run_live.html.heex:1042
 #: lib/tuist_web/live/tests_live.html.heex:1082
 #, elixir-autogen, elixir-format
 msgid "Test Cases"
@@ -1166,7 +1166,7 @@ msgstr ""
 
 #: lib/tuist_web/live/test_case_run_live.html.heex:4
 #: lib/tuist_web/live/test_case_run_live.html.heex:212
-#: lib/tuist_web/live/test_run_live.ex:70
+#: lib/tuist_web/live/test_run_live.ex:71
 #, elixir-autogen, elixir-format
 msgid "Test Run"
 msgstr ""
@@ -1184,15 +1184,15 @@ msgid "Test Suite"
 msgstr ""
 
 #: lib/tuist_web/helpers/test_labels.ex:27
-#: lib/tuist_web/live/test_run_live.html.heex:449
+#: lib/tuist_web/live/test_run_live.html.heex:448
 #, elixir-autogen, elixir-format
 msgid "Test Suites"
 msgstr ""
 
 #: lib/tuist_web/live/test_cases_live.ex:70
-#: lib/tuist_web/live/test_run_live.html.heex:1064
-#: lib/tuist_web/live/test_run_live.html.heex:1072
-#: lib/tuist_web/live/test_run_live.html.heex:1110
+#: lib/tuist_web/live/test_run_live.html.heex:1063
+#: lib/tuist_web/live/test_run_live.html.heex:1071
+#: lib/tuist_web/live/test_run_live.html.heex:1109
 #, elixir-autogen, elixir-format
 msgid "Test case"
 msgstr ""
@@ -1221,15 +1221,15 @@ msgstr ""
 msgid "Test case runs represents the total number of individual test case executions during a given period."
 msgstr ""
 
-#: lib/tuist_web/live/test_run_live.ex:967
-#: lib/tuist_web/live/test_run_live.ex:1024
-#: lib/tuist_web/live/test_run_live.html.heex:345
-#: lib/tuist_web/live/test_run_live.html.heex:1257
-#: lib/tuist_web/live/test_run_live.html.heex:1281
-#: lib/tuist_web/live/test_run_live.html.heex:1353
-#: lib/tuist_web/live/test_run_live.html.heex:1475
-#: lib/tuist_web/live/test_run_live.html.heex:1507
-#: lib/tuist_web/live/test_run_live.html.heex:1593
+#: lib/tuist_web/live/test_run_live.ex:968
+#: lib/tuist_web/live/test_run_live.ex:1025
+#: lib/tuist_web/live/test_run_live.html.heex:344
+#: lib/tuist_web/live/test_run_live.html.heex:1256
+#: lib/tuist_web/live/test_run_live.html.heex:1280
+#: lib/tuist_web/live/test_run_live.html.heex:1352
+#: lib/tuist_web/live/test_run_live.html.heex:1474
+#: lib/tuist_web/live/test_run_live.html.heex:1506
+#: lib/tuist_web/live/test_run_live.html.heex:1592
 #, elixir-autogen, elixir-format
 msgid "Test cases"
 msgstr ""
@@ -1255,8 +1255,8 @@ msgstr ""
 msgid "Test run count represents a number of how many test runs were run during a given period. A test run is executed by either running 'tuist test' or 'tuist xcodebuild test'."
 msgstr ""
 
-#: lib/tuist_web/live/test_run_live.ex:38
-#: lib/tuist_web/live/test_run_live.ex:42
+#: lib/tuist_web/live/test_run_live.ex:39
+#: lib/tuist_web/live/test_run_live.ex:43
 #, elixir-autogen, elixir-format
 msgid "Test run not found."
 msgstr ""
@@ -1297,17 +1297,17 @@ msgstr ""
 msgid "The total number of test runs."
 msgstr ""
 
-#: lib/tuist_web/live/test_run_live.html.heex:1689
+#: lib/tuist_web/live/test_run_live.html.heex:1688
 #, elixir-autogen, elixir-format
 msgid "Total modules"
 msgstr ""
 
-#: lib/tuist_web/live/test_run_live.html.heex:1691
+#: lib/tuist_web/live/test_run_live.html.heex:1690
 #, elixir-autogen, elixir-format
 msgid "Total modules represents the total number of testable modules."
 msgstr ""
 
-#: lib/tuist_web/live/test_run_live.html.heex:346
+#: lib/tuist_web/live/test_run_live.html.heex:345
 #, elixir-autogen, elixir-format
 msgid "Total number of test cases executed."
 msgstr ""
@@ -1317,15 +1317,15 @@ msgstr ""
 msgid "Total number of times this test case has been executed."
 msgstr ""
 
-#: lib/tuist_web/live/test_run_live.html.heex:1789
+#: lib/tuist_web/live/test_run_live.html.heex:1788
 #, elixir-autogen, elixir-format
 msgid "Try changing your search term"
 msgstr ""
 
 #: lib/tuist_web/live/test_case_live.html.heex:600
-#: lib/tuist_web/live/test_run_live.html.heex:1213
-#: lib/tuist_web/live/test_run_live.html.heex:1428
-#: lib/tuist_web/live/test_run_live.html.heex:1663
+#: lib/tuist_web/live/test_run_live.html.heex:1212
+#: lib/tuist_web/live/test_run_live.html.heex:1427
+#: lib/tuist_web/live/test_run_live.html.heex:1662
 #, elixir-autogen, elixir-format
 msgid "Try updating your search"
 msgstr ""
@@ -1336,7 +1336,7 @@ msgstr ""
 msgid "Tuist"
 msgstr ""
 
-#: lib/tuist_web/live/test_run_live.html.heex:393
+#: lib/tuist_web/live/test_run_live.html.heex:392
 #, elixir-autogen, elixir-format
 msgid "Tuist version"
 msgstr ""
@@ -1354,8 +1354,8 @@ msgstr ""
 #: lib/tuist_web/live/test_run_live.html.heex:89
 #: lib/tuist_web/live/test_run_live.html.heex:286
 #: lib/tuist_web/live/test_run_live.html.heex:295
-#: lib/tuist_web/live/test_run_live.html.heex:330
-#: lib/tuist_web/live/test_run_live.html.heex:1782
+#: lib/tuist_web/live/test_run_live.html.heex:304
+#: lib/tuist_web/live/test_run_live.html.heex:1781
 #: lib/tuist_web/live/test_runs_live.html.heex:487
 #: lib/tuist_web/live/tests_live.ex:506
 #: lib/tuist_web/live/tests_live.html.heex:1024
@@ -1386,8 +1386,8 @@ msgstr ""
 
 #: lib/tuist_web/live/test_case_live.html.heex:300
 #: lib/tuist_web/live/test_case_run_live.html.heex:237
-#: lib/tuist_web/live/test_run_live.html.heex:512
-#: lib/tuist_web/live/test_run_live.html.heex:855
+#: lib/tuist_web/live/test_run_live.html.heex:511
+#: lib/tuist_web/live/test_run_live.html.heex:854
 #: lib/tuist_web/live/tests_live.html.heex:930
 #: lib/tuist_web/live/tests_live.html.heex:1102
 #: lib/tuist_web/live/tests_live.html.heex:1159
@@ -1395,7 +1395,7 @@ msgstr ""
 msgid "View more"
 msgstr ""
 
-#: lib/tuist_web/live/test_run_live.html.heex:335
+#: lib/tuist_web/live/test_run_live.html.heex:309
 #, elixir-autogen, elixir-format
 msgid "macOS version"
 msgstr ""
@@ -1509,10 +1509,10 @@ msgstr ""
 msgid "since yesterday"
 msgstr ""
 
-#: lib/tuist_web/live/test_run_live.html.heex:505
-#: lib/tuist_web/live/test_run_live.html.heex:848
-#: lib/tuist_web/live/test_run_live.html.heex:1835
-#: lib/tuist_web/live/test_run_live.html.heex:2070
+#: lib/tuist_web/live/test_run_live.html.heex:504
+#: lib/tuist_web/live/test_run_live.html.heex:847
+#: lib/tuist_web/live/test_run_live.html.heex:1834
+#: lib/tuist_web/live/test_run_live.html.heex:2069
 #, elixir-autogen, elixir-format
 msgid "•"
 msgstr ""
@@ -1543,7 +1543,7 @@ msgstr ""
 #: lib/tuist_web/live/shards_live.html.heex:578
 #: lib/tuist_web/live/shards_live.html.heex:606
 #: lib/tuist_web/live/test_run_live.html.heex:267
-#: lib/tuist_web/live/test_run_live.html.heex:468
+#: lib/tuist_web/live/test_run_live.html.heex:467
 #, elixir-autogen, elixir-format
 msgid "In Progress"
 msgstr ""
@@ -1563,27 +1563,27 @@ msgstr ""
 msgid "Number of shards used per sharded run during a given period."
 msgstr ""
 
-#: lib/tuist_web/live/test_run_live.html.heex:485
+#: lib/tuist_web/live/test_run_live.html.heex:484
 #, elixir-autogen, elixir-format
 msgid "Pending"
 msgstr ""
 
 #: lib/tuist_web/live/test_case_run_live.html.heex:197
-#: lib/tuist_web/live/test_run_live.ex:1086
-#: lib/tuist_web/live/test_run_live.html.heex:440
-#: lib/tuist_web/live/test_run_live.html.heex:1165
-#: lib/tuist_web/live/test_run_live.html.heex:1345
-#: lib/tuist_web/live/test_run_live.html.heex:1571
+#: lib/tuist_web/live/test_run_live.ex:1087
+#: lib/tuist_web/live/test_run_live.html.heex:439
+#: lib/tuist_web/live/test_run_live.html.heex:1164
+#: lib/tuist_web/live/test_run_live.html.heex:1344
+#: lib/tuist_web/live/test_run_live.html.heex:1570
 #, elixir-autogen, elixir-format
 msgid "Shard"
 msgstr ""
 
 #: lib/tuist_web/live/test_case_run_live.html.heex:201
-#: lib/tuist_web/live/test_run_live.ex:1080
-#: lib/tuist_web/live/test_run_live.html.heex:442
-#: lib/tuist_web/live/test_run_live.html.heex:1168
-#: lib/tuist_web/live/test_run_live.html.heex:1348
-#: lib/tuist_web/live/test_run_live.html.heex:1574
+#: lib/tuist_web/live/test_run_live.ex:1081
+#: lib/tuist_web/live/test_run_live.html.heex:441
+#: lib/tuist_web/live/test_run_live.html.heex:1167
+#: lib/tuist_web/live/test_run_live.html.heex:1347
+#: lib/tuist_web/live/test_run_live.html.heex:1573
 #, elixir-autogen, elixir-format
 msgid "Shard %{index}"
 msgstr ""
@@ -1596,12 +1596,12 @@ msgstr ""
 #: lib/tuist_web/live/shards_live.ex:22
 #: lib/tuist_web/live/shards_live.html.heex:2
 #: lib/tuist_web/live/shards_live.html.heex:587
-#: lib/tuist_web/live/test_run_live.html.heex:425
+#: lib/tuist_web/live/test_run_live.html.heex:424
 #, elixir-autogen, elixir-format
 msgid "Shards"
 msgstr ""
 
-#: lib/tuist_web/live/test_run_live.html.heex:436
+#: lib/tuist_web/live/test_run_live.html.heex:435
 #, elixir-autogen, elixir-format
 msgid "The shards are in progress..."
 msgstr ""
@@ -1682,7 +1682,7 @@ msgstr ""
 msgid "The average test run duration."
 msgstr ""
 
-#: lib/tuist_web/live/test_run_live.html.heex:304
+#: lib/tuist_web/live/test_run_live.html.heex:319
 #, elixir-autogen, elixir-format
 msgid "Device"
 msgid_plural "Devices"

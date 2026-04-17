@@ -157,7 +157,7 @@ msgstr ""
 msgid "Mastodon"
 msgstr ""
 
-#: lib/tuist_web/docs/layouts/root.html.heex:204
+#: lib/tuist_web/docs/layouts/root.html.heex:230
 #, elixir-autogen, elixir-format
 msgid "Menu"
 msgstr ""
@@ -168,7 +168,7 @@ msgid "Monitor build performance across your CI infrastructure to catch slowdown
 msgstr ""
 
 #: lib/tuist_web/docs/components/toc.html.heex:35
-#: lib/tuist_web/docs/layouts/root.html.heex:214
+#: lib/tuist_web/docs/layouts/root.html.heex:240
 #, elixir-autogen, elixir-format
 msgid "On this page"
 msgstr ""
@@ -178,7 +178,7 @@ msgstr ""
 msgid "Open source and community"
 msgstr ""
 
-#: lib/tuist_web/docs/layouts/root.html.heex:188
+#: lib/tuist_web/docs/layouts/root.html.heex:214
 #, elixir-autogen, elixir-format
 msgid "Page navigation"
 msgstr ""
@@ -213,7 +213,7 @@ msgstr ""
 msgid "Run only the tests that matter by detecting changes since your last successful run, cutting down test times both locally and on CI."
 msgstr ""
 
-#: lib/tuist_web/docs/layouts/root.html.heex:171
+#: lib/tuist_web/docs/layouts/root.html.heex:196
 #, elixir-autogen, elixir-format
 msgid "Search"
 msgstr ""
@@ -269,7 +269,7 @@ msgstr ""
 msgid "Tests"
 msgstr ""
 
-#: lib/tuist_web/docs/layouts/root.html.heex:176
+#: lib/tuist_web/docs/layouts/root.html.heex:202
 #, elixir-autogen, elixir-format
 msgid "Toggle sidebar"
 msgstr ""
@@ -336,7 +336,7 @@ msgstr ""
 msgid "No search history"
 msgstr ""
 
-#: lib/tuist_web/docs/layouts/root.html.heex:232
+#: lib/tuist_web/docs/layouts/root.html.heex:258
 #, elixir-autogen, elixir-format
 msgid "Search..."
 msgstr ""
@@ -367,6 +367,7 @@ msgid "as Markdown"
 msgstr ""
 
 #: lib/tuist_web/docs/layouts/root.html.heex:164
+#: lib/tuist_web/docs/layouts/root.html.heex:180
 #, elixir-autogen, elixir-format
 msgid "Log in"
 msgstr ""
