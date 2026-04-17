@@ -25,7 +25,7 @@ defmodule Tuist.Automations.Workers.AutomationEvaluationWorker do
 
   defp evaluate_and_execute(automation) do
     %{triggered: triggered_ids, all: all_ids} = evaluate_type(automation)
-    existing_states = Automations.list_triggered_states(automation.id)
+    existing_states = Automations.list_triggers(automation.id)
     existing_triggered_ids = MapSet.new(existing_states, & &1.test_case_id)
 
     newly_triggered = Enum.reject(triggered_ids, &MapSet.member?(existing_triggered_ids, &1))
@@ -35,7 +35,7 @@ defmodule Tuist.Automations.Workers.AutomationEvaluationWorker do
 
       case ActionExecutor.execute_actions(automation.trigger_actions, automation, entity) do
         :ok ->
-          Automations.insert_automation_state(%{
+          Automations.insert_trigger(%{
             automation_id: automation.id,
             test_case_id: test_case_id,
             status: "triggered",

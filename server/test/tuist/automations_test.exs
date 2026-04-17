@@ -75,19 +75,19 @@ defmodule Tuist.AutomationsTest do
   end
 
   describe "automation states" do
-    test "insert_automation_state and list_triggered_states roundtrip" do
+    test "insert_trigger and list_triggers roundtrip" do
       automation = AutomationsFixtures.automation_fixture()
       test_case_id = Ecto.UUID.generate()
 
       assert :ok =
-               Automations.insert_automation_state(%{
+               Automations.insert_trigger(%{
                  automation_id: automation.id,
                  test_case_id: test_case_id,
                  status: "triggered",
                  triggered_at: NaiveDateTime.utc_now()
                })
 
-      states = Automations.list_triggered_states(automation.id)
+      states = Automations.list_triggers(automation.id)
       assert Enum.any?(states, &(&1.test_case_id == test_case_id and &1.status == "triggered"))
     end
 
@@ -96,7 +96,7 @@ defmodule Tuist.AutomationsTest do
       test_case_id = Ecto.UUID.generate()
 
       :ok =
-        Automations.insert_automation_state(%{
+        Automations.insert_trigger(%{
           automation_id: automation.id,
           test_case_id: test_case_id,
           status: "triggered",
@@ -104,7 +104,7 @@ defmodule Tuist.AutomationsTest do
         })
 
       assert :ok = Automations.mark_recovered(automation.id, test_case_id)
-      assert Automations.get_triggered_state(automation.id, test_case_id) == nil
+      assert Automations.get_trigger(automation.id, test_case_id) == nil
     end
 
     test "mark_recovered is a no-op when no triggered state exists" do

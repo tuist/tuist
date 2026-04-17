@@ -33,7 +33,7 @@ defmodule Tuist.Automations.Workers.AutomationEvaluationWorkerTest do
       %{triggered: [triggered_id], all: [triggered_id]}
     end)
 
-    expect(Automations, :list_triggered_states, fn _id -> [] end)
+    expect(Automations, :list_triggers, fn _id -> [] end)
 
     expected_entity = %{type: :test_case, id: triggered_id}
 
@@ -42,7 +42,7 @@ defmodule Tuist.Automations.Workers.AutomationEvaluationWorkerTest do
       :ok
     end)
 
-    expect(Automations, :insert_automation_state, fn %{automation_id: id, test_case_id: tc, status: "triggered"} ->
+    expect(Automations, :insert_trigger, fn %{automation_id: id, test_case_id: tc, status: "triggered"} ->
       assert id == automation.id
       assert tc == triggered_id
       :ok
@@ -59,12 +59,12 @@ defmodule Tuist.Automations.Workers.AutomationEvaluationWorkerTest do
       %{triggered: [already], all: [already]}
     end)
 
-    expect(Automations, :list_triggered_states, fn _id ->
+    expect(Automations, :list_triggers, fn _id ->
       [%{test_case_id: already, triggered_at: NaiveDateTime.utc_now()}]
     end)
 
     reject(&ActionExecutor.execute_actions/3)
-    reject(&Automations.insert_automation_state/1)
+    reject(&Automations.insert_trigger/1)
 
     assert :ok = run(automation.id)
   end
@@ -85,7 +85,7 @@ defmodule Tuist.Automations.Workers.AutomationEvaluationWorkerTest do
 
     triggered_long_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -3, :day)
 
-    expect(Automations, :list_triggered_states, fn _id ->
+    expect(Automations, :list_triggers, fn _id ->
       [%{test_case_id: recovered_id, triggered_at: triggered_long_ago}]
     end)
 
@@ -119,7 +119,7 @@ defmodule Tuist.Automations.Workers.AutomationEvaluationWorkerTest do
 
     triggered_recently = NaiveDateTime.add(NaiveDateTime.utc_now(), -1, :day)
 
-    expect(Automations, :list_triggered_states, fn _id ->
+    expect(Automations, :list_triggers, fn _id ->
       [%{test_case_id: recovered_id, triggered_at: triggered_recently}]
     end)
 
@@ -133,7 +133,7 @@ defmodule Tuist.Automations.Workers.AutomationEvaluationWorkerTest do
     automation = AutomationsFixtures.automation_fixture(recovery_enabled: false)
 
     expect(FlakinessRateType, :evaluate, fn _automation -> %{triggered: [], all: []} end)
-    expect(Automations, :list_triggered_states, fn _id -> [] end)
+    expect(Automations, :list_triggers, fn _id -> [] end)
     reject(&Automations.mark_recovered/2)
 
     assert :ok = run(automation.id)

@@ -3,7 +3,7 @@ defmodule Tuist.Automations do
   import Ecto.Query
 
   alias Tuist.Automations.Automation
-  alias Tuist.Automations.AutomationState
+  alias Tuist.Automations.AutomationTrigger
   alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
   alias Tuist.Repo
@@ -38,22 +38,25 @@ defmodule Tuist.Automations do
     Repo.delete(automation)
   end
 
-  def list_triggered_states(automation_id) do
+  def list_triggers(automation_id) do
     ClickHouseRepo.all(
-      from(s in AutomationState, hints: ["FINAL"], where: s.automation_id == ^automation_id and s.status == "triggered")
-    )
-  end
-
-  def get_triggered_state(automation_id, test_case_id) do
-    ClickHouseRepo.one(
-      from(s in AutomationState,
+      from(t in AutomationTrigger,
         hints: ["FINAL"],
-        where: s.automation_id == ^automation_id and s.test_case_id == ^test_case_id and s.status == "triggered"
+        where: t.automation_id == ^automation_id and t.status == "triggered"
       )
     )
   end
 
-  def insert_automation_state(attrs) do
+  def get_trigger(automation_id, test_case_id) do
+    ClickHouseRepo.one(
+      from(t in AutomationTrigger,
+        hints: ["FINAL"],
+        where: t.automation_id == ^automation_id and t.test_case_id == ^test_case_id and t.status == "triggered"
+      )
+    )
+  end
+
+  def insert_trigger(attrs) do
     now = NaiveDateTime.utc_now()
 
     record =
@@ -61,20 +64,20 @@ defmodule Tuist.Automations do
       |> Map.put_new(:id, UUIDv7.generate())
       |> Map.put_new(:inserted_at, now)
 
-    IngestRepo.insert_all(AutomationState, [record])
+    IngestRepo.insert_all(AutomationTrigger, [record])
     :ok
   end
 
   def mark_recovered(automation_id, test_case_id) do
-    case get_triggered_state(automation_id, test_case_id) do
+    case get_trigger(automation_id, test_case_id) do
       nil ->
         :ok
 
-      state ->
+      trigger ->
         now = NaiveDateTime.utc_now()
 
         recovered =
-          state
+          trigger
           |> Map.from_struct()
           |> Map.delete(:__meta__)
           |> Map.merge(%{
@@ -83,7 +86,7 @@ defmodule Tuist.Automations do
             inserted_at: now
           })
 
-        IngestRepo.insert_all(AutomationState, [recovered])
+        IngestRepo.insert_all(AutomationTrigger, [recovered])
         :ok
     end
   end
