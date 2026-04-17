@@ -137,6 +137,15 @@ defmodule CacheWeb.GradleController do
         schema: SafePathComponent.schema(),
         required: true,
         description: "The handle of the project"
+      ],
+      "content-length": [
+        in: :header,
+        schema: %OpenApiSpex.Schema{type: :integer, minimum: 0},
+        required: true,
+        description:
+          "Declared body length in bytes. Required: `Cache.BodyReader` compares actual bytes " <>
+            "received against this value to reject truncated uploads, so chunked transfer " <>
+            "encoding (no Content-Length) is not accepted on this endpoint."
       ]
     ],
     request_body: {"The Gradle build cache artifact data", "application/octet-stream", nil, required: true},
@@ -145,11 +154,11 @@ defmodule CacheWeb.GradleController do
       created: {"Upload successful (new artifact)", nil, nil},
       bad_request:
         {"Request body was truncated before reaching the declared Content-Length", "application/json", Error},
-      length_required: {"Request did not declare a Content-Length", "application/json", Error},
       request_entity_too_large: {"Request body exceeded allowed size", "application/json", Error},
       request_timeout: {"Request body read timed out", "application/json", Error},
       internal_server_error: {"Failed to persist artifact", "application/json", Error},
-      unprocessable_entity: {"Invalid request parameters", "application/json", Error},
+      unprocessable_entity:
+        {"Invalid or missing request parameters (e.g., missing Content-Length header)", "application/json", Error},
       unauthorized: {"Unauthorized", "application/json", Error},
       forbidden: {"Forbidden", "application/json", Error}
     }
@@ -165,29 +174,16 @@ defmodule CacheWeb.GradleController do
   # with a null-message exception that is very hard to trace back to the
   # upload path.
   #
-  # The enforcement only works when the client declares a Content-Length,
-  # so we require one up-front: chunked transfer encoding (no Content-Length)
-  # would bypass the check and allow the same truncation class of bug back
-  # in. Every legitimate uploader of a Gradle cache entry knows the size
-  # ahead of time (it comes from `BuildCacheEntryWriter.getSize()` on the
-  # client), so this requirement costs nothing for real workloads.
+  # The Content-Length header is declared `required: true` in the operation
+  # spec above so `OpenApiSpex.Plug.CastAndValidate` rejects chunked-transfer
+  # requests (no Content-Length) with a 422 before this function runs. That
+  # keeps the enforcement in a single place — the spec — and guarantees the
+  # validation pattern matches the generated OpenAPI documentation.
   def save(conn, %{cache_key: cache_key, account_handle: account_handle, project_handle: project_handle}) do
-    case TuistCommon.BodyReader.get_content_length(conn) do
-      nil ->
-        :telemetry.execute([:cache, :gradle, :upload, :error], %{count: 1}, %{reason: :missing_content_length})
-
-        send_error(
-          conn,
-          :length_required,
-          "PUT /api/cache/gradle/:cache_key requires a Content-Length header"
-        )
-
-      _length ->
-        if Gradle.Disk.exists?(account_handle, project_handle, cache_key) do
-          handle_existing_artifact(conn)
-        else
-          save_new_artifact(conn, account_handle, project_handle, cache_key)
-        end
+    if Gradle.Disk.exists?(account_handle, project_handle, cache_key) do
+      handle_existing_artifact(conn)
+    else
+      save_new_artifact(conn, account_handle, project_handle, cache_key)
     end
   end
 

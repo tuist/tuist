@@ -256,10 +256,12 @@ defmodule CacheWeb.GradleControllerTest do
       assert S3Transfers.pending(:upload, 10) == []
     end
 
-    test "rejects uploads without a Content-Length header with 411", %{conn: conn} do
+    test "rejects uploads without a Content-Length header", %{conn: conn} do
       # Without Content-Length the server cannot verify the body arrived
       # whole, so the truncation check in Cache.BodyReader would be a
-      # no-op. Reject such requests before any persistence happens.
+      # no-op. The operation spec declares content-length as a required
+      # header, so OpenApiSpex rejects the request with 422 before it
+      # reaches the controller body.
       account_handle = "test-account"
       project_handle = "test-project"
       cache_key = "abc123"
@@ -284,12 +286,20 @@ defmodule CacheWeb.GradleControllerTest do
           "whatever"
         )
 
-      assert conn.status == 411
+      assert conn.status == 422
 
-      response = json_response(conn, 411)
+      response = json_response(conn, 422)
 
-      assert response["message"] ==
-               "PUT /api/cache/gradle/:cache_key requires a Content-Length header"
+      assert %{
+               "errors" => [
+                 %{
+                   "title" => "Invalid value",
+                   "source" => %{"pointer" => "/content-length"}
+                 } = error
+               ]
+             } = response
+
+      assert error["detail"] =~ "Missing field: content-length"
 
       :ok = Cache.S3TransfersBuffer.flush()
       assert S3Transfers.pending(:upload, 10) == []
