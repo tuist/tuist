@@ -13,22 +13,12 @@ defmodule Tuist.Automations.Actions.SendSlackAction do
          false <- is_nil(project),
          project = Repo.preload(project, account: :slack_installation),
          %Installation{access_token: access_token} <- project.account.slack_installation do
-      template = Map.get(action, "message", "")
-
-      message =
-        if template == "",
-          do: default_message(automation, test_case),
-          else: interpolate(template, automation, project, test_case)
-
+      message = interpolate(action["message"], automation, project, test_case)
       blocks = build_blocks(automation, message)
       Client.post_message(access_token, channel, blocks)
     else
       _ -> :ok
     end
-  end
-
-  defp default_message(automation, test_case) do
-    "#{automation.name}: test case `#{test_case.name}` matched the condition."
   end
 
   defp interpolate(template, automation, project, test_case) do

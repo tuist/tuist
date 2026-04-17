@@ -68,30 +68,6 @@ defmodule Tuist.Automations.Actions.SendSlackActionTest do
       assert :ok = SendSlackAction.execute(automation, tc.id, action)
     end
 
-    test "uses default message when template is empty", %{project: project} do
-      automation = %{name: "Auto", project_id: project.id}
-      tc = test_case(project.id)
-
-      expect(Tests, :get_test_case_by_id, fn _id -> {:ok, tc} end)
-
-      expect(Client, :post_message, fn _token, _channel, blocks ->
-        message =
-          Enum.find_value(blocks, fn block ->
-            case block do
-              %{type: "section", text: %{text: text}} -> text
-              _ -> nil
-            end
-          end)
-
-        assert message =~ "Auto"
-        assert message =~ tc.name
-        :ok
-      end)
-
-      action = %{"type" => "send_slack", "channel" => "C1", "message" => ""}
-      assert :ok = SendSlackAction.execute(automation, tc.id, action)
-    end
-
     test "no-ops when the project is not found" do
       automation = %{name: "Auto", project_id: 999_999}
 
