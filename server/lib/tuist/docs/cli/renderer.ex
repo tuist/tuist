@@ -5,6 +5,7 @@ defmodule Tuist.Docs.CLI.Renderer do
 
   alias Tuist.Docs.HTML
   alias Tuist.Docs.Page
+  alias Tuist.Docs.Redirects
   alias Tuist.Docs.Sidebar.Group
   alias Tuist.Docs.Sidebar.Item
 
@@ -25,31 +26,37 @@ defmodule Tuist.Docs.CLI.Renderer do
       |> get_in(["command", "subcommands"])
       |> List.wrap()
       |> Enum.filter(&(&1["shouldDisplay"] != false))
-      |> Enum.map(&command_to_sidebar_item(&1, "/en/references/cli/commands/"))
+      |> Enum.map(&command_to_sidebar_item(&1, []))
       |> Enum.sort_by(& &1.label)
 
     [
       %Group{
         label: "CLI",
-        items: [
-          %Item{label: "Debugging", slug: "/en/references/cli/debugging"},
-          %Item{label: "Directories", slug: "/en/references/cli/directories"},
-          %Item{label: "Shell completions", slug: "/en/references/cli/shell-completions"},
-          %Item{label: "Commands", items: commands}
-        ]
+        items: static_cli_items() ++ [%Item{label: "Commands", items: commands}]
       }
     ]
   end
 
-  defp command_to_sidebar_item(command, parent_path) do
+  defp static_cli_items do
+    Enum.map(Redirects.cli_static_slugs(), fn slug ->
+      %Item{label: static_label(slug), slug: Redirects.cli_slug(slug)}
+    end)
+  end
+
+  defp static_label("debugging"), do: "Debugging"
+  defp static_label("directories"), do: "Directories"
+  defp static_label("shell-completions"), do: "Shell completions"
+
+  defp command_to_sidebar_item(command, parent_segments) do
     name = command["commandName"]
-    slug = "#{parent_path}#{name}"
+    segments = parent_segments ++ [name]
+    slug = Redirects.cli_command_slug(Enum.join(segments, "/"))
 
     children =
       command
       |> Map.get("subcommands", [])
       |> Enum.filter(&(&1["shouldDisplay"] != false))
-      |> Enum.map(&command_to_sidebar_item(&1, "#{slug}/"))
+      |> Enum.map(&command_to_sidebar_item(&1, segments))
 
     %Item{label: name, slug: slug, items: children}
   end
@@ -80,7 +87,7 @@ defmodule Tuist.Docs.CLI.Renderer do
       |> Enum.drop(1)
       |> Enum.join("/")
 
-    "/en/references/cli/commands/#{path}"
+    Redirects.cli_command_slug(path)
   end
 
   defp build_command_page(command, full_command, slug) do

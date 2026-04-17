@@ -4,6 +4,7 @@ defmodule Tuist.Docs.Sidebar do
   """
 
   alias Tuist.Docs.CLI
+  alias Tuist.Docs.Redirects
 
   defmodule Item do
     @moduledoc false
@@ -465,15 +466,14 @@ defmodule Tuist.Docs.Sidebar do
   end
 
   defp default_cli_tree do
-    [
-      %Group{
-        label: "CLI",
-        items: [
-          %Item{label: "Debugging", slug: "/en/references/cli/debugging"},
-          %Item{label: "Directories", slug: "/en/references/cli/directories"},
-          %Item{label: "Shell completions", slug: "/en/references/cli/shell-completions"}
-        ]
-      }
-    ]
+    [%Group{label: "CLI", items: Enum.map(Redirects.cli_static_slugs(), &static_cli_item/1)}]
   end
+
+  defp static_cli_item(slug) do
+    %Item{label: static_cli_label(slug), slug: Redirects.cli_slug(slug)}
+  end
+
+  defp static_cli_label("debugging"), do: "Debugging"
+  defp static_cli_label("directories"), do: "Directories"
+  defp static_cli_label("shell-completions"), do: "Shell completions"
 end

@@ -1,10 +1,11 @@
 defmodule Tuist.Docs.Redirects do
   @moduledoc """
-  Source of truth for documentation URL redirects.
+  Source of truth for documentation URL redirects and the canonical
+  paths the rules redirect to.
 
-  Rules are expressed as tuples and operate on the portion of the path
-  after `/<locale>/docs`, i.e. the "logical" docs path that always starts
-  with "/". The plug fills in the locale and the `/docs` segment.
+  Rules operate on the portion of the path after `/<locale>/docs`, i.e.
+  the "logical" docs path that always starts with "/". The plug fills in
+  the locale and the `/docs` segment.
 
       {:exact, "/cli", "/references/cli"}
       {:prefix, "/cli/", "/references/cli/"}
@@ -15,25 +16,56 @@ defmodule Tuist.Docs.Redirects do
   through all rules until none match. That way compound moves (e.g. a
   page that moved twice across different PRs) resolve in a single 301.
 
-  This module is the place to add redirects when docs are renamed or
-  reorganized. Keep entries grouped with a comment explaining the move.
+  ### Canonical paths
+
+  The destination paths (`cli_base`, `cli_commands_base`, …) are also
+  exposed as functions so the Renderer and the Sidebar fallback can
+  build slugs from the same source as the rules. When URLs move, a
+  reviewer sees both the old → new rule and the new canonical path in
+  the same diff.
   """
+
+  @cli_base "/references/cli"
+  @cli_commands_base @cli_base <> "/commands"
+  @cli_static_slugs ["debugging", "directories", "shell-completions"]
 
   @rules [
     # CLI docs moved under References (Diataxis: CLI is reference material)
-    {:exact, "/cli", "/references/cli"},
-    {:prefix, "/cli/", "/references/cli/"},
+    {:exact, "/cli", @cli_base},
+    {:prefix, "/cli/", @cli_base <> "/"},
     # Auto-generated command pages nested under /references/cli/commands/.
     # The three hand-written pages (debugging, directories, shell-completions)
     # and the /commands/ namespace itself stay flat.
-    {:prefix, "/references/cli/", "/references/cli/commands/",
-     except_starts_with: ["debugging", "directories", "shell-completions", "commands/"]}
+    {:prefix, @cli_base <> "/", @cli_commands_base <> "/", except_starts_with: @cli_static_slugs ++ ["commands/"]}
   ]
 
   @docs_path_regex ~r{^/(?<locale>[^/]+)/docs(?<rest>/.*)?$}
   @max_iterations 8
 
   def rules, do: @rules
+
+  @doc "Logical path under `/docs/` where hand-written CLI pages live."
+  def cli_base, do: @cli_base
+
+  @doc "Logical path under `/docs/` where auto-generated command pages live."
+  def cli_commands_base, do: @cli_commands_base
+
+  @doc "Slug fragments under `cli_base/` served by hand-written pages (not commands)."
+  def cli_static_slugs, do: @cli_static_slugs
+
+  @doc """
+  Full English slug (i.e. with the `/en` locale prefix) for a
+  hand-written CLI page. For other locales the slug is localized at
+  render time by the sidebar, but the filesystem is canonical in `en`.
+  """
+  def cli_slug(segment), do: "/en" <> @cli_base <> "/" <> segment
+
+  @doc """
+  Full English slug for an auto-generated command page.
+  Accepts either the command name (`"generate"`) or a full path
+  (`"cache/warm"`).
+  """
+  def cli_command_slug(command_path), do: "/en" <> @cli_commands_base <> "/" <> command_path
 
   @doc """
   Resolves a request path against the docs redirect rules.
