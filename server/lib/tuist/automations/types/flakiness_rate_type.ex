@@ -14,24 +14,25 @@ defmodule Tuist.Automations.Types.FlakinessRateType do
 
     cutoff = DateTime.add(DateTime.utc_now(), -window, :second)
 
-    flakiness_rates =
-      ClickHouseRepo.all(
-        from(tcr in TestCaseRun,
-          where: tcr.project_id == ^project_id,
-          where: tcr.inserted_at >= ^cutoff,
-          group_by: tcr.test_case_id,
-          having: count(tcr.id) > 0,
-          select: %{
-            test_case_id: tcr.test_case_id,
-            flakiness_rate: fragment("countIf(?) * 100.0 / count()", tcr.is_flaky)
-          }
-        )
-      )
+    # Step 1: find test cases that had at least one flaky run (narrows the scan)
+    candidate_ids = flaky_candidate_ids(project_id, cutoff)
 
+    # Step 2: compute rate only for candidates, filter by threshold in ClickHouse
     triggered_test_case_ids =
-      flakiness_rates
-      |> Enum.filter(fn %{flakiness_rate: rate} -> rate >= threshold end)
-      |> Enum.map(& &1.test_case_id)
+      if Enum.any?(candidate_ids) do
+        ClickHouseRepo.all(
+          from(tcr in TestCaseRun,
+            where: tcr.project_id == ^project_id,
+            where: tcr.inserted_at >= ^cutoff,
+            where: tcr.test_case_id in ^candidate_ids,
+            group_by: tcr.test_case_id,
+            having: fragment("countIf(?) * 100.0 / count() >= ?", tcr.is_flaky, ^threshold),
+            select: tcr.test_case_id
+          )
+        )
+      else
+        []
+      end
 
     all_test_case_ids = load_all_test_case_ids(project_id, automation.recovery_enabled)
 
@@ -49,7 +50,7 @@ defmodule Tuist.Automations.Types.FlakinessRateType do
 
     cutoff = DateTime.add(DateTime.utc_now(), -window, :second)
 
-    flaky_counts =
+    triggered_test_case_ids =
       ClickHouseRepo.all(
         from(tcr in TestCaseRun,
           where: tcr.project_id == ^project_id,
@@ -57,11 +58,9 @@ defmodule Tuist.Automations.Types.FlakinessRateType do
           where: tcr.is_flaky == true,
           group_by: tcr.test_case_id,
           having: count(tcr.id) >= ^threshold,
-          select: %{test_case_id: tcr.test_case_id}
+          select: tcr.test_case_id
         )
       )
-
-    triggered_test_case_ids = Enum.map(flaky_counts, & &1.test_case_id)
 
     all_test_case_ids = load_all_test_case_ids(project_id, automation.recovery_enabled)
 
@@ -71,10 +70,24 @@ defmodule Tuist.Automations.Types.FlakinessRateType do
     }
   end
 
+  defp flaky_candidate_ids(project_id, cutoff) do
+    ClickHouseRepo.all(
+      from(tcr in TestCaseRun,
+        where: tcr.project_id == ^project_id,
+        where: tcr.inserted_at >= ^cutoff,
+        where: tcr.is_flaky == true,
+        select: tcr.test_case_id,
+        distinct: true
+      )
+    )
+  end
+
   defp load_all_test_case_ids(_project_id, false), do: []
 
   defp load_all_test_case_ids(project_id, _recovery_enabled) do
-    ClickHouseRepo.all(from(tc in TestCase, hints: ["FINAL"], where: tc.project_id == ^project_id, select: tc.id))
+    ClickHouseRepo.all(
+      from(tc in TestCase, hints: ["FINAL"], where: tc.project_id == ^project_id, select: tc.id)
+    )
   end
 
   defp parse_window(window) when is_binary(window) do
