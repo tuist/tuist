@@ -297,7 +297,8 @@ public struct XCActivityLogParser: Sendable {
             let cacheStatus: String
             if status.isMiss { cacheStatus = "miss" }
             else if status.hasQuery { cacheStatus = "hit_remote" }
-            else { cacheStatus = "hit_local" }
+            else if status.hasMaterialize { cacheStatus = "hit_local" }
+            else { cacheStatus = "miss" }
 
             let readDuration: Double?
             if cacheStatus == "hit_remote" || cacheStatus == "miss" {
