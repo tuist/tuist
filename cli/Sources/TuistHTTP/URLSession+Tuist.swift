@@ -21,7 +21,7 @@ private func environmentProxyURL() -> URL? {
     return nil
 }
 
-private func tuistURLSessionConfiguration() -> URLSessionConfiguration {
+public func tuistURLSessionConfiguration() -> URLSessionConfiguration {
     let configuration: URLSessionConfiguration = .ephemeral
     configuration.timeoutIntervalForRequest = 120
     configuration.timeoutIntervalForResource = 300
