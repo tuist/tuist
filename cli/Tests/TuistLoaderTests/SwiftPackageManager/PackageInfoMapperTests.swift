@@ -1035,7 +1035,6 @@ struct PackageInfoMapperTests {
         let project = try await subject.map(
             package: "Package",
             basePath: basePath,
-            packageType: .local,
             packageInfos: [
                 "Package": .test(
                     name: "Package",
