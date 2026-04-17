@@ -6474,6 +6474,94 @@ struct PackageInfoMapperTests {
 
     @Test(
         .inTemporaryDirectory, .withMockedSwiftVersionProvider
+    ) func map_whenUnderscorePrefixedBinaryTargetMatchesProductName_keepsTargetNameAsProductName() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        try await fileSystem.makeDirectory(
+            at: basePath.appending(try RelativePath(validating: "Package/Sources/FirebaseCrashlyticsTarget"))
+        )
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(
+                            name: "FirebaseCrashlytics",
+                            type: .library(.automatic),
+                            targets: ["FirebaseCrashlyticsTarget"]
+                        ),
+                    ],
+                    targets: [
+                        .test(
+                            name: "FirebaseCrashlyticsTarget",
+                            dependencies: [
+                                .target(name: "_FirebaseCrashlytics", condition: nil),
+                            ]
+                        ),
+                        .test(
+                            name: "_FirebaseCrashlytics",
+                            type: .binary,
+                            url: "https://github.com/akaffenberger/firebase-ios-sdk-xcframeworks/releases/download/11.15.0/_FirebaseCrashlytics.xcframework.zip"
+                        ),
+                    ],
+                    platforms: [.ios],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ]
+        )
+
+        let mappedTarget = try #require(project?.targets.first(where: { $0.name == "FirebaseCrashlyticsTarget" }))
+        #expect(mappedTarget.productName == "FirebaseCrashlyticsTarget")
+    }
+
+    @Test(
+        .inTemporaryDirectory, .withMockedSwiftVersionProvider
+    ) func map_whenWrapperTargetSharesProductNameWithBinaryXcframework_suffixesProductName() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        try await fileSystem.makeDirectory(
+            at: basePath.appending(try RelativePath(validating: "Package/Sources/Singular"))
+        )
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: [
+                "Package": .test(
+                    name: "Singular",
+                    products: [
+                        .init(name: "Singular", type: .library(.automatic), targets: ["Singular"]),
+                    ],
+                    targets: [
+                        .test(
+                            name: "Singular",
+                            dependencies: [
+                                .target(name: "SingularBinary", condition: nil),
+                            ]
+                        ),
+                        .test(
+                            name: "SingularBinary",
+                            type: .binary,
+                            path: "Singular.xcframework"
+                        ),
+                    ],
+                    platforms: [.ios],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ]
+        )
+
+        let mappedTarget = try #require(project?.targets.first(where: { $0.name == "Singular" }))
+        #expect(mappedTarget.productName == "SingularWrapper")
+    }
+
+    @Test(
+        .inTemporaryDirectory, .withMockedSwiftVersionProvider
     ) func map_whenTargetNameContainsSpacesAndDefaultPathUsesUnderscores_mapsTargetSources() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         try await fileSystem.makeDirectory(
