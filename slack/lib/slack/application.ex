@@ -11,6 +11,7 @@ defmodule Slack.Application do
 
     children = [
       Slack.Repo,
+      {Finch, name: Swoosh.Finch},
       {Phoenix.PubSub, name: Slack.PubSub},
       SlackWeb.Endpoint
     ]

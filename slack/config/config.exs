@@ -50,6 +50,6 @@ config :slack,
   ecto_repos: [Slack.Repo],
   generators: [timestamp_type: :utc_datetime]
 
-config :swoosh, :api_client, false
+config :swoosh, :api_client, Swoosh.ApiClient.Finch
 
 import_config "#{config_env()}.exs"
