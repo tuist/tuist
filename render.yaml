@@ -223,6 +223,8 @@ services:
         sync: false
       - key: TURNSTILE_SECRET_KEY
         sync: false
+      - key: SLACK_INVITE_URL
+        sync: false
       - key: SLACK_BOT_TOKEN
         sync: false
       - key: SLACK_CHANNEL_ID

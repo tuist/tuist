@@ -8,8 +8,6 @@ defmodule Slack.Invitations.Email do
   alias Slack.Invitations.Invitation
 
   def confirmation(%Invitation{} = invitation, confirm_url) do
-    from = Application.get_env(:slack, :mailer_from, {"Tuist", "hello@tuist.dev"})
-
     text_body = """
     Hi,
 
@@ -24,10 +22,35 @@ defmodule Slack.Invitations.Email do
     — The Tuist team
     """
 
-    new()
+    base_email()
     |> to(invitation.email)
-    |> from(from)
     |> subject("Confirm your Tuist Slack invitation")
     |> text_body(text_body)
+  end
+
+  def accepted(%Invitation{} = invitation, invite_url) do
+    text_body = """
+    Hi,
+
+    Great news — your request to join the Tuist Slack has been accepted!
+
+    Click the link below to join the workspace:
+
+    #{invite_url}
+
+    See you there!
+
+    — The Tuist team
+    """
+
+    base_email()
+    |> to(invitation.email)
+    |> subject("You're in! Join the Tuist Slack")
+    |> text_body(text_body)
+  end
+
+  defp base_email do
+    from = Application.get_env(:slack, :mailer_from, {"Tuist", "hello@tuist.dev"})
+    from(new(), from)
   end
 end

@@ -70,8 +70,19 @@ defmodule Slack.Invitations do
   def accept_invitation(%Invitation{} = invitation) do
     now = DateTime.truncate(DateTime.utc_now(), :second)
 
-    invitation
-    |> Invitation.accept_changeset(now)
-    |> Repo.update()
+    with {:ok, accepted} <-
+           invitation
+           |> Invitation.accept_changeset(now)
+           |> Repo.update() do
+      invite_url = Application.get_env(:slack, :slack_invite_url)
+
+      if is_binary(invite_url) and invite_url != "" do
+        accepted
+        |> Email.accepted(invite_url)
+        |> Mailer.deliver()
+      end
+
+      {:ok, accepted}
+    end
   end
 end
