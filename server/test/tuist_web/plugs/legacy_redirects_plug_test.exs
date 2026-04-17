@@ -42,5 +42,45 @@ defmodule TuistWeb.Plugs.LegacyRedirectsPlugTest do
       refute conn.halted
       assert conn.status != 301
     end
+
+    test "redirects docs content paths via Tuist.Docs.Redirects", %{conn: conn} do
+      conn = %{conn | request_path: "/en/docs/cli/debugging"}
+
+      conn = LegacyRedirectsPlug.call(conn, [])
+
+      assert conn.status == 301
+      assert redirected_to(conn, 301) == "/en/docs/references/cli/debugging"
+      assert conn.halted
+    end
+
+    test "redirects docs content paths across locales", %{conn: conn} do
+      conn = %{conn | request_path: "/ja/docs/cli/cache/warm"}
+
+      conn = LegacyRedirectsPlug.call(conn, [])
+
+      assert conn.status == 301
+      assert redirected_to(conn, 301) == "/ja/docs/references/cli/cache/warm"
+      assert conn.halted
+    end
+
+    test "normalizes and redirects content paths in a single hop", %{conn: conn} do
+      conn = %{conn | request_path: "/docs/en/cli/debugging"}
+
+      conn = LegacyRedirectsPlug.call(conn, [])
+
+      assert conn.status == 301
+      assert redirected_to(conn, 301) == "/en/docs/references/cli/debugging"
+      assert conn.halted
+    end
+
+    test "preserves query strings when redirecting docs content paths", %{conn: conn} do
+      conn = %{conn | request_path: "/en/docs/cli/debugging", query_string: "foo=bar"}
+
+      conn = LegacyRedirectsPlug.call(conn, [])
+
+      assert conn.status == 301
+      assert redirected_to(conn, 301) == "/en/docs/references/cli/debugging?foo=bar"
+      assert conn.halted
+    end
   end
 end

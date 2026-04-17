@@ -69,9 +69,9 @@ defmodule Tuist.Docs.CLITest do
 
       assert length(pages) == 3
       slugs = Enum.map(pages, & &1.slug)
-      assert "/en/cli/generate" in slugs
-      assert "/en/cli/build" in slugs
-      assert "/en/cli/build/start" in slugs
+      assert "/en/references/cli/generate" in slugs
+      assert "/en/references/cli/build" in slugs
+      assert "/en/references/cli/build/start" in slugs
     end
 
     test "returns empty list when GitHub API fails", %{cache: cache} do
@@ -124,9 +124,9 @@ defmodule Tuist.Docs.CLITest do
         end
       end)
 
-      page = CLI.get_page("/en/cli/generate", cache: cache)
+      page = CLI.get_page("/en/references/cli/generate", cache: cache)
 
-      assert page.slug == "/en/cli/generate"
+      assert page.slug == "/en/references/cli/generate"
       assert page.title == "tuist generate"
       assert page.body =~ "Generates an Xcode workspace"
     end
@@ -142,7 +142,7 @@ defmodule Tuist.Docs.CLITest do
         end
       end)
 
-      assert is_nil(CLI.get_page("/en/cli/nonexistent", cache: cache))
+      assert is_nil(CLI.get_page("/en/references/cli/nonexistent", cache: cache))
     end
   end
 

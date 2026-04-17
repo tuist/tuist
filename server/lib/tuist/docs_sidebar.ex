@@ -3,6 +3,8 @@ defmodule Tuist.Docs.Sidebar do
   Defines the navigation sidebar tree for the documentation pages.
   """
 
+  alias Tuist.Docs.CLI
+
   defmodule Item do
     @moduledoc false
     defstruct [:label, :slug, :url, items: []]
@@ -62,14 +64,13 @@ defmodule Tuist.Docs.Sidebar do
   @translations translations
 
   def tree do
-    guides_tree() ++ resources_tree() ++ references_tree() ++ cli_tree()
+    guides_tree() ++ resources_tree() ++ references_tree()
   end
 
   def tab_for_slug(slug) do
     path = Regex.replace(~r{^/[^/]+/}, slug, "/")
 
     cond do
-      String.starts_with?(path, "/cli") -> :cli
       String.starts_with?(path, "/references") -> :references
       String.starts_with?(path, "/contributors") -> :resources
       true -> :guides
@@ -80,7 +81,6 @@ defmodule Tuist.Docs.Sidebar do
   def tree_for_tab(:guides, locale), do: localize_tree(guides_tree(), locale)
   def tree_for_tab(:references, locale), do: localize_tree(references_tree(), locale)
   def tree_for_tab(:resources, locale), do: localize_tree(resources_tree(), locale)
-  def tree_for_tab(:cli, locale), do: localize_tree(cli_tree(), locale)
 
   defp localize_tree(tree, "en"), do: tree
 
@@ -454,11 +454,11 @@ defmodule Tuist.Docs.Sidebar do
           }
         ]
       }
-    ]
+    ] ++ cli_tree()
   end
 
-  def cli_tree do
-    case Tuist.Docs.CLI.sidebar_items() do
+  defp cli_tree do
+    case CLI.sidebar_items() do
       [] -> default_cli_tree()
       items -> items
     end
@@ -469,9 +469,9 @@ defmodule Tuist.Docs.Sidebar do
       %Group{
         label: "CLI",
         items: [
-          %Item{label: "Debugging", slug: "/en/cli/debugging"},
-          %Item{label: "Directories", slug: "/en/cli/directories"},
-          %Item{label: "Shell completions", slug: "/en/cli/shell-completions"}
+          %Item{label: "Debugging", slug: "/en/references/cli/debugging"},
+          %Item{label: "Directories", slug: "/en/references/cli/directories"},
+          %Item{label: "Shell completions", slug: "/en/references/cli/shell-completions"}
         ]
       }
     ]

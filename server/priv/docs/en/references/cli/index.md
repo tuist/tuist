@@ -25,4 +25,4 @@ The CLI behavior can be configured through a `tuist.toml` file. See the <.locali
 
 ## Troubleshooting {#troubleshooting}
 
-If you run into issues, check the <.localized_link href="/cli/debugging">debugging guide</.localized_link> for tools to diagnose problems, including session logs and network recordings.
+If you run into issues, check the <.localized_link href="/references/cli/debugging">debugging guide</.localized_link> for tools to diagnose problems, including session logs and network recordings.

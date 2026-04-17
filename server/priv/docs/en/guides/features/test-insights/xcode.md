@@ -108,7 +108,7 @@ testAction: .testAction(
 To track test insights on CI, you will need to ensure that your CI is <.localized_link href="/guides/integrations/continuous-integration#authentication">authenticated</.localized_link>.
 
 Additionally, you will either need to:
-- Use the <.localized_link href="/cli/xcodebuild#tuist-xcodebuild">`tuist xcodebuild`</.localized_link> command when invoking `xcodebuild` actions.
+- Use the <.localized_link href="/references/cli/xcodebuild#tuist-xcodebuild">`tuist xcodebuild`</.localized_link> command when invoking `xcodebuild` actions.
 - Add `-resultBundlePath` to your `xcodebuild` invocation.
 
 When `xcodebuild` tests your project without `-resultBundlePath`, the required result bundle files are not generated. The `tuist inspect test` post-action requires these files to analyze your tests.

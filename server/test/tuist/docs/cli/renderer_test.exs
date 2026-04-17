@@ -77,16 +77,16 @@ defmodule Tuist.Docs.CLI.RendererTest do
       pages = Renderer.build_pages(@spec_fixture)
 
       slugs = Enum.map(pages, & &1.slug)
-      assert "/en/cli/generate" in slugs
-      assert "/en/cli/cache" in slugs
-      assert "/en/cli/cache/warm" in slugs
+      assert "/en/references/cli/generate" in slugs
+      assert "/en/references/cli/cache" in slugs
+      assert "/en/references/cli/cache/warm" in slugs
     end
 
     test "excludes hidden commands" do
       pages = Renderer.build_pages(@spec_fixture)
 
       slugs = Enum.map(pages, & &1.slug)
-      refute "/en/cli/hidden-cmd" in slugs
+      refute "/en/references/cli/hidden-cmd" in slugs
     end
 
     test "generates valid Page structs" do
@@ -102,14 +102,14 @@ defmodule Tuist.Docs.CLI.RendererTest do
 
     test "includes command abstract in page body" do
       pages = Renderer.build_pages(@spec_fixture)
-      generate_page = Enum.find(pages, &(&1.slug == "/en/cli/generate"))
+      generate_page = Enum.find(pages, &(&1.slug == "/en/references/cli/generate"))
 
       assert generate_page.body =~ "Generates an Xcode workspace"
     end
 
     test "renders arguments with usage examples" do
       pages = Renderer.build_pages(@spec_fixture)
-      generate_page = Enum.find(pages, &(&1.slug == "/en/cli/generate"))
+      generate_page = Enum.find(pages, &(&1.slug == "/en/references/cli/generate"))
 
       assert generate_page.body =~ "--path"
       assert generate_page.body =~ "-p"
@@ -118,21 +118,21 @@ defmodule Tuist.Docs.CLI.RendererTest do
 
     test "extracts environment variables from argument abstracts" do
       pages = Renderer.build_pages(@spec_fixture)
-      generate_page = Enum.find(pages, &(&1.slug == "/en/cli/generate"))
+      generate_page = Enum.find(pages, &(&1.slug == "/en/references/cli/generate"))
 
       assert generate_page.body =~ "TUIST_GENERATE_PATH"
     end
 
     test "excludes help arguments" do
       pages = Renderer.build_pages(@spec_fixture)
-      generate_page = Enum.find(pages, &(&1.slug == "/en/cli/generate"))
+      generate_page = Enum.find(pages, &(&1.slug == "/en/references/cli/generate"))
 
       refute generate_page.markdown =~ "### help"
     end
 
     test "extracts headings from rendered HTML" do
       pages = Renderer.build_pages(@spec_fixture)
-      generate_page = Enum.find(pages, &(&1.slug == "/en/cli/generate"))
+      generate_page = Enum.find(pages, &(&1.slug == "/en/references/cli/generate"))
 
       heading_texts = Enum.map(generate_page.headings, & &1.text)
       assert "Arguments" in heading_texts
@@ -143,7 +143,7 @@ defmodule Tuist.Docs.CLI.RendererTest do
 
     test "heading IDs match the anchor IDs in the HTML" do
       pages = Renderer.build_pages(@spec_fixture)
-      generate_page = Enum.find(pages, &(&1.slug == "/en/cli/generate"))
+      generate_page = Enum.find(pages, &(&1.slug == "/en/references/cli/generate"))
 
       for heading <- generate_page.headings do
         assert generate_page.body =~ ~s(id="#{heading.id}")
@@ -152,9 +152,9 @@ defmodule Tuist.Docs.CLI.RendererTest do
 
     test "sets title_template for CLI pages" do
       pages = Renderer.build_pages(@spec_fixture)
-      generate_page = Enum.find(pages, &(&1.slug == "/en/cli/generate"))
+      generate_page = Enum.find(pages, &(&1.slug == "/en/references/cli/generate"))
 
-      assert generate_page.title_template == ":title · CLI · Tuist"
+      assert generate_page.title_template == ":title · CLI · References · Tuist"
     end
   end
 

@@ -24,14 +24,14 @@ If you are familiar with [GitHub](https://github.com), the concept is similar to
 > Most operations to manage accounts and projects are done through the CLI. We are working on a web interface that will make it easier to manage accounts and projects.
 
 
-You can manage the organization through the subcommands under <.localized_link href="/cli/organization">`tuist organization`</.localized_link>. To create a new organization account, run:
+You can manage the organization through the subcommands under <.localized_link href="/references/cli/organization">`tuist organization`</.localized_link>. To create a new organization account, run:
 ```bash
 tuist organization create {account-handle}
 ```
 
 ## Projects {#projects}
 
-Your projects need to be integrated with your account through a remote project. Continuing with the comparison with GitHub, it's like having a local and a remote repository where you push your changes. You can use the <.localized_link href="/cli/project">`tuist project`</.localized_link> to create and manage projects.
+Your projects need to be integrated with your account through a remote project. Continuing with the comparison with GitHub, it's like having a local and a remote repository where you push your changes. You can use the <.localized_link href="/references/cli/project">`tuist project`</.localized_link> to create and manage projects.
 
 Projects are identified by a full handle, which is the result of concatenating the organization handle and the project handle. For example, if you have an organization with the handle `tuist`, and a project with the handle `tuist`, the full handle would be `tuist/tuist`.
 
