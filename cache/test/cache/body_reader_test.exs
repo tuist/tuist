@@ -254,4 +254,77 @@ defmodule Cache.BodyReaderTest do
       assert {:ok, ^conn} = BodyReader.drain(conn, max_bytes: 30)
     end
   end
+
+  describe "Content-Length enforcement" do
+    test "accepts in-memory bodies when byte count matches Content-Length" do
+      body = "complete payload"
+
+      conn =
+        :post
+        |> Plug.Test.conn("/", body)
+        |> put_req_header("content-length", Integer.to_string(byte_size(body)))
+
+      assert {:ok, ^body, _conn_after} = BodyReader.read(conn)
+    end
+
+    test "returns :truncated when fewer bytes arrive than Content-Length declared" do
+      # Simulates the HTTP adapter returning {:ok, partial, conn} after the
+      # client disconnects mid-upload — the path that can persist corrupt
+      # cache objects if left unchecked.
+      conn = put_req_header(%Plug.Conn{adapter: {Conn, nil}}, "content-length", "10000")
+
+      expect(Plug.Conn, :read_body, fn conn, _opts ->
+        {:ok, String.duplicate("x", 200), conn}
+      end)
+
+      assert {:error, :truncated, _conn_after} = BodyReader.read(conn)
+    end
+
+    test "returns :truncated and deletes tmp file for truncated streamed bodies" do
+      {:ok, tmp_dir} = Briefly.create(directory: true)
+
+      conn = put_req_header(%Plug.Conn{adapter: {Conn, nil}}, "content-length", "800000")
+
+      chunk = String.duplicate("x", 200_000)
+
+      call_count = :counters.new(1, [])
+
+      expect(Plug.Conn, :read_body, 2, fn conn, _opts ->
+        count = :counters.get(call_count, 1)
+        :counters.add(call_count, 1, 1)
+
+        if count == 0 do
+          {:more, chunk, conn}
+        else
+          {:ok, "", conn}
+        end
+      end)
+
+      assert {:error, :truncated, _conn_after} = BodyReader.read(conn, tmp_dir: tmp_dir)
+      assert File.ls!(tmp_dir) == []
+    end
+
+    test "passes through bodies without a Content-Length header" do
+      conn = Plug.Test.conn(:post, "/", "no length declared")
+
+      assert {:ok, "no length declared", _conn_after} = BodyReader.read(conn)
+    end
+
+    test "returns :truncated from read_to_device when device writes fall short" do
+      {:ok, path} = Briefly.create()
+      {:ok, device} = :file.open(path, [:write, :binary])
+
+      conn = put_req_header(%Plug.Conn{adapter: {Conn, nil}}, "content-length", "10000")
+
+      expect(Plug.Conn, :read_body, fn conn, _opts ->
+        {:ok, String.duplicate("x", 200), conn}
+      end)
+
+      try do
+        assert {:error, :truncated, _conn_after} = BodyReader.read_to_device(conn, device)
+      after
+        :file.close(device)
+      end
+    end
+  end
 end
