@@ -157,21 +157,35 @@ defmodule Tuist.Automations.AutomationTest do
       refute changeset.valid?
     end
 
-    test "accepts mark_as_flaky and unmark_as_flaky actions" do
+    test "accepts add_label and remove_label actions" do
       project = ProjectsFixtures.project_fixture()
 
       changeset =
         Automation.changeset(
           %Automation{},
           valid_attrs(project, %{
-            "trigger_actions" => [%{"type" => "mark_as_flaky"}],
+            "trigger_actions" => [%{"type" => "add_label", "label" => "flaky"}],
             "recovery_enabled" => true,
             "recovery_config" => %{"window" => "14d"},
-            "recovery_actions" => [%{"type" => "unmark_as_flaky"}]
+            "recovery_actions" => [%{"type" => "remove_label", "label" => "flaky"}]
           })
         )
 
       assert changeset.valid?
+    end
+
+    test "rejects add_label without a label" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Automation.changeset(
+          %Automation{},
+          valid_attrs(project, %{
+            "trigger_actions" => [%{"type" => "add_label"}]
+          })
+        )
+
+      refute changeset.valid?
     end
 
     test "rejects more than one change_state action in trigger_actions" do
@@ -192,22 +206,7 @@ defmodule Tuist.Automations.AutomationTest do
       assert "can only contain one change_state action" in errors_on(changeset).trigger_actions
     end
 
-    test "rejects more than one mark_as_flaky action" do
-      project = ProjectsFixtures.project_fixture()
-
-      changeset =
-        Automation.changeset(
-          %Automation{},
-          valid_attrs(project, %{
-            "trigger_actions" => [%{"type" => "mark_as_flaky"}, %{"type" => "mark_as_flaky"}]
-          })
-        )
-
-      refute changeset.valid?
-      assert "can only contain one mark_as_flaky action" in errors_on(changeset).trigger_actions
-    end
-
-    test "rejects more than one unmark_as_flaky action" do
+    test "rejects duplicate add_label with same label" do
       project = ProjectsFixtures.project_fixture()
 
       changeset =
@@ -215,14 +214,31 @@ defmodule Tuist.Automations.AutomationTest do
           %Automation{},
           valid_attrs(project, %{
             "trigger_actions" => [
-              %{"type" => "unmark_as_flaky"},
-              %{"type" => "unmark_as_flaky"}
+              %{"type" => "add_label", "label" => "flaky"},
+              %{"type" => "add_label", "label" => "flaky"}
             ]
           })
         )
 
       refute changeset.valid?
-      assert "can only contain one unmark_as_flaky action" in errors_on(changeset).trigger_actions
+      assert "can only contain one add_label action per label" in errors_on(changeset).trigger_actions
+    end
+
+    test "allows add_label with different labels" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Automation.changeset(
+          %Automation{},
+          valid_attrs(project, %{
+            "trigger_actions" => [
+              %{"type" => "add_label", "label" => "flaky"},
+              %{"type" => "add_label", "label" => "slow"}
+            ]
+          })
+        )
+
+      assert changeset.valid?
     end
 
     test "rejects unknown action type" do

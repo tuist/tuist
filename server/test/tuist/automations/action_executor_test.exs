@@ -3,10 +3,10 @@ defmodule Tuist.Automations.ActionExecutorTest do
   use Mimic
 
   alias Tuist.Automations.ActionExecutor
+  alias Tuist.Automations.Actions.AddLabelAction
   alias Tuist.Automations.Actions.ChangeStateAction
-  alias Tuist.Automations.Actions.MarkAsFlakyAction
+  alias Tuist.Automations.Actions.RemoveLabelAction
   alias Tuist.Automations.Actions.SendSlackAction
-  alias Tuist.Automations.Actions.UnmarkAsFlakyAction
 
   setup do
     %{automation: %{name: "Auto", project_id: 1}, test_case_id: Ecto.UUID.generate()}
@@ -36,22 +36,22 @@ defmodule Tuist.Automations.ActionExecutorTest do
     )
   end
 
-  test "dispatches mark_as_flaky to MarkAsFlakyAction", %{automation: automation, test_case_id: tc_id} do
-    expect(MarkAsFlakyAction, :execute, fn ^tc_id -> :ok end)
-    ActionExecutor.execute_actions([%{"type" => "mark_as_flaky"}], automation, tc_id)
+  test "dispatches add_label to AddLabelAction", %{automation: automation, test_case_id: tc_id} do
+    expect(AddLabelAction, :execute, fn ^tc_id, %{"label" => "flaky"} -> :ok end)
+    ActionExecutor.execute_actions([%{"type" => "add_label", "label" => "flaky"}], automation, tc_id)
   end
 
-  test "dispatches unmark_as_flaky to UnmarkAsFlakyAction", %{automation: automation, test_case_id: tc_id} do
-    expect(UnmarkAsFlakyAction, :execute, fn ^tc_id -> :ok end)
-    ActionExecutor.execute_actions([%{"type" => "unmark_as_flaky"}], automation, tc_id)
+  test "dispatches remove_label to RemoveLabelAction", %{automation: automation, test_case_id: tc_id} do
+    expect(RemoveLabelAction, :execute, fn ^tc_id, %{"label" => "flaky"} -> :ok end)
+    ActionExecutor.execute_actions([%{"type" => "remove_label", "label" => "flaky"}], automation, tc_id)
   end
 
   test "executes multiple actions in order", %{automation: automation, test_case_id: tc_id} do
-    expect(MarkAsFlakyAction, :execute, fn ^tc_id -> :ok end)
+    expect(AddLabelAction, :execute, fn ^tc_id, %{"label" => "flaky"} -> :ok end)
     expect(ChangeStateAction, :execute, fn ^tc_id, %{"state" => "muted"} -> :ok end)
 
     ActionExecutor.execute_actions(
-      [%{"type" => "mark_as_flaky"}, %{"type" => "change_state", "state" => "muted"}],
+      [%{"type" => "add_label", "label" => "flaky"}, %{"type" => "change_state", "state" => "muted"}],
       automation,
       tc_id
     )
@@ -60,8 +60,8 @@ defmodule Tuist.Automations.ActionExecutorTest do
   test "silently skips unknown action types", %{automation: automation, test_case_id: tc_id} do
     reject(&ChangeStateAction.execute/2)
     reject(&SendSlackAction.execute/3)
-    reject(&MarkAsFlakyAction.execute/1)
-    reject(&UnmarkAsFlakyAction.execute/1)
+    reject(&AddLabelAction.execute/2)
+    reject(&RemoveLabelAction.execute/2)
 
     assert :ok =
              ActionExecutor.execute_actions(

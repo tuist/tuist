@@ -71,14 +71,14 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
 
       render_hook(lv, "open_create_automation_modal", %{})
       render_hook(lv, "update_create_automation_form_name", %{"value" => "Multi-action"})
-      render_hook(lv, "add_create_automation_form_trigger_action", %{"data" => "mark_as_flaky"})
+      render_hook(lv, "add_create_automation_form_trigger_action", %{"data" => "add_label_flaky"})
       render_hook(lv, "save_automation", %{})
 
       assert [automation] = Automations.list_automations(project.id)
 
       assert [
                %{"type" => "change_state", "state" => "muted"},
-               %{"type" => "mark_as_flaky"}
+               %{"type" => "add_label", "label" => "flaky"}
              ] = automation.trigger_actions
     end
 

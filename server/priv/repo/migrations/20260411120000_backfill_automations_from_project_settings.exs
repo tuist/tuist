@@ -32,7 +32,7 @@ defmodule Tuist.Repo.Migrations.BackfillAutomationsFromProjectSettings do
 
         recovery_actions = [
           %{"type" => "change_state", "state" => "enabled"},
-          %{"type" => "unmark_as_flaky"}
+          %{"type" => "remove_label", "label" => "flaky"}
         ]
 
         %{
@@ -63,7 +63,7 @@ defmodule Tuist.Repo.Migrations.BackfillAutomationsFromProjectSettings do
   end
 
   defp build_trigger_actions(project) do
-    actions = [%{"type" => "mark_as_flaky"}]
+    actions = [%{"type" => "add_label", "label" => "flaky"}]
 
     actions =
       if project.auto_quarantine do

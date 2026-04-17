@@ -19,8 +19,9 @@ defmodule TuistWeb.API.AutomationsController do
   @action_schema %Schema{
     type: :object,
     properties: %{
-      type: %Schema{type: :string, enum: ["change_state", "send_slack", "mark_as_flaky", "unmark_as_flaky"]},
+      type: %Schema{type: :string, enum: ["change_state", "send_slack", "add_label", "remove_label"]},
       state: %Schema{type: :string, enum: ["enabled", "muted"], description: "Required for change_state actions."},
+      label: %Schema{type: :string, description: "Label name. Required for add_label and remove_label actions."},
       channel: %Schema{type: :string, description: "Slack channel ID. Required for send_slack actions."},
       channel_name: %Schema{type: :string, description: "Slack channel name for display."},
       message: %Schema{

@@ -1,9 +1,9 @@
 defmodule Tuist.Automations.ActionExecutor do
   @moduledoc false
+  alias Tuist.Automations.Actions.AddLabelAction
   alias Tuist.Automations.Actions.ChangeStateAction
-  alias Tuist.Automations.Actions.MarkAsFlakyAction
+  alias Tuist.Automations.Actions.RemoveLabelAction
   alias Tuist.Automations.Actions.SendSlackAction
-  alias Tuist.Automations.Actions.UnmarkAsFlakyAction
 
   require Logger
 
@@ -30,12 +30,12 @@ defmodule Tuist.Automations.ActionExecutor do
     SendSlackAction.execute(automation, test_case_id, action)
   end
 
-  defp execute_action(%{"type" => "mark_as_flaky"}, _automation, test_case_id) do
-    MarkAsFlakyAction.execute(test_case_id)
+  defp execute_action(%{"type" => "add_label"} = action, _automation, test_case_id) do
+    AddLabelAction.execute(test_case_id, action)
   end
 
-  defp execute_action(%{"type" => "unmark_as_flaky"}, _automation, test_case_id) do
-    UnmarkAsFlakyAction.execute(test_case_id)
+  defp execute_action(%{"type" => "remove_label"} = action, _automation, test_case_id) do
+    RemoveLabelAction.execute(test_case_id, action)
   end
 
   defp execute_action(unknown_action, _automation, _test_case_id) do

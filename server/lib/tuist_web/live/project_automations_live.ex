@@ -300,8 +300,8 @@ defmodule TuistWeb.ProjectAutomationsLive do
   defp new_action("change_state", :trigger), do: default_change_state_action("muted")
   defp new_action("change_state", :recovery), do: default_change_state_action("enabled")
   defp new_action("send_slack", context), do: default_send_slack_action(context)
-  defp new_action("mark_as_flaky", _context), do: %{"type" => "mark_as_flaky"}
-  defp new_action("unmark_as_flaky", _context), do: %{"type" => "unmark_as_flaky"}
+  defp new_action("add_label_flaky", _context), do: %{"type" => "add_label", "label" => "flaky"}
+  defp new_action("remove_label_flaky", _context), do: %{"type" => "remove_label", "label" => "flaky"}
   defp new_action(_, :recovery), do: default_change_state_action("enabled")
   defp new_action(_, _), do: default_change_state_action("muted")
 
@@ -419,12 +419,16 @@ defmodule TuistWeb.ProjectAutomationsLive do
 
   def action_type_label("change_state"), do: dgettext("dashboard_projects", "Change state")
   def action_type_label("send_slack"), do: dgettext("dashboard_projects", "Send Slack notification")
-  def action_type_label("mark_as_flaky"), do: dgettext("dashboard_projects", "Mark as flaky")
-  def action_type_label("unmark_as_flaky"), do: dgettext("dashboard_projects", "Unmark as flaky")
+  def action_type_label("add_label"), do: dgettext("dashboard_projects", "Add label")
+  def action_type_label("remove_label"), do: dgettext("dashboard_projects", "Remove label")
   def action_type_label(_), do: dgettext("dashboard_projects", "Unknown")
 
   def has_action_type?(actions, type) do
     Enum.any?(actions, fn action -> action["type"] == type end)
+  end
+
+  def has_label_action?(actions, type, label) do
+    Enum.any?(actions, fn action -> action["type"] == type and action["label"] == label end)
   end
 
   def has_change_state_action?(actions), do: has_action_type?(actions, "change_state")
@@ -435,9 +439,11 @@ defmodule TuistWeb.ProjectAutomationsLive do
 
   def action_row_summary(%{"type" => "send_slack"}), do: dgettext("dashboard_projects", "Slack: not configured")
 
-  def action_row_summary(%{"type" => "mark_as_flaky"}), do: dgettext("dashboard_projects", "Mark as flaky")
+  def action_row_summary(%{"type" => "add_label", "label" => label}),
+    do: dgettext("dashboard_projects", "Add label: %{label}", label: label)
 
-  def action_row_summary(%{"type" => "unmark_as_flaky"}), do: dgettext("dashboard_projects", "Unmark as flaky")
+  def action_row_summary(%{"type" => "remove_label", "label" => label}),
+    do: dgettext("dashboard_projects", "Remove label: %{label}", label: label)
 
   def action_row_summary(_), do: ""
 

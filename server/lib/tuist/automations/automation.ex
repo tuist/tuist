@@ -7,7 +7,7 @@ defmodule Tuist.Automations.Automation do
   alias Tuist.Projects.Project
 
   @automation_types ~w(flakiness_rate flaky_run_count)
-  @action_types ~w(change_state send_slack mark_as_flaky unmark_as_flaky)
+  @action_types ~w(change_state send_slack add_label remove_label)
   @valid_states ~w(enabled muted)
 
   @primary_key {:id, UUIDv7, autogenerate: true}
@@ -69,11 +69,11 @@ defmodule Tuist.Automations.Automation do
           Enum.count(actions, &change_state_action?/1) > 1 ->
             add_error(changeset, field, "can only contain one change_state action")
 
-          Enum.count(actions, &mark_as_flaky_action?/1) > 1 ->
-            add_error(changeset, field, "can only contain one mark_as_flaky action")
+          has_duplicate_label_action?(actions, "add_label") ->
+            add_error(changeset, field, "can only contain one add_label action per label")
 
-          Enum.count(actions, &unmark_as_flaky_action?/1) > 1 ->
-            add_error(changeset, field, "can only contain one unmark_as_flaky action")
+          has_duplicate_label_action?(actions, "remove_label") ->
+            add_error(changeset, field, "can only contain one remove_label action per label")
 
           true ->
             changeset
@@ -89,19 +89,20 @@ defmodule Tuist.Automations.Automation do
   defp valid_action?(%{"type" => "send_slack", "channel" => channel, "message" => message})
        when is_binary(channel) and channel != "" and is_binary(message) and message != "", do: true
 
-  defp valid_action?(%{"type" => "mark_as_flaky"}), do: true
-  defp valid_action?(%{"type" => "unmark_as_flaky"}), do: true
+  defp valid_action?(%{"type" => "add_label", "label" => label}) when is_binary(label) and label != "", do: true
+  defp valid_action?(%{"type" => "remove_label", "label" => label}) when is_binary(label) and label != "", do: true
 
   defp valid_action?(_), do: false
 
   defp change_state_action?(%{"type" => "change_state"}), do: true
   defp change_state_action?(_), do: false
 
-  defp mark_as_flaky_action?(%{"type" => "mark_as_flaky"}), do: true
-  defp mark_as_flaky_action?(_), do: false
-
-  defp unmark_as_flaky_action?(%{"type" => "unmark_as_flaky"}), do: true
-  defp unmark_as_flaky_action?(_), do: false
+  defp has_duplicate_label_action?(actions, type) do
+    actions
+    |> Enum.filter(fn a -> a["type"] == type end)
+    |> Enum.map(fn a -> a["label"] end)
+    |> then(fn labels -> length(labels) != length(Enum.uniq(labels)) end)
+  end
 
   defp validate_config(changeset) do
     automation_type = get_field(changeset, :automation_type)

@@ -301,11 +301,11 @@
                             </div>
                           </div>
                         </div>
-                      <% "mark_as_flaky" -> %>
+                      <% "add_label" -> %>
                         <span data-part="action-label">
                           {dgettext("dashboard_projects", "Mark test as flaky")}
                         </span>
-                      <% "unmark_as_flaky" -> %>
+                      <% "remove_label" -> %>
                         <span data-part="action-label">
                           {dgettext("dashboard_projects", "Unmark test as flaky")}
                         </span>
@@ -340,12 +340,13 @@
                       />
                       <.dropdown_item
                         :if={
-                          not has_action_type?(
+                          not has_label_action?(
                             @create_automation_form_trigger_actions,
-                            "mark_as_flaky"
+                            "add_label",
+                            "flaky"
                           )
                         }
-                        value="mark_as_flaky"
+                        value="add_label_flaky"
                         label={dgettext("dashboard_projects", "Mark as flaky")}
                         on_click="add_create_automation_form_trigger_action"
                       />
@@ -522,11 +523,11 @@
                             </div>
                           </div>
                         </div>
-                      <% "mark_as_flaky" -> %>
+                      <% "add_label" -> %>
                         <span data-part="action-label">
                           {dgettext("dashboard_projects", "Mark test as flaky")}
                         </span>
-                      <% "unmark_as_flaky" -> %>
+                      <% "remove_label" -> %>
                         <span data-part="action-label">
                           {dgettext("dashboard_projects", "Unmark test as flaky")}
                         </span>
@@ -561,12 +562,13 @@
                       />
                       <.dropdown_item
                         :if={
-                          not has_action_type?(
+                          not has_label_action?(
                             @create_automation_form_recovery_actions,
-                            "unmark_as_flaky"
+                            "remove_label",
+                            "flaky"
                           )
                         }
-                        value="unmark_as_flaky"
+                        value="remove_label_flaky"
                         label={dgettext("dashboard_projects", "Unmark as flaky")}
                         on_click="add_create_automation_form_recovery_action"
                       />
