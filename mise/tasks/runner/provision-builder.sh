@@ -1,29 +1,22 @@
 #!/usr/bin/env bash
-#MISE description="Provision a Scaleway Mac mini as a dedicated VM image builder (no Orchard)"
+#MISE description "Provision a Scaleway Mac mini as a dedicated VM image builder (no Orchard)"
 #MISE raw=true
 #USAGE arg "<name>" help="Hostname for the machine (e.g. vm-image-builder-01)"
-#USAGE arg "[runner_version]" help="GitHub Actions runner version (default: 2.333.1)"
-#USAGE option "-t --type" help="Server type" default="M1-M"
-#USAGE option "--zone" help="Scaleway zone" default="fr-par-3"
-#USAGE option "--os" help="macOS version to install" default="macos-tahoe-26.0"
-#USAGE option "--ip" help="IP of an existing machine (skip creation)"
-#USAGE option "--sudo-password" help="Sudo password for existing machine"
-#USAGE option "--github-url" help="GitHub URL to register runner with" default="https://github.com/tuist"
 #
 # This machine's sole purpose is building Tart VM images via Packer.
 # It is NOT part of the Orchard cluster and does NOT run user workloads.
 #
 # The GitHub Actions runner registration token is read from 1Password:
-#   op://<vault>/GITHUB_ACTIONS_VM_IMAGE_BUILDER_TOKEN/notesPlain
+#   op://cache/GITHUB_ACTIONS_VM_IMAGE_BUILDER_TOKEN/notesPlain
 
 set -euo pipefail
 
 SERVER_NAME="${usage_name?}"
-SERVER_TYPE="${usage_type:-M1-M}"
-ZONE="${usage_zone:-fr-par-3}"
-OS="${usage_os:-macos-tahoe-26.0}"
-RUNNER_VERSION="${usage_runner_version:-2.333.1}"
-GITHUB_URL="${usage_github_url:-https://github.com/tuist}"
+SERVER_TYPE="${SERVER_TYPE:-M1-M}"
+ZONE="${ZONE:-fr-par-3}"
+OS="${OS:-macos-tahoe-26.0}"
+RUNNER_VERSION="${RUNNER_VERSION:-2.333.1}"
+GITHUB_URL="${GITHUB_URL:-https://github.com/tuist}"
 RUNNER_LABELS="self-hosted,macos,bare-metal,vm-image-builder"
 
 echo "==> Reading GitHub Actions runner token from 1Password..."
@@ -45,9 +38,8 @@ if [ -f "${SSH_KEY}" ]; then
     SSH_OPTS="${SSH_OPTS} -o IdentitiesOnly=yes -i ${SSH_KEY}"
 fi
 
-if [ -n "${usage_ip:-}" ]; then
-    SERVER_IP="${usage_ip}"
-    SUDO_PASSWORD="${usage_sudo_password:?--sudo-password required when --ip is set}"
+if [ -n "${SERVER_IP:-}" ]; then
+    SUDO_PASSWORD="${SUDO_PASSWORD:?SUDO_PASSWORD required when SERVER_IP is set}"
     SSH_USER="${SSH_USER:-m1}"
     echo "==> Using existing machine at ${SERVER_IP}"
 else
@@ -156,9 +148,41 @@ echo "    Registering runner with GitHub..."
     --unattended \
     --replace
 
-echo "    Installing runner as launchd service..."
-sudo ./svc.sh install "${SSH_USER}"
-sudo ./svc.sh start
+echo "    Installing runner as LaunchDaemon..."
+sudo tee /Library/LaunchDaemons/actions.runner.tuist.${SERVER_NAME}.plist > /dev/null <<PLISTEOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>actions.runner.tuist.${SERVER_NAME}</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>\${RUNNER_DIR}/runsvc.sh</string>
+    </array>
+    <key>UserName</key>
+    <string>${SSH_USER}</string>
+    <key>WorkingDirectory</key>
+    <string>\${RUNNER_DIR}</string>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/Users/${SSH_USER}/Library/Logs/actions.runner.tuist.${SERVER_NAME}/stdout.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/${SSH_USER}/Library/Logs/actions.runner.tuist.${SERVER_NAME}/stderr.log</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
+</dict>
+</plist>
+PLISTEOF
+
+mkdir -p /Users/${SSH_USER}/Library/Logs/actions.runner.tuist.${SERVER_NAME}
+sudo launchctl load /Library/LaunchDaemons/actions.runner.tuist.${SERVER_NAME}.plist
 REMOTE
 
 echo ""
