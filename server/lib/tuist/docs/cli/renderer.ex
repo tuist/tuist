@@ -38,14 +38,10 @@ defmodule Tuist.Docs.CLI.Renderer do
   end
 
   defp static_cli_items do
-    Enum.map(Redirects.cli_static_slugs(), fn slug ->
-      %Item{label: static_label(slug), slug: Redirects.cli_slug(slug)}
+    Enum.map(Redirects.cli_static_pages(), fn {slug, label} ->
+      %Item{label: label, slug: Redirects.cli_slug(slug)}
     end)
   end
-
-  defp static_label("debugging"), do: "Debugging"
-  defp static_label("directories"), do: "Directories"
-  defp static_label("shell-completions"), do: "Shell completions"
 
   defp command_to_sidebar_item(command, parent_segments) do
     name = command["commandName"]

@@ -27,7 +27,12 @@ defmodule Tuist.Docs.Redirects do
 
   @cli_base "/references/cli"
   @cli_commands_base @cli_base <> "/commands"
-  @cli_static_slugs ["debugging", "directories", "shell-completions"]
+  @cli_static_pages [
+    {"debugging", "Debugging"},
+    {"directories", "Directories"},
+    {"shell-completions", "Shell completions"}
+  ]
+  @cli_static_slugs Enum.map(@cli_static_pages, &elem(&1, 0))
 
   @rules [
     # CLI docs moved under References (Diataxis: CLI is reference material)
@@ -49,6 +54,13 @@ defmodule Tuist.Docs.Redirects do
 
   @doc "Logical path under `/docs/` where auto-generated command pages live."
   def cli_commands_base, do: @cli_commands_base
+
+  @doc """
+  Hand-written CLI pages as `{slug_segment, english_label}` tuples.
+  The English label is the source string that flows through the
+  `priv/docs/strings/*.json` translation map at render time.
+  """
+  def cli_static_pages, do: @cli_static_pages
 
   @doc "Slug fragments under `cli_base/` served by hand-written pages (not commands)."
   def cli_static_slugs, do: @cli_static_slugs

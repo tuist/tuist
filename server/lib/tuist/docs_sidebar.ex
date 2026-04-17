@@ -466,14 +466,11 @@ defmodule Tuist.Docs.Sidebar do
   end
 
   defp default_cli_tree do
-    [%Group{label: "CLI", items: Enum.map(Redirects.cli_static_slugs(), &static_cli_item/1)}]
-  end
+    items =
+      Enum.map(Redirects.cli_static_pages(), fn {slug, label} ->
+        %Item{label: label, slug: Redirects.cli_slug(slug)}
+      end)
 
-  defp static_cli_item(slug) do
-    %Item{label: static_cli_label(slug), slug: Redirects.cli_slug(slug)}
+    [%Group{label: "CLI", items: items}]
   end
-
-  defp static_cli_label("debugging"), do: "Debugging"
-  defp static_cli_label("directories"), do: "Directories"
-  defp static_cli_label("shell-completions"), do: "Shell completions"
 end
