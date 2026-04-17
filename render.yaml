@@ -175,6 +175,60 @@ services:
     domains:
       - storybook.noora.tuist.dev
 
+  - type: web
+    name: slack
+    region: frankfurt
+    runtime: docker
+    repo: https://github.com/tuist/tuist
+    dockerfilePath: slack/Dockerfile
+    dockerContext: .
+    plan: starter
+    numInstances: 1
+    autoDeployTrigger: "off"
+    previews:
+      generation: "off"
+    disk:
+      name: slack-data
+      mountPath: /data
+      sizeGB: 1
+    buildFilter:
+      paths:
+        - slack/**
+        - noora/**
+    envVars:
+      - key: MIX_ENV
+        value: prod
+      - key: SECRET_KEY_BASE
+        generateValue: true
+      - key: RELEASE_COOKIE
+        generateValue: true
+      - key: PHX_HOST
+        value: slack.tuist.dev
+      - key: PORT
+        value: "8080"
+      - key: DATABASE_PATH
+        value: /data/slack.db
+      - key: SLACK_ADMIN_USERNAME
+        sync: false
+      - key: SLACK_ADMIN_PASSWORD
+        sync: false
+      - key: SLACK_MAILER_FROM_EMAIL
+        value: hello@tuist.dev
+      - key: SMTP_RELAY
+        sync: false
+      - key: SMTP_USERNAME
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: SMTP_PORT
+        value: "587"
+      - key: TURNSTILE_SITE_KEY
+        sync: false
+      - key: TURNSTILE_SECRET_KEY
+        sync: false
+    domains:
+      - slack.tuist.dev
+
   # ── Preview environment ─────────────────────────────────────────────
   # Each PR touching server/** gets an isolated preview with its own
   # PostgreSQL and embedded ClickHouse. No MASTER_KEY or encrypted

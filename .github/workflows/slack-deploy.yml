@@ -1,0 +1,57 @@
+name: Slack Deployment
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - slack/**
+      - noora/**
+      - .github/workflows/slack-deploy.yml
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: The commit SHA to deploy. When not passed, it deploys the latest commit available in `main`.
+        required: false
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: slack-deployment-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+env:
+  CI: true
+  RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  MISE_GITHUB_TOKEN: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN || github.token }}
+
+jobs:
+  deploy:
+    environment: slack-production
+    name: Production Deployment
+    runs-on: namespace-profile-default
+    defaults:
+      run:
+        working-directory: slack
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        if: ${{ github.event.inputs.commit_sha == '' }}
+      - uses: actions/checkout@v4
+        if: ${{ github.event.inputs.commit_sha != '' }}
+        with:
+          ref: ${{ github.event.inputs.commit_sha }}
+      - uses: jdx/mise-action@v2
+        with:
+          install: false
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - name: Trigger Slack deploy with Render CLI
+        env:
+          MISE_GITHUB_ATTESTATIONS: 0
+          GITHUB_TOKEN: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN }}
+          SLACK_RENDER_SERVICE_ID: ${{ secrets.SLACK_RENDER_SERVICE_ID }}
+        run: |
+          mise exec "github:render-oss/cli@2.6.1" -- cli_v2.6.1 deploys create "$SLACK_RENDER_SERVICE_ID" --output json --confirm --wait --commit "$GITHUB_SHA"

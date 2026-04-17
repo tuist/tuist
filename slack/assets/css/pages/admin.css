@@ -1,0 +1,105 @@
+#admin-invitations {
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  padding: var(--noora-spacing-10) var(--noora-spacing-4);
+  width: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+
+  @media (max-width: 768px) {
+    & {
+      padding: var(--noora-spacing-6);
+    }
+  }
+
+  & * {
+    box-sizing: border-box;
+  }
+
+  & > [data-part="content"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-6);
+    margin: 0 auto;
+    width: 100%;
+    max-width: 48rem;
+  }
+
+  & [data-part="header"] {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+
+    & > h1 {
+      color: var(--noora-surface-label-primary);
+      font-size: 1.5rem;
+      line-height: 2rem;
+      font-weight: 600;
+    }
+
+    & > span {
+      color: var(--noora-surface-label-secondary);
+      font-size: 0.75rem;
+      line-height: 1rem;
+    }
+  }
+
+  & [data-part="list"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-3);
+  }
+
+  & [data-part="row"] {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: var(--noora-spacing-5);
+    box-shadow: var(--noora-border-light-default);
+    border-radius: var(--noora-radius-medium);
+    background: var(--noora-surface-background-primary);
+    padding: var(--noora-spacing-5);
+
+    & > [data-part="email"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-2);
+      min-width: 0;
+
+      & > [data-part="email-address"] {
+        color: var(--noora-surface-label-primary);
+        font-size: 0.9375rem;
+        font-weight: 500;
+      }
+
+      & > [data-part="email-reason"] {
+        color: var(--noora-surface-label-secondary);
+        font-size: 0.8125rem;
+        line-height: 1.125rem;
+      }
+
+      & > [data-part="timestamp"] {
+        color: var(--noora-surface-label-tertiary);
+        font-size: 0.75rem;
+        line-height: 1rem;
+      }
+    }
+
+    & > [data-part="actions"] {
+      display: flex;
+      flex-shrink: 0;
+      align-items: center;
+      gap: var(--noora-spacing-3);
+    }
+  }
+
+  & [data-part="empty"] {
+    box-shadow: var(--noora-border-light-default);
+    border-radius: var(--noora-radius-medium);
+    background: var(--noora-surface-background-primary);
+    padding: var(--noora-spacing-7);
+    text-align: center;
+    color: var(--noora-surface-label-secondary);
+  }
+}
