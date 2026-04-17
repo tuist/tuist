@@ -269,6 +269,51 @@ final class FocusTargetsGraphMappersTests: TuistUnitTestCase {
         XCTAssertEqual(pruningTargets.map(\.name).sorted(), [localUnitTest.name, remoteExternalUnitTest.name].sorted())
     }
 
+    func test_map_when_tagged_local_package_test_target_dependencies_not_in_focused_graph_is_pruned() throws {
+        // Given
+        let appTarget = Target.test(name: "App")
+        let appPath = try temporaryPath().appending(component: "App")
+        let appProject = Project.test(path: appPath, targets: [appTarget])
+
+        let packageTarget = Target.test(name: "LocalPackage")
+        let packageTestTarget = Target.test(
+            name: "LocalPackageTests",
+            product: .unitTests,
+            metadata: .test(tags: [TargetTags.localSwiftPackageTest])
+        )
+        let packagePath = try temporaryPath().appending(component: "LocalPackage")
+        let packageProject = Project.test(
+            path: packagePath,
+            targets: [packageTarget, packageTestTarget],
+            type: .external(hash: nil)
+        )
+
+        let subject = FocusTargetsGraphMappers(includedTargets: [.named(appTarget.name)])
+        let graph = Graph.test(
+            projects: [
+                appProject.path: appProject,
+                packageProject.path: packageProject,
+            ],
+            dependencies: [
+                .target(name: packageTestTarget.name, path: packagePath): [
+                    .target(name: packageTarget.name, path: packagePath),
+                ],
+            ]
+        )
+
+        // When
+        let (gotGraph, gotSideEffects, _) = try subject.map(graph: graph, environment: MapperEnvironment())
+        let pruningTargets = gotGraph.projects.values.flatMap(\.targets.values).sorted()
+            .filter { $0.metadata.tags.contains("tuist:prunable") }
+
+        // Then
+        XCTAssertEmpty(gotSideEffects)
+        XCTAssertEqual(
+            pruningTargets.map(\.name).sorted(),
+            [packageTarget.name, packageTestTarget.name].sorted()
+        )
+    }
+
     func test_map_when_included_targets_do_not_exist() throws {
         // Given
         let targetNames = ["foo", "bar", "baz"]
