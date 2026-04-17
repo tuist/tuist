@@ -1297,7 +1297,15 @@ sharded_test_runs
     attrs =
       updated
       |> Map.from_struct()
-      |> Map.drop([:__meta__, :ran_by_account, :build_run, :gradle_build, :test_case_runs, :shard_plan])
+      |> Map.drop([
+        :__meta__,
+        :ran_by_account,
+        :build_run,
+        :gradle_build,
+        :test_case_runs,
+        :shard_plan,
+        :run_destinations
+      ])
 
     IngestRepo.insert_all(Test, [attrs])
 

@@ -144,6 +144,32 @@
               height: var(--noora-icon-size-medium);
               color: var(--noora-surface-label-secondary);
             }
+
+            & > [data-part="run-destinations"] {
+              display: flex;
+              flex-direction: row;
+              flex-wrap: wrap;
+              align-items: center;
+              gap: var(--noora-spacing-6);
+
+              & > [data-part="run-destination"] {
+                display: flex;
+                flex-direction: row;
+                align-items: center;
+                gap: var(--noora-spacing-2);
+
+                & > svg {
+                  flex-shrink: 0;
+                  width: var(--noora-icon-size-medium);
+                  height: var(--noora-icon-size-medium);
+                  color: var(--noora-surface-label-secondary);
+                }
+
+                & > [data-part="subtitle"] {
+                  color: var(--noora-surface-label-secondary);
+                }
+              }
+            }
           }
 
           & > [data-part="command"] {
