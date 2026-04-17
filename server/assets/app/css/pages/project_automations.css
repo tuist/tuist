@@ -288,22 +288,22 @@
 
 #create-automation-modal-body {
   padding: 0;
-}
 
-[data-part="modal-content-wrapper"] {
-  display: flex;
-  flex-direction: column;
-  max-height: calc(85vh - 160px);
-  overflow: hidden;
-}
+  [data-part="modal-content-wrapper"] {
+    display: flex;
+    flex-direction: column;
+    max-height: calc(85vh - 160px);
+    overflow: hidden;
 
-[data-part="modal-content-wrapper"] > .noora-line-divider {
-  flex-shrink: 0;
-}
+    & > .noora-line-divider {
+      flex-shrink: 0;
+    }
 
-[data-part="modal-content-wrapper"] > [data-part="scroll-area"] {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-y: auto;
+    & > [data-part="scroll-area"] {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow-y: auto;
+    }
+  }
 }
 
