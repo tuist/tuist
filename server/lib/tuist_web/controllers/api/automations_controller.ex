@@ -19,8 +19,11 @@ defmodule TuistWeb.API.AutomationsController do
   @action_schema %Schema{
     type: :object,
     properties: %{
-      type: %Schema{type: :string, enum: ["change_state"]},
-      state: %Schema{type: :string, enum: ["enabled", "muted"]}
+      type: %Schema{type: :string, enum: ["change_state", "send_slack", "mark_as_flaky", "unmark_as_flaky"]},
+      state: %Schema{type: :string, enum: ["enabled", "muted"], description: "Required for change_state actions."},
+      channel: %Schema{type: :string, description: "Slack channel ID. Required for send_slack actions."},
+      channel_name: %Schema{type: :string, description: "Slack channel name for display."},
+      message: %Schema{type: :string, description: "Message template. Required for send_slack actions. Supports {{variable}} interpolation."}
     },
     required: [:type]
   }

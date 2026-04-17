@@ -1,5 +1,7 @@
 defmodule Tuist.Automations.ActionExecutor do
   @moduledoc false
+  require Logger
+
   alias Tuist.Automations.Actions.ChangeStateAction
   alias Tuist.Automations.Actions.MarkAsFlakyAction
   alias Tuist.Automations.Actions.SendSlackAction
@@ -8,8 +10,15 @@ defmodule Tuist.Automations.ActionExecutor do
   def execute_actions([], _automation, _test_case_id), do: :ok
 
   def execute_actions(actions, automation, test_case_id) when is_list(actions) do
-    Enum.each(actions, fn action ->
-      execute_action(action, automation, test_case_id)
+    Enum.reduce_while(actions, :ok, fn action, _acc ->
+      case execute_action(action, automation, test_case_id) do
+        :ok ->
+          {:cont, :ok}
+
+        {:error, reason} ->
+          Logger.warning("Automation action #{action["type"]} failed for test_case #{test_case_id}: #{inspect(reason)}")
+          {:halt, {:error, reason}}
+      end
     end)
   end
 
@@ -29,5 +38,8 @@ defmodule Tuist.Automations.ActionExecutor do
     UnmarkAsFlakyAction.execute(test_case_id)
   end
 
-  defp execute_action(_unknown_action, _automation, _test_case_id), do: :ok
+  defp execute_action(unknown_action, _automation, _test_case_id) do
+    Logger.warning("Unknown automation action type: #{inspect(unknown_action)}")
+    :ok
+  end
 end

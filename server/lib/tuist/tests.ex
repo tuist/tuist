@@ -609,6 +609,9 @@ defmodule Tuist.Tests do
     end
   end
 
+  # Keeps `state` and `is_quarantined` in sync. When both are present,
+  # `state` takes precedence and `is_quarantined` is derived from it.
+  # Callers should set one or the other, not both.
   defp derive_state_and_quarantined(attrs) do
     cond do
       Map.has_key?(attrs, :state) ->

@@ -1,6 +1,11 @@
 defmodule Tuist.Automations.Workers.AutomationEvaluationWorker do
   @moduledoc false
-  use Oban.Worker, max_attempts: 3, queue: :default
+  use Oban.Worker,
+    max_attempts: 3,
+    queue: :default,
+    unique: [keys: [:automation_id], period: 60, states: [:available, :scheduled, :executing]]
+
+  require Logger
 
   alias Tuist.Automations
   alias Tuist.Automations.ActionExecutor
@@ -12,9 +17,9 @@ defmodule Tuist.Automations.Workers.AutomationEvaluationWorker do
       {:ok, automation} ->
         if automation.enabled do
           evaluate_and_execute(automation)
+        else
+          :ok
         end
-
-        :ok
 
       {:error, :not_found} ->
         :ok
@@ -29,19 +34,27 @@ defmodule Tuist.Automations.Workers.AutomationEvaluationWorker do
     newly_triggered = Enum.reject(triggered_ids, &MapSet.member?(existing_triggered_ids, &1))
 
     Enum.each(newly_triggered, fn test_case_id ->
-      ActionExecutor.execute_actions(automation.trigger_actions, automation, test_case_id)
+      case ActionExecutor.execute_actions(automation.trigger_actions, automation, test_case_id) do
+        :ok ->
+          Automations.insert_automation_state(%{
+            automation_id: automation.id,
+            test_case_id: test_case_id,
+            status: "triggered",
+            triggered_at: NaiveDateTime.utc_now()
+          })
 
-      Automations.insert_automation_state(%{
-        automation_id: automation.id,
-        test_case_id: test_case_id,
-        status: "triggered",
-        triggered_at: NaiveDateTime.utc_now()
-      })
+        {:error, reason} ->
+          Logger.error(
+            "Automation #{automation.id} trigger actions failed for test_case #{test_case_id}: #{inspect(reason)}"
+          )
+      end
     end)
 
     if automation.recovery_enabled do
       handle_recovery(automation, triggered_ids, existing_states, all_ids)
     end
+
+    :ok
   end
 
   defp handle_recovery(automation, currently_triggered_ids, existing_states, all_ids) do
@@ -60,8 +73,22 @@ defmodule Tuist.Automations.Workers.AutomationEvaluationWorker do
       end)
 
     Enum.each(recovered, fn state ->
-      ActionExecutor.execute_actions(automation.recovery_actions, automation, state.test_case_id)
-      Automations.mark_recovered(automation.id, state.test_case_id)
+      # Mark recovered first to prevent duplicate recovery from concurrent evaluations
+      case Automations.mark_recovered(automation.id, state.test_case_id) do
+        :ok ->
+          case ActionExecutor.execute_actions(automation.recovery_actions, automation, state.test_case_id) do
+            :ok ->
+              :ok
+
+            {:error, reason} ->
+              Logger.error(
+                "Automation #{automation.id} recovery actions failed for test_case #{state.test_case_id}: #{inspect(reason)}"
+              )
+          end
+
+        {:error, reason} ->
+          Logger.warning("Failed to mark recovered for automation #{automation.id}: #{inspect(reason)}")
+      end
     end)
   end
 
@@ -81,7 +108,12 @@ defmodule Tuist.Automations.Workers.AutomationEvaluationWorker do
     FlakinessRateType.evaluate(automation)
   end
 
-  defp evaluate_type(_automation) do
+  defp evaluate_type(%{automation_type: "flaky_run_count"} = automation) do
+    FlakinessRateType.evaluate_by_run_count(automation)
+  end
+
+  defp evaluate_type(automation) do
+    Logger.warning("Unknown automation type: #{automation.automation_type}")
     %{triggered: [], all: []}
   end
 end
