@@ -50,59 +50,9 @@
         edgeLabelBackground: "#131619",
       };
 
-      function currentThemeVariables() {
-        return document.documentElement.dataset.theme === "dark" ? darkTheme : lightTheme;
-      }
-
-      function configureMermaid() {
-        mermaid.initialize({
-          startOnLoad: false,
-          securityLevel: "loose",
-          theme: "base",
-          themeVariables: currentThemeVariables(),
-        });
-      }
-
-      function renderNewDiagrams() {
-        const elements = Array.from(
-          document.querySelectorAll("pre.mermaid:not([data-processed='true'])"),
-        );
-        elements.forEach((el) => {
-          if (el.dataset.mermaidSource === undefined) {
-            el.dataset.mermaidSource = el.textContent.trim();
-          }
-        });
-        if (elements.length > 0) {
-          mermaid.run({ nodes: elements });
-        }
-      }
-
-      function rerenderAllDiagrams() {
-        const elements = Array.from(document.querySelectorAll("pre.mermaid"));
-        elements.forEach((el) => {
-          if (el.dataset.mermaidSource === undefined) {
-            el.dataset.mermaidSource = el.textContent.trim();
-          } else {
-            el.textContent = el.dataset.mermaidSource;
-          }
-          el.removeAttribute("data-processed");
-        });
-        if (elements.length > 0) {
-          mermaid.run({ nodes: elements });
-        }
-      }
-
-      configureMermaid();
-      renderNewDiagrams();
-
-      document.addEventListener("phx:page-loading-stop", () => {
-        renderNewDiagrams();
-      });
-
-      window.addEventListener("changed-preferred-theme", () => {
-        configureMermaid();
-        rerenderAllDiagrams();
-      });
+      window.mermaid = mermaid;
+      window.mermaidThemeVariables = () =>
+        document.documentElement.dataset.theme === "dark" ? darkTheme : lightTheme;
     </script>
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />

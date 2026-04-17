@@ -6,6 +6,7 @@ import Noora from "noora";
 import ThemeSwitcher, { observeThemeChanges } from "../app/js/ThemeSwitcher.js";
 import DocsContentHook from "./hooks/docs-content-hook.js";
 import DocsInstallTabsHook from "./hooks/docs-install-tabs-hook.js";
+import MermaidDiagramHook from "./hooks/mermaid-diagram-hook.js";
 import { initDocsSearch } from "./hooks/docs-search-hook.js";
 
 import "./docs.css";
@@ -22,6 +23,7 @@ let liveSocket = new LiveSocket("/live", Socket, {
     ...Noora.Hooks,
     DocsContent: DocsContentHook,
     DocsInstallTabs: DocsInstallTabsHook,
+    MermaidDiagram: MermaidDiagramHook,
     ThemeSwitcher,
   },
 });

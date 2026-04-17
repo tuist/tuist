@@ -161,7 +161,12 @@ defmodule Tuist.Docs.Loader do
     html =
       [markdown: processed_markdown]
       |> MDEx.new()
-      |> MDExMermaid.attach(mermaid_init: "")
+      |> MDExMermaid.attach(
+        mermaid_init: "",
+        mermaid_pre_attrs: fn seq ->
+          ~s(id="mermaid-#{seq}" class="mermaid" phx-hook="MermaidDiagram" phx-update="ignore")
+        end
+      )
       |> MDEx.Document.put_options(@mdex_options)
       |> MDEx.to_html!()
       |> convert_github_alerts()
