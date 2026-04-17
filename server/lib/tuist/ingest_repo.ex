@@ -19,16 +19,20 @@ defmodule Tuist.IngestRepo do
     retry_on_connection_error(fn -> super(struct, opts) end)
   end
 
-  defp retry_on_connection_error(fun, retries_left \\ 3) do
+  @max_retries 3
+
+  defp retry_on_connection_error(fun, retries_left \\ @max_retries) do
     fun.()
   rescue
     e in [Mint.TransportError, DBConnection.ConnectionError] ->
       if retries_left > 0 do
+        delay = Integer.pow(2, @max_retries - retries_left) * 100
+
         Logger.warning(
-          "ClickHouse operation failed (#{Exception.message(e)}), retrying (#{retries_left} retries left)"
+          "ClickHouse operation failed (#{Exception.message(e)}), retrying in #{delay}ms (#{retries_left} retries left)"
         )
 
-        Process.sleep(100)
+        Process.sleep(delay)
         retry_on_connection_error(fun, retries_left - 1)
       else
         reraise e, __STACKTRACE__
