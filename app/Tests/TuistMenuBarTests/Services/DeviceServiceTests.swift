@@ -9,6 +9,7 @@ import TuistCore
 import TuistServer
 import TuistSupport
 import TuistTesting
+import TuistXcodeBuildProducts
 import XCTest
 
 @testable import TuistMenuBar

@@ -6,11 +6,13 @@ import Path
 import Rosalind
 import Testing
 import TuistConfigLoader
+import TuistCore
 import TuistGit
-import TuistLoader
+import TuistKit
 import TuistServer
 import TuistSupport
 import TuistTesting
+import TuistXcodeBuildProducts
 
 @testable import TuistInspectCommand
 
@@ -21,16 +23,20 @@ struct InspectBundleCommandServiceTests {
     private let configLoader = MockConfigLoading()
     private let serverEnvironmentService = MockServerEnvironmentServicing()
     private let gitController = MockGitControlling()
+    private let buildProductService = MockBuildProductServicing()
+    private let appBundleTargetResolver = MockAppBundleTargetResolving()
     private let subject: InspectBundleCommandService
 
     init() {
         subject = InspectBundleCommandService(
-            fileSystem: fileSystem,
             rosalind: rosalind,
             createBundleService: createBundleService,
             configLoader: configLoader,
             serverEnvironmentService: serverEnvironmentService,
-            gitController: gitController
+            gitController: gitController,
+            fileSystem: fileSystem,
+            buildProductService: buildProductService,
+            appBundleTargetResolver: appBundleTargetResolver
         )
 
         given(configLoader)
@@ -92,6 +98,9 @@ struct InspectBundleCommandServiceTests {
             try await subject.run(
                 path: temporaryDirectory.pathString,
                 bundle: bundlePath.pathString,
+                configuration: nil,
+                platforms: [],
+                derivedDataPath: nil,
                 json: false
             )
 
@@ -109,6 +118,56 @@ struct InspectBundleCommandServiceTests {
 
             verify(gitController)
                 .gitInfo(workingDirectory: .value(temporaryDirectory))
+                .called(1)
+        }
+    }
+
+    @Test(.inTemporaryDirectory)
+    func analyzeAppBundle_resolving_app_name_from_built_products() async throws {
+        try await withMockedDependencies {
+            let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+            let workspacePath = temporaryDirectory.appending(component: "App.xcworkspace")
+            let bundlePath = temporaryDirectory.appending(component: "App.app")
+
+            given(appBundleTargetResolver)
+                .resolve(
+                    app: .value("App"),
+                    path: .value(temporaryDirectory),
+                    configuration: .value("Debug"),
+                    platforms: .value([.iOS]),
+                    derivedDataPath: .value(nil)
+                )
+                .willReturn(ResolvedAppBundleTarget(
+                    app: "App",
+                    workspacePath: workspacePath,
+                    configuration: "Debug",
+                    platforms: [.iOS],
+                    derivedDataPath: nil
+                ))
+
+            given(buildProductService)
+                .appBundlePath(
+                    app: .value("App"),
+                    projectPath: .value(workspacePath),
+                    derivedDataPath: .value(nil),
+                    configuration: .value("Debug"),
+                    platforms: .value([.iOS])
+                )
+                .willReturn(bundlePath)
+
+            // When
+            try await subject.run(
+                path: temporaryDirectory.pathString,
+                bundle: "App",
+                configuration: "Debug",
+                platforms: [.iOS],
+                derivedDataPath: nil,
+                json: false
+            )
+
+            // Then
+            verify(rosalind)
+                .analyzeAppBundle(at: .value(bundlePath))
                 .called(1)
         }
     }

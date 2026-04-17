@@ -2,14 +2,16 @@ import FileSystem
 import Foundation
 import Mockable
 import Path
+import TuistSimulator
 import TuistSupport
 
-enum AppBundleLoaderError: LocalizedError, Equatable {
+public enum AppBundleLoaderError: LocalizedError, Equatable {
     case missingInfoPlist(AbsolutePath)
     case failedDecodingInfoPlist(AbsolutePath, String)
     case appBundleInIPANotFound(AbsolutePath)
+    case unknownDestinationType(AbsolutePath)
 
-    var errorDescription: String? {
+    public var errorDescription: String? {
         switch self {
         case let .missingInfoPlist(path):
             return "Expected Info.plist at \(path) was not found. Make sure it exists."
@@ -18,6 +20,8 @@ enum AppBundleLoaderError: LocalizedError, Equatable {
         case let .appBundleInIPANotFound(ipaPath):
             return
                 "No app found in the .ipa archive at \(ipaPath). Make sure the .ipa is a valid application archive."
+        case let .unknownDestinationType(path):
+            return "Could not determine the destination type of the app bundle at \(path)."
         }
     }
 }
@@ -25,6 +29,7 @@ enum AppBundleLoaderError: LocalizedError, Equatable {
 @Mockable
 public protocol AppBundleLoading {
     func load(_ appBundle: AbsolutePath) async throws -> AppBundle
+    func load(_ appBundle: AbsolutePath, destinationType: DestinationType) async throws -> AppBundle
     func load(ipa: AbsolutePath) async throws -> AppBundle
 }
 
@@ -57,14 +62,39 @@ public struct AppBundleLoader: AppBundleLoading {
         .first
         else { throw AppBundleLoaderError.appBundleInIPANotFound(ipa) }
 
-        let appBundleInfoPlist = try await load(appBundlePath).infoPlist
+        let infoPlist = try await loadInfoPlist(at: appBundlePath)
+        guard let destinationType = infoPlist.supportedPlatforms.first else {
+            throw AppBundleLoaderError.unknownDestinationType(ipa)
+        }
         return AppBundle(
             path: ipa,
-            infoPlist: appBundleInfoPlist
+            infoPlist: infoPlist,
+            destinationType: destinationType
+        )
+    }
+
+    public func load(_ appBundle: AbsolutePath, destinationType: DestinationType) async throws -> AppBundle {
+        let infoPlist = try await loadInfoPlist(at: appBundle)
+        return AppBundle(
+            path: appBundle,
+            infoPlist: infoPlist,
+            destinationType: destinationType
         )
     }
 
     public func load(_ appBundle: AbsolutePath) async throws -> AppBundle {
+        let infoPlist = try await loadInfoPlist(at: appBundle)
+        guard let destinationType = infoPlist.supportedPlatforms.first else {
+            throw AppBundleLoaderError.unknownDestinationType(appBundle)
+        }
+        return AppBundle(
+            path: appBundle,
+            infoPlist: infoPlist,
+            destinationType: destinationType
+        )
+    }
+
+    private func loadInfoPlist(at appBundle: AbsolutePath) async throws -> AppBundle.InfoPlist {
         // macOS bundles use Contents/ subdirectory layout, other Apple platforms use flat layout.
         let isMacOSBundle = try await fileSystem.exists(appBundle.appending(component: "Contents"), isDirectory: true)
         let infoPlistPath = isMacOSBundle
@@ -78,16 +108,10 @@ public struct AppBundleLoader: AppBundleLoading {
         let data = try Data(contentsOf: infoPlistPath.url)
         let decoder = PropertyListDecoder()
 
-        let infoPlist: AppBundle.InfoPlist
         do {
-            infoPlist = try decoder.decode(AppBundle.InfoPlist.self, from: data)
+            return try decoder.decode(AppBundle.InfoPlist.self, from: data)
         } catch {
             throw AppBundleLoaderError.failedDecodingInfoPlist(infoPlistPath, error.localizedDescription)
         }
-
-        return AppBundle(
-            path: appBundle,
-            infoPlist: infoPlist
-        )
     }
 }

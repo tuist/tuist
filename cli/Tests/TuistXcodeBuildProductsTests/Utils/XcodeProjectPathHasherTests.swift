@@ -1,6 +1,6 @@
 import XCTest
-@testable import TuistSupport
 @testable import TuistTesting
+@testable import TuistXcodeBuildProducts
 
 final class XcodeProjectPathHasherTests: TuistUnitTestCase {
     func test_hash_for_a_given_project_path() throws {
