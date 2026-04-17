@@ -24,3 +24,4 @@ config :slack, :admin_basic_auth,
   password: "admin"
 
 config :slack, :captcha, site_key: nil, secret_key: nil
+config :slack, :notifier, bot_token: nil, channel_id: nil

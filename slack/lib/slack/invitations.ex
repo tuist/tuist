@@ -16,6 +16,7 @@ defmodule Slack.Invitations do
   alias Slack.Invitations.Email
   alias Slack.Invitations.Invitation
   alias Slack.Mailer
+  alias Slack.Notifier
   alias Slack.Repo
 
   def request_invitation(attrs, build_confirm_url) when is_function(build_confirm_url, 1) do
@@ -53,9 +54,13 @@ defmodule Slack.Invitations do
   def confirm_invitation(%Invitation{status: :unconfirmed} = invitation) do
     now = DateTime.truncate(DateTime.utc_now(), :second)
 
-    invitation
-    |> Invitation.confirm_changeset(now)
-    |> Repo.update()
+    with {:ok, confirmed} <-
+           invitation
+           |> Invitation.confirm_changeset(now)
+           |> Repo.update() do
+      Notifier.invitation_confirmed(confirmed)
+      {:ok, confirmed}
+    end
   end
 
   def confirm_invitation(%Invitation{} = invitation), do: {:ok, invitation}

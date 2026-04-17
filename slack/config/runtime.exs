@@ -77,4 +77,9 @@ if config_env() == :prod do
     secret_key: turnstile_secret_key
 
   config :slack, :mailer_from, {mailer_from_name, mailer_from_email}
+
+  config :slack, :notifier,
+    bot_token: System.get_env("SLACK_BOT_TOKEN") || raise("environment variable SLACK_BOT_TOKEN is missing"),
+    channel_id: System.get_env("SLACK_CHANNEL_ID") || raise("environment variable SLACK_CHANNEL_ID is missing"),
+    admin_url: "https://#{host}/admin/invitations"
 end

@@ -40,4 +40,8 @@ config :slack, :captcha,
   site_key: System.get_env("TURNSTILE_SITE_KEY"),
   secret_key: System.get_env("TURNSTILE_SECRET_KEY")
 
+config :slack, :notifier,
+  bot_token: System.get_env("SLACK_BOT_TOKEN"),
+  channel_id: System.get_env("SLACK_CHANNEL_ID")
+
 config :slack, dev_routes: true
