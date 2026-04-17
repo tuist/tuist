@@ -23,7 +23,7 @@ public struct TestSummary: Encodable, Sendable {
         status: TestStatus,
         duration: Int?,
         testModules: [TestModule],
-        runDestinations: [RunDestination]
+        runDestinations: [RunDestination] = []
     ) {
         self.testPlanName = testPlanName
         self.status = status
