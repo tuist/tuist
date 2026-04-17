@@ -9,6 +9,7 @@ defmodule Tuist.TestsTest do
   alias Tuist.Tests.TestCase
   alias Tuist.Tests.TestCaseEvent
   alias Tuist.Tests.TestCaseRun
+  alias Tuist.Tests.TestRunDestination
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
@@ -321,6 +322,43 @@ defmodule Tuist.TestsTest do
 
       # Then
       assert result == {:error, :not_found}
+    end
+
+    test "preloads run_destinations when requested" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+
+      {:ok, test} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 1500,
+          status: "success",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: false,
+          run_destinations: [
+            %{name: "iPhone 17", platform: "ios_simulator", os_version: "26.4"}
+          ]
+        })
+
+      # When
+      {:ok, loaded} = Tests.get_test(test.id, preload: [:run_destinations])
+
+      # Then
+      assert [%TestRunDestination{name: "iPhone 17"}] = loaded.run_destinations
+    end
+
+    test "returns an empty run_destinations list when none were recorded" do
+      # Given
+      {:ok, test} = RunsFixtures.test_fixture()
+
+      # When
+      {:ok, loaded} = Tests.get_test(test.id, preload: [:run_destinations])
+
+      # Then
+      assert loaded.run_destinations == []
     end
   end
 
@@ -1127,6 +1165,125 @@ defmodule Tuist.TestsTest do
       assert test.git_branch == "main"
       assert test.git_commit_sha == "abc123def456"
       assert test.is_ci == true
+    end
+
+    test "persists run_destinations as separate rows linked to the test run" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+
+      test_attrs = %{
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        account_id: account.id,
+        duration: 1500,
+        status: "success",
+        ran_at: NaiveDateTime.utc_now(),
+        is_ci: false,
+        run_destinations: [
+          %{name: "iPhone 17", platform: "ios_simulator", os_version: "26.4"},
+          %{name: "iPhone 17 Pro", platform: "ios_simulator", os_version: "26.4"}
+        ]
+      }
+
+      # When
+      {:ok, test} = Tests.create_test(test_attrs)
+
+      # Then
+      destinations =
+        ClickHouseRepo.all(from(d in TestRunDestination, where: d.test_run_id == ^test.id, order_by: d.name))
+
+      assert length(destinations) == 2
+      [iphone_17, iphone_17_pro] = destinations
+      assert iphone_17.name == "iPhone 17"
+      assert iphone_17.platform == "ios_simulator"
+      assert iphone_17.os_version == "26.4"
+      assert iphone_17_pro.name == "iPhone 17 Pro"
+      assert iphone_17_pro.platform == "ios_simulator"
+    end
+
+    test "accepts run_destinations with string keys from the worker payload" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+
+      test_attrs = %{
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        account_id: account.id,
+        duration: 1500,
+        status: "success",
+        ran_at: NaiveDateTime.utc_now(),
+        is_ci: false,
+        run_destinations: [
+          %{"name" => "iPhone Air", "platform" => "ios_simulator", "os_version" => "26.4"}
+        ]
+      }
+
+      # When
+      {:ok, test} = Tests.create_test(test_attrs)
+
+      # Then
+      [destination] =
+        ClickHouseRepo.all(from(d in TestRunDestination, where: d.test_run_id == ^test.id))
+
+      assert destination.name == "iPhone Air"
+      assert destination.platform == "ios_simulator"
+      assert destination.os_version == "26.4"
+    end
+
+    test "skips run_destinations that are missing any of name/platform/os_version" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+
+      test_attrs = %{
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        account_id: account.id,
+        duration: 1500,
+        status: "success",
+        ran_at: NaiveDateTime.utc_now(),
+        is_ci: false,
+        run_destinations: [
+          %{name: "iPhone 17", platform: "ios_simulator", os_version: "26.4"},
+          %{name: "iPhone 17 Pro", platform: nil, os_version: "26.4"},
+          %{name: nil, platform: "ios_simulator", os_version: "26.4"}
+        ]
+      }
+
+      # When
+      {:ok, test} = Tests.create_test(test_attrs)
+
+      # Then
+      destinations =
+        ClickHouseRepo.all(from(d in TestRunDestination, where: d.test_run_id == ^test.id))
+
+      assert length(destinations) == 1
+      assert hd(destinations).name == "iPhone 17"
+    end
+
+    test "inserts no destination rows when run_destinations is missing or empty" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+
+      test_attrs = %{
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        account_id: account.id,
+        duration: 1500,
+        status: "success",
+        ran_at: NaiveDateTime.utc_now(),
+        is_ci: false
+      }
+
+      # When
+      {:ok, test} = Tests.create_test(test_attrs)
+
+      # Then
+      assert ClickHouseRepo.all(from(d in TestRunDestination, where: d.test_run_id == ^test.id)) ==
+               []
     end
 
     test "creates a test with test modules and test cases" do

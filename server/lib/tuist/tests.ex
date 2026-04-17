@@ -46,9 +46,23 @@ defmodule Tuist.Tests do
   alias Tuist.Tests.TestCaseRunDashboardCount
   alias Tuist.Tests.TestCaseRunRepetition
   alias Tuist.Tests.TestModuleRun
+  alias Tuist.Tests.TestRunDestination
   alias Tuist.Tests.TestSuiteRun
 
   require OpenTelemetry.Tracer
+
+  # Keys present on the `Test` struct that are NOT columns on the `test_runs`
+  # ClickHouse table (Ecto metadata + association loaders). Used to scrub the
+  # struct when re-inserting an updated row via `IngestRepo.insert_all/2`.
+  @test_struct_non_field_keys [
+    :__meta__,
+    :ran_by_account,
+    :build_run,
+    :gradle_build,
+    :test_case_runs,
+    :shard_plan,
+    :run_destinations
+  ]
 
   def valid_ci_providers, do: ["github", "gitlab", "bitrise", "circleci", "buildkite", "codemagic"]
 
@@ -136,7 +150,8 @@ defmodule Tuist.Tests do
             {:error, :not_found}
 
           test ->
-            {ch_preloads, pg_preloads} = Enum.split_with(preload, &(&1 in [:build_run, :gradle_build, :shard_plan]))
+            {ch_preloads, pg_preloads} =
+              Enum.split_with(preload, &(&1 in [:build_run, :gradle_build, :shard_plan, :run_destinations]))
 
             test =
               test
@@ -278,6 +293,8 @@ defmodule Tuist.Tests do
          |> Test.create_changeset(attrs)
          |> IngestRepo.insert() do
       {:ok, test} ->
+        create_run_destinations(test, Map.get(attrs, :run_destinations, []))
+
         {test_case_ids_with_flaky_run, test_case_runs} =
           create_test_modules(test, test_modules, shard_index, shard_plan)
 
@@ -299,6 +316,35 @@ defmodule Tuist.Tests do
       {:error, changeset} ->
         {:error, changeset}
     end
+  end
+
+  defp create_run_destinations(%Test{id: test_run_id}, destinations) when is_list(destinations) do
+    now = NaiveDateTime.utc_now()
+
+    rows =
+      destinations
+      |> Enum.map(fn destination ->
+        %{
+          id: UUIDv7.generate(),
+          test_run_id: test_run_id,
+          name: destination_field(destination, :name),
+          platform: destination_field(destination, :platform),
+          os_version: destination_field(destination, :os_version),
+          inserted_at: now
+        }
+      end)
+      |> Enum.filter(&(&1.name && &1.platform && &1.os_version))
+
+    case rows do
+      [] -> :ok
+      rows -> IngestRepo.insert_all(TestRunDestination, rows)
+    end
+  end
+
+  defp create_run_destinations(_, _), do: :ok
+
+  defp destination_field(destination, key) when is_atom(key) do
+    Map.get(destination, key) || Map.get(destination, Atom.to_string(key))
   end
 
   defp create_or_update_sharded_test(attrs) do
@@ -359,7 +405,7 @@ defmodule Tuist.Tests do
           update_attrs =
             updated_test
             |> Map.from_struct()
-            |> Map.drop([:__meta__, :ran_by_account, :build_run, :gradle_build, :test_case_runs, :shard_plan])
+            |> Map.drop(@test_struct_non_field_keys)
             |> Map.put(:inserted_at, NaiveDateTime.utc_now())
 
           IngestRepo.insert_all(Test, [update_attrs])
@@ -449,7 +495,7 @@ defmodule Tuist.Tests do
     attrs =
       updated_test
       |> Map.from_struct()
-      |> Map.drop([:__meta__, :ran_by_account, :build_run, :gradle_build, :test_case_runs, :shard_plan])
+      |> Map.drop(@test_struct_non_field_keys)
       |> Map.put(:inserted_at, NaiveDateTime.utc_now())
 
     IngestRepo.insert_all(Test, [attrs])
@@ -2191,7 +2237,7 @@ defmodule Tuist.Tests do
       Enum.map(stale_runs, fn run ->
         run
         |> Map.from_struct()
-        |> Map.drop([:__meta__, :ran_by_account, :build_run, :gradle_build, :test_case_runs, :shard_plan])
+        |> Map.drop(@test_struct_non_field_keys)
         |> Map.merge(%{status: "failure", inserted_at: now})
       end)
 

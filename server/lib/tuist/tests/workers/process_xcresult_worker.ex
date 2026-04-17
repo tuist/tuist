@@ -118,7 +118,8 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
         scheme: parsed_data["test_plan_name"] || Map.get(args, "scheme"),
         status: parsed_data["status"] || "success",
         duration: parsed_data["duration"] || 0,
-        test_modules: parsed_data["test_modules"] || []
+        test_modules: parsed_data["test_modules"] || [],
+        run_destinations: normalize_run_destinations(parsed_data["run_destinations"] || [])
       })
 
     case Tests.create_test(attrs) do
@@ -126,6 +127,34 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
       error -> error
     end
   end
+
+  # The xcresult `platform` field uses display strings ("iOS Simulator",
+  # "macOS"). We persist the snake-case form in `test_run_destinations` so
+  # ClickHouse holds the canonical value directly. iPadOS folds onto the
+  # iOS family — the icon set has no separate iPad glyph and Xcode's own
+  # xcresult viewer treats iPad sims as iOS Simulator anyway.
+  defp normalize_run_destinations(destinations) do
+    Enum.map(destinations, fn destination ->
+      %{
+        name: destination["name"],
+        platform: normalize_platform(destination["platform"]),
+        os_version: destination["os_version"]
+      }
+    end)
+  end
+
+  defp normalize_platform("macOS"), do: "macos"
+  defp normalize_platform("iOS"), do: "ios"
+  defp normalize_platform("iOS Simulator"), do: "ios_simulator"
+  defp normalize_platform("iPadOS"), do: "ios"
+  defp normalize_platform("iPadOS Simulator"), do: "ios_simulator"
+  defp normalize_platform("tvOS"), do: "tvos"
+  defp normalize_platform("tvOS Simulator"), do: "tvos_simulator"
+  defp normalize_platform("watchOS"), do: "watchos"
+  defp normalize_platform("watchOS Simulator"), do: "watchos_simulator"
+  defp normalize_platform("visionOS"), do: "visionos"
+  defp normalize_platform("visionOS Simulator"), do: "visionos_simulator"
+  defp normalize_platform(_), do: "unknown"
 
   defp mark_failed_processing(args) do
     attrs =
