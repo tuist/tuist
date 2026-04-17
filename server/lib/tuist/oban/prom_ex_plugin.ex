@@ -15,7 +15,7 @@ defmodule Tuist.Oban.PromExPlugin do
   @producer_complete_event [:oban, :producer, :stop]
   @producer_exception_event [:oban, :producer, :exception]
 
-  @metric_prefix [:tuist, :prom_ex, :oban]
+  @metric_prefix [:tuist, :oban]
 
   @job_duration_buckets [10, 100, 500, 1_000, 5_000, 20_000, 60_000, 300_000, 600_000, 1_800_000]
   @job_attempt_buckets [1, 5, 10]
