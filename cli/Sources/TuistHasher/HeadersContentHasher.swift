@@ -1,6 +1,8 @@
 import Foundation
 import Mockable
 import TuistCore
+import TuistEnvironment
+import TuistSupport
 import XcodeGraph
 
 @Mockable
@@ -23,7 +25,12 @@ public struct HeadersContentHasher: HeadersContentHashing {
 
     public func hash(headers: Headers) async throws -> String {
         let allHeaders = headers.public + headers.private + headers.project
-        let headersContent = try await allHeaders.serialMap { try await contentHasher.hash(path: $0) }
+        let headersContent: [String]
+        if Environment.current.isSwiftFileSystemBackendEnabled {
+            headersContent = try await allHeaders.concurrentMap { try await contentHasher.hash(path: $0) }
+        } else {
+            headersContent = try await allHeaders.serialMap { try await contentHasher.hash(path: $0) }
+        }
         return try contentHasher.hash(headersContent)
     }
 }
