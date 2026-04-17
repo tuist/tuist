@@ -2340,7 +2340,7 @@ defmodule Tuist.TestsTest do
       assert Enum.at(test_cases_desc, 2).name == "fastTest"
     end
 
-    test "preserves is_quarantined when a new test run is ingested" do
+    test "preserves state when a new test run is ingested" do
       # Given
       project = ProjectsFixtures.project_fixture()
 
@@ -2360,10 +2360,9 @@ defmodule Tuist.TestsTest do
         )
 
       {[test_case], _meta} = Tests.list_test_cases(project.id, %{})
-      assert test_case.is_quarantined == false
 
-      # When - quarantine the test case, then ingest a new test run
-      {:ok, _} = Tests.update_test_case(test_case.id, %{is_quarantined: true})
+      # When - mute the test case, then ingest a new test run
+      {:ok, _} = Tests.update_test_case(test_case.id, %{state: "muted"})
 
       {:ok, _test_run2} =
         RunsFixtures.test_fixture(
@@ -2380,9 +2379,9 @@ defmodule Tuist.TestsTest do
           ]
         )
 
-      # Then - the test case should still be quarantined
+      # Then - the test case should still be muted
       {[updated_test_case], _meta} = Tests.list_test_cases(project.id, %{})
-      assert updated_test_case.is_quarantined == true
+      assert updated_test_case.state == "muted"
     end
   end
 
@@ -3708,7 +3707,7 @@ defmodule Tuist.TestsTest do
   end
 
   describe "update_test_case/3 quarantine" do
-    test "marks a test case as quarantined" do
+    test "mutes a test case" do
       project = ProjectsFixtures.project_fixture()
 
       {:ok, _test_run} =
@@ -3727,27 +3726,26 @@ defmodule Tuist.TestsTest do
         )
 
       {[test_case], _meta} = Tests.list_test_cases(project.id, %{})
-      assert test_case.is_quarantined == false
 
-      result = Tests.update_test_case(test_case.id, %{is_quarantined: true})
+      result = Tests.update_test_case(test_case.id, %{state: "muted"})
 
       assert {:ok, updated_test_case} = result
-      assert updated_test_case.is_quarantined == true
+      assert updated_test_case.state == "muted"
       assert updated_test_case.id == test_case.id
 
       {:ok, fetched_test_case} = Tests.get_test_case_by_id(test_case.id)
-      assert fetched_test_case.is_quarantined == true
+      assert fetched_test_case.state == "muted"
     end
 
     test "returns error when test case does not exist" do
       non_existent_id = UUIDv7.generate()
 
-      result = Tests.update_test_case(non_existent_id, %{is_quarantined: true})
+      result = Tests.update_test_case(non_existent_id, %{state: "muted"})
 
       assert result == {:error, :not_found}
     end
 
-    test "unquarantines a test case" do
+    test "unmutes a test case" do
       project = ProjectsFixtures.project_fixture()
 
       {:ok, _test_run} =
@@ -3767,14 +3765,14 @@ defmodule Tuist.TestsTest do
 
       {[test_case], _meta} = Tests.list_test_cases(project.id, %{})
 
-      {:ok, _} = Tests.update_test_case(test_case.id, %{is_quarantined: true})
-      {:ok, quarantined_test_case} = Tests.get_test_case_by_id(test_case.id)
-      assert quarantined_test_case.is_quarantined == true
+      {:ok, _} = Tests.update_test_case(test_case.id, %{state: "muted"})
+      {:ok, muted_test_case} = Tests.get_test_case_by_id(test_case.id)
+      assert muted_test_case.state == "muted"
 
-      result = Tests.update_test_case(test_case.id, %{is_quarantined: false})
+      result = Tests.update_test_case(test_case.id, %{state: "enabled"})
 
       assert {:ok, updated_test_case} = result
-      assert updated_test_case.is_quarantined == false
+      assert updated_test_case.state == "enabled"
       assert updated_test_case.id == test_case.id
 
       {:ok, fetched_test_case} = Tests.get_test_case_by_id(test_case.id)
@@ -6252,7 +6250,7 @@ defmodule Tuist.TestsTest do
       IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
 
       # When
-      {:ok, _updated} = Tests.update_test_case(test_case.id, %{is_quarantined: true})
+      {:ok, _updated} = Tests.update_test_case(test_case.id, %{state: "muted"})
 
       # Then
       {events, _meta} = Tests.list_test_case_events(test_case.id)
@@ -6261,18 +6259,18 @@ defmodule Tuist.TestsTest do
       assert is_nil(hd(events).actor)
     end
 
-    test "creates multiple events when both is_flaky and is_quarantined change" do
+    test "creates multiple events when both is_flaky and state change" do
       # Given
       project = ProjectsFixtures.project_fixture()
       user = AccountsFixtures.user_fixture(preload: [:account])
-      test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_flaky: false, is_quarantined: false)
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_flaky: false)
       IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
 
       # When
       {:ok, _updated} =
         Tests.update_test_case(
           test_case.id,
-          %{is_flaky: true, is_quarantined: true},
+          %{is_flaky: true, state: "muted"},
           actor_id: user.account.id
         )
 

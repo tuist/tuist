@@ -588,9 +588,8 @@ defmodule Tuist.Tests do
   - `opts` - optional keyword list with `:actor_id` (account_id for user actions, nil for system)
   """
   def update_test_case(test_case_id, update_attrs, opts \\ []) when is_map(update_attrs) do
-    valid_keys = [:is_flaky, :is_quarantined, :state]
+    valid_keys = [:is_flaky, :state]
     filtered_attrs = Map.take(update_attrs, valid_keys)
-    filtered_attrs = derive_state_and_quarantined(filtered_attrs)
     actor_id = Keyword.get(opts, :actor_id)
 
     with {:ok, test_case} <- get_test_case_by_id(test_case_id) do
@@ -609,22 +608,6 @@ defmodule Tuist.Tests do
     end
   end
 
-  # Keeps `state` and `is_quarantined` in sync. When both are present,
-  # `state` takes precedence and `is_quarantined` is derived from it.
-  # Callers should set one or the other, not both.
-  defp derive_state_and_quarantined(attrs) do
-    cond do
-      Map.has_key?(attrs, :state) ->
-        Map.put(attrs, :is_quarantined, attrs.state == "muted")
-
-      Map.has_key?(attrs, :is_quarantined) ->
-        state = if attrs.is_quarantined, do: "muted", else: "enabled"
-        Map.put(attrs, :state, state)
-
-      true ->
-        attrs
-    end
-  end
 
   defp create_events_for_test_case_changes(test_case_id, old_test_case, new_attrs, actor_id) do
     event_types = determine_test_case_events(old_test_case, new_attrs)
@@ -648,8 +631,6 @@ defmodule Tuist.Tests do
   end
 
   defp determine_test_case_events(old_test_case, new_attrs) do
-    state_changed = Map.has_key?(new_attrs, :state)
-
     events = []
 
     events =
@@ -664,18 +645,6 @@ defmodule Tuist.Tests do
         {old_state, "muted"} when old_state != "muted" -> [:muted | events]
         {"muted", "enabled"} -> [:unmuted | events]
         _ -> events
-      end
-
-    # Only emit quarantine events if is_quarantined was set directly (not derived from state)
-    events =
-      if state_changed do
-        events
-      else
-        case {Map.get(old_test_case, :is_quarantined, false), Map.get(new_attrs, :is_quarantined)} do
-          {false, true} -> [:quarantined | events]
-          {true, false} -> [:unquarantined | events]
-          _ -> events
-        end
       end
 
     events

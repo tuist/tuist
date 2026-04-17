@@ -41,7 +41,7 @@ defmodule TuistWeb.TestCaseLiveTest do
         live(conn, ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_run.test_case_id}")
     end
 
-    test "quarantine button quarantines a test case", %{
+    test "muting a test case via set-state", %{
       conn: conn,
       account: account,
       project: project
@@ -53,10 +53,12 @@ defmodule TuistWeb.TestCaseLiveTest do
       {:ok, lv, _html} =
         live(conn, ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_run.test_case_id}")
 
-      html = lv |> element(~s|button[phx-click="quarantine"]|) |> render_click()
+      html = render_hook(lv, "set-state", %{"data" => "muted"})
 
       assert html =~ "Quarantined"
-      assert html =~ "Unquarantine"
+
+      {:ok, fetched} = Tuist.Tests.get_test_case_by_id(test_case_run.test_case_id)
+      assert fetched.state == "muted"
     end
 
     test "mark as flaky button marks a test case as flaky", %{
@@ -100,7 +102,7 @@ defmodule TuistWeb.TestCaseLiveTest do
 
       {:ok, fetched} = Tuist.Tests.get_test_case_by_id(test_case_run.test_case_id)
       assert fetched.is_flaky == true
-      assert fetched.is_quarantined == true
+      assert fetched.state == "muted"
     end
 
     test "unmark as flaky button unmarks a test case as flaky", %{
@@ -125,7 +127,7 @@ defmodule TuistWeb.TestCaseLiveTest do
       assert fetched.is_flaky == false
     end
 
-    test "unquarantine button unquarantines a test case", %{
+    test "unmuting a test case via set-state", %{
       conn: conn,
       account: account,
       project: project
@@ -134,15 +136,15 @@ defmodule TuistWeb.TestCaseLiveTest do
       test_run = Tuist.ClickHouseRepo.preload(test_run, :test_case_runs)
       [test_case_run | _] = test_run.test_case_runs
 
-      Tuist.Tests.update_test_case(test_case_run.test_case_id, %{is_quarantined: true})
+      Tuist.Tests.update_test_case(test_case_run.test_case_id, %{state: "muted"})
 
       {:ok, lv, _html} =
         live(conn, ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_run.test_case_id}")
 
-      html = lv |> element(~s|button[phx-click="unquarantine"]|) |> render_click()
+      render_hook(lv, "set-state", %{"data" => "enabled"})
 
-      refute html =~ "Unquarantine"
-      assert html =~ ~s|phx-click="quarantine"|
+      {:ok, fetched} = Tuist.Tests.get_test_case_by_id(test_case_run.test_case_id)
+      assert fetched.state == "enabled"
     end
   end
 end

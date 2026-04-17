@@ -138,7 +138,7 @@ defmodule TuistWeb.API.TestCasesController do
             suite: build_suite(test_case.suite_name),
             avg_duration: test_case.avg_duration,
             is_flaky: test_case.is_flaky,
-            is_quarantined: test_case.is_quarantined,
+            is_quarantined: (test_case.state || "enabled") == "muted",
             state: test_case.state || "enabled",
             url: ~p"/#{selected_project.account.name}/#{selected_project.name}/tests/test-cases/#{test_case.id}"
           }
@@ -262,7 +262,7 @@ defmodule TuistWeb.API.TestCasesController do
             },
             suite: build_suite(test_case.suite_name),
             is_flaky: test_case.is_flaky,
-            is_quarantined: test_case.is_quarantined,
+            is_quarantined: (test_case.state || "enabled") == "muted",
             state: test_case.state || "enabled",
             last_status: to_string(test_case.last_status),
             last_duration: test_case.last_duration,
