@@ -1,19 +1,24 @@
 defmodule Tuist.IngestRepo.Migrations.CreateTestRunDestinationsTable do
   use Ecto.Migration
 
+  @disable_ddl_transaction true
+  @disable_migration_lock true
+
   def up do
-    create table(:test_run_destinations,
-             primary_key: false,
-             engine: "MergeTree",
-             options: "PARTITION BY toYYYYMM(inserted_at) ORDER BY (test_run_id, inserted_at, id)"
-           ) do
-      add :id, :uuid, null: false
-      add :test_run_id, :uuid, null: false
-      add :name, :string, null: false
-      add :platform, :"LowCardinality(String)", null: false
-      add :os_version, :string, null: false
-      add :inserted_at, :"DateTime64(6)", default: fragment("now()")
-    end
+    execute("""
+    CREATE TABLE IF NOT EXISTS test_run_destinations
+    (
+      `id` UUID,
+      `test_run_id` UUID,
+      `name` String,
+      `platform` LowCardinality(String),
+      `os_version` String,
+      `inserted_at` DateTime64(6) DEFAULT now()
+    )
+    ENGINE = MergeTree()
+    PARTITION BY toYYYYMM(inserted_at)
+    ORDER BY (test_run_id, inserted_at, id)
+    """)
   end
 
   def down do
