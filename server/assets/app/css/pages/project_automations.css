@@ -149,22 +149,10 @@
       gap: var(--noora-spacing-4);
       padding-top: var(--noora-spacing-6);
 
-      & > [data-part="change-state-field"] {
-        display: flex;
-        flex-direction: column;
-        gap: var(--noora-spacing-2);
-        width: 280px;
-
-        & > [data-part="action-label"] {
-          color: var(--noora-surface-label-primary);
-          font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
-        }
-      }
-
       & > [data-part="action-label"] {
         color: var(--noora-surface-label-primary);
         font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
-        flex-shrink: 0;
+        flex: 1;
       }
 
       & > .noora-dropdown {
