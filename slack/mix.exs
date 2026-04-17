@@ -44,7 +44,6 @@ defmodule Slack.MixProject do
       {:plug, "~> 1.18"},
       {:req, "~> 0.5"},
       {:swoosh, "~> 1.16"},
-      {:gen_smtp, "~> 1.2"},
       {:styler, "~> 1.0", only: [:dev, :test], runtime: false}
     ]
   end

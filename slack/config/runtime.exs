@@ -45,15 +45,10 @@ if config_env() == :prod do
       raise "environment variable TURNSTILE_SECRET_KEY is missing"
 
   config :slack, Slack.Mailer,
-    adapter: Swoosh.Adapters.SMTP,
-    relay: System.get_env("SMTP_RELAY") || raise("environment variable SMTP_RELAY is missing"),
-    username: System.get_env("SMTP_USERNAME") || raise("environment variable SMTP_USERNAME is missing"),
-    password: System.get_env("SMTP_PASSWORD") || raise("environment variable SMTP_PASSWORD is missing"),
-    port: String.to_integer(System.get_env("SMTP_PORT") || "587"),
-    ssl: System.get_env("SMTP_SSL") == "true",
-    tls: :if_available,
-    auth: :always,
-    retries: 2
+    adapter: Swoosh.Adapters.Mailgun,
+    api_key: System.get_env("MAILGUN_API_KEY") || raise("environment variable MAILGUN_API_KEY is missing"),
+    domain: System.get_env("MAILGUN_DOMAIN") || "mail.tuist.dev",
+    base_url: System.get_env("MAILGUN_BASE_URL") || "https://api.eu.mailgun.net/v3"
 
   config :slack, Slack.Repo,
     database: database_path,

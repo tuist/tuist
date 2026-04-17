@@ -213,14 +213,12 @@ services:
         sync: false
       - key: SLACK_MAILER_FROM_EMAIL
         value: hello@tuist.dev
-      - key: SMTP_RELAY
+      - key: MAILGUN_API_KEY
         sync: false
-      - key: SMTP_USERNAME
-        sync: false
-      - key: SMTP_PASSWORD
-        sync: false
-      - key: SMTP_PORT
-        value: "587"
+      - key: MAILGUN_DOMAIN
+        value: mail.tuist.dev
+      - key: MAILGUN_BASE_URL
+        value: https://api.eu.mailgun.net/v3
       - key: TURNSTILE_SITE_KEY
         sync: false
       - key: TURNSTILE_SECRET_KEY
