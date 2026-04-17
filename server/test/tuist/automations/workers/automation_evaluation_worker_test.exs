@@ -25,9 +25,7 @@ defmodule Tuist.Automations.Workers.AutomationEvaluationWorkerTest do
 
   test "executes trigger actions for newly triggered test cases and inserts state" do
     automation =
-      AutomationsFixtures.automation_fixture(
-        trigger_actions: [%{"type" => "change_state", "state" => "muted"}]
-      )
+      AutomationsFixtures.automation_fixture(trigger_actions: [%{"type" => "change_state", "state" => "muted"}])
 
     triggered_id = Ecto.UUID.generate()
 

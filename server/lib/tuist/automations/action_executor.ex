@@ -1,11 +1,11 @@
 defmodule Tuist.Automations.ActionExecutor do
   @moduledoc false
-  require Logger
-
   alias Tuist.Automations.Actions.ChangeStateAction
   alias Tuist.Automations.Actions.MarkAsFlakyAction
   alias Tuist.Automations.Actions.SendSlackAction
   alias Tuist.Automations.Actions.UnmarkAsFlakyAction
+
+  require Logger
 
   def execute_actions([], _automation, _test_case_id), do: :ok
 

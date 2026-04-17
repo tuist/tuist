@@ -83,7 +83,10 @@ defmodule TuistWeb.ProjectAutomationsLive do
       window: automation.config["window"] || "30d",
       trigger_actions: automation.trigger_actions,
       recovery_enabled: automation.recovery_enabled,
-      recovery_window: automation.recovery_config["window"] || automation.recovery_config["days_without_trigger"] && "#{automation.recovery_config["days_without_trigger"]}d" || "14d",
+      recovery_window:
+        automation.recovery_config["window"] ||
+          (automation.recovery_config["days_without_trigger"] && "#{automation.recovery_config["days_without_trigger"]}d") ||
+          "14d",
       recovery_actions: automation.recovery_actions,
       enabled: automation.enabled
     }
@@ -184,11 +187,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
     {:noreply, assign(socket, create_automation_form_trigger_actions: actions)}
   end
 
-  def handle_event(
-        "update_create_automation_form_trigger_action_state",
-        %{"data" => state, "index" => index},
-        socket
-      ) do
+  def handle_event("update_create_automation_form_trigger_action_state", %{"data" => state, "index" => index}, socket) do
     index = String.to_integer(index)
 
     actions =
@@ -253,11 +252,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
     {:noreply, assign(socket, create_automation_form_recovery_actions: actions)}
   end
 
-  def handle_event(
-        "update_create_automation_form_recovery_action_state",
-        %{"data" => state, "index" => index},
-        socket
-      ) do
+  def handle_event("update_create_automation_form_recovery_action_state", %{"data" => state, "index" => index}, socket) do
     index = String.to_integer(index)
 
     actions =
@@ -410,7 +405,6 @@ defmodule TuistWeb.ProjectAutomationsLive do
     end
   end
 
-
   def automation_type_label("flakiness_rate"), do: dgettext("dashboard_projects", "Flakiness rate")
   def automation_type_label("flaky_run_count"), do: dgettext("dashboard_projects", "Flaky runs")
   def automation_type_label(_), do: dgettext("dashboard_projects", "Unknown")
@@ -435,27 +429,26 @@ defmodule TuistWeb.ProjectAutomationsLive do
 
   def has_change_state_action?(actions), do: has_action_type?(actions, "change_state")
 
-  def action_row_summary(%{"type" => "change_state", "state" => state}),
-    do: trigger_action_label(state)
+  def action_row_summary(%{"type" => "change_state", "state" => state}), do: trigger_action_label(state)
 
-  def action_row_summary(%{"type" => "send_slack", "channel" => channel}) when channel != "",
-    do: "Slack: #{channel}"
+  def action_row_summary(%{"type" => "send_slack", "channel" => channel}) when channel != "", do: "Slack: #{channel}"
 
-  def action_row_summary(%{"type" => "send_slack"}),
-    do: dgettext("dashboard_projects", "Slack: not configured")
+  def action_row_summary(%{"type" => "send_slack"}), do: dgettext("dashboard_projects", "Slack: not configured")
 
-  def action_row_summary(%{"type" => "mark_as_flaky"}),
-    do: dgettext("dashboard_projects", "Mark as flaky")
+  def action_row_summary(%{"type" => "mark_as_flaky"}), do: dgettext("dashboard_projects", "Mark as flaky")
 
-  def action_row_summary(%{"type" => "unmark_as_flaky"}),
-    do: dgettext("dashboard_projects", "Unmark as flaky")
+  def action_row_summary(%{"type" => "unmark_as_flaky"}), do: dgettext("dashboard_projects", "Unmark as flaky")
 
   def action_row_summary(_), do: ""
 
   def automation_summary(%{automation_type: "flakiness_rate", config: config}) do
     threshold = format_threshold(config["threshold"] || 0)
     window = config["window"] || "30d"
-    dgettext("dashboard_projects", "When flakiness rate ≥ %{threshold}% over %{window}", threshold: threshold, window: window)
+
+    dgettext("dashboard_projects", "When flakiness rate ≥ %{threshold}% over %{window}",
+      threshold: threshold,
+      window: window
+    )
   end
 
   def automation_summary(%{automation_type: "flaky_run_count", config: config}) do

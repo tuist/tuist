@@ -87,8 +87,7 @@ defmodule Tuist.Automations.Automation do
   defp valid_action?(%{"type" => "change_state", "state" => state}) when state in @valid_states, do: true
 
   defp valid_action?(%{"type" => "send_slack", "channel" => channel, "message" => message})
-       when is_binary(channel) and channel != "" and is_binary(message) and message != "",
-       do: true
+       when is_binary(channel) and channel != "" and is_binary(message) and message != "", do: true
 
   defp valid_action?(%{"type" => "mark_as_flaky"}), do: true
   defp valid_action?(%{"type" => "unmark_as_flaky"}), do: true

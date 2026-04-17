@@ -2734,7 +2734,6 @@ defmodule Tuist.TestsTest do
       assert flaky_case.name == "testFlakyExample"
       assert flaky_case.status == "success"
       assert flaky_case.is_flaky == true
-
     end
 
     test "marks test_case_run as flaky but not test_case for non-CI runs with repetitions" do
@@ -5746,7 +5745,6 @@ defmodule Tuist.TestsTest do
       assert result.failed_count == 2
     end
   end
-
 
   describe "is_new detection for test case runs" do
     test "marks test_case_run as new when no prior CI run exists on default branch" do

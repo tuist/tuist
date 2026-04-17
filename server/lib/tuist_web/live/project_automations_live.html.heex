@@ -47,7 +47,11 @@
       </div>
       <.modal
         id="create-automation-modal"
-        title={if @editing_automation_id, do: dgettext("dashboard_projects", "Edit automation"), else: dgettext("dashboard_projects", "Create automation")}
+        title={
+          if @editing_automation_id,
+            do: dgettext("dashboard_projects", "Edit automation"),
+            else: dgettext("dashboard_projects", "Create automation")
+        }
         header_size="large"
         on_dismiss="close_create_automation_modal"
       >
@@ -64,477 +68,517 @@
           <.line_divider />
           <div data-part="scroll-area">
             <div data-part="automation-form">
-          <div data-part="form-row">
-            <label data-part="label">
-              {dgettext("dashboard_projects", "Name")}
-            </label>
-            <.text_input
-              type="basic"
-              id="create-automation-name"
-              name="name"
-              value={@create_automation_form_name}
-              placeholder={dgettext("dashboard_projects", "e.g. Auto-quarantine flaky tests")}
-              phx-keyup="update_create_automation_form_name"
-              phx-debounce="300"
-            />
-          </div>
-
-          <.line_divider />
-
-          <div data-part="form-section">
-            <div data-part="form-section-header">
-              <span data-part="title">
-                {dgettext("dashboard_projects", "Condition")}
-              </span>
-              <span data-part="subtitle">
-                {dgettext(
-                  "dashboard_projects",
-                  "Trigger the automation when this condition is met"
-                )}
-              </span>
-            </div>
-            <div data-part="form-row-inline">
               <div data-part="form-row">
                 <label data-part="label">
-                  {dgettext("dashboard_projects", "When")}
-                </label>
-                <.dropdown
-                  id="create-automation-type-dropdown"
-                  label={automation_type_label(@create_automation_form_type)}
-                >
-                  <.dropdown_item
-                    value="flakiness_rate"
-                    label={dgettext("dashboard_projects", "Flakiness rate")}
-                    on_click="update_create_automation_form_type"
-                    data-selected={@create_automation_form_type == "flakiness_rate"}
-                  >
-                    <:right_icon><.check /></:right_icon>
-                  </.dropdown_item>
-                  <.dropdown_item
-                    value="flaky_run_count"
-                    label={dgettext("dashboard_projects", "Flaky runs")}
-                    on_click="update_create_automation_form_type"
-                    data-selected={@create_automation_form_type == "flaky_run_count"}
-                  >
-                    <:right_icon><.check /></:right_icon>
-                  </.dropdown_item>
-                </.dropdown>
-              </div>
-              <div data-part="form-row">
-                <label data-part="label">
-                  <%= if @create_automation_form_type == "flakiness_rate" do %>
-                    {dgettext("dashboard_projects", "Is greater than or equal to (%)")}
-                  <% else %>
-                    {dgettext("dashboard_projects", "Reach at least (count)")}
-                  <% end %>
+                  {dgettext("dashboard_projects", "Name")}
                 </label>
                 <.text_input
                   type="basic"
-                  input_type="number"
-                  id="create-automation-threshold"
-                  name="threshold"
-                  value={@create_automation_form_threshold}
-                  phx-keyup="update_create_automation_form_threshold"
+                  id="create-automation-name"
+                  name="name"
+                  value={@create_automation_form_name}
+                  placeholder={dgettext("dashboard_projects", "e.g. Auto-quarantine flaky tests")}
+                  phx-keyup="update_create_automation_form_name"
                   phx-debounce="300"
                 />
               </div>
-              <div data-part="form-row">
-                <label data-part="label">
-                  {dgettext("dashboard_projects", "Over the last")}
-                </label>
-                <.text_input
-                  type="basic"
-                  id="create-automation-window"
-                  name="window"
-                  value={@create_automation_form_window}
-                  placeholder="30d"
-                  phx-keyup="update_create_automation_form_window"
-                  phx-debounce="300"
-                />
-              </div>
-            </div>
-          </div>
 
-          <.line_divider />
+              <.line_divider />
 
-          <div data-part="form-section">
-            <div data-part="form-section-header">
-              <span data-part="title">
-                {dgettext("dashboard_projects", "Action")}
-              </span>
-              <span data-part="subtitle">
-                {dgettext(
-                  "dashboard_projects",
-                  "Run these actions for each test case that meets the condition"
-                )}
-              </span>
-            </div>
-            <div data-part="form-section-body">
-              <div
-                :for={{action, index} <- Enum.with_index(@create_automation_form_trigger_actions)}
-                data-part="action-row"
-              >
-                <%= case action["type"] do %>
-                  <% "change_state" -> %>
-                    <span data-part="action-label">
-                      {dgettext("dashboard_projects", "Change state to")}
-                    </span>
+              <div data-part="form-section">
+                <div data-part="form-section-header">
+                  <span data-part="title">
+                    {dgettext("dashboard_projects", "Condition")}
+                  </span>
+                  <span data-part="subtitle">
+                    {dgettext(
+                      "dashboard_projects",
+                      "Trigger the automation when this condition is met"
+                    )}
+                  </span>
+                </div>
+                <div data-part="form-row-inline">
+                  <div data-part="form-row">
+                    <label data-part="label">
+                      {dgettext("dashboard_projects", "When")}
+                    </label>
                     <.dropdown
-                      id={"create-automation-trigger-action-#{index}"}
-                      label={trigger_action_label(action["state"])}
-                      size="medium"
+                      id="create-automation-type-dropdown"
+                      label={automation_type_label(@create_automation_form_type)}
                     >
                       <.dropdown_item
-                        value="muted"
-                        label={dgettext("dashboard_projects", "Quarantined")}
-                        on_click="update_create_automation_form_trigger_action_state"
-                        phx-value-index={index}
-                        data-selected={action["state"] == "muted"}
+                        value="flakiness_rate"
+                        label={dgettext("dashboard_projects", "Flakiness rate")}
+                        on_click="update_create_automation_form_type"
+                        data-selected={@create_automation_form_type == "flakiness_rate"}
                       >
                         <:right_icon><.check /></:right_icon>
                       </.dropdown_item>
                       <.dropdown_item
-                        value="enabled"
-                        label={dgettext("dashboard_projects", "Enabled")}
-                        on_click="update_create_automation_form_trigger_action_state"
-                        phx-value-index={index}
-                        data-selected={action["state"] == "enabled"}
+                        value="flaky_run_count"
+                        label={dgettext("dashboard_projects", "Flaky runs")}
+                        on_click="update_create_automation_form_type"
+                        data-selected={@create_automation_form_type == "flaky_run_count"}
                       >
                         <:right_icon><.check /></:right_icon>
                       </.dropdown_item>
                     </.dropdown>
-                  <% "send_slack" -> %>
-                    <div data-part="slack-action">
-                      <div data-part="slack-action-header">
-                        <div data-part="slack-action-header-left">
-                          <span data-part="action-label">
-                            {dgettext("dashboard_projects", "Send Slack notification")}
-                          </span>
-                          <.tag
-                            :if={action["channel_name"] && action["channel_name"] != ""}
-                            label={"##{action["channel_name"]}"}
-                          />
-                        </div>
-                        <div data-part="slack-action-header-right">
-                          <.button
-                            :if={@slack_installation}
-                            label={
-                              if action["channel_name"] && action["channel_name"] != "",
-                                do: dgettext("dashboard_projects", "Update channel"),
-                                else: dgettext("dashboard_projects", "Select channel")
-                            }
-                            variant="secondary"
-                            size="medium"
-                            id={"trigger-action-channel-link-#{index}"}
-                            href={@automation_channel_selection_url}
-                            phx-hook="SelectSlackChannelPopup"
-                            data-event="trigger_action_channel_selected"
-                            data-id={index}
-                          />
-                          <.link_button
-                            :if={is_nil(@slack_installation)}
-                            href={~p"/#{@selected_account.name}/integrations"}
-                            target="_blank"
-                            label={dgettext("dashboard_projects", "Connect Slack")}
-                            variant="primary"
-                            size="medium"
-                          >
-                            <:icon_right><.external_link /></:icon_right>
-                          </.link_button>
-                          <.button
-                            icon_only
-                            size="medium"
-                            variant="secondary"
-                            phx-click="delete_create_automation_form_trigger_action"
+                  </div>
+                  <div data-part="form-row">
+                    <label data-part="label">
+                      <%= if @create_automation_form_type == "flakiness_rate" do %>
+                        {dgettext("dashboard_projects", "Is greater than or equal to (%)")}
+                      <% else %>
+                        {dgettext("dashboard_projects", "Reach at least (count)")}
+                      <% end %>
+                    </label>
+                    <.text_input
+                      type="basic"
+                      input_type="number"
+                      id="create-automation-threshold"
+                      name="threshold"
+                      value={@create_automation_form_threshold}
+                      phx-keyup="update_create_automation_form_threshold"
+                      phx-debounce="300"
+                    />
+                  </div>
+                  <div data-part="form-row">
+                    <label data-part="label">
+                      {dgettext("dashboard_projects", "Over the last")}
+                    </label>
+                    <.text_input
+                      type="basic"
+                      id="create-automation-window"
+                      name="window"
+                      value={@create_automation_form_window}
+                      placeholder="30d"
+                      phx-keyup="update_create_automation_form_window"
+                      phx-debounce="300"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <.line_divider />
+
+              <div data-part="form-section">
+                <div data-part="form-section-header">
+                  <span data-part="title">
+                    {dgettext("dashboard_projects", "Action")}
+                  </span>
+                  <span data-part="subtitle">
+                    {dgettext(
+                      "dashboard_projects",
+                      "Run these actions for each test case that meets the condition"
+                    )}
+                  </span>
+                </div>
+                <div data-part="form-section-body">
+                  <div
+                    :for={
+                      {action, index} <- Enum.with_index(@create_automation_form_trigger_actions)
+                    }
+                    data-part="action-row"
+                  >
+                    <%= case action["type"] do %>
+                      <% "change_state" -> %>
+                        <span data-part="action-label">
+                          {dgettext("dashboard_projects", "Change state to")}
+                        </span>
+                        <.dropdown
+                          id={"create-automation-trigger-action-#{index}"}
+                          label={trigger_action_label(action["state"])}
+                          size="medium"
+                        >
+                          <.dropdown_item
+                            value="muted"
+                            label={dgettext("dashboard_projects", "Quarantined")}
+                            on_click="update_create_automation_form_trigger_action_state"
                             phx-value-index={index}
+                            data-selected={action["state"] == "muted"}
                           >
-                            <.icon name="trash_x" />
-                          </.button>
+                            <:right_icon><.check /></:right_icon>
+                          </.dropdown_item>
+                          <.dropdown_item
+                            value="enabled"
+                            label={dgettext("dashboard_projects", "Enabled")}
+                            on_click="update_create_automation_form_trigger_action_state"
+                            phx-value-index={index}
+                            data-selected={action["state"] == "enabled"}
+                          >
+                            <:right_icon><.check /></:right_icon>
+                          </.dropdown_item>
+                        </.dropdown>
+                      <% "send_slack" -> %>
+                        <div data-part="slack-action">
+                          <div data-part="slack-action-header">
+                            <div data-part="slack-action-header-left">
+                              <span data-part="action-label">
+                                {dgettext("dashboard_projects", "Send Slack notification")}
+                              </span>
+                              <.tag
+                                :if={action["channel_name"] && action["channel_name"] != ""}
+                                label={"##{action["channel_name"]}"}
+                              />
+                            </div>
+                            <div data-part="slack-action-header-right">
+                              <.button
+                                :if={@slack_installation}
+                                label={
+                                  if action["channel_name"] && action["channel_name"] != "",
+                                    do: dgettext("dashboard_projects", "Update channel"),
+                                    else: dgettext("dashboard_projects", "Select channel")
+                                }
+                                variant="secondary"
+                                size="medium"
+                                id={"trigger-action-channel-link-#{index}"}
+                                href={@automation_channel_selection_url}
+                                phx-hook="SelectSlackChannelPopup"
+                                data-event="trigger_action_channel_selected"
+                                data-id={index}
+                              />
+                              <.link_button
+                                :if={is_nil(@slack_installation)}
+                                href={~p"/#{@selected_account.name}/integrations"}
+                                target="_blank"
+                                label={dgettext("dashboard_projects", "Connect Slack")}
+                                variant="primary"
+                                size="medium"
+                              >
+                                <:icon_right><.external_link /></:icon_right>
+                              </.link_button>
+                              <.button
+                                icon_only
+                                size="medium"
+                                variant="secondary"
+                                phx-click="delete_create_automation_form_trigger_action"
+                                phx-value-index={index}
+                              >
+                                <.icon name="trash_x" />
+                              </.button>
+                            </div>
+                          </div>
+                          <div data-part="slack-message-row">
+                            <div data-part="slack-message-label">
+                              <span data-part="label">
+                                {dgettext("dashboard_projects", "Message template")}
+                              </span>
+                              <span data-part="sublabel">
+                                {dgettext("dashboard_projects", "Supports Slack")}
+                                <a
+                                  href="https://api.slack.com/reference/surfaces/formatting"
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                >
+                                  markdown
+                                </a>
+                                {dgettext("dashboard_projects", "formatting.")}
+                              </span>
+                            </div>
+                            <.text_area
+                              id={"create-automation-trigger-action-message-#{index}"}
+                              name="message"
+                              value={action["message"] || ""}
+                              rows={4}
+                              max_length={2000}
+                              show_character_count={false}
+                              placeholder={
+                                dgettext("dashboard_projects", "Enter message template...")
+                              }
+                              phx-keyup="update_create_automation_form_trigger_action_message"
+                              phx-value-index={index}
+                              phx-debounce="300"
+                            />
+                            <div data-part="variables-hint">
+                              <span data-part="label">
+                                {dgettext("dashboard_projects", "Available variables:")}
+                              </span>
+                              <code>{"{{test_case.name}}"}</code>
+                              <code>{"{{test_case.module_name}}"}</code>
+                              <code>{"{{test_case.suite_name}}"}</code>
+                              <code>{"{{test_case.url}}"}</code>
+                              <code>{"{{automation.name}}"}</code>
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                      <div data-part="slack-message-row">
-                        <div data-part="slack-message-label">
-                          <span data-part="label">
-                            {dgettext("dashboard_projects", "Message template")}
-                          </span>
-                          <span data-part="sublabel">
-                            {dgettext("dashboard_projects", "Supports Slack")}
-                            <a href="https://api.slack.com/reference/surfaces/formatting" target="_blank" rel="noopener noreferrer">
-                              markdown
-                            </a>
-                            {dgettext("dashboard_projects", "formatting.")}
-                          </span>
-                        </div>
-                        <.text_area
-                          id={"create-automation-trigger-action-message-#{index}"}
-                          name="message"
-                          value={action["message"] || ""}
-                          rows={4}
-                          max_length={2000}
-                          show_character_count={false}
-                          placeholder={dgettext("dashboard_projects", "Enter message template...")}
-                          phx-keyup="update_create_automation_form_trigger_action_message"
-                          phx-value-index={index}
-                          phx-debounce="300"
-                        />
-                        <div data-part="variables-hint">
-                          <span data-part="label">{dgettext("dashboard_projects", "Available variables:")}</span>
-                          <code>{"{{test_case.name}}"}</code>
-                          <code>{"{{test_case.module_name}}"}</code>
-                          <code>{"{{test_case.suite_name}}"}</code>
-                          <code>{"{{test_case.url}}"}</code>
-                          <code>{"{{automation.name}}"}</code>
-                        </div>
-                      </div>
-                    </div>
-                  <% "mark_as_flaky" -> %>
-                    <span data-part="action-label">
-                      {dgettext("dashboard_projects", "Mark test as flaky")}
-                    </span>
-                  <% "unmark_as_flaky" -> %>
-                    <span data-part="action-label">
-                      {dgettext("dashboard_projects", "Unmark test as flaky")}
-                    </span>
-                <% end %>
-                <%= if action["type"] != "send_slack" do %>
-                  <.button
-                    icon_only
-                    size="medium"
-                    variant="secondary"
-                    phx-click="delete_create_automation_form_trigger_action"
-                    phx-value-index={index}
-                    >
-                    <.icon name="trash_x" />
-                  </.button>
-                <% end %>
-              </div>
-              <div data-part="add-action-wrapper">
-                <.dropdown
-                  id="create-automation-trigger-action-add-dropdown"
-                  label={dgettext("dashboard_projects", "Add action")}
-                >
-                  <.dropdown_item
-                    :if={not has_action_type?(@create_automation_form_trigger_actions, "change_state")}
-                    value="change_state"
-                    label={dgettext("dashboard_projects", "Change state")}
-                    on_click="add_create_automation_form_trigger_action"
-                  />
-                  <.dropdown_item
-                    :if={not has_action_type?(@create_automation_form_trigger_actions, "mark_as_flaky")}
-                    value="mark_as_flaky"
-                    label={dgettext("dashboard_projects", "Mark as flaky")}
-                    on_click="add_create_automation_form_trigger_action"
-                  />
-                  <.dropdown_item
-                    value="send_slack"
-                    label={dgettext("dashboard_projects", "Send Slack notification")}
-                    on_click="add_create_automation_form_trigger_action"
-                  />
-                </.dropdown>
-              </div>
-            </div>
-          </div>
-
-          <.line_divider />
-
-          <div data-part="form-section">
-            <div data-part="form-section-header" data-inline>
-              <.toggle
-                id={"create-automation-recovery-toggle-#{@editing_automation_id || "new"}"}
-                checked={@create_automation_form_recovery_enabled}
-                phx-click="toggle_create_automation_form_recovery"
-              />
-              <div data-part="form-section-header-titles">
-                <span data-part="title">
-                  {dgettext("dashboard_projects", "Recovery")}
-                </span>
-                <span data-part="subtitle">
-                  {dgettext(
-                    "dashboard_projects",
-                    "Run actions when the conditions no longer hold"
-                  )}
-                </span>
-              </div>
-            </div>
-            <div :if={@create_automation_form_recovery_enabled} data-part="form-section-body">
-              <div data-part="form-row">
-                <label data-part="label">
-                  {dgettext("dashboard_projects", "Without trigger for")}
-                </label>
-                <.text_input
-                  type="basic"
-                  id="create-automation-recovery-days"
-                  name="recovery_days"
-                  value={@create_automation_form_recovery_window}
-                  placeholder="14d"
-                  phx-keyup="update_create_automation_form_recovery_window"
-                  phx-debounce="300"
-                />
-              </div>
-              <div
-                :for={{action, index} <- Enum.with_index(@create_automation_form_recovery_actions)}
-                data-part="action-row"
-              >
-                <%= case action["type"] do %>
-                  <% "change_state" -> %>
-                    <span data-part="action-label">
-                      {dgettext("dashboard_projects", "Change state to")}
-                    </span>
+                      <% "mark_as_flaky" -> %>
+                        <span data-part="action-label">
+                          {dgettext("dashboard_projects", "Mark test as flaky")}
+                        </span>
+                      <% "unmark_as_flaky" -> %>
+                        <span data-part="action-label">
+                          {dgettext("dashboard_projects", "Unmark test as flaky")}
+                        </span>
+                    <% end %>
+                    <%= if action["type"] != "send_slack" do %>
+                      <.button
+                        icon_only
+                        size="medium"
+                        variant="secondary"
+                        phx-click="delete_create_automation_form_trigger_action"
+                        phx-value-index={index}
+                      >
+                        <.icon name="trash_x" />
+                      </.button>
+                    <% end %>
+                  </div>
+                  <div data-part="add-action-wrapper">
                     <.dropdown
-                      id={"create-automation-recovery-action-#{index}"}
-                      label={trigger_action_label(action["state"])}
-                      size="medium"
+                      id="create-automation-trigger-action-add-dropdown"
+                      label={dgettext("dashboard_projects", "Add action")}
                     >
                       <.dropdown_item
-                        value="enabled"
-                        label={dgettext("dashboard_projects", "Enabled")}
-                        on_click="update_create_automation_form_recovery_action_state"
-                        phx-value-index={index}
-                        data-selected={action["state"] == "enabled"}
-                      >
-                        <:right_icon><.check /></:right_icon>
-                      </.dropdown_item>
+                        :if={
+                          not has_action_type?(
+                            @create_automation_form_trigger_actions,
+                            "change_state"
+                          )
+                        }
+                        value="change_state"
+                        label={dgettext("dashboard_projects", "Change state")}
+                        on_click="add_create_automation_form_trigger_action"
+                      />
                       <.dropdown_item
-                        value="muted"
-                        label={dgettext("dashboard_projects", "Quarantined")}
-                        on_click="update_create_automation_form_recovery_action_state"
-                        phx-value-index={index}
-                        data-selected={action["state"] == "muted"}
-                      >
-                        <:right_icon><.check /></:right_icon>
-                      </.dropdown_item>
+                        :if={
+                          not has_action_type?(
+                            @create_automation_form_trigger_actions,
+                            "mark_as_flaky"
+                          )
+                        }
+                        value="mark_as_flaky"
+                        label={dgettext("dashboard_projects", "Mark as flaky")}
+                        on_click="add_create_automation_form_trigger_action"
+                      />
+                      <.dropdown_item
+                        value="send_slack"
+                        label={dgettext("dashboard_projects", "Send Slack notification")}
+                        on_click="add_create_automation_form_trigger_action"
+                      />
                     </.dropdown>
-                  <% "send_slack" -> %>
-                    <div data-part="slack-action">
-                      <div data-part="slack-action-header">
-                        <div data-part="slack-action-header-left">
-                          <span data-part="action-label">
-                            {dgettext("dashboard_projects", "Send Slack notification")}
-                          </span>
-                          <.tag
-                            :if={action["channel_name"] && action["channel_name"] != ""}
-                            label={"##{action["channel_name"]}"}
-                          />
-                        </div>
-                        <div data-part="slack-action-header-right">
-                          <.button
-                            :if={@slack_installation}
-                            label={
-                              if action["channel_name"] && action["channel_name"] != "",
-                                do: dgettext("dashboard_projects", "Update channel"),
-                                else: dgettext("dashboard_projects", "Select channel")
-                            }
-                            variant="secondary"
-                            size="medium"
-                            id={"recovery-action-channel-link-#{index}"}
-                            href={@automation_channel_selection_url}
-                            phx-hook="SelectSlackChannelPopup"
-                            data-event="recovery_action_channel_selected"
-                            data-id={index}
-                          />
-                          <.link_button
-                            :if={is_nil(@slack_installation)}
-                            href={~p"/#{@selected_account.name}/integrations"}
-                            target="_blank"
-                            label={dgettext("dashboard_projects", "Connect Slack")}
-                            variant="primary"
-                            size="medium"
-                          >
-                            <:icon_right><.external_link /></:icon_right>
-                          </.link_button>
-                          <.button
-                            icon_only
-                            size="medium"
-                            variant="secondary"
-                            phx-click="delete_create_automation_form_recovery_action"
+                  </div>
+                </div>
+              </div>
+
+              <.line_divider />
+
+              <div data-part="form-section">
+                <div data-part="form-section-header" data-inline>
+                  <.toggle
+                    id={"create-automation-recovery-toggle-#{@editing_automation_id || "new"}"}
+                    checked={@create_automation_form_recovery_enabled}
+                    phx-click="toggle_create_automation_form_recovery"
+                  />
+                  <div data-part="form-section-header-titles">
+                    <span data-part="title">
+                      {dgettext("dashboard_projects", "Recovery")}
+                    </span>
+                    <span data-part="subtitle">
+                      {dgettext(
+                        "dashboard_projects",
+                        "Run actions when the conditions no longer hold"
+                      )}
+                    </span>
+                  </div>
+                </div>
+                <div :if={@create_automation_form_recovery_enabled} data-part="form-section-body">
+                  <div data-part="form-row">
+                    <label data-part="label">
+                      {dgettext("dashboard_projects", "Without trigger for")}
+                    </label>
+                    <.text_input
+                      type="basic"
+                      id="create-automation-recovery-days"
+                      name="recovery_days"
+                      value={@create_automation_form_recovery_window}
+                      placeholder="14d"
+                      phx-keyup="update_create_automation_form_recovery_window"
+                      phx-debounce="300"
+                    />
+                  </div>
+                  <div
+                    :for={
+                      {action, index} <- Enum.with_index(@create_automation_form_recovery_actions)
+                    }
+                    data-part="action-row"
+                  >
+                    <%= case action["type"] do %>
+                      <% "change_state" -> %>
+                        <span data-part="action-label">
+                          {dgettext("dashboard_projects", "Change state to")}
+                        </span>
+                        <.dropdown
+                          id={"create-automation-recovery-action-#{index}"}
+                          label={trigger_action_label(action["state"])}
+                          size="medium"
+                        >
+                          <.dropdown_item
+                            value="enabled"
+                            label={dgettext("dashboard_projects", "Enabled")}
+                            on_click="update_create_automation_form_recovery_action_state"
                             phx-value-index={index}
+                            data-selected={action["state"] == "enabled"}
                           >
-                            <.icon name="trash_x" />
-                          </.button>
+                            <:right_icon><.check /></:right_icon>
+                          </.dropdown_item>
+                          <.dropdown_item
+                            value="muted"
+                            label={dgettext("dashboard_projects", "Quarantined")}
+                            on_click="update_create_automation_form_recovery_action_state"
+                            phx-value-index={index}
+                            data-selected={action["state"] == "muted"}
+                          >
+                            <:right_icon><.check /></:right_icon>
+                          </.dropdown_item>
+                        </.dropdown>
+                      <% "send_slack" -> %>
+                        <div data-part="slack-action">
+                          <div data-part="slack-action-header">
+                            <div data-part="slack-action-header-left">
+                              <span data-part="action-label">
+                                {dgettext("dashboard_projects", "Send Slack notification")}
+                              </span>
+                              <.tag
+                                :if={action["channel_name"] && action["channel_name"] != ""}
+                                label={"##{action["channel_name"]}"}
+                              />
+                            </div>
+                            <div data-part="slack-action-header-right">
+                              <.button
+                                :if={@slack_installation}
+                                label={
+                                  if action["channel_name"] && action["channel_name"] != "",
+                                    do: dgettext("dashboard_projects", "Update channel"),
+                                    else: dgettext("dashboard_projects", "Select channel")
+                                }
+                                variant="secondary"
+                                size="medium"
+                                id={"recovery-action-channel-link-#{index}"}
+                                href={@automation_channel_selection_url}
+                                phx-hook="SelectSlackChannelPopup"
+                                data-event="recovery_action_channel_selected"
+                                data-id={index}
+                              />
+                              <.link_button
+                                :if={is_nil(@slack_installation)}
+                                href={~p"/#{@selected_account.name}/integrations"}
+                                target="_blank"
+                                label={dgettext("dashboard_projects", "Connect Slack")}
+                                variant="primary"
+                                size="medium"
+                              >
+                                <:icon_right><.external_link /></:icon_right>
+                              </.link_button>
+                              <.button
+                                icon_only
+                                size="medium"
+                                variant="secondary"
+                                phx-click="delete_create_automation_form_recovery_action"
+                                phx-value-index={index}
+                              >
+                                <.icon name="trash_x" />
+                              </.button>
+                            </div>
+                          </div>
+                          <div data-part="slack-message-row">
+                            <div data-part="slack-message-label">
+                              <span data-part="label">
+                                {dgettext("dashboard_projects", "Message template")}
+                              </span>
+                              <span data-part="sublabel">
+                                {dgettext("dashboard_projects", "Supports Slack")}
+                                <a
+                                  href="https://api.slack.com/reference/surfaces/formatting"
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                >
+                                  markdown
+                                </a>
+                                {dgettext("dashboard_projects", "formatting.")}
+                              </span>
+                            </div>
+                            <.text_area
+                              id={"create-automation-recovery-action-message-#{index}"}
+                              name="message"
+                              value={action["message"] || ""}
+                              rows={4}
+                              max_length={2000}
+                              show_character_count={false}
+                              placeholder={
+                                dgettext("dashboard_projects", "Enter message template...")
+                              }
+                              phx-keyup="update_create_automation_form_recovery_action_message"
+                              phx-value-index={index}
+                              phx-debounce="300"
+                            />
+                            <div data-part="variables-hint">
+                              <span data-part="label">
+                                {dgettext("dashboard_projects", "Available variables:")}
+                              </span>
+                              <code>{"{{test_case.name}}"}</code>
+                              <code>{"{{test_case.module_name}}"}</code>
+                              <code>{"{{test_case.suite_name}}"}</code>
+                              <code>{"{{test_case.url}}"}</code>
+                              <code>{"{{automation.name}}"}</code>
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                      <div data-part="slack-message-row">
-                        <div data-part="slack-message-label">
-                          <span data-part="label">
-                            {dgettext("dashboard_projects", "Message template")}
-                          </span>
-                          <span data-part="sublabel">
-                            {dgettext("dashboard_projects", "Supports Slack")}
-                            <a href="https://api.slack.com/reference/surfaces/formatting" target="_blank" rel="noopener noreferrer">
-                              markdown
-                            </a>
-                            {dgettext("dashboard_projects", "formatting.")}
-                          </span>
-                        </div>
-                        <.text_area
-                          id={"create-automation-recovery-action-message-#{index}"}
-                          name="message"
-                          value={action["message"] || ""}
-                          rows={4}
-                          max_length={2000}
-                          show_character_count={false}
-                          placeholder={dgettext("dashboard_projects", "Enter message template...")}
-                          phx-keyup="update_create_automation_form_recovery_action_message"
-                          phx-value-index={index}
-                          phx-debounce="300"
-                        />
-                        <div data-part="variables-hint">
-                          <span data-part="label">{dgettext("dashboard_projects", "Available variables:")}</span>
-                          <code>{"{{test_case.name}}"}</code>
-                          <code>{"{{test_case.module_name}}"}</code>
-                          <code>{"{{test_case.suite_name}}"}</code>
-                          <code>{"{{test_case.url}}"}</code>
-                          <code>{"{{automation.name}}"}</code>
-                        </div>
-                      </div>
-                    </div>
-                  <% "mark_as_flaky" -> %>
-                    <span data-part="action-label">
-                      {dgettext("dashboard_projects", "Mark test as flaky")}
-                    </span>
-                  <% "unmark_as_flaky" -> %>
-                    <span data-part="action-label">
-                      {dgettext("dashboard_projects", "Unmark test as flaky")}
-                    </span>
-                <% end %>
-                <%= if action["type"] != "send_slack" do %>
-                  <.button
-                    icon_only
-                    size="medium"
-                    variant="secondary"
-                    phx-click="delete_create_automation_form_recovery_action"
-                    phx-value-index={index}
+                      <% "mark_as_flaky" -> %>
+                        <span data-part="action-label">
+                          {dgettext("dashboard_projects", "Mark test as flaky")}
+                        </span>
+                      <% "unmark_as_flaky" -> %>
+                        <span data-part="action-label">
+                          {dgettext("dashboard_projects", "Unmark test as flaky")}
+                        </span>
+                    <% end %>
+                    <%= if action["type"] != "send_slack" do %>
+                      <.button
+                        icon_only
+                        size="medium"
+                        variant="secondary"
+                        phx-click="delete_create_automation_form_recovery_action"
+                        phx-value-index={index}
+                      >
+                        <.icon name="trash_x" />
+                      </.button>
+                    <% end %>
+                  </div>
+                  <div data-part="add-action-wrapper">
+                    <.dropdown
+                      id="create-automation-recovery-action-add-dropdown"
+                      label={dgettext("dashboard_projects", "Add recovery action")}
                     >
-                    <.icon name="trash_x" />
-                  </.button>
-                <% end %>
+                      <.dropdown_item
+                        :if={
+                          not has_action_type?(
+                            @create_automation_form_recovery_actions,
+                            "change_state"
+                          )
+                        }
+                        value="change_state"
+                        label={dgettext("dashboard_projects", "Change state")}
+                        on_click="add_create_automation_form_recovery_action"
+                      />
+                      <.dropdown_item
+                        :if={
+                          not has_action_type?(
+                            @create_automation_form_recovery_actions,
+                            "unmark_as_flaky"
+                          )
+                        }
+                        value="unmark_as_flaky"
+                        label={dgettext("dashboard_projects", "Unmark as flaky")}
+                        on_click="add_create_automation_form_recovery_action"
+                      />
+                      <.dropdown_item
+                        value="send_slack"
+                        label={dgettext("dashboard_projects", "Send Slack notification")}
+                        on_click="add_create_automation_form_recovery_action"
+                      />
+                    </.dropdown>
+                  </div>
+                </div>
               </div>
-              <div data-part="add-action-wrapper">
-                <.dropdown
-                  id="create-automation-recovery-action-add-dropdown"
-                  label={dgettext("dashboard_projects", "Add recovery action")}
-                >
-                  <.dropdown_item
-                    :if={not has_action_type?(@create_automation_form_recovery_actions, "change_state")}
-                    value="change_state"
-                    label={dgettext("dashboard_projects", "Change state")}
-                    on_click="add_create_automation_form_recovery_action"
-                  />
-                  <.dropdown_item
-                    :if={not has_action_type?(@create_automation_form_recovery_actions, "unmark_as_flaky")}
-                    value="unmark_as_flaky"
-                    label={dgettext("dashboard_projects", "Unmark as flaky")}
-                    on_click="add_create_automation_form_recovery_action"
-                  />
-                  <.dropdown_item
-                    value="send_slack"
-                    label={dgettext("dashboard_projects", "Send Slack notification")}
-                    on_click="add_create_automation_form_recovery_action"
-                  />
-                </.dropdown>
-              </div>
-            </div>
-          </div>
             </div>
           </div>
           <.line_divider />
@@ -552,7 +596,11 @@
             <:action>
               <.button
                 type="button"
-                label={if @editing_automation_id, do: dgettext("dashboard_projects", "Save"), else: dgettext("dashboard_projects", "Create")}
+                label={
+                  if @editing_automation_id,
+                    do: dgettext("dashboard_projects", "Save"),
+                    else: dgettext("dashboard_projects", "Create")
+                }
                 variant="primary"
                 disabled={@create_automation_form_name == ""}
                 phx-click="save_automation"
@@ -565,7 +613,10 @@
     <div data-part="content">
       <div :if={Enum.empty?(@automations)} data-part="empty-state">
         <span>
-          {dgettext("dashboard_projects", "No automations yet. Add one to start automatically managing test case state based on conditions.")}
+          {dgettext(
+            "dashboard_projects",
+            "No automations yet. Add one to start automatically managing test case state based on conditions."
+          )}
         </span>
       </div>
       <.table
@@ -583,7 +634,13 @@
         <:col :let={automation} label="">
           <.button_cell>
             <:button>
-              <.button icon_only size="small" variant="secondary" phx-click="edit_automation" phx-value-id={automation.id}>
+              <.button
+                icon_only
+                size="small"
+                variant="secondary"
+                phx-click="edit_automation"
+                phx-value-id={automation.id}
+              >
                 <.icon name="pencil" />
               </.button>
             </:button>

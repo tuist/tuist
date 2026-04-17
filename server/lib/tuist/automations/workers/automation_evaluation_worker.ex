@@ -5,11 +5,11 @@ defmodule Tuist.Automations.Workers.AutomationEvaluationWorker do
     queue: :default,
     unique: [keys: [:automation_id], period: 60, states: [:available, :scheduled, :executing]]
 
-  require Logger
-
   alias Tuist.Automations
   alias Tuist.Automations.ActionExecutor
   alias Tuist.Automations.Types.FlakinessRateType
+
+  require Logger
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"automation_id" => automation_id}}) do

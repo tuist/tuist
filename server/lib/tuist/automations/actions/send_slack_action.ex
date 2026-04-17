@@ -9,9 +9,9 @@ defmodule Tuist.Automations.Actions.SendSlackAction do
 
   def execute(automation, test_case_id, %{"channel" => channel} = action) do
     with {:ok, test_case} <- Tests.get_test_case_by_id(test_case_id),
-         project <- Projects.get_project_by_id(automation.project_id),
+         project = Projects.get_project_by_id(automation.project_id),
          false <- is_nil(project),
-         project <- Repo.preload(project, account: :slack_installation),
+         project = Repo.preload(project, account: :slack_installation),
          %Installation{access_token: access_token} <- project.account.slack_installation do
       template = Map.get(action, "message", "")
 

@@ -29,7 +29,11 @@ defmodule Tuist.Repo.Migrations.BackfillAutomationsFromProjectSettings do
       projects_with_flaky_detection
       |> Enum.map(fn project ->
         trigger_actions = build_trigger_actions(project)
-        recovery_actions = [%{"type" => "change_state", "state" => "enabled"}, %{"type" => "unmark_as_flaky"}]
+
+        recovery_actions = [
+          %{"type" => "change_state", "state" => "enabled"},
+          %{"type" => "unmark_as_flaky"}
+        ]
 
         %{
           id: Ecto.UUID.bingenerate(),
