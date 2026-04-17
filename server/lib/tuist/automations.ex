@@ -38,24 +38,27 @@ defmodule Tuist.Automations do
     Repo.delete(automation)
   end
 
+  @doc """
+  Returns currently active triggers for an automation (latest status = "triggered").
+  Uses argMax to find the most recent status per test_case_id from the append-only log.
+  """
   def list_triggers(automation_id) do
     ClickHouseRepo.all(
       from(t in AutomationTrigger,
-        hints: ["FINAL"],
-        where: t.automation_id == ^automation_id and t.status == "triggered"
+        where: t.automation_id == ^automation_id,
+        group_by: t.test_case_id,
+        having: fragment("argMax(?, ?) = 'triggered'", t.status, t.inserted_at),
+        select: %{
+          test_case_id: t.test_case_id,
+          triggered_at: fragment("argMax(?, ?)", t.triggered_at, t.inserted_at)
+        }
       )
     )
   end
 
-  def get_trigger(automation_id, test_case_id) do
-    ClickHouseRepo.one(
-      from(t in AutomationTrigger,
-        hints: ["FINAL"],
-        where: t.automation_id == ^automation_id and t.test_case_id == ^test_case_id and t.status == "triggered"
-      )
-    )
-  end
-
+  @doc """
+  Appends a trigger event to the log.
+  """
   def insert_trigger(attrs) do
     now = NaiveDateTime.utc_now()
 
@@ -68,26 +71,16 @@ defmodule Tuist.Automations do
     :ok
   end
 
+  @doc """
+  Appends a recovery event to the log. Simple insert, no read needed.
+  """
   def mark_recovered(automation_id, test_case_id) do
-    case get_trigger(automation_id, test_case_id) do
-      nil ->
-        :ok
-
-      trigger ->
-        now = NaiveDateTime.utc_now()
-
-        recovered =
-          trigger
-          |> Map.from_struct()
-          |> Map.delete(:__meta__)
-          |> Map.merge(%{
-            status: "recovered",
-            recovered_at: now,
-            inserted_at: now
-          })
-
-        IngestRepo.insert_all(AutomationTrigger, [recovered])
-        :ok
-    end
+    insert_trigger(%{
+      automation_id: automation_id,
+      test_case_id: test_case_id,
+      status: "recovered",
+      triggered_at: NaiveDateTime.utc_now(),
+      recovered_at: NaiveDateTime.utc_now()
+    })
   end
 end

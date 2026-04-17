@@ -72,23 +72,17 @@ defmodule Tuist.Automations.Workers.AutomationEvaluationWorker do
       end)
 
     Enum.each(recovered, fn state ->
-      # Mark recovered first to prevent duplicate recovery from concurrent evaluations
-      case Automations.mark_recovered(automation.id, state.test_case_id) do
+      Automations.mark_recovered(automation.id, state.test_case_id)
+      entity = %{type: :test_case, id: state.test_case_id}
+
+      case ActionExecutor.execute_actions(automation.recovery_actions, automation, entity) do
         :ok ->
-          entity = %{type: :test_case, id: state.test_case_id}
-
-          case ActionExecutor.execute_actions(automation.recovery_actions, automation, entity) do
-            :ok ->
-              :ok
-
-            {:error, reason} ->
-              Logger.error(
-                "Automation #{automation.id} recovery actions failed for test_case #{state.test_case_id}: #{inspect(reason)}"
-              )
-          end
+          :ok
 
         {:error, reason} ->
-          Logger.warning("Failed to mark recovered for automation #{automation.id}: #{inspect(reason)}")
+          Logger.error(
+            "Automation #{automation.id} recovery actions failed for test_case #{state.test_case_id}: #{inspect(reason)}"
+          )
       end
     end)
   end
