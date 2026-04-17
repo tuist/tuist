@@ -142,13 +142,7 @@ public struct FocusTargetsGraphMappers: GraphMapping {
             var project = project
             project.targets = project.targets.mapValues { target in
                 var target = target
-                let isFilteredTarget = filteredTargets.contains(
-                    GraphTarget(path: project.path, target: target, project: project)
-                )
-                let isLocalSwiftPackageTest = target.metadata.tags.contains(TargetTags.localSwiftPackageTest)
-                    && graphTraverser.directTargetDependencies(path: project.path, name: target.name)
-                    .contains(where: { filteredTargets.contains($0.graphTarget) })
-                if !isFilteredTarget, !isLocalSwiftPackageTest {
+                if !filteredTargets.contains(GraphTarget(path: project.path, target: target, project: project)) {
                     target.metadata.tags.formUnion(["tuist:prunable"])
                 }
                 return target
