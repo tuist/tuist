@@ -1057,10 +1057,29 @@ struct PackageInfoMapperTests {
             ]
         )
 
-        let mappedTargets = project?.targets ?? []
-        #expect(Set(mappedTargets.map(\.name)) == Set(["Target_1", "Target2"]))
-        let mappedTarget = mappedTargets.first { $0.name == "Target2" }
-        #expect(mappedTarget?.dependencies == [.target(name: "Target_1")])
+        #expect(
+            project ==
+                .testWithDefaultConfigs(
+                    name: "Package",
+                    targets: [
+                        .test(
+                            "Target_1",
+                            basePath: basePath,
+                            customBundleID: "Target.1",
+                            customSources: .custom(.sourceFilesList(globs: [
+                                basePath
+                                    .appending(try RelativePath(validating: "Package/Sources/Target+1/**"))
+                                    .pathString,
+                            ]))
+                        ),
+                        .test(
+                            "Target2",
+                            basePath: basePath,
+                            dependencies: [.target(name: "Target_1")]
+                        ),
+                    ]
+                )
+        )
     }
 
     @Test(.inTemporaryDirectory, .withMockedSwiftVersionProvider) func map_whenSettingsDefinesContainsQuotes() async throws {
