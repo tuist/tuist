@@ -16,11 +16,23 @@ on:
 jobs:
   build:
     runs-on: [self-hosted, macos, bare-metal, vm-image-builder]
+    env:
+      PATH: /opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
     steps:
       - uses: actions/checkout@v4
 
+      - name: Initialize Packer
+        working-directory: infra/runner-images
+        run: packer init runner.pkr.hcl
+
       - name: Build image
-        run: mise run runner:build-image "${{ inputs.base_image }}" "${{ inputs.output_image }}" "${{ inputs.runner_version }}"
+        working-directory: infra/runner-images
+        run: |
+          packer build \
+            -var "base_image=${{ inputs.base_image }}" \
+            -var "output_image=${{ inputs.output_image }}" \
+            -var "runner_version=${{ inputs.runner_version }}" \
+            runner.pkr.hcl
 
       - name: Log in to GHCR
         run: echo "${{ secrets.GITHUB_TOKEN }}" | tart login ghcr.io --username tuist-bot --password-stdin
