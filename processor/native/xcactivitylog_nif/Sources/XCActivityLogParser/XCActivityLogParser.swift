@@ -294,11 +294,15 @@ public struct XCActivityLogParser: Sendable {
         let nodeIDs = keyNodeIDs
 
         return try await Array(keyStatuses).concurrentMap(maxConcurrentTasks: 50) { (key, status) in
+            // A key observed only as an upload (no query or materialize) is a fresh
+            // compile whose result we pushed to the remote CAS — the cache did not
+            // serve that work, so it counts as a miss.
+            let isMiss = status.isMiss || (!status.hasQuery && !status.hasMaterialize)
+
             let cacheStatus: String
-            if status.isMiss { cacheStatus = "miss" }
+            if isMiss { cacheStatus = "miss" }
             else if status.hasQuery { cacheStatus = "hit_remote" }
-            else if status.hasMaterialize { cacheStatus = "hit_local" }
-            else { cacheStatus = "miss" }
+            else { cacheStatus = "hit_local" }
 
             let readDuration: Double?
             if cacheStatus == "hit_remote" || cacheStatus == "miss" {
