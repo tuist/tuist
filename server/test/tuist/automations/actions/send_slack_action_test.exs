@@ -65,7 +65,7 @@ defmodule Tuist.Automations.Actions.SendSlackActionTest do
         "message" => "Test {{test_case.name}} in {{test_case.module_name}} matched {{automation.name}}"
       }
 
-      assert :ok = SendSlackAction.execute(automation, tc.id, action)
+      assert :ok = SendSlackAction.execute(automation, %{type: :test_case, id: tc.id}, action)
     end
 
     test "no-ops when the project is not found" do
@@ -82,7 +82,7 @@ defmodule Tuist.Automations.Actions.SendSlackActionTest do
       assert :ok =
                SendSlackAction.execute(
                  automation,
-                 Ecto.UUID.generate(),
+                 %{type: :test_case, id: Ecto.UUID.generate()},
                  %{"type" => "send_slack", "channel" => "C1", "message" => "hi"}
                )
     end
@@ -98,7 +98,7 @@ defmodule Tuist.Automations.Actions.SendSlackActionTest do
       assert :ok =
                SendSlackAction.execute(
                  automation,
-                 tc.id,
+                 %{type: :test_case, id: tc.id},
                  %{"type" => "send_slack", "channel" => "C1", "message" => "hi"}
                )
     end
@@ -113,7 +113,7 @@ defmodule Tuist.Automations.Actions.SendSlackActionTest do
       assert :ok =
                SendSlackAction.execute(
                  automation,
-                 Ecto.UUID.generate(),
+                 %{type: :test_case, id: Ecto.UUID.generate()},
                  %{"type" => "send_slack", "channel" => "C1", "message" => "hi"}
                )
     end

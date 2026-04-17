@@ -35,7 +35,9 @@ defmodule Tuist.Automations.Workers.AutomationEvaluationWorkerTest do
 
     expect(Automations, :list_triggered_states, fn _id -> [] end)
 
-    expect(ActionExecutor, :execute_actions, fn actions, ^automation, ^triggered_id ->
+    expected_entity = %{type: :test_case, id: triggered_id}
+
+    expect(ActionExecutor, :execute_actions, fn actions, ^automation, ^expected_entity ->
       assert actions == automation.trigger_actions
       :ok
     end)
@@ -87,7 +89,9 @@ defmodule Tuist.Automations.Workers.AutomationEvaluationWorkerTest do
       [%{test_case_id: recovered_id, triggered_at: triggered_long_ago}]
     end)
 
-    expect(ActionExecutor, :execute_actions, fn actions, ^automation, ^recovered_id ->
+    expected_entity = %{type: :test_case, id: recovered_id}
+
+    expect(ActionExecutor, :execute_actions, fn actions, ^automation, ^expected_entity ->
       assert actions == automation.recovery_actions
       :ok
     end)

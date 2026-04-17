@@ -31,7 +31,9 @@ defmodule Tuist.Automations.Workers.AutomationEvaluationWorker do
     newly_triggered = Enum.reject(triggered_ids, &MapSet.member?(existing_triggered_ids, &1))
 
     Enum.each(newly_triggered, fn test_case_id ->
-      case ActionExecutor.execute_actions(automation.trigger_actions, automation, test_case_id) do
+      entity = %{type: :test_case, id: test_case_id}
+
+      case ActionExecutor.execute_actions(automation.trigger_actions, automation, entity) do
         :ok ->
           Automations.insert_automation_state(%{
             automation_id: automation.id,
@@ -73,7 +75,9 @@ defmodule Tuist.Automations.Workers.AutomationEvaluationWorker do
       # Mark recovered first to prevent duplicate recovery from concurrent evaluations
       case Automations.mark_recovered(automation.id, state.test_case_id) do
         :ok ->
-          case ActionExecutor.execute_actions(automation.recovery_actions, automation, state.test_case_id) do
+          entity = %{type: :test_case, id: state.test_case_id}
+
+          case ActionExecutor.execute_actions(automation.recovery_actions, automation, entity) do
             :ok ->
               :ok
 
