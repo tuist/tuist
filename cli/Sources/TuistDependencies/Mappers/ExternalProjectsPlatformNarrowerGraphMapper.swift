@@ -41,8 +41,7 @@ public struct ExternalProjectsPlatformNarrowerGraphMapper: GraphMapping { // swi
                 let mappedTarget = mapTarget(
                     target: target,
                     project: project,
-                    externalTargetSupportedDestinations: externalTargetSupportedDestinations,
-                    graph: graph
+                    externalTargetSupportedDestinations: externalTargetSupportedDestinations
                 )
                 return (mappedTarget.name, mappedTarget)
             })
@@ -55,8 +54,7 @@ public struct ExternalProjectsPlatformNarrowerGraphMapper: GraphMapping { // swi
     private func mapTarget(
         target: Target,
         project: Project,
-        externalTargetSupportedDestinations: [GraphTarget: Set<Destination>],
-        graph: Graph
+        externalTargetSupportedDestinations: [GraphTarget: Set<Destination>]
     ) -> Target {
         var target = target
         let graphTarget = GraphTarget(path: project.path, target: target, project: project)
