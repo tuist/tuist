@@ -14,7 +14,13 @@ defmodule Tuist.Automations.Workers.AutomationScheduler do
 
     Enum.each(automations, fn automation ->
       %{automation_id: automation.id}
-      |> AutomationEvaluationWorker.new(unique: [period: cadence_seconds(automation.cadence)])
+      |> AutomationEvaluationWorker.new(
+        unique: [
+          keys: [:automation_id],
+          period: cadence_seconds(automation.cadence),
+          states: [:available, :scheduled, :executing]
+        ]
+      )
       |> Oban.insert()
     end)
 

@@ -1,9 +1,6 @@
 defmodule Tuist.Automations.Workers.AutomationEvaluationWorker do
   @moduledoc false
-  use Oban.Worker,
-    max_attempts: 3,
-    queue: :default,
-    unique: [keys: [:automation_id], period: 60, states: [:available, :scheduled, :executing]]
+  use Oban.Worker, max_attempts: 3, queue: :default
 
   alias Tuist.Automations
   alias Tuist.Automations.ActionExecutor
