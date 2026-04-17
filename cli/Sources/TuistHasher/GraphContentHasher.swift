@@ -151,9 +151,16 @@ public struct GraphContentHasher: GraphContentHashing {
         }
         var results: [TargetContentHash] = []
         results.reserveCapacity(hashableTargets.count)
-        for target in hashableTargets {
-            let key = GraphHashedTarget(projectPath: target.path, targetName: target.target.name)
-            results.append(try await tasks.value[key]!.value)
+        do {
+            for target in hashableTargets {
+                let key = GraphHashedTarget(projectPath: target.path, targetName: target.target.name)
+                results.append(try await tasks.value[key]!.value)
+            }
+        } catch {
+            for task in tasks.value.values {
+                task.cancel()
+            }
+            throw error
         }
         return results
     }
