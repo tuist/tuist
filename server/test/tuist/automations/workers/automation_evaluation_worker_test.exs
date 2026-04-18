@@ -4,7 +4,7 @@ defmodule Tuist.Automations.Workers.AutomationEvaluationWorkerTest do
 
   alias Tuist.Automations
   alias Tuist.Automations.ActionExecutor
-  alias Tuist.Automations.Monitors.FlakinessRateMonitor
+  alias Tuist.Automations.Monitors.FlakyTestsMonitor
   alias Tuist.Automations.Workers.AutomationEvaluationWorker
   alias TuistTestSupport.Fixtures.AutomationsFixtures
 
@@ -13,13 +13,13 @@ defmodule Tuist.Automations.Workers.AutomationEvaluationWorkerTest do
   end
 
   test "no-op when automation is missing" do
-    reject(&FlakinessRateMonitor.evaluate/1)
+    reject(&FlakyTestsMonitor.evaluate/1)
     assert :ok = run(UUIDv7.generate())
   end
 
   test "no-op when automation is disabled" do
     automation = AutomationsFixtures.automation_fixture(enabled: false)
-    reject(&FlakinessRateMonitor.evaluate/1)
+    reject(&FlakyTestsMonitor.evaluate/1)
     assert :ok = run(automation.id)
   end
 
@@ -29,7 +29,7 @@ defmodule Tuist.Automations.Workers.AutomationEvaluationWorkerTest do
 
     triggered_id = Ecto.UUID.generate()
 
-    expect(FlakinessRateMonitor, :evaluate, fn _automation ->
+    expect(FlakyTestsMonitor, :evaluate, fn _automation ->
       %{triggered: [triggered_id], all: [triggered_id]}
     end)
 
@@ -55,7 +55,7 @@ defmodule Tuist.Automations.Workers.AutomationEvaluationWorkerTest do
     automation = AutomationsFixtures.automation_fixture()
     already = Ecto.UUID.generate()
 
-    expect(FlakinessRateMonitor, :evaluate, fn _automation ->
+    expect(FlakyTestsMonitor, :evaluate, fn _automation ->
       %{triggered: [already], all: [already]}
     end)
 
@@ -79,7 +79,7 @@ defmodule Tuist.Automations.Workers.AutomationEvaluationWorkerTest do
 
     recovered_id = Ecto.UUID.generate()
 
-    expect(FlakinessRateMonitor, :evaluate, fn _automation ->
+    expect(FlakyTestsMonitor, :evaluate, fn _automation ->
       %{triggered: [], all: [recovered_id]}
     end)
 
@@ -113,7 +113,7 @@ defmodule Tuist.Automations.Workers.AutomationEvaluationWorkerTest do
 
     recovered_id = Ecto.UUID.generate()
 
-    expect(FlakinessRateMonitor, :evaluate, fn _automation ->
+    expect(FlakyTestsMonitor, :evaluate, fn _automation ->
       %{triggered: [], all: [recovered_id]}
     end)
 
@@ -132,7 +132,7 @@ defmodule Tuist.Automations.Workers.AutomationEvaluationWorkerTest do
   test "does not run recovery when recovery_enabled is false" do
     automation = AutomationsFixtures.automation_fixture(recovery_enabled: false)
 
-    expect(FlakinessRateMonitor, :evaluate, fn _automation -> %{triggered: [], all: []} end)
+    expect(FlakyTestsMonitor, :evaluate, fn _automation -> %{triggered: [], all: []} end)
     expect(Automations, :list_active_alerts, fn _id -> [] end)
     reject(&Automations.resolve_alert/2)
 

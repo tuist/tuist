@@ -1,4 +1,4 @@
-defmodule Tuist.Automations.Monitors.FlakinessRateMonitor do
+defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
   @moduledoc false
   import Ecto.Query
 

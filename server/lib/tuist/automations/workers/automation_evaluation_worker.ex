@@ -4,7 +4,7 @@ defmodule Tuist.Automations.Workers.AutomationEvaluationWorker do
 
   alias Tuist.Automations
   alias Tuist.Automations.ActionExecutor
-  alias Tuist.Automations.Monitors.FlakinessRateMonitor
+  alias Tuist.Automations.Monitors.FlakyTestsMonitor
 
   require Logger
 
@@ -100,11 +100,11 @@ defmodule Tuist.Automations.Workers.AutomationEvaluationWorker do
   defp parse_window(_), do: 14 * 86_400
 
   defp evaluate_monitor(%{automation_type: "flakiness_rate"} = automation) do
-    FlakinessRateMonitor.evaluate(automation)
+    FlakyTestsMonitor.evaluate(automation)
   end
 
   defp evaluate_monitor(%{automation_type: "flaky_run_count"} = automation) do
-    FlakinessRateMonitor.evaluate_by_run_count(automation)
+    FlakyTestsMonitor.evaluate_by_run_count(automation)
   end
 
   defp evaluate_monitor(automation) do
