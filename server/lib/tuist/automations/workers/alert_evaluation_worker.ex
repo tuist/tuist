@@ -1,4 +1,4 @@
-defmodule Tuist.Automations.Workers.AutomationEvaluationWorker do
+defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
   @moduledoc false
   use Oban.Worker, max_attempts: 3, queue: :default
 

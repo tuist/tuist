@@ -1,15 +1,15 @@
-defmodule Tuist.Automations.Workers.AutomationEvaluationWorkerTest do
+defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
   use TuistTestSupport.Cases.DataCase, async: false
   use Mimic
 
   alias Tuist.Automations
   alias Tuist.Automations.ActionExecutor
   alias Tuist.Automations.Monitors.FlakyTestsMonitor
-  alias Tuist.Automations.Workers.AutomationEvaluationWorker
+  alias Tuist.Automations.Workers.AlertEvaluationWorker
   alias TuistTestSupport.Fixtures.AutomationsFixtures
 
   defp run(automation_id) do
-    AutomationEvaluationWorker.perform(%Oban.Job{args: %{"automation_id" => automation_id}})
+    AlertEvaluationWorker.perform(%Oban.Job{args: %{"automation_id" => automation_id}})
   end
 
   test "no-op when automation is missing" do

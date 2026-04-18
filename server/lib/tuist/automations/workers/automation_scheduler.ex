@@ -5,7 +5,7 @@ defmodule Tuist.Automations.Workers.AutomationScheduler do
   import Ecto.Query
 
   alias Tuist.Automations.Automation
-  alias Tuist.Automations.Workers.AutomationEvaluationWorker
+  alias Tuist.Automations.Workers.AlertEvaluationWorker
   alias Tuist.Repo
 
   @impl Oban.Worker
@@ -14,7 +14,7 @@ defmodule Tuist.Automations.Workers.AutomationScheduler do
 
     Enum.each(automations, fn automation ->
       %{automation_id: automation.id}
-      |> AutomationEvaluationWorker.new(
+      |> AlertEvaluationWorker.new(
         unique: [
           keys: [:automation_id],
           period: cadence_seconds(automation.cadence),
