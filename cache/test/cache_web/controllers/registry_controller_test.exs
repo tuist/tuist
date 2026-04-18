@@ -589,7 +589,7 @@ defmodule CacheWeb.RegistryControllerTest do
 
       assert conn.status == 404
       assert get_resp_header(conn, "content-version") == ["1"]
-      assert conn.resp_body == ""    
+      assert conn.resp_body == ""
     end
 
     test "returns 503 when S3 returns an error", %{conn: conn} do
