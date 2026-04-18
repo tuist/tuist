@@ -1014,6 +1014,7 @@ defmodule CacheWeb.RegistryControllerTest do
       assert get_resp_header(conn, "location") == [
                "/api/registry/swift/apple/swift-argument-parser/1.0.0/Package.swift"
              ]
+
       assert conn.resp_body == ""
     end
 
