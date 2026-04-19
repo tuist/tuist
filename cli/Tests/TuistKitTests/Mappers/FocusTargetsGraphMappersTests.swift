@@ -191,6 +191,99 @@ final class FocusTargetsGraphMappersTests: TuistUnitTestCase {
         )
     }
 
+    func test_map_when_no_filters_tagged_local_package_test_with_dependency_in_graph_is_preserved() throws {
+        // Given: no explicit filters (plain tuist generate), local SPM test target depends on a target in the graph
+        let appTarget = Target.test(name: "App")
+        let localLib = Target.test(name: "LocalLib")
+        let localLibTests = Target.test(
+            name: "LocalLibTests",
+            product: .unitTests,
+            metadata: .test(tags: [TargetTags.localSwiftPackageTest])
+        )
+        let appPath = try temporaryPath().appending(component: "App")
+        let appProject = Project.test(path: appPath, targets: [appTarget])
+        let packagePath = try temporaryPath().appending(component: "LocalPackage")
+        let packageProject = Project.test(
+            path: packagePath,
+            targets: [localLib, localLibTests],
+            type: .external(hash: nil)
+        )
+        let subject = FocusTargetsGraphMappers(includedTargets: [])
+        let graph = Graph.test(
+            projects: [
+                appProject.path: appProject,
+                packageProject.path: packageProject,
+            ],
+            dependencies: [
+                .target(name: appTarget.name, path: appPath): [
+                    .target(name: localLib.name, path: packagePath),
+                ],
+                .target(name: localLibTests.name, path: packagePath): [
+                    .target(name: localLib.name, path: packagePath),
+                ],
+            ]
+        )
+
+        // When
+        let (gotGraph, _, _) = try subject.map(graph: graph, environment: MapperEnvironment())
+        let prunedNames = gotGraph.projects.values
+            .flatMap(\.targets.values)
+            .filter { $0.metadata.tags.contains("tuist:prunable") }
+            .map(\.name)
+
+        // Then: LocalLibTests should NOT be pruned
+        XCTAssertFalse(prunedNames.contains("LocalLibTests"))
+        XCTAssertFalse(prunedNames.contains("LocalLib"))
+        XCTAssertFalse(prunedNames.contains("App"))
+    }
+
+    func test_map_when_focusing_on_target_tagged_local_package_test_is_pruned() throws {
+        // Given: explicit focus on App, local SPM test target not in focus
+        let appTarget = Target.test(name: "App")
+        let localLib = Target.test(name: "LocalLib")
+        let localLibTests = Target.test(
+            name: "LocalLibTests",
+            product: .unitTests,
+            metadata: .test(tags: [TargetTags.localSwiftPackageTest])
+        )
+        let appPath = try temporaryPath().appending(component: "App")
+        let appProject = Project.test(path: appPath, targets: [appTarget])
+        let packagePath = try temporaryPath().appending(component: "LocalPackage")
+        let packageProject = Project.test(
+            path: packagePath,
+            targets: [localLib, localLibTests],
+            type: .external(hash: nil)
+        )
+        let subject = FocusTargetsGraphMappers(includedTargets: [.named("App")])
+        let graph = Graph.test(
+            projects: [
+                appProject.path: appProject,
+                packageProject.path: packageProject,
+            ],
+            dependencies: [
+                .target(name: appTarget.name, path: appPath): [
+                    .target(name: localLib.name, path: packagePath),
+                ],
+                .target(name: localLibTests.name, path: packagePath): [
+                    .target(name: localLib.name, path: packagePath),
+                ],
+            ]
+        )
+
+        // When
+        let (gotGraph, _, _) = try subject.map(graph: graph, environment: MapperEnvironment())
+        let prunedNames = gotGraph.projects.values
+            .flatMap(\.targets.values)
+            .filter { $0.metadata.tags.contains("tuist:prunable") }
+            .map(\.name)
+            .sorted()
+
+        // Then: LocalLibTests should be pruned, LocalLib should not (it's a dependency of App)
+        XCTAssertTrue(prunedNames.contains("LocalLibTests"))
+        XCTAssertFalse(prunedNames.contains("LocalLib"))
+        XCTAssertFalse(prunedNames.contains("App"))
+    }
+
     func test_map_when_included_targets_do_not_exist() throws {
         // Given
         let targetNames = ["foo", "bar", "baz"]

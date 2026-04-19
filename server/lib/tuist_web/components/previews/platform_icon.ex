@@ -13,14 +13,18 @@ defmodule TuistWeb.Previews.PlatformIcon do
     """
   end
 
-  def platform_icon_name(:ios), do: "device_mobile"
-  def platform_icon_name(:ios_simulator), do: "device_mobile_share"
-  def platform_icon_name(:macos), do: "device_laptop"
-  def platform_icon_name(:tvos), do: "device_desktop"
-  def platform_icon_name(:tvos_simulator), do: "device_desktop_share"
-  def platform_icon_name(:watchos), do: "device_watch"
-  def platform_icon_name(:watchos_simulator), do: "device_watch_share"
-  def platform_icon_name(:visionos), do: "device_vision_pro"
-  def platform_icon_name(:visionos_simulator), do: "device_vision_pro_share"
-  def platform_icon_name(:android), do: "brand_android"
+  def platform_icon_name(platform) when is_atom(platform) and not is_nil(platform),
+    do: platform |> Atom.to_string() |> platform_icon_name()
+
+  def platform_icon_name("ios"), do: "device_mobile"
+  def platform_icon_name("ios_simulator"), do: "device_mobile_share"
+  def platform_icon_name("macos"), do: "device_laptop"
+  def platform_icon_name("tvos"), do: "device_desktop"
+  def platform_icon_name("tvos_simulator"), do: "device_desktop_share"
+  def platform_icon_name("watchos"), do: "device_watch"
+  def platform_icon_name("watchos_simulator"), do: "device_watch_share"
+  def platform_icon_name("visionos"), do: "device_vision_pro"
+  def platform_icon_name("visionos_simulator"), do: "device_vision_pro_share"
+  def platform_icon_name("android"), do: "brand_android"
+  def platform_icon_name(_), do: "devices"
 end

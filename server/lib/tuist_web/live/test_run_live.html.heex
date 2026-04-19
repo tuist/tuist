@@ -313,6 +313,31 @@
               </span>
             </div>
           </div>
+          <div :if={@run.run_destinations != []} data-part="metadata-row">
+            <div data-part="metadata">
+              <div data-part="title">
+                {dngettext(
+                  "dashboard_tests",
+                  "Device",
+                  "Devices",
+                  length(@run.run_destinations)
+                )}
+              </div>
+              <div data-part="value">
+                <div data-part="run-destinations">
+                  <div :for={destination <- @run.run_destinations} data-part="run-destination">
+                    <.icon name={platform_icon_name(destination.platform)} />
+                    <span>{destination.name}</span>
+                    <span data-part="subtitle">
+                      {String.trim(
+                        "#{TestRunDestination.humanize_platform(destination)} #{destination.os_version}"
+                      )}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
         <div data-part="widgets">
           <.widget

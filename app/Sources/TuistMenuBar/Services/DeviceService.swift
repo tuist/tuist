@@ -10,6 +10,7 @@ import TuistLogging
 import TuistServer
 import TuistSimulator
 import TuistSupport
+import TuistXcodeBuildProducts
 
 private enum DownloadedApp {
     case appBundle(AppBundle)

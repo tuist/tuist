@@ -340,8 +340,8 @@ public class ManifestLoader: ManifestLoading {
                 environment: Environment.current.manifestLoadingVariables
             )
 
-            guard let startTokenRange = string.range(of: ManifestLoader.startManifestToken),
-                  let endTokenRange = string.range(of: ManifestLoader.endManifestToken)
+            guard let startTokenRange = string.range(of: ManifestLoader.startManifestToken, options: .literal),
+                  let endTokenRange = string.range(of: ManifestLoader.endManifestToken, options: [.literal, .backwards])
             else {
                 return string.data(using: .utf8)!
             }

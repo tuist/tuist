@@ -4,6 +4,7 @@
   display: inline-flex;
   justify-content: center;
   align-items: center;
+  box-sizing: border-box;
   -webkit-appearance: button;
   border: 0;
   border-radius: var(--noora-radius-medium);

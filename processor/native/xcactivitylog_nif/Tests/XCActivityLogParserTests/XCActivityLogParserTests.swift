@@ -139,6 +139,18 @@ struct XCActivityLogParserTests {
 
         #expect(result.status == "success")
     }
+
+    @Test func buildWithUploads_doesNotClassifyUploadOnlyKeysAsHitLocal() async throws {
+        let result = try await parseFixture("build-with-uploads")
+
+        // A key observed only in `Swift caching upload key ...` — i.e. written to the remote
+        // CAS without a matching materialize/query step — is a fresh compilation that had to
+        // run and push its result. That is a miss, not a local-CAS hit.
+        for task in result.cacheable_tasks where task.write_duration != nil {
+            #expect(task.status != "hit_local",
+                    "Upload-bearing key \(task.key) misclassified as hit_local")
+        }
+    }
 }
 
 enum FixtureError: Error {

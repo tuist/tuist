@@ -12,6 +12,8 @@
     import TuistProcess
     import TuistServer
     import TuistSupport
+    import TuistXCActivityLog
+    import TuistXcodeBuildProducts
     import TuistXcodeProjectOrWorkspacePathLocator
     import TuistXCResultService
     import XCResultParser

@@ -14,6 +14,7 @@ import TuistPlugin
 import TuistServer
 import TuistSupport
 import TuistXCActivityLog
+import TuistXcodeBuildProducts
 import XcodeGraph
 #if canImport(TuistCacheEE)
     import TuistCacheEE

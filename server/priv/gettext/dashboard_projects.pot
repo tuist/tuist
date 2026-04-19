@@ -122,8 +122,8 @@ msgstr ""
 
 #: lib/tuist_web/live/project_notifications_live.ex:691
 #: lib/tuist_web/live/xcode_overview_live.ex:224
-#: lib/tuist_web/live/xcode_overview_live.html.heex:31
-#: lib/tuist_web/live/xcode_overview_live.html.heex:771
+#: lib/tuist_web/live/xcode_overview_live.html.heex:23
+#: lib/tuist_web/live/xcode_overview_live.html.heex:763
 #, elixir-autogen, elixir-format
 msgid "CI"
 msgstr ""
@@ -263,8 +263,8 @@ msgstr ""
 
 #: lib/tuist_web/live/project_notifications_live.ex:690
 #: lib/tuist_web/live/xcode_overview_live.ex:223
-#: lib/tuist_web/live/xcode_overview_live.html.heex:23
-#: lib/tuist_web/live/xcode_overview_live.html.heex:763
+#: lib/tuist_web/live/xcode_overview_live.html.heex:31
+#: lib/tuist_web/live/xcode_overview_live.html.heex:771
 #, elixir-autogen, elixir-format
 msgid "Local"
 msgstr ""

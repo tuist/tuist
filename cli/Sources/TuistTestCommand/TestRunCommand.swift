@@ -14,17 +14,20 @@
 
     enum TuistTestFlagError: FatalError, Equatable {
         case invalidCombination([String])
+        case passthroughActionVerbConflict(String)
 
         var description: String {
             switch self {
             case let .invalidCombination(arguments):
                 "The arguments \(arguments.joined(separator: ", ")) are mutually exclusive, only of them can be used."
+            case let .passthroughActionVerbConflict(verb):
+                "The xcodebuild action '\(verb)' cannot be passed after the terminator (--). 'tuist test' already picks the action based on its flags: 'test' by default, 'build-for-testing' with --build-only, and 'test-without-building' with --without-building. Drop '\(verb)' from the passthrough arguments, and use --build-only or --without-building if you need a different action."
             }
         }
 
         var type: ErrorType {
             switch self {
-            case .invalidCombination:
+            case .invalidCombination, .passthroughActionVerbConflict:
                 .abort
             }
         }
@@ -39,6 +42,12 @@
         "-only-test-configuration",
         "-only-testing",
         "-skip-testing",
+    ]
+
+    private let xcodeBuildActionVerbs: Set<String> = [
+        "test",
+        "build-for-testing",
+        "test-without-building",
     ]
 
     public struct TestRunCommand: AsyncParsableCommand, LogConfigurableCommand,
@@ -345,6 +354,12 @@
                 if passthroughXcodeBuildArguments.contains($0) {
                     throw XcodeBuildPassthroughArgumentError.alreadyHandled($0)
                 }
+            }
+
+            if let firstPassthroughArgument = passthroughXcodeBuildArguments.first,
+               xcodeBuildActionVerbs.contains(firstPassthroughArgument)
+            {
+                throw TuistTestFlagError.passthroughActionVerbConflict(firstPassthroughArgument)
             }
 
             if skipUITests, skipUnitTests {

@@ -3,7 +3,7 @@ package dev.tuist.gradle
 import java.net.HttpURLConnection
 import java.net.URI
 
-class TokenExpiredException : Exception()
+class TokenExpiredException : Exception("Tuist auth token expired; retrying with a refreshed token")
 
 /**
  * High-level HTTP wrapper used by the cache and insights code paths: it owns

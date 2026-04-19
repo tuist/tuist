@@ -247,7 +247,7 @@ class DocsSearch {
     const wrapper = document.querySelector('.noora-text-input:has(#text-input-types-search) [data-part="wrapper"]');
     if (wrapper) this._on(wrapper, "click", trigger);
 
-    const mobileBtn = document.querySelector('#docs-nav [data-part="mobile-actions"] button:first-child');
+    const mobileBtn = document.querySelector("#docs-nav-mobile-search");
     if (mobileBtn) this._on(mobileBtn, "click", trigger);
   }
 

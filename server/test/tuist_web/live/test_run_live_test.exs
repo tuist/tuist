@@ -37,6 +37,48 @@ defmodule TuistWeb.TestRunLiveTest do
     assert has_element?(lv, "h1")
   end
 
+  test "renders the run destinations metadata block when destinations exist", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    # Given
+    {:ok, test_run} =
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        run_destinations: [
+          %{name: "iPhone 17", platform: "ios_simulator", os_version: "26.4"},
+          %{name: "iPhone 17 Pro", platform: "ios_simulator", os_version: "26.4"}
+        ]
+      )
+
+    # When
+    {:ok, lv, _html} =
+      live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
+
+    # Then
+    assert has_element?(lv, "[data-part='run-destinations']")
+    assert render(lv) =~ "iPhone 17"
+    assert render(lv) =~ "iPhone 17 Pro"
+    assert render(lv) =~ "iOS Simulator 26.4"
+  end
+
+  test "hides the run destinations metadata block when none were recorded", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    # Given
+    {:ok, test_run} = RunsFixtures.test_fixture(project_id: project.id)
+
+    # When
+    {:ok, lv, _html} =
+      live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
+
+    # Then
+    refute has_element?(lv, "[data-part='run-destinations']")
+  end
+
   test "shows test cases table", %{
     conn: conn,
     organization: organization,

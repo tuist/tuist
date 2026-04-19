@@ -19,6 +19,10 @@ defmodule Cache.SQLiteHelpersTest do
       assert SQLiteHelpers.busy_error?(%Exqlite.Error{message: "error: database is locked (SQLITE_BUSY)"})
     end
 
+    test "returns true for 'Database busy' message" do
+      assert SQLiteHelpers.busy_error?(%Exqlite.Error{message: "Database busy"})
+    end
+
     test "returns false for other Exqlite errors" do
       refute SQLiteHelpers.busy_error?(%Exqlite.Error{message: "disk I/O error"})
     end
@@ -37,6 +41,20 @@ defmodule Cache.SQLiteHelpersTest do
 
     test "returns false for nil" do
       refute SQLiteHelpers.busy_error?(nil)
+    end
+  end
+
+  describe "contention_error?/1" do
+    test "returns true for busy SQLite errors" do
+      assert SQLiteHelpers.contention_error?(%Exqlite.Error{message: "database is locked"})
+    end
+
+    test "returns true for connection checkout errors" do
+      assert SQLiteHelpers.contention_error?(%DBConnection.ConnectionError{message: "connection not available"})
+    end
+
+    test "returns false for unrelated errors" do
+      refute SQLiteHelpers.contention_error?(%RuntimeError{message: "boom"})
     end
   end
 

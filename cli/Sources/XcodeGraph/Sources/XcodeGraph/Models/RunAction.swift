@@ -15,7 +15,7 @@ public struct RunAction: Equatable, Codable, Sendable {
     public let options: RunActionOptions
     public let diagnosticsOptions: SchemeDiagnosticsOptions
     public let metalOptions: MetalOptions?
-    public let expandVariableFromTarget: TargetReference?
+    public var expandVariableFromTarget: TargetReference?
     public let askForAppToLaunch: Bool
     public let launchStyle: LaunchStyle
     public let appClipInvocationURL: URL?
