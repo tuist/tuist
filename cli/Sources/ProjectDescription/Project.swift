@@ -81,6 +81,8 @@ public struct Project: Codable, Equatable, Sendable {
     public let additionalFiles: [FileElement]
     /// The resource synthesizers for the project to generate accessors for resources.
     public let resourceSynthesizers: [ResourceSynthesizer]
+    /// The custom group path for the project in Xcode. If nil, defaults to "Project".
+    public let groupPath: String?
 
     public init(
         name: String,
@@ -93,7 +95,8 @@ public struct Project: Codable, Equatable, Sendable {
         schemes: [Scheme] = [],
         fileHeaderTemplate: FileHeaderTemplate? = nil,
         additionalFiles: [FileElement] = [],
-        resourceSynthesizers: [ResourceSynthesizer] = .default
+        resourceSynthesizers: [ResourceSynthesizer] = .default,
+        groupPath: String? = nil
     ) {
         self.name = name
         self.organizationName = organizationName
@@ -106,6 +109,7 @@ public struct Project: Codable, Equatable, Sendable {
         self.additionalFiles = additionalFiles
         self.fileHeaderTemplate = fileHeaderTemplate
         self.resourceSynthesizers = resourceSynthesizers
+        self.groupPath = groupPath
         dumpIfNeeded(self)
     }
 
