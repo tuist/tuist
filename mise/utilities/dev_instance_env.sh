@@ -8,13 +8,45 @@ fi
 
 SCRIPT_DIR="$(cd "$(dirname "${SCRIPT_PATH}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-INSTANCE_FILE="${PROJECT_ROOT}/.tuist-dev-instance"
+ROOT_INSTANCE_FILE="${PROJECT_ROOT}/.tuist-dev-instance"
+
+resolve_instance_file() {
+  local git_path=""
+
+  if command -v git >/dev/null 2>&1 && git -C "${PROJECT_ROOT}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    git_path="$(
+      git -C "${PROJECT_ROOT}" rev-parse --path-format=absolute --git-path tuist-dev-instance 2>/dev/null ||
+        git -C "${PROJECT_ROOT}" rev-parse --git-path tuist-dev-instance 2>/dev/null ||
+        true
+    )"
+
+    if [[ -n "${git_path}" && "${git_path}" != /* ]]; then
+      git_path="${PROJECT_ROOT}/${git_path#./}"
+    fi
+  fi
+
+  if [[ -n "${git_path}" ]]; then
+    printf '%s' "${git_path}"
+  else
+    printf '%s' "${ROOT_INSTANCE_FILE}"
+  fi
+}
+
+INSTANCE_FILE="$(resolve_instance_file)"
 
 validate_suffix() {
   local suffix="$1"
 
   [[ "$suffix" =~ ^[0-9]+$ ]] || return 1
   (( suffix >= 1 && suffix <= 999 ))
+}
+
+persist_suffix() {
+  local suffix="$1"
+  local target="$2"
+
+  mkdir -p "$(dirname "${target}")" 2>/dev/null || return 1
+  printf '%s' "${suffix}" | tee "${target}" >/dev/null 2>&1
 }
 
 ensure_suffix() {
@@ -24,6 +56,8 @@ ensure_suffix() {
     suffix="${TUIST_DEV_INSTANCE}"
   elif [[ -s "${INSTANCE_FILE}" ]]; then
     suffix="$(tr -d '[:space:]' < "${INSTANCE_FILE}")"
+  elif [[ -s "${ROOT_INSTANCE_FILE}" ]]; then
+    suffix="$(tr -d '[:space:]' < "${ROOT_INSTANCE_FILE}")"
   else
     suffix="$(awk 'BEGIN { srand(); print int(100 + rand() * 900) }')"
   fi
@@ -33,7 +67,16 @@ ensure_suffix() {
     return 1
   }
 
-  printf '%s' "${suffix}" > "${INSTANCE_FILE}"
+  if ! persist_suffix "${suffix}" "${INSTANCE_FILE}"; then
+    if [[ "${INSTANCE_FILE}" != "${ROOT_INSTANCE_FILE}" ]] &&
+      persist_suffix "${suffix}" "${ROOT_INSTANCE_FILE}"; then
+      INSTANCE_FILE="${ROOT_INSTANCE_FILE}"
+    else
+      echo "Failed to persist dev instance suffix '${suffix}'." >&2
+      return 1
+    fi
+  fi
+
   printf '%s' "${suffix}"
 }
 
