@@ -120,7 +120,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         }
 
         // When
-        let got = try await subject.map(
+        let (got, _) = try await subject.map(
             graph: graph, precompiledArtifacts: xcframeworks, sources: Set(["App"]),
             keepSourceTargets: false
         )
@@ -259,7 +259,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         )
 
         // When
-        let got = try await subject.map(
+        let (got, _) = try await subject.map(
             graph: graph, precompiledArtifacts: xcframeworks, sources: Set(["App"]),
             keepSourceTargets: false
         )
@@ -382,7 +382,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         )
 
         // When
-        let got = try await subject.map(
+        let (got, _) = try await subject.map(
             graph: graph, precompiledArtifacts: xcframeworks, sources: Set(["App"]),
             keepSourceTargets: false
         )
@@ -500,7 +500,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         )
 
         // When
-        let got = try await subject.map(
+        let (got, _) = try await subject.map(
             graph: graph, precompiledArtifacts: xcframeworks, sources: Set(["App"]),
             keepSourceTargets: false
         )
@@ -565,7 +565,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         )
 
         // When
-        let got = try await subject.map(
+        let (got, _) = try await subject.map(
             graph: graph, precompiledArtifacts: [:], sources: Set(["App"]),
             keepSourceTargets: false
         )
@@ -671,7 +671,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         }
 
         // When
-        let got = try await subject.map(
+        let (got, _) = try await subject.map(
             graph: graph, precompiledArtifacts: frameworks, sources: Set(["App"]),
             keepSourceTargets: false
         )
@@ -810,7 +810,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         )
 
         // When
-        let got = try await subject.map(
+        let (got, _) = try await subject.map(
             graph: graph, precompiledArtifacts: frameworks, sources: Set(["App"]),
             keepSourceTargets: false
         )
@@ -935,7 +935,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         )
 
         // When
-        let got = try await subject.map(
+        let (got, _) = try await subject.map(
             graph: graph, precompiledArtifacts: frameworks, sources: Set(["App"]),
             keepSourceTargets: false
         )
@@ -1051,7 +1051,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         )
 
         // When
-        let got = try await subject.map(
+        let (got, _) = try await subject.map(
             graph: graph, precompiledArtifacts: frameworks, sources: Set(["App"]),
             keepSourceTargets: false
         )
@@ -1157,7 +1157,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         )
 
         // When
-        let got = try await subject.map(
+        let (got, _) = try await subject.map(
             graph: graph, precompiledArtifacts: frameworks, sources: Set(["App"]),
             keepSourceTargets: false
         )
@@ -1269,7 +1269,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         //        }
         //
         //        // When
-        //        let got = try await subject.map(graph: graph, precompiledArtifacts: frameworks, sources: Set(["App"]))
+        //        let (got, _) = try await subject.map(graph: graph, precompiledArtifacts: frameworks, sources: Set(["App"]))
         //
         //        // Then
         //        XCTAssertEqual(
@@ -1339,7 +1339,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         }
 
         // When
-        let got = try await subject.map(
+        let (got, _) = try await subject.map(
             graph: graph, precompiledArtifacts: [:], sources: Set(["App"]),
             keepSourceTargets: false
         )
@@ -1406,7 +1406,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         }
 
         // When
-        let got = try await subject.map(
+        let (got, _) = try await subject.map(
             graph: graph, precompiledArtifacts: xcframeworks, sources: Set(["App"]),
             keepSourceTargets: false
         )
@@ -1470,7 +1470,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         }
 
         // When
-        let got = try await subject.map(
+        let (got, _) = try await subject.map(
             graph: graph, precompiledArtifacts: xcframeworks, sources: Set(["App"]),
             keepSourceTargets: false
         )
@@ -1529,7 +1529,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         }
 
         // When
-        let got = try await subject.map(
+        let (got, _) = try await subject.map(
             graph: graph, precompiledArtifacts: xcframeworks, sources: Set(["App"]),
             keepSourceTargets: true
         )
@@ -1610,7 +1610,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         artifactLoader.loadStub = { path in GraphDependency.testXCFramework(path: path) }
 
         // When
-        let got = try await subject.map(
+        let (got, _) = try await subject.map(
             graph: graph, precompiledArtifacts: xcframeworks, sources: Set(["B"]),
             keepSourceTargets: true
         )
@@ -1726,7 +1726,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         }
 
         // When
-        let got = try await subject.map(
+        let (got, _) = try await subject.map(
             graph: graph,
             precompiledArtifacts: xcframeworks,
             sources: Set(["SharedCounterTests"]),
@@ -1838,7 +1838,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         }
 
         // When
-        let got = try await subject.map(
+        let (got, _) = try await subject.map(
             graph: graph,
             precompiledArtifacts: xcframeworks,
             sources: Set(["FeatureTests"]),
@@ -1934,7 +1934,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         }
 
         // When
-        let got = try await subject.map(
+        let (got, _) = try await subject.map(
             graph: graph,
             precompiledArtifacts: xcframeworks,
             sources: Set(["App", "FeatureTests"]),
@@ -2035,7 +2035,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         }
 
         // When
-        let got = try await subject.map(
+        let (got, _) = try await subject.map(
             graph: graph,
             precompiledArtifacts: xcframeworks,
             sources: Set(["App", "FeatureTests"]),
@@ -2142,7 +2142,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             }
         }
 
-        let got = try await subject.map(
+        let (got, _) = try await subject.map(
             graph: graph,
             precompiledArtifacts: xcframeworks,
             sources: Set(["Feature", "FeatureTests"]),

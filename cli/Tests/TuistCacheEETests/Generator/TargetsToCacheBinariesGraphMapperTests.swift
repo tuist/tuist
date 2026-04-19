@@ -128,7 +128,7 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
                     config.project.generatedProject?.cacheOptions.keepSourceTargets ?? false
                 )
             )
-            .willReturn(outputGraph)
+            .willReturn((outputGraph, [:]))
 
         // When
         let (got, _, gotEnvironment) = try await subject.map(
@@ -236,7 +236,7 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
                     config.project.generatedProject?.cacheOptions.keepSourceTargets ?? false
                 )
             )
-            .willReturn(outputGraph)
+            .willReturn((outputGraph, [:]))
         given(cacheStorage).fetch(.any, cacheCategory: .value(.binaries)).willReturn([:])
 
         // When
@@ -340,7 +340,7 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
                     config.project.generatedProject?.cacheOptions.keepSourceTargets ?? false
                 )
             )
-            .willReturn(outputGraph)
+            .willReturn((outputGraph, [:]))
         let bBinaryPath = try temporaryPath().appending(component: "B-Binary")
         let cBinaryPath = try temporaryPath().appending(component: "C-Binary")
         given(cacheStorage).fetch(
@@ -412,7 +412,7 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
                     config.project.generatedProject?.cacheOptions.keepSourceTargets ?? false
                 )
             )
-            .willReturn(outputGraph)
+            .willReturn((outputGraph, [:]))
 
         given(cacheGraphContentHasher)
             .contentHashes(
@@ -473,7 +473,7 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
                     config.project.generatedProject?.cacheOptions.keepSourceTargets ?? false
                 )
             )
-            .willReturn(outputGraph)
+            .willReturn((outputGraph, [:]))
 
         given(cacheGraphContentHasher)
             .contentHashes(
@@ -572,7 +572,7 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
                         config.project.generatedProject?.cacheOptions.keepSourceTargets ?? false
                     )
                 )
-                .willReturn(outputGraph)
+                .willReturn((outputGraph, [:]))
 
             // When
             _ = try await subject.map(graph: inputGraph, environment: MapperEnvironment())
