@@ -11,6 +11,16 @@ clickhouse_database_exists() {
   curl -fsS http://localhost:8123 --data-binary "EXISTS DATABASE ${TUIST_SERVER_CLICKHOUSE_DB}" | grep -qx 1
 }
 
+bootstrap_postgres_database() {
+  mix ecto.create -r Tuist.Repo
+  mix ecto.load -r Tuist.Repo
+}
+
+bootstrap_clickhouse_database() {
+  mix ecto.create -r Tuist.IngestRepo
+  mix ecto.load -r Tuist.IngestRepo
+}
+
 mix deps.get
 pnpm install --ignore-workspace
 pushd .. >/dev/null
@@ -21,10 +31,13 @@ pnpm run build
 popd >/dev/null
 
 if [ -z "${CI:-}" ]; then
-  # Fresh worktrees use isolated database names and need the schema dump loaded before later migrations run.
-  if ! postgres_database_exists || ! clickhouse_database_exists; then
-    mise run db:create
-    mise run db:load
+  # Fresh worktrees use isolated database names, so bootstrap missing repos independently.
+  if ! postgres_database_exists; then
+    bootstrap_postgres_database
+  fi
+
+  if ! clickhouse_database_exists; then
+    bootstrap_clickhouse_database
   fi
 
   mise run db:migrate
