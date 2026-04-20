@@ -14,8 +14,8 @@ servers:
       network-alias: cache-app
       add-host: host.docker.internal:host-gateway
 
-# ssh:
-#   user: github-actions
+ssh:
+  user: github-actions
 
 registry:
   server: ghcr.io
