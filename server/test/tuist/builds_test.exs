@@ -221,6 +221,14 @@ defmodule Tuist.BuildsTest do
       # Then
       assert build == nil
     end
+
+    test "returns nil when id is nil" do
+      assert Builds.get_build(nil) == nil
+    end
+
+    test "returns nil when id is not a valid UUID" do
+      assert Builds.get_build("not-a-uuid") == nil
+    end
   end
 
   describe "project_build_tags/1" do

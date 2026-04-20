@@ -37,9 +37,15 @@ defmodule Tuist.Builds do
   end
 
   def get_build(id) do
-    Build
-    |> from(hints: ["FINAL"], where: [id: ^id])
-    |> ClickHouseRepo.one()
+    case Ecto.UUID.cast(id) do
+      {:ok, uuid} ->
+        Build
+        |> from(hints: ["FINAL"], where: [id: ^uuid])
+        |> ClickHouseRepo.one()
+
+      :error ->
+        nil
+    end
   end
 
   def create_build(attrs) do
