@@ -503,13 +503,16 @@ defmodule TuistWeb.API.TestsControllerTest do
       assert arg2["name"] == ".cardAdmin"
     end
 
-    test "returns empty test_case_runs when existing test has unloaded association", %{
+    test "returns empty test_case_runs when the test already exists", %{
       conn: conn,
       user: user,
       project: project
     } do
       existing_id = UUIDv7.generate()
 
+      # Regression test for the %Ecto.Association.NotLoaded{} crash: the
+      # controller must not read test_run.test_case_runs directly, since
+      # Tests.get_test does not preload the association.
       expect(Tests, :get_test, fn _id ->
         {:ok,
          %Test{
