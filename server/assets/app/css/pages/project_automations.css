@@ -65,12 +65,12 @@
     }
 
     & [data-part="empty-state"] {
+      border: 1px dashed var(--noora-surface-border-secondary);
+      border-radius: var(--noora-border-radius-medium);
       padding: var(--noora-spacing-6);
       color: var(--noora-surface-label-secondary);
       font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
       text-align: center;
-      border: 1px dashed var(--noora-surface-border-secondary);
-      border-radius: var(--noora-border-radius-medium);
     }
   }
 
@@ -150,9 +150,9 @@
       padding-top: var(--noora-spacing-6);
 
       & > [data-part="action-label"] {
+        flex: 1;
         color: var(--noora-surface-label-primary);
         font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
-        flex: 1;
       }
 
       & > .noora-dropdown {
@@ -161,10 +161,10 @@
 
       & > [data-part="action-fields"] {
         display: flex;
-        flex-direction: row;
         flex: 1;
-        min-width: 0;
+        flex-direction: row;
         gap: var(--noora-spacing-3);
+        min-width: 0;
 
         & > .noora-text-input {
           flex: 1;
@@ -183,16 +183,16 @@
 
     [data-part="slack-action"] {
       display: flex;
-      flex-direction: column;
       flex: 1;
+      flex-direction: column;
       gap: var(--noora-spacing-5);
       min-width: 0;
 
       & > [data-part="slack-action-header"] {
         display: flex;
         flex-direction: row;
-        align-items: center;
         justify-content: space-between;
+        align-items: center;
         gap: var(--noora-spacing-4);
 
         & > [data-part="slack-action-header-left"],
@@ -204,9 +204,9 @@
         }
 
         & [data-part="action-label"] {
+          flex-shrink: 0;
           color: var(--noora-surface-label-primary);
           font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
-          flex-shrink: 0;
         }
       }
 
@@ -253,9 +253,9 @@
           }
 
           & > code {
-            padding: 1px 6px;
-            background: var(--noora-surface-background-secondary);
             border-radius: var(--noora-radius-small);
+            background: var(--noora-surface-background-secondary);
+            padding: 1px 6px;
             font-size: 12px;
           }
         }
@@ -278,7 +278,6 @@
       }
     }
   }
-
 }
 
 #create-automation-modal > [data-part="positioner"] > [data-part="content"] {
@@ -306,4 +305,3 @@
     }
   }
 }
-
