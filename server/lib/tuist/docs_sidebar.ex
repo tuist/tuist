@@ -4,7 +4,7 @@ defmodule Tuist.Docs.Sidebar do
   """
 
   alias Tuist.Docs.CLI
-  alias Tuist.Docs.Redirects
+  alias Tuist.Docs.CLI.Paths, as: CLIPaths
 
   defmodule Item do
     @moduledoc false
@@ -467,8 +467,8 @@ defmodule Tuist.Docs.Sidebar do
 
   defp default_cli_tree do
     items =
-      Enum.map(Redirects.cli_static_pages(), fn {slug, label} ->
-        %Item{label: label, slug: Redirects.cli_slug(slug)}
+      Enum.map(CLIPaths.static_pages(), fn {slug, label} ->
+        %Item{label: label, slug: CLIPaths.page_slug(slug)}
       end)
 
     [%Group{label: "CLI", items: items}]

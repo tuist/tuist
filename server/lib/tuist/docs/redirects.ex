@@ -1,83 +1,30 @@
 defmodule Tuist.Docs.Redirects do
   @moduledoc """
-  Source of truth for documentation URL redirects and the canonical
-  paths the rules redirect to.
+  Resolves documentation URL redirects.
 
   Rules operate on the portion of the path after `/<locale>/docs`, i.e.
   the "logical" docs path that always starts with "/". The plug fills in
   the locale and the `/docs` segment.
 
-      {:exact, "/cli", "/references/cli"}
-      {:prefix, "/cli/", "/references/cli/"}
-      {:prefix, "/references/cli/", "/references/cli/commands/",
-       except_starts_with: ["debugging", "directories", "shell-completions", "commands/"]}
+      {:exact, "/old-page", "/new-page"}
+      {:prefix, "/old-section/", "/new-section/"}
 
   Rules are applied in a loop: if a rule matches, the result is fed back
   through all rules until none match. That way compound moves (e.g. a
   page that moved twice across different PRs) resolve in a single 301.
 
-  ### Canonical paths
-
-  The destination paths (`cli_base`, `cli_commands_base`, …) are also
-  exposed as functions so the Renderer and the Sidebar fallback can
-  build slugs from the same source as the rules. When URLs move, a
-  reviewer sees both the old → new rule and the new canonical path in
-  the same diff.
+  Rule providers live with the docs subsystem that owns the canonical
+  destination paths; this module just applies them consistently.
   """
 
-  @cli_base "/references/cli"
-  @cli_commands_base @cli_base <> "/commands"
-  @cli_static_pages [
-    {"debugging", "Debugging"},
-    {"directories", "Directories"},
-    {"shell-completions", "Shell completions"}
-  ]
-  @cli_static_slugs Enum.map(@cli_static_pages, &elem(&1, 0))
+  alias Tuist.Docs.CLI.Paths, as: CLIPaths
 
-  @rules [
-    # CLI docs moved under References (Diataxis: CLI is reference material)
-    {:exact, "/cli", @cli_base},
-    {:prefix, "/cli/", @cli_base <> "/"},
-    # Auto-generated command pages nested under /references/cli/commands/.
-    # The three hand-written pages (debugging, directories, shell-completions)
-    # and the /commands/ namespace itself stay flat.
-    {:prefix, @cli_base <> "/", @cli_commands_base <> "/", except_starts_with: @cli_static_slugs ++ ["commands/"]}
-  ]
+  @rule_sources [CLIPaths]
 
   @docs_path_regex ~r{^/(?<locale>[^/]+)/docs(?<rest>/.*)?$}
   @max_iterations 8
 
-  def rules, do: @rules
-
-  @doc "Logical path under `/docs/` where hand-written CLI pages live."
-  def cli_base, do: @cli_base
-
-  @doc "Logical path under `/docs/` where auto-generated command pages live."
-  def cli_commands_base, do: @cli_commands_base
-
-  @doc """
-  Hand-written CLI pages as `{slug_segment, english_label}` tuples.
-  The English label is the source string that flows through the
-  `priv/docs/strings/*.json` translation map at render time.
-  """
-  def cli_static_pages, do: @cli_static_pages
-
-  @doc "Slug fragments under `cli_base/` served by hand-written pages (not commands)."
-  def cli_static_slugs, do: @cli_static_slugs
-
-  @doc """
-  Full English slug (i.e. with the `/en` locale prefix) for a
-  hand-written CLI page. For other locales the slug is localized at
-  render time by the sidebar, but the filesystem is canonical in `en`.
-  """
-  def cli_slug(segment), do: "/en" <> @cli_base <> "/" <> segment
-
-  @doc """
-  Full English slug for an auto-generated command page.
-  Accepts either the command name (`"generate"`) or a full path
-  (`"cache/warm"`).
-  """
-  def cli_command_slug(command_path), do: "/en" <> @cli_commands_base <> "/" <> command_path
+  def rules, do: Enum.flat_map(@rule_sources, & &1.redirect_rules())
 
   @doc """
   Resolves a request path against the docs redirect rules.
@@ -93,7 +40,7 @@ defmodule Tuist.Docs.Redirects do
       %{"locale" => locale, "rest" => rest} ->
         rest = rest || ""
 
-        case apply_chain(rest, @rules, false, @max_iterations) do
+        case apply_chain(rest, rules(), false, @max_iterations) do
           {:ok, new_rest} -> {:ok, build_path(locale, new_rest, query_string)}
           :none -> :none
         end

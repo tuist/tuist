@@ -3,9 +3,9 @@ defmodule Tuist.Docs.CLI.Renderer do
   Renders CLI spec JSON into documentation pages and sidebar items.
   """
 
+  alias Tuist.Docs.CLI.Paths, as: CLIPaths
   alias Tuist.Docs.HTML
   alias Tuist.Docs.Page
-  alias Tuist.Docs.Redirects
   alias Tuist.Docs.Sidebar.Group
   alias Tuist.Docs.Sidebar.Item
 
@@ -38,15 +38,15 @@ defmodule Tuist.Docs.CLI.Renderer do
   end
 
   defp static_cli_items do
-    Enum.map(Redirects.cli_static_pages(), fn {slug, label} ->
-      %Item{label: label, slug: Redirects.cli_slug(slug)}
+    Enum.map(CLIPaths.static_pages(), fn {slug, label} ->
+      %Item{label: label, slug: CLIPaths.page_slug(slug)}
     end)
   end
 
   defp command_to_sidebar_item(command, parent_segments) do
     name = command["commandName"]
     segments = parent_segments ++ [name]
-    slug = Redirects.cli_command_slug(Enum.join(segments, "/"))
+    slug = CLIPaths.command_slug(Enum.join(segments, "/"))
 
     children =
       command
@@ -83,7 +83,7 @@ defmodule Tuist.Docs.CLI.Renderer do
       |> Enum.drop(1)
       |> Enum.join("/")
 
-    Redirects.cli_command_slug(path)
+    CLIPaths.command_slug(path)
   end
 
   defp build_command_page(command, full_command, slug) do

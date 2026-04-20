@@ -73,20 +73,14 @@ defmodule Tuist.Docs.CLI.RendererTest do
   }
 
   describe "build_pages/1" do
-    test "generates pages for visible commands" do
-      pages = Renderer.build_pages(@spec_fixture)
-
-      slugs = Enum.map(pages, & &1.slug)
-      assert "/en/references/cli/commands/generate" in slugs
-      assert "/en/references/cli/commands/cache" in slugs
-      assert "/en/references/cli/commands/cache/warm" in slugs
-    end
-
-    test "excludes hidden commands" do
-      pages = Renderer.build_pages(@spec_fixture)
-
-      slugs = Enum.map(pages, & &1.slug)
-      refute "/en/references/cli/commands/hidden-cmd" in slugs
+    test "builds pages for the visible command tree" do
+      assert @spec_fixture
+             |> Renderer.build_pages()
+             |> Enum.map(&{&1.title, &1.slug}) == [
+               {"tuist generate", "/en/references/cli/commands/generate"},
+               {"tuist cache", "/en/references/cli/commands/cache"},
+               {"tuist cache warm", "/en/references/cli/commands/cache/warm"}
+             ]
     end
 
     test "generates valid Page structs" do
@@ -159,54 +153,33 @@ defmodule Tuist.Docs.CLI.RendererTest do
   end
 
   describe "build_sidebar/1" do
-    test "returns a single CLI group" do
-      [cli_group] = Renderer.build_sidebar(@spec_fixture)
-
-      assert %Group{label: "CLI"} = cli_group
+    test "builds the CLI sidebar tree with static pages and nested commands" do
+      assert @spec_fixture
+             |> Renderer.build_sidebar()
+             |> simplify_groups() == [
+               {"CLI",
+                [
+                  {"Debugging", "/en/references/cli/debugging", []},
+                  {"Directories", "/en/references/cli/directories", []},
+                  {"Shell completions", "/en/references/cli/shell-completions", []},
+                  {"Commands", nil,
+                   [
+                     {"cache", "/en/references/cli/commands/cache",
+                      [{"warm", "/en/references/cli/commands/cache/warm", []}]},
+                     {"generate", "/en/references/cli/commands/generate", []}
+                   ]}
+                ]}
+             ]
     end
+  end
 
-    test "includes static CLI pages alongside a Commands sub-item" do
-      [cli_group] = Renderer.build_sidebar(@spec_fixture)
+  defp simplify_groups(groups) do
+    Enum.map(groups, fn %Group{label: label, items: items} ->
+      {label, Enum.map(items, &simplify_item/1)}
+    end)
+  end
 
-      labels = Enum.map(cli_group.items, & &1.label)
-      assert "Debugging" in labels
-      assert "Directories" in labels
-      assert "Shell completions" in labels
-      assert "Commands" in labels
-    end
-
-    test "Commands sub-item has no slug and nests command items" do
-      [cli_group] = Renderer.build_sidebar(@spec_fixture)
-
-      commands_item = Enum.find(cli_group.items, &(&1.label == "Commands"))
-      assert %Item{slug: nil} = commands_item
-      assert length(commands_item.items) > 0
-    end
-
-    test "excludes hidden commands from sidebar" do
-      [cli_group] = Renderer.build_sidebar(@spec_fixture)
-      commands_item = Enum.find(cli_group.items, &(&1.label == "Commands"))
-
-      labels = Enum.map(commands_item.items, & &1.label)
-      refute "hidden-cmd" in labels
-    end
-
-    test "sorts commands alphabetically" do
-      [cli_group] = Renderer.build_sidebar(@spec_fixture)
-      commands_item = Enum.find(cli_group.items, &(&1.label == "Commands"))
-
-      labels = Enum.map(commands_item.items, & &1.label)
-      assert labels == Enum.sort(labels)
-    end
-
-    test "includes subcommands as nested items" do
-      [cli_group] = Renderer.build_sidebar(@spec_fixture)
-      commands_item = Enum.find(cli_group.items, &(&1.label == "Commands"))
-
-      cache_item = Enum.find(commands_item.items, &(&1.label == "cache"))
-      assert %Item{} = cache_item
-      assert length(cache_item.items) == 1
-      assert hd(cache_item.items).label == "warm"
-    end
+  defp simplify_item(%Item{label: label, slug: slug, items: items}) do
+    {label, slug, Enum.map(items, &simplify_item/1)}
   end
 end
