@@ -76,6 +76,8 @@ defmodule Tuist.MixProject do
       {:open_api_spex, "~> 3.18"},
       {:oban, "~> 2.19"},
       {:oban_web, "~> 2.11"},
+      {:bonny, "~> 1.5"},
+      {:owl, "~> 0.13", override: true},
       {:bcrypt_elixir, "~> 3.0"},
       {:stripity_stripe, "~> 3.1"},
       {:ueberauth, "~> 0.10.8"},

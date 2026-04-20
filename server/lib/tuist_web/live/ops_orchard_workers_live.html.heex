@@ -1,0 +1,104 @@
+<div id="ops-orchard-workers">
+  <div data-part="header">
+    <h1 data-part="title">{dgettext("dashboard", "Runner Fleet")}</h1>
+    <p data-part="subtitle">
+      Pools are defined declaratively (`kubectl apply` or customer dashboard).
+      This page is a cross-tenant, read-mostly view for ops.
+    </p>
+  </div>
+
+  <.card title="Pools" icon="server">
+    <.card_section>
+      <.table id="orchard-pools-table" rows={@pools}>
+        <:col :let={pool} label="Account">
+          <.text_cell label={Integer.to_string(pool.account_id)} />
+        </:col>
+        <:col :let={pool} label="Name">
+          <.text_cell label={pool.name} />
+        </:col>
+        <:col :let={pool} label="Enabled">
+          <.text_cell label={if pool.enabled, do: "Yes", else: "No"} />
+        </:col>
+        <:col :let={pool} label="Desired / Current">
+          <.text_cell label={"#{pool.desired_size} / #{pool.current_size}"} />
+        </:col>
+        <:col :let={pool} label="Type">
+          <.text_cell label={pool.scaleway_server_type} />
+        </:col>
+        <:col :let={pool} label="Zone">
+          <.text_cell label={pool.scaleway_zone} />
+        </:col>
+        <:col :let={pool} label="Last reconciled">
+          <.text_cell label={format_datetime(pool.last_reconciled_at)} />
+        </:col>
+        <:col :let={pool} label="Actions">
+          <.button
+            variant="secondary"
+            label="Reconcile"
+            phx-click="reconcile_pool"
+            phx-value-id={pool.id}
+          />
+        </:col>
+        <:empty_state>
+          <.table_empty_state
+            icon="server"
+            title="No pools yet"
+            subtitle="Customers provision pools from their dashboard or via kubectl."
+          />
+        </:empty_state>
+      </.table>
+    </.card_section>
+  </.card>
+
+  <.card title="Workers" icon="device_desktop">
+    <.card_section>
+      <.table id="orchard-workers-table" rows={@workers}>
+        <:col :let={worker} label="Name">
+          <.text_cell label={worker.name} />
+        </:col>
+        <:col :let={worker} label="Status">
+          <.text_cell label={humanize_status(worker.status)} />
+        </:col>
+        <:col :let={worker} label="IP">
+          <.text_cell label={worker.ip_address || "--"} />
+        </:col>
+        <:col :let={worker} label="Type">
+          <.text_cell label={worker.scaleway_server_type} />
+        </:col>
+        <:col :let={worker} label="Zone">
+          <.text_cell label={worker.scaleway_zone} />
+        </:col>
+        <:col :let={worker} label="Created">
+          <.text_cell label={format_datetime(worker.inserted_at)} />
+        </:col>
+        <:col :let={worker} label="Actions">
+          <div data-part="actions">
+            <.button
+              :if={worker.status in [:queued, :provisioning, :online]}
+              variant="secondary"
+              label="Deprovision"
+              phx-click="deprovision_worker"
+              phx-value-id={worker.id}
+              data-confirm="Release this Scaleway Mac?"
+            />
+            <.button
+              :if={worker.status in [:terminated, :failed]}
+              variant="secondary"
+              label="Delete record"
+              phx-click="delete_worker"
+              phx-value-id={worker.id}
+              data-confirm="Delete this worker record?"
+            />
+          </div>
+        </:col>
+        <:empty_state>
+          <.table_empty_state
+            icon="device_desktop"
+            title="No workers"
+            subtitle="Workers appear once a pool has a non-zero desired size."
+          />
+        </:empty_state>
+      </.table>
+    </.card_section>
+  </.card>
+</div>

@@ -662,6 +662,7 @@ defmodule TuistWeb.Router do
         {TuistWeb.LayoutLive, :ops}
       ] do
       live "/", TuistWeb.OpsCacheLive
+      live "/orchard_workers", TuistWeb.OpsOrchardWorkersLive
     end
   end
 

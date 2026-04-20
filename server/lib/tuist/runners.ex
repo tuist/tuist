@@ -3,6 +3,8 @@ defmodule Tuist.Runners do
   import Ecto.Query
 
   alias Tuist.Repo
+  alias Tuist.Runners.OrchardWorker
+  alias Tuist.Runners.OrchardWorkerPool
   alias Tuist.Runners.RunnerConfiguration
   alias Tuist.Runners.RunnerJob
   alias Tuist.VCS.GitHubAppInstallation
@@ -93,5 +95,103 @@ defmodule Tuist.Runners do
     |> where([j], j.updated_at < ^cutoff)
     |> Repo.all()
     |> Repo.preload(:runner_configuration)
+  end
+
+  def list_orchard_worker_pools do
+    OrchardWorkerPool
+    |> order_by([p], desc: p.inserted_at, desc: p.id)
+    |> Repo.all()
+  end
+
+  def list_enabled_orchard_worker_pools do
+    OrchardWorkerPool
+    |> where([p], p.enabled == true)
+    |> Repo.all()
+  end
+
+  def get_orchard_worker_pool(id) do
+    case Repo.get(OrchardWorkerPool, id) do
+      nil -> {:error, :not_found}
+      pool -> {:ok, pool}
+    end
+  end
+
+  def get_orchard_worker_pool_by_account_and_name(account_id, name) do
+    case Repo.get_by(OrchardWorkerPool, account_id: account_id, name: name) do
+      nil -> {:error, :not_found}
+      pool -> {:ok, pool}
+    end
+  end
+
+  def create_orchard_worker_pool(attrs) do
+    attrs
+    |> OrchardWorkerPool.create_changeset()
+    |> Repo.insert()
+  end
+
+  def update_orchard_worker_pool_spec(%OrchardWorkerPool{} = pool, attrs) do
+    pool
+    |> OrchardWorkerPool.spec_changeset(attrs)
+    |> Repo.update()
+  end
+
+  def update_orchard_worker_pool_status(%OrchardWorkerPool{} = pool, attrs) do
+    pool
+    |> OrchardWorkerPool.status_changeset(attrs)
+    |> Repo.update()
+  end
+
+  def delete_orchard_worker_pool(%OrchardWorkerPool{} = pool) do
+    Repo.delete(pool)
+  end
+
+  def list_orchard_workers(opts \\ []) do
+    pool_id = Keyword.get(opts, :pool_id)
+
+    query = order_by(OrchardWorker, [w], desc: w.inserted_at, desc: w.id)
+
+    query = if pool_id, do: where(query, [w], w.pool_id == ^pool_id), else: query
+
+    Repo.all(query)
+  end
+
+  def list_active_workers_in_pool(pool_id) do
+    statuses = OrchardWorker.active_statuses()
+
+    OrchardWorker
+    |> where([w], w.pool_id == ^pool_id and w.status in ^statuses)
+    |> order_by([w], asc: w.inserted_at)
+    |> Repo.all()
+  end
+
+  def count_active_workers_in_pool(pool_id) do
+    statuses = OrchardWorker.active_statuses()
+
+    OrchardWorker
+    |> where([w], w.pool_id == ^pool_id and w.status in ^statuses)
+    |> Repo.aggregate(:count)
+  end
+
+  def get_orchard_worker(id) do
+    case Repo.get(OrchardWorker, id) do
+      nil -> {:error, :not_found}
+      worker -> {:ok, worker}
+    end
+  end
+
+  def create_orchard_worker(attrs) do
+    attrs
+    |> OrchardWorker.create_changeset()
+    |> Repo.insert()
+  end
+
+  def update_orchard_worker(%OrchardWorker{} = worker, attrs) do
+    worker
+    |> OrchardWorker.status_changeset(attrs)
+    |> Repo.update()
+  end
+
+  def delete_orchard_worker(%OrchardWorker{} = worker) do
+    Repo.delete(worker)
   end
 end

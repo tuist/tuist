@@ -214,6 +214,11 @@ defmodule Tuist.Application do
         ],
         else: []
     )
+    |> Kernel.++(
+      if Environment.get([:bonny, :enabled]) in [true, "true", "1"],
+        do: [Tuist.Operator],
+        else: []
+    )
     # Marketing.Stats polls ClickHouse on init. Skip it in test (tables
     # may not exist) and dev (noisy debug logs every 5 s).
     |> Kernel.++(

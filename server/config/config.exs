@@ -11,6 +11,12 @@ import Config
 noora_static_path = Path.expand("../../noora/priv/static", __DIR__)
 node_modules_path = Path.expand("../node_modules", __DIR__)
 
+config :bonny,
+  operator_name: "tuist-runners",
+  group: "tuist.dev",
+  service_account_name: "tuist-runners",
+  labels: %{"app.kubernetes.io/name" => "tuist-runners"}
+
 config :boruta, Boruta.Oauth,
   repo: Tuist.Repo,
   contexts: [
