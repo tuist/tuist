@@ -13,26 +13,27 @@ defmodule Tuist.Runners.Workers.ProvisionOrchardWorkerWorker do
   use Oban.Worker, queue: :default, max_attempts: 1
 
   alias Tuist.Runners
-  alias Tuist.Runners.OrchardWorkerProvisioner
   alias Tuist.Scaleway
-  alias Tuist.Scaleway.Client, as: ScalewayClient
 
   require Logger
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"orchard_worker_id" => worker_id}}) do
+    client = scaleway_client()
+    provisioner = orchard_provisioner()
+
     with {:ok, worker} <- Runners.get_orchard_worker(worker_id),
          {:ok, _} <- Runners.update_orchard_worker(worker, %{status: :provisioning}),
          {:ok, config} <- Scaleway.config(),
-         {:ok, os_id} <- ScalewayClient.find_os_id(config, worker.scaleway_zone, worker.scaleway_os),
-         {:ok, server} <- create_server(config, worker, os_id),
+         {:ok, os_id} <- client.find_os_id(config, worker.scaleway_zone, worker.scaleway_os),
+         {:ok, server} <- create_server(client, config, worker, os_id),
          {:ok, worker} <-
            Runners.update_orchard_worker(worker, %{
              scaleway_server_id: server["id"],
              ip_address: List.first(server["ip_addresses"] || []) || server["ip"]
            }),
          :ok <-
-           OrchardWorkerProvisioner.provision(%{
+           provisioner.provision(%{
              ip: worker.ip_address,
              ssh_user: server["ssh_username"] || "m1",
              sudo_password: server["sudo_password"]
@@ -50,13 +51,21 @@ defmodule Tuist.Runners.Workers.ProvisionOrchardWorkerWorker do
     end
   end
 
-  defp create_server(config, worker, os_id) do
-    ScalewayClient.create_server(config, %{
+  defp create_server(client, config, worker, os_id) do
+    client.create_server(config, %{
       name: worker.name,
       zone: worker.scaleway_zone,
       server_type: worker.scaleway_server_type,
       os_id: os_id
     })
+  end
+
+  defp scaleway_client do
+    Application.get_env(:tuist, :scaleway_client) || Tuist.Scaleway.Client
+  end
+
+  defp orchard_provisioner do
+    Application.get_env(:tuist, :orchard_provisioner) || Tuist.Runners.OrchardWorkerProvisioner
   end
 
   defp mark_failed(worker_id, reason) do

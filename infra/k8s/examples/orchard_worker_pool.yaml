@@ -1,0 +1,24 @@
+---
+# Example OrchardWorkerPool custom resource.
+#
+# This is the declarative interface for managing a pool of Scaleway bare-metal
+# Macs that host Orchard workers. Apply it with `kubectl apply -f <this file>`
+# after running `mise run runner:k8s:up` locally, or against a remote cluster
+# once the Tuist server's Bonny operator is connected to it.
+#
+# Change `desiredSize` and re-apply to scale up or down. Delete the resource
+# to drain the pool and release its machines.
+apiVersion: tuist.dev/v1
+kind: OrchardWorkerPool
+metadata:
+  name: dev-pool
+spec:
+  # Tuist account id that owns this pool. For local dev against the seed
+  # data, look this up via:
+  #   psql tuist_dev -c "SELECT id, name FROM accounts WHERE name = 'tuistrocks';"
+  accountId: 1
+  enabled: true
+  desiredSize: 2
+  scalewayZone: fr-par-3
+  scalewayServerType: M1-M
+  scalewayOs: macos-tahoe-26.0

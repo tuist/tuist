@@ -15,7 +15,8 @@ config :bonny,
   operator_name: "tuist-runners",
   group: "tuist.dev",
   service_account_name: "tuist-runners",
-  labels: %{"app.kubernetes.io/name" => "tuist-runners"}
+  labels: %{"app.kubernetes.io/name" => "tuist-runners"},
+  get_conn: {Tuist.Operator, :k8s_conn, []}
 
 config :boruta, Boruta.Oauth,
   repo: Tuist.Repo,

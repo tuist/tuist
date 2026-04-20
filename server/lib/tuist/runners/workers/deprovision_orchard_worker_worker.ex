@@ -9,7 +9,6 @@ defmodule Tuist.Runners.Workers.DeprovisionOrchardWorkerWorker do
 
   alias Tuist.Runners
   alias Tuist.Scaleway
-  alias Tuist.Scaleway.Client, as: ScalewayClient
 
   require Logger
 
@@ -40,7 +39,11 @@ defmodule Tuist.Runners.Workers.DeprovisionOrchardWorkerWorker do
   defp delete_server(_config, %{scaleway_server_id: nil}), do: :ok
 
   defp delete_server(config, worker) do
-    ScalewayClient.delete_server(config, worker.scaleway_zone, worker.scaleway_server_id)
+    scaleway_client().delete_server(config, worker.scaleway_zone, worker.scaleway_server_id)
+  end
+
+  defp scaleway_client do
+    Application.get_env(:tuist, :scaleway_client) || Tuist.Scaleway.Client
   end
 
   defp mark_failed(worker_id, reason) do

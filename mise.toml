@@ -17,6 +17,8 @@
     gradle = "8.12"
     caddy = "2.11.2"
     scaleway-cli = "2.53.0"
+    kind = "0.26.0"
+    kubectl = "1.32.0"
 
 [hooks]
     postinstall = "{{config_root}}/mise/tasks/install.sh"

@@ -34,4 +34,16 @@ defmodule Tuist.Operator do
       }
     ]
   end
+
+  @doc """
+  Resolver for Bonny's `get_conn` config. Reads the kubeconfig path from
+  `TUIST_KUBECONFIG_PATH`, falling back to the default kubeconfig (`~/.kube/config`)
+  for local dev convenience.
+  """
+  def k8s_conn do
+    case System.get_env("TUIST_KUBECONFIG_PATH") do
+      nil -> "~/.kube/config" |> Path.expand() |> K8s.Conn.from_file()
+      path -> K8s.Conn.from_file(path)
+    end
+  end
 end

@@ -180,4 +180,10 @@ config :tuist,
   ecto_repos: [Tuist.Repo, Tuist.IngestRepo],
   generators: [timestamp_type: :utc_datetime],
   api_pipeline_producer_module: OffBroadwayMemory.Producer,
-  api_pipeline_producer_options: [buffer: :api_data_pipeline_in_memory_buffer]
+  api_pipeline_producer_options: [buffer: :api_data_pipeline_in_memory_buffer],
+  # Local dev: stub Scaleway + the SSH provisioner so the Bonny -> Reconciler
+  # -> Oban pipeline runs end-to-end against a kind cluster without touching
+  # real Scaleway APIs or booting a bare-metal Mac. Flip these to the real
+  # modules in staging/prod via config/runtime.exs.
+  scaleway_client: Tuist.Scaleway.Stub,
+  orchard_provisioner: Tuist.Runners.OrchardWorkerProvisioner.Stub
