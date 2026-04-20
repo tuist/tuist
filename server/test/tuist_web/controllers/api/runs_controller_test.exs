@@ -511,7 +511,7 @@ defmodule TuistWeb.API.RunsControllerTest do
       stub(Builds, :get_build, fn ^id ->
         count = :counters.get(get_build_call_count, 1)
         :counters.add(get_build_call_count, 1, 1)
-        if count == 0, do: nil, else: existing_build
+        if count == 0, do: {:error, :not_found}, else: {:ok, existing_build}
       end)
 
       error_changeset = %Ecto.Changeset{

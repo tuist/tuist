@@ -197,7 +197,7 @@ defmodule Tuist.BuildsTest do
   end
 
   describe "get_build/1" do
-    test "returns build" do
+    test "returns {:ok, build}" do
       # Given
       {:ok, build} =
         RunsFixtures.build_fixture()
@@ -205,21 +205,26 @@ defmodule Tuist.BuildsTest do
       build_id = build.id
 
       # When
-      build = Builds.get_build(build_id)
+      {:ok, got} = Builds.get_build(build_id)
 
       # Then
-      assert build.id == build_id
+      assert got.id == build_id
     end
 
-    test "returns nil when build does not exist" do
+    test "returns {:error, :not_found} when build does not exist" do
       # Given
       non_existent_build_id = UUIDv7.generate()
 
-      # When
-      build = Builds.get_build(non_existent_build_id)
+      # When / Then
+      assert Builds.get_build(non_existent_build_id) == {:error, :not_found}
+    end
 
-      # Then
-      assert build == nil
+    test "returns {:error, :not_found} when id is nil" do
+      assert Builds.get_build(nil) == {:error, :not_found}
+    end
+
+    test "returns {:error, :not_found} when id is not a valid UUID" do
+      assert Builds.get_build("not-a-uuid") == {:error, :not_found}
     end
   end
 
