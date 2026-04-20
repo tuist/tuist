@@ -45,7 +45,7 @@ defmodule Tuist.Automations do
   def list_active_alerts(alert_rule_id) do
     ClickHouseRepo.all(
       from(a in Alert,
-        where: a.automation_id == ^alert_rule_id,
+        where: a.alert_rule_id == ^alert_rule_id,
         group_by: a.test_case_id,
         having: fragment("argMax(?, ?) = 'triggered'", a.status, a.inserted_at),
         select: %{

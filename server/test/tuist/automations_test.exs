@@ -81,7 +81,7 @@ defmodule Tuist.AutomationsTest do
 
       assert :ok =
                Automations.create_alert(%{
-                 automation_id: automation.id,
+                 alert_rule_id: automation.id,
                  test_case_id: test_case_id,
                  status: "triggered",
                  triggered_at: NaiveDateTime.utc_now()
@@ -98,7 +98,7 @@ defmodule Tuist.AutomationsTest do
 
       :ok =
         Automations.create_alert(%{
-          automation_id: automation.id,
+          alert_rule_id: automation.id,
           test_case_id: test_case_id,
           status: "triggered",
           triggered_at: now
@@ -106,7 +106,7 @@ defmodule Tuist.AutomationsTest do
 
       :ok =
         Automations.create_alert(%{
-          automation_id: automation.id,
+          alert_rule_id: automation.id,
           test_case_id: test_case_id,
           status: "recovered",
           triggered_at: now,

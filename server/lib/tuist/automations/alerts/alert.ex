@@ -2,7 +2,7 @@ defmodule Tuist.Automations.Alerts.Alert do
   @moduledoc """
   Represents an alert event in the automation system.
 
-  Alerts are append-only log entries tracking when an automation's
+  Alerts are append-only log entries tracking when an alert rule's
   condition was met (status: "triggered") or cleared (status: "recovered")
   for a given entity.
   """
@@ -12,7 +12,7 @@ defmodule Tuist.Automations.Alerts.Alert do
 
   @primary_key {:id, Ecto.UUID, autogenerate: false}
   schema "automation_alerts" do
-    field :automation_id, Ecto.UUID
+    field :alert_rule_id, Ecto.UUID
     field :test_case_id, Ecto.UUID
     field :status, Ch, type: "LowCardinality(String)"
     field :triggered_at, Ch, type: "DateTime64(6)"
@@ -22,7 +22,7 @@ defmodule Tuist.Automations.Alerts.Alert do
 
   def changeset(alert, attrs) do
     alert
-    |> cast(attrs, [:id, :automation_id, :test_case_id, :status, :triggered_at, :recovered_at, :inserted_at])
-    |> validate_required([:id, :automation_id, :test_case_id, :status, :triggered_at])
+    |> cast(attrs, [:id, :alert_rule_id, :test_case_id, :status, :triggered_at, :recovered_at, :inserted_at])
+    |> validate_required([:id, :alert_rule_id, :test_case_id, :status, :triggered_at])
   end
 end

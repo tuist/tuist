@@ -36,7 +36,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
       case ActionExecutor.execute_actions(alert_rule.trigger_actions, alert_rule, entity) do
         :ok ->
           Automations.create_alert(%{
-            automation_id: alert_rule.id,
+            alert_rule_id: alert_rule.id,
             test_case_id: test_case_id,
             status: "triggered",
             triggered_at: NaiveDateTime.utc_now()
@@ -75,7 +75,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
       now = NaiveDateTime.utc_now()
 
       Automations.create_alert(%{
-        automation_id: alert_rule.id,
+        alert_rule_id: alert_rule.id,
         test_case_id: alert.test_case_id,
         status: "recovered",
         triggered_at: now,

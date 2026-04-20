@@ -5,10 +5,10 @@ defmodule Tuist.IngestRepo.Migrations.CreateAutomationAlerts do
     create table(:automation_alerts,
              primary_key: false,
              engine: "MergeTree()",
-             options: "ORDER BY (automation_id, test_case_id, inserted_at)"
+             options: "ORDER BY (alert_rule_id, test_case_id, inserted_at)"
            ) do
       add :id, :uuid, null: false
-      add :automation_id, :uuid, null: false
+      add :alert_rule_id, :uuid, null: false
       add :test_case_id, :uuid, null: false
       add :status, :"LowCardinality(String)", null: false, default: "triggered"
       add :triggered_at, :"DateTime64(6)", null: false
@@ -17,7 +17,7 @@ defmodule Tuist.IngestRepo.Migrations.CreateAutomationAlerts do
     end
 
     execute(
-      "ALTER TABLE automation_alerts ADD INDEX idx_automation_id (automation_id) TYPE bloom_filter GRANULARITY 4"
+      "ALTER TABLE automation_alerts ADD INDEX idx_alert_rule_id (alert_rule_id) TYPE bloom_filter GRANULARITY 4"
     )
 
     execute(
