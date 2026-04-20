@@ -9,6 +9,7 @@ defmodule Tuist.TestsTest do
   alias Tuist.Tests.TestCase
   alias Tuist.Tests.TestCaseEvent
   alias Tuist.Tests.TestCaseRun
+  alias Tuist.Tests.TestRunDestination
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
@@ -139,6 +140,141 @@ defmodule Tuist.TestsTest do
       assert run.crash_report == nil
     end
 
+    test "preloads arguments with nested associations when requested" do
+      # Given
+      {:ok, test_run} =
+        RunsFixtures.test_fixture(
+          test_modules: [
+            %{
+              name: "MyTests",
+              status: "failure",
+              duration: 1000,
+              test_cases: [
+                %{
+                  name: "parameterized test",
+                  test_suite_name: "MySuite",
+                  status: "failure",
+                  duration: 500,
+                  arguments: [
+                    %{
+                      name: ".variant1",
+                      status: "failure",
+                      duration: 200,
+                      failures: [
+                        %{message: "Failed", path: "Test.swift", line_number: 10, issue_type: "assertion_failure"}
+                      ],
+                      repetitions: [
+                        %{repetition_number: 1, name: "First Run", status: "success", duration: 100},
+                        %{repetition_number: 2, name: "Retry 1", status: "failure", duration: 100}
+                      ]
+                    },
+                    %{
+                      name: ".variant2",
+                      status: "success",
+                      duration: 300
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        )
+
+      [test_case_run] = test_run.test_case_runs
+
+      # When
+      {:ok, run} =
+        Tests.get_test_case_run_by_id(test_case_run.id,
+          preload: [arguments: [:failures, :repetitions, :attachments]]
+        )
+
+      # Then
+      assert length(run.arguments) == 2
+      arg1 = Enum.find(run.arguments, &(&1.name == ".variant1"))
+      arg2 = Enum.find(run.arguments, &(&1.name == ".variant2"))
+
+      assert arg1.status == "failure"
+      assert length(arg1.failures) == 1
+      assert hd(arg1.failures).message == "Failed"
+      assert length(arg1.repetitions) == 2
+
+      assert arg2.status == "success"
+      assert arg2.failures == []
+      assert arg2.repetitions == []
+    end
+
+    test "argument failures are not correlated with repetitions by index" do
+      # This test verifies that when an argument has repetitions [success, failure, success],
+      # the single failure record is at index 0 in the failures list, NOT at index 1
+      # (which is where the failed repetition sits). Templates must not use rep_index
+      # to look up failures.
+
+      # Given
+      {:ok, test_run} =
+        RunsFixtures.test_fixture(
+          test_modules: [
+            %{
+              name: "MyTests",
+              status: "failure",
+              duration: 1000,
+              test_cases: [
+                %{
+                  name: "parameterized test",
+                  test_suite_name: "MySuite",
+                  status: "failure",
+                  duration: 500,
+                  arguments: [
+                    %{
+                      name: ".variant1",
+                      status: "failure",
+                      duration: 300,
+                      failures: [
+                        %{
+                          message: "Expected true",
+                          path: "Test.swift",
+                          line_number: 42,
+                          issue_type: "assertion_failure"
+                        }
+                      ],
+                      repetitions: [
+                        %{repetition_number: 1, name: "Run 1", status: "success", duration: 100},
+                        %{repetition_number: 2, name: "Run 2", status: "failure", duration: 100},
+                        %{repetition_number: 3, name: "Run 3", status: "success", duration: 100}
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        )
+
+      [test_case_run] = test_run.test_case_runs
+
+      # When
+      {:ok, run} =
+        Tests.get_test_case_run_by_id(test_case_run.id,
+          preload: [arguments: [:failures, :repetitions, :attachments]]
+        )
+
+      # Then
+      arg = Enum.find(run.arguments, &(&1.name == ".variant1"))
+      sorted_reps = Enum.sort_by(arg.repetitions, & &1.repetition_number)
+
+      assert length(sorted_reps) == 3
+      assert length(arg.failures) == 1
+
+      # The failed repetition is at index 1 (rep_index=1 in 0-based enumeration)
+      failed_rep = Enum.at(sorted_reps, 1)
+      assert failed_rep.status == "failure"
+
+      # But the failure is at index 0 in arg.failures, NOT at index 1.
+      # Using Enum.at(arg.failures, rep_index) would return nil for the failed rep.
+      assert Enum.at(arg.failures, 1) == nil
+      assert Enum.at(arg.failures, 0)
+      assert Enum.at(arg.failures, 0).message == "Expected true"
+    end
+
     test "does not preload associations when not requested" do
       # Given
       test_case_run = RunsFixtures.test_case_run_fixture()
@@ -186,6 +322,43 @@ defmodule Tuist.TestsTest do
 
       # Then
       assert result == {:error, :not_found}
+    end
+
+    test "preloads run_destinations when requested" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+
+      {:ok, test} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 1500,
+          status: "success",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: false,
+          run_destinations: [
+            %{name: "iPhone 17", platform: "ios_simulator", os_version: "26.4"}
+          ]
+        })
+
+      # When
+      {:ok, loaded} = Tests.get_test(test.id, preload: [:run_destinations])
+
+      # Then
+      assert [%TestRunDestination{name: "iPhone 17"}] = loaded.run_destinations
+    end
+
+    test "returns an empty run_destinations list when none were recorded" do
+      # Given
+      {:ok, test} = RunsFixtures.test_fixture()
+
+      # When
+      {:ok, loaded} = Tests.get_test(test.id, preload: [:run_destinations])
+
+      # Then
+      assert loaded.run_destinations == []
     end
   end
 
@@ -994,6 +1167,125 @@ defmodule Tuist.TestsTest do
       assert test.is_ci == true
     end
 
+    test "persists run_destinations as separate rows linked to the test run" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+
+      test_attrs = %{
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        account_id: account.id,
+        duration: 1500,
+        status: "success",
+        ran_at: NaiveDateTime.utc_now(),
+        is_ci: false,
+        run_destinations: [
+          %{name: "iPhone 17", platform: "ios_simulator", os_version: "26.4"},
+          %{name: "iPhone 17 Pro", platform: "ios_simulator", os_version: "26.4"}
+        ]
+      }
+
+      # When
+      {:ok, test} = Tests.create_test(test_attrs)
+
+      # Then
+      destinations =
+        ClickHouseRepo.all(from(d in TestRunDestination, where: d.test_run_id == ^test.id, order_by: d.name))
+
+      assert length(destinations) == 2
+      [iphone_17, iphone_17_pro] = destinations
+      assert iphone_17.name == "iPhone 17"
+      assert iphone_17.platform == "ios_simulator"
+      assert iphone_17.os_version == "26.4"
+      assert iphone_17_pro.name == "iPhone 17 Pro"
+      assert iphone_17_pro.platform == "ios_simulator"
+    end
+
+    test "accepts run_destinations with string keys from the worker payload" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+
+      test_attrs = %{
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        account_id: account.id,
+        duration: 1500,
+        status: "success",
+        ran_at: NaiveDateTime.utc_now(),
+        is_ci: false,
+        run_destinations: [
+          %{"name" => "iPhone Air", "platform" => "ios_simulator", "os_version" => "26.4"}
+        ]
+      }
+
+      # When
+      {:ok, test} = Tests.create_test(test_attrs)
+
+      # Then
+      [destination] =
+        ClickHouseRepo.all(from(d in TestRunDestination, where: d.test_run_id == ^test.id))
+
+      assert destination.name == "iPhone Air"
+      assert destination.platform == "ios_simulator"
+      assert destination.os_version == "26.4"
+    end
+
+    test "skips run_destinations that are missing any of name/platform/os_version" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+
+      test_attrs = %{
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        account_id: account.id,
+        duration: 1500,
+        status: "success",
+        ran_at: NaiveDateTime.utc_now(),
+        is_ci: false,
+        run_destinations: [
+          %{name: "iPhone 17", platform: "ios_simulator", os_version: "26.4"},
+          %{name: "iPhone 17 Pro", platform: nil, os_version: "26.4"},
+          %{name: nil, platform: "ios_simulator", os_version: "26.4"}
+        ]
+      }
+
+      # When
+      {:ok, test} = Tests.create_test(test_attrs)
+
+      # Then
+      destinations =
+        ClickHouseRepo.all(from(d in TestRunDestination, where: d.test_run_id == ^test.id))
+
+      assert length(destinations) == 1
+      assert hd(destinations).name == "iPhone 17"
+    end
+
+    test "inserts no destination rows when run_destinations is missing or empty" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+
+      test_attrs = %{
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        account_id: account.id,
+        duration: 1500,
+        status: "success",
+        ran_at: NaiveDateTime.utc_now(),
+        is_ci: false
+      }
+
+      # When
+      {:ok, test} = Tests.create_test(test_attrs)
+
+      # Then
+      assert ClickHouseRepo.all(from(d in TestRunDestination, where: d.test_run_id == ^test.id)) ==
+               []
+    end
+
     test "creates a test with test modules and test cases" do
       # Given
       project = ProjectsFixtures.project_fixture()
@@ -1277,6 +1569,56 @@ defmodule Tuist.TestsTest do
       assert failure.path == "/path/to/test.swift"
       assert failure.line_number == 42
       assert failure.issue_type == "assertion"
+    end
+
+    test "creates a test with attachments" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      attachment_id = UUIDv7.generate()
+
+      test_attrs = %{
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        account_id: account.id,
+        duration: 1000,
+        status: "success",
+        model_identifier: "Mac15,6",
+        macos_version: "14.0",
+        xcode_version: "15.0",
+        git_branch: "main",
+        git_commit_sha: "abc123",
+        ran_at: NaiveDateTime.utc_now(),
+        is_ci: true,
+        test_modules: [
+          %{
+            name: "AttachmentsTestModule",
+            status: "success",
+            duration: 1000,
+            test_cases: [
+              %{
+                name: "testWithAttachment",
+                status: "success",
+                duration: 500,
+                attachments: [
+                  %{
+                    attachment_id: attachment_id,
+                    file_name: "screenshot.png",
+                    repetition_number: nil
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+
+      # When
+      {:ok, _test} = Tests.create_test(test_attrs)
+
+      # Then
+      {:ok, attachment} = Tests.get_attachment_by_id(attachment_id)
+      assert attachment.file_name == "screenshot.png"
     end
   end
 
@@ -2246,6 +2588,232 @@ defmodule Tuist.TestsTest do
 
       # Then
       assert result == {:error, :not_found}
+    end
+  end
+
+  describe "create_test/1 with parameterized test arguments" do
+    test "creates argument records with failures and repetitions" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+
+      test_attrs = %{
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        account_id: account.id,
+        duration: 3000,
+        status: "failure",
+        model_identifier: "Mac15,6",
+        macos_version: "14.0",
+        xcode_version: "15.0",
+        git_branch: "main",
+        git_commit_sha: "abc123",
+        ran_at: NaiveDateTime.utc_now(),
+        is_ci: false,
+        test_modules: [
+          %{
+            name: "ParameterizedModule",
+            status: "failure",
+            duration: 3000,
+            test_cases: [
+              %{
+                name: "parameterized(value:)",
+                test_suite_name: "MySuite",
+                status: "failure",
+                duration: 1500,
+                arguments: [
+                  %{
+                    name: ".hello",
+                    status: "success",
+                    duration: 400
+                  },
+                  %{
+                    name: ".failing",
+                    status: "failure",
+                    duration: 600,
+                    failures: [
+                      %{
+                        message: "Expected true but got false",
+                        path: "Tests/ParamTests.swift",
+                        line_number: 25,
+                        issue_type: "assertion_failure"
+                      }
+                    ],
+                    repetitions: [
+                      %{repetition_number: 1, name: "First Run", status: "failure", duration: 300},
+                      %{repetition_number: 2, name: "Retry 1", status: "failure", duration: 300}
+                    ]
+                  },
+                  %{
+                    name: ".world",
+                    status: "success",
+                    duration: 500
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+
+      # When
+      {:ok, test} = Tests.create_test(test_attrs)
+
+      # Then
+      assert test.status == "failure"
+
+      {test_cases, _meta} =
+        Tests.list_test_case_runs(
+          %{filters: [%{field: :test_run_id, op: :==, value: test.id}]},
+          preload: [arguments: [:failures, :repetitions]]
+        )
+
+      assert length(test_cases) == 1
+      test_case_run = hd(test_cases)
+      assert test_case_run.name == "parameterized(value:)"
+      assert length(test_case_run.arguments) == 3
+
+      hello_arg = Enum.find(test_case_run.arguments, &(&1.name == ".hello"))
+      assert hello_arg.status == "success"
+      assert hello_arg.failures == []
+      assert hello_arg.repetitions == []
+
+      failing_arg = Enum.find(test_case_run.arguments, &(&1.name == ".failing"))
+      assert failing_arg.status == "failure"
+      assert length(failing_arg.failures) == 1
+      assert hd(failing_arg.failures).message == "Expected true but got false"
+      assert hd(failing_arg.failures).path == "Tests/ParamTests.swift"
+      assert hd(failing_arg.failures).line_number == 25
+      assert length(failing_arg.repetitions) == 2
+
+      world_arg = Enum.find(test_case_run.arguments, &(&1.name == ".world"))
+      assert world_arg.status == "success"
+    end
+
+    test "creates test without arguments when none provided" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+
+      test_attrs = %{
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        account_id: account.id,
+        duration: 1000,
+        status: "success",
+        model_identifier: "Mac15,6",
+        macos_version: "14.0",
+        xcode_version: "15.0",
+        git_branch: "main",
+        git_commit_sha: "abc123",
+        ran_at: NaiveDateTime.utc_now(),
+        is_ci: false,
+        test_modules: [
+          %{
+            name: "RegularModule",
+            status: "success",
+            duration: 1000,
+            test_cases: [
+              %{
+                name: "testRegular",
+                status: "success",
+                duration: 500
+              }
+            ]
+          }
+        ]
+      }
+
+      # When
+      {:ok, test} = Tests.create_test(test_attrs)
+
+      # Then
+      {test_cases, _meta} =
+        Tests.list_test_case_runs(
+          %{filters: [%{field: :test_run_id, op: :==, value: test.id}]},
+          preload: [arguments: [:failures, :repetitions]]
+        )
+
+      assert length(test_cases) == 1
+      assert hd(test_cases).arguments == []
+    end
+
+    test "persists failures across multiple arguments" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+
+      test_attrs = %{
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        account_id: account.id,
+        duration: 2000,
+        status: "failure",
+        model_identifier: "Mac15,6",
+        macos_version: "14.0",
+        xcode_version: "15.0",
+        git_branch: "main",
+        git_commit_sha: "abc123",
+        ran_at: NaiveDateTime.utc_now(),
+        is_ci: false,
+        test_modules: [
+          %{
+            name: "ParamModule",
+            status: "failure",
+            duration: 2000,
+            test_cases: [
+              %{
+                name: "paramTest(input:)",
+                test_suite_name: "Suite",
+                status: "failure",
+                duration: 1000,
+                arguments: [
+                  %{
+                    name: ".case1",
+                    status: "failure",
+                    duration: 500,
+                    failures: [
+                      %{message: "Failure 1", path: "Test.swift", line_number: 10, issue_type: "assertion_failure"},
+                      %{message: "Failure 2", path: "Test.swift", line_number: 15, issue_type: "assertion_failure"}
+                    ]
+                  },
+                  %{
+                    name: ".case2",
+                    status: "failure",
+                    duration: 500,
+                    failures: [
+                      %{message: "Failure 3", path: "Test.swift", line_number: 20, issue_type: "assertion_failure"}
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+
+      # When
+      {:ok, test} = Tests.create_test(test_attrs)
+
+      # Then
+      {test_cases, _meta} =
+        Tests.list_test_case_runs(
+          %{filters: [%{field: :test_run_id, op: :==, value: test.id}]},
+          preload: [arguments: [:failures]]
+        )
+
+      assert length(test_cases) == 1
+      test_case_run = hd(test_cases)
+      assert length(test_case_run.arguments) == 2
+
+      case1 = Enum.find(test_case_run.arguments, &(&1.name == ".case1"))
+      assert length(case1.failures) == 2
+      failure_messages = case1.failures |> Enum.map(& &1.message) |> Enum.sort()
+      assert failure_messages == ["Failure 1", "Failure 2"]
+
+      case2 = Enum.find(test_case_run.arguments, &(&1.name == ".case2"))
+      assert length(case2.failures) == 1
+      assert hd(case2.failures).message == "Failure 3"
     end
   end
 
@@ -6919,7 +7487,7 @@ defmodule Tuist.TestsTest do
       schemes = Tests.project_test_schemes(project)
 
       # Then
-      assert Enum.sort(schemes) == ["App", "Framework"]
+      assert schemes == ["App", "Framework"]
     end
 
     test "returns an empty list when no tests exist for the project" do

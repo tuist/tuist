@@ -480,6 +480,10 @@ struct CommandEnvironmentVariableTests {
         setVariable(.testGenerateOnly, value: "true")
         setVariable(.testBinaryCache, value: "false")
         setVariable(.testSelectiveTesting, value: "false")
+        setVariable(.testShardReference, value: "shard-ref")
+        setVariable(.testShardIndex, value: "2")
+        setVariable(.testShardSkipUpload, value: "true")
+        setVariable(.testShardArchivePath, value: "/path/to/shards/bundle.aar")
 
         // Execute TestRunCommand without command line arguments
         let testCommandWithEnvVars = try TestRunCommand.parse([])
@@ -508,6 +512,10 @@ struct CommandEnvironmentVariableTests {
         #expect(testCommandWithEnvVars.generateOnly == true)
         #expect(testCommandWithEnvVars.binaryCache == false)
         #expect(testCommandWithEnvVars.selectiveTesting == false)
+        #expect(testCommandWithEnvVars.shardReference == "shard-ref")
+        #expect(testCommandWithEnvVars.shardIndex == 2)
+        #expect(testCommandWithEnvVars.shardSkipUpload == true)
+        #expect(testCommandWithEnvVars.shardArchivePath == "/path/to/shards/bundle.aar")
 
         // Execute TestRunCommand with command line arguments
         let testCommandWithArgs = try TestRunCommand.parse([
@@ -530,6 +538,10 @@ struct CommandEnvironmentVariableTests {
             "--no-generate-only",
             "--no-binary-cache",
             "--no-selective-testing",
+            "--shard-reference", "cli-shard-ref",
+            "--shard-index", "3",
+            "--no-shard-skip-upload",
+            "--shard-archive-path", "/new/shards/bundle.aar",
         ])
         #expect(testCommandWithArgs.scheme == "NewScheme")
         #expect(testCommandWithArgs.clean == false)
@@ -554,6 +566,53 @@ struct CommandEnvironmentVariableTests {
         #expect(testCommandWithArgs.generateOnly == false)
         #expect(testCommandWithArgs.binaryCache == false)
         #expect(testCommandWithArgs.selectiveTesting == false)
+        #expect(testCommandWithArgs.shardReference == "cli-shard-ref")
+        #expect(testCommandWithArgs.shardIndex == 3)
+        #expect(testCommandWithArgs.shardSkipUpload == false)
+        #expect(testCommandWithArgs.shardArchivePath == "/new/shards/bundle.aar")
+    }
+
+    @Test(.withMockedEnvironment()) func xcodeBuildShardCommandsUseEnvVars() throws {
+        setVariable(.testShardArchivePath, value: "/tmp/env-shards/bundle.aar")
+
+        let buildForTestingCommandWithEnvVars = try #require(
+            XcodeBuildCommand.parseAsRoot(["build-for-testing"]) as? XcodeBuildBuildForTestingCommand
+        )
+        #expect(buildForTestingCommandWithEnvVars.shardArchivePath == "/tmp/env-shards/bundle.aar")
+
+        let testCommandWithEnvVars = try #require(
+            XcodeBuildCommand.parseAsRoot(["test"]) as? XcodeBuildTestCommand
+        )
+        #expect(testCommandWithEnvVars.shardArchivePath == "/tmp/env-shards/bundle.aar")
+
+        let testWithoutBuildingCommandWithEnvVars = try #require(
+            XcodeBuildCommand.parseAsRoot(["test-without-building"]) as? XcodeBuildTestWithoutBuildingCommand
+        )
+        #expect(testWithoutBuildingCommandWithEnvVars.shardArchivePath == "/tmp/env-shards/bundle.aar")
+
+        let buildForTestingCommandWithArgs = try #require(
+            XcodeBuildCommand.parseAsRoot([
+                "build-for-testing",
+                "--shard-archive-path", "/tmp/cli-shards/build.aar",
+            ]) as? XcodeBuildBuildForTestingCommand
+        )
+        #expect(buildForTestingCommandWithArgs.shardArchivePath == "/tmp/cli-shards/build.aar")
+
+        let testCommandWithArgs = try #require(
+            XcodeBuildCommand.parseAsRoot([
+                "test",
+                "--shard-archive-path", "/tmp/cli-shards/test.aar",
+            ]) as? XcodeBuildTestCommand
+        )
+        #expect(testCommandWithArgs.shardArchivePath == "/tmp/cli-shards/test.aar")
+
+        let testWithoutBuildingCommandWithArgs = try #require(
+            XcodeBuildCommand.parseAsRoot([
+                "test-without-building",
+                "--shard-archive-path", "/tmp/cli-shards/test-without-building.aar",
+            ]) as? XcodeBuildTestWithoutBuildingCommand
+        )
+        #expect(testWithoutBuildingCommandWithArgs.shardArchivePath == "/tmp/cli-shards/test-without-building.aar")
     }
 
     @Test(.withMockedEnvironment()) func organizationBillingCommandUsesEnvVars() throws {
@@ -858,6 +917,7 @@ struct CommandEnvironmentVariableTests {
 
     @Test(.withMockedEnvironment()) func cacheWarmCommandUsesEnvVars() throws {
         setVariable(.cacheExternalOnly, value: "true")
+        setVariable(.cacheProfile, value: "development")
         setVariable(.cacheGenerateOnly, value: "true")
         setVariable(.cachePrintHashes, value: "true")
         setVariable(.cacheConfiguration, value: "CacheConfig")
@@ -866,6 +926,7 @@ struct CommandEnvironmentVariableTests {
 
         let commandWithEnvVars = try CacheWarmCommand.parse([])
         #expect(commandWithEnvVars.externalOnly == true)
+        #expect(commandWithEnvVars.cacheProfile == "development")
         #expect(commandWithEnvVars.generateOnly == true)
         #expect(commandWithEnvVars.printHashes == true)
         #expect(commandWithEnvVars.configuration == "CacheConfig")
@@ -874,6 +935,7 @@ struct CommandEnvironmentVariableTests {
 
         let commandWithArgs = try CacheWarmCommand.parse([
             "--external-only",
+            "--cache-profile", "development",
             "--generate-only",
             "--print-hashes",
             "--configuration", "CacheConfig",
@@ -882,6 +944,7 @@ struct CommandEnvironmentVariableTests {
             "Fmk1", "Fmk2",
         ])
         #expect(commandWithArgs.externalOnly == true)
+        #expect(commandWithArgs.cacheProfile == "development")
         #expect(commandWithArgs.generateOnly == true)
         #expect(commandWithArgs.printHashes == true)
         #expect(commandWithArgs.configuration == "CacheConfig")

@@ -4,6 +4,7 @@ import Mockable
 import Path
 import TuistConfig
 import TuistConstants
+import TuistEnvironment
 
 @Mockable
 public protocol ConfigLoading: Sendable {
@@ -54,7 +55,7 @@ public struct ConfigLoader: ConfigLoading {
     }
 
     private func configFromToml(_ tomlConfig: TuistTomlConfig) -> TuistConfig.Tuist {
-        TuistConfig.Tuist(
+        return TuistConfig.Tuist(
             project: .defaultGeneratedProject(),
             fullHandle: tomlConfig.project,
             inspectOptions: .init(redundantDependencies: .init(ignoreTagsMatching: [])),

@@ -15,6 +15,7 @@ defmodule Tuist.Application do
   alias Tuist.Tests.TestCaseEvent
   alias Tuist.Tests.TestCaseFailure
   alias Tuist.Tests.TestCaseRun
+  alias Tuist.Tests.TestCaseRunArgument
   alias Tuist.Tests.TestCaseRunAttachment
   alias Tuist.Tests.TestCaseRunRepetition
   alias Tuist.Tests.TestModuleRun
@@ -68,6 +69,7 @@ defmodule Tuist.Application do
 
   defp start_telemetry do
     Oban.Telemetry.attach_default_logger()
+    TuistCommon.ObanTelemetry.attach()
     ReqTelemetry.attach_default_logger(:pipeline)
     TransportLogger.attach(:tuist)
 
@@ -153,6 +155,7 @@ defmodule Tuist.Application do
         Supervisor.child_spec(TestCase.Buffer, id: TestCase.Buffer),
         Supervisor.child_spec(TestCaseFailure.Buffer, id: TestCaseFailure.Buffer),
         Supervisor.child_spec(TestCaseRunRepetition.Buffer, id: TestCaseRunRepetition.Buffer),
+        Supervisor.child_spec(TestCaseRunArgument.Buffer, id: TestCaseRunArgument.Buffer),
         Supervisor.child_spec(TestCaseRunAttachment.Buffer, id: TestCaseRunAttachment.Buffer),
         Supervisor.child_spec(TestCaseEvent.Buffer, id: TestCaseEvent.Buffer),
         Supervisor.child_spec(CASEvent.Buffer, id: CASEvent.Buffer),
@@ -220,25 +223,20 @@ defmodule Tuist.Application do
     )
   end
 
-  defp s3_ca_cert_opts do
-    case Environment.s3_ca_cert_pem() do
-      nil ->
-        [cacertfile: CAStore.file_path()]
-
-      pem_content ->
-        der_certs =
-          pem_content
-          |> :public_key.pem_decode()
-          |> Enum.map(fn {_, der, _} -> der end)
-
-        [cacerts: der_certs]
-    end
-  end
-
   defp finch_pools do
     if Environment.test?() do
       %{:default => [size: 10]}
     else
+      {s3_endpoint, s3_pool_opts} =
+        TuistCommon.FinchPools.s3_pool(
+          endpoint: Environment.s3_endpoint(),
+          size: Environment.s3_pool_size(),
+          count: Environment.s3_pool_count(),
+          protocols: Environment.s3_protocols(),
+          use_ipv6: Environment.use_ipv6?() in ~w(true 1),
+          ca_cert_pem: Environment.s3_ca_cert_pem()
+        )
+
       base_pools =
         %{
           :default => [size: 10, start_pool_metrics?: true],
@@ -257,21 +255,7 @@ defmodule Tuist.Application do
             protocols: [:http2, :http1],
             start_pool_metrics?: true
           ],
-          Environment.s3_endpoint() => [
-            conn_opts: [
-              log: true,
-              protocols: Environment.s3_protocols(),
-              transport_opts:
-                [
-                  inet6: Environment.use_ipv6?() in ~w(true 1),
-                  verify: :verify_peer
-                ] ++ s3_ca_cert_opts()
-            ],
-            size: Environment.s3_pool_size(),
-            count: Environment.s3_pool_count(),
-            protocols: Environment.s3_protocols(),
-            start_pool_metrics?: true
-          ],
+          s3_endpoint => s3_pool_opts,
           "https://marketing.tuist.dev" => [
             conn_opts: [
               log: true,

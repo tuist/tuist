@@ -1,0 +1,57 @@
+.tuist-docs .noora-alert :is(ul, ol) {
+  padding-left: var(--noora-spacing-5);
+}
+
+.tuist-docs .noora-alert [data-part="description"] > * + * {
+  margin-top: var(--noora-spacing-5);
+}
+
+.tuist-docs [data-part="feature-cards"] {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: var(--noora-spacing-7);
+}
+
+.tuist-docs [data-part="feature-card"],
+.tuist-docs [data-part="feature-card"]:link,
+.tuist-docs [data-part="feature-card"]:visited {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-4);
+  transition: box-shadow 0.15s ease;
+  box-shadow: var(--noora-light-border-default);
+  border-radius: var(--noora-radius-xlarge);
+  background: var(--noora-surface-background-primary);
+  width: 100%;
+  overflow: hidden;
+  color: var(--noora-surface-label-secondary);
+  text-decoration: none;
+}
+
+.tuist-docs [data-part="feature-card"]:hover {
+  box-shadow: var(--noora-light-border-focus);
+}
+
+.tuist-docs [data-part="feature-card"] [data-part="image"] {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  box-shadow: var(--noora-light-border-default);
+  border-radius: var(--noora-radius-xlarge);
+  background: linear-gradient(180deg, #f4f5fe 0%, #efe8ff 100%);
+  height: 120px;
+}
+
+.tuist-docs [data-part="feature-card"] [data-part="title"] {
+  color: var(--noora-surface-label-primary);
+  font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
+}
+
+.tuist-docs [data-part="feature-card"] [data-part="body"] {
+  padding: 0 var(--noora-spacing-5) var(--noora-spacing-5);
+
+  & p {
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-medium);
+  }
+}

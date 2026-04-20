@@ -160,15 +160,15 @@ public class TrackableCommand {
                     serverURL: serverURL,
                     sessionDirectory: sessionDirectory
                 )
-                if let buildRunURL {
-                    Logger.current
-                        .info(
-                            "Build uploaded for processing. You can view the build report at: \(buildRunURL.absoluteString)"
-                        )
-                } else if let testRunURL = serverCommandEvent.testRunURL {
+                if let testRunURL = serverCommandEvent.testRunURL {
                     Logger.current
                         .info(
                             "You can view a detailed test report at: \(testRunURL.absoluteString)"
+                        )
+                } else if let buildRunURL {
+                    Logger.current
+                        .info(
+                            "Build uploaded for processing. You can view the build report at: \(buildRunURL.absoluteString)"
                         )
                 } else {
                     Logger.current

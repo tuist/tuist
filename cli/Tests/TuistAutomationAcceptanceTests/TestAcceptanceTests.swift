@@ -6,10 +6,10 @@ import TuistAcceptanceTesting
 import TuistBuildCommand
 import TuistEnvironment
 import TuistSupport
-import TuistTestCommand
 import TuistTesting
 
 @testable import TuistKit
+@testable import TuistTestCommand
 
 struct TestAcceptanceTestiOSAppWithFrameworks {
     @Test(
@@ -283,6 +283,37 @@ struct TestAcceptanceTestInvalidArguments {
                     "--",
                     "-configuration",
                     "Debug",
+                ]
+            )
+        }
+        await #expect(throws: TuistTestFlagError.passthroughActionVerbConflict("build-for-testing")) {
+            try await TuistTest.run(
+                TestCommand.self,
+                [
+                    "App",
+                    "--build-only",
+                    "--path",
+                    fixtureDirectory.pathString,
+                    "--derived-data-path",
+                    derivedDataPath.pathString,
+                    "--",
+                    "build-for-testing",
+                    "-configuration",
+                    "Debug",
+                ]
+            )
+        }
+        await #expect(throws: TuistTestFlagError.passthroughActionVerbConflict("test")) {
+            try await TuistTest.run(
+                TestCommand.self,
+                [
+                    "App",
+                    "--path",
+                    fixtureDirectory.pathString,
+                    "--derived-data-path",
+                    derivedDataPath.pathString,
+                    "--",
+                    "test",
                 ]
             )
         }

@@ -3,10 +3,11 @@
 @import "../shared/css/prose.css";
 @import "../shared/css/code-window.css";
 @import "../shared/css/code-group.css";
+@import "../shared/css/components/account_dropdown.css";
 @import "./css/layouts/root.css";
 @import "./css/components/nav.css";
 @import "./css/components/toc.css";
-@import "./css/components/admonition.css";
+@import "./css/components/documentation.css";
 @import "./css/components/overview.css";
 @import "./css/components/search.css";
 @import "./css/components/page-footer.css";

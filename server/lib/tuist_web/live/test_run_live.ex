@@ -8,6 +8,7 @@ defmodule TuistWeb.TestRunLive do
   import TuistWeb.Helpers.StackFrames
   import TuistWeb.Helpers.TestLabels
   import TuistWeb.Helpers.VCSLinks
+  import TuistWeb.Previews.PlatformIcon
   import TuistWeb.Runs.ModuleCacheTab
   import TuistWeb.Runs.RanByBadge
 
@@ -18,6 +19,7 @@ defmodule TuistWeb.TestRunLive do
   alias Tuist.Shards.ShardPlan
   alias Tuist.Storage
   alias Tuist.Tests
+  alias Tuist.Tests.TestRunDestination
   alias Tuist.Xcode
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Utilities.Query
@@ -28,7 +30,7 @@ defmodule TuistWeb.TestRunLive do
   def mount(params, _session, %{assigns: %{selected_project: project}} = socket) do
     run =
       case Tests.get_test(params["test_run_id"],
-             preload: [:ran_by_account, :build_run, :gradle_build, :shard_plan]
+             preload: [:ran_by_account, :build_run, :gradle_build, :shard_plan, :run_destinations]
            ) do
         {:ok, test} ->
           test
@@ -127,7 +129,7 @@ defmodule TuistWeb.TestRunLive do
 
   def handle_info({:test_created, test}, %{assigns: %{run: run, selected_project: project}} = socket) do
     if test.id == run.id do
-      case Tests.get_test(run.id, preload: [:ran_by_account, :build_run, :gradle_build, :shard_plan]) do
+      case Tests.get_test(run.id, preload: [:ran_by_account, :build_run, :gradle_build, :shard_plan, :run_destinations]) do
         {:ok, refreshed_run} ->
           refreshed_run = Map.put(refreshed_run, :project, project)
 
@@ -148,7 +150,7 @@ defmodule TuistWeb.TestRunLive do
   end
 
   def handle_event("refresh_test_run", _params, %{assigns: %{run: run, selected_project: project}} = socket) do
-    case Tests.get_test(run.id, preload: [:ran_by_account, :build_run, :gradle_build, :shard_plan]) do
+    case Tests.get_test(run.id, preload: [:ran_by_account, :build_run, :gradle_build, :shard_plan, :run_destinations]) do
       {:ok, refreshed_run} ->
         refreshed_run = Map.put(refreshed_run, :project, project)
 
@@ -682,7 +684,13 @@ defmodule TuistWeb.TestRunLive do
     }
 
     Tests.list_test_case_runs(attrs,
-      preload: [:failures, :repetitions, :attachments, crash_report: :test_case_run_attachment]
+      preload: [
+        :failures,
+        :repetitions,
+        :attachments,
+        crash_report: :test_case_run_attachment,
+        arguments: [:failures, :repetitions, :attachments]
+      ]
     )
   end
 

@@ -30,7 +30,7 @@ defmodule TuistWeb.OpsCacheLiveTest do
       })
 
     # When
-    {:ok, _lv, html} = live(conn, ~p"/ops/cache")
+    {:ok, _lv, html} = live(conn, ~p"/ops")
 
     # Then
     assert html =~ "Cache Endpoints"
@@ -47,7 +47,7 @@ defmodule TuistWeb.OpsCacheLiveTest do
         display_name: "Test Node"
       })
 
-    {:ok, lv, _html} = live(conn, ~p"/ops/cache")
+    {:ok, lv, _html} = live(conn, ~p"/ops")
 
     # When
     lv |> element("button", "Disable") |> render_click()
@@ -65,7 +65,7 @@ defmodule TuistWeb.OpsCacheLiveTest do
         display_name: "Test Node"
       })
 
-    {:ok, lv, _html} = live(conn, ~p"/ops/cache")
+    {:ok, lv, _html} = live(conn, ~p"/ops")
 
     # When
     lv |> element("button", "Delete") |> render_click()
@@ -76,7 +76,7 @@ defmodule TuistWeb.OpsCacheLiveTest do
 
   test "adds a new endpoint in disabled state", %{conn: conn} do
     # Given
-    {:ok, lv, _html} = live(conn, ~p"/ops/cache")
+    {:ok, lv, _html} = live(conn, ~p"/ops")
 
     # When
     lv
@@ -94,7 +94,7 @@ defmodule TuistWeb.OpsCacheLiveTest do
 
   test "shows empty state when no endpoints exist", %{conn: conn} do
     # When
-    {:ok, _lv, html} = live(conn, ~p"/ops/cache")
+    {:ok, _lv, html} = live(conn, ~p"/ops")
 
     # Then
     assert html =~ "No cache endpoints"

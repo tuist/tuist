@@ -27,7 +27,7 @@ public struct JWT: Equatable {
     public let preferredUsername: String?
     public let type: String?
 
-    static func make(
+    public static func make(
         expiryDate: Date,
         typ: String = "JWT",
         email: String? = nil,

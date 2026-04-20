@@ -23,12 +23,11 @@
   }
 
   &:hover {
-    background: var(--noora-surface-background-secondary);
+    background: var(--noora-surface-background-tertiary);
   }
 
   &[data-selected] {
-    box-shadow: var(--noora-button-border-secondary);
-    background: var(--noora-button-background-secondary);
+    background: var(--noora-surface-background-secondary);
   }
 }
 

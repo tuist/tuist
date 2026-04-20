@@ -1,0 +1,117 @@
+import FileSystem
+import Foundation
+import Mockable
+import Path
+import TuistSimulator
+import TuistSupport
+
+public enum AppBundleLoaderError: LocalizedError, Equatable {
+    case missingInfoPlist(AbsolutePath)
+    case failedDecodingInfoPlist(AbsolutePath, String)
+    case appBundleInIPANotFound(AbsolutePath)
+    case unknownDestinationType(AbsolutePath)
+
+    public var errorDescription: String? {
+        switch self {
+        case let .missingInfoPlist(path):
+            return "Expected Info.plist at \(path) was not found. Make sure it exists."
+        case let .failedDecodingInfoPlist(path, reason):
+            return "Failed decoding Info.plist at \(path) due to: \(reason)"
+        case let .appBundleInIPANotFound(ipaPath):
+            return
+                "No app found in the .ipa archive at \(ipaPath). Make sure the .ipa is a valid application archive."
+        case let .unknownDestinationType(path):
+            return "Could not determine the destination type of the app bundle at \(path)."
+        }
+    }
+}
+
+@Mockable
+public protocol AppBundleLoading {
+    func load(_ appBundle: AbsolutePath) async throws -> AppBundle
+    func load(_ appBundle: AbsolutePath, destinationType: DestinationType) async throws -> AppBundle
+    func load(ipa: AbsolutePath) async throws -> AppBundle
+}
+
+public struct AppBundleLoader: AppBundleLoading {
+    private let fileSystem: FileSysteming
+    private let fileArchiverFactory: FileArchivingFactorying
+
+    public init() {
+        self.init(
+            fileSystem: FileSystem()
+        )
+    }
+
+    init(
+        fileSystem: FileSysteming,
+        fileArchiverFactory: FileArchivingFactorying = FileArchivingFactory()
+    ) {
+        self.fileSystem = fileSystem
+        self.fileArchiverFactory = fileArchiverFactory
+    }
+
+    public func load(ipa: AbsolutePath) async throws -> AppBundle {
+        let unarchivedIPA = try await fileArchiverFactory.makeFileUnarchiver(for: ipa).unzip()
+
+        guard let appBundlePath = try await fileSystem.glob(
+            directory: unarchivedIPA,
+            include: ["**/*.app"]
+        )
+        .collect()
+        .first
+        else { throw AppBundleLoaderError.appBundleInIPANotFound(ipa) }
+
+        let infoPlist = try await loadInfoPlist(at: appBundlePath)
+        guard let destinationType = infoPlist.supportedPlatforms.first else {
+            throw AppBundleLoaderError.unknownDestinationType(ipa)
+        }
+        return AppBundle(
+            path: ipa,
+            infoPlist: infoPlist,
+            destinationType: destinationType
+        )
+    }
+
+    public func load(_ appBundle: AbsolutePath, destinationType: DestinationType) async throws -> AppBundle {
+        let infoPlist = try await loadInfoPlist(at: appBundle)
+        return AppBundle(
+            path: appBundle,
+            infoPlist: infoPlist,
+            destinationType: destinationType
+        )
+    }
+
+    public func load(_ appBundle: AbsolutePath) async throws -> AppBundle {
+        let infoPlist = try await loadInfoPlist(at: appBundle)
+        guard let destinationType = infoPlist.supportedPlatforms.first else {
+            throw AppBundleLoaderError.unknownDestinationType(appBundle)
+        }
+        return AppBundle(
+            path: appBundle,
+            infoPlist: infoPlist,
+            destinationType: destinationType
+        )
+    }
+
+    private func loadInfoPlist(at appBundle: AbsolutePath) async throws -> AppBundle.InfoPlist {
+        // macOS bundles use Contents/ subdirectory layout, other Apple platforms use flat layout.
+        let isMacOSBundle = try await fileSystem.exists(appBundle.appending(component: "Contents"), isDirectory: true)
+        let infoPlistPath = isMacOSBundle
+            ? appBundle.appending(components: "Contents", "Info.plist")
+            : appBundle.appending(component: "Info.plist")
+
+        guard try await fileSystem.exists(infoPlistPath) else {
+            throw AppBundleLoaderError.missingInfoPlist(infoPlistPath)
+        }
+
+        let data = try Data(contentsOf: infoPlistPath.url)
+        let decoder = PropertyListDecoder()
+
+        do {
+            return try decoder.decode(AppBundle.InfoPlist.self, from: data)
+        } catch {
+            throw AppBundleLoaderError.failedDecodingInfoPlist(infoPlistPath, error.localizedDescription)
+        }
+    }
+}

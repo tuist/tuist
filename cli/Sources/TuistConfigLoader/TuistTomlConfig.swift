@@ -1,4 +1,5 @@
 import Foundation
+import TuistConfig
 
 struct TuistTomlConfig: Equatable, Sendable, Decodable {
     let project: String

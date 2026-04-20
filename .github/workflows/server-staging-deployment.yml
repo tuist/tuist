@@ -18,6 +18,7 @@ env:
   CI: true
   RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  MISE_GITHUB_TOKEN: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN || github.token }}
   PNPM_HOME: ~/.pnpm
 
 defaults:
@@ -37,6 +38,7 @@ jobs:
       - uses: jdx/mise-action@v2
         with:
           install: false
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
       - name: "Get version"
         id: version
         run: |
@@ -46,8 +48,9 @@ jobs:
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           sed -i 's/version: "[^"]*"/version: "'$VERSION'"/' mix.exs
-      - name: Trigger canary deploy with Render CLI
+      - name: Trigger staging deploy with Render CLI
         env:
           MISE_GITHUB_ATTESTATIONS: 0
+          GITHUB_TOKEN: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN }}
         run: |
           mise exec "github:render-oss/cli@2.6.1" -- cli_v2.6.1 deploys create srv-d35uk7pr0fns73bg0gq0 --output json --confirm --wait --commit "$GITHUB_SHA"

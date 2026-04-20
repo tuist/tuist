@@ -14,7 +14,8 @@ struct UserInputReaderTests {
         let result = reader.readInt(asking: "prompt", maxValueAllowed: 1)
 
         // Then
-        #expect(result == Int(fakeReadLine.input))
+        let expected = Int(fakeReadLine.input)
+        #expect(result == expected)
     }
 
     @Test func readIntAfterIncorrectInputs() {
@@ -28,7 +29,8 @@ struct UserInputReaderTests {
         let result = reader.readInt(asking: "prompt", maxValueAllowed: 2)
 
         // Then
-        #expect(result == Int(String(fakeReadLine.input.last!)))
+        let expected = Int(String(fakeReadLine.input.last!))
+        #expect(result == expected)
     }
 
     @Test func readString() {

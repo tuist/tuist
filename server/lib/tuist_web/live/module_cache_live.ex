@@ -4,11 +4,14 @@ defmodule TuistWeb.ModuleCacheLive do
   use Noora
 
   import Ecto.Query
+  import TuistWeb.Components.ChartTypeToggle
   import TuistWeb.Components.EmptyCardSection
+  import TuistWeb.Components.ScatterChart
   import TuistWeb.Components.Skeleton
   import TuistWeb.PercentileDropdownWidget
   import TuistWeb.Runs.RanByBadge
 
+  alias Phoenix.LiveView.AsyncResult
   alias Tuist.Builds.Analytics
   alias Tuist.CommandEvents
   alias Tuist.CommandEvents.Event
@@ -38,7 +41,10 @@ defmodule TuistWeb.ModuleCacheLive do
               "analytics-selected-widget",
               "analytics-environment",
               "analytics-date-range",
-              "hit-rate-type"
+              "analytics-start-date",
+              "analytics-end-date",
+              "hit-rate-type",
+              "cache-hit-rate-chart-type"
             ])
           )
       )
@@ -94,6 +100,19 @@ defmodule TuistWeb.ModuleCacheLive do
     {:noreply, socket}
   end
 
+  def handle_event("select_cache_hit_rate_chart_type", %{"type" => type}, socket) do
+    query = Query.put(socket.assigns.uri.query, "cache-hit-rate-chart-type", type)
+    uri = URI.new!("?" <> query)
+    opts = analytics_opts(socket.assigns)
+
+    {:noreply,
+     socket
+     |> assign(:cache_hit_rate_chart_type, type)
+     |> assign(:uri, uri)
+     |> push_event("replace-url", %{url: "?" <> query})
+     |> assign_cache_hit_rate_chart(type, opts)}
+  end
+
   def handle_event(
         "analytics_period_changed",
         %{"value" => %{"start" => start_date, "end" => end_date}, "preset" => preset},
@@ -119,31 +138,24 @@ defmodule TuistWeb.ModuleCacheLive do
   defp assign_analytics(%{assigns: %{selected_project: project}} = socket, params) do
     analytics_environment = params["analytics-environment"] || "any"
 
-    %{preset: preset, period: {start_datetime, end_datetime} = period} =
-      DatePicker.date_picker_params(params, "analytics")
-
-    opts = [
-      project_id: project.id,
-      start_datetime: start_datetime,
-      end_datetime: end_datetime
-    ]
-
-    opts =
-      case analytics_environment do
-        "ci" -> Keyword.put(opts, :is_ci, true)
-        "local" -> Keyword.put(opts, :is_ci, false)
-        _ -> opts
-      end
+    %{preset: preset, period: period} = DatePicker.date_picker_params(params, "analytics")
 
     analytics_selected_widget = params["analytics-selected-widget"] || "cache_hit_rate"
+    cache_hit_rate_chart_type = params["cache-hit-rate-chart-type"] || "line"
+
+    socket =
+      socket
+      |> assign(:analytics_preset, preset)
+      |> assign(:analytics_period, period)
+      |> assign(:analytics_trend_label, analytics_trend_label(preset))
+      |> assign(:analytics_selected_widget, analytics_selected_widget)
+      |> assign(:analytics_environment, analytics_environment)
+      |> assign(:selected_hit_rate_type, params["hit-rate-type"] || "avg")
+      |> assign(:cache_hit_rate_chart_type, cache_hit_rate_chart_type)
+
+    opts = analytics_opts(socket.assigns)
 
     socket
-    |> assign(:analytics_preset, preset)
-    |> assign(:analytics_period, period)
-    |> assign(:analytics_trend_label, analytics_trend_label(preset))
-    |> assign(:analytics_selected_widget, analytics_selected_widget)
-    |> assign(:analytics_environment, analytics_environment)
-    |> assign(:selected_hit_rate_type, params["hit-rate-type"] || "avg")
     |> assign_async([:hit_rate_analytics, :hits_analytics, :misses_analytics, :analytics_chart_data], fn ->
       hit_rate_analytics = Analytics.module_cache_hit_rate_analytics(opts)
       hits_analytics = Analytics.module_cache_hits_analytics(opts)
@@ -172,6 +184,32 @@ defmodule TuistWeb.ModuleCacheLive do
     |> assign_async(:hit_rate_p50, fn ->
       {:ok, %{hit_rate_p50: Analytics.module_cache_hit_rate_percentile(project.id, 0.5, opts)}}
     end)
+    |> assign_cache_hit_rate_chart(cache_hit_rate_chart_type, opts)
+  end
+
+  defp assign_cache_hit_rate_chart(socket, "scatter", opts) do
+    assign_async(socket, :cache_hit_rate_chart, fn ->
+      {:ok,
+       %{cache_hit_rate_chart: {:scatter, opts |> Analytics.module_cache_hit_rate_scatter_data() |> with_tooltip_extra()}}}
+    end)
+  end
+
+  defp assign_cache_hit_rate_chart(socket, _line, _opts) do
+    assign(socket, :cache_hit_rate_chart, AsyncResult.ok(:line))
+  end
+
+  defp analytics_opts(%{
+         selected_project: project,
+         analytics_period: {start_datetime, end_datetime},
+         analytics_environment: env
+       }) do
+    opts = [project_id: project.id, start_datetime: start_datetime, end_datetime: end_datetime]
+
+    case env do
+      "ci" -> Keyword.put(opts, :is_ci, true)
+      "local" -> Keyword.put(opts, :is_ci, false)
+      _ -> opts
+    end
   end
 
   defp assign_recent_runs(%{assigns: %{selected_project: project}} = socket, _params) do
@@ -198,15 +236,16 @@ defmodule TuistWeb.ModuleCacheLive do
           Map.put(event, :user_account_name, Map.get(user_map, event.id))
         end)
 
+      reversed_events = Enum.reverse(events)
+
       recent_runs_chart_data =
-        events
-        |> Enum.reverse()
-        |> Enum.map(fn event ->
+        Enum.map(reversed_events, fn event ->
           hit_rate = cache_hit_rate(event)
 
           %{
             value: hit_rate,
-            date: event.ran_at
+            date: event.ran_at,
+            url: ~p"/#{project.account.name}/#{project.name}/runs/#{event.id}"
           }
         end)
 
@@ -279,4 +318,28 @@ defmodule TuistWeb.ModuleCacheLive do
   defp environment_label("any"), do: dgettext("dashboard_cache", "Any")
   defp environment_label("local"), do: dgettext("dashboard_cache", "Local")
   defp environment_label("ci"), do: dgettext("dashboard_cache", "CI")
+  defp environment_label(true), do: dgettext("dashboard_cache", "CI")
+  defp environment_label(false), do: dgettext("dashboard_cache", "Local")
+
+  defp with_tooltip_extra(scatter_data) do
+    Map.update!(scatter_data, :series, fn series ->
+      Enum.map(series, fn s ->
+        %{
+          name: environment_label(s.name),
+          data:
+            Enum.map(s.data, fn point ->
+              point
+              |> Map.take([:value, :id])
+              |> Map.put(:tooltipExtra, tooltip_extra(point.meta))
+            end)
+        }
+      end)
+    end)
+  end
+
+  defp tooltip_extra(meta) do
+    [
+      %{label: dgettext("dashboard_cache", "Environment"), value: environment_label(meta.is_ci)}
+    ]
+  end
 end

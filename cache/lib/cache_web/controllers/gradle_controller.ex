@@ -137,21 +137,48 @@ defmodule CacheWeb.GradleController do
         schema: SafePathComponent.schema(),
         required: true,
         description: "The handle of the project"
+      ],
+      "content-length": [
+        in: :header,
+        schema: %OpenApiSpex.Schema{type: :integer, minimum: 0},
+        required: true,
+        description:
+          "Declared body length in bytes. Required: `Cache.BodyReader` compares actual bytes " <>
+            "received against this value to reject truncated uploads, so chunked transfer " <>
+            "encoding (no Content-Length) is not accepted on this endpoint."
       ]
     ],
     request_body: {"The Gradle build cache artifact data", "application/octet-stream", nil, required: true},
     responses: %{
       ok: {"Upload successful (artifact existed)", nil, nil},
       created: {"Upload successful (new artifact)", nil, nil},
+      bad_request:
+        {"Request body was truncated before reaching the declared Content-Length", "application/json", Error},
       request_entity_too_large: {"Request body exceeded allowed size", "application/json", Error},
       request_timeout: {"Request body read timed out", "application/json", Error},
       internal_server_error: {"Failed to persist artifact", "application/json", Error},
-      unprocessable_entity: {"Invalid request parameters", "application/json", Error},
+      unprocessable_entity:
+        {"Invalid or missing request parameters (e.g., missing Content-Length header)", "application/json", Error},
       unauthorized: {"Unauthorized", "application/json", Error},
       forbidden: {"Forbidden", "application/json", Error}
     }
   )
 
+  # Gradle's client library uploads build cache entries as opaque gzipped blobs.
+  # A client disconnect mid-upload can surface as an `{:ok, partial, conn}`
+  # result from the HTTP adapter rather than an error, so we rely on
+  # `Cache.BodyReader`'s Content-Length enforcement to distinguish complete
+  # uploads from truncated ones. Without that enforcement, a partial gzip
+  # stream can be persisted here and every subsequent download serves those
+  # bytes with a 200 — the client then fails deep inside its snapshot parser
+  # with a null-message exception that is very hard to trace back to the
+  # upload path.
+  #
+  # The Content-Length header is declared `required: true` in the operation
+  # spec above so `OpenApiSpex.Plug.CastAndValidate` rejects chunked-transfer
+  # requests (no Content-Length) with a 422 before this function runs. That
+  # keeps the enforcement in a single place — the spec — and guarantees the
+  # validation pattern matches the generated OpenAPI documentation.
   def save(conn, %{cache_key: cache_key, account_handle: account_handle, project_handle: project_handle}) do
     if Gradle.Disk.exists?(account_handle, project_handle, cache_key) do
       handle_existing_artifact(conn)
@@ -187,6 +214,15 @@ defmodule CacheWeb.GradleController do
       {:error, :cancelled, conn_after} ->
         :telemetry.execute([:cache, :gradle, :upload, :cancelled], %{count: 1}, %{})
         send_resp(conn_after, :ok, "")
+
+      {:error, :truncated, conn_after} ->
+        :telemetry.execute([:cache, :gradle, :upload, :error], %{count: 1}, %{reason: :truncated})
+
+        send_error(
+          conn_after,
+          :bad_request,
+          "Request body was truncated before reaching the declared Content-Length"
+        )
 
       {:error, _reason, conn_after} ->
         :telemetry.execute([:cache, :gradle, :upload, :error], %{count: 1}, %{reason: :read_error})

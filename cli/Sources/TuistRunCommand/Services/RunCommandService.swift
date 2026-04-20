@@ -17,6 +17,7 @@ import TuistSupport
     import TuistKit
     import TuistLoader
     import TuistSimulator
+    import TuistXcodeBuildProducts
     import XcodeGraph
 #endif
 

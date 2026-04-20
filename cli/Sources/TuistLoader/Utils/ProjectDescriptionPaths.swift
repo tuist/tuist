@@ -44,7 +44,7 @@ public struct ProjectDescriptionSearchPaths {
     var includeSearchPath: AbsolutePath {
         switch style {
         case .commandLine:
-            return path.parentDirectory
+            return path.parentDirectory.appending(component: "Modules")
         case .xcode:
             return path.parentDirectory
         case .swiftPackageInXcode:

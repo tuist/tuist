@@ -141,8 +141,8 @@ defmodule TuistWeb.SSOSettingsLiveTest do
         render_hook(lv, "validate_sso", %{
           "sso" => %{
             "okta_domain" => "company.okta.com",
-            "okta_client_id" => "test_client_id",
-            "okta_client_secret" => ""
+            "oauth2_client_id" => "test_client_id",
+            "oauth2_client_secret" => ""
           }
         })
 
@@ -160,8 +160,8 @@ defmodule TuistWeb.SSOSettingsLiveTest do
         |> form("#sso-form", %{
           "sso" => %{
             "okta_domain" => "company.okta.com",
-            "okta_client_id" => "test_client_id",
-            "okta_client_secret" => "test_client_secret"
+            "oauth2_client_id" => "test_client_id",
+            "oauth2_client_secret" => "test_client_secret"
           }
         })
         |> render_submit()
@@ -178,6 +178,98 @@ defmodule TuistWeb.SSOSettingsLiveTest do
 
       assert html =~ "Create App Integration"
       assert html =~ "/users/auth/okta/callback"
+    end
+  end
+
+  describe "Custom OAuth2 SSO" do
+    test "disables save button when required fields are empty", %{conn: conn, account: account} do
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sso")
+
+      render_hook(lv, "toggle_sso")
+      html = render_hook(lv, "select_provider", %{"value" => ["oauth2"]})
+
+      assert html =~ "disabled"
+    end
+
+    test "configures custom OAuth2 SSO with all fields", %{conn: conn, account: account} do
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sso")
+
+      render_hook(lv, "toggle_sso")
+      render_hook(lv, "select_provider", %{"value" => ["oauth2"]})
+
+      html =
+        lv
+        |> form("#sso-form", %{
+          "sso" => %{
+            "oauth2_site" => "https://auth.example.com",
+            "oauth2_client_id" => "test_client_id",
+            "oauth2_client_secret" => "test_client_secret",
+            "oauth2_authorize_url" => "https://auth.example.com/oauth2/authorize",
+            "oauth2_token_url" => "https://auth.example.com/oauth2/token",
+            "oauth2_user_info_url" => "https://auth.example.com/oauth2/userinfo"
+          }
+        })
+        |> render_submit()
+
+      refute html =~ "Failed to configure"
+      assert html =~ "Enable Single Sign-On"
+    end
+
+    test "shows error when submitting invalid URLs", %{conn: conn, account: account} do
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sso")
+
+      render_hook(lv, "toggle_sso")
+      render_hook(lv, "select_provider", %{"value" => ["oauth2"]})
+
+      html =
+        lv
+        |> form("#sso-form", %{
+          "sso" => %{
+            "oauth2_site" => "not-a-url",
+            "oauth2_client_id" => "test_client_id",
+            "oauth2_client_secret" => "test_client_secret",
+            "oauth2_authorize_url" => "not-a-url",
+            "oauth2_token_url" => "not-a-url",
+            "oauth2_user_info_url" => "not-a-url"
+          }
+        })
+        |> render_submit()
+
+      assert html =~ "must be a valid URL"
+    end
+
+    test "shows error when submitting private addresses", %{conn: conn, account: account} do
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sso")
+
+      render_hook(lv, "toggle_sso")
+      render_hook(lv, "select_provider", %{"value" => ["oauth2"]})
+
+      html =
+        lv
+        |> form("#sso-form", %{
+          "sso" => %{
+            "oauth2_site" => "https://localhost",
+            "oauth2_client_id" => "test_client_id",
+            "oauth2_client_secret" => "test_client_secret",
+            "oauth2_authorize_url" => "https://localhost/authorize",
+            "oauth2_token_url" => "https://localhost/token",
+            "oauth2_user_info_url" => "https://localhost/userinfo"
+          }
+        })
+        |> render_submit()
+
+      assert html =~ "must be a valid URL"
+    end
+
+    test "displays custom OAuth2 setup instructions when selected", %{conn: conn, account: account} do
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sso")
+
+      render_hook(lv, "toggle_sso")
+      html = render_hook(lv, "select_provider", %{"value" => ["oauth2"]})
+
+      assert html =~ "/users/auth/oauth2/callback"
+      assert html =~ "Provider URL"
+      assert html =~ "Authorize URL"
     end
   end
 
@@ -335,12 +427,40 @@ defmodule TuistWeb.SSOSettingsLiveTest do
           creator: user,
           sso_provider: :okta,
           sso_organization_id: "company.okta.com",
-          okta_client_id: "test_client_id",
-          okta_client_secret: "test_secret",
+          oauth2_client_id: "test_client_id",
+          oauth2_client_secret: "test_secret",
           preload: [:account]
         )
 
       {:ok, lv, _html} = live(conn, ~p"/#{okta_account.name}/sso")
+
+      render_hook(lv, "toggle_sso")
+
+      html =
+        lv
+        |> form("#sso-form")
+        |> render_submit()
+
+      refute html =~ "error"
+      assert html =~ "Enable Single Sign-On"
+    end
+
+    test "disables custom OAuth2 SSO", %{conn: conn, user: user} do
+      %{account: oauth2_account} =
+        AccountsFixtures.organization_fixture(
+          name: "custom-oauth2-sso-org",
+          creator: user,
+          sso_provider: :oauth2,
+          sso_organization_id: "https://auth.example.com",
+          oauth2_client_id: "test_client_id",
+          oauth2_client_secret: "test_secret",
+          oauth2_authorize_url: "https://auth.example.com/oauth2/authorize",
+          oauth2_token_url: "https://auth.example.com/oauth2/token",
+          oauth2_user_info_url: "https://auth.example.com/oauth2/userinfo",
+          preload: [:account]
+        )
+
+      {:ok, lv, _html} = live(conn, ~p"/#{oauth2_account.name}/sso")
 
       render_hook(lv, "toggle_sso")
 

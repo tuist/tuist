@@ -3,6 +3,7 @@ import Foundation
 import Path
 import ProjectDescription
 import TuistCore
+import TuistEnvironment
 import TuistLogging
 import TuistSupport
 import XcodeGraph
@@ -73,7 +74,8 @@ extension XcodeGraph.Target {
             fileSystem: fileSystem
         )
 
-        let copyFiles = try await (manifest.copyFiles ?? []).concurrentMap(maxConcurrentTasks: 100) {
+        let maxConcurrentTasks = Environment.current.isSwiftFileSystemBackendEnabled ? Int.max : 100
+        let copyFiles = try await (manifest.copyFiles ?? []).concurrentMap(maxConcurrentTasks: maxConcurrentTasks) {
             try await XcodeGraph.CopyFilesAction.from(
                 manifest: $0,
                 generatorPaths: generatorPaths,
@@ -93,20 +95,20 @@ extension XcodeGraph.Target {
             headers = nil
         }
 
-        let coreDataModels = try await manifest.coreDataModels.concurrentMap(maxConcurrentTasks: 100) {
+        let coreDataModels = try await manifest.coreDataModels.concurrentMap(maxConcurrentTasks: maxConcurrentTasks) {
             try await XcodeGraph.CoreDataModel.from(
                 manifest: $0,
                 generatorPaths: generatorPaths,
                 fileSystem: fileSystem
             )
-        } + resourcesCoreDatas.concurrentMap(maxConcurrentTasks: 100) {
+        } + resourcesCoreDatas.concurrentMap(maxConcurrentTasks: maxConcurrentTasks) {
             try await XcodeGraph.CoreDataModel.from(
                 path: $0,
                 fileSystem: fileSystem
             )
         }
 
-        let scripts = try await manifest.scripts.concurrentMap(maxConcurrentTasks: 100) {
+        let scripts = try await manifest.scripts.concurrentMap(maxConcurrentTasks: maxConcurrentTasks) {
             try await XcodeGraph.TargetScript.from(
                 manifest: $0,
                 generatorPaths: generatorPaths,
@@ -120,7 +122,7 @@ extension XcodeGraph.Target {
         let playgrounds = sourcesPlaygrounds + resourcesPlaygrounds
 
         let additionalFiles = try await manifest.additionalFiles
-            .concurrentMap(maxConcurrentTasks: 100) {
+            .concurrentMap(maxConcurrentTasks: maxConcurrentTasks) {
                 try await XcodeGraph.FileElement.from(
                     manifest: $0,
                     generatorPaths: generatorPaths,
@@ -138,7 +140,7 @@ extension XcodeGraph.Target {
         }
 
         let metadata = XcodeGraph.TargetMetadata(tags: Set(manifest.metadata.tags))
-        let buildableFolders = try await manifest.buildableFolders.concurrentMap(maxConcurrentTasks: 100) {
+        let buildableFolders = try await manifest.buildableFolders.concurrentMap(maxConcurrentTasks: maxConcurrentTasks) {
             try await XcodeGraph.BuildableFolder.from(
                 manifest: $0,
                 generatorPaths: generatorPaths,
@@ -239,8 +241,9 @@ extension XcodeGraph.Target {
         var playgrounds: Set<AbsolutePath> = []
         var coreDataModels: Set<AbsolutePath> = []
 
+        let maxConcurrentTasks = Environment.current.isSwiftFileSystemBackendEnabled ? Int.max : 100
         let result = try await (manifest.resources?.resources ?? [])
-            .concurrentMap(maxConcurrentTasks: 100) { manifest async throws -> [XcodeGraph.ResourceFileElement] in
+            .concurrentMap(maxConcurrentTasks: maxConcurrentTasks) { manifest async throws -> [XcodeGraph.ResourceFileElement] in
                 do {
                     return try await XcodeGraph.ResourceFileElement.from(
                         manifest: manifest,

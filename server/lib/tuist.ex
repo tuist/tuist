@@ -59,6 +59,7 @@ defmodule Tuist do
       Tests,
       Tests.Test,
       Tests.TestCase,
+      Tests.TestRunDestination,
       Tests.Analytics,
       Tests.Workers.ProcessXcresultWorker,
       Shards,
@@ -135,12 +136,14 @@ defmodule Tuist do
       Storage,
       Tasks,
       Time,
+      URL,
       Utilities.ByteFormatter,
       Utilities.DateFormatter,
       Utilities.ThroughputFormatter,
       VCS,
       UUIDv7,
       OAuth.Apple,
-      OAuth.Okta
+      OAuth2.SSOClient,
+      OAuth2.SSRFGuard
     ]
 end

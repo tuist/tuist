@@ -162,7 +162,7 @@ let tuist = Tuist(
 
 ## Using tags with project description helpers {#using-tags-with-helpers}
 
-You can leverage <LocalizedLink href="/guides/features/projects/code-sharing">project description helpers</LocalizedLink> to standardize how tags are applied across your project:
+You can leverage <.localized_link href="/guides/features/projects/code-sharing">project description helpers</.localized_link> to standardize how tags are applied across your project:
 
 ```swift
 // Tuist/ProjectDescriptionHelpers/Project+Templates.swift
@@ -226,7 +226,7 @@ Tags provide a flexible way to organize your codebase:
 
 ### Integration with caching
 
-Metadata tags work seamlessly with <LocalizedLink href="/guides/features/cache">Tuist's caching features</LocalizedLink>:
+Metadata tags work seamlessly with <.localized_link href="/guides/features/cache">Tuist's caching features</.localized_link>:
 
 ```bash
 # Cache all targets
@@ -246,6 +246,6 @@ tuist generate tag:feature:payment
 
 ## Related features {#related-features}
 
-- <LocalizedLink href="/guides/features/projects/code-sharing">Code sharing</LocalizedLink> - Use project description helpers to standardize tag usage
-- <LocalizedLink href="/guides/features/cache">Cache</LocalizedLink> - Combine tags with caching for optimal build performance
-- <LocalizedLink href="/guides/features/selective-testing">Selective testing</LocalizedLink> - Run tests only for changed targets
+- <.localized_link href="/guides/features/projects/code-sharing">Code sharing</.localized_link> - Use project description helpers to standardize tag usage
+- <.localized_link href="/guides/features/cache">Cache</.localized_link> - Combine tags with caching for optimal build performance
+- <.localized_link href="/guides/features/selective-testing">Selective testing</.localized_link> - Run tests only for changed targets

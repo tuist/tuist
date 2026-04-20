@@ -1,3 +1,15 @@
+# Configure req_llm's internal Finch pool BEFORE Mix.install so the application
+# supervisor reads it at startup. req_llm hardcodes the Finch instance to
+# ReqLLM.Finch in its provider attach steps, so passing :finch via req_http_options
+# is silently overridden — sizing this pool is the only thing that takes effect.
+# HTTP/1 only avoids Finch issue #265 with large request bodies.
+Application.put_env(:req_llm, :finch,
+  name: ReqLLM.Finch,
+  pools: %{
+    default: [protocols: [:http1], size: 1, count: 128]
+  }
+)
+
 Mix.install([
   {:req_llm, "~> 1.9"},
   {:yaml_elixir, "~> 2.11"},
@@ -310,6 +322,8 @@ defmodule L10n.Translator do
   supports (Anthropic, OpenAI, Ollama, etc.).
   """
 
+  @default_timeout 900_000
+
   @plural_forms %{
     "es" => "nplurals=2; plural=n != 1;",
     "ja" => "nplurals=1; plural=0;",
@@ -351,7 +365,7 @@ defmodule L10n.Translator do
   sends the full .pot content as the user message, and returns the
   translated .po file content as a string.
   """
-  def translate(pot_content, locale, language, context_body, locale_override, model) do
+  def translate(pot_content, locale, language, context_body, locale_override, model, timeout) do
     plural_forms = Map.get(@plural_forms, locale, "nplurals=2; plural=n != 1;")
 
     system_prompt = """
@@ -397,22 +411,24 @@ defmodule L10n.Translator do
 
     resolved_model = resolve_model(model)
 
-    {:ok, stream_response} = ReqLLM.stream_text(resolved_model, messages,
-      max_tokens: 64_000,
-      receive_timeout: 300_000
-    )
+    case ReqLLM.generate_text(resolved_model, messages,
+           max_tokens: 64_000,
+           receive_timeout: timeout
+         ) do
+      {:ok, response} ->
+        text =
+          response
+          |> ReqLLM.Response.text()
+          |> String.trim()
+          |> String.replace(~r/^```[a-z]*\n/, "")
+          |> String.replace(~r/\n```$/, "")
+          |> String.trim()
 
-    text =
-      stream_response.stream
-      |> Stream.filter(fn chunk -> chunk.type == :content end)
-      |> Enum.map(fn chunk -> chunk.text end)
-      |> Enum.join("")
+        {:ok, text}
 
-    text
-    |> String.trim()
-    |> String.replace(~r/^```[a-z]*\n/, "")
-    |> String.replace(~r/\n```$/, "")
-    |> String.trim()
+      {:error, error} ->
+        {:error, Exception.message(error)}
+    end
   end
 
   @doc """
@@ -424,6 +440,7 @@ defmodule L10n.Translator do
   `{:skipped, locale}`, or `{:error, locale, reason}` tuples.
   """
   def translate_all(pot_content, targets, context_body, model, l10n_dir, repo_root, pot_relative_path, context_files, opts) do
+    request_timeout = Keyword.get(opts, :timeout, @default_timeout)
     force = Keyword.get(opts, :force, false)
     source_hash = L10n.Context.hash_content(pot_content)
 
@@ -447,38 +464,55 @@ defmodule L10n.Translator do
           {:skipped, locale}
         else
           try do
-            po_content = translate(pot_content, locale, language, context_body, locale_override, model)
+            with {:ok, po_content} <-
+                   translate(
+                     pot_content,
+                     locale,
+                     language,
+                     context_body,
+                     locale_override,
+                     model,
+                     request_timeout
+                   ),
+                 :ok <- L10n.Validator.validate(po_content) do
+              po_filename = Path.basename(pot_relative_path, ".pot") <> ".po"
+              output_path = Path.join([l10n_dir, target["path"], po_filename])
+              output_path |> Path.dirname() |> File.mkdir_p!()
+              File.write!(output_path, po_content <> "\n")
 
-            case L10n.Validator.validate(po_content) do
-              :ok ->
-                po_filename = Path.basename(pot_relative_path, ".pot") <> ".po"
-                output_path = Path.join([l10n_dir, target["path"], po_filename])
-                output_path |> Path.dirname() |> File.mkdir_p!()
-                File.write!(output_path, po_content <> "\n")
+              L10n.Lock.write!(lock_path, %{
+                hash: hash,
+                model: model,
+                source_file: pot_relative_path,
+                source_hash: source_hash,
+                context_files: context_files,
+                locale_override_files: locale_override_files
+              })
 
-                L10n.Lock.write!(lock_path, %{
-                  hash: hash,
-                  model: model,
-                  source_file: pot_relative_path,
-                  source_hash: source_hash,
-                  context_files: context_files,
-                  locale_override_files: locale_override_files
-                })
-
-                {:translated, locale}
-
-              {:error, reason} ->
-                {:error, locale, reason}
+              {:translated, locale}
+            else
+              {:error, reason} -> {:error, locale, reason}
             end
           rescue
             e -> {:error, locale, Exception.message(e)}
           end
         end
       end,
-      max_concurrency: Keyword.get(opts, :max_concurrency, 4),
-      timeout: Keyword.get(opts, :timeout, 1_200_000)
+      max_concurrency: Keyword.get(opts, :max_concurrency, 7),
+      timeout: request_timeout + 30_000,
+      on_timeout: :kill_task
     )
-    |> Enum.map(fn {:ok, result} -> result end)
+    |> Enum.zip(targets)
+    |> Enum.map(fn
+      {{:ok, result}, _target} ->
+        result
+
+      {{:exit, :timeout}, target} ->
+        {:error, target["locale"], "timed out after #{request_timeout} ms"}
+
+      {{:exit, reason}, target} ->
+        {:error, target["locale"], inspect(reason)}
+    end)
   end
 end
 
@@ -519,10 +553,12 @@ defmodule L10n.CLI do
     * `--force`, `-f` — Re-translate all files, ignoring lock state
     * `--locale`, `-l` — Translate only the specified locale (e.g., `--locale es`)
     * `--model`, `-m` — Override the LLM model from L10N.md (e.g., `--model openai:gpt-4.1`)
-    * `--concurrency`, `-c` — Max parallel translations per locale within one source file (default: 4)
-    * `--pot-concurrency` — Max parallel source files being translated at once (default: 1)
-    * `--timeout`, `-t` — Timeout in ms per translation (default: 300000)
+    * `--concurrency`, `-c` — Max parallel translations per locale within one source file (default: 7)
+    * `--pot-concurrency` — Max parallel source files being translated at once (default: 4)
+    * `--timeout`, `-t` — Timeout in ms per translation request (default: 900000)
   """
+
+  @default_timeout 900_000
 
   @doc """
   Main entry point. Parses argv and runs the translation pipeline.
@@ -599,11 +635,11 @@ defmodule L10n.CLI do
             context_files,
             force: Keyword.get(opts, :force, false),
             locale_override_fn: locale_override_fn,
-            max_concurrency: Keyword.get(opts, :concurrency, 4),
-            timeout: Keyword.get(opts, :timeout, 300_000)
+            max_concurrency: Keyword.get(opts, :concurrency, 7),
+            timeout: Keyword.get(opts, :timeout, @default_timeout)
           )
         end,
-        max_concurrency: Keyword.get(opts, :pot_concurrency, 1),
+        max_concurrency: Keyword.get(opts, :pot_concurrency, 4),
         timeout: :infinity  # pot-level timeout is infinite; per-locale tasks have their own timeout
       )
       |> Enum.flat_map(fn {:ok, results} -> results end)

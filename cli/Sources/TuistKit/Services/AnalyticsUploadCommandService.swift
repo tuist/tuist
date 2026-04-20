@@ -19,16 +19,13 @@ enum AnalyticsUploadCommandServiceError: LocalizedError, Equatable {
 struct AnalyticsUploadCommandService {
     private let fileSystem: FileSysteming
     private let uploadAnalyticsService: UploadAnalyticsServicing
-    private let retryProvider: RetryProviding
 
     init(
         fileSystem: FileSysteming = FileSystem(),
-        uploadAnalyticsService: UploadAnalyticsServicing = UploadAnalyticsService(),
-        retryProvider: RetryProviding = RetryProvider()
+        uploadAnalyticsService: UploadAnalyticsServicing = UploadAnalyticsService()
     ) {
         self.fileSystem = fileSystem
         self.uploadAnalyticsService = uploadAnalyticsService
-        self.retryProvider = retryProvider
     }
 
     func run(eventFilePath: String, fullHandle: String, serverURL: String, sessionDirectory: String? = nil) async throws {
@@ -41,14 +38,12 @@ struct AnalyticsUploadCommandService {
 
             let commandEvent: CommandEvent = try await fileSystem.readJSONFile(at: eventPath)
 
-            _ = try await retryProvider.runWithRetries {
-                try await uploadAnalyticsService.upload(
-                    commandEvent: commandEvent,
-                    fullHandle: fullHandle,
-                    serverURL: url,
-                    sessionDirectory: sessionDirectory
-                )
-            }
+            _ = try await uploadAnalyticsService.upload(
+                commandEvent: commandEvent,
+                fullHandle: fullHandle,
+                serverURL: url,
+                sessionDirectory: sessionDirectory
+            )
         } catch {
             try? await fileSystem.remove(eventPath)
             throw error

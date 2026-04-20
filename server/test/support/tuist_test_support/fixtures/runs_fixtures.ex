@@ -134,7 +134,8 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
         ci_provider: Keyword.get(attrs, :ci_provider),
         shard_plan_id: Keyword.get(attrs, :shard_plan_id),
         shard_index: Keyword.get(attrs, :shard_index),
-        test_modules: test_modules
+        test_modules: test_modules,
+        run_destinations: Keyword.get(attrs, :run_destinations, [])
       })
 
     TestCase.Buffer.flush()
@@ -143,6 +144,7 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
     Tuist.Tests.TestSuiteRun.Buffer.flush()
     TestCaseFailure.Buffer.flush()
     TestCaseRunRepetition.Buffer.flush()
+    Tuist.Tests.TestCaseRunArgument.Buffer.flush()
     TestCaseEvent.Buffer.flush()
 
     result

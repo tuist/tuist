@@ -7,6 +7,7 @@ import org.gradle.caching.BuildCacheKey
 import org.gradle.caching.BuildCacheService
 import org.gradle.caching.BuildCacheServiceFactory
 import org.gradle.caching.configuration.AbstractBuildCache
+import java.io.InputStream
 import java.net.HttpURLConnection
 import java.net.URI
 
@@ -35,13 +36,16 @@ class TuistBuildCacheServiceFactory : BuildCacheServiceFactory<TuistBuildCache> 
             .type("Tuist")
             .config("project", configuration.project ?: "(from tuist.toml)")
 
+        val projectDir = java.io.File(System.getProperty("user.dir"))
+        val httpClients = TuistHttpClients()
         val configurationProvider = DefaultConfigurationProvider(
             project = configuration.project,
             serverUrl = configuration.url ?: "https://tuist.dev",
-            projectDir = java.io.File(System.getProperty("user.dir"))
+            projectDir = projectDir,
+            httpClients = httpClients
         )
 
-        val httpClient = TuistHttpClient(configurationProvider)
+        val httpClient = TuistHttpClient(configurationProvider, httpClients = httpClients)
 
         return TuistBuildCacheService(
             httpClient = httpClient,
@@ -75,7 +79,8 @@ data class ProjectHandle(val accountHandle: String, val projectHandle: String) {
 class DefaultConfigurationProvider(
     private val project: String?,
     private val serverUrl: String,
-    private val projectDir: java.io.File
+    private val projectDir: java.io.File,
+    private val httpClients: TuistHttpClients = TuistHttpClients()
 ) : ConfigurationProvider {
 
     private val resolvedServerUrl: java.net.URI by lazy {
@@ -95,7 +100,7 @@ class DefaultConfigurationProvider(
     }
 
     private val tokenProvider: TokenProvider by lazy {
-        TokenProvider(resolvedServerUrl)
+        TokenProvider(resolvedServerUrl, httpClients = httpClients)
     }
 
     private val cacheEndpointCache: CachedValueStore<String> = CachedValueStore()
@@ -117,7 +122,12 @@ class DefaultConfigurationProvider(
     }
 
     private fun resolveCacheEndpoint(accountHandle: String): Pair<String, Long?> {
-        val endpoint = CacheEndpointResolver.resolve(resolvedServerUrl, accountHandle, tokenProvider)
+        val endpoint = CacheEndpointResolver.resolve(
+            serverURL = resolvedServerUrl,
+            accountHandle = accountHandle,
+            tokenProvider = tokenProvider,
+            httpClients = httpClients
+        )
         val expiresAtMs = System.currentTimeMillis() + CACHE_ENDPOINT_TTL_MS
         return Pair(endpoint, expiresAtMs)
     }
@@ -141,20 +151,41 @@ class TuistBuildCacheService(
     override fun load(key: BuildCacheKey, reader: BuildCacheEntryReader): Boolean {
         return httpClient.execute { config ->
             val url = buildCacheUrl(config, key.hashCode)
-            val connection = httpClient.openConnection(url, config)
-            connection.requestMethod = "GET"
+            val cacheKey = key.hashCode
 
-            when (connection.responseCode) {
+            val connection = try {
+                httpClient.openConnection(url, config).also { it.requestMethod = "GET" }
+            } catch (e: Throwable) {
+                throw cacheFailure("load", cacheKey, url, "Failed to open connection", cause = e)
+            }
+
+            val responseCode = try {
+                connection.responseCode
+            } catch (e: Throwable) {
+                throw cacheFailure("load", cacheKey, url, "Failed to read HTTP response status", cause = e)
+            }
+
+            when (responseCode) {
                 HttpURLConnection.HTTP_OK -> {
-                    connection.inputStream.use { input ->
-                        reader.readFrom(input)
+                    try {
+                        connection.inputStream.use { input -> reader.readFrom(input) }
+                    } catch (e: Throwable) {
+                        throw cacheFailure(
+                            "load", cacheKey, url,
+                            "Failed to read cache entry body (Content-Length=${connection.contentLengthLong})",
+                            cause = e,
+                            status = responseCode
+                        )
                     }
                     true
                 }
                 HttpURLConnection.HTTP_NOT_FOUND -> false
                 HttpURLConnection.HTTP_UNAUTHORIZED -> throw TokenExpiredException()
-                else -> throw BuildCacheException(
-                    "Loading cache entry failed with status ${connection.responseCode}"
+                else -> throw cacheFailure(
+                    "load", cacheKey, url,
+                    "Server returned unexpected HTTP status",
+                    status = responseCode,
+                    body = readErrorBodySnippet(connection)
                 )
             }
         }
@@ -165,20 +196,42 @@ class TuistBuildCacheService(
 
         httpClient.execute<Unit> { config ->
             val url = buildCacheUrl(config, key.hashCode)
-            val connection = httpClient.openConnection(url, config)
-            connection.requestMethod = "PUT"
-            connection.doOutput = true
-            connection.setRequestProperty("Content-Type", "application/octet-stream")
+            val cacheKey = key.hashCode
 
-            connection.outputStream.use { output ->
-                writer.writeTo(output)
+            val connection = try {
+                httpClient.openConnection(url, config).also {
+                    it.requestMethod = "PUT"
+                    it.doOutput = true
+                    it.setRequestProperty("Content-Type", "application/octet-stream")
+                }
+            } catch (e: Throwable) {
+                throw cacheFailure("store", cacheKey, url, "Failed to open connection", cause = e)
             }
 
-            when (connection.responseCode) {
+            try {
+                connection.outputStream.use { output -> writer.writeTo(output) }
+            } catch (e: Throwable) {
+                throw cacheFailure(
+                    "store", cacheKey, url,
+                    "Failed to write cache entry body (size=${runCatching { writer.size }.getOrNull()})",
+                    cause = e
+                )
+            }
+
+            val responseCode = try {
+                connection.responseCode
+            } catch (e: Throwable) {
+                throw cacheFailure("store", cacheKey, url, "Failed to read HTTP response status", cause = e)
+            }
+
+            when (responseCode) {
                 HttpURLConnection.HTTP_OK, HttpURLConnection.HTTP_CREATED, HttpURLConnection.HTTP_NO_CONTENT -> {}
                 HttpURLConnection.HTTP_UNAUTHORIZED -> throw TokenExpiredException()
-                else -> throw BuildCacheException(
-                    "Storing cache entry failed with status ${connection.responseCode}"
+                else -> throw cacheFailure(
+                    "store", cacheKey, url,
+                    "Server returned unexpected HTTP status",
+                    status = responseCode,
+                    body = readErrorBodySnippet(connection)
                 )
             }
         }
@@ -199,6 +252,52 @@ class TuistBuildCacheService(
             "account_handle=${config.accountHandle}&project_handle=${config.projectHandle}",
             null
         )
+    }
+
+    companion object {
+        private const val ERROR_BODY_MAX_BYTES = 1024
+
+        internal fun cacheFailure(
+            operation: String,
+            cacheKey: String,
+            url: URI,
+            description: String,
+            cause: Throwable? = null,
+            status: Int? = null,
+            body: String? = null
+        ): BuildCacheException {
+            val message = buildString {
+                append("Tuist ").append(operation).append(" failed for cache key ").append(cacheKey)
+                if (status != null) append(" (HTTP ").append(status).append(')')
+                append(": ").append(description)
+                if (cause != null) {
+                    val causeMessage = cause.message?.takeIf(String::isNotBlank) ?: "(no message)"
+                    append(" — ").append(cause.javaClass.name).append(": ").append(causeMessage)
+                }
+                if (!body.isNullOrBlank()) {
+                    append(" — response body: ").append(body)
+                }
+                append(" [host=").append(url.host ?: "<unknown>")
+                append(", path=").append(url.rawPath).append(']')
+            }
+            return if (cause != null) BuildCacheException(message, cause) else BuildCacheException(message)
+        }
+
+        internal fun readErrorBodySnippet(connection: HttpURLConnection): String? {
+            val stream: InputStream = try {
+                connection.errorStream ?: return null
+            } catch (_: Throwable) {
+                return null
+            }
+            return try {
+                stream.use { input ->
+                    val bytes = input.readNBytes(ERROR_BODY_MAX_BYTES)
+                    if (bytes.isEmpty()) null else String(bytes).trim().ifEmpty { null }
+                }
+            } catch (_: Throwable) {
+                null
+            }
+        }
     }
 }
 

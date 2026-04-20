@@ -12,13 +12,26 @@ defmodule Processor.Application do
 
     children = [
       {Phoenix.PubSub, name: Processor.PubSub},
-      {Finch, name: Processor.Finch},
+      {Finch, name: Processor.Finch, pools: finch_pools()},
       ProcessorWeb.Endpoint,
       Processor.PromEx
     ]
 
     opts = [strategy: :one_for_one, name: Processor.Supervisor]
     Supervisor.start_link(children, opts)
+  end
+
+  defp finch_pools do
+    base = %{default: [size: 10]}
+
+    case TuistCommon.FinchPools.s3_endpoint_from_ex_aws_config() do
+      nil ->
+        base
+
+      endpoint ->
+        {s3_endpoint, s3_pool_opts} = TuistCommon.FinchPools.s3_pool(endpoint: endpoint)
+        Map.put(base, s3_endpoint, s3_pool_opts)
+    end
   end
 
   defp start_sentry_logger do

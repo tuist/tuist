@@ -169,6 +169,39 @@ defmodule TuistWeb.API.AuthControllerTest do
              })
     end
 
+    test "returns refreshed tokens when the refresh token resolves to an AuthenticatedAccount",
+         %{conn: conn} do
+      # Given
+      account = AccountsFixtures.organization_fixture(preload: [:account]).account
+
+      {:ok, refresh_token, _opts} =
+        Tuist.Authentication.encode_and_sign(
+          account,
+          %{"type" => "account", "scopes" => ["preview_create"]},
+          token_type: :refresh,
+          ttl: {4, :weeks}
+        )
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/auth/refresh_token", %{refresh_token: refresh_token})
+
+      # Then
+      response = json_response(conn, :ok)
+
+      assert Tuist.Authentication.decode_and_verify(response["access_token"], %{
+               "typ" => "access",
+               "sub" => to_string(account.id)
+             })
+
+      assert Tuist.Authentication.decode_and_verify(response["refresh_token"], %{
+               "typ" => "refresh",
+               "sub" => to_string(account.id)
+             })
+    end
+
     test "returns unautheticated if the refresh token is expired", %{conn: conn} do
       # Given
       refresh_token = "refresh_token"

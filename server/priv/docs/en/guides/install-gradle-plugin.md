@@ -7,12 +7,12 @@
 ---
 # Install the Gradle plugin {#install-the-gradle-plugin}
 
-Tuist provides a Gradle plugin that integrates with your Gradle project to enable features like <LocalizedLink href="/guides/features/cache/gradle-cache">remote build caching</LocalizedLink> and <LocalizedLink href="/guides/features/build-insights/gradle">build insights</LocalizedLink>. This guide walks you through installing and configuring the plugin.
+Tuist provides a Gradle plugin that integrates with your Gradle project to enable features like <.localized_link href="/guides/features/cache/gradle-cache">remote build caching</.localized_link> and <.localized_link href="/guides/features/build-insights/gradle">build insights</.localized_link>. This guide walks you through installing and configuring the plugin.
 
 > [!WARNING]
 > **Requirements**
 >
-> - <LocalizedLink href="/guides/install-tuist">Tuist CLI</LocalizedLink> 4.138.1 or later
+> - <.localized_link href="/guides/install-tuist">Tuist CLI</.localized_link> 4.138.1 or later
 > - A Gradle project
 
 
@@ -54,7 +54,7 @@ Each teammate should run the following to get access to the Tuist features on th
 tuist auth login
 ```
 
-For CI, follow the <LocalizedLink href="/guides/integrations/continuous-integration#authentication">CI authentication guide</LocalizedLink> to configure authentication for your environment.
+For CI, follow the <.localized_link href="/guides/integrations/continuous-integration#authentication">CI authentication guide</.localized_link> to configure authentication for your environment.
 
 ## Configuration reference {#configuration-reference}
 
@@ -62,7 +62,7 @@ The following options are available in the `tuist` extension block in `settings.
 
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
-| `project` | `String?` | `null` (optional) | The project identifier in `account/project` format. If not set, the plugin reads it from `tuist.toml` through the Tuist CLI. |
+| `project` | `String?` | `null` (optional) | The project identifier in `account/project` format. If not set, the plugin reads it from `tuist.toml`. |
 | `executablePath` | `String?` | `null` (uses `tuist` from PATH) | Path to the Tuist CLI executable. |
 | `url` | `String?` | `null` | The base URL of the Tuist server. If not set, it defaults to `"https://tuist.dev"` or the value defined in `tuist.toml`. |
 | `uploadInBackground` | `Boolean?` | `null` | Whether to upload build and test insights in the background. When `null` (default), uploads run in the background for local builds and in the foreground on CI. |
@@ -72,12 +72,15 @@ The following options are available in the `tuist` extension block in `settings.
 >
 > The recommended way to configure `project` (and optionally `url`) is through a `tuist.toml` file in your project root. This way the configuration is shared between the Tuist CLI and the Gradle plugin. You can still override these values in `settings.gradle.kts` if needed.
 
+## HTTP proxy {#http-proxy}
+
+If your network routes outbound traffic through an HTTP proxy, see the <.localized_link href="/guides/integrations/http-proxy">HTTP proxy guide</.localized_link>.
 
 ## Next steps {#next-steps}
 
 Once the plugin is installed and configured, you can enable:
 
-- <LocalizedLink href="/guides/features/cache/gradle-cache">Remote build cache</LocalizedLink> to share build artifacts across your team and CI.
-- <LocalizedLink href="/guides/features/build-insights/gradle">Build insights</LocalizedLink> to track task timings and cache behavior in the Tuist dashboard.
-- <LocalizedLink href="/guides/features/test-insights/gradle">Test insights</LocalizedLink> to track test performance and detect flaky tests.
-- <LocalizedLink href="/guides/features/test-insights/flaky-tests">Flaky tests</LocalizedLink> to automatically detect, track, and quarantine flaky tests.
+- <.localized_link href="/guides/features/cache/gradle-cache">Remote build cache</.localized_link> to share build artifacts across your team and CI.
+- <.localized_link href="/guides/features/build-insights/gradle">Build insights</.localized_link> to track task timings and cache behavior in the Tuist dashboard.
+- <.localized_link href="/guides/features/test-insights/gradle">Test insights</.localized_link> to track test performance and detect flaky tests.
+- <.localized_link href="/guides/features/test-insights/flaky-tests">Flaky tests</.localized_link> to automatically detect, track, and quarantine flaky tests.

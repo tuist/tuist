@@ -1,8 +1,6 @@
-import _NIOFileSystem
 import FileSystem
 import Foundation
 import Mockable
-import NIOCore
 import Path
 
 #if canImport(Glibc)
@@ -122,6 +120,13 @@ extension Environmenting {
         isVariableTruthy("TUIST_LEGACY_MODULE_CACHE")
     }
 
+    public var isSwiftFileSystemBackendEnabled: Bool {
+        let value = variables["TUIST_FILESYSTEM_BACKEND"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        return ["swift-file-system", "swift_file_system", "swiftfilesystem"].contains(value)
+    }
+
     public func pathRelativeToWorkingDirectory(_ path: String?) async throws -> AbsolutePath {
         let currentWorkingDirectory = try await currentWorkingDirectory()
         if let path {
@@ -221,7 +226,7 @@ public struct Environment: Environmenting {
     }
 
     public func currentWorkingDirectory() async throws -> AbsolutePath {
-        return try await AbsolutePath(validating: _NIOFileSystem.FileSystem.shared.currentWorkingDirectory.string)
+        return try await FileSystem().currentWorkingDirectory()
     }
 
     private func variable(_ variableName: String) -> String? {

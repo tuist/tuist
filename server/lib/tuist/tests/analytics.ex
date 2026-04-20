@@ -189,6 +189,78 @@ defmodule Tuist.Tests.Analytics do
     ClickHouseRepo.one(from(tc in subquery(inner), select: count())) || 0
   end
 
+  @scatter_data_limit 10_000
+
+  def test_run_duration_scatter_data(project_id, opts \\ []) do
+    start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+    group_by = Keyword.get(opts, :group_by, :scheme)
+
+    query =
+      apply_test_run_filters(
+        from(t in Test,
+          where: t.project_id == ^project_id,
+          where: t.ran_at >= ^start_datetime,
+          where: t.ran_at <= ^end_datetime,
+          order_by: [desc: t.ran_at],
+          limit: ^@scatter_data_limit,
+          select: %{
+            id: t.id,
+            ran_at: t.ran_at,
+            duration: t.duration,
+            scheme: t.scheme,
+            status: t.status,
+            is_ci: t.is_ci,
+            is_flaky: t.is_flaky
+          }
+        ),
+        opts
+      )
+
+    results = ClickHouseRepo.all(query)
+    truncated = length(results) >= @scatter_data_limit
+
+    oldest_entry =
+      if truncated do
+        results |> List.last() |> Map.get(:ran_at)
+      end
+
+    series =
+      results
+      |> Enum.group_by(fn run ->
+        case group_by do
+          :environment -> run.is_ci
+          _ -> run.scheme
+        end
+      end)
+      |> Enum.map(fn {group_key, runs} ->
+        %{
+          name: group_key,
+          data:
+            Enum.map(runs, fn run ->
+              ts = NaiveDateTime.diff(run.ran_at, ~N[1970-01-01 00:00:00], :millisecond)
+
+              %{
+                value: [ts, run.duration],
+                id: run.id,
+                meta: %{
+                  scheme: run.scheme,
+                  status: run.status,
+                  is_ci: run.is_ci,
+                  is_flaky: run.is_flaky
+                }
+              }
+            end)
+        }
+      end)
+
+    %{
+      series: series,
+      truncated: truncated,
+      oldest_entry: oldest_entry
+    }
+  end
+
   def test_run_duration_analytics(project_id, opts \\ []) do
     start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
     end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
@@ -428,6 +500,7 @@ defmodule Tuist.Tests.Analytics do
   def get_test_run_metrics(test_run_id) do
     query =
       from t in TestCaseRunByTestRun,
+        hints: ["FINAL"],
         where: t.test_run_id == ^test_run_id,
         select: %{
           total_count: fragment("coalesce(count(?), 0)", t.id),

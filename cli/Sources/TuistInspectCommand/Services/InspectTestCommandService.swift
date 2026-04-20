@@ -12,6 +12,8 @@
     import TuistProcess
     import TuistServer
     import TuistSupport
+    import TuistXCActivityLog
+    import TuistXcodeBuildProducts
     import TuistXcodeProjectOrWorkspacePathLocator
     import TuistXCResultService
     import XCResultParser
@@ -66,7 +68,7 @@
             path: String?,
             derivedDataPath: String? = nil,
             resultBundlePath: String? = nil,
-            mode: InspectTestCommand.ProcessingMode = .local
+            mode: TestProcessingMode? = nil
         ) async throws {
             if Environment.current.variables["TUIST_INSPECT_TEST_WAIT"] != "YES",
                Environment.current.workspacePath != nil
@@ -94,7 +96,9 @@
             let projectPath = try await xcodeProjectOrWorkspacePathLocator.locate(from: path)
             let config = try await configLoader.loadConfig(path: projectPath)
 
-            switch mode {
+            let resolvedMode = mode ?? TestProcessingMode.default(for: config.url)
+
+            switch resolvedMode {
             case .local:
                 try await runLocal(
                     resolvedResultBundlePath: resolvedResultBundlePath,
@@ -144,6 +148,7 @@
                 resultBundlePath: resolvedResultBundlePath,
                 config: config,
                 quarantinedTests: [],
+                buildRunId: nil,
                 shardPlanId: nil,
                 shardIndex: nil
             )

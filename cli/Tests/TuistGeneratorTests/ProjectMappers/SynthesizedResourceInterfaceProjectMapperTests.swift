@@ -876,6 +876,61 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
         XCTAssertTrue(plistNames.value.contains("XML.plist"))
     }
 
+    func testMap_usesValidSwiftIdentifiersForGeneratedResourceInterfaces() async throws {
+        // Given
+        let names = ThreadSafe<[String]>([])
+        synthesizedResourceInterfacesGenerator.renderStub = { _, _, _, name, _, _ in
+            names.mutate { $0.append(name) }
+            return ""
+        }
+        let projectPath = try temporaryPath()
+        let targetPath = projectPath.appending(component: "1Demo")
+        let assetCatalog = targetPath.appending(component: "Assets.xcassets")
+        try await fileSystem.makeDirectory(at: assetCatalog)
+        try await fileSystem.touch(assetCatalog.appending(component: "Contents.json"))
+
+        let target = Target.test(
+            name: "1Demo",
+            resources: .init([.folderReference(path: assetCatalog)])
+        )
+        let project = Project.test(
+            path: projectPath,
+            targets: [target],
+            resourceSynthesizers: [
+                .init(
+                    parser: .assets,
+                    parserOptions: [:],
+                    extensions: ["xcassets"],
+                    template: .defaultTemplate("Assets")
+                ),
+            ]
+        )
+
+        // When
+        let (mappedProject, sideEffects) = try await subject.map(project: project)
+
+        // Then
+        XCTAssertEqual(names.value, ["_1Demo"])
+        XCTAssertEqual(
+            sideEffects,
+            [
+                .file(
+                    FileDescriptor(
+                        path: projectPath
+                            .appending(component: Constants.DerivedDirectory.name)
+                            .appending(component: Constants.DerivedDirectory.sources)
+                            .appending(component: "TuistAssets+_1Demo.swift"),
+                        contents: Data()
+                    )
+                ),
+            ]
+        )
+        XCTAssertEqual(
+            mappedProject.targets[target.name]?.sources.first?.path.basename,
+            "TuistAssets+_1Demo.swift"
+        )
+    }
+
     // MARK: - Helpers
 
     private func stub(file: AbsolutePath) async throws {

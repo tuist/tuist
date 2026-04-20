@@ -15,6 +15,8 @@ import TuistLogging
 import TuistRootDirectoryLocator
 import TuistServer
 import TuistSupport
+import TuistXCActivityLog
+import TuistXcodeBuildProducts
 import TuistXCResultService
 import XcodeGraph
 import XCResultParser
@@ -111,7 +113,10 @@ public struct TestService { // swiftlint:disable:this type_body_length
     private let clock: Clock
     private let testQuarantineService: TestQuarantineServicing
     private let shardPlanService: ShardPlanServicing
+    private let shardMatrixOutputService: ShardMatrixOutputServicing
     private let shardService: ShardServicing
+    private let xcActivityLogController: XCActivityLogControlling
+    private let uploadBuildRunService: UploadBuildRunServicing?
 
     public init(
         generatorFactory: GeneratorFactorying,
@@ -148,7 +153,10 @@ public struct TestService { // swiftlint:disable:this type_body_length
         clock: Clock = WallClock(),
         testQuarantineService: TestQuarantineServicing = TestQuarantineService(),
         shardPlanService: ShardPlanServicing = ShardPlanService(),
-        shardService: ShardServicing = ShardService()
+        shardMatrixOutputService: ShardMatrixOutputServicing = ShardMatrixOutputService(),
+        shardService: ShardServicing = ShardService(),
+        xcActivityLogController: XCActivityLogControlling = XCActivityLogController(),
+        uploadBuildRunService: UploadBuildRunServicing? = UploadBuildRunService()
     ) {
         self.generatorFactory = generatorFactory
         self.cacheStorageFactory = cacheStorageFactory
@@ -171,7 +179,10 @@ public struct TestService { // swiftlint:disable:this type_body_length
         self.clock = clock
         self.testQuarantineService = testQuarantineService
         self.shardPlanService = shardPlanService
+        self.shardMatrixOutputService = shardMatrixOutputService
         self.shardService = shardService
+        self.xcActivityLogController = xcActivityLogController
+        self.uploadBuildRunService = uploadBuildRunService
     }
 
     public static func validateParameters(
@@ -220,7 +231,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
         shardMaxDuration: Int? = nil,
         shardIndex: Int? = nil,
         shardSkipUpload: Bool = false,
-        mode: TestProcessingMode = .local
+        shardArchivePath: AbsolutePath? = nil,
+        mode: TestProcessingMode? = nil
     ) async throws {
         if validateTestTargetsParameters {
             try Self.validateParameters(
@@ -234,6 +246,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 errorMessageOverride:
                 "The 'tuist test' command is for generated projects or Swift packages. Please use 'tuist xcodebuild test' instead."
             )
+
+        let mode = mode ?? TestProcessingMode.default(for: config.url)
 
         if let shardIndex, action == .testWithoutBuilding {
             try await runShard(
@@ -252,7 +266,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 skipTestTargets: skipTestTargets,
                 testPlanConfiguration: testPlanConfiguration,
                 passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
-                runId: runId
+                runId: runId,
+                shardArchivePath: shardArchivePath
             )
             return
         }
@@ -349,6 +364,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
             config: config
         )
 
+        let isSharding = shardMin != nil || shardMax != nil || shardTotal != nil
+
         let schemes: [Scheme]
         if let schemeName {
             guard let scheme = graphTraverser.schemes().first(where: { $0.name == schemeName })
@@ -367,6 +384,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                         testPlanConfiguration: testPlanConfiguration,
                         action: action
                     )
+                    try await outputEmptyShardMatrixIfNeeded(isSharding: isSharding, action: action)
                     return
                 } else {
                     throw TestServiceError.schemeNotFound(
@@ -395,12 +413,14 @@ public struct TestService { // swiftlint:disable:this type_body_length
                     level: .info,
                     "The scheme \(schemeName)'s test action has no tests to run, finishing early."
                 )
+                try await outputEmptyShardMatrixIfNeeded(isSharding: isSharding, action: action)
                 return
             case (_?, _, true), (_?, _, nil):
                 Logger.current.log(
                     level: .info,
                     "The scheme \(schemeName)'s test action has no test plans to run, finishing early."
                 )
+                try await outputEmptyShardMatrixIfNeeded(isSharding: isSharding, action: action)
                 return
             default:
                 break
@@ -417,9 +437,20 @@ public struct TestService { // swiftlint:disable:this type_body_length
             )
         }
 
+        if !shouldRunTest(
+            for: schemes,
+            testPlanConfiguration: testPlanConfiguration,
+            mapperEnvironment: mapperEnvironment,
+            graph: graph,
+            action: action
+        ), action == .build {
+            try await outputEmptyShardMatrixIfNeeded(isSharding: isSharding, action: action)
+            return
+        }
+
         var passthroughXcodeBuildArguments = passthroughXcodeBuildArguments
 
-        if shardMin != nil || shardMax != nil || shardTotal != nil, action == .build,
+        if isSharding, action == .build,
            !passthroughXcodeBuildArguments.contains("-testProductsPath")
         {
             let testProductsDir = try await fileSystem.makeTemporaryDirectory(prefix: "shard-test-products")
@@ -479,7 +510,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
         if action == .build {
             if let testProductsPath = try? await resolveTestProductsPath(
                 passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
-                derivedDataPath: derivedDataPath
+                derivedDataPath: derivedDataPath,
+                relativeTo: path
             ) {
                 let selectiveTestingGraph = computeSelectiveTestingGraph(
                     mapperEnvironment: mapperEnvironment,
@@ -491,7 +523,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 )
                 try await fileSystem.writeAsJSON(selectiveTestingGraph, at: selectiveTestingGraphPath)
 
-                if shardMin != nil || shardMax != nil || shardTotal != nil,
+                if isSharding,
                    let fullHandle = config.fullHandle
                 {
                     let shardDestination = passedValue(for: "-destination", arguments: passthroughXcodeBuildArguments)
@@ -512,7 +544,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
                         fullHandle: fullHandle,
                         serverURL: serverURL,
                         buildRunId: buildRunId,
-                        skipUpload: shardSkipUpload
+                        skipUpload: shardSkipUpload,
+                        archivePath: shardArchivePath
                     )
                 }
             }
@@ -538,7 +571,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
         skipTestTargets: [TestIdentifier],
         testPlanConfiguration: TestPlanConfiguration?,
         passthroughXcodeBuildArguments: [String],
-        runId: String
+        runId: String,
+        shardArchivePath: AbsolutePath?
     ) async throws {
         guard let fullHandle = config.fullHandle else {
             throw TestServiceError.actionInvalid
@@ -550,7 +584,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
             shardIndex: shardIndex,
             fullHandle: fullHandle,
             serverURL: serverURL,
-            testProductsPath: localTestProductsPath
+            testProductsPath: localTestProductsPath,
+            testProductsArchivePath: shardArchivePath
         )
 
         let cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
@@ -822,12 +857,14 @@ public struct TestService { // swiftlint:disable:this type_body_length
 
     private func resolveTestProductsPath(
         passthroughXcodeBuildArguments: [String],
-        derivedDataPath: AbsolutePath?
+        derivedDataPath: AbsolutePath?,
+        relativeTo path: AbsolutePath
     ) async throws -> AbsolutePath {
-        if let index = passthroughXcodeBuildArguments.firstIndex(of: "-testProductsPath"),
-           passthroughXcodeBuildArguments.indices.contains(index + 1)
-        {
-            return try AbsolutePath(validating: passthroughXcodeBuildArguments[index + 1])
+        if let testProductsPath = testProductsPathFromArguments(
+            passthroughXcodeBuildArguments,
+            relativeTo: path
+        ) {
+            return testProductsPath
         }
 
         guard let derivedDataPath else {
@@ -1001,7 +1038,10 @@ public struct TestService { // swiftlint:disable:this type_body_length
         } catch {
             guard action != .build, let resultBundlePath else { throw error }
 
+            guard try await fileSystem.exists(resultBundlePath) else { throw error }
+
             let testStatuses = try await xcResultService.parseTestStatuses(path: resultBundlePath)
+            guard !testStatuses.testCases.isEmpty else { throw error }
 
             let testTargets = testActionTargets(
                 for: schemes, testPlanConfiguration: testPlanConfiguration, graph: graph, action: action
@@ -1099,6 +1139,14 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 to: runResultBundlePath.parentDirectory.appending(
                     components: "\(Constants.resultBundleName).xcresult"
                 )
+            )
+        }
+    }
+
+    private func outputEmptyShardMatrixIfNeeded(isSharding: Bool, action: XcodeBuildTestAction) async throws {
+        if isSharding, action == .build {
+            try await shardMatrixOutputService.output(
+                Components.Schemas.ShardPlan(id: "", reference: "", shard_count: 0, shards: [])
             )
         }
     }
@@ -1396,6 +1444,13 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
             )
         } catch {
+            await uploadBuildRunIfNeeded(
+                projectDerivedDataDirectory: projectDerivedDataDirectory,
+                projectPath: graphTraverser.workspace.xcWorkspacePath,
+                config: config,
+                scheme: scheme.name,
+                configuration: configuration
+            )
             let summary = mode == .local
                 ? await testSummary(resultBundlePath: resultBundlePath, quarantinedTests: quarantinedTests)
                 : nil
@@ -1411,6 +1466,13 @@ public struct TestService { // swiftlint:disable:this type_body_length
             throw error
         }
 
+        await uploadBuildRunIfNeeded(
+            projectDerivedDataDirectory: projectDerivedDataDirectory,
+            projectPath: graphTraverser.workspace.xcWorkspacePath,
+            config: config,
+            scheme: scheme.name,
+            configuration: configuration
+        )
         let summary = mode == .local
             ? await testSummary(resultBundlePath: resultBundlePath, quarantinedTests: quarantinedTests)
             : nil
@@ -1434,6 +1496,36 @@ public struct TestService { // swiftlint:disable:this type_body_length
               let parsed = try? await xcResultService.parse(path: resultBundlePath, rootDirectory: rootDir)
         else { return nil }
         return testQuarantineService.markQuarantinedTests(testSummary: parsed, quarantinedTests: quarantinedTests)
+    }
+
+    private func uploadBuildRunIfNeeded(
+        projectDerivedDataDirectory: AbsolutePath?,
+        projectPath: AbsolutePath,
+        config: Tuist,
+        scheme: String?,
+        configuration: String?
+    ) async {
+        guard config.fullHandle != nil,
+              let projectDerivedDataDirectory,
+              let mostRecentActivityLogFile = try? await xcActivityLogController.mostRecentActivityLogFile(
+                  projectDerivedDataDirectory: projectDerivedDataDirectory
+              )
+        else { return }
+
+        await RunMetadataStorage.current.update(buildRunId: mostRecentActivityLogFile.path.basenameWithoutExt)
+
+        guard let uploadBuildRunService else { return }
+        do {
+            try await uploadBuildRunService.uploadBuildRun(
+                activityLogPath: mostRecentActivityLogFile.path,
+                projectPath: projectPath,
+                config: config,
+                scheme: scheme,
+                configuration: configuration
+            )
+        } catch {
+            AlertController.current.warning(.alert("Failed to upload build: \(error.localizedDescription)"))
+        }
     }
 
     private func uploadResultBundleIfNeeded(
@@ -1463,13 +1555,16 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 )
             case .remote:
                 guard let resultBundlePath else { return }
+                let buildRunId = await RunMetadataStorage.current.buildRunId
                 let test = try await uploadResultBundleService.uploadResultBundle(
                     resultBundlePath: resultBundlePath,
                     config: config,
                     quarantinedTests: quarantinedTests,
+                    buildRunId: buildRunId,
                     shardPlanId: shardPlanId,
                     shardIndex: shardIndex
                 )
+                await RunMetadataStorage.current.update(testRunId: test.id)
                 AlertController.current.success(
                     .alert("Result bundle uploaded for processing. View at \(test.url)")
                 )

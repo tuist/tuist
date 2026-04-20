@@ -10,9 +10,9 @@
 > [!WARNING]
 > **Requirements**
 >
-> - A <LocalizedLink href="/guides/features/projects">Tuist generated project</LocalizedLink>
-> - A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and project</LocalizedLink>
-> - <LocalizedLink href="/guides/features/test-insights">Test Insights</LocalizedLink> configured (for optimal shard balancing)
+> - A <.localized_link href="/guides/features/projects">Tuist generated project</.localized_link>
+> - A <.localized_link href="/guides/server/accounts-and-projects">Tuist account and project</.localized_link>
+> - <.localized_link href="/guides/features/test-insights">Test Insights</.localized_link> configured (for optimal shard balancing)
 
 
 Test sharding for generated projects uses `tuist test` for both the build and test phases.
@@ -36,9 +36,9 @@ This command:
 1. Generates the Xcode project from your manifests
 2. Builds your tests
 3. Creates a shard plan on the Tuist server using historical timing data
-4. Uploads the `.xctestproducts` bundle for use by shard runners
+4. Uploads the `.xctestproducts` bundle or writes a shard archive for use by shard runners
 5. Outputs a shard matrix for your CI system
-6. Persists the <LocalizedLink href="/guides/features/selective-testing">selective testing</LocalizedLink> graph (if applicable) so shard runners don't need to regenerate the project
+6. Persists the <.localized_link href="/guides/features/selective-testing">selective testing</.localized_link> graph (if applicable) so shard runners don't need to regenerate the project
 
 ### Build options {#build-options}
 
@@ -50,6 +50,7 @@ This command:
 | `--shard-max-duration <MS>` | `TUIST_TEST_SHARD_MAX_DURATION` | Target maximum duration per shard in milliseconds |
 | `--shard-granularity <LEVEL>` | `TUIST_TEST_SHARD_GRANULARITY` | `module` (default) distributes entire test modules across shards; `suite` distributes individual test classes for finer-grained balancing |
 | `--shard-reference <REF>` | `TUIST_SHARD_REFERENCE` | Unique identifier for the shard plan (auto-derived on supported CI providers) |
+| `--shard-archive-path <PATH>` | `TUIST_TEST_SHARD_ARCHIVE_PATH` | Path where Tuist writes the optimized shard archive instead of uploading test products to remote storage |
 
 ## Test phase {#test-phase}
 
@@ -65,13 +66,14 @@ tuist test
 |------|---------------------|-------------|
 | `--shard-index <N>` | `TUIST_SHARD_INDEX` | Zero-based index of the shard to execute |
 | `--shard-reference <REF>` | `TUIST_SHARD_REFERENCE` | Unique identifier for the shard plan (auto-derived on supported CI providers) |
+| `--shard-archive-path <PATH>` | `TUIST_TEST_SHARD_ARCHIVE_PATH` | Path to a locally managed shard archive; Tuist extracts it instead of downloading test products from remote storage |
 
 Tuist downloads the `.xctestproducts` bundle and filters it to include only the tests assigned to that shard.
 
 > [!TIP]
 > **Selective Testing**
 >
-> Test sharding works seamlessly with <LocalizedLink href="/guides/features/selective-testing">selective testing</LocalizedLink>. The selective testing graph is persisted during the build phase and restored for each shard, so runners don't need to regenerate the project.
+> Test sharding works seamlessly with <.localized_link href="/guides/features/selective-testing">selective testing</.localized_link>. The selective testing graph is persisted during the build phase and restored for each shard, so runners don't need to regenerate the project.
 
 
 ## Continuous integration {#continuous-integration}
@@ -111,6 +113,7 @@ jobs:
   test:
     name: "Shard #${{ matrix.shard }}"
     needs: build
+    if: toJSON(fromJSON(needs.build.outputs.matrix).shard) != '[]'
     runs-on: macos-latest
     strategy:
       fail-fast: false
@@ -416,27 +419,47 @@ tuist test -- -testProductsPath /path/to/shared/volume/$UNIQUE_ID/MyScheme.xctes
 |------|---------------------|-------------|
 | `--shard-skip-upload` | `TUIST_TEST_SHARD_SKIP_UPLOAD` | Skip uploading the test products bundle to remote storage |
 
+## Self-managed artifacts {#self-managed-artifacts}
+
+If your CI provider already has artifact upload and download steps, you can let Tuist handle archive and extraction while your CI handles transport.
+
+1. In the **build phase**, pass `--shard-archive-path` so Tuist writes its optimized shard archive locally instead of uploading test products:
+
+```sh
+tuist test \
+  --shard-total 5 \
+  --shard-archive-path /tmp/shards/${UNIQUE_ID}/bundle.aar
+```
+
+2. Upload that archive using your CI's native artifact step.
+
+3. In each **test phase** job, download the archive and pass the same path back to Tuist:
+
+```sh
+tuist test \
+  --shard-archive-path /tmp/shards/${UNIQUE_ID}/bundle.aar
+```
+
+When `--shard-archive-path` is set, Tuist skips remote test-products transfer and uses the local archive instead. If you also pass `--shard-skip-upload`, the archive path takes precedence.
+
 > [!IMPORTANT]
-> Use a unique path per workflow run (e.g. include the CI run ID) to avoid collisions between concurrent runs. You should also clean up the test products after sharding completes to avoid accumulating stale data on the volume.
+> Use a unique path per workflow run (e.g. include the CI run ID) to avoid collisions between concurrent runs. You should also clean up the shard archive after sharding completes to avoid accumulating stale data on the runner.
 
 ### Namespace {#namespace}
 
-[Namespace](https://namespace.so) runners support shared volumes across GitHub Actions jobs. Since volumes persist across workflow runs, include `${{ github.run_id }}` in the path to isolate concurrent runs and clean up afterwards:
+[Namespace](https://namespace.so) runners work well with GitHub Actions artifacts. Set `TUIST_TEST_SHARD_ARCHIVE_PATH` once so the build job writes the shard archive locally, upload it, and download it in each shard job before running `tuist test`:
 
 ```yaml
 name: Tests
 on: [pull_request]
 
 env:
-  TEST_PRODUCTS_PATH: /Volumes/test-products/${{ github.run_id }}/MyScheme.xctestproducts
+  TUIST_TEST_SHARD_ARCHIVE_PATH: /tmp/shards/${{ github.run_id }}/bundle.aar
 
 jobs:
   build:
     name: Build test shards
     runs-on: namespace-profile-default-macos
-    volumes:
-      - name: test-products
-        path: /Volumes/test-products
     outputs:
       matrix: ${{ steps.build.outputs.matrix }}
     steps:
@@ -444,33 +467,34 @@ jobs:
       - uses: jdx/mise-action@v2
       - run: tuist auth login
       - id: build
-        run: |
-          tuist test \
-            --shard-total 5 \
-            --shard-skip-upload \
-            -- \
-            -testProductsPath $TEST_PRODUCTS_PATH
+        run: tuist test --shard-total 5
+      - uses: actions/upload-artifact@v4
+        with:
+          name: test-shard-archive
+          path: ${{ env.TUIST_TEST_SHARD_ARCHIVE_PATH }}
+      - if: always()
+        run: rm -rf /tmp/shards/${{ github.run_id }}
 
   test:
     name: "Shard #${{ matrix.shard }}"
     needs: build
+    if: toJSON(fromJSON(needs.build.outputs.matrix).shard) != '[]'
     runs-on: namespace-profile-default-macos
     strategy:
       fail-fast: false
       matrix:
         shard: ${{ fromJson(needs.build.outputs.matrix).shard }}
-    volumes:
-      - name: test-products
-        path: /Volumes/test-products
     env:
       TUIST_SHARD_INDEX: ${{ matrix.shard }}
     steps:
       - uses: actions/checkout@v4
       - uses: jdx/mise-action@v2
       - run: tuist auth login
-      - run: |
-          tuist test -- -testProductsPath $TEST_PRODUCTS_PATH
+      - uses: actions/download-artifact@v4
+        with:
+          name: test-shard-archive
+          path: /tmp/shards/${{ github.run_id }}
+      - run: tuist test
       - if: always()
-        run: rm -rf /Volumes/test-products/${{ github.run_id }}
+        run: rm -rf /tmp/shards/${{ github.run_id }}
 ```
-

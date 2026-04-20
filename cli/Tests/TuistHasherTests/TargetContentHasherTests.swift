@@ -268,6 +268,64 @@ struct TargetContentHasherTests {
         )
     }
 
+    @Test func hash_with_buildable_folders_ignores_ds_store_files() async throws {
+        // Given
+        let targetWithDSStore = GraphTarget.test(target: .test(buildableFolders: [
+            BuildableFolder(
+                path: try AbsolutePath(validating: "/test/Sources"),
+                exceptions: BuildableFolderExceptions(exceptions: []),
+                resolvedFiles: [
+                    BuildableFolderFile(
+                        path: try AbsolutePath(validating: "/test/Sources/.DS_Store"),
+                        compilerFlags: nil
+                    ),
+                    BuildableFolderFile(
+                        path: try AbsolutePath(validating: "/test/Sources/File.swift"),
+                        compilerFlags: nil
+                    ),
+                ]
+            ),
+        ]), project: .test())
+        let targetWithoutDSStore = GraphTarget.test(target: .test(buildableFolders: [
+            BuildableFolder(
+                path: try AbsolutePath(validating: "/test/Sources"),
+                exceptions: BuildableFolderExceptions(exceptions: []),
+                resolvedFiles: [
+                    BuildableFolderFile(
+                        path: try AbsolutePath(validating: "/test/Sources/File.swift"),
+                        compilerFlags: nil
+                    ),
+                ]
+            ),
+        ]), project: .test())
+
+        // When
+        let gotWithDSStore = try await subject.contentHash(
+            for: targetWithDSStore,
+            hashedTargets: [:],
+            hashedPaths: [:],
+            destination: .test(
+                device: .test(name: "iPhone 16"),
+                runtime: .test(name: "iOS-16")
+            ),
+            additionalStrings: []
+        )
+        let gotWithoutDSStore = try await subject.contentHash(
+            for: targetWithoutDSStore,
+            hashedTargets: [:],
+            hashedPaths: [:],
+            destination: .test(
+                device: .test(name: "iPhone 16"),
+                runtime: .test(name: "iOS-16")
+            ),
+            additionalStrings: []
+        )
+
+        // Then
+        #expect(gotWithDSStore.hash == gotWithoutDSStore.hash)
+        #expect(gotWithDSStore.subhashes == gotWithoutDSStore.subhashes)
+    }
+
     @Test func hash_with_destination() async throws {
         // Given
         let target = GraphTarget.test(

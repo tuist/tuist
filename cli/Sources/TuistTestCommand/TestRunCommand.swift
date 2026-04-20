@@ -14,21 +14,41 @@
 
     enum TuistTestFlagError: FatalError, Equatable {
         case invalidCombination([String])
+        case passthroughActionVerbConflict(String)
 
         var description: String {
             switch self {
             case let .invalidCombination(arguments):
                 "The arguments \(arguments.joined(separator: ", ")) are mutually exclusive, only of them can be used."
+            case let .passthroughActionVerbConflict(verb):
+                "The xcodebuild action '\(verb)' cannot be passed after the terminator (--). 'tuist test' already picks the action based on its flags: 'test' by default, 'build-for-testing' with --build-only, and 'test-without-building' with --without-building. Drop '\(verb)' from the passthrough arguments, and use --build-only or --without-building if you need a different action."
             }
         }
 
         var type: ErrorType {
             switch self {
-            case .invalidCombination:
+            case .invalidCombination, .passthroughActionVerbConflict:
                 .abort
             }
         }
     }
+
+    private let notAllowedPassthroughXcodeBuildArguments = [
+        "-scheme",
+        "-workspace",
+        "-project",
+        "-testPlan",
+        "-skip-test-configuration",
+        "-only-test-configuration",
+        "-only-testing",
+        "-skip-testing",
+    ]
+
+    private let xcodeBuildActionVerbs: Set<String> = [
+        "test",
+        "build-for-testing",
+        "test-without-building",
+    ]
 
     public struct TestRunCommand: AsyncParsableCommand, LogConfigurableCommand,
         RecentPathRememberableCommand, TrackableParsableCommand
@@ -38,6 +58,7 @@
         public static var configuration: CommandConfiguration {
             CommandConfiguration(
                 commandName: "run",
+                _superCommandName: "test",
                 abstract: "Tests a project",
                 usage:
                 "tuist test [<options>] [<scheme>] -- [<passthrough-xcode-build-arguments> ...]",
@@ -290,6 +311,14 @@
 
         @Option(
             name: .long,
+            help: "Path to a locally managed shard archive. In build-for-testing mode Tuist writes the optimized archive there; in shard execution mode Tuist extracts it instead of downloading test products from remote storage.",
+            completion: .file(),
+            envKey: .testShardArchivePath
+        )
+        var shardArchivePath: String?
+
+        @Option(
+            name: .long,
             help: "The zero-based shard index to execute.",
             envKey: .testShardIndex
         )
@@ -297,10 +326,10 @@
 
         @Option(
             name: .long,
-            help: "Inspect mode: 'local' parses the xcresult on this machine, 'remote' uploads it for server-side processing.",
+            help: "Inspect mode: 'local' parses the xcresult on this machine, 'remote' uploads it for server-side processing. When omitted, defaults to 'remote' for tuist-hosted instances and 'local' for self-hosted ones.",
             envKey: .inspectTestMode
         )
-        var inspectMode: TestProcessingMode = .local
+        var inspectMode: TestProcessingMode?
 
         @Argument(
             parsing: .postTerminator,
@@ -320,22 +349,17 @@
             )
         }
 
-        private var notAllowedPassthroughXcodeBuildArguments = [
-            "-scheme",
-            "-workspace",
-            "-project",
-            "-testPlan",
-            "-skip-test-configuration",
-            "-only-test-configuration",
-            "-only-testing",
-            "-skip-testing",
-        ]
-
         public func run() async throws {
             try notAllowedPassthroughXcodeBuildArguments.forEach {
                 if passthroughXcodeBuildArguments.contains($0) {
                     throw XcodeBuildPassthroughArgumentError.alreadyHandled($0)
                 }
+            }
+
+            if let firstPassthroughArgument = passthroughXcodeBuildArguments.first,
+               xcodeBuildActionVerbs.contains(firstPassthroughArgument)
+            {
+                throw TuistTestFlagError.passthroughActionVerbConflict(firstPassthroughArgument)
             }
 
             if skipUITests, skipUnitTests {
@@ -416,6 +440,12 @@
                 shardMaxDuration: shardMaxDuration,
                 shardIndex: shardIndex,
                 shardSkipUpload: shardSkipUpload,
+                shardArchivePath: try await {
+                    if let shardArchivePath {
+                        return try await Environment.current.pathRelativeToWorkingDirectory(shardArchivePath)
+                    }
+                    return nil
+                }(),
                 mode: inspectMode
             )
         }

@@ -6,6 +6,10 @@ defmodule CacheWeb.ErrorJSON do
   `%{message: "..."}` to match `CacheWeb.API.Schemas.Error`.
   """
 
+  def render("408.json", _assigns) do
+    %{message: "Request body read timed out"}
+  end
+
   def render(template, _assigns) do
     %{message: Phoenix.Controller.status_message_from_template(template)}
   end

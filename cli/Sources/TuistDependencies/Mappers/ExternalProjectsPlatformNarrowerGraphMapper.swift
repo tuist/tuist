@@ -58,9 +58,28 @@ public struct ExternalProjectsPlatformNarrowerGraphMapper: GraphMapping { // swi
     ) -> Target {
         var target = target
         let graphTarget = GraphTarget(path: project.path, target: target, project: project)
-        if case .external = project.type,
-           let targetFilteredDestinations = externalTargetSupportedDestinations[graphTarget]
+        guard case .external = project.type else { return target }
+
+        var targetFilteredDestinations = externalTargetSupportedDestinations[graphTarget]
+
+        // Local SPM test targets are orphans (nothing depends on them), so the top-down
+        // traversal never reaches them. Inherit destinations from their direct dependencies instead.
+        if targetFilteredDestinations == nil,
+           target.metadata.tags.contains(TargetTags.localSwiftPackageTest)
         {
+            let depDestinations = target.dependencies.compactMap { dep -> Set<Destination>? in
+                guard case let .target(name, _, _) = dep,
+                      let depTarget = project.targets[name]
+                else { return nil }
+                let depGraphTarget = GraphTarget(path: project.path, target: depTarget, project: project)
+                return externalTargetSupportedDestinations[depGraphTarget]
+            }
+            if let merged = depDestinations.first {
+                targetFilteredDestinations = depDestinations.dropFirst().reduce(merged) { $0.union($1) }
+            }
+        }
+
+        if let targetFilteredDestinations {
             target.destinations = targetFilteredDestinations
             if target.destinations.isEmpty {
                 target.metadata.tags = Set(Array(target.metadata.tags) + ["tuist:prunable"])

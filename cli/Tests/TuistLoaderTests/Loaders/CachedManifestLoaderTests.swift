@@ -1,4 +1,3 @@
-import _NIOFileSystem
 import FileSystem
 import FileSystemTesting
 import Foundation
@@ -307,40 +306,9 @@ class CachedManifestLoaderTests {
         })
     }
 
-    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func notThrowing_fileAlreadyExistsNIOError() async throws {
+    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func throwing_writeErrors() async throws {
         // Given
-        let fileSystem = MockFileSystem()
-        fileSystem.writeTextOverride = { _, _, _ in
-            throw _NIOFileSystem.FileSystemError(
-                code: .fileAlreadyExists,
-                message: "",
-                cause: nil,
-                location: .init(function: "", file: "", line: 0)
-            )
-        }
-
-        subject = try createSubject(fileSystem: fileSystem)
-
-        let path = try #require(FileSystem.temporaryTestDirectory).appending(component: "App")
-        let project = Project.test(name: "App")
-        try await stubProject(project, at: path)
-
-        // When
-        let result = try await subject.loadProject(at: path, disableSandbox: false)
-
-        // Then
-        #expect(result == project)
-        #expect(result.name == "App")
-    }
-
-    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func throwing_otherNIOErrors() async throws {
-        // Given
-        let expectedError = _NIOFileSystem.FileSystemError(
-            code: .invalidArgument,
-            message: "",
-            cause: nil,
-            location: .init(function: "", file: "", line: 0)
-        )
+        let expectedError = TestError.writeFailed
         let fileSystem = MockFileSystem()
         fileSystem.writeTextOverride = { _, _, _ in
             throw expectedError
@@ -458,8 +426,6 @@ class CachedManifestLoaderTests {
     }
 }
 
-extension _NIOFileSystem.FileSystemError: Equatable {
-    public static func == (lhs: _NIOFileSystem.FileSystemError, rhs: _NIOFileSystem.FileSystemError) -> Bool {
-        return lhs.code == rhs.code && lhs.message == rhs.message && lhs.location == rhs.location
-    }
+private enum TestError: Error, Equatable {
+    case writeFailed
 }

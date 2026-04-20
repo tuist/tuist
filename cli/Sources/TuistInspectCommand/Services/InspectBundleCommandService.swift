@@ -12,6 +12,12 @@ import TuistLogging
 import TuistServer
 import TuistSupport
 
+#if os(macOS)
+    import TuistKit
+    import TuistXcodeBuildProducts
+    import XcodeGraph
+#endif
+
 public enum InspectBundleCommandServiceError: LocalizedError {
     case missingFullHandle
 
@@ -24,43 +30,134 @@ public enum InspectBundleCommandServiceError: LocalizedError {
 }
 
 public struct InspectBundleCommandService {
-    private let fileSystem: FileSysteming
     private let rosalind: Rosalindable
     private let createBundleService: CreateBundleServicing
     private let configLoader: ConfigLoading
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let gitController: GitControlling
+    private let fileSystem: FileSysteming
+
+    #if os(macOS)
+        private let buildProductService: BuildProductServicing
+        private let appBundleTargetResolver: AppBundleTargetResolving
+    #endif
 
     public init(
-        fileSystem: FileSysteming = FileSystem(),
         rosalind: Rosalindable = Rosalind(),
         createBundleService: CreateBundleServicing = CreateBundleService(),
         configLoader: ConfigLoading = ConfigLoader(),
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         gitController: GitControlling = GitController()
     ) {
-        self.fileSystem = fileSystem
-        self.rosalind = rosalind
-        self.createBundleService = createBundleService
-        self.configLoader = configLoader
-        self.serverEnvironmentService = serverEnvironmentService
-        self.gitController = gitController
+        #if os(macOS)
+            self.init(
+                rosalind: rosalind,
+                createBundleService: createBundleService,
+                configLoader: configLoader,
+                serverEnvironmentService: serverEnvironmentService,
+                gitController: gitController,
+                fileSystem: FileSystem(),
+                buildProductService: BuildProductService(),
+                appBundleTargetResolver: AppBundleTargetResolver()
+            )
+        #else
+            self.init(
+                rosalind: rosalind,
+                createBundleService: createBundleService,
+                configLoader: configLoader,
+                serverEnvironmentService: serverEnvironmentService,
+                gitController: gitController,
+                fileSystem: FileSystem()
+            )
+        #endif
     }
+
+    #if os(macOS)
+        init(
+            rosalind: Rosalindable,
+            createBundleService: CreateBundleServicing,
+            configLoader: ConfigLoading,
+            serverEnvironmentService: ServerEnvironmentServicing,
+            gitController: GitControlling,
+            fileSystem: FileSysteming,
+            buildProductService: BuildProductServicing,
+            appBundleTargetResolver: AppBundleTargetResolving
+        ) {
+            self.rosalind = rosalind
+            self.createBundleService = createBundleService
+            self.configLoader = configLoader
+            self.serverEnvironmentService = serverEnvironmentService
+            self.gitController = gitController
+            self.fileSystem = fileSystem
+            self.buildProductService = buildProductService
+            self.appBundleTargetResolver = appBundleTargetResolver
+        }
+    #else
+        init(
+            rosalind: Rosalindable,
+            createBundleService: CreateBundleServicing,
+            configLoader: ConfigLoading,
+            serverEnvironmentService: ServerEnvironmentServicing,
+            gitController: GitControlling,
+            fileSystem: FileSysteming
+        ) {
+            self.rosalind = rosalind
+            self.createBundleService = createBundleService
+            self.configLoader = configLoader
+            self.serverEnvironmentService = serverEnvironmentService
+            self.gitController = gitController
+            self.fileSystem = fileSystem
+        }
+    #endif
+
+    #if os(macOS)
+        public func run(
+            path: String?,
+            bundle: String,
+            configuration: String?,
+            platforms: [Platform],
+            derivedDataPath: String?,
+            json: Bool
+        ) async throws {
+            let path = try await self.path(path)
+            let bundlePath = try await resolveBundlePath(
+                bundle,
+                path: path,
+                configuration: configuration,
+                platforms: platforms,
+                derivedDataPath: derivedDataPath
+            )
+
+            try await inspect(
+                path: path,
+                bundlePath: bundlePath,
+                json: json
+            )
+        }
+    #endif
 
     public func run(
         path: String?,
         bundle: String,
         json: Bool
     ) async throws {
-        let bundlePath = try AbsolutePath(
-            validating: bundle,
-            relativeTo: try await Environment.current.currentWorkingDirectory()
-        )
         let path = try await self.path(path)
+        let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
+        let bundlePath = try AbsolutePath(validating: bundle, relativeTo: currentWorkingDirectory)
 
-        let config =
-            try await configLoader
-                .loadConfig(path: path)
+        try await inspect(
+            path: path,
+            bundlePath: bundlePath,
+            json: json
+        )
+    }
+
+    private func inspect(
+        path: AbsolutePath,
+        bundlePath: AbsolutePath,
+        json: Bool
+    ) async throws {
+        let config = try await configLoader.loadConfig(path: path)
 
         if json {
             let appBundleReport = try await rosalind.analyzeAppBundle(at: bundlePath)
@@ -103,6 +200,49 @@ public struct InspectBundleCommandService {
             .alert("View the bundle analysis at \(serverBundle.url)")
         )
     }
+
+    #if os(macOS)
+        private func resolveBundlePath(
+            _ bundle: String,
+            path: AbsolutePath,
+            configuration: String?,
+            platforms: [Platform],
+            derivedDataPath: String?
+        ) async throws -> AbsolutePath {
+            let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
+            let explicitPath = try AbsolutePath(validating: bundle, relativeTo: currentWorkingDirectory)
+
+            if looksLikeBundlePath(explicitPath) {
+                return explicitPath
+            }
+
+            let resolvedDerivedDataPath = try derivedDataPath.map {
+                try AbsolutePath(validating: $0, relativeTo: currentWorkingDirectory)
+            }
+
+            let appBundleTarget = try await appBundleTargetResolver.resolve(
+                app: bundle,
+                path: path,
+                configuration: configuration,
+                platforms: platforms,
+                derivedDataPath: resolvedDerivedDataPath
+            )
+
+            return try await buildProductService.appBundlePath(
+                app: appBundleTarget.app,
+                projectPath: appBundleTarget.workspacePath,
+                derivedDataPath: appBundleTarget.derivedDataPath,
+                configuration: appBundleTarget.configuration,
+                platforms: appBundleTarget.platforms
+            )
+        }
+
+        private func looksLikeBundlePath(_ path: AbsolutePath) -> Bool {
+            let bundleExtensions = ["app", "xcarchive", "ipa", "aab", "apk"]
+            guard let fileExtension = path.extension else { return false }
+            return bundleExtensions.contains(fileExtension)
+        }
+    #endif
 
     private func path(_ path: String?) async throws -> AbsolutePath {
         let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()

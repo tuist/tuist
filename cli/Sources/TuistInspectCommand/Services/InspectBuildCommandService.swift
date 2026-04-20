@@ -11,6 +11,7 @@
     import TuistProcess
     import TuistSupport
     import TuistXCActivityLog
+    import TuistXcodeBuildProducts
     import TuistXcodeProjectOrWorkspacePathLocator
 
     enum InspectBuildCommandServiceError: Equatable, LocalizedError {

@@ -1,6 +1,6 @@
 ARG ELIXIR_VERSION=1.19.1
 ARG OTP_VERSION=28.1
-ARG DEBIAN_VERSION=bookworm-20251020-slim
+ARG DEBIAN_VERSION=bookworm-20260406-slim
 ARG BUILDER_IMAGE="hexpm/elixir:${ELIXIR_VERSION}-erlang-${OTP_VERSION}-debian-${DEBIAN_VERSION}"
 ARG RUNNER_IMAGE="debian:${DEBIAN_VERSION}"
 
@@ -103,7 +103,7 @@ RUN mix compile --warnings-as-errors
 
 # Install Chromium for OG image generation (headless, no GPU)
 RUN apt-get update -y && \
-  apt-get install -y --no-install-recommends chromium && \
+  apt-get install -y --no-install-recommends chromium fonts-noto-cjk fonts-noto-core && \
   apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Generate OG images using headless Chromium
@@ -144,7 +144,12 @@ RUN mkdir -p /app/_build/prod/rel/tuist/lib/processor-0.1.0/priv/native && \
 # ========================================
 FROM ${RUNNER_IMAGE} AS runner-base
 
-RUN apt-get update -y && \
+# APT_CACHE_BUST is passed from CI (e.g. the commit SHA) to invalidate the
+# apt layer so `apt-get upgrade` picks up the latest security patches instead
+# of reusing a stale cached layer.
+ARG APT_CACHE_BUST=0
+RUN : "APT_CACHE_BUST=${APT_CACHE_BUST}" \
+  && apt-get update -y && \
   apt-get upgrade -y && \
   apt-get install -y curl build-essential gcc wget libvips libstdc++6 openssl libncurses5 locales ca-certificates postgresql-client zip unzip git \
   && apt-get clean && rm -f /var/lib/apt/lists/*_*

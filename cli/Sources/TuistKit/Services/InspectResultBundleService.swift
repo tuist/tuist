@@ -44,6 +44,7 @@ public protocol UploadResultBundleServicing {
         resultBundlePath: AbsolutePath,
         config: Tuist,
         quarantinedTests: [TestIdentifier],
+        buildRunId: String?,
         shardPlanId: String?,
         shardIndex: Int?
     ) async throws -> Components.Schemas.RunsTest
@@ -144,14 +145,14 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
             shardIndex: shardIndex
         )
 
-        let testCaseRunIdsByIdentity = testCaseRunIdsByIdentity(testCaseRuns: test.test_case_runs)
+        let testCaseRunsByIdentity = testCaseRunsByIdentity(testCaseRuns: test.test_case_runs)
 
         await testSummary.testCases.forEach(context: .concurrent) { testCase in
             await uploadAttachments(
                 for: testCase,
                 fullHandle: fullHandle,
                 serverURL: serverURL,
-                testCaseRunIdsByIdentity: testCaseRunIdsByIdentity
+                testCaseRunsByIdentity: testCaseRunsByIdentity
             )
         }
 
@@ -164,6 +165,7 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
         resultBundlePath: AbsolutePath,
         config: Tuist,
         quarantinedTests: [TestIdentifier] = [],
+        buildRunId: String? = nil,
         shardPlanId: String? = nil,
         shardIndex: Int? = nil
     ) async throws -> Components.Schemas.RunsTest {
@@ -206,7 +208,7 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
                 duration: 0,
                 testModules: []
             ),
-            buildRunId: nil,
+            buildRunId: buildRunId,
             gitBranch: gitInfo.branch,
             gitCommitSHA: gitInfo.sha,
             gitRef: gitInfo.ref,
@@ -230,7 +232,7 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
         for testCase: TestCase,
         fullHandle: String,
         serverURL: URL,
-        testCaseRunIdsByIdentity: [String: String]
+        testCaseRunsByIdentity: [String: Components.Schemas.RunsTest.test_case_runsPayloadPayload]
     ) async {
         guard !testCase.attachments.isEmpty else { return }
 
@@ -239,17 +241,21 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
             suiteName: testCase.testSuite ?? "",
             name: testCase.name
         )
-        guard let testCaseRunId = testCaseRunIdsByIdentity[identityKey] else { return }
+        guard let run = testCaseRunsByIdentity[identityKey] else { return }
 
         await testCase.attachments.forEach(context: .concurrent) { attachment in
             do {
+                let argumentId: String? = attachment.argumentName.flatMap { argName in
+                    run.arguments?.first(where: { $0.name == argName })?.id
+                }
                 let testCaseRunAttachmentId = try await createTestCaseRunAttachmentService.createAttachment(
                     fullHandle: fullHandle,
                     serverURL: serverURL,
-                    testCaseRunId: testCaseRunId,
+                    testCaseRunId: run.id,
                     fileName: attachment.fileName,
                     filePath: attachment.filePath,
-                    repetitionNumber: attachment.repetitionNumber
+                    repetitionNumber: attachment.repetitionNumber,
+                    testCaseRunArgumentId: argumentId
                 )
                 if let crashReport = testCase.crashReport,
                    crashReport.filePath == attachment.filePath
@@ -258,7 +264,7 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
                         fullHandle: fullHandle,
                         serverURL: serverURL,
                         crashReport: crashReport,
-                        testCaseRunId: testCaseRunId,
+                        testCaseRunId: run.id,
                         testCaseRunAttachmentId: testCaseRunAttachmentId
                     )
                 }
@@ -270,12 +276,12 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
         }
     }
 
-    private func testCaseRunIdsByIdentity(
+    private func testCaseRunsByIdentity(
         testCaseRuns: [Components.Schemas.RunsTest.test_case_runsPayloadPayload]
-    ) -> [String: String] {
+    ) -> [String: Components.Schemas.RunsTest.test_case_runsPayloadPayload] {
         testCaseRuns.reduce(into: [:]) { result, run in
             let key = testCaseRunIdentityKey(moduleName: run.module_name, suiteName: run.suite_name, name: run.name)
-            result[key] = run.id
+            result[key] = run
         }
     }
 

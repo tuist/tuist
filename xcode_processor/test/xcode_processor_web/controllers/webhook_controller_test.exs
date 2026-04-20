@@ -38,6 +38,30 @@ defmodule XcodeProcessorWeb.WebhookControllerTest do
       assert json_response(conn, 200) == Map.put(parsed_data, "project_id", "project-456")
     end
 
+    test "returns 422 when processing fails", %{conn: conn} do
+      expect(XcodeProcessor.XCResultProcessor, :process, fn "some/key.zip", _opts ->
+        {:error, "parse failed"}
+      end)
+
+      body =
+        JSON.encode!(%{
+          "test_run_id" => "run-123",
+          "storage_key" => "some/key.zip",
+          "project_id" => "project-456"
+        })
+
+      signature = sign_payload(body)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> put_req_header("x-webhook-signature", signature)
+        |> assign(:raw_body, [body])
+        |> post("/webhooks/process-xcresult", body |> JSON.decode!())
+
+      assert json_response(conn, 422)["error"] == "processing_failed"
+    end
+
     test "returns 403 with invalid signature", %{conn: conn} do
       body =
         JSON.encode!(%{

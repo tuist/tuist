@@ -75,11 +75,16 @@ public struct ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this
                         "SKIP_INSTALL": "YES",
                         "GENERATE_MASTER_OBJECT_FILE": "NO",
                         "VERSIONING_SYSTEM": "",
+                        // https://github.com/swiftlang/swift-package-manager/blob/main/Sources/XCBuildSupport/PIFBuilder.swift#L925
+                        // https://github.com/swiftlang/swift-package-manager/blob/main/Sources/SwiftBuildSupport/PackagePIFProjectBuilder.swift#L225
+                        "PACKAGE_RESOURCE_TARGET_KIND": "resource",
                     ],
                     configurations: [:]
                 ),
                 sources: target.sources.filter { $0.path.extension == "metal" },
-                resources: target.resources,
+                resources: ResourceFileElements(
+                    target.resources.resources.filter { $0.path.extension != "xcstrings" }
+                ),
                 copyFiles: target.copyFiles,
                 coreDataModels: target.coreDataModels,
                 filesGroup: target.filesGroup,
@@ -87,21 +92,30 @@ public struct ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this
                 buildableFolders: resourceBuildableFolders
             )
             modifiedTarget.sources = target.sources.filter { $0.path.extension != "metal" }
-            // Asset catalogs need to be included in the main target's sources build phase so
-            // Xcode generates typed asset symbols (mirroring SwiftPM's PIF builder).
-            // String catalogs (.xcstrings) are NOT added to Sources because doing so triggers
-            // Xcode's string extraction which marks all strings as "stale" when the target uses
-            // a companion resource bundle (bundle: .module). They are kept in the main target's
-            // Resources phase (see below) so Xcode can correctly associate string references
-            // in Swift code with the catalog entries.
+            // Asset catalogs are added to the main target's Sources build phase so Xcode
+            // generates typed asset symbols. This mirrors SwiftPM's PIF builder:
+            //   - https://github.com/swiftlang/swift-package-manager/blob/main/Sources/XCBuildSupport/PIFBuilder.swift#L944-L952
+            // They are also compiled into the companion resource bundle via its Resources phase.
+            //
+            // String catalogs (.xcstrings) are kept in the main target's Resources build phase
+            // (NOT Sources) so Xcode correctly runs string extraction in the context of this
+            // target's Swift sources. They are excluded from the companion bundle to prevent
+            // duplicate compilation — the companion bundle has no Swift sources, so extraction
+            // there would incorrectly mark all strings as stale.
+            //
+            // IMPORTANT: PACKAGE_RESOURCE_BUNDLE_NAME is NOT set on the main target because
+            // swift-build's XCStringsCompiler.shouldCompileCatalog() skips xcstrings compilation
+            // when that setting is present, which breaks stale-string detection entirely.
+            // See: https://github.com/swiftlang/swift-build/blob/main/Sources/SWBApplePlatform/XCStringsCompiler.swift
             let codeGeneratingResourceExtensions: Set<String> = ["xcassets"]
             for resource in target.resources.resources {
                 if let ext = resource.path.extension, codeGeneratingResourceExtensions.contains(ext) {
                     modifiedTarget.sources.append(SourceFile(path: resource.path))
                 }
             }
-            let mainTargetRetainedResources = target.resources.resources.filter { $0.path.extension == "xcstrings" }
-            modifiedTarget.resources.resources = mainTargetRetainedResources
+            modifiedTarget.resources.resources = target.resources.resources.filter {
+                $0.path.extension == "xcstrings"
+            }
             modifiedTarget.copyFiles = []
             modifiedTarget.buildableFolders = remainingBuildableFolders
             modifiedTarget.dependencies.append(.target(
@@ -109,15 +123,6 @@ public struct ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this
                 status: .required,
                 condition: .when(target.dependencyPlatformFilters)
             ))
-            // Setting PACKAGE_RESOURCE_BUNDLE_NAME tells Xcode that a companion bundle target
-            // owns the compiled asset catalogs, which suppresses LinkAssetCatalog on this target
-            // while preserving GenerateAssetSymbols for typed resource accessors. Without this,
-            // xcodebuild archive fails for static targets because LinkAssetCatalog references
-            // an UninstalledProducts path that doesn't exist during archiving.
-            var base = modifiedTarget.settings?.base ?? SettingsDictionary()
-            base["PACKAGE_RESOURCE_BUNDLE_NAME"] = .string(bundleName)
-            modifiedTarget.settings = modifiedTarget.settings?.with(base: base)
-                ?? Settings(base: base, configurations: [:])
             additionalTargets.append(resourcesTarget)
         }
 
@@ -299,7 +304,7 @@ public struct ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this
         extern "C" {
         #endif
 
-        NSBundle* \(targetName)_SWIFTPM_MODULE_BUNDLE(void);
+        NSBundle* \(targetName)_SWIFTPM_MODULE_BUNDLE(void) NS_SWIFT_NONISOLATED;
 
         #define SWIFTPM_MODULE_BUNDLE \(targetName)_SWIFTPM_MODULE_BUNDLE()
 
@@ -370,7 +375,7 @@ public struct ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this
         // MARK: - Objective-C Bundle Accessor
         @objc
         public final class \(target.productName.toValidSwiftIdentifier())Resources: NSObject {
-        @objc public class var bundle: Bundle {
+        @objc public nonisolated class var bundle: Bundle {
             return .module
         }
         }
@@ -386,7 +391,7 @@ public struct ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this
             target
                 .product
         ), the bundle containing the resources is copied into the final product.
-            static let module: Bundle = {
+            nonisolated static let module: Bundle = {
                 let bundleName = "\(bundleName)"
                 let bundleFinderResourceURL = Bundle(for: BundleFinder.self).resourceURL
                 var candidates = [
@@ -439,7 +444,7 @@ public struct ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this
             target
                 .product
         ), the bundle for classes within this module can be used directly.
-            static let module = Bundle(for: BundleFinder.self)
+            nonisolated static let module = Bundle(for: BundleFinder.self)
         }
         """
     }

@@ -180,7 +180,7 @@ defmodule TuistWeb.Authentication do
 
   It clears all session data for safety. See renew_session.
   """
-  def log_out_user(conn) do
+  def log_out_user(conn, opts \\ []) do
     user_token = get_session(conn, :user_token)
     user_token && Accounts.delete_user_session_token(user_token)
 
@@ -188,10 +188,17 @@ defmodule TuistWeb.Authentication do
       TuistWeb.Endpoint.broadcast(live_socket_id, "disconnect", %{})
     end
 
+    return_to =
+      case Keyword.get(opts, :return_to) do
+        "//" <> _ -> ~p"/"
+        "/" <> _ = path -> path
+        _ -> ~p"/"
+      end
+
     conn
     |> renew_session()
     |> delete_resp_cookie(@remember_me_cookie)
-    |> redirect(to: ~p"/")
+    |> redirect(to: return_to)
     |> halt()
   end
 
@@ -346,6 +353,9 @@ defmodule TuistWeb.Authentication do
 
   defp sso_provider_path(%{id: organization_id, sso_provider: :okta}),
     do: ~p"/users/auth/okta?organization_id=#{organization_id}"
+
+  defp sso_provider_path(%{id: organization_id, sso_provider: :oauth2}),
+    do: ~p"/users/auth/oauth2?organization_id=#{organization_id}"
 
   def require_authenticated_user_for_private_projects(
         %{path_params: %{"account_handle" => account_handle, "project_handle" => project_handle}} = conn,

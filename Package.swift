@@ -103,6 +103,7 @@ var tuistServerDependencies: [Target.Dependency] = [
     "TuistOpener",
     "TuistUniqueIDGenerator",
     "TuistSupport",
+    "TuistSimulator",
     fileSystemDependency,
     mockableDependency,
     pathDependency,
@@ -373,7 +374,7 @@ tuistAuthCommandDependencies.append(contentsOf: ["TuistLoader", "TuistSupport"])
 tuistServerDependencies.append(contentsOf: [
     "TuistCore", "TuistProcess", "TuistCI",
     "TuistAutomation", "TuistXCActivityLog",
-    "TuistXCResultService", "TuistSimulator",
+    "TuistXCResultService",
     xcodeGraphDependency,
 ])
 tuistHTTPDependencies.append(contentsOf: ["TuistSupport", "TuistHAR"])
@@ -408,18 +409,18 @@ tuistInitCommandDependencies.append(contentsOf: [
 ])
 tuistShareCommandDependencies.append(contentsOf: [
     "TuistKit", "TuistAutomation", "TuistCore", "TuistLoader",
-    "TuistSimulator", "TuistUserInputReader", "TuistExtension",
+    "TuistSimulator", "TuistUserInputReader", "TuistExtension", "TuistXcodeBuildProducts",
     xcodeGraphDependency,
 ])
 tuistRunCommandDependencies.append(contentsOf: [
     "TuistKit", "TuistAutomation", "TuistCore", "TuistLoader",
-    "TuistSimulator",
+    "TuistSimulator", "TuistXcodeBuildProducts",
     xcodeGraphDependency,
 ])
 tuistInspectCommandDependencies.append(contentsOf: [
     "TuistKit", "TuistCore", "TuistLoader", "TuistAutomation",
     "TuistXCActivityLog", "TuistXcodeProjectOrWorkspacePathLocator",
-    "TuistXCResultService", "TuistCI", "TuistProcess", "TuistConfig",
+    "TuistXCResultService", "TuistCI", "TuistProcess", "TuistConfig", "TuistXcodeBuildProducts",
     "TuistRootDirectoryLocator", "TuistMachineMetrics", "TuistCASAnalytics",
     xcodeGraphDependency,
     commandDependency,
@@ -485,7 +486,6 @@ var targets: [Target] = [
             pathDependency,
             fileSystemDependency,
             mockableDependency,
-            .product(name: "NIOCore", package: "apple.swift-nio"),
         ],
         path: "cli/Sources/TuistEnvironment",
         swiftSettings: [
@@ -860,6 +860,7 @@ var targets: [Target] = [
         name: "TuistTesting",
         dependencies: [
             "TuistSupport",
+            "TuistXcodeBuildProducts",
             .target(name: "TuistServer", condition: .when(platforms: [.macOS])),
             .target(name: "TuistHTTP", condition: .when(platforms: [.macOS])),
             "TuistAlert",
@@ -1064,6 +1065,37 @@ targets.append(contentsOf: [
         path: "cli/Sources/TuistMachineMetrics",
         exclude: ["AGENTS.md"]
     ),
+    .target(
+        name: "TuistSimulator",
+        dependencies: [
+            xcodeGraphDependency,
+            mockableDependency,
+            pathDependency,
+        ],
+        path: "cli/Sources/TuistSimulator",
+        exclude: ["AGENTS.md"],
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
+        name: "TuistXcodeBuildProducts",
+        dependencies: [
+            "TuistEnvironment",
+            "TuistSimulator",
+            "TuistSupport",
+            fileSystemDependency,
+            mockableDependency,
+            pathDependency,
+            xcodeGraphDependency,
+            .product(name: "Crypto", package: "apple.swift-crypto"),
+        ],
+        path: "cli/Sources/TuistXcodeBuildProducts",
+        exclude: ["AGENTS.md"],
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
 ])
 
 // MARK: - macOS-only targets
@@ -1194,6 +1226,7 @@ targets.append(contentsOf: [
             .target(name: "TuistAppleArchiver", condition: .when(platforms: [.macOS])),
             "TuistLaunchctl",
             "TuistMachineMetrics",
+            "TuistXcodeBuildProducts",
             "ProjectDescription",
             "ProjectAutomation",
             xcodeProjDependency,
@@ -1307,6 +1340,7 @@ targets.append(contentsOf: [
             pathDependency,
             .product(name: "XcbeautifyLib", package: "cpisciotta.xcbeautify"),
             "TuistCore",
+            "TuistXcodeBuildProducts",
             xcodeGraphDependency,
             "TuistSupport",
             mockableDependency,
@@ -1437,19 +1471,6 @@ targets.append(contentsOf: [
         ],
         path: "cli/Sources/TuistCache",
         exclude: ["OpenAPI/cache.yml", "AGENTS.md"],
-        swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug)),
-        ]
-    ),
-    .target(
-        name: "TuistSimulator",
-        dependencies: [
-            xcodeGraphDependency,
-            mockableDependency,
-            pathDependency,
-        ],
-        path: "cli/Sources/TuistSimulator",
-        exclude: ["AGENTS.md"],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
         ]
@@ -1689,7 +1710,7 @@ let package = Package(
         ),
         .package(id: "tuist.Path", .upToNextMajor(from: "0.3.8")),
         .package(id: "p-x9.MachOKit", .upToNextMajor(from: "0.46.1")),
-        .package(id: "tuist.FileSystem", .upToNextMajor(from: "0.15.0")),
+        .package(id: "tuist.FileSystem", .upToNextMajor(from: "0.16.2")),
         .package(id: "tuist.Command", .upToNextMajor(from: "0.14.0")),
         .package(id: "apple.swift-crypto", from: "3.0.0"),
         .package(id: "apple.swift-nio", from: "2.70.0"),

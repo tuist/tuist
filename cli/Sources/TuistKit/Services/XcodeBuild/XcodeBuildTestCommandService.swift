@@ -15,6 +15,7 @@ import TuistServer
 import TuistSupport
 import TuistUniqueIDGenerator
 import TuistXCActivityLog
+import TuistXcodeBuildProducts
 import TuistXCResultService
 import XCResultParser
 
@@ -70,7 +71,8 @@ struct XcodeBuildTestCommandService {
         passthroughXcodebuildArguments: [String],
         skipQuarantine: Bool = false,
         shardIndex: Int? = nil,
-        mode: TestProcessingMode = .local
+        shardArchivePath: AbsolutePath? = nil,
+        mode: TestProcessingMode? = nil
     ) async throws {
         var passthroughXcodebuildArguments = passthroughXcodebuildArguments
         try await passthroughXcodebuildArguments.append(
@@ -79,6 +81,7 @@ struct XcodeBuildTestCommandService {
 
         let path = try await path(passthroughXcodebuildArguments: passthroughXcodebuildArguments)
         let config = try await configLoader.loadConfig(path: path)
+        let mode = mode ?? TestProcessingMode.default(for: config.url)
 
         var shardPlanId: String?
         var shardTestProductsPath: AbsolutePath?
@@ -98,7 +101,8 @@ struct XcodeBuildTestCommandService {
                 shardIndex: shardIndex,
                 fullHandle: fullHandle,
                 serverURL: serverURL,
-                testProductsPath: testProductsPath
+                testProductsPath: testProductsPath,
+                testProductsArchivePath: shardArchivePath
             )
             shardPlanId = shard.shardPlanId
 
@@ -346,13 +350,16 @@ struct XcodeBuildTestCommandService {
                 )
             case .remote:
                 guard let resultBundlePath else { return }
+                let buildRunId = await RunMetadataStorage.current.buildRunId
                 let test = try await uploadResultBundleService.uploadResultBundle(
                     resultBundlePath: resultBundlePath,
                     config: config,
                     quarantinedTests: quarantinedTests,
+                    buildRunId: buildRunId,
                     shardPlanId: shardPlanId,
                     shardIndex: shardIndex
                 )
+                await RunMetadataStorage.current.update(testRunId: test.id)
                 AlertController.current.success(
                     .alert("Result bundle uploaded for processing. View at \(test.url)")
                 )

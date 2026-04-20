@@ -12,6 +12,7 @@ defmodule Tuist.Gradle.Analytics do
   alias Tuist.ClickHouseRepo
   alias Tuist.Gradle.Build
   alias Tuist.Gradle.CacheEvent
+  alias Tuist.Utilities.Decimals
 
   @doc """
   Calculates the cache hit rate for a project over a time period.
@@ -53,6 +54,81 @@ defmodule Tuist.Gradle.Analytics do
       _ ->
         0.0
     end
+  end
+
+  @scatter_data_limit 10_000
+
+  def cache_hit_rate_scatter_data(project_id, opts \\ []) do
+    start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+    group_by = Keyword.get(opts, :group_by, :environment)
+
+    query =
+      maybe_filter_ci(
+        from(b in Build,
+          where: b.project_id == ^project_id,
+          where: b.inserted_at >= ^DateTime.to_naive(start_datetime),
+          where: b.inserted_at <= ^DateTime.to_naive(end_datetime),
+          where: b.cacheable_tasks_count > 0,
+          order_by: [desc: b.inserted_at],
+          limit: ^@scatter_data_limit,
+          select: %{
+            id: b.id,
+            inserted_at: b.inserted_at,
+            is_ci: b.is_ci,
+            root_project_name: b.root_project_name,
+            hit_rate:
+              fragment(
+                "(ifNull(?, 0) + ifNull(?, 0)) / ? * 100.0",
+                b.tasks_local_hit_count,
+                b.tasks_remote_hit_count,
+                b.cacheable_tasks_count
+              )
+          }
+        ),
+        opts
+      )
+
+    results = ClickHouseRepo.all(query)
+    truncated = length(results) >= @scatter_data_limit
+
+    oldest_entry =
+      if truncated do
+        results |> List.last() |> Map.get(:inserted_at)
+      end
+
+    series =
+      results
+      |> Enum.group_by(fn build ->
+        case group_by do
+          :project -> build.root_project_name
+          _ -> build.is_ci
+        end
+      end)
+      |> Enum.map(fn {group_key, builds} ->
+        %{
+          name: group_key,
+          data:
+            Enum.map(builds, fn build ->
+              ts = NaiveDateTime.diff(build.inserted_at, ~N[1970-01-01 00:00:00], :millisecond)
+
+              %{
+                value: [ts, Decimals.to_rounded(build.hit_rate)],
+                id: build.id,
+                meta: %{
+                  root_project_name: build.root_project_name,
+                  is_ci: build.is_ci
+                }
+              }
+            end)
+        }
+      end)
+
+    %{
+      series: series,
+      truncated: truncated,
+      oldest_entry: oldest_entry
+    }
   end
 
   @doc """

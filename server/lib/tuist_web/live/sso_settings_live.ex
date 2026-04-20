@@ -30,7 +30,8 @@ defmodule TuistWeb.SSOSettingsLive do
       |> assign(organization: organization)
       |> assign(sso_enabled: sso_enabled)
       |> assign(sso_enforced: organization.sso_enforced)
-      |> assign(flash_message: nil)
+      |> assign(flash_message: nil, field_errors: %{})
+      |> assign(field_errors: %{})
       |> assign_form_from_organization(organization)
       |> assign_saved_state()
       |> assign(:head_title, "#{dgettext("dashboard_account", "SSO")} · #{selected_account.name} · Tuist")
@@ -43,7 +44,12 @@ defmodule TuistWeb.SSOSettingsLive do
     sso_enabled = not socket.assigns.sso_enabled
 
     socket
-    |> assign(sso_enabled: sso_enabled, sso_enforced: sso_enabled and socket.assigns.sso_enforced, flash_message: nil)
+    |> assign(
+      sso_enabled: sso_enabled,
+      sso_enforced: sso_enabled and socket.assigns.sso_enforced,
+      flash_message: nil,
+      field_errors: %{}
+    )
     |> compute_form_valid()
     |> compute_has_changes()
     |> then(&{:noreply, &1})
@@ -51,7 +57,7 @@ defmodule TuistWeb.SSOSettingsLive do
 
   def handle_event("toggle_sso_enforced", _params, socket) do
     socket
-    |> assign(sso_enforced: not socket.assigns.sso_enforced, flash_message: nil)
+    |> assign(sso_enforced: not socket.assigns.sso_enforced, flash_message: nil, field_errors: %{})
     |> compute_has_changes()
     |> then(&{:noreply, &1})
   end
@@ -60,7 +66,7 @@ defmodule TuistWeb.SSOSettingsLive do
     form_params = Map.put(socket.assigns.current_form_params, "provider", provider)
 
     socket
-    |> assign(selected_provider: provider, flash_message: nil)
+    |> assign(selected_provider: provider, flash_message: nil, field_errors: %{})
     |> assign(current_form_params: form_params)
     |> assign(form: to_form(form_params, as: "sso"))
     |> compute_form_valid()
@@ -93,7 +99,7 @@ defmodule TuistWeb.SSOSettingsLive do
       :ok ->
         case socket.assigns.selected_provider do
           "google" -> save_google_sso(socket, params)
-          "okta" -> save_okta_sso(socket, params)
+          provider when provider in ["okta", "oauth2"] -> save_oauth2_sso(socket, params)
         end
 
       {:error, message} ->
@@ -110,8 +116,11 @@ defmodule TuistWeb.SSOSettingsLive do
           sso_provider: nil,
           sso_organization_id: nil,
           sso_enforced: false,
-          okta_client_id: nil,
-          okta_encrypted_client_secret: nil
+          oauth2_client_id: nil,
+          oauth2_encrypted_client_secret: nil,
+          oauth2_authorize_url: nil,
+          oauth2_token_url: nil,
+          oauth2_user_info_url: nil
         })
 
       {:noreply,
@@ -120,7 +129,7 @@ defmodule TuistWeb.SSOSettingsLive do
        |> assign(sso_enforced: false)
        |> assign_form_from_organization(updated_organization)
        |> assign_saved_state()
-       |> assign(flash_message: nil)}
+       |> assign(flash_message: nil, field_errors: %{})}
     end
   end
 
@@ -133,9 +142,7 @@ defmodule TuistWeb.SSOSettingsLive do
           Accounts.update_organization(organization, %{
             sso_provider: :google,
             sso_organization_id: domain,
-            sso_enforced: socket.assigns.sso_enforced,
-            okta_client_id: nil,
-            okta_encrypted_client_secret: nil
+            sso_enforced: socket.assigns.sso_enforced
           })
 
         {:noreply,
@@ -143,33 +150,84 @@ defmodule TuistWeb.SSOSettingsLive do
          |> assign(organization: updated_organization)
          |> assign_form_from_organization(updated_organization)
          |> assign_saved_state()
-         |> assign(flash_message: nil)}
+         |> assign(flash_message: nil, field_errors: %{})}
 
       {:error, message} ->
         {:noreply, assign(socket, flash_message: {"error", message})}
     end
   end
 
-  defp save_okta_sso(%{assigns: %{organization: organization}} = socket, params) do
-    domain = String.trim(params["sso"]["okta_domain"] || "")
-    client_id = String.trim(params["sso"]["okta_client_id"] || "")
-    client_secret = String.trim(params["sso"]["okta_client_secret"] || "")
+  defp save_oauth2_sso(%{assigns: %{organization: organization, selected_provider: selected_provider}} = socket, params) do
+    sso_provider = String.to_existing_atom(selected_provider)
+    attrs = build_oauth2_attrs(selected_provider, params["sso"] || %{}, socket.assigns.sso_enforced)
 
-    attrs = %{sso_organization_id: domain, okta_client_id: client_id, sso_enforced: socket.assigns.sso_enforced}
+    case Accounts.update_sso_configuration(organization.id, sso_provider, attrs) do
+      {:ok, updated_organization} ->
+        {:noreply,
+         socket
+         |> assign(organization: updated_organization)
+         |> assign_form_from_organization(updated_organization)
+         |> assign_saved_state()
+         |> assign(flash_message: nil, field_errors: %{})}
 
-    attrs =
-      if client_secret == "",
-        do: attrs,
-        else: Map.put(attrs, :okta_client_secret, client_secret)
+      {:error, changeset} ->
+        {:noreply, assign(socket, field_errors: changeset_to_field_errors(changeset, selected_provider))}
+    end
+  end
 
-    {:ok, updated_organization} = Accounts.update_okta_configuration(organization.id, attrs)
+  @changeset_to_form_field %{
+    sso_organization_id: %{"okta" => "okta_domain", "oauth2" => "oauth2_site"},
+    oauth2_authorize_url: "oauth2_authorize_url",
+    oauth2_token_url: "oauth2_token_url",
+    oauth2_user_info_url: "oauth2_user_info_url",
+    oauth2_client_id: "oauth2_client_id",
+    oauth2_encrypted_client_secret: "oauth2_client_secret"
+  }
 
-    {:noreply,
-     socket
-     |> assign(organization: updated_organization)
-     |> assign_form_from_organization(updated_organization)
-     |> assign_saved_state()
-     |> assign(flash_message: nil)}
+  defp changeset_to_field_errors(changeset, provider) do
+    changeset
+    |> Ecto.Changeset.traverse_errors(fn {msg, _opts} -> msg end)
+    |> Enum.reduce(%{}, fn {field, msgs}, acc ->
+      form_field =
+        case Map.get(@changeset_to_form_field, field) do
+          %{} = per_provider -> Map.get(per_provider, provider, to_string(field))
+          name when is_binary(name) -> name
+          nil -> to_string(field)
+        end
+
+      Map.put(acc, form_field, Enum.join(msgs, ", "))
+    end)
+  end
+
+  defp build_oauth2_attrs(selected_provider, form, sso_enforced) do
+    {sso_organization_id, authorize_url, token_url, user_info_url} =
+      extract_oauth2_urls(selected_provider, form)
+
+    attrs = %{
+      sso_organization_id: sso_organization_id,
+      sso_enforced: sso_enforced,
+      oauth2_client_id: String.trim(form["oauth2_client_id"] || ""),
+      oauth2_authorize_url: authorize_url,
+      oauth2_token_url: token_url,
+      oauth2_user_info_url: user_info_url
+    }
+
+    client_secret = String.trim(form["oauth2_client_secret"] || "")
+
+    if client_secret == "",
+      do: attrs,
+      else: Map.put(attrs, :oauth2_client_secret, client_secret)
+  end
+
+  defp extract_oauth2_urls("okta", form) do
+    domain = String.trim(form["okta_domain"] || "")
+
+    {domain, Accounts.okta_authorize_url(domain), Accounts.okta_token_url(domain), Accounts.okta_userinfo_url(domain)}
+  end
+
+  defp extract_oauth2_urls("oauth2", form) do
+    {String.trim(form["oauth2_site"] || ""), String.trim(form["oauth2_authorize_url"] || ""),
+     String.trim(form["oauth2_token_url"] || ""), String.trim(form["oauth2_user_info_url"] || "")}
   end
 
   defp validate_sso_enforcement(%{assigns: %{sso_enforced: false}}), do: :ok
@@ -181,6 +239,7 @@ defmodule TuistWeb.SSOSettingsLive do
       case socket.assigns.selected_provider do
         "google" -> String.trim(socket.assigns.current_form_params["google_domain"] || "")
         "okta" -> String.trim(socket.assigns.current_form_params["okta_domain"] || "")
+        "oauth2" -> String.trim(socket.assigns.current_form_params["oauth2_site"] || "")
       end
 
     has_identity =
@@ -261,18 +320,39 @@ defmodule TuistWeb.SSOSettingsLive do
   end
 
   defp form_fields_valid?("okta", params, organization) do
-    domain = String.trim(params["okta_domain"] || "")
-    client_id = String.trim(params["okta_client_id"] || "")
-    client_secret = String.trim(params["okta_client_secret"] || "")
+    field_present?(params, "okta_domain") and
+      oauth2_credentials_valid?(params, organization)
+  end
 
-    has_existing_secret =
-      organization.sso_provider == :okta and
-        not is_nil(organization.okta_encrypted_client_secret)
-
-    domain != "" and client_id != "" and (client_secret != "" or has_existing_secret)
+  defp form_fields_valid?("oauth2", params, organization) do
+    oauth2_credentials_valid?(params, organization) and
+      required_fields_present?(params, [
+        "oauth2_site",
+        "oauth2_authorize_url",
+        "oauth2_token_url",
+        "oauth2_user_info_url"
+      ])
   end
 
   defp form_fields_valid?(_provider, _params, _organization), do: true
+
+  defp oauth2_credentials_valid?(params, organization) do
+    field_present?(params, "oauth2_client_id") and
+      (field_present?(params, "oauth2_client_secret") or has_existing_secret?(organization))
+  end
+
+  defp has_existing_secret?(organization) do
+    organization.sso_provider in [:okta, :oauth2] and
+      not is_nil(organization.oauth2_encrypted_client_secret)
+  end
+
+  defp field_present?(params, field), do: String.trim(params[field] || "") != ""
+
+  defp required_fields_present?(params, fields) do
+    Enum.all?(fields, fn field ->
+      String.trim(params[field] || "") != ""
+    end)
+  end
 
   defp compute_has_changes(socket) do
     saved = socket.assigns.saved_state
@@ -287,32 +367,45 @@ defmodule TuistWeb.SSOSettingsLive do
   end
 
   defp build_form_data("google", organization) do
-    %{
-      "provider" => "google",
-      "google_domain" => organization.sso_organization_id || "",
-      "okta_domain" => "",
-      "okta_client_id" => "",
-      "okta_client_secret" => ""
-    }
+    Map.merge(default_form_data(), %{"provider" => "google", "google_domain" => organization.sso_organization_id || ""})
   end
 
   defp build_form_data("okta", organization) do
-    %{
+    Map.merge(default_form_data(), %{
       "provider" => "okta",
-      "google_domain" => "",
       "okta_domain" => organization.sso_organization_id || "",
-      "okta_client_id" => organization.okta_client_id || "",
-      "okta_client_secret" => ""
-    }
+      "oauth2_client_id" => organization.oauth2_client_id || "",
+      "oauth2_client_secret" => ""
+    })
+  end
+
+  defp build_form_data("oauth2", organization) do
+    Map.merge(default_form_data(), %{
+      "provider" => "oauth2",
+      "oauth2_site" => organization.sso_organization_id || "",
+      "oauth2_client_id" => organization.oauth2_client_id || "",
+      "oauth2_client_secret" => "",
+      "oauth2_authorize_url" => organization.oauth2_authorize_url || "",
+      "oauth2_token_url" => organization.oauth2_token_url || "",
+      "oauth2_user_info_url" => organization.oauth2_user_info_url || ""
+    })
   end
 
   defp build_form_data(_provider, _organization) do
+    default_form_data()
+  end
+
+  defp default_form_data do
     %{
       "provider" => "google",
       "google_domain" => "",
       "okta_domain" => "",
-      "okta_client_id" => "",
-      "okta_client_secret" => ""
+      "oauth2_client_id" => "",
+      "oauth2_client_secret" => "",
+      "oauth2_site" => "",
+      "oauth2_authorize_url" => "",
+      "oauth2_token_url" => "",
+      "oauth2_user_info_url" => ""
     }
   end
 end

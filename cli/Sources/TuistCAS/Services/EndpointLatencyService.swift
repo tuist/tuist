@@ -3,6 +3,7 @@ import Foundation
     import FoundationNetworking
 #endif
 import Mockable
+import TuistHTTP
 
 @Mockable
 protocol EndpointLatencyServicing: Sendable {
@@ -23,7 +24,7 @@ struct EndpointLatencyService: EndpointLatencyServicing {
             // Use URLSessionTaskMetrics for precise timing on macOS
             return await withCheckedContinuation { continuation in
                 let delegate = MetricsDelegate(continuation: continuation)
-                let session = URLSession(configuration: .default, delegate: delegate, delegateQueue: nil)
+                let session = URLSession(configuration: tuistURLSessionConfiguration(), delegate: delegate, delegateQueue: nil)
                 delegate.session = session
 
                 Task {
@@ -36,7 +37,7 @@ struct EndpointLatencyService: EndpointLatencyServicing {
             let clock = ContinuousClock()
             let start = clock.now
             do {
-                let (_, response) = try await URLSession.shared.data(for: request)
+                let (_, response) = try await URLSession.tuistShared.data(for: request)
                 let end = clock.now
                 let duration = end - start
                 if let httpResponse = response as? HTTPURLResponse,

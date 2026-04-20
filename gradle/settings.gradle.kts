@@ -1,7 +1,7 @@
 rootProject.name = "tuist-gradle-plugin"
 
 plugins {
-    id("dev.tuist") version "0.8.0"
+    id("dev.tuist") version "0.9.1"
 }
 
 buildCache {

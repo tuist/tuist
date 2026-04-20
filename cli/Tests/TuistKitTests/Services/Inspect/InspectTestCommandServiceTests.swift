@@ -12,6 +12,7 @@ import TuistServer
 import TuistSupport
 import TuistTesting
 import TuistXCActivityLog
+import TuistXcodeBuildProducts
 import TuistXcodeProjectOrWorkspacePathLocator
 import TuistXCResultService
 import XCResultParser
@@ -42,7 +43,7 @@ struct InspectTestCommandServiceTests {
 
         given(configLoader)
             .loadConfig(path: .any)
-            .willReturn(.test(fullHandle: "tuist/tuist"))
+            .willReturn(.test(fullHandle: "tuist/tuist", url: URL(string: "https://example.com")!))
 
         given(xcResultService)
             .parse(path: .any, rootDirectory: .any)
@@ -239,6 +240,111 @@ struct InspectTestCommandServiceTests {
             .uploadTestSummary(
                 testSummary: .any,
                 projectDerivedDataDirectory: .value(derivedDataPath),
+                config: .any,
+                shardPlanId: .any,
+                shardIndex: .any
+            )
+            .called(1)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func run_defaults_to_remote_for_tuist_dev_url() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let resultBundlePath = temporaryDirectory.appending(component: "Test.xcresult")
+        try await fileSystem.makeDirectory(at: resultBundlePath)
+
+        let mockedEnvironment = try #require(Environment.mocked)
+        mockedEnvironment.variables["TUIST_INSPECT_TEST_WAIT"] = "YES"
+
+        given(xcodeProjectOrWorkspacePathLocator)
+            .locate(from: .value(temporaryDirectory))
+            .willReturn(temporaryDirectory.appending(component: "App.xcodeproj"))
+
+        configLoader.reset()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(fullHandle: "tuist/tuist", url: URL(string: "https://tuist.dev")!))
+
+        given(uploadResultBundleService)
+            .uploadResultBundle(
+                resultBundlePath: .any,
+                config: .any,
+                quarantinedTests: .any,
+                buildRunId: .any,
+                shardPlanId: .any,
+                shardIndex: .any
+            )
+            .willReturn(
+                Components.Schemas.RunsTest(
+                    duration: 1000,
+                    id: "test-id",
+                    project_id: 1,
+                    test_case_runs: [],
+                    _type: .test,
+                    url: "https://tuist.dev/tuist/tuist/runs/test-id"
+                )
+            )
+
+        // When
+        try await subject.run(
+            path: temporaryDirectory.pathString,
+            resultBundlePath: resultBundlePath.pathString
+        )
+
+        // Then
+        verify(uploadResultBundleService)
+            .uploadResultBundle(
+                resultBundlePath: .value(resultBundlePath),
+                config: .any,
+                quarantinedTests: .any,
+                buildRunId: .any,
+                shardPlanId: .any,
+                shardIndex: .any
+            )
+            .called(1)
+        verify(uploadResultBundleService)
+            .uploadTestSummary(
+                testSummary: .any,
+                projectDerivedDataDirectory: .any,
+                config: .any,
+                shardPlanId: .any,
+                shardIndex: .any
+            )
+            .called(0)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func run_explicit_local_mode_overrides_url_default() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let resultBundlePath = temporaryDirectory.appending(component: "Test.xcresult")
+        try await fileSystem.makeDirectory(at: resultBundlePath)
+
+        let mockedEnvironment = try #require(Environment.mocked)
+        mockedEnvironment.variables["TUIST_INSPECT_TEST_WAIT"] = "YES"
+
+        given(xcodeProjectOrWorkspacePathLocator)
+            .locate(from: .value(temporaryDirectory))
+            .willReturn(temporaryDirectory.appending(component: "App.xcodeproj"))
+
+        configLoader.reset()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(fullHandle: "tuist/tuist", url: URL(string: "https://tuist.dev")!))
+
+        // When
+        try await subject.run(
+            path: temporaryDirectory.pathString,
+            resultBundlePath: resultBundlePath.pathString,
+            mode: .local
+        )
+
+        // Then
+        verify(uploadResultBundleService)
+            .uploadTestSummary(
+                testSummary: .any,
+                projectDerivedDataDirectory: .value(nil),
                 config: .any,
                 shardPlanId: .any,
                 shardIndex: .any

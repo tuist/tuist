@@ -249,7 +249,31 @@
            (@downloads_analytics.ok? and @downloads_analytics.result.total_size != 0) or
            (@uploads_analytics.ok? and @uploads_analytics.result.total_size != 0))
     }>
-      <div data-part="analytics-chart">
+      <.chart_type_toggle
+        id="cache-hit-rate"
+        chart_type={@cache_hit_rate_chart_type}
+        chart_type_event="select_cache_hit_rate_chart_type"
+        group_by_options={[
+          %{value: "scheme", label: dgettext("dashboard_cache", "Scheme")},
+          %{value: "environment", label: dgettext("dashboard_cache", "Environment")}
+        ]}
+        selected_group_by={@cache_hit_rate_scatter_group_by}
+        group_by_query_param="cache-hit-rate-scatter-group-by"
+        uri={@uri}
+      />
+      <div
+        :if={@cache_hit_rate_chart.loading || !@cache_hit_rate_chart.ok?}
+        data-part="analytics-chart"
+      >
+        <.skeleton_chart />
+      </div>
+      <div
+        :if={
+          @cache_hit_rate_chart.ok? and !@cache_hit_rate_chart.loading and
+            @cache_hit_rate_chart.result == :line
+        }
+        data-part="analytics-chart"
+      >
         <.chart
           id="xcode-cache-hit-rate-chart"
           type="line"
@@ -368,6 +392,25 @@
           y_axis_max={100}
         />
       </div>
+      <.scatter_chart
+        id="cache-hit-rate-scatter-chart"
+        chart={@cache_hit_rate_chart}
+        period={@analytics_period}
+        value_format="{value}%"
+        y_axis_max={100}
+        url_fn={
+          fn point ->
+            ~p"/#{@selected_account.name}/#{@selected_project.name}/builds/build-runs/#{point.id}"
+          end
+        }
+        truncation_title={
+          dgettext(
+            "dashboard_cache",
+            "The 10,000 entry limit has been reached, data is only included up to %{date}. Try narrowing the date range to see more recent data.",
+            date: scatter_oldest_entry_iso(@cache_hit_rate_chart.result)
+          )
+        }
+      />
     </.card_section>
     <.card_section :if={
       @analytics_selected_widget != "cache_hit_rate" and

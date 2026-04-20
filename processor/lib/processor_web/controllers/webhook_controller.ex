@@ -14,11 +14,20 @@ defmodule ProcessorWeb.WebhookController do
     xcode_cache_upload_enabled = Map.get(params, "xcode_cache_upload_enabled", false)
     Logger.info("Processing build #{build_id} (storage_key: #{storage_key})")
 
-    {:ok, parsed_data} = Processor.BuildProcessor.process(storage_key, xcode_cache_upload_enabled)
-    parsed_data = Map.put(parsed_data, "project_id", project_id)
+    case Processor.BuildProcessor.process(storage_key, xcode_cache_upload_enabled) do
+      {:ok, parsed_data} ->
+        parsed_data = Map.put(parsed_data, "project_id", project_id)
 
-    conn
-    |> put_status(:ok)
-    |> json(parsed_data)
+        conn
+        |> put_status(:ok)
+        |> json(parsed_data)
+
+      {:error, reason} ->
+        Logger.warning("Failed to process build #{build_id}: #{inspect(reason)}")
+
+        conn
+        |> put_status(:unprocessable_entity)
+        |> json(%{error: "processing_failed", detail: inspect(reason)})
+    end
   end
 end

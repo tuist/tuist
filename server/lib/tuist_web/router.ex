@@ -654,14 +654,14 @@ defmodule TuistWeb.Router do
         script: :csp_nonce
       }
 
-    live_session :ops_cache,
+    live_session :ops,
       layout: {TuistWeb.Layouts, :ops},
       on_mount: [
         {TuistWeb.Authentication, :ensure_authenticated},
         {TuistWeb.Authorization, [:current_user, :read, :ops]},
         {TuistWeb.LayoutLive, :ops}
       ] do
-      live "/cache", TuistWeb.OpsCacheLive
+      live "/", TuistWeb.OpsCacheLive
     end
   end
 
@@ -682,7 +682,6 @@ defmodule TuistWeb.Router do
       on_mount: [{TuistWeb.Authentication, :redirect_if_user_is_authenticated}] do
       live "/users/register", UserRegistrationLive, :new
       live "/users/log_in", UserLoginLive, :new
-      live "/users/log_in/okta", UserOktaLoginLive, :new
       live "/users/log_in/sso", SSOLoginLive, :new
       live "/users/reset_password", UserForgotPasswordLive, :new
       live "/users/reset_password/:token", UserResetPasswordLive, :edit
@@ -696,7 +695,10 @@ defmodule TuistWeb.Router do
     pipe_through [:browser_app, :require_authenticated_user, :analytics]
 
     live_session :require_authenticated_user,
-      on_mount: [{TuistWeb.Authentication, :ensure_authenticated}] do
+      on_mount: [
+        {TuistWeb.Authentication, :ensure_authenticated},
+        {TuistWeb.Locale, :assign_locale}
+      ] do
       get "/dashboard", DashboardController, :dashboard
       live "/organizations/new", CreateOrganizationLive, :new
       live "/projects/new", CreateProjectLive, :new
@@ -723,6 +725,8 @@ defmodule TuistWeb.Router do
     pipe_through :browser_app
     get "/okta", AuthController, :okta_request
     get "/okta/callback", AuthController, :okta_callback
+    get "/oauth2", AuthController, :oauth2_request
+    get "/oauth2/callback", AuthController, :oauth2_callback
   end
 
   scope "/users/auth", TuistWeb do
@@ -832,7 +836,11 @@ defmodule TuistWeb.Router do
 
     live_session :account,
       layout: {TuistWeb.Layouts, :account},
-      on_mount: [{TuistWeb.Authentication, :ensure_authenticated}, {TuistWeb.LayoutLive, :account}] do
+      on_mount: [
+        {TuistWeb.Authentication, :ensure_authenticated},
+        {TuistWeb.Locale, :assign_locale},
+        {TuistWeb.LayoutLive, :account}
+      ] do
       live "/", ProjectsLive
       live "/projects", ProjectsLive
       live "/members", MembersLive
@@ -857,8 +865,9 @@ defmodule TuistWeb.Router do
     live_session :project,
       layout: {TuistWeb.Layouts, :project},
       on_mount: [
-        {TuistWeb.LayoutLive, :project},
-        {TuistWeb.Authentication, :mount_current_user}
+        {TuistWeb.Authentication, :mount_current_user},
+        {TuistWeb.Locale, :assign_locale},
+        {TuistWeb.LayoutLive, :project}
       ] do
       live "/tests", TestsLive
       live "/tests/test-runs", TestRunsLive

@@ -11,7 +11,6 @@ defmodule TuistWeb.XcodeOverviewLive do
   alias Tuist.Builds.Analytics, as: BuildsAnalytics
   alias Tuist.Bundles
   alias Tuist.Cache
-  alias Tuist.Runs.Analytics, as: RunsAnalytics
   alias Tuist.Tests
   alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Utilities.Query
@@ -69,19 +68,19 @@ defmodule TuistWeb.XcodeOverviewLive do
       {:ok, %{build_analytics: BuildsAnalytics.build_duration_analytics(project.id, analytics_opts)}}
     end)
     |> assign_async(:test_analytics, fn ->
-      {:ok, %{test_analytics: RunsAnalytics.runs_duration_analytics("test", analytics_opts)}}
+      {:ok, %{test_analytics: Tests.Analytics.test_run_duration_analytics(project.id, analytics_opts)}}
     end)
     |> assign_async(:build_time_analytics, fn ->
       {:ok, %{build_time_analytics: BuildsAnalytics.build_time_analytics(analytics_opts)}}
     end)
     |> assign_async([:recent_test_runs, :failed_test_runs_count, :passed_test_runs_count], fn ->
-      fetch_test_runs_data(project.id)
+      fetch_test_runs_data(project)
     end)
     |> assign_async(:latest_app_previews, fn ->
       {:ok, %{latest_app_previews: AppBuilds.latest_previews_with_distinct_bundle_ids(project)}}
     end)
     |> assign_async(:recent_build_runs, fn ->
-      fetch_recent_build_runs_data(project.id)
+      fetch_recent_build_runs_data(project)
     end)
     |> assign_async([:passed_build_runs_count, :failed_build_runs_count], fn ->
       fetch_recent_build_status_counts(project.id)
@@ -95,13 +94,14 @@ defmodule TuistWeb.XcodeOverviewLive do
     )
   end
 
-  defp fetch_test_runs_data(project_id) do
+  defp fetch_test_runs_data(project) do
     {recent_test_runs, _meta} =
       Tests.list_test_runs(%{
         last: 40,
         filters: [
-          %{field: :project_id, op: :==, value: project_id},
-          %{field: :status, op: :!=, value: "in_progress"}
+          %{field: :project_id, op: :==, value: project.id},
+          %{field: :status, op: :!=, value: "in_progress"},
+          %{field: :status, op: :!=, value: "failed_processing"}
         ],
         order_by: [:ran_at],
         order_directions: [:asc]
@@ -118,7 +118,12 @@ defmodule TuistWeb.XcodeOverviewLive do
 
         value = (run.duration / 1000) |> Decimal.from_float() |> Decimal.round(0)
 
-        %{value: value, itemStyle: %{color: color}, date: run.ran_at}
+        %{
+          value: value,
+          itemStyle: %{color: color},
+          date: run.ran_at,
+          url: ~p"/#{project.account.name}/#{project.name}/tests/test-runs/#{run.id}"
+        }
       end)
 
     failed_test_runs_count = Enum.count(recent_test_runs, fn run -> run.status == "failure" end)
@@ -134,12 +139,12 @@ defmodule TuistWeb.XcodeOverviewLive do
      }}
   end
 
-  defp fetch_recent_build_runs_data(project_id) do
+  defp fetch_recent_build_runs_data(project) do
     {recent_build_runs, _meta} =
       Builds.list_build_runs(%{
         last: 30,
         filters: [
-          %{field: :project_id, op: :==, value: project_id},
+          %{field: :project_id, op: :==, value: project.id},
           %{field: :status, op: :!=, value: "processing"},
           %{field: :status, op: :!=, value: "failed_processing"}
         ],
@@ -147,7 +152,7 @@ defmodule TuistWeb.XcodeOverviewLive do
         order_directions: [:asc]
       })
 
-    {:ok, %{recent_build_runs: recent_build_runs_chart_data(recent_build_runs)}}
+    {:ok, %{recent_build_runs: recent_build_runs_chart_data(recent_build_runs, project)}}
   end
 
   defp fetch_recent_build_status_counts(project_id) do
@@ -189,7 +194,7 @@ defmodule TuistWeb.XcodeOverviewLive do
      }}
   end
 
-  defp recent_build_runs_chart_data(recent_build_runs) do
+  defp recent_build_runs_chart_data(recent_build_runs, project) do
     Enum.map(recent_build_runs, fn run ->
       color =
         case run.status do
@@ -199,7 +204,12 @@ defmodule TuistWeb.XcodeOverviewLive do
 
       value = (run.duration / 1000) |> Decimal.from_float() |> Decimal.round(0)
 
-      %{value: value, itemStyle: %{color: color}, date: run.inserted_at}
+      %{
+        value: value,
+        itemStyle: %{color: color},
+        date: run.inserted_at,
+        url: ~p"/#{project.account.name}/#{project.name}/builds/build-runs/#{run.id}"
+      }
     end)
   end
 

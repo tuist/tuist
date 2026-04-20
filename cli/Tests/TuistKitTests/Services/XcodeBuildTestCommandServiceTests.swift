@@ -10,10 +10,12 @@ import TuistConfigLoader
 import TuistCore
 import TuistLoader
 import TuistRootDirectoryLocator
+import TuistServer
 import TuistSupport
 import TuistTesting
 import TuistUniqueIDGenerator
 import TuistXCActivityLog
+import TuistXcodeBuildProducts
 import TuistXCResultService
 import XcodeGraph
 import protocol XcodeGraphMapper.XcodeGraphMapping
@@ -35,6 +37,8 @@ struct XcodeBuildTestCommandServiceTests {
     private let xcResultService = MockXCResultServicing()
     private let rootDirectoryLocator = MockRootDirectoryLocating()
     private let testQuarantineService = MockTestQuarantineServicing()
+    private let shardService = MockShardServicing()
+    private let serverEnvironmentService = MockServerEnvironmentServicing()
     private let subject: XcodeBuildTestCommandService
 
     init() {
@@ -66,7 +70,9 @@ struct XcodeBuildTestCommandServiceTests {
             uploadResultBundleService: uploadResultBundleService,
             xcResultService: xcResultService,
             rootDirectoryLocator: rootDirectoryLocator,
-            testQuarantineService: testQuarantineService
+            testQuarantineService: testQuarantineService,
+            shardService: shardService,
+            serverEnvironmentService: serverEnvironmentService
         )
     }
 
@@ -183,7 +189,7 @@ struct XcodeBuildTestCommandServiceTests {
 
             given(configLoader)
                 .loadConfig(path: .any)
-                .willReturn(.test(fullHandle: "tuist/tuist"))
+                .willReturn(.test(fullHandle: "tuist/tuist", url: URL(string: "https://example.com")!))
 
             xcResultService.reset()
             given(xcResultService)
@@ -233,6 +239,71 @@ struct XcodeBuildTestCommandServiceTests {
             #expect(warnings.count == 1)
             #expect(warnings.first?.message.plain().contains("Failed to upload test results") == true)
         }
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedDependencies())
+    func passesShardArchivePathToShardService() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let shardArchivePath = temporaryDirectory.appending(component: "bundle.aar")
+        let testProductsPath = temporaryDirectory.appending(component: "Extracted.xctestproducts")
+        let resultBundlePath = temporaryDirectory.appending(component: "test.xcresult")
+
+        try await fileSystem.makeDirectory(at: testProductsPath)
+
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(fullHandle: "tuist/tuist", url: URL(string: "https://example.com")!))
+
+        given(serverEnvironmentService)
+            .url(configServerURL: .any)
+            .willReturn(URL(string: "https://tuist.dev")!)
+
+        given(shardService)
+            .shard(
+                shardIndex: .any,
+                fullHandle: .any,
+                serverURL: .any,
+                testProductsPath: .any,
+                testProductsArchivePath: .any
+            )
+            .willReturn(
+                Shard(
+                    reference: "ref",
+                    shardPlanId: "plan-123",
+                    testProductsPath: testProductsPath,
+                    xcTestRunPath: nil,
+                    modules: ["AppTests"],
+                    selectiveTestingGraph: nil
+                )
+            )
+
+        given(xcodeBuildArgumentParser)
+            .parse(.any)
+            .willReturn(.test())
+
+        given(xcodeBuildController)
+            .run(arguments: .any)
+            .willReturn()
+
+        try await subject.run(
+            passthroughXcodebuildArguments: [
+                "test",
+                "-scheme", "MyAppTests",
+                "-resultBundlePath", resultBundlePath.pathString,
+            ],
+            shardIndex: 1,
+            shardArchivePath: shardArchivePath
+        )
+
+        verify(shardService)
+            .shard(
+                shardIndex: .value(1),
+                fullHandle: .value("tuist/tuist"),
+                serverURL: .any,
+                testProductsPath: .value(nil),
+                testProductsArchivePath: .value(shardArchivePath)
+            )
+            .called(1)
     }
 }
 

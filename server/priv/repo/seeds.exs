@@ -292,10 +292,9 @@ _member_user =
       member
   end
 
-Accounts.update_okta_configuration(organization.id, %{
-  okta_client_id: System.get_env("TUIST_OKTA_1_CLIENT_ID"),
-  okta_client_secret: System.get_env("TUIST_OKTA_1_CLIENT_SECRET"),
-  sso_provider: :okta,
+Accounts.update_sso_configuration(organization.id, :okta, %{
+  oauth2_client_id: System.get_env("TUIST_OKTA_1_CLIENT_ID"),
+  oauth2_client_secret: System.get_env("TUIST_OKTA_1_CLIENT_SECRET"),
   sso_organization_id: "trial-2983119.okta.com"
 })
 
@@ -1298,7 +1297,15 @@ sharded_test_runs
     attrs =
       updated
       |> Map.from_struct()
-      |> Map.drop([:__meta__, :ran_by_account, :build_run, :gradle_build, :test_case_runs, :shard_plan])
+      |> Map.drop([
+        :__meta__,
+        :ran_by_account,
+        :build_run,
+        :gradle_build,
+        :test_case_runs,
+        :shard_plan,
+        :run_destinations
+      ])
 
     IngestRepo.insert_all(Test, [attrs])
 

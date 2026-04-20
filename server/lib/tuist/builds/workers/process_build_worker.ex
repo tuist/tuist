@@ -1,6 +1,6 @@
 defmodule Tuist.Builds.Workers.ProcessBuildWorker do
   @moduledoc false
-  use Oban.Worker, queue: :default, max_attempts: 3
+  use Oban.Worker, queue: :process_build, max_attempts: 5
 
   alias Tuist.Accounts
   alias Tuist.Builds
@@ -47,6 +47,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
 
       {:error, reason} ->
         if attempt >= max_attempts do
+          Logger.error("Build processing failed permanently for build #{build_id}: #{inspect(reason)}")
           mark_failed_build_processing(build_id, project_id, account_id, build_metadata)
         end
 
@@ -100,7 +101,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
                {"content-type", "application/json"},
                {"x-webhook-signature", signature}
              ],
-             receive_timeout: 300_000
+             receive_timeout: 1_200_000
            ) do
         {:ok, %{status: 200, body: parsed_data}} ->
           {:ok, parsed_data}

@@ -41,11 +41,18 @@ defmodule Noora.Alert do
     doc: "Whether the alert can be dismissed."
   )
 
+  attr(:show_icon, :boolean, default: true, doc: "Whether to show the status icon.")
+
   attr(:title, :string, required: true, doc: "The title of the alert.")
 
   attr(:description, :string,
     default: nil,
     doc: "The description of the alert. Only shown if `size` is large."
+  )
+
+  slot(:inner_block,
+    required: false,
+    doc: "Rich HTML description. Takes precedence over the `description` attribute when provided."
   )
 
   slot(:action, required: false)
@@ -63,7 +70,7 @@ defmodule Noora.Alert do
       {@rest}
     >
       <%= if @size in ["small", "medium"] do %>
-        <.icon status={@status} />
+        <.icon :if={@show_icon} status={@status} />
         <span data-part="title">{@title}</span>
         <div :if={@action != []} data-part="actions">
           <%= for action <- @action do %>
@@ -78,10 +85,15 @@ defmodule Noora.Alert do
         />
       <% end %>
       <%= if @size == "large" do %>
-        <.icon status={@status} />
+        <.icon :if={@show_icon} status={@status} />
         <div data-part="column">
           <span data-part="title">{@title}</span>
-          <span data-part="description">{@description}</span>
+          <div :if={@inner_block != []} data-part="description">
+            {render_slot(@inner_block)}
+          </div>
+          <span :if={@inner_block == [] and @description} data-part="description">
+            {@description}
+          </span>
           <div :if={@action != []} data-part="actions">
             <div :for={action <- @action}>
               {render_slot(action)}

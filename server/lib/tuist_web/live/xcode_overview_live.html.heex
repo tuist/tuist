@@ -19,18 +19,18 @@
           <:right_icon><.check /></:right_icon>
         </.dropdown_item>
         <.dropdown_item
-          value="local"
-          label={dgettext("dashboard_projects", "Local")}
-          patch={"?#{Query.put(@uri.query, "analytics-environment", "local")}"}
-          data-selected={@analytics_environment == "local"}
-        >
-          <:right_icon><.check /></:right_icon>
-        </.dropdown_item>
-        <.dropdown_item
           value="ci"
           label={dgettext("dashboard_projects", "CI")}
           patch={"?#{Query.put(@uri.query, "analytics-environment", "ci")}"}
           data-selected={@analytics_environment == "ci"}
+        >
+          <:right_icon><.check /></:right_icon>
+        </.dropdown_item>
+        <.dropdown_item
+          value="local"
+          label={dgettext("dashboard_projects", "Local")}
+          patch={"?#{Query.put(@uri.query, "analytics-environment", "local")}"}
+          data-selected={@analytics_environment == "local"}
         >
           <:right_icon><.check /></:right_icon>
         </.dropdown_item>
@@ -173,21 +173,21 @@
         />
         <.widget
           loading={!@test_analytics.ok?}
-          title={dgettext("dashboard_projects", "Average test time")}
+          title={dgettext("dashboard_tests", "Avg. test run duration")}
           description={
             dgettext(
-              "dashboard_projects",
-              "Average time it takes to test a project when using the 'tuist test' command."
+              "dashboard_tests",
+              "The average test run duration."
             )
           }
           value={
-            if @test_analytics.ok?,
-              do:
-                dgettext("dashboard_projects", "%{duration}s",
-                  duration: Float.round(@test_analytics.result.total_average_duration / 1000, 1)
-                )
+            if @test_analytics.ok? do
+              Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                @test_analytics.result.total_average_duration
+              )
+            end
           }
-          id="widget-average-test-time"
+          id="widget-test-run-duration"
           trend_value={if @test_analytics.ok?, do: @test_analytics.result.trend, else: nil}
           trend_label={@analytics_trend_label}
           trend_type={:inverse}
@@ -759,18 +759,18 @@
           <:right_icon><.check /></:right_icon>
         </.dropdown_item>
         <.dropdown_item
-          value="local"
-          label={dgettext("dashboard_projects", "Local")}
-          patch={"?#{Query.put(@uri.query, "builds-environment", "local")}"}
-          data-selected={@builds_environment == "local"}
-        >
-          <:right_icon><.check /></:right_icon>
-        </.dropdown_item>
-        <.dropdown_item
           value="ci"
           label={dgettext("dashboard_projects", "CI")}
           patch={"?#{Query.put(@uri.query, "builds-environment", "ci")}"}
           data-selected={@builds_environment == "ci"}
+        >
+          <:right_icon><.check /></:right_icon>
+        </.dropdown_item>
+        <.dropdown_item
+          value="local"
+          label={dgettext("dashboard_projects", "Local")}
+          patch={"?#{Query.put(@uri.query, "builds-environment", "local")}"}
+          data-selected={@builds_environment == "local"}
         >
           <:right_icon><.check /></:right_icon>
         </.dropdown_item>

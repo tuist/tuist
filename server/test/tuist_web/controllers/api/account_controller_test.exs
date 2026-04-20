@@ -3,8 +3,10 @@ defmodule TuistWeb.API.AccountControllerTest do
   use Mimic
 
   import TuistTestSupport.Fixtures.AccountsFixtures
+  import TuistTestSupport.Fixtures.ProjectsFixtures
 
   alias Tuist.Accounts
+  alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Repo
 
   describe "PATCH /api/accounts" do
@@ -77,6 +79,35 @@ defmodule TuistWeb.API.AccountControllerTest do
       |> put_req_header("content-type", "application/json")
       |> patch("/api/accounts/#{organization.account.name}", %{handle: new_handle})
       |> json_response(:forbidden)
+    end
+
+    test "returns forbidden for account token subject", %{conn: conn, user: user} do
+      user = Repo.preload(user, :account)
+      new_handle = "test#{System.unique_integer()}"
+
+      response =
+        conn
+        |> assign(:current_subject, %AuthenticatedAccount{account: user.account, scopes: ["project:admin:read"]})
+        |> put_req_header("content-type", "application/json")
+        |> patch("/api/accounts/#{user.account.name}", %{handle: new_handle})
+        |> json_response(:forbidden)
+
+      assert response["message"] == "You are not authorized to view this resource."
+    end
+
+    test "returns forbidden for project token subject", %{conn: conn, user: user} do
+      user = Repo.preload(user, :account)
+      project = project_fixture(account_id: user.account.id)
+      new_handle = "test#{System.unique_integer()}"
+
+      response =
+        conn
+        |> assign(:current_project, project)
+        |> put_req_header("content-type", "application/json")
+        |> patch("/api/accounts/#{user.account.name}", %{handle: new_handle})
+        |> json_response(:forbidden)
+
+      assert response["message"] == "You are not authorized to view this resource."
     end
 
     test "returns error when handle is invalid", %{conn: conn, user: user} do
@@ -189,6 +220,31 @@ defmodule TuistWeb.API.AccountControllerTest do
       # Then
       assert response == %{}
       assert Accounts.get_organization_by_id(organization.id) == {:error, :not_found}
+    end
+
+    test "returns forbidden for account token subject", %{conn: conn, user: user} do
+      user = Repo.preload(user, :account)
+
+      response =
+        conn
+        |> assign(:current_subject, %AuthenticatedAccount{account: user.account, scopes: ["project:admin:read"]})
+        |> delete("/api/accounts/#{user.account.name}")
+        |> json_response(:forbidden)
+
+      assert response["message"] == "The authenticated subject is not authorized to perform this action"
+    end
+
+    test "returns forbidden for project token subject", %{conn: conn, user: user} do
+      user = Repo.preload(user, :account)
+      project = project_fixture(account_id: user.account.id)
+
+      response =
+        conn
+        |> assign(:current_project, project)
+        |> delete("/api/accounts/#{user.account.name}")
+        |> json_response(:forbidden)
+
+      assert response["message"] == "The authenticated subject is not authorized to perform this action"
     end
   end
 end

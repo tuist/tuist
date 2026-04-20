@@ -217,6 +217,22 @@ struct SwiftPackageManagerGraphLoaderTests {
                         "Alamofire.Alamofire-5.10.2",
                     ]
                 )
+
+                verify(packageInfoMapper)
+                    .map(
+                        packageInfo: .any,
+                        path: .any,
+                        packageType: .matching { packageType in
+                            if case .external(origin: .remote, artifactPaths: _) = packageType {
+                                return true
+                            }
+                            return false
+                        },
+                        packageSettings: .any,
+                        packageModuleAliases: .any,
+                        enabledTraits: .any
+                    )
+                    .called(1)
             }
         }
     }
@@ -328,6 +344,22 @@ struct SwiftPackageManagerGraphLoaderTests {
         #expect(
             got.externalProjects.values.map(\.hash) == [nil]
         )
+
+        verify(packageInfoMapper)
+            .map(
+                packageInfo: .any,
+                path: .any,
+                packageType: .matching { packageType in
+                    if case .external(origin: .local, artifactPaths: _) = packageType {
+                        return true
+                    }
+                    return false
+                },
+                packageSettings: .any,
+                packageModuleAliases: .any,
+                enabledTraits: .any
+            )
+            .called(1)
     }
 
     @Test(.inTemporaryDirectory, .withMockedDependencies())

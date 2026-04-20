@@ -57,6 +57,19 @@ defmodule TuistWeb.BuildsLive do
      |> push_event("replace-url", %{url: "?" <> query})}
   end
 
+  def handle_event("select_build_duration_chart_type", %{"type" => type}, socket) do
+    query = Query.put(socket.assigns.uri.query, "build-duration-chart-type", type)
+    uri = URI.new!("?" <> query)
+    socket = assign(socket, build_duration_chart_type: type, uri: uri)
+    opts = TuistWeb.XcodeBuildsLive.analytics_opts(socket.assigns)
+    group_by = TuistWeb.XcodeBuildsLive.scatter_group_by_atom(socket.assigns.build_duration_scatter_group_by)
+
+    {:noreply,
+     socket
+     |> push_event("replace-url", %{url: "?" <> query})
+     |> TuistWeb.XcodeBuildsLive.assign_build_duration_chart(type, group_by, opts)}
+  end
+
   def handle_event("select_widget", %{"widget" => _widget} = params, %{assigns: %{selected_project: project}} = socket) do
     if Project.gradle_project?(project) do
       TuistWeb.GradleBuildsLive.handle_event("select_widget", params, socket)

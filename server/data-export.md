@@ -14,11 +14,12 @@ Sensitive authentication data (passwords, tokens) are excluded from exports.
 ## Exportable Data
 
 ### Account & User Data
-- User profiles (email, account settings)
+- User profiles (email, account settings, preferred locale)
 - Organization memberships and roles
 - Account billing information and subscriptions
 - API tokens and project tokens (existence only, not values)
 - Custom cache endpoint configurations
+- Organization SSO configuration metadata, including the configured SSO provider, provider URL, and full OAuth2 endpoint URLs
 
 ### Projects & Development
 - Project information (names, settings, repositories)
@@ -53,6 +54,7 @@ The following data is stored in ClickHouse for analytics purposes:
 
 ### Non-Exportable Data
 - Encrypted passwords and authentication secrets
+- Encrypted SSO client secrets for Okta and custom OAuth2 providers
 
 ## Binary Files
 

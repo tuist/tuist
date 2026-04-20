@@ -15,6 +15,7 @@ This file provides guidance to AI agents when working with code in this reposito
 - `skills/` - Agent Skills (published to [tuist/agent-skills](https://github.com/tuist/agent-skills))
 - `processor/` - Build processor service (Elixir/Phoenix + Swift NIF) - see `processor/AGENTS.md`
 - `xcode_processor/` - Xcode processor service for xcresult processing (Elixir/Phoenix + Swift NIF, macOS) - see `xcode_processor/AGENTS.md`
+- `search/` - Search infrastructure (TypeSense) - see `search/AGENTS.md`
 - `infra/` - Infrastructure and deployment assets - see `infra/AGENTS.md`
 
 ## Global Guardrails
@@ -35,6 +36,7 @@ When creating commits and pull requests, use these conventional commit scopes:
 - `cli` - Changes to the Tuist CLI (Swift)
 - `noora` - Changes to the Noora web component library
 - `skills` - Changes to the Agent Skills package
+- `search` - Changes to the search infrastructure (TypeSense)
 - `docs` - Changes to documentation
 - `handbook` - Changes to the handbook/guides
 
@@ -52,8 +54,8 @@ Examples:
 - Do not add one-line comments unless you think they are really useful.
 
 ## Workflow
-- The Xcode project is generated with Tuist running `tuist generate --no-open`
-- When compiling Swift changes, use `xcodebuild build -workspace Tuist.xcworkspace -scheme Tuist-Workspace CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""` instead of `swift build`
+- For faster builds, generate only the required targets: `tuist generate tuist ProjectDescription --no-open`
+- When compiling Swift changes, use `xcodebuild build -workspace Tuist.xcworkspace -scheme tuist CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""` instead of `swift build`
 - When testing Swift changes, use `xcodebuild test -workspace Tuist.xcworkspace -scheme Tuist-Workspace -only-testing MyTests/SuiteTests CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""` instead of `swift test`.
 - Prefer running test suites or individual test cases, and not the whole test target, for performance
 - When using `swift build`, `swift test`, or `swift package resolve` always include `--replace-scm-with-registry` to avoid switching packages from registry to source control resolution
@@ -122,13 +124,10 @@ Tuist Server is an Elixir/Phoenix web application that extends the functionality
 
 **Setup Commands:**
 ```bash
-mise install                    # Install system dependencies
 brew install postgresql@16      # Make sure `postgresql@16` is installed locally via Homebrew
 brew services start postgresql@16
 mise run clickhouse:start      # Start ClickHouse
-mise run db:create             # Create database
-mise run db:load               # Load database schema
-mise run db:seed               # Seed with development data
+mise install                   # Install dependencies and bootstrap the local development database
 mise run dev                   # Start development server
 ```
 
@@ -246,7 +245,7 @@ The application deploys to Render with different environments:
 ## Important Notes
 
 - Always run `mix ecto.migrate` after pulling database migrations
-- Use `mise run install` after pulling dependency changes
+- Use `mise run install` after pulling dependency changes or when bootstrapping a fresh worktree
 - Local development connects to `http://localhost:8080` for Tuist CLI integration
 
 # Tuist Handbook
