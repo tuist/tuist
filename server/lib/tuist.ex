@@ -108,7 +108,7 @@ defmodule Tuist do
       Alerts.AlertRule,
       Alerts.Workers.AlertWorker,
       Automations,
-      Automations.Automation,
+      Automations.AlertRule,
       Slack,
       Slack.Client,
       Slack.Installation,

@@ -2,11 +2,11 @@ defmodule Tuist.AutomationsTest do
   use TuistTestSupport.Cases.DataCase, async: false
 
   alias Tuist.Automations
-  alias Tuist.Automations.Automation
+  alias Tuist.Automations.AlertRule
   alias TuistTestSupport.Fixtures.AutomationsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
-  describe "list_automations/1" do
+  describe "list_alert_rules/1" do
     test "returns automations for the given project ordered by insertion time" do
       project = ProjectsFixtures.project_fixture()
       other_project = ProjectsFixtures.project_fixture()
@@ -14,29 +14,29 @@ defmodule Tuist.AutomationsTest do
       _other = AutomationsFixtures.automation_fixture(project: other_project)
       second = AutomationsFixtures.automation_fixture(project: project, name: "second")
 
-      ids = project.id |> Automations.list_automations() |> Enum.map(& &1.id)
+      ids = project.id |> Automations.list_alert_rules() |> Enum.map(& &1.id)
       assert ids == [first.id, second.id]
     end
 
     test "returns an empty list when project has no automations" do
       project = ProjectsFixtures.project_fixture()
-      assert Automations.list_automations(project.id) == []
+      assert Automations.list_alert_rules(project.id) == []
     end
   end
 
-  describe "get_automation/1" do
+  describe "get_alert_rule/1" do
     test "returns the automation when found" do
       automation = AutomationsFixtures.automation_fixture()
-      assert {:ok, fetched} = Automations.get_automation(automation.id)
+      assert {:ok, fetched} = Automations.get_alert_rule(automation.id)
       assert fetched.id == automation.id
     end
 
     test "returns :not_found when missing" do
-      assert {:error, :not_found} = Automations.get_automation(UUIDv7.generate())
+      assert {:error, :not_found} = Automations.get_alert_rule(UUIDv7.generate())
     end
   end
 
-  describe "create_automation/1" do
+  describe "create_alert_rule/1" do
     test "inserts a valid automation" do
       project = ProjectsFixtures.project_fixture()
 
@@ -48,29 +48,29 @@ defmodule Tuist.AutomationsTest do
         "trigger_actions" => [%{"type" => "change_state", "state" => "muted"}]
       }
 
-      assert {:ok, %Automation{} = automation} = Automations.create_automation(attrs)
+      assert {:ok, %AlertRule{} = automation} = Automations.create_alert_rule(attrs)
       assert automation.name == "Quarantine flaky tests"
       assert automation.enabled == true
     end
 
     test "returns a changeset error for invalid attrs" do
-      assert {:error, %Ecto.Changeset{}} = Automations.create_automation(%{})
+      assert {:error, %Ecto.Changeset{}} = Automations.create_alert_rule(%{})
     end
   end
 
-  describe "update_automation/2" do
+  describe "update_alert_rule/2" do
     test "updates the given automation" do
       automation = AutomationsFixtures.automation_fixture()
-      assert {:ok, updated} = Automations.update_automation(automation, %{"enabled" => false})
+      assert {:ok, updated} = Automations.update_alert_rule(automation, %{"enabled" => false})
       refute updated.enabled
     end
   end
 
-  describe "delete_automation/1" do
+  describe "delete_alert_rule/1" do
     test "deletes the automation" do
       automation = AutomationsFixtures.automation_fixture()
-      assert {:ok, _} = Automations.delete_automation(automation)
-      assert {:error, :not_found} = Automations.get_automation(automation.id)
+      assert {:ok, _} = Automations.delete_alert_rule(automation)
+      assert {:error, :not_found} = Automations.get_alert_rule(automation.id)
     end
   end
 

@@ -28,7 +28,7 @@ defmodule TuistTestSupport.Fixtures.AutomationsFixtures do
       "recovery_actions" => Keyword.get(opts, :recovery_actions, [])
     }
 
-    {:ok, automation} = Automations.create_automation(attrs)
-    automation
+    {:ok, alert_rule} = Automations.create_alert_rule(attrs)
+    alert_rule
   end
 end

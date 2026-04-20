@@ -1,7 +1,7 @@
-defmodule Tuist.Automations.AutomationTest do
+defmodule Tuist.Automations.AlertRuleTest do
   use TuistTestSupport.Cases.DataCase, async: true
 
-  alias Tuist.Automations.Automation
+  alias Tuist.Automations.AlertRule
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   defp valid_attrs(project, overrides \\ %{}) do
@@ -20,12 +20,12 @@ defmodule Tuist.Automations.AutomationTest do
   describe "changeset/2" do
     test "is valid with valid attributes" do
       project = ProjectsFixtures.project_fixture()
-      changeset = Automation.changeset(%Automation{}, valid_attrs(project))
+      changeset = AlertRule.changeset(%AlertRule{}, valid_attrs(project))
       assert changeset.valid?
     end
 
     test "requires project_id, name, automation_type, trigger_actions" do
-      changeset = Automation.changeset(%Automation{}, %{})
+      changeset = AlertRule.changeset(%AlertRule{}, %{})
       refute changeset.valid?
       errors = errors_on(changeset)
       assert "can't be blank" in errors.project_id
@@ -36,7 +36,7 @@ defmodule Tuist.Automations.AutomationTest do
 
     test "rejects unknown automation_type" do
       project = ProjectsFixtures.project_fixture()
-      changeset = Automation.changeset(%Automation{}, valid_attrs(project, %{"automation_type" => "bogus"}))
+      changeset = AlertRule.changeset(%AlertRule{}, valid_attrs(project, %{"automation_type" => "bogus"}))
       refute changeset.valid?
       assert errors_on(changeset).automation_type
     end
@@ -45,8 +45,8 @@ defmodule Tuist.Automations.AutomationTest do
       project = ProjectsFixtures.project_fixture()
 
       changeset =
-        Automation.changeset(
-          %Automation{},
+        AlertRule.changeset(
+          %AlertRule{},
           valid_attrs(project, %{
             "automation_type" => "flaky_run_count",
             "config" => %{"threshold" => 3, "window" => "30d"}
@@ -60,8 +60,8 @@ defmodule Tuist.Automations.AutomationTest do
       project = ProjectsFixtures.project_fixture()
 
       changeset =
-        Automation.changeset(
-          %Automation{},
+        AlertRule.changeset(
+          %AlertRule{},
           valid_attrs(project, %{"config" => %{"threshold" => 200, "window" => "30d"}})
         )
 
@@ -73,8 +73,8 @@ defmodule Tuist.Automations.AutomationTest do
       project = ProjectsFixtures.project_fixture()
 
       changeset =
-        Automation.changeset(
-          %Automation{},
+        AlertRule.changeset(
+          %AlertRule{},
           valid_attrs(project, %{"config" => %{"threshold" => 10}})
         )
 
@@ -88,8 +88,8 @@ defmodule Tuist.Automations.AutomationTest do
       project = ProjectsFixtures.project_fixture()
 
       changeset =
-        Automation.changeset(
-          %Automation{},
+        AlertRule.changeset(
+          %AlertRule{},
           valid_attrs(project, %{
             "trigger_actions" => [%{"type" => "change_state", "state" => "enabled"}]
           })
@@ -102,8 +102,8 @@ defmodule Tuist.Automations.AutomationTest do
       project = ProjectsFixtures.project_fixture()
 
       changeset =
-        Automation.changeset(
-          %Automation{},
+        AlertRule.changeset(
+          %AlertRule{},
           valid_attrs(project, %{
             "trigger_actions" => [%{"type" => "change_state", "state" => "bogus"}]
           })
@@ -117,8 +117,8 @@ defmodule Tuist.Automations.AutomationTest do
       project = ProjectsFixtures.project_fixture()
 
       changeset =
-        Automation.changeset(
-          %Automation{},
+        AlertRule.changeset(
+          %AlertRule{},
           valid_attrs(project, %{
             "trigger_actions" => [
               %{"type" => "send_slack", "channel" => "C123", "message" => "hi"}
@@ -133,8 +133,8 @@ defmodule Tuist.Automations.AutomationTest do
       project = ProjectsFixtures.project_fixture()
 
       changeset =
-        Automation.changeset(
-          %Automation{},
+        AlertRule.changeset(
+          %AlertRule{},
           valid_attrs(project, %{
             "trigger_actions" => [%{"type" => "send_slack", "channel" => "", "message" => "hi"}]
           })
@@ -147,8 +147,8 @@ defmodule Tuist.Automations.AutomationTest do
       project = ProjectsFixtures.project_fixture()
 
       changeset =
-        Automation.changeset(
-          %Automation{},
+        AlertRule.changeset(
+          %AlertRule{},
           valid_attrs(project, %{
             "trigger_actions" => [%{"type" => "send_slack", "channel" => "C123", "message" => ""}]
           })
@@ -161,8 +161,8 @@ defmodule Tuist.Automations.AutomationTest do
       project = ProjectsFixtures.project_fixture()
 
       changeset =
-        Automation.changeset(
-          %Automation{},
+        AlertRule.changeset(
+          %AlertRule{},
           valid_attrs(project, %{
             "trigger_actions" => [%{"type" => "add_label", "label" => "flaky"}],
             "recovery_enabled" => true,
@@ -178,8 +178,8 @@ defmodule Tuist.Automations.AutomationTest do
       project = ProjectsFixtures.project_fixture()
 
       changeset =
-        Automation.changeset(
-          %Automation{},
+        AlertRule.changeset(
+          %AlertRule{},
           valid_attrs(project, %{
             "trigger_actions" => [%{"type" => "add_label"}]
           })
@@ -192,8 +192,8 @@ defmodule Tuist.Automations.AutomationTest do
       project = ProjectsFixtures.project_fixture()
 
       changeset =
-        Automation.changeset(
-          %Automation{},
+        AlertRule.changeset(
+          %AlertRule{},
           valid_attrs(project, %{
             "trigger_actions" => [
               %{"type" => "change_state", "state" => "muted"},
@@ -210,8 +210,8 @@ defmodule Tuist.Automations.AutomationTest do
       project = ProjectsFixtures.project_fixture()
 
       changeset =
-        Automation.changeset(
-          %Automation{},
+        AlertRule.changeset(
+          %AlertRule{},
           valid_attrs(project, %{
             "trigger_actions" => [
               %{"type" => "add_label", "label" => "flaky"},
@@ -228,8 +228,8 @@ defmodule Tuist.Automations.AutomationTest do
       project = ProjectsFixtures.project_fixture()
 
       changeset =
-        Automation.changeset(
-          %Automation{},
+        AlertRule.changeset(
+          %AlertRule{},
           valid_attrs(project, %{
             "trigger_actions" => [
               %{"type" => "add_label", "label" => "flaky"},
@@ -245,8 +245,8 @@ defmodule Tuist.Automations.AutomationTest do
       project = ProjectsFixtures.project_fixture()
 
       changeset =
-        Automation.changeset(
-          %Automation{},
+        AlertRule.changeset(
+          %AlertRule{},
           valid_attrs(project, %{"trigger_actions" => [%{"type" => "fly_to_moon"}]})
         )
 
@@ -256,7 +256,7 @@ defmodule Tuist.Automations.AutomationTest do
 
   describe "foreign key" do
     test "rejects nonexistent project_id" do
-      changeset = Automation.changeset(%Automation{}, valid_attrs(%{id: 999_999}))
+      changeset = AlertRule.changeset(%AlertRule{}, valid_attrs(%{id: 999_999}))
       assert changeset.valid?
       {:error, changeset_with_error} = Repo.insert(changeset)
       assert "does not exist" in errors_on(changeset_with_error).project_id

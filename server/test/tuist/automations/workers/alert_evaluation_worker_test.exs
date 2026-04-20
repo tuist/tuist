@@ -8,8 +8,8 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
   alias Tuist.Automations.Workers.AlertEvaluationWorker
   alias TuistTestSupport.Fixtures.AutomationsFixtures
 
-  defp run(automation_id) do
-    AlertEvaluationWorker.perform(%Oban.Job{args: %{"automation_id" => automation_id}})
+  defp run(alert_rule_id) do
+    AlertEvaluationWorker.perform(%Oban.Job{args: %{"alert_rule_id" => alert_rule_id}})
   end
 
   test "no-op when automation is missing" do

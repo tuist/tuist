@@ -32,12 +32,11 @@ defmodule TuistWeb.API.AutomationsController do
     required: [:type]
   }
 
-  @automation_schema %Schema{
+  @alert_rule_schema %Schema{
     type: :object,
     properties: %{
       id: %Schema{type: :string, format: :uuid},
       name: %Schema{type: :string},
-      kind: %Schema{type: :string, enum: ["alert"], description: "The kind of automation."},
       enabled: %Schema{type: :boolean},
       automation_type: %Schema{
         type: :string,
@@ -79,7 +78,7 @@ defmodule TuistWeb.API.AutomationsController do
            properties: %{
              automations: %Schema{
                type: :array,
-               items: @automation_schema
+               items: @alert_rule_schema
              }
            },
            required: [:automations]
@@ -89,10 +88,10 @@ defmodule TuistWeb.API.AutomationsController do
   )
 
   def index(%{assigns: %{selected_project: project}} = conn, _params) do
-    automations = Automations.list_automations(project.id)
+    alert_rules = Automations.list_alert_rules(project.id)
 
     json(conn, %{
-      automations: Enum.map(automations, &serialize_automation/1)
+      automations: Enum.map(alert_rules, &serialize_alert_rule/1)
     })
   end
 
@@ -120,17 +119,17 @@ defmodule TuistWeb.API.AutomationsController do
       ]
     ],
     responses: %{
-      ok: {"Automation details", "application/json", @automation_schema},
+      ok: {"Automation details", "application/json", @alert_rule_schema},
       not_found: {"Not found", "application/json", Error},
       forbidden: {"Forbidden", "application/json", Error}
     }
   )
 
   def show(%{assigns: %{selected_project: project}, params: %{automation_id: automation_id}} = conn, _params) do
-    case Automations.get_automation(automation_id) do
-      {:ok, automation} ->
-        if automation.project_id == project.id do
-          json(conn, serialize_automation(automation))
+    case Automations.get_alert_rule(automation_id) do
+      {:ok, alert_rule} ->
+        if alert_rule.project_id == project.id do
+          json(conn, serialize_alert_rule(alert_rule))
         else
           conn |> put_status(:not_found) |> json(%{message: "Automation not found."})
         end
@@ -174,7 +173,7 @@ defmodule TuistWeb.API.AutomationsController do
          required: [:name, :automation_type, :trigger_actions]
        }},
     responses: %{
-      created: {"Created automation", "application/json", @automation_schema},
+      created: {"Created automation", "application/json", @alert_rule_schema},
       unprocessable_entity: {"Validation error", "application/json", Error},
       forbidden: {"Forbidden", "application/json", Error}
     }
@@ -186,9 +185,9 @@ defmodule TuistWeb.API.AutomationsController do
       |> normalize_params()
       |> Map.put("project_id", project.id)
 
-    case Automations.create_automation(attrs) do
-      {:ok, automation} ->
-        conn |> put_status(:created) |> json(serialize_automation(automation))
+    case Automations.create_alert_rule(attrs) do
+      {:ok, alert_rule} ->
+        conn |> put_status(:created) |> json(serialize_alert_rule(alert_rule))
 
       {:error, changeset} ->
         conn
@@ -236,7 +235,7 @@ defmodule TuistWeb.API.AutomationsController do
          }
        }},
     responses: %{
-      ok: {"Updated automation", "application/json", @automation_schema},
+      ok: {"Updated automation", "application/json", @alert_rule_schema},
       not_found: {"Not found", "application/json", Error},
       unprocessable_entity: {"Validation error", "application/json", Error},
       forbidden: {"Forbidden", "application/json", Error}
@@ -247,13 +246,13 @@ defmodule TuistWeb.API.AutomationsController do
         %{assigns: %{selected_project: project}, params: %{automation_id: automation_id}, body_params: body_params} = conn,
         _params
       ) do
-    with {:ok, automation} <- Automations.get_automation(automation_id),
-         true <- automation.project_id == project.id do
+    with {:ok, alert_rule} <- Automations.get_alert_rule(automation_id),
+         true <- alert_rule.project_id == project.id do
       attrs = normalize_params(body_params)
 
-      case Automations.update_automation(automation, attrs) do
+      case Automations.update_alert_rule(alert_rule, attrs) do
         {:ok, updated} ->
-          json(conn, serialize_automation(updated))
+          json(conn, serialize_alert_rule(updated))
 
         {:error, changeset} ->
           conn
@@ -300,9 +299,9 @@ defmodule TuistWeb.API.AutomationsController do
   )
 
   def delete(%{assigns: %{selected_project: project}, params: %{automation_id: automation_id}} = conn, _params) do
-    with {:ok, automation} <- Automations.get_automation(automation_id),
-         true <- automation.project_id == project.id,
-         {:ok, _} <- Automations.delete_automation(automation) do
+    with {:ok, alert_rule} <- Automations.get_alert_rule(automation_id),
+         true <- alert_rule.project_id == project.id,
+         {:ok, _} <- Automations.delete_alert_rule(alert_rule) do
       send_resp(conn, :no_content, "")
     else
       {:error, :not_found} ->
@@ -313,19 +312,18 @@ defmodule TuistWeb.API.AutomationsController do
     end
   end
 
-  defp serialize_automation(automation) do
+  defp serialize_alert_rule(alert_rule) do
     %{
-      id: automation.id,
-      name: automation.name,
-      kind: automation.kind,
-      enabled: automation.enabled,
-      automation_type: automation.automation_type,
-      config: automation.config,
-      cadence: automation.cadence,
-      trigger_actions: automation.trigger_actions,
-      recovery_enabled: automation.recovery_enabled,
-      recovery_config: automation.recovery_config,
-      recovery_actions: automation.recovery_actions
+      id: alert_rule.id,
+      name: alert_rule.name,
+      enabled: alert_rule.enabled,
+      automation_type: alert_rule.automation_type,
+      config: alert_rule.config,
+      cadence: alert_rule.cadence,
+      trigger_actions: alert_rule.trigger_actions,
+      recovery_enabled: alert_rule.recovery_enabled,
+      recovery_config: alert_rule.recovery_config,
+      recovery_actions: alert_rule.recovery_actions
     }
   end
 

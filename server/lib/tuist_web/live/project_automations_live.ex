@@ -43,7 +43,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
   end
 
   defp assign_automations(socket, project) do
-    automations = Automations.list_automations(project.id)
+    automations = Automations.list_alert_rules(project.id)
     edit_forms = Map.new(automations, fn a -> {a.id, automation_to_form(a)} end)
 
     socket
@@ -123,7 +123,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
   end
 
   def handle_event("edit_automation", %{"id" => id}, %{assigns: %{selected_project: project}} = socket) do
-    with {:ok, automation} <- Automations.get_automation(id),
+    with {:ok, automation} <- Automations.get_alert_rule(id),
          true <- automation.project_id == project.id do
       form = automation_to_form(automation)
 
@@ -318,11 +318,11 @@ defmodule TuistWeb.ProjectAutomationsLive do
     result =
       case assigns.editing_automation_id do
         nil ->
-          Automations.create_automation(attrs)
+          Automations.create_alert_rule(attrs)
 
         id ->
-          with {:ok, automation} <- Automations.get_automation(id) do
-            Automations.update_automation(automation, attrs)
+          with {:ok, automation} <- Automations.get_alert_rule(id) do
+            Automations.update_alert_rule(automation, attrs)
           end
       end
 
@@ -342,9 +342,9 @@ defmodule TuistWeb.ProjectAutomationsLive do
   end
 
   def handle_event("toggle_automation_enabled", %{"id" => id}, %{assigns: %{selected_project: project}} = socket) do
-    with {:ok, automation} <- Automations.get_automation(id),
+    with {:ok, automation} <- Automations.get_alert_rule(id),
          true <- automation.project_id == project.id,
-         {:ok, _} <- Automations.update_automation(automation, %{enabled: not automation.enabled}) do
+         {:ok, _} <- Automations.update_alert_rule(automation, %{enabled: not automation.enabled}) do
       {:noreply, assign_automations(socket, project)}
     else
       _ -> {:noreply, socket}
@@ -352,9 +352,9 @@ defmodule TuistWeb.ProjectAutomationsLive do
   end
 
   def handle_event("delete_automation", %{"id" => id}, %{assigns: %{selected_project: project}} = socket) do
-    with {:ok, automation} <- Automations.get_automation(id),
+    with {:ok, automation} <- Automations.get_alert_rule(id),
          true <- automation.project_id == project.id,
-         {:ok, _} <- Automations.delete_automation(automation) do
+         {:ok, _} <- Automations.delete_alert_rule(automation) do
       {:noreply, assign_automations(socket, project)}
     else
       _ -> {:noreply, socket}

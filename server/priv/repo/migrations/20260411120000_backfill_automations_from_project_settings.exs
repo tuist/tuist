@@ -8,7 +8,7 @@ defmodule Tuist.Repo.Migrations.BackfillAutomationsFromProjectSettings do
       repo().all(
         from(p in "projects",
           where: p.auto_mark_flaky_tests == true,
-          left_join: a in "automations",
+          left_join: a in "automation_alert_rules",
           on: a.project_id == p.id,
           where: is_nil(a.id),
           select: %{
@@ -54,7 +54,7 @@ defmodule Tuist.Repo.Migrations.BackfillAutomationsFromProjectSettings do
       |> Enum.filter(fn a -> a.trigger_actions != [] end)
 
     if Enum.any?(automations) do
-      repo().insert_all("automations", automations)
+      repo().insert_all("automation_alert_rules", automations)
     end
   end
 

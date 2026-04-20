@@ -1,8 +1,8 @@
-defmodule Tuist.Repo.Migrations.CreateAutomations do
+defmodule Tuist.Repo.Migrations.CreateAutomationAlertRules do
   use Ecto.Migration
 
   def change do
-    create table(:automations, primary_key: false) do
+    create table(:automation_alert_rules, primary_key: false) do
       add :id, :uuid, primary_key: true
       add :project_id, references(:projects, on_delete: :delete_all), null: false
       add :name, :string, null: false
@@ -18,6 +18,6 @@ defmodule Tuist.Repo.Migrations.CreateAutomations do
       timestamps(type: :timestamptz)
     end
 
-    create index(:automations, [:project_id])
+    create index(:automation_alert_rules, [:project_id])
   end
 end

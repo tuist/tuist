@@ -4,21 +4,21 @@ defmodule Tuist.Automations.Workers.AutomationScheduler do
 
   import Ecto.Query
 
-  alias Tuist.Automations.Automation
+  alias Tuist.Automations.AlertRule
   alias Tuist.Automations.Workers.AlertEvaluationWorker
   alias Tuist.Repo
 
   @impl Oban.Worker
   def perform(_job) do
-    automations = Repo.all(from(a in Automation, where: a.enabled == true))
+    alert_rules = Repo.all(from(a in AlertRule, where: a.enabled == true))
 
-    Enum.each(automations, fn automation ->
+    Enum.each(alert_rules, fn alert_rule ->
       {:ok, _job} =
-        %{automation_id: automation.id}
+        %{alert_rule_id: alert_rule.id}
         |> AlertEvaluationWorker.new(
           unique: [
-            keys: [:automation_id],
-            period: cadence_seconds(automation.cadence),
+            keys: [:alert_rule_id],
+            period: cadence_seconds(alert_rule.cadence),
             states: [:available, :scheduled, :executing]
           ]
         )
