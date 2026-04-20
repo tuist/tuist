@@ -8,6 +8,30 @@ if [[ -z "${TUIST_SERVER_HOSTNAME:-}" || -z "${TUIST_SERVER_PORT:-}" ]]; then
   exit 1
 fi
 
+proxy_target_host="${TUIST_SERVER_BIND_HOST:-localhost}"
+
+case "${proxy_target_host}" in
+  "")
+    echo "Error: TUIST_SERVER_BIND_HOST must not be empty." >&2
+    exit 1
+    ;;
+  localhost)
+    proxy_target="localhost:${TUIST_SERVER_PORT}"
+    ;;
+  0.0.0.0)
+    proxy_target="127.0.0.1:${TUIST_SERVER_PORT}"
+    ;;
+  ::)
+    proxy_target="[::1]:${TUIST_SERVER_PORT}"
+    ;;
+  *:*)
+    proxy_target="[${proxy_target_host}]:${TUIST_SERVER_PORT}"
+    ;;
+  *)
+    proxy_target="${proxy_target_host}:${TUIST_SERVER_PORT}"
+    ;;
+esac
+
 CADDY_SITES_DIR="${HOME}/.config/caddy/sites"
 CADDY_MAIN="${HOME}/.config/caddy/Caddyfile"
 CADDY_SITE_FILE="${CADDY_SITES_DIR}/${TUIST_SERVER_HOSTNAME%.localhost}.caddy"
@@ -32,7 +56,7 @@ if [[ ! -f "${CADDY_MAIN}" ]] || ! grep -qF "output file" "${CADDY_MAIN}"; then
 fi
 
 # Write per-project site config (idempotent)
-CADDY_EXPECTED="$(printf 'http://%s {\n\treverse_proxy localhost:%s\n}\n' "${TUIST_SERVER_HOSTNAME}" "${TUIST_SERVER_PORT}")"
+CADDY_EXPECTED="$(printf 'http://%s {\n\treverse_proxy %s\n}\n' "${TUIST_SERVER_HOSTNAME}" "${proxy_target}")"
 if [[ ! -f "${CADDY_SITE_FILE}" ]] || [[ "$(cat "${CADDY_SITE_FILE}")" != "${CADDY_EXPECTED}" ]]; then
   printf '%s\n' "${CADDY_EXPECTED}" > "${CADDY_SITE_FILE}"
   echo "Wrote Caddy config: ${CADDY_SITE_FILE}"
@@ -61,4 +85,4 @@ else
 fi
 
 echo ""
-echo "http://${TUIST_SERVER_HOSTNAME} -> localhost:${TUIST_SERVER_PORT}"
+echo "http://${TUIST_SERVER_HOSTNAME} -> ${proxy_target}"

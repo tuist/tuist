@@ -194,12 +194,35 @@ if Enum.member?([:prod, :stag, :can, :dev], env) do
   app_url = Tuist.Environment.app_url([route_type: :app], secrets)
   %{host: app_url_host, port: app_url_port, scheme: app_url_scheme} = URI.parse(app_url)
 
+  if env == :dev and app_url_host in ["0.0.0.0", "::"] do
+    raise "TUIST_SERVER_URL must use a reachable host in development. Set TUIST_SERVER_PUBLIC_HOST when binding to #{app_url_host}."
+  end
+
+  bind_host = System.get_env("TUIST_SERVER_BIND_HOST") || "localhost"
+
   http_ip =
-    case {env, app_url_host} do
-      {:dev, "localhost"} -> {127, 0, 0, 1}
-      {:dev, _host} -> {0, 0, 0, 0}
+    case {env, bind_host} do
+      {:dev, "localhost"} ->
+        {127, 0, 0, 1}
+
+      {:dev, "0.0.0.0"} ->
+        {0, 0, 0, 0}
+
+      {:dev, "::"} ->
+        {0, 0, 0, 0, 0, 0, 0, 0}
+
+      {:dev, bind_host} ->
+        case :inet.parse_address(String.to_charlist(bind_host)) do
+          {:ok, ip} ->
+            ip
+
+          {:error, _reason} ->
+            raise "TUIST_SERVER_BIND_HOST must be localhost, 0.0.0.0, ::, or a literal IP address in development. Got: #{inspect(bind_host)}"
+        end
+
       # Enable IPv6 and bind on all interfaces.
-      {_env, _host} -> {0, 0, 0, 0, 0, 0, 0, 0}
+      _env ->
+        {0, 0, 0, 0, 0, 0, 0, 0}
     end
 
   check_origin = if env == :dev, do: false, else: [app_url]

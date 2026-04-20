@@ -161,8 +161,8 @@ config :tuist, Tuist.Repo,
   pool_size: 10
 
 config :tuist, TuistWeb.Endpoint,
-  # Binding to loopback ipv4 address prevents access from other machines.
-  # Change to `ip: {0, 0, 0, 0}` to allow access from other machines.
+  # Runtime config keeps the default dev listener on loopback unless
+  # TUIST_SERVER_BIND_HOST overrides it.
   http: [ip: {127, 0, 0, 1}, port: 8080],
   check_origin: false,
   code_reloader: true,

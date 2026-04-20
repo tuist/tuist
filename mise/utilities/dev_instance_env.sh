@@ -83,6 +83,31 @@ ensure_suffix() {
 suffix="$(ensure_suffix)"
 test_partition="${MIX_TEST_PARTITION:-}"
 server_bind_host="${TUIST_SERVER_BIND_HOST:-localhost}"
+server_public_host="${TUIST_SERVER_PUBLIC_HOST:-${server_bind_host}}"
+
+case "${server_bind_host}" in
+  "")
+    echo "TUIST_SERVER_BIND_HOST must not be empty." >&2
+    return 1
+    ;;
+  0.0.0.0 | ::)
+    if [[ -z "${TUIST_SERVER_PUBLIC_HOST:-}" ]]; then
+      echo "TUIST_SERVER_BIND_HOST='${server_bind_host}' requires TUIST_SERVER_PUBLIC_HOST to build TUIST_SERVER_URL." >&2
+      return 1
+    fi
+    ;;
+esac
+
+case "${server_public_host}" in
+  "")
+    echo "TUIST_SERVER_PUBLIC_HOST must not be empty." >&2
+    return 1
+    ;;
+  0.0.0.0 | ::)
+    echo "TUIST_SERVER_PUBLIC_HOST must not be ${server_public_host}." >&2
+    return 1
+    ;;
+esac
 
 # Derive a hostname from the project root directory basename
 project_basename="$(basename "${PROJECT_ROOT}")"
@@ -92,8 +117,14 @@ project_hostname="$(printf '%s' "${project_basename}" | tr '[:upper:]' '[:lower:
 export TUIST_DEV_INSTANCE="${suffix}"
 export TUIST_SERVER_PORT="$((8080 + suffix))"
 export TUIST_SERVER_BIND_HOST="${server_bind_host}"
+export TUIST_SERVER_PUBLIC_HOST="${server_public_host}"
 export TUIST_SERVER_HOSTNAME="${project_hostname}.localhost"
-export TUIST_SERVER_URL="http://${TUIST_SERVER_BIND_HOST}:${TUIST_SERVER_PORT}"
+
+case "${TUIST_SERVER_PUBLIC_HOST}" in
+  *:*) export TUIST_SERVER_URL="http://[${TUIST_SERVER_PUBLIC_HOST}]:${TUIST_SERVER_PORT}" ;;
+  *) export TUIST_SERVER_URL="http://${TUIST_SERVER_PUBLIC_HOST}:${TUIST_SERVER_PORT}" ;;
+esac
+
 export TUIST_SERVER_POSTGRES_DB="tuist_development_${suffix}"
 export TUIST_SERVER_CLICKHOUSE_DB="tuist_development_${suffix}"
 export TUIST_CACHE_PORT="$((8087 + suffix))"

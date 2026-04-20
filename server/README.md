@@ -23,7 +23,10 @@ Contributions to the Tuist Server require signing a Contributor License Agreemen
 1. Install dependencies: `mise run install`
 1. Create and set up the database: `mise run db:setup`
 1. Run the server: `mise run dev`
-1. Open the local URL for your current clone or worktree in your browser and log in with the pre-made test user account. With `mise activate` enabled, each checkout persists its own numeric suffix through Git metadata when available, while keeping the existing root `.tuist-dev-instance` file as a compatibility fallback. That suffix scopes the local service ports, MinIO ports, and server databases, so developers can choose either standalone clones or linked worktrees. For example, a suffix of `443` yields `http://localhost:8523`. If you need the dev server to be reachable from another machine, export `TUIST_SERVER_BIND_HOST=<hostname-or-ip>` before `mise activate`; the generated `TUIST_SERVER_URL` will then use that host instead of `localhost`:
+1. Open the local URL for your current clone or worktree in your browser and log in with the pre-made test user account. With `mise activate` enabled, each checkout persists its own numeric suffix through Git metadata when available, while keeping the existing root `.tuist-dev-instance` file as a compatibility fallback. That suffix scopes the local service ports, MinIO ports, and server databases, so developers can choose either standalone clones or linked worktrees. For example, a suffix of `443` yields `http://localhost:8523`. If you need the dev server to be reachable from another machine, set `TUIST_SERVER_BIND_HOST` to the interface or address the server should listen on before `mise activate`. When you bind to all interfaces with `0.0.0.0` or `::`, also set `TUIST_SERVER_PUBLIC_HOST` so generated absolute URLs and OAuth callbacks use a reachable host:
+
+   - `TUIST_SERVER_BIND_HOST=192.168.1.10 mise activate`
+   - `TUIST_SERVER_BIND_HOST=0.0.0.0 TUIST_SERVER_PUBLIC_HOST=192.168.1.10 mise activate`
 
 ```
 Email: tuistrocks@tuist.dev
