@@ -2,8 +2,8 @@ import FileSystem
 import Foundation
 import Path
 import ProjectDescription
-import TuistEnvironment
 import TuistAlert
+import TuistEnvironment
 import TuistLogging
 import TuistSupport
 import XcodeGraph
