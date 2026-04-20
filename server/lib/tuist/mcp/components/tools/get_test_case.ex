@@ -114,7 +114,7 @@ defmodule Tuist.MCP.Components.Tools.GetTestCase do
       module_name: test_case.module_name,
       suite_name: test_case.suite_name,
       is_flaky: test_case.is_flaky,
-      is_quarantined: (test_case.state || "enabled") == "muted",
+      state: test_case.state || "enabled",
       last_status: to_string(test_case.last_status),
       last_duration: test_case.last_duration,
       avg_duration: test_case.avg_duration,

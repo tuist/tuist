@@ -21,9 +21,10 @@ defmodule Tuist.MCP.Components.Tools.ListTestCases do
           "type" => "boolean",
           "description" => "When true, returns only flaky test cases."
         },
-        "quarantined" => %{
-          "type" => "boolean",
-          "description" => "Filter by quarantined status."
+        "state" => %{
+          "type" => "string",
+          "enum" => ["enabled", "muted"],
+          "description" => "Filter by test case state (\"muted\" replaces the legacy \"quarantined\" concept)."
         },
         "module_name" => %{
           "type" => "string",
@@ -82,7 +83,7 @@ defmodule Tuist.MCP.Components.Tools.ListTestCases do
              module_name: test_case.module_name,
              suite_name: test_case.suite_name,
              is_flaky: test_case.is_flaky,
-             is_quarantined: (test_case.state || "enabled") == "muted",
+             state: test_case.state || "enabled",
              last_status: to_string(test_case.last_status),
              last_duration: test_case.last_duration,
              last_ran_at: Formatter.iso8601(test_case.last_ran_at, naive: :utc),
@@ -96,7 +97,7 @@ defmodule Tuist.MCP.Components.Tools.ListTestCases do
   defp build_filters(args) do
     [
       {"flaky", :is_flaky},
-      {"quarantined", :state},
+      {"state", :state},
       {"module_name", :module_name},
       {"name", :name},
       {"suite_name", :suite_name}
@@ -105,7 +106,6 @@ defmodule Tuist.MCP.Components.Tools.ListTestCases do
       case {key, Map.get(args, key)} do
         {_, nil} -> filters
         {"flaky", true} -> [%{field: :is_flaky, op: :==, value: true} | filters]
-        {"quarantined", true} -> [%{field: :state, op: :==, value: "muted"} | filters]
         {_, value} -> [%{field: field, op: :==, value: value} | filters]
       end
     end)
