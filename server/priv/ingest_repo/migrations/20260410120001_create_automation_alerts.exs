@@ -1,11 +1,11 @@
-defmodule Tuist.IngestRepo.Migrations.CreateAutomationStates do
+defmodule Tuist.IngestRepo.Migrations.CreateAutomationAlerts do
   use Ecto.Migration
 
   def up do
-    create table(:automation_states,
+    create table(:automation_alerts,
              primary_key: false,
-             engine: "ReplacingMergeTree(inserted_at)",
-             options: "ORDER BY (automation_id, test_case_id, id)"
+             engine: "MergeTree()",
+             options: "ORDER BY (automation_id, test_case_id, inserted_at)"
            ) do
       add :id, :uuid, null: false
       add :automation_id, :uuid, null: false
@@ -17,15 +17,15 @@ defmodule Tuist.IngestRepo.Migrations.CreateAutomationStates do
     end
 
     execute(
-      "ALTER TABLE automation_states ADD INDEX idx_automation_id (automation_id) TYPE bloom_filter GRANULARITY 4"
+      "ALTER TABLE automation_alerts ADD INDEX idx_automation_id (automation_id) TYPE bloom_filter GRANULARITY 4"
     )
 
     execute(
-      "ALTER TABLE automation_states ADD INDEX idx_test_case_id (test_case_id) TYPE bloom_filter GRANULARITY 4"
+      "ALTER TABLE automation_alerts ADD INDEX idx_test_case_id (test_case_id) TYPE bloom_filter GRANULARITY 4"
     )
   end
 
   def down do
-    drop table(:automation_states)
+    drop table(:automation_alerts)
   end
 end
