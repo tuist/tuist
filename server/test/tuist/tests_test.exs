@@ -3933,7 +3933,7 @@ defmodule Tuist.TestsTest do
       assert updated_test_case.id == test_case.id
 
       {:ok, fetched_test_case} = Tests.get_test_case_by_id(test_case.id)
-      assert fetched_test_case.is_quarantined == false
+      assert fetched_test_case.state == "enabled"
     end
   end
 

@@ -18,7 +18,6 @@ defmodule Tuist.Tests.TestCase do
       :suite_name,
       :last_status,
       :is_flaky,
-      :is_quarantined,
       :state
     ],
     sortable: [:name, :last_duration, :avg_duration, :last_ran_at],
@@ -35,7 +34,6 @@ defmodule Tuist.Tests.TestCase do
     field :last_duration, Ch, type: "Int32"
     field :last_ran_at, Ch, type: "DateTime64(6)"
     field :is_flaky, :boolean, default: false
-    field :is_quarantined, :boolean, default: false
     field :last_run_id, Ch, type: "Nullable(UUID)"
     field :state, Ch, type: "LowCardinality(String)"
     field :inserted_at, Ch, type: "DateTime64(6)"
@@ -55,7 +53,6 @@ defmodule Tuist.Tests.TestCase do
       :last_duration,
       :last_ran_at,
       :is_flaky,
-      :is_quarantined,
       :last_run_id,
       :state,
       :inserted_at,

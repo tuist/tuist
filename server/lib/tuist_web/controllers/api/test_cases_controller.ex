@@ -290,7 +290,7 @@ defmodule TuistWeb.API.TestCasesController do
   defp build_filters(params) do
     []
     |> maybe_add_filter(:is_flaky, Map.get(params, :flaky))
-    |> maybe_add_filter(:is_quarantined, Map.get(params, :quarantined))
+    |> maybe_add_quarantined_filter(Map.get(params, :quarantined))
     |> maybe_add_filter(:module_name, Map.get(params, :module_name))
     |> maybe_add_filter(:name, Map.get(params, :name))
     |> maybe_add_filter(:suite_name, Map.get(params, :suite_name))
@@ -299,10 +299,14 @@ defmodule TuistWeb.API.TestCasesController do
 
   defp maybe_add_filter(filters, _field, nil), do: filters
 
-  defp maybe_add_filter(filters, field, true) when field in [:is_flaky, :is_quarantined],
-    do: filters ++ [%{field: field, op: :==, value: true}]
+  defp maybe_add_filter(filters, :is_flaky, true),
+    do: filters ++ [%{field: :is_flaky, op: :==, value: true}]
 
   defp maybe_add_filter(filters, field, value), do: filters ++ [%{field: field, op: :==, value: value}]
+
+  defp maybe_add_quarantined_filter(filters, nil), do: filters
+  defp maybe_add_quarantined_filter(filters, true), do: filters ++ [%{field: :state, op: :==, value: "muted"}]
+  defp maybe_add_quarantined_filter(filters, false), do: filters ++ [%{field: :state, op: :==, value: "enabled"}]
 
   defp build_suite(nil), do: nil
   defp build_suite(""), do: nil

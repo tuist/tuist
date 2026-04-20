@@ -178,6 +178,13 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
         ProjectsFixtures.project_fixture().id
       end)
 
+    state =
+      cond do
+        Keyword.has_key?(attrs, :state) -> Keyword.get(attrs, :state)
+        Keyword.get(attrs, :is_quarantined, false) -> "muted"
+        true -> "enabled"
+      end
+
     %TestCase{
       id: Keyword.get_lazy(attrs, :id, fn -> UUIDv7.generate() end),
       name: Keyword.get(attrs, :name, "testExample"),
@@ -188,7 +195,7 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
       last_duration: Keyword.get(attrs, :last_duration, 100),
       last_ran_at: Keyword.get(attrs, :last_ran_at, NaiveDateTime.utc_now()),
       is_flaky: Keyword.get(attrs, :is_flaky, false),
-      is_quarantined: Keyword.get(attrs, :is_quarantined, false),
+      state: state,
       inserted_at: Keyword.get(attrs, :inserted_at, NaiveDateTime.utc_now()),
       avg_duration: Keyword.get(attrs, :avg_duration, 100)
     }

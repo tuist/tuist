@@ -535,7 +535,6 @@ defmodule Tuist.Tests do
 
         current_run_is_flaky = Map.get(data, :is_flaky, false)
         existing_is_flaky = Map.get(existing, :is_flaky, false)
-        existing_is_quarantined = Map.get(existing, :is_quarantined, false)
         existing_state = Map.get(existing, :state, "enabled")
 
         test_case = %{
@@ -548,7 +547,6 @@ defmodule Tuist.Tests do
           last_duration: data.duration,
           last_ran_at: data.ran_at,
           is_flaky: existing_is_flaky,
-          is_quarantined: existing_is_quarantined,
           last_run_id: test_run_id,
           state: existing_state,
           inserted_at: now,
@@ -584,7 +582,6 @@ defmodule Tuist.Tests do
         id: test_case.id,
         recent_durations: test_case.recent_durations,
         is_flaky: test_case.is_flaky,
-        is_quarantined: test_case.is_quarantined,
         state: test_case.state
       }
     )
@@ -625,13 +622,13 @@ defmodule Tuist.Tests do
   Updates a test case by inserting a new row with the given attributes.
   ClickHouse ReplacingMergeTree will keep the most recent row.
 
-  Only `is_flaky` and `is_quarantined` are valid update attributes.
+  Only `is_flaky` and `state` are valid update attributes.
 
   Creates test case events to track the state change.
 
   ## Parameters
   - `test_case_id` - the test case UUID to update
-  - `update_attrs` - map with `:is_flaky` and/or `:is_quarantined` boolean values
+  - `update_attrs` - map with `:is_flaky` boolean and/or `:state` (`"enabled"` | `"muted"`)
   - `opts` - optional keyword list with `:actor_id` (account_id for user actions, nil for system)
   """
   def update_test_case(test_case_id, update_attrs, opts \\ []) when is_map(update_attrs) do
@@ -654,7 +651,6 @@ defmodule Tuist.Tests do
       {:ok, Map.merge(test_case, filtered_attrs)}
     end
   end
-
 
   defp create_events_for_test_case_changes(test_case_id, old_test_case, new_attrs, actor_id) do
     event_types = determine_test_case_events(old_test_case, new_attrs)
@@ -1668,7 +1664,7 @@ defmodule Tuist.Tests do
         as: :test_case,
         hints: ["FINAL"],
         where: test_case.project_id == ^project_id,
-        where: test_case.is_quarantined == true,
+        where: test_case.state == "muted",
         select: %{
           id: test_case.id,
           name: test_case.name,
@@ -1720,7 +1716,7 @@ defmodule Tuist.Tests do
         as: :test_case,
         hints: ["FINAL"],
         where: test_case.project_id == ^project_id,
-        where: test_case.is_quarantined == true,
+        where: test_case.state == "muted",
         select: count(test_case.id)
       )
 
@@ -1760,7 +1756,7 @@ defmodule Tuist.Tests do
     quarantined_ids_subquery =
       from(tc in TestCase,
         hints: ["FINAL"],
-        where: tc.project_id == ^project_id and tc.is_quarantined == true,
+        where: tc.project_id == ^project_id and tc.state == "muted",
         select: tc.id
       )
 
