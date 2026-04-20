@@ -1,4 +1,4 @@
-defmodule TuistWeb.API.AutomationsController do
+defmodule TuistWeb.API.AlertRulesController do
   use OpenApiSpex.ControllerSpecs
   use TuistWeb, :controller
 
@@ -14,7 +14,7 @@ defmodule TuistWeb.API.AutomationsController do
   plug(TuistWeb.Plugs.LoaderPlug)
   plug(TuistWeb.API.Authorization.AuthorizationPlug, :project)
 
-  tags ["Automations"]
+  tags ["Alert Rules"]
 
   @action_schema %Schema{
     type: :object,
@@ -54,8 +54,8 @@ defmodule TuistWeb.API.AutomationsController do
   }
 
   operation(:index,
-    summary: "List automations for a project.",
-    operation_id: "listAutomations",
+    summary: "List alert rules for a project.",
+    operation_id: "listAlertRules",
     parameters: [
       account_handle: [
         in: :path,
@@ -72,16 +72,16 @@ defmodule TuistWeb.API.AutomationsController do
     ],
     responses: %{
       ok:
-        {"List of automations", "application/json",
+        {"List of alert rules", "application/json",
          %Schema{
            type: :object,
            properties: %{
-             automations: %Schema{
+             alert_rules: %Schema{
                type: :array,
                items: @alert_rule_schema
              }
            },
-           required: [:automations]
+           required: [:alert_rules]
          }},
       forbidden: {"Forbidden", "application/json", Error}
     }
@@ -91,13 +91,13 @@ defmodule TuistWeb.API.AutomationsController do
     alert_rules = Automations.list_alert_rules(project.id)
 
     json(conn, %{
-      automations: Enum.map(alert_rules, &serialize_alert_rule/1)
+      alert_rules: Enum.map(alert_rules, &serialize_alert_rule/1)
     })
   end
 
   operation(:show,
-    summary: "Get an automation by ID.",
-    operation_id: "getAutomation",
+    summary: "Get an alert rule by ID.",
+    operation_id: "getAlertRule",
     parameters: [
       account_handle: [
         in: :path,
@@ -111,37 +111,37 @@ defmodule TuistWeb.API.AutomationsController do
         required: true,
         description: "The handle of the project."
       ],
-      automation_id: [
+      alert_rule_id: [
         in: :path,
         schema: %Schema{type: :string, format: :uuid},
         required: true,
-        description: "The ID of the automation."
+        description: "The ID of the alert rule."
       ]
     ],
     responses: %{
-      ok: {"Automation details", "application/json", @alert_rule_schema},
+      ok: {"Alert rule details", "application/json", @alert_rule_schema},
       not_found: {"Not found", "application/json", Error},
       forbidden: {"Forbidden", "application/json", Error}
     }
   )
 
-  def show(%{assigns: %{selected_project: project}, params: %{automation_id: automation_id}} = conn, _params) do
-    case Automations.get_alert_rule(automation_id) do
+  def show(%{assigns: %{selected_project: project}, params: %{alert_rule_id: alert_rule_id}} = conn, _params) do
+    case Automations.get_alert_rule(alert_rule_id) do
       {:ok, alert_rule} ->
         if alert_rule.project_id == project.id do
           json(conn, serialize_alert_rule(alert_rule))
         else
-          conn |> put_status(:not_found) |> json(%{message: "Automation not found."})
+          conn |> put_status(:not_found) |> json(%{message: "Alert rule not found."})
         end
 
       {:error, :not_found} ->
-        conn |> put_status(:not_found) |> json(%{message: "Automation not found."})
+        conn |> put_status(:not_found) |> json(%{message: "Alert rule not found."})
     end
   end
 
   operation(:create,
-    summary: "Create an automation.",
-    operation_id: "createAutomation",
+    summary: "Create an alert rule.",
+    operation_id: "createAlertRule",
     parameters: [
       account_handle: [
         in: :path,
@@ -157,7 +157,7 @@ defmodule TuistWeb.API.AutomationsController do
       ]
     ],
     request_body:
-      {"Automation", "application/json",
+      {"Alert rule", "application/json",
        %Schema{
          type: :object,
          properties: %{
@@ -173,7 +173,7 @@ defmodule TuistWeb.API.AutomationsController do
          required: [:name, :monitor_type, :trigger_actions]
        }},
     responses: %{
-      created: {"Created automation", "application/json", @alert_rule_schema},
+      created: {"Created alert rule", "application/json", @alert_rule_schema},
       unprocessable_entity: {"Validation error", "application/json", Error},
       forbidden: {"Forbidden", "application/json", Error}
     }
@@ -197,8 +197,8 @@ defmodule TuistWeb.API.AutomationsController do
   end
 
   operation(:update,
-    summary: "Update an automation.",
-    operation_id: "updateAutomation",
+    summary: "Update an alert rule.",
+    operation_id: "updateAlertRule",
     parameters: [
       account_handle: [
         in: :path,
@@ -212,15 +212,15 @@ defmodule TuistWeb.API.AutomationsController do
         required: true,
         description: "The handle of the project."
       ],
-      automation_id: [
+      alert_rule_id: [
         in: :path,
         schema: %Schema{type: :string, format: :uuid},
         required: true,
-        description: "The ID of the automation."
+        description: "The ID of the alert rule."
       ]
     ],
     request_body:
-      {"Automation update", "application/json",
+      {"Alert rule update", "application/json",
        %Schema{
          type: :object,
          properties: %{
@@ -235,7 +235,7 @@ defmodule TuistWeb.API.AutomationsController do
          }
        }},
     responses: %{
-      ok: {"Updated automation", "application/json", @alert_rule_schema},
+      ok: {"Updated alert rule", "application/json", @alert_rule_schema},
       not_found: {"Not found", "application/json", Error},
       unprocessable_entity: {"Validation error", "application/json", Error},
       forbidden: {"Forbidden", "application/json", Error}
@@ -243,10 +243,10 @@ defmodule TuistWeb.API.AutomationsController do
   )
 
   def update(
-        %{assigns: %{selected_project: project}, params: %{automation_id: automation_id}, body_params: body_params} = conn,
+        %{assigns: %{selected_project: project}, params: %{alert_rule_id: alert_rule_id}, body_params: body_params} = conn,
         _params
       ) do
-    with {:ok, alert_rule} <- Automations.get_alert_rule(automation_id),
+    with {:ok, alert_rule} <- Automations.get_alert_rule(alert_rule_id),
          true <- alert_rule.project_id == project.id do
       attrs = normalize_params(body_params)
 
@@ -261,16 +261,16 @@ defmodule TuistWeb.API.AutomationsController do
       end
     else
       {:error, :not_found} ->
-        conn |> put_status(:not_found) |> json(%{message: "Automation not found."})
+        conn |> put_status(:not_found) |> json(%{message: "Alert rule not found."})
 
       false ->
-        conn |> put_status(:not_found) |> json(%{message: "Automation not found."})
+        conn |> put_status(:not_found) |> json(%{message: "Alert rule not found."})
     end
   end
 
   operation(:delete,
-    summary: "Delete an automation.",
-    operation_id: "deleteAutomation",
+    summary: "Delete an alert rule.",
+    operation_id: "deleteAlertRule",
     parameters: [
       account_handle: [
         in: :path,
@@ -284,11 +284,11 @@ defmodule TuistWeb.API.AutomationsController do
         required: true,
         description: "The handle of the project."
       ],
-      automation_id: [
+      alert_rule_id: [
         in: :path,
         schema: %Schema{type: :string, format: :uuid},
         required: true,
-        description: "The ID of the automation."
+        description: "The ID of the alert rule."
       ]
     ],
     responses: %{
@@ -298,17 +298,17 @@ defmodule TuistWeb.API.AutomationsController do
     }
   )
 
-  def delete(%{assigns: %{selected_project: project}, params: %{automation_id: automation_id}} = conn, _params) do
-    with {:ok, alert_rule} <- Automations.get_alert_rule(automation_id),
+  def delete(%{assigns: %{selected_project: project}, params: %{alert_rule_id: alert_rule_id}} = conn, _params) do
+    with {:ok, alert_rule} <- Automations.get_alert_rule(alert_rule_id),
          true <- alert_rule.project_id == project.id,
          {:ok, _} <- Automations.delete_alert_rule(alert_rule) do
       send_resp(conn, :no_content, "")
     else
       {:error, :not_found} ->
-        conn |> put_status(:not_found) |> json(%{message: "Automation not found."})
+        conn |> put_status(:not_found) |> json(%{message: "Alert rule not found."})
 
       false ->
-        conn |> put_status(:not_found) |> json(%{message: "Automation not found."})
+        conn |> put_status(:not_found) |> json(%{message: "Alert rule not found."})
     end
   end
 
