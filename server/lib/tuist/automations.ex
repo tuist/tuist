@@ -38,8 +38,6 @@ defmodule Tuist.Automations do
     Repo.delete(alert_rule)
   end
 
-  # --- Alerts ---
-
   @doc """
   Returns currently active alerts for an alert rule (latest status = "triggered").
   Uses argMax to find the most recent status per test_case_id from the append-only log.
