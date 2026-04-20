@@ -72,7 +72,16 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
       end)
 
     Enum.each(recovered, fn alert ->
-      Automations.resolve_alert(automation.id, alert.test_case_id)
+      now = NaiveDateTime.utc_now()
+
+      Automations.create_alert(%{
+        automation_id: automation.id,
+        test_case_id: alert.test_case_id,
+        status: "recovered",
+        triggered_at: now,
+        recovered_at: now
+      })
+
       entity = %{type: :test_case, id: alert.test_case_id}
 
       case ActionExecutor.execute_actions(automation.recovery_actions, automation, entity) do

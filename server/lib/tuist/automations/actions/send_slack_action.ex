@@ -7,6 +7,8 @@ defmodule Tuist.Automations.Actions.SendSlackAction do
   alias Tuist.Slack.Installation
   alias Tuist.Tests
 
+  require Logger
+
   def execute(automation, %{type: :test_case, id: test_case_id}, %{"channel" => channel} = action) do
     with {:ok, test_case} <- Tests.get_test_case_by_id(test_case_id),
          project = Projects.get_project_by_id(automation.project_id),
@@ -17,7 +19,33 @@ defmodule Tuist.Automations.Actions.SendSlackAction do
       blocks = build_blocks(automation, message)
       Client.post_message(access_token, channel, blocks)
     else
-      _ -> :ok
+      {:error, :not_found} ->
+        Logger.warning(
+          "Automation #{automation.id} send_slack skipped: test case #{test_case_id} not found"
+        )
+
+        :ok
+
+      true ->
+        Logger.warning(
+          "Automation #{automation.id} send_slack skipped: project #{automation.project_id} not found"
+        )
+
+        :ok
+
+      nil ->
+        Logger.warning(
+          "Automation #{automation.id} send_slack skipped: Slack installation missing for project #{automation.project_id}"
+        )
+
+        :ok
+
+      other ->
+        Logger.warning(
+          "Automation #{automation.id} send_slack skipped for test case #{test_case_id}: #{inspect(other)}"
+        )
+
+        :ok
     end
   end
 

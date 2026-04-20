@@ -12,7 +12,7 @@ defmodule TuistWeb.API.AutomationsController do
   )
 
   plug(TuistWeb.Plugs.LoaderPlug)
-  plug(TuistWeb.API.Authorization.AuthorizationPlug, :automation)
+  plug(TuistWeb.API.Authorization.AuthorizationPlug, :project)
 
   tags ["Automations"]
 

@@ -96,7 +96,11 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
       :ok
     end)
 
-    expect(Automations, :resolve_alert, fn id, ^recovered_id ->
+    expect(Automations, :create_alert, fn %{
+                                             automation_id: id,
+                                             test_case_id: ^recovered_id,
+                                             status: "recovered"
+                                           } ->
       assert id == automation.id
       :ok
     end)
@@ -124,7 +128,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     end)
 
     reject(&ActionExecutor.execute_actions/3)
-    reject(&Automations.resolve_alert/2)
+    reject(&Automations.create_alert/1)
 
     assert :ok = run(automation.id)
   end
@@ -134,7 +138,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
 
     expect(FlakyTestsMonitor, :evaluate, fn _automation -> %{triggered: [], all: []} end)
     expect(Automations, :list_active_alerts, fn _id -> [] end)
-    reject(&Automations.resolve_alert/2)
+    reject(&Automations.create_alert/1)
 
     assert :ok = run(automation.id)
   end

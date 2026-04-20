@@ -72,17 +72,4 @@ defmodule Tuist.Automations do
     IngestRepo.insert_all(Alert, [record])
     :ok
   end
-
-  @doc """
-  Appends a recovery event to the alert log.
-  """
-  def resolve_alert(automation_id, test_case_id) do
-    create_alert(%{
-      automation_id: automation_id,
-      test_case_id: test_case_id,
-      status: "recovered",
-      triggered_at: NaiveDateTime.utc_now(),
-      recovered_at: NaiveDateTime.utc_now()
-    })
-  end
 end

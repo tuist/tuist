@@ -13,15 +13,16 @@ defmodule Tuist.Automations.Workers.AutomationScheduler do
     automations = Repo.all(from(a in Automation, where: a.enabled == true))
 
     Enum.each(automations, fn automation ->
-      %{automation_id: automation.id}
-      |> AlertEvaluationWorker.new(
-        unique: [
-          keys: [:automation_id],
-          period: cadence_seconds(automation.cadence),
-          states: [:available, :scheduled, :executing]
-        ]
-      )
-      |> Oban.insert()
+      {:ok, _job} =
+        %{automation_id: automation.id}
+        |> AlertEvaluationWorker.new(
+          unique: [
+            keys: [:automation_id],
+            period: cadence_seconds(automation.cadence),
+            states: [:available, :scheduled, :executing]
+          ]
+        )
+        |> Oban.insert()
     end)
 
     :ok

@@ -91,27 +91,30 @@ defmodule Tuist.AutomationsTest do
       assert Enum.any?(alerts, &(&1.test_case_id == test_case_id))
     end
 
-    test "resolve_alert appends a recovery event so test case is no longer listed as active" do
+    test "a recovered alert is no longer listed as active" do
       automation = AutomationsFixtures.automation_fixture()
       test_case_id = Ecto.UUID.generate()
+      now = NaiveDateTime.utc_now()
 
       :ok =
         Automations.create_alert(%{
           automation_id: automation.id,
           test_case_id: test_case_id,
           status: "triggered",
-          triggered_at: NaiveDateTime.utc_now()
+          triggered_at: now
         })
 
-      assert :ok = Automations.resolve_alert(automation.id, test_case_id)
+      :ok =
+        Automations.create_alert(%{
+          automation_id: automation.id,
+          test_case_id: test_case_id,
+          status: "recovered",
+          triggered_at: now,
+          recovered_at: now
+        })
 
       alerts = Automations.list_active_alerts(automation.id)
       refute Enum.any?(alerts, &(&1.test_case_id == test_case_id))
-    end
-
-    test "resolve_alert is safe to call when no active alert exists" do
-      automation = AutomationsFixtures.automation_fixture()
-      assert :ok = Automations.resolve_alert(automation.id, Ecto.UUID.generate())
     end
   end
 end

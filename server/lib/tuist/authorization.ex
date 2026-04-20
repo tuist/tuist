@@ -420,43 +420,6 @@ defmodule Tuist.Authorization do
     end
   end
 
-  object :automation do
-    action :create do
-      desc("Allows users of a project to create an automation.")
-      allow([:authenticated_as_user, user_role: :user])
-
-      desc("Allows the admin of a project to create an automation.")
-      allow([:authenticated_as_user, user_role: :admin])
-    end
-
-    action :read do
-      desc("Allows users of a project to read automations.")
-      allow([:authenticated_as_user, user_role: :user])
-
-      desc("Allows the admin of a project to read automations.")
-      allow([:authenticated_as_user, user_role: :admin])
-
-      desc("Allows users with ops access to read any automations.")
-      allow([:authenticated_as_user, :ops_access])
-    end
-
-    action :update do
-      desc("Allows users of a project to update an automation.")
-      allow([:authenticated_as_user, user_role: :user])
-
-      desc("Allows the admin of a project to update an automation.")
-      allow([:authenticated_as_user, user_role: :admin])
-    end
-
-    action :delete do
-      desc("Allows users of a project to delete an automation.")
-      allow([:authenticated_as_user, user_role: :user])
-
-      desc("Allows the admin of a project to delete an automation.")
-      allow([:authenticated_as_user, user_role: :admin])
-    end
-  end
-
   object :test do
     action :create do
       desc("Allows users of a project to create a test.")

@@ -7,7 +7,6 @@ defmodule Tuist.Automations.Automation do
   alias Tuist.Projects.Project
 
   @monitor_types ~w(flakiness_rate flaky_run_count)
-  @action_types ~w(change_state send_slack add_label remove_label)
   @valid_states ~w(enabled muted)
   @kinds ~w(alert)
 
@@ -158,6 +157,4 @@ defmodule Tuist.Automations.Automation do
     end
   end
 
-  def automation_types, do: @automation_types
-  def action_types, do: @action_types
 end
