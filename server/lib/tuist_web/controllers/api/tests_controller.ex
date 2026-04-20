@@ -520,7 +520,7 @@ defmodule TuistWeb.API.TestsController do
       |> Map.put(:account, Authentication.authenticated_subject_account(conn))
 
     case get_or_create_test(run_params) do
-      {:ok, test_run, test_case_runs} ->
+      {:ok, test_run} ->
         if test_run.status == "processing" do
           storage_key =
             "#{selected_project.account.name}/#{selected_project.name}/runs/#{test_run.id}/result_bundle.zip"
@@ -575,7 +575,7 @@ defmodule TuistWeb.API.TestsController do
           project_id: test_run.project_id,
           url: url(~p"/#{selected_project.account.name}/#{selected_project.name}/tests/test-runs/#{test_run.id}"),
           test_case_runs:
-            Enum.map(test_case_runs, fn run ->
+            Enum.map(test_run.test_case_runs, fn run ->
               result = %{
                 id: run.id,
                 name: run.name,
@@ -709,44 +709,38 @@ defmodule TuistWeb.API.TestsController do
   defp get_or_create_test(params) do
     test_id = Map.get(params, :id, UUIDv7.generate())
 
-    case Tests.get_test(test_id) do
+    case Tests.get_test(test_id, preload: [test_case_runs: :arguments]) do
       {:ok, test_run} ->
-        {:ok, test_run, []}
+        {:ok, test_run}
 
       {:error, :not_found} ->
-        with {:ok, test_run} <- create_test(test_id, params) do
-          {:ok, test_run, test_run.test_case_runs}
-        end
+        Tests.create_test(%{
+          id: test_id,
+          duration: params.duration,
+          macos_version: Map.get(params, :macos_version),
+          xcode_version: Map.get(params, :xcode_version),
+          is_ci: Map.get(params, :is_ci),
+          model_identifier: Map.get(params, :model_identifier),
+          scheme: Map.get(params, :scheme),
+          project_id: params.project.id,
+          account_id: params.account.id,
+          status: Map.get(params, :status),
+          git_branch: Map.get(params, :git_branch),
+          git_commit_sha: Map.get(params, :git_commit_sha),
+          git_ref: Map.get(params, :git_ref),
+          ran_at: Map.get(params, :ran_at, NaiveDateTime.utc_now()),
+          ci_run_id: Map.get(params, :ci_run_id),
+          ci_project_handle: Map.get(params, :ci_project_handle),
+          ci_host: Map.get(params, :ci_host),
+          ci_provider: Map.get(params, :ci_provider),
+          build_system: Map.get(params, :build_system, "xcode"),
+          test_modules: Map.get(params, :test_modules, []),
+          test_cases: Map.get(params, :test_cases, []),
+          build_run_id: Map.get(params, :build_run_id),
+          gradle_build_id: Map.get(params, :gradle_build_id),
+          shard_plan_id: Map.get(params, :shard_plan_id),
+          shard_index: Map.get(params, :shard_index)
+        })
     end
-  end
-
-  defp create_test(test_id, params) do
-    Tests.create_test(%{
-      id: test_id,
-      duration: params.duration,
-      macos_version: Map.get(params, :macos_version),
-      xcode_version: Map.get(params, :xcode_version),
-      is_ci: Map.get(params, :is_ci),
-      model_identifier: Map.get(params, :model_identifier),
-      scheme: Map.get(params, :scheme),
-      project_id: params.project.id,
-      account_id: params.account.id,
-      status: Map.get(params, :status),
-      git_branch: Map.get(params, :git_branch),
-      git_commit_sha: Map.get(params, :git_commit_sha),
-      git_ref: Map.get(params, :git_ref),
-      ran_at: Map.get(params, :ran_at, NaiveDateTime.utc_now()),
-      ci_run_id: Map.get(params, :ci_run_id),
-      ci_project_handle: Map.get(params, :ci_project_handle),
-      ci_host: Map.get(params, :ci_host),
-      ci_provider: Map.get(params, :ci_provider),
-      build_system: Map.get(params, :build_system, "xcode"),
-      test_modules: Map.get(params, :test_modules, []),
-      test_cases: Map.get(params, :test_cases, []),
-      build_run_id: Map.get(params, :build_run_id),
-      gradle_build_id: Map.get(params, :gradle_build_id),
-      shard_plan_id: Map.get(params, :shard_plan_id),
-      shard_index: Map.get(params, :shard_index)
-    })
   end
 end
