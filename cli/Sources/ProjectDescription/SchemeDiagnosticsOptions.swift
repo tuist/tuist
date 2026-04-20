@@ -9,7 +9,7 @@ public struct SchemeDiagnosticsOptions: Equatable, Codable, Sendable {
     /// Enable the thread sanitizer
     public var threadSanitizerEnabled: Bool
 
-    /// Enable the main thread cheker
+    /// Enable the main thread checker
     public var mainThreadCheckerEnabled: Bool
 
     /// Enable thread performance checker

@@ -24,7 +24,7 @@ enum MultipartUploadArtifactServiceError: LocalizedError {
             return "Couldn't create the file stream to multi-part upload file at path \(path.pathString)"
         case let .noURLResponse(url):
             if let url {
-                return "The response from request to URL \(url.absoluteString) doesnt' have the expected type HTTPURLResponse"
+                return "The response from request to URL \(url.absoluteString) doesn't have the expected type HTTPURLResponse"
             } else {
                 return "Received a response that doesn't have the expected type HTTPURLResponse"
             }

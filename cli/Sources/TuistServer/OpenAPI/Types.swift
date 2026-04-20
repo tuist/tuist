@@ -4645,7 +4645,7 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/Preview/inserted_at`.
             public var inserted_at: Swift.String
-            /// The URL for the QR code image to dowload the preview
+            /// The URL for the QR code image to download the preview
             ///
             /// - Remark: Generated from `#/components/schemas/Preview/qr_code_url`.
             public var qr_code_url: Swift.String
@@ -4677,7 +4677,7 @@ public enum Components {
             ///   - icon_url: The URL for the icon image of the preview
             ///   - id: Unique identifier of the preview.
             ///   - inserted_at: The date and time when the preview was inserted
-            ///   - qr_code_url: The URL for the QR code image to dowload the preview
+            ///   - qr_code_url: The URL for the QR code image to download the preview
             ///   - supported_platforms:
             ///   - track: The track for the preview (e.g., 'beta', 'nightly')
             ///   - url: The URL to download the preview
@@ -13997,7 +13997,7 @@ public enum Operations {
                     self.body = body
                 }
             }
-            /// Succcessfully generated new API tokens.
+            /// Successfully generated new API tokens.
             ///
             /// - Remark: Generated from `#/paths//api/auth/refresh_token/post(refreshToken)/responses/200`.
             ///

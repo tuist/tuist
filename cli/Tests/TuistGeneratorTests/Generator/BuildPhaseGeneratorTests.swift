@@ -992,7 +992,7 @@ struct BuildPhaseGeneratorTests {
         let buildFiles = try #require(resourceBuildPhase.files)
 
         for buildFile in buildFiles {
-            // Explicitly exctracting the original path because it gets lost in translation for resource files
+            // Explicitly extracting the original path because it gets lost in translation for resource files
             let path = try #require(fileElements.elements.first(where: { $0.value === buildFile.file })).key
 
             // Actual comparison of platform filters for the given buildFile

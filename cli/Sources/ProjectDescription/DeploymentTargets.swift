@@ -30,7 +30,7 @@ public struct DeploymentTargets: Hashable, Codable, Sendable {
         )
     }
 
-    /// Convenience accessor to retreive a minimum version given a `Platform`
+    /// Convenience accessor to retrieve a minimum version given a `Platform`
     public subscript(platform: Platform) -> String? {
         switch platform {
         case .iOS:

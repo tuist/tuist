@@ -29,7 +29,7 @@ defmodule TuistWeb.API.Schemas.Preview do
       device_url: %Schema{type: :string, description: "The URL to download the preview on a device"},
       qr_code_url: %Schema{
         type: :string,
-        description: "The URL for the QR code image to dowload the preview"
+        description: "The URL for the QR code image to download the preview"
       },
       icon_url: %Schema{
         type: :string,

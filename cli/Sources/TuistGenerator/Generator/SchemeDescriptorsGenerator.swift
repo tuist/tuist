@@ -953,7 +953,7 @@ struct SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         return xcodeProjectPath.relative(to: rootPath)
     }
 
-    /// Creates a target buildable refernece for a target
+    /// Creates a target buildable reference for a target
     ///
     /// - Parameters:
     ///     - graphTarget: The graph target.

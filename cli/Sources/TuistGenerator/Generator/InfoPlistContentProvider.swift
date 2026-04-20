@@ -157,7 +157,7 @@ struct InfoPlistContentProvider: InfoPlistContentProviding {
 
     /// Returns the default Info.plist content that iOS apps should have.
     ///
-    /// - Parameter iPadSupport: Wether the `iOS` application supports `iPadOS`.
+    /// - Parameter iPadSupport: Whether the `iOS` application supports `iPadOS`.
     /// - Returns: Info.plist content.
     func iosApp(iPadSupport: Bool) -> [String: Any] {
         var baseInfo: [String: Any] = [

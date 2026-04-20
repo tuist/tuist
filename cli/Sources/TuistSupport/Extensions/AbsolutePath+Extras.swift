@@ -70,7 +70,7 @@ extension AbsolutePath {
         return nil
     }
 
-    /// An opaque directory is a directory that should be treated like a file, therefor ignoring its content.
+    /// An opaque directory is a directory that should be treated like a file, therefore ignoring its content.
     /// I.e.: .xcassets, .xcdatamodeld, etc...
     /// This property returns true when a file is such a directory.
     public var isOpaqueDirectory: Bool {

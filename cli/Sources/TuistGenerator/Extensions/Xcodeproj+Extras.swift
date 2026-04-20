@@ -73,7 +73,7 @@ extension PlatformFilterable {
     private func useSinglePlatformFilter(
         for platformFilter: PlatformFilter
     ) -> Bool {
-        // Xcode uses the singlular `platformFilter` for a subset of filters
+        // Xcode uses the singular `platformFilter` for a subset of filters
         // when specified as a single filter, however foew newer platform filters
         // uses the plural `platformFilters` even when specifying a single filter.
         switch platformFilter {

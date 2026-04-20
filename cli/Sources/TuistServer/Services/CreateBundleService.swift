@@ -34,7 +34,7 @@
             case let .forbidden(message), let .notFound(message), let .unauthorized(message), let .badRequest(message):
                 return message
             case let .unknownPlatform(platform):
-                return "The \(platform) found in the app bundle is unknonw."
+                return "The \(platform) found in the app bundle is unknown."
             case let .invalidBundle(id):
                 return "The bundle \(id) is invalid."
             }

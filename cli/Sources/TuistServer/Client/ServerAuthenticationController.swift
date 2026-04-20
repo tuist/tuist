@@ -424,7 +424,7 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
         ) async throws -> T {
             let lockfilePath = lockFilePath(serverURL: serverURL)
             let maxAttempts = 30
-            let retryInterval: UInt64 = 500 // Miliseconds
+            let retryInterval: UInt64 = 500 // milliseconds
             if let result = try await fetchActionResult() { return result }
 
             if attemptCount >= maxAttempts {

@@ -214,7 +214,7 @@ public protocol GraphTraversing {
     ///   - name: Target name.
     func librariesSearchPaths(path: AbsolutePath, name: String) throws -> Set<AbsolutePath>
 
-    /// Given a project directory and a target name, it returns the list of foldres with Swift modules that should be expoed to
+    /// Given a project directory and a target name, it returns the list of foldres with Swift modules that should be exposed to
     /// the target.
     /// - Parameters:
     ///   - path: Path to the directory that contains the project.
@@ -243,14 +243,14 @@ public protocol GraphTraversing {
     /// Determines whether ENABLE_TESTING_SEARCH_PATHS needs to be enabled
     ///
     /// - Parameters:
-    ///   - path: Path to the project tha defines the target.
+    ///   - path: Path to the project that defines the target.
     ///   - name: Target name.
     /// - Returns: True if the given target needs to have ENABLE_TESTING_SEARCH_PATHS enabled, false otherwise
     func needsEnableTestingSearchPaths(path: AbsolutePath, name: String) -> Bool
 
     /// Returns true if the given target depends on XCTest.
     /// - Parameters:
-    ///   - path: Path to the project tha defines the target.
+    ///   - path: Path to the project that defines the target.
     ///   - name: Target name.
     func dependsOnXCTest(path: AbsolutePath, name: String) -> Bool
 

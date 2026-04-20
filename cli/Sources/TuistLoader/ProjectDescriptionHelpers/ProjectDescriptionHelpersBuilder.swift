@@ -11,7 +11,7 @@ import TuistThreadSafe
 /// helper files under /Tuist/ProjectDescriptionHelpers that can be imported
 /// from any manifest being loaded.
 public protocol ProjectDescriptionHelpersBuilding {
-    /// Builds all the project description helpers incluing any `projectDescriptionHelperPlugins`.
+    /// Builds all the project description helpers including any `projectDescriptionHelperPlugins`.
     ///
     /// Note: Local project description helpers can import plugin helpers.
     /// We build the plugin modules first to allow including them in the local helper modules.

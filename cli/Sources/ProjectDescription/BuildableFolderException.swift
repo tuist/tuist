@@ -18,7 +18,7 @@ public struct BuildableFolderException: Sendable, Codable, Equatable, Hashable {
 
     /// Creates a new exception for a buildable folder.
     /// - Parameters:
-    ///   - exclued: An array of absolute paths to files that should be excluded from the buildable folder.
+    ///   - excluded: An array of absolute paths to files that should be excluded from the buildable folder.
     ///   - compilerFlags: A dictionary mapping absolute file paths to specific compiler flags to apply to those files.
     ///   - publicHeaders: A list of relative paths to headers that should be public (by dkefault they have project access level)
     ///   - privateHeaders: A list of relative paths to headers that should be private (by default they have project access level)

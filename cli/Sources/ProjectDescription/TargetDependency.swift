@@ -154,7 +154,7 @@ public enum TargetDependency: Codable, Hashable, Sendable {
     /// - Parameters:
     ///   - name: Name of the system library or framework (including extension)
     ///            e.g. `ARKit.framework`, `libc++.tbd`
-    ///   - type: Whether or not this dependecy is required. Defaults to `.required`
+    ///   - type: Whether or not this dependency is required. Defaults to `.required`
     ///   - condition: condition under which to use this dependency, `nil` if this should always be used
     public static func sdk(name: String, type: SDKType, condition: PlatformCondition? = nil) -> TargetDependency {
         .sdk(name: name, type: type, status: .required, condition: condition)

@@ -1798,7 +1798,7 @@ components:
           x-struct:
           x-validate:
         qr_code_url:
-          description: The URL for the QR code image to dowload the preview
+          description: The URL for the QR code image to download the preview
           type: string
           x-struct:
           x-validate:
@@ -7051,7 +7051,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AuthenticationTokens'
-          description: Succcessfully generated new API tokens.
+          description: Successfully generated new API tokens.
         '400':
           content:
             application/json:

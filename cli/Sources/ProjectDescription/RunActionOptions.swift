@@ -33,7 +33,7 @@ public struct RunActionOptions: Equatable, Codable, Sendable {
     ///
     ///     - enableGPUFrameCaptureMode: The Metal Frame Capture mode to use. e.g: .disabled
     ///     If your target links to the Metal framework, Xcode enables GPU Frame Capture.
-    ///     You can disable it to test your app in best perfomance.
+    ///     You can disable it to test your app in best performance.
     init(
         language: SchemeLanguage? = nil,
         region: String? = nil,

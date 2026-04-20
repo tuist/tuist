@@ -1,5 +1,5 @@
 /// PBXFileSystemSynchronizedRootGroup have a one-to-many relationship with PBXFileSystemSynchronizedBuildFileExceptionSet
-/// through .exceptions. Exceptions are used to exclude files and override conffigurations.
+/// through .exceptions. Exceptions are used to exclude files and override configurations.
 public struct BuildableFolderExceptions: Sendable, Codable, Equatable, Hashable, ExpressibleByArrayLiteral {
     /// A list with all the exceptions.
     public var exceptions: [BuildableFolderException]
