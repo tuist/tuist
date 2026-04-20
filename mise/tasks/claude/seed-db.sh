@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#MISE description="Seed the dev databases for this worktree (idempotent, marker-guarded)"
+#MISE description="Bootstrap the dev databases for this worktree (idempotent, marker-guarded)"
 
 set -euo pipefail
 
@@ -10,18 +10,15 @@ if [[ -f "${MARKER_FILE}" ]]; then
   exit 0
 fi
 
-echo "claude:seed-db: seeding databases for this worktree (one-time)..."
+echo "claude:seed-db: bootstrapping databases for this worktree (one-time)..."
 
-# Fresh-DB flow: create → load structure dump → migrate post-dump migrations → seed.
-# `mix ecto.setup` skips ecto.load, which is required because early schema is in structure.sql.
-if ! (
-  cd "${WORKTREE_ROOT}/server" && \
-  mise run db:create && \
-  mise run db:load && \
-  mise run db:migrate && \
-  mise run db:seed
-); then
-  echo "claude:seed-db: seeding failed — ensure PostgreSQL and ClickHouse are running, then re-run 'mise run claude:seed-db'." >&2
+# Delegates to server's mise install, which handles:
+#   - ensure PG/CH databases exist (create + load schema dumps if missing)
+#   - mix deps.get, pnpm install, Noora build
+#   - db:migrate + db:seed
+# Marker-guarded so SessionStart re-runs don't re-seed (seeds.exs is not idempotent).
+if ! (cd "${WORKTREE_ROOT}/server" && mise run install); then
+  echo "claude:seed-db: mise install failed — ensure PostgreSQL and ClickHouse are running, then re-run 'mise run claude:seed-db'." >&2
   exit 1
 fi
 
