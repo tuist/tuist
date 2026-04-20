@@ -108,16 +108,16 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
 
   defp parse_window(_), do: 14 * 86_400
 
-  defp evaluate_monitor(%{automation_type: "flakiness_rate"} = alert_rule) do
+  defp evaluate_monitor(%{monitor_type: "flakiness_rate"} = alert_rule) do
     FlakyTestsMonitor.evaluate(alert_rule)
   end
 
-  defp evaluate_monitor(%{automation_type: "flaky_run_count"} = alert_rule) do
+  defp evaluate_monitor(%{monitor_type: "flaky_run_count"} = alert_rule) do
     FlakyTestsMonitor.evaluate_by_run_count(alert_rule)
   end
 
   defp evaluate_monitor(alert_rule) do
-    Logger.warning("Unknown monitor type: #{alert_rule.automation_type}")
+    Logger.warning("Unknown monitor type: #{alert_rule.monitor_type}")
     %{triggered: [], all: []}
   end
 end

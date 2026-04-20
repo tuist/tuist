@@ -40,7 +40,7 @@ defmodule Tuist.Repo.Migrations.BackfillAutomationsFromProjectSettings do
           project_id: project.id,
           name: automation_name(project),
           enabled: true,
-          automation_type: "flaky_run_count",
+          monitor_type: "flaky_run_count",
           trigger_config: %{"threshold" => project.threshold || 1, "window" => "30d"},
           cadence: "5m",
           trigger_actions: trigger_actions,

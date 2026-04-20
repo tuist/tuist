@@ -38,7 +38,7 @@ defmodule TuistWeb.API.AutomationsController do
       id: %Schema{type: :string, format: :uuid},
       name: %Schema{type: :string},
       enabled: %Schema{type: :boolean},
-      automation_type: %Schema{
+      monitor_type: %Schema{
         type: :string,
         enum: ["flakiness_rate", "flaky_run_count"],
         description: "The monitor type that evaluates the condition."
@@ -50,7 +50,7 @@ defmodule TuistWeb.API.AutomationsController do
       recovery_config: %Schema{type: :object},
       recovery_actions: %Schema{type: :array, items: @action_schema}
     },
-    required: [:id, :name, :enabled, :automation_type, :trigger_config, :cadence, :trigger_actions]
+    required: [:id, :name, :enabled, :monitor_type, :trigger_config, :cadence, :trigger_actions]
   }
 
   operation(:index,
@@ -162,7 +162,7 @@ defmodule TuistWeb.API.AutomationsController do
          type: :object,
          properties: %{
            name: %Schema{type: :string},
-           automation_type: %Schema{type: :string, enum: ["flakiness_rate", "flaky_run_count"]},
+           monitor_type: %Schema{type: :string, enum: ["flakiness_rate", "flaky_run_count"]},
            trigger_config: %Schema{type: :object},
            cadence: %Schema{type: :string},
            trigger_actions: %Schema{type: :array, items: @action_schema},
@@ -170,7 +170,7 @@ defmodule TuistWeb.API.AutomationsController do
            recovery_config: %Schema{type: :object},
            recovery_actions: %Schema{type: :array, items: @action_schema}
          },
-         required: [:name, :automation_type, :trigger_actions]
+         required: [:name, :monitor_type, :trigger_actions]
        }},
     responses: %{
       created: {"Created automation", "application/json", @alert_rule_schema},
@@ -317,7 +317,7 @@ defmodule TuistWeb.API.AutomationsController do
       id: alert_rule.id,
       name: alert_rule.name,
       enabled: alert_rule.enabled,
-      automation_type: alert_rule.automation_type,
+      monitor_type: alert_rule.monitor_type,
       trigger_config: alert_rule.trigger_config,
       cadence: alert_rule.cadence,
       trigger_actions: alert_rule.trigger_actions,

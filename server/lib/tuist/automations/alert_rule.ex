@@ -15,7 +15,7 @@ defmodule Tuist.Automations.AlertRule do
   schema "automation_alert_rules" do
     field :name, :string
     field :enabled, :boolean, default: true
-    field :automation_type, :string, source: :automation_type
+    field :monitor_type, :string
     field :trigger_config, :map, default: %{}
     field :cadence, :string, default: "5m"
     field :trigger_actions, {:array, :map}, default: []
@@ -28,15 +28,13 @@ defmodule Tuist.Automations.AlertRule do
     timestamps(type: :utc_datetime)
   end
 
-  def monitor_type(alert_rule), do: alert_rule.automation_type
-
   def changeset(alert_rule \\ %__MODULE__{}, attrs) do
     alert_rule
     |> cast(attrs, [
       :project_id,
       :name,
       :enabled,
-      :automation_type,
+      :monitor_type,
       :trigger_config,
       :cadence,
       :trigger_actions,
@@ -44,8 +42,8 @@ defmodule Tuist.Automations.AlertRule do
       :recovery_config,
       :recovery_actions
     ])
-    |> validate_required([:project_id, :name, :automation_type])
-    |> validate_inclusion(:automation_type, @monitor_types)
+    |> validate_required([:project_id, :name, :monitor_type])
+    |> validate_inclusion(:monitor_type, @monitor_types)
     |> validate_actions(:trigger_actions, require_present: true)
     |> validate_actions(:recovery_actions, require_present: false)
     |> validate_config()
@@ -106,10 +104,10 @@ defmodule Tuist.Automations.AlertRule do
   end
 
   defp validate_config(changeset) do
-    automation_type = get_field(changeset, :automation_type)
+    monitor_type = get_field(changeset, :monitor_type)
     trigger_config = get_field(changeset, :trigger_config) || %{}
 
-    case automation_type do
+    case monitor_type do
       "flakiness_rate" ->
         validate_flakiness_rate_config(changeset, trigger_config)
 

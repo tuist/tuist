@@ -7,7 +7,7 @@ defmodule Tuist.Repo.Migrations.CreateAutomationAlertRules do
       add :project_id, references(:projects, on_delete: :delete_all), null: false
       add :name, :string, null: false
       add :enabled, :boolean, null: false, default: true
-      add :automation_type, :string, null: false
+      add :monitor_type, :string, null: false
       add :trigger_config, :map, null: false, default: %{}
       add :cadence, :string, null: false, default: "5m"
       add :trigger_actions, {:array, :map}, null: false, default: []

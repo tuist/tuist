@@ -37,7 +37,7 @@ defmodule TuistWeb.API.AutomationsControllerTest do
     test "creates an automation", %{conn: conn, project: project} do
       body = %{
         "name" => "Auto-quarantine",
-        "automation_type" => "flakiness_rate",
+        "monitor_type" => "flakiness_rate",
         "trigger_config" => %{"threshold" => 10, "window" => "30d"},
         "trigger_actions" => [%{"type" => "change_state", "state" => "muted"}]
       }
@@ -49,14 +49,14 @@ defmodule TuistWeb.API.AutomationsControllerTest do
         |> json_response(:created)
 
       assert response["name"] == "Auto-quarantine"
-      assert response["automation_type"] == "flakiness_rate"
+      assert response["monitor_type"] == "flakiness_rate"
       assert [%{"type" => "change_state", "state" => "muted"}] = response["trigger_actions"]
     end
 
     test "returns 422 when validation fails (e.g. blank name)", %{conn: conn, project: project} do
       body = %{
         "name" => "",
-        "automation_type" => "flakiness_rate",
+        "monitor_type" => "flakiness_rate",
         "trigger_config" => %{"threshold" => 10, "window" => "30d"},
         "trigger_actions" => [%{"type" => "change_state", "state" => "muted"}]
       }

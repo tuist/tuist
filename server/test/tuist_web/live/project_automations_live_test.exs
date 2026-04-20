@@ -41,7 +41,7 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
 
       assert [automation] = Automations.list_automations(project.id)
       assert automation.name == "Auto-quarantine"
-      assert automation.automation_type == "flakiness_rate"
+      assert automation.monitor_type == "flakiness_rate"
       assert [%{"type" => "change_state", "state" => "muted"}] = automation.trigger_actions
     end
 
@@ -58,7 +58,7 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
       render_hook(lv, "save_automation", %{})
 
       assert [automation] = Automations.list_automations(project.id)
-      assert automation.automation_type == "flaky_run_count"
+      assert automation.monitor_type == "flaky_run_count"
       assert automation.trigger_config["threshold"] == 3
     end
 

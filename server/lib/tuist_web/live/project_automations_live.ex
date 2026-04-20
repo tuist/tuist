@@ -78,7 +78,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
   defp automation_to_form(automation) do
     %{
       name: automation.name,
-      automation_type: automation.automation_type,
+      monitor_type: automation.monitor_type,
       threshold: to_string(automation.trigger_config["threshold"] || ""),
       window: automation.trigger_config["window"] || "30d",
       trigger_actions: automation.trigger_actions,
@@ -131,7 +131,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
         socket
         |> assign(editing_automation_id: automation.id)
         |> assign(create_automation_form_name: form.name)
-        |> assign(create_automation_form_type: form.automation_type)
+        |> assign(create_automation_form_type: form.monitor_type)
         |> assign(create_automation_form_threshold: form.threshold)
         |> assign(create_automation_form_window: form.window)
         |> assign(create_automation_form_trigger_actions: form.trigger_actions)
@@ -367,7 +367,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
     base = %{
       "project_id" => project_id,
       "name" => assigns.create_automation_form_name,
-      "automation_type" => assigns.create_automation_form_type,
+      "monitor_type" => assigns.create_automation_form_type,
       "trigger_config" => %{
         "threshold" => threshold,
         "window" => assigns.create_automation_form_window
@@ -405,9 +405,9 @@ defmodule TuistWeb.ProjectAutomationsLive do
     end
   end
 
-  def automation_type_label("flakiness_rate"), do: dgettext("dashboard_projects", "Flakiness rate")
-  def automation_type_label("flaky_run_count"), do: dgettext("dashboard_projects", "Flaky runs")
-  def automation_type_label(_), do: dgettext("dashboard_projects", "Unknown")
+  def monitor_type_label("flakiness_rate"), do: dgettext("dashboard_projects", "Flakiness rate")
+  def monitor_type_label("flaky_run_count"), do: dgettext("dashboard_projects", "Flaky runs")
+  def monitor_type_label(_), do: dgettext("dashboard_projects", "Unknown")
 
   def state_action_label("muted"), do: dgettext("dashboard_projects", "Quarantine")
   def state_action_label("enabled"), do: dgettext("dashboard_projects", "Enable")
@@ -447,7 +447,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
 
   def action_row_summary(_), do: ""
 
-  def automation_summary(%{automation_type: "flakiness_rate", trigger_config: trigger_config}) do
+  def automation_summary(%{monitor_type: "flakiness_rate", trigger_config: trigger_config}) do
     threshold = format_threshold(trigger_config["threshold"] || 0)
     window = trigger_config["window"] || "30d"
 
@@ -457,7 +457,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
     )
   end
 
-  def automation_summary(%{automation_type: "flaky_run_count", trigger_config: trigger_config}) do
+  def automation_summary(%{monitor_type: "flaky_run_count", trigger_config: trigger_config}) do
     threshold = format_threshold(trigger_config["threshold"] || 0)
     window = trigger_config["window"] || "30d"
     dgettext("dashboard_projects", "When flaky runs ≥ %{threshold} over %{window}", threshold: threshold, window: window)

@@ -9,7 +9,7 @@ defmodule Tuist.Automations.AlertRuleTest do
       %{
         "project_id" => project.id,
         "name" => "Auto-quarantine flaky tests",
-        "automation_type" => "flakiness_rate",
+        "monitor_type" => "flakiness_rate",
         "trigger_config" => %{"threshold" => 10, "window" => "30d"},
         "trigger_actions" => [%{"type" => "change_state", "state" => "muted"}]
       },
@@ -24,31 +24,31 @@ defmodule Tuist.Automations.AlertRuleTest do
       assert changeset.valid?
     end
 
-    test "requires project_id, name, automation_type, trigger_actions" do
+    test "requires project_id, name, monitor_type, trigger_actions" do
       changeset = AlertRule.changeset(%AlertRule{}, %{})
       refute changeset.valid?
       errors = errors_on(changeset)
       assert "can't be blank" in errors.project_id
       assert "can't be blank" in errors.name
-      assert "can't be blank" in errors.automation_type
+      assert "can't be blank" in errors.monitor_type
       assert "can't be blank" in errors.trigger_actions
     end
 
-    test "rejects unknown automation_type" do
+    test "rejects unknown monitor_type" do
       project = ProjectsFixtures.project_fixture()
-      changeset = AlertRule.changeset(%AlertRule{}, valid_attrs(project, %{"automation_type" => "bogus"}))
+      changeset = AlertRule.changeset(%AlertRule{}, valid_attrs(project, %{"monitor_type" => "bogus"}))
       refute changeset.valid?
-      assert errors_on(changeset).automation_type
+      assert errors_on(changeset).monitor_type
     end
 
-    test "accepts flaky_run_count automation_type with integer threshold" do
+    test "accepts flaky_run_count monitor_type with integer threshold" do
       project = ProjectsFixtures.project_fixture()
 
       changeset =
         AlertRule.changeset(
           %AlertRule{},
           valid_attrs(project, %{
-            "automation_type" => "flaky_run_count",
+            "monitor_type" => "flaky_run_count",
             "trigger_config" => %{"threshold" => 3, "window" => "30d"}
           })
         )
