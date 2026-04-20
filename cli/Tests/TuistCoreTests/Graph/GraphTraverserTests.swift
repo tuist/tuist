@@ -5845,6 +5845,39 @@ final class GraphTraverserTests: TuistUnitTestCase {
         XCTAssertTrue(result.isEmpty)
     }
 
+    func test_testTargets_when_scheme_has_test_plans() throws {
+        // Given
+        let appTarget = Target.test(name: "App", product: .app)
+        let appTests = Target.test(name: "AppTests", product: .unitTests)
+        let otherTests = Target.test(name: "OtherTests", product: .unitTests)
+        let project = Project.test(targets: [appTarget, appTests, otherTests])
+        let testPlan = TestPlan(
+            path: try AbsolutePath(validating: "/Plans/App.xctestplan"),
+            testTargets: [
+                .test(target: TargetReference(projectPath: project.path, name: "AppTests")),
+            ],
+            isDefault: true
+        )
+        let scheme = Scheme.test(
+            name: "App",
+            testAction: .test(
+                targets: [],
+                testPlans: [testPlan]
+            )
+        )
+        let graph = Graph.test(
+            workspace: .test(schemes: [scheme]),
+            projects: [project.path: project]
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let result = subject.testTargets(for: "App")
+
+        // Then
+        XCTAssertEqual(result.map(\.target.name), ["AppTests"])
+    }
+
     func test_schemeRunnableTarget_when_no_executable_nor_build_targets() {
         // Given
         let scheme = Scheme.test(buildAction: .test(targets: []), runAction: .test(executable: nil))
