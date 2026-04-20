@@ -104,6 +104,7 @@ Tuist.xcworkspace
 node_modules
 Fixture
 /.tuist-dev-instance
+/.tuist-dev-seeded
 
 Tuist/Dependencies/SwiftPackageManager
 Tuist/Dependencies/graph.json
@@ -114,7 +115,8 @@ Tuist/Dependencies/graph.json
 # Release artifacts
 .bundle
 
-.claude/
+.claude/*
+!.claude/settings.json
 .agents/
 mise.local.toml
 *.p12
