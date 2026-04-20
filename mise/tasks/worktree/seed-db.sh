@@ -10,7 +10,7 @@ if [[ -f "${MARKER_FILE}" ]]; then
   exit 0
 fi
 
-echo "claude:seed-db: seeding databases for this worktree (one-time)..."
+echo "worktree:seed-db: seeding databases for this worktree (one-time)..."
 
 # Fresh-DB flow: create → load structure dump → migrate post-dump migrations → seed.
 # `mix ecto.setup` skips ecto.load, which is required because early schema is in structure.sql.
@@ -21,9 +21,9 @@ if ! (
   mise run db:migrate && \
   mise run db:seed
 ); then
-  echo "claude:seed-db: seeding failed — ensure PostgreSQL and ClickHouse are running, then re-run 'mise run claude:seed-db'." >&2
+  echo "worktree:seed-db: seeding failed — ensure PostgreSQL and ClickHouse are running, then re-run 'mise run worktree:seed-db'." >&2
   exit 1
 fi
 
 touch "${MARKER_FILE}"
-echo "claude:seed-db: done."
+echo "worktree:seed-db: done."

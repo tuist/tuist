@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "mise run claude:bootstrap || true"
+            "command": "mise run worktree:bootstrap || true"
           }
         ]
       }
