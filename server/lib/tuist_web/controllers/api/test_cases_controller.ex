@@ -300,8 +300,7 @@ defmodule TuistWeb.API.TestCasesController do
 
   defp maybe_add_filter(filters, _field, nil), do: filters
 
-  defp maybe_add_filter(filters, :is_flaky, true),
-    do: filters ++ [%{field: :is_flaky, op: :==, value: true}]
+  defp maybe_add_filter(filters, :is_flaky, true), do: filters ++ [%{field: :is_flaky, op: :==, value: true}]
 
   defp maybe_add_filter(filters, field, value), do: filters ++ [%{field: field, op: :==, value: value}]
 

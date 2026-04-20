@@ -549,5 +549,4 @@ defmodule Tuist.Slack do
       ]
     }
   end
-
 end

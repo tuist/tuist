@@ -18,6 +18,7 @@ defmodule Tuist.Repo.Migrations.CreateAutomationAlertRules do
       timestamps(type: :timestamptz)
     end
 
+    # excellent_migrations:safety-assured-for-next-line index_not_concurrently
     create index(:automation_alert_rules, [:project_id])
   end
 end

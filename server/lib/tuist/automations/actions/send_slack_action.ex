@@ -20,16 +20,12 @@ defmodule Tuist.Automations.Actions.SendSlackAction do
       Client.post_message(access_token, channel, blocks)
     else
       {:error, :not_found} ->
-        Logger.warning(
-          "Automation #{automation.id} send_slack skipped: test case #{test_case_id} not found"
-        )
+        Logger.warning("Automation #{automation.id} send_slack skipped: test case #{test_case_id} not found")
 
         :ok
 
       true ->
-        Logger.warning(
-          "Automation #{automation.id} send_slack skipped: project #{automation.project_id} not found"
-        )
+        Logger.warning("Automation #{automation.id} send_slack skipped: project #{automation.project_id} not found")
 
         :ok
 
@@ -41,9 +37,7 @@ defmodule Tuist.Automations.Actions.SendSlackAction do
         :ok
 
       other ->
-        Logger.warning(
-          "Automation #{automation.id} send_slack skipped for test case #{test_case_id}: #{inspect(other)}"
-        )
+        Logger.warning("Automation #{automation.id} send_slack skipped for test case #{test_case_id}: #{inspect(other)}")
 
         :ok
     end

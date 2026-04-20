@@ -24,7 +24,7 @@ defmodule Tuist.MCP.Components.Tools.ListTestCases do
         "state" => %{
           "type" => "string",
           "enum" => ["enabled", "muted"],
-          "description" => "Filter by test case state (\"muted\" replaces the legacy \"quarantined\" concept)."
+          "description" => ~s{Filter by test case state ("muted" replaces the legacy "quarantined" concept).}
         },
         "module_name" => %{
           "type" => "string",

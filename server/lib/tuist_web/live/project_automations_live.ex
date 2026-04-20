@@ -297,21 +297,6 @@ defmodule TuistWeb.ProjectAutomationsLive do
     {:noreply, assign(socket, create_automation_form_recovery_actions: actions)}
   end
 
-  defp new_action("change_state", :trigger), do: default_change_state_action("muted")
-  defp new_action("change_state", :recovery), do: default_change_state_action("enabled")
-  defp new_action("send_slack", context), do: default_send_slack_action(context)
-  defp new_action("add_label_flaky", _context), do: %{"type" => "add_label", "label" => "flaky"}
-  defp new_action("remove_label_flaky", _context), do: %{"type" => "remove_label", "label" => "flaky"}
-  defp new_action(_, :recovery), do: default_change_state_action("enabled")
-  defp new_action(_, _), do: default_change_state_action("muted")
-
-  defp update_action_at(actions, index, fun) do
-    case Enum.at(actions, index) do
-      nil -> actions
-      action -> List.replace_at(actions, index, fun.(action))
-    end
-  end
-
   def handle_event("save_automation", _params, %{assigns: assigns} = socket) do
     attrs = build_automation_attrs(assigns.selected_project.id, assigns)
 
@@ -358,6 +343,21 @@ defmodule TuistWeb.ProjectAutomationsLive do
       {:noreply, assign_automations(socket, project)}
     else
       _ -> {:noreply, socket}
+    end
+  end
+
+  defp new_action("change_state", :trigger), do: default_change_state_action("muted")
+  defp new_action("change_state", :recovery), do: default_change_state_action("enabled")
+  defp new_action("send_slack", context), do: default_send_slack_action(context)
+  defp new_action("add_label_flaky", _context), do: %{"type" => "add_label", "label" => "flaky"}
+  defp new_action("remove_label_flaky", _context), do: %{"type" => "remove_label", "label" => "flaky"}
+  defp new_action(_, :recovery), do: default_change_state_action("enabled")
+  defp new_action(_, _), do: default_change_state_action("muted")
+
+  defp update_action_at(actions, index, fun) do
+    case Enum.at(actions, index) do
+      nil -> actions
+      action -> List.replace_at(actions, index, fun.(action))
     end
   end
 
@@ -463,8 +463,8 @@ defmodule TuistWeb.ProjectAutomationsLive do
     dgettext("dashboard_projects", "When flaky runs ≥ %{threshold} over %{window}", threshold: threshold, window: window)
   end
 
+  def automation_summary(_), do: ""
+
   defp format_threshold(n) when is_float(n) and trunc(n) == n, do: trunc(n)
   defp format_threshold(n), do: n
-
-  def automation_summary(_), do: ""
 end

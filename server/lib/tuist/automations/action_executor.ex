@@ -23,9 +23,7 @@ defmodule Tuist.Automations.ActionExecutor do
           {:cont, :ok}
 
         {:error, reason} ->
-          Logger.warning(
-            "Automation action #{action["type"]} failed for #{entity.type} #{entity.id}: #{inspect(reason)}"
-          )
+          Logger.warning("Automation action #{action["type"]} failed for #{entity.type} #{entity.id}: #{inspect(reason)}")
 
           {:halt, {:error, reason}}
       end

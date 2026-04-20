@@ -69,7 +69,7 @@ defmodule Tuist.Automations.Actions.SendSlackActionTest do
     end
 
     test "no-ops when the project is not found" do
-      automation = %{name: "Auto", project_id: 999_999}
+      automation = %{id: Ecto.UUID.generate(), name: "Auto", project_id: 999_999}
 
       expect(Tests, :get_test_case_by_id, fn _id ->
         {:ok, %{id: Ecto.UUID.generate(), name: "x", module_name: "y", suite_name: "z", project_id: 999_999}}
@@ -89,7 +89,7 @@ defmodule Tuist.Automations.Actions.SendSlackActionTest do
 
     test "no-ops when the project has no Slack installation" do
       project = ProjectsFixtures.project_fixture()
-      automation = %{name: "Auto", project_id: project.id}
+      automation = %{id: Ecto.UUID.generate(), name: "Auto", project_id: project.id}
       tc = test_case(project.id)
 
       expect(Tests, :get_test_case_by_id, fn _id -> {:ok, tc} end)
@@ -105,7 +105,7 @@ defmodule Tuist.Automations.Actions.SendSlackActionTest do
 
     test "no-ops when the test case is not found" do
       _project = %{}
-      automation = %{name: "Auto", project_id: 1}
+      automation = %{id: Ecto.UUID.generate(), name: "Auto", project_id: 1}
 
       expect(Tests, :get_test_case_by_id, fn _id -> {:error, :not_found} end)
       reject(&Client.post_message/3)

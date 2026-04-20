@@ -85,9 +85,7 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
   defp load_all_test_case_ids(_project_id, false), do: []
 
   defp load_all_test_case_ids(project_id, _recovery_enabled) do
-    ClickHouseRepo.all(
-      from(tc in TestCase, hints: ["FINAL"], where: tc.project_id == ^project_id, select: tc.id)
-    )
+    ClickHouseRepo.all(from(tc in TestCase, hints: ["FINAL"], where: tc.project_id == ^project_id, select: tc.id))
   end
 
   defp parse_window(window) when is_binary(window) do

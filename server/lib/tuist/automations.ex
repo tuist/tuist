@@ -2,8 +2,8 @@ defmodule Tuist.Automations do
   @moduledoc false
   import Ecto.Query
 
-  alias Tuist.Automations.Alerts.Alert
   alias Tuist.Automations.AlertRule
+  alias Tuist.Automations.Alerts.Alert
   alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
   alias Tuist.Repo

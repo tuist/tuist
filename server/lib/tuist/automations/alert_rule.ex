@@ -51,35 +51,38 @@ defmodule Tuist.Automations.AlertRule do
   end
 
   defp validate_actions(changeset, field, opts) do
-    require_present = Keyword.get(opts, :require_present, false)
-
     case get_field(changeset, field) do
-      nil ->
-        if require_present, do: add_error(changeset, field, "can't be blank"), else: changeset
+      nil -> maybe_blank_error(changeset, field, opts)
+      [] -> maybe_blank_error(changeset, field, opts)
+      actions when is_list(actions) -> validate_action_list(changeset, field, actions)
+      _ -> add_error(changeset, field, "must be a list")
+    end
+  end
 
-      [] ->
-        if require_present, do: add_error(changeset, field, "can't be blank"), else: changeset
+  defp maybe_blank_error(changeset, field, opts) do
+    if Keyword.get(opts, :require_present, false) do
+      add_error(changeset, field, "can't be blank")
+    else
+      changeset
+    end
+  end
 
-      actions when is_list(actions) ->
-        cond do
-          not Enum.all?(actions, &valid_action?/1) ->
-            add_error(changeset, field, "contains invalid actions")
+  defp validate_action_list(changeset, field, actions) do
+    cond do
+      not Enum.all?(actions, &valid_action?/1) ->
+        add_error(changeset, field, "contains invalid actions")
 
-          Enum.count(actions, &change_state_action?/1) > 1 ->
-            add_error(changeset, field, "can only contain one change_state action")
+      Enum.count(actions, &change_state_action?/1) > 1 ->
+        add_error(changeset, field, "can only contain one change_state action")
 
-          has_duplicate_label_action?(actions, "add_label") ->
-            add_error(changeset, field, "can only contain one add_label action per label")
+      has_duplicate_label_action?(actions, "add_label") ->
+        add_error(changeset, field, "can only contain one add_label action per label")
 
-          has_duplicate_label_action?(actions, "remove_label") ->
-            add_error(changeset, field, "can only contain one remove_label action per label")
+      has_duplicate_label_action?(actions, "remove_label") ->
+        add_error(changeset, field, "can only contain one remove_label action per label")
 
-          true ->
-            changeset
-        end
-
-      _ ->
-        add_error(changeset, field, "must be a list")
+      true ->
+        changeset
     end
   end
 

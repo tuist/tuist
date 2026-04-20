@@ -97,10 +97,10 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     end)
 
     expect(Automations, :create_alert, fn %{
-                                             alert_rule_id: id,
-                                             test_case_id: ^recovered_id,
-                                             status: "recovered"
-                                           } ->
+                                            alert_rule_id: id,
+                                            test_case_id: ^recovered_id,
+                                            status: "recovered"
+                                          } ->
       assert id == automation.id
       :ok
     end)

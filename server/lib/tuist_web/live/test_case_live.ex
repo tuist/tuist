@@ -257,13 +257,7 @@ defmodule TuistWeb.TestCaseLive do
   def handle_event(
         "mark-as-flaky",
         _params,
-        %{
-          assigns: %{
-            test_case_id: test_case_id,
-            test_case_detail: test_case_detail,
-            current_user: current_user
-          }
-        } = socket
+        %{assigns: %{test_case_id: test_case_id, test_case_detail: test_case_detail, current_user: current_user}} = socket
       ) do
     {:ok, updated_test_case} =
       Tests.update_test_case(
