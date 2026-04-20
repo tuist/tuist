@@ -400,6 +400,53 @@ struct ResourcesProjectMapperTests {
     }
 
     @Test
+    func mapWhenStaticTargetBuildableFolderContainsOnlyXcstringsKeepsThemOnOriginalTarget() async throws {
+        // Given
+        let sourcesFolderPath = try AbsolutePath(validating: "/Sources")
+        let resourcesFolderPath = try AbsolutePath(validating: "/Resources")
+        let swiftFilePath = try AbsolutePath(validating: "/Sources/File.swift")
+        let xcstringsPath = try AbsolutePath(validating: "/Resources/Localizable.xcstrings")
+
+        let buildableFolders = [
+            BuildableFolder(
+                path: sourcesFolderPath,
+                exceptions: BuildableFolderExceptions(exceptions: []),
+                resolvedFiles: [
+                    BuildableFolderFile(path: swiftFilePath, compilerFlags: nil),
+                ]
+            ),
+            BuildableFolder(
+                path: resourcesFolderPath,
+                exceptions: BuildableFolderExceptions(exceptions: []),
+                resolvedFiles: [
+                    BuildableFolderFile(path: xcstringsPath, compilerFlags: nil),
+                ]
+            ),
+        ]
+
+        let target = Target.test(
+            product: .staticFramework,
+            sources: [],
+            resources: ResourceFileElements([]),
+            buildableFolders: buildableFolders
+        )
+        let project = Project.test(targets: [target])
+        given(buildableFolderChecker).containsResources(.value(buildableFolders)).willReturn(true)
+        given(buildableFolderChecker).containsSources(.value(buildableFolders)).willReturn(true)
+
+        // When
+        let (gotProject, _) = try await subject.map(project: project)
+
+        // Then
+        let gotTarget = try #require(gotProject.targets.values.sorted().last)
+        #expect(gotTarget.buildableFolders == buildableFolders)
+
+        let resourcesTarget = try #require(gotProject.targets.values.sorted().first)
+        #expect(resourcesTarget.product == .bundle)
+        #expect(resourcesTarget.buildableFolders.isEmpty)
+    }
+
+    @Test
     // swiftlint:disable:next function_body_length
     func mapWhenNestedBuildableFoldersShareSourcesAndResources() async throws {
         // Given

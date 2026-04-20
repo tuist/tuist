@@ -1265,6 +1265,43 @@ struct GenerateAcceptanceTestiOSAppWithStaticFrameworkWithXcstrings {
     }
 }
 
+struct GenerateAcceptanceTestiOSAppWithStaticFrameworkWithXcstringsBuildableFolders {
+    @Test(
+        .disabled(),
+        .withFixture("generated_ios_app_with_static_framework_with_xcstrings_buildable_folders"),
+        .inTemporaryDirectory
+    )
+    func ios_app_with_static_framework_with_xcstrings_buildable_folders() async throws {
+        let fixturePath = try fixtureDirectory()
+        try await run(GenerateCommand.self)
+
+        let fileSystem = FileSystem()
+        let xcstringsPath = fixturePath.appending(
+            components: "StaticFramework", "Resources", "Localizable.xcstrings"
+        )
+        let contentBeforeBuild = try await fileSystem.readFile(at: xcstringsPath)
+
+        try await run(BuildCommand.self)
+
+        let contentAfterBuild = try await fileSystem.readFile(at: xcstringsPath)
+        #expect(
+            contentBeforeBuild == contentAfterBuild,
+            "Localizable.xcstrings was modified during build — Xcode likely added stale extraction state"
+        )
+
+        try await XCTAssertProductWithDestinationContainsResource(
+            "App.app",
+            destination: "Debug-iphonesimulator",
+            resource: "StaticFramework_StaticFramework.bundle"
+        )
+        try await XCTAssertProductWithDestinationContainsResource(
+            "StaticFramework_StaticFramework.bundle",
+            destination: "Debug-iphonesimulator",
+            resource: "Localizable.strings"
+        )
+    }
+}
+
 struct GenerateAcceptanceTestsAppWithMetalOptions {
     @Test(.disabled(), .withFixture("generated_app_with_metal_options"), .inTemporaryDirectory)
     func app_with_metal_options() async throws {

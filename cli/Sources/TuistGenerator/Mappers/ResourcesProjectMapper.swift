@@ -228,9 +228,10 @@ public struct ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this
     }
 
     /// Splits the incoming buildable folders into two sets:
-    ///  - folders that should stay on the original target (sources or mixed folders after excluding resources)
+    ///  - folders that should stay on the original target (sources, xcstrings, or mixed folders after excluding bundle-only resources)
     ///  - folders that should move to the generated bundle (pure resources, or the resource portion of mixed folders)
-    /// Mixed folders are duplicated with exclusion rules so the static target keeps sources while the bundle owns resources.
+    /// Mixed folders are duplicated with exclusion rules so the static target keeps sources and xcstrings while the bundle owns
+    /// other resources.
     private func partitionBuildableFoldersForResources(
         _ folders: [BuildableFolder]
     ) -> (resourceFolders: [BuildableFolder], remainingFolders: [BuildableFolder]) {
@@ -240,8 +241,8 @@ public struct ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this
                 return
             }
 
-            if let sourcesFolder = partition.sourcesFolder {
-                result.remainingFolders.append(sourcesFolder)
+            if let originalTargetFolder = partition.originalTargetFolder {
+                result.remainingFolders.append(originalTargetFolder)
             }
 
             if let resourcesFolder = partition.resourcesFolder {
@@ -452,8 +453,8 @@ public struct ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this
 
 /// Represents the result of splitting a buildable folder into source and resource subsets.
 private struct BuildableFolderPartition {
-    /// The view of the folder that should stay on the original target (sources/mixed minus resources).
-    let sourcesFolder: BuildableFolder?
+    /// The view of the folder that should stay on the original target (sources and xcstrings, or mixed minus bundle-only resources).
+    let originalTargetFolder: BuildableFolder?
 
     /// The view of the folder that should move to the generated bundle target (resources only).
     let resourcesFolder: BuildableFolder?
@@ -468,21 +469,21 @@ extension BuildableFolder {
             return directAssignment
         }
 
-        let (sourceEntries, resourceEntries) = splitFilesByKind()
+        let (originalTargetEntries, resourceEntries) = splitFilesByKind()
 
         if resourceEntries.isEmpty {
-            return handleSourceOnlyFolder()
+            return handleOriginalTargetOnlyFolder()
         }
 
-        if sourceEntries.isEmpty {
+        if originalTargetEntries.isEmpty {
             return BuildableFolderPartition(
-                sourcesFolder: nil,
+                originalTargetFolder: nil,
                 resourcesFolder: self
             )
         }
 
         return duplicateFolderWithExclusions(
-            sourceEntries: sourceEntries,
+            originalTargetEntries: originalTargetEntries,
             resourceEntries: resourceEntries
         )
     }
@@ -492,24 +493,24 @@ extension BuildableFolder {
         // Xcode treats buildable folders as a single synchronized group. To attach the same folder to
         // multiple targets we duplicate the reference and add complementary exclusion rules to each copy.
         if path.isResourceLike, !path.isSourceLike, resolvedFiles.isEmpty {
-            return BuildableFolderPartition(sourcesFolder: nil, resourcesFolder: self)
+            return BuildableFolderPartition(originalTargetFolder: nil, resourcesFolder: self)
         }
         return nil
     }
 
-    /// Splits the folder contents into source-like and resource-like entries.
-    private func splitFilesByKind() -> (sources: [BuildableFolderFile], resources: [BuildableFolderFile]) {
-        let sources = resolvedFiles.filter(\.path.isSourceLike)
-        let resources = resolvedFiles.filter { !$0.path.isSourceLike }
-        return (sources, resources)
+    /// Splits the folder contents into files that must stay on the original target and files that should move to the bundle.
+    private func splitFilesByKind() -> (originalTargetEntries: [BuildableFolderFile], resources: [BuildableFolderFile]) {
+        let originalTargetEntries = resolvedFiles.filter(\.path.shouldStayOnOriginalTargetWhenSplittingResources)
+        let resources = resolvedFiles.filter { !$0.path.shouldStayOnOriginalTargetWhenSplittingResources }
+        return (originalTargetEntries, resources)
     }
 
-    /// Retains the folder on the original target when no resources were found, duplicating it only when both
-    /// source and resource heuristics match at the folder level.
-    private func handleSourceOnlyFolder() -> BuildableFolderPartition? {
+    /// Retains the folder on the original target when no bundle-only resources were found, duplicating it only when both
+    /// original-target and bundle heuristics match at the folder level.
+    private func handleOriginalTargetOnlyFolder() -> BuildableFolderPartition? {
         if path.isResourceLike, path.isSourceLike {
             return BuildableFolderPartition(
-                sourcesFolder: BuildableFolder(
+                originalTargetFolder: BuildableFolder(
                     path: path,
                     exceptions: exceptions,
                     resolvedFiles: resolvedFiles
@@ -522,16 +523,16 @@ extension BuildableFolder {
 
     /// Duplicates the folder reference and adds complementary exclusions to the source and resource views.
     private func duplicateFolderWithExclusions(
-        sourceEntries: [BuildableFolderFile],
+        originalTargetEntries: [BuildableFolderFile],
         resourceEntries: [BuildableFolderFile]
     ) -> BuildableFolderPartition {
         let sourceExcludedPaths = resourceEntries.map(\.path)
-        let resourceExcludedPaths = sourceEntries.map(\.path)
+        let resourceExcludedPaths = originalTargetEntries.map(\.path)
 
-        let sourcesFolder = BuildableFolder(
+        let originalTargetFolder = BuildableFolder(
             path: path,
             exceptions: exceptions.addingExcluded(paths: sourceExcludedPaths),
-            resolvedFiles: sourceEntries
+            resolvedFiles: originalTargetEntries
         )
 
         let resourcesFolder = BuildableFolder(
@@ -541,7 +542,7 @@ extension BuildableFolder {
         )
 
         return BuildableFolderPartition(
-            sourcesFolder: sourcesFolder,
+            originalTargetFolder: originalTargetFolder,
             resourcesFolder: resourcesFolder
         )
     }
@@ -564,6 +565,10 @@ extension AbsolutePath {
         let validExtensions = Target.validResourceExtensions
             + Target.validResourceCompatibleFolderExtensions
         return matchesExtension(in: validExtensions)
+    }
+
+    fileprivate var shouldStayOnOriginalTargetWhenSplittingResources: Bool {
+        isSourceLike || matchesExtension(in: ["xcstrings"])
     }
 }
 
