@@ -40,30 +40,7 @@ defmodule TuistTestSupport.Utilities do
     ]
 
     for command <- commands do
-      query_with_retry(command)
+      Tuist.IngestRepo.with_retry(fn -> Tuist.IngestRepo.query!(command) end)
     end
-  end
-
-  # ClickHouse occasionally drops idle pool connections under CI load; the Ch
-  # client reestablishes them transparently on the *next* use, but the call in
-  # flight when that happens still raises `Mint.TransportError: socket closed`.
-  # Retry once on that specific error so an `on_exit` TRUNCATE doesn't fail
-  # the test that just finished.
-  defp query_with_retry(command, attempts_left \\ 1) do
-    Tuist.IngestRepo.query!(command)
-  rescue
-    error in DBConnection.ConnectionError ->
-      if attempts_left > 0 and error.reason in [:socket_closed, "socket closed"] do
-        query_with_retry(command, attempts_left - 1)
-      else
-        reraise error, __STACKTRACE__
-      end
-
-    error in Mint.TransportError ->
-      if attempts_left > 0 and error.reason == :closed do
-        query_with_retry(command, attempts_left - 1)
-      else
-        reraise error, __STACKTRACE__
-      end
   end
 end

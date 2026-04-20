@@ -12,16 +12,24 @@ defmodule Tuist.IngestRepo do
   defoverridable insert_all: 2, insert_all: 3, insert: 1, insert: 2
 
   def insert_all(schema_or_source, entries, opts \\ []) do
-    retry_on_connection_error(fn -> super(schema_or_source, entries, opts) end)
+    with_retry(fn -> super(schema_or_source, entries, opts) end)
   end
 
   def insert(struct, opts \\ []) do
-    retry_on_connection_error(fn -> super(struct, opts) end)
+    with_retry(fn -> super(struct, opts) end)
   end
 
   @max_retries 3
 
-  defp retry_on_connection_error(fun, retries_left \\ @max_retries) do
+  @doc """
+  Runs `fun` and retries with exponential backoff on transient ClickHouse
+  connection errors (`Mint.TransportError`, `DBConnection.ConnectionError`).
+
+  Use this whenever raw ClickHouse queries are issued outside the overridden
+  `insert`/`insert_all` paths — e.g. test teardown truncates — so that idle
+  pool connections dropped by the server don't fail the caller.
+  """
+  def with_retry(fun, retries_left \\ @max_retries) do
     fun.()
   rescue
     e in [Mint.TransportError, DBConnection.ConnectionError] ->
@@ -33,7 +41,7 @@ defmodule Tuist.IngestRepo do
         )
 
         Process.sleep(delay)
-        retry_on_connection_error(fun, retries_left - 1)
+        with_retry(fun, retries_left - 1)
       else
         reraise e, __STACKTRACE__
       end
