@@ -79,8 +79,8 @@ defmodule TuistWeb.ProjectAutomationsLive do
     %{
       name: automation.name,
       automation_type: automation.automation_type,
-      threshold: to_string(automation.config["threshold"] || ""),
-      window: automation.config["window"] || "30d",
+      threshold: to_string(automation.trigger_config["threshold"] || ""),
+      window: automation.trigger_config["window"] || "30d",
       trigger_actions: automation.trigger_actions,
       recovery_enabled: automation.recovery_enabled,
       recovery_window:
@@ -368,7 +368,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
       "project_id" => project_id,
       "name" => assigns.create_automation_form_name,
       "automation_type" => assigns.create_automation_form_type,
-      "config" => %{
+      "trigger_config" => %{
         "threshold" => threshold,
         "window" => assigns.create_automation_form_window
       },
@@ -447,9 +447,9 @@ defmodule TuistWeb.ProjectAutomationsLive do
 
   def action_row_summary(_), do: ""
 
-  def automation_summary(%{automation_type: "flakiness_rate", config: config}) do
-    threshold = format_threshold(config["threshold"] || 0)
-    window = config["window"] || "30d"
+  def automation_summary(%{automation_type: "flakiness_rate", trigger_config: trigger_config}) do
+    threshold = format_threshold(trigger_config["threshold"] || 0)
+    window = trigger_config["window"] || "30d"
 
     dgettext("dashboard_projects", "When flakiness rate ≥ %{threshold}% over %{window}",
       threshold: threshold,
@@ -457,9 +457,9 @@ defmodule TuistWeb.ProjectAutomationsLive do
     )
   end
 
-  def automation_summary(%{automation_type: "flaky_run_count", config: config}) do
-    threshold = format_threshold(config["threshold"] || 0)
-    window = config["window"] || "30d"
+  def automation_summary(%{automation_type: "flaky_run_count", trigger_config: trigger_config}) do
+    threshold = format_threshold(trigger_config["threshold"] || 0)
+    window = trigger_config["window"] || "30d"
     dgettext("dashboard_projects", "When flaky runs ≥ %{threshold} over %{window}", threshold: threshold, window: window)
   end
 

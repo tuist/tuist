@@ -10,7 +10,7 @@ defmodule Tuist.Automations.AlertRuleTest do
         "project_id" => project.id,
         "name" => "Auto-quarantine flaky tests",
         "automation_type" => "flakiness_rate",
-        "config" => %{"threshold" => 10, "window" => "30d"},
+        "trigger_config" => %{"threshold" => 10, "window" => "30d"},
         "trigger_actions" => [%{"type" => "change_state", "state" => "muted"}]
       },
       overrides
@@ -49,7 +49,7 @@ defmodule Tuist.Automations.AlertRuleTest do
           %AlertRule{},
           valid_attrs(project, %{
             "automation_type" => "flaky_run_count",
-            "config" => %{"threshold" => 3, "window" => "30d"}
+            "trigger_config" => %{"threshold" => 3, "window" => "30d"}
           })
         )
 
@@ -62,11 +62,11 @@ defmodule Tuist.Automations.AlertRuleTest do
       changeset =
         AlertRule.changeset(
           %AlertRule{},
-          valid_attrs(project, %{"config" => %{"threshold" => 200, "window" => "30d"}})
+          valid_attrs(project, %{"trigger_config" => %{"threshold" => 200, "window" => "30d"}})
         )
 
       refute changeset.valid?
-      assert errors_on(changeset).config
+      assert errors_on(changeset).trigger_config
     end
 
     test "rejects flakiness_rate config without window" do
@@ -75,11 +75,11 @@ defmodule Tuist.Automations.AlertRuleTest do
       changeset =
         AlertRule.changeset(
           %AlertRule{},
-          valid_attrs(project, %{"config" => %{"threshold" => 10}})
+          valid_attrs(project, %{"trigger_config" => %{"threshold" => 10}})
         )
 
       refute changeset.valid?
-      assert errors_on(changeset).config
+      assert errors_on(changeset).trigger_config
     end
   end
 

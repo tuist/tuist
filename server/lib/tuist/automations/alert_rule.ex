@@ -16,7 +16,7 @@ defmodule Tuist.Automations.AlertRule do
     field :name, :string
     field :enabled, :boolean, default: true
     field :automation_type, :string, source: :automation_type
-    field :config, :map, default: %{}
+    field :trigger_config, :map, default: %{}
     field :cadence, :string, default: "5m"
     field :trigger_actions, {:array, :map}, default: []
     field :recovery_enabled, :boolean, default: false
@@ -37,7 +37,7 @@ defmodule Tuist.Automations.AlertRule do
       :name,
       :enabled,
       :automation_type,
-      :config,
+      :trigger_config,
       :cadence,
       :trigger_actions,
       :recovery_enabled,
@@ -107,46 +107,46 @@ defmodule Tuist.Automations.AlertRule do
 
   defp validate_config(changeset) do
     automation_type = get_field(changeset, :automation_type)
-    config = get_field(changeset, :config) || %{}
+    trigger_config = get_field(changeset, :trigger_config) || %{}
 
     case automation_type do
       "flakiness_rate" ->
-        validate_flakiness_rate_config(changeset, config)
+        validate_flakiness_rate_config(changeset, trigger_config)
 
       "flaky_run_count" ->
-        validate_flaky_run_count_config(changeset, config)
+        validate_flaky_run_count_config(changeset, trigger_config)
 
       _ ->
         changeset
     end
   end
 
-  defp validate_flakiness_rate_config(changeset, config) do
-    threshold = config["threshold"]
-    window = config["window"]
+  defp validate_flakiness_rate_config(changeset, trigger_config) do
+    threshold = trigger_config["threshold"]
+    window = trigger_config["window"]
 
     cond do
       !is_number(threshold) or threshold <= 0 or threshold > 100 ->
-        add_error(changeset, :config, "threshold must be a number between 0 and 100")
+        add_error(changeset, :trigger_config, "threshold must be a number between 0 and 100")
 
       !is_binary(window) ->
-        add_error(changeset, :config, "window must be a string like '30d'")
+        add_error(changeset, :trigger_config, "window must be a string like '30d'")
 
       true ->
         changeset
     end
   end
 
-  defp validate_flaky_run_count_config(changeset, config) do
-    threshold = config["threshold"]
-    window = config["window"]
+  defp validate_flaky_run_count_config(changeset, trigger_config) do
+    threshold = trigger_config["threshold"]
+    window = trigger_config["window"]
 
     cond do
       !is_integer(threshold) or threshold <= 0 ->
-        add_error(changeset, :config, "threshold must be a positive integer")
+        add_error(changeset, :trigger_config, "threshold must be a positive integer")
 
       !is_binary(window) ->
-        add_error(changeset, :config, "window must be a string like '30d'")
+        add_error(changeset, :trigger_config, "window must be a string like '30d'")
 
       true ->
         changeset

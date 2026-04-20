@@ -8,7 +8,7 @@ defmodule Tuist.Repo.Migrations.CreateAutomationAlertRules do
       add :name, :string, null: false
       add :enabled, :boolean, null: false, default: true
       add :automation_type, :string, null: false
-      add :config, :map, null: false, default: %{}
+      add :trigger_config, :map, null: false, default: %{}
       add :cadence, :string, null: false, default: "5m"
       add :trigger_actions, {:array, :map}, null: false, default: []
       add :recovery_enabled, :boolean, null: false, default: false

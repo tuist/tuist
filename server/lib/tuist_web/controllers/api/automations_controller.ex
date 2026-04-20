@@ -43,14 +43,14 @@ defmodule TuistWeb.API.AutomationsController do
         enum: ["flakiness_rate", "flaky_run_count"],
         description: "The monitor type that evaluates the condition."
       },
-      config: %Schema{type: :object},
+      trigger_config: %Schema{type: :object},
       cadence: %Schema{type: :string},
       trigger_actions: %Schema{type: :array, items: @action_schema},
       recovery_enabled: %Schema{type: :boolean},
       recovery_config: %Schema{type: :object},
       recovery_actions: %Schema{type: :array, items: @action_schema}
     },
-    required: [:id, :name, :enabled, :automation_type, :config, :cadence, :trigger_actions]
+    required: [:id, :name, :enabled, :automation_type, :trigger_config, :cadence, :trigger_actions]
   }
 
   operation(:index,
@@ -163,7 +163,7 @@ defmodule TuistWeb.API.AutomationsController do
          properties: %{
            name: %Schema{type: :string},
            automation_type: %Schema{type: :string, enum: ["flakiness_rate", "flaky_run_count"]},
-           config: %Schema{type: :object},
+           trigger_config: %Schema{type: :object},
            cadence: %Schema{type: :string},
            trigger_actions: %Schema{type: :array, items: @action_schema},
            recovery_enabled: %Schema{type: :boolean},
@@ -226,7 +226,7 @@ defmodule TuistWeb.API.AutomationsController do
          properties: %{
            name: %Schema{type: :string},
            enabled: %Schema{type: :boolean},
-           config: %Schema{type: :object},
+           trigger_config: %Schema{type: :object},
            cadence: %Schema{type: :string},
            trigger_actions: %Schema{type: :array, items: @action_schema},
            recovery_enabled: %Schema{type: :boolean},
@@ -318,7 +318,7 @@ defmodule TuistWeb.API.AutomationsController do
       name: alert_rule.name,
       enabled: alert_rule.enabled,
       automation_type: alert_rule.automation_type,
-      config: alert_rule.config,
+      trigger_config: alert_rule.trigger_config,
       cadence: alert_rule.cadence,
       trigger_actions: alert_rule.trigger_actions,
       recovery_enabled: alert_rule.recovery_enabled,
