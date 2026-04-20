@@ -81,30 +81,6 @@ defmodule TuistWeb.TestCaseLiveTest do
       assert fetched.is_flaky == true
     end
 
-    test "mark as flaky also quarantines when auto_quarantine_flaky_tests is enabled", %{
-      conn: conn,
-      account: account,
-      project: project
-    } do
-      Tuist.Repo.update!(Ecto.Changeset.change(project, auto_quarantine_flaky_tests: true))
-
-      {:ok, test_run} = RunsFixtures.test_fixture(project_id: project.id, account_id: account.id)
-      test_run = Tuist.ClickHouseRepo.preload(test_run, :test_case_runs)
-      [test_case_run | _] = test_run.test_case_runs
-
-      {:ok, lv, _html} =
-        live(conn, ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_run.test_case_id}")
-
-      html = lv |> element(~s|button[phx-click="mark-as-flaky"]|) |> render_click()
-
-      assert html =~ "Unmark as flaky"
-      assert html =~ "Quarantined"
-
-      {:ok, fetched} = Tuist.Tests.get_test_case_by_id(test_case_run.test_case_id)
-      assert fetched.is_flaky == true
-      assert fetched.state == "muted"
-    end
-
     test "unmark as flaky button unmarks a test case as flaky", %{
       conn: conn,
       account: account,

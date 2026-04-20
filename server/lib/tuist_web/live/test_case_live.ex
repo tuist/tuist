@@ -11,7 +11,6 @@ defmodule TuistWeb.TestCaseLive do
 
   alias Noora.Filter
   alias Tuist.Accounts
-  alias Tuist.Slack
   alias Tuist.Tests
   alias Tuist.Tests.Analytics
   alias TuistWeb.Errors.NotFoundError
@@ -262,29 +261,18 @@ defmodule TuistWeb.TestCaseLive do
           assigns: %{
             test_case_id: test_case_id,
             test_case_detail: test_case_detail,
-            selected_project: project,
             current_user: current_user
           }
         } = socket
       ) do
-    was_auto_quarantined = project.auto_quarantine_flaky_tests
-
-    update_attrs =
-      if was_auto_quarantined,
-        do: %{is_flaky: true, state: "muted"},
-        else: %{is_flaky: true}
-
     {:ok, updated_test_case} =
       Tests.update_test_case(
         test_case_id,
-        update_attrs,
+        %{is_flaky: true},
         actor_id: current_user.account.id
       )
 
-    test_case_detail = Map.merge(test_case_detail, Map.take(updated_test_case, [:is_flaky, :is_quarantined, :state]))
-
-    # Send Slack notification for manual flaky marking
-    send_manual_flaky_alert(project, updated_test_case, current_user, was_auto_quarantined)
+    test_case_detail = Map.merge(test_case_detail, Map.take(updated_test_case, [:is_flaky, :state]))
 
     {:noreply,
      socket
@@ -306,7 +294,7 @@ defmodule TuistWeb.TestCaseLive do
       )
 
     test_case_detail =
-      Map.merge(test_case_detail, Map.take(updated_test_case, [:state, :is_quarantined]))
+      Map.merge(test_case_detail, Map.take(updated_test_case, [:state]))
 
     {:noreply,
      socket
@@ -444,14 +432,6 @@ defmodule TuistWeb.TestCaseLive do
       end
 
     "?#{assigns.uri.query |> Query.put("sort_by", column) |> Query.put("sort_order", new_order) |> Query.drop("page")}"
-  end
-
-  defp send_manual_flaky_alert(project, test_case, user, was_auto_quarantined) do
-    if project.flaky_test_alerts_enabled and project.flaky_test_alerts_slack_channel_id do
-      :ok = Slack.send_manual_flaky_test_alert(project, test_case, user, was_auto_quarantined)
-    end
-
-    :ok
   end
 
   defp state_label("muted"), do: dgettext("dashboard_tests", "Quarantined")
