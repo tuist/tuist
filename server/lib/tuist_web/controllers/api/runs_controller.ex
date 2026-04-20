@@ -835,10 +835,10 @@ defmodule TuistWeb.API.RunsController do
 
   defp get_or_create_build(params) do
     case Builds.get_build(params.id) do
-      %Tuist.Builds.Build{} = build ->
+      {:ok, build} ->
         {:ok, build}
 
-      nil ->
+      {:error, :not_found} ->
         custom_metadata = Map.get(params, :custom_metadata, %{})
 
         build_attrs = %{
@@ -881,8 +881,8 @@ defmodule TuistWeb.API.RunsController do
   defp handle_build_creation_result({:error, changeset}, build_id) do
     if Keyword.has_key?(changeset.errors, :id) do
       case Builds.get_build(build_id) do
-        %Tuist.Builds.Build{} = build -> {:ok, build}
-        nil -> {:error, :creation_failed}
+        {:ok, build} -> {:ok, build}
+        {:error, :not_found} -> {:error, :creation_failed}
       end
     else
       {:error, changeset}

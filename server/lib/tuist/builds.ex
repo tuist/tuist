@@ -37,14 +37,14 @@ defmodule Tuist.Builds do
   end
 
   def get_build(id) do
-    case Ecto.UUID.cast(id) do
-      {:ok, uuid} ->
-        Build
-        |> from(hints: ["FINAL"], where: [id: ^uuid])
-        |> ClickHouseRepo.one()
-
-      :error ->
-        nil
+    with {:ok, uuid} <- Ecto.UUID.cast(id),
+         build when not is_nil(build) <-
+           Build
+           |> from(hints: ["FINAL"], where: [id: ^uuid])
+           |> ClickHouseRepo.one() do
+      {:ok, build}
+    else
+      _ -> {:error, :not_found}
     end
   end
 
