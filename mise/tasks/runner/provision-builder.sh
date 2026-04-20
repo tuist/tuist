@@ -8,6 +8,12 @@
 #
 # The GitHub Actions runner registration token is read from 1Password:
 #   op://cache/GITHUB_ACTIONS_VM_IMAGE_BUILDER_TOKEN/notesPlain
+#
+# Tart needs a live GUI login session on macOS for Virtualization.framework
+# to access the Secure Enclave. SSH sessions and LaunchDaemons don't qualify.
+# So this script: (1) enables auto-login via /etc/kcpassword, (2) installs the
+# GitHub Actions runner as a LaunchAgent, (3) reboots so m1 logs in at the GUI,
+# and (4) waits for the runner to come back online.
 
 set -euo pipefail
 
@@ -33,7 +39,7 @@ if [ -z "${GITHUB_RUNNER_TOKEN}" ]; then
 fi
 
 SSH_KEY="${SSH_KEY:-${HOME}/.ssh/scaleway}"
-SSH_OPTS="-o StrictHostKeyChecking=accept-new"
+SSH_OPTS="-o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR"
 if [ -f "${SSH_KEY}" ]; then
     SSH_OPTS="${SSH_OPTS} -o IdentitiesOnly=yes -i ${SSH_KEY}"
 fi
@@ -68,18 +74,22 @@ else
     echo "    User: ${SSH_USER}"
 fi
 
-echo "==> Waiting for SSH to become available..."
-for i in $(seq 1 60); do
-    if ssh ${SSH_OPTS} -o ConnectTimeout=5 "${SSH_USER}@${SERVER_IP}" "true" 2>/dev/null; then
-        echo "    SSH ready."
-        break
-    fi
-    if [ "$i" -eq 60 ]; then
-        echo "ERROR: SSH not available after 5 minutes"
-        exit 1
-    fi
-    sleep 5
-done
+wait_for_ssh() {
+    local label="$1"
+    local attempts="$2"
+    echo "==> Waiting for SSH (${label})..."
+    for i in $(seq 1 "$attempts"); do
+        if ssh ${SSH_OPTS} -o ConnectTimeout=5 "${SSH_USER}@${SERVER_IP}" "true" 2>/dev/null; then
+            echo "    SSH ready."
+            return 0
+        fi
+        sleep 5
+    done
+    echo "ERROR: SSH not available after $((attempts * 5)) seconds (${label})"
+    return 1
+}
+
+wait_for_ssh "initial" 60
 
 echo "==> Enabling passwordless sudo..."
 ssh ${SSH_OPTS} "${SSH_USER}@${SERVER_IP}" \
@@ -124,32 +134,36 @@ set -euo pipefail
 
 RUNNER_DIR="/Users/${SSH_USER}/actions-runner"
 
-if [ -d "\${RUNNER_DIR}" ] && [ -f "\${RUNNER_DIR}/.runner" ]; then
-    echo "    Runner already configured. Skipping installation."
-    echo "    To re-register, remove \${RUNNER_DIR} first."
-    exit 0
+if [ ! -f "\${RUNNER_DIR}/.runner" ]; then
+    mkdir -p "\${RUNNER_DIR}"
+    cd "\${RUNNER_DIR}"
+    echo "    Downloading runner binary..."
+    curl -sL -o runner.tar.gz \
+        "https://github.com/actions/runner/releases/download/v${RUNNER_VERSION}/actions-runner-osx-arm64-${RUNNER_VERSION}.tar.gz"
+    tar xzf runner.tar.gz
+    rm runner.tar.gz
+    echo "    Registering runner with GitHub..."
+    ./config.sh \
+        --url "${GITHUB_URL}" \
+        --token "${GITHUB_RUNNER_TOKEN}" \
+        --name "${SERVER_NAME}" \
+        --labels "${RUNNER_LABELS}" \
+        --unattended \
+        --replace
+else
+    echo "    Runner already registered. Skipping binary download."
 fi
 
-mkdir -p "\${RUNNER_DIR}"
-cd "\${RUNNER_DIR}"
+echo "    Removing any legacy LaunchDaemon..."
+if [ -f /Library/LaunchDaemons/actions.runner.tuist.${SERVER_NAME}.plist ]; then
+    sudo launchctl unload /Library/LaunchDaemons/actions.runner.tuist.${SERVER_NAME}.plist 2>/dev/null || true
+    sudo rm -f /Library/LaunchDaemons/actions.runner.tuist.${SERVER_NAME}.plist
+fi
 
-echo "    Downloading runner binary..."
-curl -sL -o runner.tar.gz \
-    "https://github.com/actions/runner/releases/download/v${RUNNER_VERSION}/actions-runner-osx-arm64-${RUNNER_VERSION}.tar.gz"
-tar xzf runner.tar.gz
-rm runner.tar.gz
-
-echo "    Registering runner with GitHub..."
-./config.sh \
-    --url "${GITHUB_URL}" \
-    --token "${GITHUB_RUNNER_TOKEN}" \
-    --name "${SERVER_NAME}" \
-    --labels "${RUNNER_LABELS}" \
-    --unattended \
-    --replace
-
-echo "    Installing runner as LaunchDaemon..."
-sudo tee /Library/LaunchDaemons/actions.runner.tuist.${SERVER_NAME}.plist > /dev/null <<PLISTEOF
+echo "    Installing runner LaunchAgent..."
+mkdir -p /Users/${SSH_USER}/Library/LaunchAgents
+mkdir -p /Users/${SSH_USER}/Library/Logs/actions.runner.tuist.${SERVER_NAME}
+tee /Users/${SSH_USER}/Library/LaunchAgents/actions.runner.tuist.${SERVER_NAME}.plist > /dev/null <<PLISTEOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -160,8 +174,6 @@ sudo tee /Library/LaunchDaemons/actions.runner.tuist.${SERVER_NAME}.plist > /dev
     <array>
         <string>\${RUNNER_DIR}/runsvc.sh</string>
     </array>
-    <key>UserName</key>
-    <string>${SSH_USER}</string>
     <key>WorkingDirectory</key>
     <string>\${RUNNER_DIR}</string>
     <key>RunAtLoad</key>
@@ -180,10 +192,68 @@ sudo tee /Library/LaunchDaemons/actions.runner.tuist.${SERVER_NAME}.plist > /dev
 </dict>
 </plist>
 PLISTEOF
-
-mkdir -p /Users/${SSH_USER}/Library/Logs/actions.runner.tuist.${SERVER_NAME}
-sudo launchctl load /Library/LaunchDaemons/actions.runner.tuist.${SERVER_NAME}.plist
 REMOTE
+
+echo "==> Enabling auto-login for ${SSH_USER}..."
+# kcpassword stores the user's password XOR'd against a fixed key so macOS
+# can log the user in at boot without a human at the keyboard. Required for
+# Tart to get Secure Enclave access (see header comment).
+ssh ${SSH_OPTS} "${SSH_USER}@${SERVER_IP}" bash <<REMOTE
+set -euo pipefail
+echo '${SUDO_PASSWORD}' | sudo python3 -c '
+import os, sys
+KEY = bytes([0x7D, 0x89, 0x52, 0x23, 0xD2, 0xBC, 0xDD, 0xEA, 0xA3, 0xB9, 0x1F])
+password = sys.stdin.read().strip().encode("utf-8")
+padded_len = (len(password) // 12 + 1) * 12
+padded = password + bytes(padded_len - len(password))
+out = bytearray(len(padded))
+for i, b in enumerate(padded):
+    out[i] = b ^ KEY[i % len(KEY)]
+with open("/etc/kcpassword", "wb") as f:
+    f.write(out)
+os.chmod("/etc/kcpassword", 0o600)
+'
+sudo defaults write /Library/Preferences/com.apple.loginwindow autoLoginUser ${SSH_USER}
+REMOTE
+
+echo "==> Checking whether a reboot is needed..."
+CURRENT_CONSOLE_USER=$(ssh ${SSH_OPTS} "${SSH_USER}@${SERVER_IP}" 'stat -f "%Su" /dev/console' 2>/dev/null || echo "")
+if [ "${CURRENT_CONSOLE_USER}" = "${SSH_USER}" ]; then
+    echo "    ${SSH_USER} already has an active GUI session; skipping reboot."
+else
+    echo "    Console user is '${CURRENT_CONSOLE_USER}', rebooting so auto-login takes effect..."
+    ssh ${SSH_OPTS} "${SSH_USER}@${SERVER_IP}" "nohup sudo shutdown -r now >/dev/null 2>&1 &" || true
+    echo "    Sleeping 30s for shutdown to start..."
+    sleep 30
+    wait_for_ssh "post-reboot" 60
+
+    echo "==> Waiting for ${SSH_USER} GUI session (auto-login)..."
+    for i in $(seq 1 30); do
+        console=$(ssh ${SSH_OPTS} "${SSH_USER}@${SERVER_IP}" 'stat -f "%Su" /dev/console' 2>/dev/null || echo "")
+        if [ "$console" = "${SSH_USER}" ]; then
+            echo "    ${SSH_USER} logged in."
+            break
+        fi
+        if [ "$i" -eq 30 ]; then
+            echo "ERROR: auto-login did not take effect after 150s (console user: $console)"
+            exit 1
+        fi
+        sleep 5
+    done
+fi
+
+echo "==> Verifying runner is alive..."
+for i in $(seq 1 30); do
+    if ssh ${SSH_OPTS} "${SSH_USER}@${SERVER_IP}" "pgrep -f 'Runner.Listener run' >/dev/null" 2>/dev/null; then
+        echo "    Runner.Listener is running."
+        break
+    fi
+    if [ "$i" -eq 30 ]; then
+        echo "ERROR: Runner.Listener did not start after 150s"
+        exit 1
+    fi
+    sleep 5
+done
 
 echo ""
 echo "==> Provisioning complete!"
