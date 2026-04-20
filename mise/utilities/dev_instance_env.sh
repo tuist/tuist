@@ -82,6 +82,7 @@ ensure_suffix() {
 
 suffix="$(ensure_suffix)"
 test_partition="${MIX_TEST_PARTITION:-}"
+server_bind_host="${TUIST_SERVER_BIND_HOST:-localhost}"
 
 # Derive a hostname from the project root directory basename
 project_basename="$(basename "${PROJECT_ROOT}")"
@@ -90,8 +91,9 @@ project_hostname="$(printf '%s' "${project_basename}" | tr '[:upper:]' '[:lower:
 
 export TUIST_DEV_INSTANCE="${suffix}"
 export TUIST_SERVER_PORT="$((8080 + suffix))"
+export TUIST_SERVER_BIND_HOST="${server_bind_host}"
 export TUIST_SERVER_HOSTNAME="${project_hostname}.localhost"
-export TUIST_SERVER_URL="http://localhost:${TUIST_SERVER_PORT}"
+export TUIST_SERVER_URL="http://${TUIST_SERVER_BIND_HOST}:${TUIST_SERVER_PORT}"
 export TUIST_SERVER_POSTGRES_DB="tuist_development_${suffix}"
 export TUIST_SERVER_CLICKHOUSE_DB="tuist_development_${suffix}"
 export TUIST_CACHE_PORT="$((8087 + suffix))"
