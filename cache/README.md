@@ -58,7 +58,7 @@ mix test
 
 ## Development
 
-The service uses a clone-local suffix from `.tuist-dev-instance` in development mode through mise shell env. That suffix scopes the cache port and the main server URL it talks to, so one repo clone can run its own paired `server/` and `cache/` instances without colliding with other clones.
+The service uses a checkout-local suffix in development mode through the shared mise shell env. Each checkout persists that suffix through Git metadata when available, while keeping the existing root `.tuist-dev-instance` file as a compatibility fallback. That suffix scopes the cache port and the main server URL it talks to, so developers can choose either multiple clones or linked worktrees and still run their own paired `server/` and `cache/` instances without colliding.
 
 ## Architecture
 

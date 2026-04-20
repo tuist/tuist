@@ -149,8 +149,13 @@ defmodule Tuist.Tests do
             {:error, :not_found}
 
           test ->
+            ch_preload_keys = [:build_run, :gradle_build, :shard_plan, :run_destinations, :test_case_runs]
+
             {ch_preloads, pg_preloads} =
-              Enum.split_with(preload, &(&1 in [:build_run, :gradle_build, :shard_plan, :run_destinations]))
+              Enum.split_with(preload, fn
+                key when is_atom(key) -> key in ch_preload_keys
+                {key, _} -> key in ch_preload_keys
+              end)
 
             test =
               test
