@@ -36,14 +36,27 @@ defmodule Tuist.Operator do
   end
 
   @doc """
-  Resolver for Bonny's `get_conn` config. Reads the kubeconfig path from
-  `TUIST_KUBECONFIG_PATH`, falling back to the default kubeconfig (`~/.kube/config`)
-  for local dev convenience.
+  Resolver for Bonny's `get_conn` config.
+
+  Resolution order:
+
+    1. In-cluster service account (auto-mounted at
+       `/var/run/secrets/kubernetes.io/serviceaccount`). This is what the
+       operator pod uses when deployed to the tuist-runners cluster.
+    2. `TUIST_KUBECONFIG_PATH` env var -- used when the operator runs
+       outside the cluster (Render staging, local dev against kind).
+    3. `~/.kube/config` fallback for local dev convenience.
   """
   def k8s_conn do
-    case System.get_env("TUIST_KUBECONFIG_PATH") do
-      nil -> "~/.kube/config" |> Path.expand() |> K8s.Conn.from_file()
-      path -> K8s.Conn.from_file(path)
+    cond do
+      File.exists?("/var/run/secrets/kubernetes.io/serviceaccount/token") ->
+        K8s.Conn.from_service_account()
+
+      path = System.get_env("TUIST_KUBECONFIG_PATH") ->
+        K8s.Conn.from_file(path)
+
+      true ->
+        K8s.Conn.from_file(Path.expand("~/.kube/config"))
     end
   end
 end

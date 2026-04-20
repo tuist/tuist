@@ -10,7 +10,7 @@ defmodule Tuist.Runners.Workers.ProvisionOrchardWorkerWorker do
     4. On success mark `:online`; on failure mark `:failed` with error.
   """
 
-  use Oban.Worker, queue: :default, max_attempts: 1
+  use Oban.Worker, queue: :runners, max_attempts: 1
 
   alias Tuist.Runners
   alias Tuist.Scaleway

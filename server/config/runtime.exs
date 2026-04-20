@@ -341,9 +341,20 @@ end
 
 otel_endpoint = Tuist.Environment.get([:otel, :exporter, :otlp, :endpoint])
 
+oban_queues =
+  case System.get_env("TUIST_ROLE") do
+    # Operator pod: only the :runners queue (Scaleway + SSH work). All other
+    # queues stay on the web pod(s) so no Scaleway/SSH creds are needed here.
+    "operator" -> [runners: 5]
+    # Web pod: everything except :runners.
+    "web" -> [default: 10]
+    # Default: single deployment handles both (current Render shape).
+    _ -> [default: 10, runners: 5]
+  end
+
 # Oban
 config :tuist, Oban,
-  queues: [default: 10],
+  queues: oban_queues,
   plugins: [
     {Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 7},
     {Oban.Plugins.Lifeline, rescue_after: to_timeout(minute: 30)},

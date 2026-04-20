@@ -5,7 +5,7 @@ defmodule Tuist.Runners.Workers.DeprovisionOrchardWorkerWorker do
   record as `:terminated`.
   """
 
-  use Oban.Worker, queue: :default, max_attempts: 3
+  use Oban.Worker, queue: :runners, max_attempts: 3
 
   alias Tuist.Runners
   alias Tuist.Scaleway

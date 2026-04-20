@@ -1,30 +1,69 @@
 # Tuist Runners — Kubernetes control plane
 
-Tuist Runners declare desired pool state through a `tuist.dev/v1
-OrchardWorkerPool` custom resource. A Bonny operator inside the Tuist
-Phoenix server watches these CRs and drives the fleet on Scaleway.
+The Tuist Runners fleet is managed through a `tuist.dev/v1 OrchardWorkerPool`
+custom resource. An in-cluster operator pod watches these CRs and drives
+the fleet on Scaleway via the Scaleway API + SSH.
 
-The operator process does not need to run inside the target cluster. Render
-today, EKS tomorrow — as long as the server can reach the cluster's API.
+## Deployment shape
+
+```
+ Render                         K8s cluster (tuist-runners namespace)
+ ┌────────────────────┐         ┌─────────────────────────────────────┐
+ │ Tuist Phoenix      │         │ CRDs + etcd                         │
+ │  (TUIST_ROLE=web)  │◄───────►│  OrchardWorkerPool CRs              │
+ │  ├── LiveViews     │ k8s API │                                     │
+ │  ├── Postgres ─────┼─────────┼──► tuist-runners-operator Deployment│
+ │  └── Oban :default │ (shared │     (TUIST_ROLE=operator)           │
+ │                    │ Postgres│     ├── Tuist.Operator (Bonny)      │
+ │ NO Scaleway creds  │  conn)  │     ├── Oban :runners queue         │
+ │ NO SSH key         │         │     ├── Scaleway creds (Secret)     │
+ └────────────────────┘         │     └── SSH key (Secret)            │
+                                │                │                    │
+                                │                │ HTTPS + SSH        │
+                                │                ▼                    │
+                                │      Scaleway bare-metal Macs       │
+                                │                                     │
+                                │ (+ future: Orchard controller as    │
+                                │    a Deployment in the same NS)     │
+                                └─────────────────────────────────────┘
+```
+
+**Why this split:**
+- Scaleway + SSH credentials only exist in the cluster, never on Render.
+- The operator runs next to the CRs it reconciles; no out-of-cluster kubeconfig to rotate.
+- The web tier and the operator share Postgres via a managed connection string but are otherwise isolated.
+- When Phoenix eventually moves into k8s, delete the `TUIST_ROLE=web` deployment on Render and run one in-cluster deployment with `TUIST_ROLE=all`. Operator code is untouched.
+
+## Oban queues per role
+
+| Role | Queues |
+|---|---|
+| `all` (default, Render today) | `default` + `runners` |
+| `web` | `default` |
+| `operator` | `runners` |
+
+`ProvisionOrchardWorkerWorker`, `DeprovisionOrchardWorkerWorker`, and
+`ReconcilePoolsWorker` all enqueue into `:runners` and therefore only
+execute on pods that process that queue (today: `all`; tomorrow:
+`operator` only).
 
 ## Local end-to-end flow (kind + stubs)
 
-Fully local, no Scaleway calls, no bare-metal Mac.
+Fully local, no Scaleway calls, no bare-metal Mac. The Tuist dev server
+plays both roles (`TUIST_ROLE=all` default) and targets the kind cluster
+via a kubeconfig file.
 
 ```bash
 # 1. Bring up a local kind cluster + install CRDs
 mise run runner:k8s:up
 
-# 2. Start the Tuist dev server with the operator connected to kind.
-#    Dev config auto-stubs Scaleway + the SSH provisioner so the full
-#    Bonny → Reconciler → Oban pipeline runs without leaving your machine.
+# 2. Start the Tuist dev server with Bonny connected to kind.
+#    Dev config auto-stubs Scaleway + the SSH provisioner.
 export TUIST_KUBECONFIG_PATH=$HOME/.kube/config
 export TUIST_BONNY_ENABLED=true
 mise run dev
 
-# 3. Apply an example pool CR (in a new terminal). `ACCOUNT_ID` is the
-#    Tuist account id to attach the pool to -- use the seed user's id
-#    for local dev (`tuistrocks@tuist.dev`).
+# 3. Apply an example pool CR (new terminal).
 mise run runner:k8s:apply-example -- 1 3
 
 # 4. Watch reconciliation
@@ -37,44 +76,54 @@ kubectl patch owp dev-pool --type merge -p '{"spec":{"desiredSize":5}}'
 # 6. Delete (drains the pool)
 kubectl delete owp dev-pool
 
-# 7. Tear down the cluster
+# 7. Tear down
 mise run runner:k8s:down
 ```
 
-The Tuist `/ops` dashboard (`http://localhost:8080/ops/orchard_workers`)
-and `kubectl` show the same data — the CR is the control-plane interface,
-Postgres is the materialised mirror, Bonny syncs status back into
-`.status` on the CR.
+## Production / staging rollout
 
-## Remote cluster (staging / prod)
+1. **Stand up the cluster.** Any tiny managed k8s works (DOKS, Kapsule,
+   Hetzner, GKE autopilot). It only hosts CRs + the operator pod.
 
-Once you want real Scaleway provisioning:
-
-1. Stand up a managed k8s cluster (DOKS, Kapsule, any tiny cluster works —
-   it only hosts CRs, not workloads).
-2. Apply the CRD + RBAC:
+2. **Apply CRDs + RBAC.**
    ```bash
    cd server && mix bonny.gen.manifest --out /tmp/bonny.yaml
-   kubectl --context <remote-context> apply -f /tmp/bonny.yaml
+   kubectl apply -f /tmp/bonny.yaml
    ```
-3. Create a ServiceAccount + generate a kubeconfig for the Tuist server:
-   ```bash
-   kubectl --context <remote-context> -n tuist-runners \
-     create token tuist-runners --duration=87600h  # 10 years; rotate via secret mgmt
-   ```
-4. Build a kubeconfig referencing that token and the cluster's public API
-   endpoint. Store it as a Render secret.
-5. In Render / runtime env:
-   ```
-   TUIST_KUBECONFIG_PATH=/etc/secrets/kubeconfig
-   TUIST_BONNY_ENABLED=true
-   TUIST_SCALEWAY_SECRET_KEY=...
-   TUIST_SCALEWAY_PROJECT_ID=...
-   ```
-   Remove the dev-only stub config via runtime.exs — the default client
-   modules (`Tuist.Scaleway.Client`, `Tuist.Runners.OrchardWorkerProvisioner`)
-   hit real Scaleway + SSH.
+   This creates the `OrchardWorkerPool` CRD, the `tuist-runners`
+   ServiceAccount, and the operator's RBAC bindings.
 
-The Tuist server pod (or Render container) is the sole operator replica
-today. Scaling to multiple replicas works as soon as you turn on Bonny's
-leader election (via k8s Lease, one config line).
+3. **Create secrets** in the `tuist-runners` namespace:
+   ```bash
+   kubectl -n tuist-runners create secret generic tuist-runners-database \
+     --from-literal=DATABASE_URL="postgres://..."
+
+   kubectl -n tuist-runners create secret generic tuist-runners-scaleway \
+     --from-literal=TUIST_SCALEWAY_SECRET_KEY="..." \
+     --from-literal=TUIST_SCALEWAY_PROJECT_ID="..."
+
+   kubectl -n tuist-runners create secret generic tuist-runners-ssh \
+     --from-file=id_ed25519=/path/to/runners.key
+   ```
+   The SSH key's public half must be uploaded to the Scaleway account so
+   new Macs inject it automatically.
+
+4. **Deploy the operator pod.**
+   ```bash
+   kubectl apply -f infra/k8s/operator-deployment.yaml
+   kubectl -n tuist-runners rollout status deploy/tuist-runners-operator
+   ```
+   The pod reads the in-cluster service account, connects to the k8s API,
+   and starts watching `OrchardWorkerPool` CRs.
+
+5. **Reconfigure Render** to run `TUIST_ROLE=web` so the Render pods stop
+   processing the `:runners` queue and don't need Scaleway/SSH creds. Drop
+   those env vars from Render.
+
+6. **Apply a pool CR** or have customers use the dashboard scale UI. Both
+   paths converge through the same reconciler.
+
+Run multiple operator pods by bumping `replicas` in the deployment —
+Bonny's leader election via k8s Lease kicks in automatically, so only one
+replica reconciles at a time. The others are standbys for instant
+failover.

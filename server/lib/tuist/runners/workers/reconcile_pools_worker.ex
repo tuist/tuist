@@ -9,7 +9,7 @@ defmodule Tuist.Runners.Workers.ReconcilePoolsWorker do
   controller's reconcile step.
   """
 
-  use Oban.Worker, queue: :default, max_attempts: 3
+  use Oban.Worker, queue: :runners, max_attempts: 3
 
   alias Tuist.Runners.Reconciler
 

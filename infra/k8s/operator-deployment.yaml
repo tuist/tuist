@@ -1,0 +1,77 @@
+---
+# Deployment for the Tuist Runners operator pod.
+#
+# This runs the same Tuist Elixir image as the Render web tier, but with
+# `TUIST_ROLE=operator` so it boots only:
+#   - Tuist.Repo + Oban (for the :runners queue)
+#   - Tuist.Operator (Bonny), which watches OrchardWorkerPool CRs
+#
+# Scaleway API creds and the SSH private key live as Secrets in this
+# namespace and are mounted into the pod only. The Render-hosted web tier
+# does not need them.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tuist-runners-operator
+  namespace: tuist-runners
+  labels:
+    app.kubernetes.io/name: tuist-runners-operator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: tuist-runners-operator
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: tuist-runners-operator
+    spec:
+      serviceAccountName: tuist-runners
+      containers:
+        - name: operator
+          image: ghcr.io/tuist/tuist:latest  # same image as the web tier
+          env:
+            - name: TUIST_ROLE
+              value: "operator"
+            - name: TUIST_BONNY_ENABLED
+              value: "true"
+            # Use the in-cluster service account (default k8s mount path).
+            # No TUIST_KUBECONFIG_PATH needed when running in-cluster.
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: tuist-runners-database
+                  key: DATABASE_URL
+            - name: TUIST_SCALEWAY_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: tuist-runners-scaleway
+                  key: TUIST_SCALEWAY_SECRET_KEY
+            - name: TUIST_SCALEWAY_PROJECT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: tuist-runners-scaleway
+                  key: TUIST_SCALEWAY_PROJECT_ID
+            - name: TUIST_RUNNERS_SSH_PRIVATE_KEY_PATH
+              value: "/var/run/secrets/tuist/ssh/id_ed25519"
+          volumeMounts:
+            - name: ssh-key
+              mountPath: /var/run/secrets/tuist/ssh
+              readOnly: true
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          readinessProbe:
+            tcpSocket:
+              port: 4369  # EPMD
+            initialDelaySeconds: 10
+            periodSeconds: 10
+      volumes:
+        - name: ssh-key
+          secret:
+            secretName: tuist-runners-ssh
+            defaultMode: 0400

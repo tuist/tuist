@@ -136,6 +136,8 @@ defmodule Tuist.Application do
   end
 
   defp get_children do
+    role = tuist_role()
+
     children =
       [
         {DBConnection.TelemetryListener, name: TelemetryListener},
@@ -166,10 +168,8 @@ defmodule Tuist.Application do
         {Phoenix.PubSub, name: Tuist.PubSub},
         {TuistWeb.RateLimit.InMemory, [clean_period: to_timeout(hour: 1)]},
         {Tuist.API.Pipeline, []},
-        {Guardian.DB.Sweeper, [interval: 60 * 60 * 1000]},
-        TuistWeb.Telemetry,
-        TuistWeb.Endpoint
-      ]
+        {Guardian.DB.Sweeper, [interval: 60 * 60 * 1000]}
+      ] ++ web_children(role)
 
     children
     |> Kernel.++(
@@ -214,18 +214,50 @@ defmodule Tuist.Application do
         ],
         else: []
     )
-    |> Kernel.++(
-      if Environment.get([:bonny, :enabled]) in [true, "true", "1"],
-        do: [Tuist.Operator],
-        else: []
-    )
-    # Marketing.Stats polls ClickHouse on init. Skip it in test (tables
-    # may not exist) and dev (noisy debug logs every 5 s).
-    |> Kernel.++(
+    |> Kernel.++(role_specific_children(role))
+  end
+
+  # Role-gated supervisor children (Bonny operator + Marketing.Stats on the
+  # web tier). Kept in one helper so `get_children/0` doesn't grow in
+  # cyclomatic complexity as new role-specific processes are added.
+  defp role_specific_children(:operator) do
+    [Tuist.Operator]
+  end
+
+  defp role_specific_children(role) do
+    operator_children =
+      if start_operator?(role), do: [Tuist.Operator], else: []
+
+    marketing_children =
       if Environment.test?() or Environment.dev?(),
         do: [],
         else: [Tuist.Marketing.Stats]
-    )
+
+    operator_children ++ marketing_children
+  end
+
+  # `TUIST_ROLE` selects the Tuist server's role within the supervision tree.
+  #
+  #   :all       - everything (default; matches Render today)
+  #   :web       - web endpoint + Oban web queues, no Bonny operator
+  #   :operator  - Bonny operator + Oban runners queue only, no web endpoint.
+  #                Used for the in-cluster operator pod.
+  defp tuist_role do
+    case System.get_env("TUIST_ROLE") do
+      "web" -> :web
+      "operator" -> :operator
+      _ -> :all
+    end
+  end
+
+  defp web_children(:operator), do: []
+  defp web_children(_), do: [TuistWeb.Telemetry, TuistWeb.Endpoint]
+
+  defp start_operator?(:operator), do: true
+  defp start_operator?(:web), do: false
+
+  defp start_operator?(:all) do
+    Environment.get([:bonny, :enabled]) in [true, "true", "1"]
   end
 
   defp s3_ca_cert_opts do
