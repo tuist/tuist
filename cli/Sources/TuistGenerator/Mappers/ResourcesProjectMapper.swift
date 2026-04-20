@@ -228,7 +228,8 @@ public struct ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this
     }
 
     /// Splits the incoming buildable folders into two sets:
-    ///  - folders that should stay on the original target (sources, xcstrings, or mixed folders after excluding bundle-only resources)
+    ///  - folders that should stay on the original target (sources, xcstrings, or mixed folders after excluding bundle-only
+    /// resources)
     ///  - folders that should move to the generated bundle (pure resources, or the resource portion of mixed folders)
     /// Mixed folders are duplicated with exclusion rules so the static target keeps sources and xcstrings while the bundle owns
     /// other resources.
@@ -453,7 +454,8 @@ public struct ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this
 
 /// Represents the result of splitting a buildable folder into source and resource subsets.
 private struct BuildableFolderPartition {
-    /// The view of the folder that should stay on the original target (sources and xcstrings, or mixed minus bundle-only resources).
+    /// The view of the folder that should stay on the original target (sources and xcstrings, or mixed minus bundle-only
+    /// resources).
     let originalTargetFolder: BuildableFolder?
 
     /// The view of the folder that should move to the generated bundle target (resources only).
