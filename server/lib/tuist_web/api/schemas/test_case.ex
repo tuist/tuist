@@ -70,7 +70,8 @@ defmodule TuistWeb.API.Schemas.TestCase do
       },
       is_quarantined: %Schema{
         type: :boolean,
-        description: "Whether the test case is quarantined. Deprecated: use state instead."
+        deprecated: true,
+        description: "Whether the test case is quarantined. Deprecated: use `state` instead."
       },
       state: %Schema{
         type: :string,

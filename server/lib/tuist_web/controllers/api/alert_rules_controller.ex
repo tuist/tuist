@@ -4,6 +4,8 @@ defmodule TuistWeb.API.AlertRulesController do
 
   alias OpenApiSpex.Schema
   alias Tuist.Automations
+  alias TuistWeb.API.Schemas.AlertRule
+  alias TuistWeb.API.Schemas.AlertRuleAction
   alias TuistWeb.API.Schemas.Error
 
   plug(TuistWeb.Plugs.CastAndValidate,
@@ -15,43 +17,6 @@ defmodule TuistWeb.API.AlertRulesController do
   plug(TuistWeb.API.Authorization.AuthorizationPlug, :project)
 
   tags ["Alert Rules"]
-
-  @action_schema %Schema{
-    type: :object,
-    properties: %{
-      type: %Schema{type: :string, enum: ["change_state", "send_slack", "add_label", "remove_label"]},
-      state: %Schema{type: :string, enum: ["enabled", "muted"], description: "Required for change_state actions."},
-      label: %Schema{type: :string, description: "Label name. Required for add_label and remove_label actions."},
-      channel: %Schema{type: :string, description: "Slack channel ID. Required for send_slack actions."},
-      channel_name: %Schema{type: :string, description: "Slack channel name for display."},
-      message: %Schema{
-        type: :string,
-        description: "Message template. Required for send_slack actions. Supports {{variable}} interpolation."
-      }
-    },
-    required: [:type]
-  }
-
-  @alert_rule_schema %Schema{
-    type: :object,
-    properties: %{
-      id: %Schema{type: :string, format: :uuid},
-      name: %Schema{type: :string},
-      enabled: %Schema{type: :boolean},
-      monitor_type: %Schema{
-        type: :string,
-        enum: ["flakiness_rate", "flaky_run_count"],
-        description: "The monitor type that evaluates the condition."
-      },
-      trigger_config: %Schema{type: :object},
-      cadence: %Schema{type: :string},
-      trigger_actions: %Schema{type: :array, items: @action_schema},
-      recovery_enabled: %Schema{type: :boolean},
-      recovery_config: %Schema{type: :object},
-      recovery_actions: %Schema{type: :array, items: @action_schema}
-    },
-    required: [:id, :name, :enabled, :monitor_type, :trigger_config, :cadence, :trigger_actions]
-  }
 
   operation(:index,
     summary: "List alert rules for a project.",
@@ -78,7 +43,7 @@ defmodule TuistWeb.API.AlertRulesController do
            properties: %{
              alert_rules: %Schema{
                type: :array,
-               items: @alert_rule_schema
+               items: AlertRule
              }
            },
            required: [:alert_rules]
@@ -119,7 +84,7 @@ defmodule TuistWeb.API.AlertRulesController do
       ]
     ],
     responses: %{
-      ok: {"Alert rule details", "application/json", @alert_rule_schema},
+      ok: {"Alert rule details", "application/json", AlertRule},
       not_found: {"Not found", "application/json", Error},
       forbidden: {"Forbidden", "application/json", Error}
     }
@@ -165,15 +130,15 @@ defmodule TuistWeb.API.AlertRulesController do
            monitor_type: %Schema{type: :string, enum: ["flakiness_rate", "flaky_run_count"]},
            trigger_config: %Schema{type: :object},
            cadence: %Schema{type: :string},
-           trigger_actions: %Schema{type: :array, items: @action_schema},
+           trigger_actions: %Schema{type: :array, items: AlertRuleAction},
            recovery_enabled: %Schema{type: :boolean},
            recovery_config: %Schema{type: :object},
-           recovery_actions: %Schema{type: :array, items: @action_schema}
+           recovery_actions: %Schema{type: :array, items: AlertRuleAction}
          },
          required: [:name, :monitor_type, :trigger_actions]
        }},
     responses: %{
-      created: {"Created alert rule", "application/json", @alert_rule_schema},
+      created: {"Created alert rule", "application/json", AlertRule},
       unprocessable_entity: {"Validation error", "application/json", Error},
       forbidden: {"Forbidden", "application/json", Error}
     }
@@ -228,14 +193,14 @@ defmodule TuistWeb.API.AlertRulesController do
            enabled: %Schema{type: :boolean},
            trigger_config: %Schema{type: :object},
            cadence: %Schema{type: :string},
-           trigger_actions: %Schema{type: :array, items: @action_schema},
+           trigger_actions: %Schema{type: :array, items: AlertRuleAction},
            recovery_enabled: %Schema{type: :boolean},
            recovery_config: %Schema{type: :object},
-           recovery_actions: %Schema{type: :array, items: @action_schema}
+           recovery_actions: %Schema{type: :array, items: AlertRuleAction}
          }
        }},
     responses: %{
-      ok: {"Updated alert rule", "application/json", @alert_rule_schema},
+      ok: {"Updated alert rule", "application/json", AlertRule},
       not_found: {"Not found", "application/json", Error},
       unprocessable_entity: {"Validation error", "application/json", Error},
       forbidden: {"Forbidden", "application/json", Error}

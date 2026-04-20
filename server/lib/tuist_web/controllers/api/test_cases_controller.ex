@@ -205,7 +205,8 @@ defmodule TuistWeb.API.TestCasesController do
              is_flaky: %Schema{type: :boolean, description: "Whether the test case is marked as flaky."},
              is_quarantined: %Schema{
                type: :boolean,
-               description: "Whether the test case is quarantined. Deprecated: use state instead."
+               deprecated: true,
+               description: "Whether the test case is quarantined. Deprecated: use `state` instead."
              },
              state: %Schema{type: :string, enum: ["enabled", "muted"], description: "The state of the test case."},
              last_status: %Schema{
