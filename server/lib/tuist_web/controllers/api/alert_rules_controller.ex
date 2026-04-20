@@ -292,8 +292,19 @@ defmodule TuistWeb.API.AlertRulesController do
     }
   end
 
-  defp normalize_params(params) when is_map(params) and not is_struct(params) do
-    Map.new(params, fn {key, value} -> {to_string(key), normalize_params(value)} end)
+  # CastAndValidate turns request bodies into schema structs when the body
+  # references a named schema module (e.g. AlertRuleAction). Strip the struct
+  # wrapper, drop keys with nil values so optional fields don't leak into the
+  # stored JSON, and normalise everything to string keys for downstream
+  # validators + action handlers.
+  defp normalize_params(%_{} = struct) do
+    struct |> Map.from_struct() |> normalize_params()
+  end
+
+  defp normalize_params(params) when is_map(params) do
+    params
+    |> Enum.reject(fn {_key, value} -> is_nil(value) end)
+    |> Map.new(fn {key, value} -> {to_string(key), normalize_params(value)} end)
   end
 
   defp normalize_params(params) when is_list(params) do
