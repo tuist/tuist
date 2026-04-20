@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#MISE description="Write .claude/launch.json with this worktree's dev server ports"
+#MISE description="Regenerate .claude/launch.json with this worktree's dev server ports"
 
 set -euo pipefail
 
@@ -14,13 +14,13 @@ if [[ ! -s "${INSTANCE_FILE}" ]]; then
 fi
 
 if [[ ! -s "${INSTANCE_FILE}" ]]; then
-  echo "worktree:launch-json: ${INSTANCE_FILE} missing; skipping" >&2
+  echo "claude:regenerate-launch-json: ${INSTANCE_FILE} missing; skipping" >&2
   exit 0
 fi
 
 suffix="$(tr -d '[:space:]' < "${INSTANCE_FILE}")"
 if ! [[ "${suffix}" =~ ^[0-9]+$ ]]; then
-  echo "worktree:launch-json: invalid suffix '${suffix}'" >&2
+  echo "claude:regenerate-launch-json: invalid suffix '${suffix}'" >&2
   exit 1
 fi
 
