@@ -503,6 +503,42 @@ defmodule TuistWeb.API.TestsControllerTest do
       assert arg2["name"] == ".cardAdmin"
     end
 
+    test "returns empty test_case_runs when existing test has unloaded association", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      existing_id = UUIDv7.generate()
+
+      expect(Tests, :get_test, fn _id ->
+        {:ok,
+         %Test{
+           id: existing_id,
+           duration: 1000,
+           project_id: project.id,
+           build_system: "xcode"
+         }}
+      end)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          "/api/projects/#{user.account.name}/#{project.name}/tests",
+          %{
+            id: existing_id,
+            duration: 1000,
+            is_ci: false,
+            status: "success",
+            test_modules: []
+          }
+        )
+
+      response = json_response(conn, 200)
+      assert response["id"] == existing_id
+      assert response["test_case_runs"] == []
+    end
+
     test "enqueues a VCS pull request comment", %{conn: conn, user: user, project: project} do
       test_pid = self()
 
