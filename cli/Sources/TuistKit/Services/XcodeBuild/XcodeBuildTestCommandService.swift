@@ -15,6 +15,7 @@ import TuistServer
 import TuistSupport
 import TuistUniqueIDGenerator
 import TuistXCActivityLog
+import TuistXcodeBuildProducts
 import TuistXCResultService
 import XCResultParser
 

@@ -2,6 +2,8 @@ import Foundation
 import Mockable
 import Path
 import TuistCore
+import TuistEnvironment
+import TuistEnvironmentTesting
 import TuistSupport
 import TuistTesting
 import XcodeGraph
@@ -68,5 +70,47 @@ final class HeadersContentHasherTests: TuistUnitTestCase {
         verify(contentHasher)
             .hash(path: .any)
             .called(6)
+    }
+
+    func test_hash_withSwiftFileSystemBackend_preservesInputOrder() async throws {
+        try await withMockedEnvironment {
+            // Given
+            Environment.mocked?.variables["TUIST_FILESYSTEM_BACKEND"] = "swift-file-system"
+            given(contentHasher)
+                .hash(path: .value(filePath1))
+                .willReturn("1")
+            given(contentHasher)
+                .hash(path: .value(filePath2))
+                .willReturn("2")
+            given(contentHasher)
+                .hash(path: .value(filePath3))
+                .willReturn("3")
+            given(contentHasher)
+                .hash(path: .value(filePath4))
+                .willReturn("4")
+            given(contentHasher)
+                .hash(path: .value(filePath5))
+                .willReturn("5")
+            given(contentHasher)
+                .hash(path: .value(filePath6))
+                .willReturn("6")
+            given(contentHasher)
+                .hash(Parameter<[String]>.any)
+                .willProduce { $0.joined(separator: ";") }
+
+            // When
+            let headers = Headers(
+                public: [filePath1, filePath2],
+                private: [filePath3, filePath4],
+                project: [filePath5, filePath6]
+            )
+
+            // Then
+            let hash = try await subject.hash(headers: headers)
+            XCTAssertEqual(hash, "1;2;3;4;5;6")
+            verify(contentHasher)
+                .hash(path: .any)
+                .called(6)
+        }
     }
 }

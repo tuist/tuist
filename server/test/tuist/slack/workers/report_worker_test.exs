@@ -153,6 +153,39 @@ defmodule Tuist.Slack.Workers.ReportWorkerTest do
       assert :ok = ReportWorker.perform(%Oban.Job{args: %{"project_id" => project.id}})
     end
 
+    test "clears the project slack channel when Slack returns channel_not_found", %{
+      project: project,
+      slack_installation: slack_installation
+    } do
+      now = ~U[2025-01-15 09:00:00Z]
+
+      {:ok, _project} =
+        Projects.update_project(project, %{
+          slack_channel_id: "C123456",
+          slack_channel_name: "test-channel",
+          report_frequency: :daily,
+          report_days_of_week: [Date.day_of_week(~D[2025-01-15])],
+          report_schedule_time: now,
+          report_timezone: "Etc/UTC"
+        })
+
+      stub_report_metrics(now)
+
+      expect(Client, :post_message, fn access_token, channel_id, blocks ->
+        assert access_token == slack_installation.access_token
+        assert channel_id == "C123456"
+        assert is_list(blocks)
+        {:error, "channel_not_found"}
+      end)
+
+      assert {:discard, :channel_not_found} = ReportWorker.perform(%Oban.Job{args: %{"project_id" => project.id}})
+      assert Repo.get(Installation, slack_installation.id)
+
+      updated_project = Projects.get_project_by_id(project.id)
+      assert updated_project.slack_channel_id == nil
+      assert updated_project.slack_channel_name == nil
+    end
+
     test "returns an error when sending the report fails transiently", %{project: project} do
       now = ~U[2025-01-15 09:00:00Z]
 

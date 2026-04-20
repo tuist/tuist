@@ -6,6 +6,13 @@
         label={TuistWeb.TestsLive.test_scheme_label(@analytics_test_scheme)}
         secondary_text={dgettext("dashboard_tests", "Scheme:")}
       >
+        <:search>
+          <input
+            type="text"
+            placeholder={dgettext("dashboard_tests", "Search...")}
+            data-part="search-input"
+          />
+        </:search>
         <.dropdown_item
           value="any"
           label={dgettext("dashboard_tests", "Any")}
@@ -38,18 +45,18 @@
           <:right_icon><.check /></:right_icon>
         </.dropdown_item>
         <.dropdown_item
-          value="local"
-          label={dgettext("dashboard_tests", "Local")}
-          patch={"?#{Query.put(@uri.query, "analytics-environment", "local")}"}
-          data-selected={@analytics_environment == "local"}
-        >
-          <:right_icon><.check /></:right_icon>
-        </.dropdown_item>
-        <.dropdown_item
           value="ci"
           label={dgettext("dashboard_tests", "CI")}
           patch={"?#{Query.put(@uri.query, "analytics-environment", "ci")}"}
           data-selected={@analytics_environment == "ci"}
+        >
+          <:right_icon><.check /></:right_icon>
+        </.dropdown_item>
+        <.dropdown_item
+          value="local"
+          label={dgettext("dashboard_tests", "Local")}
+          patch={"?#{Query.put(@uri.query, "analytics-environment", "local")}"}
+          data-selected={@analytics_environment == "local"}
         >
           <:right_icon><.check /></:right_icon>
         </.dropdown_item>
@@ -251,8 +258,33 @@
       }
       data-part="analytics-card-chart-section"
     >
-      <.chart
+      <.chart_type_toggle
         :if={@analytics_selected_widget == "test_run_duration"}
+        id="test-duration"
+        chart_type={@duration_chart_type}
+        chart_type_event="select_duration_chart_type"
+        group_by_options={[
+          %{value: "scheme", label: dgettext("dashboard_tests", "Scheme")},
+          %{value: "environment", label: dgettext("dashboard_tests", "Environment")}
+        ]}
+        selected_group_by={@duration_scatter_group_by}
+        group_by_query_param="duration-scatter-group-by"
+        uri={@uri}
+      />
+      <div
+        :if={
+          @analytics_selected_widget == "test_run_duration" and
+            (@test_run_duration_chart.loading || !@test_run_duration_chart.ok?)
+        }
+        data-part="analytics-chart"
+      >
+        <.skeleton_chart />
+      </div>
+      <.chart
+        :if={
+          @analytics_selected_widget == "test_run_duration" and @test_run_duration_chart.ok? and
+            !@test_run_duration_chart.loading and @test_run_duration_chart.result == :line
+        }
         id="test-run-duration-chart"
         type="line"
         extra_options={
@@ -367,6 +399,25 @@
           }
         ]}
         y_axis_min={0}
+      />
+      <.scatter_chart
+        :if={@analytics_selected_widget == "test_run_duration"}
+        id="test-run-duration-scatter-chart"
+        chart={@test_run_duration_chart}
+        period={@analytics_period}
+        value_format="fn:formatMilliseconds"
+        url_fn={
+          fn point ->
+            ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-runs/#{point.id}"
+          end
+        }
+        truncation_title={
+          dgettext(
+            "dashboard_tests",
+            "The 10,000 entry limit has been reached, data is only included up to %{date}. Try filtering by scheme or other properties to narrow down the dataset.",
+            date: scatter_oldest_entry_iso(@test_run_duration_chart.result)
+          )
+        }
       />
       <.chart
         :if={@analytics_selected_widget == "test_run_count"}
@@ -596,18 +647,18 @@
           <:right_icon><.check /></:right_icon>
         </.dropdown_item>
         <.dropdown_item
-          value="local"
-          label={dgettext("dashboard_tests", "Local")}
-          patch={"?#{Query.put(@uri.query, "selective_testing_environment", "local")}"}
-          data-selected={@selective_testing_environment == "local"}
-        >
-          <:right_icon><.check /></:right_icon>
-        </.dropdown_item>
-        <.dropdown_item
           value="ci"
           label={dgettext("dashboard_tests", "CI")}
           patch={"?#{Query.put(@uri.query, "selective_testing_environment", "ci")}"}
           data-selected={@selective_testing_environment == "ci"}
+        >
+          <:right_icon><.check /></:right_icon>
+        </.dropdown_item>
+        <.dropdown_item
+          value="local"
+          label={dgettext("dashboard_tests", "Local")}
+          patch={"?#{Query.put(@uri.query, "selective_testing_environment", "local")}"}
+          data-selected={@selective_testing_environment == "local"}
         >
           <:right_icon><.check /></:right_icon>
         </.dropdown_item>
@@ -679,21 +730,40 @@
       }
       data-part="selective-testing-chart-section"
     >
-      <div data-part="legends">
-        <.legend
-          title={dgettext("dashboard_tests", "Selective test effectiveness")}
-          value={
-            dgettext("dashboard_tests", "%{selective_test_effectiveness}%",
-              selective_test_effectiveness:
-                (@selective_testing_analytics.result.hit_rate * 100)
-                |> Decimal.from_float()
-                |> Decimal.round(1)
-            )
-          }
-          style="primary"
+      <div data-part="legends-and-toggle">
+        <div data-part="legends">
+          <.legend
+            title={dgettext("dashboard_tests", "Selective test effectiveness")}
+            value={
+              dgettext("dashboard_tests", "%{selective_test_effectiveness}%",
+                selective_test_effectiveness:
+                  (@selective_testing_analytics.result.hit_rate * 100)
+                  |> Decimal.from_float()
+                  |> Decimal.round(1)
+              )
+            }
+            style="primary"
+          />
+        </div>
+        <.chart_type_toggle
+          id="selective-testing"
+          chart_type={@selective_testing_chart_type}
+          chart_type_event="select_selective_testing_chart_type"
+          group_by_options={[]}
+          uri={@uri}
         />
       </div>
+      <div
+        :if={@selective_testing_chart.loading || !@selective_testing_chart.ok?}
+        data-part="analytics-chart"
+      >
+        <.skeleton_chart />
+      </div>
       <.chart
+        :if={
+          @selective_testing_chart.ok? and !@selective_testing_chart.loading and
+            @selective_testing_chart.result == :line
+        }
         id="selective-testing-effectiveness-chart"
         type="line"
         extra_options={
@@ -818,6 +888,21 @@
         ]}
         y_axis_min={0}
         y_axis_max={100}
+      />
+      <.scatter_chart
+        id="selective-testing-scatter-chart"
+        chart={@selective_testing_chart}
+        period={@selective_testing_period}
+        value_format="{value}%"
+        y_axis_max={100}
+        narrow_grid
+        truncation_title={
+          dgettext(
+            "dashboard_tests",
+            "The 10,000 entry limit has been reached, data is only included up to %{date}. Try filtering to narrow down the dataset.",
+            date: scatter_oldest_entry_iso(@selective_testing_chart.result)
+          )
+        }
       />
     </.card_section>
     <.empty_card_section

@@ -12,13 +12,26 @@ defmodule XcodeProcessor.Application do
 
     children = [
       {Phoenix.PubSub, name: XcodeProcessor.PubSub},
-      {Finch, name: XcodeProcessor.Finch},
+      {Finch, name: XcodeProcessor.Finch, pools: finch_pools()},
       XcodeProcessorWeb.Endpoint,
       XcodeProcessor.PromEx
     ]
 
     opts = [strategy: :one_for_one, name: XcodeProcessor.Supervisor]
     Supervisor.start_link(children, opts)
+  end
+
+  defp finch_pools do
+    base = %{default: [size: 10]}
+
+    case TuistCommon.FinchPools.s3_endpoint_from_ex_aws_config() do
+      nil ->
+        base
+
+      endpoint ->
+        {s3_endpoint, s3_pool_opts} = TuistCommon.FinchPools.s3_pool(endpoint: endpoint)
+        Map.put(base, s3_endpoint, s3_pool_opts)
+    end
   end
 
   defp start_sentry_logger do

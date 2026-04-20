@@ -31,8 +31,13 @@ tuist inspect bundle App.xcarchive
 ```bash [Analyze an app bundle]
 tuist inspect bundle App.app
 ```
+```bash [Analyze by app name]
+tuist inspect bundle App --platforms ios --configuration Debug
+```
 <!-- -->
 :::
+
+When you pass an app name instead of a path on macOS, Tuist resolves the built `.app` from Xcode's build products (honoring `--derived-data-path` when set), the same way `tuist share` does.
 
 ### Android {#usage-android}
 

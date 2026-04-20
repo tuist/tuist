@@ -66,6 +66,7 @@ class TomlParserTest {
         val config = TomlParser.parse(toml)
         assertEquals("spaced/project", config?.project)
     }
+
 }
 
 class ServerUrlResolverTest {

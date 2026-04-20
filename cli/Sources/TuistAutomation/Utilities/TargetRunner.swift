@@ -6,6 +6,7 @@ import TuistCore
 import TuistLogging
 import TuistOpener
 import TuistSupport
+import TuistXcodeBuildProducts
 import XcodeGraph
 
 public protocol TargetRunning {

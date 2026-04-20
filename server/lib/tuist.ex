@@ -59,6 +59,7 @@ defmodule Tuist do
       Tests,
       Tests.Test,
       Tests.TestCase,
+      Tests.TestRunDestination,
       Tests.Analytics,
       Tests.Workers.ProcessXcresultWorker,
       Shards,

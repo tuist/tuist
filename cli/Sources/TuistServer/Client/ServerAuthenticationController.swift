@@ -41,6 +41,8 @@ public enum ServerAuthenticationControllerError: LocalizedError, Equatable {
 @Mockable
 public protocol ServerAuthenticationControlling: Sendable {
     func authenticationToken(serverURL: URL) async throws -> AuthenticationToken?
+    func authenticationToken(serverURL: URL, refreshIfNeeded: Bool) async throws
+        -> AuthenticationToken?
     func refreshToken(serverURL: URL) async throws
     func refreshToken(serverURL: URL, inBackground: Bool, locking: Bool, forceInProcessLock: Bool)
         async throws
@@ -235,22 +237,40 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
     @discardableResult public func authenticationToken(serverURL: URL)
         async throws -> AuthenticationToken?
     {
+        try await authenticationToken(serverURL: serverURL, refreshIfNeeded: true)
+    }
+
+    @discardableResult public func authenticationToken(
+        serverURL: URL,
+        refreshIfNeeded: Bool
+    ) async throws -> AuthenticationToken? {
         #if canImport(TuistSupport)
             if let environmentToken = try await environmentToken() {
                 return environmentToken
-            } else {
-                return try await authenticationTokenRefreshingIfNeeded(
-                    serverURL: serverURL,
-                    forceRefresh: false,
-                    inBackground: ServerAuthenticationConfig.current.backgroundRefresh,
-                    locking: true
-                )
             }
+        #endif
+
+        if !refreshIfNeeded {
+            switch try await tokenStatus(serverURL: serverURL, forceRefresh: false) {
+            case let .valid(token):
+                return token
+            case .expired, .absent:
+                return nil
+            }
+        }
+
+        #if canImport(TuistSupport)
+            return try await authenticationTokenRefreshingIfNeeded(
+                serverURL: serverURL,
+                forceRefresh: false,
+                inBackground: ServerAuthenticationConfig.current.backgroundRefresh,
+                locking: true
+            )
         #else
             return try await authenticationTokenRefreshingIfNeeded(
                 serverURL: serverURL, forceRefresh: false,
                 inBackground: ServerAuthenticationConfig.current.backgroundRefresh,
-                locking: false
+                locking: true
             )
         #endif
     }

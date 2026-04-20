@@ -3,6 +3,7 @@ import Foundation
 import Mockable
 import Path
 import TuistCore
+import TuistEnvironment
 import TuistRootDirectoryLocator
 import TuistSupport
 import TuistThreadSafe
@@ -79,8 +80,62 @@ public struct GraphContentHasher: GraphContentHashing {
             )
         }
 
-        let hashes = try await hashableTargets
-            .serialMap { (target: GraphTarget) async throws -> TargetContentHash in
+        let hashes: [TargetContentHash]
+        if Environment.current.isSwiftFileSystemBackendEnabled {
+            hashes = try await concurrentContentHashes(
+                hashableTargets: hashableTargets,
+                graphTraverser: graphTraverser,
+                hashedTargets: hashedTargets,
+                hashedPaths: hashedPaths,
+                destination: destination,
+                additionalStrings: additionalStrings
+            )
+        } else {
+            hashes = try await hashableTargets
+                .serialMap { (target: GraphTarget) async throws -> TargetContentHash in
+                    let hash = try await targetContentHasher.contentHash(
+                        for: target,
+                        hashedTargets: hashedTargets.value,
+                        hashedPaths: hashedPaths.value,
+                        destination: destination,
+                        additionalStrings: additionalStrings
+                    )
+                    hashedPaths.mutate { $0 = hash.hashedPaths }
+                    hashedTargets.mutate {
+                        $0[
+                            GraphHashedTarget(
+                                projectPath: target.path,
+                                targetName: target.target.name
+                            )
+                        ] = hash.hash
+                    }
+                    return hash
+                }
+        }
+        return Dictionary(uniqueKeysWithValues: zip(hashableTargets, hashes))
+    }
+
+    private func concurrentContentHashes(
+        hashableTargets: [GraphTarget],
+        graphTraverser: GraphTraversing,
+        hashedTargets: ThreadSafe<[GraphHashedTarget: String]>,
+        hashedPaths: ThreadSafe<[AbsolutePath: String]>,
+        destination: SimulatorDeviceAndRuntime?,
+        additionalStrings: [String]
+    ) async throws -> [TargetContentHash] {
+        let targetContentHasher = targetContentHasher
+        let tasks = ThreadSafe<[GraphHashedTarget: Task<TargetContentHash, Error>]>([:])
+        for target in hashableTargets {
+            let key = GraphHashedTarget(projectPath: target.path, targetName: target.target.name)
+            let directDepKeys = graphTraverser
+                .directTargetDependencies(path: target.path, name: target.target.name)
+                .map { GraphHashedTarget(projectPath: $0.graphTarget.path, targetName: $0.graphTarget.target.name) }
+            let task = Task { () async throws -> TargetContentHash in
+                for depKey in directDepKeys {
+                    if let depTask = tasks.value[depKey] {
+                        _ = try await depTask.value
+                    }
+                }
                 let hash = try await targetContentHasher.contentHash(
                     for: target,
                     hashedTargets: hashedTargets.value,
@@ -88,18 +143,26 @@ public struct GraphContentHasher: GraphContentHashing {
                     destination: destination,
                     additionalStrings: additionalStrings
                 )
-                hashedPaths.mutate { $0 = hash.hashedPaths }
-                hashedTargets.mutate {
-                    $0[
-                        GraphHashedTarget(
-                            projectPath: target.path,
-                            targetName: target.target.name
-                        )
-                    ] = hash.hash
-                }
+                hashedPaths.mutate { $0.merge(hash.hashedPaths, uniquingKeysWith: { _, new in new }) }
+                hashedTargets.mutate { $0[key] = hash.hash }
                 return hash
             }
-        return Dictionary(uniqueKeysWithValues: zip(hashableTargets, hashes))
+            tasks.mutate { $0[key] = task }
+        }
+        var results: [TargetContentHash] = []
+        results.reserveCapacity(hashableTargets.count)
+        do {
+            for target in hashableTargets {
+                let key = GraphHashedTarget(projectPath: target.path, targetName: target.target.name)
+                results.append(try await tasks.value[key]!.value)
+            }
+        } catch {
+            for task in tasks.value.values {
+                task.cancel()
+            }
+            throw error
+        }
+        return results
     }
 
     // MARK: - Private

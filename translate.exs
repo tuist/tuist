@@ -1,18 +1,20 @@
+# Configure req_llm's internal Finch pool BEFORE Mix.install so the application
+# supervisor reads it at startup. req_llm hardcodes the Finch instance to
+# ReqLLM.Finch in its provider attach steps, so passing :finch via req_http_options
+# is silently overridden — sizing this pool is the only thing that takes effect.
+# HTTP/1 only avoids Finch issue #265 with large request bodies.
+Application.put_env(:req_llm, :finch,
+  name: ReqLLM.Finch,
+  pools: %{
+    default: [protocols: [:http1], size: 1, count: 128]
+  }
+)
+
 Mix.install([
   {:req_llm, "~> 1.9"},
   {:yaml_elixir, "~> 2.11"},
   {:expo, "~> 1.1"}
 ])
-
-case Finch.start_link(
-       name: L10n.Finch,
-       pools: %{
-         default: [protocols: [:http1], size: 25, count: 2]
-       }
-     ) do
-  {:ok, _pid} -> :ok
-  {:error, {:already_started, _pid}} -> :ok
-end
 
 defmodule L10n.Context do
   @moduledoc """
@@ -409,19 +411,24 @@ defmodule L10n.Translator do
 
     resolved_model = resolve_model(model)
 
-    {:ok, response} = ReqLLM.generate_text(resolved_model, messages,
-      max_tokens: 64_000,
-      receive_timeout: timeout,
-      req_http_options: [finch: L10n.Finch]
-    )
+    case ReqLLM.generate_text(resolved_model, messages,
+           max_tokens: 64_000,
+           receive_timeout: timeout
+         ) do
+      {:ok, response} ->
+        text =
+          response
+          |> ReqLLM.Response.text()
+          |> String.trim()
+          |> String.replace(~r/^```[a-z]*\n/, "")
+          |> String.replace(~r/\n```$/, "")
+          |> String.trim()
 
-    text = ReqLLM.Response.text(response)
+        {:ok, text}
 
-    text
-    |> String.trim()
-    |> String.replace(~r/^```[a-z]*\n/, "")
-    |> String.replace(~r/\n```$/, "")
-    |> String.trim()
+      {:error, error} ->
+        {:error, Exception.message(error)}
+    end
   end
 
   @doc """
@@ -457,44 +464,41 @@ defmodule L10n.Translator do
           {:skipped, locale}
         else
           try do
-            po_content =
-              translate(
-                pot_content,
-                locale,
-                language,
-                context_body,
-                locale_override,
-                model,
-                request_timeout
-              )
+            with {:ok, po_content} <-
+                   translate(
+                     pot_content,
+                     locale,
+                     language,
+                     context_body,
+                     locale_override,
+                     model,
+                     request_timeout
+                   ),
+                 :ok <- L10n.Validator.validate(po_content) do
+              po_filename = Path.basename(pot_relative_path, ".pot") <> ".po"
+              output_path = Path.join([l10n_dir, target["path"], po_filename])
+              output_path |> Path.dirname() |> File.mkdir_p!()
+              File.write!(output_path, po_content <> "\n")
 
-            case L10n.Validator.validate(po_content) do
-              :ok ->
-                po_filename = Path.basename(pot_relative_path, ".pot") <> ".po"
-                output_path = Path.join([l10n_dir, target["path"], po_filename])
-                output_path |> Path.dirname() |> File.mkdir_p!()
-                File.write!(output_path, po_content <> "\n")
+              L10n.Lock.write!(lock_path, %{
+                hash: hash,
+                model: model,
+                source_file: pot_relative_path,
+                source_hash: source_hash,
+                context_files: context_files,
+                locale_override_files: locale_override_files
+              })
 
-                L10n.Lock.write!(lock_path, %{
-                  hash: hash,
-                  model: model,
-                  source_file: pot_relative_path,
-                  source_hash: source_hash,
-                  context_files: context_files,
-                  locale_override_files: locale_override_files
-                })
-
-                {:translated, locale}
-
-              {:error, reason} ->
-                {:error, locale, reason}
+              {:translated, locale}
+            else
+              {:error, reason} -> {:error, locale, reason}
             end
           rescue
             e -> {:error, locale, Exception.message(e)}
           end
         end
       end,
-      max_concurrency: Keyword.get(opts, :max_concurrency, 2),
+      max_concurrency: Keyword.get(opts, :max_concurrency, 7),
       timeout: request_timeout + 30_000,
       on_timeout: :kill_task
     )
@@ -549,8 +553,8 @@ defmodule L10n.CLI do
     * `--force`, `-f` — Re-translate all files, ignoring lock state
     * `--locale`, `-l` — Translate only the specified locale (e.g., `--locale es`)
     * `--model`, `-m` — Override the LLM model from L10N.md (e.g., `--model openai:gpt-4.1`)
-    * `--concurrency`, `-c` — Max parallel translations per locale within one source file (default: 2)
-    * `--pot-concurrency` — Max parallel source files being translated at once (default: 1)
+    * `--concurrency`, `-c` — Max parallel translations per locale within one source file (default: 7)
+    * `--pot-concurrency` — Max parallel source files being translated at once (default: 4)
     * `--timeout`, `-t` — Timeout in ms per translation request (default: 900000)
   """
 
@@ -631,11 +635,11 @@ defmodule L10n.CLI do
             context_files,
             force: Keyword.get(opts, :force, false),
             locale_override_fn: locale_override_fn,
-            max_concurrency: Keyword.get(opts, :concurrency, 2),
+            max_concurrency: Keyword.get(opts, :concurrency, 7),
             timeout: Keyword.get(opts, :timeout, @default_timeout)
           )
         end,
-        max_concurrency: Keyword.get(opts, :pot_concurrency, 1),
+        max_concurrency: Keyword.get(opts, :pot_concurrency, 4),
         timeout: :infinity  # pot-level timeout is infinite; per-locale tasks have their own timeout
       )
       |> Enum.flat_map(fn {:ok, results} -> results end)

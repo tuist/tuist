@@ -2,6 +2,7 @@
     import FileSystem
     import Mockable
     import Path
+    import TuistEnvironment
     import XcodeGraph
 
     @Mockable
@@ -29,8 +30,9 @@
                 filesToScan.append(contentsOf: headers.public)
                 filesToScan.append(contentsOf: headers.project)
             }
+            let maxConcurrentTasks = Environment.current.isSwiftFileSystemBackendEnabled ? Int.max : 100
             var imports = Set(
-                try await filesToScan.concurrentMap(maxConcurrentTasks: 100) { file in
+                try await filesToScan.concurrentMap(maxConcurrentTasks: maxConcurrentTasks) { file in
                     try await matchPattern(at: file)
                 }
                 .flatMap { $0 }

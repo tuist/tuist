@@ -500,7 +500,7 @@ defmodule Tuist.BuildsTest do
       schemes = Builds.project_build_schemes(project)
 
       # Then
-      assert Enum.sort(schemes) == ["App", "Framework"]
+      assert schemes == ["App", "Framework"]
     end
 
     test "returns an empty list when no builds exist for the project" do
@@ -582,7 +582,7 @@ defmodule Tuist.BuildsTest do
       configurations = Builds.project_build_configurations(project)
 
       # Then
-      assert Enum.sort(configurations) == ["Debug", "Release"]
+      assert configurations == ["Debug", "Release"]
     end
 
     test "returns an empty list when no builds exist for the project" do

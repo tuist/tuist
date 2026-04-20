@@ -441,6 +441,7 @@ defmodule Tuist.Builds do
         where: b.project_id == ^project.id,
         where: b.scheme != "",
         where: b.inserted_at > ^thirty_days_ago,
+        order_by: [asc: b.scheme],
         distinct: true,
         select: b.scheme
       )
@@ -455,6 +456,7 @@ defmodule Tuist.Builds do
         where: b.project_id == ^project.id,
         where: b.configuration != "",
         where: b.inserted_at > ^thirty_days_ago,
+        order_by: [asc: b.configuration],
         distinct: true,
         select: b.configuration
       )

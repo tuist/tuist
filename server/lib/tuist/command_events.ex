@@ -373,15 +373,34 @@ defmodule Tuist.CommandEvents do
     |> Map.new(fn %{project_id: id, last_interacted_at: time} -> {id, time} end)
   end
 
+  # Multiple rows may share the same build_run_id because the ID is derived
+  # from the `.xcactivitylog`, which Xcode can reuse across runs (e.g. a
+  # second `tuist test` that short-circuits before building picks up the
+  # previous log). We return the most recent event until we can source the
+  # build_run_id independently of the activity log.
   def get_command_event_by_build_run_id(build_run_id) do
-    case ClickHouseRepo.get_by(Event, build_run_id: build_run_id) do
+    query =
+      from(e in Event,
+        where: e.build_run_id == ^build_run_id,
+        order_by: [desc: e.ran_at, desc: e.created_at],
+        limit: 1
+      )
+
+    case ClickHouseRepo.one(query) do
       nil -> {:error, :not_found}
       event -> {:ok, Event.normalize_enums(event)}
     end
   end
 
   def get_command_event_by_test_run_id(test_run_id) do
-    case ClickHouseRepo.get_by(Event, test_run_id: test_run_id) do
+    query =
+      from(e in Event,
+        where: e.test_run_id == ^test_run_id,
+        order_by: [desc: e.ran_at, desc: e.created_at],
+        limit: 1
+      )
+
+    case ClickHouseRepo.one(query) do
       nil -> {:error, :not_found}
       event -> {:ok, Event.normalize_enums(event)}
     end

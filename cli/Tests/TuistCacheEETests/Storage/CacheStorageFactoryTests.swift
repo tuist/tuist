@@ -61,7 +61,8 @@ struct CacheStorageFactoryTests {
                 refreshToken: .test(token: "refresh-token")
             )
             given(serverAuthenticationController).authenticationToken(
-                serverURL: .value(Constants.URLs.production)
+                serverURL: .value(Constants.URLs.production),
+                refreshIfNeeded: .any
             ).willReturn(token)
             given(cacheURLStore)
                 .getCacheURL(for: .value(Constants.URLs.production), accountHandle: .value("tuist"))
@@ -91,7 +92,8 @@ struct CacheStorageFactoryTests {
                 refreshToken: .test(token: "refresh-token")
             )
             given(serverAuthenticationController).authenticationToken(
-                serverURL: .value(Constants.URLs.production)
+                serverURL: .value(Constants.URLs.production),
+                refreshIfNeeded: .any
             ).willReturn(token)
 
             // When
@@ -129,7 +131,8 @@ struct CacheStorageFactoryTests {
         // Given
         given(serverEnvironmentService).url(configServerURL: .any).willReturn(Constants.URLs.production)
         given(serverAuthenticationController).authenticationToken(
-            serverURL: .value(Constants.URLs.production)
+            serverURL: .value(Constants.URLs.production),
+            refreshIfNeeded: .any
         ).willReturn(nil)
 
         // When/Then

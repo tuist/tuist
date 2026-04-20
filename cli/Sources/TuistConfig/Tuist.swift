@@ -72,7 +72,13 @@ public struct Tuist: Equatable, Hashable, Sendable {
             cache: Cache = Cache(),
             url: URL = Constants.URLs.production
         ) -> Self {
-            return Tuist(project: project, fullHandle: fullHandle, inspectOptions: inspectOptions, cache: cache, url: url)
+            return Tuist(
+                project: project,
+                fullHandle: fullHandle,
+                inspectOptions: inspectOptions,
+                cache: cache,
+                url: url
+            )
         }
     #endif
 }

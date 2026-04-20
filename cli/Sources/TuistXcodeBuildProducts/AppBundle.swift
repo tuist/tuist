@@ -1,6 +1,5 @@
+import Foundation
 import Path
-import TuistCore
-import TuistLogging
 import TuistSimulator
 import TuistSupport
 import XcodeGraph
@@ -12,20 +11,16 @@ public struct AppBundle: Equatable {
     /// The app's Info.plist
     public let infoPlist: InfoPlist
 
-    enum InfoPlistError: FatalError {
+    /// The destination type (simulator/device for a given platform) this bundle was built for.
+    public let destinationType: DestinationType
+
+    enum InfoPlistError: LocalizedError, Equatable {
         case unknownPlatform(platform: String, app: String)
 
-        var description: String {
+        var errorDescription: String? {
             switch self {
             case let .unknownPlatform(platform: platform, app: app):
                 return "The \(app)'s supported platform \(platform) is unknown."
-            }
-        }
-
-        var type: ErrorType {
-            switch self {
-            case .unknownPlatform:
-                return .abort
             }
         }
     }
@@ -238,14 +233,26 @@ public struct AppBundle: Equatable {
         #endif
     }
 
+    public init(
+        path: AbsolutePath,
+        infoPlist: InfoPlist,
+        destinationType: DestinationType
+    ) {
+        self.path = path
+        self.infoPlist = infoPlist
+        self.destinationType = destinationType
+    }
+
     #if DEBUG
         public static func test(
             path: AbsolutePath = try! AbsolutePath(validating: "/App.app"), // swiftlint:disable:this force_try
-            infoPlist: InfoPlist = .test()
+            infoPlist: InfoPlist = .test(),
+            destinationType: DestinationType = .simulator(.iOS)
         ) -> Self {
             .init(
                 path: path,
-                infoPlist: infoPlist
+                infoPlist: infoPlist,
+                destinationType: destinationType
             )
         }
     #endif

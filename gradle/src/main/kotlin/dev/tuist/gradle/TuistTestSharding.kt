@@ -30,9 +30,10 @@ class TuistTestShardingService(
         baseUrl: String,
         token: String,
         accountHandle: String,
-        projectHandle: String
+        projectHandle: String,
+        httpClients: TuistHttpClients = TuistHttpClients()
     ) : this(
-        shardsApi = createShardsApi(baseUrl, token),
+        shardsApi = createShardsApi(baseUrl, token, httpClients),
         accountHandle = accountHandle,
         projectHandle = projectHandle
     )
@@ -83,16 +84,22 @@ class TuistTestShardingService(
     }
 }
 
-private fun createShardsApi(baseUrl: String, token: String): ShardsApi {
-    val client = OkHttpClient.Builder()
+private fun createShardsApi(
+    baseUrl: String,
+    token: String,
+    httpClients: TuistHttpClients = TuistHttpClients()
+): ShardsApi {
+    // Branch a short-timeout variant off the shared OkHttp client so the
+    // proxy (and connection pool) from [httpClients] is reused.
+    val client = httpClients.okHttp.newBuilder()
+        .connectTimeout(10, TimeUnit.SECONDS)
+        .readTimeout(10, TimeUnit.SECONDS)
         .addInterceptor { chain ->
             val request = chain.request().newBuilder()
                 .header("Authorization", "Bearer $token")
                 .build()
             chain.proceed(request)
         }
-        .connectTimeout(10, TimeUnit.SECONDS)
-        .readTimeout(10, TimeUnit.SECONDS)
         .build()
 
     return Retrofit.Builder()
@@ -286,17 +293,20 @@ abstract class TuistPrepareTestShardsTask : DefaultTask() {
     }
 
     private fun createShardingService(): TuistTestShardingService {
+        val httpClients = TuistHttpClients()
         val configProvider = DefaultConfigurationProvider(
             project = tuistProject,
             serverUrl = serverUrl,
-            projectDir = project.rootDir
+            projectDir = project.rootDir,
+            httpClients = httpClients
         )
         val config = configProvider.getConfiguration()
         return TuistTestShardingService(
             baseUrl = serverUrl,
             token = config.token,
             accountHandle = config.accountHandle,
-            projectHandle = config.projectHandle
+            projectHandle = config.projectHandle,
+            httpClients = httpClients
         )
     }
 }
@@ -341,17 +351,20 @@ abstract class TuistTestShardingPlugin : Plugin<Project> {
             return
         }
 
+        val httpClients = TuistHttpClients()
         val configProvider = DefaultConfigurationProvider(
             project = config.project,
             serverUrl = config.url,
-            projectDir = java.io.File(System.getProperty("user.dir"))
+            projectDir = java.io.File(System.getProperty("user.dir")),
+            httpClients = httpClients
         )
         val cacheConfig = configProvider.getConfiguration()
         val shardingService = TuistTestShardingService(
             baseUrl = config.url,
             token = cacheConfig.token,
             accountHandle = cacheConfig.accountHandle,
-            projectHandle = cacheConfig.projectHandle
+            projectHandle = cacheConfig.projectHandle,
+            httpClients = httpClients
         )
 
         val reference = System.getenv("TUIST_SHARD_REFERENCE") ?: shardingService.deriveReference()

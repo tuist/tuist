@@ -2,6 +2,7 @@ import FileSystem
 import Foundation
 import Path
 import ProjectDescription
+import TuistAlert
 import TuistCore
 import TuistSupport
 import XcodeGraph
@@ -12,7 +13,11 @@ extension XcodeGraph.TestAction {
     // - Parameters:
     //   - manifest: Manifest representation of test action model.
     //   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.TestAction, generatorPaths: GeneratorPaths) async throws -> XcodeGraph
+    static func from(
+        manifest: ProjectDescription.TestAction,
+        generatorPaths: GeneratorPaths,
+        schemeName: String? = nil
+    ) async throws -> XcodeGraph
         .TestAction
     {
         // swiftlint:enable function_body_length
@@ -61,18 +66,27 @@ extension XcodeGraph.TestAction {
                     }
                 } else {
                     // Handle as literal path
-                    if try await fileSystem.exists(resolvedPath) && resolvedPath.extension == "xctestplan" {
-                        let testPlan = try await TestPlan.from(
-                            path: resolvedPath,
-                            isDefault: resolvedTestPlans.isEmpty,
-                            generatorPaths: generatorPaths
+                    if try await fileSystem.exists(resolvedPath) {
+                        if resolvedPath.extension == "xctestplan" {
+                            let testPlan = try await TestPlan.from(
+                                path: resolvedPath,
+                                isDefault: resolvedTestPlans.isEmpty,
+                                generatorPaths: generatorPaths
+                            )
+                            resolvedTestPlans.append(testPlan)
+                        }
+                    } else {
+                        let schemeContext = schemeName.map { " referenced by the scheme '\($0)'" } ?? ""
+                        AlertController.current.warning(
+                            .alert(
+                                "Test plan \(resolvedPath.basename) does not exist at \(resolvedPath.pathString)\(schemeContext)"
+                            )
                         )
-                        resolvedTestPlans.append(testPlan)
                     }
                 }
             }
 
-            testPlans = resolvedTestPlans
+            testPlans = resolvedTestPlans.isEmpty ? nil : resolvedTestPlans
 
             // not used when using test plans
             targets = []

@@ -292,7 +292,7 @@ public struct SynthesizedResourceInterfaceProjectMapper: ProjectMapping { // swi
         if paths.isEmpty {
             renderedInterfaces = []
         } else {
-            let name = target.name.camelized.uppercasingFirst
+            let name = target.name.toValidSwiftIdentifier()
             renderedInterfaces = [
                 (
                     "Tuist\(templateName)+\(name)",
@@ -300,7 +300,7 @@ public struct SynthesizedResourceInterfaceProjectMapper: ProjectMapping { // swi
                         parser: resourceSynthesizer.parser,
                         parserOptions: resourceSynthesizer.parserOptions,
                         templateString: templateString,
-                        name: target.productName.camelized.uppercasingFirst,
+                        name: target.productName.toValidSwiftIdentifier(),
                         bundleName: project.options.disableBundleAccessors ? nil : "Bundle.module",
                         paths: paths
                     )

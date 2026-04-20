@@ -24,7 +24,7 @@
   background: var(--noora-surface-background-primary);
   width: 100%;
   overflow: hidden;
-  color: var(--noora-text-body);
+  color: var(--noora-surface-label-secondary);
   text-decoration: none;
 }
 

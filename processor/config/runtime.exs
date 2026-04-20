@@ -42,7 +42,14 @@ if config_env() == :prod do
 
   s3_config = if s3_port, do: Keyword.put(s3_config, :port, s3_port), else: s3_config
 
-  config :ex_aws, :req_opts, []
+  config :ex_aws, :req_opts,
+    # Fail individual chunk downloads before ExAws's Task.async_stream 60s
+    # kill so Finch can release connections cleanly. receive_timeout resets
+    # on each data chunk, so it doesn't cap total download time.
+    receive_timeout: to_timeout(second: 30),
+    pool_timeout: to_timeout(second: 5),
+    pool_max_idle_time: :infinity
+
   config :ex_aws, :s3, s3_config
 
   config :ex_aws,

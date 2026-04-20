@@ -13,6 +13,26 @@ defmodule Cache.BodyReader do
   - This allows slow-but-steady connections while timing out stalled transfers
 
   See `TuistCommon.BodyReader` for the timeout calculation logic.
+
+  ## Content-Length enforcement
+
+  When the request carries a valid `Content-Length` header, `read/2` and
+  `read_to_device/3` verify that the number of bytes delivered to the
+  caller matches the declared length. If fewer bytes arrive the reader
+  returns `{:error, :truncated, conn}` and cleans up any temp file it
+  had started, instead of pretending the body is complete.
+
+  Why this matters: the underlying HTTP adapter occasionally reports
+  `{:ok, partial, conn}` when a client closes the socket mid-upload
+  (cleanly enough that the adapter doesn't raise but short of the
+  declared Content-Length). Without this check a truncated upload can be
+  persisted as a fully-valid cache object. Subsequent GETs then serve
+  those partial bytes with a `200 OK` and a correct `Content-Length`
+  header. The client has no HTTP-level signal that anything is wrong,
+  but whatever format lives inside the bytes (gzip, zip, a classpath
+  snapshot, etc.) is truncated, and parsers fail deep inside the build
+  with exceptions that often carry no message. Enforcing the declared
+  length at the boundary prevents that entire failure class.
   """
 
   alias CacheWeb.RequestTimeoutError
@@ -61,34 +81,47 @@ defmodule Cache.BodyReader do
   Returns:
   - `{:ok, body, conn}` - For small bodies that fit in memory
   - `{:ok, {:file, tmp_path}, conn}` - For large bodies streamed to temp file
+  - `{:error, :truncated, conn}` - Fewer bytes arrived than Content-Length declared
   - `{:error, reason, conn}` - For errors like :too_large, :timeout, etc.
+
+  See the module doc for the rationale behind the `:truncated` branch.
   """
 
   def read(conn, opts \\ []) do
     max_bytes = Keyword.get(opts, :max_bytes, @max_upload_bytes)
     merged_opts = merged_opts(conn, opts, max_bytes)
+    expected_length = TuistCommon.BodyReader.get_content_length(conn)
 
-    case read_conn_body(conn, plug_read_opts(merged_opts)) do
-      {:ok, result} -> handle_read_result(result, conn, merged_opts, :store, max_bytes)
-      {:exception, error, _stacktrace} -> normalize_read_exception(error, conn)
-    end
+    result =
+      case read_conn_body(conn, plug_read_opts(merged_opts)) do
+        {:ok, read_result} -> handle_read_result(read_result, conn, merged_opts, :store, max_bytes)
+        {:exception, error, _stacktrace} -> normalize_read_exception(error, conn)
+      end
+
+    enforce_content_length(result, expected_length)
   end
 
   @doc """
   Reads the request body and writes it directly to an IO device.
 
   Returns `{:ok, bytes_written, conn}` on success,
+  `{:error, :truncated, conn}` if the number of bytes written differs from
+  the request's Content-Length,
   or `{:error, reason, conn}` on failure.
   """
   def read_to_device(conn, device, opts \\ []) do
     max_bytes = Keyword.get(opts, :max_bytes, @max_upload_bytes)
     merged_opts = merged_opts(conn, opts, max_bytes)
+    expected_length = TuistCommon.BodyReader.get_content_length(conn)
     writer = fn chunk -> :file.write(device, chunk) end
 
-    case read_conn_body(conn, plug_read_opts(merged_opts)) do
-      {:ok, result} -> handle_device_result(result, conn, merged_opts, writer, max_bytes)
-      {:exception, error, _stacktrace} -> normalize_read_exception(error, conn)
-    end
+    result =
+      case read_conn_body(conn, plug_read_opts(merged_opts)) do
+        {:ok, read_result} -> handle_device_result(read_result, conn, merged_opts, writer, max_bytes)
+        {:exception, error, _stacktrace} -> normalize_read_exception(error, conn)
+      end
+
+    enforce_device_content_length(result, expected_length)
   end
 
   defp handle_device_result({:ok, body, conn_after}, _conn, _opts, writer, max_bytes) do
@@ -302,4 +335,36 @@ defmodule Cache.BodyReader do
   defp chunk_timeout(opts) do
     TuistCommon.BodyReader.chunk_timeout(opts)
   end
+
+  defp enforce_content_length(result, nil), do: result
+
+  defp enforce_content_length({:ok, body, conn}, expected_length) when is_binary(body) do
+    if byte_size(body) == expected_length do
+      {:ok, body, conn}
+    else
+      {:error, :truncated, conn}
+    end
+  end
+
+  defp enforce_content_length({:ok, {:file, tmp_path} = data, conn}, expected_length) do
+    case File.stat(tmp_path) do
+      {:ok, %File.Stat{size: size}} when size == expected_length ->
+        {:ok, data, conn}
+
+      _ ->
+        File.rm(tmp_path)
+        {:error, :truncated, conn}
+    end
+  end
+
+  defp enforce_content_length(other, _expected_length), do: other
+
+  defp enforce_device_content_length(result, nil), do: result
+
+  defp enforce_device_content_length({:ok, bytes, conn}, expected_length) when bytes == expected_length,
+    do: {:ok, bytes, conn}
+
+  defp enforce_device_content_length({:ok, _bytes, conn}, _expected_length), do: {:error, :truncated, conn}
+
+  defp enforce_device_content_length(other, _expected_length), do: other
 end

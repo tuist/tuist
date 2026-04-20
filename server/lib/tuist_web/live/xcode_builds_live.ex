@@ -3,11 +3,14 @@ defmodule TuistWeb.XcodeBuildsLive do
   use TuistWeb, :live_view
   use Noora
 
+  import TuistWeb.Components.ChartTypeToggle
   import TuistWeb.Components.EmptyCardSection
+  import TuistWeb.Components.ScatterChart
   import TuistWeb.Components.Skeleton
   import TuistWeb.PercentileDropdownWidget
   import TuistWeb.Runs.RanByBadge
 
+  alias Phoenix.LiveView.AsyncResult
   alias Tuist.Builds
   alias Tuist.Builds.Analytics
   alias TuistWeb.Helpers.DatePicker
@@ -26,11 +29,15 @@ defmodule TuistWeb.XcodeBuildsLive do
               "analytics-selected-widget",
               "analytics-environment",
               "analytics-date-range",
+              "analytics-start-date",
+              "analytics-end-date",
               "analytics-build-scheme",
               "analytics-build-configuration",
               "analytics-build-category",
               "analytics-build-tag",
-              "build-duration-type"
+              "build-duration-type",
+              "build-duration-chart-type",
+              "build-duration-scatter-group-by"
             ])
           )
       )
@@ -108,6 +115,16 @@ defmodule TuistWeb.XcodeBuildsLive do
 
     analytics_selected_widget = params["analytics-selected-widget"] || "build-duration"
 
+    build_duration_chart_type = params["build-duration-chart-type"] || "line"
+    build_duration_scatter_group_by = params["build-duration-scatter-group-by"] || "scheme"
+
+    scatter_group_by_atom =
+      case build_duration_scatter_group_by do
+        "environment" -> :environment
+        "category" -> :category
+        _ -> :scheme
+      end
+
     socket
     |> assign(:analytics_selected_widget, analytics_selected_widget)
     |> assign(
@@ -125,6 +142,8 @@ defmodule TuistWeb.XcodeBuildsLive do
     |> assign(:build_configurations, Builds.project_build_configurations(project))
     |> assign(:build_tags, Builds.project_build_tags(project))
     |> assign(:selected_build_duration_type, params["build-duration-type"] || "avg")
+    |> assign(:build_duration_chart_type, build_duration_chart_type)
+    |> assign(:build_duration_scatter_group_by, build_duration_scatter_group_by)
     |> assign_async(
       [:builds_duration_analytics, :builds_p99_durations, :builds_p90_durations, :builds_p50_durations],
       fn ->
@@ -137,6 +156,7 @@ defmodule TuistWeb.XcodeBuildsLive do
          }}
       end
     )
+    |> assign_build_duration_chart(build_duration_chart_type, scatter_group_by_atom, opts)
     |> assign_async(
       [:total_builds_analytics, :failed_builds_analytics, :build_success_rate_analytics, :analytics_chart_data],
       fn ->
@@ -339,6 +359,8 @@ defmodule TuistWeb.XcodeBuildsLive do
   def environment_label("any"), do: dgettext("dashboard_builds", "Any")
   def environment_label("local"), do: dgettext("dashboard_builds", "Local")
   def environment_label("ci"), do: dgettext("dashboard_builds", "CI")
+  def environment_label(true), do: dgettext("dashboard_builds", "CI")
+  def environment_label(false), do: dgettext("dashboard_builds", "Local")
 
   def configuration_insights_label("xcode-version"), do: dgettext("dashboard_builds", "Xcode version")
   def configuration_insights_label("macos-version"), do: dgettext("dashboard_builds", "macOS version")
@@ -361,4 +383,79 @@ defmodule TuistWeb.XcodeBuildsLive do
       _ -> labels
     end
   end
+
+  defp with_tooltip_extra(scatter_data, group_by) do
+    Map.update!(scatter_data, :series, fn series ->
+      Enum.map(series, fn s ->
+        %{
+          name: scatter_name_label(s.name, group_by),
+          data:
+            Enum.map(s.data, fn point ->
+              point
+              |> Map.take([:value, :id])
+              |> Map.put(:tooltipExtra, tooltip_extra(point.meta))
+            end)
+        }
+      end)
+    end)
+  end
+
+  defp scatter_name_label(value, :environment), do: environment_label(value)
+  defp scatter_name_label(value, :category), do: category_label(value)
+  defp scatter_name_label(value, _), do: scheme_label(value)
+
+  defp tooltip_extra(meta) do
+    [
+      %{label: dgettext("dashboard_builds", "Scheme"), value: scheme_label(meta.scheme)},
+      %{label: dgettext("dashboard_builds", "Status"), value: status_label(meta.status)},
+      %{label: dgettext("dashboard_builds", "Environment"), value: environment_label(meta.is_ci)},
+      %{label: dgettext("dashboard_builds", "Category"), value: category_label(meta.category)}
+    ]
+  end
+
+  defp scheme_label(value) when value in ["", nil], do: dgettext("dashboard_builds", "Unknown")
+  defp scheme_label(value), do: value
+
+  defp category_label(value) when value in ["", nil], do: dgettext("dashboard_builds", "Unknown")
+  defp category_label(value), do: String.capitalize(value)
+
+  defp status_label("success"), do: dgettext("dashboard_builds", "Passed")
+  defp status_label("failure"), do: dgettext("dashboard_builds", "Failed")
+  defp status_label(status), do: String.capitalize(status)
+
+  def assign_build_duration_chart(socket, "scatter", group_by, opts) do
+    project_id = socket.assigns.selected_project.id
+
+    assign_async(socket, :build_duration_chart, fn ->
+      data =
+        project_id
+        |> Analytics.build_duration_scatter_data(Keyword.put(opts, :group_by, group_by))
+        |> with_tooltip_extra(group_by)
+
+      {:ok, %{build_duration_chart: {:scatter, data}}}
+    end)
+  end
+
+  def assign_build_duration_chart(socket, _line, _group_by, _opts) do
+    assign(socket, :build_duration_chart, AsyncResult.ok(:line))
+  end
+
+  def analytics_opts(%{selected_project: project, analytics_period: {start_datetime, end_datetime}} = assigns) do
+    [project_id: project.id, start_datetime: start_datetime, end_datetime: end_datetime]
+    |> opts_with_analytics_build_scheme(assigns.analytics_build_scheme)
+    |> opts_with_analytics_build_configuration(assigns.analytics_build_configuration)
+    |> opts_with_analytics_build_category(assigns.analytics_build_category)
+    |> opts_with_analytics_build_tag(assigns.analytics_build_tag)
+    |> then(fn opts ->
+      case assigns.analytics_environment do
+        "ci" -> Keyword.put(opts, :is_ci, true)
+        "local" -> Keyword.put(opts, :is_ci, false)
+        _ -> opts
+      end
+    end)
+  end
+
+  def scatter_group_by_atom("environment"), do: :environment
+  def scatter_group_by_atom("category"), do: :category
+  def scatter_group_by_atom(_), do: :scheme
 end

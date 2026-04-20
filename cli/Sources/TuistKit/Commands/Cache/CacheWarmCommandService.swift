@@ -14,6 +14,7 @@ import TuistPlugin
 import TuistServer
 import TuistSupport
 import TuistXCActivityLog
+import TuistXcodeBuildProducts
 import XcodeGraph
 #if canImport(TuistCacheEE)
     import TuistCacheEE
@@ -145,7 +146,6 @@ import XcodeGraph
                 for: graph,
                 configuration: configuration,
                 config: config,
-                includedTargets: targetsToBinaryCache,
                 cacheProfile: profile,
                 cacheStorage: cacheStorage
             )
@@ -866,7 +866,6 @@ import XcodeGraph
             for graph: Graph,
             configuration: String,
             config: Tuist,
-            includedTargets: Set<String>,
             cacheProfile: CacheProfile,
             cacheStorage: CacheStoring
         ) async throws -> [(GraphTarget, String)] {
@@ -883,11 +882,6 @@ import XcodeGraph
                 }
             }
 
-            // When explicit targets are specified, exclude any targets not in that set.
-            if !includedTargets.isEmpty {
-                let allTargetNames = Set(graphTraverser.allTargets().map(\.target.name))
-                excludedTargets.formUnion(allTargetNames.subtracting(includedTargets))
-            }
             let hashesByCacheableTarget = try await cacheGraphContentHasher.contentHashes(
                 for: graph,
                 configuration: configuration,

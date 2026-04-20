@@ -5,8 +5,9 @@ import Path
 import Testing
 import TuistEnvironment
 import TuistTesting
+import TuistXcodeBuildProducts
 
-@testable import TuistSupport
+@testable import TuistXcodeBuildProducts
 
 struct DerivedDataLocatorTests {
     private let subject = DerivedDataLocator()

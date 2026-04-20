@@ -41,6 +41,15 @@
     }
     & > [data-part="selective-testing-chart-section"] {
       padding: var(--noora-spacing-9) var(--noora-spacing-7);
+      & > [data-part="legends-and-toggle"] {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        & > [data-part="legends"] {
+          margin-left: var(--noora-spacing-5);
+          padding-bottom: unset;
+        }
+      }
       & > [data-part="legends"] {
         margin-left: var(--noora-spacing-5);
         padding-bottom: unset;
