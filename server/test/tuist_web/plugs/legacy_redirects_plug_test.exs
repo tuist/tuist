@@ -34,6 +34,24 @@ defmodule TuistWeb.Plugs.LegacyRedirectsPlugTest do
       assert conn.halted
     end
 
+    test "passes through /docs/login so the dedicated route can handle it", %{conn: conn} do
+      conn = %{conn | request_path: "/docs/login"}
+
+      conn = LegacyRedirectsPlug.call(conn, [])
+
+      refute conn.halted
+      assert conn.status != 301
+    end
+
+    test "passes through non-locale /docs/* paths for the router/controller to resolve", %{conn: conn} do
+      conn = %{conn | request_path: "/docs/not-a-locale/guides"}
+
+      conn = LegacyRedirectsPlug.call(conn, [])
+
+      refute conn.halted
+      assert conn.status != 301
+    end
+
     test "passes through non-matching paths", %{conn: conn} do
       conn = %{conn | request_path: "/blog/2024/01/01/other-post"}
 
