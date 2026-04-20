@@ -104,7 +104,6 @@ Tuist.xcworkspace
 node_modules
 Fixture
 /.tuist-dev-instance
-/.tuist-dev-seeded
 
 Tuist/Dependencies/SwiftPackageManager
 Tuist/Dependencies/graph.json
