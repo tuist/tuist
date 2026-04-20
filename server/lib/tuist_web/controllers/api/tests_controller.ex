@@ -575,7 +575,7 @@ defmodule TuistWeb.API.TestsController do
           project_id: test_run.project_id,
           url: url(~p"/#{selected_project.account.name}/#{selected_project.name}/tests/test-runs/#{test_run.id}"),
           test_case_runs:
-            Enum.map(test_run.test_case_runs || [], fn run ->
+            Enum.map(test_run.test_case_runs, fn run ->
               result = %{
                 id: run.id,
                 name: run.name,
@@ -709,7 +709,7 @@ defmodule TuistWeb.API.TestsController do
   defp get_or_create_test(params) do
     test_id = Map.get(params, :id, UUIDv7.generate())
 
-    case Tests.get_test(test_id) do
+    case Tests.get_test(test_id, preload: [test_case_runs: :arguments]) do
       {:ok, test_run} ->
         {:ok, test_run}
 
