@@ -32,7 +32,7 @@ jobs:
           echo "Checking CLA status for: $PR_AUTHOR (ID: $PR_AUTHOR_ID)"
 
           # Check allowlist first
-          ALLOWLIST="pepicrft,cschmatzler,asmitbm,fortmarek,Tomusm"
+          ALLOWLIST="pepicrft,cschmatzler,asmitbm,fortmarek"
           if echo "$ALLOWLIST" | grep -q "$PR_AUTHOR"; then
             echo "✅ User $PR_AUTHOR is in allowlist, CLA not required"
             echo "cla_required=false" >> $GITHUB_OUTPUT
