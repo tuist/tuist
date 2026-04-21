@@ -116,9 +116,12 @@ public class GraphTraverser: GraphTraversing {
 
     public func testTargets(for schemeName: String) -> Set<GraphTarget> {
         guard let scheme = schemes().first(where: { $0.name == schemeName }),
-              let testTargetRefs = scheme.testAction?.targets.map(\.target)
+              let testAction = scheme.testAction
         else { return Set() }
-        let testTargetRefSet = Set(testTargetRefs)
+        var testTargetRefSet = Set(testAction.targets.map(\.target))
+        if let testPlans = testAction.testPlans {
+            testTargetRefSet.formUnion(testPlans.flatMap(\.testTargets).map(\.target))
+        }
         return allTargets().filter { graphTarget in
             testTargetRefSet.contains(
                 TargetReference(projectPath: graphTarget.path, name: graphTarget.target.name)
