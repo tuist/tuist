@@ -94,7 +94,7 @@ final class ProjectManifestMapperTests: TuistUnitTestCase {
             )
         )
     }
-    
+
     func test_from_withCustomGroupPath() async throws {
         // Given
         let project = ProjectDescription.Project(
@@ -126,7 +126,7 @@ final class ProjectManifestMapperTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(got.filesGroup, .group(name: "CustomGroup"))
     }
-    
+
     func test_from_withDefaultGroupPath() async throws {
         // Given
         let project = ProjectDescription.Project(

@@ -37,7 +37,7 @@ extension XcodeGraph.Project {
         case .local: .local
         case .external: .remote
         }
-        
+
         // Use custom groupPath from manifest if provided, otherwise default to "Project"
         let filesGroup: XcodeGraph.ProjectGroup = .group(name: manifest.groupPath ?? "Project")
 
