@@ -248,8 +248,7 @@ defmodule TuistWeb.GradleBuildsLive do
              analytics_environment: analytics_environment,
              analytics_period: {start_datetime, end_datetime}
            }
-         } =
-           socket
+         } = socket
        ) do
     filters =
       case analytics_environment do

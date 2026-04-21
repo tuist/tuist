@@ -371,11 +371,8 @@ defmodule Tuist.Gradle.AnalyticsTest do
           is_ci: false
         )
 
-      assert Enum.sort_by(got, & &1.category) == [
-               %{value: 1000.0, category: "8.5"},
-               %{value: 3000.0, category: "8.4"}
-             ]
-             |> Enum.sort_by(& &1.category)
+      assert Enum.sort_by(got, & &1.category) ==
+               Enum.sort_by([%{value: 1000.0, category: "8.5"}, %{value: 3000.0, category: "8.4"}], & &1.category)
     end
   end
 

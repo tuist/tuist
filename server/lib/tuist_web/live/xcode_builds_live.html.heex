@@ -67,7 +67,9 @@
         patch={"?#{Query.put(@uri.query, "analytics-build-configuration", build_configuration)}"}
         data-selected={@analytics_build_configuration == build_configuration}
       >
-        <:right_icon :if={@analytics_build_configuration == build_configuration}><.check /></:right_icon>
+        <:right_icon :if={@analytics_build_configuration == build_configuration}>
+          <.check />
+        </:right_icon>
       </.dropdown_item>
     </.dropdown>
     <.dropdown
@@ -613,7 +615,9 @@
           patch={"?#{Query.put(@uri.query, "configuration-insights-type", "xcode-version")}"}
           data-selected={@configuration_insights_type == "xcode-version"}
         >
-          <:right_icon :if={@configuration_insights_type == "xcode-version"}><.check /></:right_icon>
+          <:right_icon :if={@configuration_insights_type == "xcode-version"}>
+            <.check />
+          </:right_icon>
         </.dropdown_item>
         <.dropdown_item
           value="device"
@@ -629,7 +633,9 @@
           patch={"?#{Query.put(@uri.query, "configuration-insights-type", "macos-version")}"}
           data-selected={@configuration_insights_type == "macos-version"}
         >
-          <:right_icon :if={@configuration_insights_type == "macos-version"}><.check /></:right_icon>
+          <:right_icon :if={@configuration_insights_type == "macos-version"}>
+            <.check />
+          </:right_icon>
         </.dropdown_item>
       </.dropdown>
     </:actions>

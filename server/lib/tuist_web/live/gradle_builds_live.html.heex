@@ -471,7 +471,9 @@
           patch={"?#{Query.put(@uri.query, "configuration-insights-type", "gradle-version")}"}
           data-selected={@configuration_insights_type == "gradle-version"}
         >
-          <:right_icon :if={@configuration_insights_type == "gradle-version"}><.check /></:right_icon>
+          <:right_icon :if={@configuration_insights_type == "gradle-version"}>
+            <.check />
+          </:right_icon>
         </.dropdown_item>
         <.dropdown_item
           value="java-version"
@@ -479,7 +481,9 @@
           patch={"?#{Query.put(@uri.query, "configuration-insights-type", "java-version")}"}
           data-selected={@configuration_insights_type == "java-version"}
         >
-          <:right_icon :if={@configuration_insights_type == "java-version"}><.check /></:right_icon>
+          <:right_icon :if={@configuration_insights_type == "java-version"}>
+            <.check />
+          </:right_icon>
         </.dropdown_item>
       </.dropdown>
     </:actions>
