@@ -118,13 +118,10 @@ public class GraphTraverser: GraphTraversing {
         guard let scheme = schemes().first(where: { $0.name == schemeName }),
               let testAction = scheme.testAction
         else { return Set() }
-        let testTargetRefs: [TargetReference]
-        if let testPlans = testAction.testPlans, !testPlans.isEmpty {
-            testTargetRefs = testPlans.flatMap(\.testTargets).map(\.target)
-        } else {
-            testTargetRefs = testAction.targets.map(\.target)
+        var testTargetRefSet = Set(testAction.targets.map(\.target))
+        if let testPlans = testAction.testPlans {
+            testTargetRefSet.formUnion(testPlans.flatMap(\.testTargets).map(\.target))
         }
-        let testTargetRefSet = Set(testTargetRefs)
         return allTargets().filter { graphTarget in
             testTargetRefSet.contains(
                 TargetReference(projectPath: graphTarget.path, name: graphTarget.target.name)
