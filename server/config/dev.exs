@@ -136,15 +136,11 @@ config :phoenix_live_reload,
 config :phoenix_live_view, :debug_heex_annotations, true
 
 config :tuist, Tuist.ClickHouseRepo,
-  hostname: "localhost",
-  port: 8123,
-  database: "tuist_development",
+  hostname: "127.0.0.1",
   settings: [readonly: 1]
 
 config :tuist, Tuist.IngestRepo,
-  hostname: "localhost",
-  port: 8123,
-  database: "tuist_development",
+  hostname: "127.0.0.1",
   flush_interval_ms: 5000,
   # Bytes
   max_buffer_size: 100_000,
@@ -155,15 +151,11 @@ config :tuist, Tuist.Mailer, adapter: Bamboo.LocalAdapter
 # Configure your database
 config :tuist, Tuist.Repo,
   hostname: "localhost",
-  database: "tuist_development",
   stacktrace: true,
   show_sensitive_data_on_connection_error: true,
   pool_size: 10
 
 config :tuist, TuistWeb.Endpoint,
-  # Binding to loopback ipv4 address prevents access from other machines.
-  # Change to `ip: {0, 0, 0, 0}` to allow access from other machines.
-  http: [ip: {127, 0, 0, 1}, port: 8080],
   check_origin: false,
   code_reloader: true,
   debug_errors: true,

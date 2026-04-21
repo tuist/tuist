@@ -9,14 +9,17 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "${SCRIPT_PATH}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 ROOT_INSTANCE_FILE="${PROJECT_ROOT}/.tuist-dev-instance"
+CLICKHOUSE_STATE_ROOT="${XDG_STATE_HOME:-${HOME}/.local/state}/tuist"
 
-resolve_instance_file() {
+resolve_git_path() {
+  local target_name="$1"
+  local fallback_path="$2"
   local git_path=""
 
   if command -v git >/dev/null 2>&1 && git -C "${PROJECT_ROOT}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     git_path="$(
-      git -C "${PROJECT_ROOT}" rev-parse --path-format=absolute --git-path tuist-dev-instance 2>/dev/null ||
-        git -C "${PROJECT_ROOT}" rev-parse --git-path tuist-dev-instance 2>/dev/null ||
+      git -C "${PROJECT_ROOT}" rev-parse --path-format=absolute --git-path "${target_name}" 2>/dev/null ||
+        git -C "${PROJECT_ROOT}" rev-parse --git-path "${target_name}" 2>/dev/null ||
         true
     )"
 
@@ -28,11 +31,11 @@ resolve_instance_file() {
   if [[ -n "${git_path}" ]]; then
     printf '%s' "${git_path}"
   else
-    printf '%s' "${ROOT_INSTANCE_FILE}"
+    printf '%s' "${fallback_path}"
   fi
 }
 
-INSTANCE_FILE="$(resolve_instance_file)"
+INSTANCE_FILE="$(resolve_git_path "tuist-dev-instance" "${ROOT_INSTANCE_FILE}")"
 
 validate_suffix() {
   local suffix="$1"
@@ -94,6 +97,13 @@ export TUIST_SERVER_HOSTNAME="${project_hostname}.localhost"
 export TUIST_SERVER_URL="http://localhost:${TUIST_SERVER_PORT}"
 export TUIST_SERVER_POSTGRES_DB="tuist_development_${suffix}"
 export TUIST_SERVER_CLICKHOUSE_DB="tuist_development_${suffix}"
+export TUIST_SERVER_CLICKHOUSE_RUNTIME_DIR="${CLICKHOUSE_STATE_ROOT}/clickhouse"
+export TUIST_SERVER_CLICKHOUSE_HTTP_PORT="8123"
+export TUIST_SERVER_CLICKHOUSE_NATIVE_PORT="9000"
+export TUIST_SERVER_CLICKHOUSE_INTERSERVER_HTTP_PORT="9009"
+export TUIST_SERVER_CLICKHOUSE_MYSQL_PORT="9004"
+export TUIST_SERVER_CLICKHOUSE_POSTGRESQL_PORT="9005"
+export TUIST_SERVER_CLICKHOUSE_HTTP_URL="http://127.0.0.1:${TUIST_SERVER_CLICKHOUSE_HTTP_PORT}"
 export TUIST_CACHE_PORT="$((8087 + suffix))"
 export TUIST_CACHE_SERVER_URL="${TUIST_SERVER_URL}"
 export TUIST_MINIO_API_PORT="$((9095 + suffix))"
