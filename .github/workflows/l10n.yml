@@ -19,6 +19,10 @@ concurrency:
   group: l10n-translations
   cancel-in-progress: true
 
+env:
+  MISE_VERSION: "2026.4.18"
+  MISE_GITHUB_TOKEN: ${{ github.token }}
+
 jobs:
   translate:
     name: Translate
@@ -29,8 +33,9 @@ jobs:
       - uses: namespacelabs/nscloud-cache-action@v1
         with:
           cache: mise
-      - uses: jdx/mise-action@v3.2.0
+      - uses: jdx/mise-action@v4.0.1
         with:
+          version: ${{ env.MISE_VERSION }}
           install_args: "elixir erlang"
           cache: "false"
       - name: Run translations

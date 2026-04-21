@@ -15,6 +15,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
+  MISE_VERSION: "2026.4.18"
   CI: true
   RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -43,8 +44,9 @@ jobs:
         with:
           ref: ${{ github.event.inputs.commit_sha }}
           fetch-depth: 0
-      - uses: jdx/mise-action@v2
+      - uses: jdx/mise-action@v4.0.1
         with:
+          version: ${{ env.MISE_VERSION }}
           install: false
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
       - name: "Get version"
