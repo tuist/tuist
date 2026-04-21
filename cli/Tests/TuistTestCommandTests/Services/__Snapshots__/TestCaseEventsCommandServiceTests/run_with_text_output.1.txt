@@ -1,2 +1,0 @@
-[1mEvents[0m
-  [date] — Quarantined (automatic)

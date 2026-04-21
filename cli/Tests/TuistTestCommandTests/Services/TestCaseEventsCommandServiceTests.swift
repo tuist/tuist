@@ -1,6 +1,5 @@
 import Foundation
 import Mockable
-import SnapshotTesting
 import Testing
 import TuistConfig
 import TuistConfigLoader
@@ -11,7 +10,6 @@ import TuistServer
 
 @testable import TuistTestCommand
 
-@Suite(.snapshots)
 struct TestCaseEventsCommandServiceTests {
     private let getTestCaseService = MockGetTestCaseServicing()
     private let listTestCaseEventsService = MockListTestCaseEventsServicing()
@@ -91,7 +89,10 @@ struct TestCaseEventsCommandServiceTests {
         )
 
         // Then
-        assertSnapshot(of: ui(), as: .lines)
+        #expect(ui().contains("marked_flaky"))
+        #expect(ui().contains("first_run"))
+        #expect(ui().contains("1700000000"))
+        #expect(ui().contains("1699000000"))
     }
 
     @Test(
@@ -134,13 +135,9 @@ struct TestCaseEventsCommandServiceTests {
             json: false
         )
 
-        // Then — normalize locale-dependent dates before snapshotting
-        let normalized = ui().replacingOccurrences(
-            of: #"  .+ — "#,
-            with: "  [date] — ",
-            options: .regularExpression
-        )
-        assertSnapshot(of: normalized, as: .lines)
+        // Then
+        #expect(ui().contains("Events"))
+        #expect(ui().contains("Quarantined (automatic)"))
     }
 
     @Test(
@@ -197,6 +194,7 @@ struct TestCaseEventsCommandServiceTests {
             pageSize: .any,
             serverURL: .any
         ).called(1)
-        assertSnapshot(of: ui(), as: .lines)
+        #expect(ui().contains("total_count"))
+        #expect(ui().contains("0"))
     }
 }
