@@ -20,6 +20,7 @@ defmodule Tuist.MCP.Server do
       Tuist.MCP.Components.Tools.ListTestSuiteRuns,
       Tuist.MCP.Components.Tools.ListTestCaseRuns,
       Tuist.MCP.Components.Tools.ListTestCases,
+      Tuist.MCP.Components.Tools.ListTestCaseEvents,
       Tuist.MCP.Components.Tools.GetTestCase,
       Tuist.MCP.Components.Tools.GetTestRun,
       Tuist.MCP.Components.Tools.GetTestCaseRun,
