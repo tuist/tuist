@@ -61,9 +61,8 @@ jobs:
             processor/deps
             processor/_build
           key: processor-mix-${{ hashFiles('processor/mix.lock') }}
-      - uses: jdx/mise-action@v3.2.0
+      - uses: ./.github/actions/setup-mise
         with:
-          version: "2026.4.18"
           install_args: "erlang elixir ruby"
           cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
           working_directory: processor
@@ -89,9 +88,8 @@ jobs:
             processor/deps
             processor/_build
           key: processor-mix-${{ hashFiles('processor/mix.lock') }}
-      - uses: jdx/mise-action@v3.2.0
+      - uses: ./.github/actions/setup-mise
         with:
-          version: "2026.4.18"
           install_args: "erlang elixir ruby"
           cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
           working_directory: processor
@@ -117,9 +115,8 @@ jobs:
             processor/deps
             processor/_build
           key: processor-mix-${{ hashFiles('processor/mix.lock') }}
-      - uses: jdx/mise-action@v3.2.0
+      - uses: ./.github/actions/setup-mise
         with:
-          version: "2026.4.18"
           install_args: "erlang elixir ruby"
           cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
           working_directory: processor
@@ -145,9 +142,8 @@ jobs:
             processor/deps
             processor/_build
           key: processor-mix-${{ hashFiles('processor/mix.lock') }}
-      - uses: jdx/mise-action@v3.2.0
+      - uses: ./.github/actions/setup-mise
         with:
-          version: "2026.4.18"
           install_args: "erlang elixir ruby"
           cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
           working_directory: processor

@@ -43,9 +43,8 @@ jobs:
           path: |
             ~/.pnpm/store
           key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
-      - uses: jdx/mise-action@v2
+      - uses: ./.github/actions/setup-mise
         with:
-          version: "2026.4.18"
           working_directory: handbook
       - name: Build handbook
         working-directory: handbook

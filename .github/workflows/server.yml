@@ -50,9 +50,8 @@ jobs:
       - uses: namespacelabs/nscloud-cache-action@v1
         with:
           cache: mise
-      - uses: jdx/mise-action@v3.2.0
+      - uses: ./.github/actions/setup-mise
         with:
-          version: "2026.4.18"
           install_args: "erlang elixir"
           cache: "false"
           working_directory: server
@@ -179,9 +178,8 @@ jobs:
       - uses: namespacelabs/nscloud-cache-action@v1
         with:
           cache: mise
-      - uses: jdx/mise-action@v3.2.0
+      - uses: ./.github/actions/setup-mise
         with:
-          version: "2026.4.18"
           install_args: "erlang elixir github:ClickHouse/ClickHouse"
           cache: "false"
           working_directory: server
@@ -212,9 +210,8 @@ jobs:
       - uses: namespacelabs/nscloud-cache-action@v1
         with:
           cache: mise
-      - uses: jdx/mise-action@v3.2.0
+      - uses: ./.github/actions/setup-mise
         with:
-          version: "2026.4.18"
           install_args: "erlang elixir"
           cache: "false"
           working_directory: server
@@ -240,9 +237,8 @@ jobs:
       - uses: namespacelabs/nscloud-cache-action@v1
         with:
           cache: mise
-      - uses: jdx/mise-action@v3.2.0
+      - uses: ./.github/actions/setup-mise
         with:
-          version: "2026.4.18"
           install_args: "erlang elixir node pnpm npm:prettier"
           cache: "false"
           working_directory: server
@@ -275,9 +271,8 @@ jobs:
       - uses: namespacelabs/nscloud-cache-action@v1
         with:
           cache: mise
-      - uses: jdx/mise-action@v3.2.0
+      - uses: ./.github/actions/setup-mise
         with:
-          version: "2026.4.18"
           install_args: "erlang elixir node pnpm"
           cache: "false"
           working_directory: server
@@ -332,9 +327,8 @@ jobs:
       - uses: namespacelabs/nscloud-cache-action@v1
         with:
           cache: mise
-      - uses: jdx/mise-action@v3.2.0
+      - uses: ./.github/actions/setup-mise
         with:
-          version: "2026.4.18"
           install_args: "erlang elixir"
           cache: "false"
           working_directory: server
@@ -458,9 +452,8 @@ jobs:
       - uses: namespacelabs/nscloud-cache-action@v1
         with:
           cache: mise
-      - uses: jdx/mise-action@v3.2.0
+      - uses: ./.github/actions/setup-mise
         with:
-          version: "2026.4.18"
           install_args: "erlang elixir github:ClickHouse/ClickHouse"
           cache: "false"
           working_directory: server

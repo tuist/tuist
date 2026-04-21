@@ -1,0 +1,41 @@
+name: Setup mise
+description: >-
+  Install mise at a pinned version and run `mise install`.
+  Centralizes the mise version across all workflows so upgrades are a
+  single-line change.
+
+inputs:
+  install:
+    description: If false, skip `mise install`.
+    required: false
+    default: "true"
+  install_args:
+    description: Arguments passed to `mise install`.
+    required: false
+  cache:
+    description: Whether mise-action should read/write its own cache.
+    required: false
+    default: "false"
+  working_directory:
+    description: Directory to run mise in.
+    required: false
+  github_token:
+    description: GitHub token for mise-action (used for GitHub-backed plugins).
+    required: false
+
+runs:
+  using: composite
+  steps:
+    # `nscloud-cache-action` may restore a mise binary at an unrelated version.
+    # Delete it so mise-action actually downloads the pinned version below.
+    - name: Ensure pinned mise version
+      shell: bash
+      run: rm -f "$HOME/.local/share/mise/bin/mise"
+    - uses: jdx/mise-action@v3.2.0
+      with:
+        version: "2026.4.18"
+        install: ${{ inputs.install }}
+        install_args: ${{ inputs.install_args }}
+        cache: ${{ inputs.cache }}
+        working_directory: ${{ inputs.working_directory }}
+        github_token: ${{ inputs.github_token }}
