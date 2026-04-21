@@ -41,11 +41,17 @@ ingress-nginx:
     service:
       type: LoadBalancer
       externalTrafficPolicy: Local
-      annotations:
-        # Hetzner Cloud LB (Syself ships the hcloud-cloud-controller-manager).
-        # Adjust per provider if the chart lands on a different cluster.
-        load-balancer.hetzner.cloud/location: nbg1
-        load-balancer.hetzner.cloud/uses-proxyprotocol: "true"
+      # Provider-specific LB annotations are set via overlays so this base
+      # chart stays portable. See values-platform-hetzner.yaml and
+      # values-platform-gke.yaml. Leaving annotations empty here means any
+      # cloud provider's default LB controller (GCP, AWS, Hetzner, etc.) will
+      # provision a plain public LB with its own defaults — works on all of
+      # them, but without provider-native features like PROXY protocol.
+      annotations: {}
+    # Proxy protocol is a Hetzner-oriented default because we currently run
+    # there. The GKE overlay disables it because GCP's regional/TCP LB needs
+    # different config. Kept here for backwards compat with in-cluster installs
+    # that already expect the Hetzner-style forwarding.
     config:
       use-forwarded-headers: "true"
       use-proxy-protocol: "true"

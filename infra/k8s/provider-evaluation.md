@@ -76,7 +76,8 @@ Monthly cost normalized to: control plane + 2× 4 vCPU / 8 GB nodes + 1 LoadBala
 
 1. **Bus factor**: smaller company than Google. If they fold, we have two escape hatches: either migrate to k3s-on-Hetzner ourselves using the same nodes, or move to GKE. Our Helm chart is designed provider-agnostic precisely so this is a weekend's work, not a quarter's.
 2. **Pricing opacity**: platform fee is tiered and not fully self-serve. Before we commit, we need a concrete quote. A ~€200/mo platform fee flips the economics; ~€50/mo makes this a clear win.
-3. **Ecosystem size**: fewer community tutorials than "install X on GKE". In practice everything works — they ship upstream k8s — but Googling specific problems is quieter.
+3. **No self-serve onboarding**: in 2026, Syself still requires a sales demo to get platform access. You cannot sign up, launch a cluster, and evaluate in an afternoon — which is unusual for infrastructure this size and matters for two reasons. First, it blocks evaluation momentum: we have to schedule, wait, and sit through a call before we learn anything concrete. Second, it's a hint about the operational model we'd inherit if we adopt them: a vendor that gates trial access is likely to gate production support the same way (email a CSM vs. click in a dashboard). Not a dealbreaker, but a real texture difference vs. GKE / DOKS / Linode where everything — signup, cluster creation, support tickets — is self-serve.
+4. **Ecosystem size**: fewer community tutorials than "install X on GKE". In practice everything works — they ship upstream k8s — but Googling specific problems is quieter.
 
 ### Co-finalist 2: GKE Standard (europe-west3)
 

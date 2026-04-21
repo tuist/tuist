@@ -26,9 +26,15 @@ kubectl -n platform create secret generic cloudflare-api-token \
 # 3. Fetch chart dependencies.
 helm dependency update infra/helm/platform
 
-# 4. Install the platform.
+# 4. Install the platform with the right provider overlay.
+# Pick exactly one:
 helm upgrade --install platform infra/helm/platform \
-  -n platform
+  -n platform \
+  -f infra/helm/platform/values-hetzner.yaml    # Syself / Hetzner
+# or
+helm upgrade --install platform infra/helm/platform \
+  -n platform \
+  -f infra/helm/platform/values-gke.yaml        # Google Kubernetes Engine
 ```
 
 ## Local validation

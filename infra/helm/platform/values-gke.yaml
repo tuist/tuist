@@ -1,0 +1,24 @@
+# GKE-specific overlay for the platform chart.
+# Layer on top of the base values:
+#   helm upgrade --install platform infra/helm/platform \
+#     -n platform --create-namespace \
+#     -f infra/helm/platform/values-gke.yaml
+
+ingress-nginx:
+  controller:
+    service:
+      annotations:
+        # Use GCP's regional (premium tier) Network LB by default. Leave the
+        # annotation off to get the default Network LB, which is fine for POC.
+        cloud.google.com/l4-rbs: "enabled"
+      # GKE Autopilot needs explicit externalTrafficPolicy override on some
+      # cluster versions; Local preserves client IPs which we need for rate
+      # limiting.
+      externalTrafficPolicy: Local
+    config:
+      # GCP's Network LB doesn't pass PROXY protocol by default, so disable it
+      # here. If we switch to an HTTPS LB later (for Cloud Armor integration),
+      # revisit this.
+      use-proxy-protocol: "false"
+      use-forwarded-headers: "true"
+      compute-full-forwarded-for: "true"
