@@ -151,7 +151,7 @@ ARG APT_CACHE_BUST=0
 RUN : "APT_CACHE_BUST=${APT_CACHE_BUST}" \
   && apt-get update -y && \
   apt-get upgrade -y && \
-  apt-get install -y curl build-essential gcc wget libvips libstdc++6 openssl libncurses5 locales ca-certificates postgresql-client zip unzip git \
+  apt-get install -y curl build-essential gcc wget libvips libstdc++6 openssl libncurses5 locales ca-certificates postgresql-client zip unzip git tini \
   && apt-get clean && rm -f /var/lib/apt/lists/*_*
 
 RUN sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && locale-gen
@@ -218,6 +218,10 @@ COPY --from=nif-bridge-builder /app/_build/prod/rel/tuist/lib/processor-0.1.0/pr
 
 USER nobody
 
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+  CMD curl -fsS http://127.0.0.1:8080/ready || exit 1
+
+ENTRYPOINT ["/usr/bin/tini", "--"]
 CMD ["sh", "-c", "/app/bin/start"]
 
 # ========================================
@@ -229,4 +233,8 @@ FROM runner-base AS runner
 
 USER nobody
 
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+  CMD curl -fsS http://127.0.0.1:8080/ready || exit 1
+
+ENTRYPOINT ["/usr/bin/tini", "--"]
 CMD ["sh", "-c", "/app/bin/start"]

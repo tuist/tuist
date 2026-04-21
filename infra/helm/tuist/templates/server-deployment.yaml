@@ -1,4 +1,5 @@
 {{- if .Values.server.enabled }}
+{{- $secretName := include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -7,7 +8,11 @@ metadata:
     {{- include "tuist.labels" . | nindent 4 }}
     app.kubernetes.io/component: server
 spec:
+  {{- if not .Values.server.autoscaling.enabled }}
   replicas: {{ .Values.server.replicaCount }}
+  {{- end }}
+  strategy:
+    {{- toYaml .Values.server.strategy | nindent 4 }}
   selector:
     matchLabels:
       {{- include "tuist.componentLabels" (dict "root" . "component" "server") | nindent 6 }}
@@ -15,12 +20,34 @@ spec:
     metadata:
       labels:
         {{- include "tuist.componentLabels" (dict "root" . "component" "server") | nindent 8 }}
+        {{- with .Values.server.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9091"
+        {{- with .Values.server.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
     spec:
+      {{- if .Values.server.serviceAccount.create }}
+      serviceAccountName: {{ include "tuist.serverServiceAccountName" . }}
+      {{- end }}
+      terminationGracePeriodSeconds: {{ .Values.server.terminationGracePeriodSeconds }}
       {{- with .Values.global.imagePullSecrets }}
       imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.server.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.server.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.server.affinity }}
+      affinity:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       containers:
@@ -33,6 +60,12 @@ spec:
           ports:
             - name: http
               containerPort: 8080
+            - name: metrics
+              containerPort: 9091
+            {{- if .Values.server.cluster.enabled }}
+            - name: epmd
+              containerPort: 4369
+            {{- end }}
           env:
             - name: TUIST_WEB
               value: "true"
@@ -45,7 +78,7 @@ spec:
             - name: TUIST_SECRET_KEY_BASE
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
+                  name: {{ $secretName }}
                   key: server-secret-key-base
             - name: TUIST_APP_URL
               value: {{ .Values.server.appUrl | quote }}
@@ -61,15 +94,36 @@ spec:
             - name: TUIST_LICENSE_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
+                  name: {{ $secretName }}
                   key: server-license-key
             {{- end }}
             {{- if .Values.server.license.certificateBase64 }}
             - name: TUIST_LICENSE_CERTIFICATE_BASE64
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
+                  name: {{ $secretName }}
                   key: server-license-certificate-base64
+            {{- end }}
+            {{- if .Values.server.masterKey }}
+            - name: MASTER_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $secretName }}
+                  key: server-master-key
+            {{- end }}
+            {{- if .Values.server.cluster.enabled }}
+            - name: TUIST_CLUSTER_DNS_SERVICE
+              value: {{ include "tuist.serverHeadlessServiceName" . | quote }}
+            - name: TUIST_CLUSTER_APP_NAME
+              value: {{ .Values.server.cluster.applicationName | quote }}
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: RELEASE_DISTRIBUTION
+              value: "name"
+            - name: RELEASE_NODE
+              value: "$(TUIST_CLUSTER_APP_NAME)@$(POD_IP)"
             {{- end }}
             - name: TUIST_S3_BUCKET_NAME
               value: {{ .Values.server.s3.bucketName | quote }}
@@ -80,12 +134,12 @@ spec:
             - name: TUIST_S3_ACCESS_KEY_ID
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
+                  name: {{ $secretName }}
                   key: object-storage-access-key
             - name: TUIST_S3_SECRET_ACCESS_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
+                  name: {{ $secretName }}
                   key: object-storage-secret-key
             - name: TUIST_S3_VIRTUAL_HOST
               value: {{ .Values.server.s3.virtualHost | ternary "1" "0" | quote }}
@@ -104,16 +158,40 @@ spec:
             {{- with .Values.server.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
+          {{- with .Values.server.extraEnvFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          startupProbe:
+            httpGet:
+              path: {{ .Values.server.probes.startup.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.server.probes.startup.initialDelaySeconds }}
+            periodSeconds: {{ .Values.server.probes.startup.periodSeconds }}
+            timeoutSeconds: {{ .Values.server.probes.startup.timeoutSeconds }}
+            failureThreshold: {{ .Values.server.probes.startup.failureThreshold }}
           readinessProbe:
-            tcpSocket:
+            httpGet:
+              path: {{ .Values.server.probes.readiness.path }}
               port: http
-            initialDelaySeconds: 20
-            periodSeconds: 10
+            initialDelaySeconds: {{ .Values.server.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.server.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.server.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.server.probes.readiness.failureThreshold }}
           livenessProbe:
-            tcpSocket:
+            httpGet:
+              path: {{ .Values.server.probes.liveness.path }}
               port: http
-            initialDelaySeconds: 30
-            periodSeconds: 20
+            initialDelaySeconds: {{ .Values.server.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.server.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.server.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.server.probes.liveness.failureThreshold }}
+          lifecycle:
+            preStop:
+              exec:
+                # Give the ingress time to stop routing new traffic before the
+                # release shuts down — avoids 502s during a rolling deploy.
+                command: ["sh", "-c", "sleep 10"]
           resources:
             {{- toYaml .Values.server.resources | nindent 12 }}
 {{- end }}

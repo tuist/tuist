@@ -159,3 +159,15 @@ http://{{ include "tuist.componentName" (dict "root" . "component" "clickhouse")
 http://{{ include "tuist.componentName" (dict "root" . "component" "otel-collector") }}:4317
 {{- end -}}
 {{- end -}}
+
+{{- define "tuist.serverServiceAccountName" -}}
+{{- if .Values.server.serviceAccount.name -}}
+{{- .Values.server.serviceAccount.name -}}
+{{- else -}}
+{{- include "tuist.componentName" (dict "root" . "component" "server") -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "tuist.serverHeadlessServiceName" -}}
+{{- include "tuist.componentName" (dict "root" . "component" "server-headless") -}}
+{{- end -}}

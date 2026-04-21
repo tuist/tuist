@@ -1,11 +1,22 @@
 {{- if and .Values.server.enabled .Values.server.migrationJob.enabled }}
+{{- $secretName := include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
 apiVersion: batch/v1
 kind: Job
 metadata:
+  {{- if .Values.server.migrationJob.asHook }}
+  name: {{ include "tuist.componentName" (dict "root" . "component" "server-migrate") }}-{{ .Release.Revision }}
+  {{- else }}
   name: {{ include "tuist.componentName" (dict "root" . "component" "server-migrate") }}
+  {{- end }}
   labels:
     {{- include "tuist.labels" . | nindent 4 }}
     app.kubernetes.io/component: server-migration
+  {{- if .Values.server.migrationJob.asHook }}
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "-1"
+    helm.sh/hook-delete-policy: before-hook-creation
+  {{- end }}
 spec:
   backoffLimit: {{ .Values.server.migrationJob.backoffLimit }}
   template:
@@ -57,7 +68,7 @@ spec:
             - name: TUIST_SECRET_KEY_BASE
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
+                  name: {{ $secretName }}
                   key: server-secret-key-base
             - name: TUIST_APP_URL
               value: {{ .Values.server.appUrl | quote }}
@@ -69,15 +80,22 @@ spec:
             - name: TUIST_LICENSE_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
+                  name: {{ $secretName }}
                   key: server-license-key
             {{- end }}
             {{- if .Values.server.license.certificateBase64 }}
             - name: TUIST_LICENSE_CERTIFICATE_BASE64
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
+                  name: {{ $secretName }}
                   key: server-license-certificate-base64
+            {{- end }}
+            {{- if .Values.server.masterKey }}
+            - name: MASTER_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $secretName }}
+                  key: server-master-key
             {{- end }}
             - name: TUIST_S3_BUCKET_NAME
               value: {{ .Values.server.s3.bucketName | quote }}
@@ -88,17 +106,24 @@ spec:
             - name: TUIST_S3_ACCESS_KEY_ID
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
+                  name: {{ $secretName }}
                   key: object-storage-access-key
             - name: TUIST_S3_SECRET_ACCESS_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
+                  name: {{ $secretName }}
                   key: object-storage-secret-key
             - name: TUIST_S3_VIRTUAL_HOST
               value: {{ .Values.server.s3.virtualHost | ternary "1" "0" | quote }}
             - name: TUIST_S3_BUCKET_AS_HOST
               value: {{ .Values.server.s3.bucketAsHost | ternary "1" "0" | quote }}
+            {{- with .Values.server.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with .Values.server.extraEnvFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           resources:
             {{- toYaml .Values.server.migrationJob.resources | nindent 12 }}
 {{- end }}
