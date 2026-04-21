@@ -37,11 +37,11 @@ defmodule TuistWeb.BuildRunLive do
   defp mount_xcode(params, _session, %{assigns: %{selected_project: project}} = socket) do
     run =
       case Builds.get_build(params["build_run_id"]) do
-        nil ->
-          raise NotFoundError, dgettext("dashboard_builds", "Build not found.")
-
-        run ->
+        {:ok, run} ->
           run
+
+        {:error, :not_found} ->
+          raise NotFoundError, dgettext("dashboard_builds", "Build not found.")
       end
 
     slug = Projects.get_project_slug_from_id(project.id)
@@ -125,9 +125,10 @@ defmodule TuistWeb.BuildRunLive do
   @impl true
   def handle_info({:xcode_build_created, build}, socket) do
     if build.id == socket.assigns.run.id do
+      {:ok, run} = Builds.get_build(build.id)
+
       run =
-        build.id
-        |> Builds.get_build()
+        run
         |> Tuist.Repo.preload([:ran_by_account, project: :vcs_connection])
         |> Tuist.ClickHouseRepo.preload([:issues])
 
@@ -139,10 +140,6 @@ defmodule TuistWeb.BuildRunLive do
 
   def handle_info(_event, socket) do
     {:noreply, socket}
-  end
-
-  def build_runs_path(%{selected_project: project, uri: uri}) do
-    Query.append(~p"/#{project.account.name}/#{project.name}/builds/build-runs", uri.query)
   end
 
   @impl true
@@ -222,9 +219,10 @@ defmodule TuistWeb.BuildRunLive do
 
   @impl true
   def handle_event("refresh_build", _params, %{assigns: %{run: run}} = socket) do
+    {:ok, refreshed_run} = Builds.get_build(run.id)
+
     refreshed_run =
-      run.id
-      |> Builds.get_build()
+      refreshed_run
       |> Tuist.Repo.preload([:ran_by_account, project: :vcs_connection])
       |> Tuist.ClickHouseRepo.preload([:issues, :machine_metrics])
 

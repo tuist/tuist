@@ -171,24 +171,27 @@ public struct TreeShakePrunedTargetsGraphMapper: GraphMapping {
                 }
             }
 
+            // Clear variable-expansion references when their target has been pruned, rather than
+            // dropping the whole scheme. Otherwise, for example, a single cached (and therefore
+            // pruned) test target can take an entire aggregate workspace scheme with it — even
+            // when the scheme still has many other non-cached test targets that should run.
+            if let expandVariableFromTarget = scheme.runAction?.expandVariableFromTarget,
+               !sourceTargets.contains(expandVariableFromTarget)
+            {
+                scheme.runAction?.expandVariableFromTarget = nil
+            }
+            if let expandVariableFromTarget = scheme.testAction?.expandVariableFromTarget,
+               !sourceTargets.contains(expandVariableFromTarget)
+            {
+                scheme.testAction?.expandVariableFromTarget = nil
+            }
+
             let hasBuildTargets = !(scheme.buildAction?.targets ?? []).isEmpty
             let hasTestTargets = !(scheme.testAction?.targets ?? []).isEmpty
             let hasTestPlans = !(scheme.testAction?.testPlans ?? []).isEmpty
             let runsAFilePathExecutable = scheme.runAction?.filePath != nil
 
             guard hasBuildTargets || hasTestTargets || hasTestPlans || runsAFilePathExecutable else {
-                return nil
-            }
-
-            if let expandVariableFromTarget = scheme.runAction?.expandVariableFromTarget,
-               !sourceTargets.contains(expandVariableFromTarget)
-            {
-                return nil
-            }
-
-            if let expandVariableFromTarget = scheme.testAction?.expandVariableFromTarget,
-               !sourceTargets.contains(expandVariableFromTarget)
-            {
                 return nil
             }
 

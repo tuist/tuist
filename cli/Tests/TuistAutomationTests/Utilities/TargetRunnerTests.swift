@@ -4,6 +4,7 @@ import TuistCore
 import TuistOpener
 import TuistSupport
 import TuistTesting
+import TuistXcodeBuildProducts
 import XcodeGraph
 import XCTest
 

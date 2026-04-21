@@ -185,18 +185,4 @@ defmodule TuistWeb.Utilities.Query do
   end
 
   def query_params(nil), do: %{}
-
-  @doc """
-  Appends an encoded query string to a path when present.
-
-  ## Examples
-
-      iex> TuistWeb.Utilities.Query.append("/builds", "foo=bar")
-      "/builds?foo=bar"
-
-      iex> TuistWeb.Utilities.Query.append("/builds", "")
-      "/builds"
-  """
-  def append(path, query) when query in [nil, ""], do: path
-  def append(path, query), do: path <> "?" <> query
 end

@@ -242,7 +242,7 @@ defmodule TuistWeb.API.TestsControllerTest do
     end
 
     test "creates a test run with xcode build system by default", %{conn: conn, user: user, project: project} do
-      expect(Tests, :get_test, fn _id -> {:error, :not_found} end)
+      expect(Tests, :get_test, fn _id, _opts -> {:error, :not_found} end)
 
       expect(Tests, :create_test, fn attrs ->
         assert attrs.build_system == "xcode"
@@ -290,7 +290,7 @@ defmodule TuistWeb.API.TestsControllerTest do
     end
 
     test "creates a test run with gradle build system", %{conn: conn, user: user, project: project} do
-      expect(Tests, :get_test, fn _id -> {:error, :not_found} end)
+      expect(Tests, :get_test, fn _id, _opts -> {:error, :not_found} end)
 
       expect(Tests, :create_test, fn attrs ->
         assert attrs.build_system == "gradle"
@@ -364,7 +364,7 @@ defmodule TuistWeb.API.TestsControllerTest do
     end
 
     test "creates a test run without macos_version (not required)", %{conn: conn, user: user, project: project} do
-      expect(Tests, :get_test, fn _id -> {:error, :not_found} end)
+      expect(Tests, :get_test, fn _id, _opts -> {:error, :not_found} end)
 
       expect(Tests, :create_test, fn attrs ->
         assert attrs.build_system == "gradle"
@@ -398,7 +398,7 @@ defmodule TuistWeb.API.TestsControllerTest do
     end
 
     test "creates a test run with parameterized test arguments", %{conn: conn, user: user, project: project} do
-      expect(Tests, :get_test, fn _id -> {:error, :not_found} end)
+      expect(Tests, :get_test, fn _id, _opts -> {:error, :not_found} end)
 
       expect(Tests, :create_test, fn attrs ->
         [module] = attrs.test_modules
@@ -503,10 +503,63 @@ defmodule TuistWeb.API.TestsControllerTest do
       assert arg2["name"] == ".cardAdmin"
     end
 
+    test "returns preloaded test_case_runs when the test already exists", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      existing_id = UUIDv7.generate()
+      existing_run_id = UUIDv7.generate()
+
+      # Regression test for the %Ecto.Association.NotLoaded{} crash: when
+      # the test already exists, get_test must preload test_case_runs so
+      # the response reflects what is actually stored, not an empty list.
+      expect(Tests, :get_test, fn ^existing_id, opts ->
+        assert opts[:preload] == [test_case_runs: :arguments]
+
+        {:ok,
+         %Test{
+           id: existing_id,
+           duration: 1000,
+           project_id: project.id,
+           build_system: "xcode",
+           test_case_runs: [
+             %Tuist.Tests.TestCaseRun{
+               id: existing_run_id,
+               name: "testExample",
+               module_name: "MyModule",
+               suite_name: "MyModuleTests",
+               arguments: []
+             }
+           ]
+         }}
+      end)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          "/api/projects/#{user.account.name}/#{project.name}/tests",
+          %{
+            id: existing_id,
+            duration: 1000,
+            is_ci: false,
+            status: "success",
+            test_modules: []
+          }
+        )
+
+      response = json_response(conn, 200)
+      assert response["id"] == existing_id
+      assert [run] = response["test_case_runs"]
+      assert run["id"] == existing_run_id
+      assert run["name"] == "testExample"
+    end
+
     test "enqueues a VCS pull request comment", %{conn: conn, user: user, project: project} do
       test_pid = self()
 
-      expect(Tests, :get_test, fn _id -> {:error, :not_found} end)
+      expect(Tests, :get_test, fn _id, _opts -> {:error, :not_found} end)
 
       expect(Tests, :create_test, fn attrs ->
         {:ok,

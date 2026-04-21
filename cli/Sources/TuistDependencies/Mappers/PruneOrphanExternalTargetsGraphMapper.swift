@@ -27,6 +27,9 @@ public struct PruneOrphanExternalTargetsGraphMapper: GraphMapping {
                 let project = graph.projects[projectPath]!
                 let graphTarget = GraphTarget(path: projectPath, target: target, project: project)
                 var target = target
+                if target.metadata.tags.contains(TargetTags.localSwiftPackageTest) {
+                    return (target.name, target)
+                }
                 if orphanExternalTargets.contains(graphTarget) || target.destinations.isEmpty {
                     target.metadata.tags.formUnion(["tuist:prunable"])
                 }

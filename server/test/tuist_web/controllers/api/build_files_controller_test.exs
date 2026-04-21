@@ -19,7 +19,7 @@ defmodule TuistWeb.API.BuildFilesControllerTest do
     test "returns an empty list when there are no files", %{conn: conn, user: user, project: project} do
       {:ok, build} = RunsFixtures.build_fixture(project_id: project.id, user_id: user.account.id)
 
-      stub(Builds, :get_build, fn _id -> build end)
+      stub(Builds, :get_build, fn _id -> {:ok, build} end)
 
       stub(Builds, :list_build_files, fn _attrs ->
         {[],
@@ -51,7 +51,7 @@ defmodule TuistWeb.API.BuildFilesControllerTest do
     test "returns files for the build", %{conn: conn, user: user, project: project} do
       {:ok, build} = RunsFixtures.build_fixture(project_id: project.id, user_id: user.account.id)
 
-      stub(Builds, :get_build, fn _id -> build end)
+      stub(Builds, :get_build, fn _id -> {:ok, build} end)
 
       stub(Builds, :list_build_files, fn _attrs ->
         {[
@@ -89,7 +89,7 @@ defmodule TuistWeb.API.BuildFilesControllerTest do
     test "filters files by target", %{conn: conn, user: user, project: project} do
       {:ok, build} = RunsFixtures.build_fixture(project_id: project.id, user_id: user.account.id)
 
-      stub(Builds, :get_build, fn _id -> build end)
+      stub(Builds, :get_build, fn _id -> {:ok, build} end)
 
       expect(Builds, :list_build_files, fn attrs ->
         assert %{field: :target, op: :==, value: "MyTarget"} in attrs.filters
@@ -127,7 +127,7 @@ defmodule TuistWeb.API.BuildFilesControllerTest do
     test "filters files by type", %{conn: conn, user: user, project: project} do
       {:ok, build} = RunsFixtures.build_fixture(project_id: project.id, user_id: user.account.id)
 
-      stub(Builds, :get_build, fn _id -> build end)
+      stub(Builds, :get_build, fn _id -> {:ok, build} end)
 
       expect(Builds, :list_build_files, fn attrs ->
         assert %{field: :type, op: :==, value: "swift"} in attrs.filters
@@ -164,7 +164,7 @@ defmodule TuistWeb.API.BuildFilesControllerTest do
     test "supports pagination", %{conn: conn, user: user, project: project} do
       {:ok, build} = RunsFixtures.build_fixture(project_id: project.id, user_id: user.account.id)
 
-      stub(Builds, :get_build, fn _id -> build end)
+      stub(Builds, :get_build, fn _id -> {:ok, build} end)
 
       expect(Builds, :list_build_files, fn attrs ->
         assert attrs.page == 2
@@ -204,7 +204,7 @@ defmodule TuistWeb.API.BuildFilesControllerTest do
     end
 
     test "returns 404 when build is not found", %{conn: conn, user: user, project: project} do
-      stub(Builds, :get_build, fn _id -> nil end)
+      stub(Builds, :get_build, fn _id -> {:error, :not_found} end)
 
       conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/xcode/builds/#{UUIDv7.generate()}/files")
 
@@ -215,7 +215,7 @@ defmodule TuistWeb.API.BuildFilesControllerTest do
       other_project = ProjectsFixtures.project_fixture(account_id: user.account.id)
       {:ok, build} = RunsFixtures.build_fixture(project_id: other_project.id, user_id: user.account.id)
 
-      stub(Builds, :get_build, fn _id -> build end)
+      stub(Builds, :get_build, fn _id -> {:ok, build} end)
 
       conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/xcode/builds/#{build.id}/files")
 

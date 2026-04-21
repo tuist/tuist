@@ -1,6 +1,67 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.182.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* Fix xcstrings handling in buildable folders by [@pepicrft](https://github.com/pepicrft) in [#10332](https://github.com/tuist/tuist/pull/10332)
+* handle strictMemorySafety with empty dump-package JSON by [@alpaka99](https://github.com/alpaka99) in [#10308](https://github.com/tuist/tuist/pull/10308)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.182.0...4.182.1
+
+## What's Changed in 4.182.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* preserve test targets for local SPM packages by [@sabade-omkar](https://github.com/sabade-omkar) in [#10268](https://github.com/tuist/tuist/pull/10268)
+* resolve inspect bundle app names like share by [@pepicrft](https://github.com/pepicrft) in [#9916](https://github.com/tuist/tuist/pull/9916)
+* drop fd-limit caps when swift-file-system backend is enabled by [@pepicrft](https://github.com/pepicrft) in [#10314](https://github.com/tuist/tuist/pull/10314)
+### 🐛 Bug Fixes
+
+* clear pruned expandVariableFromTarget instead of dropping the scheme by [@fortmarek](https://github.com/fortmarek) in [#10310](https://github.com/tuist/tuist/pull/10310)
+* use literal string matching in ManifestLoader to fix hang on large output by [@sabade-omkar](https://github.com/sabade-omkar) in [#10288](https://github.com/tuist/tuist/pull/10288)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.181.1...4.182.0
+
+## What's Changed in 4.181.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* reject xcodebuild action verbs in passthrough arguments by [@fortmarek](https://github.com/fortmarek) in [#10303](https://github.com/tuist/tuist/pull/10303)
+* use proxy-aware URLSession for cache endpoint latency checks by [@changusmc](https://github.com/changusmc) in [#10307](https://github.com/tuist/tuist/pull/10307)
+* handle binary wrapper xcframework name collisions for Singular and Firebase patterns by [@fortmarek](https://github.com/fortmarek) in [#10309](https://github.com/tuist/tuist/pull/10309)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.181.0...4.181.1
+
+## What's Changed in 4.181.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* auto-detect HTTP proxy from HTTPS_PROXY/HTTP_PROXY by [@pepicrft](https://github.com/pepicrft) in [#10261](https://github.com/tuist/tuist/pull/10261)
+### 🐛 Bug Fixes
+
+* stop excluding transitive deps from cache hashing for positional targets by [@fortmarek](https://github.com/fortmarek) in [#10301](https://github.com/tuist/tuist/pull/10301)
+* Catalyst should use macosx sdk by [@wojmangh](https://github.com/wojmangh) in [#10298](https://github.com/tuist/tuist/pull/10298)
+* Make StringProtocol.range(of:) scan UTF-8 bytes by [@pepicrft](https://github.com/pepicrft) in [#10295](https://github.com/tuist/tuist/pull/10295)
+* resolve bare "container:" xctestplan target references by [@fortmarek](https://github.com/fortmarek) in [#10290](https://github.com/tuist/tuist/pull/10290)
+* Add warning for missing xctestplan files by [@yhkaplan](https://github.com/yhkaplan) in [#10282](https://github.com/tuist/tuist/pull/10282)
+* bump FileSystem to 0.16.1 for Musl support by [@fortmarek](https://github.com/fortmarek) in [#10277](https://github.com/tuist/tuist/pull/10277)
+* preserve original error when test result parsing fails by [@fortmarek](https://github.com/fortmarek) in [#10275](https://github.com/tuist/tuist/pull/10275)
+* fix synthesized resource interface generation for numeric target names by [@pepicrft](https://github.com/pepicrft) in [#10266](https://github.com/tuist/tuist/pull/10266)
+* skip token refresh when optionalAuthentication is enabled by [@pepicrft](https://github.com/pepicrft) in [#10260](https://github.com/tuist/tuist/pull/10260)
+* keep xcstrings in Resources phase for static framework stale detection by [@pepicrft](https://github.com/pepicrft) in [#10247](https://github.com/tuist/tuist/pull/10247)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.180.0...4.181.0
+
 ## What's Changed in 4.180.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features

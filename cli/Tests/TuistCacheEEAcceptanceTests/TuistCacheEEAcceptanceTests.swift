@@ -293,4 +293,28 @@ struct TuistCacheEEAcceptanceTests {
         try TuistTest.expectContainsTarget("App", inXcodeProj: xcodeprojPath)
         try TuistTest.expectLinked("Framework1.xcframework", by: "App", inXcodeProj: xcodeprojPath)
     }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
+        .withFixture("generated_ios_app_with_cache_profiles")
+    ) func cache_warm_with_positional_target_hashes_transitive_dependencies() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        try await TuistTest.run(InstallCommand.self, ["--path", fixtureDirectory.pathString])
+
+        try await TuistTest.run(
+            CacheCommand.self,
+            [
+                "--path", fixtureDirectory.pathString,
+                "--cache-profile", "all-possible",
+                "--generate-only",
+                "NonCacheableModule",
+            ]
+        )
+
+        TuistTest.expectLogs("Targets to be cached: ExpensiveModule, NonCacheableModule")
+        TuistTest.doesntExpectLogs("All cacheable targets are already cached")
+    }
 }

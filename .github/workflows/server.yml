@@ -29,6 +29,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
+  MISE_VERSION: "2026.4.18"
+  MISE_GITHUB_TOKEN: ${{ github.token }}
   MIX_ENV: test
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   PNPM_HOME: ~/.pnpm
@@ -50,8 +52,9 @@ jobs:
       - uses: namespacelabs/nscloud-cache-action@v1
         with:
           cache: mise
-      - uses: jdx/mise-action@v3.2.0
+      - uses: jdx/mise-action@v4.0.1
         with:
+          version: ${{ env.MISE_VERSION }}
           install_args: "erlang elixir"
           cache: "false"
           working_directory: server
@@ -178,8 +181,9 @@ jobs:
       - uses: namespacelabs/nscloud-cache-action@v1
         with:
           cache: mise
-      - uses: jdx/mise-action@v3.2.0
+      - uses: jdx/mise-action@v4.0.1
         with:
+          version: ${{ env.MISE_VERSION }}
           install_args: "erlang elixir github:ClickHouse/ClickHouse"
           cache: "false"
           working_directory: server
@@ -195,9 +199,9 @@ jobs:
       - name: Install dependencies
         run: mix deps.get
       - name: Start ClickHouse
-        run: mise run --no-prepare clickhouse:start
+        run: mise run --no-deps clickhouse:start
       - name: Setup database
-        run: mise run --no-prepare db:reset
+        run: mise run --no-deps db:reset
       - name: Run tests
         run: mix test --warnings-as-errors
   credo:
@@ -210,8 +214,9 @@ jobs:
       - uses: namespacelabs/nscloud-cache-action@v1
         with:
           cache: mise
-      - uses: jdx/mise-action@v3.2.0
+      - uses: jdx/mise-action@v4.0.1
         with:
+          version: ${{ env.MISE_VERSION }}
           install_args: "erlang elixir"
           cache: "false"
           working_directory: server
@@ -237,8 +242,9 @@ jobs:
       - uses: namespacelabs/nscloud-cache-action@v1
         with:
           cache: mise
-      - uses: jdx/mise-action@v3.2.0
+      - uses: jdx/mise-action@v4.0.1
         with:
+          version: ${{ env.MISE_VERSION }}
           install_args: "erlang elixir node pnpm npm:prettier"
           cache: "false"
           working_directory: server
@@ -260,7 +266,7 @@ jobs:
       - name: Install dependencies
         run: mix deps.get && pnpm install --ignore-workspace
       - name: Check format
-        run: mise run --no-prepare format --check
+        run: mise run --no-deps format --check
   esbuild:
     name: esbuild
     runs-on: namespace-profile-default-with-volume
@@ -271,8 +277,9 @@ jobs:
       - uses: namespacelabs/nscloud-cache-action@v1
         with:
           cache: mise
-      - uses: jdx/mise-action@v3.2.0
+      - uses: jdx/mise-action@v4.0.1
         with:
+          version: ${{ env.MISE_VERSION }}
           install_args: "erlang elixir node pnpm"
           cache: "false"
           working_directory: server
@@ -327,8 +334,9 @@ jobs:
       - uses: namespacelabs/nscloud-cache-action@v1
         with:
           cache: mise
-      - uses: jdx/mise-action@v3.2.0
+      - uses: jdx/mise-action@v4.0.1
         with:
+          version: ${{ env.MISE_VERSION }}
           install_args: "erlang elixir"
           cache: "false"
           working_directory: server
@@ -376,6 +384,7 @@ jobs:
             TUIST_HOSTED=0
             TUIST_VERSION=1.24.11.11
             MIX_ENV=prod
+            APT_CACHE_BUST=${{ github.sha }}
       - name: Install Trivy
         env:
           TRIVY_VERSION: "0.69.3"
@@ -408,7 +417,7 @@ jobs:
   #     - uses: namespacelabs/nscloud-cache-action@v1
   #       with:
   #         cache: mise
-  #     - uses: jdx/mise-action@v3.2.0
+  #     - uses: jdx/mise-action@v4.0.1
   #       with:
   #         cache: "false"
   #     - run: mise run install
@@ -451,8 +460,9 @@ jobs:
       - uses: namespacelabs/nscloud-cache-action@v1
         with:
           cache: mise
-      - uses: jdx/mise-action@v3.2.0
+      - uses: jdx/mise-action@v4.0.1
         with:
+          version: ${{ env.MISE_VERSION }}
           install_args: "erlang elixir github:ClickHouse/ClickHouse"
           cache: "false"
           working_directory: server
@@ -468,9 +478,9 @@ jobs:
       - name: Install dependencies
         run: mix deps.get
       - name: Start ClickHouse
-        run: mise run --no-prepare clickhouse:start
+        run: mise run --no-deps clickhouse:start
       - name: Setup database
-        run: mise run --no-prepare db:reset
+        run: mise run --no-deps db:reset
       - name: Run migrations
         run: mix ecto.migrate
       - name: Seed the database

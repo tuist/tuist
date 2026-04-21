@@ -1,5 +1,10 @@
 <!DOCTYPE html>
-<html lang={Gettext.get_locale(TuistWeb.Gettext)} class="[scrollbar-gutter:stable]">
+<html
+  lang={Gettext.get_locale(TuistWeb.Gettext)}
+  class="[scrollbar-gutter:stable]"
+  data-theme="light"
+  style="color-scheme: light"
+>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
@@ -166,9 +171,37 @@
           size="small"
           href={~p"/docs/login?#{%{return_to: @current_path}}"}
         />
+        <.account_dropdown
+          :if={not is_nil(assigns[:current_user])}
+          id="docs-account-dropdown"
+          current_user={@current_user}
+          log_out_return_to={@current_path}
+          primary_action="dashboard"
+          show_theme_switcher={false}
+        />
       </div>
       <div data-part="mobile-actions">
-        <.neutral_button size="large" aria-label={dgettext("docs", "Search")}>
+        <.button
+          :if={is_nil(assigns[:current_user])}
+          label={dgettext("docs", "Log in")}
+          variant="primary"
+          size="small"
+          href={~p"/docs/login?#{%{return_to: @current_path}}"}
+        />
+        <.account_dropdown
+          :if={not is_nil(assigns[:current_user])}
+          id="docs-mobile-account-dropdown"
+          avatar_size="small"
+          current_user={@current_user}
+          log_out_return_to={@current_path}
+          primary_action="dashboard"
+          show_theme_switcher={false}
+        />
+        <.neutral_button
+          id="docs-nav-mobile-search"
+          size="large"
+          aria-label={dgettext("docs", "Search")}
+        >
           <.icon name="search" />
         </.neutral_button>
         <.neutral_button

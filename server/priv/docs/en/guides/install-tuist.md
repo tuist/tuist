@@ -53,3 +53,6 @@ brew install --formula tuist@x.y.z
 > curl -fsSL "https://docs.tuist.dev/verify.sh" | bash
 > ```
 
+## HTTP proxy {#http-proxy}
+
+If your network routes outbound traffic through an HTTP proxy, see the <.localized_link href="/guides/integrations/http-proxy">HTTP proxy guide</.localized_link>.

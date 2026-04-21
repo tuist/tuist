@@ -113,7 +113,7 @@ jobs:
   test:
     name: "Shard #${{ matrix.shard }}"
     needs: build
-    if: fromJson(needs.build.outputs.matrix).shard[0] != null
+    if: toJSON(fromJSON(needs.build.outputs.matrix).shard) != '[]'
     runs-on: macos-latest
     strategy:
       fail-fast: false
@@ -478,7 +478,7 @@ jobs:
   test:
     name: "Shard #${{ matrix.shard }}"
     needs: build
-    if: fromJson(needs.build.outputs.matrix).shard[0] != null
+    if: toJSON(fromJSON(needs.build.outputs.matrix).shard) != '[]'
     runs-on: namespace-profile-default-macos
     strategy:
       fail-fast: false

@@ -1,15 +1,5 @@
 {
-  users.users.root.openssh.authorizedKeys.keys = [
-    "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIL/I+/2QT47raegzMIyhwMEPKarJP/+Ox9ewA4ZFJwk/ cschmatzler@tahani"
-  ];
-
-  users.users.cschmatzler = {
-    isNormalUser = true;
-    extraGroups = ["wheel" "docker"];
-    openssh.authorizedKeys.keys = [
-      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIL/I+/2QT47raegzMIyhwMEPKarJP/+Ox9ewA4ZFJwk/ cschmatzler@tahani"
-    ];
-  };
+  users.users.root.openssh.authorizedKeys.keys = [];
 
   users.users.mfort = {
     isNormalUser = true;
@@ -31,7 +21,7 @@
     isNormalUser = true;
     extraGroups = ["docker"];
     openssh.authorizedKeys.keys = [
-      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAII0j+FOf7IUXTuH8oMXRCxsnqhvAek+HT7gSF8mRIf5q github-actions@github"
+      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINgLDEi6wrjfrynGCNo0vzhVtZupjHkso5O0Uh4ke+At github-actions@cache-ci"
     ];
   };
 

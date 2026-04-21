@@ -124,13 +124,10 @@ Tuist Server is an Elixir/Phoenix web application that extends the functionality
 
 **Setup Commands:**
 ```bash
-mise install                    # Install system dependencies
 brew install postgresql@16      # Make sure `postgresql@16` is installed locally via Homebrew
 brew services start postgresql@16
 mise run clickhouse:start      # Start ClickHouse
-mise run db:create             # Create database
-mise run db:load               # Load database schema
-mise run db:seed               # Seed with development data
+mise install                   # Install dependencies and bootstrap the local development database
 mise run dev                   # Start development server
 ```
 
@@ -248,7 +245,7 @@ The application deploys to Render with different environments:
 ## Important Notes
 
 - Always run `mix ecto.migrate` after pulling database migrations
-- Use `mise run install` after pulling dependency changes
+- Use `mise run install` after pulling dependency changes or when bootstrapping a fresh worktree
 - Local development connects to `http://localhost:8080` for Tuist CLI integration
 
 # Tuist Handbook

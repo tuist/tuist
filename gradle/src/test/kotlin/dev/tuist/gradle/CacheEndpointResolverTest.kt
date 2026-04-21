@@ -66,8 +66,10 @@ class CacheEndpointResolverTest {
         val fastServer = MockWebServer()
         val slowServer = MockWebServer()
         fastServer.enqueue(MockResponse().setBody("ok"))
-        // Use a large delay to ensure deterministic ordering despite thread scheduling variance
-        slowServer.enqueue(MockResponse().setBody("ok").setBodyDelay(3, TimeUnit.SECONDS))
+        // measureLatency times how long execute() takes, which returns as soon as
+        // response headers arrive — setBodyDelay only delays the body and leaves
+        // headers instant, so we delay headers to make the ordering deterministic.
+        slowServer.enqueue(MockResponse().setBody("ok").setHeadersDelay(3, TimeUnit.SECONDS))
         fastServer.start()
         slowServer.start()
 
@@ -104,8 +106,16 @@ class CacheEndpointResolverTest {
 
         val envProvider: (String) -> String? = { null }
 
-        CacheEndpointResolver.resolve(serverURL, accountHandle, stubTokenProvider, envProvider, countingService)
-        CacheEndpointResolver.resolve(serverURL, accountHandle, stubTokenProvider, envProvider, countingService)
+        CacheEndpointResolver.resolve(
+            serverURL, accountHandle, stubTokenProvider,
+            envProvider = envProvider,
+            getCacheEndpointsService = countingService
+        )
+        CacheEndpointResolver.resolve(
+            serverURL, accountHandle, stubTokenProvider,
+            envProvider = envProvider,
+            getCacheEndpointsService = countingService
+        )
 
         assertEquals(2, callCount)
     }

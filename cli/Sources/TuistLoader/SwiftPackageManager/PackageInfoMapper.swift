@@ -75,8 +75,29 @@ enum PackageInfoMapperError: LocalizedError, Equatable {
 }
 
 public enum PackageType {
+    public enum ExternalOrigin {
+        case local
+        case remote
+    }
+
     case local
-    case external(artifactPaths: [String: AbsolutePath])
+    case external(origin: ExternalOrigin = .remote, artifactPaths: [String: AbsolutePath])
+
+    fileprivate var includesTestTargets: Bool {
+        switch self {
+        case .local, .external(origin: .local, artifactPaths: _):
+            return true
+        case .external:
+            return false
+        }
+    }
+
+    fileprivate var isLocalExternal: Bool {
+        if case .external(origin: .local, artifactPaths: _) = self {
+            return true
+        }
+        return false
+    }
 }
 
 // MARK: - PackageInfo Mapper
@@ -416,11 +437,35 @@ public struct PackageInfoMapper: PackageInfoMapping {
         guard products.count == 1,
               let singleProduct = products.first,
               singleProduct.targets.count == 1,
-              singleProduct.targets.first == targetName,
-              singleProduct.name != targetName,
-              targetName.hasPrefix(singleProduct.name)
+              singleProduct.targets.first == targetName
         else { return targetName }
 
+        let productName = singleProduct.name
+        let wrapsProductFramework = wrapsProductNamedFramework(
+            targetName: targetName, productName: productName, packageTargets: packageTargets
+        )
+
+        if targetName == productName {
+            // Wrapper target already shares its name with the product (e.g. Singular 12.10.1's `Singular` target
+            // wrapping `SingularBinary` at `Singular.xcframework`). Suffix the product name so Xcode doesn't emit
+            // the same `.framework` from both the wrapper target and `ProcessXCFramework`. Users importing the
+            // product name still resolve to the xcframework's module.
+            return wrapsProductFramework ? "\(targetName)Wrapper" : targetName
+        }
+
+        // Target name differs from the product. SwiftPM hoists the product name onto single-target wrappers whose
+        // name has the product as a prefix (e.g. `FirebaseCrashlyticsTarget` becomes `FirebaseCrashlytics`). Skip
+        // the hoist when the rename would collide with a sibling target or the framework a wrapped binary already
+        // emits.
+        guard targetName.hasPrefix(productName) else { return targetName }
+        return wrapsProductFramework ? targetName : productName
+    }
+
+    private static func wrapsProductNamedFramework(
+        targetName: String,
+        productName: String,
+        packageTargets: [PackageInfo.Target]
+    ) -> Bool {
         let targetsByName = Dictionary(uniqueKeysWithValues: packageTargets.map { ($0.name, $0) })
         var visited = Set<String>()
         var queue = [targetName]
@@ -432,34 +477,56 @@ public struct PackageInfoMapper: PackageInfoMapping {
 
             for dependency in currentTarget.dependencies {
                 let dependencyName: String
+                let isSamePackageDependency: Bool
                 switch dependency {
-                case let .target(name, _), let .byName(name, _), let .product(name, _, _, _):
+                case let .target(name, _), let .byName(name, _):
                     dependencyName = name
+                    isSamePackageDependency = true
+                case let .product(name, _, _, _):
+                    dependencyName = name
+                    isSamePackageDependency = false
                 }
 
-                if dependencyName == singleProduct.name {
-                    return targetName
+                // A same-package target already uses the product name, so renaming would collide.
+                // Skip .product deps since those reference external packages and won't collide.
+                if isSamePackageDependency, dependencyName == productName {
+                    return true
                 }
 
                 if let depTarget = targetsByName[dependencyName] {
-                    if depTarget.type == .binary {
-                        // Remote binary targets don't expose a local xcframework path here, so we also fall back to
-                        // the binary target name to avoid renaming the wrapper target to a product name that Xcode
-                        // will already emit from ProcessXCFramework.
-                        let matchesProductNameInPath =
-                            depTarget.path.flatMap { try? RelativePath(validating: $0).basenameWithoutExt } == singleProduct.name
-                        let matchesProductNameInTargetName =
-                            depTarget.name == singleProduct.name || depTarget.name.hasPrefix(singleProduct.name)
-                        if matchesProductNameInPath || matchesProductNameInTargetName {
-                            return targetName
-                        }
+                    if depTarget.type == .binary, binaryTargetEmitsProductFramework(
+                        depTarget, productName: productName
+                    ) {
+                        return true
                     }
                     queue.append(dependencyName)
                 }
             }
         }
 
-        return singleProduct.name
+        return false
+    }
+
+    private static func binaryTargetEmitsProductFramework(
+        _ target: PackageInfo.Target,
+        productName: String
+    ) -> Bool {
+        // Prefer a local xcframework path when available since its basename is what Xcode emits verbatim.
+        if let path = target.path,
+           let basename = try? RelativePath(validating: path).basenameWithoutExt,
+           basename == productName
+        {
+            return true
+        }
+
+        // Remote binary targets don't expose a local path, so match on the target name. Some SDKs (e.g.
+        // firebase-ios-sdk-xcframeworks) mark binary targets internal with a leading underscore while the shipped
+        // xcframework still uses the unprefixed product name, so strip leading underscores before comparing.
+        let strippedName = String(target.name.drop(while: { $0 == "_" }))
+        return target.name == productName
+            || target.name.hasPrefix(productName)
+            || strippedName == productName
+            || strippedName.hasPrefix(productName)
     }
 
     // swiftlint:disable:next function_body_length
@@ -483,9 +550,12 @@ public struct PackageInfoMapper: PackageInfoMapping {
         // Ignores or passes a target based on the `type` and the `packageType`.
         // After that, it assumes that no target is ignored.
         switch target.type {
-        case .regular, .system, .macro:
+        case .test where !packageType.includesTestTargets:
+            Logger.current.debug("Target \(target.name) of type \(target.type) ignored")
+            return nil
+        case .regular, .system, .macro, .test:
             break
-        case .test, .executable:
+        case .executable:
             switch packageType {
             case .external:
                 Logger.current.debug("Target \(target.name) of type \(target.type) ignored")
@@ -531,7 +601,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
             }
 
             moduleMap = ModuleMap.custom(moduleMapPath, umbrellaHeaderPath: nil)
-        case .regular:
+        case .regular, .test:
             let effectiveName = PackageInfoMapper.effectiveModuleName(
                 targetName: target.name, products: products, packageTargets: packageInfo.targets
             )
@@ -692,6 +762,11 @@ public struct PackageInfoMapper: PackageInfoMapping {
             enabledTraits: enabledTraits
         )
 
+        var metadataTags: [String] = []
+        if target.type == .test, packageType.isLocalExternal {
+            metadataTags.append(TargetTags.localSwiftPackageTest)
+        }
+
         return .target(
             name: sanitizedTargetName,
             destinations: destinations,
@@ -705,7 +780,8 @@ public struct PackageInfoMapper: PackageInfoMapping {
             buildableFolders: [],
             headers: headers,
             dependencies: dependencies,
-            settings: settings
+            settings: settings,
+            metadata: .metadata(tags: metadataTags)
         )
     }
 
@@ -747,7 +823,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
         }
 
         if let target = packageInfo.targets.first(where: { $0.name == name }) {
-            if target.type == .binary, case let .external(artifactPaths: artifactPaths) = packageType,
+            if target.type == .binary, case let .external(origin: _, artifactPaths: artifactPaths) = packageType,
                let artifactPath = artifactPaths[target.name]
             {
                 return .xcframework(
