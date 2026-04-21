@@ -25,6 +25,10 @@ defaults:
   run:
     working-directory: search
 
+env:
+  MISE_VERSION: "2026.4.18"
+  MISE_GITHUB_TOKEN: ${{ github.token }}
+
 jobs:
   build:
     name: Build and health check
@@ -33,8 +37,9 @@ jobs:
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v3.2.0
+      - uses: jdx/mise-action@v4.0.1
         with:
+          version: ${{ env.MISE_VERSION }}
           cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
           working_directory: search
       - name: Build and verify health
