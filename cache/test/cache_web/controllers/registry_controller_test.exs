@@ -14,6 +14,7 @@ defmodule CacheWeb.RegistryControllerTest do
     stub(Cache.Config, :registry_github_token, fn -> "test-token" end)
     stub(Cache.Config, :registry_bucket, fn -> "test-bucket" end)
     stub(Cache.Config, :registry_enabled?, fn -> true end)
+    stub(Cache.Config, :analytics_enabled?, fn -> false end)
     stub(CacheArtifacts, :track_artifact_access, fn _key -> :ok end)
     :ok
   end
@@ -125,7 +126,9 @@ defmodule CacheWeb.RegistryControllerTest do
     test "returns 404 when package is missing", %{conn: conn} do
       url = "https://github.com/apple/swift-argument-parser"
 
-      expect(Metadata, :get_package, fn "apple", "swift-argument-parser" -> {:error, :not_found} end)
+      expect(Metadata, :get_package, fn "apple", "swift-argument-parser" ->
+        {:error, :not_found}
+      end)
 
       conn =
         conn
@@ -642,7 +645,9 @@ defmodule CacheWeb.RegistryControllerTest do
       name = "swift-argument-parser"
       version = "1.0.0"
 
-      expect(Registry.Disk, :exists?, fn ^scope, ^name, ^version, "source_archive.zip" -> false end)
+      expect(Registry.Disk, :exists?, fn ^scope, ^name, ^version, "source_archive.zip" ->
+        false
+      end)
 
       expect(S3, :exists?, fn _key, _opts -> true end)
 
@@ -670,7 +675,9 @@ defmodule CacheWeb.RegistryControllerTest do
       name = "swift-argument-parser"
       version = "1.0.0"
 
-      expect(Registry.Disk, :exists?, fn ^scope, ^name, ^version, "source_archive.zip" -> false end)
+      expect(Registry.Disk, :exists?, fn ^scope, ^name, ^version, "source_archive.zip" ->
+        false
+      end)
 
       expect(S3, :exists?, fn _key, _opts -> true end)
 
@@ -692,7 +699,9 @@ defmodule CacheWeb.RegistryControllerTest do
       name = "swift-argument-parser"
       version = "1.0.0"
 
-      expect(Registry.Disk, :exists?, fn ^scope, ^name, ^version, "source_archive.zip" -> false end)
+      expect(Registry.Disk, :exists?, fn ^scope, ^name, ^version, "source_archive.zip" ->
+        false
+      end)
 
       expect(S3, :exists?, fn _key, _opts -> false end)
 
@@ -718,6 +727,8 @@ defmodule CacheWeb.RegistryControllerTest do
         "/internal/local/registry/swift/apple/swift-argument-parser/1.0.0/source_archive.zip"
       end)
 
+      reject(CacheArtifacts, :track_artifact_access, 1)
+
       conn =
         conn
         |> registry_zip_conn()
@@ -739,11 +750,11 @@ defmodule CacheWeb.RegistryControllerTest do
       name = "swift-argument-parser"
       version = "1.0.0"
 
-      expect(Registry.Disk, :exists?, fn ^scope, ^name, ^version, "source_archive.zip" -> false end)
+      expect(Registry.Disk, :exists?, fn ^scope, ^name, ^version, "source_archive.zip" ->
+        false
+      end)
 
       expect(S3, :exists?, fn _key, _opts -> true end)
-
-      expect(S3Transfers, :enqueue_registry_download, fn _key -> {:ok, %{}} end)
 
       expect(S3, :presign_download_url, fn _key, _opts ->
         {:ok, "https://s3.example.com/registry/swift/apple/swift-argument-parser/1.0.0/source_archive.zip?signed=true"}
@@ -752,6 +763,9 @@ defmodule CacheWeb.RegistryControllerTest do
       expect(S3, :remote_accel_path, fn _url ->
         "/internal/remote/https://s3.example.com/registry/swift/apple/swift-argument-parser/1.0.0/source_archive.zip?signed=true"
       end)
+
+      reject(S3Transfers, :enqueue_registry_download, 1)
+      reject(CacheArtifacts, :track_artifact_access, 1)
 
       conn =
         conn
@@ -768,11 +782,14 @@ defmodule CacheWeb.RegistryControllerTest do
       name = "swift-argument-parser"
       version = "1.0.0"
 
-      expect(Registry.Disk, :exists?, fn ^scope, ^name, ^version, "source_archive.zip" -> false end)
+      expect(Registry.Disk, :exists?, fn ^scope, ^name, ^version, "source_archive.zip" ->
+        false
+      end)
 
       expect(S3, :exists?, fn _key, _opts -> true end)
 
-      expect(S3Transfers, :enqueue_registry_download, fn _key -> {:ok, %{}} end)
+      reject(S3Transfers, :enqueue_registry_download, 1)
+      reject(CacheArtifacts, :track_artifact_access, 1)
 
       expect(S3, :presign_download_url, fn _key, _opts -> {:error, :not_found} end)
 
@@ -791,7 +808,9 @@ defmodule CacheWeb.RegistryControllerTest do
       name = "swift-argument-parser"
       version = "1.0.0"
 
-      expect(Registry.Disk, :exists?, fn ^scope, ^name, ^version, "source_archive.zip" -> false end)
+      expect(Registry.Disk, :exists?, fn ^scope, ^name, ^version, "source_archive.zip" ->
+        false
+      end)
 
       expect(S3, :exists?, fn _key, _opts -> false end)
 
@@ -869,7 +888,9 @@ defmodule CacheWeb.RegistryControllerTest do
       name = "swift-argument-parser"
       version = "1.0.0"
 
-      expect(Registry.Disk, :exists?, fn ^scope, ^name, ^version, "Package@swift-5.8.swift" -> false end)
+      expect(Registry.Disk, :exists?, fn ^scope, ^name, ^version, "Package@swift-5.8.swift" ->
+        false
+      end)
 
       expect(S3, :exists?, fn _key, _opts -> false end)
 
@@ -974,6 +995,8 @@ defmodule CacheWeb.RegistryControllerTest do
 
       expect(Metadata, :get_package, fn ^scope, ^name -> {:ok, metadata} end)
 
+      reject(CacheArtifacts, :track_artifact_access, 1)
+
       conn =
         conn
         |> registry_swift_conn()
@@ -1029,7 +1052,8 @@ defmodule CacheWeb.RegistryControllerTest do
 
       expect(Metadata, :get_package, fn ^scope, ^name -> {:error, :not_found} end)
 
-      expect(S3Transfers, :enqueue_registry_download, fn _key -> {:ok, %{}} end)
+      reject(S3Transfers, :enqueue_registry_download, 1)
+      reject(CacheArtifacts, :track_artifact_access, 1)
 
       expect(S3, :presign_download_url, fn _key, _opts ->
         {:ok, "https://s3.example.com/registry/swift/apple/swift-argument-parser/1.0.0/Package.swift?signed=true"}
