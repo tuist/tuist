@@ -35,6 +35,7 @@ concurrency:
 
 env:
   MISE_VERSION: "2026.4.18"
+  MISE_GITHUB_TOKEN: ${{ github.token }}
 
 jobs:
   resolve:
