@@ -1,7 +1,17 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in gradle@0.9.1<!-- RELEASE NOTES START -->
+## What's Changed in gradle@0.9.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* stop capturing OkHttpClient in Test task actions by [@pepicrft](https://github.com/pepicrft) in [#10304](https://github.com/tuist/tuist/pull/10304)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/gradle@0.9.1...gradle@0.9.2
+
+## What's Changed in gradle@0.9.1
 
 ### 🐛 Bug Fixes
 
