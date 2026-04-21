@@ -37,7 +37,9 @@ extension XcodeGraph.Project {
         case .local: .local
         case .external: .remote
         }
-        let filesGroup: XcodeGraph.ProjectGroup = .group(name: manifest.groupName ?? "Project")
+
+        // Use custom groupPath from manifest if provided, otherwise default to "Project"
+        let filesGroup: XcodeGraph.ProjectGroup = .group(name: manifest.groupPath ?? "Project")
 
         let maxConcurrentTasks = Environment.current.isSwiftFileSystemBackendEnabled ? Int.max : 20
         let targets = try await manifest.targets.concurrentMap(maxConcurrentTasks: maxConcurrentTasks) {
@@ -47,8 +49,7 @@ extension XcodeGraph.Project {
                 externalDependencies: externalDependencies,
                 fileSystem: fileSystem,
                 contentHasher: contentHasher,
-                type: targetType,
-                filesGroup: filesGroup
+                type: targetType
             )
         }
 

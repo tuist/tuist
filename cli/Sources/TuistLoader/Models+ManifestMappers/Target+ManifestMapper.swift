@@ -34,8 +34,7 @@ extension XcodeGraph.Target {
         externalDependencies: [String: [XcodeGraph.TargetDependency]],
         fileSystem: FileSysteming,
         contentHasher: ContentHashing,
-        type: TargetType,
-        filesGroup: XcodeGraph.ProjectGroup = .group(name: "Project")
+        type: TargetType
     ) async throws -> XcodeGraph.Target {
         let name = manifest.name
         let destinations = try XcodeGraph.Destination.from(destinations: manifest.destinations)
@@ -173,7 +172,7 @@ extension XcodeGraph.Target {
             scripts: scripts,
             environmentVariables: environmentVariables,
             launchArguments: launchArguments,
-            filesGroup: filesGroup,
+            filesGroup: .group(name: "Project"),
             dependencies: dependencies,
             playgrounds: playgrounds,
             additionalFiles: additionalFiles,
