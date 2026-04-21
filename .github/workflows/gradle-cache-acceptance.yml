@@ -96,7 +96,7 @@ jobs:
         run: mix compile
       - name: Start ClickHouse
         working-directory: server
-        run: mise run --no-prepare clickhouse:start
+        run: mise run --no-deps clickhouse:start
       - name: Setup main server
         working-directory: server
         run: |
@@ -146,4 +146,4 @@ jobs:
       - name: Run Gradle cache acceptance test
         env:
           SERVER_URL: ${{ env.TUIST_SERVER_URL }}
-        run: mise run --no-prepare e2e gradle_cache
+        run: mise run --no-deps e2e gradle_cache

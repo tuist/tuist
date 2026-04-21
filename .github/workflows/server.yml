@@ -195,9 +195,9 @@ jobs:
       - name: Install dependencies
         run: mix deps.get
       - name: Start ClickHouse
-        run: mise run --no-prepare clickhouse:start
+        run: mise run --no-deps clickhouse:start
       - name: Setup database
-        run: mise run --no-prepare db:reset
+        run: mise run --no-deps db:reset
       - name: Run tests
         run: mix test --warnings-as-errors
   credo:
@@ -260,7 +260,7 @@ jobs:
       - name: Install dependencies
         run: mix deps.get && pnpm install --ignore-workspace
       - name: Check format
-        run: mise run --no-prepare format --check
+        run: mise run --no-deps format --check
   esbuild:
     name: esbuild
     runs-on: namespace-profile-default-with-volume
@@ -469,9 +469,9 @@ jobs:
       - name: Install dependencies
         run: mix deps.get
       - name: Start ClickHouse
-        run: mise run --no-prepare clickhouse:start
+        run: mise run --no-deps clickhouse:start
       - name: Setup database
-        run: mise run --no-prepare db:reset
+        run: mise run --no-deps db:reset
       - name: Run migrations
         run: mix ecto.migrate
       - name: Seed the database

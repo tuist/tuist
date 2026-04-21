@@ -604,7 +604,7 @@ jobs:
       - name: Initialize TuistCacheEE submodule
         env:
           TUIST_GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
-        run: mise run --no-prepare cli:ee
+        run: mise run --no-deps cli:ee
       - name: Get release notes
         id: release-notes
         working-directory: cli
@@ -624,7 +624,7 @@ jobs:
         run: git cliff --include-path "cli/**/*" --include-path ".xcode-version-releases" --include-path "Package.swift" --include-path "Package.resolved" --config cliff.toml --repository "../" --bump -o CHANGELOG.md 2>/dev/null
 
       - name: Bundle CLI
-        run: mise run --no-prepare cli:bundle
+        run: mise run --no-deps cli:bundle
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
 
@@ -786,7 +786,7 @@ jobs:
           fi
 
       - name: Bundle macOS app
-        run: mise run --no-prepare app:bundle
+        run: mise run --no-deps app:bundle
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
 
@@ -853,7 +853,7 @@ jobs:
       - name: Generate TuistApp
         run: tuist generate TuistApp --no-binary-cache
       - name: Upload iOS App to App Store Connect
-        run: mise run --no-prepare app:upload-ios
+        run: mise run --no-deps app:upload-ios
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
 
@@ -1683,13 +1683,13 @@ jobs:
         if: needs.check-releases.outputs.cli-should-release == 'true' && needs.release-cli.result == 'success'
         run: |
           SHA256=$(cat build/SHASUMS256.txt | grep tuist.zip | awk '{print $1}')
-          mise run --no-prepare cli:release:homebrew-formula --version "${{ needs.check-releases.outputs.cli-next-version }}" --github-token "${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}" --sha256 "$SHA256"
+          mise run --no-deps cli:release:homebrew-formula --version "${{ needs.check-releases.outputs.cli-next-version }}" --github-token "${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}" --sha256 "$SHA256"
 
       - name: Trigger Homebrew Cask Update
         if: needs.check-releases.outputs.app-should-release == 'true' && needs.release-app.result == 'success'
         run: |
           SHA256=$(cat app/build/artifacts/SHASUMS256.txt | grep Tuist.dmg | awk '{print $1}')
-          mise run --no-prepare app:release:homebrew-cask --version "${{ needs.check-releases.outputs.app-next-version-number }}" --github-token "${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}" --sha256 "$SHA256"
+          mise run --no-deps app:release:homebrew-cask --version "${{ needs.check-releases.outputs.app-next-version-number }}" --github-token "${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}" --sha256 "$SHA256"
 
       - name: Commit all changes and push
         run: |
