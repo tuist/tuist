@@ -149,6 +149,51 @@ defmodule Tuist.Builds.AnalyticsTest do
                %{value: 1500.0, category: "14.0.0"}
              ]
     end
+
+    test "filters by is_ci" do
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 2000,
+        xcode_version: "15.0.0",
+        is_ci: true,
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 1000,
+        xcode_version: "15.0.0",
+        is_ci: false,
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 3000,
+        xcode_version: "14.3.1",
+        is_ci: false,
+        inserted_at: ~U[2024-04-29 10:00:00Z]
+      )
+
+      got =
+        Analytics.build_duration_analytics_by_category(
+          project.id,
+          :xcode_version,
+          start_datetime: DateTime.add(DateTime.utc_now(), -30, :day),
+          is_ci: false
+        )
+
+      assert Enum.sort_by(got, & &1.category) == [
+               %{value: 3000.0, category: "14.3.1"},
+               %{value: 1000.0, category: "15.0.0"}
+             ]
+    end
   end
 
   describe "build_duration_analytics/2" do

@@ -27,7 +27,8 @@ defmodule Tuist.Builds.Build do
       :is_ci,
       :ci_provider,
       :cacheable_tasks_count,
-      :custom_tags
+      :custom_tags,
+      :inserted_at
     ],
     sortable: [:inserted_at, :duration]
   }
