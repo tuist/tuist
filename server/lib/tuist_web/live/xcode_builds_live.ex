@@ -351,12 +351,18 @@ defmodule TuistWeb.XcodeBuildsLive do
   end
 
   defp recent_builds_filters(filters, assigns) do
+    {start_datetime, end_datetime} = assigns.analytics_period
+
     filters
     |> maybe_add_filter(:is_ci, assigns.analytics_environment)
     |> maybe_add_filter(:scheme, assigns.analytics_build_scheme)
     |> maybe_add_filter(:configuration, assigns.analytics_build_configuration)
     |> maybe_add_filter(:category, assigns.analytics_build_category)
     |> maybe_add_tag_filter(assigns.analytics_build_tag)
+    |> Kernel.++([
+      %{field: :inserted_at, op: :>=, value: start_datetime},
+      %{field: :inserted_at, op: :<=, value: end_datetime}
+    ])
   end
 
   defp maybe_add_filter(filters, :is_ci, "ci"), do: [%{field: :is_ci, op: :==, value: true} | filters]

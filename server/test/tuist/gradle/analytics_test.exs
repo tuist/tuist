@@ -334,6 +334,51 @@ defmodule Tuist.Gradle.AnalyticsTest do
     end
   end
 
+  describe "build_duration_analytics_by_category/3" do
+    test "filters by is_ci", %{start_datetime: start_datetime, now: now} do
+      project = ProjectsFixtures.project_fixture()
+      inserted_at = NaiveDateTime.new!(Date.add(Date.utc_today(), -1), ~T[10:00:00])
+
+      GradleFixtures.build_fixture(
+        project_id: project.id,
+        duration_ms: 2000,
+        gradle_version: "8.5",
+        is_ci: true,
+        inserted_at: inserted_at
+      )
+
+      GradleFixtures.build_fixture(
+        project_id: project.id,
+        duration_ms: 1000,
+        gradle_version: "8.5",
+        is_ci: false,
+        inserted_at: inserted_at
+      )
+
+      GradleFixtures.build_fixture(
+        project_id: project.id,
+        duration_ms: 3000,
+        gradle_version: "8.4",
+        is_ci: false,
+        inserted_at: inserted_at
+      )
+
+      got =
+        Analytics.build_duration_analytics_by_category(
+          project.id,
+          :gradle_version,
+          start_datetime: start_datetime,
+          is_ci: false
+        )
+
+      assert Enum.sort_by(got, & &1.category) == [
+               %{value: 1000.0, category: "8.5"},
+               %{value: 3000.0, category: "8.4"}
+             ]
+             |> Enum.sort_by(& &1.category)
+    end
+  end
+
   describe "cache_event_analytics/2" do
     test "returns upload and download statistics", %{
       now: now,

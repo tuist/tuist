@@ -11,7 +11,7 @@
         patch={"?#{Query.put(@uri.query, "analytics-environment", "any")}"}
         data-selected={@analytics_environment == "any"}
       >
-        <:right_icon><.check /></:right_icon>
+        <:right_icon :if={@analytics_environment == "any"}><.check /></:right_icon>
       </.dropdown_item>
       <.dropdown_item
         value="local"
@@ -19,7 +19,7 @@
         patch={"?#{Query.put(@uri.query, "analytics-environment", "local")}"}
         data-selected={@analytics_environment == "local"}
       >
-        <:right_icon><.check /></:right_icon>
+        <:right_icon :if={@analytics_environment == "local"}><.check /></:right_icon>
       </.dropdown_item>
       <.dropdown_item
         value="ci"
@@ -27,7 +27,7 @@
         patch={"?#{Query.put(@uri.query, "analytics-environment", "ci")}"}
         data-selected={@analytics_environment == "ci"}
       >
-        <:right_icon><.check /></:right_icon>
+        <:right_icon :if={@analytics_environment == "ci"}><.check /></:right_icon>
       </.dropdown_item>
     </.dropdown>
     <.date_picker
@@ -471,7 +471,7 @@
           patch={"?#{Query.put(@uri.query, "configuration-insights-type", "gradle-version")}"}
           data-selected={@configuration_insights_type == "gradle-version"}
         >
-          <:right_icon><.check /></:right_icon>
+          <:right_icon :if={@configuration_insights_type == "gradle-version"}><.check /></:right_icon>
         </.dropdown_item>
         <.dropdown_item
           value="java-version"
@@ -479,7 +479,7 @@
           patch={"?#{Query.put(@uri.query, "configuration-insights-type", "java-version")}"}
           data-selected={@configuration_insights_type == "java-version"}
         >
-          <:right_icon><.check /></:right_icon>
+          <:right_icon :if={@configuration_insights_type == "java-version"}><.check /></:right_icon>
         </.dropdown_item>
       </.dropdown>
     </:actions>

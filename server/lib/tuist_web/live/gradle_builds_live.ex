@@ -241,7 +241,14 @@ defmodule TuistWeb.GradleBuildsLive do
   def configuration_insights_label(_), do: dgettext("dashboard_gradle", "Gradle version")
 
   defp assign_recent_builds(
-         %{assigns: %{selected_project: project, selected_account: account, analytics_environment: analytics_environment}} =
+         %{
+           assigns: %{
+             selected_project: project,
+             selected_account: account,
+             analytics_environment: analytics_environment,
+             analytics_period: {start_datetime, end_datetime}
+           }
+         } =
            socket
        ) do
     filters =
@@ -250,6 +257,13 @@ defmodule TuistWeb.GradleBuildsLive do
         "local" -> [%{field: :is_ci, op: :==, value: false}]
         _ -> []
       end
+
+    filters =
+      filters ++
+        [
+          %{field: :inserted_at, op: :>=, value: start_datetime},
+          %{field: :inserted_at, op: :<=, value: end_datetime}
+        ]
 
     {builds, _meta} = Gradle.list_builds(project.id, %{page_size: @recent_builds_page_size, filters: filters})
     builds = Repo.preload(builds, :built_by_account)

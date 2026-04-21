@@ -324,10 +324,6 @@
     }
   }
 
-  &:not([data-selected]) > [data-part="right-icon"] {
-    visibility: hidden;
-  }
-
   & [data-part="checkbox"] {
     display: inline-flex;
     flex-shrink: 0;
