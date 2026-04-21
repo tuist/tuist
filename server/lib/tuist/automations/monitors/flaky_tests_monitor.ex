@@ -6,11 +6,11 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
   alias Tuist.Tests.TestCase
   alias Tuist.Tests.TestCaseRun
 
-  def evaluate(alert_rule) do
-    trigger_config = alert_rule.trigger_config
+  def evaluate(alert) do
+    trigger_config = alert.trigger_config
     threshold = trigger_config["threshold"] || 10
     window = parse_window(trigger_config["window"] || "30d")
-    project_id = alert_rule.project_id
+    project_id = alert.project_id
 
     cutoff = DateTime.add(DateTime.utc_now(), -window, :second)
 
@@ -34,7 +34,7 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
         []
       end
 
-    all_test_case_ids = load_all_test_case_ids(project_id, alert_rule.recovery_enabled)
+    all_test_case_ids = load_all_test_case_ids(project_id, alert.recovery_enabled)
 
     %{
       triggered: triggered_test_case_ids,
@@ -42,11 +42,11 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
     }
   end
 
-  def evaluate_by_run_count(alert_rule) do
-    trigger_config = alert_rule.trigger_config
+  def evaluate_by_run_count(alert) do
+    trigger_config = alert.trigger_config
     threshold = trigger_config["threshold"] || 1
     window = parse_window(trigger_config["window"] || "30d")
-    project_id = alert_rule.project_id
+    project_id = alert.project_id
 
     cutoff = DateTime.add(DateTime.utc_now(), -window, :second)
 
@@ -62,7 +62,7 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
         )
       )
 
-    all_test_case_ids = load_all_test_case_ids(project_id, alert_rule.recovery_enabled)
+    all_test_case_ids = load_all_test_case_ids(project_id, alert.recovery_enabled)
 
     %{
       triggered: triggered_test_case_ids,

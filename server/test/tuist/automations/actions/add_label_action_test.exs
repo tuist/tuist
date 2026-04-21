@@ -1,34 +1,52 @@
 defmodule Tuist.Automations.Actions.AddLabelActionTest do
-  use TuistTestSupport.Cases.DataCase, async: true
-  use Mimic
+  # Integration test: goes through Tests.update_test_case down to the DB so
+  # drift in the context contract surfaces here, not in CI.
+  use TuistTestSupport.Cases.DataCase, async: false
 
   alias Tuist.Automations.Actions.AddLabelAction
+  alias Tuist.IngestRepo
   alias Tuist.Tests
+  alias Tuist.Tests.TestCase
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistTestSupport.Fixtures.RunsFixtures
 
   describe "execute/2 with flaky label" do
     test "marks the given test case as flaky" do
-      test_case_id = Ecto.UUID.generate()
-      entity = %{type: :test_case, id: test_case_id}
+      project = ProjectsFixtures.project_fixture()
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_flaky: false)
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
 
-      expect(Tests, :update_test_case, fn ^test_case_id, %{is_flaky: true} ->
-        {:ok, %{is_flaky: true}}
-      end)
+      assert :ok =
+               AddLabelAction.execute(
+                 %{type: :test_case, id: test_case.id},
+                 %{"label" => "flaky"}
+               )
 
-      assert :ok = AddLabelAction.execute(entity, %{"label" => "flaky"})
+      assert {:ok, %{is_flaky: true}} = Tests.get_test_case_by_id(test_case.id)
     end
 
-    test "propagates the error tuple" do
-      entity = %{type: :test_case, id: Ecto.UUID.generate()}
-      expect(Tests, :update_test_case, fn _id, _attrs -> {:error, :not_found} end)
-      assert {:error, :not_found} = AddLabelAction.execute(entity, %{"label" => "flaky"})
+    test "returns :not_found when the test case doesn't exist" do
+      assert {:error, :not_found} =
+               AddLabelAction.execute(
+                 %{type: :test_case, id: Ecto.UUID.generate()},
+                 %{"label" => "flaky"}
+               )
     end
   end
 
   describe "execute/2 with unknown label" do
-    test "no-ops for unsupported labels" do
-      entity = %{type: :test_case, id: Ecto.UUID.generate()}
-      reject(&Tests.update_test_case/2)
-      assert :ok = AddLabelAction.execute(entity, %{"label" => "slow"})
+    test "no-ops for unsupported labels without touching the DB" do
+      project = ProjectsFixtures.project_fixture()
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_flaky: false)
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      assert :ok =
+               AddLabelAction.execute(
+                 %{type: :test_case, id: test_case.id},
+                 %{"label" => "slow"}
+               )
+
+      assert {:ok, %{is_flaky: false}} = Tests.get_test_case_by_id(test_case.id)
     end
   end
 end

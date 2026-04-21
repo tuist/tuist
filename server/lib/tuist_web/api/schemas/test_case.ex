@@ -76,7 +76,8 @@ defmodule TuistWeb.API.Schemas.TestCase do
       state: %Schema{
         type: :string,
         enum: ["enabled", "muted"],
-        description: "The state of the test case."
+        description:
+          "Lifecycle state of the test case. `enabled` means it runs as part of the suite and contributes to pass/fail counts. `muted` (what used to be called \"quarantined\") means it still runs so we keep collecting flakiness signal, but failures no longer fail the build."
       },
       url: %Schema{
         type: :string,

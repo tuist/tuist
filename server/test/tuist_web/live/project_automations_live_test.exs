@@ -21,7 +21,7 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
     end
 
     test "lists existing automations in the table", %{conn: conn, organization: organization, project: project} do
-      automation = AutomationsFixtures.automation_fixture(project: project, name: "My automation")
+      automation = AutomationsFixtures.automation_alert_fixture(project: project, name: "My automation")
 
       {:ok, _lv, html} = open(conn, organization, project)
 
@@ -39,7 +39,7 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
       render_hook(lv, "update_create_automation_form_name", %{"value" => "Auto-quarantine"})
       render_hook(lv, "save_automation", %{})
 
-      assert [automation] = Automations.list_alert_rules(project.id)
+      assert [automation] = Automations.list_alerts(project.id)
       assert automation.name == "Auto-quarantine"
       assert automation.monitor_type == "flakiness_rate"
       assert [%{"type" => "change_state", "state" => "muted"}] = automation.trigger_actions
@@ -57,7 +57,7 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
       render_hook(lv, "update_create_automation_form_type", %{"data" => "flaky_run_count"})
       render_hook(lv, "save_automation", %{})
 
-      assert [automation] = Automations.list_alert_rules(project.id)
+      assert [automation] = Automations.list_alerts(project.id)
       assert automation.monitor_type == "flaky_run_count"
       assert automation.trigger_config["threshold"] == 3
     end
@@ -74,7 +74,7 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
       render_hook(lv, "add_create_automation_form_trigger_action", %{"data" => "add_label_flaky"})
       render_hook(lv, "save_automation", %{})
 
-      assert [automation] = Automations.list_alert_rules(project.id)
+      assert [automation] = Automations.list_alerts(project.id)
 
       assert [
                %{"type" => "change_state", "state" => "muted"},
@@ -94,7 +94,7 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
       render_hook(lv, "delete_create_automation_form_trigger_action", %{"index" => "0"})
       render_hook(lv, "save_automation", %{})
 
-      assert Automations.list_alert_rules(project.id) == []
+      assert Automations.list_alerts(project.id) == []
     end
   end
 
@@ -104,7 +104,7 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
       organization: organization,
       project: project
     } do
-      automation = AutomationsFixtures.automation_fixture(project: project, name: "Original")
+      automation = AutomationsFixtures.automation_alert_fixture(project: project, name: "Original")
 
       {:ok, lv, _html} = open(conn, organization, project)
 
@@ -112,7 +112,7 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
       render_hook(lv, "update_create_automation_form_name", %{"value" => "Renamed"})
       render_hook(lv, "save_automation", %{})
 
-      assert [updated] = Automations.list_alert_rules(project.id)
+      assert [updated] = Automations.list_alerts(project.id)
       assert updated.id == automation.id
       assert updated.name == "Renamed"
     end
@@ -122,10 +122,10 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
       organization: organization,
       project: project
     } do
-      other = AutomationsFixtures.automation_fixture()
+      other = AutomationsFixtures.automation_alert_fixture()
       {:ok, lv, _html} = open(conn, organization, project)
       render_hook(lv, "edit_automation", %{"id" => other.id})
-      assert {:ok, ^other} = Automations.get_alert_rule(other.id)
+      assert {:ok, ^other} = Automations.get_alert(other.id)
     end
   end
 
@@ -135,17 +135,17 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
       organization: organization,
       project: project
     } do
-      automation = AutomationsFixtures.automation_fixture(project: project, enabled: true)
+      automation = AutomationsFixtures.automation_alert_fixture(project: project, enabled: true)
       {:ok, lv, _html} = open(conn, organization, project)
       render_hook(lv, "toggle_automation_enabled", %{"id" => automation.id})
-      assert {:ok, %{enabled: false}} = Automations.get_alert_rule(automation.id)
+      assert {:ok, %{enabled: false}} = Automations.get_alert(automation.id)
     end
 
     test "delete_automation removes the automation", %{conn: conn, organization: organization, project: project} do
-      automation = AutomationsFixtures.automation_fixture(project: project)
+      automation = AutomationsFixtures.automation_alert_fixture(project: project)
       {:ok, lv, _html} = open(conn, organization, project)
       render_hook(lv, "delete_automation", %{"id" => automation.id})
-      assert {:error, :not_found} = Automations.get_alert_rule(automation.id)
+      assert {:error, :not_found} = Automations.get_alert(automation.id)
     end
 
     test "delete_automation does not delete an automation in another project", %{
@@ -153,10 +153,10 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
       organization: organization,
       project: project
     } do
-      other = AutomationsFixtures.automation_fixture()
+      other = AutomationsFixtures.automation_alert_fixture()
       {:ok, lv, _html} = open(conn, organization, project)
       render_hook(lv, "delete_automation", %{"id" => other.id})
-      assert {:ok, ^other} = Automations.get_alert_rule(other.id)
+      assert {:ok, ^other} = Automations.get_alert(other.id)
     end
   end
 end

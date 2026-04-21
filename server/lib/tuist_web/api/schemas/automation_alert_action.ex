@@ -1,14 +1,24 @@
-defmodule TuistWeb.API.Schemas.AlertRuleAction do
+defmodule TuistWeb.API.Schemas.AutomationAlertAction do
   @moduledoc """
-  An action run when an alert rule triggers or recovers.
+  An action run when an automation alert triggers or recovers.
+
+  The JSON shape is a tagged union keyed on `type`; required sibling fields
+  depend on that tag. Only `type` is listed as required at the OpenAPI level
+  because JSON Schema doesn't express conditional requirements cleanly; the
+  server-side changeset on `Tuist.Automations.Alerts.Alert` enforces the
+  per-type contract and returns a 422 with a structured error otherwise.
+
+    * `change_state` — requires `state` (one of `enabled`, `muted`).
+    * `add_label` / `remove_label` — requires `label`.
+    * `send_slack` — requires `channel` and `message`.
   """
   alias OpenApiSpex.Schema
 
   require OpenApiSpex
 
   OpenApiSpex.schema(%{
-    title: "AlertRuleAction",
-    description: "An action run when an alert rule triggers or recovers.",
+    title: "AutomationAlertAction",
+    description: "An action run when an automation alert triggers or recovers.",
     type: :object,
     properties: %{
       type: %Schema{type: :string, enum: ["change_state", "send_slack", "add_label", "remove_label"]},

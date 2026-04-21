@@ -50,18 +50,34 @@ defmodule Tuist.Automations.Actions.SendSlackAction do
     test_case_url = "#{base_url}/#{account_name}/#{project_name}/tests/test-cases/#{test_case.id}"
 
     template
-    |> String.replace("{{test_case.name}}", test_case.name || "")
-    |> String.replace("{{test_case.module_name}}", test_case.module_name || "")
-    |> String.replace("{{test_case.suite_name}}", test_case.suite_name || "")
+    |> String.replace("{{test_case.name}}", escape_mrkdwn(test_case.name))
+    |> String.replace("{{test_case.module_name}}", escape_mrkdwn(test_case.module_name))
+    |> String.replace("{{test_case.suite_name}}", escape_mrkdwn(test_case.suite_name))
     |> String.replace("{{test_case.url}}", test_case_url)
-    |> String.replace("{{automation.name}}", automation.name || "")
+    |> String.replace("{{automation.name}}", escape_mrkdwn(automation.name))
+  end
+
+  # Escape `&`, `<`, `>` per Slack mrkdwn rules so user-controlled test-case
+  # names, module names, and automation names can't break out of the message
+  # envelope or inject <@channel>-style mentions.
+  # https://api.slack.com/reference/surfaces/formatting#escaping
+  defp escape_mrkdwn(nil), do: ""
+
+  defp escape_mrkdwn(value) when is_binary(value) do
+    value
+    |> String.replace("&", "&amp;")
+    |> String.replace("<", "&lt;")
+    |> String.replace(">", "&gt;")
   end
 
   defp build_blocks(automation, message) do
     [
       %{
         type: "header",
-        text: %{type: "plain_text", text: ":robot_face: #{automation.name}"}
+        # Header uses plain_text (Slack renders it literally), so only the
+        # emoji prefix needs to be preserved; automation.name cannot leak
+        # mrkdwn from this block.
+        text: %{type: "plain_text", text: ":robot_face: #{automation.name || ""}"}
       },
       %{
         type: "section",

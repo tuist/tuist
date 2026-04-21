@@ -494,12 +494,12 @@ defmodule TuistWeb.Router do
           end
         end
 
-        scope "/alert_rules" do
-          get "/", AlertRulesController, :index
-          post "/", AlertRulesController, :create
-          get "/:alert_rule_id", AlertRulesController, :show
-          put "/:alert_rule_id", AlertRulesController, :update
-          delete "/:alert_rule_id", AlertRulesController, :delete
+        scope "/automations/alerts" do
+          get "/", Automations.AlertsController, :index
+          post "/", Automations.AlertsController, :create
+          get "/:alert_id", Automations.AlertsController, :show
+          put "/:alert_id", Automations.AlertsController, :update
+          delete "/:alert_id", Automations.AlertsController, :delete
         end
 
         scope "/builds" do

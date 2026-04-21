@@ -1,8 +1,8 @@
-defmodule Tuist.Repo.Migrations.CreateAutomationAlertRules do
+defmodule Tuist.Repo.Migrations.CreateAutomationAlerts do
   use Ecto.Migration
 
   def change do
-    create table(:automation_alert_rules, primary_key: false) do
+    create table(:automation_alerts, primary_key: false) do
       add :id, :uuid, primary_key: true
       add :project_id, references(:projects, on_delete: :delete_all), null: false
       add :name, :string, null: false
@@ -19,6 +19,6 @@ defmodule Tuist.Repo.Migrations.CreateAutomationAlertRules do
     end
 
     # excellent_migrations:safety-assured-for-next-line index_not_concurrently
-    create index(:automation_alert_rules, [:project_id])
+    create index(:automation_alerts, [:project_id])
   end
 end

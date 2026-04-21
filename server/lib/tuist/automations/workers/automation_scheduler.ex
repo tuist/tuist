@@ -4,22 +4,30 @@ defmodule Tuist.Automations.Workers.AutomationScheduler do
 
   import Ecto.Query
 
-  alias Tuist.Automations.AlertRule
+  alias Tuist.Automations.Alerts.Alert
   alias Tuist.Automations.Workers.AlertEvaluationWorker
   alias Tuist.Repo
 
   @impl Oban.Worker
   def perform(_job) do
-    alert_rules = Repo.all(from(a in AlertRule, where: a.enabled == true))
+    alerts = Repo.all(from(a in Alert, where: a.enabled == true))
 
-    Enum.each(alert_rules, fn alert_rule ->
+    Enum.each(alerts, fn alert ->
+      # The scheduler itself runs on a fixed cron (~1 minute). Without
+      # including `:completed` in the uniqueness state set, a fast-running
+      # evaluation job would move to :completed within seconds, and the next
+      # scheduler tick would queue another one — collapsing the effective
+      # cadence to the scheduler's interval. Checking `:completed` + the
+      # per-alert `period` guarantees we wait at least `cadence` seconds
+      # before re-scheduling, regardless of how quickly the previous run
+      # finished.
       {:ok, _job} =
-        %{alert_rule_id: alert_rule.id}
+        %{alert_id: alert.id}
         |> AlertEvaluationWorker.new(
           unique: [
-            keys: [:alert_rule_id],
-            period: cadence_seconds(alert_rule.cadence),
-            states: [:available, :scheduled, :executing]
+            keys: [:alert_id],
+            period: cadence_seconds(alert.cadence),
+            states: [:available, :scheduled, :executing, :completed]
           ]
         )
         |> Oban.insert()

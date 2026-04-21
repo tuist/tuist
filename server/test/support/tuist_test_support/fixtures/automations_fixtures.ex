@@ -4,7 +4,7 @@ defmodule TuistTestSupport.Fixtures.AutomationsFixtures do
   alias Tuist.Automations
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
-  def automation_fixture(opts \\ []) do
+  def automation_alert_fixture(opts \\ []) do
     project =
       Keyword.get_lazy(opts, :project, fn ->
         ProjectsFixtures.project_fixture()
@@ -14,7 +14,7 @@ defmodule TuistTestSupport.Fixtures.AutomationsFixtures do
 
     attrs = %{
       "project_id" => Keyword.get(opts, :project_id, project.id),
-      "name" => Keyword.get(opts, :name, "Test automation #{unique_id}"),
+      "name" => Keyword.get(opts, :name, "Test alert #{unique_id}"),
       "enabled" => Keyword.get(opts, :enabled, true),
       "monitor_type" => Keyword.get(opts, :monitor_type, "flakiness_rate"),
       "trigger_config" => Keyword.get(opts, :trigger_config, %{"threshold" => 10, "window" => "30d"}),
@@ -28,7 +28,7 @@ defmodule TuistTestSupport.Fixtures.AutomationsFixtures do
       "recovery_actions" => Keyword.get(opts, :recovery_actions, [])
     }
 
-    {:ok, alert_rule} = Automations.create_alert_rule(attrs)
-    alert_rule
+    {:ok, alert} = Automations.create_alert(attrs)
+    alert
   end
 end
