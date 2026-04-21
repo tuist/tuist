@@ -1,4 +1,6 @@
 {{- if and .Values.server.enabled .Values.server.migrationJob.enabled }}
+{{- $objectStorageAccessKey := include "tuist.objectStorageAccessKey" . -}}
+{{- $objectStorageSecretKey := include "tuist.objectStorageSecretKey" . -}}
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -16,7 +18,7 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
     spec:
-      serviceAccountName: {{ include "tuist.serviceAccountName" . }}
+      serviceAccountName: {{ include "tuist.componentServiceAccountName" (dict "root" . "component" "server") }}
 {{ include "tuist.podScheduling" . | nindent 6 }}
       restartPolicy: Never
       initContainers:
@@ -90,16 +92,20 @@ spec:
               value: {{ include "tuist.objectStorageEndpoint" . | quote }}
             - name: TUIST_S3_REGION
               value: {{ .Values.server.s3.region | quote }}
+            {{- if $objectStorageAccessKey }}
             - name: TUIST_S3_ACCESS_KEY_ID
               valueFrom:
                 secretKeyRef:
                   name: {{ include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
                   key: object-storage-access-key
+            {{- end }}
+            {{- if $objectStorageSecretKey }}
             - name: TUIST_S3_SECRET_ACCESS_KEY
               valueFrom:
                 secretKeyRef:
                   name: {{ include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
                   key: object-storage-secret-key
+            {{- end }}
             - name: TUIST_S3_VIRTUAL_HOST
               value: {{ .Values.server.s3.virtualHost | ternary "1" "0" | quote }}
             - name: TUIST_S3_BUCKET_AS_HOST

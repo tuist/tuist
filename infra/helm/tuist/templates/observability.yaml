@@ -76,6 +76,9 @@ spec:
     metadata:
       labels:
         {{- include "tuist.componentLabels" (dict "root" . "component" "otel-collector") | nindent 8 }}
+        {{- with .Values.global.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
     spec:
 {{ include "tuist.podScheduling" . | nindent 6 }}
       containers:
@@ -148,6 +151,9 @@ spec:
     metadata:
       labels:
         {{- include "tuist.componentLabels" (dict "root" . "component" "prometheus") | nindent 8 }}
+        {{- with .Values.global.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
     spec:
 {{ include "tuist.podScheduling" . | nindent 6 }}
       containers:
@@ -201,6 +207,9 @@ spec:
     metadata:
       labels:
         {{- include "tuist.componentLabels" (dict "root" . "component" "loki") | nindent 8 }}
+        {{- with .Values.global.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
     spec:
 {{ include "tuist.podScheduling" . | nindent 6 }}
       containers:
@@ -293,6 +302,9 @@ spec:
     metadata:
       labels:
         {{- include "tuist.componentLabels" (dict "root" . "component" "tempo") | nindent 8 }}
+        {{- with .Values.global.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
     spec:
 {{ include "tuist.podScheduling" . | nindent 6 }}
       containers:
@@ -377,6 +389,9 @@ spec:
     metadata:
       labels:
         {{- include "tuist.componentLabels" (dict "root" . "component" "grafana") | nindent 8 }}
+        {{- with .Values.global.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
     spec:
 {{ include "tuist.podScheduling" . | nindent 6 }}
       containers:

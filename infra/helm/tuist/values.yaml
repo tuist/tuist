@@ -1,16 +1,6 @@
 nameOverride: ""
 fullnameOverride: ""
 
-serviceAccount:
-  # If true, a ServiceAccount is created and assigned to server and migration job pods.
-  # Set annotations (e.g. eks.amazonaws.com/role-arn) for IRSA when using external AWS services.
-  # Defaults to false (opt-in) for backwards compatibility with existing deployments that rely on
-  # the namespace default service account. The upstream Helm chart convention (helm create) uses
-  # true as the default, but changing it here would silently reassign running pods.
-  create: false
-  name: ""
-  annotations: {}
-
 global:
   imagePullSecrets: []
   commonLabels: {}
@@ -52,12 +42,23 @@ server:
     enabled: true
     backoffLimit: 6
     resources: {}
+  serviceAccount:
+    # Workload identity / Kubernetes API identity for server pods and the migration job.
+    # Set annotations when integrating with a cloud IAM system or custom RBAC.
+    create: false
+    name: ""
+    annotations: {}
 
 cache:
   enabled: true
   replicaCount: 1
-  podSecurityContext:
-    fsGroup: 990
+  serviceAccount:
+    # Workload identity / Kubernetes API identity for cache pods.
+    # Set annotations (for example, eks.amazonaws.com/role-arn) for IRSA on external S3.
+    create: false
+    name: ""
+    annotations: {}
+  podSecurityContext: {}
   image:
     repository: ghcr.io/tuist/cache
     tag: "0.29.0"
@@ -138,6 +139,10 @@ clickhouse:
       repository: clickhouse/clickhouse-server
       tag: "26.1"
       pullPolicy: IfNotPresent
+    service:
+      # Exposed service port for ClickHouse's native protocol.
+      # Override only if your service mesh or reserved ports require a different number.
+      nativePort: 9000
     database: tuist
     username: default
     password: ""
