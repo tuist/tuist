@@ -26,6 +26,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
+  MISE_VERSION: "2026.4.18"
+  MISE_GITHUB_TOKEN: ${{ github.token }}
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   MISE_TASK_RUN_AUTO_INSTALL: 0
   MISE_GITHUB_ATTESTATIONS: 0
@@ -64,13 +66,15 @@ jobs:
       - uses: namespacelabs/nscloud-cache-action@v1
         with:
           cache: mise
-      - uses: jdx/mise-action@v3.2.0
+      - uses: jdx/mise-action@v4.0.1
         with:
+          version: ${{ env.MISE_VERSION }}
           install_args: "erlang elixir java gradle tuist bats"
           cache: "false"
           working_directory: .
-      - uses: jdx/mise-action@v3.2.0
+      - uses: jdx/mise-action@v4.0.1
         with:
+          version: ${{ env.MISE_VERSION }}
           install_args: "erlang elixir asdf:aeons/asdf-minio github:ClickHouse/ClickHouse"
           cache: "false"
           working_directory: server
@@ -96,7 +100,7 @@ jobs:
         run: mix compile
       - name: Start ClickHouse
         working-directory: server
-        run: mise run --no-prepare clickhouse:start
+        run: mise run --no-deps clickhouse:start
       - name: Setup main server
         working-directory: server
         run: |
@@ -146,4 +150,4 @@ jobs:
       - name: Run Gradle cache acceptance test
         env:
           SERVER_URL: ${{ env.TUIST_SERVER_URL }}
-        run: mise run --no-prepare e2e gradle_cache
+        run: mise run --no-deps e2e gradle_cache
