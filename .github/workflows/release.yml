@@ -62,7 +62,7 @@ jobs:
           cache: mise
       - uses: jdx/mise-action@v4.0.1
         with:
-          version: ${{ vars.MISE_VERSION }}
+          version: ${{ vars.MISE_VERSION || '2026.4.18' }}
           install_args: "git-cliff"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
@@ -592,7 +592,7 @@ jobs:
           key: ${{ runner.os }}-cli-release-${{ hashFiles('.xcode-version-releases') }}-${{ hashFiles('Package.resolved') }}
       - uses: jdx/mise-action@v4.0.1
         with:
-          version: ${{ vars.MISE_VERSION }}
+          version: ${{ vars.MISE_VERSION || '2026.4.18' }}
           install_args: "tuist git-cliff 1password-cli"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
@@ -738,7 +738,7 @@ jobs:
         run: brew install create-dmg
       - uses: jdx/mise-action@v4.0.1
         with:
-          version: ${{ vars.MISE_VERSION }}
+          version: ${{ vars.MISE_VERSION || '2026.4.18' }}
           install_args: "tuist git-cliff 1password-cli"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
@@ -830,7 +830,7 @@ jobs:
         run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidation -bool YES
       - uses: jdx/mise-action@v4.0.1
         with:
-          version: ${{ vars.MISE_VERSION }}
+          version: ${{ vars.MISE_VERSION || '2026.4.18' }}
           install_args: "tuist 1password-cli"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
@@ -880,7 +880,7 @@ jobs:
           cache: mise
       - uses: jdx/mise-action@v4.0.1
         with:
-          version: ${{ vars.MISE_VERSION }}
+          version: ${{ vars.MISE_VERSION || '2026.4.18' }}
           install_args: "java gradle 1password-cli"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
@@ -929,7 +929,7 @@ jobs:
           cache: mise
       - uses: jdx/mise-action@v4.0.1
         with:
-          version: ${{ vars.MISE_VERSION }}
+          version: ${{ vars.MISE_VERSION || '2026.4.18' }}
           install_args: "git-cliff"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
@@ -1016,7 +1016,7 @@ jobs:
           cache: mise
       - uses: jdx/mise-action@v4.0.1
         with:
-          version: ${{ vars.MISE_VERSION }}
+          version: ${{ vars.MISE_VERSION || '2026.4.18' }}
           install_args: "git-cliff"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
@@ -1101,7 +1101,7 @@ jobs:
           cache: mise
       - uses: jdx/mise-action@v4.0.1
         with:
-          version: ${{ vars.MISE_VERSION }}
+          version: ${{ vars.MISE_VERSION || '2026.4.18' }}
           install_args: "java gradle git-cliff 1password-cli"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
@@ -1214,7 +1214,7 @@ jobs:
           cache: mise
       - uses: jdx/mise-action@v4.0.1
         with:
-          version: ${{ vars.MISE_VERSION }}
+          version: ${{ vars.MISE_VERSION || '2026.4.18' }}
           install_args: "git-cliff"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
@@ -1291,7 +1291,7 @@ jobs:
           cache: mise
       - uses: jdx/mise-action@v4.0.1
         with:
-          version: ${{ vars.MISE_VERSION }}
+          version: ${{ vars.MISE_VERSION || '2026.4.18' }}
           install_args: "erlang elixir node pnpm git-cliff"
           cache: "false"
           working_directory: noora
@@ -1374,7 +1374,7 @@ jobs:
           cache: mise
       - uses: jdx/mise-action@v4.0.1
         with:
-          version: ${{ vars.MISE_VERSION }}
+          version: ${{ vars.MISE_VERSION || '2026.4.18' }}
           install_args: "git-cliff"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
@@ -1481,7 +1481,7 @@ jobs:
           cache: mise
       - uses: jdx/mise-action@v4.0.1
         with:
-          version: ${{ vars.MISE_VERSION }}
+          version: ${{ vars.MISE_VERSION || '2026.4.18' }}
           install_args: "git-cliff"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}

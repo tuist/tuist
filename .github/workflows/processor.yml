@@ -63,7 +63,7 @@ jobs:
           key: processor-mix-${{ hashFiles('processor/mix.lock') }}
       - uses: jdx/mise-action@v4.0.1
         with:
-          version: ${{ vars.MISE_VERSION }}
+          version: ${{ vars.MISE_VERSION || '2026.4.18' }}
           install_args: "erlang elixir ruby"
           cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
           working_directory: processor
@@ -91,7 +91,7 @@ jobs:
           key: processor-mix-${{ hashFiles('processor/mix.lock') }}
       - uses: jdx/mise-action@v4.0.1
         with:
-          version: ${{ vars.MISE_VERSION }}
+          version: ${{ vars.MISE_VERSION || '2026.4.18' }}
           install_args: "erlang elixir ruby"
           cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
           working_directory: processor
@@ -119,7 +119,7 @@ jobs:
           key: processor-mix-${{ hashFiles('processor/mix.lock') }}
       - uses: jdx/mise-action@v4.0.1
         with:
-          version: ${{ vars.MISE_VERSION }}
+          version: ${{ vars.MISE_VERSION || '2026.4.18' }}
           install_args: "erlang elixir ruby"
           cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
           working_directory: processor
@@ -147,7 +147,7 @@ jobs:
           key: processor-mix-${{ hashFiles('processor/mix.lock') }}
       - uses: jdx/mise-action@v4.0.1
         with:
-          version: ${{ vars.MISE_VERSION }}
+          version: ${{ vars.MISE_VERSION || '2026.4.18' }}
           install_args: "erlang elixir ruby"
           cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
           working_directory: processor
