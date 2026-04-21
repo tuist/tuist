@@ -42,9 +42,8 @@ let liveSocket = new LiveSocket("/live", Socket, {
 
 Noora uses the following fonts:
 
-- **DM Sans** (weights 400, 500, 600) - Primary headings font
+- **Inter Variable** (weights 100-900) - Headings and body text font
 - **Geist Mono** (weights 400, 700) - Monospace font for code
-- **Inter** / **InterVariable** (weights 100-900) - Body text font
 
 Fonts are not included by default, giving you control over how they are loaded. You have two options:
 
@@ -69,10 +68,11 @@ For better performance, privacy, or to avoid external requests, self-host the fo
 
 /* Define your self-hosted font faces */
 @font-face {
-  font-family: "DM Sans";
-  src: url("/fonts/DMSans.woff2") format("woff2");
-  font-weight: 400 600;
+  font-family: "Inter Variable";
+  src: url("/fonts/InterVariable.woff2") format("woff2");
+  font-weight: 100 900;
   font-display: swap;
+  font-optical-sizing: auto;
 }
 
 @font-face {
@@ -82,21 +82,13 @@ For better performance, privacy, or to avoid external requests, self-host the fo
   font-display: swap;
 }
 
-@font-face {
-  font-family: "Inter";
-  src: url("/fonts/InterVariable.woff2") format("woff2");
-  font-weight: 100 900;
-  font-display: swap;
-}
-
 /* Then import noora */
 @import "noora/noora.css";
 ```
 
 You can download the fonts from:
-- [DM Sans](https://fonts.google.com/specimen/DM+Sans)
-- [Geist Mono](https://vercel.com/font)
 - [Inter](https://rsms.me/inter/)
+- [Geist Mono](https://vercel.com/font)
 
 ## Usage
 
