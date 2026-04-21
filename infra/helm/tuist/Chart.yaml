@@ -3,4 +3,4 @@ name: tuist
 description: Umbrella Helm chart for deploying Tuist services and optional infrastructure dependencies.
 type: application
 version: 0.1.0
-appVersion: "0.1.0"
+appVersion: "1.152.4"
