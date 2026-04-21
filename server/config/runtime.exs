@@ -181,6 +181,12 @@ if env == :dev do
     config :tuist, Tuist.ClickHouseRepo, database: clickhouse_database
     config :tuist, Tuist.IngestRepo, database: clickhouse_database
   end
+
+  if clickhouse_port = System.get_env("TUIST_SERVER_CLICKHOUSE_PORT") do
+    clickhouse_port = String.to_integer(clickhouse_port)
+    config :tuist, Tuist.ClickHouseRepo, port: clickhouse_port
+    config :tuist, Tuist.IngestRepo, port: clickhouse_port
+  end
 end
 
 if Enum.member?([:prod, :stag, :can, :dev], env) do

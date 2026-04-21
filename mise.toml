@@ -16,6 +16,7 @@
     java = "21"
     gradle = "8.12"
     caddy = "2.11.2"
+    pitchfork = "latest"
 
 [hooks]
     postinstall = "{{config_root}}/mise/tasks/install.sh"

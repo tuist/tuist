@@ -96,7 +96,7 @@ jobs:
         run: mix compile
       - name: Start ClickHouse
         working-directory: server
-        run: mise run --no-prepare clickhouse:start
+        run: mise x -- pitchfork start clickhouse
       - name: Setup main server
         working-directory: server
         run: |

@@ -209,6 +209,34 @@ url = "https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-macos-amd64"
 checksum = "sha256:23cb60a1354eed6bcc8d9b9735e8c7b388cd1fdcb75726b93bc299ef22dd9334"
 url = "https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-windows-amd64.exe"
 
+[[tools.pitchfork]]
+version = "2.6.0"
+backend = "aqua:jdx/pitchfork"
+
+[tools.pitchfork."platforms.linux-arm64"]
+checksum = "sha256:ca2545ac31176a2163a1f4b995bdae79a90d4002b080b080c44d579de1e3fd49"
+url = "https://github.com/jdx/pitchfork/releases/download/v2.6.0/pitchfork-aarch64-unknown-linux-gnu.tar.gz"
+
+[tools.pitchfork."platforms.linux-arm64-musl"]
+checksum = "sha256:ca2545ac31176a2163a1f4b995bdae79a90d4002b080b080c44d579de1e3fd49"
+url = "https://github.com/jdx/pitchfork/releases/download/v2.6.0/pitchfork-aarch64-unknown-linux-gnu.tar.gz"
+
+[tools.pitchfork."platforms.linux-x64"]
+checksum = "sha256:32b8af9a1a2d33468658207fffa29d2c43a525bfd4713860f88f24c3baa7a486"
+url = "https://github.com/jdx/pitchfork/releases/download/v2.6.0/pitchfork-x86_64-unknown-linux-gnu.tar.gz"
+
+[tools.pitchfork."platforms.linux-x64-musl"]
+checksum = "sha256:32b8af9a1a2d33468658207fffa29d2c43a525bfd4713860f88f24c3baa7a486"
+url = "https://github.com/jdx/pitchfork/releases/download/v2.6.0/pitchfork-x86_64-unknown-linux-gnu.tar.gz"
+
+[tools.pitchfork."platforms.macos-arm64"]
+checksum = "sha256:46c576534ea3c9f26547fe90cd49a739dfae7e7847fd1e4d4d3cb8447823b53a"
+url = "https://github.com/jdx/pitchfork/releases/download/v2.6.0/pitchfork-aarch64-apple-darwin.tar.gz"
+
+[tools.pitchfork."platforms.windows-x64"]
+checksum = "sha256:0985e00aefae1a89b7c9bf372d8346199f77be89508fd68661c88f65eccb63bb"
+url = "https://github.com/jdx/pitchfork/releases/download/v2.6.0/pitchfork-x86_64-pc-windows-msvc.zip"
+
 [[tools.protoc]]
 version = "32.1"
 backend = "aqua:protocolbuffers/protobuf/protoc"

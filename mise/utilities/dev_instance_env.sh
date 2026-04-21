@@ -10,13 +10,15 @@ SCRIPT_DIR="$(cd "$(dirname "${SCRIPT_PATH}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 ROOT_INSTANCE_FILE="${PROJECT_ROOT}/.tuist-dev-instance"
 
-resolve_instance_file() {
+resolve_git_path() {
+  local relative_path="$1"
+  local fallback_path="$2"
   local git_path=""
 
   if command -v git >/dev/null 2>&1 && git -C "${PROJECT_ROOT}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     git_path="$(
-      git -C "${PROJECT_ROOT}" rev-parse --path-format=absolute --git-path tuist-dev-instance 2>/dev/null ||
-        git -C "${PROJECT_ROOT}" rev-parse --git-path tuist-dev-instance 2>/dev/null ||
+      git -C "${PROJECT_ROOT}" rev-parse --path-format=absolute --git-path "${relative_path}" 2>/dev/null ||
+        git -C "${PROJECT_ROOT}" rev-parse --git-path "${relative_path}" 2>/dev/null ||
         true
     )"
 
@@ -28,8 +30,12 @@ resolve_instance_file() {
   if [[ -n "${git_path}" ]]; then
     printf '%s' "${git_path}"
   else
-    printf '%s' "${ROOT_INSTANCE_FILE}"
+    printf '%s' "${fallback_path}"
   fi
+}
+
+resolve_instance_file() {
+  resolve_git_path "tuist-dev-instance" "${ROOT_INSTANCE_FILE}"
 }
 
 INSTANCE_FILE="$(resolve_instance_file)"
@@ -82,6 +88,7 @@ ensure_suffix() {
 
 suffix="$(ensure_suffix)"
 test_partition="${MIX_TEST_PARTITION:-}"
+clickhouse_root_dir="$(resolve_git_path "clickhouse" "${PROJECT_ROOT}/server/.clickhouse")"
 
 # Derive a hostname from the project root directory basename
 project_basename="$(basename "${PROJECT_ROOT}")"
@@ -94,6 +101,14 @@ export TUIST_SERVER_HOSTNAME="${project_hostname}.localhost"
 export TUIST_SERVER_URL="http://localhost:${TUIST_SERVER_PORT}"
 export TUIST_SERVER_POSTGRES_DB="tuist_development_${suffix}"
 export TUIST_SERVER_CLICKHOUSE_DB="tuist_development_${suffix}"
+export TUIST_SERVER_CLICKHOUSE_PORT="$((8123 + suffix))"
+export TUIST_SERVER_CLICKHOUSE_TCP_PORT="$((9000 + suffix))"
+export TUIST_SERVER_CLICKHOUSE_INTERSERVER_HTTP_PORT="$((10000 + suffix))"
+export TUIST_SERVER_CLICKHOUSE_MYSQL_PORT="$((9004 + suffix))"
+export TUIST_SERVER_CLICKHOUSE_POSTGRESQL_PORT="$((9005 + suffix))"
+export TUIST_SERVER_CLICKHOUSE_PROMETHEUS_PORT="$((9363 + suffix))"
+export TUIST_SERVER_CLICKHOUSE_DIR="${clickhouse_root_dir}"
+export TUIST_CLICKHOUSE_URL="http://localhost:${TUIST_SERVER_CLICKHOUSE_PORT}"
 export TUIST_CACHE_PORT="$((8087 + suffix))"
 export TUIST_CACHE_SERVER_URL="${TUIST_SERVER_URL}"
 export TUIST_MINIO_API_PORT="$((9095 + suffix))"

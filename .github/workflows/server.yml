@@ -195,7 +195,7 @@ jobs:
       - name: Install dependencies
         run: mix deps.get
       - name: Start ClickHouse
-        run: mise run --no-prepare clickhouse:start
+        run: mise x -- pitchfork start clickhouse
       - name: Setup database
         run: mise run --no-prepare db:reset
       - name: Run tests
@@ -413,7 +413,7 @@ jobs:
   #       with:
   #         cache: "false"
   #     - run: mise run install
-  #     - run: mise run clickhouse:start
+  #     - run: mise x -- pitchfork start clickhouse
   #     - run: mise run db:reset
   #     - name: Generate OpenAPI spec
   #       run: MIX_ENV=dev mix openapi.spec.yaml --spec TuistWeb.API.Spec ../cli/Sources/TuistServer/OpenAPI/server.yml
@@ -469,7 +469,7 @@ jobs:
       - name: Install dependencies
         run: mix deps.get
       - name: Start ClickHouse
-        run: mise run --no-prepare clickhouse:start
+        run: mise x -- pitchfork start clickhouse
       - name: Setup database
         run: mise run --no-prepare db:reset
       - name: Run migrations

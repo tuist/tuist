@@ -36,10 +36,13 @@ Tuist Server is an Elixir/Phoenix web application that extends the Tuist CLI. It
 ```bash
 brew install postgresql@16
 brew services start postgresql@16
-mise run clickhouse:start
+# one-time shell setup: echo '$(pitchfork activate zsh)' >> ~/.zshrc
+# then entering server/ auto-starts ClickHouse
 mise install
 mise run dev
 ```
+
+ClickHouse is managed by Pitchfork. With the Pitchfork shell hook enabled, entering `server/` auto-starts it and leaving the directory auto-stops it. Its HTTP/TCP ports and state directory are derived from the checkout-specific dev instance suffix, so linked worktrees and standalone clones can run isolated local ClickHouse instances side by side.
 
 **Test User Account**
 - Email: `tuistrocks@tuist.dev`

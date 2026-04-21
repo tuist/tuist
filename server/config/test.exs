@@ -6,6 +6,7 @@ test_clickhouse_db =
   System.get_env("TUIST_SERVER_TEST_CLICKHOUSE_DB") || "tuist_test#{System.get_env("MIX_TEST_PARTITION")}"
 
 test_port = String.to_integer(System.get_env("TUIST_SERVER_TEST_PORT") || "4002")
+clickhouse_port = String.to_integer(System.get_env("TUIST_SERVER_CLICKHOUSE_PORT") || "8123")
 
 # Only in tests, remove the complexity from the password hashing algorithm
 config :bcrypt_elixir, :log_rounds, 1
@@ -30,7 +31,7 @@ config :tuist, Oban, testing: :manual
 
 config :tuist, Tuist.ClickHouseRepo,
   hostname: "localhost",
-  port: 8123,
+  port: clickhouse_port,
   database: test_clickhouse_db,
   # Workaround for ClickHouse lazy materialization bug with projections
   # https://github.com/ClickHouse/ClickHouse/issues/80201
@@ -38,7 +39,7 @@ config :tuist, Tuist.ClickHouseRepo,
 
 config :tuist, Tuist.IngestRepo,
   hostname: "localhost",
-  port: 8123,
+  port: clickhouse_port,
   database: test_clickhouse_db,
   flush_interval_ms: 5000,
   max_buffer_size: 100_000,

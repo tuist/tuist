@@ -1,0 +1,7 @@
+[settings.general]
+mise = true
+
+[daemons.clickhouse]
+run = "./mise/tasks/clickhouse/run.sh"
+auto = ["start", "stop"]
+ready_cmd = "curl -fsS \"${TUIST_CLICKHOUSE_URL:-http://localhost:8123}/ping\" >/dev/null"

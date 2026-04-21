@@ -8,7 +8,8 @@ postgres_database_exists() {
 }
 
 clickhouse_database_exists() {
-  curl -fsS http://localhost:8123 --data-binary "EXISTS DATABASE ${TUIST_SERVER_CLICKHOUSE_DB}" | grep -qx 1
+  local clickhouse_url="${TUIST_CLICKHOUSE_URL:-http://localhost:8123}"
+  curl -fsS "${clickhouse_url}" --data-binary "EXISTS DATABASE ${TUIST_SERVER_CLICKHOUSE_DB}" | grep -qx 1
 }
 
 bootstrap_postgres_database() {
@@ -31,6 +32,8 @@ pnpm run build
 popd >/dev/null
 
 if [ -z "${CI:-}" ]; then
+  mise x -- pitchfork start clickhouse >/dev/null
+
   # Fresh worktrees use isolated database names, so bootstrap missing repos independently.
   if ! postgres_database_exists; then
     bootstrap_postgres_database

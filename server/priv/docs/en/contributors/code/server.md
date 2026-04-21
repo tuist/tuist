@@ -23,9 +23,12 @@ Contributions to the server require signing the CLA (`server/CLA.md`).
 cd server
 mise install
 
+# One-time shell setup
+echo '$(pitchfork activate zsh)' >> ~/.zshrc
+
 # Dependencies
 brew services start postgresql@16
-mise run clickhouse:start
+# Entering server/ auto-starts ClickHouse once the Pitchfork shell hook is enabled
 
 # Install dependencies + set up the database
 mise run install
