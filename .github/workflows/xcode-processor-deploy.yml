@@ -1,8 +1,9 @@
 name: Xcode Processor Deploy
 
-# NOTE: Disabled pending migration to Kubernetes. Auto-deploys to the Scaleway
-# Mac mini have been unreliable (see the `Bootstrap failed: 5: Input/output
-# error` from launchctl on 2026-04-21). Re-enable by uncommenting the blocks
+# NOTE: Production deploy is disabled pending migration to Kubernetes.
+# Auto-deploys to the Scaleway Mac mini have been unreliable. There is no
+# canary tier for this service; staging continues to deploy via
+# xcode-processor-staging-deploy.yml. Re-enable by uncommenting the blocks
 # below once the service runs on k8s.
 
 # on:
