@@ -1,0 +1,61 @@
+# Staging overlay for the Tuist-managed deployment.
+# Layer on top of values-managed-common.yaml:
+#   helm upgrade --install tuist-staging infra/helm/tuist \
+#     -n tuist-staging --create-namespace \
+#     -f infra/helm/tuist/values-managed-common.yaml \
+#     -f infra/helm/tuist/values-managed-staging.yaml \
+#     --set server.image.tag=$GIT_SHA \
+#     --set server.masterKey=$MASTER_KEY_STAGING
+
+server:
+  replicaCount: 1
+
+  appUrl: https://cloud-staging.tuist.dev
+
+  autoscaling:
+    enabled: false
+
+  podDisruptionBudget:
+    enabled: false
+
+  ingress:
+    enabled: true
+    className: nginx
+    host: cloud-staging.tuist.dev
+    tlsSecretName: cloud-staging-tuist-dev-tls
+    annotations:
+      # cert-manager issues the TLS cert via the ClusterIssuer deployed by
+      # the platform chart (Cloudflare DNS-01).
+      cert-manager.io/cluster-issuer: letsencrypt-cloudflare
+      # external-dns will write the Cloudflare DNS record automatically.
+      external-dns.alpha.kubernetes.io/hostname: cloud-staging.tuist.dev
+      # Allow larger uploads (binaries, reports).
+      nginx.ingress.kubernetes.io/proxy-body-size: "500m"
+      nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+      nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+
+  # Staging uses smaller resources; production overrides upward.
+  resources:
+    requests:
+      cpu: "250m"
+      memory: "768Mi"
+    limits:
+      cpu: "1000m"
+      memory: "1536Mi"
+
+postgresql:
+  external:
+    host: db-staging.tuist.dev  # Supabase pooler endpoint for staging.
+
+clickhouse:
+  external:
+    url: ""  # Set via helm --set at deploy time; see runbook.
+
+objectStorage:
+  external:
+    endpoint: https://fly.storage.tigris.dev
+    buckets:
+      default: tuist-staging
+      cache: tuist-cache-staging
+      xcodeCache: tuist-xcode-cache-staging
+      registry: tuist-registry-staging

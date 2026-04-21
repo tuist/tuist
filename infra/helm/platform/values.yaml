@@ -1,0 +1,88 @@
+# Platform-level values for the Tuist-managed Kubernetes cluster.
+# This chart is installed once per cluster (staging / production), not per app release.
+#
+# Install:
+#   helm dependency update infra/helm/platform
+#   helm upgrade --install platform infra/helm/platform \
+#     -n platform --create-namespace \
+#     --set cloudflare.apiTokenSecret.create=false \
+#     --set cloudflare.email=ops@tuist.dev
+#
+# The Cloudflare API token is expected in a pre-existing Secret in the platform
+# namespace (see infra/k8s/syself-onboarding.md for the bootstrap commands).
+
+# Cloudflare wiring shared by cert-manager (DNS-01 ACME) and external-dns.
+cloudflare:
+  email: ops@tuist.dev
+  # Name + key of the Secret that holds the Cloudflare API token. The chart
+  # does not create this Secret; create it out-of-band so the token never
+  # lands in values / helm history. Token must have Zone.DNS:Edit scope on
+  # the tuist.dev zone (and any other managed zones).
+  apiTokenSecret:
+    name: cloudflare-api-token
+    key: api-token
+
+# Lets Encrypt account email for certificates issued by cert-manager.
+letsencrypt:
+  email: ops@tuist.dev
+
+cert-manager:
+  enabled: true
+  installCRDs: true
+  prometheus:
+    enabled: true
+
+ingress-nginx:
+  enabled: true
+  controller:
+    replicaCount: 2
+    publishService:
+      enabled: true
+    service:
+      type: LoadBalancer
+      externalTrafficPolicy: Local
+      annotations:
+        # Hetzner Cloud LB (Syself ships the hcloud-cloud-controller-manager).
+        # Adjust per provider if the chart lands on a different cluster.
+        load-balancer.hetzner.cloud/location: nbg1
+        load-balancer.hetzner.cloud/uses-proxyprotocol: "true"
+    config:
+      use-forwarded-headers: "true"
+      use-proxy-protocol: "true"
+      compute-full-forwarded-for: "true"
+    metrics:
+      enabled: true
+
+external-dns:
+  enabled: true
+  provider: cloudflare
+  sources:
+    - service
+    - ingress
+  txtOwnerId: tuist-platform
+  # Limit which records external-dns will touch; be explicit for prod safety.
+  domainFilters: []
+  policy: sync
+  cloudflare:
+    # Reference the Cloudflare API token Secret created out-of-band. The
+    # external-dns chart accepts env from an existing Secret under env[].
+    apiTokenType: token
+  env:
+    - name: CF_API_TOKEN
+      valueFrom:
+        secretKeyRef:
+          name: cloudflare-api-token
+          key: api-token
+
+external-secrets:
+  enabled: true
+  installCRDs: true
+  webhook:
+    port: 9443
+
+# Whether to emit the ClusterIssuer template below. Turn off if you manage
+# cert-manager issuers with a separate GitOps process.
+clusterIssuer:
+  enabled: true
+  name: letsencrypt-cloudflare
+  server: https://acme-v02.api.letsencrypt.org/directory

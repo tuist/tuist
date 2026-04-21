@@ -1,0 +1,135 @@
+# Shared values for the Tuist-managed deployment (tuist.dev).
+# All data services are external; the cache + embedded observability stack are off;
+# traffic flows through cert-manager + Cloudflare DNS-01 TLS and an ingress-nginx
+# LoadBalancer backed by the cloud provider's managed LB.
+#
+# This file is layered under values-managed-staging.yaml / values-managed-production.yaml;
+# those overlays tune replica count, host names, and any environment-specific knobs.
+
+serviceAccount:
+  create: true
+  name: tuist-server
+
+global:
+  commonLabels:
+    tuist.dev/service: server
+    tuist.dev/stack: managed
+
+server:
+  enabled: true
+  hosted: true
+  skipEmailConfirmation: false
+  logLevel: info
+  image:
+    repository: ghcr.io/tuist/tuist
+    tag: ""  # Set by CI to the commit SHA on each deploy.
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 8080
+
+  # Encrypted secrets are baked into the image at priv/secrets/<env>.yml.enc.
+  # MASTER_KEY is provided via a k8s Secret populated out-of-band (see
+  # infra/k8s/syself-onboarding.md). Chart users can also provide it inline
+  # via .Values.server.masterKey, but doing so would store the key in the
+  # rendered release — avoid in production.
+  #
+  # masterKey: "<never commit me; set via helm upgrade --set>"
+
+  database:
+    ssl: true
+
+  s3:
+    region: auto
+    virtualHost: false
+    bucketAsHost: false
+    bucketName: tuist  # Overridden per environment.
+
+  cluster:
+    enabled: false  # Enable only if distributed Elixir is needed across pods.
+    applicationName: tuist
+
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+
+  migrationJob:
+    enabled: true
+    asHook: true
+    backoffLimit: 3
+
+  # HTTP probes all hit /ready. startupProbe covers the ~30-60s Phoenix boot
+  # and the OTel / Sentry init latency we occasionally see in prod.
+  probes:
+    readiness:
+      path: /ready
+      initialDelaySeconds: 5
+      periodSeconds: 10
+      timeoutSeconds: 3
+      failureThreshold: 3
+    liveness:
+      path: /ready
+      initialDelaySeconds: 30
+      periodSeconds: 20
+      timeoutSeconds: 3
+      failureThreshold: 3
+    startup:
+      path: /ready
+      initialDelaySeconds: 0
+      periodSeconds: 5
+      timeoutSeconds: 3
+      failureThreshold: 60
+
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "1Gi"
+    limits:
+      cpu: "2000m"
+      memory: "2Gi"
+
+  terminationGracePeriodSeconds: 60
+
+# Everything below = external. The managed deployment never runs embedded
+# Postgres / ClickHouse / object storage / observability stacks.
+cache:
+  enabled: false
+
+postgresql:
+  mode: external
+  # Supabase-managed Postgres in AWS eu-central-1 Frankfurt.
+  # Fill per environment; keep the password in a separate Secret (see
+  # extraEnvFrom in the overlays).
+  external:
+    host: ""
+    port: 5432
+    database: tuist
+    username: tuist
+    password: ""
+
+clickhouse:
+  mode: external
+  external:
+    url: ""  # https://<clickhouse-cloud>.clickhouse.cloud:8443/tuist_prod
+
+objectStorage:
+  mode: external
+  # Tigris S3-compatible storage.
+  external:
+    endpoint: ""       # e.g. https://fly.storage.tigris.dev
+    accessKey: ""
+    secretKey: ""
+    region: auto
+    buckets:
+      default: tuist
+      cache: tuist-cache
+      xcodeCache: tuist-xcode-cache
+      registry: tuist-registry
+
+observability:
+  # We forward to Grafana Cloud via an in-cluster Alloy DaemonSet installed by
+  # the platform chart. The chart's embedded observability stack stays off.
+  enabled: false

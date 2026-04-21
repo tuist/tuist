@@ -1,0 +1,76 @@
+# Production overlay for the Tuist-managed deployment.
+# Layer on top of values-managed-common.yaml:
+#   helm upgrade --install tuist infra/helm/tuist \
+#     -n tuist --create-namespace \
+#     -f infra/helm/tuist/values-managed-common.yaml \
+#     -f infra/helm/tuist/values-managed-production.yaml \
+#     --set server.image.tag=$GIT_SHA \
+#     --set server.masterKey=$MASTER_KEY_PROD
+
+server:
+  replicaCount: 2
+
+  appUrl: https://cloud.tuist.dev
+
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+
+  ingress:
+    enabled: true
+    className: nginx
+    host: cloud.tuist.dev
+    tlsSecretName: cloud-tuist-dev-tls
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-cloudflare
+      external-dns.alpha.kubernetes.io/hostname: cloud.tuist.dev
+      # Allow larger uploads (binaries, reports).
+      nginx.ingress.kubernetes.io/proxy-body-size: "500m"
+      nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+      nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+      # Stable client IP for rate-limiting and access logs.
+      nginx.ingress.kubernetes.io/use-forwarded-headers: "true"
+
+  # Full prod resource envelope — matches the Render Pro Max class we leave behind.
+  resources:
+    requests:
+      cpu: "1000m"
+      memory: "2Gi"
+    limits:
+      cpu: "3000m"
+      memory: "4Gi"
+
+  # Optional: anti-affinity so the two replicas never colocate on one node.
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            labelSelector:
+              matchLabels:
+                app.kubernetes.io/component: server
+            topologyKey: kubernetes.io/hostname
+
+postgresql:
+  external:
+    host: db.tuist.dev  # Supabase pooler endpoint for production.
+
+clickhouse:
+  external:
+    url: ""  # Set via helm --set at deploy time; see runbook.
+
+objectStorage:
+  external:
+    endpoint: https://fly.storage.tigris.dev
+    buckets:
+      default: tuist
+      cache: tuist-cache
+      xcodeCache: tuist-xcode-cache
+      registry: tuist-registry

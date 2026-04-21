@@ -62,10 +62,6 @@ server:
   cluster:
     enabled: false
     applicationName: tuist
-  serviceAccount:
-    create: true
-    name: ""
-    annotations: {}
   ingress:
     enabled: false
     className: ""
@@ -88,8 +84,6 @@ server:
     minAvailable: 1
   podAnnotations: {}
   podLabels: {}
-  nodeSelector: {}
-  tolerations: []
   affinity: {}
   terminationGracePeriodSeconds: 60
   # Preferred HTTP probes. All three hit the Phoenix /ready endpoint.

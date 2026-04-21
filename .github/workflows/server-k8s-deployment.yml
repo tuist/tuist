@@ -1,0 +1,197 @@
+name: Server k8s Deployment
+
+# Build the server image and deploy to the managed Kubernetes cluster.
+#
+# Flow:
+#   1. build-and-push: builds server/Dockerfile (runner target), pushes to GHCR
+#      tagged with the commit SHA.
+#   2. deploy-staging: runs on every main push (auto). Installs / upgrades the
+#      release in the tuist-staging namespace against the staging cluster.
+#   3. deploy-production: gated on the `server-k8s-production` GitHub
+#      Environment, which should require manual approval.
+#
+# Required repo / environment secrets:
+#   - GHCR_TOKEN          : PAT with write:packages scope (or rely on GITHUB_TOKEN if private)
+#   - KUBECONFIG_STAGING  : base64-encoded kubeconfig for the staging cluster
+#   - KUBECONFIG_PRODUCTION : base64-encoded kubeconfig for the production cluster
+#   - MASTER_KEY_STAGING  : MASTER_KEY that decrypts priv/secrets/stag.yml.enc
+#   - MASTER_KEY_PRODUCTION : MASTER_KEY that decrypts priv/secrets/prod.yml.enc
+#   - CLICKHOUSE_URL_STAGING / CLICKHOUSE_URL_PRODUCTION
+#   - DATABASE_URL_STAGING / DATABASE_URL_PRODUCTION
+#   - TIGRIS_ACCESS_KEY_STAGING / TIGRIS_SECRET_KEY_STAGING and _PRODUCTION
+#
+# Manually trigger a redeploy (e.g. rollback) with workflow_dispatch
+# and the commit_sha input.
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: Commit SHA to deploy (defaults to the event's SHA)
+        required: false
+      environment:
+        description: Target environment
+        required: true
+        default: staging
+        type: choice
+        options:
+          - staging
+          - production
+  push:
+    branches:
+      - main
+    paths:
+      - server/**
+      - tuist_common/**
+      - noora/**
+      - processor/**
+      - xcode_processor/**
+      - infra/helm/tuist/**
+      - .github/workflows/server-k8s-deployment.yml
+      - server/pnpm-lock.yaml
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
+concurrency:
+  group: server-k8s-${{ github.ref }}-${{ inputs.environment || 'staging' }}
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: tuist/tuist
+  HELM_CHART_PATH: infra/helm/tuist
+  HELM_RELEASE_NAME: tuist
+  DEPLOY_SHA: ${{ inputs.commit_sha || github.sha }}
+
+jobs:
+  build-and-push:
+    name: Build + push image to GHCR
+    runs-on: namespace-profile-default-with-volume
+    timeout-minutes: 40
+    outputs:
+      image_tag: ${{ steps.meta.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+          submodules: false
+      - name: Compute image tag
+        id: meta
+        run: echo "tag=sha-${DEPLOY_SHA:0:12}" >>"$GITHUB_OUTPUT"
+      - name: Set up Docker Buildx
+        uses: namespacelabs/nscloud-setup-buildx-action@v0
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build + push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./server/Dockerfile
+          target: runner
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.tag }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          build-args: |
+            TUIST_HOSTED=1
+            MIX_ENV=prod
+            APT_CACHE_BUST=${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy-staging:
+    name: Deploy to staging
+    needs: build-and-push
+    if: |
+      github.event_name == 'push' ||
+      (github.event_name == 'workflow_dispatch' && inputs.environment == 'staging')
+    runs-on: namespace-profile-default
+    environment:
+      name: server-k8s-staging
+      url: https://cloud-staging.tuist.dev
+    timeout-minutes: 20
+    env:
+      KUBECONFIG: ${{ github.workspace }}/.kube/config
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          install_args: "helm kubectl"
+          cache: "false"
+      - name: Load kubeconfig
+        run: |
+          mkdir -p "$(dirname "$KUBECONFIG")"
+          echo "${{ secrets.KUBECONFIG_STAGING }}" | base64 -d > "$KUBECONFIG"
+          chmod 600 "$KUBECONFIG"
+      - name: helm upgrade --install (staging)
+        run: |
+          helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
+            --namespace tuist-staging --create-namespace \
+            -f "$HELM_CHART_PATH/values-managed-common.yaml" \
+            -f "$HELM_CHART_PATH/values-managed-staging.yaml" \
+            --set server.image.tag="${{ needs.build-and-push.outputs.image_tag }}" \
+            --set server.masterKey="${{ secrets.MASTER_KEY_STAGING }}" \
+            --set postgresql.external.password="${{ secrets.DATABASE_PASSWORD_STAGING }}" \
+            --set clickhouse.external.url="${{ secrets.CLICKHOUSE_URL_STAGING }}" \
+            --set objectStorage.external.accessKey="${{ secrets.TIGRIS_ACCESS_KEY_STAGING }}" \
+            --set objectStorage.external.secretKey="${{ secrets.TIGRIS_SECRET_KEY_STAGING }}" \
+            --atomic --timeout 10m --wait
+      - name: Post-deploy smoke test
+        run: |
+          kubectl -n tuist-staging rollout status deploy/tuist-server --timeout=5m
+          # /ready must return 200.
+          kubectl -n tuist-staging run smoke-$RANDOM --rm -i --restart=Never --image=curlimages/curl \
+            --command -- curl -fsS "http://tuist-server/ready"
+
+  deploy-production:
+    name: Deploy to production
+    needs: build-and-push
+    if: |
+      github.event_name == 'workflow_dispatch' && inputs.environment == 'production'
+    runs-on: namespace-profile-default
+    environment:
+      name: server-k8s-production
+      url: https://cloud.tuist.dev
+    timeout-minutes: 30
+    env:
+      KUBECONFIG: ${{ github.workspace }}/.kube/config
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          install_args: "helm kubectl"
+          cache: "false"
+      - name: Load kubeconfig
+        run: |
+          mkdir -p "$(dirname "$KUBECONFIG")"
+          echo "${{ secrets.KUBECONFIG_PRODUCTION }}" | base64 -d > "$KUBECONFIG"
+          chmod 600 "$KUBECONFIG"
+      - name: helm upgrade --install (production)
+        run: |
+          helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
+            --namespace tuist --create-namespace \
+            -f "$HELM_CHART_PATH/values-managed-common.yaml" \
+            -f "$HELM_CHART_PATH/values-managed-production.yaml" \
+            --set server.image.tag="${{ needs.build-and-push.outputs.image_tag }}" \
+            --set server.masterKey="${{ secrets.MASTER_KEY_PRODUCTION }}" \
+            --set postgresql.external.password="${{ secrets.DATABASE_PASSWORD_PRODUCTION }}" \
+            --set clickhouse.external.url="${{ secrets.CLICKHOUSE_URL_PRODUCTION }}" \
+            --set objectStorage.external.accessKey="${{ secrets.TIGRIS_ACCESS_KEY_PRODUCTION }}" \
+            --set objectStorage.external.secretKey="${{ secrets.TIGRIS_SECRET_KEY_PRODUCTION }}" \
+            --atomic --timeout 15m --wait
+      - name: Post-deploy smoke test
+        run: |
+          kubectl -n tuist rollout status deploy/tuist-server --timeout=10m
+          kubectl -n tuist run smoke-$RANDOM --rm -i --restart=Never --image=curlimages/curl \
+            --command -- curl -fsS "http://tuist-server/ready"
