@@ -662,6 +662,7 @@ defmodule TuistWeb.Router do
         {TuistWeb.LayoutLive, :ops}
       ] do
       live "/", TuistWeb.OpsCacheLive
+      live "/accounts", TuistWeb.OpsAccountsLive
     end
   end
 

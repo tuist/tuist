@@ -1,0 +1,213 @@
+<div id="ops-accounts">
+  <div data-part="header">
+    <h1 data-part="title">{dgettext("dashboard", "Accounts")}</h1>
+  </div>
+  <.card title="Accounts" icon="users">
+    <.card_section>
+      <div data-part="filters">
+        <.form for={%{}} phx-change="search" phx-submit="search" phx-debounce="300">
+          <.text_input
+            type="search"
+            id="ops-accounts-search"
+            name="search"
+            placeholder="Search by name"
+            show_suffix={false}
+            value={@search}
+          />
+        </.form>
+      </div>
+      <.table id="ops-accounts-table" rows={@accounts}>
+        <:col :let={account} label="Name">
+          <.text_cell label={account.name} />
+        </:col>
+        <:col :let={account} label="Type">
+          <.text_cell label={account_type(account)} />
+        </:col>
+        <:col :let={account} label="Billing email">
+          <.text_cell label={account.billing_email || "—"} />
+        </:col>
+        <:col :let={account} label="Plan">
+          <.badge_cell
+            label={plan_label(current_plan(account))}
+            color={plan_color(current_plan(account))}
+            style="light-fill"
+          />
+        </:col>
+        <:col :let={account} label="Stripe customer">
+          <.text_cell label={account.customer_id || "Not created"} />
+        </:col>
+        <:col :let={account}>
+          <.modal
+            :if={current_plan(account) != :enterprise}
+            id={"enterprise-modal-#{account.id}"}
+            title={"Upgrade #{account.name} to Enterprise"}
+            description="Creates a Stripe customer (if missing), sets the billing address, and starts an invoice-billed Enterprise subscription. The customer receives an invoice by email; no card is collected here."
+            header_type="icon"
+            header_size="small"
+            on_dismiss={"close-enterprise-modal-#{account.id}"}
+          >
+            <:header_icon><.building /></:header_icon>
+            <:trigger :let={modal_attrs}>
+              <button
+                id={"enterprise-trigger-#{account.id}"}
+                type="button"
+                style="display: none;"
+                {modal_attrs}
+              >
+              </button>
+            </:trigger>
+
+            <form
+              id={"enterprise-form-#{account.id}"}
+              phx-submit="submit_enterprise_upgrade"
+              data-part="enterprise-form"
+            >
+              <input type="hidden" name="account_id" value={account.id} />
+              <.text_input
+                id={"enterprise-name-#{account.id}"}
+                name="name"
+                label="Name on invoice"
+                value={account.name}
+                required
+                show_required
+              />
+              <.text_input
+                id={"enterprise-billing-email-#{account.id}"}
+                name="billing_email"
+                label="Billing email"
+                value={account.billing_email}
+                required
+                show_required
+              />
+              <.text_input
+                id={"enterprise-address-line1-#{account.id}"}
+                name="address_line1"
+                label="Address line 1"
+                required
+                show_required
+              />
+              <.text_input
+                id={"enterprise-address-line2-#{account.id}"}
+                name="address_line2"
+                label="Address line 2 (optional)"
+              />
+              <.text_input
+                id={"enterprise-address-city-#{account.id}"}
+                name="address_city"
+                label="City"
+                required
+                show_required
+              />
+              <.text_input
+                id={"enterprise-address-state-#{account.id}"}
+                name="address_state"
+                label="State / region (optional)"
+              />
+              <.text_input
+                id={"enterprise-address-postal-code-#{account.id}"}
+                name="address_postal_code"
+                label="Postal code"
+                required
+                show_required
+              />
+              <label for={"enterprise-address-country-#{account.id}"}>Country</label>
+              <select
+                id={"enterprise-address-country-#{account.id}"}
+                name="address_country"
+                required
+              >
+                <option value="" disabled selected>Select a country</option>
+                <%= for {code, name} <- countries() do %>
+                  <option value={code}>{name}</option>
+                <% end %>
+              </select>
+
+              <label for={"enterprise-cadence-#{account.id}"}>Billing cadence</label>
+              <select id={"enterprise-cadence-#{account.id}"} name="cadence">
+                <option value="monthly" selected>Monthly</option>
+                <option value="yearly">Yearly</option>
+              </select>
+            </form>
+
+            <:footer>
+              <.modal_footer>
+                <:action>
+                  <.button
+                    label="Cancel"
+                    variant="secondary"
+                    type="button"
+                    phx-click={
+                      JS.dispatch("phx:close-modal",
+                        detail: %{id: "enterprise-modal-#{account.id}"}
+                      )
+                    }
+                  />
+                </:action>
+                <:action>
+                  <.button
+                    label="Upgrade to Enterprise"
+                    variant="primary"
+                    type="submit"
+                    form={"enterprise-form-#{account.id}"}
+                  />
+                </:action>
+              </.modal_footer>
+            </:footer>
+          </.modal>
+
+          <.dropdown id={"account-actions-#{account.id}"} icon_only>
+            <:icon><.dots_vertical /></:icon>
+
+            <.dropdown_item
+              label="Manage on Stripe"
+              value="manage"
+              phx-click="manage"
+              phx-value-id={account.id}
+            >
+              <:left_icon><.credit_card /></:left_icon>
+            </.dropdown_item>
+
+            <.dropdown_item
+              :if={current_plan(account) != :enterprise}
+              label="Upgrade to Enterprise"
+              value="upgrade_enterprise"
+              phx-click={
+                JS.dispatch("phx:open-modal", detail: %{id: "enterprise-modal-#{account.id}"})
+              }
+            >
+              <:left_icon><.building /></:left_icon>
+            </.dropdown_item>
+
+            <.dropdown_item
+              :if={current_plan(account) in [:pro, :enterprise]}
+              label="Cancel plan"
+              value="cancel"
+              phx-click="cancel_plan"
+              phx-value-id={account.id}
+              data-confirm={"Cancel #{account.name}'s subscription at the end of the current billing period? Access is kept until then."}
+            >
+              <:left_icon><.trash_x /></:left_icon>
+            </.dropdown_item>
+          </.dropdown>
+        </:col>
+        <:empty_state>
+          <.table_empty_state
+            icon="users"
+            title="No accounts"
+            subtitle="No accounts match the current filter."
+          />
+        </:empty_state>
+      </.table>
+      <.pagination_group
+        :if={@meta.total_pages > 1}
+        current_page={@current_page}
+        number_of_pages={@meta.total_pages}
+        page_patch={
+          fn page ->
+            ~p"/ops/accounts?#{Map.put(@query_params, "page", page)}"
+          end
+        }
+      />
+    </.card_section>
+  </.card>
+</div>
