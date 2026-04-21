@@ -205,8 +205,16 @@ defmodule TuistWeb.GradleBuildsLive do
         params
       ) do
     %{period: {start_datetime, end_datetime}} = DatePicker.date_picker_params(params, "analytics")
+    analytics_environment = params["analytics-environment"] || "any"
 
     opts = [start_datetime: start_datetime, end_datetime: end_datetime]
+
+    opts =
+      case analytics_environment do
+        "ci" -> Keyword.put(opts, :is_ci, true)
+        "local" -> Keyword.put(opts, :is_ci, false)
+        _ -> opts
+      end
 
     socket
     |> assign_async(:configuration_insights_analytics, fn ->
@@ -232,8 +240,18 @@ defmodule TuistWeb.GradleBuildsLive do
   def configuration_insights_label("java-version"), do: dgettext("dashboard_gradle", "Java version")
   def configuration_insights_label(_), do: dgettext("dashboard_gradle", "Gradle version")
 
-  defp assign_recent_builds(%{assigns: %{selected_project: project, selected_account: account}} = socket) do
-    {builds, _meta} = Gradle.list_builds(project.id, %{page_size: @recent_builds_page_size})
+  defp assign_recent_builds(
+         %{assigns: %{selected_project: project, selected_account: account, analytics_environment: analytics_environment}} =
+           socket
+       ) do
+    filters =
+      case analytics_environment do
+        "ci" -> [%{field: :is_ci, op: :==, value: true}]
+        "local" -> [%{field: :is_ci, op: :==, value: false}]
+        _ -> []
+      end
+
+    {builds, _meta} = Gradle.list_builds(project.id, %{page_size: @recent_builds_page_size, filters: filters})
     builds = Repo.preload(builds, :built_by_account)
 
     recent_builds_chart_data =

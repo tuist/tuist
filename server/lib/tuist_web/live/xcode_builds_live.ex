@@ -56,7 +56,10 @@ defmodule TuistWeb.XcodeBuildsLive do
     if Query.has_pagination_params?(socket.assigns.uri.query) do
       {:noreply, socket}
     else
-      {:noreply, socket |> assign_analytics(socket.assigns.current_params) |> assign_recent_builds()}
+      {:noreply,
+       socket
+       |> assign_analytics(socket.assigns.current_params)
+       |> assign_recent_builds()}
     end
   end
 
@@ -260,11 +263,9 @@ defmodule TuistWeb.XcodeBuildsLive do
 
   defp assign_configuration_insights(
          %{assigns: %{selected_project: project, configuration_insights_type: configuration_insights_type}} = socket,
-         params
+         _params
        ) do
-    %{period: {start_datetime, end_datetime}} = DatePicker.date_picker_params(params, "analytics")
-
-    opts = [start_datetime: start_datetime, end_datetime: end_datetime]
+    opts = analytics_opts(socket.assigns)
 
     socket
     |> assign_async(:configuration_insights_analytics, fn ->
@@ -289,6 +290,14 @@ defmodule TuistWeb.XcodeBuildsLive do
   end
 
   defp assign_recent_builds(%{assigns: %{selected_project: project}} = socket) do
+    filters = [
+      %{field: :project_id, op: :==, value: project.id},
+      %{field: :status, op: :!=, value: "processing"},
+      %{field: :status, op: :!=, value: "failed_processing"}
+    ]
+
+    filters = recent_builds_filters(filters, socket.assigns)
+
     assign_async(
       socket,
       [
@@ -302,11 +311,7 @@ defmodule TuistWeb.XcodeBuildsLive do
           Builds.list_build_runs(
             %{
               first: 40,
-              filters: [
-                %{field: :project_id, op: :==, value: project.id},
-                %{field: :status, op: :!=, value: "processing"},
-                %{field: :status, op: :!=, value: "failed_processing"}
-              ],
+              filters: filters,
               order_by: [:inserted_at],
               order_directions: [:desc]
             },
@@ -331,8 +336,8 @@ defmodule TuistWeb.XcodeBuildsLive do
             }
           end)
 
-        %{successful_count: successful_builds_count, failed_count: failed_builds_count} =
-          Builds.recent_build_status_counts(project.id, limit: 40)
+        successful_builds_count = Enum.count(recent_builds, &(&1.status == "success"))
+        failed_builds_count = Enum.count(recent_builds, &(&1.status == "failure"))
 
         {:ok,
          %{
@@ -344,6 +349,23 @@ defmodule TuistWeb.XcodeBuildsLive do
       end
     )
   end
+
+  defp recent_builds_filters(filters, assigns) do
+    filters
+    |> maybe_add_filter(:is_ci, assigns.analytics_environment)
+    |> maybe_add_filter(:scheme, assigns.analytics_build_scheme)
+    |> maybe_add_filter(:configuration, assigns.analytics_build_configuration)
+    |> maybe_add_filter(:category, assigns.analytics_build_category)
+    |> maybe_add_tag_filter(assigns.analytics_build_tag)
+  end
+
+  defp maybe_add_filter(filters, :is_ci, "ci"), do: [%{field: :is_ci, op: :==, value: true} | filters]
+  defp maybe_add_filter(filters, :is_ci, "local"), do: [%{field: :is_ci, op: :==, value: false} | filters]
+  defp maybe_add_filter(filters, _field, value) when value in ["any", "all"], do: filters
+  defp maybe_add_filter(filters, field, value), do: [%{field: field, op: :==, value: value} | filters]
+
+  defp maybe_add_tag_filter(filters, "all"), do: filters
+  defp maybe_add_tag_filter(filters, tag), do: [%{field: :custom_tags, op: :contains, value: tag} | filters]
 
   defp trend_label("last-24-hours"), do: dgettext("dashboard_builds", "since yesterday")
   defp trend_label("last-7-days"), do: dgettext("dashboard_builds", "since last week")

@@ -55,6 +55,10 @@ defmodule TuistWeb.TestsLive do
               "duration-type",
               "duration-chart-type",
               "duration-scatter-group-by",
+              "selective-testing-environment",
+              "selective-testing-date-range",
+              "selective-testing-start-date",
+              "selective-testing-end-date",
               "selective-testing-duration-type",
               "selective-testing-chart-type"
             ])
@@ -184,6 +188,24 @@ defmodule TuistWeb.TestsLive do
     {:noreply, push_patch(socket, to: "/#{selected_account.name}/#{selected_project.name}/tests?#{query_params}")}
   end
 
+  def handle_event(
+        "selective_testing_period_changed",
+        %{"value" => %{"start" => start_date, "end" => end_date}, "preset" => preset},
+        %{assigns: %{selected_account: selected_account, selected_project: selected_project}} = socket
+      ) do
+    query_params =
+      if preset == "custom" do
+        socket.assigns.uri.query
+        |> Query.put("selective-testing-date-range", "custom")
+        |> Query.put("selective-testing-start-date", start_date)
+        |> Query.put("selective-testing-end-date", end_date)
+      else
+        Query.put(socket.assigns.uri.query, "selective-testing-date-range", preset)
+      end
+
+    {:noreply, push_patch(socket, to: "/#{selected_account.name}/#{selected_project.name}/tests?#{query_params}")}
+  end
+
   def handle_info({:test_created, %{name: "test"}}, socket) do
     if Query.has_pagination_params?(socket.assigns.uri.query) do
       {:noreply, socket}
@@ -271,16 +293,16 @@ defmodule TuistWeb.TestsLive do
   end
 
   defp assign_selective_testing(%{assigns: %{selected_project: project}} = socket, params) do
+    selective_testing_environment = params["selective-testing-environment"] || "any"
     selective_testing_duration_type = params["selective-testing-duration-type"] || "avg"
-    analytics_environment = params["analytics-environment"] || "any"
 
-    %{period: {start_datetime, end_datetime}} =
-      DatePicker.date_picker_params(params, "analytics")
+    %{preset: preset, period: {start_datetime, end_datetime} = period} =
+      DatePicker.date_picker_params(params, "selective-testing")
 
     opts = [project_id: project.id, start_datetime: start_datetime, end_datetime: end_datetime]
 
     opts =
-      case analytics_environment do
+      case selective_testing_environment do
         "ci" -> Keyword.put(opts, :is_ci, true)
         "local" -> Keyword.put(opts, :is_ci, false)
         _ -> opts
@@ -289,6 +311,10 @@ defmodule TuistWeb.TestsLive do
     selective_testing_chart_type = params["selective-testing-chart-type"] || "line"
 
     socket
+    |> assign(:selective_testing_environment, selective_testing_environment)
+    |> assign(:selective_testing_environment_label, environment_label(selective_testing_environment))
+    |> assign(:selective_testing_preset, preset)
+    |> assign(:selective_testing_period, period)
     |> assign(:selective_testing_duration_type, selective_testing_duration_type)
     |> assign(:selective_testing_chart_type, selective_testing_chart_type)
     |> assign_async(:selective_testing_analytics, fn ->

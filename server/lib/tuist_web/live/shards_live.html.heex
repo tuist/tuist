@@ -1,54 +1,54 @@
 <div id="shards">
-  <div data-part="filters">
-    <.date_picker
-      id="shards-date-range-picker"
-      name="analytics-date-range"
-      presets={[
-        %{
-          id: "last-24-hours",
-          label: dgettext("dashboard_tests", "Last 24 hours"),
-          period: {24, :hour}
-        },
-        %{
-          id: "last-7-days",
-          label: dgettext("dashboard_tests", "Last 7 days"),
-          period: {7, :day}
-        },
-        %{
-          id: "last-30-days",
-          label: dgettext("dashboard_tests", "Last 30 days"),
-          period: {30, :day}
-        },
-        %{
-          id: "last-12-months",
-          label: dgettext("dashboard_tests", "Last 12 months"),
-          period: {12, :month}
-        },
-        %{id: "custom", label: dgettext("dashboard_tests", "Custom")}
-      ]}
-      selected_preset={@analytics_preset}
-      period={@analytics_period}
-      on_period_change="analytics_period_changed"
-      max={Date.utc_today()}
-    >
-      <:actions>
-        <.button
-          label={dgettext("dashboard_tests", "Cancel")}
-          variant="secondary"
-          phx-click={
-            JS.dispatch("phx:date-picker-cancel", detail: %{id: "shards-date-range-picker"})
-          }
-        />
-        <.button
-          label={dgettext("dashboard_tests", "Apply")}
-          phx-click={
-            JS.dispatch("phx:date-picker-apply", detail: %{id: "shards-date-range-picker"})
-          }
-        />
-      </:actions>
-    </.date_picker>
-  </div>
   <.card title={dgettext("dashboard_tests", "Shards")} icon="stack_2" data-part="overview">
+    <:actions>
+      <.date_picker
+        id="shards-date-range-picker"
+        name="analytics-date-range"
+        presets={[
+          %{
+            id: "last-24-hours",
+            label: dgettext("dashboard_tests", "Last 24 hours"),
+            period: {24, :hour}
+          },
+          %{
+            id: "last-7-days",
+            label: dgettext("dashboard_tests", "Last 7 days"),
+            period: {7, :day}
+          },
+          %{
+            id: "last-30-days",
+            label: dgettext("dashboard_tests", "Last 30 days"),
+            period: {30, :day}
+          },
+          %{
+            id: "last-12-months",
+            label: dgettext("dashboard_tests", "Last 12 months"),
+            period: {12, :month}
+          },
+          %{id: "custom", label: dgettext("dashboard_tests", "Custom")}
+        ]}
+        selected_preset={@analytics_preset}
+        period={@analytics_period}
+        on_period_change="analytics_period_changed"
+        max={Date.utc_today()}
+      >
+        <:actions>
+          <.button
+            label={dgettext("dashboard_tests", "Cancel")}
+            variant="secondary"
+            phx-click={
+              JS.dispatch("phx:date-picker-cancel", detail: %{id: "shards-date-range-picker"})
+            }
+          />
+          <.button
+            label={dgettext("dashboard_tests", "Apply")}
+            phx-click={
+              JS.dispatch("phx:date-picker-apply", detail: %{id: "shards-date-range-picker"})
+            }
+          />
+        </:actions>
+      </.date_picker>
+    </:actions>
     <div data-part="analytics-content">
       <div data-part="widgets">
         <.widget
@@ -512,126 +512,126 @@
           />
         </div>
       </.card_section>
-      <.card_section data-part="sharded-runs-section">
-        <div data-part="filters">
-          <.form for={%{}} phx-change="search-sharded-runs" phx-debounce="200">
-            <.text_input
-              type="search"
-              id="search-sharded-runs"
-              name="search"
-              placeholder={dgettext("dashboard_tests", "Search...")}
-              show_suffix={false}
-              data-part="search"
-              value={@sharded_runs_search}
-            />
-          </.form>
-          <.filter_dropdown
-            id="sharded-runs-filter-dropdown"
-            label={dgettext("dashboard_tests", "Filter")}
-            available_filters={@available_filters}
-            active_filters={@active_filters}
-          />
-        </div>
-        <div :if={Enum.any?(@active_filters)} data-part="active-filters">
-          <.active_filter :for={filter <- @active_filters} filter={filter} />
-        </div>
-        <div :if={not Enum.empty?(@sharded_runs)} data-part="sharded-runs-table">
-          <.table
-            id="sharded-runs-table"
-            rows={@sharded_runs}
-            row_navigate={
-              fn test_run ->
-                url(
-                  ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-runs/#{test_run.id}"
-                )
-              end
-            }
-          >
-            <:col :let={test_run} label={dgettext("dashboard_tests", "Scheme")}>
-              <.text_cell label={
-                if test_run.scheme != "" and not is_nil(test_run.scheme),
-                  do: test_run.scheme,
-                  else: dgettext("dashboard_tests", "Unknown")
-              } />
-            </:col>
-            <:col :let={test_run} label={dgettext("dashboard_tests", "Granularity")}>
-              <.text_cell label={
-                if test_run.shard_plan,
-                  do: String.capitalize(test_run.shard_plan.granularity),
-                  else: dgettext("dashboard_tests", "Unknown")
-              } />
-            </:col>
-            <:col :let={test_run} label={dgettext("dashboard_tests", "Status")}>
-              <.status_badge_cell
-                :if={test_run.status == "success"}
-                label={dgettext("dashboard_tests", "Passed")}
-                status="success"
-              />
-              <.status_badge_cell
-                :if={test_run.status == "failure"}
-                label={dgettext("dashboard_tests", "Failed")}
-                status="error"
-              />
-              <.status_badge_cell
-                :if={test_run.status == "in_progress"}
-                label={dgettext("dashboard_tests", "In Progress")}
-                status="in_progress"
-              />
-              <.status_badge_cell
-                :if={test_run.status == "skipped"}
-                label={dgettext("dashboard_tests", "Skipped")}
-                status="warning"
-              />
-            </:col>
-            <:col :let={test_run} label={dgettext("dashboard_tests", "Shards")}>
-              <.text_cell label={
-                if test_run.shard_plan,
-                  do: to_string(test_run.shard_plan.shard_count),
-                  else: "—"
-              } />
-            </:col>
-            <:col :let={test_run} label={dgettext("dashboard_tests", "Duration")}>
-              <.text_cell
-                :if={test_run.status != "in_progress"}
-                label={
-                  Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
-                    test_run.duration || 0
-                  )
-                }
-                icon="history"
-              />
-              <.status_badge_cell
-                :if={test_run.status == "in_progress"}
-                label={dgettext("dashboard_tests", "In Progress")}
-                status="in_progress"
-              />
-            </:col>
-            <:col :let={test_run} label={dgettext("dashboard_tests", "Ran at")}>
-              <.text_cell sublabel={Tuist.Utilities.DateFormatter.from_now(test_run.ran_at)} />
-            </:col>
-          </.table>
-          <.pagination
-            uri={@uri}
-            has_previous_page={@sharded_runs_meta.has_previous_page?}
-            has_next_page={@sharded_runs_meta.has_next_page?}
-            start_cursor={@sharded_runs_meta.start_cursor}
-            end_cursor={@sharded_runs_meta.end_cursor}
-          />
-        </div>
-
-        <div :if={Enum.empty?(@sharded_runs)} data-part="empty-sharded-runs">
-          <.empty_card_section
-            title={dgettext("dashboard_tests", "No sharded runs")}
-            get_started_href="https://tuist.dev/en/docs/guides/features/test-sharding"
-            data-part="empty-sharded-runs-table-card-section"
-          >
-            <:image>
-              <img src="/images/empty_table_light.png" data-theme="light" />
-              <img src="/images/empty_table_dark.png" data-theme="dark" />
-            </:image>
-          </.empty_card_section>
-        </div>
-      </.card_section>
     </div>
+    <.card_section data-part="sharded-runs-section">
+      <div data-part="filters">
+        <.form for={%{}} phx-change="search-sharded-runs" phx-debounce="200">
+          <.text_input
+            type="search"
+            id="search-sharded-runs"
+            name="search"
+            placeholder={dgettext("dashboard_tests", "Search...")}
+            show_suffix={false}
+            data-part="search"
+            value={@sharded_runs_search}
+          />
+        </.form>
+        <.filter_dropdown
+          id="sharded-runs-filter-dropdown"
+          label={dgettext("dashboard_tests", "Filter")}
+          available_filters={@available_filters}
+          active_filters={@active_filters}
+        />
+      </div>
+      <div :if={Enum.any?(@active_filters)} data-part="active-filters">
+        <.active_filter :for={filter <- @active_filters} filter={filter} />
+      </div>
+      <div :if={not Enum.empty?(@sharded_runs)} data-part="sharded-runs-table">
+        <.table
+          id="sharded-runs-table"
+          rows={@sharded_runs}
+          row_navigate={
+            fn test_run ->
+              url(
+                ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-runs/#{test_run.id}"
+              )
+            end
+          }
+        >
+          <:col :let={test_run} label={dgettext("dashboard_tests", "Scheme")}>
+            <.text_cell label={
+              if test_run.scheme != "" and not is_nil(test_run.scheme),
+                do: test_run.scheme,
+                else: dgettext("dashboard_tests", "Unknown")
+            } />
+          </:col>
+          <:col :let={test_run} label={dgettext("dashboard_tests", "Granularity")}>
+            <.text_cell label={
+              if test_run.shard_plan,
+                do: String.capitalize(test_run.shard_plan.granularity),
+                else: dgettext("dashboard_tests", "Unknown")
+            } />
+          </:col>
+          <:col :let={test_run} label={dgettext("dashboard_tests", "Status")}>
+            <.status_badge_cell
+              :if={test_run.status == "success"}
+              label={dgettext("dashboard_tests", "Passed")}
+              status="success"
+            />
+            <.status_badge_cell
+              :if={test_run.status == "failure"}
+              label={dgettext("dashboard_tests", "Failed")}
+              status="error"
+            />
+            <.status_badge_cell
+              :if={test_run.status == "in_progress"}
+              label={dgettext("dashboard_tests", "In Progress")}
+              status="in_progress"
+            />
+            <.status_badge_cell
+              :if={test_run.status == "skipped"}
+              label={dgettext("dashboard_tests", "Skipped")}
+              status="warning"
+            />
+          </:col>
+          <:col :let={test_run} label={dgettext("dashboard_tests", "Shards")}>
+            <.text_cell label={
+              if test_run.shard_plan,
+                do: to_string(test_run.shard_plan.shard_count),
+                else: "—"
+            } />
+          </:col>
+          <:col :let={test_run} label={dgettext("dashboard_tests", "Duration")}>
+            <.text_cell
+              :if={test_run.status != "in_progress"}
+              label={
+                Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                  test_run.duration || 0
+                )
+              }
+              icon="history"
+            />
+            <.status_badge_cell
+              :if={test_run.status == "in_progress"}
+              label={dgettext("dashboard_tests", "In Progress")}
+              status="in_progress"
+            />
+          </:col>
+          <:col :let={test_run} label={dgettext("dashboard_tests", "Ran at")}>
+            <.text_cell sublabel={Tuist.Utilities.DateFormatter.from_now(test_run.ran_at)} />
+          </:col>
+        </.table>
+        <.pagination
+          uri={@uri}
+          has_previous_page={@sharded_runs_meta.has_previous_page?}
+          has_next_page={@sharded_runs_meta.has_next_page?}
+          start_cursor={@sharded_runs_meta.start_cursor}
+          end_cursor={@sharded_runs_meta.end_cursor}
+        />
+      </div>
+
+      <div :if={Enum.empty?(@sharded_runs)} data-part="empty-sharded-runs">
+        <.empty_card_section
+          title={dgettext("dashboard_tests", "No sharded runs")}
+          get_started_href="https://tuist.dev/en/docs/guides/features/test-sharding"
+          data-part="empty-sharded-runs-table-card-section"
+        >
+          <:image>
+            <img src="/images/empty_table_light.png" data-theme="light" />
+            <img src="/images/empty_table_dark.png" data-theme="dark" />
+          </:image>
+        </.empty_card_section>
+      </div>
+    </.card_section>
   </.card>
 </div>

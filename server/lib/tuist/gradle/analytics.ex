@@ -557,6 +557,7 @@ defmodule Tuist.Gradle.Analytics do
       )
 
     query
+    |> maybe_filter_ci(opts)
     |> ClickHouseRepo.all()
     |> Enum.map(fn row ->
       %{category: row.category, value: row.value || 0}

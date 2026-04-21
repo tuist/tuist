@@ -4,14 +4,6 @@
   gap: var(--noora-spacing-6);
   padding: var(--noora-spacing-7) var(--noora-spacing-5);
 
-  & > [data-part="filters"] {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    align-items: center;
-    gap: var(--noora-spacing-4);
-  }
-
   & [data-part="widgets"] {
     display: flex;
     flex-direction: row;
