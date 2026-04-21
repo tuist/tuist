@@ -492,7 +492,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
         "git_commit_sha" => "abc123"
       }
 
-      expect(Tuist.Builds, :get_build, fn ^non_existent_build_id -> nil end)
+      expect(Tuist.Builds, :get_build, fn ^non_existent_build_id -> {:error, :not_found} end)
 
       expect(Tuist.Builds, :create_build, fn attrs ->
         assert attrs.status == "failed_processing"

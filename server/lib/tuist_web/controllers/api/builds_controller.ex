@@ -328,12 +328,12 @@ defmodule TuistWeb.API.BuildsController do
 
   def show(%{assigns: %{selected_project: selected_project}, params: %{build_id: build_id}} = conn, _params) do
     case Builds.get_build(build_id) do
-      nil ->
+      {:error, :not_found} ->
         conn
         |> put_status(:not_found)
         |> json(%{message: "Build not found."})
 
-      build ->
+      {:ok, build} ->
         if build.project_id == selected_project.id do
           json(conn, %{
             id: build.id,
@@ -883,10 +883,10 @@ defmodule TuistWeb.API.BuildsController do
 
   defp get_or_create_build(params) do
     case Builds.get_build(params.id) do
-      %Tuist.Builds.Build{} = build ->
+      {:ok, build} ->
         {:ok, build}
 
-      nil ->
+      {:error, :not_found} ->
         custom_metadata = Map.get(params, :custom_metadata, %{})
 
         build_attrs = %{
@@ -975,8 +975,8 @@ defmodule TuistWeb.API.BuildsController do
   defp handle_build_creation_result({:error, changeset}, build_id) do
     if Keyword.has_key?(changeset.errors, :id) do
       case Builds.get_build(build_id) do
-        %Tuist.Builds.Build{} = build -> {:ok, build}
-        nil -> {:error, :creation_failed}
+        {:ok, build} -> {:ok, build}
+        {:error, :not_found} -> {:error, :creation_failed}
       end
     else
       {:error, changeset}

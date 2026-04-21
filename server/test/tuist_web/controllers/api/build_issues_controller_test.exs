@@ -19,7 +19,7 @@ defmodule TuistWeb.API.BuildIssuesControllerTest do
     test "returns an empty list when there are no issues", %{conn: conn, user: user, project: project} do
       {:ok, build} = RunsFixtures.build_fixture(project_id: project.id, user_id: user.account.id)
 
-      stub(Builds, :get_build, fn _id -> build end)
+      stub(Builds, :get_build, fn _id -> {:ok, build} end)
 
       stub(Builds, :list_build_issues_paginated, fn _attrs ->
         {[],
@@ -51,7 +51,7 @@ defmodule TuistWeb.API.BuildIssuesControllerTest do
     test "returns issues for the build", %{conn: conn, user: user, project: project} do
       {:ok, build} = RunsFixtures.build_fixture(project_id: project.id, user_id: user.account.id)
 
-      stub(Builds, :get_build, fn _id -> build end)
+      stub(Builds, :get_build, fn _id -> {:ok, build} end)
 
       stub(Builds, :list_build_issues_paginated, fn _attrs ->
         {[
@@ -103,7 +103,7 @@ defmodule TuistWeb.API.BuildIssuesControllerTest do
     test "filters issues by type", %{conn: conn, user: user, project: project} do
       {:ok, build} = RunsFixtures.build_fixture(project_id: project.id, user_id: user.account.id)
 
-      stub(Builds, :get_build, fn _id -> build end)
+      stub(Builds, :get_build, fn _id -> {:ok, build} end)
 
       expect(Builds, :list_build_issues_paginated, fn attrs ->
         assert %{field: :type, op: :==, value: "error"} in attrs.filters
@@ -148,7 +148,7 @@ defmodule TuistWeb.API.BuildIssuesControllerTest do
     test "filters issues by target", %{conn: conn, user: user, project: project} do
       {:ok, build} = RunsFixtures.build_fixture(project_id: project.id, user_id: user.account.id)
 
-      stub(Builds, :get_build, fn _id -> build end)
+      stub(Builds, :get_build, fn _id -> {:ok, build} end)
 
       expect(Builds, :list_build_issues_paginated, fn attrs ->
         assert %{field: :target, op: :==, value: "MyTarget"} in attrs.filters
@@ -193,7 +193,7 @@ defmodule TuistWeb.API.BuildIssuesControllerTest do
     test "supports pagination", %{conn: conn, user: user, project: project} do
       {:ok, build} = RunsFixtures.build_fixture(project_id: project.id, user_id: user.account.id)
 
-      stub(Builds, :get_build, fn _id -> build end)
+      stub(Builds, :get_build, fn _id -> {:ok, build} end)
 
       expect(Builds, :list_build_issues_paginated, fn attrs ->
         assert attrs.page == 2
@@ -240,7 +240,7 @@ defmodule TuistWeb.API.BuildIssuesControllerTest do
     end
 
     test "returns 404 when build is not found", %{conn: conn, user: user, project: project} do
-      stub(Builds, :get_build, fn _id -> nil end)
+      stub(Builds, :get_build, fn _id -> {:error, :not_found} end)
 
       conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/xcode/builds/#{UUIDv7.generate()}/issues")
 
@@ -251,7 +251,7 @@ defmodule TuistWeb.API.BuildIssuesControllerTest do
       other_project = ProjectsFixtures.project_fixture(account_id: user.account.id)
       {:ok, build} = RunsFixtures.build_fixture(project_id: other_project.id, user_id: user.account.id)
 
-      stub(Builds, :get_build, fn _id -> build end)
+      stub(Builds, :get_build, fn _id -> {:ok, build} end)
 
       conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/xcode/builds/#{build.id}/issues")
 
