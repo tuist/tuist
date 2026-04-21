@@ -74,6 +74,7 @@ jobs:
       - uses: 1password/install-cli-action@v2
       - uses: jdx/mise-action@v3.2.0
         with:
+          version: "2026.4.18"
           install_args: "ruby gem:kamal"
           cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
           working_directory: cache
@@ -199,6 +200,7 @@ jobs:
       - uses: 1password/install-cli-action@v2
       - uses: jdx/mise-action@v3.2.0
         with:
+          version: "2026.4.18"
           install_args: "ruby gem:kamal"
           cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
           working_directory: cache
