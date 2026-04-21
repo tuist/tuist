@@ -72,6 +72,7 @@ defmodule Tuist.Application do
     TuistCommon.ObanTelemetry.attach()
     ReqTelemetry.attach_default_logger(:pipeline)
     TransportLogger.attach(:tuist)
+    Tuist.Metrics.Telemetry.attach()
 
     if Application.get_env(:opentelemetry, :traces_exporter) != :none do
       OpentelemetryLoggerMetadata.setup()
@@ -165,6 +166,7 @@ defmodule Tuist.Application do
         {Finch, name: Tuist.Finch, pools: finch_pools()},
         {Phoenix.PubSub, name: Tuist.PubSub},
         {TuistWeb.RateLimit.InMemory, [clean_period: to_timeout(hour: 1)]},
+        Tuist.Metrics.Aggregator,
         {Tuist.API.Pipeline, []},
         {Guardian.DB.Sweeper, [interval: 60 * 60 * 1000]},
         TuistWeb.Telemetry,

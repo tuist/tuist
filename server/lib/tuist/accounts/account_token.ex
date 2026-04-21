@@ -29,6 +29,7 @@ defmodule Tuist.Accounts.AccountToken do
     "mcp",
     "account:members:read",
     "account:members:write",
+    "account:metrics:read",
     "account:registry:read",
     "account:registry:write",
     "project:previews:read",

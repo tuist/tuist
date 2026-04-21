@@ -1,0 +1,10 @@
+{
+  "extends": "@grafana/tsconfig",
+  "compilerOptions": {
+    "module": "CommonJS",
+    "target": "ES2022",
+    "esModuleInterop": true,
+    "resolveJsonModule": true
+  },
+  "include": ["webpack/**/*.ts"]
+}

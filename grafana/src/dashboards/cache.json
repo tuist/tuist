@@ -1,0 +1,94 @@
+{
+  "title": "Binary cache effectiveness",
+  "uid": "tuist-cache",
+  "tags": ["tuist", "cache"],
+  "schemaVersion": 39,
+  "editable": true,
+  "graphTooltip": 1,
+  "timezone": "",
+  "time": { "from": "now-24h", "to": "now" },
+  "refresh": "30s",
+  "templating": {
+    "list": [
+      {
+        "name": "DS_PROMETHEUS",
+        "label": "Prometheus",
+        "type": "datasource",
+        "query": "prometheus",
+        "current": {},
+        "hide": 0,
+        "refresh": 1
+      },
+      {
+        "name": "project",
+        "label": "Project",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+        "query": "label_values(tuist_xcode_cache_events_total, project)",
+        "includeAll": true,
+        "multi": true,
+        "refresh": 2
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Hit ratio (last 6h)",
+      "description": "Remote + local hits divided by total cache events.",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (project) (increase(tuist_xcode_cache_events_total{event_type=~\"local_hit|remote_hit\",project=~\"$project\"}[6h])) / clamp_min(sum by (project) (increase(tuist_xcode_cache_events_total{project=~\"$project\"}[6h])), 1e-9)",
+          "legendFormat": "{{project}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "percentunit", "min": 0, "max": 1 },
+        "overrides": []
+      }
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Cache events per minute by type",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (event_type) (rate(tuist_xcode_cache_events_total{project=~\"$project\"}[5m])) * 60",
+          "legendFormat": "{{event_type}}"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] }
+    },
+    {
+      "id": 3,
+      "type": "barchart",
+      "title": "Top projects by remote hit count",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "x": 0, "y": 8, "w": 24, "h": 9 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "topk(10, sum by (project) (increase(tuist_xcode_cache_events_total{event_type=\"remote_hit\",project=~\"$project\"}[1h])))",
+          "legendFormat": "{{project}}"
+        }
+      ]
+    }
+  ],
+  "__inputs": [
+    {
+      "name": "DS_PROMETHEUS",
+      "label": "Prometheus",
+      "description": "",
+      "type": "datasource",
+      "pluginId": "prometheus",
+      "pluginName": "Prometheus"
+    }
+  ]
+}

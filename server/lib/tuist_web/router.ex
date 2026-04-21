@@ -170,6 +170,17 @@ defmodule TuistWeb.Router do
     plug ObservabilityContextPlug
   end
 
+  # Prometheus-compatible scrape endpoints. Scrapers typically send
+  # `Accept: application/openmetrics-text;...,text/plain;...;q=0.5,*/*;q=0.1`.
+  # We set the response content-type manually, so this pipeline intentionally
+  # skips the `:accepts` plug and the OpenAPI validation used by JSON APIs.
+  pipeline :prometheus_scrape do
+    plug TuistWeb.AuthenticationPlug, :load_authenticated_subject
+    plug TuistWeb.AuthenticationPlug, {:require_authentication, response_type: :open_api}
+    plug SentryContextPlug
+    plug ObservabilityContextPlug
+  end
+
   pipeline :authenticated do
     plug TuistWeb.AuthenticationPlug, :load_authenticated_subject
     plug SentryContextPlug
@@ -582,6 +593,17 @@ defmodule TuistWeb.Router do
     put "/organizations/:organization_name/members/:user_name",
         OrganizationsController,
         :update_member
+  end
+
+  # Prometheus-compatible per-account `/metrics` scrape endpoint. Kept on its
+  # own scope so it bypasses the JSON `:accepts` plug used by the rest of the
+  # authenticated API — scrapers only send text/openmetrics content types.
+  scope path: "/api",
+        alias: TuistWeb.API,
+        assigns: %{caching: not Tuist.Environment.test?(), cache_ttl: to_timeout(minute: 1)} do
+    pipe_through [:open_api, :prometheus_scrape, :on_premise_api]
+
+    get "/accounts/:account_handle/metrics", MetricsController, :show
   end
 
   scope "/api" do

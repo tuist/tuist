@@ -1,0 +1,51 @@
+{
+  "name": "tuist-tuist-app",
+  "version": "0.1.0",
+  "description": "Grafana app plugin for scraping per-account Tuist metrics (Xcode, Gradle, and CLI).",
+  "scripts": {
+    "build": "webpack -c ./.config/webpack/webpack.config.ts --env production",
+    "dev": "webpack -w -c ./.config/webpack/webpack.config.ts --env development",
+    "test": "jest --watch --onlyChanged",
+    "test:ci": "jest --passWithNoTests --maxWorkers 4",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint --cache --ignore-path ./.gitignore --ext .js,.jsx,.ts,.tsx .",
+    "lint:fix": "npm run lint -- --fix",
+    "sign": "npx --yes @grafana/sign-plugin@latest"
+  },
+  "author": "Tuist GmbH",
+  "license": "MPL-2.0",
+  "devDependencies": {
+    "@grafana/create-plugin": "^5.10.0",
+    "@grafana/eslint-config": "^8.0.0",
+    "@grafana/tsconfig": "^2.0.0",
+    "@types/jest": "^29.5.12",
+    "@types/lodash": "^4.17.5",
+    "@types/node": "^22.7.5",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "eslint": "^8.57.0",
+    "eslint-plugin-jest": "^28.6.0",
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^29.7.0",
+    "prettier": "^3.3.2",
+    "ts-node": "^10.9.2",
+    "tslib": "^2.6.3",
+    "typescript": "^5.5.4",
+    "webpack": "^5.94.0",
+    "webpack-cli": "^5.1.4"
+  },
+  "dependencies": {
+    "@emotion/css": "^11.11.2",
+    "@grafana/data": "^11.3.0",
+    "@grafana/runtime": "^11.3.0",
+    "@grafana/schema": "^11.3.0",
+    "@grafana/ui": "^11.3.0",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "react-router-dom": "^6.26.2",
+    "tslib": "^2.6.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

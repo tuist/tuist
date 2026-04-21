@@ -1,0 +1,71 @@
+{
+  "$schema": "https://raw.githubusercontent.com/grafana/grafana/main/docs/sources/developers/plugins/plugin.schema.json",
+  "type": "app",
+  "name": "Tuist",
+  "id": "tuist-tuist-app",
+  "info": {
+    "description": "Scrape per-account Xcode, Gradle, and CLI metrics from Tuist and visualise them in pre-built dashboards.",
+    "author": {
+      "name": "Tuist GmbH",
+      "url": "https://tuist.dev"
+    },
+    "keywords": ["tuist", "xcode", "gradle", "swift", "ios", "macos", "android", "build", "cache", "ci"],
+    "logos": {
+      "small": "img/logo.svg",
+      "large": "img/logo.svg"
+    },
+    "links": [
+      { "name": "Documentation", "url": "https://docs.tuist.dev" },
+      { "name": "Source", "url": "https://github.com/tuist/tuist/tree/main/grafana" }
+    ],
+    "screenshots": [],
+    "version": "%VERSION%",
+    "updated": "%TODAY%"
+  },
+  "dependencies": {
+    "grafanaDependency": ">=10.4.0",
+    "plugins": [
+      {
+        "id": "prometheus",
+        "type": "datasource",
+        "name": "Prometheus",
+        "version": ">=1.0.0"
+      }
+    ]
+  },
+  "includes": [
+    {
+      "type": "page",
+      "name": "Setup",
+      "path": "/a/tuist-tuist-app/setup",
+      "role": "Admin",
+      "action": "plugins:write",
+      "addToNav": true,
+      "defaultNav": true
+    },
+    {
+      "type": "dashboard",
+      "name": "Xcode build performance",
+      "path": "dashboards/xcode-builds.json",
+      "addToNav": true
+    },
+    {
+      "type": "dashboard",
+      "name": "Xcode test reliability",
+      "path": "dashboards/xcode-tests.json",
+      "addToNav": true
+    },
+    {
+      "type": "dashboard",
+      "name": "Binary cache effectiveness",
+      "path": "dashboards/cache.json",
+      "addToNav": true
+    },
+    {
+      "type": "dashboard",
+      "name": "CLI usage",
+      "path": "dashboards/cli.json",
+      "addToNav": true
+    }
+  ]
+}

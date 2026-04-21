@@ -314,6 +314,8 @@ defmodule Tuist.Tests do
             "#{project.account.name}/#{project.name}",
             :test_created
           )
+
+          emit_test_run_metrics(test, project, test_case_runs)
         end)
 
         {:ok, %{test | test_case_runs: test_case_runs}}
@@ -505,6 +507,73 @@ defmodule Tuist.Tests do
 
     IngestRepo.insert_all(Test, [attrs])
     updated_test
+  end
+
+  defp emit_test_run_metrics(_test, nil, _test_case_runs), do: :ok
+
+  defp emit_test_run_metrics(test, project, test_case_runs) do
+    project_handle = "#{project.account.name}/#{project.name}"
+    namespace = test_namespace(test.build_system)
+
+    event =
+      [:tuist, :metrics] ++ [namespace] ++ [:test, :run]
+
+    :telemetry.execute(
+      event,
+      %{duration_seconds: (test.duration || 0) / 1_000},
+      test_run_metadata(test, project, project_handle, namespace)
+    )
+
+    case namespace do
+      :xcode ->
+        test_case_counts = Enum.frequencies_by(test_case_runs, & &1.status)
+
+        for {status, count} <- test_case_counts do
+          :telemetry.execute(
+            [:tuist, :metrics, :xcode, :test, :case],
+            %{count: count},
+            %{
+              account_id: project.account.id,
+              project: project_handle,
+              scheme: test.scheme || "",
+              is_ci: !!test.is_ci,
+              status: to_string(status)
+            }
+          )
+        end
+
+      _ ->
+        :ok
+    end
+
+    :ok
+  end
+
+  defp test_namespace("gradle"), do: :gradle
+  defp test_namespace(_), do: :xcode
+
+  defp test_run_metadata(test, project, project_handle, :xcode) do
+    %{
+      account_id: project.account.id,
+      project: project_handle,
+      scheme: test.scheme || "",
+      is_ci: !!test.is_ci,
+      status: test.status || "",
+      xcode_version: test.xcode_version || "",
+      macos_version: test.macos_version || ""
+    }
+  end
+
+  defp test_run_metadata(test, project, project_handle, :gradle) do
+    %{
+      account_id: project.account.id,
+      project: project_handle,
+      module: test.scheme || "",
+      is_ci: !!test.is_ci,
+      status: test.status || "",
+      gradle_version: "",
+      jvm_version: ""
+    }
   end
 
   defp has_any_flaky_test_case?(test_modules) do
