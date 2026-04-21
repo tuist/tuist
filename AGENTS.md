@@ -54,11 +54,14 @@ Examples:
 - Do not add one-line comments unless you think they are really useful.
 
 ## Workflow
-- For faster builds, generate only the required targets: `tuist generate tuist ProjectDescription --no-open`
-- When compiling Swift changes, use `xcodebuild build -workspace Tuist.xcworkspace -scheme tuist CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""` instead of `swift build`
-- When testing Swift changes, use `xcodebuild test -workspace Tuist.xcworkspace -scheme Tuist-Workspace -only-testing MyTests/SuiteTests CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""` instead of `swift test`.
-- Prefer running test suites or individual test cases, and not the whole test target, for performance
-- When using `swift build`, `swift test`, or `swift package resolve` always include `--replace-scm-with-registry` to avoid switching packages from registry to source control resolution
+- **Always prefer `tuist generate` + `xcodebuild` over `swift build` / `swift test`.** SwiftPM resolution is brittle in this repo (`cli/TuistCacheEE` submodule, registry/SCM toggles); the generated workspace is the supported path.
+- Run `tuist generate` from the **repo root**, not from `cli/`.
+- For faster builds, generate only the required targets, e.g. `tuist generate tuist ProjectDescription TuistLoader TuistLoaderTests --no-open`.
+- To compile: `xcodebuild build -workspace Tuist.xcworkspace -scheme tuist CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""`.
+- To test: `xcodebuild test -workspace Tuist.xcworkspace -scheme Tuist-Workspace -only-testing MyTests/SuiteTests CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""`.
+- Prefer running test suites or individual test cases, not the whole test target, for performance.
+- If `tuist generate` fails on `cli/TuistCacheEE`, init the submodule (`git submodule update --init cli/TuistCacheEE`) — do **not** silently fall back to `swift build`.
+- Only fall back to `swift build` / `swift test` / `swift package resolve` if both `tuist generate` and the submodule init fail; in that case always pass `--replace-scm-with-registry` to avoid switching packages from registry to source control resolution.
 
 ## Testing
 - Use Swift Testing framework with custom traits for tests that need temporary directories

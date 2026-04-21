@@ -16,10 +16,28 @@ This node covers the Tuist CLI workspace under `cli/`. Follow downlinks for subs
 - `cli/Sources/TuistKit` - Monolithic command wiring; new commands should be added to feature-specific modules.
 - `cli/Sources/TuistGenerator` - Monolithic generation pipeline; new generation logic should be added to smaller, focused modules.
 
-## Building
-- To generate the Xcode project for a faster build, run `tuist generate tuist ProjectDescription --no-open` (generates only the required targets instead of the full workspace).
-- To compile, use `xcodebuild build -workspace Tuist.xcworkspace -scheme tuist CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""`.
-- Prefer the `tuist` scheme over `Tuist-Workspace` for faster iteration.
+## Building & Testing
+
+**Always prefer `tuist generate` + `xcodebuild` over `swift build` / `swift test`.** SwiftPM resolution is brittle in this repo (the `cli/TuistCacheEE` submodule and registry/SCM toggles cause failures); the generated Xcode workspace is the supported path.
+
+- Generate only the targets you need (run from the **repo root**, not `cli/`):
+  ```sh
+  tuist generate tuist ProjectDescription TuistLoader TuistLoaderTests --no-open
+  ```
+- Build:
+  ```sh
+  xcodebuild build -workspace Tuist.xcworkspace -scheme tuist \
+    CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""
+  ```
+- Test a specific suite (avoid running the whole target):
+  ```sh
+  xcodebuild test -workspace Tuist.xcworkspace -scheme Tuist-Workspace \
+    -only-testing TuistLoaderTests/ProjectManifestMapperTests \
+    CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""
+  ```
+- Prefer the `tuist` scheme over `Tuist-Workspace` for build-only iteration.
+- If `tuist generate` fails on `cli/TuistCacheEE`, init the submodule (`git submodule update --init cli/TuistCacheEE`) — do **not** fall back to `swift build`.
+- Only fall back to `swift build` / `swift test` if both `tuist generate` and the submodule init fail; in that case always pass `--replace-scm-with-registry`.
 
 ## Code Style
 - Do not add one-line comments unless they are truly useful.

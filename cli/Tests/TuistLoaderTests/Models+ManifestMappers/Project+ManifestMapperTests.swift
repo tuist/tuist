@@ -95,20 +95,19 @@ final class ProjectManifestMapperTests: TuistUnitTestCase {
         )
     }
 
-    func test_from_withCustomGroupPath() async throws {
+    func test_from_withCustomGroupName_appliesToProjectAndTargets() async throws {
         // Given
         let project = ProjectDescription.Project(
             name: "Name",
-            organizationName: "Organization",
-            classPrefix: "ClassPrefix",
-            options: .options(),
-            packages: [],
-            targets: [],
-            schemes: [],
-            fileHeaderTemplate: nil,
-            additionalFiles: [],
-            resourceSynthesizers: .default,
-            groupPath: "CustomGroup"
+            targets: [
+                .target(
+                    name: "App",
+                    destinations: .iOS,
+                    product: .app,
+                    bundleId: "dev.tuist.App"
+                ),
+            ],
+            groupName: "CustomGroup"
         )
 
         // When
@@ -125,22 +124,21 @@ final class ProjectManifestMapperTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(got.filesGroup, .group(name: "CustomGroup"))
+        XCTAssertEqual(got.targets.values.map(\.filesGroup), [.group(name: "CustomGroup")])
     }
 
-    func test_from_withDefaultGroupPath() async throws {
+    func test_from_withDefaultGroupName_appliesToProjectAndTargets() async throws {
         // Given
         let project = ProjectDescription.Project(
             name: "Name",
-            organizationName: "Organization",
-            classPrefix: "ClassPrefix",
-            options: .options(),
-            packages: [],
-            targets: [],
-            schemes: [],
-            fileHeaderTemplate: nil,
-            additionalFiles: [],
-            resourceSynthesizers: .default,
-            groupPath: nil
+            targets: [
+                .target(
+                    name: "App",
+                    destinations: .iOS,
+                    product: .app,
+                    bundleId: "dev.tuist.App"
+                ),
+            ]
         )
 
         // When
@@ -157,5 +155,6 @@ final class ProjectManifestMapperTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(got.filesGroup, .group(name: "Project"))
+        XCTAssertEqual(got.targets.values.map(\.filesGroup), [.group(name: "Project")])
     }
 }
