@@ -331,7 +331,7 @@ defmodule TuistWeb.API.BuildsControllerTest do
         )
 
       stub(Builds, :get_build, fn _id ->
-        build
+        {:ok, build}
       end)
 
       conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/xcode/builds/#{build.id}")
@@ -351,7 +351,7 @@ defmodule TuistWeb.API.BuildsControllerTest do
 
     test "returns 404 when build is not found", %{conn: conn, user: user, project: project} do
       stub(Builds, :get_build, fn _id ->
-        nil
+        {:error, :not_found}
       end)
 
       conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/xcode/builds/#{UUIDv7.generate()}")
@@ -369,7 +369,7 @@ defmodule TuistWeb.API.BuildsControllerTest do
         )
 
       stub(Builds, :get_build, fn _id ->
-        build
+        {:ok, build}
       end)
 
       conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/xcode/builds/#{build.id}")
@@ -396,7 +396,7 @@ defmodule TuistWeb.API.BuildsControllerTest do
         )
 
       stub(Builds, :get_build, fn _id ->
-        build
+        {:ok, build}
       end)
 
       conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/xcode/builds/#{build.id}")
@@ -460,7 +460,7 @@ defmodule TuistWeb.API.BuildsControllerTest do
         )
 
       stub(Builds, :get_build, fn _id ->
-        build
+        {:ok, build}
       end)
 
       conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/builds/#{build.id}")
@@ -483,7 +483,7 @@ defmodule TuistWeb.API.BuildsControllerTest do
     test "creates a build using the deprecated route", %{conn: conn, user: user, project: project} do
       build_id = UUIDv7.generate()
 
-      stub(Builds, :get_build, fn _id -> nil end)
+      stub(Builds, :get_build, fn _id -> {:error, :not_found} end)
 
       stub(Builds, :create_build, fn _attrs ->
         {:ok,

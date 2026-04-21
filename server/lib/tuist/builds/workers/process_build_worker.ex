@@ -151,13 +151,13 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
 
   defp base_build_attrs(build_id, account_id, build_metadata) do
     case Builds.get_build(build_id) do
-      nil ->
+      {:error, :not_found} ->
         Map.merge(
           %{id: build_id, account_id: account_id, is_ci: false},
           atomize_keys(build_metadata)
         )
 
-      existing_build ->
+      {:ok, existing_build} ->
         existing_build
         |> Map.from_struct()
         |> Map.drop([

@@ -19,10 +19,11 @@ defmodule TuistWeb.BuildControllerTest do
       build_id = UUIDv7.generate()
 
       stub(Builds, :get_build, fn ^build_id ->
-        %Builds.Build{
-          id: build_id,
-          project_id: project.id
-        }
+        {:ok,
+         %Builds.Build{
+           id: build_id,
+           project_id: project.id
+         }}
       end)
 
       stub(Storage, :generate_download_url, fn _storage_key, _account ->
@@ -47,7 +48,7 @@ defmodule TuistWeb.BuildControllerTest do
       project = ProjectsFixtures.project_fixture(account_id: user.account.id)
       build_id = UUIDv7.generate()
 
-      stub(Builds, :get_build, fn ^build_id -> nil end)
+      stub(Builds, :get_build, fn ^build_id -> {:error, :not_found} end)
 
       # When/Then
       assert_error_sent 404, fn ->
@@ -86,10 +87,11 @@ defmodule TuistWeb.BuildControllerTest do
       build_id = UUIDv7.generate()
 
       stub(Builds, :get_build, fn ^build_id ->
-        %Builds.Build{
-          id: build_id,
-          project_id: other_project.id
-        }
+        {:ok,
+         %Builds.Build{
+           id: build_id,
+           project_id: other_project.id
+         }}
       end)
 
       # When/Then

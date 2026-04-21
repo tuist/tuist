@@ -135,12 +135,12 @@ defmodule TuistWeb.API.BuildIssuesController do
         _params
       ) do
     case Builds.get_build(build_id) do
-      nil ->
+      {:error, :not_found} ->
         conn
         |> put_status(:not_found)
         |> json(%{message: "Build not found."})
 
-      build ->
+      {:ok, build} ->
         if build.project_id == selected_project.id do
           filters = [%{field: :build_run_id, op: :==, value: build_id}]
 

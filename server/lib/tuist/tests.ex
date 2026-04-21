@@ -2093,14 +2093,7 @@ defmodule Tuist.Tests do
   Returns a list of groups, each containing runs with their failures.
   """
   def get_flaky_runs_for_test_run(test_run_id) do
-    flaky_runs_query =
-      from(tcr in TestCaseRun,
-        where: tcr.test_run_id == ^test_run_id,
-        where: tcr.is_flaky == true,
-        order_by: [desc: tcr.ran_at]
-      )
-
-    current_flaky_runs = ClickHouseRepo.all(flaky_runs_query)
+    current_flaky_runs = fetch_flaky_runs_for_test_run(test_run_id)
 
     cross_run_counterparts =
       get_cross_run_flaky_runs(test_run_id, current_flaky_runs)
@@ -2148,6 +2141,21 @@ defmodule Tuist.Tests do
       }
     end)
     |> Enum.sort_by(& &1.latest_ran_at, {:desc, NaiveDateTime})
+  end
+
+  defp fetch_flaky_runs_for_test_run(test_run_id) do
+    slim_query =
+      from(mv in TestCaseRunByTestRun,
+        hints: ["FINAL"],
+        where: mv.test_run_id == ^test_run_id and mv.is_flaky == true,
+        order_by: [desc: mv.ran_at]
+      )
+
+    slim_results = ClickHouseRepo.all(slim_query)
+    ids = Enum.map(slim_results, & &1.id)
+    full_results = fetch_full_test_case_runs(slim_results)
+    ordered_by_id = Map.new(full_results, &{&1.id, &1})
+    ids |> Enum.map(&Map.get(ordered_by_id, &1)) |> Enum.reject(&is_nil/1)
   end
 
   defp get_cross_run_flaky_runs(_test_run_id, []), do: []

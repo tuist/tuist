@@ -32,7 +32,11 @@ spec:
     metadata:
       labels:
         {{- include "tuist.componentLabels" (dict "root" . "component" "object-storage") | nindent 8 }}
+        {{- with .Values.global.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
     spec:
+{{ include "tuist.podScheduling" . | nindent 6 }}
       containers:
         - name: minio
           image: "{{ .Values.objectStorage.embedded.image.repository }}:{{ .Values.objectStorage.embedded.image.tag }}"
@@ -94,7 +98,11 @@ spec:
     metadata:
       labels:
         {{- include "tuist.componentLabels" (dict "root" . "component" "object-storage-init") | nindent 8 }}
+        {{- with .Values.global.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
     spec:
+{{ include "tuist.podScheduling" . | nindent 6 }}
       restartPolicy: OnFailure
       containers:
         - name: bucket-init

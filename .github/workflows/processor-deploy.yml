@@ -1,66 +1,77 @@
 name: Processor Deploy
 
-on:
-  workflow_dispatch:
-  push:
-    branches:
-      - main
-    paths:
-      - processor/**
-      - tuist_common/**
-      - .github/workflows/processor-deploy.yml
+# NOTE: Canary and production deploys are disabled pending migration to
+# Kubernetes. Kamal auto-deploys to the current infrastructure have been
+# unreliable. Staging continues to deploy via processor-staging-deploy.yml.
+# Re-enable by uncommenting the blocks below once the service runs on k8s.
 
-concurrency:
-  group: processor-deploy
-  cancel-in-progress: false
-
-permissions:
-  contents: read
-
-defaults:
-  run:
-    working-directory: processor
-
-jobs:
-  deploy-canary:
-    runs-on: namespace-profile-default
-    timeout-minutes: 45
-    environment: processor-canary
-    steps:
-      - uses: actions/checkout@v4
-      - uses: 1password/install-cli-action@v2
-      - uses: jdx/mise-action@v3.2.0
-        with:
-          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
-          working_directory: processor
-      - name: Setup SSH
-        uses: webfactory/ssh-agent@v0.9.1
-        with:
-          ssh-private-key: ${{ secrets.CACHE_SSH_PRIVATE_KEY }}
-      - name: Deploy with Kamal
-        env:
-          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.CACHE_OP_SERVICE_ACCOUNT_TOKEN }}
-        run: |
-          mise run deploy canary
-  deploy-production:
-    runs-on: namespace-profile-default
-    timeout-minutes: 45
-    needs: deploy-canary
-    if: ${{ needs.deploy-canary.result == 'success' }}
-    environment: processor-production
-    steps:
-      - uses: actions/checkout@v4
-      - uses: 1password/install-cli-action@v2
-      - uses: jdx/mise-action@v3.2.0
-        with:
-          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
-          working_directory: processor
-      - name: Setup SSH
-        uses: webfactory/ssh-agent@v0.9.1
-        with:
-          ssh-private-key: ${{ secrets.CACHE_SSH_PRIVATE_KEY }}
-      - name: Deploy with Kamal
-        env:
-          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.CACHE_OP_SERVICE_ACCOUNT_TOKEN }}
-        run: |
-          mise run deploy production
+# on:
+#   workflow_dispatch:
+#   push:
+#     branches:
+#       - main
+#     paths:
+#       - processor/**
+#       - tuist_common/**
+#       - .github/workflows/processor-deploy.yml
+#
+# concurrency:
+#   group: processor-deploy
+#   cancel-in-progress: false
+#
+# permissions:
+#   contents: read
+#
+# defaults:
+#   run:
+#     working-directory: processor
+#
+# env:
+#   MISE_VERSION: "2026.4.18"
+#   MISE_GITHUB_TOKEN: ${{ github.token }}
+#
+# jobs:
+#   deploy-canary:
+#     runs-on: namespace-profile-default
+#     timeout-minutes: 45
+#     environment: processor-canary
+#     steps:
+#       - uses: actions/checkout@v4
+#       - uses: 1password/install-cli-action@v2
+#       - uses: jdx/mise-action@v4.0.1
+#         with:
+#           version: ${{ env.MISE_VERSION }}
+#           cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
+#           working_directory: processor
+#       - name: Setup SSH
+#         uses: webfactory/ssh-agent@v0.9.1
+#         with:
+#           ssh-private-key: ${{ secrets.CACHE_SSH_PRIVATE_KEY }}
+#       - name: Deploy with Kamal
+#         env:
+#           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.CACHE_OP_SERVICE_ACCOUNT_TOKEN }}
+#         run: |
+#           mise run deploy canary
+#   deploy-production:
+#     runs-on: namespace-profile-default
+#     timeout-minutes: 45
+#     needs: deploy-canary
+#     if: ${{ needs.deploy-canary.result == 'success' }}
+#     environment: processor-production
+#     steps:
+#       - uses: actions/checkout@v4
+#       - uses: 1password/install-cli-action@v2
+#       - uses: jdx/mise-action@v4.0.1
+#         with:
+#           version: ${{ env.MISE_VERSION }}
+#           cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
+#           working_directory: processor
+#       - name: Setup SSH
+#         uses: webfactory/ssh-agent@v0.9.1
+#         with:
+#           ssh-private-key: ${{ secrets.CACHE_SSH_PRIVATE_KEY }}
+#       - name: Deploy with Kamal
+#         env:
+#           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.CACHE_OP_SERVICE_ACCOUNT_TOKEN }}
+#         run: |
+#           mise run deploy production

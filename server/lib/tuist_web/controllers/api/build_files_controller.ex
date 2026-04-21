@@ -122,12 +122,12 @@ defmodule TuistWeb.API.BuildFilesController do
         _params
       ) do
     case Builds.get_build(build_id) do
-      nil ->
+      {:error, :not_found} ->
         conn
         |> put_status(:not_found)
         |> json(%{message: "Build not found."})
 
-      %{project_id: project_id} when project_id == selected_project.id ->
+      {:ok, %{project_id: project_id}} when project_id == selected_project.id ->
         filters = build_filters(build_id, params)
 
         {order_by, order_directions} =
@@ -166,7 +166,7 @@ defmodule TuistWeb.API.BuildFilesController do
           }
         })
 
-      _build ->
+      {:ok, _build} ->
         conn
         |> put_status(:not_found)
         |> json(%{message: "Build not found."})

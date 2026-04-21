@@ -34,6 +34,36 @@ app.kubernetes.io/component: {{ .component }}
 {{ include "tuist.fullname" .root }}-{{ .component }}
 {{- end -}}
 
+{{/*
+Service account name for an application component.
+*/}}
+{{- define "tuist.componentServiceAccountName" -}}
+{{- $serviceAccount := index .root.Values .component "serviceAccount" -}}
+{{- if $serviceAccount.create -}}
+  {{- default (printf "%s-%s" (include "tuist.fullname" .root) .component) $serviceAccount.name -}}
+{{- else -}}
+  {{- default "default" $serviceAccount.name -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Optional pod spec defaults shared across workloads.
+*/}}
+{{- define "tuist.podScheduling" -}}
+{{- with .Values.global.imagePullSecrets }}
+imagePullSecrets:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- with .Values.global.nodeSelector }}
+nodeSelector:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- with .Values.global.tolerations }}
+tolerations:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- end }}
+
 {{- define "tuist.objectStorageEndpoint" -}}
 {{- if eq .Values.objectStorage.mode "embedded" -}}
 http://{{ include "tuist.componentName" (dict "root" . "component" "object-storage") }}:9000

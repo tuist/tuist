@@ -5,6 +5,7 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
   alias Tuist.MCP.Components.Tools.GetTestCase
   alias Tuist.MCP.Components.Tools.GetTestCaseRun
   alias Tuist.MCP.Components.Tools.GetTestRun
+  alias Tuist.MCP.Components.Tools.ListTestCaseEvents
   alias Tuist.MCP.Components.Tools.ListTestCaseRunAttachments
   alias Tuist.MCP.Components.Tools.ListTestCaseRuns
   alias Tuist.MCP.Components.Tools.ListTestCases
@@ -255,6 +256,98 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
                ListTestCases.call(conn, %{"account_handle" => "acme", "project_handle" => "app"})
 
       assert text =~ "You do not have access to project: acme/app"
+    end
+  end
+
+  describe "list_test_case_events" do
+    test "returns events for a test case" do
+      project = %{id: 1, name: "app"}
+
+      stub(Tests, :get_test_case_by_id, fn "tc-1" ->
+        {:ok, %{id: "tc-1", project_id: 1}}
+      end)
+
+      stub(Projects, :get_project_by_id, fn 1 -> project end)
+      stub(Tuist.Authorization, :authorize, fn :test_read, :subject, ^project -> :ok end)
+
+      stub(Tests, :list_test_case_events, fn "tc-1", _attrs ->
+        {[
+           %{
+             event_type: "marked_flaky",
+             inserted_at: ~N[2024-06-15 10:30:00],
+             actor: %{id: 1, name: "alice"}
+           },
+           %{
+             event_type: "first_run",
+             inserted_at: ~N[2024-06-01 08:00:00],
+             actor: nil
+           }
+         ],
+         %{
+           has_next_page?: false,
+           has_previous_page?: false,
+           current_page: 1,
+           page_size: 20,
+           total_count: 2,
+           total_pages: 1
+         }}
+      end)
+
+      conn = %Plug.Conn{assigns: %{current_subject: :subject}}
+
+      assert %{"content" => [%{"type" => "text", "text" => text}]} =
+               ListTestCaseEvents.call(conn, %{"test_case_id" => "tc-1"})
+
+      assert JSON.decode!(text) == %{
+               "events" => [
+                 %{
+                   "event_type" => "marked_flaky",
+                   "inserted_at" => "2024-06-15T10:30:00Z",
+                   "actor" => %{"id" => 1, "name" => "alice"}
+                 },
+                 %{
+                   "event_type" => "first_run",
+                   "inserted_at" => "2024-06-01T08:00:00Z",
+                   "actor" => nil
+                 }
+               ],
+               "pagination_metadata" => %{
+                 "has_next_page" => false,
+                 "has_previous_page" => false,
+                 "current_page" => 1,
+                 "page_size" => 20,
+                 "total_count" => 2,
+                 "total_pages" => 1
+               }
+             }
+    end
+
+    test "returns error when test case not found" do
+      stub(Tests, :get_test_case_by_id, fn "tc-404" -> {:error, :not_found} end)
+
+      conn = %Plug.Conn{assigns: %{current_subject: :subject}}
+
+      assert %{"content" => [%{"type" => "text", "text" => text}], "isError" => true} =
+               ListTestCaseEvents.call(conn, %{"test_case_id" => "tc-404"})
+
+      assert text =~ "Test case not found"
+    end
+
+    test "requires :test_read authorization" do
+      project = %{id: 1, name: "app"}
+      stub(Tests, :get_test_case_by_id, fn "tc-1" -> {:ok, %{id: "tc-1", project_id: 1}} end)
+      stub(Projects, :get_project_by_id, fn 1 -> project end)
+
+      expect(Tuist.Authorization, :authorize, fn :test_read, :subject, ^project ->
+        {:error, :forbidden}
+      end)
+
+      conn = %Plug.Conn{assigns: %{current_subject: :subject}}
+
+      assert %{"content" => [%{"type" => "text", "text" => text}], "isError" => true} =
+               ListTestCaseEvents.call(conn, %{"test_case_id" => "tc-1"})
+
+      assert text =~ "You do not have access to this resource."
     end
   end
 

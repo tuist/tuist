@@ -17,15 +17,21 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   def optimize_test_case_runs do
-    SQL.query!(IngestRepo, "OPTIMIZE TABLE test_case_runs FINAL", [])
+    IngestRepo.with_retry(fn ->
+      SQL.query!(IngestRepo, "OPTIMIZE TABLE test_case_runs FINAL", [])
+    end)
   end
 
   def optimize_test_runs do
-    SQL.query!(IngestRepo, "OPTIMIZE TABLE test_runs FINAL", [])
+    IngestRepo.with_retry(fn ->
+      SQL.query!(IngestRepo, "OPTIMIZE TABLE test_runs FINAL", [])
+    end)
   end
 
   def optimize_shard_runs do
-    SQL.query!(IngestRepo, "OPTIMIZE TABLE shard_runs FINAL", [])
+    IngestRepo.with_retry(fn ->
+      SQL.query!(IngestRepo, "OPTIMIZE TABLE shard_runs FINAL", [])
+    end)
   end
 
   def build_fixture(attrs \\ []) do
