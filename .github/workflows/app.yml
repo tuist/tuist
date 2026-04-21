@@ -101,8 +101,9 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-app-${{ hashFiles('Package.resolved') }}
-      - uses: ./.github/actions/setup-mise
+      - uses: jdx/mise-action@v2
         with:
+          version: ${{ vars.MISE_VERSION }}
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
       - name: Authenticate with Tuist
         if: github.event.pull_request.head.repo.fork != true
@@ -157,8 +158,9 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-app-${{ hashFiles('Package.resolved') }}
-      - uses: ./.github/actions/setup-mise
+      - uses: jdx/mise-action@v2
         with:
+          version: ${{ vars.MISE_VERSION }}
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
       - name: Authenticate with Tuist
         if: github.event.pull_request.head.repo.fork != true
@@ -204,8 +206,9 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-app-${{ hashFiles('Package.resolved') }}
-      - uses: ./.github/actions/setup-mise
+      - uses: jdx/mise-action@v2
         with:
+          version: ${{ vars.MISE_VERSION }}
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
       - name: Authenticate with Tuist
         if: github.event.pull_request.head.repo.fork != true

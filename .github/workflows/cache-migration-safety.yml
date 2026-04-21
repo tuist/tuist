@@ -34,8 +34,9 @@ jobs:
       - uses: namespacelabs/nscloud-cache-action@v1
         with:
           cache: mise
-      - uses: ./.github/actions/setup-mise
+      - uses: jdx/mise-action@v3.2.0
         with:
+          version: ${{ vars.MISE_VERSION }}
           install_args: "erlang elixir"
           cache: "false"
           working_directory: cache
@@ -54,7 +55,12 @@ jobs:
         run: git fetch origin main --depth=1
       - name: Test migrations against seeded database
         run: |
-          NEW_MIGRATIONS=$(git diff --name-only --relative origin/main -- priv/repo/migrations/ | grep '\.exs$' | sort)
+          NEW_MIGRATIONS=$(git diff --name-only --relative origin/main -- priv/repo/migrations/ | { grep '\.exs$' || true; } | sort)
+
+          if [ -z "$NEW_MIGRATIONS" ]; then
+            echo "No new cache migrations in this PR; nothing to test."
+            exit 0
+          fi
 
           EARLIEST=$(echo "$NEW_MIGRATIONS" | head -1 | sed 's|.*/||' | grep -oP '^\d+')
           BEFORE=$((EARLIEST - 1))

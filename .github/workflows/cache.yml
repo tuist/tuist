@@ -46,8 +46,9 @@ jobs:
             cache/deps
             cache/_build
           key: cache-mix-${{ hashFiles('cache/mix.lock') }}
-      - uses: ./.github/actions/setup-mise
+      - uses: jdx/mise-action@v3.2.0
         with:
+          version: ${{ vars.MISE_VERSION }}
           install_args: "erlang elixir ruby"
           cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
           working_directory: cache
@@ -70,8 +71,9 @@ jobs:
             cache/deps
             cache/_build
           key: cache-mix-${{ hashFiles('cache/mix.lock') }}
-      - uses: ./.github/actions/setup-mise
+      - uses: jdx/mise-action@v3.2.0
         with:
+          version: ${{ vars.MISE_VERSION }}
           install_args: "erlang elixir ruby"
           cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
           working_directory: cache
@@ -94,8 +96,9 @@ jobs:
             cache/deps
             cache/_build
           key: cache-mix-${{ hashFiles('cache/mix.lock') }}
-      - uses: ./.github/actions/setup-mise
+      - uses: jdx/mise-action@v3.2.0
         with:
+          version: ${{ vars.MISE_VERSION }}
           install_args: "erlang elixir ruby"
           cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
           working_directory: cache
@@ -118,8 +121,9 @@ jobs:
             cache/deps
             cache/_build
           key: cache-mix-${{ hashFiles('cache/mix.lock') }}
-      - uses: ./.github/actions/setup-mise
+      - uses: jdx/mise-action@v3.2.0
         with:
+          version: ${{ vars.MISE_VERSION }}
           install_args: "erlang elixir ruby"
           cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
           working_directory: cache

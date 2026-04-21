@@ -29,8 +29,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: 1password/install-cli-action@v2
-      - uses: ./.github/actions/setup-mise
+      - uses: jdx/mise-action@v3.2.0
         with:
+          version: ${{ vars.MISE_VERSION }}
           cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
           working_directory: cache
       - name: Setup SSH
@@ -52,8 +53,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: 1password/install-cli-action@v2
-      - uses: ./.github/actions/setup-mise
+      - uses: jdx/mise-action@v3.2.0
         with:
+          version: ${{ vars.MISE_VERSION }}
           cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
           working_directory: cache
       - name: Setup SSH

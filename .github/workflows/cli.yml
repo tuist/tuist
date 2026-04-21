@@ -79,8 +79,9 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved') }}
-      - uses: ./.github/actions/setup-mise
+      - uses: jdx/mise-action@v3.2.0
         with:
+          version: ${{ vars.MISE_VERSION }}
           install_args: "tuist swiftlint swiftformat"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
@@ -113,8 +114,9 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved') }}
-      - uses: ./.github/actions/setup-mise
+      - uses: jdx/mise-action@v3.2.0
         with:
+          version: ${{ vars.MISE_VERSION }}
           install_args: "tuist"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
@@ -150,8 +152,9 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved') }}
-      - uses: ./.github/actions/setup-mise
+      - uses: jdx/mise-action@v3.2.0
         with:
+          version: ${{ vars.MISE_VERSION }}
           install_args: "tuist"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
       - name: Authenticate with Tuist
@@ -194,8 +197,9 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved') }}
-      - uses: ./.github/actions/setup-mise
+      - uses: jdx/mise-action@v3.2.0
         with:
+          version: ${{ vars.MISE_VERSION }}
           install_args: "tuist"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
@@ -235,8 +239,9 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved') }}
-      - uses: ./.github/actions/setup-mise
+      - uses: jdx/mise-action@v3.2.0
         with:
+          version: ${{ vars.MISE_VERSION }}
           install_args: "tuist"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
@@ -285,8 +290,9 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved') }}
-      - uses: ./.github/actions/setup-mise
+      - uses: jdx/mise-action@v3.2.0
         with:
+          version: ${{ vars.MISE_VERSION }}
           install_args: "tuist"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
@@ -331,8 +337,9 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved') }}
-      - uses: ./.github/actions/setup-mise
+      - uses: jdx/mise-action@v3.2.0
         with:
+          version: ${{ vars.MISE_VERSION }}
           install_args: "tuist"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}

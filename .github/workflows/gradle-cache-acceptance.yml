@@ -64,13 +64,15 @@ jobs:
       - uses: namespacelabs/nscloud-cache-action@v1
         with:
           cache: mise
-      - uses: ./.github/actions/setup-mise
+      - uses: jdx/mise-action@v3.2.0
         with:
+          version: ${{ vars.MISE_VERSION }}
           install_args: "erlang elixir java gradle tuist bats"
           cache: "false"
           working_directory: .
-      - uses: ./.github/actions/setup-mise
+      - uses: jdx/mise-action@v3.2.0
         with:
+          version: ${{ vars.MISE_VERSION }}
           install_args: "erlang elixir asdf:aeons/asdf-minio github:ClickHouse/ClickHouse"
           cache: "false"
           working_directory: server

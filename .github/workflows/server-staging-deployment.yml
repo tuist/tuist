@@ -35,8 +35,9 @@ jobs:
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
-      - uses: ./.github/actions/setup-mise
+      - uses: jdx/mise-action@v2
         with:
+          version: ${{ vars.MISE_VERSION }}
           install: false
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
       - name: "Get version"
