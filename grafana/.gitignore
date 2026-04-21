@@ -6,3 +6,6 @@ coverage/
 *.tgz
 .eslintcache
 .cache/
+
+# Built plugin archives (artifact of mise run grafana:bundle)
+tuist-tuist-app-*.zip

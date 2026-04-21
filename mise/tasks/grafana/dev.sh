@@ -2,8 +2,8 @@
 #MISE description="Run the Tuist Grafana app plugin in watch mode against a local Grafana container"
 set -euo pipefail
 cd grafana
-npm install --no-audit --no-fund
-npm run dev &
+pnpm install --prefer-offline
+pnpm run dev &
 WEBPACK_PID=$!
 trap 'kill $WEBPACK_PID 2>/dev/null || true' EXIT
 

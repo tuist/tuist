@@ -14,42 +14,51 @@ into the Prometheus datasource configured here.
 
 ## Development
 
-```bash
-pnpm install          # from the repo root
-cd grafana
-npm run dev           # webpack watch build into ./dist
-npm run typecheck
-npm run lint
-npm run test:ci
-```
-
-To try the plugin against a local Grafana:
+All tasks live under `mise run grafana:*`:
 
 ```bash
-# 1. Build it
-npm run build
-
-# 2. Mount ./dist into a Grafana container as the plugin dir
-docker run --rm -p 3000:3000 \
-  -e GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=tuist-tuist-app \
-  -v "$PWD/dist:/var/lib/grafana/plugins/tuist-tuist-app" \
-  grafana/grafana:latest
-
-# 3. In Grafana: Administration -> Plugins -> Tuist -> Configuration
+mise run grafana:build    # one-off build into ./dist
+mise run grafana:dev      # webpack watch + Grafana in docker at :3000
+mise run grafana:lint     # lint (add --fix to auto-correct)
+mise run grafana:test     # typecheck + jest
+mise run grafana:bundle   # build + sign + zip for upload
 ```
+
+The tasks pin node/pnpm through [grafana/mise.toml](mise.toml), so run them
+under mise rather than reaching for system node.
 
 ## Publishing
 
-The plugin is published to the
-[Grafana plugin catalogue](https://grafana.com/grafana/plugins/) as
-`tuist-tuist-app`. Release flow:
+`mise run grafana:bundle` produces `tuist-tuist-app-<version>.zip`. Two modes:
 
-1. Bump the version in [package.json](package.json) and
-   [src/plugin.json](src/plugin.json) (`%VERSION%` placeholder is replaced by
-   the build).
-2. `npm run build`
-3. `npm run sign` (requires `GRAFANA_ACCESS_POLICY_TOKEN` for the Tuist org)
-4. Upload the signed zip through the catalogue's UI.
+1. **Private plugin for a specific Grafana Cloud stack** (what you want for
+   staging validation):
+   ```bash
+   export GRAFANA_ACCESS_POLICY_TOKEN="..."
+   mise run grafana:bundle -- --root-urls https://<your-stack>.grafana.net/
+   ```
+   Upload the resulting zip via *Grafana Cloud → your stack → Administration →
+   Plugins → Upload private plugin*. No review wait.
+
+2. **Public plugin in the Grafana catalogue** (wider release):
+   ```bash
+   export GRAFANA_ACCESS_POLICY_TOKEN="..."
+   mise run grafana:bundle -- --signature-type community
+   ```
+   Upload the zip through the submission form at
+   <https://grafana.com/auth/sign-in?redirectPath=/plugins/submit>. Review
+   takes 1–3 business days.
+
+3. **Unsigned local dev**:
+   ```bash
+   mise run grafana:bundle -- --skip-sign
+   ```
+   Only loads in Grafana started with
+   `GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=tuist-tuist-app`.
+
+The access policy token is minted at
+<https://grafana.com/orgs/tuist/access-policies> — one policy
+(`tuist-plugin-publishing`) with the `plugins:write` scope.
 
 ## Architecture
 
