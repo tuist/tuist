@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import java.io.InputStream
 import java.io.OutputStream
+import java.util.zip.ZipException
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
@@ -177,6 +178,28 @@ class TuistBuildCacheTest {
             "expected underlying cause in message, got: $message"
         )
         assertEquals("truncated body", exception.cause?.message)
+    }
+
+    @Test
+    fun `load treats invalid compressed cache entries as cache misses`() {
+        mockServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("anything")
+                .addHeader("ETag", "\"bad-entry\"")
+                .addHeader("Last-Modified", "Tue, 21 Apr 2026 00:47:30 GMT")
+        )
+
+        val service = createService()
+        val reader = object : BuildCacheEntryReader {
+            override fun readFrom(input: InputStream) {
+                throw ZipException("Unexpected end of ZLIB input stream")
+            }
+        }
+
+        val result = service.load(TestBuildCacheKey("corrupt-entry"), reader)
+
+        assertFalse(result)
     }
 
     @Test

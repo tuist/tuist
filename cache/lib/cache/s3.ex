@@ -178,6 +178,7 @@ defmodule Cache.S3 do
 
   defp download_from_bucket(key, bucket) do
     local_path = Cache.Disk.artifact_path(key)
+    tmp_path = tmp_download_path(local_path)
 
     case head_object_status(bucket, key) do
       :exists ->
@@ -186,21 +187,31 @@ defmodule Cache.S3 do
         {dl_duration, dl_result} =
           :timer.tc(fn ->
             bucket
-            |> ExAws.S3.download_file(key, local_path)
+            |> ExAws.S3.download_file(key, tmp_path)
             |> ExAws.request()
           end)
 
         case dl_result do
           {:ok, :done} ->
-            :telemetry.execute([:cache, :s3, :download], %{duration: dl_duration}, %{result: :ok})
-            {:ok, :hit}
+            case publish_download(tmp_path, local_path) do
+              :ok ->
+                :telemetry.execute([:cache, :s3, :download], %{duration: dl_duration}, %{result: :ok})
+                {:ok, :hit}
+
+              {:error, reason} ->
+                :telemetry.execute([:cache, :s3, :download], %{duration: dl_duration}, %{result: :error})
+                Logger.error("Failed to publish S3 download for artifact #{key}: #{inspect(reason)}")
+                {:error, reason}
+            end
 
           {:error, {:http_error, 429, _}} ->
+            cleanup_tmp_download(tmp_path)
             :telemetry.execute([:cache, :s3, :download], %{duration: dl_duration}, %{result: :rate_limited})
             Logger.warning("S3 download rate limited for artifact: #{key}")
             {:error, :rate_limited}
 
           {:error, reason} ->
+            cleanup_tmp_download(tmp_path)
             :telemetry.execute([:cache, :s3, :download], %{duration: dl_duration}, %{result: :error})
             Logger.error("S3 download failed for artifact #{key}: #{inspect(reason)}")
             {:error, reason}
@@ -216,6 +227,36 @@ defmodule Cache.S3 do
       {:error, reason} ->
         {:error, reason}
     end
+  end
+
+  defp publish_download(tmp_path, local_path) do
+    case Cache.Disk.move_file(tmp_path, local_path) do
+      :ok ->
+        :ok
+
+      {:error, :exists} ->
+        cleanup_tmp_download(tmp_path)
+        :ok
+
+      {:error, reason} ->
+        cleanup_tmp_download(tmp_path)
+        {:error, reason}
+    end
+  end
+
+  defp cleanup_tmp_download(tmp_path) do
+    case File.rm(tmp_path) do
+      :ok -> :ok
+      {:error, :enoent} -> :ok
+      {:error, _reason} -> :ok
+    end
+  end
+
+  defp tmp_download_path(local_path) do
+    dir = Path.dirname(local_path)
+    filename = Path.basename(local_path)
+    suffix = [:positive] |> System.unique_integer() |> Integer.to_string()
+    Path.join(dir, ".tmp.#{filename}.#{suffix}")
   end
 
   @doc """
