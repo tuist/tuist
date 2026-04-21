@@ -61,7 +61,7 @@ jobs:
             processor/deps
             processor/_build
           key: processor-mix-${{ hashFiles('processor/mix.lock') }}
-      - uses: jdx/mise-action@v3.2.0
+      - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ vars.MISE_VERSION }}
           install_args: "erlang elixir ruby"
@@ -89,7 +89,7 @@ jobs:
             processor/deps
             processor/_build
           key: processor-mix-${{ hashFiles('processor/mix.lock') }}
-      - uses: jdx/mise-action@v3.2.0
+      - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ vars.MISE_VERSION }}
           install_args: "erlang elixir ruby"
@@ -117,7 +117,7 @@ jobs:
             processor/deps
             processor/_build
           key: processor-mix-${{ hashFiles('processor/mix.lock') }}
-      - uses: jdx/mise-action@v3.2.0
+      - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ vars.MISE_VERSION }}
           install_args: "erlang elixir ruby"
@@ -145,7 +145,7 @@ jobs:
             processor/deps
             processor/_build
           key: processor-mix-${{ hashFiles('processor/mix.lock') }}
-      - uses: jdx/mise-action@v3.2.0
+      - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ vars.MISE_VERSION }}
           install_args: "erlang elixir ruby"

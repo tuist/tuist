@@ -61,7 +61,7 @@ jobs:
             xcode_processor/deps
             xcode_processor/_build
           key: xcode-processor-mix-${{ hashFiles('xcode_processor/mix.lock') }}
-      - uses: jdx/mise-action@v3.2.0
+      - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ vars.MISE_VERSION }}
           install_args: "erlang elixir"
@@ -89,7 +89,7 @@ jobs:
             xcode_processor/deps
             xcode_processor/_build
           key: xcode-processor-mix-${{ hashFiles('xcode_processor/mix.lock') }}
-      - uses: jdx/mise-action@v3.2.0
+      - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ vars.MISE_VERSION }}
           install_args: "erlang elixir"
@@ -117,7 +117,7 @@ jobs:
             xcode_processor/deps
             xcode_processor/_build
           key: xcode-processor-mix-${{ hashFiles('xcode_processor/mix.lock') }}
-      - uses: jdx/mise-action@v3.2.0
+      - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ vars.MISE_VERSION }}
           install_args: "erlang elixir"
@@ -145,7 +145,7 @@ jobs:
             xcode_processor/deps
             xcode_processor/_build
           key: xcode-processor-mix-${{ hashFiles('xcode_processor/mix.lock') }}
-      - uses: jdx/mise-action@v3.2.0
+      - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ vars.MISE_VERSION }}
           install_args: "erlang elixir"

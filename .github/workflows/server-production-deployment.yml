@@ -50,7 +50,7 @@ jobs:
         if: ${{ github.event.inputs.commit_sha != '' }}
         with:
           ref: ${{ github.event.inputs.commit_sha }}
-      - uses: jdx/mise-action@v3.2.0
+      - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ vars.MISE_VERSION }}
           install: false
@@ -89,7 +89,7 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-cli-cache-ee-${{ hashFiles('Package.resolved') }}
-      - uses: jdx/mise-action@v3.2.0
+      - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ vars.MISE_VERSION }}
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
@@ -127,7 +127,7 @@ jobs:
         if: ${{ github.event.inputs.commit_sha != '' }}
         with:
           ref: ${{ github.event.inputs.commit_sha }}
-      - uses: jdx/mise-action@v3.2.0
+      - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ vars.MISE_VERSION }}
           install: false
@@ -165,7 +165,7 @@ jobs:
         if: ${{ github.event.inputs.commit_sha != '' }}
         with:
           ref: ${{ github.event.inputs.commit_sha }}
-      - uses: jdx/mise-action@v3.2.0
+      - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ vars.MISE_VERSION }}
           install: false

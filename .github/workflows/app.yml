@@ -101,7 +101,7 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-app-${{ hashFiles('Package.resolved') }}
-      - uses: jdx/mise-action@v2
+      - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ vars.MISE_VERSION }}
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
@@ -158,7 +158,7 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-app-${{ hashFiles('Package.resolved') }}
-      - uses: jdx/mise-action@v2
+      - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ vars.MISE_VERSION }}
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
@@ -206,7 +206,7 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-app-${{ hashFiles('Package.resolved') }}
-      - uses: jdx/mise-action@v2
+      - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ vars.MISE_VERSION }}
           github_token: ${{ env.MISE_GITHUB_TOKEN }}

@@ -43,7 +43,7 @@ jobs:
         with:
           ref: ${{ github.event.inputs.commit_sha }}
           fetch-depth: 0
-      - uses: jdx/mise-action@v3.2.0
+      - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ vars.MISE_VERSION }}
           install: false

@@ -46,7 +46,7 @@ jobs:
             cache/deps
             cache/_build
           key: cache-mix-${{ hashFiles('cache/mix.lock') }}
-      - uses: jdx/mise-action@v3.2.0
+      - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ vars.MISE_VERSION }}
           install_args: "erlang elixir ruby"
@@ -71,7 +71,7 @@ jobs:
             cache/deps
             cache/_build
           key: cache-mix-${{ hashFiles('cache/mix.lock') }}
-      - uses: jdx/mise-action@v3.2.0
+      - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ vars.MISE_VERSION }}
           install_args: "erlang elixir ruby"
@@ -96,7 +96,7 @@ jobs:
             cache/deps
             cache/_build
           key: cache-mix-${{ hashFiles('cache/mix.lock') }}
-      - uses: jdx/mise-action@v3.2.0
+      - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ vars.MISE_VERSION }}
           install_args: "erlang elixir ruby"
@@ -121,7 +121,7 @@ jobs:
             cache/deps
             cache/_build
           key: cache-mix-${{ hashFiles('cache/mix.lock') }}
-      - uses: jdx/mise-action@v3.2.0
+      - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ vars.MISE_VERSION }}
           install_args: "erlang elixir ruby"
