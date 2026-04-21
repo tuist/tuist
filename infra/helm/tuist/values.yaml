@@ -4,6 +4,9 @@ fullnameOverride: ""
 global:
   imagePullSecrets: []
   commonLabels: {}
+  podLabels: {}
+  nodeSelector: {}
+  tolerations: []
 
 server:
   enabled: true
@@ -39,13 +42,26 @@ server:
     enabled: true
     backoffLimit: 6
     resources: {}
+  serviceAccount:
+    # Workload identity / Kubernetes API identity for server pods and the migration job.
+    # Set annotations when integrating with a cloud IAM system or custom RBAC.
+    create: false
+    name: ""
+    annotations: {}
 
 cache:
   enabled: true
   replicaCount: 1
+  serviceAccount:
+    # Workload identity / Kubernetes API identity for cache pods.
+    # Set annotations (for example, eks.amazonaws.com/role-arn) for IRSA on external S3.
+    create: false
+    name: ""
+    annotations: {}
+  podSecurityContext: {}
   image:
     repository: ghcr.io/tuist/cache
-    tag: ""
+    tag: "0.29.0"
     pullPolicy: IfNotPresent
   nginx:
     enabled: true
@@ -123,6 +139,10 @@ clickhouse:
       repository: clickhouse/clickhouse-server
       tag: "26.1"
       pullPolicy: IfNotPresent
+    service:
+      # Exposed service port for ClickHouse's native protocol.
+      # Override only if your service mesh or reserved ports require a different number.
+      nativePort: 9000
     database: tuist
     username: default
     password: ""

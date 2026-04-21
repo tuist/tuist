@@ -405,6 +405,69 @@ postgresql:
 
 The same pattern applies to `clickhouse` and `objectStorage`. See the `external` block under each section in the chart's `values.yaml` for the full set of configurable fields.
 
+### Shared scheduling and labels {#helm-shared-scheduling-and-labels}
+
+The chart exposes a small set of shared pod settings under `global` so operators can adapt the deployment to their cluster without repeating the same values for every workload:
+
+```yaml
+global:
+  podLabels:
+    environment: production
+  imagePullSecrets:
+    - name: ghcr-pull-secret
+  nodeSelector:
+    nodepool: apps
+  tolerations:
+    - key: dedicated
+      operator: Equal
+      value: apps
+      effect: NoSchedule
+```
+
+Use these settings when you need to:
+
+- add cluster-specific labels to every pod
+- pull mirrored images from a private registry
+- target a dedicated node pool
+- allow pods onto tainted nodes reserved for Tuist workloads
+
+### Workload identity and service accounts {#helm-workload-identity}
+
+The chart scopes service accounts per application workload so you can grant identity only where it is needed:
+
+- `server.serviceAccount` applies to the Tuist server deployment and migration job
+- `cache.serviceAccount` applies to the cache deployment
+
+For example, when the cache uses an external S3 bucket on EKS, you can enable IRSA for the cache workload without also attaching the same IAM role to the embedded databases:
+
+```yaml
+cache:
+  serviceAccount:
+    create: true
+    annotations:
+      eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/tuist-cache
+```
+
+### Compatibility overrides {#helm-compatibility-overrides}
+
+The chart keeps storage- and mesh-specific tweaks opt-in so the defaults stay portable:
+
+```yaml
+cache:
+  podSecurityContext:
+    fsGroup: 990
+
+clickhouse:
+  embedded:
+    service:
+      nativePort: 9100
+```
+
+Use these overrides only when your cluster requires them:
+
+- `cache.podSecurityContext` is empty by default. Set `fsGroup` if your storage class or CSI driver needs shared group ownership on mounted volumes.
+- `clickhouse.embedded.service.nativePort` defaults to ClickHouse's standard `9000` native service port and can be changed when a service mesh or platform reserve conflicts with that port.
+
 ### Observability {#helm-observability}
 
 The chart includes an optional observability stack (OpenTelemetry Collector, Prometheus, Grafana, Loki, and Tempo). It is **disabled by default**. To enable it in your `values.yaml`:
