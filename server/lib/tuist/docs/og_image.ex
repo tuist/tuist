@@ -21,9 +21,9 @@ defmodule Tuist.Docs.OgImage do
         <meta charset="utf-8" />
         <style>
           @font-face {
-            font-family: 'DM Sans';
+            font-family: 'Inter Variable';
             font-style: normal;
-            font-weight: 400 600;
+            font-weight: 100 900;
             src: url(<%= @font_data_uri %>) format('woff2');
           }
           /*
@@ -42,7 +42,7 @@ defmodule Tuist.Docs.OgImage do
             width: 1920px;
             height: 1080px;
             overflow: hidden;
-            font-family: 'DM Sans', sans-serif;
+            font-family: 'Inter Variable', sans-serif;
             color-scheme: light;
             background: linear-gradient(180deg, #f4f5fe 0%, #efe8ff 100%);
           }
@@ -149,7 +149,7 @@ defmodule Tuist.Docs.OgImage do
     fonts_dir = Keyword.fetch!(opts, :fonts_dir)
     logo_path = Keyword.fetch!(opts, :logo_path)
 
-    font_base64 = fonts_dir |> Path.join("DMSans-latin.woff2") |> File.read!() |> Base.encode64()
+    font_base64 = fonts_dir |> Path.join("InterVariable.woff2") |> File.read!() |> Base.encode64()
     logo_base64 = logo_path |> File.read!() |> Base.encode64()
 
     assigns = %{
