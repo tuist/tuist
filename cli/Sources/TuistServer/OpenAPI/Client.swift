@@ -1770,15 +1770,15 @@ public struct Client: APIProtocol {
                     in: &request,
                     style: .form,
                     explode: true,
-                    name: "page",
-                    value: input.query.page
+                    name: "git_branch",
+                    value: input.query.git_branch
                 )
                 try converter.setQueryItemAsURI(
                     in: &request,
                     style: .form,
                     explode: true,
-                    name: "git_branch",
-                    value: input.query.git_branch
+                    name: "page",
+                    value: input.query.page
                 )
                 try converter.setQueryItemAsURI(
                     in: &request,

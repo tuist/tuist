@@ -1511,6 +1511,7 @@ components:
                     - mcp
                     - account:members:read
                     - account:members:write
+                    - account:metrics:read
                     - account:registry:read
                     - account:registry:write
                     - project:previews:read
@@ -5447,6 +5448,7 @@ components:
               - mcp
               - account:members:read
               - account:members:write
+              - account:metrics:read
               - account:registry:read
               - account:registry:write
               - project:previews:read
@@ -7636,20 +7638,20 @@ paths:
       callbacks: {}
       operationId: listBundles
       parameters:
-        - description: Page number for pagination.
-          in: query
-          name: page
-          required: false
-          schema:
-            type: integer
-            x-struct:
-            x-validate:
         - description: Filter bundles by git branch.
           in: query
           name: git_branch
           required: false
           schema:
             type: string
+            x-struct:
+            x-validate:
+        - description: Page number for pagination.
+          in: query
+          name: page
+          required: false
+          schema:
+            type: integer
             x-struct:
             x-validate:
         - description: The handle of the account.
@@ -11928,6 +11930,7 @@ paths:
                               - mcp
                               - account:members:read
                               - account:members:write
+                              - account:metrics:read
                               - account:registry:read
                               - account:registry:write
                               - project:previews:read
@@ -12041,6 +12044,7 @@ paths:
                       - mcp
                       - account:members:read
                       - account:members:write
+                      - account:metrics:read
                       - account:registry:read
                       - account:registry:write
                       - project:previews:read

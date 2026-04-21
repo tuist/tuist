@@ -4284,6 +4284,7 @@ public enum Components {
                     case mcp = "mcp"
                     case account_colon_members_colon_read = "account:members:read"
                     case account_colon_members_colon_write = "account:members:write"
+                    case account_colon_metrics_colon_read = "account:metrics:read"
                     case account_colon_registry_colon_read = "account:registry:read"
                     case account_colon_registry_colon_write = "account:registry:write"
                     case project_colon_previews_colon_read = "project:previews:read"
@@ -9973,6 +9974,7 @@ public enum Components {
                 case mcp = "mcp"
                 case account_colon_members_colon_read = "account:members:read"
                 case account_colon_members_colon_write = "account:members:write"
+                case account_colon_metrics_colon_read = "account:metrics:read"
                 case account_colon_registry_colon_read = "account:registry:read"
                 case account_colon_registry_colon_write = "account:registry:write"
                 case project_colon_previews_colon_read = "project:previews:read"
@@ -15817,14 +15819,14 @@ public enum Operations {
             public var path: Operations.listBundles.Input.Path
             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query`.
             public struct Query: Sendable, Hashable {
-                /// Page number for pagination.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page`.
-                public var page: Swift.Int?
                 /// Filter bundles by git branch.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/git_branch`.
                 public var git_branch: Swift.String?
+                /// Page number for pagination.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page`.
+                public var page: Swift.Int?
                 /// Number of items per page.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page_size`.
@@ -15832,16 +15834,16 @@ public enum Operations {
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
-                ///   - page: Page number for pagination.
                 ///   - git_branch: Filter bundles by git branch.
+                ///   - page: Page number for pagination.
                 ///   - page_size: Number of items per page.
                 public init(
-                    page: Swift.Int? = nil,
                     git_branch: Swift.String? = nil,
+                    page: Swift.Int? = nil,
                     page_size: Swift.Int? = nil
                 ) {
-                    self.page = page
                     self.git_branch = git_branch
+                    self.page = page
                     self.page_size = page_size
                 }
             }
@@ -29890,6 +29892,7 @@ public enum Operations {
                                 case mcp = "mcp"
                                 case account_colon_members_colon_read = "account:members:read"
                                 case account_colon_members_colon_write = "account:members:write"
+                                case account_colon_metrics_colon_read = "account:metrics:read"
                                 case account_colon_registry_colon_read = "account:registry:read"
                                 case account_colon_registry_colon_write = "account:registry:write"
                                 case project_colon_previews_colon_read = "project:previews:read"
@@ -30267,6 +30270,7 @@ public enum Operations {
                         case mcp = "mcp"
                         case account_colon_members_colon_read = "account:members:read"
                         case account_colon_members_colon_write = "account:members:write"
+                        case account_colon_metrics_colon_read = "account:metrics:read"
                         case account_colon_registry_colon_read = "account:registry:read"
                         case account_colon_registry_colon_write = "account:registry:write"
                         case project_colon_previews_colon_read = "project:previews:read"
