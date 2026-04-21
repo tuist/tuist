@@ -1,54 +1,58 @@
 name: Xcode Processor Staging Deploy
 
-permissions:
-  contents: read
+# NOTE: Disabled pending migration to Kubernetes. Staging deploy targets the
+# same Scaleway Mac mini infrastructure as production and shares its
+# reliability issues. Re-enable once the service runs on k8s.
 
-on:
-  workflow_dispatch:
-    inputs:
-      commit_sha:
-        description: Sha of the commit to be deployed
-        required: true
-
-defaults:
-  run:
-    working-directory: xcode_processor
-
-env:
-  MISE_VERSION: "2026.4.18"
-  MISE_GITHUB_TOKEN: ${{ github.token }}
-
-jobs:
-  deploy:
-    runs-on: namespace-profile-default-macos
-    timeout-minutes: 45
-    environment: xcode-processor-staging
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.inputs.commit_sha }}
-      - uses: 1password/install-cli-action@v2
-      - uses: jdx/mise-action@v4.0.1
-        with:
-          version: ${{ env.MISE_VERSION }}
-          install_args: "erlang elixir"
-          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
-          working_directory: xcode_processor
-      - name: Load secrets from 1Password
-        env:
-          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.CACHE_OP_SERVICE_ACCOUNT_TOKEN }}
-        run: |
-          echo "XCODE_PROCESSOR_SSH_PRIVATE_KEY<<EOF" >> $GITHUB_ENV
-          op read "op://cache/XCODE_PROCESSOR_SSH_PRIVATE_KEY/notesPlain" >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
-          echo "XCODE_PROCESSOR_HOST=$(op read 'op://cache/XCODE_PROCESSOR_HOST_STAGING/notesPlain')" >> $GITHUB_ENV
-          echo "SLACK_WEBHOOK_URL=$(op read 'op://cache/SLACK_WEBHOOK_URL/password')" >> $GITHUB_ENV
-      - name: Setup SSH
-        uses: webfactory/ssh-agent@v0.9.1
-        with:
-          ssh-private-key: ${{ env.XCODE_PROCESSOR_SSH_PRIVATE_KEY }}
-      - name: Deploy
-        env:
-          SLACK_WEBHOOK_URL: ${{ env.SLACK_WEBHOOK_URL }}
-        run: |
-          mise run deploy ${{ env.XCODE_PROCESSOR_HOST }} staging
+# permissions:
+#   contents: read
+#
+# on:
+#   workflow_dispatch:
+#     inputs:
+#       commit_sha:
+#         description: Sha of the commit to be deployed
+#         required: true
+#
+# defaults:
+#   run:
+#     working-directory: xcode_processor
+#
+# env:
+#   MISE_VERSION: "2026.4.18"
+#   MISE_GITHUB_TOKEN: ${{ github.token }}
+#
+# jobs:
+#   deploy:
+#     runs-on: namespace-profile-default-macos
+#     timeout-minutes: 45
+#     environment: xcode-processor-staging
+#     steps:
+#       - uses: actions/checkout@v4
+#         with:
+#           ref: ${{ github.event.inputs.commit_sha }}
+#       - uses: 1password/install-cli-action@v2
+#       - uses: jdx/mise-action@v4.0.1
+#         with:
+#           version: ${{ env.MISE_VERSION }}
+#           install_args: "erlang elixir"
+#           cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
+#           working_directory: xcode_processor
+#       - name: Load secrets from 1Password
+#         env:
+#           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.CACHE_OP_SERVICE_ACCOUNT_TOKEN }}
+#         run: |
+#           echo "XCODE_PROCESSOR_SSH_PRIVATE_KEY<<EOF" >> $GITHUB_ENV
+#           op read "op://cache/XCODE_PROCESSOR_SSH_PRIVATE_KEY/notesPlain" >> $GITHUB_ENV
+#           echo "EOF" >> $GITHUB_ENV
+#           echo "XCODE_PROCESSOR_HOST=$(op read 'op://cache/XCODE_PROCESSOR_HOST_STAGING/notesPlain')" >> $GITHUB_ENV
+#           echo "SLACK_WEBHOOK_URL=$(op read 'op://cache/SLACK_WEBHOOK_URL/password')" >> $GITHUB_ENV
+#       - name: Setup SSH
+#         uses: webfactory/ssh-agent@v0.9.1
+#         with:
+#           ssh-private-key: ${{ env.XCODE_PROCESSOR_SSH_PRIVATE_KEY }}
+#       - name: Deploy
+#         env:
+#           SLACK_WEBHOOK_URL: ${{ env.SLACK_WEBHOOK_URL }}
+#         run: |
+#           mise run deploy ${{ env.XCODE_PROCESSOR_HOST }} staging
