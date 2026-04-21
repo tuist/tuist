@@ -61,14 +61,21 @@ defmodule Tuist.Metrics.Exposition do
   # ---- Metric rendering --------------------------------------------------
 
   defp render_metric(%{name: name, type: :counter, help: help, labels: label_keys}, entries, format) do
+    # OpenMetrics' counter families name the family without the `_total`
+    # suffix — the suffix only appears on sample lines. Our schema already
+    # ends counter names in `_total` so we strip it for OpenMetrics HELP/TYPE
+    # lines and always use `name` for samples, matching the Prometheus 0.0.4
+    # convention scrapers rely on.
+    family_name = if format == :openmetrics, do: strip_total_suffix(name), else: name
+
     [
       "# HELP ",
-      name,
+      family_name,
       " ",
       escape_help(help),
       "\n",
       "# TYPE ",
-      name,
+      family_name,
       " counter\n",
       Enum.map(entries, &render_counter_line(&1, name, label_keys, format))
     ]
@@ -88,13 +95,22 @@ defmodule Tuist.Metrics.Exposition do
     ]
   end
 
-  defp render_counter_line(%{labels: labels, value: value}, name, label_keys, format) do
-    # OpenMetrics appends `_total` when rendering the per-sample line to
-    # distinguish the sample series from the metric family name.
-    sample_name = if format == :openmetrics, do: "#{name}_total", else: name
-
-    [sample_name, render_labels(label_keys, labels), " ", format_integer(value), "\n"]
+  defp render_counter_line(%{labels: labels, value: value}, name, label_keys, _format) do
+    # Schema names already end in `_total`. Both Prometheus 0.0.4 and
+    # OpenMetrics want exactly one `_total` suffix on the sample line, so we
+    # emit the schema name verbatim.
+    [name, render_labels(label_keys, labels), " ", format_integer(value), "\n"]
   end
+
+  defp strip_total_suffix("tuist_" <> _ = name) do
+    if String.ends_with?(name, "_total") do
+      String.slice(name, 0, byte_size(name) - byte_size("_total"))
+    else
+      name
+    end
+  end
+
+  defp strip_total_suffix(name), do: name
 
   defp render_histogram(
          %{labels: labels, count: count, sum: sum, buckets: buckets},

@@ -38,7 +38,7 @@ defmodule Tuist.Metrics.ExpositionTest do
                ~s(tuist_xcode_cache_events_total{project="acme/app",event_type="local_hit"} 4)
     end
 
-    test "appends _total suffix and EOF marker in openmetrics format" do
+    test "emits canonical family name in openmetrics HELP/TYPE and single-_total sample line" do
       snapshot = [
         %{
           metric: "tuist_xcode_cache_events_total",
@@ -50,7 +50,13 @@ defmodule Tuist.Metrics.ExpositionTest do
 
       output = snapshot |> Exposition.render(:openmetrics) |> IO.iodata_to_binary()
 
-      assert output =~ "tuist_xcode_cache_events_total_total{"
+      # HELP/TYPE strip the `_total` suffix per the OpenMetrics spec — it's
+      # added back on the sample line by convention.
+      assert output =~ "# HELP tuist_xcode_cache_events "
+      assert output =~ "# TYPE tuist_xcode_cache_events counter"
+      assert output =~ ~s(tuist_xcode_cache_events_total{project="acme/app",event_type="miss"} 1)
+      # And crucially NOT `tuist_xcode_cache_events_total_total{...}`.
+      refute output =~ "tuist_xcode_cache_events_total_total"
       assert String.ends_with?(output, "# EOF\n")
     end
 
