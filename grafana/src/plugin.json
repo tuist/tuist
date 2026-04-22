@@ -6,7 +6,7 @@
   "info": {
     "description": "Scrape per-account Xcode, Gradle, and CLI metrics from Tuist and visualise them in pre-built dashboards.",
     "author": {
-      "name": "Tuist GmbH",
+      "name": "Tuist",
       "url": "https://tuist.dev"
     },
     "keywords": ["tuist", "xcode", "gradle", "swift", "ios", "macos", "android", "build", "cache", "ci"],

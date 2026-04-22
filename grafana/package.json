@@ -14,7 +14,7 @@
     "sign": "pnpm dlx @grafana/sign-plugin@latest"
   },
   "packageManager": "pnpm@10.17.1",
-  "author": "Tuist GmbH",
+  "author": "Tuist",
   "license": "MPL-2.0",
   "devDependencies": {
     "@grafana/eslint-config": "^8.2.0",
