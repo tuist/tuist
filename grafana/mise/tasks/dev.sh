@@ -2,9 +2,7 @@
 #MISE description="Run Grafana + Prometheus locally with the plugin scraping staging.tuist.dev"
 set -euo pipefail
 
-REPO_ROOT="$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)"
-PLUGIN_DIR="${REPO_ROOT}/grafana"
-cd "${PLUGIN_DIR}"
+cd "${MISE_PROJECT_ROOT}"
 
 # Pin node + pnpm via mise so webpack can load its `.ts` config.
 NODE_BIN_DIR="$(dirname "$(mise which node)")"

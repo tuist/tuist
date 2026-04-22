@@ -5,8 +5,7 @@
 #USAGE flag "--signature-type <type>" help="Signature type: private, community, or commercial. Defaults to private."
 set -euo pipefail
 
-REPO_ROOT="$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)"
-PLUGIN_DIR="${REPO_ROOT}/grafana"
+PLUGIN_DIR="${MISE_PROJECT_ROOT}"
 cd "${PLUGIN_DIR}"
 
 # Prepend the plugin's pinned node + pnpm to PATH so we don't pick up nvm
