@@ -10,6 +10,7 @@ defmodule TuistWeb.Router do
 
   alias TuistWeb.Marketing.Localization
   alias TuistWeb.Marketing.MarketingController
+  alias TuistWeb.Plugs.LegacyRedirectsPlug
   alias TuistWeb.Plugs.LocalePlug
   alias TuistWeb.Plugs.ObservabilityContextPlug
   alias TuistWeb.Plugs.SentryContextPlug
@@ -110,7 +111,7 @@ defmodule TuistWeb.Router do
   pipeline :browser_marketing do
     plug :accepts, ["html"]
     plug :enable_robot_indexing
-    plug TuistWeb.Plugs.LegacyRedirectsPlug
+    plug LegacyRedirectsPlug
     plug :fetch_session
     plug :fetch_live_flash
     plug :put_root_layout, html: {TuistWeb.Marketing.Layouts, :root}
@@ -131,6 +132,7 @@ defmodule TuistWeb.Router do
   pipeline :browser_docs do
     plug :accepts, ["html"]
     plug :enable_robot_indexing
+    plug LegacyRedirectsPlug
     plug :fetch_session
     plug :fetch_live_flash
     plug :put_root_layout, html: {TuistWeb.Docs.Layouts, :root}

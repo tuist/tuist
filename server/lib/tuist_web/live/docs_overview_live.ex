@@ -201,7 +201,7 @@ defmodule TuistWeb.DocsOverviewLive do
               </div>
             </.link>
             <.link
-              patch={docs_path("/en/guides/features/builds/insights")}
+              patch={docs_path("/en/guides/features/build-insights")}
               data-part="feature-card"
             >
               <div data-part="image">
