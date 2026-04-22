@@ -112,6 +112,11 @@ defmodule TuistWeb.GradleCacheLive do
         Query.put(socket.assigns.uri.query, "analytics-date-range", preset)
       end
 
+    query_params =
+      query_params
+      |> Query.drop("before")
+      |> Query.drop("after")
+
     {:noreply, push_patch(socket, to: "/#{selected_account.name}/#{selected_project.name}/gradle-cache?#{query_params}")}
   end
 
@@ -241,7 +246,21 @@ defmodule TuistWeb.GradleCacheLive do
   defp analytics_trend_label(_), do: dgettext("dashboard_gradle", "since last month")
 
   defp assign_recent_builds(%{assigns: %{selected_project: project, selected_account: account}} = socket, _params) do
-    {builds, _meta} = Gradle.list_builds(project.id, %{page_size: @recent_builds_page_size})
+    {start_datetime, end_datetime} = socket.assigns.analytics_period
+    analytics_environment = socket.assigns.analytics_environment
+
+    filters =
+      [
+        %{field: :inserted_at, op: :>=, value: start_datetime},
+        %{field: :inserted_at, op: :<=, value: end_datetime}
+      ] ++
+        case analytics_environment do
+          "ci" -> [%{field: :is_ci, op: :==, value: true}]
+          "local" -> [%{field: :is_ci, op: :==, value: false}]
+          _ -> []
+        end
+
+    {builds, _meta} = Gradle.list_builds(project.id, %{page_size: @recent_builds_page_size, filters: filters})
     builds = Repo.preload(builds, :built_by_account)
 
     recent_builds_chart_data =
