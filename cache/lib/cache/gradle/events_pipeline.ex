@@ -35,7 +35,11 @@ defmodule Cache.Gradle.EventsPipeline do
   Pushes a Gradle cache event to the pipeline asynchronously.
   """
   def async_push(event) do
-    OffBroadwayMemory.Buffer.async_push(:gradle_events_buffer, event)
+    if Cache.AnalyticsCircuitBreaker.accept_event?(webhook_url()) do
+      OffBroadwayMemory.Buffer.async_push(:gradle_events_buffer, event)
+    else
+      :ok
+    end
   end
 
   @impl true
@@ -53,9 +57,6 @@ defmodule Cache.Gradle.EventsPipeline do
   end
 
   defp send_batch(events) do
-    server_url = Cache.Authentication.server_url()
-    url = "#{server_url}/webhooks/gradle-cache"
-
     api_events =
       Enum.map(events, fn event ->
         %{
@@ -69,6 +70,10 @@ defmodule Cache.Gradle.EventsPipeline do
 
     body = JSON.encode!(%{events: api_events})
 
-    Cache.WebhookClient.signed_post(url, body, "Gradle cache analytics")
+    Cache.WebhookClient.signed_post(webhook_url(), body, "Gradle cache analytics")
+  end
+
+  defp webhook_url do
+    "#{Cache.Authentication.server_url()}/webhooks/gradle-cache"
   end
 end

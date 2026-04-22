@@ -2,12 +2,18 @@ defmodule Cache.Registry.EventsPipelineTest do
   use ExUnit.Case, async: true
   use Mimic
 
+  import Cache.AnalyticsCircuitBreakerTestHelpers, only: [setup_analytics_circuit_breaker: 1]
+
   alias Cache.Registry.EventsPipeline
 
+  @server_url "http://localhost:4000"
+  @webhook_url "#{@server_url}/webhooks/registry"
+
   setup :set_mimic_from_context
+  setup :setup_analytics_circuit_breaker
 
   setup do
-    stub(Cache.Authentication, :server_url, fn -> "http://localhost:4000" end)
+    stub(Cache.Authentication, :server_url, fn -> @server_url end)
     :ok
   end
 
@@ -87,11 +93,11 @@ defmodule Cache.Registry.EventsPipelineTest do
           }
         end)
 
-      expect(Req, :request, fn options ->
-        assert options[:url] == "http://localhost:4000/webhooks/registry"
-        assert options[:method] == :post
+      expect(Req, :request, fn request ->
+        assert to_string(request.url) == @webhook_url
+        assert request.method == :post
 
-        body = options[:body]
+        body = request.body
         decoded_body = JSON.decode!(body)
         assert length(decoded_body["events"]) == 2
 
@@ -105,12 +111,12 @@ defmodule Cache.Registry.EventsPipelineTest do
         assert second["name"] == "swift-composable-architecture"
         assert second["version"] == "0.52.0"
 
-        headers = options[:headers]
-        assert {"content-type", "application/json"} in headers
-        assert Enum.any?(headers, fn {key, _value} -> key == "x-cache-signature" end)
-        assert Enum.any?(headers, fn {key, _value} -> key == "x-cache-endpoint" end)
+        headers = request.headers
+        assert headers["content-type"] == ["application/json"]
+        assert is_list(headers["x-cache-signature"])
+        assert is_list(headers["x-cache-endpoint"])
 
-        {:ok, %{status: 202, body: ""}}
+        {:ok, %Req.Response{status: 202, body: ""}}
       end)
 
       result =
@@ -140,19 +146,21 @@ defmodule Cache.Registry.EventsPipelineTest do
           }
         end)
 
-      expect(Req, :request, fn options ->
-        body = options[:body]
+      expect(Req, :request, fn request ->
+        assert to_string(request.url) == @webhook_url
+
+        body = request.body
 
         expected_signature =
           :hmac
           |> :crypto.mac(:sha256, secret, body)
           |> Base.encode16(case: :lower)
 
-        headers = options[:headers]
-        {_, actual_signature} = Enum.find(headers, fn {key, _} -> key == "x-cache-signature" end)
+        headers = request.headers
+        [actual_signature] = headers["x-cache-signature"]
         assert actual_signature == expected_signature
 
-        {:ok, %{status: 200, body: ""}}
+        {:ok, %Req.Response{status: 200, body: ""}}
       end)
 
       EventsPipeline.handle_batch(
