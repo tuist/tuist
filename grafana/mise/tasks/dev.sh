@@ -2,8 +2,6 @@
 #MISE description="Run Grafana + Prometheus locally with the plugin scraping staging.tuist.dev"
 set -euo pipefail
 
-cd "${MISE_PROJECT_ROOT}"
-
 if [ -z "${TUIST_METRICS_TOKEN:-}" ]; then
   echo "ERROR: TUIST_METRICS_TOKEN is not set." >&2
   echo "       Mint a token with the account:metrics:read scope, store it in 1Password," >&2
@@ -21,9 +19,7 @@ printf '%s' "${TUIST_METRICS_TOKEN}" > .secrets/tuist-metrics-token
 umask 022
 
 # Install + build the plugin so dist/ exists before docker-compose mounts it.
-pnpm install --ignore-workspace --prefer-offline
-export TS_NODE_TRANSPILE_ONLY=true
-export TS_NODE_FILES=true
+pnpm install --prefer-offline
 pnpm run build
 
 pnpm run dev &

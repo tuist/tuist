@@ -5,25 +5,16 @@
 #USAGE flag "--signature-type <type>" help="Signature type: private, community, or commercial. Defaults to private."
 set -euo pipefail
 
-PLUGIN_DIR="${MISE_PROJECT_ROOT}"
-cd "${PLUGIN_DIR}"
-
 PLUGIN_ID="$(jq -r .id src/plugin.json)"
 PLUGIN_VERSION="$(jq -r .version package.json)"
-ARTIFACT="${PLUGIN_DIR}/${PLUGIN_ID}-${PLUGIN_VERSION}.zip"
+ARTIFACT="${MISE_PROJECT_ROOT}/${PLUGIN_ID}-${PLUGIN_VERSION}.zip"
 
 # --- Install + build ---------------------------------------------------------
-# `--ignore-workspace` stops pnpm from attaching the plugin to the repo-root
-# pnpm-workspace.yaml; the plugin has its own lockfile and dependency tree.
-echo "==> Installing dependencies (pnpm, ignoring repo workspace)"
-pnpm install --ignore-workspace --prefer-offline
+echo "==> Installing dependencies"
+pnpm install --prefer-offline
 
 echo "==> Building (webpack, production mode)"
-# Force ts-node's transpile-only mode so the webpack config .ts files don't
-# fail on missing upstream plugin typings (they're real, but not worth
-# blocking the build on).
-TS_NODE_TRANSPILE_ONLY=true TS_NODE_FILES=true \
-  pnpm run build
+pnpm run build
 
 # --- Sign --------------------------------------------------------------------
 if [ "${usage_skip_sign:-false}" = "true" ]; then

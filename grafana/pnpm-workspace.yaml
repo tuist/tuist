@@ -1,0 +1,3 @@
+# Makes grafana/ its own pnpm workspace root so pnpm doesn't try to attach
+# the plugin to the repo-root pnpm-workspace.yaml.
+packages: []
