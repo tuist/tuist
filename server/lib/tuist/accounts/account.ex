@@ -5,6 +5,7 @@ defmodule Tuist.Accounts.Account do
   use Ecto.Schema
 
   import Ecto.Changeset
+  import Ecto.Query, only: [from: 2]
 
   alias Tuist.Accounts.AccountCacheEndpoint
   alias Tuist.Accounts.Organization
@@ -17,8 +18,29 @@ defmodule Tuist.Accounts.Account do
 
   @derive {
     Flop.Schema,
-    filterable: [:customer_id, :current_month_remote_cache_hits_count_updated_at], sortable: [:name]
+    filterable: [:customer_id, :current_month_remote_cache_hits_count_updated_at, :search],
+    sortable: [:name],
+    adapter_opts: [
+      custom_fields: [
+        search: [
+          filter: {__MODULE__, :search_filter, []},
+          ecto_type: :string
+        ]
+      ]
+    ]
   }
+
+  # Flop dispatches `:search` custom-field filters here via the MFA declared
+  # in `adapter_opts` above; the function is public because Flop calls it
+  # with `apply/3`, but it's not meant to be invoked directly. Use Flop
+  # filters — `%{field: :search, op: :==, value: "foo"}` — from callers.
+  @doc false
+  def search_filter(query, %Flop.Filter{value: value}, _opts) when is_binary(value) and value != "" do
+    like = "%#{value}%"
+    from a in query, where: ilike(a.name, ^like)
+  end
+
+  def search_filter(query, _filter, _opts), do: query
 
   schema "accounts" do
     field :name, :string
