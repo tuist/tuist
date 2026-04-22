@@ -2,7 +2,7 @@
 SECRET_KEY_BASE = "3QgyMMP1pcg9+d5Gn3n1/TMciiogjysBmPg1Dm+pT+Hfag38TUm0Q7pHfC7NpZpL"
 
 [tools]
-elixir = "1.19.1"
-erlang = "28.1"
+elixir = "1.19.5"
+erlang = "28.4.3"
 ruby = "3.3.10"
 "gem:kamal" = "2.10.1"
