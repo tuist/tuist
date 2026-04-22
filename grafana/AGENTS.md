@@ -30,3 +30,27 @@ generator, and four dashboards.
 - Server-side schema: [`server/lib/tuist/metrics/schema.ex`](../server/lib/tuist/metrics/schema.ex)
 - Endpoint controller: [`server/lib/tuist_web/controllers/api/metrics_controller.ex`](../server/lib/tuist_web/controllers/api/metrics_controller.ex)
 - RFC: <https://community.tuist.dev/t/per-account-metrics-endpoint-and-grafana-integration/974>
+
+## Upgrading `@grafana/create-plugin`
+
+The `.config/` tree and parts of `package.json` are owned code scaffolded
+from [`@grafana/create-plugin`](https://github.com/grafana/plugin-tools).
+To pull upstream improvements:
+
+```bash
+cd grafana
+pnpm dlx @grafana/create-plugin@latest update --force
+```
+
+Then bump `.config/.cprc.json` to the new version so the next run sees us
+as synced.
+
+Deliberate deviations from the scaffold — worth re-stripping after any
+update:
+
+- The template ships `.config/Dockerfile`, `docker-compose-base.yaml`,
+  `supervisord/`, `entrypoint.sh`. We use our own top-level
+  `docker-compose.yml` that also runs Prometheus scraping staging,
+  so the template's container stack would just be dead weight.
+- `.config/bundler/externals.ts` had unexpanded Handlebars conditionals
+  for Rspack mode; we keep the webpack-only form.
