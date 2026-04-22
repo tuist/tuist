@@ -15,14 +15,15 @@ into the Prometheus datasource configured here.
 
 ## Development
 
-All tasks live under `mise run grafana:*`:
+All tasks live under [`grafana/mise/tasks/`](mise/tasks) and are scoped to
+this directory — `cd grafana` first, then:
 
 ```bash
-mise run grafana:build    # one-off build into ./dist
-mise run grafana:dev      # webpack watch + Grafana in docker at :3000
-mise run grafana:lint     # lint (add --fix to auto-correct)
-mise run grafana:test     # typecheck + jest
-mise run grafana:bundle   # build + sign + zip for upload
+mise run build    # one-off build into ./dist
+mise run dev      # Prometheus + Grafana in docker, webpack watch, plugin mounted
+mise run lint     # lint (add --fix to auto-correct)
+mise run test     # typecheck + jest
+mise run bundle   # build + sign + zip for upload
 ```
 
 The tasks pin node/pnpm through [grafana/mise.toml](mise.toml), so run them
@@ -30,29 +31,29 @@ under mise rather than reaching for system node.
 
 ## Publishing
 
-`mise run grafana:bundle` produces `tuist-tuist-app-<version>.zip`. Two modes:
+`mise run bundle` produces `tuist-tuist-app-<version>.zip`. Three modes:
 
 1. **Private plugin for a specific Grafana Cloud stack** (what you want for
    staging validation):
    ```bash
    export GRAFANA_ACCESS_POLICY_TOKEN="..."
-   mise run grafana:bundle -- --root-urls https://<your-stack>.grafana.net/
+   mise run bundle -- --root-urls https://<your-stack>.grafana.net/
    ```
-   Upload the resulting zip via *Grafana Cloud → your stack → Administration →
-   Plugins → Upload private plugin*. No review wait.
+   Upload via *Grafana Cloud → your stack → Administration → Plugins →
+   Upload private plugin*. No review wait.
 
 2. **Public plugin in the Grafana catalogue** (wider release):
    ```bash
    export GRAFANA_ACCESS_POLICY_TOKEN="..."
-   mise run grafana:bundle -- --signature-type community
+   mise run bundle -- --signature-type community
    ```
-   Upload the zip through the submission form at
+   Upload through the submission form at
    <https://grafana.com/auth/sign-in?redirectPath=/plugins/submit>. Review
    takes 1–3 business days.
 
 3. **Unsigned local dev**:
    ```bash
-   mise run grafana:bundle -- --skip-sign
+   mise run bundle -- --skip-sign
    ```
    Only loads in Grafana started with
    `GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=tuist-tuist-app`.
