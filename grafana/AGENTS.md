@@ -73,7 +73,7 @@ Every push to `main` containing a `(grafana)`-scoped commit triggers
 4. publishes a GitHub release with the signed zip attached.
 
 The access-policy token is read at build time from
-`op://tuist/TUIST_GRAFANA_PLUGIN_TOKEN/password`. Mint one at
+`op://tuist/TUIST_GRAFANA_PLUGIN_TOKEN/password`. Create one at
 <https://grafana.com/orgs/tuist/access-policies> with the `plugins:write`
 scope on the `tuist (all stacks)` realm.
 

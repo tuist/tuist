@@ -24,12 +24,13 @@ export const App = (props: AppRootProps<TuistAppJsonData>) => {
 
       <ol className={styles.steps}>
         <li>
-          <strong>Mint a metrics token.</strong> In the Tuist dashboard, create an account token
-          with the <code>{REQUIRED_SCOPE}</code> scope.
+          <strong>Create a metrics token.</strong> Run{' '}
+          <code>tuist account tokens create &lt;handle&gt; --scopes {REQUIRED_SCOPE} --name grafana</code>{' '}
+          and copy the printed token.
         </li>
         <li>
-          <strong>Configure this plugin.</strong> Enter the server URL, account handle, token, and
-          target Prometheus datasource on the <em>Configuration</em> tab.
+          <strong>Configure this plugin.</strong> Enter the server URL, account handle, and token
+          on the <em>Configuration</em> tab.
         </li>
         <li>
           <strong>Deploy the scrape snippet.</strong> Copy the generated Alloy/Agent config and

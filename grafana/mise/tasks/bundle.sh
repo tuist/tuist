@@ -20,7 +20,7 @@ if [ "${usage_skip_sign:-false}" = "true" ]; then
 else
   if [ -z "${GRAFANA_ACCESS_POLICY_TOKEN:-}" ]; then
     echo "ERROR: GRAFANA_ACCESS_POLICY_TOKEN is not set." >&2
-    echo "       Mint one at https://grafana.com/orgs/tuist/access-policies and export it," >&2
+    echo "       Create one at https://grafana.com/orgs/tuist/access-policies and export it," >&2
     echo "       or pass --skip-sign to produce an unsigned build for local Grafana dev." >&2
     exit 1
   fi
