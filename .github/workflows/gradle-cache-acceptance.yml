@@ -121,13 +121,19 @@ jobs:
             ecto.migrate, \
             run priv/repo/seeds.exs, \
             phx.server &
+          # Compile + DB setup runs inside this backgrounded mix do before
+          # phx.server binds, so the wait loop has to cover that full phase
+          # (typically ~3 min on a cold cache).
           server_url="${TUIST_SERVER_URL:-http://localhost:8080}"
-          for i in {1..30}; do
+          for i in {1..180}; do
             if curl -sf "$server_url" >/dev/null 2>&1; then
-              echo "Main server is ready"
+              echo "Main server is ready after ${i}s"
               break
             fi
-            echo "Waiting for main server... ($i/30)"
+            if [ "$i" = "180" ]; then
+              echo "Main server never came up on $server_url" >&2
+              exit 1
+            fi
             sleep 2
           done
       - name: Start cache server
