@@ -174,6 +174,9 @@ abstract class TuistPrepareTestShardsTask : DefaultTask() {
     @get:Internal
     var tuistProject: String? = null
 
+    @get:Input
+    var useEnvironmentProxy: Boolean = true
+
     @TaskAction
     fun execute() {
         val shardingService = createShardingService()
@@ -293,7 +296,7 @@ abstract class TuistPrepareTestShardsTask : DefaultTask() {
     }
 
     private fun createShardingService(): TuistTestShardingService {
-        val httpClients = TuistHttpClients()
+        val httpClients = TuistHttpClients(useEnvironmentProxy = useEnvironmentProxy)
         val configProvider = DefaultConfigurationProvider(
             project = tuistProject,
             serverUrl = serverUrl,
@@ -327,6 +330,7 @@ abstract class TuistTestShardingPlugin : Plugin<Project> {
             description = "Build test classes, discover test suites, and create a shard plan on the Tuist server"
             serverUrl = config.url
             tuistProject = config.project
+            useEnvironmentProxy = config.http.proxy
 
             project.findProperty("tuistShardMax")?.toString()?.toIntOrNull()?.let { shardMax = it }
             project.findProperty("tuistShardMin")?.toString()?.toIntOrNull()?.let { shardMin = it }
@@ -351,11 +355,11 @@ abstract class TuistTestShardingPlugin : Plugin<Project> {
             return
         }
 
-        val httpClients = TuistHttpClients()
+        val httpClients = TuistHttpClients(useEnvironmentProxy = config.http.proxy)
         val configProvider = DefaultConfigurationProvider(
             project = config.project,
             serverUrl = config.url,
-            projectDir = java.io.File(System.getProperty("user.dir")),
+            projectDir = project.rootProject.projectDir,
             httpClients = httpClients
         )
         val cacheConfig = configProvider.getConfiguration()

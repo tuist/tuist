@@ -2,25 +2,37 @@ import Foundation
 import TuistConfig
 
 struct TuistTomlConfig: Equatable, Sendable, Decodable {
-    let project: String
+    struct HTTP: Equatable, Sendable, Decodable {
+        let proxy: Bool?
+
+        init(proxy: Bool? = nil) {
+            self.proxy = proxy
+        }
+    }
+
+    let project: String?
     let url: URL?
+    let http: HTTP?
 
     init(
-        project: String,
-        url: URL? = nil
+        project: String? = nil,
+        url: URL? = nil,
+        http: HTTP? = nil
     ) {
         self.project = project
         self.url = url
+        self.http = http
     }
 
     private enum CodingKeys: String, CodingKey {
         case project
         case url
+        case http
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        project = try container.decode(String.self, forKey: .project)
+        project = try container.decodeIfPresent(String.self, forKey: .project)
         if let urlString = try container.decodeIfPresent(String.self, forKey: .url) {
             guard let parsed = URL(string: urlString) else {
                 throw DecodingError.dataCorruptedError(
@@ -33,5 +45,6 @@ struct TuistTomlConfig: Equatable, Sendable, Decodable {
         } else {
             url = nil
         }
+        http = try container.decodeIfPresent(HTTP.self, forKey: .http)
     }
 }

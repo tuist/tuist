@@ -28,6 +28,19 @@
 public typealias Config = Tuist
 
 public struct Tuist: Codable, Equatable, Sendable {
+    /// Options for configuring the HTTP behavior.
+    public struct HTTP: Codable, Equatable, Sendable {
+        /// When `true` (default), Tuist automatically uses the proxy defined by
+        /// `HTTPS_PROXY`/`HTTP_PROXY` when present in the environment.
+        public let proxy: Bool
+
+        /// Creates HTTP options.
+        /// - Parameter proxy: Whether Tuist should use the proxy defined in the environment. Defaults to `true`.
+        public static func http(proxy: Bool = true) -> Self {
+            HTTP(proxy: proxy)
+        }
+    }
+
     /// Options for configuring the Xcode Cache behavior.
     public struct Cache: Codable, Equatable, Sendable {
         /// When `true` (default), the local proxy uploads artifacts to the remote cache.
@@ -50,6 +63,9 @@ public struct Tuist: Codable, Equatable, Sendable {
 
     /// The options to use when running `tuist inspect`.
     public let inspectOptions: InspectOptions
+
+    /// The HTTP configuration.
+    public let http: HTTP
 
     /// The Xcode Cache configuration.
     public let cache: Cache
@@ -75,6 +91,7 @@ public struct Tuist: Codable, Equatable, Sendable {
         cloud: Cloud? = nil,
         fullHandle: String? = nil,
         url: String = "https://tuist.dev",
+        http: HTTP = .http(),
         swiftVersion _: Version? = nil,
         plugins: [PluginLocation] = [],
         generationOptions: GenerationOptions = .options(),
@@ -96,6 +113,7 @@ public struct Tuist: Codable, Equatable, Sendable {
         )
         self.fullHandle = fullHandle
         self.inspectOptions = inspectOptions
+        self.http = http
         cache = .cache()
         self.url = url
         dumpIfNeeded(self)
@@ -104,6 +122,7 @@ public struct Tuist: Codable, Equatable, Sendable {
     public init(
         fullHandle: String? = nil,
         inspectOptions: InspectOptions = .options(),
+        http: HTTP = .http(),
         cache: Cache = .cache(),
         url: String = "https://tuist.dev",
         project: TuistProject
@@ -111,6 +130,7 @@ public struct Tuist: Codable, Equatable, Sendable {
         self.project = project
         self.fullHandle = fullHandle
         self.inspectOptions = inspectOptions
+        self.http = http
         self.cache = cache
         self.url = url
         dumpIfNeeded(self)

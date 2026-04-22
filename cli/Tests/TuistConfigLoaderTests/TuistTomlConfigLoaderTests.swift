@@ -20,6 +20,9 @@ struct TuistTomlConfigLoaderTests {
             """
             project = "tuist/tuist"
             url = "https://custom.tuist.dev"
+
+            [http]
+            proxy = false
             """,
             at: tomlPath
         )
@@ -35,6 +38,7 @@ struct TuistTomlConfigLoaderTests {
 
         #expect(config?.project == "tuist/tuist")
         #expect(config?.url == URL(string: "https://custom.tuist.dev")!)
+        #expect(config?.http?.proxy == false)
     }
 
     @Test(.inTemporaryDirectory)
@@ -59,6 +63,33 @@ struct TuistTomlConfigLoaderTests {
 
         #expect(config?.project == "org/project")
         #expect(config?.url == nil)
+        #expect(config?.http == nil)
+    }
+
+    @Test(.inTemporaryDirectory)
+    func loadConfig_returns_config_with_http_only() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let tomlPath = temporaryDirectory.appending(component: Constants.tuistTomlFileName)
+        try await fileSystem.writeText(
+            """
+            [http]
+            proxy = false
+            """,
+            at: tomlPath
+        )
+
+        let rootDirectoryLocator = MockRootDirectoryLocating()
+        given(rootDirectoryLocator).locate(from: .any).willReturn(temporaryDirectory)
+
+        let subject = TuistTomlConfigLoader(
+            fileSystem: fileSystem,
+            rootDirectoryLocator: rootDirectoryLocator
+        )
+        let config = try await subject.loadConfig(at: temporaryDirectory)
+
+        #expect(config?.project == nil)
+        #expect(config?.url == nil)
+        #expect(config?.http?.proxy == false)
     }
 
     @Test(.inTemporaryDirectory)

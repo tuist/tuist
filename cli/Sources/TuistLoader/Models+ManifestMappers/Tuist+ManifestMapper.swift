@@ -38,6 +38,7 @@ extension TuistConfig.Tuist {
     ) async throws -> TuistConfig.Tuist {
         let fullHandle = manifest.fullHandle
         let inspectOptions = InspectOptions.from(manifest: manifest.inspectOptions)
+        let http = TuistConfig.Tuist.HTTP(proxy: manifest.http.proxy)
         let cache = TuistConfig.Tuist.Cache(upload: manifest.cache.upload)
         let urlString = manifest.url
 
@@ -80,6 +81,7 @@ extension TuistConfig.Tuist {
                 ),
                 fullHandle: fullHandle,
                 inspectOptions: inspectOptions,
+                http: http,
                 cache: cache,
                 url: url
             )
@@ -88,6 +90,7 @@ extension TuistConfig.Tuist {
                 project: .xcode(TuistXcodeProjectOptions()),
                 fullHandle: fullHandle,
                 inspectOptions: inspectOptions,
+                http: http,
                 cache: cache,
                 url: url
             )
