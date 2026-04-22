@@ -1,5 +1,6 @@
 {{- if .Values.server.enabled }}
 {{- $secretName := include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
+{{- $masterKeySecretName := ternary (include "tuist.componentName" (dict "root" . "component" "server-external-secrets")) $secretName .Values.server.managedSecrets }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -63,6 +64,7 @@ spec:
           env:
             - name: TUIST_WEB
               value: "true"
+            {{- if not .Values.server.managedSecrets }}
             - name: DATABASE_URL
               value: {{ include "tuist.databaseUrl" . | quote }}
             - name: TUIST_USE_SSL_FOR_DATABASE
@@ -74,6 +76,7 @@ spec:
                 secretKeyRef:
                   name: {{ $secretName }}
                   key: server-secret-key-base
+            {{- end }}
             - name: TUIST_APP_URL
               value: {{ .Values.server.appUrl | quote }}
             - name: TUIST_LOG_LEVEL
@@ -98,11 +101,11 @@ spec:
                   name: {{ $secretName }}
                   key: server-license-certificate-base64
             {{- end }}
-            {{- if .Values.server.masterKey }}
+            {{- if or .Values.server.masterKey .Values.server.managedSecrets }}
             - name: MASTER_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ $secretName }}
+                  name: {{ $masterKeySecretName }}
                   key: server-master-key
             {{- end }}
             {{- if .Values.server.cluster.enabled }}
@@ -119,6 +122,7 @@ spec:
             - name: RELEASE_NODE
               value: "$(TUIST_CLUSTER_APP_NAME)@$(POD_IP)"
             {{- end }}
+            {{- if not .Values.server.managedSecrets }}
             - name: TUIST_S3_BUCKET_NAME
               value: {{ .Values.server.s3.bucketName | quote }}
             - name: TUIST_S3_ENDPOINT
@@ -139,6 +143,7 @@ spec:
               value: {{ .Values.server.s3.virtualHost | ternary "1" "0" | quote }}
             - name: TUIST_S3_BUCKET_AS_HOST
               value: {{ .Values.server.s3.bucketAsHost | ternary "1" "0" | quote }}
+            {{- end }}
             {{- if .Values.cache.enabled }}
             - name: TUIST_CACHE_ENDPOINTS
               value: {{ .Values.server.cacheEndpointUrl | default (printf "http://%s:%v" (include "tuist.componentName" (dict "root" . "component" "cache")) .Values.cache.service.port) | quote }}

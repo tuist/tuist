@@ -45,6 +45,30 @@ server:
   # for hosted deployments that rely on encrypted secrets baked into the image.
   # Leave empty to skip wiring the env var (self-hosted installs don't need it).
   masterKey: ""
+  # When true, the chart skips emitting DATABASE_URL / TUIST_CLICKHOUSE_URL /
+  # TUIST_SECRET_KEY_BASE / TUIST_S3_* env vars and lets the Elixir release
+  # read those values from the encrypted priv/secrets/<env>.yml.enc file that
+  # MASTER_KEY unlocks. Pair with `masterKey: <...>` or externalSecrets below.
+  # Intended for the managed-cloud shape (Render today, k8s tomorrow).
+  # Self-hosted installs leave this false so values.yaml drives all runtime config.
+  managedSecrets: false
+  # Sync secrets from an external store via external-secrets-operator. Only
+  # consulted when managedSecrets is true and masterKey is empty. The store
+  # must already exist (ClusterSecretStore/SecretStore) and be configured
+  # elsewhere (see infra/k8s/gke-onboarding.md for the 1Password flow).
+  externalSecrets:
+    refreshInterval: "1h"
+    storeRef:
+      kind: ClusterSecretStore
+      name: onepassword
+    masterKey:
+      # 1Password item name in the vault referenced by the SecretStore.
+      # For the 1P SDK provider the item + field are joined as "<item>/<field>"
+      # and the vault is set on the ClusterSecretStore, not here.
+      item: MASTER_KEY
+      # Field within the item. 1P "Password" category items expose their
+      # value under `password`; custom items can use any label.
+      field: password
   license:
     key: ""
     certificateBase64: ""

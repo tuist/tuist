@@ -1,5 +1,6 @@
 {{- if and .Values.server.enabled .Values.server.migrationJob.enabled }}
 {{- $secretName := include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
+{{- $masterKeySecretName := ternary (include "tuist.componentName" (dict "root" . "component" "server-external-secrets")) $secretName .Values.server.managedSecrets }}
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -30,6 +31,11 @@ spec:
       serviceAccountName: {{ include "tuist.serviceAccountName" . }}
 {{ include "tuist.podScheduling" . | nindent 6 }}
       restartPolicy: Never
+      {{- if not .Values.server.managedSecrets }}
+      # Only wait for embedded Postgres / ClickHouse to come up when chart
+      # values expose them. For managed deployments (managedSecrets: true) the
+      # data plane is external and the release will surface connection errors
+      # on its own if it can't reach them.
       initContainers:
         - name: wait-for-dependencies
           image: "{{ .Values.server.image.repository }}:{{ .Values.server.image.tag | default .Chart.AppVersion }}"
@@ -55,6 +61,7 @@ spec:
               value: {{ include "tuist.databaseName" . | quote }}
             - name: TUIST_CLICKHOUSE_READY_URL
               value: {{ include "tuist.clickhouseReadyUrl" . | quote }}
+      {{- end }}
       containers:
         - name: migrate
           image: "{{ .Values.server.image.repository }}:{{ .Values.server.image.tag | default .Chart.AppVersion }}"
@@ -64,6 +71,7 @@ spec:
             - eval
             - Tuist.Release.migrate
           env:
+            {{- if not .Values.server.managedSecrets }}
             - name: DATABASE_URL
               value: {{ include "tuist.databaseUrl" . | quote }}
             - name: TUIST_USE_SSL_FOR_DATABASE
@@ -75,6 +83,7 @@ spec:
                 secretKeyRef:
                   name: {{ $secretName }}
                   key: server-secret-key-base
+            {{- end }}
             - name: TUIST_APP_URL
               value: {{ .Values.server.appUrl | quote }}
             - name: TUIST_HOSTED
@@ -95,13 +104,14 @@ spec:
                   name: {{ $secretName }}
                   key: server-license-certificate-base64
             {{- end }}
-            {{- if .Values.server.masterKey }}
+            {{- if or .Values.server.masterKey .Values.server.managedSecrets }}
             - name: MASTER_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ $secretName }}
+                  name: {{ $masterKeySecretName }}
                   key: server-master-key
             {{- end }}
+            {{- if not .Values.server.managedSecrets }}
             - name: TUIST_S3_BUCKET_NAME
               value: {{ .Values.server.s3.bucketName | quote }}
             - name: TUIST_S3_ENDPOINT
@@ -122,6 +132,7 @@ spec:
               value: {{ .Values.server.s3.virtualHost | ternary "1" "0" | quote }}
             - name: TUIST_S3_BUCKET_AS_HOST
               value: {{ .Values.server.s3.bucketAsHost | ternary "1" "0" | quote }}
+            {{- end }}
             {{- with .Values.server.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}

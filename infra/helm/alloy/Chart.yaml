@@ -1,0 +1,11 @@
+apiVersion: v2
+name: tuist-alloy
+description: >
+  Grafana Alloy collector for the Tuist-managed Kubernetes cluster. Scrapes
+  the Phoenix server's /metrics, receives OTLP traces + Loki logs from the
+  app, and forwards everything to Grafana Cloud. Replaces the Render-era
+  `grafana-alloy` pserv that was reachable as `tuist-fmpt` on Render's private
+  network.
+type: application
+version: 0.1.0
+appVersion: "1.11.0"

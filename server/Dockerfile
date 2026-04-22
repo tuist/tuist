@@ -1,8 +1,14 @@
 ARG ELIXIR_VERSION=1.19.1
 ARG OTP_VERSION=28.1
-ARG DEBIAN_VERSION=bookworm-20260406-slim
-ARG BUILDER_IMAGE="hexpm/elixir:${ELIXIR_VERSION}-erlang-${OTP_VERSION}-debian-${DEBIAN_VERSION}"
-ARG RUNNER_IMAGE="debian:${DEBIAN_VERSION}"
+# hexpm/elixir uses date-pinned tags; their specific bookworm tag has both
+# linux/amd64 and linux/arm64/v8 manifests so the builder stage is multi-arch.
+ARG DEBIAN_BUILDER_VERSION=bookworm-20260406-slim
+# The plain debian:bookworm-20260406-slim tag is amd64-only. Use the unpinned
+# bookworm-slim tag for the runner base so the final image supports both
+# amd64 and arm64. Trading a small amount of reproducibility for multi-arch.
+ARG DEBIAN_RUNNER_VERSION=bookworm-slim
+ARG BUILDER_IMAGE="hexpm/elixir:${ELIXIR_VERSION}-erlang-${OTP_VERSION}-debian-${DEBIAN_BUILDER_VERSION}"
+ARG RUNNER_IMAGE="debian:${DEBIAN_RUNNER_VERSION}"
 
 # ========================================
 # Stage: Swift NIF builder
@@ -64,6 +70,12 @@ ENV MIX_ENV=$MIX_ENV
 ARG TUIST_HOSTED=1
 ENV TUIST_HOSTED=$TUIST_HOSTED
 
+# Harden mix deps.get against flaky networks (esp. from Docker Desktop on
+# ARM Macs): longer per-request timeout + fewer concurrent hex.pm connections.
+# No effect on CI builders with solid networking.
+ENV HEX_HTTP_TIMEOUT=120
+ENV HEX_HTTP_CONCURRENCY=1
+
 COPY server/mix.exs server/mix.lock ./
 RUN mkdir config
 
@@ -74,7 +86,12 @@ COPY processor/mix.exs processor/mix.lock /processor/
 COPY xcode_processor/mix.exs xcode_processor/mix.lock /xcode_processor/
 COPY xcode_processor/config /xcode_processor/config
 
-RUN mix deps.get --only $MIX_ENV
+# Retry deps.get up to 3 times — hex.pm resolver can fall through to an empty
+# local cache on network flakes, producing "Unknown package in lockfile"
+# errors on packages that clearly exist in mix.lock.
+RUN for i in 1 2 3; do \
+      mix deps.get --only $MIX_ENV && break || sleep 5; \
+    done
 
 # Config files must be present before compiling dependencies
 COPY server/config/config.exs server/config/${MIX_ENV}.exs config/

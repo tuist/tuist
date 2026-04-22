@@ -1,16 +1,47 @@
 # Staging overlay for the Tuist-managed deployment.
-# Layer on top of values-managed-common.yaml:
-#   helm upgrade --install tuist-staging infra/helm/tuist \
+# Layer on top of values-managed-common.yaml. Secrets come from 1Password via
+# ESO (configured in common); at deploy time we only pass the image tag.
+#
+#   helm upgrade --install tuist infra/helm/tuist \
 #     -n tuist-staging --create-namespace \
 #     -f infra/helm/tuist/values-managed-common.yaml \
 #     -f infra/helm/tuist/values-managed-staging.yaml \
-#     --set server.image.tag=$GIT_SHA \
-#     --set server.masterKey=$MASTER_KEY_STAGING
+#     --set server.image.tag=$GIT_SHA
 
 server:
   replicaCount: 1
 
-  appUrl: https://cloud-staging.tuist.dev
+  # Non-secret runtime config. Ported from Render's staging blueprint.
+  # Observability endpoints (TUIST_LOKI_URL, TUIST_OTEL_EXPORTER_OTLP_ENDPOINT)
+  # are intentionally NOT set — Render pointed at an internal `tuist-fmpt`
+  # Alloy pserv that isn't reachable from GKE. Follow-up: deploy Alloy in-cluster
+  # + repoint these at the in-cluster Service.
+  extraEnv:
+    - name: TUIST_DATABASE_POOL_SIZE
+      value: "15"
+    - name: TUIST_PROCESSOR_URL
+      value: http://processor-staging.tuist.dev:4002
+    # Traces go to the in-cluster Alloy collector via OTLP gRPC. Alloy
+    # forwards them to Grafana Cloud Tempo. Logs follow a different path:
+    # the server writes to stdout and Alloy tails pod logs via the k8s API,
+    # so TUIST_LOKI_URL is deliberately unset — the in-app LokiLoggerHandler
+    # only attaches when TUIST_LOKI_INPROC=1 which we leave off here.
+    - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
+      value: http://alloy-tuist-alloy.observability.svc.cluster.local:4317
+
+  # Until we point DNS at the cluster, expose the app via a LoadBalancer
+  # Service directly — GCP provisions a regional public IP, no Ingress / TLS
+  # plumbing needed. Flip back to ClusterIP + ingress.enabled=true once
+  # Cloudflare + cert-manager are wired.
+  service:
+    type: LoadBalancer
+    port: 80
+    targetPort: 8080
+
+  appUrl: http://cloud-staging.tuist.dev  # Set to the IP once the LB appears — or leave hostnamed for later.
+
+  ingress:
+    enabled: false
 
   autoscaling:
     enabled: false
@@ -18,23 +49,7 @@ server:
   podDisruptionBudget:
     enabled: false
 
-  ingress:
-    enabled: true
-    className: nginx
-    host: cloud-staging.tuist.dev
-    tlsSecretName: cloud-staging-tuist-dev-tls
-    annotations:
-      # cert-manager issues the TLS cert via the ClusterIssuer deployed by
-      # the platform chart (Cloudflare DNS-01).
-      cert-manager.io/cluster-issuer: letsencrypt-cloudflare
-      # external-dns will write the Cloudflare DNS record automatically.
-      external-dns.alpha.kubernetes.io/hostname: cloud-staging.tuist.dev
-      # Allow larger uploads (binaries, reports).
-      nginx.ingress.kubernetes.io/proxy-body-size: "500m"
-      nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
-      nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
-
-  # Staging uses smaller resources; production overrides upward.
+  # Staging uses smaller resources than prod.
   resources:
     requests:
       cpu: "250m"
@@ -42,20 +57,3 @@ server:
     limits:
       cpu: "1000m"
       memory: "1536Mi"
-
-postgresql:
-  external:
-    host: db-staging.tuist.dev  # Supabase pooler endpoint for staging.
-
-clickhouse:
-  external:
-    url: ""  # Set via helm --set at deploy time; see runbook.
-
-objectStorage:
-  external:
-    endpoint: https://fly.storage.tigris.dev
-    buckets:
-      default: tuist-staging
-      cache: tuist-cache-staging
-      xcodeCache: tuist-xcode-cache-staging
-      registry: tuist-registry-staging

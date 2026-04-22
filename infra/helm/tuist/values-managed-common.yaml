@@ -29,22 +29,25 @@ server:
     port: 80
     targetPort: 8080
 
-  # Encrypted secrets are baked into the image at priv/secrets/<env>.yml.enc.
-  # MASTER_KEY is provided via a k8s Secret populated out-of-band (see
-  # infra/k8s/syself-onboarding.md). Chart users can also provide it inline
-  # via .Values.server.masterKey, but doing so would store the key in the
-  # rendered release — avoid in production.
-  #
-  # masterKey: "<never commit me; set via helm upgrade --set>"
+  # All runtime secrets (DATABASE_URL, CLICKHOUSE_URL, S3 creds, Sentry, Stripe,
+  # OAuth, Mailgun, etc.) live in priv/secrets/<env>.yml.enc baked into the
+  # image. The app decrypts them at boot when MASTER_KEY is present in the
+  # environment. MASTER_KEY itself is synced from 1Password by ESO — see
+  # externalSecrets below and infra/k8s/gke-onboarding.md for the bootstrap.
+  managedSecrets: true
+  externalSecrets:
+    refreshInterval: "1h"
+    storeRef:
+      kind: ClusterSecretStore
+      name: onepassword
+    masterKey:
+      # 1Password item name in the vault referenced by the SecretStore.
+      item: MASTER_KEY
+      # Default `password` field for items of category Password.
+      field: password
 
   database:
     ssl: true
-
-  s3:
-    region: auto
-    virtualHost: false
-    bucketAsHost: false
-    bucketName: tuist  # Overridden per environment.
 
   cluster:
     enabled: false  # Enable only if distributed Elixir is needed across pods.

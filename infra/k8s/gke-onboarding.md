@@ -2,7 +2,7 @@
 
 Step-by-step to stand up a GKE cluster in `europe-west3` (Frankfurt) and deploy the Tuist server to it. Companion to `syself-onboarding.md` — structurally identical, differs only in where the cluster lives and how it's provisioned.
 
-This is a **proof-of-concept** / provider comparison run. Keep it alive for as long as you're evaluating, then tear it down (see §6) — GCP bills hourly and an idle cluster isn't free.
+Scope here is **staging only**. Canary + production will follow once staging is green. This is also our provider-comparison run vs Syself — we want to feel the end-to-end on GKE before locking in a provider.
 
 ---
 
@@ -20,24 +20,30 @@ This is a **proof-of-concept** / provider comparison run. Keep it alive for as l
 
 ### 1a. Set up the GCP project
 
+We create a fresh `tuist-staging` GCP project — isolated from the legacy `tuist-cloud-*` projects used by Render. Isolation keeps budgets, IAM, and resource inventory clean per environment.
+
 ```bash
 gcloud auth login
-gcloud projects create tuist-platform-poc --set-as-default   # or use an existing project
-gcloud config set project tuist-platform-poc
-gcloud services enable container.googleapis.com compute.googleapis.com
 
-# Link a billing account (required). Use the dashboard if you don't know the id:
-gcloud beta billing accounts list
-gcloud beta billing projects link tuist-platform-poc \
-  --billing-account=<BILLING_ACCOUNT_ID>
+# Create the staging project (project IDs are globally unique; fall back to
+# tuist-staging-<random-suffix> if "tuist-staging" is taken).
+gcloud projects create tuist-staging --name="Tuist Staging"
+gcloud config set project tuist-staging
+
+# Link billing (reuses the existing Tuist billing account).
+gcloud billing projects link tuist-staging \
+  --billing-account=$(gcloud billing accounts list --format='value(name)' | head -1 | sed 's|billingAccounts/||')
+
+# Enable required APIs.
+gcloud services enable container.googleapis.com compute.googleapis.com
 ```
 
 ### 1b. Create the cluster
 
-For the POC we use a small **zonal Standard cluster** in `europe-west3-a`. Zonal is cheaper than regional (no control-plane HA), which is fine for evaluation. When we commit to GKE for production we'd flip to regional.
+For staging we use a small **zonal Standard cluster** in `europe-west3-a`. Zonal is cheaper than regional (no control-plane HA), which is fine for staging. Production will be regional.
 
 ```bash
-gcloud container clusters create tuist-poc \
+gcloud container clusters create tuist-staging \
   --zone europe-west3-a \
   --num-nodes 2 \
   --machine-type e2-standard-2 \
@@ -49,13 +55,13 @@ gcloud container clusters create tuist-poc \
 Expected runtime: ~5 minutes.
 
 > Alternative: **Autopilot** (pay-per-pod, zero node management) —
-> `gcloud container clusters create-auto tuist-poc --region europe-west3`.
+> `gcloud container clusters create-auto tuist-staging --region europe-west3`.
 > Simpler but pricier for our idle POC footprint.
 
 ### 1c. Grab the kubeconfig
 
 ```bash
-gcloud container clusters get-credentials tuist-poc --zone europe-west3-a
+gcloud container clusters get-credentials tuist-staging --zone europe-west3-a
 
 # Verify:
 kubectl get nodes
@@ -65,12 +71,12 @@ Save the merged kubeconfig to 1Password if you want CI access to this cluster:
 
 ```bash
 # Produces a kubeconfig that uses a GCP service account key (portable to CI).
-gcloud iam service-accounts create tuist-poc-deployer --display-name="Tuist POC deployer"
-gcloud projects add-iam-policy-binding tuist-platform-poc \
-  --member="serviceAccount:tuist-poc-deployer@tuist-platform-poc.iam.gserviceaccount.com" \
+gcloud iam service-accounts create tuist-staging-deployer --display-name="Tuist staging deployer"
+gcloud projects add-iam-policy-binding tuist-staging \
+  --member="serviceAccount:tuist-staging-deployer@tuist-staging.iam.gserviceaccount.com" \
   --role="roles/container.developer"
 gcloud iam service-accounts keys create /tmp/sa-key.json \
-  --iam-account=tuist-poc-deployer@tuist-platform-poc.iam.gserviceaccount.com
+  --iam-account=tuist-staging-deployer@tuist-staging.iam.gserviceaccount.com
 op item create --vault Tuist --category='API Credential' \
   --title='gke-poc-deployer' \
   sa_key="$(cat /tmp/sa-key.json)"
@@ -173,23 +179,19 @@ gh workflow run server-k8s-deployment.yml -f environment=staging
 
 Same as Syself — Grafana Cloud is already the target. For this POC keep the external Alloy setup; if we keep GKE long-term we'd move Alloy in-cluster as a DaemonSet.
 
-## 6. Teardown
+## 6. Teardown (if we drop GKE for Syself)
 
-Don't forget this — an idle GKE cluster is ~$5-10/day.
+An idle GKE cluster is ~$5-10/day, so if we choose Syself instead, shut this down.
 
 ```bash
 helm uninstall tuist -n tuist-staging
 kubectl delete namespace tuist-staging
 helm uninstall platform -n platform
 kubectl delete namespace platform
-gcloud container clusters delete tuist-poc --zone europe-west3-a --quiet
+gcloud container clusters delete tuist-staging --zone europe-west3-a --quiet
 ```
 
-To fully nuke the GCP project (POC only):
-
-```bash
-gcloud projects delete tuist-platform-poc --quiet
-```
+**Do not delete the `tuist-staging` project** — it's the legacy Render staging project and holds other resources. Only delete the GKE cluster we created.
 
 ---
 
