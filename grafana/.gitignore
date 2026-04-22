@@ -7,8 +7,5 @@ coverage/
 .eslintcache
 .cache/
 
-# Built plugin archives (artifact of mise run grafana:bundle)
+# Built plugin archives (artifact of mise run bundle)
 tuist-tuist-app-*.zip
-
-# Runtime secrets mounted into the Prometheus container
-.secrets/

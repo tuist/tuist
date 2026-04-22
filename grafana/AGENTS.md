@@ -34,7 +34,6 @@ directory — `cd grafana` first, then:
 
 ```bash
 mise run build    # one-off build into ./dist
-mise run dev      # Prometheus + Grafana in docker, webpack watch, plugin mounted
 mise run lint     # lint (add --fix to auto-correct)
 mise run test     # typecheck + jest
 mise run bundle   # build + sign + zip for upload
@@ -43,6 +42,24 @@ mise run bundle   # build + sign + zip for upload
 `grafana/mise.toml` pins node + pnpm and runs `pnpm install --prefer-offline`
 via a `[hooks] postinstall`, so `mise install` bootstraps dependencies in
 one shot.
+
+To iterate on the plugin UI against a local Grafana:
+
+```bash
+cd grafana
+mise run build   # or `pnpm run dev` for webpack watch
+docker run --rm -p 3000:3000 \
+  -e GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=tuist-tuist-app \
+  -e GF_AUTH_ANONYMOUS_ENABLED=true \
+  -e GF_AUTH_ANONYMOUS_ORG_ROLE=Admin \
+  -v "$PWD/dist:/var/lib/grafana/plugins/tuist-tuist-app" \
+  grafana/grafana:latest
+```
+
+Open <http://localhost:3000/plugins/tuist-tuist-app> and configure it
+against a running Tuist instance. You'll also want a Prometheus
+instance that scrapes the `/metrics` endpoint — add it as a datasource
+inside Grafana.
 
 ## Publishing
 
@@ -103,8 +120,7 @@ Deliberate deviations from the scaffold — worth re-stripping after any
 update:
 
 - The template ships `.config/Dockerfile`, `docker-compose-base.yaml`,
-  `supervisord/`, `entrypoint.sh`. We use our own top-level
-  `docker-compose.yml` that also runs Prometheus scraping staging,
-  so the template's container stack would just be dead weight.
+  `supervisord/`, `entrypoint.sh`. We don't ship a dev-stack docker
+  compose, so those files are dead weight.
 - `.config/bundler/externals.ts` had unexpanded Handlebars conditionals
   for Rspack mode; we keep the webpack-only form.
