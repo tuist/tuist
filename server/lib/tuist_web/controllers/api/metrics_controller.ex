@@ -11,7 +11,7 @@ defmodule TuistWeb.API.MetricsController do
 
   use TuistWeb, :controller
 
-  alias Tuist.Accounts.AuthenticatedAccount
+  alias Tuist.Authorization
   alias Tuist.Metrics
   alias Tuist.Metrics.Exposition
   alias TuistWeb.Authentication
@@ -24,7 +24,7 @@ defmodule TuistWeb.API.MetricsController do
   def show(%{assigns: %{selected_account: account}} = conn, _params) do
     subject = Authentication.authenticated_subject(conn)
 
-    with :ok <- check_authorized(subject, account),
+    with :ok <- Authorization.authorize(:account_read_metrics, subject, account),
          :ok <- check_rate_limit(account.id) do
       format = conn |> get_req_header("accept") |> List.first() |> Exposition.negotiate()
       snapshot = Metrics.snapshot(account.id)
@@ -54,18 +54,6 @@ defmodule TuistWeb.API.MetricsController do
         })
     end
   end
-
-  defp check_authorized(%AuthenticatedAccount{account: %{id: id}, scopes: scopes}, %{id: id}) do
-    if @required_scope in scopes do
-      :ok
-    else
-      {:error, :forbidden}
-    end
-  end
-
-  # A user session or project token is never valid here — account-metric
-  # scopes only live on account tokens.
-  defp check_authorized(_subject, _account), do: {:error, :forbidden}
 
   defp check_rate_limit(account_id) do
     case MetricsRateLimit.hit(account_id) do
