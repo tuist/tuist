@@ -81,6 +81,8 @@ public struct Project: Codable, Equatable, Sendable {
     public let additionalFiles: [FileElement]
     /// The resource synthesizers for the project to generate accessors for resources.
     public let resourceSynthesizers: [ResourceSynthesizer]
+    /// The files group for project and target sources. Use `.none` to omit the group completely.
+    public let filesGroup: ProjectGroup?
 
     public init(
         name: String,
@@ -93,7 +95,8 @@ public struct Project: Codable, Equatable, Sendable {
         schemes: [Scheme] = [],
         fileHeaderTemplate: FileHeaderTemplate? = nil,
         additionalFiles: [FileElement] = [],
-        resourceSynthesizers: [ResourceSynthesizer] = .default
+        resourceSynthesizers: [ResourceSynthesizer] = .default,
+        filesGroup: ProjectGroup? = nil
     ) {
         self.name = name
         self.organizationName = organizationName
@@ -106,6 +109,7 @@ public struct Project: Codable, Equatable, Sendable {
         self.additionalFiles = additionalFiles
         self.fileHeaderTemplate = fileHeaderTemplate
         self.resourceSynthesizers = resourceSynthesizers
+        self.filesGroup = filesGroup
         dumpIfNeeded(self)
     }
 

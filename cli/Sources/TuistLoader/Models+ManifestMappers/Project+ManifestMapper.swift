@@ -86,7 +86,7 @@ extension XcodeGraph.Project {
             developmentRegion: developmentRegion,
             options: options,
             settings: settings ?? .default,
-            filesGroup: .group(name: "Project"),
+            filesGroup: manifest.filesGroup ?? .group(name: "Project"),
             targets: targets,
             packages: packages,
             schemes: schemes,
