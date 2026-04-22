@@ -5,8 +5,6 @@ defmodule TuistWeb.Plugs.LegacyRedirectsPlugTest do
 
   alias TuistWeb.Plugs.LegacyRedirectsPlug
 
-  @endpoint TuistWeb.Endpoint
-
   describe "call/2" do
     test "redirects legacy blog post to case study" do
       conn = %{build_conn() | request_path: "/blog/2024/12/16/trendyol"}
