@@ -34,7 +34,7 @@ defmodule TuistWeb.HeadersTest do
         Plug.Conn.put_req_header(
           conn,
           Headers.client_feature_flags_header(),
-          "A, tuist_feature_b, , TUIST_FEATURE_A"
+          "A, b, , a"
         )
 
       assert Headers.get_client_feature_flags(conn) == MapSet.new(["A", "B"])
@@ -42,15 +42,15 @@ defmodule TuistWeb.HeadersTest do
   end
 
   describe "get_client_feature_flag/2" do
-    test "returns whether the feature flag is enabled for logical or environment variable names", %{conn: conn} do
+    test "returns whether the feature flag is enabled for logical feature names", %{conn: conn} do
       conn =
         Headers.put_client_feature_flags(conn, [
           "a",
-          "TUIST_FEATURE_B"
+          "b"
         ])
 
       assert Headers.get_client_feature_flag(conn, "A")
-      assert Headers.get_client_feature_flag(conn, "tuist_feature_b")
+      assert Headers.get_client_feature_flag(conn, "b")
       assert Headers.get_client_feature_flag(conn, :a)
       refute Headers.get_client_feature_flag(conn, "missing")
     end

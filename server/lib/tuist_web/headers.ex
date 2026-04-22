@@ -4,7 +4,6 @@ defmodule TuistWeb.Headers do
   """
   @cli_version_header "x-tuist-cli-version"
   @client_feature_flags_header "x-tuist-feature-flags"
-  @client_feature_prefix "TUIST_FEATURE_"
 
   def cli_version_header, do: @cli_version_header
   def client_feature_flags_header, do: @client_feature_flags_header
@@ -87,7 +86,6 @@ defmodule TuistWeb.Headers do
     feature_name
     |> String.trim()
     |> String.upcase()
-    |> String.replace_prefix(@client_feature_prefix, "")
     |> case do
       "" -> nil
       normalized_feature_name -> normalized_feature_name
