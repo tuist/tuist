@@ -1,6 +1,33 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.183.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* map static library dependencies in XcodeGraph by [@pepicrft](https://github.com/pepicrft) in [#10358](https://github.com/tuist/tuist/pull/10358)
+* ensure package product dependencies are initialized by [@pepicrft](https://github.com/pepicrft) in [#10370](https://github.com/tuist/tuist/pull/10370)
+* preserve scheme buildAction targets in `tuist test <scheme>` focus by [@fortmarek](https://github.com/fortmarek) in [#10367](https://github.com/tuist/tuist/pull/10367)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.183.0...4.183.1
+
+## What's Changed in 4.183.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add paginated test case events endpoint by [@justine-acorns](https://github.com/justine-acorns) in [#10117](https://github.com/tuist/tuist/pull/10117)
+### 🐛 Bug Fixes
+
+* scope `tuist test <scheme>` to the scheme's test plan targets by [@fortmarek](https://github.com/fortmarek) in [#10339](https://github.com/tuist/tuist/pull/10339)
+* Fix xcstrings handling in buildable folders by [@pepicrft](https://github.com/pepicrft) in [#10332](https://github.com/tuist/tuist/pull/10332)
+* handle strictMemorySafety with empty dump-package JSON by [@alpaka99](https://github.com/alpaka99) in [#10308](https://github.com/tuist/tuist/pull/10308)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.182.0...4.183.0
+
 ## What's Changed in 4.182.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features

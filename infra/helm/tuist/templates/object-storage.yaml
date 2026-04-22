@@ -37,7 +37,6 @@ spec:
         {{- end }}
     spec:
 {{ include "tuist.podScheduling" . | nindent 6 }}
-      serviceAccountName: {{ include "tuist.serviceAccountName" . }}
       containers:
         - name: minio
           image: "{{ .Values.objectStorage.embedded.image.repository }}:{{ .Values.objectStorage.embedded.image.tag }}"
@@ -104,7 +103,6 @@ spec:
         {{- end }}
     spec:
 {{ include "tuist.podScheduling" . | nindent 6 }}
-      serviceAccountName: {{ include "tuist.serviceAccountName" . }}
       restartPolicy: OnFailure
       containers:
         - name: bucket-init

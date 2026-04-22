@@ -472,6 +472,7 @@ defmodule TuistWeb.Router do
             end
 
             get "/:test_case_id", TestCasesController, :show
+            get "/:test_case_id/events", TestCasesController, :events
             get "/:test_case_id/runs", TestCaseRunsController, :index_by_test_case
           end
 
@@ -662,6 +663,7 @@ defmodule TuistWeb.Router do
         {TuistWeb.LayoutLive, :ops}
       ] do
       live "/", TuistWeb.OpsCacheLive
+      live "/accounts", TuistWeb.OpsAccountsLive
     end
   end
 

@@ -22,15 +22,16 @@ defmodule TuistWeb.API.BuildCacheTasksControllerTest do
       stub(Builds, :get_build, fn _id -> {:ok, build} end)
 
       stub(Builds, :list_cacheable_tasks, fn _attrs ->
-        {[],
-         %{
-           has_next_page?: false,
-           has_previous_page?: false,
-           current_page: 1,
-           page_size: 20,
-           total_count: 0,
-           total_pages: 0
-         }}
+        {:ok,
+         {[],
+          %{
+            has_next_page?: false,
+            has_previous_page?: false,
+            current_page: 1,
+            page_size: 20,
+            total_count: 0,
+            total_pages: 0
+          }}}
       end)
 
       conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/xcode/builds/#{build.id}/cache-tasks")
@@ -54,25 +55,26 @@ defmodule TuistWeb.API.BuildCacheTasksControllerTest do
       stub(Builds, :get_build, fn _id -> {:ok, build} end)
 
       stub(Builds, :list_cacheable_tasks, fn _attrs ->
-        {[
-           %{
-             type: :swift,
-             status: :hit_remote,
-             key: "abc123",
-             read_duration: 250.5,
-             write_duration: nil,
-             description: "MyModule",
-             cas_output_node_ids: ["node1", "node2"]
-           }
-         ],
-         %{
-           has_next_page?: false,
-           has_previous_page?: false,
-           current_page: 1,
-           page_size: 20,
-           total_count: 1,
-           total_pages: 1
-         }}
+        {:ok,
+         {[
+            %{
+              type: :swift,
+              status: :hit_remote,
+              key: "abc123",
+              read_duration: 250.5,
+              write_duration: nil,
+              description: "MyModule",
+              cas_output_node_ids: ["node1", "node2"]
+            }
+          ],
+          %{
+            has_next_page?: false,
+            has_previous_page?: false,
+            current_page: 1,
+            page_size: 20,
+            total_count: 1,
+            total_pages: 1
+          }}}
       end)
 
       conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/xcode/builds/#{build.id}/cache-tasks")
@@ -98,25 +100,26 @@ defmodule TuistWeb.API.BuildCacheTasksControllerTest do
       expect(Builds, :list_cacheable_tasks, fn attrs ->
         assert %{field: :status, op: :==, value: "miss"} in attrs.filters
 
-        {[
-           %{
-             type: :swift,
-             status: :miss,
-             key: "abc123",
-             read_duration: nil,
-             write_duration: 500.0,
-             description: nil,
-             cas_output_node_ids: []
-           }
-         ],
-         %{
-           has_next_page?: false,
-           has_previous_page?: false,
-           current_page: 1,
-           page_size: 20,
-           total_count: 1,
-           total_pages: 1
-         }}
+        {:ok,
+         {[
+            %{
+              type: :swift,
+              status: :miss,
+              key: "abc123",
+              read_duration: nil,
+              write_duration: 500.0,
+              description: nil,
+              cas_output_node_ids: []
+            }
+          ],
+          %{
+            has_next_page?: false,
+            has_previous_page?: false,
+            current_page: 1,
+            page_size: 20,
+            total_count: 1,
+            total_pages: 1
+          }}}
       end)
 
       conn =
@@ -138,25 +141,26 @@ defmodule TuistWeb.API.BuildCacheTasksControllerTest do
       expect(Builds, :list_cacheable_tasks, fn attrs ->
         assert %{field: :type, op: :==, value: "clang"} in attrs.filters
 
-        {[
-           %{
-             type: :clang,
-             status: :hit_local,
-             key: "def456",
-             read_duration: 100.0,
-             write_duration: nil,
-             description: nil,
-             cas_output_node_ids: []
-           }
-         ],
-         %{
-           has_next_page?: false,
-           has_previous_page?: false,
-           current_page: 1,
-           page_size: 20,
-           total_count: 1,
-           total_pages: 1
-         }}
+        {:ok,
+         {[
+            %{
+              type: :clang,
+              status: :hit_local,
+              key: "def456",
+              read_duration: 100.0,
+              write_duration: nil,
+              description: nil,
+              cas_output_node_ids: []
+            }
+          ],
+          %{
+            has_next_page?: false,
+            has_previous_page?: false,
+            current_page: 1,
+            page_size: 20,
+            total_count: 1,
+            total_pages: 1
+          }}}
       end)
 
       conn =
@@ -179,25 +183,26 @@ defmodule TuistWeb.API.BuildCacheTasksControllerTest do
         assert attrs.page == 2
         assert attrs.page_size == 10
 
-        {[
-           %{
-             type: :swift,
-             status: :hit_remote,
-             key: "abc123",
-             read_duration: 250.5,
-             write_duration: nil,
-             description: nil,
-             cas_output_node_ids: []
-           }
-         ],
-         %{
-           has_next_page?: false,
-           has_previous_page?: true,
-           current_page: 2,
-           page_size: 10,
-           total_count: 11,
-           total_pages: 2
-         }}
+        {:ok,
+         {[
+            %{
+              type: :swift,
+              status: :hit_remote,
+              key: "abc123",
+              read_duration: 250.5,
+              write_duration: nil,
+              description: nil,
+              cas_output_node_ids: []
+            }
+          ],
+          %{
+            has_next_page?: false,
+            has_previous_page?: true,
+            current_page: 2,
+            page_size: 10,
+            total_count: 11,
+            total_pages: 2
+          }}}
       end)
 
       conn =

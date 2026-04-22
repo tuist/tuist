@@ -292,6 +292,150 @@ defmodule TuistWeb.API.TestCasesControllerTest do
     end
   end
 
+  describe "GET /api/projects/:account_handle/:project_handle/tests/test-cases/:test_case_id/events" do
+    setup %{conn: conn} do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      conn = Authentication.put_current_user(conn, user)
+
+      %{conn: conn, user: user, project: project}
+    end
+
+    test "returns paginated events for a test case", %{conn: conn, user: user, project: project} do
+      test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          name: "testExample",
+          last_ran_at: NaiveDateTime.utc_now()
+        )
+
+      stub(Tests, :get_test_case_by_id, fn _id -> {:ok, test_case} end)
+
+      stub(Tests, :list_test_case_events, fn _test_case_id, _attrs ->
+        {[
+           %{
+             event_type: "marked_flaky",
+             inserted_at: ~N[2024-06-15 10:30:00],
+             actor: %{id: 1, name: "alice"}
+           },
+           %{
+             event_type: "first_run",
+             inserted_at: ~N[2024-06-01 08:00:00],
+             actor: nil
+           }
+         ],
+         %{
+           has_next_page?: false,
+           has_previous_page?: false,
+           current_page: 1,
+           page_size: 20,
+           total_count: 2,
+           total_pages: 1
+         }}
+      end)
+
+      conn =
+        get(conn, "/api/projects/#{user.account.name}/#{project.name}/tests/test-cases/#{test_case.id}/events")
+
+      response = json_response(conn, :ok)
+
+      assert length(response["events"]) == 2
+
+      first_event = hd(response["events"])
+      assert first_event["event_type"] == "marked_flaky"
+      assert is_integer(first_event["inserted_at"])
+      assert first_event["actor"]["id"] == 1
+      assert first_event["actor"]["name"] == "alice"
+
+      second_event = Enum.at(response["events"], 1)
+      assert second_event["event_type"] == "first_run"
+      assert second_event["actor"] == nil
+
+      assert response["pagination_metadata"]["total_count"] == 2
+    end
+
+    test "supports pagination parameters", %{conn: conn, user: user, project: project} do
+      test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          name: "testExample",
+          last_ran_at: NaiveDateTime.utc_now()
+        )
+
+      stub(Tests, :get_test_case_by_id, fn _id -> {:ok, test_case} end)
+
+      expect(Tests, :list_test_case_events, fn _test_case_id, attrs ->
+        assert attrs.page == 2
+        assert attrs.page_size == 5
+
+        {[],
+         %{
+           has_next_page?: false,
+           has_previous_page?: true,
+           current_page: 2,
+           page_size: 5,
+           total_count: 6,
+           total_pages: 2
+         }}
+      end)
+
+      conn =
+        get(
+          conn,
+          "/api/projects/#{user.account.name}/#{project.name}/tests/test-cases/#{test_case.id}/events?page=2&page_size=5"
+        )
+
+      response = json_response(conn, :ok)
+
+      assert response["pagination_metadata"]["current_page"] == 2
+      assert response["pagination_metadata"]["page_size"] == 5
+      assert response["pagination_metadata"]["has_previous_page"] == true
+    end
+
+    test "returns 404 when test case does not exist", %{conn: conn, user: user, project: project} do
+      stub(Tests, :get_test_case_by_id, fn _id -> {:error, :not_found} end)
+
+      conn =
+        get(
+          conn,
+          "/api/projects/#{user.account.name}/#{project.name}/tests/test-cases/#{UUIDv7.generate()}/events"
+        )
+
+      assert json_response(conn, :not_found)
+    end
+
+    test "returns 404 when test case belongs to a different project", %{conn: conn, user: user, project: project} do
+      other_project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: other_project.id,
+          last_ran_at: NaiveDateTime.utc_now()
+        )
+
+      stub(Tests, :get_test_case_by_id, fn _id -> {:ok, test_case} end)
+
+      conn =
+        get(conn, "/api/projects/#{user.account.name}/#{project.name}/tests/test-cases/#{test_case.id}/events")
+
+      assert json_response(conn, :not_found)
+    end
+
+    test "returns 403 when user is not authorized", %{conn: conn, project: project} do
+      other_user = AccountsFixtures.user_fixture(preload: [:account])
+      conn = Authentication.put_current_user(conn, other_user)
+
+      conn =
+        get(
+          conn,
+          "/api/projects/#{project.account.name}/#{project.name}/tests/test-cases/#{UUIDv7.generate()}/events"
+        )
+
+      assert json_response(conn, :forbidden)
+    end
+  end
+
   describe "GET /api/projects/:account_handle/:project_handle/tests/test-cases/:test_case_id" do
     setup %{conn: conn} do
       user = AccountsFixtures.user_fixture(preload: [:account])

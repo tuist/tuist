@@ -1,6 +1,8 @@
 {{- if and .Values.server.enabled .Values.server.migrationJob.enabled }}
 {{- $secretName := include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
 {{- $masterKeySecretName := ternary (include "tuist.componentName" (dict "root" . "component" "server-external-secrets")) $secretName .Values.server.managedSecrets }}
+{{- $objectStorageAccessKey := include "tuist.objectStorageAccessKey" . -}}
+{{- $objectStorageSecretKey := include "tuist.objectStorageSecretKey" . -}}
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -28,8 +30,8 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
     spec:
-      serviceAccountName: {{ include "tuist.serviceAccountName" . }}
-{{ include "tuist.podScheduling" . | nindent 6 }}
+      serviceAccountName: {{ include "tuist.componentServiceAccountName" (dict "root" . "component" "server") }}
+      {{- include "tuist.podScheduling" . | nindent 6 }}
       restartPolicy: Never
       {{- if not .Values.server.managedSecrets }}
       # Only wait for embedded Postgres / ClickHouse to come up when chart
@@ -118,16 +120,20 @@ spec:
               value: {{ include "tuist.objectStorageEndpoint" . | quote }}
             - name: TUIST_S3_REGION
               value: {{ .Values.server.s3.region | quote }}
+            {{- if $objectStorageAccessKey }}
             - name: TUIST_S3_ACCESS_KEY_ID
               valueFrom:
                 secretKeyRef:
                   name: {{ $secretName }}
                   key: object-storage-access-key
+            {{- end }}
+            {{- if $objectStorageSecretKey }}
             - name: TUIST_S3_SECRET_ACCESS_KEY
               valueFrom:
                 secretKeyRef:
                   name: {{ $secretName }}
                   key: object-storage-secret-key
+            {{- end }}
             - name: TUIST_S3_VIRTUAL_HOST
               value: {{ .Values.server.s3.virtualHost | ternary "1" "0" | quote }}
             - name: TUIST_S3_BUCKET_AS_HOST

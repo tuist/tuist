@@ -164,6 +164,22 @@ struct XcodeGraphMapperTests {
             .called(1)
     }
 
+    @Test("Maps an Xcode project with a static library dependency")
+    func projectWithStaticLibraryDependency() async throws {
+        // Given
+        let fixturePath = AssertionsTesting.fixturePath(
+            path: try RelativePath(validating: "xcode_project_with_static_library_graph")
+        )
+        let mapper = XcodeGraphMapper()
+
+        // When
+        let graph = try await mapper.map(at: fixturePath)
+
+        // Then
+        let project = try #require(graph.projects.values.first)
+        #expect(Set(project.targets.keys) == Set(["App", "StaticLibrary"]))
+    }
+
     @Test("Maps a workspace with multiple projects into a single graph")
     func workspaceGraphMultipleProjects() async throws {
         // Given

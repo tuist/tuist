@@ -6,16 +6,15 @@
 # This file is layered under values-managed-staging.yaml / values-managed-production.yaml;
 # those overlays tune replica count, host names, and any environment-specific knobs.
 
-serviceAccount:
-  create: true
-  name: tuist-server
-
 global:
   commonLabels:
     tuist.dev/service: server
     tuist.dev/stack: managed
 
 server:
+  serviceAccount:
+    create: true
+    name: tuist-server
   enabled: true
   hosted: true
   skipEmailConfirmation: false

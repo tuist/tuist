@@ -35,7 +35,7 @@ spec:
       port: 8123
       targetPort: 8123
     - name: native
-      port: 9100
+      port: {{ .Values.clickhouse.embedded.service.nativePort }}
       targetPort: 9000
 ---
 apiVersion: apps/v1
@@ -59,7 +59,6 @@ spec:
         {{- end }}
     spec:
 {{ include "tuist.podScheduling" . | nindent 6 }}
-      serviceAccountName: {{ include "tuist.serviceAccountName" . }}
       containers:
         - name: clickhouse
           image: "{{ .Values.clickhouse.embedded.image.repository }}:{{ .Values.clickhouse.embedded.image.tag }}"
@@ -117,7 +116,6 @@ spec:
         {{- end }}
     spec:
 {{ include "tuist.podScheduling" . | nindent 6 }}
-      serviceAccountName: {{ include "tuist.serviceAccountName" . }}
       restartPolicy: OnFailure
       containers:
         - name: clickhouse-init
@@ -127,8 +125,8 @@ spec:
             - /bin/sh
             - -ec
             - |
-              until clickhouse-client --host {{ include "tuist.componentName" (dict "root" . "component" "clickhouse") }} --port 9100 --query "SELECT 1"; do
+              until clickhouse-client --host {{ include "tuist.componentName" (dict "root" . "component" "clickhouse") }} --port {{ .Values.clickhouse.embedded.service.nativePort }} --query "SELECT 1"; do
                 sleep 2
               done
-              clickhouse-client --host {{ include "tuist.componentName" (dict "root" . "component" "clickhouse") }} --port 9100 --query "CREATE DATABASE IF NOT EXISTS {{ .Values.clickhouse.embedded.database }}"
+              clickhouse-client --host {{ include "tuist.componentName" (dict "root" . "component" "clickhouse") }} --port {{ .Values.clickhouse.embedded.service.nativePort }} --query "CREATE DATABASE IF NOT EXISTS {{ .Values.clickhouse.embedded.database }}"
 {{- end }}

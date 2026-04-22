@@ -967,7 +967,7 @@ defmodule TuistWeb.BuildRunLive do
       order_directions: order_directions
     }
 
-    {tasks, tasks_meta} = Builds.list_cacheable_tasks(options)
+    {:ok, {tasks, tasks_meta}} = Builds.list_cacheable_tasks(options)
 
     # Fetch CAS outputs for all tasks on the current page
     all_node_ids =

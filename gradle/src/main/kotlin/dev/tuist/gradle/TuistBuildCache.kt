@@ -7,9 +7,12 @@ import org.gradle.caching.BuildCacheKey
 import org.gradle.caching.BuildCacheService
 import org.gradle.caching.BuildCacheServiceFactory
 import org.gradle.caching.configuration.AbstractBuildCache
+import org.slf4j.LoggerFactory
+import java.io.EOFException
 import java.io.InputStream
 import java.net.HttpURLConnection
 import java.net.URI
+import java.util.zip.ZipException
 
 /**
  * Build cache configuration type for Tuist.
@@ -169,15 +172,20 @@ class TuistBuildCacheService(
                 HttpURLConnection.HTTP_OK -> {
                     try {
                         connection.inputStream.use { input -> reader.readFrom(input) }
+                        true
                     } catch (e: Throwable) {
-                        throw cacheFailure(
-                            "load", cacheKey, url,
-                            "Failed to read cache entry body (Content-Length=${connection.contentLengthLong})",
-                            cause = e,
-                            status = responseCode
-                        )
+                        if (looksLikeInvalidCompressedCacheEntry(e)) {
+                            logCorruptCacheEntry(url, cacheKey, connection, e)
+                            false
+                        } else {
+                            throw cacheFailure(
+                                "load", cacheKey, url,
+                                "Failed to read cache entry body (Content-Length=${connection.contentLengthLong})",
+                                cause = e,
+                                status = responseCode
+                            )
+                        }
                     }
-                    true
                 }
                 HttpURLConnection.HTTP_NOT_FOUND -> false
                 HttpURLConnection.HTTP_UNAUTHORIZED -> throw TokenExpiredException()
@@ -256,6 +264,18 @@ class TuistBuildCacheService(
 
     companion object {
         private const val ERROR_BODY_MAX_BYTES = 1024
+        private val logger = LoggerFactory.getLogger(TuistBuildCacheService::class.java)
+        private val invalidCompressionMessageHints = listOf(
+            "unexpected end of zlib input stream",
+            "not in gzip format",
+            "invalid stored block lengths",
+            "invalid distance too far back",
+            "invalid entry compressed size",
+            "end of central directory",
+            "invalid code lengths set",
+            "invalid literal/lengths set",
+            "corrupt gzip trailer"
+        )
 
         internal fun cacheFailure(
             operation: String,
@@ -298,6 +318,40 @@ class TuistBuildCacheService(
                 null
             }
         }
+
+        internal fun looksLikeInvalidCompressedCacheEntry(error: Throwable): Boolean {
+            return causalChain(error).any { candidate ->
+                candidate is ZipException ||
+                    candidate is EOFException ||
+                    candidate.message
+                        ?.lowercase()
+                        ?.let { message -> invalidCompressionMessageHints.any(message::contains) }
+                        ?: false
+            }
+        }
+
+        private fun logCorruptCacheEntry(
+            url: URI,
+            cacheKey: String,
+            connection: HttpURLConnection,
+            error: Throwable
+        ) {
+            val rootCause = causalChain(error).last()
+            logger.warn(
+                "Tuist: Treating remote cache entry {} as a miss because it appears invalid while reading from {} " +
+                    "(Content-Length={}, ETag={}, Last-Modified={}): {}: {}",
+                cacheKey,
+                "${url.host ?: "<unknown>"}${url.rawPath ?: ""}",
+                connection.contentLengthLong,
+                connection.getHeaderField("ETag") ?: "<none>",
+                connection.getHeaderField("Last-Modified") ?: "<none>",
+                rootCause.javaClass.name,
+                rootCause.message ?: "(no message)"
+            )
+        }
+
+        private fun causalChain(error: Throwable): Sequence<Throwable> =
+            generateSequence(error) { current -> current.cause }
     }
 }
 

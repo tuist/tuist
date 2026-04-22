@@ -34,7 +34,6 @@ spec:
         {{- end }}
     spec:
 {{ include "tuist.podScheduling" . | nindent 6 }}
-      serviceAccountName: {{ include "tuist.serviceAccountName" . }}
       containers:
         - name: postgresql
           image: "{{ .Values.postgresql.embedded.image.repository }}:{{ .Values.postgresql.embedded.image.tag }}"

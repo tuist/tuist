@@ -246,25 +246,26 @@ defmodule Tuist.MCP.Components.Tools.XcodeBuildToolsTest do
       stub(Tuist.Authorization, :authorize, fn :build_read, :subject, ^project -> :ok end)
 
       stub(Builds, :list_cacheable_tasks, fn _attrs ->
-        {[
-           %{
-             type: "swift",
-             status: "hit_remote",
-             key: "abc123",
-             read_duration: 50.0,
-             write_duration: nil,
-             description: "AppTarget",
-             cas_output_node_ids: ["node-1"]
-           }
-         ],
-         %{
-           has_next_page?: false,
-           has_previous_page?: false,
-           total_count: 1,
-           total_pages: 1,
-           current_page: 1,
-           page_size: 20
-         }}
+        {:ok,
+         {[
+            %{
+              type: "swift",
+              status: "hit_remote",
+              key: "abc123",
+              read_duration: 50.0,
+              write_duration: nil,
+              description: "AppTarget",
+              cas_output_node_ids: ["node-1"]
+            }
+          ],
+          %{
+            has_next_page?: false,
+            has_previous_page?: false,
+            total_count: 1,
+            total_pages: 1,
+            current_page: 1,
+            page_size: 20
+          }}}
       end)
 
       result = ListXcodeBuildCacheTasks.call(conn_with_subject(), %{"build_run_id" => "build-1"})
