@@ -10,15 +10,22 @@ name: Server k8s Deployment
 #   3. deploy-production: gated on the `server-k8s-production` GitHub
 #      Environment, which should require manual approval.
 #
-# Required repo / environment secrets:
-#   - GHCR_TOKEN          : PAT with write:packages scope (or rely on GITHUB_TOKEN if private)
-#   - KUBECONFIG_STAGING  : base64-encoded kubeconfig for the staging cluster
+# Required repo / environment secrets (all others live in the cluster, not here):
+#   - KUBECONFIG_STAGING    : base64-encoded kubeconfig for the staging cluster
 #   - KUBECONFIG_PRODUCTION : base64-encoded kubeconfig for the production cluster
-#   - MASTER_KEY_STAGING  : MASTER_KEY that decrypts priv/secrets/stag.yml.enc
-#   - MASTER_KEY_PRODUCTION : MASTER_KEY that decrypts priv/secrets/prod.yml.enc
-#   - CLICKHOUSE_URL_STAGING / CLICKHOUSE_URL_PRODUCTION
-#   - DATABASE_URL_STAGING / DATABASE_URL_PRODUCTION
-#   - TIGRIS_ACCESS_KEY_STAGING / TIGRIS_SECRET_KEY_STAGING and _PRODUCTION
+#
+# The chart runs in `server.managedSecrets: true` mode, so application
+# secrets (MASTER_KEY, DATABASE_URL, CLICKHOUSE_URL, Tigris keys, etc.)
+# come from two sources inside the cluster and never transit this workflow:
+#
+#   1. The bulk of the encrypted secrets live in priv/secrets/<env>.yml.enc
+#      baked into the image itself.
+#   2. MASTER_KEY — which unlocks #1 — is synced from 1Password into a
+#      k8s Secret by external-secrets-operator. The chart's Deployment
+#      points its MASTER_KEY env var at that Secret via valueFrom.
+#
+# Docker image pushes use the default GITHUB_TOKEN (no extra PAT needed);
+# kubeconfigs identify the workflow to GKE via the kubeconfig user section.
 #
 # Manually trigger a redeploy (e.g. rollback) with workflow_dispatch
 # and the commit_sha input.
@@ -133,17 +140,18 @@ jobs:
           echo "${{ secrets.KUBECONFIG_STAGING }}" | base64 -d > "$KUBECONFIG"
           chmod 600 "$KUBECONFIG"
       - name: helm upgrade --install (staging)
+        # No --set for secrets: with server.managedSecrets=true the chart
+        # reads DATABASE_URL / TUIST_CLICKHOUSE_URL / TUIST_S3_* from the
+        # decrypted priv/secrets/stag.yml.enc inside the image, and pulls
+        # MASTER_KEY from 1Password via an in-cluster ExternalSecret. Passing
+        # server.masterKey via --set would leak the key into helm's release
+        # manifest (helm get manifest). See external-secrets.yaml.
         run: |
           helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
             --namespace tuist-staging --create-namespace \
             -f "$HELM_CHART_PATH/values-managed-common.yaml" \
             -f "$HELM_CHART_PATH/values-managed-staging.yaml" \
             --set server.image.tag="${{ needs.build-and-push.outputs.image_tag }}" \
-            --set server.masterKey="${{ secrets.MASTER_KEY_STAGING }}" \
-            --set postgresql.external.password="${{ secrets.DATABASE_PASSWORD_STAGING }}" \
-            --set clickhouse.external.url="${{ secrets.CLICKHOUSE_URL_STAGING }}" \
-            --set objectStorage.external.accessKey="${{ secrets.TIGRIS_ACCESS_KEY_STAGING }}" \
-            --set objectStorage.external.secretKey="${{ secrets.TIGRIS_SECRET_KEY_STAGING }}" \
             --atomic --timeout 10m --wait
       - name: Post-deploy smoke test
         run: |
@@ -178,17 +186,14 @@ jobs:
           echo "${{ secrets.KUBECONFIG_PRODUCTION }}" | base64 -d > "$KUBECONFIG"
           chmod 600 "$KUBECONFIG"
       - name: helm upgrade --install (production)
+        # Same reasoning as staging — app secrets come from the encrypted
+        # priv/secrets/prod.yml.enc + 1P-backed ExternalSecret, not --set.
         run: |
           helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
             --namespace tuist --create-namespace \
             -f "$HELM_CHART_PATH/values-managed-common.yaml" \
             -f "$HELM_CHART_PATH/values-managed-production.yaml" \
             --set server.image.tag="${{ needs.build-and-push.outputs.image_tag }}" \
-            --set server.masterKey="${{ secrets.MASTER_KEY_PRODUCTION }}" \
-            --set postgresql.external.password="${{ secrets.DATABASE_PASSWORD_PRODUCTION }}" \
-            --set clickhouse.external.url="${{ secrets.CLICKHOUSE_URL_PRODUCTION }}" \
-            --set objectStorage.external.accessKey="${{ secrets.TIGRIS_ACCESS_KEY_PRODUCTION }}" \
-            --set objectStorage.external.secretKey="${{ secrets.TIGRIS_SECRET_KEY_PRODUCTION }}" \
             --atomic --timeout 15m --wait
       - name: Post-deploy smoke test
         run: |

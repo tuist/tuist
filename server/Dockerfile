@@ -70,11 +70,9 @@ ENV MIX_ENV=$MIX_ENV
 ARG TUIST_HOSTED=1
 ENV TUIST_HOSTED=$TUIST_HOSTED
 
-# Harden mix deps.get against flaky networks (esp. from Docker Desktop on
-# ARM Macs): longer per-request timeout + fewer concurrent hex.pm connections.
-# No effect on CI builders with solid networking.
+# Longer per-request hex.pm timeout to absorb transient network hiccups
+# during the first resolver fetch. No measurable effect on fast networks.
 ENV HEX_HTTP_TIMEOUT=120
-ENV HEX_HTTP_CONCURRENCY=1
 
 COPY server/mix.exs server/mix.lock ./
 RUN mkdir config
@@ -88,9 +86,17 @@ COPY xcode_processor/config /xcode_processor/config
 
 # Retry deps.get up to 3 times — hex.pm resolver can fall through to an empty
 # local cache on network flakes, producing "Unknown package in lockfile"
-# errors on packages that clearly exist in mix.lock.
-RUN for i in 1 2 3; do \
-      mix deps.get --only $MIX_ENV && break || sleep 5; \
+# errors on packages that clearly exist in mix.lock. Exit non-zero if every
+# attempt fails (the naive `|| sleep && break` form was masking failures).
+RUN set -e; \
+    attempts=0; \
+    until mix deps.get --only $MIX_ENV; do \
+      attempts=$((attempts + 1)); \
+      if [ $attempts -ge 3 ]; then \
+        echo "mix deps.get failed after $attempts attempts" >&2; \
+        exit 1; \
+      fi; \
+      sleep 5; \
     done
 
 # Config files must be present before compiling dependencies

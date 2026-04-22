@@ -98,21 +98,41 @@ defmodule Tuist.Application do
   # up. The fresh gRPC channel resolves the endpoint correctly and from
   # then on export works normally.
   defp kick_opentelemetry_exporter_after_boot do
+    spawn_supervised_task(fn -> do_kick_opentelemetry_exporter() end)
+  end
+
+  defp do_kick_opentelemetry_exporter do
+    Process.sleep(8_000)
+
+    case Application.stop(:opentelemetry_exporter) do
+      :ok ->
+        case Application.start(:opentelemetry_exporter) do
+          :ok ->
+            Logger.info("Restarted :opentelemetry_exporter to clear boot-time :no_endpoints state")
+
+          {:error, reason} ->
+            Logger.warning("Failed to restart :opentelemetry_exporter: #{inspect(reason)}")
+        end
+
+      {:error, reason} ->
+        Logger.warning("Failed to stop :opentelemetry_exporter for restart: #{inspect(reason)}")
+    end
+  end
+
+  # Start a fire-and-forget task with crash-reporting wrapped around it.
+  # `Task.start/1` swallows exceptions silently; wrapping the body in a
+  # `try/rescue` guarantees anything that goes wrong reaches Logger (and
+  # Sentry via the Sentry logger handler).
+  defp spawn_supervised_task(fun) do
     Task.start(fn ->
-      Process.sleep(8_000)
-
-      case Application.stop(:opentelemetry_exporter) do
-        :ok ->
-          case Application.start(:opentelemetry_exporter) do
-            :ok ->
-              Logger.info("Restarted :opentelemetry_exporter to clear boot-time :no_endpoints state")
-
-            {:error, reason} ->
-              Logger.warning("Failed to restart :opentelemetry_exporter: #{inspect(reason)}")
-          end
-
-        {:error, reason} ->
-          Logger.warning("Failed to stop :opentelemetry_exporter for restart: #{inspect(reason)}")
+      try do
+        fun.()
+      rescue
+        e ->
+          Logger.error(
+            "Unhandled exception in background task: #{Exception.message(e)}\n" <>
+              Exception.format_stacktrace(__STACKTRACE__)
+          )
       end
     end)
   end
@@ -142,15 +162,25 @@ defmodule Tuist.Application do
     # (Alloy / Promtail) should write to — useful info for dashboards and
     # for environments that do still run the handler.
     if loki_url && System.get_env("TUIST_LOKI_INPROC") in ~w(1 true TRUE) do
-      Task.start(fn -> attach_loki_handler_with_retry(loki_url, 0) end)
+      spawn_supervised_task(fn -> attach_loki_handler_with_retry(loki_url, 0) end)
     end
   end
 
   @loki_attach_max_attempts 10
-  @loki_attach_backoff_ms 2_000
+  @loki_attach_base_backoff_ms 1_000
+  @loki_attach_max_backoff_ms 30_000
 
   defp attach_loki_handler_with_retry(loki_url, attempt) when attempt < @loki_attach_max_attempts do
-    Process.sleep(@loki_attach_backoff_ms)
+    # Exponential backoff capped at @loki_attach_max_backoff_ms. Total
+    # wait across 10 attempts is ~5 min, which covers the longest DNS /
+    # CNI propagation delays we've seen on GKE after a fresh pod schedule.
+    backoff =
+      @loki_attach_base_backoff_ms
+      |> Kernel.*(:math.pow(2, attempt))
+      |> round()
+      |> min(@loki_attach_max_backoff_ms)
+
+    Process.sleep(backoff)
 
     # Call :logger.add_handler/3 directly so we can set filters + overload
     # options that LokiLoggerHandler.attach/2 doesn't expose:

@@ -111,8 +111,13 @@ server:
   affinity: {}
   terminationGracePeriodSeconds: 60
   # Preferred HTTP probes. All three hit the Phoenix /ready endpoint.
+  #
   # startupProbe gives the release up to ~5 minutes to come up under load
-  # (failureThreshold * periodSeconds).
+  # (failureThreshold * periodSeconds = 60 * 5s = 300s). Kubernetes
+  # disables both readinessProbe and livenessProbe while startupProbe is
+  # still failing, so the `liveness.initialDelaySeconds: 30` below only
+  # starts counting AFTER startupProbe succeeds — the small delay cannot
+  # race with a slow boot.
   probes:
     readiness:
       path: /ready

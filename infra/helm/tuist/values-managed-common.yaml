@@ -50,7 +50,18 @@ server:
     ssl: true
 
   cluster:
-    enabled: false  # Enable only if distributed Elixir is needed across pods.
+    # Enable only when distributed Elixir is needed across pods (libcluster,
+    # Phoenix.PubSub across nodes, singleton workers).
+    #
+    # Important: if you scale `server.replicaCount` above 1 (including via
+    # the HPA) while keeping this false, rel/env.sh sets
+    # RELEASE_DISTRIBUTION=none and each pod runs isolated. Anything in the
+    # app that assumes cluster membership (cross-node Phoenix.PubSub fanout,
+    # global singletons, distributed Oban) will silently only work within a
+    # single pod. Verify the app's expectations before scaling past 1
+    # replica, or set this to true and headless-Service + TUIST_CLUSTER_*
+    # env vars will be emitted by the chart.
+    enabled: false
     applicationName: tuist
 
   strategy:
