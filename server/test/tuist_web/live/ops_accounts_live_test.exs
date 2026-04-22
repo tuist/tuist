@@ -39,7 +39,7 @@ defmodule TuistWeb.OpsAccountsLiveTest do
     assert html =~ "Active"
   end
 
-  test "flags the Canceling status when cancel_at_period_end is set", %{conn: conn} do
+  test "flags the Cancelled status when cancel_at_period_end is set", %{conn: conn} do
     # Given
     organization = AccountsFixtures.organization_fixture(name: "acme")
     org_account = Accounts.get_account_from_organization(organization)
@@ -55,7 +55,7 @@ defmodule TuistWeb.OpsAccountsLiveTest do
     {:ok, _lv, html} = live(conn, ~p"/ops/accounts")
 
     # Then
-    assert html =~ "Canceling"
+    assert html =~ "Cancelled"
   end
 
   test "paginates when there are more accounts than one page", %{conn: conn} do

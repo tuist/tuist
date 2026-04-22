@@ -70,7 +70,7 @@
             <.dropdown_item
               :if={
                 current_plan(account) in [:pro, :enterprise] and
-                  subscription_status(account) != :canceling
+                  subscription_status(account) != :cancelled
               }
               label="Cancel plan"
               value="cancel"

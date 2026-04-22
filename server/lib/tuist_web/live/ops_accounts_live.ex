@@ -222,17 +222,17 @@ defmodule TuistWeb.OpsAccountsLive do
   # cancellation still reports `status: "active"` until the period ends.
   # Accounts without a subscription are on the Air plan, which is always
   # active (there's nothing to cancel).
-  def subscription_status(%Account{subscriptions: [%{cancel_at_period_end: true} | _]}), do: :canceling
+  def subscription_status(%Account{subscriptions: [%{cancel_at_period_end: true} | _]}), do: :cancelled
   def subscription_status(%Account{subscriptions: [%{status: "trialing"} | _]}), do: :trialing
   def subscription_status(_), do: :active
 
   def status_label(:active), do: "Active"
   def status_label(:trialing), do: "Trialing"
-  def status_label(:canceling), do: "Canceling"
+  def status_label(:cancelled), do: "Cancelled"
 
   def status_color(:active), do: "success"
   def status_color(:trialing), do: "information"
-  def status_color(:canceling), do: "warning"
+  def status_color(:cancelled), do: "warning"
 
   # ISO 3166-1 alpha-2 codes for the countries most likely to appear on
   # Enterprise invoices. Extend as needed. Sorted alphabetically by name.
