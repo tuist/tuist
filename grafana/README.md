@@ -1,12 +1,12 @@
 # Tuist Grafana app plugin
 
-Visualise per-account build, test, cache, and CLI metrics from Tuist inside
-Grafana.
+Track Xcode, Gradle, and CLI build performance in your Tuist account with
+pre-built Grafana dashboards.
 
 The plugin bundles:
 
 - A **configuration page** that collects your Tuist server URL, account
-  handle, `account:metrics:read` token, and target Prometheus datasource.
+  handle, and `account:metrics:read` token.
 - A **collector snippet generator** that emits a ready-to-paste Grafana
   Alloy / Agent scrape config for the Tuist `/metrics` endpoint.
 - Two dashboards — **Tuist Xcode** and **Tuist Gradle** — each organised

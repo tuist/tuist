@@ -4,7 +4,7 @@
   "name": "Tuist",
   "id": "tuist-tuist-app",
   "info": {
-    "description": "Scrape per-account Xcode, Gradle, and CLI metrics from Tuist and visualise them in pre-built dashboards.",
+    "description": "Track your Xcode and Gradle projects with dashboards powered by Tuist.",
     "author": {
       "name": "Tuist",
       "url": "https://tuist.dev"
