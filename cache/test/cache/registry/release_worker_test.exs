@@ -27,15 +27,25 @@ defmodule Cache.Registry.ReleaseWorkerTest do
   end
 
   test "skips when release already exists" do
-    expect(Lock, :try_acquire, fn {:release, "apple", "swift-argument-parser", "1.0.0"}, _ -> {:ok, :acquired} end)
+    expect(Lock, :try_acquire, fn {:release, "apple", "swift-argument-parser", "1.0.0"}, _ ->
+      {:ok, :acquired}
+    end)
 
     expect(Metadata, :get_package, fn "apple", "swift-argument-parser", _opts ->
       {:ok, %{"releases" => %{"1.0.0" => %{"checksum" => "abc", "manifests" => []}}}}
     end)
 
-    stub(TuistCommon.GitHub, :download_zipball, fn _, _, _, _, _ -> flunk("unexpected zipball download") end)
-    stub(TuistCommon.GitHub, :list_repository_contents, fn _, _, _, _ -> flunk("unexpected contents request") end)
-    stub(TuistCommon.GitHub, :get_file_content, fn _, _, _, _, _ -> flunk("unexpected file request") end)
+    stub(TuistCommon.GitHub, :download_zipball, fn _, _, _, _, _ ->
+      flunk("unexpected zipball download")
+    end)
+
+    stub(TuistCommon.GitHub, :list_repository_contents, fn _, _, _, _ ->
+      flunk("unexpected contents request")
+    end)
+
+    stub(TuistCommon.GitHub, :get_file_content, fn _, _, _, _, _ ->
+      flunk("unexpected file request")
+    end)
 
     assert :ok =
              ReleaseWorker.perform(%Oban.Job{
@@ -267,7 +277,8 @@ defmodule Cache.Registry.ReleaseWorkerTest do
   test "skips local file submodule URLs during updates" do
     root = Briefly.create!(directory: true)
 
-    %{clone_dest: clone_dest, required_submodule_path: required_submodule_path} = setup_local_file_submodule_clone(root)
+    %{clone_dest: clone_dest, required_submodule_path: required_submodule_path} =
+      setup_local_file_submodule_clone(root)
 
     log =
       capture_log(fn ->
@@ -365,7 +376,15 @@ defmodule Cache.Registry.ReleaseWorkerTest do
 
     git!(superproject, ["commit", "-am", "add submodule"])
     git!(root, ["-c", "protocol.file.allow=always", "clone", superproject, clone_dest])
-    git!(clone_dest, ["-c", "protocol.file.allow=always", "submodule", "update", "--init", required_submodule_path])
+
+    git!(clone_dest, [
+      "-c",
+      "protocol.file.allow=always",
+      "submodule",
+      "update",
+      "--init",
+      required_submodule_path
+    ])
 
     assert {:error,
             {:nested_git_submodule_update_failed, ^required_submodule_path, "Vendor/Required/NestedPrivateDep", _status,
@@ -465,6 +484,93 @@ defmodule Cache.Registry.ReleaseWorkerTest do
                  "tag" => "v1.0.0"
                }
              })
+  end
+
+  test "marks releases without root manifests as skipped" do
+    expect(Lock, :try_acquire, 2, fn
+      {:release, "newrelic", "newrelic-ios-agent-spm", "7.0.0"}, _ -> {:ok, :acquired}
+      {:package, "newrelic", "newrelic-ios-agent-spm"}, _ -> {:ok, :acquired}
+    end)
+
+    expect(Metadata, :get_package, 2, fn "newrelic", "newrelic-ios-agent-spm", [fresh: true] ->
+      {:error, :not_found}
+    end)
+
+    expect(TuistCommon.GitHub, :list_repository_contents, fn "newrelic/newrelic-ios-agent-spm", "token", "7.0.0", _ ->
+      {:ok, [%{"path" => ".gitmodules", "type" => "file"}, %{"path" => "Agent", "type" => "dir"}]}
+    end)
+
+    stub(TuistCommon.GitHub, :get_file_content, fn _, _, _, _, _ ->
+      flunk("unexpected file request")
+    end)
+
+    stub(TuistCommon.GitHub, :download_zipball, fn _, _, _, _, _ ->
+      flunk("unexpected zipball download")
+    end)
+
+    stub(Upload, :stream_file, fn _ -> flunk("unexpected upload stream") end)
+    stub(ExAws.S3, :upload, fn _, _, _, _ -> flunk("unexpected S3 upload") end)
+    stub(ExAws, :request, fn _ -> flunk("unexpected AWS request") end)
+
+    expect(Metadata, :put_package, fn "newrelic", "newrelic-ios-agent-spm", metadata ->
+      assert metadata["releases"] == %{}
+      assert metadata["skipped_releases"] == %{"7.0.0" => %{"reason" => "missing_manifests"}}
+      :ok
+    end)
+
+    assert :ok =
+             ReleaseWorker.perform(%Oban.Job{
+               args: %{
+                 "scope" => "newrelic",
+                 "name" => "newrelic-ios-agent-spm",
+                 "repository_full_handle" => "newrelic/newrelic-ios-agent-spm",
+                 "tag" => "7.0.0"
+               }
+             })
+  end
+
+  test "retries missing-manifest releases when the skipped-release metadata lock is held" do
+    expect(Lock, :try_acquire, 2, fn
+      {:release, "newrelic", "newrelic-ios-agent-spm", "7.0.0"}, _ -> {:ok, :acquired}
+      {:package, "newrelic", "newrelic-ios-agent-spm"}, _ -> {:error, :already_locked}
+    end)
+
+    expect(Metadata, :get_package, fn "newrelic", "newrelic-ios-agent-spm", [fresh: true] ->
+      {:error, :not_found}
+    end)
+
+    expect(TuistCommon.GitHub, :list_repository_contents, fn "newrelic/newrelic-ios-agent-spm", "token", "7.0.0", _ ->
+      {:ok, [%{"path" => ".gitmodules", "type" => "file"}, %{"path" => "Agent", "type" => "dir"}]}
+    end)
+
+    stub(TuistCommon.GitHub, :get_file_content, fn _, _, _, _, _ ->
+      flunk("unexpected file request")
+    end)
+
+    stub(TuistCommon.GitHub, :download_zipball, fn _, _, _, _, _ ->
+      flunk("unexpected zipball download")
+    end)
+
+    stub(Upload, :stream_file, fn _ -> flunk("unexpected upload stream") end)
+    stub(ExAws.S3, :upload, fn _, _, _, _ -> flunk("unexpected S3 upload") end)
+    stub(ExAws, :request, fn _ -> flunk("unexpected AWS request") end)
+    stub(Metadata, :put_package, fn _, _, _ -> flunk("unexpected metadata write") end)
+
+    log =
+      capture_log([level: :info], fn ->
+        assert {:error, {:missing_manifests, "newrelic/newrelic-ios-agent-spm", "7.0.0"}} =
+                 ReleaseWorker.perform(%Oban.Job{
+                   args: %{
+                     "scope" => "newrelic",
+                     "name" => "newrelic-ios-agent-spm",
+                     "repository_full_handle" => "newrelic/newrelic-ios-agent-spm",
+                     "tag" => "7.0.0"
+                   }
+                 })
+      end)
+
+    assert log =~ "Skipped release metadata update deferred for newrelic/newrelic-ios-agent-spm@7.0.0"
+    assert log =~ "Failed to record skipped release newrelic/newrelic-ios-agent-spm@7.0.0"
   end
 
   describe "symlink resolution" do
@@ -858,7 +964,10 @@ defmodule Cache.Registry.ReleaseWorkerTest do
         File.write!(Path.join(first_dir, "target.md"), "content")
         File.ln_s!("target.md", Path.join(first_dir, "link.md"))
         File.write!(Path.join(second_dir, "Package.swift"), manifest_content)
-        {_, 0} = System.cmd("zip", ["--symlinks", "-r", archive_path, "repo-v1.0.0", "repo-v1.0.1"], cd: tmp)
+
+        {_, 0} =
+          System.cmd("zip", ["--symlinks", "-r", archive_path, "repo-v1.0.0", "repo-v1.0.1"], cd: tmp)
+
         File.rm_rf!(tmp)
         :ok
       end)
@@ -929,11 +1038,23 @@ defmodule Cache.Registry.ReleaseWorkerTest do
     Enum.each(submodules, fn
       path when is_binary(path) ->
         File.mkdir_p!(Path.join([repo, Path.dirname(path)]))
-        git!(repo, ["update-index", "--add", "--cacheinfo", "160000,0123456789012345678901234567890123456789,#{path}"])
+
+        git!(repo, [
+          "update-index",
+          "--add",
+          "--cacheinfo",
+          "160000,0123456789012345678901234567890123456789,#{path}"
+        ])
 
       %{path: path} ->
         File.mkdir_p!(Path.join([repo, Path.dirname(path)]))
-        git!(repo, ["update-index", "--add", "--cacheinfo", "160000,0123456789012345678901234567890123456789,#{path}"])
+
+        git!(repo, [
+          "update-index",
+          "--add",
+          "--cacheinfo",
+          "160000,0123456789012345678901234567890123456789,#{path}"
+        ])
     end)
 
     git!(repo, ["commit", "-m", "add gitlinks"])
@@ -1002,8 +1123,11 @@ defmodule Cache.Registry.ReleaseWorkerTest do
 
   defp git!(working_directory, args) do
     case System.cmd("git", args, cd: working_directory, stderr_to_stdout: true) do
-      {_, 0} -> :ok
-      {output, status} -> flunk("git #{Enum.join(args, " ")} failed with status #{status}: #{output}")
+      {_, 0} ->
+        :ok
+
+      {output, status} ->
+        flunk("git #{Enum.join(args, " ")} failed with status #{status}: #{output}")
     end
   end
 
