@@ -1,4 +1,4 @@
-name: Xcode Processor Staging Deploy
+# name: Xcode Processor Staging Deploy
 
 # NOTE: Disabled pending migration to Kubernetes. Staging targets the same
 # Scaleway Mac mini infrastructure as production and shares its reliability
