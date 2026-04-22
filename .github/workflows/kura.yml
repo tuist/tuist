@@ -56,6 +56,8 @@ jobs:
             kura-rust-${{ runner.os }}-
 
       - name: Compile without warnings
+        env:
+          RUSTUP_TOOLCHAIN: ""
         run: RUSTFLAGS="-D warnings" cargo check --locked --all-targets
 
   clippy:
@@ -84,6 +86,8 @@ jobs:
             kura-rust-${{ runner.os }}-
 
       - name: Run clippy
+        env:
+          RUSTUP_TOOLCHAIN: ""
         run: cargo clippy --locked --all-targets -- -D warnings
 
   tests:
@@ -112,6 +116,8 @@ jobs:
             kura-rust-${{ runner.os }}-
 
       - name: Run tests
+        env:
+          RUSTUP_TOOLCHAIN: ""
         run: cargo test --locked
 
   e2e:
