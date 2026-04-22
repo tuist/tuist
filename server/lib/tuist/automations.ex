@@ -28,6 +28,26 @@ defmodule Tuist.Automations do
     |> Repo.insert()
   end
 
+  @doc """
+  Returns the default alert attrs seeded on every new project so flaky
+  detection works out of the box. Kept as a single source of truth so the
+  `Projects.create_project` path and the backfill migration stay in sync.
+  """
+  def default_alert_attrs(project_id) do
+    %{
+      project_id: project_id,
+      name: "Flaky test detection",
+      enabled: true,
+      monitor_type: "flaky_run_count",
+      trigger_config: %{"threshold" => 3, "window" => "30d"},
+      cadence: "5m",
+      trigger_actions: [%{"type" => "add_label", "label" => "flaky"}],
+      recovery_enabled: true,
+      recovery_config: %{"window" => "14d"},
+      recovery_actions: [%{"type" => "remove_label", "label" => "flaky"}]
+    }
+  end
+
   def update_alert(%Alert{} = alert, attrs) do
     alert
     |> Alert.changeset(attrs)

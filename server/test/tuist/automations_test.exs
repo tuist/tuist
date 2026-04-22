@@ -22,6 +22,11 @@ defmodule Tuist.AutomationsTest do
       project = ProjectsFixtures.project_fixture()
       assert Automations.list_alerts(project.id) == []
     end
+
+    test "returns the seeded default alert when the fixture keeps it" do
+      project = ProjectsFixtures.project_fixture(with_default_alert: true)
+      assert [%{name: "Flaky test detection"}] = Automations.list_alerts(project.id)
+    end
   end
 
   describe "get_alert/1" do

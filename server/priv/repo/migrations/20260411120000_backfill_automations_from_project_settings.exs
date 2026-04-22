@@ -4,12 +4,16 @@ defmodule Tuist.Repo.Migrations.BackfillAutomationsFromProjectSettings do
   import Ecto.Query
 
   def up do
-    projects_with_flaky_detection =
+    # Every project gets a baseline "Flaky test detection" alert so the
+    # Automations.create_project path and this backfill stay in parity.
+    # Projects that had the legacy auto_mark_flaky_tests settings keep
+    # those overrides (threshold, cooldown, Slack channel, auto-quarantine).
+    projects =
       repo().all(
         from(p in "projects",
-          where: p.auto_mark_flaky_tests == true,
           select: %{
             id: p.id,
+            auto_mark: p.auto_mark_flaky_tests,
             threshold: p.auto_mark_flaky_threshold,
             cooldown_days: p.flaky_cooldown_days,
             auto_quarantine: p.auto_quarantine_flaky_tests,
@@ -23,32 +27,23 @@ defmodule Tuist.Repo.Migrations.BackfillAutomationsFromProjectSettings do
     now = DateTime.utc_now() |> DateTime.truncate(:second)
 
     automations =
-      projects_with_flaky_detection
-      |> Enum.map(fn project ->
-        trigger_actions = build_trigger_actions(project)
-
-        recovery_actions = [
-          %{"type" => "change_state", "state" => "enabled"},
-          %{"type" => "remove_label", "label" => "flaky"}
-        ]
-
+      Enum.map(projects, fn project ->
         %{
           id: Ecto.UUID.bingenerate(),
           project_id: project.id,
           name: automation_name(project),
           enabled: true,
           monitor_type: "flaky_run_count",
-          trigger_config: %{"threshold" => project.threshold || 1, "window" => "30d"},
+          trigger_config: %{"threshold" => project.threshold || 3, "window" => "30d"},
           cadence: "5m",
-          trigger_actions: trigger_actions,
+          trigger_actions: build_trigger_actions(project),
           recovery_enabled: true,
           recovery_config: %{"window" => "#{project.cooldown_days || 14}d"},
-          recovery_actions: recovery_actions,
+          recovery_actions: build_recovery_actions(project),
           inserted_at: now,
           updated_at: now
         }
       end)
-      |> Enum.filter(fn a -> a.trigger_actions != [] end)
 
     if Enum.any?(automations) do
       repo().insert_all("automation_alerts", automations)
@@ -63,13 +58,13 @@ defmodule Tuist.Repo.Migrations.BackfillAutomationsFromProjectSettings do
     actions = [%{"type" => "add_label", "label" => "flaky"}]
 
     actions =
-      if project.auto_quarantine do
+      if project.auto_mark && project.auto_quarantine do
         actions ++ [%{"type" => "change_state", "state" => "muted"}]
       else
         actions
       end
 
-    if project.flaky_alerts_enabled && project.slack_channel_id do
+    if project.auto_mark && project.flaky_alerts_enabled && project.slack_channel_id do
       actions ++
         [
           %{
@@ -85,6 +80,18 @@ defmodule Tuist.Repo.Migrations.BackfillAutomationsFromProjectSettings do
     end
   end
 
-  defp automation_name(%{auto_quarantine: true}), do: "Auto-quarantine flaky tests"
+  defp build_recovery_actions(%{auto_mark: true, auto_quarantine: true}) do
+    [
+      %{"type" => "change_state", "state" => "enabled"},
+      %{"type" => "remove_label", "label" => "flaky"}
+    ]
+  end
+
+  defp build_recovery_actions(_),
+    do: [%{"type" => "remove_label", "label" => "flaky"}]
+
+  defp automation_name(%{auto_mark: true, auto_quarantine: true}),
+    do: "Auto-quarantine flaky tests"
+
   defp automation_name(_), do: "Flaky test detection"
 end
