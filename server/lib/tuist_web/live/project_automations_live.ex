@@ -52,19 +52,24 @@ defmodule TuistWeb.ProjectAutomationsLive do
   end
 
   defp assign_create_automation_form_defaults(socket) do
+    # Trigger defaults to "mark as flaky" (label-only) so a brand-new automation
+    # is non-destructive out of the box — matches the seeded default alert on
+    # project creation. Quarantining is an explicit opt-in via "Add action".
     socket
     |> assign(editing_automation_id: nil)
     |> assign(create_automation_form_name: "")
     |> assign(create_automation_form_type: "flakiness_rate")
     |> assign(create_automation_form_threshold: "10")
     |> assign(create_automation_form_window: "30d")
-    |> assign(create_automation_form_trigger_actions: [default_change_state_action("muted")])
+    |> assign(create_automation_form_trigger_actions: [default_add_label_action()])
     |> assign(create_automation_form_recovery_enabled: false)
     |> assign(create_automation_form_recovery_window: "14d")
-    |> assign(create_automation_form_recovery_actions: [default_change_state_action("enabled")])
+    |> assign(create_automation_form_recovery_actions: [default_remove_label_action()])
   end
 
   defp default_change_state_action(state), do: %{"type" => "change_state", "state" => state}
+  defp default_add_label_action, do: %{"type" => "add_label", "label" => "flaky"}
+  defp default_remove_label_action, do: %{"type" => "remove_label", "label" => "flaky"}
 
   @default_trigger_slack_message ":warning: *{{test_case.name}}* in module `{{test_case.module_name}}` has been detected as flaky by automation *{{automation.name}}*.\n\n<{{test_case.url}}|View test case>"
   @default_recovery_slack_message ":white_check_mark: *{{test_case.name}}* in module `{{test_case.module_name}}` has recovered.\n\n<{{test_case.url}}|View test case>"

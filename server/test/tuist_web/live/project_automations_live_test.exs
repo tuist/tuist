@@ -42,7 +42,9 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
       assert [automation] = Automations.list_alerts(project.id)
       assert automation.name == "Auto-quarantine"
       assert automation.monitor_type == "flakiness_rate"
-      assert [%{"type" => "change_state", "state" => "muted"}] = automation.trigger_actions
+      # Non-destructive default: label-only, no quarantine. Users can add
+      # `change_state: muted` explicitly from the "Add action" dropdown.
+      assert [%{"type" => "add_label", "label" => "flaky"}] = automation.trigger_actions
     end
 
     test "preserves the type-specific threshold default when switching types", %{
@@ -71,14 +73,16 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
 
       render_hook(lv, "open_create_automation_modal", %{})
       render_hook(lv, "update_create_automation_form_name", %{"value" => "Multi-action"})
-      render_hook(lv, "add_create_automation_form_trigger_action", %{"data" => "add_label_flaky"})
+      # Default trigger action is `add_label: flaky`; user opts into quarantine
+      # via the dropdown to layer `change_state: muted` on top.
+      render_hook(lv, "add_create_automation_form_trigger_action", %{"data" => "change_state"})
       render_hook(lv, "save_automation", %{})
 
       assert [automation] = Automations.list_alerts(project.id)
 
       assert [
-               %{"type" => "change_state", "state" => "muted"},
-               %{"type" => "add_label", "label" => "flaky"}
+               %{"type" => "add_label", "label" => "flaky"},
+               %{"type" => "change_state", "state" => "muted"}
              ] = automation.trigger_actions
     end
 
