@@ -21,6 +21,7 @@ defmodule Tuist.Metrics.Schema.MarkdownTest do
     test "every metric in the schema has a heading and a stable anchor", %{output: output} do
       for %{name: name} <- Schema.definitions() do
         anchor = String.replace(name, "_", "-")
+
         assert output =~ "#### `#{name}` {##{anchor}}",
                "Expected heading for #{name} with anchor #{anchor} in rendered markdown"
       end
@@ -45,17 +46,16 @@ defmodule Tuist.Metrics.Schema.MarkdownTest do
     end
 
     test "Xcode heading appears before Gradle and CLI", %{output: output} do
-      xcode = :binary.match(output, "### Xcode") |> elem(0)
-      gradle = :binary.match(output, "### Gradle") |> elem(0)
-      cli = :binary.match(output, "### Cli") |> elem(0)
+      xcode = output |> :binary.match("### Xcode") |> elem(0)
+      gradle = output |> :binary.match("### Gradle") |> elem(0)
+      cli = output |> :binary.match("### Cli") |> elem(0)
 
       assert xcode < gradle
       assert gradle < cli
     end
   end
 
-  defp format_labels(labels),
-    do: Enum.map_join(labels, ", ", fn label -> "`#{label}`" end)
+  defp format_labels(labels), do: Enum.map_join(labels, ", ", fn label -> "`#{label}`" end)
 
   defp format_bucket(bound) when is_integer(bound), do: "`#{bound}`"
 

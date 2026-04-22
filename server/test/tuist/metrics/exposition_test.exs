@@ -5,9 +5,7 @@ defmodule Tuist.Metrics.ExpositionTest do
 
   describe "negotiate/1" do
     test "selects openmetrics when requested" do
-      assert Exposition.negotiate(
-               "application/openmetrics-text; version=1.0.0,text/plain;q=0.5"
-             ) == :openmetrics
+      assert Exposition.negotiate("application/openmetrics-text; version=1.0.0,text/plain;q=0.5") == :openmetrics
     end
 
     test "falls back to prometheus when header is missing" do
@@ -34,6 +32,7 @@ defmodule Tuist.Metrics.ExpositionTest do
 
       assert output =~ "# HELP tuist_xcode_cache_events_total"
       assert output =~ "# TYPE tuist_xcode_cache_events_total counter"
+
       assert output =~
                ~s(tuist_xcode_cache_events_total{project="acme/app",event_type="local_hit"} 4)
     end

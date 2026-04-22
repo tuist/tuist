@@ -11,9 +11,9 @@ defmodule Tuist.Metrics.Telemetry do
   existing event tree.
   """
 
-  require Logger
-
   alias Tuist.Metrics
+
+  require Logger
 
   @handler_id "tuist-metrics-aggregator"
 
@@ -44,9 +44,7 @@ defmodule Tuist.Metrics.Telemetry do
     exception ->
       # A metrics handler must never take down the process that emitted the
       # event. Log and swallow so the main code path is unaffected.
-      Logger.warning(
-        "Tuist.Metrics.Telemetry handler crashed for #{inspect(event)}: #{Exception.message(exception)}"
-      )
+      Logger.warning("Tuist.Metrics.Telemetry handler crashed for #{inspect(event)}: #{Exception.message(exception)}")
   end
 
   # ---- CLI ---------------------------------------------------------------
@@ -84,11 +82,7 @@ defmodule Tuist.Metrics.Telemetry do
 
   # ---- Xcode build/test --------------------------------------------------
 
-  defp handle(
-         [:tuist, :metrics, :xcode, :build, :run],
-         %{duration_seconds: duration},
-         %{account_id: account_id} = meta
-       ) do
+  defp handle([:tuist, :metrics, :xcode, :build, :run], %{duration_seconds: duration}, %{account_id: account_id} = meta) do
     labels = xcode_build_labels(meta)
     Metrics.increment_counter(account_id, "tuist_xcode_build_runs_total", labels)
 
@@ -100,11 +94,7 @@ defmodule Tuist.Metrics.Telemetry do
     )
   end
 
-  defp handle(
-         [:tuist, :metrics, :xcode, :test, :run],
-         %{duration_seconds: duration},
-         %{account_id: account_id} = meta
-       ) do
+  defp handle([:tuist, :metrics, :xcode, :test, :run], %{duration_seconds: duration}, %{account_id: account_id} = meta) do
     labels = xcode_test_labels(meta)
     Metrics.increment_counter(account_id, "tuist_xcode_test_runs_total", labels)
 
@@ -116,11 +106,7 @@ defmodule Tuist.Metrics.Telemetry do
     )
   end
 
-  defp handle(
-         [:tuist, :metrics, :xcode, :test, :case],
-         %{count: count},
-         %{account_id: account_id} = meta
-       )
+  defp handle([:tuist, :metrics, :xcode, :test, :case], %{count: count}, %{account_id: account_id} = meta)
        when is_integer(count) and count > 0 do
     labels = %{
       project: meta[:project] || "",
@@ -134,11 +120,7 @@ defmodule Tuist.Metrics.Telemetry do
 
   # ---- Gradle build/test -------------------------------------------------
 
-  defp handle(
-         [:tuist, :metrics, :gradle, :build, :run],
-         %{duration_seconds: duration},
-         %{account_id: account_id} = meta
-       ) do
+  defp handle([:tuist, :metrics, :gradle, :build, :run], %{duration_seconds: duration}, %{account_id: account_id} = meta) do
     labels = gradle_labels(meta)
     Metrics.increment_counter(account_id, "tuist_gradle_build_runs_total", labels)
 
@@ -150,11 +132,7 @@ defmodule Tuist.Metrics.Telemetry do
     )
   end
 
-  defp handle(
-         [:tuist, :metrics, :gradle, :test, :run],
-         %{duration_seconds: duration},
-         %{account_id: account_id} = meta
-       ) do
+  defp handle([:tuist, :metrics, :gradle, :test, :run], %{duration_seconds: duration}, %{account_id: account_id} = meta) do
     labels = gradle_labels(meta)
     Metrics.increment_counter(account_id, "tuist_gradle_test_runs_total", labels)
 
@@ -262,5 +240,4 @@ defmodule Tuist.Metrics.Telemetry do
         nil
     end
   end
-
 end

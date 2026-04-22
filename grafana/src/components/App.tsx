@@ -18,7 +18,7 @@ export const App = (props: AppRootProps<TuistAppJsonData>) => {
 
       <p className={styles.lede}>
         Track Xcode, Gradle, and CLI build performance in your Tuist account with the bundled
-        dashboards. The plugin stores no data — Alloy/Agent scrapes Tuist's{' '}
+        dashboards. The plugin stores no data — Alloy/Agent scrapes the Tuist{' '}
         <code>/metrics</code> endpoint directly and remote-writes to Prometheus.
       </p>
 

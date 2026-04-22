@@ -57,9 +57,7 @@ defmodule Tuist.Metrics.Exposition do
   def render(snapshot, format) when format in [:prometheus, :openmetrics] do
     indexed = group_by_metric(snapshot)
 
-    body =
-      Schema.definitions()
-      |> Enum.map(&render_metric(&1, Map.get(indexed, &1.name, []), format))
+    body = Enum.map(Schema.definitions(), &render_metric(&1, Map.get(indexed, &1.name, []), format))
 
     case format do
       :openmetrics -> [body, "# EOF\n"]
@@ -119,12 +117,7 @@ defmodule Tuist.Metrics.Exposition do
     end
   end
 
-  defp render_histogram(
-         %{labels: labels, count: count, sum: sum, buckets: buckets},
-         name,
-         label_keys,
-         _format
-       ) do
+  defp render_histogram(%{labels: labels, count: count, sum: sum, buckets: buckets}, name, label_keys, _format) do
     label_tuple = labels
 
     cumulative =

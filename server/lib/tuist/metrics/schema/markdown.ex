@@ -24,21 +24,15 @@ defmodule Tuist.Metrics.Schema.Markdown do
   end
 
   defp render_namespace(namespace, defs) do
-    [
+    IO.iodata_to_binary([
       "### ",
       namespace |> to_string() |> String.capitalize(),
       "\n\n",
       Enum.map_join(defs, "\n\n", &render_metric/1)
-    ]
-    |> IO.iodata_to_binary()
+    ])
   end
 
-  defp render_metric(%{
-         name: name,
-         type: type,
-         help: help,
-         labels: labels
-       } = metric) do
+  defp render_metric(%{name: name, type: type, help: help, labels: labels} = metric) do
     lines =
       [
         "#### `#{name}` {##{anchor(name)}}",
@@ -60,8 +54,7 @@ defmodule Tuist.Metrics.Schema.Markdown do
 
   defp format_labels([]), do: "_none_"
 
-  defp format_labels(labels),
-    do: Enum.map_join(labels, ", ", fn label -> "`#{label}`" end)
+  defp format_labels(labels), do: Enum.map_join(labels, ", ", fn label -> "`#{label}`" end)
 
   defp format_bucket(bound) when is_integer(bound), do: "`#{bound}`"
 

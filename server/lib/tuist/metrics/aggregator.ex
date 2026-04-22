@@ -35,9 +35,9 @@ defmodule Tuist.Metrics.Aggregator do
 
   use GenServer
 
-  require Logger
-
   alias Tuist.Metrics.Schema
+
+  require Logger
 
   @table :tuist_metrics_aggregator
   @counter_tag :c
@@ -53,8 +53,7 @@ defmodule Tuist.Metrics.Aggregator do
   Atomically bumps a counter metric. Safe to call from any process; does not
   message the aggregator.
   """
-  def increment_counter(account_id, metric, labels, count \\ 1)
-      when is_integer(count) and count > 0 do
+  def increment_counter(account_id, metric, labels, count \\ 1) when is_integer(count) and count > 0 do
     if table_ready?() do
       key = counter_key(account_id, metric, labels)
       :ets.update_counter(@table, key, {2, count}, {key, 0})
@@ -68,8 +67,7 @@ defmodule Tuist.Metrics.Aggregator do
   keep the per-observation multi-update (count + sum + bucket) logically
   atomic.
   """
-  def observe_histogram(account_id, metric, labels, value_seconds)
-      when is_number(value_seconds) and value_seconds >= 0 do
+  def observe_histogram(account_id, metric, labels, value_seconds) when is_number(value_seconds) and value_seconds >= 0 do
     case GenServer.whereis(__MODULE__) do
       nil ->
         :ok
@@ -145,9 +143,7 @@ defmodule Tuist.Metrics.Aggregator do
     # the warning log. In prod, a second init is genuinely interesting — the
     # previous process crashed, which means we lost counters.
     if count > 1 and not Tuist.Environment.test?() do
-      Logger.warning(
-        "Tuist.Metrics.Aggregator restarted (init_count=#{count}); counters for this node have been reset."
-      )
+      Logger.warning("Tuist.Metrics.Aggregator restarted (init_count=#{count}); counters for this node have been reset.")
     end
   end
 
@@ -181,14 +177,11 @@ defmodule Tuist.Metrics.Aggregator do
 
   # ---- Keys and decoding -------------------------------------------------
 
-  defp counter_key(account_id, metric, labels),
-    do: {@counter_tag, account_id, metric, labels}
+  defp counter_key(account_id, metric, labels), do: {@counter_tag, account_id, metric, labels}
 
-  defp histogram_count_key(account_id, metric, labels),
-    do: {@histogram_tag, account_id, metric, labels, :count}
+  defp histogram_count_key(account_id, metric, labels), do: {@histogram_tag, account_id, metric, labels, :count}
 
-  defp histogram_sum_key(account_id, metric, labels),
-    do: {@histogram_tag, account_id, metric, labels, :sum}
+  defp histogram_sum_key(account_id, metric, labels), do: {@histogram_tag, account_id, metric, labels, :sum}
 
   defp histogram_bucket_key(account_id, metric, labels, bound),
     do: {@histogram_tag, account_id, metric, labels, {:bucket, bound}}
