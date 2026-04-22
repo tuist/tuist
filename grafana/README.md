@@ -36,7 +36,7 @@ Every push to `main` that includes a `(grafana)`-scoped commit triggers
 
 1. bumps `grafana/package.json`,
 2. regenerates `grafana/CHANGELOG.md`,
-3. runs `mise run bundle -- --signature-type community` (community-signed,
+3. runs `mise run bundle --signature-type community` (community-signed,
    so any Grafana instance can install it),
 4. publishes a GitHub release that attaches the signed zip.
 
@@ -44,8 +44,8 @@ Every push to `main` that includes a `(grafana)`-scoped commit triggers
 
 ```bash
 export GRAFANA_ACCESS_POLICY_TOKEN="..."
-mise run bundle -- --signature-type community   # public, catalogue-ready
-mise run bundle -- --skip-sign                  # unsigned, local dev only
+mise run bundle --signature-type community   # public, catalogue-ready
+mise run bundle --skip-sign                  # unsigned, local dev only
 ```
 
 The unsigned zip loads only in a Grafana started with
