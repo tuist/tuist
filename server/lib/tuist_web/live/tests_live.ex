@@ -27,7 +27,6 @@ defmodule TuistWeb.TestsLive do
         "#{dgettext("dashboard_tests", "Tests")} · #{account.name}/#{project.name} · Tuist"
       )
       |> assign(OpenGraph.og_image_assigns("tests"))
-      |> assign_recent_test_runs()
       |> assign_slowest_test_cases()
       |> assign_most_flaky_test_cases()
 
@@ -55,10 +54,6 @@ defmodule TuistWeb.TestsLive do
               "duration-type",
               "duration-chart-type",
               "duration-scatter-group-by",
-              "selective-testing-environment",
-              "selective-testing-date-range",
-              "selective-testing-start-date",
-              "selective-testing-end-date",
               "selective-testing-duration-type",
               "selective-testing-chart-type"
             ])
@@ -72,6 +67,7 @@ defmodule TuistWeb.TestsLive do
       |> assign(:current_params, params)
       |> assign_analytics(params)
       |> assign_selective_testing(params)
+      |> assign_recent_test_runs()
     }
   end
 
@@ -188,24 +184,6 @@ defmodule TuistWeb.TestsLive do
     {:noreply, push_patch(socket, to: "/#{selected_account.name}/#{selected_project.name}/tests?#{query_params}")}
   end
 
-  def handle_event(
-        "selective_testing_period_changed",
-        %{"value" => %{"start" => start_date, "end" => end_date}, "preset" => preset},
-        %{assigns: %{selected_account: selected_account, selected_project: selected_project}} = socket
-      ) do
-    query_params =
-      if preset == "custom" do
-        socket.assigns.uri.query
-        |> Query.put("selective-testing-date-range", "custom")
-        |> Query.put("selective-testing-start-date", start_date)
-        |> Query.put("selective-testing-end-date", end_date)
-      else
-        Query.put(socket.assigns.uri.query, "selective-testing-date-range", preset)
-      end
-
-    {:noreply, push_patch(socket, to: "/#{selected_account.name}/#{selected_project.name}/tests?#{query_params}")}
-  end
-
   def handle_info({:test_created, %{name: "test"}}, socket) do
     if Query.has_pagination_params?(socket.assigns.uri.query) do
       {:noreply, socket}
@@ -292,29 +270,13 @@ defmodule TuistWeb.TestsLive do
     )
   end
 
-  defp assign_selective_testing(%{assigns: %{selected_project: project}} = socket, params) do
-    selective_testing_environment = params["selective-testing-environment"] || "any"
+  defp assign_selective_testing(socket, params) do
     selective_testing_duration_type = params["selective-testing-duration-type"] || "avg"
-
-    %{preset: preset, period: {start_datetime, end_datetime} = period} =
-      DatePicker.date_picker_params(params, "selective-testing")
-
-    opts = [project_id: project.id, start_datetime: start_datetime, end_datetime: end_datetime]
-
-    opts =
-      case selective_testing_environment do
-        "ci" -> Keyword.put(opts, :is_ci, true)
-        "local" -> Keyword.put(opts, :is_ci, false)
-        _ -> opts
-      end
-
     selective_testing_chart_type = params["selective-testing-chart-type"] || "line"
 
+    opts = selective_testing_opts(socket.assigns)
+
     socket
-    |> assign(:selective_testing_environment, selective_testing_environment)
-    |> assign(:selective_testing_environment_label, environment_label(selective_testing_environment))
-    |> assign(:selective_testing_preset, preset)
-    |> assign(:selective_testing_period, period)
     |> assign(:selective_testing_duration_type, selective_testing_duration_type)
     |> assign(:selective_testing_chart_type, selective_testing_chart_type)
     |> assign_async(:selective_testing_analytics, fn ->
@@ -324,6 +286,17 @@ defmodule TuistWeb.TestsLive do
   end
 
   defp assign_recent_test_runs(%{assigns: %{selected_project: project}} = socket) do
+    {start_datetime, end_datetime} = socket.assigns.analytics_period
+
+    filters =
+      [
+        %{field: :project_id, op: :==, value: project.id},
+        %{field: :ran_at, op: :>=, value: start_datetime},
+        %{field: :ran_at, op: :<=, value: end_datetime}
+      ]
+      |> maybe_add_ci_filter(socket.assigns.analytics_environment)
+      |> maybe_add_scheme_filter(socket.assigns.analytics_test_scheme)
+
     assign_async(
       socket,
       [
@@ -336,9 +309,7 @@ defmodule TuistWeb.TestsLive do
         {recent_test_runs, _meta} =
           Tests.list_test_runs(%{
             last: 40,
-            filters: [
-              %{field: :project_id, op: :==, value: project.id}
-            ],
+            filters: filters,
             order_by: [:ran_at],
             order_directions: [:asc]
           })
@@ -557,8 +528,8 @@ defmodule TuistWeb.TestsLive do
 
   defp selective_testing_opts(%{
          selected_project: project,
-         selective_testing_period: {start_datetime, end_datetime},
-         selective_testing_environment: env
+         analytics_period: {start_datetime, end_datetime},
+         analytics_environment: env
        }) do
     opts = [project_id: project.id, start_datetime: start_datetime, end_datetime: end_datetime]
 
@@ -571,4 +542,11 @@ defmodule TuistWeb.TestsLive do
 
   defp duration_scatter_group_by_atom("environment"), do: :environment
   defp duration_scatter_group_by_atom(_), do: :scheme
+
+  defp maybe_add_ci_filter(filters, "ci"), do: [%{field: :is_ci, op: :==, value: true} | filters]
+  defp maybe_add_ci_filter(filters, "local"), do: [%{field: :is_ci, op: :==, value: false} | filters]
+  defp maybe_add_ci_filter(filters, _), do: filters
+
+  defp maybe_add_scheme_filter(filters, "any"), do: filters
+  defp maybe_add_scheme_filter(filters, scheme), do: [%{field: :scheme, op: :==, value: scheme} | filters]
 end
