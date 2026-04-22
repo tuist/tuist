@@ -48,7 +48,6 @@
       visibility: hidden;
     }
     & > [data-part="selective-testing-chart-section"] {
-      padding: var(--noora-spacing-9) var(--noora-spacing-7);
       & > [data-part="legends-and-toggle"] {
         display: flex;
         justify-content: space-between;
