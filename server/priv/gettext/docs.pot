@@ -21,7 +21,7 @@ msgstr ""
 msgid "Automatically detect flaky tests that fail without code changes and save time spent investigating false failures."
 msgstr ""
 
-#: lib/tuist_web/docs/layouts/root.html.heex:157
+#: lib/tuist_web/docs/layouts/root.html.heex:162
 #, elixir-autogen, elixir-format
 msgid "Bluesky"
 msgstr ""
@@ -105,12 +105,12 @@ msgstr ""
 msgid "From code to feedback in minutes. Instant previews and AI-powered testing close the loop between building and validating."
 msgstr ""
 
-#: lib/tuist_web/docs/layouts/root.html.heex:133
+#: lib/tuist_web/docs/layouts/root.html.heex:138
 #, elixir-autogen, elixir-format
 msgid "GitHub"
 msgstr ""
 
-#: lib/tuist_web/docs/layouts/root.html.heex:82
+#: lib/tuist_web/docs/layouts/root.html.heex:87
 #, elixir-autogen, elixir-format
 msgid "Guides"
 msgstr ""
@@ -147,17 +147,17 @@ msgstr ""
 msgid "Learn more about what Tuist offers"
 msgstr ""
 
-#: lib/tuist_web/docs/layouts/root.html.heex:73
+#: lib/tuist_web/docs/layouts/root.html.heex:78
 #, elixir-autogen, elixir-format
 msgid "Main navigation"
 msgstr ""
 
-#: lib/tuist_web/docs/layouts/root.html.heex:141
+#: lib/tuist_web/docs/layouts/root.html.heex:146
 #, elixir-autogen, elixir-format
 msgid "Mastodon"
 msgstr ""
 
-#: lib/tuist_web/docs/layouts/root.html.heex:230
+#: lib/tuist_web/docs/layouts/root.html.heex:237
 #, elixir-autogen, elixir-format
 msgid "Menu"
 msgstr ""
@@ -168,7 +168,7 @@ msgid "Monitor build performance across your CI infrastructure to catch slowdown
 msgstr ""
 
 #: lib/tuist_web/docs/components/toc.html.heex:35
-#: lib/tuist_web/docs/layouts/root.html.heex:240
+#: lib/tuist_web/docs/layouts/root.html.heex:247
 #, elixir-autogen, elixir-format
 msgid "On this page"
 msgstr ""
@@ -178,7 +178,7 @@ msgstr ""
 msgid "Open source and community"
 msgstr ""
 
-#: lib/tuist_web/docs/layouts/root.html.heex:214
+#: lib/tuist_web/docs/layouts/root.html.heex:221
 #, elixir-autogen, elixir-format
 msgid "Page navigation"
 msgstr ""
@@ -188,12 +188,12 @@ msgstr ""
 msgid "Previews"
 msgstr ""
 
-#: lib/tuist_web/docs/layouts/root.html.heex:98
+#: lib/tuist_web/docs/layouts/root.html.heex:103
 #, elixir-autogen, elixir-format
 msgid "References"
 msgstr ""
 
-#: lib/tuist_web/docs/layouts/root.html.heex:104
+#: lib/tuist_web/docs/layouts/root.html.heex:109
 #, elixir-autogen, elixir-format
 msgid "Resources"
 msgstr ""
@@ -213,7 +213,7 @@ msgstr ""
 msgid "Run only the tests that matter by detecting changes since your last successful run, cutting down test times both locally and on CI."
 msgstr ""
 
-#: lib/tuist_web/docs/layouts/root.html.heex:196
+#: lib/tuist_web/docs/layouts/root.html.heex:203
 #, elixir-autogen, elixir-format
 msgid "Search"
 msgstr ""
@@ -243,12 +243,12 @@ msgstr ""
 msgid "Skip the manual steps, auto-generate projects, speeds up builds, and explore insights with built-in analytics."
 msgstr ""
 
-#: lib/tuist_web/docs/layouts/root.html.heex:71
+#: lib/tuist_web/docs/layouts/root.html.heex:76
 #, elixir-autogen, elixir-format
 msgid "Skip to content"
 msgstr ""
 
-#: lib/tuist_web/docs/layouts/root.html.heex:149
+#: lib/tuist_web/docs/layouts/root.html.heex:154
 #, elixir-autogen, elixir-format
 msgid "Slack"
 msgstr ""
@@ -269,7 +269,7 @@ msgstr ""
 msgid "Tests"
 msgstr ""
 
-#: lib/tuist_web/docs/layouts/root.html.heex:202
+#: lib/tuist_web/docs/layouts/root.html.heex:209
 #, elixir-autogen, elixir-format
 msgid "Toggle sidebar"
 msgstr ""
@@ -316,7 +316,7 @@ msgstr ""
 msgid "Your mobile platform team, as a service"
 msgstr ""
 
-#: lib/tuist_web/docs/layouts/root.html.heex:92
+#: lib/tuist_web/docs/layouts/root.html.heex:97
 #, elixir-autogen, elixir-format
 msgid "CLI"
 msgstr ""
@@ -336,7 +336,7 @@ msgstr ""
 msgid "No search history"
 msgstr ""
 
-#: lib/tuist_web/docs/layouts/root.html.heex:258
+#: lib/tuist_web/docs/layouts/root.html.heex:265
 #, elixir-autogen, elixir-format
 msgid "Search..."
 msgstr ""
@@ -366,8 +366,8 @@ msgstr ""
 msgid "as Markdown"
 msgstr ""
 
-#: lib/tuist_web/docs/layouts/root.html.heex:164
-#: lib/tuist_web/docs/layouts/root.html.heex:180
+#: lib/tuist_web/docs/layouts/root.html.heex:169
+#: lib/tuist_web/docs/layouts/root.html.heex:186
 #, elixir-autogen, elixir-format
 msgid "Log in"
 msgstr ""
