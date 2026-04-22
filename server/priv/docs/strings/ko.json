@@ -191,6 +191,9 @@
         "guides": {
             "text": "안내서",
             "items": {
+                "install-tuist": {
+                    "text": "Tuist 설치"
+                },
                 "tuist": {
                     "text": "Tuist",
                     "items": {

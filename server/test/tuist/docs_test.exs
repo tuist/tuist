@@ -12,6 +12,14 @@ defmodule Tuist.DocsTest do
       assert page.body =~ "Install Tuist"
     end
 
+    test "loads a Korean documentation page" do
+      page = Docs.get_page("/ko/guides/install-tuist")
+
+      assert page.slug == "/ko/guides/install-tuist"
+      assert page.title == "Tuist 설치"
+      assert page.body =~ "Tuist 설치"
+    end
+
     test "supports index aliases" do
       root_page = Docs.get_page("/en/index")
       selective_testing_page = Docs.get_page("/en/guides/features/selective-testing/index")

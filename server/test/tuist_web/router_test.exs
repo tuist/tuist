@@ -74,4 +74,10 @@ defmodule TuistWeb.RouterTest do
            |> get("/en/docs/guides/install-tuist")
            |> html_response(200) =~ "Install Tuist"
   end
+
+  test "localized docs routes render without authentication", %{conn: conn} do
+    assert conn
+           |> get("/ko/docs/guides/install-tuist")
+           |> html_response(200) =~ "Tuist 설치"
+  end
 end
