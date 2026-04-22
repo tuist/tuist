@@ -941,6 +941,10 @@ defmodule Tuist.Tests do
         avg_test_case_duration: avg_test_case_duration,
         shard_id: if(shard_plan, do: shard_plan.id),
         shard_index: shard_index,
+        project_id: test.project_id,
+        is_ci: test.is_ci,
+        git_branch: test.git_branch || "",
+        ran_at: test.ran_at,
         inserted_at: NaiveDateTime.utc_now()
       }
 
@@ -1122,6 +1126,10 @@ defmodule Tuist.Tests do
           avg_test_case_duration: avg_test_case_duration,
           shard_id: if(shard_plan, do: shard_plan.id),
           shard_index: shard_index,
+          project_id: test.project_id,
+          is_ci: test.is_ci,
+          git_branch: test.git_branch || "",
+          ran_at: test.ran_at,
           inserted_at: NaiveDateTime.utc_now()
         }
 
