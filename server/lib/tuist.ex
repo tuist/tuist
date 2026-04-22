@@ -104,6 +104,7 @@ defmodule Tuist do
       Metrics.Aggregator,
       Metrics.Exposition,
       Metrics.Schema,
+      Metrics.Schema.Markdown,
       Metrics.Telemetry,
       Namespace,
       Namespace.JWTToken,
