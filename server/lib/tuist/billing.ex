@@ -222,31 +222,6 @@ defmodule Tuist.Billing do
     {:ok, stripe_sub}
   end
 
-  @doc """
-  Returns true when the account's Stripe customer already has everything we
-  need to start an invoice-billed Enterprise subscription: a name, an email,
-  and a complete address (line1, city, postal_code, country). Ops uses this
-  to decide whether to prompt for billing details or upgrade in one click.
-  """
-  def stripe_customer_ready_for_enterprise?(%Account{customer_id: nil}), do: false
-
-  def stripe_customer_ready_for_enterprise?(%Account{customer_id: customer_id}) do
-    case Stripe.Customer.retrieve(customer_id) do
-      {:ok, customer} -> customer_has_billing_details?(customer)
-      _ -> false
-    end
-  end
-
-  defp customer_has_billing_details?(%{address: nil}), do: false
-
-  defp customer_has_billing_details?(%{address: address} = customer) do
-    present?(customer.name) and present?(customer.email) and present?(address.line1) and
-      present?(address.city) and present?(address.postal_code) and present?(address.country)
-  end
-
-  defp present?(value) when is_binary(value), do: value != ""
-  defp present?(_), do: false
-
   defp enterprise_subscription_items(cadence) do
     available_prices = Tuist.Environment.stripe_prices()
     key = if cadence == "yearly", do: "flat_yearly", else: "flat_monthly"

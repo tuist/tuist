@@ -102,9 +102,18 @@ defmodule TuistWeb.OpsAccountsLiveTest do
   test "one-click upgrade when the Stripe customer already has billing details", %{conn: conn, user: user} do
     # Given — the customer already has name/email/address on Stripe, so ops
     # shouldn't have to re-enter them.
-    stub(Billing, :stripe_customer_ready_for_enterprise?, fn %{id: id} ->
-      assert id == user.account.id
-      true
+    stub(Stripe.Customer, :retrieve, fn _customer_id ->
+      {:ok,
+       %Stripe.Customer{
+         name: "Acme",
+         email: "billing@acme.test",
+         address: %{
+           line1: "1 Market St",
+           city: "SF",
+           postal_code: "94103",
+           country: "US"
+         }
+       }}
     end)
 
     expect(Billing, :upgrade_to_enterprise, fn account, params ->
@@ -124,8 +133,10 @@ defmodule TuistWeb.OpsAccountsLiveTest do
   end
 
   test "opens the enterprise form when the Stripe customer has no address", %{conn: conn, user: user} do
-    # Given
-    stub(Billing, :stripe_customer_ready_for_enterprise?, fn _ -> false end)
+    # Given — Stripe customer is missing address, so the modal must open.
+    stub(Stripe.Customer, :retrieve, fn _customer_id ->
+      {:ok, %Stripe.Customer{name: "Acme", email: "acme@test", address: nil}}
+    end)
 
     {:ok, lv, initial_html} = live(conn, ~p"/ops/accounts")
 

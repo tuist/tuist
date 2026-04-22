@@ -87,29 +87,31 @@ defmodule TuistWeb.OpsAccountsLive do
 
   @impl true
   def handle_event("initiate_enterprise_upgrade", %{"id" => id}, socket) do
-    with {:ok, account} <- Accounts.get_account_by_id(String.to_integer(id)),
-         account = Accounts.create_customer_when_absent(account),
-         true <- Billing.stripe_customer_ready_for_enterprise?(account) do
-      {:ok, _sub} = Billing.upgrade_to_enterprise(account, %{cadence: "monthly"})
+    case Accounts.get_account_by_id(String.to_integer(id)) do
+      {:ok, account} ->
+        account = Accounts.create_customer_when_absent(account)
 
-      {:noreply,
-       socket
-       |> put_flash(
-         :info,
-         "#{account.name} upgraded to Enterprise. Stripe will send an invoice for the first period."
-       )
-       |> push_patch(to: ~p"/ops/accounts?#{socket.assigns.query_params}")}
-    else
-      false ->
-        # Customer needs billing details — point the shared modal at this
-        # account and open it client-side. Setting the assign first ensures
-        # the modal's DOM exists before the client receives `open-modal`.
-        {:ok, account} = Accounts.get_account_by_id(String.to_integer(id))
+        if customer_has_billing_details?(account.customer_id) do
+          # Customer already has name/email/address on Stripe — upgrade in
+          # one click without prompting ops to re-enter anything.
+          {:ok, _sub} = Billing.upgrade_to_enterprise(account, %{cadence: "monthly"})
 
-        {:noreply,
-         socket
-         |> assign(:upgrade_target_account, account)
-         |> push_event("open-modal", %{id: "enterprise-modal"})}
+          {:noreply,
+           socket
+           |> put_flash(
+             :info,
+             "#{account.name} upgraded to Enterprise. Stripe will send an invoice for the first period."
+           )
+           |> push_patch(to: ~p"/ops/accounts?#{socket.assigns.query_params}")}
+        else
+          # Missing billing details — point the shared modal at this account
+          # and open it client-side. Setting the assign first ensures the
+          # modal's DOM exists before the client receives `open-modal`.
+          {:noreply,
+           socket
+           |> assign(:upgrade_target_account, account)
+           |> push_event("open-modal", %{id: "enterprise-modal"})}
+        end
 
       {:error, :not_found} ->
         {:noreply, put_flash(socket, :error, "Account not found.")}
@@ -162,6 +164,27 @@ defmodule TuistWeb.OpsAccountsLive do
      socket
      |> assign(:upgrade_target_account, nil)
      |> push_event("close-modal", %{id: "enterprise-modal"})}
+  end
+
+  # Required to start an invoice-billed Enterprise subscription on Stripe.
+  defp customer_has_billing_details?(customer_id) do
+    case Stripe.Customer.retrieve(customer_id) do
+      {:ok, %{address: %{} = address} = customer} ->
+        Enum.all?(
+          [
+            customer.name,
+            customer.email,
+            address.line1,
+            address.city,
+            address.postal_code,
+            address.country
+          ],
+          &(is_binary(&1) and &1 != "")
+        )
+
+      _ ->
+        false
+    end
   end
 
   defp parse_upgrade_params(params) do
