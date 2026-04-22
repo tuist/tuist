@@ -29,8 +29,9 @@ object NetworkModule {
     @Provides
     @Singleton
     @PlainClient
-    fun providePlainOkHttpClient(): OkHttpClient {
+    fun providePlainOkHttpClient(featureFlagsInterceptor: FeatureFlagsInterceptor): OkHttpClient {
         val builder = OkHttpClient.Builder()
+            .addInterceptor(featureFlagsInterceptor)
 
         if (BuildConfig.DEBUG) {
             val logging = HttpLoggingInterceptor().apply {
@@ -46,11 +47,13 @@ object NetworkModule {
     @Singleton
     fun provideOkHttpClient(
         requestIdInterceptor: RequestIdInterceptor,
+        featureFlagsInterceptor: FeatureFlagsInterceptor,
         authInterceptor: AuthInterceptor,
         tokenRefreshAuthenticator: TokenRefreshAuthenticator,
     ): OkHttpClient {
         val builder = OkHttpClient.Builder()
             .addInterceptor(requestIdInterceptor)
+            .addInterceptor(featureFlagsInterceptor)
             .addInterceptor(authInterceptor)
             .authenticator(tokenRefreshAuthenticator)
 

@@ -23,4 +23,36 @@ defmodule TuistWeb.HeadersTest do
       assert Headers.get_cli_version(conn) == nil
     end
   end
+
+  describe "get_client_feature_flags/1" do
+    test "returns an empty set when the header is missing", %{conn: conn} do
+      assert Headers.get_client_feature_flags(conn) == MapSet.new()
+    end
+
+    test "returns normalized client feature flags from the header", %{conn: conn} do
+      conn =
+        Plug.Conn.put_req_header(
+          conn,
+          Headers.client_feature_flags_header(),
+          "A, tuist_feature_b, , TUIST_FEATURE_A"
+        )
+
+      assert Headers.get_client_feature_flags(conn) == MapSet.new(["A", "B"])
+    end
+  end
+
+  describe "get_client_feature_flag/2" do
+    test "returns whether the feature flag is enabled for logical or environment variable names", %{conn: conn} do
+      conn =
+        Headers.put_client_feature_flags(conn, [
+          "a",
+          "TUIST_FEATURE_B"
+        ])
+
+      assert Headers.get_client_feature_flag(conn, "A")
+      assert Headers.get_client_feature_flag(conn, "tuist_feature_b")
+      assert Headers.get_client_feature_flag(conn, :a)
+      refute Headers.get_client_feature_flag(conn, "missing")
+    end
+  end
 end
