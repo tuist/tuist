@@ -178,8 +178,6 @@ if env == :dev do
         value = System.get_env(env_var),
         do: {key, value}
 
-  config :tuist, Tuist.Repo, Keyword.put_new(dev_db_config, :database, "tuist_development")
-
   clickhouse_dev_config = [
     hostname: "127.0.0.1",
     port: clickhouse_http_port,
@@ -188,6 +186,7 @@ if env == :dev do
 
   config :tuist, Tuist.ClickHouseRepo, clickhouse_dev_config
   config :tuist, Tuist.IngestRepo, clickhouse_dev_config
+  config :tuist, Tuist.Repo, Keyword.put_new(dev_db_config, :database, "tuist_development")
 end
 
 if env == :test do
@@ -200,10 +199,9 @@ if env == :test do
       "tuist_test#{System.get_env("MIX_TEST_PARTITION")}"
 
   test_port = String.to_integer(System.get_env("TUIST_SERVER_TEST_PORT") || "4002")
+
   clickhouse_http_port =
     String.to_integer(System.get_env("TUIST_SERVER_CLICKHOUSE_HTTP_PORT") || "8123")
-
-  config :tuist, Tuist.Repo, database: test_postgres_db
 
   config :tuist, Tuist.ClickHouseRepo,
     hostname: "127.0.0.1",
@@ -215,8 +213,8 @@ if env == :test do
     port: clickhouse_http_port,
     database: test_clickhouse_db
 
-  config :tuist, TuistWeb.Endpoint,
-    http: [ip: {127, 0, 0, 1}, port: test_port]
+  config :tuist, Tuist.Repo, database: test_postgres_db
+  config :tuist, TuistWeb.Endpoint, http: [ip: {127, 0, 0, 1}, port: test_port]
 end
 
 if Enum.member?([:prod, :stag, :can, :dev], env) do
