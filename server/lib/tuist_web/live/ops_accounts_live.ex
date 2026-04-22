@@ -94,7 +94,7 @@ defmodule TuistWeb.OpsAccountsLive do
            :info,
            "#{account.name} upgraded to Enterprise. Stripe will send an invoice for the first period."
          )
-         |> push_event("phx:close-modal", %{id: "enterprise-modal-#{account.id}"})
+         |> push_event("close-modal", %{id: "enterprise-modal-#{account.id}"})
          |> push_patch(to: ~p"/ops/accounts?#{socket.assigns.query_params}")}
 
       {:error, :not_found} ->
@@ -119,10 +119,12 @@ defmodule TuistWeb.OpsAccountsLive do
   end
 
   @impl true
-  def handle_event("close-enterprise-modal-" <> _account_id, _params, socket) do
-    # The modal closes itself via the Zag.js hook on escape / backdrop click /
-    # the Cancel button. We acknowledge the event so LiveView doesn't warn.
-    {:noreply, socket}
+  def handle_event("close-enterprise-modal-" <> account_id, _params, socket) do
+    # Noora's modal dismiss (X) fires this event as a plain `phx-click` because
+    # its `on_dismiss` attr is a string. Roundtrip back to the client and push
+    # the `close-modal` event (LiveView prefixes it with `phx:` client-side,
+    # which is what the Noora modal hook listens for).
+    {:noreply, push_event(socket, "close-modal", %{id: "enterprise-modal-#{account_id}"})}
   end
 
   defp parse_upgrade_params(params) do
