@@ -159,7 +159,9 @@ if config_env() == :prod do
       String.to_integer(System.get_env("KEY_VALUE_EVICTION_MIN_RETENTION_DAYS") || "1"),
     key_value_read_busy_timeout_ms: String.to_integer(System.get_env("KEY_VALUE_READ_BUSY_TIMEOUT_MS") || "2000"),
     key_value_maintenance_busy_timeout_ms:
-      String.to_integer(System.get_env("KEY_VALUE_MAINTENANCE_BUSY_TIMEOUT_MS") || "50"),
+      String.to_integer(System.get_env("KEY_VALUE_MAINTENANCE_BUSY_TIMEOUT_MS") || "5000"),
+    key_value_incremental_vacuum_pages:
+      String.to_integer(System.get_env("KEY_VALUE_INCREMENTAL_VACUUM_PAGES") || "25000"),
     key_value_eviction_max_duration_ms:
       String.to_integer(System.get_env("KEY_VALUE_EVICTION_MAX_DURATION_MS") || "300000"),
     key_value_eviction_hysteresis_release_bytes:

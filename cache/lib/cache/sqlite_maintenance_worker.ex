@@ -12,10 +12,11 @@ defmodule Cache.SQLiteMaintenanceWorker do
     Repo.query("PRAGMA incremental_vacuum(128000)")
 
     timeout_ms = Config.key_value_maintenance_busy_timeout_ms()
+    pages = Config.key_value_incremental_vacuum_pages()
 
     SQLiteHelpers.with_repo_busy_timeout(KeyValueRepo, timeout_ms, fn ->
       SQLiteHelpers.query!(KeyValueRepo, "PRAGMA wal_checkpoint(PASSIVE)")
-      SQLiteHelpers.query!(KeyValueRepo, "PRAGMA incremental_vacuum(1000)")
+      SQLiteHelpers.query!(KeyValueRepo, "PRAGMA incremental_vacuum(#{pages})")
     end)
 
     :ok

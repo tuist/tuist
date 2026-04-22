@@ -151,7 +151,11 @@ defmodule Cache.Config do
   end
 
   def key_value_maintenance_busy_timeout_ms do
-    Application.get_env(:cache, :key_value_maintenance_busy_timeout_ms, 50)
+    Application.get_env(:cache, :key_value_maintenance_busy_timeout_ms, 5_000)
+  end
+
+  def key_value_incremental_vacuum_pages do
+    Application.get_env(:cache, :key_value_incremental_vacuum_pages, 25_000)
   end
 
   def s3_config do

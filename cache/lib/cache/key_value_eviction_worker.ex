@@ -213,9 +213,11 @@ defmodule Cache.KeyValueEvictionWorker do
   end
 
   defp run_size_maintenance_pass(deadline_ms) do
+    pages = Config.key_value_incremental_vacuum_pages()
+
     with_db_budget(deadline_ms, fn ->
       with {:ok, _} <- kv_query("PRAGMA wal_checkpoint(PASSIVE)"),
-           {:ok, _} <- kv_query("PRAGMA incremental_vacuum(1000)") do
+           {:ok, _} <- kv_query("PRAGMA incremental_vacuum(#{pages})") do
         :ok
       end
     end)

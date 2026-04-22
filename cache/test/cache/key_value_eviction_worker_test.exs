@@ -305,7 +305,7 @@ defmodule Cache.KeyValueEvictionWorkerTest do
         query == "PRAGMA wal_checkpoint(PASSIVE)" ->
           {:ok, %{rows: [[0, 0, 0]]}}
 
-        query == "PRAGMA incremental_vacuum(1000)" ->
+        query == "PRAGMA incremental_vacuum(25000)" ->
           {:ok, %{rows: []}}
       end
     end)
@@ -355,7 +355,7 @@ defmodule Cache.KeyValueEvictionWorkerTest do
         query == "PRAGMA wal_checkpoint(PASSIVE)" ->
           {:ok, %{rows: [[0, 0, 0]]}}
 
-        query == "PRAGMA incremental_vacuum(1000)" ->
+        query == "PRAGMA incremental_vacuum(25000)" ->
           :counters.add(maintenance_runs, 1, 1)
           {:ok, %{rows: []}}
       end
@@ -384,7 +384,7 @@ defmodule Cache.KeyValueEvictionWorkerTest do
         query == "PRAGMA freelist_count" -> {:ok, %{rows: [[0]]}}
         query == "PRAGMA page_size" -> {:ok, %{rows: [[4096]]}}
         query == "PRAGMA wal_checkpoint(PASSIVE)" -> {:ok, %{rows: [[0, 0, 0]]}}
-        query == "PRAGMA incremental_vacuum(1000)" -> {:ok, %{rows: []}}
+        query == "PRAGMA incremental_vacuum(25000)" -> {:ok, %{rows: []}}
       end
     end)
 
@@ -452,7 +452,7 @@ defmodule Cache.KeyValueEvictionWorkerTest do
         query == "PRAGMA wal_checkpoint(PASSIVE)" ->
           {:ok, %{rows: [[0, 0, 0]]}}
 
-        query == "PRAGMA incremental_vacuum(1000)" ->
+        query == "PRAGMA incremental_vacuum(25000)" ->
           {:ok, %{rows: []}}
       end
     end)
@@ -482,7 +482,7 @@ defmodule Cache.KeyValueEvictionWorkerTest do
         query == "PRAGMA freelist_count" -> {:ok, %{rows: [[0]]}}
         query == "PRAGMA page_size" -> {:ok, %{rows: [[4096]]}}
         query == "PRAGMA wal_checkpoint(PASSIVE)" -> {:ok, %{rows: [[0, 0, 0]]}}
-        query == "PRAGMA incremental_vacuum(1000)" -> {:ok, %{rows: []}}
+        query == "PRAGMA incremental_vacuum(25000)" -> {:ok, %{rows: []}}
       end
     end)
 
@@ -574,7 +574,7 @@ defmodule Cache.KeyValueEvictionWorkerTest do
         query == "PRAGMA freelist_count" -> {:ok, %{rows: [[0]]}}
         query == "PRAGMA page_size" -> {:ok, %{rows: [[4096]]}}
         query == "PRAGMA wal_checkpoint(PASSIVE)" -> {:ok, %{rows: [[0, 0, 0]]}}
-        query == "PRAGMA incremental_vacuum(1000)" -> {:ok, %{rows: []}}
+        query == "PRAGMA incremental_vacuum(25000)" -> {:ok, %{rows: []}}
       end
     end)
 
