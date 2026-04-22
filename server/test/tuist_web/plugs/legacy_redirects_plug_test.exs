@@ -3,7 +3,6 @@ defmodule TuistWeb.Plugs.LegacyRedirectsPlugTest do
 
   import Phoenix.ConnTest
 
-  alias Tuist.Environment
   alias TuistWeb.Plugs.LegacyRedirectsPlug
 
   @endpoint TuistWeb.Endpoint
@@ -55,29 +54,6 @@ defmodule TuistWeb.Plugs.LegacyRedirectsPlugTest do
 
       assert conn.status == 301
       assert redirected_to(conn, 301) == "/en/docs/guides/features/build-insights"
-      assert conn.halted
-    end
-
-    test "redirects legacy docs host paths to the current docs host" do
-      conn = %{build_conn() | host: "docs.tuist.dev", request_path: "/en/guides/features/insights"}
-
-      conn = LegacyRedirectsPlug.call(conn, [])
-
-      assert conn.status == 301
-
-      assert redirected_to(conn, 301) ==
-               Environment.app_url(path: "/en/docs/guides/features/build-insights")
-
-      assert conn.halted
-    end
-
-    test "falls back unsupported legacy docs host locales to english" do
-      conn = %{build_conn() | host: "docs.tuist.dev", request_path: "/pt/guides/features/cache"}
-
-      conn = LegacyRedirectsPlug.call(conn, [])
-
-      assert conn.status == 301
-      assert redirected_to(conn, 301) == Environment.app_url(path: "/en/docs/guides/features/cache")
       assert conn.halted
     end
 

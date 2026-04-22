@@ -3,22 +3,6 @@ defmodule Tuist.Docs.RedirectsTest do
 
   alias Tuist.Docs.Redirects
 
-  describe "legacy_host_path/1" do
-    test "maps the legacy docs host root to the current docs root" do
-      assert Redirects.legacy_host_path("/") == "/en/docs"
-    end
-
-    test "maps locale-prefixed docs host paths to current docs paths" do
-      assert Redirects.legacy_host_path("/en/guides/features/insights") ==
-               "/en/docs/guides/features/insights"
-    end
-
-    test "falls back unsupported legacy locales to english" do
-      assert Redirects.legacy_host_path("/pt/guides/features/cache") ==
-               "/en/docs/guides/features/cache"
-    end
-  end
-
   describe "resolve/2" do
     test "redirects renamed insights pages" do
       assert Redirects.resolve("/en/docs/guides/features/insights") ==

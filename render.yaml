@@ -48,7 +48,6 @@ services:
         value: http://processor.tuist.dev:4002
     domains:
       - tuist.dev
-      - docs.tuist.dev
 
   - &redis-base
     type: keyvalue
