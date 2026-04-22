@@ -515,11 +515,8 @@ defmodule Tuist.Tests do
     project_handle = "#{project.account.name}/#{project.name}"
     namespace = test_namespace(test.build_system)
 
-    event =
-      [:tuist, :metrics] ++ [namespace] ++ [:test, :run]
-
     :telemetry.execute(
-      event,
+      [:tuist, :metrics, namespace, :test, :run],
       %{duration_seconds: (test.duration || 0) / 1_000},
       test_run_metadata(test, project, project_handle, namespace)
     )

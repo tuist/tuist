@@ -102,15 +102,13 @@ defmodule Tuist.Metrics.Exposition do
     [name, render_labels(label_keys, labels), " ", format_integer(value), "\n"]
   end
 
-  defp strip_total_suffix("tuist_" <> _ = name) do
+  defp strip_total_suffix(name) do
     if String.ends_with?(name, "_total") do
       String.slice(name, 0, byte_size(name) - byte_size("_total"))
     else
       name
     end
   end
-
-  defp strip_total_suffix(name), do: name
 
   defp render_histogram(
          %{labels: labels, count: count, sum: sum, buckets: buckets},

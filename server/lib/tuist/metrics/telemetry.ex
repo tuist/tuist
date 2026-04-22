@@ -263,18 +263,4 @@ defmodule Tuist.Metrics.Telemetry do
     end
   end
 
-  @doc "Telemetry event name for Xcode build-run observations."
-  def event_name_xcode_build_run, do: [:tuist, :metrics, :xcode, :build, :run]
-
-  @doc "Telemetry event name for Xcode test-run observations."
-  def event_name_xcode_test_run, do: [:tuist, :metrics, :xcode, :test, :run]
-
-  @doc "Telemetry event name for Xcode test case aggregate observations."
-  def event_name_xcode_test_case, do: [:tuist, :metrics, :xcode, :test, :case]
-
-  @doc "Telemetry event name for Gradle build-run observations."
-  def event_name_gradle_build_run, do: [:tuist, :metrics, :gradle, :build, :run]
-
-  @doc "Telemetry event name for Gradle test-run observations."
-  def event_name_gradle_test_run, do: [:tuist, :metrics, :gradle, :test, :run]
 end

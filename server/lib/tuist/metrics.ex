@@ -83,14 +83,16 @@ defmodule Tuist.Metrics do
   defp merge_entry(%{type: :counter, value: v1} = a, %{type: :counter, value: v2}), do: %{a | value: v1 + v2}
 
   defp merge_entry(%{type: :histogram} = a, %{type: :histogram} = b) do
-    %{
-      a
-      | count: a.count + b.count,
-        sum: a.sum + b.sum,
-        buckets:
-          Enum.zip_with(a.buckets, b.buckets, fn {bound, ca}, {_same_bound, cb} ->
-            {bound, ca + cb}
-          end)
-    }
+    # Merge by bucket bound rather than by list position so two snapshots
+    # with different bucket layouts (e.g. mid-deploy schema drift) combine
+    # losslessly rather than silently truncating to the shorter list.
+    merged_buckets =
+      (a.buckets ++ b.buckets)
+      |> Enum.reduce(%{}, fn {bound, count}, acc ->
+        Map.update(acc, bound, count, &(&1 + count))
+      end)
+      |> Enum.sort_by(&elem(&1, 0))
+
+    %{a | count: a.count + b.count, sum: a.sum + b.sum, buckets: merged_buckets}
   end
 end

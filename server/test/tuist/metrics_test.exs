@@ -107,5 +107,45 @@ defmodule Tuist.MetricsTest do
       assert merged.sum == 5.5
       assert merged.buckets == [{0.5, 1}, {1, 2}, {2, 5}]
     end
+
+    test "merges histograms whose bucket layouts differ" do
+      # This can happen during a rolling deploy that changes the schema — one
+      # node still reports the old bucket set while another has the new one.
+      # Merging by bound (not by list position) keeps both nodes' bucket
+      # counts rather than silently dropping the tail of the longer list.
+      a = %{
+        metric: "h",
+        type: :histogram,
+        labels: {"p"},
+        count: 3,
+        sum: 2.0,
+        buckets: [{0.5, 1}, {1, 2}, {5, 3}]
+      }
+
+      b = %{
+        metric: "h",
+        type: :histogram,
+        labels: {"p"},
+        count: 4,
+        sum: 3.0,
+        buckets: [{0.5, 0}, {1, 1}, {2, 3}, {5, 4}, {10, 4}]
+      }
+
+      [merged] = Metrics.merge([a], [b])
+
+      assert merged.count == 7
+      assert merged.sum == 5.0
+
+      bucket_map = Map.new(merged.buckets)
+      # Bounds present in both sides are summed:
+      assert Map.fetch!(bucket_map, 0.5) == 1
+      assert Map.fetch!(bucket_map, 1) == 3
+      assert Map.fetch!(bucket_map, 5) == 7
+      # Bounds only on one side are preserved (not truncated away):
+      assert Map.fetch!(bucket_map, 2) == 3
+      assert Map.fetch!(bucket_map, 10) == 4
+      # Bounds stay sorted.
+      assert merged.buckets == Enum.sort_by(merged.buckets, &elem(&1, 0))
+    end
   end
 end

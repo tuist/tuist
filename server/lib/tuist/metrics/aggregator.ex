@@ -14,9 +14,28 @@ defmodule Tuist.Metrics.Aggregator do
   If the aggregator process isn't running (e.g. a test that did not start the
   application supervisor), observations silently no-op — telemetry emission is
   not allowed to crash callers.
+
+  ### Restarts and counter loss
+
+  The ETS table is `:named_table` and owned by this GenServer. If the process
+  crashes the table is destroyed and the supervisor restarts us from a clean
+  slate. That is consistent with Prometheus semantics (the `rate`/`increase`
+  functions are counter-reset-aware) but we still log a warning on every
+  `init/1` beyond the first so ops notices if the process becomes flappy. The
+  restart count is held in `:persistent_term` which survives process death.
+
+  ### Cardinality caveat
+
+  The schema label vocabularies are bounded per-account by the **customer's**
+  deployment shape, not globally. A customer with thousands of projects,
+  schemes, or Xcode versions can drive the ETS table to arbitrary size — there
+  is no TTL/eviction policy in this process. Keep an eye on per-account
+  cardinality (we may want to add a defensive cap in a future revision).
   """
 
   use GenServer
+
+  require Logger
 
   alias Tuist.Metrics.Schema
 
@@ -67,6 +86,13 @@ defmodule Tuist.Metrics.Aggregator do
       %{metric: "...", type: :counter, labels: {...}, value: 12}
       %{metric: "...", type: :histogram, labels: {...},
         count: 42, sum: 123.4, buckets: [{0.5, 3}, {1, 9}, ...]}
+
+  Counter reads see every bump up to the moment they're called because
+  `:ets.update_counter/3` is synchronous. Histogram reads are **eventually
+  consistent**: observations go through a `GenServer.cast` so a scrape
+  immediately following `observe_histogram/4` may miss it. Tests that
+  assert on histogram state after emission should call
+  `:sys.get_state(Aggregator)` first to flush the mailbox.
   """
   def snapshot(account_id) do
     if table_ready?() do
@@ -107,7 +133,22 @@ defmodule Tuist.Metrics.Aggregator do
       write_concurrency: true
     ])
 
+    log_restart_if_any()
     {:ok, %{}}
+  end
+
+  defp log_restart_if_any do
+    count = :persistent_term.get({__MODULE__, :init_count}, 0) + 1
+    :persistent_term.put({__MODULE__, :init_count}, count)
+
+    # Tests frequently start/restart the aggregator and would otherwise flood
+    # the warning log. In prod, a second init is genuinely interesting — the
+    # previous process crashed, which means we lost counters.
+    if count > 1 and not Tuist.Environment.test?() do
+      Logger.warning(
+        "Tuist.Metrics.Aggregator restarted (init_count=#{count}); counters for this node have been reset."
+      )
+    end
   end
 
   @impl true

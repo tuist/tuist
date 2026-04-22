@@ -132,10 +132,21 @@ defmodule TuistWeb.API.MetricsControllerTest do
           conn
           |> put_req_header("authorization", "Bearer " <> token)
           |> get(path)
-          |> Map.get(:status)
         end
 
-      assert 429 in responses
+      statuses = Enum.map(responses, & &1.status)
+      # Allowed requests within the burst still succeed, later requests
+      # within the same scrape interval are throttled.
+      assert 200 in statuses
+      assert 429 in statuses
+
+      # The throttled response must advertise Retry-After so well-behaved
+      # scrapers back off, and the body is JSON so the error surfaces in
+      # scraper logs rather than being opaque.
+      denied = Enum.find(responses, &(&1.status == 429))
+      assert Plug.Conn.get_resp_header(denied, "retry-after") == ["10"]
+      decoded = Jason.decode!(denied.resp_body)
+      assert decoded["message"] =~ "Too many metric scrape requests"
     end
   end
 end
