@@ -8,8 +8,11 @@ set -euo pipefail
 PLUGIN_DIR="${MISE_PROJECT_ROOT}"
 cd "${PLUGIN_DIR}"
 
-# Prepend the plugin's pinned node + pnpm to PATH so we don't pick up nvm
-# or system installs. The `.config/` webpack scaffold assumes Node >=22.
+# `mise run` appends its tool paths rather than prepending them, so on dev
+# machines where nvm (or an equivalent) is earlier in PATH we'd resolve a
+# wrong node. The `.config/` webpack scaffold requires node >= 22 (native
+# `.ts` module loading); ours is pinned to 24 in `grafana/mise.toml`.
+# Resolve the pinned paths through `mise which` and prepend them.
 NODE_BIN_DIR="$(dirname "$(mise which node)")"
 PNPM_BIN_DIR="$(dirname "$(mise which pnpm)")"
 export PATH="${NODE_BIN_DIR}:${PNPM_BIN_DIR}:${PATH}"

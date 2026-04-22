@@ -4,7 +4,10 @@ set -euo pipefail
 
 cd "${MISE_PROJECT_ROOT}"
 
-# Pin node + pnpm via mise so webpack can load its `.ts` config.
+# `mise run` appends its tool paths rather than prepending them, so on dev
+# machines where nvm is earlier in PATH we'd pick a wrong node. Resolve
+# the pinned paths through `mise which` and prepend. See bundle.sh for
+# the full context.
 NODE_BIN_DIR="$(dirname "$(mise which node)")"
 PNPM_BIN_DIR="$(dirname "$(mise which pnpm)")"
 export PATH="${NODE_BIN_DIR}:${PNPM_BIN_DIR}:${PATH}"
