@@ -49,7 +49,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- $headless := include "kura.headlessServiceName" . -}}
 {{- $ns := .Release.Namespace -}}
 {{- $scheme := ternary "https" "http" .Values.peerTls.enabled -}}
-{{- $port := ternary (int .Values.peerTls.internalPort) (int .Values.service.httpPort) .Values.peerTls.enabled -}}
+{{- $port := int .Values.peerTls.internalPort -}}
 {{- range $i, $_ := until (int .Values.replicaCount) -}}
 {{- if $i }},{{ end -}}{{ $scheme }}://{{ $full }}-{{ $i }}.{{ $headless }}.{{ $ns }}.svc.cluster.local:{{ $port }}
 {{- end -}}

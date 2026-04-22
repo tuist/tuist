@@ -137,18 +137,27 @@ Replication is leaderless and eventually consistent:
 - 🔎 DNS discovery can expand the peer set automatically
 - 🧠 the outbox is processed incrementally so queue depth does not blow up heap usage during backlog
 
-Peer-to-peer mTLS is available for the internal plane:
+Peer-to-peer traffic always uses the dedicated internal plane:
 
 - `KURA_INTERNAL_PORT`
+
+Peer-to-peer mTLS is optional on that plane:
+
 - `KURA_INTERNAL_TLS_CA_CERT_PATH`
 - `KURA_INTERNAL_TLS_CERT_PATH`
 - `KURA_INTERNAL_TLS_KEY_PATH`
 
+When peer mTLS is disabled:
+
+- `KURA_NODE_URL` and every value in `KURA_PEERS` must use `http://...:<KURA_INTERNAL_PORT>`
+- `/_internal/*` is only served on the internal HTTP listener
+- 🌍 the public API still stays on `KURA_PORT`
+
 When peer mTLS is enabled:
 
 - 🔒 `KURA_NODE_URL` and every value in `KURA_PEERS` must use `https://...:<KURA_INTERNAL_PORT>`
-- 🌍 the public API still stays on `KURA_PORT`
 - 🧱 `/_internal/*` is only served on the internal mTLS listener
+- 🌍 the public API still stays on `KURA_PORT`
 - 🪪 the certificate configured through `KURA_INTERNAL_TLS_CERT_PATH` should be valid for both server and client auth
 - 🏷️ the certificate SANs must cover the hostname used in `KURA_NODE_URL`
 
@@ -162,11 +171,12 @@ When `Optional` is `Yes`, the `Default` column shows what Kura uses today. `auto
 | --- | --- | --- | --- |
 | `KURA_PORT` | Public HTTP port. | No | `—` |
 | `KURA_GRPC_PORT` | gRPC port for REAPI. | No | `—` |
+| `KURA_INTERNAL_PORT` | Internal HTTP or mTLS port used for peer replication and discovery. | No | `—` |
 | `KURA_TENANT_ID` | Default tenant identifier for the node. | No | `—` |
 | `KURA_REGION` | Region label advertised in metrics and replication state. | No | `—` |
 | `KURA_TMP_DIR` | Temporary directory for staged request bodies and multipart assembly. | No | `—` |
 | `KURA_DATA_DIR` | Persistent directory for metadata state and segment files. | No | `—` |
-| `KURA_NODE_URL` | Canonical URL other peers use to reach this node. | No | `—` |
+| `KURA_NODE_URL` | Canonical internal URL other peers use to reach this node. | No | `—` |
 | `KURA_PEERS` | Seed peer list used before discovery converges. | Yes | `KURA_NODE_URL` |
 | `KURA_DISCOVERY_DNS_NAME` | DNS name to probe for automatic peer discovery. | Yes | disabled |
 | `KURA_FILE_DESCRIPTOR_POOL_SIZE` | App-managed file-descriptor budget for request and background I/O. | Yes | auto |
@@ -206,11 +216,12 @@ A minimal direct-binary deployment still looks like:
 ```bash
 KURA_PORT=4000 \
 KURA_GRPC_PORT=50051 \
+KURA_INTERNAL_PORT=7443 \
 KURA_TENANT_ID=default \
 KURA_REGION=eu-central \
 KURA_TMP_DIR=/tmp/kura \
 KURA_DATA_DIR=/var/cache/kura \
-KURA_NODE_URL=http://cache-1.internal:4000 \
+KURA_NODE_URL=http://cache-1.internal:7443 \
 KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://otel-collector:4318/v1/traces \
 KURA_OTEL_SERVICE_NAME=kura-eu-central \
 KURA_OTEL_DEPLOYMENT_ENVIRONMENT=production \

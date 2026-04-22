@@ -43,11 +43,9 @@ spec:
             - name: grpc
               containerPort: {{ .Values.service.grpcPort }}
               protocol: TCP
-            {{- if .Values.peerTls.enabled }}
             - name: peer
               containerPort: {{ .Values.peerTls.internalPort }}
               protocol: TCP
-            {{- end }}
           env:
             - name: POD_NAME
               valueFrom:
@@ -70,16 +68,16 @@ spec:
             - name: KURA_DATA_DIR
               value: /var/cache/kura
             - name: KURA_NODE_URL
-              value: "{{ ternary "https" "http" .Values.peerTls.enabled }}://$(POD_NAME).{{ include "kura.headlessServiceName" . }}.$(POD_NAMESPACE).svc.cluster.local:{{ ternary (int .Values.peerTls.internalPort) (int .Values.service.httpPort) .Values.peerTls.enabled }}"
+              value: "{{ ternary "https" "http" .Values.peerTls.enabled }}://$(POD_NAME).{{ include "kura.headlessServiceName" . }}.$(POD_NAMESPACE).svc.cluster.local:{{ int .Values.peerTls.internalPort }}"
             - name: KURA_PEERS
               value: {{ include "kura.seedPeers" . | quote }}
+            - name: KURA_INTERNAL_PORT
+              value: {{ printf "%d" (int .Values.peerTls.internalPort) | quote }}
             {{- if .Values.config.discovery.enabled }}
             - name: KURA_DISCOVERY_DNS_NAME
               value: "{{ include "kura.headlessServiceName" . }}.$(POD_NAMESPACE).svc.cluster.local"
             {{- end }}
             {{- if .Values.peerTls.enabled }}
-            - name: KURA_INTERNAL_PORT
-              value: {{ printf "%d" (int .Values.peerTls.internalPort) | quote }}
             - name: KURA_INTERNAL_TLS_CA_CERT_PATH
               value: {{ printf "/etc/kura/peer-tls/%s" .Values.peerTls.caCertFileName | quote }}
             - name: KURA_INTERNAL_TLS_CERT_PATH

@@ -22,9 +22,7 @@ spec:
       port: {{ .Values.service.grpcPort }}
       targetPort: grpc
       protocol: TCP
-    {{- if .Values.peerTls.enabled }}
     - name: peer
       port: {{ .Values.peerTls.internalPort }}
       targetPort: peer
       protocol: TCP
-    {{- end }}

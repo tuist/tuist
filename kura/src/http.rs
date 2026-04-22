@@ -46,6 +46,7 @@ pub fn internal_router(state: SharedState) -> Router {
         .with_state(state)
 }
 
+#[cfg(test)]
 pub fn combined_router(state: SharedState) -> Router {
     public_routes()
         .merge(internal_routes())
@@ -1630,6 +1631,23 @@ mod tests {
                 .to_string()
                 .contains("http://peer.kura.internal:4000")
         );
+    }
+
+    #[tokio::test]
+    async fn public_router_does_not_serve_internal_routes() {
+        let context = test_context(|_| {}).await;
+
+        let response = public_router(context.state.clone())
+            .oneshot(
+                Request::builder()
+                    .uri("/_internal/status")
+                    .body(Body::empty())
+                    .expect("failed to build request"),
+            )
+            .await
+            .expect("request failed");
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
     }
 
     #[tokio::test]

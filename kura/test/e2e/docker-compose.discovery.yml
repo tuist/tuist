@@ -1,7 +1,7 @@
 services:
   kura-us:
     environment:
-      KURA_PEERS: http://kura-us.kura.internal:4000
+      KURA_PEERS: http://kura-us.kura.internal:7443
       KURA_DISCOVERY_DNS_NAME: kura-ring.kura.internal
     networks:
       default:
@@ -18,12 +18,13 @@ services:
     environment:
       KURA_PORT: "4000"
       KURA_GRPC_PORT: "50051"
+      KURA_INTERNAL_PORT: "7443"
       KURA_TENANT_ID: default
       KURA_TMP_DIR: /tmp/kura
       KURA_DATA_DIR: /var/cache/kura
       KURA_REGION: us-east
-      KURA_NODE_URL: http://kura-us-2.kura.internal:4000
-      KURA_PEERS: http://kura-us-2.kura.internal:4000
+      KURA_NODE_URL: http://kura-us-2.kura.internal:7443
+      KURA_PEERS: http://kura-us-2.kura.internal:7443
       KURA_DISCOVERY_DNS_NAME: kura-ring.kura.internal
       KURA_FILE_DESCRIPTOR_POOL_SIZE: "128"
       KURA_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS: "5000"

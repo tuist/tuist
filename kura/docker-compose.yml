@@ -8,12 +8,13 @@ services:
     environment: &kura_env
       KURA_PORT: "4000"
       KURA_GRPC_PORT: "50051"
+      KURA_INTERNAL_PORT: "7443"
       KURA_TENANT_ID: default
       KURA_TMP_DIR: /tmp/kura
       KURA_DATA_DIR: /var/cache/kura
       KURA_REGION: us-east
-      KURA_NODE_URL: http://kura-us.kura.internal:4000
-      KURA_PEERS: http://kura-us.kura.internal:4000,http://kura-eu.kura.internal:4000,http://kura-ap.kura.internal:4000
+      KURA_NODE_URL: http://kura-us.kura.internal:7443
+      KURA_PEERS: http://kura-us.kura.internal:7443,http://kura-eu.kura.internal:7443,http://kura-ap.kura.internal:7443
       KURA_DISCOVERY_DNS_NAME: kura-ring.kura.internal
       KURA_FILE_DESCRIPTOR_POOL_SIZE: "128"
       KURA_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS: "5000"
@@ -55,8 +56,8 @@ services:
     environment:
       <<: *kura_env
       KURA_REGION: eu-west
-      KURA_NODE_URL: http://kura-eu.kura.internal:4000
-      KURA_PEERS: http://kura-us.kura.internal:4000,http://kura-eu.kura.internal:4000,http://kura-ap.kura.internal:4000
+      KURA_NODE_URL: http://kura-eu.kura.internal:7443
+      KURA_PEERS: http://kura-us.kura.internal:7443,http://kura-eu.kura.internal:7443,http://kura-ap.kura.internal:7443
       KURA_OTEL_SERVICE_NAME: kura-eu
     depends_on:
       kura-us:
@@ -89,8 +90,8 @@ services:
     environment:
       <<: *kura_env
       KURA_REGION: ap-south
-      KURA_NODE_URL: http://kura-ap.kura.internal:4000
-      KURA_PEERS: http://kura-us.kura.internal:4000,http://kura-eu.kura.internal:4000,http://kura-ap.kura.internal:4000
+      KURA_NODE_URL: http://kura-ap.kura.internal:7443
+      KURA_PEERS: http://kura-us.kura.internal:7443,http://kura-eu.kura.internal:7443,http://kura-ap.kura.internal:7443
       KURA_OTEL_SERVICE_NAME: kura-ap
     depends_on:
       kura-eu:

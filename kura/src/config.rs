@@ -53,6 +53,7 @@ const FALLBACK_HOST_CPU_COUNT: usize = 4;
 pub struct Config {
     pub port: u16,
     pub grpc_port: u16,
+    pub internal_port: u16,
     pub tenant_id: String,
     pub region: String,
     pub tmp_dir: PathBuf,
@@ -82,7 +83,6 @@ pub struct Config {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PeerTlsConfig {
-    pub internal_port: u16,
     pub ca_cert_path: PathBuf,
     pub cert_path: PathBuf,
     pub key_path: PathBuf,
@@ -238,6 +238,17 @@ impl Config {
                     None
                 }
             });
+        let internal_port =
+            required_value(&mut lookup, KURA_INTERNAL_PORT, &mut missing).and_then(|value| {
+                value
+                    .parse::<u16>()
+                    .map_err(|_| format!("{KURA_INTERNAL_PORT} must be a valid u16"))
+                    .map(Some)
+                    .unwrap_or_else(|error| {
+                        invalid.push(error);
+                        None
+                    })
+            });
         let tenant_id = required_value(&mut lookup, KURA_TENANT_ID, &mut missing);
         let region = required_value(&mut lookup, KURA_REGION, &mut missing);
         let tmp_dir = required_value(&mut lookup, KURA_TMP_DIR, &mut missing).map(PathBuf::from);
@@ -256,12 +267,6 @@ impl Config {
         let discovery_dns_name = lookup(KURA_DISCOVERY_DNS_NAME)
             .map(|value| value.trim().to_owned())
             .filter(|value| !value.is_empty());
-        let internal_port =
-            optional_parsed_value(&mut lookup, KURA_INTERNAL_PORT, &mut invalid, |value| {
-                value
-                    .parse::<u16>()
-                    .map_err(|_| format!("{KURA_INTERNAL_PORT} must be a valid u16"))
-            });
         let internal_tls_ca_cert_path = lookup(KURA_INTERNAL_TLS_CA_CERT_PATH)
             .map(PathBuf::from)
             .filter(|value| !value.as_os_str().is_empty());
@@ -272,15 +277,13 @@ impl Config {
             .map(PathBuf::from)
             .filter(|value| !value.as_os_str().is_empty());
         let peer_tls = match (
-            internal_port,
             internal_tls_ca_cert_path,
             internal_tls_cert_path,
             internal_tls_key_path,
         ) {
-            (None, None, None, None) => None,
-            (Some(internal_port), Some(ca_cert_path), Some(cert_path), Some(key_path)) => {
+            (None, None, None) => None,
+            (Some(ca_cert_path), Some(cert_path), Some(key_path)) => {
                 Some(PeerTlsConfig {
-                    internal_port,
                     ca_cert_path,
                     cert_path,
                     key_path,
@@ -288,7 +291,7 @@ impl Config {
             }
             _ => {
                 invalid.push(format!(
-                    "{KURA_INTERNAL_PORT}, {KURA_INTERNAL_TLS_CA_CERT_PATH}, {KURA_INTERNAL_TLS_CERT_PATH}, and {KURA_INTERNAL_TLS_KEY_PATH} must either all be set or all be unset"
+                    "{KURA_INTERNAL_TLS_CA_CERT_PATH}, {KURA_INTERNAL_TLS_CERT_PATH}, and {KURA_INTERNAL_TLS_KEY_PATH} must either all be set or all be unset"
                 ));
                 None
             }
@@ -660,29 +663,39 @@ impl Config {
         let otel_deployment_environment =
             required_value(&mut lookup, KURA_OTEL_DEPLOYMENT_ENVIRONMENT, &mut missing);
 
-        if let (Some(node_url), Some(peers), Some(peer_tls)) =
-            (node_url.as_ref(), peers.as_ref(), peer_tls.as_ref())
+        if let (Some(port), Some(grpc_port), Some(internal_port)) = (port, grpc_port, internal_port)
         {
-            if let Some(port) = port
-                && peer_tls.internal_port == port
-            {
+            if internal_port == port {
                 invalid.push(format!(
-                    "{KURA_INTERNAL_PORT} must differ from {KURA_PORT} when peer mTLS is enabled"
+                    "{KURA_INTERNAL_PORT} must differ from {KURA_PORT}"
                 ));
             }
+            if internal_port == grpc_port {
+                invalid.push(format!(
+                    "{KURA_INTERNAL_PORT} must differ from {KURA_GRPC_PORT}"
+                ));
+            }
+        }
+
+        if let (Some(node_url), Some(peers), Some(internal_port)) =
+            (node_url.as_ref(), peers.as_ref(), internal_port)
+        {
+            let expected_scheme = if peer_tls.is_some() { "https" } else { "http" };
+            let scheme_error = if peer_tls.is_some() {
+                format!("{KURA_NODE_URL} must use https when peer mTLS is enabled")
+            } else {
+                format!("{KURA_NODE_URL} must use http when peer mTLS is disabled")
+            };
             match reqwest::Url::parse(node_url) {
                 Ok(url) => {
                     let scheme = url.scheme();
                     let port = url.port_or_known_default();
-                    if scheme != "https" {
-                        invalid.push(format!(
-                            "{KURA_NODE_URL} must use https when peer mTLS is enabled"
-                        ));
+                    if scheme != expected_scheme {
+                        invalid.push(scheme_error.clone());
                     }
-                    if port != Some(peer_tls.internal_port) {
+                    if port != Some(internal_port) {
                         invalid.push(format!(
-                            "{KURA_NODE_URL} must target port {} when peer mTLS is enabled",
-                            peer_tls.internal_port
+                            "{KURA_NODE_URL} must target port {internal_port}"
                         ));
                     }
                 }
@@ -691,10 +704,18 @@ impl Config {
 
             for peer in peers.iter().map(String::as_str) {
                 match reqwest::Url::parse(peer) {
-                    Ok(url) if url.scheme() == "https" => {}
-                    Ok(_) => invalid.push(format!(
-                        "peer URL {peer} must use https when peer mTLS is enabled"
-                    )),
+                    Ok(url) => {
+                        if url.scheme() != expected_scheme {
+                            invalid.push(format!(
+                                "peer URL {peer} must use {expected_scheme}"
+                            ));
+                        }
+                        if url.port_or_known_default() != Some(internal_port) {
+                            invalid.push(format!(
+                                "peer URL {peer} must target port {internal_port}"
+                            ));
+                        }
+                    }
                     Err(error) => invalid.push(format!("peer URL {peer} must be valid: {error}")),
                 }
             }
@@ -715,6 +736,8 @@ impl Config {
         Ok(Self {
             port: port.expect("port should be present when configuration is valid"),
             grpc_port: grpc_port.expect("grpc_port should be present when configuration is valid"),
+            internal_port: internal_port
+                .expect("internal_port should be present when configuration is valid"),
             tenant_id: tenant_id.expect("tenant_id should be present when configuration is valid"),
             region: region.expect("region should be present when configuration is valid"),
             tmp_dir: tmp_dir.expect("tmp_dir should be present when configuration is valid"),
@@ -906,12 +929,34 @@ mod tests {
         cpu_count: 6,
     };
 
+    fn base_values() -> BTreeMap<String, String> {
+        [
+            (KURA_PORT, "4500"),
+            (KURA_GRPC_PORT, "5500"),
+            (KURA_INTERNAL_PORT, "7443"),
+            (KURA_TENANT_ID, "acme"),
+            (KURA_REGION, "eu_west"),
+            (KURA_TMP_DIR, "/tmp/kura"),
+            (KURA_DATA_DIR, "/tmp/kura-data"),
+            (KURA_NODE_URL, "http://kura.example.com:7443"),
+            (
+                KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,
+                "https://otel.example.com/v1/traces",
+            ),
+            (KURA_OTEL_SERVICE_NAME, "kura-eu"),
+            (KURA_OTEL_DEPLOYMENT_ENVIRONMENT, "staging"),
+        ]
+        .into_iter()
+        .map(|(key, value)| (key.to_owned(), value.to_owned()))
+        .collect()
+    }
+
     fn config_from(values: &[(&str, &str)]) -> Result<Config, String> {
-        let values = values
-            .iter()
-            .map(|(key, value)| ((*key).to_owned(), (*value).to_owned()))
-            .collect::<BTreeMap<_, _>>();
-        Config::from_lookup_with_resources(|key| values.get(key).cloned(), TEST_HOST_RESOURCES)
+        let mut merged = base_values();
+        for (key, value) in values.iter() {
+            merged.insert((*key).to_owned(), (*value).to_owned());
+        }
+        Config::from_lookup_with_resources(|key| merged.get(key).cloned(), TEST_HOST_RESOURCES)
     }
 
     #[test]
@@ -921,6 +966,7 @@ mod tests {
 
         assert!(error.contains(KURA_PORT));
         assert!(error.contains(KURA_GRPC_PORT));
+        assert!(error.contains(KURA_INTERNAL_PORT));
         assert!(error.contains(KURA_TENANT_ID));
         assert!(error.contains(KURA_REGION));
         assert!(error.contains(KURA_TMP_DIR));
@@ -933,24 +979,10 @@ mod tests {
 
     #[test]
     fn from_lookup_derives_resource_defaults_for_optional_tuning() {
-        let config = config_from(&[
-            (KURA_PORT, "4500"),
-            (KURA_GRPC_PORT, "5500"),
-            (KURA_TENANT_ID, "acme"),
-            (KURA_REGION, "eu_west"),
-            (KURA_TMP_DIR, "/tmp/kura"),
-            (KURA_DATA_DIR, "/tmp/kura-data"),
-            (KURA_NODE_URL, "https://kura.example.com"),
-            (
-                KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,
-                "https://otel.example.com/v1/traces",
-            ),
-            (KURA_OTEL_SERVICE_NAME, "kura-eu"),
-            (KURA_OTEL_DEPLOYMENT_ENVIRONMENT, "staging"),
-        ])
-        .expect("expected config defaults to derive from host resources");
+        let config = config_from(&[]).expect("expected config defaults to derive from host resources");
 
-        assert_eq!(config.peers, vec!["https://kura.example.com".to_owned()]);
+        assert_eq!(config.internal_port, 7443);
+        assert_eq!(config.peers, vec!["http://kura.example.com:7443".to_owned()]);
         assert_eq!(config.file_descriptor_pool_size, 256);
         assert_eq!(config.file_descriptor_acquire_timeout_ms, 5_000);
         assert_eq!(config.segment_handle_cache_size, 64);
@@ -987,10 +1019,10 @@ mod tests {
             (KURA_REGION, "eu_west"),
             (KURA_TMP_DIR, "/tmp/kura"),
             (KURA_DATA_DIR, "/tmp/kura-data"),
-            (KURA_NODE_URL, "https://kura.example.com"),
+            (KURA_NODE_URL, "http://kura.example.com:7443"),
             (
                 KURA_PEERS,
-                "https://kura-a.example.com, https://kura-b.example.com",
+                "http://kura-a.example.com:7443, http://kura-b.example.com:7443",
             ),
             (KURA_FILE_DESCRIPTOR_POOL_SIZE, "64"),
             (KURA_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS, "5000"),
@@ -1012,16 +1044,17 @@ mod tests {
 
         assert_eq!(config.port, 4500);
         assert_eq!(config.grpc_port, 5500);
+        assert_eq!(config.internal_port, 7443);
         assert_eq!(config.tenant_id, "acme");
         assert_eq!(config.region, "eu_west");
         assert_eq!(config.tmp_dir, PathBuf::from("/tmp/kura"));
         assert_eq!(config.data_dir, PathBuf::from("/tmp/kura-data"));
-        assert_eq!(config.node_url, "https://kura.example.com");
+        assert_eq!(config.node_url, "http://kura.example.com:7443");
         assert_eq!(
             config.peers,
             vec![
-                "https://kura-a.example.com".to_owned(),
-                "https://kura-b.example.com".to_owned()
+                "http://kura-a.example.com:7443".to_owned(),
+                "http://kura-b.example.com:7443".to_owned()
             ]
         );
         assert_eq!(config.discovery_dns_name, None);
@@ -1057,8 +1090,8 @@ mod tests {
             (KURA_REGION, "eu_west"),
             (KURA_TMP_DIR, "/tmp/kura"),
             (KURA_DATA_DIR, "/tmp/kura-data"),
-            (KURA_NODE_URL, "https://kura.example.com"),
-            (KURA_PEERS, "https://kura-a.example.com"),
+            (KURA_NODE_URL, "http://kura.example.com:7443"),
+            (KURA_PEERS, "http://kura-a.example.com:7443"),
             (KURA_FILE_DESCRIPTOR_POOL_SIZE, "invalid"),
             (KURA_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS, "invalid"),
             (KURA_SEGMENT_HANDLE_CACHE_SIZE, "invalid"),
@@ -1108,8 +1141,8 @@ mod tests {
             (KURA_REGION, "eu_west"),
             (KURA_TMP_DIR, "/tmp/kura"),
             (KURA_DATA_DIR, "/tmp/kura-data"),
-            (KURA_NODE_URL, "https://kura.example.com"),
-            (KURA_PEERS, "https://kura-a.example.com"),
+            (KURA_NODE_URL, "http://kura.example.com:7443"),
+            (KURA_PEERS, "http://kura-a.example.com:7443"),
             (KURA_DISCOVERY_DNS_NAME, "kura-ring.internal"),
             (KURA_FILE_DESCRIPTOR_POOL_SIZE, "64"),
             (KURA_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS, "5000"),
@@ -1144,8 +1177,8 @@ mod tests {
             (KURA_REGION, "eu_west"),
             (KURA_TMP_DIR, "/tmp/kura"),
             (KURA_DATA_DIR, "/tmp/kura-data"),
-            (KURA_NODE_URL, "https://kura.example.com"),
-            (KURA_PEERS, "https://kura-a.example.com"),
+            (KURA_NODE_URL, "http://kura.example.com:7443"),
+            (KURA_PEERS, "http://kura-a.example.com:7443"),
             (KURA_FILE_DESCRIPTOR_POOL_SIZE, "64"),
             (KURA_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS, "5000"),
             (KURA_SEGMENT_HANDLE_CACHE_SIZE, "16"),
@@ -1204,8 +1237,8 @@ mod tests {
             (KURA_REGION, "eu_west"),
             (KURA_TMP_DIR, "/tmp/kura"),
             (KURA_DATA_DIR, "/tmp/kura-data"),
-            (KURA_NODE_URL, "https://kura.example.com"),
-            (KURA_PEERS, "https://kura-a.example.com"),
+            (KURA_NODE_URL, "http://kura.example.com:7443"),
+            (KURA_PEERS, "http://kura-a.example.com:7443"),
             (KURA_FILE_DESCRIPTOR_POOL_SIZE, "64"),
             (KURA_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS, "5000"),
             (KURA_SEGMENT_HANDLE_CACHE_SIZE, "16"),
@@ -1238,8 +1271,8 @@ mod tests {
             (KURA_REGION, "eu_west"),
             (KURA_TMP_DIR, "/tmp/kura"),
             (KURA_DATA_DIR, "/tmp/kura-data"),
-            (KURA_NODE_URL, "https://kura.example.com"),
-            (KURA_PEERS, "https://kura-a.example.com"),
+            (KURA_NODE_URL, "http://kura.example.com:7443"),
+            (KURA_PEERS, "http://kura-a.example.com:7443"),
             (KURA_FILE_DESCRIPTOR_POOL_SIZE, "16"),
             (KURA_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS, "5000"),
             (KURA_SEGMENT_HANDLE_CACHE_SIZE, "16"),
@@ -1271,8 +1304,8 @@ mod tests {
             (KURA_REGION, "eu_west"),
             (KURA_TMP_DIR, "/tmp/kura"),
             (KURA_DATA_DIR, "/tmp/kura-data"),
-            (KURA_NODE_URL, "https://kura.example.com"),
-            (KURA_PEERS, "https://kura-a.example.com"),
+            (KURA_NODE_URL, "http://kura.example.com:7443"),
+            (KURA_PEERS, "http://kura-a.example.com:7443"),
             (KURA_FILE_DESCRIPTOR_POOL_SIZE, "16"),
             (KURA_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS, "5000"),
             (KURA_SEGMENT_HANDLE_CACHE_SIZE, "8"),
@@ -1331,10 +1364,10 @@ mod tests {
         ])
         .expect("expected peer tls config to parse");
 
+        assert_eq!(config.internal_port, 7443);
         assert_eq!(
             config.peer_tls,
             Some(PeerTlsConfig {
-                internal_port: 7443,
                 ca_cert_path: PathBuf::from("/etc/kura/peer-ca.pem"),
                 cert_path: PathBuf::from("/etc/kura/peer.pem"),
                 key_path: PathBuf::from("/etc/kura/peer.key"),
@@ -1373,7 +1406,6 @@ mod tests {
         ])
         .expect_err("expected incomplete peer tls config to fail");
 
-        assert!(error.contains(KURA_INTERNAL_PORT));
         assert!(error.contains(KURA_INTERNAL_TLS_CA_CERT_PATH));
         assert!(error.contains(KURA_INTERNAL_TLS_CERT_PATH));
         assert!(error.contains(KURA_INTERNAL_TLS_KEY_PATH));
@@ -1427,7 +1459,7 @@ mod tests {
             (KURA_REGION, "local"),
             (KURA_TMP_DIR, "/tmp/kura"),
             (KURA_DATA_DIR, "/tmp/kura-data"),
-            (KURA_NODE_URL, "http://127.0.0.1:4000"),
+            (KURA_NODE_URL, "http://127.0.0.1:7443"),
             (KURA_PEERS, ""),
             (KURA_FILE_DESCRIPTOR_POOL_SIZE, "32"),
             (KURA_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS, "5000"),

@@ -80,9 +80,11 @@ pub async fn run() -> Result<(), String> {
     let grpc_address = SocketAddr::from((Ipv4Addr::UNSPECIFIED, state.config.grpc_port));
     info!("Kura service listening on {address}");
     info!("Kura REAPI service listening on {grpc_address}");
-    if let Some(peer_tls) = &state.config.peer_tls {
-        let internal_address = SocketAddr::from((Ipv4Addr::UNSPECIFIED, peer_tls.internal_port));
+    let internal_address = SocketAddr::from((Ipv4Addr::UNSPECIFIED, state.config.internal_port));
+    if state.config.peer_tls.is_some() {
         info!("Kura internal mTLS service listening on {internal_address}");
+    } else {
+        info!("Kura internal HTTP service listening on {internal_address}");
     }
 
     let listener = tokio::net::TcpListener::bind(address)
@@ -111,7 +113,6 @@ pub async fn run() -> Result<(), String> {
     let internal_handle = if let Some(peer_tls) = state.config.peer_tls.clone() {
         let tls_config = build_internal_rustls_config(&peer_tls).await?;
         let internal_router = http::internal_router(state.clone());
-        let internal_address = SocketAddr::from((Ipv4Addr::UNSPECIFIED, peer_tls.internal_port));
         let mut internal_shutdown_rx = shutdown_rx.clone();
         let handle = Handle::new();
         let shutdown_handle = handle.clone();
@@ -133,14 +134,29 @@ pub async fn run() -> Result<(), String> {
             }
         }))
     } else {
-        None
+        let internal_listener = tokio::net::TcpListener::bind(internal_address)
+            .await
+            .map_err(|error| format!("failed to bind internal TCP listener: {error}"))?;
+        let internal_router = http::internal_router(state.clone());
+        let mut internal_shutdown_rx = shutdown_rx.clone();
+        Some(tokio::spawn(async move {
+            let internal_shutdown = async move {
+                if *internal_shutdown_rx.borrow() {
+                    return;
+                }
+                let _ = internal_shutdown_rx.changed().await;
+            };
+
+            if let Err(error) = axum::serve(internal_listener, internal_router)
+                .with_graceful_shutdown(internal_shutdown)
+                .await
+            {
+                tracing::error!("internal server failed: {error}");
+            }
+        }))
     };
 
-    let router = if state.config.peer_tls.is_some() {
-        http::public_router(state.clone())
-    } else {
-        http::combined_router(state.clone())
-    };
+    let router = http::public_router(state.clone());
 
     axum::serve(listener, router)
         .with_graceful_shutdown(shutdown_signal())
