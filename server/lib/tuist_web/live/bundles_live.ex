@@ -139,9 +139,16 @@ defmodule TuistWeb.BundlesLive do
        ) do
     filters = Filter.Operations.decode_filters_from_query(params, available_filters)
 
-    base_flop_filters = [
-      %{field: :project_id, op: :==, value: project.id}
-    ]
+    {start_datetime, end_datetime} = socket.assigns.bundle_size_period
+
+    base_flop_filters =
+      [
+        %{field: :project_id, op: :==, value: project.id},
+        %{field: :inserted_at, op: :>=, value: start_datetime},
+        %{field: :inserted_at, op: :<=, value: end_datetime}
+      ]
+      |> maybe_add_type_filter(socket.assigns.bundles_type)
+      |> maybe_add_name_filter(socket.assigns.bundle_size_selected_app)
 
     filter_flop_filters = build_flop_filters(filters)
     flop_filters = base_flop_filters ++ filter_flop_filters
@@ -393,6 +400,12 @@ defmodule TuistWeb.BundlesLive do
   def bundles_type_label("aab"), do: dgettext("dashboard_cache", "AAB")
   def bundles_type_label("apk"), do: dgettext("dashboard_cache", "APK")
   def bundles_type_label(_), do: dgettext("dashboard_cache", "Any")
+
+  defp maybe_add_type_filter(filters, "any"), do: filters
+  defp maybe_add_type_filter(filters, type), do: [%{field: :type, op: :==, value: type} | filters]
+
+  defp maybe_add_name_filter(filters, nil), do: filters
+  defp maybe_add_name_filter(filters, name), do: [%{field: :name, op: :==, value: name} | filters]
 
   defp string_to_bundle_type("ipa"), do: :ipa
   defp string_to_bundle_type("app"), do: :app
