@@ -1,5 +1,5 @@
 defmodule Tuist.Accounts.Workers.UpdateAccountUsageWorkerTest do
-  use TuistTestSupport.Cases.DataCase, async: false
+  use TuistTestSupport.Cases.DataCase, clickhouse: true
   use Mimic
 
   alias Tuist.Accounts.Workers.UpdateAccountUsageWorker

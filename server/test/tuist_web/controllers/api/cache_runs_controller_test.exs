@@ -1,5 +1,5 @@
 defmodule TuistWeb.API.CacheRunsControllerTest do
-  use TuistTestSupport.Cases.ConnCase, async: false
+  use TuistTestSupport.Cases.ConnCase, clickhouse: true
 
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures

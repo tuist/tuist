@@ -1,5 +1,5 @@
 defmodule Tuist.AlertsTest do
-  use TuistTestSupport.Cases.DataCase, async: false
+  use TuistTestSupport.Cases.DataCase, clickhouse: true
 
   alias Tuist.Alerts
   alias TuistTestSupport.Fixtures.AccountsFixtures

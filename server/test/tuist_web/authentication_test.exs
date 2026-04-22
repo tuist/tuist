@@ -1,5 +1,5 @@
 defmodule TuistWeb.AuthenticationTest do
-  use TuistTestSupport.Cases.ConnCase, async: true
+  use TuistTestSupport.Cases.ConnCase, clickhouse: true
 
   import TuistTestSupport.Fixtures.AccountsFixtures
 

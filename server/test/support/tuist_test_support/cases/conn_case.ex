@@ -17,8 +17,16 @@ defmodule TuistTestSupport.Cases.ConnCase do
 
   use ExUnit.CaseTemplate
 
-  using do
-    quote do
+  using options do
+    clickhouse? = Keyword.get(options, :clickhouse, false)
+    async? = Keyword.get(options, :async, false)
+
+    if clickhouse? and async? do
+      raise ArgumentError,
+            "ClickHouse tests cannot be async. Use `use TuistTestSupport.Cases.ConnCase, clickhouse: true` without `async: true`."
+    end
+
+    quote bind_quoted: [clickhouse?: clickhouse?] do
       use TuistWeb, :verified_routes
       use Oban.Testing, repo: Tuist.Repo
 
@@ -29,15 +37,19 @@ defmodule TuistTestSupport.Cases.ConnCase do
 
       # The default endpoint for testing
       @endpoint TuistWeb.Endpoint
+
+      if clickhouse?, do: @moduletag(:clickhouse)
     end
   end
 
   setup tags do
     TuistTestSupport.Cases.DataCase.setup_sandbox(tags)
 
-    on_exit(fn ->
-      TuistTestSupport.Utilities.truncate_clickhouse_tables()
-    end)
+    if tags[:clickhouse] do
+      on_exit(fn ->
+        TuistTestSupport.Utilities.truncate_clickhouse_tables()
+      end)
+    end
 
     {:ok, conn: Phoenix.ConnTest.build_conn()}
   end

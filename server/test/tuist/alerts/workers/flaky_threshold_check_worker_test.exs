@@ -1,5 +1,5 @@
 defmodule Tuist.Alerts.Workers.FlakyThresholdCheckWorkerTest do
-  use TuistTestSupport.Cases.DataCase, async: true
+  use TuistTestSupport.Cases.DataCase, clickhouse: true
   use Mimic
 
   alias Tuist.Alerts.Workers.FlakyTestAlertWorker

@@ -1,5 +1,5 @@
 defmodule TuistWeb.OverviewLiveTest do
-  use TuistTestSupport.Cases.ConnCase, async: false
+  use TuistTestSupport.Cases.ConnCase, clickhouse: true
   use TuistTestSupport.Cases.LiveCase
   use Mimic
 

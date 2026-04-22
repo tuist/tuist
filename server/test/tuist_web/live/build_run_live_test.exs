@@ -1,5 +1,5 @@
 defmodule TuistWeb.BuildRunLiveTest do
-  use TuistTestSupport.Cases.ConnCase, async: false
+  use TuistTestSupport.Cases.ConnCase, clickhouse: true
   use TuistTestSupport.Cases.LiveCase
   use TuistTestSupport.Cases.StubCase, dashboard_project: true
   use Mimic
@@ -7,12 +7,14 @@ defmodule TuistWeb.BuildRunLiveTest do
   import Phoenix.LiveViewTest
 
   alias Tuist.CommandEvents
+  alias Tuist.Storage
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
 
   setup %{conn: conn} do
     user = AccountsFixtures.user_fixture()
     stub(CommandEvents, :has_result_bundle?, fn _ -> false end)
+    stub(Storage, :object_exists?, fn _, _ -> false end)
     %{conn: conn, user: user}
   end
 

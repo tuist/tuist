@@ -1,5 +1,5 @@
 defmodule TuistWeb.PreviewControllerTest do
-  use TuistTestSupport.Cases.ConnCase, async: true
+  use TuistTestSupport.Cases.ConnCase, clickhouse: true
   use Mimic
 
   alias Tuist.Storage

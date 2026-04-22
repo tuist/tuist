@@ -1,5 +1,5 @@
 defmodule Tuist.MCP.Components.Tools.GradleBuildToolsTest do
-  use TuistTestSupport.Cases.ConnCase, async: false
+  use TuistTestSupport.Cases.ConnCase, clickhouse: true
 
   alias Tuist.MCP.Components.Tools.GetGradleBuild
   alias Tuist.MCP.Components.Tools.ListGradleBuilds

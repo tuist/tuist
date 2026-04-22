@@ -19,8 +19,16 @@ defmodule TuistTestSupport.Cases.DataCase do
 
   require File
 
-  using do
-    quote do
+  using options do
+    clickhouse? = Keyword.get(options, :clickhouse, false)
+    async? = Keyword.get(options, :async, false)
+
+    if clickhouse? and async? do
+      raise ArgumentError,
+            "ClickHouse tests cannot be async. Use `use TuistTestSupport.Cases.DataCase, clickhouse: true` without `async: true`."
+    end
+
+    quote bind_quoted: [clickhouse?: clickhouse?] do
       use Oban.Testing, repo: Tuist.Repo
 
       import Ecto
@@ -31,6 +39,8 @@ defmodule TuistTestSupport.Cases.DataCase do
       import TuistTestSupport.Utilities
 
       alias Tuist.Repo
+
+      if clickhouse?, do: @moduletag(:clickhouse)
     end
   end
 
@@ -38,9 +48,11 @@ defmodule TuistTestSupport.Cases.DataCase do
     TuistTestSupport.Cases.DataCase.setup_sandbox(tags)
     Mimic.stub(Tuist.Tasks, :run_async, fn fun -> fun.() end)
 
-    on_exit(fn ->
-      TuistTestSupport.Utilities.truncate_clickhouse_tables()
-    end)
+    if tags[:clickhouse] do
+      on_exit(fn ->
+        TuistTestSupport.Utilities.truncate_clickhouse_tables()
+      end)
+    end
 
     :ok
   end

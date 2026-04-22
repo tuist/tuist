@@ -1,5 +1,5 @@
 defmodule Tuist.Gradle.AnalyticsTest do
-  use TuistTestSupport.Cases.DataCase, async: false
+  use TuistTestSupport.Cases.DataCase, clickhouse: true
 
   alias Tuist.Gradle.Analytics
   alias TuistTestSupport.Fixtures.GradleFixtures

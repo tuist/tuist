@@ -1,5 +1,5 @@
 defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
-  use TuistTestSupport.Cases.DataCase, async: false
+  use TuistTestSupport.Cases.DataCase, clickhouse: true
   use Mimic
 
   alias Tuist.Builds.Workers.ProcessBuildWorker

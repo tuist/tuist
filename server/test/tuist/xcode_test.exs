@@ -1,5 +1,5 @@
 defmodule Tuist.XcodeTest do
-  use TuistTestSupport.Cases.DataCase
+  use TuistTestSupport.Cases.DataCase, clickhouse: true
 
   import Ecto.Query
 

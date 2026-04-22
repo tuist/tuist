@@ -1,5 +1,5 @@
 defmodule Tuist.Builds.AnalyticsTest do
-  use TuistTestSupport.Cases.DataCase
+  use TuistTestSupport.Cases.DataCase, clickhouse: true
   use Mimic
 
   alias Tuist.Builds.Analytics

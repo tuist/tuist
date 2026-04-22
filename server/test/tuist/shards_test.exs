@@ -1,5 +1,5 @@
 defmodule Tuist.ShardsTest do
-  use TuistTestSupport.Cases.DataCase
+  use TuistTestSupport.Cases.DataCase, clickhouse: true
   use Mimic
 
   alias Tuist.Shards

@@ -1,5 +1,5 @@
 defmodule TuistWeb.RunDetailLiveTest do
-  use TuistTestSupport.Cases.ConnCase, async: false
+  use TuistTestSupport.Cases.ConnCase, clickhouse: true
   use TuistTestSupport.Cases.LiveCase
   use TuistTestSupport.Cases.StubCase, dashboard_project: true
 
@@ -13,6 +13,7 @@ defmodule TuistWeb.RunDetailLiveTest do
   setup %{conn: conn} do
     user = AccountsFixtures.user_fixture()
     stub(CommandEvents, :has_result_bundle?, fn _ -> false end)
+    stub(CommandEvents, :has_session?, fn _ -> false end)
     %{conn: conn, user: user}
   end
 

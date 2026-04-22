@@ -17,23 +17,35 @@ defmodule TuistWeb.ChannelCase do
 
   use ExUnit.CaseTemplate
 
-  using do
-    quote do
+  using options do
+    clickhouse? = Keyword.get(options, :clickhouse, false)
+    async? = Keyword.get(options, :async, false)
+
+    if clickhouse? and async? do
+      raise ArgumentError,
+            "ClickHouse tests cannot be async. Use `use TuistWeb.ChannelCase, clickhouse: true` without `async: true`."
+    end
+
+    quote bind_quoted: [clickhouse?: clickhouse?] do
       # Import conveniences for testing with channels
       import Phoenix.ChannelTest
       import TuistWeb.ChannelCase
 
       # The default endpoint for testing
       @endpoint TuistWeb.Endpoint
+
+      if clickhouse?, do: @moduletag(:clickhouse)
     end
   end
 
   setup tags do
     TuistTestSupport.Cases.DataCase.setup_sandbox(tags)
 
-    on_exit(fn ->
-      TuistTestSupport.Utilities.truncate_clickhouse_tables()
-    end)
+    if tags[:clickhouse] do
+      on_exit(fn ->
+        TuistTestSupport.Utilities.truncate_clickhouse_tables()
+      end)
+    end
 
     :ok
   end

@@ -1,5 +1,5 @@
 defmodule TuistWeb.API.BuildTargetsControllerTest do
-  use TuistTestSupport.Cases.ConnCase, async: false
+  use TuistTestSupport.Cases.ConnCase, clickhouse: true
   use Mimic
 
   alias Tuist.Builds

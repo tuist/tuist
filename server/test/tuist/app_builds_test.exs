@@ -1,5 +1,5 @@
 defmodule Tuist.AppBuildsTest do
-  use TuistTestSupport.Cases.DataCase, async: true
+  use TuistTestSupport.Cases.DataCase, clickhouse: true
 
   alias Tuist.AppBuilds
   alias Tuist.AppBuilds.Preview

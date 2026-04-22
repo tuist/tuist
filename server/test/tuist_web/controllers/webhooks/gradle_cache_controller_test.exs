@@ -1,5 +1,5 @@
 defmodule TuistWeb.Webhooks.GradleCacheControllerTest do
-  use TuistTestSupport.Cases.ConnCase, async: false
+  use TuistTestSupport.Cases.ConnCase, clickhouse: true
   use Mimic
 
   import Ecto.Query
