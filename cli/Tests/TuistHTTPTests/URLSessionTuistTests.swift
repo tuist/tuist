@@ -45,19 +45,23 @@
             #expect(configuration.connectionProxyDictionary == nil)
         }
 
-        @Test
-        func tuistShared_reuses_sessions_per_proxy_mode() async {
+        @Test(.withMockedEnvironment())
+        func tuistShared_resolves_proxy_mode_from_runtime_settings() async throws {
+            let environment = try #require(Environment.mocked)
+            environment.variables["HTTPS_PROXY"] = "http://proxy.tuist.dev:8080"
+
             let previousSettings = HTTPSettings.current
             HTTPSettings.current = .init(useEnvironmentProxy: false)
             defer { HTTPSettings.current = previousSettings }
 
-            let proxied = URLSession.tuistShared(useEnvironmentProxy: true)
-            let nonProxied = URLSession.tuistShared(useEnvironmentProxy: false)
-            let defaultNonProxied = URLSession.tuistShared
+            let defaultSession = URLSession.tuistShared
+            let explicitProxiedSession = URLSession.tuistShared(useEnvironmentProxy: true)
 
-            #expect(ObjectIdentifier(proxied) == ObjectIdentifier(URLSession.tuistShared(useEnvironmentProxy: true)))
-            #expect(ObjectIdentifier(nonProxied) == ObjectIdentifier(defaultNonProxied))
-            #expect(ObjectIdentifier(proxied) != ObjectIdentifier(nonProxied))
+            #expect(defaultSession.configuration.connectionProxyDictionary == nil)
+            #expect(
+                explicitProxiedSession.configuration.connectionProxyDictionary?[kCFNetworkProxiesHTTPProxy as String] as? String
+                    == "proxy.tuist.dev"
+            )
         }
     }
 #endif

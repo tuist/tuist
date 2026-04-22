@@ -9,10 +9,16 @@ import okhttp3.OkHttpClient
 import org.gradle.api.DefaultTask
 import org.gradle.api.Plugin
 import org.gradle.api.Project
+import org.gradle.api.file.ConfigurableFileCollection
 import org.gradle.api.logging.Logging
 import org.gradle.api.tasks.Input
+import org.gradle.api.tasks.InputFiles
+import org.gradle.api.tasks.IgnoreEmptyDirectories
 import org.gradle.api.tasks.Internal
 import org.gradle.api.tasks.Optional
+import org.gradle.api.tasks.PathSensitive
+import org.gradle.api.tasks.PathSensitivity
+import org.gradle.api.tasks.SkipWhenEmpty
 import org.gradle.api.tasks.TaskAction
 import org.gradle.api.tasks.testing.Test
 import retrofit2.Retrofit
@@ -110,13 +116,6 @@ private fun createShardsApi(
         .create(ShardsApi::class.java)
 }
 
-fun discoverTestSuites(project: Project): List<String> {
-    val classDirs = project.allprojects.flatMap { subproject ->
-        subproject.tasks.withType(Test::class.java).flatMap { it.testClassesDirs.files }
-    }
-    return discoverTestSuitesFromDirs(classDirs)
-}
-
 fun discoverTestSuitesFromDirs(classDirs: List<java.io.File>): List<String> {
     val testSuites = mutableSetOf<String>()
     for (dir in classDirs) {
@@ -177,6 +176,12 @@ abstract class TuistPrepareTestShardsTask : DefaultTask() {
     @get:Input
     var useEnvironmentProxy: Boolean = true
 
+    @get:InputFiles
+    @get:SkipWhenEmpty
+    @get:IgnoreEmptyDirectories
+    @get:PathSensitive(PathSensitivity.RELATIVE)
+    abstract val compiledTestClassDirectories: ConfigurableFileCollection
+
     @TaskAction
     fun execute() {
         val shardingService = createShardingService()
@@ -187,7 +192,7 @@ abstract class TuistPrepareTestShardsTask : DefaultTask() {
                 "Could not derive shard reference. Set TUIST_SHARD_REFERENCE or run in a supported CI environment."
             )
 
-        val testSuites = discoverTestSuites(project)
+        val testSuites = discoverTestSuitesFromDirs(compiledTestClassDirectories.files.toList())
         if (testSuites.isEmpty()) {
             throw org.gradle.api.GradleException("No test classes found in compiled test output.")
         }
@@ -324,31 +329,31 @@ abstract class TuistTestShardingPlugin : Plugin<Project> {
         if (project !== project.rootProject) return
 
         val config = TuistGradleConfig.from(project) ?: return
+        val providers = project.providers
+        val testClassDirectories = project.objects.fileCollection()
 
-        project.tasks.register("tuistPrepareTestShards", TuistPrepareTestShardsTask::class.java).configure {
+        val prepareTestShards = project.tasks.register("tuistPrepareTestShards", TuistPrepareTestShardsTask::class.java)
+        prepareTestShards.configure {
             group = "tuist"
             description = "Build test classes, discover test suites, and create a shard plan on the Tuist server"
             serverUrl = config.url
             tuistProject = config.project
             useEnvironmentProxy = config.http.proxy
+            compiledTestClassDirectories.from(testClassDirectories)
 
-            project.findProperty("tuistShardMax")?.toString()?.toIntOrNull()?.let { shardMax = it }
-            project.findProperty("tuistShardMin")?.toString()?.toIntOrNull()?.let { shardMin = it }
-            project.findProperty("tuistShardMaxDuration")?.toString()?.toIntOrNull()?.let { shardMaxDuration = it }
+            providers.gradleProperty("tuistShardMax").orNull?.toIntOrNull()?.let { shardMax = it }
+            providers.gradleProperty("tuistShardMin").orNull?.toIntOrNull()?.let { shardMin = it }
+            providers.gradleProperty("tuistShardMaxDuration").orNull?.toIntOrNull()?.let { shardMaxDuration = it }
+            providers.environmentVariable("TUIST_SHARD_REFERENCE").orNull?.let { shardReference = it }
+        }
 
-            System.getenv("TUIST_SHARD_REFERENCE")?.let { shardReference = it }
-
-            // Depend on whatever tasks produce the compiled test classes.
-            // This works for both standard JVM projects (testClasses) and Android
-            // projects (compileDebugUnitTestSources, etc.).
-            project.allprojects.forEach { subproject ->
-                subproject.tasks.withType(Test::class.java).forEach { testTask ->
-                    dependsOn(testTask.testClassesDirs.buildDependencies)
-                }
+        project.allprojects.forEach { subproject ->
+            subproject.tasks.withType(Test::class.java).configureEach {
+                testClassDirectories.from(testClassesDirs)
             }
         }
 
-        val shardIndexStr = System.getenv("TUIST_SHARD_INDEX") ?: return
+        val shardIndexStr = providers.environmentVariable("TUIST_SHARD_INDEX").orNull ?: return
         val shardIndex = shardIndexStr.toIntOrNull()
         if (shardIndex == null) {
             logger.warn("Tuist: TUIST_SHARD_INDEX is not a valid integer: $shardIndexStr")
@@ -371,7 +376,7 @@ abstract class TuistTestShardingPlugin : Plugin<Project> {
             httpClients = httpClients
         )
 
-        val reference = System.getenv("TUIST_SHARD_REFERENCE") ?: shardingService.deriveReference()
+        val reference = providers.environmentVariable("TUIST_SHARD_REFERENCE").orNull ?: shardingService.deriveReference()
             ?: throw org.gradle.api.GradleException(
                 "Could not derive shard reference. Set TUIST_SHARD_REFERENCE or run in a supported CI environment."
             )

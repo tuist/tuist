@@ -23,24 +23,6 @@ private func resolvedUseEnvironmentProxy(_ useEnvironmentProxy: Bool?) -> Bool {
     useEnvironmentProxy ?? HTTPSettings.current.useEnvironmentProxy
 }
 
-private enum TuistURLSessionCache {
-    private static let lock = NSLock()
-    private static var sessions: [Bool: URLSession] = [:]
-
-    static func session(useEnvironmentProxy: Bool) -> URLSession {
-        lock.lock()
-        defer { lock.unlock() }
-
-        if let session = sessions[useEnvironmentProxy] {
-            return session
-        }
-
-        let session = makeTuistURLSession(useEnvironmentProxy: useEnvironmentProxy)
-        sessions[useEnvironmentProxy] = session
-        return session
-    }
-}
-
 public func tuistURLSessionConfiguration(useEnvironmentProxy: Bool? = nil) -> URLSessionConfiguration {
     tuistURLSessionConfigurationResolved(useEnvironmentProxy: resolvedUseEnvironmentProxy(useEnvironmentProxy))
 }
@@ -80,11 +62,11 @@ private func makeTuistURLSession(useEnvironmentProxy: Bool) -> URLSession {
 
 extension URLSession {
     public static var tuistShared: URLSession {
-        TuistURLSessionCache.session(useEnvironmentProxy: HTTPSettings.current.useEnvironmentProxy)
+        makeTuistURLSession(useEnvironmentProxy: HTTPSettings.current.useEnvironmentProxy)
     }
 
     public static func tuistShared(useEnvironmentProxy: Bool) -> URLSession {
-        TuistURLSessionCache.session(useEnvironmentProxy: useEnvironmentProxy)
+        makeTuistURLSession(useEnvironmentProxy: useEnvironmentProxy)
     }
 }
 

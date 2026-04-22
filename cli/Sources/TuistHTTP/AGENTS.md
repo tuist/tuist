@@ -17,4 +17,4 @@ This module provides HTTP client helpers used by server and cache integrations.
 ## Invariants
 - File transfers treat non-2xx responses as fatal errors.
 - Default URL session uses explicit request/resource timeouts.
-- Shared URL sessions are reused per proxy mode, and the default proxy mode comes from runtime HTTP settings.
+- Default proxy mode comes from runtime HTTP settings, and explicit overrides are resolved when a URL session is created.
