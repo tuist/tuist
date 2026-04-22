@@ -7,6 +7,15 @@ defmodule Tuist.Metrics.Exposition do
   suffixes like `_total` for counters, a `# UNIT` line, and a final
   `# EOF` marker. If a client asks for `application/openmetrics-text` we serve
   that; otherwise we serve the plain Prometheus format.
+
+  Why hand-rolled rather than `telemetry_metrics_prometheus`: that library
+  (and its peers) assume a single global metric registry serving local-node
+  state at one `/metrics` endpoint. Our metrics are scoped per account and
+  authenticated per token, and every scrape RPC-merges snapshots across the
+  cluster in `Tuist.Metrics.snapshot/1` before rendering — none of which fit
+  the library's internals without an adapter that'd cost as much as this
+  module. The Prometheus text format is small and stable enough that a
+  direct renderer is the simpler long-term bet.
   """
 
   alias Tuist.Metrics.Schema
