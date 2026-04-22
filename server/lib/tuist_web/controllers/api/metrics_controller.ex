@@ -24,7 +24,7 @@ defmodule TuistWeb.API.MetricsController do
   def show(%{assigns: %{selected_account: account}} = conn, _params) do
     subject = Authentication.authenticated_subject(conn)
 
-    with :ok <- Authorization.authorize(:account_read_metrics, subject, account),
+    with :ok <- Authorization.authorize(:account_metrics_read, subject, account),
          :ok <- check_rate_limit(account.id) do
       format = conn |> get_req_header("accept") |> List.first() |> Exposition.negotiate()
       snapshot = Metrics.snapshot(account.id)

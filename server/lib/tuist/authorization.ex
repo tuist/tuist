@@ -165,8 +165,10 @@ defmodule Tuist.Authorization do
       desc("Allows the admin of an account to delete the account.")
       allow([:authenticated_as_user, user_role: :admin])
     end
+  end
 
-    action :read_metrics do
+  object :account_metrics do
+    action :read do
       desc("Allows an account token with account:metrics:read scope to scrape its account's metrics endpoint.")
       allow([:authenticated_as_account, :accounts_match, scopes_permit: "account:metrics:read"])
     end
