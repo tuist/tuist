@@ -7,6 +7,14 @@
 #USAGE }
 set -euo pipefail
 
+release_dir() {
+    if [ -n "${TUIST_MIX_BUILD_ROOT:-}" ]; then
+        printf '%s\n' "${TUIST_MIX_BUILD_ROOT}/xcode_processor/prod/rel/xcode_processor"
+    else
+        printf '%s\n' "_build/prod/rel/xcode_processor"
+    fi
+}
+
 HOST="${usage_host?}"
 ENVIRONMENT="${usage_environment?}"
 DEPLOY_USER="github-actions"
@@ -25,7 +33,7 @@ SCP_CMD="scp ${SSH_OPTS}"
 echo "==> Building release..."
 mise run build-release
 
-RELEASE_DIR="_build/prod/rel/xcode_processor"
+RELEASE_DIR="$(release_dir)"
 TARBALL="xcode_processor-${SHORT_SHA}.tar.gz"
 
 echo "==> Packaging release..."
