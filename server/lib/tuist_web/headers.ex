@@ -32,7 +32,6 @@ defmodule TuistWeb.Headers do
   def get_client_feature_flags(conn) do
     conn
     |> Plug.Conn.get_req_header(client_feature_flags_header())
-    |> List.first()
     |> decode_client_feature_flags()
   end
 
@@ -63,12 +62,22 @@ defmodule TuistWeb.Headers do
     end
   end
 
-  defp decode_client_feature_flags(nil), do: MapSet.new()
+  defp decode_client_feature_flags([]), do: MapSet.new()
 
   defp decode_client_feature_flags(feature_flags) when is_binary(feature_flags) do
     feature_flags
     |> String.split(",", trim: true)
-    |> Enum.reduce(MapSet.new(), fn feature_name, acc ->
+    |> decode_client_feature_flag_names()
+  end
+
+  defp decode_client_feature_flags(feature_flags) when is_list(feature_flags) do
+    feature_flags
+    |> Enum.flat_map(&String.split(&1, ",", trim: true))
+    |> decode_client_feature_flag_names()
+  end
+
+  defp decode_client_feature_flag_names(feature_flag_names) do
+    Enum.reduce(feature_flag_names, MapSet.new(), fn feature_name, acc ->
       case normalize_client_feature_flag_name(feature_name) do
         nil -> acc
         normalized_feature_name -> MapSet.put(acc, normalized_feature_name)
@@ -94,6 +103,7 @@ defmodule TuistWeb.Headers do
 
   defp normalize_client_feature_flag_name(_), do: nil
 
+  defp client_feature_flag_names(%MapSet{} = feature_flags), do: MapSet.to_list(feature_flags)
   defp client_feature_flag_names(feature_flags) when is_map(feature_flags), do: Map.keys(feature_flags)
   defp client_feature_flag_names(feature_flags) when is_list(feature_flags), do: feature_flags
 end

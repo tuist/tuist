@@ -39,6 +39,15 @@ defmodule TuistWeb.HeadersTest do
 
       assert Headers.get_client_feature_flags(conn) == MapSet.new(["A", "B"])
     end
+
+    test "returns normalized client feature flags from repeated header values", %{conn: conn} do
+      conn =
+        conn
+        |> Plug.Conn.put_req_header(Headers.client_feature_flags_header(), "A, b")
+        |> Plug.Conn.put_req_header(Headers.client_feature_flags_header(), " c , a")
+
+      assert Headers.get_client_feature_flags(conn) == MapSet.new(["A", "B", "C"])
+    end
   end
 
   describe "get_client_feature_flag/2" do
@@ -53,6 +62,14 @@ defmodule TuistWeb.HeadersTest do
       assert Headers.get_client_feature_flag(conn, "b")
       assert Headers.get_client_feature_flag(conn, :a)
       refute Headers.get_client_feature_flag(conn, "missing")
+    end
+  end
+
+  describe "put_client_feature_flags/2" do
+    test "encodes map sets as feature flag names", %{conn: conn} do
+      conn = Headers.put_client_feature_flags(conn, MapSet.new(["b", "A"]))
+
+      assert Plug.Conn.get_req_header(conn, Headers.client_feature_flags_header()) == ["A,B"]
     end
   end
 end
