@@ -3,8 +3,6 @@ export interface TuistAppJsonData {
   tuistUrl?: string;
   /** The account handle (user or organisation) whose metrics should be scraped. */
   accountHandle?: string;
-  /** UID of the Prometheus datasource to query from the dashboards. */
-  prometheusDatasourceUid?: string;
   /** Scrape interval, e.g. "15s", "30s". */
   scrapeInterval?: string;
 }

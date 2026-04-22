@@ -1,17 +1,8 @@
-import React, { ChangeEvent, useMemo, useState } from 'react';
+import React, { ChangeEvent, useState } from 'react';
 import { css } from '@emotion/css';
-import { AppPluginMeta, GrafanaTheme2, PluginConfigPageProps, SelectableValue } from '@grafana/data';
-import { getBackendSrv, getDataSourceSrv } from '@grafana/runtime';
-import {
-  Alert,
-  Button,
-  Field,
-  FieldSet,
-  Input,
-  SecretInput,
-  Select,
-  useStyles2,
-} from '@grafana/ui';
+import { AppPluginMeta, GrafanaTheme2, PluginConfigPageProps } from '@grafana/data';
+import { getBackendSrv } from '@grafana/runtime';
+import { Alert, Button, Field, FieldSet, Input, SecretInput, useStyles2 } from '@grafana/ui';
 import { lastValueFrom } from 'rxjs';
 import { DEFAULT_SCRAPE_INTERVAL, DEFAULT_TUIST_URL, PLUGIN_ID, REQUIRED_SCOPE } from '../constants';
 import { TuistAppJsonData, TuistAppSecureJsonData, TuistAppSecureJsonFields } from '../types';
@@ -27,7 +18,6 @@ interface State {
   tuistUrl: string;
   accountHandle: string;
   scrapeInterval: string;
-  prometheusDatasourceUid: string;
   metricsToken: string;
   tokenConfigured: boolean;
   saving: boolean;
@@ -43,25 +33,11 @@ export const AppConfig = ({ plugin }: Props) => {
     tuistUrl: jsonData?.tuistUrl ?? DEFAULT_TUIST_URL,
     accountHandle: jsonData?.accountHandle ?? '',
     scrapeInterval: jsonData?.scrapeInterval ?? DEFAULT_SCRAPE_INTERVAL,
-    prometheusDatasourceUid: jsonData?.prometheusDatasourceUid ?? '',
     metricsToken: '',
     tokenConfigured: Boolean(secureJsonFields?.metricsToken),
     saving: false,
     saved: false,
   });
-
-  const prometheusOptions: Array<SelectableValue<string>> = useMemo(() => {
-    // getDataSourceSrv().getList is stable across Grafana 10-12 and scoped
-    // to the configured datasources. Filtering by type avoids pulling in
-    // non-Prometheus datasources the dashboards cannot query.
-    try {
-      return getDataSourceSrv()
-        .getList({ type: 'prometheus' })
-        .map((ds) => ({ label: ds.name, value: ds.uid, description: ds.type }));
-    } catch {
-      return [];
-    }
-  }, []);
 
   const onInputChange =
     (key: keyof State) =>
@@ -72,6 +48,9 @@ export const AppConfig = ({ plugin }: Props) => {
     state.accountHandle.length > 0 &&
     state.tuistUrl.length > 0 &&
     (state.tokenConfigured || state.metricsToken.length > 0);
+
+  const tokenHandle = state.accountHandle.trim() || '<handle>';
+  const tokenCommand = `tuist account tokens create ${tokenHandle} --scopes ${REQUIRED_SCOPE} --name grafana`;
 
   const onSubmit = async () => {
     setState((s) => ({ ...s, saving: true, saveError: undefined, saved: false }));
@@ -84,7 +63,6 @@ export const AppConfig = ({ plugin }: Props) => {
           tuistUrl: state.tuistUrl.trim().replace(/\/+$/, ''),
           accountHandle: state.accountHandle.trim(),
           scrapeInterval: state.scrapeInterval.trim() || DEFAULT_SCRAPE_INTERVAL,
-          prometheusDatasourceUid: state.prometheusDatasourceUid.trim(),
         },
         // Only write the token when the user entered a new one; keep the
         // stored secret untouched otherwise.
@@ -110,72 +88,57 @@ export const AppConfig = ({ plugin }: Props) => {
 
   return (
     <div className={styles.container}>
-      <FieldSet label="Tuist server">
-        <Field label="Server URL" description="Root URL of your Tuist server, no trailing slash.">
-          <Input
-            width={60}
-            placeholder="https://tuist.dev"
-            value={state.tuistUrl}
-            onChange={onInputChange('tuistUrl')}
-          />
-        </Field>
+      <Field label="Server URL" description="Root URL of your Tuist server, no trailing slash.">
+        <Input
+          width={60}
+          placeholder="https://tuist.dev"
+          value={state.tuistUrl}
+          onChange={onInputChange('tuistUrl')}
+        />
+      </Field>
 
-        <Field
-          label="Account handle"
-          description="The user or organisation handle whose metrics you want to scrape."
-        >
-          <Input
-            width={60}
-            placeholder="acme"
-            value={state.accountHandle}
-            onChange={onInputChange('accountHandle')}
-          />
-        </Field>
+      <Field
+        label="Account handle"
+        description="The user or organisation handle whose metrics you want to scrape."
+      >
+        <Input
+          width={60}
+          placeholder="acme"
+          value={state.accountHandle}
+          onChange={onInputChange('accountHandle')}
+        />
+      </Field>
 
-        <Field
-          label="Metrics token"
-          description={`Bearer account token carrying the "${REQUIRED_SCOPE}" scope. Mint one via POST /api/accounts/:handle/tokens.`}
-        >
-          <SecretInput
-            width={60}
-            isConfigured={state.tokenConfigured}
-            placeholder="tuist_<id>_<hash>"
-            value={state.metricsToken}
-            onChange={onInputChange('metricsToken')}
-            onReset={() => setState((s) => ({ ...s, tokenConfigured: false, metricsToken: '' }))}
-          />
-        </Field>
-      </FieldSet>
+      <Field
+        label="Metrics token"
+        description={
+          <span>
+            Bearer account token with the <code>{REQUIRED_SCOPE}</code> scope. Create one by running{' '}
+            <code>{tokenCommand}</code>.
+          </span>
+        }
+      >
+        <SecretInput
+          width={60}
+          isConfigured={state.tokenConfigured}
+          placeholder="tuist_<id>_<hash>"
+          value={state.metricsToken}
+          onChange={onInputChange('metricsToken')}
+          onReset={() => setState((s) => ({ ...s, tokenConfigured: false, metricsToken: '' }))}
+        />
+      </Field>
 
-      <FieldSet label="Scrape settings">
-        <Field
-          label="Scrape interval"
-          description="Stay above 10s — the server rate-limits scrapes per account."
-        >
-          <Input
-            width={20}
-            placeholder="15s"
-            value={state.scrapeInterval}
-            onChange={onInputChange('scrapeInterval')}
-          />
-        </Field>
-
-        <Field
-          label="Prometheus datasource"
-          description="Datasource that Alloy/Agent remote-writes into. The bundled dashboards read from it."
-        >
-          <Select
-            width={60}
-            placeholder="Select a Prometheus datasource"
-            options={prometheusOptions}
-            value={state.prometheusDatasourceUid || null}
-            onChange={(opt) =>
-              setState((s) => ({ ...s, prometheusDatasourceUid: opt?.value ?? '', saved: false }))
-            }
-            isClearable
-          />
-        </Field>
-      </FieldSet>
+      <Field
+        label="Scrape interval"
+        description="Stay above 10s — the server rate-limits scrapes per account."
+      >
+        <Input
+          width={20}
+          placeholder="15s"
+          value={state.scrapeInterval}
+          onChange={onInputChange('scrapeInterval')}
+        />
+      </Field>
 
       {state.saveError ? (
         <Alert title="Could not save settings" severity="error">
