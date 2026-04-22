@@ -13,7 +13,7 @@ public enum TuistConfigError: LocalizedError, Equatable {
 }
 
 public struct Tuist: Equatable, Hashable, Sendable {
-    public struct HTTP: Equatable, Hashable, Sendable {
+    public struct Network: Equatable, Hashable, Sendable {
         public let proxy: Bool
 
         public init(proxy: Bool = true) {
@@ -32,7 +32,7 @@ public struct Tuist: Equatable, Hashable, Sendable {
     public let project: TuistProject
     public let fullHandle: String?
     public let inspectOptions: InspectOptions
-    public let http: HTTP
+    public let network: Network
     public let cache: Cache
     public let url: URL
 
@@ -41,9 +41,9 @@ public struct Tuist: Equatable, Hashable, Sendable {
             project: .defaultGeneratedProject(),
             fullHandle: nil,
             inspectOptions: .init(redundantDependencies: .init(ignoreTagsMatching: [])),
-            http: HTTP(),
             cache: Cache(),
-            url: Constants.URLs.production
+            url: Constants.URLs.production,
+            network: Network()
         )
     }
 
@@ -51,14 +51,14 @@ public struct Tuist: Equatable, Hashable, Sendable {
         project: TuistProject,
         fullHandle: String?,
         inspectOptions: InspectOptions,
-        http: HTTP = HTTP(),
         cache: Cache = Cache(),
-        url: URL
+        url: URL,
+        network: Network = Network()
     ) {
         self.project = project
         self.fullHandle = fullHandle
         self.inspectOptions = inspectOptions
-        self.http = http
+        self.network = network
         self.cache = cache
         self.url = url
     }
@@ -66,7 +66,7 @@ public struct Tuist: Equatable, Hashable, Sendable {
     public func hash(into hasher: inout Hasher) {
         hasher.combine(project)
         hasher.combine(fullHandle)
-        hasher.combine(http)
+        hasher.combine(network)
         hasher.combine(url)
     }
 
@@ -82,17 +82,17 @@ public struct Tuist: Equatable, Hashable, Sendable {
             project: TuistProject = .testGeneratedProject(),
             fullHandle: String? = nil,
             inspectOptions: InspectOptions = .init(redundantDependencies: .init(ignoreTagsMatching: [])),
-            http: HTTP = HTTP(),
             cache: Cache = Cache(),
-            url: URL = Constants.URLs.production
+            url: URL = Constants.URLs.production,
+            network: Network = Network()
         ) -> Self {
             return Tuist(
                 project: project,
                 fullHandle: fullHandle,
                 inspectOptions: inspectOptions,
-                http: http,
                 cache: cache,
-                url: url
+                url: url,
+                network: network
             )
         }
     #endif

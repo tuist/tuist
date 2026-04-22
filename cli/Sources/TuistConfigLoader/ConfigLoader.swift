@@ -65,12 +65,12 @@ public struct ConfigLoader: ConfigLoading {
             project: .defaultGeneratedProject(),
             fullHandle: tomlConfig.project,
             inspectOptions: .init(redundantDependencies: .init(ignoreTagsMatching: [])),
-            http: .init(proxy: tomlConfig.http?.proxy ?? true),
-            url: tomlConfig.url ?? Constants.URLs.production
+            url: tomlConfig.url ?? Constants.URLs.production,
+            network: .init(proxy: tomlConfig.http?.proxy ?? true)
         )
     }
 
     private func applyRuntimeSettings(from config: TuistConfig.Tuist) {
-        HTTPSettings.current = .init(useEnvironmentProxy: config.http.proxy)
+        HTTPSettings.current = .init(useEnvironmentProxy: config.network.proxy)
     }
 }

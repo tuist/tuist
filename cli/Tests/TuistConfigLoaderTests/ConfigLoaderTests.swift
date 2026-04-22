@@ -33,7 +33,7 @@ struct ConfigLoaderTests {
 
         #expect(config.fullHandle == "tuist/tuist")
         #expect(config.url == URL(string: "https://custom.tuist.dev")!)
-        #expect(config.http.proxy == false)
+        #expect(config.network.proxy == false)
         #expect(HTTPSettings.current.useEnvironmentProxy == false)
     }
 
@@ -54,7 +54,7 @@ struct ConfigLoaderTests {
 
         #expect(config.fullHandle == "org/project")
         #expect(config.url == Constants.URLs.production)
-        #expect(config.http.proxy == true)
+        #expect(config.network.proxy == true)
         #expect(HTTPSettings.current.useEnvironmentProxy == true)
     }
 
@@ -75,7 +75,7 @@ struct ConfigLoaderTests {
 
         #expect(config.fullHandle == nil)
         #expect(config.url == Constants.URLs.production)
-        #expect(config.http.proxy == false)
+        #expect(config.network.proxy == false)
         #expect(HTTPSettings.current.useEnvironmentProxy == false)
     }
 

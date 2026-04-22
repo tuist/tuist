@@ -9,14 +9,14 @@ import TuistSupport
         public static func test(
             fullHandle: String? = nil,
             url: String = Constants.URLs.production.absoluteString,
-            http: Config.HTTP = .http(),
+            network: Config.Network = .network(),
             generationOptions: Config.GenerationOptions = .options(),
             plugins: [PluginLocation] = []
         ) -> Config {
             Config(
                 fullHandle: fullHandle,
                 url: url,
-                http: http,
+                network: network,
                 plugins: plugins,
                 generationOptions: generationOptions
             )

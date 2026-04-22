@@ -28,16 +28,16 @@
 public typealias Config = Tuist
 
 public struct Tuist: Codable, Equatable, Sendable {
-    /// Options for configuring the HTTP behavior.
-    public struct HTTP: Codable, Equatable, Sendable {
+    /// Options for configuring network behavior.
+    public struct Network: Codable, Equatable, Sendable {
         /// When `true` (default), Tuist automatically uses the proxy defined by
         /// `HTTPS_PROXY`/`HTTP_PROXY` when present in the environment.
         public let proxy: Bool
 
-        /// Creates HTTP options.
+        /// Creates network options.
         /// - Parameter proxy: Whether Tuist should use the proxy defined in the environment. Defaults to `true`.
-        public static func http(proxy: Bool = true) -> Self {
-            HTTP(proxy: proxy)
+        public static func network(proxy: Bool = true) -> Self {
+            Network(proxy: proxy)
         }
     }
 
@@ -64,8 +64,8 @@ public struct Tuist: Codable, Equatable, Sendable {
     /// The options to use when running `tuist inspect`.
     public let inspectOptions: InspectOptions
 
-    /// The HTTP configuration.
-    public let http: HTTP
+    /// The network configuration.
+    public let network: Network
 
     /// The Xcode Cache configuration.
     public let cache: Cache
@@ -91,7 +91,7 @@ public struct Tuist: Codable, Equatable, Sendable {
         cloud: Cloud? = nil,
         fullHandle: String? = nil,
         url: String = "https://tuist.dev",
-        http: HTTP = .http(),
+        network: Network = .network(),
         swiftVersion _: Version? = nil,
         plugins: [PluginLocation] = [],
         generationOptions: GenerationOptions = .options(),
@@ -113,7 +113,7 @@ public struct Tuist: Codable, Equatable, Sendable {
         )
         self.fullHandle = fullHandle
         self.inspectOptions = inspectOptions
-        self.http = http
+        self.network = network
         cache = .cache()
         self.url = url
         dumpIfNeeded(self)
@@ -122,15 +122,15 @@ public struct Tuist: Codable, Equatable, Sendable {
     public init(
         fullHandle: String? = nil,
         inspectOptions: InspectOptions = .options(),
-        http: HTTP = .http(),
         cache: Cache = .cache(),
         url: String = "https://tuist.dev",
+        network: Network = .network(),
         project: TuistProject
     ) {
         self.project = project
         self.fullHandle = fullHandle
         self.inspectOptions = inspectOptions
-        self.http = http
+        self.network = network
         self.cache = cache
         self.url = url
         dumpIfNeeded(self)
