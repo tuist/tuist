@@ -99,7 +99,46 @@ defmodule TuistWeb.OpsAccountsLiveTest do
     assert {:error, {:redirect, %{to: "https://billing.stripe.test/session"}}} = result
   end
 
-  test "opens the enterprise form and submits an invoice-billed upgrade", %{conn: conn, user: user} do
+  test "one-click upgrade when the Stripe customer already has billing details", %{conn: conn, user: user} do
+    # Given — the customer already has name/email/address on Stripe, so ops
+    # shouldn't have to re-enter them.
+    stub(Billing, :stripe_customer_ready_for_enterprise?, fn %{id: id} ->
+      assert id == user.account.id
+      true
+    end)
+
+    expect(Billing, :upgrade_to_enterprise, fn account, params ->
+      assert account.id == user.account.id
+      assert params == %{cadence: "monthly"}
+      {:ok, %{id: "sub_fake"}}
+    end)
+
+    {:ok, lv, _html} = live(conn, ~p"/ops/accounts")
+
+    # When
+    render_hook(lv, "initiate_enterprise_upgrade", %{"id" => to_string(user.account.id)})
+
+    # Then — Mimic.verify! asserts upgrade_to_enterprise was called once with
+    # just the cadence (no modal needed).
+    assert Process.alive?(lv.pid)
+  end
+
+  test "opens the enterprise form when the Stripe customer has no address", %{conn: conn, user: user} do
+    # Given
+    stub(Billing, :stripe_customer_ready_for_enterprise?, fn _ -> false end)
+
+    {:ok, lv, _html} = live(conn, ~p"/ops/accounts")
+
+    # When — an initiate without ready billing details should open the modal
+    # via a push_event, not call upgrade_to_enterprise.
+    render_hook(lv, "initiate_enterprise_upgrade", %{"id" => to_string(user.account.id)})
+
+    # Then — the LV stays alive and no upgrade call fired (Mimic would raise
+    # on an unexpected call).
+    assert Process.alive?(lv.pid)
+  end
+
+  test "submits the enterprise form with the collected billing details", %{conn: conn, user: user} do
     # Given
     expect(Billing, :upgrade_to_enterprise, fn account, params ->
       assert account.id == user.account.id

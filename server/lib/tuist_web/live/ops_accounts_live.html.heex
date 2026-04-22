@@ -178,9 +178,8 @@
               :if={current_plan(account) != :enterprise}
               label="Upgrade to Enterprise"
               value="upgrade_enterprise"
-              phx-click={
-                JS.dispatch("phx:open-modal", detail: %{id: "enterprise-modal-#{account.id}"})
-              }
+              phx-click="initiate_enterprise_upgrade"
+              phx-value-id={account.id}
             >
               <:left_icon><.building /></:left_icon>
             </.dropdown_item>

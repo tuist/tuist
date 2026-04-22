@@ -83,6 +83,29 @@ defmodule TuistWeb.OpsAccountsLive do
   end
 
   @impl true
+  def handle_event("initiate_enterprise_upgrade", %{"id" => id}, socket) do
+    with {:ok, account} <- Accounts.get_account_by_id(String.to_integer(id)),
+         account = Accounts.create_customer_when_absent(account),
+         true <- Billing.stripe_customer_ready_for_enterprise?(account) do
+      {:ok, _sub} = Billing.upgrade_to_enterprise(account, %{cadence: "monthly"})
+
+      {:noreply,
+       socket
+       |> put_flash(
+         :info,
+         "#{account.name} upgraded to Enterprise. Stripe will send an invoice for the first period."
+       )
+       |> push_patch(to: ~p"/ops/accounts?#{socket.assigns.query_params}")}
+    else
+      false ->
+        {:noreply, push_event(socket, "open-modal", %{id: "enterprise-modal-#{id}"})}
+
+      {:error, :not_found} ->
+        {:noreply, put_flash(socket, :error, "Account not found.")}
+    end
+  end
+
+  @impl true
   def handle_event("submit_enterprise_upgrade", params, socket) do
     case Accounts.get_account_by_id(String.to_integer(params["account_id"])) do
       {:ok, account} ->

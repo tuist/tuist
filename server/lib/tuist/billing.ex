@@ -170,20 +170,25 @@ defmodule Tuist.Billing do
   @doc """
   Upgrades an account to the Enterprise plan directly from the ops dashboard.
 
-  Updates the Stripe customer with the provided billing details (name, email,
-  address) and creates or switches the subscription to enterprise with
+  Creates or switches the subscription to enterprise with
   `collection_method: send_invoice`, so the customer is invoice-billed and no
   card/Stripe Checkout redirect is required.
+
+  When `params` contains billing details (`:name`, `:billing_email`,
+  `:address`), the Stripe customer is updated first. Callers that already
+  have a customer with those details on file can pass just `%{cadence: ...}`.
   """
   def upgrade_to_enterprise(%Account{} = account, params) do
     account = Accounts.create_customer_when_absent(account)
 
-    {:ok, _customer} =
-      Stripe.Customer.update(account.customer_id, %{
-        name: params.name,
-        email: params.billing_email,
-        address: params.address
-      })
+    if Map.has_key?(params, :address) do
+      {:ok, _customer} =
+        Stripe.Customer.update(account.customer_id, %{
+          name: params.name,
+          email: params.billing_email,
+          address: params.address
+        })
+    end
 
     subscription_items = enterprise_subscription_items(Map.get(params, :cadence, "monthly"))
     current_subscription = get_current_active_subscription(account)
@@ -216,6 +221,31 @@ defmodule Tuist.Billing do
     on_subscription_change(stripe_sub)
     {:ok, stripe_sub}
   end
+
+  @doc """
+  Returns true when the account's Stripe customer already has everything we
+  need to start an invoice-billed Enterprise subscription: a name, an email,
+  and a complete address (line1, city, postal_code, country). Ops uses this
+  to decide whether to prompt for billing details or upgrade in one click.
+  """
+  def stripe_customer_ready_for_enterprise?(%Account{customer_id: nil}), do: false
+
+  def stripe_customer_ready_for_enterprise?(%Account{customer_id: customer_id}) do
+    case Stripe.Customer.retrieve(customer_id) do
+      {:ok, customer} -> customer_has_billing_details?(customer)
+      _ -> false
+    end
+  end
+
+  defp customer_has_billing_details?(%{address: nil}), do: false
+
+  defp customer_has_billing_details?(%{address: address} = customer) do
+    present?(customer.name) and present?(customer.email) and present?(address.line1) and
+      present?(address.city) and present?(address.postal_code) and present?(address.country)
+  end
+
+  defp present?(value) when is_binary(value), do: value != ""
+  defp present?(_), do: false
 
   defp enterprise_subscription_items(cadence) do
     available_prices = Tuist.Environment.stripe_prices()
