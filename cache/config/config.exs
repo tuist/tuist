@@ -64,6 +64,7 @@ config :cache, Oban,
      crontab: [
        {"*/10 * * * *", Cache.DiskEvictionWorker},
        {"0 * * * *", Cache.OrphanCleanupWorker},
+       {"*/30 * * * *", Cache.CacheArtifactOrphanCleanupWorker},
        {"*/15 * * * *", Cache.KeyValueEvictionWorker},
        {"* * * * *", Cache.S3TransferWorker},
        {"*/10 * * * *", Cache.Registry.SyncWorker},
