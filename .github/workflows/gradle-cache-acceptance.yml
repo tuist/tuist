@@ -123,17 +123,18 @@ jobs:
             phx.server &
           # Compile + DB setup runs inside this backgrounded mix do before
           # phx.server binds, so the wait loop has to cover that full phase
-          # (typically ~3 min on a cold cache). /ready bypasses the LiveView
-          # pipeline so dev-mode asset-watcher errors can't make it look
-          # unready when it actually is.
+          # (typically ~3 min on a cold cache). Check the TCP port rather
+          # than an HTTP endpoint — dev-mode asset-watcher errors can cause
+          # transient 5xx even when the server is genuinely listening.
           server_url="${TUIST_SERVER_URL:-http://localhost:8080}"
+          port="${server_url##*:}"
           for i in {1..180}; do
-            if curl -sf "${server_url}/ready" >/dev/null 2>&1; then
-              echo "Main server is ready after ${i} attempts"
+            if nc -z localhost "$port" 2>/dev/null; then
+              echo "Main server is listening on :${port} after ${i} attempts"
               break
             fi
             if [ "$i" = "180" ]; then
-              echo "Main server never came up on ${server_url}/ready" >&2
+              echo "Main server never came up on :${port}" >&2
               exit 1
             fi
             sleep 2
