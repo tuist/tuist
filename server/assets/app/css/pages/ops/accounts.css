@@ -28,3 +28,9 @@
     gap: var(--noora-spacing-4);
   }
 }
+
+/* Enterprise upgrade modals are rendered via Noora's portal, so they live
+   outside `#ops-accounts`. Scope styles via the id prefix instead. */
+[id^="enterprise-modal-"] > [data-part="positioner"] > [data-part="content"] {
+  min-width: 480px;
+}
