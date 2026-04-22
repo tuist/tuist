@@ -24,7 +24,7 @@ import org.gradle.api.logging.Logging
  *
  *     uploadInBackground = true // default: true locally, false on CI
  *
- *     http {
+ *     network {
  *         proxy = false
  *     }
  *
@@ -42,11 +42,11 @@ import org.gradle.api.logging.Logging
 data class TuistGradleConfig(
     val url: String,
     val project: String?,
-    val http: Http,
+    val network: Network,
     val uploadInBackground: Boolean? = null,
     val testQuarantineEnabled: Boolean? = null
 ) {
-    data class Http(val proxy: Boolean)
+    data class Network(val proxy: Boolean)
 
     companion object {
         internal const val EXTRA_PROPERTY_KEY = "tuist.config"
@@ -55,9 +55,9 @@ data class TuistGradleConfig(
             TuistGradleConfig(
                 url = extension.url,
                 project = extension.project.ifBlank { null },
-                http = Http(
+                network = Network(
                     proxy = EnvironmentProxyResolver.resolve(
-                        extensionProxy = extension.http.proxy,
+                        extensionProxy = extension.network.proxy,
                         projectDir = settings.settingsDir
                     )
                 ),
@@ -138,7 +138,7 @@ class TuistPlugin : Plugin<Settings> {
                 this.project = config.project
                 this.url = config.url
                 this.projectDir = settings.settingsDir.absolutePath
-                this.useEnvironmentProxy = config.http.proxy
+                this.useEnvironmentProxy = config.network.proxy
                 isPush = buildCacheConfig.push
                 this.allowInsecureProtocol = buildCacheConfig.allowInsecureProtocol
             }
@@ -177,15 +177,15 @@ open class TuistExtension {
     var uploadInBackground: Boolean? = null
 
     /**
-     * HTTP configuration.
+     * Network configuration.
      */
-    val http: HttpSettings = HttpSettings()
+    val network: NetworkSettings = NetworkSettings()
 
     /**
-     * Configure HTTP settings.
+     * Configure network settings.
      */
-    fun http(action: Action<HttpSettings>) {
-        action.execute(http)
+    fun network(action: Action<NetworkSettings>) {
+        action.execute(network)
     }
 
     /**
@@ -234,12 +234,12 @@ open class BuildCacheExtension {
 }
 
 /**
- * Configuration for Tuist's HTTP behavior.
+ * Configuration for Tuist's network behavior.
  */
-open class HttpSettings {
+open class NetworkSettings {
     /**
      * Whether the plugin should use the proxy defined by `HTTPS_PROXY`/`HTTP_PROXY`.
-     * When null (default), the plugin reads `[http].proxy` from `tuist.toml`
+     * When null (default), the plugin reads `[network].proxy` from `tuist.toml`
      * and otherwise falls back to `true`.
      */
     var proxy: Boolean? = null

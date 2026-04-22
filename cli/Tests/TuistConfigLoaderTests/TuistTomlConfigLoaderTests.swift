@@ -21,7 +21,7 @@ struct TuistTomlConfigLoaderTests {
             project = "tuist/tuist"
             url = "https://custom.tuist.dev"
 
-            [http]
+            [network]
             proxy = false
             """,
             at: tomlPath
@@ -38,7 +38,7 @@ struct TuistTomlConfigLoaderTests {
 
         #expect(config?.project == "tuist/tuist")
         #expect(config?.url == URL(string: "https://custom.tuist.dev")!)
-        #expect(config?.http?.proxy == false)
+        #expect(config?.network?.proxy == false)
     }
 
     @Test(.inTemporaryDirectory)
@@ -63,16 +63,16 @@ struct TuistTomlConfigLoaderTests {
 
         #expect(config?.project == "org/project")
         #expect(config?.url == nil)
-        #expect(config?.http == nil)
+        #expect(config?.network == nil)
     }
 
     @Test(.inTemporaryDirectory)
-    func loadConfig_returns_config_with_http_only() async throws {
+    func loadConfig_returns_config_with_network_only() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let tomlPath = temporaryDirectory.appending(component: Constants.tuistTomlFileName)
         try await fileSystem.writeText(
             """
-            [http]
+            [network]
             proxy = false
             """,
             at: tomlPath
@@ -89,7 +89,7 @@ struct TuistTomlConfigLoaderTests {
 
         #expect(config?.project == nil)
         #expect(config?.url == nil)
-        #expect(config?.http?.proxy == false)
+        #expect(config?.network?.proxy == false)
     }
 
     @Test(.inTemporaryDirectory)

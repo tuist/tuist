@@ -24,7 +24,7 @@ struct ConfigLoaderTests {
             .willReturn(TuistTomlConfig(
                 project: "tuist/tuist",
                 url: URL(string: "https://custom.tuist.dev")!,
-                http: .init(proxy: false)
+                network: .init(proxy: false)
             ))
 
         let subject = makeConfigLoader(tomlConfigLoader: tomlConfigLoader)
@@ -59,7 +59,7 @@ struct ConfigLoaderTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func loadConfig_returns_toml_http_config_without_project() async throws {
+    func loadConfig_returns_toml_network_config_without_project() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let tomlConfigLoader = MockTuistTomlConfigLoading()
         let previousSettings = HTTPSettings.current
@@ -67,7 +67,7 @@ struct ConfigLoaderTests {
 
         given(tomlConfigLoader)
             .loadConfig(at: .any)
-            .willReturn(TuistTomlConfig(http: .init(proxy: false)))
+            .willReturn(TuistTomlConfig(network: .init(proxy: false)))
 
         let subject = makeConfigLoader(tomlConfigLoader: tomlConfigLoader)
 

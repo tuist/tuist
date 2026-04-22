@@ -66,7 +66,7 @@ public struct ConfigLoader: ConfigLoading {
             fullHandle: tomlConfig.project,
             inspectOptions: .init(redundantDependencies: .init(ignoreTagsMatching: [])),
             url: tomlConfig.url ?? Constants.URLs.production,
-            network: .init(proxy: tomlConfig.http?.proxy ?? true)
+            network: .init(proxy: tomlConfig.network?.proxy ?? true)
         )
     }
 

@@ -293,11 +293,11 @@ class TuistPluginTest {
     }
 
     @Test
-    fun `plugin reads http proxy from tuist toml`() {
+    fun `plugin reads network proxy from tuist toml`() {
         File(testProjectDir, "tuist.toml").writeText("""
             project = "test-account/test-project"
 
-            [http]
+            [network]
             proxy = false
         """.trimIndent())
 
@@ -317,7 +317,7 @@ class TuistPluginTest {
             tasks.register("printProxyConfig") {
                 doLast {
                     val config = project.extensions.extraProperties["tuist.config"] as TuistGradleConfig
-                    println("proxy=${'$'}{config.http.proxy}")
+                    println("proxy=${'$'}{config.network.proxy}")
                 }
             }
         """.trimIndent())

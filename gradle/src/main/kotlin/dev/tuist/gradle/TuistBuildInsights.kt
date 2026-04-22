@@ -457,7 +457,7 @@ internal abstract class TuistBuildInsightsPlugin @Inject constructor(
         ) {
             parameters.url.set(config.url)
             config.project?.let { parameters.project.set(it) }
-            parameters.useEnvironmentProxy.set(config.http.proxy)
+            parameters.useEnvironmentProxy.set(config.network.proxy)
             parameters.gradleVersion.set(project.gradle.gradleVersion)
             parameters.rootProjectName.set(project.rootProject.name)
             parameters.projectDir.set(project.rootProject.layout.projectDirectory)

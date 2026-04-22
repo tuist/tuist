@@ -18,7 +18,7 @@ class TomlParserTest {
             project = "my-org/my-project"
             url = "https://custom.server.dev"
 
-            [http]
+            [network]
             proxy = false
         """.trimIndent())
 
@@ -26,7 +26,7 @@ class TomlParserTest {
 
         assertEquals("my-org/my-project", config?.project)
         assertEquals("https://custom.server.dev", config?.url)
-        assertEquals(false, config?.http?.proxy)
+        assertEquals(false, config?.network?.proxy)
     }
 
     @Test
@@ -72,16 +72,16 @@ class TomlParserTest {
     }
 
     @Test
-    fun `parse handles http proxy only`() {
+    fun `parse handles network proxy only`() {
         val toml = File(tempDir, "tuist.toml")
         toml.writeText("""
-            [http]
+            [network]
             proxy = false
         """.trimIndent())
 
         val config = TomlParser.parse(toml)
 
-        assertEquals(false, config?.http?.proxy)
+        assertEquals(false, config?.network?.proxy)
     }
 
 }
@@ -169,7 +169,7 @@ class EnvironmentProxyResolverTest {
     @Test
     fun `resolve returns extension value when set`() {
         File(tempDir, "tuist.toml").writeText("""
-            [http]
+            [network]
             proxy = false
         """.trimIndent())
 
@@ -181,7 +181,7 @@ class EnvironmentProxyResolverTest {
     @Test
     fun `resolve reads from tuist toml when extension value is not set`() {
         File(tempDir, "tuist.toml").writeText("""
-            [http]
+            [network]
             proxy = false
         """.trimIndent())
 

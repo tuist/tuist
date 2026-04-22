@@ -338,7 +338,7 @@ abstract class TuistTestShardingPlugin : Plugin<Project> {
             description = "Build test classes, discover test suites, and create a shard plan on the Tuist server"
             serverUrl = config.url
             tuistProject = config.project
-            useEnvironmentProxy = config.http.proxy
+            useEnvironmentProxy = config.network.proxy
             compiledTestClassDirectories.from(testClassDirectories)
 
             providers.gradleProperty("tuistShardMax").orNull?.toIntOrNull()?.let { shardMax = it }
@@ -360,7 +360,7 @@ abstract class TuistTestShardingPlugin : Plugin<Project> {
             return
         }
 
-        val httpClients = TuistHttpClients(useEnvironmentProxy = config.http.proxy)
+        val httpClients = TuistHttpClients(useEnvironmentProxy = config.network.proxy)
         val configProvider = DefaultConfigurationProvider(
             project = config.project,
             serverUrl = config.url,

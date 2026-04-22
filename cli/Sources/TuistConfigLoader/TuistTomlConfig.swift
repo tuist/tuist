@@ -2,7 +2,7 @@ import Foundation
 import TuistConfig
 
 struct TuistTomlConfig: Equatable, Sendable, Decodable {
-    struct HTTP: Equatable, Sendable, Decodable {
+    struct Network: Equatable, Sendable, Decodable {
         let proxy: Bool?
 
         init(proxy: Bool? = nil) {
@@ -12,22 +12,22 @@ struct TuistTomlConfig: Equatable, Sendable, Decodable {
 
     let project: String?
     let url: URL?
-    let http: HTTP?
+    let network: Network?
 
     init(
         project: String? = nil,
         url: URL? = nil,
-        http: HTTP? = nil
+        network: Network? = nil
     ) {
         self.project = project
         self.url = url
-        self.http = http
+        self.network = network
     }
 
     private enum CodingKeys: String, CodingKey {
         case project
         case url
-        case http
+        case network
     }
 
     init(from decoder: Decoder) throws {
@@ -45,6 +45,6 @@ struct TuistTomlConfig: Equatable, Sendable, Decodable {
         } else {
             url = nil
         }
-        http = try container.decodeIfPresent(HTTP.self, forKey: .http)
+        network = try container.decodeIfPresent(Network.self, forKey: .network)
     }
 }

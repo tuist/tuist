@@ -468,7 +468,7 @@ internal abstract class TuistTestInsightsPlugin @Inject constructor() : Plugin<P
         ) {
             parameters.url.set(config.url)
             config.project?.let { parameters.project.set(it) }
-            parameters.useEnvironmentProxy.set(config.http.proxy)
+            parameters.useEnvironmentProxy.set(config.network.proxy)
             parameters.rootProjectName.set(project.rootProject.name)
             parameters.projectDir.set(project.rootProject.layout.projectDirectory)
         }
@@ -481,7 +481,7 @@ internal abstract class TuistTestInsightsPlugin @Inject constructor() : Plugin<P
             ) {
                 parameters.serverUrl.set(config.url)
                 config.project?.let { parameters.tuistProject.set(it) }
-                parameters.useEnvironmentProxy.set(config.http.proxy)
+                parameters.useEnvironmentProxy.set(config.network.proxy)
                 parameters.projectDir.set(project.rootProject.layout.projectDirectory)
             }
         } else {

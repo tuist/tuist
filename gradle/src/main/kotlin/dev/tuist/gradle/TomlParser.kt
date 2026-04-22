@@ -7,10 +7,10 @@ import java.io.File
 data class TomlConfig(
     val project: String?,
     val url: String?,
-    val http: TomlHttpConfig?
+    val network: TomlNetworkConfig?
 )
 
-data class TomlHttpConfig(
+data class TomlNetworkConfig(
     val proxy: Boolean?
 )
 
@@ -29,7 +29,7 @@ object TomlParser {
             TomlConfig(
                 project = result.getString("project"),
                 url = result.getString("url"),
-                http = result.getBoolean("http.proxy")?.let { TomlHttpConfig(proxy = it) }
+                network = result.getBoolean("network.proxy")?.let { TomlNetworkConfig(proxy = it) }
             )
         } catch (e: Exception) {
             logger.warn("Tuist: Failed to parse {}: {}", file, e.message)
@@ -44,7 +44,7 @@ object EnvironmentProxyResolver {
 
         if (projectDir != null) {
             ServerUrlResolver.findTomlFile(projectDir)?.let { tomlFile ->
-                TomlParser.parse(tomlFile)?.http?.proxy?.let { return it }
+                TomlParser.parse(tomlFile)?.network?.proxy?.let { return it }
             }
         }
 
