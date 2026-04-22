@@ -299,6 +299,11 @@ import XcodeGraph
                     temporaryDirectory: temporaryDirectory
                 ))
 
+                artifactsToStore = try await wrapMultiPlatformBundles(
+                    artifactsToStore,
+                    temporaryDirectory: temporaryDirectory
+                )
+
                 Logger.current.info("Storing binaries to speed up workflows", metadata: .section)
 
                 let successfullyStoredTargets = try await store(
@@ -462,10 +467,6 @@ import XcodeGraph
                 ]
             )
 
-            // NOTE: This logic doesn't account for multi-platform bundle targets.
-            // If there's a bundle target for multiple platforms the bundle that we'll end persisting is the one for the last
-            // platform
-            // that we build.
             let bundleProductsDirectory = derivedDataPath
                 .appending(
                     try RelativePath(
@@ -480,7 +481,8 @@ import XcodeGraph
                     graphTarget: bundle.0,
                     hash: bundle.1,
                     path: bundlePath,
-                    metadata: .init()
+                    metadata: .init(),
+                    platform: platform
                 ))
             }
 
@@ -559,6 +561,77 @@ import XcodeGraph
             }
 
             return xcframeworks
+        }
+
+        private func wrapMultiPlatformBundles(
+            _ artifacts: [CacheGraphTargetBuiltArtifact],
+            temporaryDirectory: AbsolutePath
+        ) async throws -> [CacheGraphTargetBuiltArtifact] {
+            var nonBundles: [CacheGraphTargetBuiltArtifact] = []
+            var bundlesByTarget: [CacheStorableTarget: [CacheGraphTargetBuiltArtifact]] = [:]
+            for artifact in artifacts {
+                guard artifact.type == .bundle else {
+                    nonBundles.append(artifact)
+                    continue
+                }
+                let key = CacheStorableTarget(target: artifact.graphTarget, hash: artifact.hash)
+                bundlesByTarget[key, default: []].append(artifact)
+            }
+
+            var result = nonBundles
+            let wrappersRoot = temporaryDirectory.appending(component: "xcbundles")
+
+            for (_, group) in bundlesByTarget {
+                let uniquePlatforms = Set(group.compactMap(\.platform))
+                guard uniquePlatforms.count > 1, let first = group.first else {
+                    result.append(contentsOf: group)
+                    continue
+                }
+
+                let wrapperName = "\(first.graphTarget.target.productName).\(MultiPlatformBundle.bundleExtension)"
+                let wrapperPath = wrappersRoot.appending(component: wrapperName)
+                if try await fileSystem.exists(wrapperPath) {
+                    try await fileSystem.remove(wrapperPath)
+                }
+                try await fileSystem.makeDirectory(at: wrapperPath)
+
+                var slices: [MultiPlatformBundle.Slice] = []
+                for artifact in group {
+                    guard let platform = artifact.platform else { continue }
+                    let identifier = MultiPlatformBundle.libraryIdentifier(for: platform)
+                    let sliceDirectory = wrapperPath.appending(component: identifier)
+                    try await fileSystem.makeDirectory(at: sliceDirectory)
+                    let destination = sliceDirectory.appending(component: artifact.path.basename)
+                    try await fileSystem.copy(artifact.path, to: destination)
+
+                    slices.append(
+                        MultiPlatformBundle.Slice(
+                            libraryIdentifier: identifier,
+                            supportedPlatforms: MultiPlatformBundle.supportedPlatformFilters(for: platform).map(\.xcodeprojValue),
+                            bundleName: artifact.path.basename
+                        )
+                    )
+                }
+
+                try await MultiPlatformBundle.writeManifest(
+                    MultiPlatformBundle.Manifest(slices: slices),
+                    to: wrapperPath,
+                    fileSystem: fileSystem
+                )
+
+                result.append(
+                    CacheGraphTargetBuiltArtifact(
+                        type: .bundle,
+                        graphTarget: first.graphTarget,
+                        hash: first.hash,
+                        path: wrapperPath,
+                        metadata: first.metadata,
+                        platform: nil
+                    )
+                )
+            }
+
+            return result
         }
 
         private func collectForeignBuildArtifacts(
