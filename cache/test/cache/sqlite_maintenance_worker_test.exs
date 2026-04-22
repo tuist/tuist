@@ -18,7 +18,7 @@ defmodule Cache.SQLiteMaintenanceWorkerTest do
       cond do
         query == "PRAGMA busy_timeout = #{maintenance_timeout}" -> {:ok, %{rows: []}}
         query == "PRAGMA wal_checkpoint(PASSIVE)" -> {:ok, %{rows: [[0, 0, 0]]}}
-        query == "PRAGMA incremental_vacuum(25000)" -> {:ok, %{rows: []}}
+        query == "PRAGMA incremental_vacuum(10000)" -> {:ok, %{rows: []}}
         query == "PRAGMA busy_timeout = #{repo_timeout}" -> {:ok, %{rows: []}}
       end
     end)

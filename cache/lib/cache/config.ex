@@ -155,7 +155,7 @@ defmodule Cache.Config do
   end
 
   def key_value_incremental_vacuum_pages do
-    Application.get_env(:cache, :key_value_incremental_vacuum_pages, 25_000)
+    Application.get_env(:cache, :key_value_incremental_vacuum_pages, 10_000)
   end
 
   def s3_config do
