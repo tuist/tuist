@@ -2,20 +2,23 @@ defmodule Tuist.IngestRepo.Migrations.BackfillDenormalizedFieldsInTestModuleRuns
   @moduledoc """
   Backfills `project_id`, `is_ci`, `git_branch`, and `ran_at` on existing
   `test_module_runs` rows by joining against `test_runs`. New rows ingested
-  after the previous migration already populate these columns; this migration
-  only targets legacy rows where `project_id IS NULL`.
+  after the schema migration already populate these columns; only legacy
+  rows (`project_id IS NULL`) are touched.
 
   ## Strategy
 
+  Mirrors the pattern in
+  `20251118211224_backfill_test_runs_from_command_events.exs`:
+
   1. Create a `HASHED` dictionary over `test_runs` so per-row lookups are
-     O(1) in memory instead of a full-table join per batch.
-  2. Walk `test_module_runs` with a cursor on `inserted_at`, in batches, and
-     re-`INSERT` each row with the denormalized fields populated.
-  3. Bump the new row's `inserted_at` by 1 microsecond so the
-     `ReplacingMergeTree(inserted_at)` merge deterministically picks the
-     backfilled (non-NULL) version.
-  4. Throttle between batches so live ingestion is not starved.
-  5. Drop the dictionary.
+     O(1) in memory instead of running a JOIN across all parts.
+  2. Issue a single `ALTER TABLE ... UPDATE` mutation with
+     `mutations_sync = 1`, which rewrites each affected part in place.
+     This is friendlier to Keeper than hundreds of batched `INSERT`s:
+     one mutation entry instead of many block entries, no duplicate rows
+     for `ReplacingMergeTree` to dedupe, and no risk of hitting
+     `parts_to_throw_insert` while merges catch up.
+  3. Drop the dictionary once the mutation completes.
   """
   use Ecto.Migration
   alias Tuist.IngestRepo
@@ -23,25 +26,9 @@ defmodule Tuist.IngestRepo.Migrations.BackfillDenormalizedFieldsInTestModuleRuns
 
   @disable_ddl_transaction true
   @disable_migration_lock true
-  @batch_size 500_000
-  @throttle_ms 1_000
   @dict_name "test_runs_denorm_dict_for_module_runs"
 
   def up do
-    create_dictionary()
-
-    try do
-      do_backfill(~N[1970-01-01 00:00:00.000000], 0)
-    after
-      drop_dictionary()
-    end
-  end
-
-  def down do
-    :ok
-  end
-
-  defp create_dictionary do
     IngestRepo.query!("DROP DICTIONARY IF EXISTS #{@dict_name}")
 
     IngestRepo.query!("""
@@ -57,75 +44,31 @@ defmodule Tuist.IngestRepo.Migrations.BackfillDenormalizedFieldsInTestModuleRuns
     LAYOUT(HASHED())
     LIFETIME(0)
     """)
+
+    Logger.info("Starting test_module_runs denormalized backfill mutation")
+
+    IngestRepo.query!(
+      """
+      ALTER TABLE test_module_runs
+      UPDATE
+        project_id = dictGet('#{@dict_name}', 'project_id', test_run_id),
+        is_ci = dictGet('#{@dict_name}', 'is_ci', test_run_id),
+        git_branch = dictGet('#{@dict_name}', 'git_branch', test_run_id),
+        ran_at = dictGet('#{@dict_name}', 'ran_at', test_run_id)
+      WHERE project_id IS NULL
+        AND dictHas('#{@dict_name}', test_run_id)
+      SETTINGS mutations_sync = 1
+      """,
+      [],
+      timeout: :infinity
+    )
+
+    Logger.info("Finished test_module_runs denormalized backfill mutation")
+
+    IngestRepo.query!("DROP DICTIONARY #{@dict_name}")
   end
 
-  defp drop_dictionary do
-    IngestRepo.query!("DROP DICTIONARY IF EXISTS #{@dict_name}")
-  end
-
-  defp do_backfill(cursor, total_copied) do
-    {:ok, %{rows: [[batch_max]]}} =
-      IngestRepo.query(
-        """
-        SELECT maxOrNull(inserted_at) FROM (
-          SELECT inserted_at FROM test_module_runs
-          WHERE project_id IS NULL AND inserted_at > {cursor:DateTime64(6)}
-          ORDER BY inserted_at
-          LIMIT #{@batch_size}
-        )
-        """,
-        %{cursor: cursor}
-      )
-
-    cond do
-      is_nil(batch_max) or NaiveDateTime.compare(batch_max, cursor) != :gt ->
-        Logger.info("test_module_runs backfill complete: #{total_copied} rows backfilled")
-        :ok
-
-      true ->
-        Logger.info(
-          "test_module_runs backfill: cursor=#{cursor} -> #{batch_max}, #{total_copied} rows backfilled so far"
-        )
-
-        {:ok, %{num_rows: copied}} =
-          IngestRepo.query(
-            """
-            INSERT INTO test_module_runs (
-              id, name, test_run_id, status, is_flaky, duration,
-              test_suite_count, test_case_count, avg_test_case_duration,
-              shard_id, shard_index,
-              project_id, is_ci, git_branch, ran_at,
-              inserted_at
-            )
-            SELECT
-              id,
-              name,
-              test_run_id,
-              status,
-              is_flaky,
-              duration,
-              test_suite_count,
-              test_case_count,
-              avg_test_case_duration,
-              shard_id,
-              shard_index,
-              dictGet('#{@dict_name}', 'project_id', test_run_id) AS project_id,
-              dictGet('#{@dict_name}', 'is_ci', test_run_id) AS is_ci,
-              dictGet('#{@dict_name}', 'git_branch', test_run_id) AS git_branch,
-              dictGet('#{@dict_name}', 'ran_at', test_run_id) AS ran_at,
-              inserted_at + toIntervalMicrosecond(1) AS inserted_at
-            FROM test_module_runs
-            WHERE project_id IS NULL
-              AND inserted_at > {cursor:DateTime64(6)}
-              AND inserted_at <= {batch_max:DateTime64(6)}
-              AND dictHas('#{@dict_name}', test_run_id)
-            """,
-            %{cursor: cursor, batch_max: batch_max},
-            timeout: :infinity
-          )
-
-        Process.sleep(@throttle_ms)
-        do_backfill(batch_max, total_copied + copied)
-    end
+  def down do
+    :ok
   end
 end
