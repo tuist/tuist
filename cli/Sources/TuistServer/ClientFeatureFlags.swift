@@ -3,7 +3,7 @@ import TuistEnvironment
 
 public enum ClientFeatureFlags {
     public static let headerName = "x-tuist-feature-flags"
-    private static let environmentPrefix = "TUIST_FEATURE_"
+    private static let environmentPrefix = "TUIST_FEATURE_FLAG_"
 
     public static func headerValue(environment: Environmenting = Environment.current) -> String? {
         let featureFlags = featureFlags(environment: environment)

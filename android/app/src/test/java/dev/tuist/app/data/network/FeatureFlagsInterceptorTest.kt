@@ -16,8 +16,8 @@ class FeatureFlagsInterceptorTest {
     fun `adds feature flag header when TUIST feature variables exist`() {
         val interceptor = FeatureFlagsInterceptor(
             mapOf(
-                "TUIST_FEATURE_B" to "enabled",
-                "TUIST_FEATURE_A" to "1",
+                "TUIST_FEATURE_FLAG_B" to "enabled",
+                "TUIST_FEATURE_FLAG_A" to "1",
             )
         )
         val request = Request.Builder().url("https://tuist.dev/api/projects").build()
@@ -67,7 +67,7 @@ class FeatureFlagsInterceptorTest {
 
     @Test
     fun `replaces any existing feature flag header with the current environment values`() {
-        val interceptor = FeatureFlagsInterceptor(mapOf("TUIST_FEATURE_A" to "1"))
+        val interceptor = FeatureFlagsInterceptor(mapOf("TUIST_FEATURE_FLAG_A" to "1"))
         val request = Request.Builder()
             .url("https://tuist.dev/api/projects")
             .header(FeatureFlagsHeaders.HEADER_NAME, "OLD")

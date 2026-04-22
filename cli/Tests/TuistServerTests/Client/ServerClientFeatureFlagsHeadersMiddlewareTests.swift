@@ -10,7 +10,7 @@ struct ServerClientFeatureFlagsHeadersMiddlewareTests {
     @Test func adds_feature_flag_header() async throws {
         let environment = Environment(
             variables: [
-                "TUIST_FEATURE_A": "1",
+                "TUIST_FEATURE_FLAG_A": "1",
             ],
             arguments: []
         )

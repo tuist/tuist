@@ -23,8 +23,8 @@ struct ClientFeatureFlagsTests {
     @Test func header_value_encodes_feature_flags_as_a_comma_separated_list() async {
         let environment = Environment(
             variables: [
-                "TUIST_FEATURE_B": "enabled",
-                "TUIST_FEATURE_A": "1",
+                "TUIST_FEATURE_FLAG_B": "enabled",
+                "TUIST_FEATURE_FLAG_A": "1",
                 "TUIST_TOKEN": "token",
             ],
             arguments: []

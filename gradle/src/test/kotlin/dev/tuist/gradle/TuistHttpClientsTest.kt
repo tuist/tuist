@@ -53,8 +53,8 @@ class TuistHttpClientsTest {
 
         val httpClients = TuistHttpClients(
             environmentVariables = mapOf(
-                "TUIST_FEATURE_A" to "1",
-                "TUIST_FEATURE_B" to "enabled",
+                "TUIST_FEATURE_FLAG_A" to "1",
+                "TUIST_FEATURE_FLAG_B" to "enabled",
             )
         )
         val api = httpClients.unauthenticatedRetrofit(URI(server.url("/").toString().trimEnd('/')))

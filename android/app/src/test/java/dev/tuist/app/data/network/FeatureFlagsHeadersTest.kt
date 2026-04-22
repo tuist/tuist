@@ -22,9 +22,9 @@ class FeatureFlagsHeadersTest {
     fun `returns a comma separated list with only feature flag environment variables`() {
         val headerValue = FeatureFlagsHeaders.headerValue(
             mapOf(
-                "TUIST_FEATURE_B" to "enabled",
-                "TUIST_FEATURE_A" to "1",
-                "TUIST_FEATURE_" to "ignored",
+                "TUIST_FEATURE_FLAG_B" to "enabled",
+                "TUIST_FEATURE_FLAG_A" to "1",
+                "TUIST_FEATURE_FLAG_" to "ignored",
                 "TUIST_TOKEN" to "token",
             )
         )

@@ -4,7 +4,7 @@ import java.util.TreeSet
 
 object FeatureFlagsHeaders {
     const val HEADER_NAME = "x-tuist-feature-flags"
-    private const val ENVIRONMENT_PREFIX = "TUIST_FEATURE_"
+    private const val ENVIRONMENT_PREFIX = "TUIST_FEATURE_FLAG_"
 
     fun headerValue(environmentVariables: Map<String, String>): String? {
         val featureFlags = TreeSet<String>()

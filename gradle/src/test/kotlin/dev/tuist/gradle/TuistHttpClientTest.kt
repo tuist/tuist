@@ -37,7 +37,7 @@ class TuistHttpClientTest {
             },
             httpClients = TuistHttpClients(
                 environmentVariables = mapOf(
-                    "TUIST_FEATURE_A" to "1"
+                    "TUIST_FEATURE_FLAG_A" to "1"
                 )
             ),
             connectTimeoutMs = 10_000,
