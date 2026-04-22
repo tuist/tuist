@@ -31,14 +31,6 @@ defmodule Tuist.Projects.Project do
     field :report_timezone, :string
     field :build_system, Ecto.Enum, values: [xcode: 0, gradle: 1], default: :xcode
 
-    field :auto_quarantine_flaky_tests, :boolean, default: false
-    field :flaky_test_alerts_enabled, :boolean, default: false
-    field :flaky_test_alerts_slack_channel_id, :string
-    field :flaky_test_alerts_slack_channel_name, :string
-    field :auto_mark_flaky_tests, :boolean, default: true
-    field :auto_mark_flaky_threshold, :integer, default: 1
-    field :flaky_cooldown_days, :integer, default: 14
-
     belongs_to :account, Account
 
     has_many :previews, Preview
@@ -85,18 +77,9 @@ defmodule Tuist.Projects.Project do
       :report_days_of_week,
       :report_schedule_time,
       :report_timezone,
-      :auto_quarantine_flaky_tests,
-      :flaky_test_alerts_enabled,
-      :flaky_test_alerts_slack_channel_id,
-      :flaky_test_alerts_slack_channel_name,
-      :auto_mark_flaky_tests,
-      :auto_mark_flaky_threshold,
-      :flaky_cooldown_days,
       :build_system
     ])
     |> validate_name()
-    |> validate_number(:auto_mark_flaky_threshold, greater_than: 0)
-    |> validate_number(:flaky_cooldown_days, greater_than: 0)
     |> validate_inclusion(:visibility, [:private, :public])
     |> validate_inclusion(:default_previews_visibility, [:private, :public])
     |> validate_inclusion(:build_system, [:xcode, :gradle])
