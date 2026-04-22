@@ -1,0 +1,52 @@
+# Canary overlay for the Tuist-managed deployment.
+# Between staging and production in terms of traffic + footprint; surfaces
+# post-merge regressions against a small slice of real traffic before
+# production cuts over. Layer on top of values-managed-common.yaml:
+#
+#   helm upgrade --install tuist infra/helm/tuist \
+#     -n tuist-canary --create-namespace \
+#     -f infra/helm/tuist/values-managed-common.yaml \
+#     -f infra/helm/tuist/values-managed-canary.yaml \
+#     --set server.image.tag=$GIT_SHA
+
+server:
+  replicaCount: 1
+
+  appUrl: https://canary.tuist.dev
+
+  autoscaling:
+    enabled: false
+
+  podDisruptionBudget:
+    enabled: false
+
+  ingress:
+    enabled: true
+    className: nginx
+    host: canary.tuist.dev
+    tlsSecretName: canary-tuist-dev-tls
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-cloudflare
+      external-dns.alpha.kubernetes.io/hostname: canary.tuist.dev
+      nginx.ingress.kubernetes.io/proxy-body-size: "500m"
+      nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+      nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+
+  # Canary is always a single pod, so no anti-affinity here.
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "1Gi"
+    limits:
+      cpu: "2000m"
+      memory: "2Gi"
+
+  # Canary-specific env. Processor URL mirrors Render's canary DNS so the
+  # canary server hits the canary processor instance, not staging's.
+  extraEnv:
+    - name: TUIST_DATABASE_POOL_SIZE
+      value: "15"
+    - name: TUIST_PROCESSOR_URL
+      value: http://processor-canary.tuist.dev:4002
+    - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
+      value: http://alloy-tuist-alloy.observability.svc.cluster.local:4317

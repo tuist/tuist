@@ -1,0 +1,192 @@
+name: Server Deployment
+
+# Build the server image and deploy to the managed Kubernetes cluster.
+#
+# Replaces the three Render-era workflows (server-{staging,canary,production}-
+# deployment.yml). Same three environments, same triggers:
+#
+#   staging    — auto on merge to main
+#   canary     — workflow_dispatch, gated on the `server-k8s-canary` Environment
+#   production — workflow_dispatch, gated on the `server-k8s-production` Environment
+#
+# Each environment is its own Kubernetes namespace (same or separate cluster
+# per kubeconfig). The image is rebuilt per environment so Mix.env() and the
+# encrypted priv/secrets/<env>.yml.enc baked in match.
+#
+# Required GitHub Environment secrets (one per environment):
+#   KUBECONFIG — base64-encoded kubeconfig for that environment's cluster
+#
+# Everything else is inside the cluster:
+#   - MASTER_KEY synced from 1Password by external-secrets-operator
+#   - DB_URL / ClickHouse / Tigris keys in priv/secrets/<env>.yml.enc
+#
+# Cutover between Render and this workflow is orchestrated via Cloudflare
+# DNS — both stacks can run in parallel, DNS decides which takes traffic.
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: Commit SHA to deploy (defaults to the event's SHA)
+        required: false
+      environment:
+        description: Target environment
+        required: true
+        default: staging
+        type: choice
+        options:
+          - staging
+          - canary
+          - production
+  push:
+    branches:
+      - main
+    paths:
+      - server/**
+      - tuist_common/**
+      - noora/**
+      - processor/**
+      - xcode_processor/**
+      - infra/helm/tuist/**
+      - .github/workflows/server-deployment.yml
+      - server/pnpm-lock.yaml
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
+concurrency:
+  group: server-deploy-${{ inputs.environment || 'staging' }}
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: tuist/tuist
+  HELM_CHART_PATH: infra/helm/tuist
+  HELM_RELEASE_NAME: tuist
+  DEPLOY_SHA: ${{ inputs.commit_sha || github.sha }}
+  # push to main → staging. workflow_dispatch → input.environment value.
+  TARGET_ENV: ${{ inputs.environment || 'staging' }}
+
+jobs:
+  # Map the target environment to Mix.env() atom, k8s namespace, overlay file,
+  # and a per-env image tag. Keeps downstream jobs clean.
+  plan:
+    name: Plan
+    runs-on: namespace-profile-default
+    outputs:
+      mix_env: ${{ steps.map.outputs.mix_env }}
+      namespace: ${{ steps.map.outputs.namespace }}
+      image_tag: ${{ steps.map.outputs.image_tag }}
+      values_overlay: ${{ steps.map.outputs.values_overlay }}
+      public_host: ${{ steps.map.outputs.public_host }}
+    steps:
+      - id: map
+        run: |
+          case "$TARGET_ENV" in
+            staging)
+              echo "mix_env=stag" >>"$GITHUB_OUTPUT"
+              echo "namespace=tuist-staging" >>"$GITHUB_OUTPUT"
+              echo "values_overlay=values-managed-staging.yaml" >>"$GITHUB_OUTPUT"
+              echo "public_host=staging.tuist.dev" >>"$GITHUB_OUTPUT"
+              ;;
+            canary)
+              echo "mix_env=can" >>"$GITHUB_OUTPUT"
+              echo "namespace=tuist-canary" >>"$GITHUB_OUTPUT"
+              echo "values_overlay=values-managed-canary.yaml" >>"$GITHUB_OUTPUT"
+              echo "public_host=canary.tuist.dev" >>"$GITHUB_OUTPUT"
+              ;;
+            production)
+              echo "mix_env=prod" >>"$GITHUB_OUTPUT"
+              echo "namespace=tuist" >>"$GITHUB_OUTPUT"
+              echo "values_overlay=values-managed-production.yaml" >>"$GITHUB_OUTPUT"
+              echo "public_host=tuist.dev" >>"$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "Unknown environment: $TARGET_ENV" >&2
+              exit 1
+              ;;
+          esac
+          echo "image_tag=${TARGET_ENV}-sha-${DEPLOY_SHA:0:12}" >>"$GITHUB_OUTPUT"
+
+  build-and-push:
+    name: Build + push image to GHCR
+    needs: plan
+    runs-on: namespace-profile-default-with-volume
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+          submodules: false
+      - name: Set up Docker Buildx
+        uses: namespacelabs/nscloud-setup-buildx-action@v0
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build + push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./server/Dockerfile
+          target: runner
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.plan.outputs.image_tag }}
+          build-args: |
+            TUIST_HOSTED=1
+            MIX_ENV=${{ needs.plan.outputs.mix_env }}
+            APT_CACHE_BUST=${{ github.sha }}
+          # Scope BuildKit cache per Mix env so staging/canary/production
+          # builds don't invalidate each other's layers.
+          cache-from: type=gha,scope=${{ needs.plan.outputs.mix_env }}
+          cache-to: type=gha,mode=max,scope=${{ needs.plan.outputs.mix_env }}
+
+  deploy:
+    name: Deploy to ${{ needs.plan.outputs.namespace }}
+    needs: [plan, build-and-push]
+    runs-on: namespace-profile-default
+    # GitHub Environment per target — provides approval gates + env-scoped
+    # KUBECONFIG secret.
+    environment:
+      name: server-k8s-${{ needs.plan.outputs.mix_env == 'stag' && 'staging' || needs.plan.outputs.mix_env == 'can' && 'canary' || 'production' }}
+      url: https://${{ needs.plan.outputs.public_host }}
+    timeout-minutes: 30
+    env:
+      KUBECONFIG: ${{ github.workspace }}/.kube/config
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          install_args: "helm kubectl"
+          cache: "false"
+      - name: Load kubeconfig
+        run: |
+          mkdir -p "$(dirname "$KUBECONFIG")"
+          echo "${{ secrets.KUBECONFIG }}" | base64 -d > "$KUBECONFIG"
+          chmod 600 "$KUBECONFIG"
+      - name: helm upgrade --install
+        # No --set for app secrets: the chart runs in
+        # `server.managedSecrets: true` mode, which reads DATABASE_URL /
+        # TUIST_CLICKHOUSE_URL / TUIST_S3_* from priv/secrets/<env>.yml.enc
+        # baked into the image and pulls MASTER_KEY from 1Password via an
+        # in-cluster ExternalSecret. Passing secrets through --set would
+        # leak them into `helm get manifest`.
+        run: |
+          helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
+            --namespace "${{ needs.plan.outputs.namespace }}" --create-namespace \
+            -f "$HELM_CHART_PATH/values-managed-common.yaml" \
+            -f "$HELM_CHART_PATH/${{ needs.plan.outputs.values_overlay }}" \
+            --set server.image.tag="${{ needs.plan.outputs.image_tag }}" \
+            --atomic --timeout 15m --wait
+      - name: Post-deploy smoke test
+        run: |
+          kubectl -n "${{ needs.plan.outputs.namespace }}" rollout status deploy/tuist-tuist-server --timeout=10m
+          kubectl -n "${{ needs.plan.outputs.namespace }}" run smoke-$RANDOM --rm -i --restart=Never --image=curlimages/curl \
+            --command -- curl -fsS "http://tuist-tuist-server/ready"

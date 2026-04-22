@@ -4,13 +4,22 @@
 #     -n tuist --create-namespace \
 #     -f infra/helm/tuist/values-managed-common.yaml \
 #     -f infra/helm/tuist/values-managed-production.yaml \
-#     --set server.image.tag=$GIT_SHA \
-#     --set server.masterKey=$MASTER_KEY_PROD
+#     --set server.image.tag=$GIT_SHA
 
 server:
   replicaCount: 2
 
   appUrl: https://cloud.tuist.dev
+
+  # Production-specific env. Processor URL mirrors Render's prod DNS
+  # (`processor.tuist.dev`), not the canary / staging variants.
+  extraEnv:
+    - name: TUIST_DATABASE_POOL_SIZE
+      value: "15"
+    - name: TUIST_PROCESSOR_URL
+      value: http://processor.tuist.dev:4002
+    - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
+      value: http://alloy-tuist-alloy.observability.svc.cluster.local:4317
 
   autoscaling:
     enabled: true

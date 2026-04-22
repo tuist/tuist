@@ -153,7 +153,7 @@ curl -v https://cloud-staging.tuist.dev/ready
 After the manual smoke test passes, trigger the CI workflow:
 
 ```bash
-gh workflow run server-k8s-deployment.yml -f environment=staging
+gh workflow run server-deployment.yml -f environment=staging
 ```
 
 ## 5. Observability wiring
