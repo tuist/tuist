@@ -67,8 +67,8 @@ grafanaCloud:
 
 # Kubernetes pod log tailing. Alloy uses the discovery.kubernetes component
 # to find pods, then loki.source.kubernetes to stream their stdout logs via
-# the kubelet API and forward them to Grafana Cloud Loki. This replaces the
-# Render-era in-app LokiLoggerHandler push model.
+# the kubelet API and forward them to Grafana Cloud Loki. Apps just write to
+# stdout — no in-app Loki client required.
 podDiscovery:
   # Scope to specific namespaces so Alloy only tails the Tuist workloads
   # (not kube-system, ESO, etc.). Empty list = all namespaces.

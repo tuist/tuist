@@ -39,7 +39,7 @@ server:
   # TUIST_SECRET_KEY_BASE / TUIST_S3_* env vars and lets the Elixir release
   # read those values from the encrypted priv/secrets/<env>.yml.enc file that
   # MASTER_KEY unlocks. Pair with `masterKey: <...>` or externalSecrets below.
-  # Intended for the managed-cloud shape (Render today, k8s tomorrow).
+  # Intended for the managed-cloud shape where secrets ship inside the image.
   # Self-hosted installs leave this false so values.yaml drives all runtime config.
   managedSecrets: false
   # Sync secrets from an external store via external-secrets-operator. Only

@@ -1,6 +1,6 @@
 # Grafana Alloy for the Tuist managed cluster
 
-In-cluster telemetry collector. Replaces the Render-era `grafana-alloy` private service.
+In-cluster telemetry collector. Forwards metrics, logs, and traces from the Tuist workloads to Grafana Cloud.
 
 ## What it does
 

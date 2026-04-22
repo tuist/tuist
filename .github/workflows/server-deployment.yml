@@ -1,27 +1,25 @@
 name: Server Deployment
 
-# Build the server image and deploy to the managed Kubernetes cluster.
+# Server image build + k8s deployment. Per-env build and deploy is factored
+# into the reusable workflow .github/workflows/server-deploy-env.yml; this
+# file wires up the trigger → environment mapping and the promotion cascade.
 #
-# Replaces the three Render-era workflows (server-{staging,canary,production}-
-# deployment.yml). Same three environments, same triggers:
+# Triggers:
+#   push to main
+#     Standard promotion: canary → acceptance tests → production.
+#     Commits with "(hotfix)" in the subject additionally deploy straight to
+#     production in parallel with the canary leg, skipping the wait for
+#     tests so urgent fixes ship immediately. Canary + tests still run as a
+#     safety net.
 #
-#   staging    — auto on merge to main
-#   canary     — workflow_dispatch, gated on the `server-k8s-canary` Environment
-#   production — workflow_dispatch, gated on the `server-k8s-production` Environment
+#   workflow_dispatch
+#     staging / canary → deploy that environment directly.
+#     production       → run the full canary → tests → production cascade
+#                        against the chosen commit, mirroring a push-to-main
+#                        promotion but pinned to the SHA you pass in.
 #
-# Each environment is its own Kubernetes namespace (same or separate cluster
-# per kubeconfig). The image is rebuilt per environment so Mix.env() and the
-# encrypted priv/secrets/<env>.yml.enc baked in match.
-#
-# Required GitHub Environment secrets (one per environment):
-#   KUBECONFIG — base64-encoded kubeconfig for that environment's cluster
-#
-# Everything else is inside the cluster:
-#   - MASTER_KEY synced from 1Password by external-secrets-operator
-#   - DB_URL / ClickHouse / Tigris keys in priv/secrets/<env>.yml.enc
-#
-# Cutover between Render and this workflow is orchestrated via Cloudflare
-# DNS — both stacks can run in parallel, DNS decides which takes traffic.
+# Each environment is its own k8s namespace. The image is rebuilt per env so
+# Mix.env() and priv/secrets/<env>.yml.enc baked in match.
 
 on:
   workflow_dispatch:
@@ -49,6 +47,7 @@ on:
       - xcode_processor/**
       - infra/helm/tuist/**
       - .github/workflows/server-deployment.yml
+      - .github/workflows/server-deploy-env.yml
       - server/pnpm-lock.yaml
 
 permissions:
@@ -56,137 +55,103 @@ permissions:
   packages: write
   id-token: write
 
-concurrency:
-  group: server-deploy-${{ inputs.environment || 'staging' }}
-  cancel-in-progress: false
-
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: tuist/tuist
-  HELM_CHART_PATH: infra/helm/tuist
-  HELM_RELEASE_NAME: tuist
-  DEPLOY_SHA: ${{ inputs.commit_sha || github.sha }}
-  # push to main → staging. workflow_dispatch → input.environment value.
-  TARGET_ENV: ${{ inputs.environment || 'staging' }}
-
 jobs:
-  # Map the target environment to Mix.env() atom, k8s namespace, overlay file,
-  # and a per-env image tag. Keeps downstream jobs clean.
-  plan:
-    name: Plan
-    runs-on: namespace-profile-default
-    outputs:
-      mix_env: ${{ steps.map.outputs.mix_env }}
-      namespace: ${{ steps.map.outputs.namespace }}
-      image_tag: ${{ steps.map.outputs.image_tag }}
-      values_overlay: ${{ steps.map.outputs.values_overlay }}
-      public_host: ${{ steps.map.outputs.public_host }}
-    steps:
-      - id: map
-        run: |
-          case "$TARGET_ENV" in
-            staging)
-              echo "mix_env=stag" >>"$GITHUB_OUTPUT"
-              echo "namespace=tuist-staging" >>"$GITHUB_OUTPUT"
-              echo "values_overlay=values-managed-staging.yaml" >>"$GITHUB_OUTPUT"
-              echo "public_host=staging.tuist.dev" >>"$GITHUB_OUTPUT"
-              ;;
-            canary)
-              echo "mix_env=can" >>"$GITHUB_OUTPUT"
-              echo "namespace=tuist-canary" >>"$GITHUB_OUTPUT"
-              echo "values_overlay=values-managed-canary.yaml" >>"$GITHUB_OUTPUT"
-              echo "public_host=canary.tuist.dev" >>"$GITHUB_OUTPUT"
-              ;;
-            production)
-              echo "mix_env=prod" >>"$GITHUB_OUTPUT"
-              echo "namespace=tuist" >>"$GITHUB_OUTPUT"
-              echo "values_overlay=values-managed-production.yaml" >>"$GITHUB_OUTPUT"
-              echo "public_host=tuist.dev" >>"$GITHUB_OUTPUT"
-              ;;
-            *)
-              echo "Unknown environment: $TARGET_ENV" >&2
-              exit 1
-              ;;
-          esac
-          echo "image_tag=${TARGET_ENV}-sha-${DEPLOY_SHA:0:12}" >>"$GITHUB_OUTPUT"
+  # ---------------------------------------------------------------
+  # workflow_dispatch: staging / canary go direct, single env.
+  # Production dispatch falls through to the cascade jobs below.
+  # ---------------------------------------------------------------
+  staging:
+    if: github.event_name == 'workflow_dispatch' && inputs.environment == 'staging'
+    uses: ./.github/workflows/server-deploy-env.yml
+    with:
+      target_env: staging
+      commit_sha: ${{ inputs.commit_sha || github.sha }}
+    secrets: inherit
 
-  build-and-push:
-    name: Build + push image to GHCR
-    needs: plan
-    runs-on: namespace-profile-default-with-volume
-    timeout-minutes: 40
+  canary-dispatch:
+    if: github.event_name == 'workflow_dispatch' && inputs.environment == 'canary'
+    uses: ./.github/workflows/server-deploy-env.yml
+    with:
+      target_env: canary
+      commit_sha: ${{ inputs.commit_sha || github.sha }}
+    secrets: inherit
+
+  # ---------------------------------------------------------------
+  # Promotion cascade: canary → acceptance tests → production.
+  # Runs on every push to main and on workflow_dispatch targeting
+  # production. On hotfix pushes canary/tests still run as a
+  # safety net; the production-hotfix job below ships in parallel.
+  # ---------------------------------------------------------------
+  canary:
+    if: >-
+      github.event_name == 'push' ||
+      (github.event_name == 'workflow_dispatch' && inputs.environment == 'production')
+    uses: ./.github/workflows/server-deploy-env.yml
+    with:
+      target_env: canary
+      commit_sha: ${{ inputs.commit_sha || github.sha }}
+    secrets: inherit
+
+  acceptance-tests:
+    name: Acceptance Tests
+    if: >-
+      github.event_name == 'push' ||
+      (github.event_name == 'workflow_dispatch' && inputs.environment == 'production')
+    needs: canary
+    runs-on: namespace-profile-default-macos
+    timeout-minutes: 15
+    environment: server-k8s-canary
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ env.DEPLOY_SHA }}
-          submodules: false
-      - name: Set up Docker Buildx
-        uses: namespacelabs/nscloud-setup-buildx-action@v0
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
+          ref: ${{ inputs.commit_sha || github.sha }}
+          token: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN }}
+          submodules: recursive
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
+      - name: Restore cache
+        id: cache-restore
+        uses: actions/cache/restore@v4
         with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build + push
-        uses: docker/build-push-action@v6
+          path: .build
+          key: ${{ runner.os }}-cli-cache-ee-${{ hashFiles('Package.resolved') }}
+      - uses: jdx/mise-action@v4.0.1
         with:
-          context: .
-          file: ./server/Dockerfile
-          target: runner
-          push: true
-          tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.plan.outputs.image_tag }}
-          build-args: |
-            TUIST_HOSTED=1
-            MIX_ENV=${{ needs.plan.outputs.mix_env }}
-            APT_CACHE_BUST=${{ github.sha }}
-          # Scope BuildKit cache per Mix env so staging/canary/production
-          # builds don't invalidate each other's layers.
-          cache-from: type=gha,scope=${{ needs.plan.outputs.mix_env }}
-          cache-to: type=gha,mode=max,scope=${{ needs.plan.outputs.mix_env }}
+          github_token: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN || github.token }}
+      - name: Authenticate with Tuist
+        run: tuist auth login
+      - name: Setup Tuist
+        run: tuist setup
+      - name: Install Tuist dependencies
+        if: steps.cache-restore.outputs.cache-matched-key == ''
+        run: tuist install
+      - name: Initialize TuistCacheEE submodule
+        env:
+          TUIST_GITHUB_TOKEN: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN }}
+        run: mise run cli:ee
+      - name: Test
+        env:
+          TUIST_EE: 1
+        run: tuist test TuistCacheEEAcceptanceTests --no-selective-testing -- -retry-tests-on-failure -test-iterations 2
 
-  deploy:
-    name: Deploy to ${{ needs.plan.outputs.namespace }}
-    needs: [plan, build-and-push]
-    runs-on: namespace-profile-default
-    # GitHub Environment per target — provides approval gates + env-scoped
-    # KUBECONFIG secret.
-    environment:
-      name: server-k8s-${{ needs.plan.outputs.mix_env == 'stag' && 'staging' || needs.plan.outputs.mix_env == 'can' && 'canary' || 'production' }}
-      url: https://${{ needs.plan.outputs.public_host }}
-    timeout-minutes: 30
-    env:
-      KUBECONFIG: ${{ github.workspace }}/.kube/config
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ env.DEPLOY_SHA }}
-      - uses: jdx/mise-action@v3.2.0
-        with:
-          install_args: "helm kubectl"
-          cache: "false"
-      - name: Load kubeconfig
-        run: |
-          mkdir -p "$(dirname "$KUBECONFIG")"
-          echo "${{ secrets.KUBECONFIG }}" | base64 -d > "$KUBECONFIG"
-          chmod 600 "$KUBECONFIG"
-      - name: helm upgrade --install
-        # No --set for app secrets: the chart runs in
-        # `server.managedSecrets: true` mode, which reads DATABASE_URL /
-        # TUIST_CLICKHOUSE_URL / TUIST_S3_* from priv/secrets/<env>.yml.enc
-        # baked into the image and pulls MASTER_KEY from 1Password via an
-        # in-cluster ExternalSecret. Passing secrets through --set would
-        # leak them into `helm get manifest`.
-        run: |
-          helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
-            --namespace "${{ needs.plan.outputs.namespace }}" --create-namespace \
-            -f "$HELM_CHART_PATH/values-managed-common.yaml" \
-            -f "$HELM_CHART_PATH/${{ needs.plan.outputs.values_overlay }}" \
-            --set server.image.tag="${{ needs.plan.outputs.image_tag }}" \
-            --atomic --timeout 15m --wait
-      - name: Post-deploy smoke test
-        run: |
-          kubectl -n "${{ needs.plan.outputs.namespace }}" rollout status deploy/tuist-tuist-server --timeout=10m
-          kubectl -n "${{ needs.plan.outputs.namespace }}" run smoke-$RANDOM --rm -i --restart=Never --image=curlimages/curl \
-            --command -- curl -fsS "http://tuist-tuist-server/ready"
+  production:
+    if: >-
+      (github.event_name == 'push' && !contains(github.event.head_commit.message, '(hotfix)')) ||
+      (github.event_name == 'workflow_dispatch' && inputs.environment == 'production')
+    needs: acceptance-tests
+    uses: ./.github/workflows/server-deploy-env.yml
+    with:
+      target_env: production
+      commit_sha: ${{ inputs.commit_sha || github.sha }}
+    secrets: inherit
+
+  # Hotfix fast-path: push with "(hotfix)" in the subject ships production
+  # without waiting for canary + acceptance tests. Kept independent of the
+  # cascade so a flaky acceptance test can't block an urgent fix.
+  production-hotfix:
+    if: github.event_name == 'push' && contains(github.event.head_commit.message, '(hotfix)')
+    uses: ./.github/workflows/server-deploy-env.yml
+    with:
+      target_env: production
+      commit_sha: ${{ github.sha }}
+    secrets: inherit

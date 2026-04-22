@@ -81,9 +81,8 @@ data:
     }
 
     // Discover pods matching the configured selector and tail their stdout
-    // via the kubelet log API. Replaces the in-process LokiLoggerHandler that
-    // was used on Render — on k8s, the canonical pattern is to let apps log
-    // to stdout and have a cluster-level agent forward the logs.
+    // via the kubelet log API. Apps log to stdout and the cluster-level
+    // agent forwards the logs — standard Kubernetes telemetry pattern.
     discovery.kubernetes "pods" {
       role = "pod"
       {{- with .Values.podDiscovery.namespaces }}

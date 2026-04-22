@@ -76,8 +76,9 @@ if Enum.member?([:prod, :stag, :can], env) do
   # Cluster formation via headless Service DNS (works on any Kubernetes).
   # TUIST_CLUSTER_DNS_SERVICE must point at a headless Service whose endpoints
   # resolve to the pod IPs; TUIST_CLUSTER_APP_NAME is the Erlang long-name
-  # prefix used for the node (e.g. "tuist"). The Render-era env vars are kept
-  # as a fallback so the same release runs on both platforms during cutover.
+  # prefix used for the node (e.g. "tuist"). RENDER_DISCOVERY_SERVICE /
+  # RENDER_SERVICE_NAME are accepted as fallbacks so the same release boots
+  # on either platform while the k8s cutover is in progress.
   dns_name =
     System.get_env("TUIST_CLUSTER_DNS_SERVICE") ||
       System.get_env("RENDER_DISCOVERY_SERVICE")

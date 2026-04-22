@@ -1,0 +1,169 @@
+name: Server Deploy Env
+
+# Reusable per-environment deploy: plan → build image → deploy to k8s.
+# Invoked by server-deployment.yml for each environment in the cascade.
+#
+# Inputs:
+#   target_env  — staging | canary | production
+#   commit_sha  — the git SHA to check out, build, and deploy
+#
+# Required GitHub Environment secrets on server-k8s-{staging,canary,production}:
+#   KUBECONFIG — base64-encoded kubeconfig for that environment's cluster.
+
+on:
+  workflow_call:
+    inputs:
+      target_env:
+        type: string
+        required: true
+      commit_sha:
+        type: string
+        required: true
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: tuist/tuist
+  HELM_CHART_PATH: infra/helm/tuist
+  HELM_RELEASE_NAME: tuist
+
+jobs:
+  plan:
+    name: Plan (${{ inputs.target_env }})
+    runs-on: namespace-profile-default
+    outputs:
+      mix_env: ${{ steps.map.outputs.mix_env }}
+      namespace: ${{ steps.map.outputs.namespace }}
+      image_tag: ${{ steps.map.outputs.image_tag }}
+      values_overlay: ${{ steps.map.outputs.values_overlay }}
+      public_host: ${{ steps.map.outputs.public_host }}
+      environment_key: ${{ steps.map.outputs.environment_key }}
+    steps:
+      - id: map
+        env:
+          TARGET_ENV: ${{ inputs.target_env }}
+          DEPLOY_SHA: ${{ inputs.commit_sha }}
+        run: |
+          case "$TARGET_ENV" in
+            staging)
+              env_key=staging
+              mix_env=stag
+              namespace=tuist-staging
+              overlay=values-managed-staging.yaml
+              host=staging.tuist.dev
+              ;;
+            canary)
+              env_key=canary
+              mix_env=can
+              namespace=tuist-canary
+              overlay=values-managed-canary.yaml
+              host=canary.tuist.dev
+              ;;
+            production)
+              env_key=production
+              mix_env=prod
+              namespace=tuist
+              overlay=values-managed-production.yaml
+              host=tuist.dev
+              ;;
+            *)
+              echo "Unknown environment: $TARGET_ENV" >&2
+              exit 1
+              ;;
+          esac
+          {
+            echo "environment_key=$env_key"
+            echo "mix_env=$mix_env"
+            echo "namespace=$namespace"
+            echo "values_overlay=$overlay"
+            echo "public_host=$host"
+            echo "image_tag=${TARGET_ENV}-sha-${DEPLOY_SHA:0:12}"
+          } >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build + push image (${{ inputs.target_env }})
+    needs: plan
+    runs-on: namespace-profile-default-with-volume
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.commit_sha }}
+          submodules: false
+      - name: Set up Docker Buildx
+        uses: namespacelabs/nscloud-setup-buildx-action@v0
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build + push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./server/Dockerfile
+          target: runner
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.plan.outputs.image_tag }}
+          build-args: |
+            TUIST_HOSTED=1
+            MIX_ENV=${{ needs.plan.outputs.mix_env }}
+            APT_CACHE_BUST=${{ inputs.commit_sha }}
+          # Scope BuildKit cache per Mix env so staging/canary/production
+          # builds don't invalidate each other's layers.
+          cache-from: type=gha,scope=${{ needs.plan.outputs.mix_env }}
+          cache-to: type=gha,mode=max,scope=${{ needs.plan.outputs.mix_env }}
+
+  deploy:
+    name: Deploy to ${{ needs.plan.outputs.namespace }}
+    needs: [plan, build]
+    runs-on: namespace-profile-default
+    environment:
+      name: server-k8s-${{ needs.plan.outputs.environment_key }}
+      url: https://${{ needs.plan.outputs.public_host }}
+    # Serialize deploys to the same environment across all callers so a
+    # push-cascade production deploy queues behind a manual dispatch, etc.
+    concurrency:
+      group: server-deploy-${{ needs.plan.outputs.environment_key }}
+      cancel-in-progress: false
+    timeout-minutes: 30
+    env:
+      KUBECONFIG: ${{ github.workspace }}/.kube/config
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.commit_sha }}
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          install_args: "helm kubectl"
+          cache: "false"
+      - name: Load kubeconfig
+        run: |
+          mkdir -p "$(dirname "$KUBECONFIG")"
+          echo "${{ secrets.KUBECONFIG }}" | base64 -d > "$KUBECONFIG"
+          chmod 600 "$KUBECONFIG"
+      - name: helm upgrade --install
+        # No --set for app secrets: the chart runs in
+        # `server.managedSecrets: true` mode, which reads DATABASE_URL /
+        # TUIST_CLICKHOUSE_URL / TUIST_S3_* from priv/secrets/<env>.yml.enc
+        # baked into the image and pulls MASTER_KEY from 1Password via an
+        # in-cluster ExternalSecret. Passing secrets through --set would
+        # leak them into `helm get manifest`.
+        run: |
+          helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
+            --namespace "${{ needs.plan.outputs.namespace }}" --create-namespace \
+            -f "$HELM_CHART_PATH/values-managed-common.yaml" \
+            -f "$HELM_CHART_PATH/${{ needs.plan.outputs.values_overlay }}" \
+            --set server.image.tag="${{ needs.plan.outputs.image_tag }}" \
+            --atomic --timeout 15m --wait
+      - name: Post-deploy smoke test
+        run: |
+          kubectl -n "${{ needs.plan.outputs.namespace }}" rollout status deploy/tuist-tuist-server --timeout=10m
+          kubectl -n "${{ needs.plan.outputs.namespace }}" run smoke-$RANDOM --rm -i --restart=Never --image=curlimages/curl \
+            --command -- curl -fsS "http://tuist-tuist-server/ready"
