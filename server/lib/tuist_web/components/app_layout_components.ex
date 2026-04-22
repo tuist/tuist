@@ -376,6 +376,7 @@ defmodule TuistWeb.AppLayoutComponents do
         selected={@current_path == "/ops"}
       />
       <.sidebar_item
+        :if={Tuist.Environment.tuist_hosted?()}
         label={dgettext("dashboard", "Accounts")}
         icon="users"
         navigate={~p"/ops/accounts"}
