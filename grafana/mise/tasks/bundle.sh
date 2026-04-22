@@ -8,18 +8,12 @@ set -euo pipefail
 PLUGIN_DIR="${MISE_PROJECT_ROOT}"
 cd "${PLUGIN_DIR}"
 
-# `mise run` appends its tool paths rather than prepending them, so on dev
-# machines where nvm (or an equivalent) is earlier in PATH we'd resolve a
-# wrong node. The `.config/` webpack scaffold requires node >= 22 (native
-# `.ts` module loading); ours is pinned to 24 in `grafana/mise.toml`.
-# Resolve the pinned paths through `mise which` and prepend them.
-NODE_BIN_DIR="$(dirname "$(mise which node)")"
-PNPM_BIN_DIR="$(dirname "$(mise which pnpm)")"
-export PATH="${NODE_BIN_DIR}:${PNPM_BIN_DIR}:${PATH}"
-
 node --version | grep -qE '^v(2[4-9]|[3-9][0-9])' || {
   echo "ERROR: expected Node >=24 from mise (got $(node --version))." >&2
-  echo "       Check grafana/mise.toml and run 'mise install -C grafana'." >&2
+  echo "       grafana/mise.toml pins node — if you see a lower version," >&2
+  echo "       another version manager (nvm, n, asdf) is likely shadowing" >&2
+  echo "       mise's shims. Remove it from your shell or reorder PATH so" >&2
+  echo "       \$HOME/.local/share/mise/shims comes first." >&2
   exit 1
 }
 

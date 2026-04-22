@@ -4,14 +4,6 @@ set -euo pipefail
 
 cd "${MISE_PROJECT_ROOT}"
 
-# `mise run` appends its tool paths rather than prepending them, so on dev
-# machines where nvm is earlier in PATH we'd pick a wrong node. Resolve
-# the pinned paths through `mise which` and prepend. See bundle.sh for
-# the full context.
-NODE_BIN_DIR="$(dirname "$(mise which node)")"
-PNPM_BIN_DIR="$(dirname "$(mise which pnpm)")"
-export PATH="${NODE_BIN_DIR}:${PNPM_BIN_DIR}:${PATH}"
-
 if [ -z "${TUIST_METRICS_TOKEN:-}" ]; then
   echo "ERROR: TUIST_METRICS_TOKEN is not set." >&2
   echo "       Mint a token with the account:metrics:read scope, store it in 1Password," >&2
