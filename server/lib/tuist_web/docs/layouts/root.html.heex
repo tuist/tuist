@@ -89,15 +89,8 @@
             data-tab="guides"
             data-selected={
               !String.contains?(@current_path, "/docs/references") &&
-                !String.contains?(@current_path, "/docs/contributors") &&
-                !String.contains?(@current_path, "/docs/cli")
+                !String.contains?(@current_path, "/docs/contributors")
             }
-          />
-          <.button_group_item
-            label={dgettext("docs", "CLI")}
-            href={docs_path("/#{@locale}/cli")}
-            data-tab="cli"
-            data-selected={String.contains?(@current_path, "/docs/cli")}
           />
           <.button_group_item
             label={dgettext("docs", "References")}

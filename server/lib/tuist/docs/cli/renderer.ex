@@ -3,6 +3,7 @@ defmodule Tuist.Docs.CLI.Renderer do
   Renders CLI spec JSON into documentation pages and sidebar items.
   """
 
+  alias Tuist.Docs.CLI.Paths, as: CLIPaths
   alias Tuist.Docs.HTML
   alias Tuist.Docs.Page
   alias Tuist.Docs.Sidebar.Group
@@ -25,34 +26,33 @@ defmodule Tuist.Docs.CLI.Renderer do
       |> get_in(["command", "subcommands"])
       |> List.wrap()
       |> Enum.filter(&(&1["shouldDisplay"] != false))
-      |> Enum.map(&command_to_sidebar_item(&1, "/en/cli/"))
+      |> Enum.map(&command_to_sidebar_item(&1, []))
       |> Enum.sort_by(& &1.label)
 
     [
       %Group{
         label: "CLI",
-        items: [
-          %Item{label: "Debugging", slug: "/en/cli/debugging"},
-          %Item{label: "Directories", slug: "/en/cli/directories"},
-          %Item{label: "Shell completions", slug: "/en/cli/shell-completions"}
-        ]
-      },
-      %Group{
-        label: "Commands",
-        items: commands
+        items: static_cli_items() ++ [%Item{label: "Commands", items: commands}]
       }
     ]
   end
 
-  defp command_to_sidebar_item(command, parent_path) do
+  defp static_cli_items do
+    Enum.map(CLIPaths.static_pages(), fn {slug, label} ->
+      %Item{label: label, slug: CLIPaths.page_slug(slug)}
+    end)
+  end
+
+  defp command_to_sidebar_item(command, parent_segments) do
     name = command["commandName"]
-    slug = "#{parent_path}#{name}"
+    segments = parent_segments ++ [name]
+    slug = CLIPaths.command_slug(Enum.join(segments, "/"))
 
     children =
       command
       |> Map.get("subcommands", [])
       |> Enum.filter(&(&1["shouldDisplay"] != false))
-      |> Enum.map(&command_to_sidebar_item(&1, "#{slug}/"))
+      |> Enum.map(&command_to_sidebar_item(&1, segments))
 
     %Item{label: name, slug: slug, items: children}
   end
@@ -83,7 +83,7 @@ defmodule Tuist.Docs.CLI.Renderer do
       |> Enum.drop(1)
       |> Enum.join("/")
 
-    "/en/cli/#{path}"
+    CLIPaths.command_slug(path)
   end
 
   defp build_command_page(command, full_command, slug) do
@@ -112,11 +112,11 @@ defmodule Tuist.Docs.CLI.Renderer do
     %Page{
       slug: slug,
       title: full_command,
-      title_template: ":title · CLI · Tuist",
+      title_template: ":title · CLI · References · Tuist",
       description: command["abstract"],
       body: html,
       markdown: markdown,
-      source_path: "cli/#{slug}",
+      source_path: "references/cli/commands/#{slug}",
       headings: headings
     }
   end

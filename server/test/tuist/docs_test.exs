@@ -21,8 +21,8 @@ defmodule Tuist.DocsTest do
     end
 
     test "loads static CLI documentation pages" do
-      page = Docs.get_page("/en/cli/debugging")
-      assert page.slug == "/en/cli/debugging"
+      page = Docs.get_page("/en/references/cli/debugging")
+      assert page.slug == "/en/references/cli/debugging"
       assert page.title == "Debugging"
     end
 

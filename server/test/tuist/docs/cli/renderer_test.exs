@@ -73,20 +73,14 @@ defmodule Tuist.Docs.CLI.RendererTest do
   }
 
   describe "build_pages/1" do
-    test "generates pages for visible commands" do
-      pages = Renderer.build_pages(@spec_fixture)
-
-      slugs = Enum.map(pages, & &1.slug)
-      assert "/en/cli/generate" in slugs
-      assert "/en/cli/cache" in slugs
-      assert "/en/cli/cache/warm" in slugs
-    end
-
-    test "excludes hidden commands" do
-      pages = Renderer.build_pages(@spec_fixture)
-
-      slugs = Enum.map(pages, & &1.slug)
-      refute "/en/cli/hidden-cmd" in slugs
+    test "builds pages for the visible command tree" do
+      assert @spec_fixture
+             |> Renderer.build_pages()
+             |> Enum.map(&{&1.title, &1.slug}) == [
+               {"tuist generate", "/en/references/cli/commands/generate"},
+               {"tuist cache", "/en/references/cli/commands/cache"},
+               {"tuist cache warm", "/en/references/cli/commands/cache/warm"}
+             ]
     end
 
     test "generates valid Page structs" do
@@ -102,14 +96,14 @@ defmodule Tuist.Docs.CLI.RendererTest do
 
     test "includes command abstract in page body" do
       pages = Renderer.build_pages(@spec_fixture)
-      generate_page = Enum.find(pages, &(&1.slug == "/en/cli/generate"))
+      generate_page = Enum.find(pages, &(&1.slug == "/en/references/cli/commands/generate"))
 
       assert generate_page.body =~ "Generates an Xcode workspace"
     end
 
     test "renders arguments with usage examples" do
       pages = Renderer.build_pages(@spec_fixture)
-      generate_page = Enum.find(pages, &(&1.slug == "/en/cli/generate"))
+      generate_page = Enum.find(pages, &(&1.slug == "/en/references/cli/commands/generate"))
 
       assert generate_page.body =~ "--path"
       assert generate_page.body =~ "-p"
@@ -118,21 +112,21 @@ defmodule Tuist.Docs.CLI.RendererTest do
 
     test "extracts environment variables from argument abstracts" do
       pages = Renderer.build_pages(@spec_fixture)
-      generate_page = Enum.find(pages, &(&1.slug == "/en/cli/generate"))
+      generate_page = Enum.find(pages, &(&1.slug == "/en/references/cli/commands/generate"))
 
       assert generate_page.body =~ "TUIST_GENERATE_PATH"
     end
 
     test "excludes help arguments" do
       pages = Renderer.build_pages(@spec_fixture)
-      generate_page = Enum.find(pages, &(&1.slug == "/en/cli/generate"))
+      generate_page = Enum.find(pages, &(&1.slug == "/en/references/cli/commands/generate"))
 
       refute generate_page.markdown =~ "### help"
     end
 
     test "extracts headings from rendered HTML" do
       pages = Renderer.build_pages(@spec_fixture)
-      generate_page = Enum.find(pages, &(&1.slug == "/en/cli/generate"))
+      generate_page = Enum.find(pages, &(&1.slug == "/en/references/cli/commands/generate"))
 
       heading_texts = Enum.map(generate_page.headings, & &1.text)
       assert "Arguments" in heading_texts
@@ -143,7 +137,7 @@ defmodule Tuist.Docs.CLI.RendererTest do
 
     test "heading IDs match the anchor IDs in the HTML" do
       pages = Renderer.build_pages(@spec_fixture)
-      generate_page = Enum.find(pages, &(&1.slug == "/en/cli/generate"))
+      generate_page = Enum.find(pages, &(&1.slug == "/en/references/cli/commands/generate"))
 
       for heading <- generate_page.headings do
         assert generate_page.body =~ ~s(id="#{heading.id}")
@@ -152,50 +146,40 @@ defmodule Tuist.Docs.CLI.RendererTest do
 
     test "sets title_template for CLI pages" do
       pages = Renderer.build_pages(@spec_fixture)
-      generate_page = Enum.find(pages, &(&1.slug == "/en/cli/generate"))
+      generate_page = Enum.find(pages, &(&1.slug == "/en/references/cli/commands/generate"))
 
-      assert generate_page.title_template == ":title · CLI · Tuist"
+      assert generate_page.title_template == ":title · CLI · References · Tuist"
     end
   end
 
   describe "build_sidebar/1" do
-    test "returns CLI static pages and command groups" do
-      [cli_group, commands_group] = Renderer.build_sidebar(@spec_fixture)
-
-      assert %Group{label: "CLI"} = cli_group
-      assert %Group{label: "Commands"} = commands_group
+    test "builds the CLI sidebar tree with static pages and nested commands" do
+      assert @spec_fixture
+             |> Renderer.build_sidebar()
+             |> simplify_groups() == [
+               {"CLI",
+                [
+                  {"Debugging", "/en/references/cli/debugging", []},
+                  {"Directories", "/en/references/cli/directories", []},
+                  {"Shell completions", "/en/references/cli/shell-completions", []},
+                  {"Commands", nil,
+                   [
+                     {"cache", "/en/references/cli/commands/cache",
+                      [{"warm", "/en/references/cli/commands/cache/warm", []}]},
+                     {"generate", "/en/references/cli/commands/generate", []}
+                   ]}
+                ]}
+             ]
     end
+  end
 
-    test "includes static CLI pages" do
-      [cli_group, _] = Renderer.build_sidebar(@spec_fixture)
+  defp simplify_groups(groups) do
+    Enum.map(groups, fn %Group{label: label, items: items} ->
+      {label, Enum.map(items, &simplify_item/1)}
+    end)
+  end
 
-      labels = Enum.map(cli_group.items, & &1.label)
-      assert "Debugging" in labels
-      assert "Directories" in labels
-      assert "Shell completions" in labels
-    end
-
-    test "excludes hidden commands from sidebar" do
-      [_, commands_group] = Renderer.build_sidebar(@spec_fixture)
-
-      labels = Enum.map(commands_group.items, & &1.label)
-      refute "hidden-cmd" in labels
-    end
-
-    test "sorts commands alphabetically" do
-      [_, commands_group] = Renderer.build_sidebar(@spec_fixture)
-
-      labels = Enum.map(commands_group.items, & &1.label)
-      assert labels == Enum.sort(labels)
-    end
-
-    test "includes subcommands as nested items" do
-      [_, commands_group] = Renderer.build_sidebar(@spec_fixture)
-
-      cache_item = Enum.find(commands_group.items, &(&1.label == "cache"))
-      assert %Item{} = cache_item
-      assert length(cache_item.items) == 1
-      assert hd(cache_item.items).label == "warm"
-    end
+  defp simplify_item(%Item{label: label, slug: slug, items: items}) do
+    {label, slug, Enum.map(items, &simplify_item/1)}
   end
 end
