@@ -3975,4 +3975,26 @@ defmodule Tuist.AccountsTest do
       assert "is invalid" in errors_on(changeset).preferred_locale
     end
   end
+
+  describe "list_accounts/1" do
+    test "paginates and filters by handle via the :search custom Flop filter" do
+      # Given — three handles, two of which share a substring.
+      AccountsFixtures.organization_fixture(name: "acme")
+      AccountsFixtures.organization_fixture(name: "acmetools")
+      AccountsFixtures.organization_fixture(name: "other")
+
+      # When — search narrows to just the matching pair.
+      {accounts, meta} =
+        Accounts.list_accounts(%{
+          page: 1,
+          page_size: 10,
+          filters: [%{field: :search, op: :==, value: "acme"}]
+        })
+
+      # Then
+      names = accounts |> Enum.map(& &1.name) |> Enum.sort()
+      assert names == ["acme", "acmetools"]
+      assert meta.total_count == 2
+    end
+  end
 end
