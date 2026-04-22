@@ -20,6 +20,7 @@ defmodule Tuist do
       Docs.OgImage,
       Docs.Page,
       Docs.Paths,
+      Docs.Redirects,
       Locale,
       Docs.Sidebar,
       Marketing.Changelog,

@@ -2,10 +2,16 @@ defmodule TuistWeb.Plugs.LegacyRedirectsPlug do
   @moduledoc """
   A plug that handles redirects from legacy URLs to their new locations.
 
-  Add redirects to the @redirects map as `old_path => new_path` entries.
+  Three kinds of redirects are applied, in order:
+
+    1. `/docs/<locale>/*` -> `/<locale>/docs/*` normalization
+    2. Documentation redirects from `Tuist.Docs.Redirects`
+    3. Flat `@redirects` entries for one-off non-docs redirects
   """
   import Phoenix.Controller
   import Plug.Conn
+
+  alias Tuist.Docs.Redirects
 
   @docs_locale_redirect ~r{^/docs/(?<locale>[^/]+)(?<rest>/.*)?$}
 
@@ -17,27 +23,43 @@ defmodule TuistWeb.Plugs.LegacyRedirectsPlug do
   def init(opts), do: opts
 
   def call(conn, _opts) do
-    case docs_path_redirect(conn) || Map.get(@redirects, conn.request_path) do
+    case resolve(conn) do
       nil ->
         conn
 
       new_path ->
         conn
         |> put_status(:moved_permanently)
-        |> redirect(to: new_path)
+        |> redirect(redirect_target(new_path))
         |> halt()
     end
   end
 
-  defp docs_path_redirect(conn) do
-    case Regex.named_captures(@docs_locale_redirect, conn.request_path) do
-      %{"locale" => locale, "rest" => rest} ->
-        rest = rest || ""
-        path = "/#{locale}/docs#{rest}"
-        if conn.query_string == "", do: path, else: "#{path}?#{conn.query_string}"
+  defp resolve(conn) do
+    normalized_request_path = normalize_docs_path(conn.request_path)
+    path_for_docs_lookup = normalized_request_path || conn.request_path
 
-      nil ->
-        nil
+    case Redirects.resolve(path_for_docs_lookup, conn.query_string) do
+      {:ok, docs_redirect} ->
+        docs_redirect
+
+      :none ->
+        normalized_request_path &&
+          append_query_string(normalized_request_path, conn.query_string)
+    end ||
+      Map.get(@redirects, conn.request_path)
+  end
+
+  defp normalize_docs_path(request_path) do
+    case Regex.named_captures(@docs_locale_redirect, request_path) do
+      %{"locale" => locale, "rest" => rest} -> "/#{locale}/docs#{rest || ""}"
+      nil -> nil
     end
   end
+
+  defp redirect_target("http" <> _ = path), do: [external: path]
+  defp redirect_target(path), do: [to: path]
+
+  defp append_query_string(path, ""), do: path
+  defp append_query_string(path, query_string), do: "#{path}?#{query_string}"
 end

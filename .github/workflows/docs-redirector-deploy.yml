@@ -1,0 +1,41 @@
+name: Docs Redirector Deploy
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - infra/docs-redirector/**
+      - infra/mise.toml
+      - .github/workflows/docs-redirector-deploy.yml
+  workflow_dispatch:
+
+concurrency:
+  group: docs-redirector-deploy
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  MISE_VERSION: "2026.4.18"
+  MISE_GITHUB_TOKEN: ${{ github.token }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: 1password/install-cli-action@v2
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          working_directory: infra
+      - name: Deploy docs redirector
+        working-directory: infra/docs-redirector
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          CLOUDFLARE_API_TOKEN: op://tuist/Cloudflare/CLOUDFLARE_API_TOKEN
+          CLOUDFLARE_ACCOUNT_ID: op://tuist/Cloudflare/CLOUDFLARE_ACCOUNT_ID
+        run: op run -- mise exec -- wrangler deploy

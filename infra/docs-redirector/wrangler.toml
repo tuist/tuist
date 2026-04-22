@@ -1,0 +1,7 @@
+name = "docs-redirector"
+main = "src/index.mjs"
+compatibility_date = "2025-01-01"
+
+routes = [
+  { pattern = "docs.tuist.dev/*", zone_name = "tuist.dev" }
+]
