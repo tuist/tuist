@@ -1,0 +1,77 @@
+# Staging workload Cluster for Tuist on Syself Apalla (Hetzner).
+#
+# Applied to the Syself-operated management cluster, which provisions the
+# actual nodes in our Hetzner project via Cluster API (caph provider).
+#
+# Shape:
+#   - Region: fsn1 (Falkenstein). Lowest latency to Supabase (eu-central-1)
+#     and ClickHouse Frankfurt.
+#   - Control plane: 3 × cpx11 (cloud, 2 vCPU / 2 GB each). HA: tolerates 1
+#     node failure and enables zero-downtime kube-apiserver upgrades. Cloud
+#     (not bare metal) keeps staging cheap — the three CPs cost ~€15/mo
+#     combined vs ~€150+/mo for bare-metal CPs.
+#   - Workers: 1 × Hetzner Robot bare-metal server. The Tuist server runs
+#     there — dedicated NVMe + bandwidth, no noisy-neighbor. Register each
+#     server with a HetznerBareMetalHost CR (see
+#     baremetal-host-worker.yaml.example).
+#
+# Before applying:
+#   1. Set `metadata.namespace` to the namespace Syself issued for your org
+#      (see the onboarding email / the kubeconfig's `namespace:` field).
+#   2. Confirm `topology.class` matches an available ClusterStackRelease:
+#        kubectl get clusterstackreleases
+#      Bump `class` + `version` together if a newer release is out.
+#   3. Apply the HetznerBareMetalHost CR(s) first — the Cluster stays in
+#      WaitingForAvailableMachines until at least one matching host is
+#      registered.
+#   4. (Optional) Expose the kube-apiserver via a custom domain: uncomment
+#      the `clusterEndpointHost` / `clusterLoadBalancer*` variables, create
+#      the Hetzner LB + DNS A record per the Syself docs
+#      (infra/k8s/syself-onboarding.md §4).
+
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: Cluster
+metadata:
+  name: tuist-staging
+  namespace: REPLACE_ME_ORG_NAMESPACE
+spec:
+  clusterNetwork:
+    services:
+      cidrBlocks:
+        - 10.128.0.0/12
+    pods:
+      cidrBlocks:
+        - 192.168.0.0/16
+    serviceDomain: cluster.local
+  topology:
+    class: hetzner-apalla-1-34-v6
+    version: v1.34.6
+    controlPlane:
+      class: hcloud
+      replicas: 3
+    workers:
+      machineDeployments:
+        - class: workeramd64baremetal
+          name: md-0
+          replicas: 1
+          variables:
+            overrides:
+              - name: workerHostSelectorBareMetal
+                value:
+                  matchLabels:
+                    role: worker
+                    cluster: tuist-staging
+    variables:
+      variables:
+        - name: region
+          value: fsn1
+        - name: controlPlaneMachineTypeHcloud
+          value: cpx11
+        # Uncomment and fill in to expose the kube-apiserver via a custom
+        # domain (DNS + Hetzner LB must be pre-created — see onboarding §4).
+        # - name: clusterEndpointHost
+        #   value: k8s-staging.tuist.dev
+        # - name: clusterLoadBalancerType
+        #   value: lb11
+        # - name: clusterLoadBalancerName
+        #   value: tuist-staging-apiserver-lb
