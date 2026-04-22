@@ -172,7 +172,7 @@ extension XcodeGraph.Target {
             scripts: scripts,
             environmentVariables: environmentVariables,
             launchArguments: launchArguments,
-            filesGroup: .group(name: "Project"),
+            filesGroup: nil,  // Target inherits filesGroup from Project by default
             dependencies: dependencies,
             playgrounds: playgrounds,
             additionalFiles: additionalFiles,

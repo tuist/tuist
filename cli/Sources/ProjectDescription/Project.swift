@@ -77,6 +77,8 @@ public struct Project: Codable, Equatable, Sendable {
     public let settings: Settings?
     /// The custom file header template for Xcode built-in file templates.
     public let fileHeaderTemplate: FileHeaderTemplate?
+    /// The group for organizing source files in Xcode. If nil, files will be placed at the root level.
+    public let filesGroup: ProjectGroup?
     /// The additional files for the project. For target's additional files, see ``Target/additionalFiles``.
     public let additionalFiles: [FileElement]
     /// The resource synthesizers for the project to generate accessors for resources.
@@ -92,6 +94,7 @@ public struct Project: Codable, Equatable, Sendable {
         targets: [Target] = [],
         schemes: [Scheme] = [],
         fileHeaderTemplate: FileHeaderTemplate? = nil,
+        filesGroup: ProjectGroup? = nil,
         additionalFiles: [FileElement] = [],
         resourceSynthesizers: [ResourceSynthesizer] = .default
     ) {
@@ -105,6 +108,7 @@ public struct Project: Codable, Equatable, Sendable {
         self.settings = settings
         self.additionalFiles = additionalFiles
         self.fileHeaderTemplate = fileHeaderTemplate
+        self.filesGroup = filesGroup
         self.resourceSynthesizers = resourceSynthesizers
         dumpIfNeeded(self)
     }

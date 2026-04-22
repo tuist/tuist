@@ -67,6 +67,7 @@ extension XcodeGraph.Project {
         let packages = try manifest.packages.map { try XcodeGraph.Package.from(manifest: $0, generatorPaths: generatorPaths) }
         let ideTemplateMacros = try manifest.fileHeaderTemplate
             .map { try IDETemplateMacros.from(manifest: $0, generatorPaths: generatorPaths) }
+        let filesGroup = manifest.filesGroup.map { XcodeGraph.ProjectGroup.from(manifest: $0) }
         let resourceSynthesizers = try await manifest.resourceSynthesizers.concurrentMap {
             try await XcodeGraph.ResourceSynthesizer.from(
                 manifest: $0,
@@ -86,7 +87,7 @@ extension XcodeGraph.Project {
             developmentRegion: developmentRegion,
             options: options,
             settings: settings ?? .default,
-            filesGroup: .group(name: "Project"),
+            filesGroup: filesGroup,
             targets: targets,
             packages: packages,
             schemes: schemes,
