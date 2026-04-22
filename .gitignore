@@ -114,7 +114,8 @@ Tuist/Dependencies/graph.json
 # Release artifacts
 .bundle
 
-.claude/
+.claude/*
+!.claude/settings.json
 .agents/
 mise.local.toml
 *.p12

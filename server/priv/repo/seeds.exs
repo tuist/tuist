@@ -922,7 +922,7 @@ test_case_definitions =
       suite_name: suite_name,
       status: Enum.random(["success", "failure", "skipped"]),
       is_flaky: is_flaky,
-      is_quarantined: is_flaky,
+      state: if(is_flaky, do: "muted", else: "enabled"),
       duration: Enum.random(10..500),
       ran_at: NaiveDateTime.utc_now()
     }
@@ -959,7 +959,7 @@ flaky_test_case_updates =
       last_duration: def.duration,
       last_ran_at: def.ran_at,
       is_flaky: true,
-      is_quarantined: is_quarantined,
+      state: if(is_quarantined, do: "muted", else: "enabled"),
       inserted_at: now,
       recent_durations: [def.duration],
       avg_duration: def.duration
@@ -984,7 +984,7 @@ quarantined_test_cases =
 
     # Keep track of quarantined test cases for ensuring they get test runs
     flaky_test_case_updates
-    |> Enum.filter(& &1.is_quarantined)
+    |> Enum.filter(&(&1.state == "muted"))
     |> Enum.map(fn tc ->
       %{id: tc.id, name: tc.name, module_name: tc.module_name, suite_name: tc.suite_name}
     end)
@@ -2460,15 +2460,11 @@ if slack_installation do
     report_frequency: :daily,
     report_days_of_week: [1, 2, 3, 4, 5],
     report_schedule_time: ~U[2024-01-01 09:00:00Z],
-    report_timezone: "Europe/Berlin",
-    # Flaky test alert settings
-    flaky_test_alerts_enabled: true,
-    flaky_test_alerts_slack_channel_id: "C0A598PACRG",
-    flaky_test_alerts_slack_channel_name: "test"
+    report_timezone: "Europe/Berlin"
   })
   |> Repo.update!()
 
-  IO.puts("Updated tuist project with Slack report and flaky test alert settings")
+  IO.puts("Updated tuist project with Slack report settings")
 end
 
 # Create alert rules for the tuist project (only if Slack is configured)
