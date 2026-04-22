@@ -215,10 +215,14 @@ defmodule TuistWeb.XcodeCacheLive do
   defp analytics_trend_label(_), do: dgettext("dashboard_cache", "since last month")
 
   defp assign_recent_builds(%{assigns: %{selected_project: project}} = socket, _params) do
+    {start_datetime, end_datetime} = socket.assigns.analytics_period
+
     options = %{
       filters: [
         %{field: :project_id, op: :==, value: project.id},
-        %{field: :cacheable_tasks_count, op: :>, value: 0}
+        %{field: :cacheable_tasks_count, op: :>, value: 0},
+        %{field: :inserted_at, op: :>=, value: start_datetime},
+        %{field: :inserted_at, op: :<=, value: end_datetime}
       ],
       order_by: [:inserted_at],
       order_directions: [:desc],
