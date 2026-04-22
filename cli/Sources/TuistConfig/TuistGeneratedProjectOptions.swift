@@ -1,9 +1,7 @@
 import Path
-import TSCUtility
 
 public struct TuistGeneratedProjectOptions: Equatable, Hashable {
     public let compatibleXcodeVersions: CompatibleXcodeVersions
-    public let swiftVersion: Version?
     public let plugins: [PluginLocation]
     public let generationOptions: GenerationOptions
     public let installOptions: InstallOptions
@@ -11,14 +9,12 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
 
     public init(
         compatibleXcodeVersions: CompatibleXcodeVersions,
-        swiftVersion: Version?,
         plugins: [PluginLocation],
         generationOptions: GenerationOptions,
         installOptions: InstallOptions,
         cacheOptions: CacheOptions
     ) {
         self.compatibleXcodeVersions = compatibleXcodeVersions
-        self.swiftVersion = swiftVersion
         self.plugins = plugins
         self.generationOptions = generationOptions
         self.installOptions = installOptions
@@ -27,7 +23,6 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
 
     public func hash(into hasher: inout Hasher) {
         hasher.combine(compatibleXcodeVersions)
-        hasher.combine(swiftVersion)
         hasher.combine(plugins)
         hasher.combine(generationOptions)
         hasher.combine(installOptions)
@@ -37,7 +32,6 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
     public static var `default`: Self {
         TuistGeneratedProjectOptions(
             compatibleXcodeVersions: .all,
-            swiftVersion: nil,
             plugins: [],
             generationOptions: .init(
                 resolveDependenciesWithSystemScm: false,
@@ -211,7 +205,6 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
     #if DEBUG
         public static func test(
             compatibleXcodeVersions: CompatibleXcodeVersions = .all,
-            swiftVersion: Version? = nil,
             plugins: [PluginLocation] = [],
             generationOptions: GenerationOptions = .test(),
             installOptions: InstallOptions = .test(),
@@ -219,7 +212,6 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
         ) -> Self {
             return .init(
                 compatibleXcodeVersions: compatibleXcodeVersions,
-                swiftVersion: swiftVersion,
                 plugins: plugins,
                 generationOptions: generationOptions,
                 installOptions: installOptions,

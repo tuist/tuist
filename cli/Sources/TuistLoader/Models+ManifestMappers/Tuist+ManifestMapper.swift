@@ -1,7 +1,6 @@
 import Foundation
 import Path
 import ProjectDescription
-import TSCUtility
 import TuistConfig
 import TuistCore
 import TuistLogging
@@ -49,7 +48,6 @@ extension TuistConfig.Tuist {
         switch manifest.project {
         case let .tuist(
             compatibleXcodeVersions,
-            manifestSwiftVersion,
             plugins,
             generationOptions,
             installOptions,
@@ -65,12 +63,6 @@ extension TuistConfig.Tuist {
 
             let compatibleXcodeVersions = TuistConfig.CompatibleXcodeVersions.from(manifest: compatibleXcodeVersions)
             let plugins = try plugins.map { try PluginLocation.from(manifest: $0, generatorPaths: generatorPaths) }
-            let swiftVersion: TSCUtility.Version?
-            if let configuredVersion = manifestSwiftVersion {
-                swiftVersion = TSCUtility.Version(configuredVersion.major, configuredVersion.minor, configuredVersion.patch)
-            } else {
-                swiftVersion = nil
-            }
 
             let installOptions = TuistConfig.TuistGeneratedProjectOptions.InstallOptions.from(
                 manifest: installOptions
@@ -80,7 +72,6 @@ extension TuistConfig.Tuist {
                 project: .generated(
                     TuistGeneratedProjectOptions(
                         compatibleXcodeVersions: compatibleXcodeVersions,
-                        swiftVersion: swiftVersion,
                         plugins: plugins,
                         generationOptions: generationOptions,
                         installOptions: installOptions,
