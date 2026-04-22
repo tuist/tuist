@@ -8,7 +8,7 @@
       <.dropdown_item
         value="any"
         label="Any"
-        patch={"?#{Query.put(@uri.query, "analytics-environment", "any")}"}
+        patch={"?#{@uri.query |> Query.put("analytics-environment", "any") |> Query.drop("before") |> Query.drop("after")}"}
         data-selected={@analytics_environment == "any"}
       >
         <:right_icon :if={@analytics_environment == "any"}><.check /></:right_icon>
@@ -16,7 +16,7 @@
       <.dropdown_item
         value="local"
         label="Local"
-        patch={"?#{Query.put(@uri.query, "analytics-environment", "local")}"}
+        patch={"?#{@uri.query |> Query.put("analytics-environment", "local") |> Query.drop("before") |> Query.drop("after")}"}
         data-selected={@analytics_environment == "local"}
       >
         <:right_icon :if={@analytics_environment == "local"}><.check /></:right_icon>
@@ -24,7 +24,7 @@
       <.dropdown_item
         value="ci"
         label="CI"
-        patch={"?#{Query.put(@uri.query, "analytics-environment", "ci")}"}
+        patch={"?#{@uri.query |> Query.put("analytics-environment", "ci") |> Query.drop("before") |> Query.drop("after")}"}
         data-selected={@analytics_environment == "ci"}
       >
         <:right_icon :if={@analytics_environment == "ci"}><.check /></:right_icon>

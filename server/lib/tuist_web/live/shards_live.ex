@@ -120,6 +120,11 @@ defmodule TuistWeb.ShardsLive do
         Query.put(socket.assigns.uri.query, "analytics-date-range", preset)
       end
 
+    query_params =
+      query_params
+      |> Query.drop("before")
+      |> Query.drop("after")
+
     {:noreply, push_patch(socket, to: "/#{selected_account.name}/#{selected_project.name}/tests/shards?#{query_params}")}
   end
 
