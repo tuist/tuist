@@ -125,17 +125,22 @@ jobs:
       - name: Start main server
         working-directory: server
         run: |
-          # Reuse the compile artifacts from the Setup step.
-          MIX_ENV=dev mix phx.server --no-compile &
+          # nohup + disown so the backgrounded BEAM survives the bash
+          # shell exiting when this step finishes — otherwise the e2e
+          # step hits nothing-listening.
+          nohup bash -c 'MIX_ENV=dev mix phx.server' >/tmp/main-server.log 2>&1 &
+          disown
           server_url="${TUIST_SERVER_URL:-http://localhost:8080}"
           port="${server_url##*:}"
-          for i in {1..60}; do
+          for i in {1..180}; do
             if nc -z localhost "$port" 2>/dev/null; then
               echo "Main server is listening on :${port} after ${i} attempts"
               break
             fi
-            if [ "$i" = "60" ]; then
+            if [ "$i" = "180" ]; then
               echo "Main server never came up on :${port}" >&2
+              echo "--- main-server.log tail ---" >&2
+              tail -50 /tmp/main-server.log >&2
               exit 1
             fi
             sleep 2
