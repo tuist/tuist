@@ -1552,7 +1552,7 @@ jobs:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
         run: |
           export GRAFANA_ACCESS_POLICY_TOKEN=$(op read "op://tuist/GRAFANA_ACCESS_POLICY_TOKEN/password")
-          mise run bundle -- --root-urls https://tuist.grafana.net/
+          mise run bundle -- --signature-type community
 
       - name: Upload Grafana plugin artifacts
         id: upload
@@ -1845,10 +1845,13 @@ jobs:
           name: Grafana plugin ${{ needs.check-releases.outputs.grafana-next-version-number }}
           tag_name: ${{ needs.check-releases.outputs.grafana-next-version }}
           body: |
-            Signed private plugin for `https://tuist.grafana.net/`. Upload
-            the attached zip via *Grafana Cloud → your stack → Administration
-            → Plugins → Upload private plugin*, or open a support ticket
-            referencing the release URL.
+            Community-signed build of the Tuist Grafana app plugin
+            (`tuist-tuist-app`). Any Grafana instance can install it once the
+            Grafana plugin catalogue has ingested this version — the first
+            release of the plugin needs a one-time submission via
+            <https://grafana.com/auth/sign-in?redirectPath=/plugins/submit>
+            (Public / free). After that, subsequent tagged releases are
+            picked up automatically from this GitHub release.
 
             ${{ needs.release-grafana.outputs.release-notes }}
           files: |
