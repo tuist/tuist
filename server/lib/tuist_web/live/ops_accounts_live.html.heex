@@ -110,24 +110,30 @@
                 required
                 show_required
               />
-              <.select
-                id={"enterprise-address-country-#{account.id}"}
-                label="Country"
-                name="address_country"
-                value=""
-              >
-                <:item :for={{code, name} <- countries()} value={code} label={name} />
-              </.select>
+              <div data-part="select-field">
+                <.label label="Country" required />
+                <.select
+                  id={"enterprise-address-country-#{account.id}"}
+                  label="Select a country"
+                  name="address_country"
+                  value=""
+                >
+                  <:item :for={{code, name} <- countries()} value={code} label={name} />
+                </.select>
+              </div>
 
-              <.select
-                id={"enterprise-cadence-#{account.id}"}
-                label="Billing cadence"
-                name="cadence"
-                value="monthly"
-              >
-                <:item value="monthly" label="Monthly" />
-                <:item value="yearly" label="Yearly" />
-              </.select>
+              <div data-part="select-field">
+                <.label label="Billing cadence" />
+                <.select
+                  id={"enterprise-cadence-#{account.id}"}
+                  label="Monthly"
+                  name="cadence"
+                  value="monthly"
+                >
+                  <:item value="monthly" label="Monthly" />
+                  <:item value="yearly" label="Yearly" />
+                </.select>
+              </div>
             </form>
 
             <:footer>

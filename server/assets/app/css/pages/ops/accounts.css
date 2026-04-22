@@ -29,6 +29,15 @@
   }
 }
 
+/* Stack a label above a Noora select — `.select` doesn't render its own
+   field-label (the trigger acts as placeholder), so we pair it with
+   `<.label>` inside this wrapper to match the other form fields. */
+[data-part="select-field"] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-2);
+}
+
 /* Enterprise upgrade modals are rendered via Noora's portal, so they live
    outside `#ops-accounts`. Scope styles via the id prefix instead. */
 [id^="enterprise-modal-"] > [data-part="positioner"] > [data-part="content"] {
