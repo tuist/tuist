@@ -98,16 +98,6 @@ jobs:
       - name: Start ClickHouse
         working-directory: server
         run: mise run --no-deps clickhouse:start
-      - name: Setup main server
-        working-directory: server
-        run: |
-          mix do \
-            compile, \
-            ecto.create, \
-            run priv/repo/timezone.exs, \
-            ecto.load, \
-            ecto.migrate, \
-            run priv/repo/seeds.exs
       - name: Restore cache deps
         uses: actions/cache@v4
         with:
@@ -120,10 +110,17 @@ jobs:
       - name: Install cache deps
         working-directory: cache
         run: mix deps.get
-      - name: Start main server
+      - name: Setup and start main server
         working-directory: server
         run: |
-          MIX_ENV=dev mix phx.server &
+          MIX_ENV=dev mix do \
+            compile, \
+            ecto.create, \
+            run priv/repo/timezone.exs, \
+            ecto.load, \
+            ecto.migrate, \
+            run priv/repo/seeds.exs, \
+            phx.server &
           server_url="${TUIST_SERVER_URL:-http://localhost:8080}"
           for i in {1..30}; do
             if curl -sf "$server_url" >/dev/null 2>&1; then
