@@ -8,15 +8,6 @@ set -euo pipefail
 PLUGIN_DIR="${MISE_PROJECT_ROOT}"
 cd "${PLUGIN_DIR}"
 
-node --version | grep -qE '^v(2[4-9]|[3-9][0-9])' || {
-  echo "ERROR: expected Node >=24 from mise (got $(node --version))." >&2
-  echo "       grafana/mise.toml pins node — if you see a lower version," >&2
-  echo "       another version manager (nvm, n, asdf) is likely shadowing" >&2
-  echo "       mise's shims. Remove it from your shell or reorder PATH so" >&2
-  echo "       \$HOME/.local/share/mise/shims comes first." >&2
-  exit 1
-}
-
 PLUGIN_ID="$(jq -r .id src/plugin.json)"
 PLUGIN_VERSION="$(jq -r .version package.json)"
 ARTIFACT="${PLUGIN_DIR}/${PLUGIN_ID}-${PLUGIN_VERSION}.zip"
