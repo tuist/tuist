@@ -1,5 +1,5 @@
 defmodule CacheWeb.CleanControllerTest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
   use Oban.Testing, repo: Cache.Repo
   use Mimic
 
