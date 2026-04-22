@@ -740,6 +740,17 @@ defmodule Tuist.Accounts do
     Flop.validate_and_run!(query, attrs, for: Account)
   end
 
+  @doc """
+  Returns a paginated list of accounts. Accepts any Flop params (`page`,
+  `page_size`, `filters`, `order_by`, ...). Use the `:search` custom filter
+  for a handle substring match — see `Account.search_filter/3`. Callers are
+  expected to preload associations they need.
+  """
+  def list_accounts(attrs \\ %{}) do
+    base_query = from(a in Account, order_by: [asc: a.name])
+    Flop.validate_and_run!(base_query, attrs, for: Account)
+  end
+
   def list_billable_customers do
     Repo.all(
       from(a in Account,

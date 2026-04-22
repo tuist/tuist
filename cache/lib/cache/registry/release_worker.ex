@@ -64,8 +64,10 @@ defmodule Cache.Registry.ReleaseWorker do
         case Metadata.get_package(scope, name, fresh: true) do
           {:ok, metadata} ->
             releases = Map.get(metadata, "releases", %{})
+            skipped_releases = Map.get(metadata, "skipped_releases", %{})
 
-            if Map.has_key?(releases, normalized_version) do
+            if Map.has_key?(releases, normalized_version) or
+                 Map.has_key?(skipped_releases, normalized_version) do
               :ok
             else
               sync_release(scope, name, full_handle, tag, normalized_version, token)
@@ -89,8 +91,20 @@ defmodule Cache.Registry.ReleaseWorker do
       update_metadata_with_release(scope, name, full_handle, version, checksum, manifests)
     else
       {:error, reason} ->
-        Logger.warning("Failed to sync release #{scope}/#{name}@#{tag}: #{inspect(reason)}")
-        {:error, reason}
+        case maybe_skip_release(scope, name, full_handle, version, reason) do
+          :ok ->
+            :ok
+
+          :not_skipped ->
+            Logger.warning("Failed to sync release #{scope}/#{name}@#{tag}: #{inspect(reason)}")
+            {:error, reason}
+
+          {:error, skip_reason} ->
+            Logger.warning("Failed to record skipped release #{scope}/#{name}@#{tag}: #{inspect(skip_reason)}")
+
+            Logger.warning("Failed to sync release #{scope}/#{name}@#{tag}: #{inspect(reason)}")
+            {:error, reason}
+        end
     end
   end
 
@@ -113,7 +127,14 @@ defmodule Cache.Registry.ReleaseWorker do
   end
 
   defp build_archive_from_zipball(full_handle, tag, token, tmp_dir, archive_path) do
-    with :ok <- TuistCommon.GitHub.download_zipball(full_handle, token, tag, archive_path, @github_opts) do
+    with :ok <-
+           TuistCommon.GitHub.download_zipball(
+             full_handle,
+             token,
+             tag,
+             archive_path,
+             @github_opts
+           ) do
       normalize_archive(tmp_dir, archive_path)
     end
   end
@@ -282,7 +303,10 @@ defmodule Cache.Registry.ReleaseWorker do
   end
 
   defp skippable_submodule_failure?(output) do
-    Enum.any?(@skippable_submodule_failure_markers, &(output |> String.downcase() |> String.contains?(&1)))
+    Enum.any?(
+      @skippable_submodule_failure_markers,
+      &(output |> String.downcase() |> String.contains?(&1))
+    )
   end
 
   defp remove_failed_submodule_contents(destination, submodule_path) do
@@ -427,9 +451,14 @@ defmodule Cache.Registry.ReleaseWorker do
     expanded_path = Path.expand(path, expanded_base_path)
 
     cond do
-      expanded_path == package_root -> nil
-      path_within_root?(expanded_path, package_root) -> Path.relative_to(expanded_path, package_root)
-      true -> nil
+      expanded_path == package_root ->
+        nil
+
+      path_within_root?(expanded_path, package_root) ->
+        Path.relative_to(expanded_path, package_root)
+
+      true ->
+        nil
     end
   end
 
@@ -499,6 +528,7 @@ defmodule Cache.Registry.ReleaseWorker do
 
           {:symlink_outside_root, _target} ->
             Logger.warning("Removing symlink #{path} -> #{target} because it points outside #{root_directory}")
+
             File.rm!(path)
             prune_symlinks_outside_root(rest, root_directory)
         end
@@ -564,12 +594,18 @@ defmodule Cache.Registry.ReleaseWorker do
   end
 
   defp upload_source_archive(scope, name, version, archive_path) do
-    key = KeyNormalizer.package_object_key(%{scope: scope, name: name}, version: version, path: "source_archive.zip")
+    key =
+      KeyNormalizer.package_object_key(%{scope: scope, name: name},
+        version: version,
+        path: "source_archive.zip"
+      )
+
     S3.upload_file(key, archive_path, type: :registry, content_type: "application/zip")
   end
 
   defp fetch_manifests(full_handle, tag, token) do
-    with {:ok, contents} <- TuistCommon.GitHub.list_repository_contents(full_handle, token, tag, @github_opts) do
+    with {:ok, contents} <-
+           TuistCommon.GitHub.list_repository_contents(full_handle, token, tag, @github_opts) do
       manifest_payloads =
         contents
         |> Enum.map(&Map.get(&1, "path"))
@@ -588,19 +624,28 @@ defmodule Cache.Registry.ReleaseWorker do
 
             {:error, reason} ->
               Logger.warning("Failed to fetch manifest #{path} for #{full_handle}@#{tag}: #{inspect(reason)}")
+
               nil
           end
         end)
         |> Enum.reject(&is_nil/1)
 
-      {:ok, manifest_payloads}
+      case manifest_payloads do
+        [] -> {:error, {:missing_manifests, full_handle, tag}}
+        _ -> {:ok, manifest_payloads}
+      end
     end
   end
 
   defp upload_manifests(scope, name, version, manifest_payloads) do
     manifests =
       manifest_payloads
-      |> Enum.map(fn %{content: content, filename: filename, path: path, swift_version: swift_version} ->
+      |> Enum.map(fn %{
+                       content: content,
+                       filename: filename,
+                       path: path,
+                       swift_version: swift_version
+                     } ->
         case upload_manifest(scope, name, version, filename, content) do
           :ok ->
             %{
@@ -610,6 +655,7 @@ defmodule Cache.Registry.ReleaseWorker do
 
           {:error, reason} ->
             Logger.warning("Failed to upload manifest #{path} for #{scope}/#{name}@#{version}: #{inspect(reason)}")
+
             nil
         end
       end)
@@ -625,7 +671,17 @@ defmodule Cache.Registry.ReleaseWorker do
       {:ok, :acquired} ->
         try do
           with {:ok, metadata} <- get_or_create_metadata(scope, name, full_handle) do
-            updated_metadata = build_updated_metadata(metadata, scope, name, full_handle, version, checksum, manifests)
+            updated_metadata =
+              build_updated_metadata(
+                metadata,
+                scope,
+                name,
+                full_handle,
+                version,
+                checksum,
+                manifests
+              )
+
             Metadata.put_package(scope, name, updated_metadata)
           end
         after
@@ -634,7 +690,50 @@ defmodule Cache.Registry.ReleaseWorker do
 
       {:error, :already_locked} ->
         Logger.info("Metadata update skipped for #{scope}/#{name}@#{version}: lock held by another node")
+
         :ok
+    end
+  end
+
+  defp maybe_skip_release(scope, name, full_handle, version, {:missing_manifests, failed_full_handle, tag}) do
+    Logger.warning(
+      "Skipping registry release #{scope}/#{name}@#{tag} for #{failed_full_handle}: no root Package.swift manifest was found"
+    )
+
+    update_metadata_with_skipped_release(scope, name, full_handle, version, "missing_manifests")
+  end
+
+  defp maybe_skip_release(_scope, _name, _full_handle, _version, _reason), do: :not_skipped
+
+  defp update_metadata_with_skipped_release(scope, name, full_handle, version, reason) do
+    lock_key = {:package, scope, name}
+
+    case Lock.try_acquire(lock_key, @metadata_lock_ttl_seconds) do
+      {:ok, :acquired} ->
+        try do
+          with {:ok, metadata} <- get_or_create_metadata(scope, name, full_handle) do
+            updated_metadata =
+              build_updated_metadata_with_skipped_release(
+                metadata,
+                scope,
+                name,
+                full_handle,
+                version,
+                reason
+              )
+
+            Metadata.put_package(scope, name, updated_metadata)
+          end
+        after
+          Lock.release(lock_key)
+        end
+
+      {:error, :already_locked} ->
+        Logger.warning(
+          "Skipped release metadata update deferred for #{scope}/#{name}@#{version}: lock held by another node"
+        )
+
+        {:error, {:skipped_release_metadata_locked, scope, name, version}}
     end
   end
 
@@ -644,7 +743,13 @@ defmodule Cache.Registry.ReleaseWorker do
         {:ok, metadata}
 
       {:error, :not_found} ->
-        {:ok, %{"scope" => scope, "name" => name, "repository_full_handle" => full_handle, "releases" => %{}}}
+        {:ok,
+         %{
+           "scope" => scope,
+           "name" => name,
+           "repository_full_handle" => full_handle,
+           "releases" => %{}
+         }}
 
       {:error, reason} ->
         {:error, reason}
@@ -656,7 +761,10 @@ defmodule Cache.Registry.ReleaseWorker do
     |> Map.put_new("scope", scope)
     |> Map.put_new("name", name)
     |> Map.put("repository_full_handle", full_handle)
-    |> Map.put("updated_at", DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601())
+    |> Map.put(
+      "updated_at",
+      DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601()
+    )
     |> Map.update(
       "releases",
       %{version => %{"checksum" => checksum, "manifests" => manifests}},
@@ -669,13 +777,38 @@ defmodule Cache.Registry.ReleaseWorker do
     )
   end
 
+  defp build_updated_metadata_with_skipped_release(metadata, scope, name, full_handle, version, reason) do
+    metadata
+    |> Map.put_new("scope", scope)
+    |> Map.put_new("name", name)
+    |> Map.put("repository_full_handle", full_handle)
+    |> Map.put(
+      "updated_at",
+      DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601()
+    )
+    |> Map.update(
+      "skipped_releases",
+      %{version => %{"reason" => reason}},
+      fn skipped_releases ->
+        Map.put(skipped_releases || %{}, version, %{"reason" => reason})
+      end
+    )
+  end
+
   defp upload_manifest(scope, name, version, filename, content) do
-    key = KeyNormalizer.package_object_key(%{scope: scope, name: name}, version: version, path: filename)
+    key =
+      KeyNormalizer.package_object_key(%{scope: scope, name: name},
+        version: version,
+        path: filename
+      )
+
     S3.upload_content(key, content, type: :registry, content_type: "text/x-swift")
   end
 
   defp manifest_path?("Package.swift"), do: true
+
   defp manifest_path?(path) when is_binary(path), do: Regex.match?(@alternate_manifest_regex, Path.basename(path))
+
   defp manifest_path?(_), do: false
 
   defp manifest_swift_version("Package.swift"), do: nil

@@ -58,7 +58,8 @@ defmodule Tuist.MCP.Tool do
   # --- Call dispatchers ---
 
   def respond({:ok, data}), do: json_response(data)
-  def respond({:error, message}), do: EMCP.Tool.error(message)
+  def respond({:error, message}) when is_binary(message), do: EMCP.Tool.error(message)
+  def respond({:error, other}), do: EMCP.Tool.error(inspect(other))
 
   def call_with_project(conn, args, action, category, execute_fn) do
     case resolve_and_authorize_project(args, conn.assigns, action, category) do

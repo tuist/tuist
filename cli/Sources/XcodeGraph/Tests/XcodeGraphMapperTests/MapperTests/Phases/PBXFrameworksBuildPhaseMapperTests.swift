@@ -196,4 +196,63 @@ struct PBXFrameworksBuildPhaseMapperTests {
             ]
         )
     }
+
+    @Test("Maps static library build products from frameworks phase")
+    func mapStaticLibraryBuildProducts() async throws {
+        // Given
+        let xcodeProj = try await XcodeProj.test()
+        let pbxProj = xcodeProj.pbxproj
+
+        let staticLibraryRef = PBXFileReference(
+            sourceTree: .buildProductsDir,
+            explicitFileType: "archive.ar",
+            path: "libStaticLibrary.a"
+        )
+        let staticLibraryBuildFile = PBXBuildFile(file: staticLibraryRef).add(to: pbxProj)
+
+        let frameworksPhase = PBXFrameworksBuildPhase(
+            files: [staticLibraryBuildFile]
+        ).add(to: pbxProj)
+
+        try PBXNativeTarget(
+            name: "App",
+            buildPhases: [frameworksPhase],
+            productType: .application
+        )
+        .add(to: pbxProj)
+        .add(to: pbxProj.rootObject)
+
+        PBXNativeTarget.test(
+            name: "StaticLibrary",
+            productType: .staticLibrary,
+            product: PBXFileReference.test(
+                sourceTree: .buildProductsDir,
+                explicitFileType: "archive.ar",
+                path: "libStaticLibrary.a",
+                lastKnownFileType: nil,
+                includeInIndex: false
+            )
+        )
+        .add(to: pbxProj)
+
+        let mapper = PBXFrameworksBuildPhaseMapper()
+
+        // When
+        let frameworks = try mapper.map(
+            frameworksPhase,
+            xcodeProj: xcodeProj,
+            projectNativeTargets: [:]
+        )
+
+        // Then
+        #expect(
+            frameworks == [
+                .target(
+                    name: "StaticLibrary",
+                    status: .required,
+                    condition: nil
+                ),
+            ]
+        )
+    }
 }

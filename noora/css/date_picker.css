@@ -18,10 +18,6 @@
     var(--noora-neutral-light-200),
     var(--noora-neutral-dark-1000)
   );
-  --noora-datepicker-trigger-background: light-dark(
-    var(--noora-neutral-light-50),
-    var(--noora-neutral-dark-1100)
-  );
 
   display: flex;
   flex-direction: column;
@@ -30,46 +26,24 @@
 
   /* Trigger button */
   & [data-part="trigger"] {
-    --background-base: var(--noora-datepicker-trigger-background);
-    --background-gradient-start: light-dark(
-      oklch(78.6% 0.013 248 / 0),
-      oklch(100% 0 0 / 0.08)
-    );
-    --background-gradient-end: light-dark(
-      oklch(78.6% 0.013 248 / 0.13),
-      oklch(100% 0 0 / 0)
-    );
-
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: var(--noora-spacing-4);
     cursor: pointer;
     outline: unset;
-    box-shadow: var(--noora-border-light-default);
+    box-shadow: var(--noora-button-border-secondary);
     border: 0;
     border-radius: var(--noora-radius-medium);
-    background:
-      linear-gradient(
-        180deg,
-        var(--background-gradient-start) 0%,
-        var(--background-gradient-end) 100%
-      ),
-      var(--background-base);
+    background: var(--noora-button-background-secondary);
     padding: var(--noora-spacing-3) var(--noora-spacing-4);
     color: var(--noora-surface-label-primary);
     font: var(--noora-font-body-medium);
     width: fit-content;
 
     &:hover:not(:disabled) {
-      --background-gradient-start: light-dark(
-        oklch(78.6% 0.013 248 / 0),
-        oklch(100% 0 0 / 0.04)
-      );
-      --background-gradient-end: light-dark(
-        oklch(78.6% 0.013 248 / 0.26),
-        oklch(100% 0 0 / 0)
-      );
+      background: var(--noora-button-background-secondary-hover);
+      box-shadow: var(--noora-button-border-secondary);
     }
 
     &:disabled {
@@ -77,9 +51,18 @@
       color: var(--noora-surface-label-disabled);
     }
 
-    &[data-state="open"] {
-      box-shadow: var(--noora-border-light-focus);
+    &:focus-visible {
+      background: var(--noora-button-background-secondary-hover);
+      box-shadow: var(--noora-button-border-secondary-focus);
     }
+
+    &[data-state="open"] {
+      box-shadow: var(--noora-button-border-secondary-focus);
+    }
+  }
+
+  html[data-theme="dark"] & [data-part="trigger"]:hover {
+    box-shadow: var(--noora-button-border-secondary-hover);
   }
 
   & [data-part="trigger-label"] {

@@ -1,199 +1,201 @@
 <div id="builds">
+  <div data-part="filters">
+    <.dropdown
+      :if={Enum.any?(@build_tags)}
+      id="builds-analytics-tag-dropdown"
+      label={TuistWeb.XcodeBuildsLive.build_tag_label(@analytics_build_tag)}
+      secondary_text={dgettext("dashboard_builds", "Tag:")}
+    >
+      <.dropdown_item
+        value="all"
+        label={dgettext("dashboard_builds", "All")}
+        patch={"?#{Query.put(@uri.query, "analytics-build-tag", "all")}"}
+        data-selected={@analytics_build_tag == "all"}
+      >
+        <:right_icon :if={@analytics_build_tag == "all"}><.check /></:right_icon>
+      </.dropdown_item>
+      <.dropdown_item
+        :for={build_tag <- @build_tags}
+        value={build_tag}
+        label={build_tag}
+        patch={"?#{Query.put(@uri.query, "analytics-build-tag", build_tag)}"}
+        data-selected={@analytics_build_tag == build_tag}
+      >
+        <:right_icon :if={@analytics_build_tag == build_tag}><.check /></:right_icon>
+      </.dropdown_item>
+    </.dropdown>
+    <.dropdown
+      id="builds-analytics-scheme-dropdown"
+      label={TuistWeb.XcodeBuildsLive.build_scheme_label(@analytics_build_scheme)}
+      secondary_text={dgettext("dashboard_builds", "Scheme:")}
+    >
+      <:search>
+        <input
+          type="text"
+          placeholder={dgettext("dashboard_builds", "Search...")}
+          data-part="search-input"
+        />
+      </:search>
+      <.dropdown_item
+        value="any"
+        label={dgettext("dashboard_builds", "Any")}
+        patch={"?#{Query.put(@uri.query, "analytics-build-scheme", "any")}"}
+        data-selected={@analytics_build_scheme == "any"}
+      >
+        <:right_icon :if={@analytics_build_scheme == "any"}><.check /></:right_icon>
+      </.dropdown_item>
+      <.dropdown_item
+        :for={build_scheme <- @build_schemes}
+        value={build_scheme}
+        label={build_scheme}
+        patch={"?#{Query.put(@uri.query, "analytics-build-scheme", build_scheme)}"}
+        data-selected={@analytics_build_scheme == build_scheme}
+      >
+        <:right_icon :if={@analytics_build_scheme == build_scheme}><.check /></:right_icon>
+      </.dropdown_item>
+    </.dropdown>
+    <.dropdown
+      id="builds-analytics-configuration-dropdown"
+      label={TuistWeb.XcodeBuildsLive.build_configuration_label(@analytics_build_configuration)}
+      secondary_text={dgettext("dashboard_builds", "Configuration:")}
+    >
+      <.dropdown_item
+        value="any"
+        label={dgettext("dashboard_builds", "Any")}
+        patch={"?#{Query.put(@uri.query, "analytics-build-configuration", "any")}"}
+        data-selected={@analytics_build_configuration == "any"}
+      >
+        <:right_icon :if={@analytics_build_configuration == "any"}><.check /></:right_icon>
+      </.dropdown_item>
+      <.dropdown_item
+        :for={build_configuration <- @build_configurations}
+        value={build_configuration}
+        label={build_configuration}
+        patch={"?#{Query.put(@uri.query, "analytics-build-configuration", build_configuration)}"}
+        data-selected={@analytics_build_configuration == build_configuration}
+      >
+        <:right_icon :if={@analytics_build_configuration == build_configuration}>
+          <.check />
+        </:right_icon>
+      </.dropdown_item>
+    </.dropdown>
+    <.dropdown
+      id="builds-analytics-category-dropdown"
+      label={@analytics_build_category |> String.capitalize()}
+      secondary_text={dgettext("dashboard_builds", "Build:")}
+    >
+      <.dropdown_item
+        value="any"
+        label={dgettext("dashboard_builds", "Any")}
+        patch={"?#{Query.put(@uri.query, "analytics-build-category", "any")}"}
+        data-selected={@analytics_build_category == "any"}
+      >
+        <:right_icon :if={@analytics_build_category == "any"}><.check /></:right_icon>
+      </.dropdown_item>
+      <.dropdown_item
+        value="incremental"
+        label={dgettext("dashboard_builds", "Incremental")}
+        patch={"?#{Query.put(@uri.query, "analytics-build-category", "incremental")}"}
+        data-selected={@analytics_build_category == "incremental"}
+      >
+        <:right_icon :if={@analytics_build_category == "incremental"}><.check /></:right_icon>
+      </.dropdown_item>
+      <.dropdown_item
+        value="clean"
+        label={dgettext("dashboard_builds", "Clean")}
+        patch={"?#{Query.put(@uri.query, "analytics-build-category", "clean")}"}
+        data-selected={@analytics_build_category == "clean"}
+      >
+        <:right_icon :if={@analytics_build_category == "clean"}><.check /></:right_icon>
+      </.dropdown_item>
+    </.dropdown>
+    <.dropdown
+      id="builds-analytics-environment-dropdown"
+      label={TuistWeb.XcodeBuildsLive.environment_label(@analytics_environment)}
+      secondary_text={dgettext("dashboard_builds", "Environment:")}
+    >
+      <.dropdown_item
+        value="any"
+        label={dgettext("dashboard_builds", "Any")}
+        patch={"?#{Query.put(@uri.query, "analytics-environment", "any")}"}
+        data-selected={@analytics_environment == "any"}
+      >
+        <:right_icon :if={@analytics_environment == "any"}><.check /></:right_icon>
+      </.dropdown_item>
+      <.dropdown_item
+        value="local"
+        label={dgettext("dashboard_builds", "Local")}
+        patch={"?#{Query.put(@uri.query, "analytics-environment", "local")}"}
+        data-selected={@analytics_environment == "local"}
+      >
+        <:right_icon :if={@analytics_environment == "local"}><.check /></:right_icon>
+      </.dropdown_item>
+      <.dropdown_item
+        value="ci"
+        label={dgettext("dashboard_builds", "CI")}
+        patch={"?#{Query.put(@uri.query, "analytics-environment", "ci")}"}
+        data-selected={@analytics_environment == "ci"}
+      >
+        <:right_icon :if={@analytics_environment == "ci"}><.check /></:right_icon>
+      </.dropdown_item>
+    </.dropdown>
+    <.date_picker
+      id="builds-analytics-date-range-picker"
+      name="analytics-date-range"
+      presets={[
+        %{
+          id: "last-24-hours",
+          label: dgettext("dashboard_builds", "Last 24 hours"),
+          period: {24, :hour}
+        },
+        %{
+          id: "last-7-days",
+          label: dgettext("dashboard_builds", "Last 7 days"),
+          period: {7, :day}
+        },
+        %{
+          id: "last-30-days",
+          label: dgettext("dashboard_builds", "Last 30 days"),
+          period: {30, :day}
+        },
+        %{
+          id: "last-12-months",
+          label: dgettext("dashboard_builds", "Last 12 months"),
+          period: {12, :month}
+        },
+        %{id: "custom", label: dgettext("dashboard_builds", "Custom")}
+      ]}
+      selected_preset={@analytics_preset}
+      period={@analytics_period}
+      on_period_change="analytics_period_changed"
+      max={Date.utc_today()}
+    >
+      <:actions>
+        <.button
+          label={dgettext("dashboard_builds", "Cancel")}
+          variant="secondary"
+          phx-click={
+            JS.dispatch("phx:date-picker-cancel",
+              detail: %{id: "builds-analytics-date-range-picker"}
+            )
+          }
+        />
+        <.button
+          label={dgettext("dashboard_builds", "Apply")}
+          phx-click={
+            JS.dispatch("phx:date-picker-apply",
+              detail: %{id: "builds-analytics-date-range-picker"}
+            )
+          }
+        />
+      </:actions>
+    </.date_picker>
+  </div>
   <.card
     title={dgettext("dashboard_builds", "Builds")}
     icon="chart_arcs"
     data-part="analytics-card"
   >
-    <:actions>
-      <.dropdown
-        :if={Enum.any?(@build_tags)}
-        id="builds-analytics-tag-dropdown"
-        label={TuistWeb.XcodeBuildsLive.build_tag_label(@analytics_build_tag)}
-        secondary_text={dgettext("dashboard_builds", "Tag:")}
-      >
-        <.dropdown_item
-          value="all"
-          label={dgettext("dashboard_builds", "All")}
-          patch={"?#{Query.put(@uri.query, "analytics-build-tag", "all")}"}
-          data-selected={@analytics_build_tag == "all"}
-        >
-          <:right_icon><.check /></:right_icon>
-        </.dropdown_item>
-        <.dropdown_item
-          :for={build_tag <- @build_tags}
-          value={build_tag}
-          label={build_tag}
-          patch={"?#{Query.put(@uri.query, "analytics-build-tag", build_tag)}"}
-          data-selected={@analytics_build_tag == build_tag}
-        >
-          <:right_icon><.check /></:right_icon>
-        </.dropdown_item>
-      </.dropdown>
-      <.dropdown
-        id="builds-analytics-scheme-dropdown"
-        label={TuistWeb.XcodeBuildsLive.build_scheme_label(@analytics_build_scheme)}
-        secondary_text={dgettext("dashboard_builds", "Scheme:")}
-      >
-        <:search>
-          <input
-            type="text"
-            placeholder={dgettext("dashboard_builds", "Search...")}
-            data-part="search-input"
-          />
-        </:search>
-        <.dropdown_item
-          value="any"
-          label={dgettext("dashboard_builds", "Any")}
-          patch={"?#{Query.put(@uri.query, "analytics-build-scheme", "any")}"}
-          data-selected={@analytics_build_scheme == "any"}
-        >
-          <:right_icon><.check /></:right_icon>
-        </.dropdown_item>
-        <.dropdown_item
-          :for={build_scheme <- @build_schemes}
-          value={build_scheme}
-          label={build_scheme}
-          patch={"?#{Query.put(@uri.query, "analytics-build-scheme", build_scheme)}"}
-          data-selected={@analytics_build_scheme == build_scheme}
-        >
-          <:right_icon><.check /></:right_icon>
-        </.dropdown_item>
-      </.dropdown>
-      <.dropdown
-        id="builds-analytics-configuration-dropdown"
-        label={TuistWeb.XcodeBuildsLive.build_configuration_label(@analytics_build_configuration)}
-        secondary_text={dgettext("dashboard_builds", "Configuration:")}
-      >
-        <.dropdown_item
-          value="any"
-          label={dgettext("dashboard_builds", "Any")}
-          patch={"?#{Query.put(@uri.query, "analytics-build-configuration", "any")}"}
-          data-selected={@analytics_build_configuration == "any"}
-        >
-          <:right_icon><.check /></:right_icon>
-        </.dropdown_item>
-        <.dropdown_item
-          :for={build_configuration <- @build_configurations}
-          value={build_configuration}
-          label={build_configuration}
-          patch={"?#{Query.put(@uri.query, "analytics-build-configuration", build_configuration)}"}
-          data-selected={@analytics_build_configuration == build_configuration}
-        >
-          <:right_icon><.check /></:right_icon>
-        </.dropdown_item>
-      </.dropdown>
-      <.dropdown
-        id="builds-analytics-category-dropdown"
-        label={@analytics_build_category |> String.capitalize()}
-        secondary_text={dgettext("dashboard_builds", "Build:")}
-      >
-        <.dropdown_item
-          value="any"
-          label={dgettext("dashboard_builds", "Any")}
-          patch={"?#{Query.put(@uri.query, "analytics-build-category", "any")}"}
-          data-selected={@analytics_build_category == "any"}
-        >
-          <:right_icon><.check /></:right_icon>
-        </.dropdown_item>
-        <.dropdown_item
-          value="clean"
-          label={dgettext("dashboard_builds", "Clean")}
-          patch={"?#{Query.put(@uri.query, "analytics-build-category", "clean")}"}
-          data-selected={@analytics_build_category == "clean"}
-        >
-          <:right_icon><.check /></:right_icon>
-        </.dropdown_item>
-        <.dropdown_item
-          value="incremental"
-          label={dgettext("dashboard_builds", "Incremental")}
-          patch={"?#{Query.put(@uri.query, "analytics-build-category", "incremental")}"}
-          data-selected={@analytics_build_category == "incremental"}
-        >
-          <:right_icon><.check /></:right_icon>
-        </.dropdown_item>
-      </.dropdown>
-      <.dropdown
-        id="builds-analytics-environment-dropdown"
-        label={TuistWeb.XcodeBuildsLive.environment_label(@analytics_environment)}
-        secondary_text={dgettext("dashboard_builds", "Environment:")}
-      >
-        <.dropdown_item
-          value="any"
-          label={dgettext("dashboard_builds", "Any")}
-          patch={"?#{Query.put(@uri.query, "analytics-environment", "any")}"}
-          data-selected={@analytics_environment == "any"}
-        >
-          <:right_icon><.check /></:right_icon>
-        </.dropdown_item>
-        <.dropdown_item
-          value="ci"
-          label={dgettext("dashboard_builds", "CI")}
-          patch={"?#{Query.put(@uri.query, "analytics-environment", "ci")}"}
-          data-selected={@analytics_environment == "ci"}
-        >
-          <:right_icon><.check /></:right_icon>
-        </.dropdown_item>
-        <.dropdown_item
-          value="local"
-          label={dgettext("dashboard_builds", "Local")}
-          patch={"?#{Query.put(@uri.query, "analytics-environment", "local")}"}
-          data-selected={@analytics_environment == "local"}
-        >
-          <:right_icon><.check /></:right_icon>
-        </.dropdown_item>
-      </.dropdown>
-      <.date_picker
-        id="builds-analytics-date-range-picker"
-        name="analytics-date-range"
-        presets={[
-          %{
-            id: "last-24-hours",
-            label: dgettext("dashboard_builds", "Last 24 hours"),
-            period: {24, :hour}
-          },
-          %{
-            id: "last-7-days",
-            label: dgettext("dashboard_builds", "Last 7 days"),
-            period: {7, :day}
-          },
-          %{
-            id: "last-30-days",
-            label: dgettext("dashboard_builds", "Last 30 days"),
-            period: {30, :day}
-          },
-          %{
-            id: "last-12-months",
-            label: dgettext("dashboard_builds", "Last 12 months"),
-            period: {12, :month}
-          },
-          %{id: "custom", label: dgettext("dashboard_builds", "Custom")}
-        ]}
-        selected_preset={@analytics_preset}
-        period={@analytics_period}
-        on_period_change="analytics_period_changed"
-        max={Date.utc_today()}
-      >
-        <:actions>
-          <.button
-            label={dgettext("dashboard_builds", "Cancel")}
-            variant="secondary"
-            phx-click={
-              JS.dispatch("phx:date-picker-cancel",
-                detail: %{id: "builds-analytics-date-range-picker"}
-              )
-            }
-          />
-          <.button
-            label={dgettext("dashboard_builds", "Apply")}
-            phx-click={
-              JS.dispatch("phx:date-picker-apply",
-                detail: %{id: "builds-analytics-date-range-picker"}
-              )
-            }
-          />
-        </:actions>
-      </.date_picker>
-    </:actions>
     <div data-part="widgets">
       <.widget
         loading={!@total_builds_analytics.ok?}
@@ -620,7 +622,9 @@
           patch={"?#{Query.put(@uri.query, "configuration-insights-type", "xcode-version")}"}
           data-selected={@configuration_insights_type == "xcode-version"}
         >
-          <:right_icon><.check /></:right_icon>
+          <:right_icon :if={@configuration_insights_type == "xcode-version"}>
+            <.check />
+          </:right_icon>
         </.dropdown_item>
         <.dropdown_item
           value="device"
@@ -628,7 +632,7 @@
           patch={"?#{Query.put(@uri.query, "configuration-insights-type", "device")}"}
           data-selected={@configuration_insights_type == "device"}
         >
-          <:right_icon><.check /></:right_icon>
+          <:right_icon :if={@configuration_insights_type == "device"}><.check /></:right_icon>
         </.dropdown_item>
         <.dropdown_item
           value="macos-version"
@@ -636,60 +640,11 @@
           patch={"?#{Query.put(@uri.query, "configuration-insights-type", "macos-version")}"}
           data-selected={@configuration_insights_type == "macos-version"}
         >
-          <:right_icon><.check /></:right_icon>
+          <:right_icon :if={@configuration_insights_type == "macos-version"}>
+            <.check />
+          </:right_icon>
         </.dropdown_item>
       </.dropdown>
-      <.date_picker
-        id="configuration-insights-date-range-picker"
-        name="configuration-insights-date-range"
-        presets={[
-          %{
-            id: "last-24-hours",
-            label: dgettext("dashboard_builds", "Last 24 hours"),
-            period: {24, :hour}
-          },
-          %{
-            id: "last-7-days",
-            label: dgettext("dashboard_builds", "Last 7 days"),
-            period: {7, :day}
-          },
-          %{
-            id: "last-30-days",
-            label: dgettext("dashboard_builds", "Last 30 days"),
-            period: {30, :day}
-          },
-          %{
-            id: "last-12-months",
-            label: dgettext("dashboard_builds", "Last 12 months"),
-            period: {12, :month}
-          },
-          %{id: "custom", label: dgettext("dashboard_builds", "Custom")}
-        ]}
-        selected_preset={@configuration_insights_preset}
-        period={@configuration_insights_period}
-        on_period_change="configuration_insights_period_changed"
-        max={Date.utc_today()}
-      >
-        <:actions>
-          <.button
-            label={dgettext("dashboard_builds", "Cancel")}
-            variant="secondary"
-            phx-click={
-              JS.dispatch("phx:date-picker-cancel",
-                detail: %{id: "configuration-insights-date-range-picker"}
-              )
-            }
-          />
-          <.button
-            label={dgettext("dashboard_builds", "Apply")}
-            phx-click={
-              JS.dispatch("phx:date-picker-apply",
-                detail: %{id: "configuration-insights-date-range-picker"}
-              )
-            }
-          />
-        </:actions>
-      </.date_picker>
     </:actions>
     <.card_section :if={!@configuration_insights_analytics.ok?}>
       <div data-part="configuration-insights-chart-skeleton">
@@ -747,7 +702,7 @@
               show: false
             },
             tooltip:
-              if @configuration_insights_preset == "last-24-hours" do
+              if @analytics_preset == "last-24-hours" do
                 %{valueFormat: "fn:formatMilliseconds", dateFormat: "hour"}
               else
                 %{valueFormat: "fn:formatMilliseconds"}

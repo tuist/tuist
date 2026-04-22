@@ -690,6 +690,9 @@ extension PBXTarget {
             buildFile.applyCondition(condition, applicableTo: target)
             pbxproj.add(object: buildFile)
 
+            if packageProductDependencies == nil {
+                packageProductDependencies = []
+            }
             packageProductDependencies?.append(productDependency)
 
             // Link the product
