@@ -51,14 +51,13 @@ defmodule Cache.WebhookClientTest do
 
     test "allows a successful probe request after the cooldown window" do
       url = unique_url()
-
-      Process.put(:req_request_count, 0)
+      request_count = :counters.new(1, [])
 
       expect(Req, :request, 3, fn _options ->
-        request_count = Process.get(:req_request_count, 0) + 1
-        Process.put(:req_request_count, request_count)
+        :counters.add(request_count, 1, 1)
+        current_request_count = :counters.get(request_count, 1)
 
-        case request_count do
+        case current_request_count do
           1 -> {:ok, %Req.Response{status: 502, body: "error code: 502"}}
           2 -> {:ok, %Req.Response{status: 502, body: "error code: 502"}}
           3 -> {:ok, %Req.Response{status: 202, body: ""}}
