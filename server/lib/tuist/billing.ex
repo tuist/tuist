@@ -224,9 +224,11 @@ defmodule Tuist.Billing do
     available_prices = Tuist.Environment.stripe_prices()
     key = if cadence == "yearly", do: "flat_yearly", else: "flat_monthly"
 
+    # Enterprise is negotiated per-deal; start the subscription with 0 seats
+    # so sales can fill in the actual quantity on Stripe without us guessing.
     (available_prices["enterprise"][key] || [])
     |> Enum.take(1)
-    |> Enum.map(&%{price: &1, quantity: 1})
+    |> Enum.map(&%{price: &1, quantity: 0})
   end
 
   @doc """
@@ -276,7 +278,8 @@ defmodule Tuist.Billing do
           status: subscription.status,
           account_id: account.id,
           default_payment_method: subscription.default_payment_method,
-          trial_end: trial_end
+          trial_end: trial_end,
+          cancel_at_period_end: Map.get(subscription, :cancel_at_period_end, false) || false
         })
         |> Repo.insert!()
 
@@ -286,7 +289,8 @@ defmodule Tuist.Billing do
           plan: plan,
           status: subscription.status,
           default_payment_method: subscription.default_payment_method,
-          trial_end: trial_end
+          trial_end: trial_end,
+          cancel_at_period_end: Map.get(subscription, :cancel_at_period_end, false) || false
         })
         |> Repo.update!()
     end

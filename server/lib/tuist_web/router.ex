@@ -631,6 +631,12 @@ defmodule TuistWeb.Router do
     plug :assign_current_path
   end
 
+  scope "/ops", TuistWeb do
+    pipe_through [:browser_app, :ops]
+
+    get "/accounts/:id/stripe-session", OpsController, :stripe_session
+  end
+
   scope "/ops" do
     pipe_through [:browser_app, :ops]
 

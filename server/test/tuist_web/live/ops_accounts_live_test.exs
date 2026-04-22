@@ -36,6 +36,26 @@ defmodule TuistWeb.OpsAccountsLiveTest do
     assert html =~ "acme"
     assert html =~ "Pro"
     assert html =~ "Air"
+    assert html =~ "Active"
+  end
+
+  test "flags the Cancelled status when cancel_at_period_end is set", %{conn: conn} do
+    # Given
+    organization = AccountsFixtures.organization_fixture(name: "acme")
+    org_account = Accounts.get_account_from_organization(organization)
+
+    subscription =
+      BillingFixtures.subscription_fixture(account_id: org_account.id, plan: :pro)
+
+    # Simulate the webhook sync: cancel_at_period_end flipped but status
+    # still "active" until the period actually ends.
+    Tuist.Repo.update!(Ecto.Changeset.change(subscription, cancel_at_period_end: true))
+
+    # When
+    {:ok, _lv, html} = live(conn, ~p"/ops/accounts")
+
+    # Then
+    assert html =~ "Cancelled"
   end
 
   test "paginates when there are more accounts than one page", %{conn: conn} do
@@ -82,23 +102,6 @@ defmodule TuistWeb.OpsAccountsLiveTest do
     table_row = html |> Floki.parse_fragment!() |> Floki.find("#ops-accounts-table tbody tr")
     table_html = Floki.raw_html(table_row)
     refute table_html =~ user.account.name
-  end
-
-  test "Manage on Stripe event redirects to Stripe portal", %{conn: conn, user: user} do
-    # Given
-    stub(Billing, :create_session, fn customer_id ->
-      assert customer_id == user.account.customer_id
-      %{url: "https://billing.stripe.test/session"}
-    end)
-
-    {:ok, lv, _html} = live(conn, ~p"/ops/accounts")
-
-    # When — dropdown items live inside a <template> portal, so we dispatch
-    # the event directly rather than clicking through the DOM.
-    result = render_hook(lv, "manage", %{"id" => to_string(user.account.id)})
-
-    # Then
-    assert {:error, {:redirect, %{to: "https://billing.stripe.test/session"}}} = result
   end
 
   test "one-click upgrade when the Stripe customer already has billing details", %{conn: conn, user: user} do
