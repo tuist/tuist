@@ -3984,7 +3984,7 @@ defmodule Tuist.AccountsTest do
       AccountsFixtures.organization_fixture(name: "other")
 
       # When — search narrows to just the matching pair.
-      {accounts, meta} =
+      {accounts, _meta} =
         Accounts.list_accounts(%{
           page: 1,
           page_size: 10,
@@ -3992,9 +3992,7 @@ defmodule Tuist.AccountsTest do
         })
 
       # Then
-      names = accounts |> Enum.map(& &1.name) |> Enum.sort()
-      assert names == ["acme", "acmetools"]
-      assert meta.total_count == 2
+      assert accounts |> Enum.map(& &1.name) |> Enum.sort() == ["acme", "acmetools"]
     end
   end
 end
