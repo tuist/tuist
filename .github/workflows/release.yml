@@ -1511,7 +1511,7 @@ jobs:
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
-          install_args: "node pnpm git-cliff"
+          install_args: "node pnpm git-cliff 1password-cli"
           cache: "false"
           working_directory: grafana
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
@@ -1549,8 +1549,10 @@ jobs:
       - name: Build, sign, and zip the plugin
         working-directory: grafana
         env:
-          GRAFANA_ACCESS_POLICY_TOKEN: ${{ secrets.GRAFANA_ACCESS_POLICY_TOKEN }}
-        run: mise run bundle -- --root-urls https://tuist.grafana.net/
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          export GRAFANA_ACCESS_POLICY_TOKEN=$(op read "op://tuist/GRAFANA_ACCESS_POLICY_TOKEN/password")
+          mise run bundle -- --root-urls https://tuist.grafana.net/
 
       - name: Upload Grafana plugin artifacts
         id: upload
