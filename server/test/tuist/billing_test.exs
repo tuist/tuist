@@ -712,4 +712,194 @@ defmodule Tuist.BillingTest do
       assert got == nil
     end
   end
+
+  describe "upgrade_to_enterprise/2" do
+    test "creates an invoice-billed subscription and updates the customer when no sub exists" do
+      # Given
+      user = AccountsFixtures.user_fixture(customer_id: "customer_id")
+      account = Accounts.get_account_from_user(user)
+
+      expect(Stripe.Customer, :update, fn "customer_id",
+                                          %{
+                                            name: "Acme",
+                                            email: "billing@acme.test",
+                                            address: %{line1: "1 Market St", country: "US"}
+                                          } ->
+        {:ok, %Stripe.Customer{id: "customer_id"}}
+      end)
+
+      expect(Stripe.Subscription, :create, fn %{
+                                                customer: "customer_id",
+                                                items: [%{price: "enterprise.flat.monthly", quantity: 1}],
+                                                collection_method: "send_invoice",
+                                                days_until_due: 30
+                                              } ->
+        {:ok,
+         %{
+           id: "sub_new",
+           status: "active",
+           customer: "customer_id",
+           default_payment_method: nil,
+           items: %{data: [%{price: %{id: "enterprise.flat.monthly"}}]}
+         }}
+      end)
+
+      # When
+      {:ok, stripe_sub} =
+        Billing.upgrade_to_enterprise(account, %{
+          name: "Acme",
+          billing_email: "billing@acme.test",
+          cadence: "monthly",
+          address: %{line1: "1 Market St", country: "US"}
+        })
+
+      # Then — Stripe returned the new subscription AND our local row is in sync.
+      assert stripe_sub.id == "sub_new"
+      assert %{plan: :enterprise, status: "active"} = Billing.get_current_active_subscription(account)
+    end
+
+    test "switches an existing subscription's items and flips it to invoice billing" do
+      # Given
+      user = AccountsFixtures.user_fixture(customer_id: "customer_id")
+      account = Accounts.get_account_from_user(user)
+      BillingFixtures.subscription_fixture(account_id: account.id, subscription_id: "sub_existing", plan: :pro)
+
+      stub(Stripe.Customer, :update, fn _, _ -> {:ok, %Stripe.Customer{id: "customer_id"}} end)
+
+      stub(Stripe.Subscription, :retrieve, fn "sub_existing" ->
+        {:ok,
+         %Stripe.Subscription{
+           items: %{data: [%{id: "pro.flat.monthly"}, %{id: "pro.usage"}]}
+         }}
+      end)
+
+      expect(Stripe.Subscription, :update, fn "sub_existing",
+                                              %{
+                                                items: [
+                                                  %{id: "pro.flat.monthly", deleted: true},
+                                                  %{id: "pro.usage", deleted: true},
+                                                  %{price: "enterprise.flat.yearly", quantity: 1}
+                                                ],
+                                                collection_method: "send_invoice",
+                                                days_until_due: 30
+                                              } ->
+        {:ok,
+         %{
+           id: "sub_existing",
+           status: "active",
+           customer: "customer_id",
+           default_payment_method: nil,
+           items: %{data: [%{price: %{id: "enterprise.flat.yearly"}}]}
+         }}
+      end)
+
+      # When
+      {:ok, _} =
+        Billing.upgrade_to_enterprise(account, %{
+          name: "Acme",
+          billing_email: "billing@acme.test",
+          cadence: "yearly",
+          address: %{line1: "1 Market St", country: "US"}
+        })
+
+      # Then
+      assert %{plan: :enterprise} = Billing.get_current_active_subscription(account)
+    end
+
+    test "skips the Stripe customer update when params don't include an address" do
+      # Given — a customer with full billing details on file; the one-click
+      # path should create the subscription without re-updating the customer.
+      user = AccountsFixtures.user_fixture(customer_id: "customer_id")
+      account = Accounts.get_account_from_user(user)
+
+      reject(&Stripe.Customer.update/2)
+
+      expect(Stripe.Subscription, :create, fn _args ->
+        {:ok,
+         %{
+           id: "sub_new",
+           status: "active",
+           customer: "customer_id",
+           default_payment_method: nil,
+           items: %{data: [%{price: %{id: "enterprise.flat.monthly"}}]}
+         }}
+      end)
+
+      # When
+      {:ok, _} = Billing.upgrade_to_enterprise(account, %{cadence: "monthly"})
+
+      # Then — Mimic's `reject` asserts Stripe.Customer.update was never called.
+      assert %{plan: :enterprise} = Billing.get_current_active_subscription(account)
+    end
+  end
+
+  describe "cancel_subscription_at_period_end/1" do
+    test "flags the Stripe subscription to cancel at period end" do
+      # Given
+      user = AccountsFixtures.user_fixture(customer_id: "customer_id")
+      account = Accounts.get_account_from_user(user)
+      subscription = BillingFixtures.subscription_fixture(account_id: account.id, subscription_id: "sub_cancel_me")
+
+      expect(Stripe.Subscription, :update, fn "sub_cancel_me", %{cancel_at_period_end: true} ->
+        {:ok, %{id: "sub_cancel_me", cancel_at_period_end: true}}
+      end)
+
+      # When
+      {:ok, updated} = Billing.cancel_subscription_at_period_end(subscription)
+
+      # Then
+      assert updated.cancel_at_period_end
+    end
+  end
+
+  describe "stripe_customer_ready_for_enterprise?/1" do
+    test "returns false when the account has no Stripe customer" do
+      account = %Account{customer_id: nil}
+      refute Billing.stripe_customer_ready_for_enterprise?(account)
+    end
+
+    test "returns false when the Stripe customer has no address" do
+      stub(Stripe.Customer, :retrieve, fn "customer_id" ->
+        {:ok, %Stripe.Customer{name: "Acme", email: "acme@test", address: nil}}
+      end)
+
+      refute Billing.stripe_customer_ready_for_enterprise?(%Account{customer_id: "customer_id"})
+    end
+
+    test "returns false when a required address field is blank" do
+      stub(Stripe.Customer, :retrieve, fn "customer_id" ->
+        {:ok,
+         %Stripe.Customer{
+           name: "Acme",
+           email: "acme@test",
+           address: %{
+             line1: "1 Market St",
+             city: "SF",
+             postal_code: "",
+             country: "US"
+           }
+         }}
+      end)
+
+      refute Billing.stripe_customer_ready_for_enterprise?(%Account{customer_id: "customer_id"})
+    end
+
+    test "returns true when name, email, and full address are present" do
+      stub(Stripe.Customer, :retrieve, fn "customer_id" ->
+        {:ok,
+         %Stripe.Customer{
+           name: "Acme",
+           email: "acme@test",
+           address: %{
+             line1: "1 Market St",
+             city: "SF",
+             postal_code: "94103",
+             country: "US"
+           }
+         }}
+      end)
+
+      assert Billing.stripe_customer_ready_for_enterprise?(%Account{customer_id: "customer_id"})
+    end
+  end
 end
