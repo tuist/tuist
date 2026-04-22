@@ -11,6 +11,8 @@ defmodule TuistWeb.OpsAccountsLiveTest do
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.BillingFixtures
 
+  setup :verify_on_exit!
+
   setup %{conn: conn} do
     user = AccountsFixtures.user_fixture(preload: [:account])
     conn = log_in_user(conn, user)
@@ -124,12 +126,9 @@ defmodule TuistWeb.OpsAccountsLiveTest do
 
     {:ok, lv, _html} = live(conn, ~p"/ops/accounts")
 
-    # When
+    # When/then — `expect/2` + `verify_on_exit!` (in setup) asserts
+    # upgrade_to_enterprise was called once with just the cadence (no modal).
     render_hook(lv, "initiate_enterprise_upgrade", %{"id" => to_string(user.account.id)})
-
-    # Then — Mimic.verify! asserts upgrade_to_enterprise was called once with
-    # just the cadence (no modal needed).
-    assert Process.alive?(lv.pid)
   end
 
   test "opens the enterprise form when the Stripe customer has no address", %{conn: conn, user: user} do
@@ -167,11 +166,13 @@ defmodule TuistWeb.OpsAccountsLiveTest do
 
     {:ok, lv, _html} = live(conn, ~p"/ops/accounts")
 
-    # When — dispatch the submit event directly. The form lives inside the
-    # modal's Noora <template> portal, which Floki selectors don't traverse,
-    # so going through `form/3` + `render_submit/1` isn't an option. The
-    # `account_id` hidden field is what wires the form to its target account
-    # so the modal doesn't have to be open for this to work.
+    # When/then — dispatch the submit event directly. The form lives inside
+    # the modal's Noora <template> portal, which Floki selectors don't
+    # traverse, so going through `form/3` + `render_submit/1` isn't an
+    # option. The `account_id` hidden field wires the form to its target
+    # account, so the modal doesn't have to be open for this to work.
+    # `expect/2` + `verify_on_exit!` asserts upgrade_to_enterprise fired
+    # with the right params.
     render_hook(lv, "submit_enterprise_upgrade", %{
       "account_id" => to_string(user.account.id),
       "name" => "Acme Corp",
@@ -184,9 +185,6 @@ defmodule TuistWeb.OpsAccountsLiveTest do
       "address_country" => "us",
       "cadence" => "yearly"
     })
-
-    # Then — Mimic.verify! at the end of the test asserts expect/2 was met.
-    assert Process.alive?(lv.pid)
   end
 
   test "Cancel plan cancels the active subscription at period end", %{conn: conn, user: user} do
@@ -200,12 +198,9 @@ defmodule TuistWeb.OpsAccountsLiveTest do
 
     {:ok, lv, _html} = live(conn, ~p"/ops/accounts")
 
-    # When — dispatch the dropdown event directly (the item lives inside a
-    # <template> portal and isn't reachable via DOM selectors).
-    _html = render_hook(lv, "cancel_plan", %{"id" => to_string(user.account.id)})
-
-    # Then — Mimic.verify! (implicit at test end via `use Mimic`) asserts the
-    # expected call happened exactly once.
-    assert Process.alive?(lv.pid)
+    # When/then — dispatch the dropdown event directly (the item lives
+    # inside a <template> portal and isn't reachable via DOM selectors).
+    # `expect/2` + `verify_on_exit!` asserts the cancel call fired.
+    render_hook(lv, "cancel_plan", %{"id" => to_string(user.account.id)})
   end
 end
