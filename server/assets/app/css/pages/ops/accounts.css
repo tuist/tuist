@@ -43,3 +43,10 @@
 [id^="enterprise-modal-"] > [data-part="positioner"] > [data-part="content"] {
   min-width: 480px;
 }
+
+/* The country picker has ~60 entries; cap the dropdown height so it scrolls
+   instead of covering the modal. Noora's dropdown content already has
+   `overflow-y: auto`, so we only need to set max-height. */
+[id^="enterprise-address-country-"] .noora-dropdown-content {
+  max-height: 240px;
+}
