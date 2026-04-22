@@ -1,5 +1,11 @@
-// Delegate to @grafana/create-plugin's shared Jest config so upstream
-// changes land with `npx @grafana/create-plugin@latest update`.
+// Delegate to the full jest config scaffolded by `@grafana/create-plugin`
+// at `.config/jest.config.js`. The scaffolded file refers to
+// `<rootDir>/jest-setup.js`; our setup lives under `.config/` so we
+// override that path here.
+const path = require('path');
+const base = require('./.config/jest.config');
+
 module.exports = {
-  preset: '@grafana/create-plugin/jest-preset',
+  ...base,
+  setupFilesAfterEnv: [path.resolve(__dirname, '.config', 'jest-setup.js')],
 };

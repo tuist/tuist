@@ -28,7 +28,7 @@ env:
 
 jobs:
   check:
-    name: Typecheck & bundle
+    name: Lint, typecheck, test, build, bundle
     runs-on: ubuntu-latest
     timeout-minutes: 15
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
@@ -43,9 +43,13 @@ jobs:
           version: ${{ env.MISE_VERSION }}
           working_directory: grafana
 
-      - name: Typecheck
+      - name: Lint
         working-directory: grafana
-        run: pnpm run typecheck
+        run: mise run lint
+
+      - name: Typecheck & jest
+        working-directory: grafana
+        run: mise run test
 
       - name: Build
         working-directory: grafana
@@ -54,7 +58,3 @@ jobs:
       - name: Bundle (unsigned, smoke test)
         working-directory: grafana
         run: mise run bundle --skip-sign
-
-      # `mise run lint` and `mise run test` are intentionally omitted until
-      # the ESLint 8 → 9 flat-config migration and the Jest preset reference
-      # are fixed — see https://github.com/tuist/tuist/issues/... (follow-up).
