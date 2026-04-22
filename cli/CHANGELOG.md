@@ -1,8 +1,11 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.183.1<!-- RELEASE NOTES START -->
+## What's Changed in 4.184.0<!-- RELEASE NOTES START -->
 
+### ⛰️  Features
+
+* add feature flag headers by [@pepicrft](https://github.com/pepicrft) in [#10382](https://github.com/tuist/tuist/pull/10382)
 ### 🐛 Bug Fixes
 
 * map static library dependencies in XcodeGraph by [@pepicrft](https://github.com/pepicrft) in [#10358](https://github.com/tuist/tuist/pull/10358)
@@ -11,7 +14,7 @@ All notable changes to this project will be documented in this file.
 
 
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.183.0...4.183.1
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.183.0...4.184.0
 
 ## What's Changed in 4.183.0<!-- RELEASE NOTES START -->
 
