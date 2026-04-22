@@ -1,7 +1,7 @@
 [tools]
     tuist = "4.183.1"
     swiftlint = "0.59.1"
-    "elixir" = "1.19.1"
+    "elixir" = "1.19.5"
     "erlang" = "28.1"
     swiftformat = "0.58.7"
     git-cliff = "2.6.0"
