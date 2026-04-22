@@ -127,8 +127,13 @@ jobs:
         run: |
           # nohup + disown so the backgrounded BEAM survives the bash
           # shell exiting when this step finishes — otherwise the e2e
-          # step hits nothing-listening.
-          nohup bash -c 'MIX_ENV=dev mix phx.server' >/tmp/main-server.log 2>&1 &
+          # step hits nothing-listening. ELIXIR_ERL_OPTIONS="+S 1" forces
+          # serial compile if the manifest is stale, so the recompile
+          # peak doesn't overshoot the runner's memory ceiling (the
+          # parallel compiler holds a copy of every in-flight module per
+          # worker, and this project plus deps is enough to OOM at 4
+          # workers).
+          nohup bash -c 'ELIXIR_ERL_OPTIONS="+S 1" MIX_ENV=dev mix phx.server' >/tmp/main-server.log 2>&1 &
           disown
           server_url="${TUIST_SERVER_URL:-http://localhost:8080}"
           port="${server_url##*:}"
