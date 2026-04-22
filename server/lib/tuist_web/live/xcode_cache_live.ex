@@ -31,12 +31,26 @@ defmodule TuistWeb.XcodeCacheLive do
     {:ok, socket}
   end
 
-  def handle_params(_params, uri, socket) do
+  def handle_params(_params, uri, %{assigns: %{selected_project: project}} = socket) do
     params = Query.query_params(uri)
+
+    {has_builds_check, _} =
+      Builds.list_build_runs(%{
+        filters: [
+          %{field: :project_id, op: :==, value: project.id},
+          %{field: :cacheable_tasks_count, op: :>, value: 0}
+        ],
+        first: 1,
+        order_by: [:inserted_at],
+        order_directions: [:desc]
+      })
+
+    has_builds? = not Enum.empty?(has_builds_check)
 
     {
       :noreply,
       socket
+      |> assign(:has_builds?, has_builds?)
       |> assign(:current_params, params)
       |> assign_analytics(params)
       |> assign_recent_builds(params)
@@ -222,7 +236,7 @@ defmodule TuistWeb.XcodeCacheLive do
         %{field: :project_id, op: :==, value: project.id},
         %{field: :cacheable_tasks_count, op: :>, value: 0},
         %{field: :inserted_at, op: :>=, value: start_datetime},
-        %{field: :inserted_at, op: :<=, value: end_datetime}
+        %{field: :inserted_at, op: :<, value: DateTime.add(end_datetime, 1, :second)}
       ],
       order_by: [:inserted_at],
       order_directions: [:desc],

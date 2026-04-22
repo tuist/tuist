@@ -1,5 +1,5 @@
 <.empty_state
-  :if={Enum.empty?(@builds)}
+  :if={not @has_builds?}
   command="tuist setup cache"
   id="xcode-cache-empty-state"
   title={dgettext("dashboard_cache", "Set up Xcode cache for your project")}
@@ -26,7 +26,7 @@
     </.button>
   </:actions>
 </.empty_state>
-<div :if={not Enum.empty?(@builds)} id="xcode-cache">
+<div :if={@has_builds?} id="xcode-cache">
   <div data-part="filters">
     <.date_picker
       id="xcode-cache-date-range-picker"

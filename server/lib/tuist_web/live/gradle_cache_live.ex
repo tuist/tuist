@@ -33,12 +33,16 @@ defmodule TuistWeb.GradleCacheLive do
     {:ok, socket}
   end
 
-  def handle_params(_params, uri, socket) do
+  def handle_params(_params, uri, %{assigns: %{selected_project: project}} = socket) do
     params = Query.query_params(uri)
+
+    {has_builds_check, _} = Gradle.list_builds(project.id, %{page_size: 1})
+    has_builds? = not Enum.empty?(has_builds_check)
 
     {
       :noreply,
       socket
+      |> assign(:has_builds?, has_builds?)
       |> assign(:current_params, params)
       |> assign_analytics(params)
       |> assign_recent_builds(params)
@@ -247,7 +251,7 @@ defmodule TuistWeb.GradleCacheLive do
     filters =
       [
         %{field: :inserted_at, op: :>=, value: start_datetime},
-        %{field: :inserted_at, op: :<=, value: end_datetime}
+        %{field: :inserted_at, op: :<, value: DateTime.add(end_datetime, 1, :second)}
       ] ++
         case analytics_environment do
           "ci" -> [%{field: :is_ci, op: :==, value: true}]
