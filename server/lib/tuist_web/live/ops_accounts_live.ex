@@ -17,7 +17,10 @@ defmodule TuistWeb.OpsAccountsLive do
 
   @impl true
   def mount(_params, _session, socket) do
-    {:ok, assign(socket, :head_title, "Accounts · Tuist Ops")}
+    {:ok,
+     socket
+     |> assign(:head_title, "Accounts · Tuist Ops")
+     |> assign(:upgrade_target_account, nil)}
   end
 
   @impl true
@@ -98,7 +101,15 @@ defmodule TuistWeb.OpsAccountsLive do
        |> push_patch(to: ~p"/ops/accounts?#{socket.assigns.query_params}")}
     else
       false ->
-        {:noreply, push_event(socket, "open-modal", %{id: "enterprise-modal-#{id}"})}
+        # Customer needs billing details — point the shared modal at this
+        # account and open it client-side. Setting the assign first ensures
+        # the modal's DOM exists before the client receives `open-modal`.
+        {:ok, account} = Accounts.get_account_by_id(String.to_integer(id))
+
+        {:noreply,
+         socket
+         |> assign(:upgrade_target_account, account)
+         |> push_event("open-modal", %{id: "enterprise-modal"})}
 
       {:error, :not_found} ->
         {:noreply, put_flash(socket, :error, "Account not found.")}
@@ -113,11 +124,12 @@ defmodule TuistWeb.OpsAccountsLive do
 
         {:noreply,
          socket
+         |> assign(:upgrade_target_account, nil)
          |> put_flash(
            :info,
            "#{account.name} upgraded to Enterprise. Stripe will send an invoice for the first period."
          )
-         |> push_event("close-modal", %{id: "enterprise-modal-#{account.id}"})
+         |> push_event("close-modal", %{id: "enterprise-modal"})
          |> push_patch(to: ~p"/ops/accounts?#{socket.assigns.query_params}")}
 
       {:error, :not_found} ->
@@ -142,12 +154,14 @@ defmodule TuistWeb.OpsAccountsLive do
   end
 
   @impl true
-  def handle_event("close-enterprise-modal-" <> account_id, _params, socket) do
-    # Noora's modal dismiss (X) fires this event as a plain `phx-click` because
-    # its `on_dismiss` attr is a string. Roundtrip back to the client and push
-    # the `close-modal` event (LiveView prefixes it with `phx:` client-side,
-    # which is what the Noora modal hook listens for).
-    {:noreply, push_event(socket, "close-modal", %{id: "enterprise-modal-#{account_id}"})}
+  def handle_event("close_enterprise_modal", _params, socket) do
+    # Noora's modal dismiss (X) fires this as a plain `phx-click` because
+    # `on_dismiss` is a string. Close the modal client-side and clear the
+    # assign so the modal node leaves the DOM.
+    {:noreply,
+     socket
+     |> assign(:upgrade_target_account, nil)
+     |> push_event("close-modal", %{id: "enterprise-modal"})}
   end
 
   defp parse_upgrade_params(params) do

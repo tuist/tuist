@@ -127,15 +127,17 @@ defmodule TuistWeb.OpsAccountsLiveTest do
     # Given
     stub(Billing, :stripe_customer_ready_for_enterprise?, fn _ -> false end)
 
-    {:ok, lv, _html} = live(conn, ~p"/ops/accounts")
+    {:ok, lv, initial_html} = live(conn, ~p"/ops/accounts")
 
-    # When — an initiate without ready billing details should open the modal
-    # via a push_event, not call upgrade_to_enterprise.
-    render_hook(lv, "initiate_enterprise_upgrade", %{"id" => to_string(user.account.id)})
+    # The shared modal isn't in the DOM until ops opens it for an account.
+    refute initial_html =~ "Upgrade #{user.account.name} to Enterprise"
 
-    # Then — the LV stays alive and no upgrade call fired (Mimic would raise
-    # on an unexpected call).
-    assert Process.alive?(lv.pid)
+    # When — an initiate without ready billing details sets the assign and
+    # pushes `open-modal` so the modal renders for this account.
+    html = render_hook(lv, "initiate_enterprise_upgrade", %{"id" => to_string(user.account.id)})
+
+    # Then — the modal is now rendered, populated with the account's name.
+    assert html =~ "Upgrade #{user.account.name} to Enterprise"
   end
 
   test "submits the enterprise form with the collected billing details", %{conn: conn, user: user} do
@@ -152,15 +154,13 @@ defmodule TuistWeb.OpsAccountsLiveTest do
       {:ok, %{id: "sub_fake"}}
     end)
 
-    {:ok, lv, html} = live(conn, ~p"/ops/accounts")
-
-    # The per-row modal is rendered on mount (hidden until the dropdown item
-    # dispatches phx:open-modal from the browser).
-    assert html =~ "Upgrade #{user.account.name} to Enterprise"
+    {:ok, lv, _html} = live(conn, ~p"/ops/accounts")
 
     # When — dispatch the submit event directly. The form lives inside the
     # modal's Noora <template> portal, which Floki selectors don't traverse,
-    # so going through `form/3` + `render_submit/1` isn't an option.
+    # so going through `form/3` + `render_submit/1` isn't an option. The
+    # `account_id` hidden field is what wires the form to its target account
+    # so the modal doesn't have to be open for this to work.
     render_hook(lv, "submit_enterprise_upgrade", %{
       "account_id" => to_string(user.account.id),
       "name" => "Acme Corp",

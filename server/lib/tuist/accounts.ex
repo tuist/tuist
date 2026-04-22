@@ -743,7 +743,7 @@ defmodule Tuist.Accounts do
   @doc """
   Returns a paginated list of accounts. Accepts any Flop params (`page`,
   `page_size`, `filters`, `order_by`, ...). Use the `:search` custom filter
-  for a cross-column handle/billing-email substring match. Callers are
+  for a handle substring match — see `Account.search_filter/3`. Callers are
   expected to preload associations they need.
   """
   def list_accounts(attrs \\ %{}) do
