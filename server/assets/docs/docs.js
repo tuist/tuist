@@ -3,14 +3,20 @@ import { Socket } from "phoenix";
 import { LiveSocket } from "phoenix_live_view";
 import topbar from "../app/js/vendor/topbar.js";
 import Noora from "noora";
+import ThemeSwitcher, { ThemeToggle, observeThemeChanges } from "../app/js/ThemeSwitcher.js";
 import DocsContentHook from "./hooks/docs-content-hook.js";
+import DocsCopyPageButtonHook, { dispatchCopyPageButtonFlash } from "./hooks/docs-copy-page-button-hook.js";
 import DocsInstallTabsHook from "./hooks/docs-install-tabs-hook.js";
+import MermaidDiagramHook from "./hooks/mermaid-diagram-hook.js";
 import { initDocsSearch } from "./hooks/docs-search-hook.js";
+import { copyTextToClipboard } from "../shared/js/clipboard.js";
 
 import "./docs.css";
 
 let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content");
 let cspNonce = document.querySelector("meta[name='csp-nonce']").getAttribute("content");
+
+observeThemeChanges();
 
 let liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
@@ -18,7 +24,11 @@ let liveSocket = new LiveSocket("/live", Socket, {
   hooks: {
     ...Noora.Hooks,
     DocsContent: DocsContentHook,
+    DocsCopyPageButton: DocsCopyPageButtonHook,
     DocsInstallTabs: DocsInstallTabsHook,
+    MermaidDiagram: MermaidDiagramHook,
+    ThemeToggle,
+    ThemeSwitcher,
   },
 });
 
@@ -63,7 +73,9 @@ window.liveSocket = liveSocket;
 initDocsSearch();
 
 window.addEventListener("phx:docs:copy-to-clipboard", ({ detail }) => {
-  navigator.clipboard.writeText(detail.text);
+  copyTextToClipboard(detail.text)
+    .then(() => dispatchCopyPageButtonFlash())
+    .catch((error) => console.error("Failed to copy page:", error));
 });
 
 // TOC scroll spy
