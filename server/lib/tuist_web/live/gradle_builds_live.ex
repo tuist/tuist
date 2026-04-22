@@ -261,7 +261,7 @@ defmodule TuistWeb.GradleBuildsLive do
       filters ++
         [
           %{field: :inserted_at, op: :>=, value: start_datetime},
-          %{field: :inserted_at, op: :<=, value: end_datetime}
+          %{field: :inserted_at, op: :<=, value: DateTime.add(end_datetime, 1, :second)}
         ]
 
     {builds, _meta} = Gradle.list_builds(project.id, %{page_size: @recent_builds_page_size, filters: filters})
