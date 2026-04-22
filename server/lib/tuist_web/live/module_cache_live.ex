@@ -213,19 +213,30 @@ defmodule TuistWeb.ModuleCacheLive do
   end
 
   defp assign_recent_runs(%{assigns: %{selected_project: project}} = socket, _params) do
-    assign_async(socket, [:runs, :recent_runs_chart_data, :avg_recent_hit_rate], fn ->
-      # Add 14-day filter to leverage ClickHouse partition pruning and reduce rows scanned
-      fourteen_days_ago = DateTime.add(DateTime.utc_now(), -14, :day)
+    {start_datetime, end_datetime} = socket.assigns.analytics_period
+    analytics_environment = socket.assigns.analytics_environment
 
-      events =
+    assign_async(socket, [:runs, :recent_runs_chart_data, :avg_recent_hit_rate], fn ->
+      base_query =
         from(e in {"command_events_by_ran_at", Event},
           where:
             e.project_id == ^project.id and
               e.cacheable_targets_count > 0 and
-              e.ran_at >= ^fourteen_days_ago,
+              e.ran_at >= ^start_datetime and
+              e.ran_at <= ^end_datetime,
           order_by: [desc: e.ran_at],
           limit: 40
         )
+
+      base_query =
+        case analytics_environment do
+          "ci" -> from(e in base_query, where: e.is_ci == true)
+          "local" -> from(e in base_query, where: e.is_ci == false)
+          _ -> base_query
+        end
+
+      events =
+        base_query
         |> Tuist.ClickHouseRepo.all()
         |> Enum.map(&Event.normalize_enums/1)
 
