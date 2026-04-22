@@ -21,12 +21,18 @@
     gap: var(--noora-spacing-4);
     margin-bottom: var(--noora-spacing-5);
   }
+}
 
-  & [data-part="enterprise-form"] {
-    display: flex;
-    flex-direction: column;
-    gap: var(--noora-spacing-4);
-  }
+/* The Enterprise upgrade modal hosts this form; Noora portals it out of
+   `#ops-accounts` into the modal body at runtime, so these selectors stay
+   at the top level. The form width drives the modal's content width —
+   giving it a min-width is enough, no need to reach into the modal's
+   internal DOM. */
+[data-part="enterprise-form"] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-4);
+  min-width: 480px;
 }
 
 /* Stack a label above a Noora select — `.select` doesn't render its own
@@ -38,15 +44,9 @@
   gap: var(--noora-spacing-2);
 }
 
-/* Enterprise upgrade modals are rendered via Noora's portal, so they live
-   outside `#ops-accounts`. Scope styles via the id prefix instead. */
-[id^="enterprise-modal-"] > [data-part="positioner"] > [data-part="content"] {
-  min-width: 480px;
-}
-
 /* The country picker has ~60 entries; cap the dropdown height so it scrolls
    instead of covering the modal. Noora's dropdown content already has
    `overflow-y: auto`, so we only need to set max-height. */
-[id^="enterprise-address-country-"] .noora-dropdown-content {
+[data-part="select-field"] .noora-dropdown-content {
   max-height: 240px;
 }
