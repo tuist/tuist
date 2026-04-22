@@ -30,10 +30,10 @@ env:
   MISE_GITHUB_TOKEN: ${{ github.token }}
 
 jobs:
-  e2e:
-    name: E2E
+  compile:
+    name: Compile
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 30
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
@@ -41,10 +41,104 @@ jobs:
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
+          install_args: rust
           working_directory: kura
 
-      - name: Run unit tests
-        run: mise exec -- cargo test
+      - name: Restore Rust Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            kura/target
+          key: kura-rust-${{ runner.os }}-${{ hashFiles('kura/Cargo.lock') }}
+          restore-keys: |
+            kura-rust-${{ runner.os }}-
+
+      - name: Compile without warnings
+        run: RUSTFLAGS="-D warnings" cargo check --locked --all-targets
+
+  clippy:
+    name: Clippy
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: rust
+          working_directory: kura
+
+      - name: Restore Rust Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            kura/target
+          key: kura-rust-${{ runner.os }}-${{ hashFiles('kura/Cargo.lock') }}
+          restore-keys: |
+            kura-rust-${{ runner.os }}-
+
+      - name: Run clippy
+        run: cargo clippy --locked --all-targets -- -D warnings
+
+  tests:
+    name: Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: rust
+          working_directory: kura
+
+      - name: Restore Rust Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            kura/target
+          key: kura-rust-${{ runner.os }}-${{ hashFiles('kura/Cargo.lock') }}
+          restore-keys: |
+            kura-rust-${{ runner.os }}-
+
+      - name: Run tests
+        run: cargo test --locked
+
+  e2e:
+    name: E2E (${{ matrix.shard_name }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - shard_name: cluster
+            specs: "spec/e2e/cluster_spec.sh"
+          - shard_name: clients
+            specs: "spec/e2e/clients_spec.sh"
+          - shard_name: discovery-faults-handoff
+            specs: "spec/e2e/discovery_spec.sh spec/e2e/faults_spec.sh spec/e2e/handoff_spec.sh"
+          - shard_name: extension-mtls
+            specs: "spec/e2e/extension_spec.sh spec/e2e/mtls_spec.sh"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: "rust shellspec bazel aqua:facebook/buck2 node"
+          working_directory: kura
 
       - name: Show Docker tooling
         run: docker compose version
@@ -53,4 +147,4 @@ jobs:
         run: docker compose build
 
       - name: Run end-to-end suite
-        run: mise exec -- shellspec
+        run: shellspec ${{ matrix.specs }}
