@@ -137,8 +137,11 @@ public struct ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this
             sideEffects.append(sideEffect)
         }
 
-        if case .external = project.type,
-           target.sources.containsObjcFiles,
+        // Generate Objective-C resource accessor for targets with Objective-C sources and bundle-accessed resources.
+        // This applies to both external and internal targets.
+        // Note: We no longer set GCC_PREFIX_HEADER to avoid overriding user-defined prefix headers (.pch files).
+        // The generated header is only needed by the generated implementation file, which imports it directly.
+        if target.sources.containsObjcFiles,
            target.resources.containsBundleAccessedResources,
            !target.supportsResources || target.product == .staticFramework
         {
@@ -147,11 +150,6 @@ public struct ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this
             let headerHash = try headerData.map(contentHasher.hash)
             let headerFile = SourceFile(path: headerFilePath, contentHash: headerHash)
             let headerSideEffect = SideEffectDescriptor.file(.init(path: headerFilePath, contents: headerData, state: .present))
-
-            let gccPrefixHeader = "$(SRCROOT)/\(headerFile.path.relative(to: project.path).pathString)"
-            var settings = modifiedTarget.settings?.base ?? SettingsDictionary()
-            settings["GCC_PREFIX_HEADER"] = .string(gccPrefixHeader)
-            modifiedTarget.settings = modifiedTarget.settings?.with(base: settings)
 
             sideEffects.append(headerSideEffect)
 
