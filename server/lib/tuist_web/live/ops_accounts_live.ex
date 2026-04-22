@@ -73,19 +73,6 @@ defmodule TuistWeb.OpsAccountsLive do
   end
 
   @impl true
-  def handle_event("manage", %{"id" => id}, socket) do
-    case Accounts.get_account_by_id(String.to_integer(id)) do
-      {:ok, account} ->
-        account = Accounts.create_customer_when_absent(account)
-        session = Billing.create_session(account.customer_id)
-        {:noreply, redirect(socket, external: session.url)}
-
-      {:error, :not_found} ->
-        {:noreply, put_flash(socket, :error, "Account not found.")}
-    end
-  end
-
-  @impl true
   def handle_event("initiate_enterprise_upgrade", %{"id" => id}, socket) do
     case Accounts.get_account_by_id(String.to_integer(id)) do
       {:ok, account} ->
@@ -230,6 +217,22 @@ defmodule TuistWeb.OpsAccountsLive do
   def plan_color(:enterprise), do: "success"
   def plan_color(:open_source), do: "information"
   def plan_color(_), do: "neutral"
+
+  # `cancel_at_period_end` takes priority — a subscription flagged for
+  # cancellation still reports `status: "active"` until the period ends.
+  # Accounts without a subscription are on the Air plan, which is always
+  # active (there's nothing to cancel).
+  def subscription_status(%Account{subscriptions: [%{cancel_at_period_end: true} | _]}), do: :canceling
+  def subscription_status(%Account{subscriptions: [%{status: "trialing"} | _]}), do: :trialing
+  def subscription_status(_), do: :active
+
+  def status_label(:active), do: "Active"
+  def status_label(:trialing), do: "Trialing"
+  def status_label(:canceling), do: "Canceling"
+
+  def status_color(:active), do: "success"
+  def status_color(:trialing), do: "information"
+  def status_color(:canceling), do: "warning"
 
   # ISO 3166-1 alpha-2 codes for the countries most likely to appear on
   # Enterprise invoices. Extend as needed. Sorted alphabetically by name.
