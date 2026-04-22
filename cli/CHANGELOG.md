@@ -1,6 +1,18 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.183.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* map static library dependencies in XcodeGraph by [@pepicrft](https://github.com/pepicrft) in [#10358](https://github.com/tuist/tuist/pull/10358)
+* ensure package product dependencies are initialized by [@pepicrft](https://github.com/pepicrft) in [#10370](https://github.com/tuist/tuist/pull/10370)
+* preserve scheme buildAction targets in `tuist test <scheme>` focus by [@fortmarek](https://github.com/fortmarek) in [#10367](https://github.com/tuist/tuist/pull/10367)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.183.0...4.183.1
+
 ## What's Changed in 4.183.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
