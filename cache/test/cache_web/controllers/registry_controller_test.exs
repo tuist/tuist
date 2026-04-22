@@ -14,6 +14,7 @@ defmodule CacheWeb.RegistryControllerTest do
     stub(Cache.Config, :registry_github_token, fn -> "test-token" end)
     stub(Cache.Config, :registry_bucket, fn -> "test-bucket" end)
     stub(Cache.Config, :registry_enabled?, fn -> true end)
+    stub(Cache.Config, :analytics_enabled?, fn -> false end)
     stub(CacheArtifacts, :track_artifact_access, fn _key -> :ok end)
     :ok
   end
@@ -30,6 +31,19 @@ defmodule CacheWeb.RegistryControllerTest do
     end
   end
 
+  describe "HEAD /api/registry/swift (availability)" do
+    test "returns 200 OK with content-version header", %{conn: conn} do
+      conn =
+        conn
+        |> registry_json_conn()
+        |> head("/api/registry/swift")
+
+      assert conn.status == 200
+      assert get_resp_header(conn, "content-version") == ["1"]
+      assert conn.resp_body == ""
+    end
+  end
+
   describe "GET /api/registry/swift/availability" do
     test "returns 200 OK with content-version header", %{conn: conn} do
       conn =
@@ -39,6 +53,19 @@ defmodule CacheWeb.RegistryControllerTest do
 
       assert conn.status == 200
       assert get_resp_header(conn, "content-version") == ["1"]
+    end
+  end
+
+  describe "HEAD /api/registry/swift/availability" do
+    test "returns 200 OK with content-version header", %{conn: conn} do
+      conn =
+        conn
+        |> registry_json_conn()
+        |> head("/api/registry/swift/availability")
+
+      assert conn.status == 200
+      assert get_resp_header(conn, "content-version") == ["1"]
+      assert conn.resp_body == ""
     end
   end
 
@@ -99,7 +126,9 @@ defmodule CacheWeb.RegistryControllerTest do
     test "returns 404 when package is missing", %{conn: conn} do
       url = "https://github.com/apple/swift-argument-parser"
 
-      expect(Metadata, :get_package, fn "apple", "swift-argument-parser" -> {:error, :not_found} end)
+      expect(Metadata, :get_package, fn "apple", "swift-argument-parser" ->
+        {:error, :not_found}
+      end)
 
       conn =
         conn
@@ -126,6 +155,76 @@ defmodule CacheWeb.RegistryControllerTest do
       assert conn.status == 503
       response = json_response(conn, :service_unavailable)
       assert response["message"] == "Registry is temporarily unavailable. Please try again later."
+    end
+  end
+
+  describe "HEAD /api/registry/swift/identifiers" do
+    test "returns 200 for valid repository url", %{conn: conn} do
+      url = "https://github.com/apple/swift-argument-parser"
+
+      expect(Metadata, :get_package, fn "apple", "swift-argument-parser" -> {:ok, %{}} end)
+
+      conn =
+        conn
+        |> registry_json_conn()
+        |> head("/api/registry/swift/identifiers?url=#{URI.encode_www_form(url)}")
+
+      assert conn.status == 200
+      assert conn.resp_body == ""
+    end
+
+    test "returns 400 for invalid repository url", %{conn: conn} do
+      url = "https://github.com/invalid"
+
+      conn =
+        conn
+        |> registry_json_conn()
+        |> head("/api/registry/swift/identifiers?url=#{URI.encode_www_form(url)}")
+
+      assert conn.status == 400
+      assert conn.resp_body == ""
+    end
+
+    test "returns 404 for unsupported vcs", %{conn: conn} do
+      url = "https://gitlab.com/tuist/tuist"
+
+      conn =
+        conn
+        |> registry_json_conn()
+        |> head("/api/registry/swift/identifiers?url=#{URI.encode_www_form(url)}")
+
+      assert conn.status == 404
+      assert conn.resp_body == ""
+    end
+
+    test "returns 404 when package is missing", %{conn: conn} do
+      url = "https://github.com/apple/swift-argument-parser"
+
+      expect(Metadata, :get_package, fn "apple", "swift-argument-parser" -> {:error, :not_found} end)
+
+      conn =
+        conn
+        |> registry_json_conn()
+        |> head("/api/registry/swift/identifiers?url=#{URI.encode_www_form(url)}")
+
+      assert conn.status == 404
+      assert conn.resp_body == ""
+    end
+
+    test "returns 503 when S3 returns an error", %{conn: conn} do
+      url = "https://github.com/apple/swift-argument-parser"
+
+      expect(Metadata, :get_package, fn "apple", "swift-argument-parser" ->
+        {:error, {:s3_error, :rate_limited}}
+      end)
+
+      conn =
+        conn
+        |> registry_json_conn()
+        |> head("/api/registry/swift/identifiers?url=#{URI.encode_www_form(url)}")
+
+      assert conn.status == 503
+      assert conn.resp_body == ""
     end
   end
 
@@ -206,6 +305,75 @@ defmodule CacheWeb.RegistryControllerTest do
       assert conn.status == 400
       response = json_response(conn, :bad_request)
       assert response["message"] == "Invalid path parameters."
+    end
+  end
+
+  describe "HEAD /api/registry/swift/:scope/:name (list_releases)" do
+    test "returns releases when package exists", %{conn: conn} do
+      scope = "apple"
+      name = "swift-argument-parser"
+
+      metadata = %{
+        "scope" => scope,
+        "name" => name,
+        "releases" => %{
+          "1.0.0" => %{"checksum" => "abc123"},
+          "1.1.0" => %{"checksum" => "def456"}
+        }
+      }
+
+      expect(Metadata, :get_package, fn ^scope, ^name -> {:ok, metadata} end)
+
+      conn =
+        conn
+        |> registry_json_conn()
+        |> head("/api/registry/swift/#{scope}/#{name}")
+
+      assert conn.status == 200
+      assert get_resp_header(conn, "content-version") == ["1"]
+      assert conn.resp_body == ""
+    end
+
+    test "returns 404 when package not found", %{conn: conn} do
+      scope = "unknown"
+      name = "nonexistent"
+
+      expect(Metadata, :get_package, fn ^scope, ^name -> {:error, :not_found} end)
+
+      conn =
+        conn
+        |> registry_json_conn()
+        |> head("/api/registry/swift/#{scope}/#{name}")
+
+      assert conn.status == 404
+      assert get_resp_header(conn, "content-version") == ["1"]
+      assert conn.resp_body == ""
+    end
+
+    test "returns 503 when S3 returns an error", %{conn: conn} do
+      scope = "apple"
+      name = "swift-argument-parser"
+
+      expect(Metadata, :get_package, fn ^scope, ^name -> {:error, {:s3_error, :rate_limited}} end)
+
+      conn =
+        conn
+        |> registry_json_conn()
+        |> head("/api/registry/swift/#{scope}/#{name}")
+
+      assert conn.status == 503
+      assert get_resp_header(conn, "content-version") == ["1"]
+      assert conn.resp_body == ""
+    end
+
+    test "returns 400 when normalized path params are invalid", %{conn: conn} do
+      conn =
+        conn
+        |> registry_json_conn()
+        |> head("/api/registry/swift/%2E%2E/swift-argument-parser")
+
+      assert conn.status == 400
+      assert conn.resp_body == ""
     end
   end
 
@@ -336,6 +504,115 @@ defmodule CacheWeb.RegistryControllerTest do
     end
   end
 
+  describe "HEAD /api/registry/swift/:scope/:name/:version (show_release)" do
+    test "returns release info when version exists", %{conn: conn} do
+      scope = "apple"
+      name = "swift-argument-parser"
+      version = "1.0.0"
+
+      metadata = %{
+        "scope" => scope,
+        "name" => name,
+        "releases" => %{
+          "1.0.0" => %{"checksum" => "abc123def456"}
+        }
+      }
+
+      expect(Metadata, :get_package, fn ^scope, ^name -> {:ok, metadata} end)
+
+      conn =
+        conn
+        |> registry_json_conn()
+        |> head("/api/registry/swift/#{scope}/#{name}/#{version}")
+
+      assert conn.status == 200
+      assert get_resp_header(conn, "content-version") == ["1"]
+      assert conn.resp_body == ""
+    end
+
+    test "normalizes version before lookup", %{conn: conn} do
+      scope = "apple"
+      name = "swift-argument-parser"
+
+      metadata = %{
+        "scope" => scope,
+        "name" => name,
+        "releases" => %{
+          "1.0.0" => %{"checksum" => "abc123"}
+        }
+      }
+
+      expect(Metadata, :get_package, fn ^scope, ^name -> {:ok, metadata} end)
+
+      conn =
+        conn
+        |> registry_json_conn()
+        |> head("/api/registry/swift/#{scope}/#{name}/v1")
+
+      assert conn.status == 200
+      assert conn.resp_body == ""
+    end
+
+    test "returns 404 when version not found", %{conn: conn} do
+      scope = "apple"
+      name = "swift-argument-parser"
+      version = "9.9.9"
+
+      metadata = %{
+        "scope" => scope,
+        "name" => name,
+        "releases" => %{
+          "1.0.0" => %{"checksum" => "abc123"}
+        }
+      }
+
+      expect(Metadata, :get_package, fn ^scope, ^name -> {:ok, metadata} end)
+
+      conn =
+        conn
+        |> registry_json_conn()
+        |> head("/api/registry/swift/#{scope}/#{name}/#{version}")
+
+      assert conn.status == 404
+      assert get_resp_header(conn, "content-version") == ["1"]
+      assert conn.resp_body == ""
+    end
+
+    test "returns 404 when package not found", %{conn: conn} do
+      scope = "unknown"
+      name = "nonexistent"
+      version = "1.0.0"
+
+      expect(Metadata, :get_package, fn ^scope, ^name -> {:error, :not_found} end)
+
+      conn =
+        conn
+        |> registry_json_conn()
+        |> head("/api/registry/swift/#{scope}/#{name}/#{version}")
+
+      assert conn.status == 404
+      assert get_resp_header(conn, "content-version") == ["1"]
+      assert conn.resp_body == ""
+    end
+
+    test "returns 503 when S3 returns an error", %{conn: conn} do
+      scope = "apple"
+      name = "swift-argument-parser"
+      version = "1.0.0"
+
+      expect(Metadata, :get_package, fn ^scope, ^name -> {:error, {:s3_error, :rate_limited}} end)
+
+      conn =
+        conn
+        |> registry_json_conn()
+        |> head("/api/registry/swift/#{scope}/#{name}/#{version}")
+
+      assert conn.status == 503
+      assert get_resp_header(conn, "content-version") == ["1"]
+      assert conn.resp_body == ""
+    end
+  end
+
   describe "GET /api/registry/swift/:scope/:name/:version.zip (download_archive)" do
     test "serves from disk when file exists locally", %{conn: conn} do
       scope = "apple"
@@ -368,7 +645,9 @@ defmodule CacheWeb.RegistryControllerTest do
       name = "swift-argument-parser"
       version = "1.0.0"
 
-      expect(Registry.Disk, :exists?, fn ^scope, ^name, ^version, "source_archive.zip" -> false end)
+      expect(Registry.Disk, :exists?, fn ^scope, ^name, ^version, "source_archive.zip" ->
+        false
+      end)
 
       expect(S3, :exists?, fn _key, _opts -> true end)
 
@@ -396,7 +675,9 @@ defmodule CacheWeb.RegistryControllerTest do
       name = "swift-argument-parser"
       version = "1.0.0"
 
-      expect(Registry.Disk, :exists?, fn ^scope, ^name, ^version, "source_archive.zip" -> false end)
+      expect(Registry.Disk, :exists?, fn ^scope, ^name, ^version, "source_archive.zip" ->
+        false
+      end)
 
       expect(S3, :exists?, fn _key, _opts -> true end)
 
@@ -418,7 +699,9 @@ defmodule CacheWeb.RegistryControllerTest do
       name = "swift-argument-parser"
       version = "1.0.0"
 
-      expect(Registry.Disk, :exists?, fn ^scope, ^name, ^version, "source_archive.zip" -> false end)
+      expect(Registry.Disk, :exists?, fn ^scope, ^name, ^version, "source_archive.zip" ->
+        false
+      end)
 
       expect(S3, :exists?, fn _key, _opts -> false end)
 
@@ -429,6 +712,116 @@ defmodule CacheWeb.RegistryControllerTest do
 
       assert conn.status == 404
       assert get_resp_header(conn, "content-version") == ["1"]
+    end
+  end
+
+  describe "HEAD /api/registry/swift/:scope/:name/:version.zip (download_archive)" do
+    test "serves from disk when file exists locally", %{conn: conn} do
+      scope = "apple"
+      name = "swift-argument-parser"
+      version = "1.0.0"
+
+      expect(Registry.Disk, :exists?, fn ^scope, ^name, ^version, "source_archive.zip" -> true end)
+
+      expect(Registry.Disk, :local_accel_path, fn ^scope, ^name, ^version, "source_archive.zip" ->
+        "/internal/local/registry/swift/apple/swift-argument-parser/1.0.0/source_archive.zip"
+      end)
+
+      reject(CacheArtifacts, :track_artifact_access, 1)
+
+      conn =
+        conn
+        |> registry_zip_conn()
+        |> head("/api/registry/swift/#{scope}/#{name}/#{version}.zip")
+
+      assert conn.status == 200
+      assert get_resp_header(conn, "content-version") == ["1"]
+
+      assert get_resp_header(conn, "x-accel-redirect") == [
+               "/internal/local/registry/swift/apple/swift-argument-parser/1.0.0/source_archive.zip"
+             ]
+
+      assert get_resp_header(conn, "content-type") == ["application/zip; charset=utf-8"]
+      assert conn.resp_body == ""
+    end
+
+    test "falls back to S3 when file not on disk", %{conn: conn} do
+      scope = "apple"
+      name = "swift-argument-parser"
+      version = "1.0.0"
+
+      expect(Registry.Disk, :exists?, fn ^scope, ^name, ^version, "source_archive.zip" ->
+        false
+      end)
+
+      expect(S3, :exists?, fn _key, _opts -> true end)
+
+      expect(S3, :presign_download_url, fn _key, _opts ->
+        {:ok, "https://s3.example.com/registry/swift/apple/swift-argument-parser/1.0.0/source_archive.zip?signed=true"}
+      end)
+
+      expect(S3, :remote_accel_path, fn _url ->
+        "/internal/remote/https://s3.example.com/registry/swift/apple/swift-argument-parser/1.0.0/source_archive.zip?signed=true"
+      end)
+
+      reject(S3Transfers, :enqueue_registry_download, 1)
+      reject(CacheArtifacts, :track_artifact_access, 1)
+
+      conn =
+        conn
+        |> registry_zip_conn()
+        |> head("/api/registry/swift/#{scope}/#{name}/#{version}.zip")
+
+      assert conn.status == 200
+      assert get_resp_header(conn, "content-version") == ["1"]
+      assert conn.resp_body == ""
+    end
+
+    test "returns 404 when S3 presign fails", %{conn: conn} do
+      scope = "apple"
+      name = "swift-argument-parser"
+      version = "1.0.0"
+
+      expect(Registry.Disk, :exists?, fn ^scope, ^name, ^version, "source_archive.zip" ->
+        false
+      end)
+
+      expect(S3, :exists?, fn _key, _opts -> true end)
+
+      reject(S3Transfers, :enqueue_registry_download, 1)
+      reject(CacheArtifacts, :track_artifact_access, 1)
+
+      expect(S3, :presign_download_url, fn _key, _opts -> {:error, :not_found} end)
+
+      conn =
+        conn
+        |> registry_zip_conn()
+        |> head("/api/registry/swift/#{scope}/#{name}/#{version}.zip")
+
+      assert conn.status == 404
+      assert get_resp_header(conn, "content-version") == ["1"]
+      assert conn.resp_body == ""
+    end
+
+    test "returns 404 when S3 object is missing", %{conn: conn} do
+      scope = "apple"
+      name = "swift-argument-parser"
+      version = "1.0.0"
+
+      expect(Registry.Disk, :exists?, fn ^scope, ^name, ^version, "source_archive.zip" ->
+        false
+      end)
+
+      expect(S3, :exists?, fn _key, _opts -> false end)
+
+      conn =
+        conn
+        |> registry_zip_conn()
+        |> head("/api/registry/swift/#{scope}/#{name}/#{version}.zip")
+
+      assert conn.status == 404
+      assert get_resp_header(conn, "content-version") == ["1"]
+      assert conn.resp_body == ""
     end
   end
 
@@ -495,7 +888,9 @@ defmodule CacheWeb.RegistryControllerTest do
       name = "swift-argument-parser"
       version = "1.0.0"
 
-      expect(Registry.Disk, :exists?, fn ^scope, ^name, ^version, "Package@swift-5.8.swift" -> false end)
+      expect(Registry.Disk, :exists?, fn ^scope, ^name, ^version, "Package@swift-5.8.swift" ->
+        false
+      end)
 
       expect(S3, :exists?, fn _key, _opts -> false end)
 
@@ -559,6 +954,143 @@ defmodule CacheWeb.RegistryControllerTest do
 
       assert conn.status == 404
       assert get_resp_header(conn, "content-version") == ["1"]
+    end
+  end
+
+  describe "HEAD /api/registry/swift/:scope/:name/:version/Package.swift (show_manifest)" do
+    test "returns 400 when normalized version is invalid", %{conn: conn} do
+      conn =
+        conn
+        |> registry_swift_conn()
+        |> head("/api/registry/swift/apple/swift-argument-parser/%2E%2E/Package.swift")
+
+      assert conn.status == 400
+      assert conn.resp_body == ""
+    end
+
+    test "serves manifest from disk when file exists", %{conn: conn} do
+      scope = "apple"
+      name = "swift-argument-parser"
+      version = "1.0.0"
+
+      metadata = %{
+        "scope" => scope,
+        "name" => name,
+        "releases" => %{
+          "1.0.0" => %{
+            "checksum" => "abc123",
+            "manifests" => [
+              %{"swift_version" => nil, "swift_tools_version" => "5.7"},
+              %{"swift_version" => "5.9", "swift_tools_version" => "5.9"}
+            ]
+          }
+        }
+      }
+
+      expect(Registry.Disk, :exists?, fn ^scope, ^name, ^version, "Package.swift" -> true end)
+
+      expect(Registry.Disk, :local_accel_path, fn ^scope, ^name, ^version, "Package.swift" ->
+        "/internal/local/registry/swift/apple/swift-argument-parser/1.0.0/Package.swift"
+      end)
+
+      expect(Metadata, :get_package, fn ^scope, ^name -> {:ok, metadata} end)
+
+      reject(CacheArtifacts, :track_artifact_access, 1)
+
+      conn =
+        conn
+        |> registry_swift_conn()
+        |> head("/api/registry/swift/#{scope}/#{name}/#{version}/Package.swift")
+
+      assert conn.status == 200
+      assert get_resp_header(conn, "content-version") == ["1"]
+
+      assert get_resp_header(conn, "x-accel-redirect") == [
+               "/internal/local/registry/swift/apple/swift-argument-parser/1.0.0/Package.swift"
+             ]
+
+      assert get_resp_header(conn, "content-type") == ["text/x-swift; charset=utf-8"]
+
+      [link_header] = get_resp_header(conn, "link")
+      assert link_header =~ "rel=\"alternate\""
+      assert link_header =~ "swift-version=5.9"
+      assert conn.resp_body == ""
+    end
+
+    test "redirects to default manifest when swift-version specified but not found", %{conn: conn} do
+      scope = "apple"
+      name = "swift-argument-parser"
+      version = "1.0.0"
+
+      expect(Registry.Disk, :exists?, fn ^scope, ^name, ^version, "Package@swift-5.8.swift" -> false end)
+
+      expect(S3, :exists?, fn _key, _opts -> false end)
+
+      conn =
+        conn
+        |> registry_swift_conn()
+        |> head("/api/registry/swift/#{scope}/#{name}/#{version}/Package.swift?swift-version=5.8")
+
+      assert conn.status == 303
+      assert get_resp_header(conn, "content-version") == ["1"]
+
+      assert get_resp_header(conn, "location") == [
+               "/api/registry/swift/apple/swift-argument-parser/1.0.0/Package.swift"
+             ]
+
+      assert conn.resp_body == ""
+    end
+
+    test "falls back to S3 when manifest not on disk", %{conn: conn} do
+      scope = "apple"
+      name = "swift-argument-parser"
+      version = "1.0.0"
+
+      expect(Registry.Disk, :exists?, fn ^scope, ^name, ^version, "Package.swift" -> false end)
+
+      expect(S3, :exists?, fn _key, _opts -> true end)
+
+      expect(Metadata, :get_package, fn ^scope, ^name -> {:error, :not_found} end)
+
+      reject(S3Transfers, :enqueue_registry_download, 1)
+      reject(CacheArtifacts, :track_artifact_access, 1)
+
+      expect(S3, :presign_download_url, fn _key, _opts ->
+        {:ok, "https://s3.example.com/registry/swift/apple/swift-argument-parser/1.0.0/Package.swift?signed=true"}
+      end)
+
+      expect(S3, :remote_accel_path, fn _url ->
+        "/internal/remote/https://s3.example.com/registry/swift/apple/swift-argument-parser/1.0.0/Package.swift?signed=true"
+      end)
+
+      conn =
+        conn
+        |> registry_swift_conn()
+        |> head("/api/registry/swift/#{scope}/#{name}/#{version}/Package.swift")
+
+      assert conn.status == 200
+      assert get_resp_header(conn, "content-version") == ["1"]
+      assert get_resp_header(conn, "content-type") == ["text/x-swift; charset=utf-8"]
+      assert conn.resp_body == ""
+    end
+
+    test "returns 404 when manifest not found anywhere", %{conn: conn} do
+      scope = "apple"
+      name = "swift-argument-parser"
+      version = "1.0.0"
+
+      expect(Registry.Disk, :exists?, fn ^scope, ^name, ^version, "Package.swift" -> false end)
+
+      expect(S3, :exists?, fn _key, _opts -> false end)
+
+      conn =
+        conn
+        |> registry_swift_conn()
+        |> head("/api/registry/swift/#{scope}/#{name}/#{version}/Package.swift")
+
+      assert conn.status == 404
+      assert get_resp_header(conn, "content-version") == ["1"]
+      assert conn.resp_body == ""
     end
   end
 

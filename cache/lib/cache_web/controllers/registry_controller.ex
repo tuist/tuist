@@ -139,16 +139,37 @@ defmodule CacheWeb.RegistryController do
         |> manifest_candidates()
         |> Enum.reduce_while(:not_found, fn filename, _acc ->
           key =
-            KeyNormalizer.package_object_key(%{scope: scope, name: name}, version: normalized_version, path: filename)
+            KeyNormalizer.package_object_key(%{scope: scope, name: name},
+              version: normalized_version,
+              path: filename
+            )
 
           cond do
             Registry.Disk.exists?(scope, name, normalized_version, filename) ->
               {:halt,
-               {:served, serve_manifest_from_disk(conn, scope, name, normalized_version, filename, swift_version, key)}}
+               {:served,
+                serve_manifest_from_disk(
+                  conn,
+                  scope,
+                  name,
+                  normalized_version,
+                  filename,
+                  swift_version,
+                  key
+                )}}
 
             S3.exists?(key, type: :registry) ->
               {:halt,
-               {:served, serve_manifest_from_s3(conn, scope, name, normalized_version, filename, swift_version, key)}}
+               {:served,
+                serve_manifest_from_s3(
+                  conn,
+                  scope,
+                  name,
+                  normalized_version,
+                  filename,
+                  swift_version,
+                  key
+                )}}
 
             true ->
               {:cont, :not_found}
@@ -237,7 +258,7 @@ defmodule CacheWeb.RegistryController do
       )
 
     if Registry.Disk.exists?(scope, name, normalized_version, "source_archive.zip") do
-      track_registry_download(scope, name, normalized_version, key)
+      maybe_track_registry_download(conn, scope, name, normalized_version, key)
       render_local_archive(conn, scope, name, normalized_version)
     else
       render_remote_archive(conn, scope, name, normalized_version, key)
@@ -245,20 +266,24 @@ defmodule CacheWeb.RegistryController do
   end
 
   defp render_local_archive(conn, scope, name, normalized_version) do
-    local_path = Registry.Disk.local_accel_path(scope, name, normalized_version, "source_archive.zip")
+    local_path =
+      Registry.Disk.local_accel_path(scope, name, normalized_version, "source_archive.zip")
 
     conn
     |> put_resp_header("content-version", "1")
     |> put_resp_header("x-accel-redirect", local_path)
     |> put_resp_content_type("application/zip")
-    |> put_resp_header("content-disposition", "attachment; filename=\"#{name}-#{normalized_version}.zip\"")
+    |> put_resp_header(
+      "content-disposition",
+      "attachment; filename=\"#{name}-#{normalized_version}.zip\""
+    )
     |> send_resp(:ok, "")
   end
 
   defp render_remote_archive(conn, scope, name, normalized_version, key) do
     if S3.exists?(key, type: :registry) do
-      S3Transfers.enqueue_registry_download(key)
-      track_registry_download(scope, name, normalized_version, key)
+      maybe_enqueue_registry_download(conn, key)
+      maybe_track_registry_download(conn, scope, name, normalized_version, key)
 
       case S3.presign_download_url(key, type: :registry) do
         {:ok, url} ->
@@ -266,7 +291,10 @@ defmodule CacheWeb.RegistryController do
           |> put_resp_header("content-version", "1")
           |> put_resp_header("x-accel-redirect", S3.remote_accel_path(url))
           |> put_resp_content_type("application/zip")
-          |> put_resp_header("content-disposition", "attachment; filename=\"#{name}-#{normalized_version}.zip\"")
+          |> put_resp_header(
+            "content-disposition",
+            "attachment; filename=\"#{name}-#{normalized_version}.zip\""
+          )
           |> send_resp(:ok, "")
 
         {:error, _reason} ->
@@ -290,7 +318,7 @@ defmodule CacheWeb.RegistryController do
   end
 
   defp serve_manifest_from_disk(conn, scope, name, version, filename, swift_version, key) do
-    :ok = CacheArtifacts.track_artifact_access(key)
+    maybe_track_artifact_access(conn, key)
     local_path = Registry.Disk.local_accel_path(scope, name, version, filename)
 
     conn
@@ -302,8 +330,8 @@ defmodule CacheWeb.RegistryController do
   end
 
   defp serve_manifest_from_s3(conn, scope, name, version, _filename, swift_version, key) do
-    S3Transfers.enqueue_registry_download(key)
-    :ok = CacheArtifacts.track_artifact_access(key)
+    maybe_enqueue_registry_download(conn, key)
+    maybe_track_artifact_access(conn, key)
 
     case S3.presign_download_url(key, type: :registry) do
       {:ok, url} ->
@@ -373,7 +401,8 @@ defmodule CacheWeb.RegistryController do
       swift_version = manifest["swift_version"]
       swift_tools_version = manifest["swift_tools_version"]
 
-      url = "/api/registry/swift/#{scope}/#{name}/#{version}/Package.swift?swift-version=#{swift_version}"
+      url =
+        "/api/registry/swift/#{scope}/#{name}/#{version}/Package.swift?swift-version=#{swift_version}"
 
       display_version =
         if swift_version |> String.split(".") |> Enum.count() == 1 do
@@ -397,6 +426,28 @@ defmodule CacheWeb.RegistryController do
 
       Enum.join(parts, "; ")
     end)
+  end
+
+  defp maybe_enqueue_registry_download(conn, key) do
+    if not head_request?(conn) do
+      S3Transfers.enqueue_registry_download(key)
+    end
+  end
+
+  defp maybe_track_registry_download(conn, scope, name, normalized_version, key) do
+    if not head_request?(conn) do
+      track_registry_download(scope, name, normalized_version, key)
+    end
+  end
+
+  defp maybe_track_artifact_access(conn, key) do
+    if not head_request?(conn) do
+      :ok = CacheArtifacts.track_artifact_access(key)
+    end
+  end
+
+  defp head_request?(conn) do
+    conn.method == "HEAD"
   end
 
   defp provider_from_repository_url(repository_url) do
