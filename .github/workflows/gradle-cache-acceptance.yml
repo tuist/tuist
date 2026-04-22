@@ -110,30 +110,31 @@ jobs:
       - name: Install cache deps
         working-directory: cache
         run: mix deps.get
-      - name: Setup and start main server
+      - name: Setup main server
         working-directory: server
         run: |
+          # Single mix do so compile + all ecto tasks + seeds share one BEAM
+          # (and peak memory only once) before we ever start the web server.
           MIX_ENV=dev mix do \
             compile, \
             ecto.create, \
             run priv/repo/timezone.exs, \
             ecto.load, \
             ecto.migrate, \
-            run priv/repo/seeds.exs, \
-            phx.server &
-          # Compile + DB setup runs inside this backgrounded mix do before
-          # phx.server binds, so the wait loop has to cover that full phase
-          # (typically ~3 min on a cold cache). Check the TCP port rather
-          # than an HTTP endpoint — dev-mode asset-watcher errors can cause
-          # transient 5xx even when the server is genuinely listening.
+            run priv/repo/seeds.exs
+      - name: Start main server
+        working-directory: server
+        run: |
+          # Reuse the compile artifacts from the Setup step.
+          MIX_ENV=dev mix phx.server --no-compile &
           server_url="${TUIST_SERVER_URL:-http://localhost:8080}"
           port="${server_url##*:}"
-          for i in {1..180}; do
+          for i in {1..60}; do
             if nc -z localhost "$port" 2>/dev/null; then
               echo "Main server is listening on :${port} after ${i} attempts"
               break
             fi
-            if [ "$i" = "180" ]; then
+            if [ "$i" = "60" ]; then
               echo "Main server never came up on :${port}" >&2
               exit 1
             fi
