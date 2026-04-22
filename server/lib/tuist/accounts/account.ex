@@ -30,12 +30,11 @@ defmodule Tuist.Accounts.Account do
     ]
   }
 
-  @doc """
-  Custom Flop filter that matches a substring against the account handle.
-  Kept as a custom field rather than a plain `:ilike` filter so callers can
-  say "search for `foo`" without caring about the underlying column, and so
-  we can broaden it later if needed.
-  """
+  # Flop dispatches `:search` custom-field filters here via the MFA declared
+  # in `adapter_opts` above; the function is public because Flop calls it
+  # with `apply/3`, but it's not meant to be invoked directly. Use Flop
+  # filters — `%{field: :search, op: :==, value: "foo"}` — from callers.
+  @doc false
   def search_filter(query, %Flop.Filter{value: value}, _opts) when is_binary(value) and value != "" do
     like = "%#{value}%"
     from a in query, where: ilike(a.name, ^like)
