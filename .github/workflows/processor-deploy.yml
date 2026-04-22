@@ -1,4 +1,4 @@
-name: Processor Deploy
+# name: Processor Deploy
 
 # NOTE: Canary and production deploys are disabled pending migration to
 # Kubernetes. Kamal auto-deploys to the current infrastructure have been
