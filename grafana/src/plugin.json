@@ -45,26 +45,14 @@
     },
     {
       "type": "dashboard",
-      "name": "Xcode build performance",
-      "path": "dashboards/xcode-builds.json",
+      "name": "Tuist Xcode",
+      "path": "dashboards/xcode.json",
       "addToNav": true
     },
     {
       "type": "dashboard",
-      "name": "Xcode test reliability",
-      "path": "dashboards/xcode-tests.json",
-      "addToNav": true
-    },
-    {
-      "type": "dashboard",
-      "name": "Binary cache effectiveness",
-      "path": "dashboards/cache.json",
-      "addToNav": true
-    },
-    {
-      "type": "dashboard",
-      "name": "CLI usage",
-      "path": "dashboards/cli.json",
+      "name": "Tuist Gradle",
+      "path": "dashboards/gradle.json",
       "addToNav": true
     }
   ]

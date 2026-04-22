@@ -6,8 +6,9 @@ Grafana app plugin for the Tuist per-account `/metrics` endpoint. Bundles:
    `account:metrics:read` token, and target Prometheus datasource.
 2. A scrape-snippet generator that emits a ready-to-paste Grafana Alloy (and
    Grafana Agent flow-mode) configuration.
-3. Four curated dashboards: Xcode build performance, Xcode test reliability,
-   binary cache effectiveness, and CLI usage.
+3. Two curated dashboards — **Tuist Xcode** and **Tuist Gradle** — each
+   organised into Overview / Builds / Tests / Cache rows that mirror the
+   Tuist dashboard's project pages.
 
 The plugin itself does not scrape. Grafana Alloy / Agent does, and remote-writes
 into the Prometheus datasource configured here.

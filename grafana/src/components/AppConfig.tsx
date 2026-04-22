@@ -1,15 +1,15 @@
 import React, { ChangeEvent, useMemo, useState } from 'react';
 import { css } from '@emotion/css';
-import { AppPluginMeta, GrafanaTheme2, PluginConfigPageProps, PluginMeta } from '@grafana/data';
-import { getBackendSrv } from '@grafana/runtime';
+import { AppPluginMeta, GrafanaTheme2, PluginConfigPageProps, SelectableValue } from '@grafana/data';
+import { getBackendSrv, getDataSourceSrv } from '@grafana/runtime';
 import {
   Alert,
   Button,
-  DataSourcePicker,
   Field,
   FieldSet,
   Input,
   SecretInput,
+  Select,
   useStyles2,
 } from '@grafana/ui';
 import { lastValueFrom } from 'rxjs';
@@ -17,13 +17,11 @@ import { DEFAULT_SCRAPE_INTERVAL, DEFAULT_TUIST_URL, PLUGIN_ID, REQUIRED_SCOPE }
 import { TuistAppJsonData, TuistAppSecureJsonData, TuistAppSecureJsonFields } from '../types';
 import { ScrapeSnippet } from './ScrapeSnippet';
 
-type Meta = PluginMeta<TuistAppJsonData> & {
+type Meta = AppPluginMeta<TuistAppJsonData> & {
   secureJsonFields?: TuistAppSecureJsonFields;
 };
 
-type Props = PluginConfigPageProps<AppPluginMeta<TuistAppJsonData>> & {
-  plugin: { meta: Meta };
-};
+type Props = PluginConfigPageProps<Meta>;
 
 interface State {
   tuistUrl: string;
@@ -52,34 +50,44 @@ export const AppConfig = ({ plugin }: Props) => {
     saved: false,
   });
 
-  const onChange =
+  const prometheusOptions: Array<SelectableValue<string>> = useMemo(() => {
+    // getDataSourceSrv().getList is stable across Grafana 10-12 and scoped
+    // to the configured datasources. Filtering by type avoids pulling in
+    // non-Prometheus datasources the dashboards cannot query.
+    try {
+      return getDataSourceSrv()
+        .getList({ type: 'prometheus' })
+        .map((ds) => ({ label: ds.name, value: ds.uid, description: ds.type }));
+    } catch {
+      return [];
+    }
+  }, []);
+
+  const onInputChange =
     (key: keyof State) =>
     (event: ChangeEvent<HTMLInputElement>) =>
       setState((prev) => ({ ...prev, [key]: event.currentTarget.value, saved: false }));
 
-  const readyForSnippet = useMemo(
-    () =>
-      state.accountHandle.length > 0 &&
-      state.tuistUrl.length > 0 &&
-      (state.tokenConfigured || state.metricsToken.length > 0),
-    [state.accountHandle, state.tuistUrl, state.tokenConfigured, state.metricsToken]
-  );
+  const readyForSnippet =
+    state.accountHandle.length > 0 &&
+    state.tuistUrl.length > 0 &&
+    (state.tokenConfigured || state.metricsToken.length > 0);
 
   const onSubmit = async () => {
     setState((s) => ({ ...s, saving: true, saveError: undefined, saved: false }));
 
     try {
       await updatePluginSettings({
-        enabled: true,
-        pinned: true,
+        enabled: plugin.meta.enabled ?? true,
+        pinned: plugin.meta.pinned ?? true,
         jsonData: {
           tuistUrl: state.tuistUrl.trim().replace(/\/+$/, ''),
           accountHandle: state.accountHandle.trim(),
           scrapeInterval: state.scrapeInterval.trim() || DEFAULT_SCRAPE_INTERVAL,
           prometheusDatasourceUid: state.prometheusDatasourceUid.trim(),
         },
-        // Only write the token when the user enters a new one; leave the
-        // existing secret in place otherwise.
+        // Only write the token when the user entered a new one; keep the
+        // stored secret untouched otherwise.
         secureJsonData:
           state.metricsToken.length > 0 ? { metricsToken: state.metricsToken } : undefined,
       });
@@ -103,42 +111,37 @@ export const AppConfig = ({ plugin }: Props) => {
   return (
     <div className={styles.container}>
       <FieldSet label="Tuist server">
-        <Field
-          label="Server URL"
-          description="The root URL of your Tuist server. Omit the trailing slash."
-        >
+        <Field label="Server URL" description="Root URL of your Tuist server, no trailing slash.">
           <Input
             width={60}
             placeholder="https://tuist.dev"
             value={state.tuistUrl}
-            onChange={onChange('tuistUrl')}
+            onChange={onInputChange('tuistUrl')}
           />
         </Field>
 
         <Field
           label="Account handle"
           description="The user or organisation handle whose metrics you want to scrape."
-          required
         >
           <Input
             width={60}
             placeholder="acme"
             value={state.accountHandle}
-            onChange={onChange('accountHandle')}
+            onChange={onInputChange('accountHandle')}
           />
         </Field>
 
         <Field
           label="Metrics token"
-          description={`Bearer account token carrying the \`${REQUIRED_SCOPE}\` scope. Mint one with \`POST /api/accounts/:handle/tokens\`.`}
-          required={!state.tokenConfigured}
+          description={`Bearer account token carrying the "${REQUIRED_SCOPE}" scope. Mint one via POST /api/accounts/:handle/tokens.`}
         >
           <SecretInput
             width={60}
             isConfigured={state.tokenConfigured}
             placeholder="tuist_<id>_<hash>"
             value={state.metricsToken}
-            onChange={onChange('metricsToken')}
+            onChange={onInputChange('metricsToken')}
             onReset={() => setState((s) => ({ ...s, tokenConfigured: false, metricsToken: '' }))}
           />
         </Field>
@@ -147,27 +150,29 @@ export const AppConfig = ({ plugin }: Props) => {
       <FieldSet label="Scrape settings">
         <Field
           label="Scrape interval"
-          description="Must stay above 10s — the server rate-limits per account."
+          description="Stay above 10s — the server rate-limits scrapes per account."
         >
           <Input
             width={20}
             placeholder="15s"
             value={state.scrapeInterval}
-            onChange={onChange('scrapeInterval')}
+            onChange={onInputChange('scrapeInterval')}
           />
         </Field>
 
         <Field
           label="Prometheus datasource"
-          description="Datasource that Alloy/Agent remote-writes scraped metrics into. The bundled dashboards query it by UID."
+          description="Datasource that Alloy/Agent remote-writes into. The bundled dashboards read from it."
         >
-          <DataSourcePicker
-            current={state.prometheusDatasourceUid || null}
-            onChange={(ds) =>
-              setState((s) => ({ ...s, prometheusDatasourceUid: ds?.uid ?? '', saved: false }))
+          <Select
+            width={60}
+            placeholder="Select a Prometheus datasource"
+            options={prometheusOptions}
+            value={state.prometheusDatasourceUid || null}
+            onChange={(opt) =>
+              setState((s) => ({ ...s, prometheusDatasourceUid: opt?.value ?? '', saved: false }))
             }
-            type="prometheus"
-            noDefault
+            isClearable
           />
         </Field>
       </FieldSet>
@@ -180,12 +185,12 @@ export const AppConfig = ({ plugin }: Props) => {
 
       {state.saved ? (
         <Alert title="Settings saved" severity="success">
-          Now copy the scrape snippet below into your Alloy/Agent config and reload the collector.
+          Paste the snippet below into your Alloy or Agent config, then reload the collector.
         </Alert>
       ) : null}
 
       <div className={styles.actions}>
-        <Button type="submit" onClick={onSubmit} disabled={state.saving}>
+        <Button onClick={onSubmit} disabled={state.saving}>
           {state.saving ? 'Saving...' : 'Save settings'}
         </Button>
       </div>
@@ -193,8 +198,8 @@ export const AppConfig = ({ plugin }: Props) => {
       {readyForSnippet ? (
         <FieldSet label="Collector snippet">
           <p className={styles.helpText}>
-            Paste this into your Grafana Alloy or Grafana Agent configuration. The token is stored
-            securely; reference it from an environment variable so it never lands in source control.
+            The token is stored as a secret. Reference it from an environment variable in your
+            collector config so it never lands in source control.
           </p>
           <ScrapeSnippet
             tuistUrl={state.tuistUrl}
@@ -244,4 +249,3 @@ const getStyles = (theme: GrafanaTheme2) => ({
     marginBottom: theme.spacing(1),
   }),
 });
-

@@ -1,0 +1,41 @@
+# Used by `mise run grafana:dev`.
+#
+# Brings up a Prometheus that scrapes https://staging.tuist.dev using the
+# TUIST_METRICS_TOKEN secret, and a Grafana stack with the plugin mounted and
+# the Prometheus datasource pre-provisioned.
+#
+# You must export TUIST_METRICS_TOKEN before starting the stack:
+#
+#     export TUIST_METRICS_TOKEN="$(op read 'op://Shared/Tuist Grafana plugin — staging/credential')"
+#
+# The token is written to a gitignored file under ./.secrets and mounted
+# read-only into the Prometheus container so it never appears in
+# docker-inspect output or in the image.
+
+services:
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=6h
+      - --web.enable-lifecycle
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./.secrets/tuist-metrics-token:/etc/prometheus/secrets/tuist-metrics-token:ro
+    ports:
+      - "9090:9090"
+
+  grafana:
+    image: grafana/grafana:latest
+    depends_on:
+      - prometheus
+    environment:
+      GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS: tuist-tuist-app
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_PATHS_PROVISIONING: /etc/grafana/provisioning
+    volumes:
+      - ./dist:/var/lib/grafana/plugins/tuist-tuist-app
+      - ./provisioning:/etc/grafana/provisioning:ro
+    ports:
+      - "3000:3000"

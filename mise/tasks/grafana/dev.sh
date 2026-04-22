@@ -1,14 +1,45 @@
 #!/usr/bin/env bash
-#MISE description="Run the Tuist Grafana app plugin in watch mode against a local Grafana container"
+#MISE description="Run Grafana + Prometheus locally with the plugin scraping staging.tuist.dev"
 set -euo pipefail
-cd grafana
-pnpm install --prefer-offline
+
+REPO_ROOT="$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)"
+PLUGIN_DIR="${REPO_ROOT}/grafana"
+cd "${PLUGIN_DIR}"
+
+# Pin node + pnpm via mise so webpack can load its `.ts` config.
+NODE_BIN_DIR="$(dirname "$(mise which node)")"
+PNPM_BIN_DIR="$(dirname "$(mise which pnpm)")"
+export PATH="${NODE_BIN_DIR}:${PNPM_BIN_DIR}:${PATH}"
+
+if [ -z "${TUIST_METRICS_TOKEN:-}" ]; then
+  echo "ERROR: TUIST_METRICS_TOKEN is not set." >&2
+  echo "       Mint a token with the account:metrics:read scope, store it in 1Password," >&2
+  echo "       and export it before running this task:" >&2
+  echo "" >&2
+  echo "       export TUIST_METRICS_TOKEN=\"\$(op read 'op://Shared/Tuist Grafana plugin — staging/credential')\"" >&2
+  exit 1
+fi
+
+# Materialise the token as a short-lived file that docker-compose mounts
+# read-only into the Prometheus container. Never logged, never committed.
+mkdir -p .secrets
+umask 077
+printf '%s' "${TUIST_METRICS_TOKEN}" > .secrets/tuist-metrics-token
+umask 022
+
+# Install + build the plugin so dist/ exists before docker-compose mounts it.
+pnpm install --ignore-workspace --prefer-offline
+export TS_NODE_TRANSPILE_ONLY=true
+export TS_NODE_FILES=true
+pnpm run build
+
 pnpm run dev &
 WEBPACK_PID=$!
-trap 'kill $WEBPACK_PID 2>/dev/null || true' EXIT
 
-docker run --rm \
-  -p 3000:3000 \
-  -e GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=tuist-tuist-app \
-  -v "$PWD/dist:/var/lib/grafana/plugins/tuist-tuist-app" \
-  grafana/grafana:latest
+cleanup() {
+  kill $WEBPACK_PID 2>/dev/null || true
+  docker compose down --remove-orphans 2>/dev/null || true
+}
+trap cleanup EXIT
+
+docker compose up --force-recreate

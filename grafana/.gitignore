@@ -9,3 +9,6 @@ coverage/
 
 # Built plugin archives (artifact of mise run grafana:bundle)
 tuist-tuist-app-*.zip
+
+# Runtime secrets mounted into the Prometheus container
+.secrets/
