@@ -10,3 +10,6 @@
 [env]
     TS_NODE_TRANSPILE_ONLY = "true"
     TS_NODE_FILES = "true"
+
+[hooks]
+    postinstall = "pnpm install --prefer-offline"

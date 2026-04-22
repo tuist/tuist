@@ -9,10 +9,7 @@ PLUGIN_ID="$(jq -r .id src/plugin.json)"
 PLUGIN_VERSION="$(jq -r .version package.json)"
 ARTIFACT="${MISE_PROJECT_ROOT}/${PLUGIN_ID}-${PLUGIN_VERSION}.zip"
 
-# --- Install + build ---------------------------------------------------------
-echo "==> Installing dependencies"
-pnpm install --prefer-offline
-
+# --- Build -------------------------------------------------------------------
 echo "==> Building (webpack, production mode)"
 pnpm run build
 
