@@ -50,7 +50,7 @@
             <.dropdown_item
               label="Manage on Stripe"
               value="manage"
-              href={~p"/ops/accounts/#{account.id}/stripe-session"}
+              href={~p"/ops/accounts/#{account.id}/stripe-customer"}
               target="_blank"
               rel="noopener noreferrer"
             >
@@ -134,7 +134,7 @@
         id="enterprise-name"
         name="name"
         label="Name on invoice"
-        value={@upgrade_target_account.name}
+        value={prefill(@upgrade_target_customer, :name, @upgrade_target_account.name)}
         required
         show_required
       />
@@ -142,7 +142,7 @@
         id="enterprise-billing-email"
         name="billing_email"
         label="Billing email"
-        value={@upgrade_target_account.billing_email}
+        value={prefill(@upgrade_target_customer, :email, @upgrade_target_account.billing_email)}
         required
         show_required
       />
@@ -150,6 +150,7 @@
         id="enterprise-address-line1"
         name="address_line1"
         label="Address line 1"
+        value={prefill_address(@upgrade_target_customer, :line1)}
         required
         show_required
       />
@@ -157,11 +158,13 @@
         id="enterprise-address-line2"
         name="address_line2"
         label="Address line 2 (optional)"
+        value={prefill_address(@upgrade_target_customer, :line2)}
       />
       <.text_input
         id="enterprise-address-city"
         name="address_city"
         label="City"
+        value={prefill_address(@upgrade_target_customer, :city)}
         required
         show_required
       />
@@ -169,32 +172,42 @@
         id="enterprise-address-state"
         name="address_state"
         label="State / region (optional)"
+        value={prefill_address(@upgrade_target_customer, :state)}
       />
       <.text_input
         id="enterprise-address-postal-code"
         name="address_postal_code"
         label="Postal code"
+        value={prefill_address(@upgrade_target_customer, :postal_code)}
         required
         show_required
       />
       <div class="select-field">
         <.label label="Country" required />
-        <.select
-          id="enterprise-address-country"
-          label="Select a country"
-          name="address_country"
-          value=""
-        >
-          <:item :for={{code, name} <- countries()} value={code} label={name} />
-        </.select>
+        <select id="enterprise-address-country" name="address_country" required>
+          <option
+            value=""
+            disabled
+            selected={prefill_address(@upgrade_target_customer, :country) == ""}
+          >
+            Select a country
+          </option>
+          <option
+            :for={{code, name} <- countries()}
+            value={code}
+            selected={code == prefill_address(@upgrade_target_customer, :country)}
+          >
+            {name}
+          </option>
+        </select>
       </div>
 
       <div class="select-field">
         <.label label="Billing cadence" />
-        <.select id="enterprise-cadence" label="Monthly" name="cadence" value="monthly">
-          <:item value="monthly" label="Monthly" />
-          <:item value="yearly" label="Yearly" />
-        </.select>
+        <select id="enterprise-cadence" name="cadence">
+          <option value="monthly" selected>Monthly</option>
+          <option value="yearly">Yearly</option>
+        </select>
       </div>
     </form>
 
