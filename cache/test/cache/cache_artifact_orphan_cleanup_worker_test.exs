@@ -16,6 +16,7 @@ defmodule Cache.CacheArtifactOrphanCleanupWorkerTest do
     :ok = Sandbox.checkout(Repo)
     Repo.delete_all(CacheArtifact)
     Application.delete_env(:cache, @cursor_key)
+    Application.delete_env(:cache, :cache_artifacts_orphan_cleanup_max_deletes_per_run)
 
     {:ok, storage_dir} = Briefly.create(directory: true)
     stub(Disk, :storage_dir, fn -> storage_dir end)
@@ -44,6 +45,29 @@ defmodule Cache.CacheArtifactOrphanCleanupWorkerTest do
     assert :ok = CacheArtifactOrphanCleanupWorker.perform(%Oban.Job{args: %{}})
 
     assert [^key] = Repo.all(from_keys())
+  end
+
+  test "stops at the per-run deletion cap and does not advance past undeleted rows", %{storage_dir: _storage_dir} do
+    Application.put_env(:cache, :cache_artifacts_orphan_cleanup_max_deletes_per_run, 1)
+
+    inserted_ids =
+      Enum.map(1..3, fn i ->
+        %CacheArtifact{}
+        |> CacheArtifact.changeset(%{key: "acct/proj/xcode/ZZ/ZZ/orphan-#{i}", size_bytes: 1, last_accessed_at: old_timestamp()})
+        |> Ecto.Changeset.force_change(:inserted_at, old_timestamp())
+        |> Ecto.Changeset.force_change(:updated_at, old_timestamp())
+        |> Repo.insert!()
+        |> Map.fetch!(:id)
+      end)
+
+    assert :ok = CacheArtifactOrphanCleanupWorker.perform(%Oban.Job{args: %{}})
+
+    remaining = Repo.aggregate(CacheArtifact, :count, :id)
+    # Cap=1, so exactly one orphan deleted and two still present
+    assert remaining == 2
+    # Cursor must not have advanced past the still-present rows, otherwise
+    # the next run would skip them
+    assert Application.get_env(:cache, @cursor_key) < List.last(inserted_ids)
   end
 
   test "advances the cursor so the next run continues from where it left off" do

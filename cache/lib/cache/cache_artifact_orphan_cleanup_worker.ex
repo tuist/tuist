@@ -48,6 +48,8 @@ defmodule Cache.CacheArtifactOrphanCleanupWorker do
   @batch_size 1_000
   @default_max_duration_ms 120_000
   @default_vacuum_pages 10_000
+  @default_max_deletes_per_run 10_000
+  @recheck_sleep_ms 50
   @telemetry_event [:cache, :cache_artifacts, :orphan_cleanup, :complete]
 
   @impl Oban.Worker
@@ -55,8 +57,10 @@ defmodule Cache.CacheArtifactOrphanCleanupWorker do
     started_at = System.monotonic_time(:millisecond)
     deadline_ms = started_at + max_duration_ms()
     cursor = Application.get_env(:cache, @cursor_key, 0)
+    delete_budget = max_deletes_per_run()
 
-    {new_cursor, summary} = scan(cursor, deadline_ms, %{rows_checked: 0, orphans_deleted: 0})
+    {new_cursor, summary, _remaining_budget} =
+      scan(cursor, deadline_ms, delete_budget, %{rows_checked: 0, orphans_deleted: 0})
 
     Application.put_env(:cache, @cursor_key, new_cursor)
 
@@ -66,9 +70,16 @@ defmodule Cache.CacheArtifactOrphanCleanupWorker do
     :ok
   end
 
-  defp scan(cursor, deadline_ms, summary) do
+  defp scan(cursor, _deadline_ms, 0 = _budget, summary) do
+    # Per-run deletion cap reached; stop but keep the cursor so the next run
+    # picks up from where we left off.
+    Logger.warning("cache_artifacts orphan scan: per-run deletion cap reached")
+    {cursor, summary, 0}
+  end
+
+  defp scan(cursor, deadline_ms, budget, summary) do
     if deadline_reached?(deadline_ms) do
-      {cursor, summary}
+      {cursor, summary, budget}
     else
       batch = fetch_batch(cursor)
 
@@ -77,20 +88,30 @@ defmodule Cache.CacheArtifactOrphanCleanupWorker do
           # Reached the end of the table — reset the cursor so the next run
           # starts over. Avoids burning CPU on a tight wrap-around loop when
           # the table is small relative to the per-run time budget.
-          {0, summary}
+          {0, summary, budget}
 
         rows ->
           {orphans, checked} = classify(rows)
-          :ok = delete_orphans(orphans)
+          {orphans_to_delete, leftover} = Enum.split(orphans, budget)
+          :ok = delete_orphans(orphans_to_delete)
 
-          next_cursor = rows |> List.last() |> Map.fetch!(:id)
+          next_cursor =
+            if leftover == [] do
+              rows |> List.last() |> Map.fetch!(:id)
+            else
+              # Budget exhausted partway through the batch. Don't advance past
+              # the rows we didn't get to delete — next run needs to revisit them.
+              cursor
+            end
 
           next_summary = %{
             rows_checked: summary.rows_checked + checked,
-            orphans_deleted: summary.orphans_deleted + length(orphans)
+            orphans_deleted: summary.orphans_deleted + length(orphans_to_delete)
           }
 
-          scan(next_cursor, deadline_ms, next_summary)
+          next_budget = budget - length(orphans_to_delete)
+
+          scan(next_cursor, deadline_ms, next_budget, next_summary)
       end
     end
   end
@@ -110,16 +131,26 @@ defmodule Cache.CacheArtifactOrphanCleanupWorker do
 
   defp classify(rows) do
     Enum.reduce(rows, {[], 0}, fn %{id: id, key: key}, {orphans, checked} ->
-      if file_exists?(key) do
-        {orphans, checked + 1}
-      else
+      if orphan?(key) do
         {[id | orphans], checked + 1}
+      else
+        {orphans, checked + 1}
       end
     end)
   end
 
-  defp file_exists?(key) do
-    key |> Disk.artifact_path() |> File.exists?()
+  # Double-checked: a row is treated as an orphan only if the file is missing
+  # on *both* checks, separated by a small sleep. Protects against transient
+  # ENOENT (e.g., rename in progress, kernel cache weirdness).
+  defp orphan?(key) do
+    path = Disk.artifact_path(key)
+
+    if File.exists?(path) do
+      false
+    else
+      :timer.sleep(@recheck_sleep_ms)
+      not File.exists?(path)
+    end
   end
 
   defp delete_orphans([]), do: :ok
@@ -166,6 +197,10 @@ defmodule Cache.CacheArtifactOrphanCleanupWorker do
 
   defp max_duration_ms do
     Application.get_env(:cache, :cache_artifacts_orphan_cleanup_max_duration_ms, @default_max_duration_ms)
+  end
+
+  defp max_deletes_per_run do
+    Application.get_env(:cache, :cache_artifacts_orphan_cleanup_max_deletes_per_run, @default_max_deletes_per_run)
   end
 
   defp deadline_reached?(deadline_ms) do
