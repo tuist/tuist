@@ -200,10 +200,13 @@ jobs:
         run: mix deps.get
       - name: Start ClickHouse
         run: mise run --no-deps clickhouse:start
-      - name: Setup database
-        run: mise run --no-deps db:reset
-      - name: Run tests
-        run: mix test --warnings-as-errors
+      - name: Setup database and run tests
+        run: |
+          mix do \
+            compile, \
+            ecto.create, \
+            ecto.load, \
+            test --warnings-as-errors
   credo:
     name: Credo
     runs-on: namespace-profile-default-with-volume
