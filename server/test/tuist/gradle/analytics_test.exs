@@ -335,7 +335,7 @@ defmodule Tuist.Gradle.AnalyticsTest do
   end
 
   describe "build_duration_analytics_by_category/3" do
-    test "filters by is_ci", %{start_datetime: start_datetime, now: now} do
+    test "filters by is_ci", %{start_datetime: start_datetime} do
       project = ProjectsFixtures.project_fixture()
       inserted_at = NaiveDateTime.new!(Date.add(Date.utc_today(), -1), ~T[10:00:00])
 

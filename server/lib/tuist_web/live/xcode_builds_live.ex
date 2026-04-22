@@ -361,7 +361,7 @@ defmodule TuistWeb.XcodeBuildsLive do
     |> maybe_add_tag_filter(assigns.analytics_build_tag)
     |> Kernel.++([
       %{field: :inserted_at, op: :>=, value: start_datetime},
-      %{field: :inserted_at, op: :<=, value: end_datetime}
+      %{field: :inserted_at, op: :<=, value: DateTime.add(end_datetime, 1, :second)}
     ])
   end
 
