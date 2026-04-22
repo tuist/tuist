@@ -29,9 +29,7 @@ function legacyCopyTextToClipboard(text) {
 
 export function copyTextToClipboard(text) {
   if (navigator.clipboard?.writeText && window.isSecureContext) {
-    return navigator.clipboard
-      .writeText(text)
-      .catch(() => legacyCopyTextToClipboard(text));
+    return navigator.clipboard.writeText(text).catch(() => legacyCopyTextToClipboard(text));
   }
 
   return legacyCopyTextToClipboard(text);

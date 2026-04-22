@@ -40,11 +40,7 @@
   border-radius: var(--noora-radius-xlarge);
   background: linear-gradient(
     180deg,
-    light-dark(
-        var(--noora-purple-50),
-        color-mix(in oklch, var(--noora-purple-700) 18%, transparent)
-      )
-      0%,
+    light-dark(var(--noora-purple-50), color-mix(in oklch, var(--noora-purple-700) 18%, transparent)) 0%,
     light-dark(
         color-mix(in oklch, var(--noora-purple-200) 32%, var(--noora-purple-50)),
         color-mix(in oklch, var(--noora-purple-800) 32%, transparent)

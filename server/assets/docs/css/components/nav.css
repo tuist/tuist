@@ -54,8 +54,8 @@
     & [data-part="theme-toggle-light-icon"],
     & [data-part="theme-toggle-dark-icon"] {
       display: flex;
-      align-items: center;
       justify-content: center;
+      align-items: center;
     }
 
     & [data-part="theme-toggle-dark-icon"] {
@@ -84,13 +84,13 @@
       }
 
       &:hover {
-        background: var(--noora-button-background-secondary-hover);
         box-shadow: var(--noora-button-border-secondary);
+        background: var(--noora-button-background-secondary-hover);
       }
 
       &:focus-visible {
-        background: var(--noora-button-background-secondary-hover);
         box-shadow: var(--noora-button-border-secondary-focus);
+        background: var(--noora-button-background-secondary-hover);
       }
     }
 
@@ -111,15 +111,14 @@
     & [data-part="theme-toggle-light-icon"],
     & [data-part="theme-toggle-dark-icon"] {
       display: flex;
-      align-items: center;
       justify-content: center;
+      align-items: center;
     }
 
     & [data-part="theme-toggle-dark-icon"] {
       display: none;
     }
   }
-
 }
 
 html[data-theme="dark"] {

@@ -33,8 +33,7 @@ export const ThemeToggle = {
     const handleClick = (event) => {
       event.preventDefault();
 
-      const currentTheme =
-        document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light";
+      const currentTheme = document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light";
 
       setTheme(currentTheme === "dark" ? "light" : "dark");
     };
