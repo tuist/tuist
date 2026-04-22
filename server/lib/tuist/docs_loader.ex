@@ -56,9 +56,7 @@ defmodule Tuist.Docs.Loader do
     ],
     render: [unsafe: true],
     syntax_highlight: [
-      formatter:
-        {:html_multi_themes,
-         themes: [light: "github_light", dark: "github_dark"], default_theme: "light-dark()"}
+      formatter: {:html_multi_themes, themes: [light: "github_light", dark: "github_dark"], default_theme: "light-dark()"}
     ]
   ]
 

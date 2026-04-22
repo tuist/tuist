@@ -1,10 +1,12 @@
 <aside id="docs-toc" aria-label={dgettext("docs", "Table of contents")}>
   <div data-part="toc-actions">
     <.button_dropdown
+      :if={@markdown != ""}
       id="docs-copy-dropdown"
       label={dgettext("docs", "Copy page")}
       size="medium"
-      phx-click="copy-page-markdown"
+      data-default-label={dgettext("docs", "Copy page")}
+      data-copied-label={dgettext("docs", "Copied")}
     >
       <:icon_left><.copy /></:icon_left>
       <.dropdown_item

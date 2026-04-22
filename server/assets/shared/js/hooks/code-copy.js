@@ -1,3 +1,5 @@
+import { copyTextToClipboard } from "../clipboard.js";
+
 function flashCopyCheck(button) {
   button.setAttribute("data-copied", "");
   button.setAttribute("aria-label", "Copied");
@@ -16,8 +18,7 @@ function setupCodeCopy(el) {
     button.addEventListener("click", () => {
       const codeBlock = button.closest(".code-window")?.querySelector('[data-part="code"]');
       if (!codeBlock) return;
-      navigator.clipboard
-        .writeText(codeBlock.textContent.trim())
+      copyTextToClipboard(codeBlock.textContent.trim())
         .then(() => flashCopyCheck(button))
         .catch((err) => console.error("Failed to copy code:", err));
     });

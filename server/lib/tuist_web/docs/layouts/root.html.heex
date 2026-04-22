@@ -128,7 +128,7 @@
           placeholder="Search..."
         />
 
-        <.inline_dropdown id="docs-language-selector" label={language_name(@locale)}>
+        <.inline_dropdown id="docs-language-selector" size="large" label={language_name(@locale)}>
           <.dropdown_item
             :for={lang <- TuistWeb.Marketing.Localization.languages()}
             label={lang.native}
@@ -171,11 +171,12 @@
             <.brand_bluesky />
           </.neutral_button>
         </div>
+        <.theme_toggle id="docs-theme-toggle" label={dgettext("docs", "Toggle theme")} />
         <.button
           :if={is_nil(assigns[:current_user])}
           label={dgettext("docs", "Log in")}
           variant="primary"
-          size="small"
+          size="large"
           href={~p"/docs/login?#{%{return_to: @current_path}}"}
         />
         <.account_dropdown
@@ -184,14 +185,20 @@
           current_user={@current_user}
           log_out_return_to={@current_path}
           primary_action="dashboard"
+          show_theme_switcher={false}
         />
       </div>
       <div data-part="mobile-actions">
+        <.theme_toggle
+          id="docs-mobile-theme-toggle"
+          size="large"
+          label={dgettext("docs", "Toggle theme")}
+        />
         <.button
           :if={is_nil(assigns[:current_user])}
           label={dgettext("docs", "Log in")}
           variant="primary"
-          size="small"
+          size="large"
           href={~p"/docs/login?#{%{return_to: @current_path}}"}
         />
         <.account_dropdown
@@ -201,6 +208,7 @@
           current_user={@current_user}
           log_out_return_to={@current_path}
           primary_action="dashboard"
+          show_theme_switcher={false}
         />
         <.neutral_button
           id="docs-nav-mobile-search"

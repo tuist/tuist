@@ -49,6 +49,7 @@ defmodule TuistWeb.DocsLive do
      socket
      |> assign(:view, :overview)
      |> assign(:videos, videos)
+     |> assign(:markdown, overview_markdown(socket.assigns.locale, videos))
      |> assign(:page_title, "Docs · Tuist")
      |> assign(:head_title, "Docs · Tuist")
      |> assign(:head_description, "Learn how to use Tuist to make mobile your competitive advantage.")}
@@ -75,6 +76,7 @@ defmodule TuistWeb.DocsLive do
          socket
          |> assign(:view, :show)
          |> assign(:page, page)
+         |> assign(:markdown, page.markdown)
          |> assign(:requested_slug, path)
          |> assign(:page_title, head_title)
          |> assign(:head_title, head_title)
@@ -96,7 +98,7 @@ defmodule TuistWeb.DocsLive do
       current_slug={"/#{@locale}"}
       tab={:guides}
       headings={@headings}
-      markdown=""
+      markdown={@markdown}
       locale={@locale}
     >
       <div id="docs-overview">
@@ -495,7 +497,7 @@ defmodule TuistWeb.DocsLive do
       current_slug={@requested_slug}
       tab={Tuist.Docs.Sidebar.tab_for_slug(@requested_slug)}
       headings={@page.headings}
-      markdown={@page.markdown}
+      markdown={@markdown}
       locale={@locale}
     >
       <article id={"docs-body-#{@page.slug}"} class="tuist-docs" data-prose phx-hook="DocsContent">
@@ -533,13 +535,151 @@ defmodule TuistWeb.DocsLive do
     """
   end
 
-  def handle_event("copy-page-markdown", _params, %{assigns: %{page: page}} = socket) do
-    {:noreply, push_event(socket, "docs:copy-to-clipboard", %{text: page.markdown})}
+  def handle_event("copy-page-markdown", _params, %{assigns: %{markdown: markdown}} = socket)
+      when is_binary(markdown) and markdown != "" do
+    {:noreply, push_event(socket, "docs:copy-to-clipboard", %{text: markdown})}
   end
 
   def handle_event("copy-page-markdown", _params, socket) do
     {:noreply, socket}
   end
+
+  defp overview_markdown(locale, videos) do
+    module_cache_path = docs_path("/#{locale}/guides/features/cache/module-cache")
+    build_insights_path = docs_path("/#{locale}/guides/features/build-insights")
+    selective_testing_path = docs_path("/#{locale}/guides/features/selective-testing")
+    flaky_tests_path = docs_path("/#{locale}/guides/features/test-insights/flaky-tests")
+    test_insights_path = docs_path("/#{locale}/guides/features/test-insights")
+    previews_path = docs_path("/#{locale}/guides/features/previews")
+    install_path = docs_path("/#{locale}/guides/install-tuist")
+
+    video_lines =
+      if videos == [] do
+        []
+      else
+        [
+          "## " <> dgettext("docs", "See Tuist in action"),
+          "",
+          dgettext(
+            "docs",
+            "Learn from real implementations and get inspired by what's possible when your toolchain just works."
+          ),
+          ""
+        ] ++
+          Enum.map(videos, fn video ->
+            "- [#{video.name}](https://videos.tuist.dev/w/#{video.uuid})"
+          end) ++ [""]
+      end
+
+    Enum.join(
+      [
+        "# " <> dgettext("docs", "Your mobile platform team, as a service"),
+        "",
+        dgettext(
+          "docs",
+          "Let us be your virtual companion that continuously optimizes and observes your setup, so you can focus on shipping."
+        ),
+        "",
+        "## " <> dgettext("docs", "Install Tuist CLI"),
+        "",
+        "```sh",
+        "mise install tuist",
+        "```",
+        "",
+        markdown_link(dgettext("docs", "install specific version of tuist"), install_path),
+        "",
+        markdown_link(dgettext("docs", "Explore dashboard"), "/tuist/tuist"),
+        "",
+        "## " <> dgettext("docs", "Learn more about what Tuist offers"),
+        "",
+        dgettext(
+          "docs",
+          "Learn how to generate projects, automate your workflows, and scale your app development efficiently with Tuist."
+        ),
+        "",
+        "## " <> dgettext("docs", "Builds"),
+        "",
+        dgettext(
+          "docs",
+          "Skip the manual steps, auto-generate projects, speeds up builds, and explore insights with built-in analytics."
+        ),
+        "",
+        "- #{markdown_link(dgettext("docs", "Cache"), module_cache_path)}: " <>
+          dgettext(
+            "docs",
+            "Speeds up builds by caching compiled modules, cutting down load times in both local development and CI workflows."
+          ),
+        "- #{markdown_link(dgettext("docs", "Insights"), build_insights_path)}: " <>
+          dgettext(
+            "docs",
+            "Monitor build performance across your CI infrastructure to catch slowdowns before they impact development."
+          ),
+        "",
+        "## " <> dgettext("docs", "Tests"),
+        "",
+        dgettext(
+          "docs",
+          "Run only impacted tests based on your changes, faster feedback loops, less waiting, both locally and on CI."
+        ),
+        "",
+        "- #{markdown_link(dgettext("docs", "Selective Testing"), selective_testing_path)}: " <>
+          dgettext(
+            "docs",
+            "Run only the tests that matter by detecting changes since your last successful run, cutting down test times both locally and on CI."
+          ),
+        "- #{markdown_link(dgettext("docs", "Flaky Tests"), flaky_tests_path)}: " <>
+          dgettext(
+            "docs",
+            "Automatically detect flaky tests that fail without code changes and save time spent investigating false failures."
+          ),
+        "- #{markdown_link(dgettext("docs", "Insights"), test_insights_path)}: " <>
+          dgettext(
+            "docs",
+            "Track test performance, catch slow tests early, and debug CI failures through real-time logs."
+          ),
+        "",
+        "## " <> dgettext("docs", "Artifacts"),
+        "",
+        dgettext(
+          "docs",
+          "From code to feedback in minutes. Instant previews and AI-powered testing close the loop between building and validating."
+        ),
+        "",
+        "- #{markdown_link(dgettext("docs", "Previews"), previews_path)}: " <>
+          dgettext(
+            "docs",
+            "Share your app instantly with a URL, no TestFlight or setup needed, so others can run it on their device or simulator in seconds."
+          ),
+        ""
+      ] ++
+        video_lines ++
+        [
+          "## " <> dgettext("docs", "Open source and community"),
+          "",
+          dgettext(
+            "docs",
+            "Connect with thousands of developers who are shipping better apps with Tuist. Get help, share wins, and shape the future of app development tooling."
+          ),
+          "",
+          "- [GitHub](https://github.com/tuist/tuist): " <>
+            dgettext("docs", "Contribute or report issues to our open source repository."),
+          "- [Slack](https://slack.tuist.dev): " <> dgettext("docs", "Chat with the Tuist community in real-time."),
+          "- [Discourse](https://community.tuist.dev): " <>
+            dgettext("docs", "Share your ideas, report issues, and discuss with other community members."),
+          "- [#{dgettext("docs", "Videos")}](https://videos.tuist.dev): " <>
+            dgettext("docs", "Learn from videos from the Tuist team and the community."),
+          "- [Bluesky](https://bsky.app/profile/tuist.dev): " <>
+            dgettext("docs", "Follow us on Bluesky to stay up to date with our work."),
+          "- [Mastodon](https://fosstodon.org/@tuist): " <>
+            dgettext("docs", "Follow us on Mastodon to stay up to date with our work."),
+          "- [LinkedIn](https://www.linkedin.com/company/tuistio): " <>
+            dgettext("docs", "Follow Tuist on LinkedIn for news and updates.")
+        ],
+      "\n"
+    )
+  end
+
+  defp markdown_link(label, href), do: "[#{label}](#{href})"
 
   defp fetch_latest_videos do
     case Req.get("https://videos.tuist.dev/api/v1/videos",

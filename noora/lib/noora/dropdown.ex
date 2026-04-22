@@ -146,6 +146,7 @@ defmodule Noora.Dropdown do
 
   attr(:id, :string, required: true, doc: "Unique identifier for the dropdown component")
   attr(:label, :string, default: nil, doc: "Main text displayed in the dropdown trigger")
+  attr(:size, :string, values: ~w(small large), default: "small", doc: "The size of the inline dropdown trigger")
 
   attr(:disabled, :boolean, default: nil, doc: "Whether the dropdown is disabled")
 
@@ -189,6 +190,7 @@ defmodule Noora.Dropdown do
       id={@id}
       class="noora-inline-dropdown"
       phx-hook="NooraDropdown"
+      data-size={@size}
       data-loop-focus
       data-close-on-select
       data-typeahead

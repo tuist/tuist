@@ -1,17 +1,29 @@
 .code-window {
+  --docs-terminal-shell-shadow: var(--noora-light-border-default);
+  --docs-terminal-body-shadow: var(--noora-light-border-default);
+  --docs-terminal-body-highlight: inset 0 1px 0 0 light-dark(oklch(100% 0 0 / 0.9), oklch(100% 0 0 / 0.06));
   display: flex;
   flex-direction: column;
   align-items: stretch;
   gap: 6px;
-  box-shadow:
-    0 1px 1px 0 rgba(14, 14, 14, 0.05),
-    0 0 0 1px rgba(46, 51, 56, 0.08),
-    0 1px 1px 0 rgba(46, 51, 56, 0.1);
+  box-shadow: var(--docs-terminal-shell-shadow);
   border-radius: 12px;
   background: var(--noora-surface-background-primary);
   padding: 4px;
   min-width: 0;
   max-width: 100%;
+}
+
+html[data-theme="dark"] .code-window {
+  --docs-terminal-shell-shadow:
+    0px 1px 1px 0px rgb(14 14 14 / 0.3),
+    0px 0px 0px 1px rgb(113 113 113 / 0.45),
+    0px 2px 3px 0px rgb(0 0 0 / 0.3);
+  --docs-terminal-body-shadow:
+    0px 1px 1px 0px rgb(14 14 14 / 0.8),
+    0px 0px 0px 1px rgb(58 58 58 / 0.7),
+    0px 2px 2px 0px rgb(0 0 0 / 0.24);
+  --docs-terminal-body-highlight: inset 0px 1px 0px 0px rgb(255 255 255 / 0.2);
 }
 
 .code-window > [data-part="bar"] {
@@ -69,16 +81,22 @@
 }
 
 .code-window > [data-part="code"] {
-  box-shadow:
-    0 1px 1px 0 rgba(46, 51, 56, 0.05),
-    0 0 0 1px rgba(46, 51, 56, 0.08),
-    0 2px 2px 0 rgba(46, 51, 56, 0.06),
-    0 1px 0 0 rgba(255, 255, 255, 0.9) inset;
+  position: relative;
+  box-shadow: var(--docs-terminal-body-shadow);
   border-radius: 8px;
   background: var(--noora-surface-background-tertiary);
   padding: 16px 12px;
   overflow-x: auto;
   font: var(--noora-font-weight-regular) var(--noora-font-code-large);
+
+  &::after {
+    position: absolute;
+    inset: 0;
+    box-shadow: var(--docs-terminal-body-highlight);
+    border-radius: inherit;
+    pointer-events: none;
+    content: "";
+  }
 }
 
 /* MDEx's html_inline formatter adds an inline background-color on <pre>,

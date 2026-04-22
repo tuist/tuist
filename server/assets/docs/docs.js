@@ -3,11 +3,12 @@ import { Socket } from "phoenix";
 import { LiveSocket } from "phoenix_live_view";
 import topbar from "../app/js/vendor/topbar.js";
 import Noora from "noora";
-import ThemeSwitcher, { observeThemeChanges } from "../app/js/ThemeSwitcher.js";
+import ThemeSwitcher, { ThemeToggle, observeThemeChanges } from "../app/js/ThemeSwitcher.js";
 import DocsContentHook from "./hooks/docs-content-hook.js";
 import DocsInstallTabsHook from "./hooks/docs-install-tabs-hook.js";
 import MermaidDiagramHook from "./hooks/mermaid-diagram-hook.js";
 import { initDocsSearch } from "./hooks/docs-search-hook.js";
+import { copyTextToClipboard } from "../shared/js/clipboard.js";
 
 import "./docs.css";
 
@@ -24,6 +25,7 @@ let liveSocket = new LiveSocket("/live", Socket, {
     DocsContent: DocsContentHook,
     DocsInstallTabs: DocsInstallTabsHook,
     MermaidDiagram: MermaidDiagramHook,
+    ThemeToggle,
     ThemeSwitcher,
   },
 });
@@ -48,13 +50,83 @@ function maybeScrollToTopForNavigation({ kind, to } = {}) {
   });
 }
 
+const copyPageLabelTimeouts = new Map();
+const COPY_PAGE_FEEDBACK_DURATION_MS = 3000;
+
+function restoreCopyPageButton(mainButton) {
+  const label = mainButton?.querySelector('[data-part="label"]');
+  if (!mainButton || !label) return;
+
+  label.textContent = mainButton.dataset.defaultLabel || "Copy page";
+  copyPageLabelTimeouts.delete(mainButton);
+}
+
+function resetCopyPageButtons() {
+  for (const [mainButton, timeoutId] of copyPageLabelTimeouts) {
+    clearTimeout(timeoutId);
+    restoreCopyPageButton(mainButton);
+  }
+}
+
+function getDocsPageMarkdown() {
+  const markdown = document.getElementById("docs-page-markdown");
+  return markdown?.value || "";
+}
+
+function flashCopyPageButton(dropdownId) {
+  const dropdown = document.getElementById(dropdownId);
+  const mainButton = dropdown?.querySelector('[data-part="main-button"]');
+  const label = mainButton?.querySelector('[data-part="label"]');
+  if (!mainButton || !label) return;
+
+  const defaultLabel = mainButton.dataset.defaultLabel || label.textContent.trim();
+  const copiedLabel = mainButton.dataset.copiedLabel || "Copied";
+  const existingTimeout = copyPageLabelTimeouts.get(mainButton);
+
+  if (existingTimeout) {
+    clearTimeout(existingTimeout);
+  }
+
+  label.textContent = copiedLabel;
+
+  const timeoutId = window.setTimeout(() => {
+    restoreCopyPageButton(mainButton);
+  }, COPY_PAGE_FEEDBACK_DURATION_MS);
+
+  copyPageLabelTimeouts.set(mainButton, timeoutId);
+}
+
+function setupCopyPageButtons() {
+  document
+    .querySelectorAll(
+      '#docs-copy-dropdown [data-part="main-button"], #docs-mobile-copy-dropdown [data-part="main-button"]',
+    )
+    .forEach((button) => {
+      if (button.dataset.copyPageBound === "true") return;
+
+      button.dataset.copyPageBound = "true";
+      button.addEventListener("click", () => {
+        const markdown = getDocsPageMarkdown();
+        const dropdownId = button.closest(".noora-button-dropdown")?.id;
+        if (!markdown || !dropdownId) return;
+
+        copyTextToClipboard(markdown)
+          .then(() => flashCopyPageButton(dropdownId))
+          .catch((error) => console.error("Failed to copy page:", error));
+      });
+    });
+}
+
 window.addEventListener("phx:page-loading-start", (_info) => topbar.show(300));
 window.addEventListener("phx:page-loading-stop", (info) => {
   topbar.hide();
   maybeScrollToTopForNavigation(info.detail);
   closeMobileSidebar();
   initDocsSearch();
+  setupCopyPageButtons();
 });
+
+window.addEventListener("beforeunload", resetCopyPageButtons);
 
 liveSocket.connect();
 
@@ -67,9 +139,15 @@ window.addEventListener("phx:navigate", () => {
 window.liveSocket = liveSocket;
 
 initDocsSearch();
+setupCopyPageButtons();
 
 window.addEventListener("phx:docs:copy-to-clipboard", ({ detail }) => {
-  navigator.clipboard.writeText(detail.text);
+  copyTextToClipboard(detail.text)
+    .then(() => {
+      flashCopyPageButton("docs-copy-dropdown");
+      flashCopyPageButton("docs-mobile-copy-dropdown");
+    })
+    .catch((error) => console.error("Failed to copy page:", error));
 });
 
 // TOC scroll spy

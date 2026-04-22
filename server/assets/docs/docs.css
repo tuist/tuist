@@ -35,7 +35,7 @@ body {
   flex-direction: column;
   box-sizing: border-box;
   margin: 0;
-  background: var(--noora-surface-background-tertiary);
+  background: var(--noora-surface-background-primary);
   padding: 0;
   font-family: var(--noora-font-body);
 }
