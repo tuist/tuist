@@ -168,8 +168,6 @@ defmodule Tuist.Billing do
   end
 
   @doc """
-  Upgrades an account to the Enterprise plan directly from the ops dashboard.
-
   Creates or switches the subscription to enterprise with
   `collection_method: send_invoice`, so the customer is invoice-billed and no
   card/Stripe Checkout redirect is required.
