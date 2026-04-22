@@ -112,7 +112,12 @@ defmodule TuistWeb.API.MetricsControllerTest do
       assert conn.status == 200
       [content_type] = Plug.Conn.get_resp_header(conn, "content-type")
       assert content_type =~ "application/openmetrics-text"
-      assert conn.resp_body =~ "tuist_xcode_cache_events_total_total{"
+      # OpenMetrics strips the `_total` suffix in HELP/TYPE and keeps exactly
+      # one `_total` on the sample line.
+      assert conn.resp_body =~ "# HELP tuist_xcode_cache_events "
+      assert conn.resp_body =~ "# TYPE tuist_xcode_cache_events counter"
+      assert conn.resp_body =~ ~s(tuist_xcode_cache_events_total{project=")
+      refute conn.resp_body =~ "tuist_xcode_cache_events_total_total"
       assert String.ends_with?(conn.resp_body, "# EOF\n")
     end
 
