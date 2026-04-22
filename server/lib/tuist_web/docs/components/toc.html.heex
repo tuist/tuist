@@ -5,8 +5,10 @@
       id="docs-copy-dropdown"
       label={dgettext("docs", "Copy page")}
       size="medium"
+      phx-hook="DocsCopyPageButton"
       data-default-label={dgettext("docs", "Copy page")}
       data-copied-label={dgettext("docs", "Copied")}
+      data-markdown-source-id="docs-page-markdown"
     >
       <:icon_left><.copy /></:icon_left>
       <.dropdown_item

@@ -119,6 +119,21 @@
       display: none;
     }
   }
+
+}
+
+html[data-theme="dark"] {
+  & #docs-nav > [data-part="cta"] #docs-language-selector > [data-part="trigger"]:hover {
+    box-shadow: var(--noora-button-border-secondary-hover);
+  }
+
+  & #docs-nav [data-part="theme-toggle-light-icon"] {
+    display: none;
+  }
+
+  & #docs-nav [data-part="theme-toggle-dark-icon"] {
+    display: flex;
+  }
 }
 
 #docs-mobile-menu-bar {
@@ -151,18 +166,6 @@
       height: var(--noora-icon-size-medium);
     }
   }
-}
-
-html[data-theme="dark"] #docs-nav > [data-part="cta"] #docs-language-selector > [data-part="trigger"]:hover {
-  box-shadow: var(--noora-button-border-secondary-hover);
-}
-
-html[data-theme="dark"] #docs-nav [data-part="theme-toggle-light-icon"] {
-  display: none;
-}
-
-html[data-theme="dark"] #docs-nav [data-part="theme-toggle-dark-icon"] {
-  display: flex;
 }
 
 #docs-mobile-toc-trigger {
