@@ -27,8 +27,8 @@ env:
   PNPM_HOME: ~/.pnpm
 
 jobs:
-  check:
-    name: Lint, typecheck, test, build, bundle
+  lint:
+    name: Lint
     runs-on: ubuntu-latest
     timeout-minutes: 15
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
@@ -42,19 +42,66 @@ jobs:
         with:
           version: ${{ env.MISE_VERSION }}
           working_directory: grafana
-
       - name: Lint
         working-directory: grafana
         run: mise run lint
 
-      - name: Typecheck & jest
+  typecheck:
+    name: Typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v3
+        with:
+          path: ~/.pnpm/store
+          key: pnpm-grafana-${{ hashFiles('grafana/pnpm-lock.yaml') }}
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          working_directory: grafana
+      - name: Typecheck
+        working-directory: grafana
+        run: mise run typecheck
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v3
+        with:
+          path: ~/.pnpm/store
+          key: pnpm-grafana-${{ hashFiles('grafana/pnpm-lock.yaml') }}
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          working_directory: grafana
+      - name: Test
         working-directory: grafana
         run: mise run test
 
+  build:
+    name: Build & bundle
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v3
+        with:
+          path: ~/.pnpm/store
+          key: pnpm-grafana-${{ hashFiles('grafana/pnpm-lock.yaml') }}
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          working_directory: grafana
       - name: Build
         working-directory: grafana
         run: mise run build
-
       - name: Bundle (unsigned, smoke test)
         working-directory: grafana
         run: mise run bundle --skip-sign
