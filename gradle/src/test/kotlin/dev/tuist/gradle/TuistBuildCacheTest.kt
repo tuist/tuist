@@ -11,6 +11,7 @@ import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
+import java.io.EOFException
 import java.io.InputStream
 import java.io.OutputStream
 import java.util.zip.ZipException
@@ -198,6 +199,28 @@ class TuistBuildCacheTest {
         }
 
         val result = service.load(TestBuildCacheKey("corrupt-entry"), reader)
+
+        assertFalse(result)
+    }
+
+    @Test
+    fun `load treats truncated compressed cache entries as cache misses`() {
+        mockServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("anything")
+                .addHeader("ETag", "\"truncated-entry\"")
+                .addHeader("Last-Modified", "Tue, 21 Apr 2026 00:47:30 GMT")
+        )
+
+        val service = createService()
+        val reader = object : BuildCacheEntryReader {
+            override fun readFrom(input: InputStream) {
+                throw EOFException("Unexpected end of ZLIB input stream")
+            }
+        }
+
+        val result = service.load(TestBuildCacheKey("truncated-entry"), reader)
 
         assertFalse(result)
     }
