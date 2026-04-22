@@ -647,6 +647,62 @@ final class FocusTargetsGraphMappersTests: TuistUnitTestCase {
         )
     }
 
+    func test_map_when_scheme_has_test_plan_preserves_scheme_build_action_targets() throws {
+        // Given: a scheme whose buildAction is the App, whose testAction uses a test plan
+        // listing only framework tests that do NOT depend on the App. Without preserving the
+        // scheme's buildAction targets as focus sources, the App gets pruned and xcodebuild
+        // fails with "Supported platforms for the buildables in the current scheme is empty".
+        let appTarget = Target.test(name: "App", product: .app)
+        let kitLib = Target.test(name: "KitLib", product: .framework)
+        let kitLibTests = Target.test(name: "KitLibTests", product: .unitTests)
+        let unrelatedTests = Target.test(name: "UnrelatedTests", product: .unitTests)
+        let path = try temporaryPath()
+        let testPlan = TestPlan(
+            path: path.appending(component: "Plan.xctestplan"),
+            testTargets: [
+                .test(target: TargetReference(projectPath: path, name: "KitLibTests")),
+            ],
+            isDefault: true
+        )
+        let project = Project.test(
+            path: path,
+            targets: [appTarget, kitLib, kitLibTests, unrelatedTests],
+            schemes: [
+                .test(
+                    name: "AppScheme",
+                    buildAction: .test(targets: [TargetReference(projectPath: path, name: "App")]),
+                    testAction: .test(targets: [], testPlans: [testPlan])
+                ),
+            ]
+        )
+        let subject = FocusTargetsGraphMappers(
+            schemeName: "AppScheme",
+            includedTargets: Set(),
+            includedProducts: [.unitTests, .uiTests]
+        )
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: [
+                .target(name: kitLibTests.name, path: path): [
+                    .target(name: kitLib.name, path: path),
+                ],
+            ]
+        )
+
+        // When
+        let (gotGraph, _, _) = try subject.map(graph: graph, environment: MapperEnvironment())
+        let prunedNames = gotGraph.projects.values.flatMap(\.targets.values)
+            .filter { $0.metadata.tags.contains("tuist:prunable") }
+            .map(\.name)
+            .sorted()
+
+        // Then — App must survive so the scheme's BuildAction isn't empty; UnrelatedTests is pruned
+        XCTAssertFalse(prunedNames.contains("App"))
+        XCTAssertFalse(prunedNames.contains("KitLib"))
+        XCTAssertFalse(prunedNames.contains("KitLibTests"))
+        XCTAssertTrue(prunedNames.contains("UnrelatedTests"))
+    }
+
     func test_map_when_scheme_name_not_found_falls_back_to_included_products() throws {
         // Given
         let framework = Target.test(name: "Framework")
