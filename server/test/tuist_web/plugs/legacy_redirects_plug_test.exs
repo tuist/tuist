@@ -47,6 +47,15 @@ defmodule TuistWeb.Plugs.LegacyRedirectsPlugTest do
       assert conn.status != 301
     end
 
+    test "does not normalize non-locale docs paths" do
+      conn = %{build_conn() | request_path: "/docs/login"}
+
+      conn = LegacyRedirectsPlug.call(conn, [])
+
+      refute conn.halted
+      assert conn.status != 301
+    end
+
     test "redirects docs content paths through the VitePress redirect set" do
       conn = %{build_conn() | request_path: "/en/docs/guides/features/insights"}
 

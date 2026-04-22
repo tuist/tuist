@@ -12,6 +12,7 @@ defmodule TuistWeb.Plugs.LegacyRedirectsPlug do
   import Plug.Conn
 
   alias Tuist.Docs.Redirects
+  alias TuistWeb.Locale
 
   @docs_locale_redirect ~r{^/docs/(?<locale>[^/]+)(?<rest>/.*)?$}
 
@@ -52,8 +53,13 @@ defmodule TuistWeb.Plugs.LegacyRedirectsPlug do
 
   defp normalize_docs_path(request_path) do
     case Regex.named_captures(@docs_locale_redirect, request_path) do
-      %{"locale" => locale, "rest" => rest} -> "/#{locale}/docs#{rest || ""}"
-      nil -> nil
+      %{"locale" => locale, "rest" => rest} ->
+        if locale in Locale.supported_locales() do
+          "/#{locale}/docs#{rest || ""}"
+        end
+
+      nil ->
+        nil
     end
   end
 
