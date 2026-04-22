@@ -1,5 +1,5 @@
 [tools]
-rust = "1.94.1"
+rust = { version = "1.94.1", profile = "default" }
 shellspec = "0.28.1"
 bazel = "9.1.0"
 "aqua:facebook/buck2" = "2026-04-15"

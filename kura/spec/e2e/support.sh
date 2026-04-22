@@ -172,7 +172,7 @@ create_buck_workspace() {
   mkdir -p "$dir"
   (
     cd "$dir"
-    "$buck2_path" init --git >/dev/null
+    "$buck2_path" init --git >/dev/null 2>&1
     mkdir -p platforms
     cat > platforms/defs.bzl <<'EOF'
 def _impl(ctx):
