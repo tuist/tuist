@@ -4,7 +4,15 @@
   gap: var(--noora-spacing-6);
   padding: var(--noora-spacing-7) var(--noora-spacing-5);
 
-  & [data-part="filters"] {
+  & > [data-part="filters"] {
+    display: flex;
+    align-items: center;
+    gap: var(--noora-spacing-4);
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  & [data-part="flaky-tests-section"] [data-part="filters"] {
     display: flex;
     gap: var(--noora-spacing-6);
   }
