@@ -171,9 +171,9 @@ defmodule TuistWeb.OpsAccountsLive do
       cadence: params["cadence"] || "monthly",
       address: %{
         line1: params["address_line1"],
-        line2: blank_to_nil(params["address_line2"]),
+        line2: params["address_line2"],
         city: params["address_city"],
-        state: blank_to_nil(params["address_state"]),
+        state: params["address_state"],
         postal_code: params["address_postal_code"],
         country: String.upcase(params["address_country"] || "")
       }
@@ -188,10 +188,6 @@ defmodule TuistWeb.OpsAccountsLive do
       _ -> 1
     end
   end
-
-  defp blank_to_nil(nil), do: nil
-  defp blank_to_nil(""), do: nil
-  defp blank_to_nil(value), do: value
 
   def account_type(%Account{organization_id: organization_id}) when not is_nil(organization_id), do: "Organization"
   def account_type(%Account{user_id: user_id}) when not is_nil(user_id), do: "User"
