@@ -9,7 +9,7 @@ defmodule Tuist.IngestRepo do
 
   require Logger
 
-  defoverridable insert_all: 2, insert_all: 3, insert: 1, insert: 2
+  defoverridable insert_all: 2, insert_all: 3, insert: 1, insert: 2, all: 1, all: 2
 
   def insert_all(schema_or_source, entries, opts \\ []) do
     with_retry(fn -> super(schema_or_source, entries, opts) end)
@@ -17,6 +17,10 @@ defmodule Tuist.IngestRepo do
 
   def insert(struct, opts \\ []) do
     with_retry(fn -> super(struct, opts) end)
+  end
+
+  def all(queryable, opts \\ []) do
+    with_retry(fn -> super(queryable, opts) end)
   end
 
   @max_retries 3

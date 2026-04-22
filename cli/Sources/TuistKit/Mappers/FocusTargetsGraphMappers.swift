@@ -62,9 +62,16 @@ public struct FocusTargetsGraphMappers: GraphMapping {
         let sourceTargets: Set<GraphTarget>
 
         if let schemeName, !hasExplicitFilters {
+            let scheme = graphTraverser.schemes().first(where: { $0.name == schemeName })
             let schemeTestTargets = graphTraverser.testTargets(for: schemeName)
-            if !schemeTestTargets.isEmpty {
-                sourceTargets = schemeTestTargets
+            let schemeBuildTargets: Set<GraphTarget> = Set(
+                (scheme?.buildAction?.targets ?? []).compactMap {
+                    graphTraverser.target(path: $0.projectPath, name: $0.name)
+                }
+            )
+            let schemeTargets = schemeTestTargets.union(schemeBuildTargets)
+            if !schemeTargets.isEmpty {
+                sourceTargets = schemeTargets
             } else if !includedProducts.isEmpty {
                 sourceTargets = graphTraverser.allTargets().filter { includedProducts.contains($0.target.product) }
             } else {

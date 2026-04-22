@@ -185,13 +185,7 @@ defmodule TuistWeb.GradleBuildsLive do
   def assign_configuration_insights_options(socket, params) do
     configuration_insights_type = params["configuration-insights-type"] || "gradle-version"
 
-    %{preset: preset, period: period} =
-      DatePicker.date_picker_params(params, "configuration-insights")
-
-    socket
-    |> assign(:configuration_insights_type, configuration_insights_type)
-    |> assign(:configuration_insights_preset, preset)
-    |> assign(:configuration_insights_period, period)
+    assign(socket, :configuration_insights_type, configuration_insights_type)
   end
 
   def assign_initial_configuration_insights(%{assigns: %{current_params: current_params}} = socket) do
@@ -210,9 +204,17 @@ defmodule TuistWeb.GradleBuildsLive do
         %{assigns: %{selected_project: project, configuration_insights_type: configuration_insights_type}} = socket,
         params
       ) do
-    %{period: {start_datetime, end_datetime}} = DatePicker.date_picker_params(params, "configuration-insights")
+    %{period: {start_datetime, end_datetime}} = DatePicker.date_picker_params(params, "analytics")
+    analytics_environment = params["analytics-environment"] || "any"
 
     opts = [start_datetime: start_datetime, end_datetime: end_datetime]
+
+    opts =
+      case analytics_environment do
+        "ci" -> Keyword.put(opts, :is_ci, true)
+        "local" -> Keyword.put(opts, :is_ci, false)
+        _ -> opts
+      end
 
     socket
     |> assign_async(:configuration_insights_analytics, fn ->
@@ -238,8 +240,31 @@ defmodule TuistWeb.GradleBuildsLive do
   def configuration_insights_label("java-version"), do: dgettext("dashboard_gradle", "Java version")
   def configuration_insights_label(_), do: dgettext("dashboard_gradle", "Gradle version")
 
-  defp assign_recent_builds(%{assigns: %{selected_project: project, selected_account: account}} = socket) do
-    {builds, _meta} = Gradle.list_builds(project.id, %{page_size: @recent_builds_page_size})
+  defp assign_recent_builds(
+         %{
+           assigns: %{
+             selected_project: project,
+             selected_account: account,
+             analytics_environment: analytics_environment,
+             analytics_period: {start_datetime, end_datetime}
+           }
+         } = socket
+       ) do
+    filters =
+      case analytics_environment do
+        "ci" -> [%{field: :is_ci, op: :==, value: true}]
+        "local" -> [%{field: :is_ci, op: :==, value: false}]
+        _ -> []
+      end
+
+    filters =
+      filters ++
+        [
+          %{field: :inserted_at, op: :>=, value: start_datetime},
+          %{field: :inserted_at, op: :<=, value: DateTime.add(end_datetime, 1, :second)}
+        ]
+
+    {builds, _meta} = Gradle.list_builds(project.id, %{page_size: @recent_builds_page_size, filters: filters})
     builds = Repo.preload(builds, :built_by_account)
 
     recent_builds_chart_data =

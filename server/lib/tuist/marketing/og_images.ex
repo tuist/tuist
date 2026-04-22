@@ -20,9 +20,9 @@ defmodule Tuist.Marketing.OgImages do
         <meta charset="utf-8" />
         <style>
           @font-face {
-            font-family: 'DM Sans';
+            font-family: 'Inter Variable';
             font-style: normal;
-            font-weight: 400 600;
+            font-weight: 100 900;
             src: url(<%= @font_data_uri %>) format('woff2');
           }
           /*
@@ -38,7 +38,7 @@ defmodule Tuist.Marketing.OgImages do
             width: 1920px;
             height: 1080px;
             overflow: hidden;
-            font-family: 'DM Sans', sans-serif;
+            font-family: 'Inter Variable', sans-serif;
             color-scheme: light;
           }
           .bg {
@@ -115,9 +115,9 @@ defmodule Tuist.Marketing.OgImages do
         <meta charset="utf-8" />
         <style>
           @font-face {
-            font-family: 'DM Sans';
+            font-family: 'Inter Variable';
             font-style: normal;
-            font-weight: 400 600;
+            font-weight: 100 900;
             src: url(<%= @font_data_uri %>) format('woff2');
           }
           * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -125,7 +125,7 @@ defmodule Tuist.Marketing.OgImages do
             width: 1920px;
             height: 1080px;
             overflow: hidden;
-            font-family: 'DM Sans', sans-serif;
+            font-family: 'Inter Variable', sans-serif;
             color-scheme: light;
             background: linear-gradient(180deg, #f4f5fe 0%, #efe8ff 100%);
           }
@@ -192,9 +192,9 @@ defmodule Tuist.Marketing.OgImages do
         <meta charset="utf-8" />
         <style>
           @font-face {
-            font-family: 'DM Sans';
+            font-family: 'Inter Variable';
             font-style: normal;
-            font-weight: 400 600;
+            font-weight: 100 900;
             src: url(<%= @font_data_uri %>) format('woff2');
           }
           * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -202,7 +202,7 @@ defmodule Tuist.Marketing.OgImages do
             width: 1920px;
             height: 1080px;
             overflow: hidden;
-            font-family: 'DM Sans', sans-serif;
+            font-family: 'Inter Variable', sans-serif;
             color-scheme: light;
           }
           .bg {
@@ -312,7 +312,7 @@ defmodule Tuist.Marketing.OgImages do
     bg_path = Keyword.fetch!(opts, :bg_path)
     timeline_path = Keyword.fetch!(opts, :timeline_path)
 
-    font_base64 = fonts_dir |> Path.join("DMSans-latin.woff2") |> File.read!() |> Base.encode64()
+    font_base64 = fonts_dir |> Path.join("InterVariable.woff2") |> File.read!() |> Base.encode64()
     logo_base64 = logo_path |> File.read!() |> Base.encode64()
     bg_base64 = bg_path |> File.read!() |> Base.encode64()
     timeline_base64 = timeline_path |> File.read!() |> Base.encode64()
@@ -341,9 +341,9 @@ defmodule Tuist.Marketing.OgImages do
         <meta charset="utf-8" />
         <style>
           @font-face {
-            font-family: 'DM Sans';
+            font-family: 'Inter Variable';
             font-style: normal;
-            font-weight: 400 600;
+            font-weight: 100 900;
             src: url(<%= @font_data_uri %>) format('woff2');
           }
           * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -351,7 +351,7 @@ defmodule Tuist.Marketing.OgImages do
             width: 1920px;
             height: 1080px;
             overflow: hidden;
-            font-family: 'DM Sans', sans-serif;
+            font-family: 'Inter Variable', sans-serif;
             color-scheme: light;
           }
           .bg {
@@ -529,7 +529,7 @@ defmodule Tuist.Marketing.OgImages do
     logo_path = Keyword.fetch!(opts, :logo_path)
     bg_path = Keyword.fetch!(opts, :bg_path)
 
-    font_base64 = fonts_dir |> Path.join("DMSans-latin.woff2") |> File.read!() |> Base.encode64()
+    font_base64 = fonts_dir |> Path.join("InterVariable.woff2") |> File.read!() |> Base.encode64()
     logo_base64 = logo_path |> File.read!() |> Base.encode64()
     bg_base64 = bg_path |> File.read!() |> Base.encode64()
 
@@ -557,9 +557,9 @@ defmodule Tuist.Marketing.OgImages do
         <meta charset="utf-8" />
         <style>
           @font-face {
-            font-family: 'DM Sans';
+            font-family: 'Inter Variable';
             font-style: normal;
-            font-weight: 400 600;
+            font-weight: 100 900;
             src: url(<%= @font_data_uri %>) format('woff2');
           }
           * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -567,7 +567,7 @@ defmodule Tuist.Marketing.OgImages do
             width: 1920px;
             height: 1080px;
             overflow: hidden;
-            font-family: 'DM Sans', sans-serif;
+            font-family: 'Inter Variable', sans-serif;
             color-scheme: light;
           }
           .bg {
@@ -637,7 +637,7 @@ defmodule Tuist.Marketing.OgImages do
     bg_path = Keyword.fetch!(opts, :bg_path)
     icon_path = Keyword.fetch!(opts, :icon_path)
 
-    font_base64 = fonts_dir |> Path.join("DMSans-latin.woff2") |> File.read!() |> Base.encode64()
+    font_base64 = fonts_dir |> Path.join("InterVariable.woff2") |> File.read!() |> Base.encode64()
     logo_base64 = logo_path |> File.read!() |> Base.encode64()
     bg_base64 = bg_path |> File.read!() |> Base.encode64()
     icon_base64 = icon_path |> File.read!() |> Base.encode64()
@@ -666,9 +666,9 @@ defmodule Tuist.Marketing.OgImages do
         <meta charset="utf-8" />
         <style>
           @font-face {
-            font-family: 'DM Sans';
+            font-family: 'Inter Variable';
             font-style: normal;
-            font-weight: 400 600;
+            font-weight: 100 900;
             src: url(<%= @font_data_uri %>) format('woff2');
           }
           * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -676,7 +676,7 @@ defmodule Tuist.Marketing.OgImages do
             width: 1920px;
             height: 1080px;
             overflow: hidden;
-            font-family: 'DM Sans', sans-serif;
+            font-family: 'Inter Variable', sans-serif;
             color-scheme: light;
           }
           .bg {
@@ -791,7 +791,7 @@ defmodule Tuist.Marketing.OgImages do
     logo_path = Keyword.fetch!(opts, :logo_path)
     bg_path = Keyword.fetch!(opts, :bg_path)
 
-    font_base64 = fonts_dir |> Path.join("DMSans-latin.woff2") |> File.read!() |> Base.encode64()
+    font_base64 = fonts_dir |> Path.join("InterVariable.woff2") |> File.read!() |> Base.encode64()
     logo_base64 = logo_path |> File.read!() |> Base.encode64()
     bg_base64 = bg_path |> File.read!() |> Base.encode64()
 
@@ -812,7 +812,7 @@ defmodule Tuist.Marketing.OgImages do
     logo_path = Keyword.fetch!(opts, :logo_path)
     phone_path = Keyword.fetch!(opts, :phone_path)
 
-    font_base64 = fonts_dir |> Path.join("DMSans-latin.woff2") |> File.read!() |> Base.encode64()
+    font_base64 = fonts_dir |> Path.join("InterVariable.woff2") |> File.read!() |> Base.encode64()
     logo_base64 = logo_path |> File.read!() |> Base.encode64()
     phone_base64 = phone_path |> File.read!() |> Base.encode64()
 
@@ -834,7 +834,7 @@ defmodule Tuist.Marketing.OgImages do
     bg_path = Keyword.fetch!(opts, :bg_path)
     icon_path = Keyword.get(opts, :icon_path)
 
-    font_base64 = fonts_dir |> Path.join("DMSans-latin.woff2") |> File.read!() |> Base.encode64()
+    font_base64 = fonts_dir |> Path.join("InterVariable.woff2") |> File.read!() |> Base.encode64()
     logo_base64 = logo_path |> File.read!() |> Base.encode64()
     bg_base64 = bg_path |> File.read!() |> Base.encode64()
 

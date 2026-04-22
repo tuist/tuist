@@ -35,7 +35,7 @@ spec:
       port: 8123
       targetPort: 8123
     - name: native
-      port: 9000
+      port: {{ .Values.clickhouse.embedded.service.nativePort }}
       targetPort: 9000
 ---
 apiVersion: apps/v1
@@ -54,7 +54,11 @@ spec:
     metadata:
       labels:
         {{- include "tuist.componentLabels" (dict "root" . "component" "clickhouse") | nindent 8 }}
+        {{- with .Values.global.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
     spec:
+{{ include "tuist.podScheduling" . | nindent 6 }}
       containers:
         - name: clickhouse
           image: "{{ .Values.clickhouse.embedded.image.repository }}:{{ .Values.clickhouse.embedded.image.tag }}"
@@ -107,7 +111,11 @@ spec:
     metadata:
       labels:
         {{- include "tuist.componentLabels" (dict "root" . "component" "clickhouse-init") | nindent 8 }}
+        {{- with .Values.global.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
     spec:
+{{ include "tuist.podScheduling" . | nindent 6 }}
       restartPolicy: OnFailure
       containers:
         - name: clickhouse-init
@@ -117,8 +125,8 @@ spec:
             - /bin/sh
             - -ec
             - |
-              until clickhouse-client --host {{ include "tuist.componentName" (dict "root" . "component" "clickhouse") }} --query "SELECT 1"; do
+              until clickhouse-client --host {{ include "tuist.componentName" (dict "root" . "component" "clickhouse") }} --port {{ .Values.clickhouse.embedded.service.nativePort }} --query "SELECT 1"; do
                 sleep 2
               done
-              clickhouse-client --host {{ include "tuist.componentName" (dict "root" . "component" "clickhouse") }} --query "CREATE DATABASE IF NOT EXISTS {{ .Values.clickhouse.embedded.database }}"
+              clickhouse-client --host {{ include "tuist.componentName" (dict "root" . "component" "clickhouse") }} --port {{ .Values.clickhouse.embedded.service.nativePort }} --query "CREATE DATABASE IF NOT EXISTS {{ .Values.clickhouse.embedded.database }}"
 {{- end }}

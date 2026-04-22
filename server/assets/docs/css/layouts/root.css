@@ -59,7 +59,7 @@
     align-items: center;
     gap: var(--noora-spacing-2);
     padding: var(--noora-spacing-2) var(--noora-spacing-4);
-    color: var(--noora-surface-label-primary);
+    color: light-dark(var(--noora-surface-label-primary), var(--noora-neutral-dark-500));
 
     & svg {
       width: var(--noora-icon-size-large);
@@ -199,7 +199,7 @@
       left: 0;
       z-index: var(--noora-z-index-5);
       border-right: 1px solid var(--noora-content-divider-line);
-      background: var(--noora-surface-background-tertiary);
+      background: var(--noora-surface-background-primary);
       width: 280px;
       max-height: 100vh;
       overflow-y: auto;
@@ -213,7 +213,7 @@
   z-index: var(--noora-z-index-4);
   backdrop-filter: blur(2.5px);
   inset: 0;
-  background: rgba(46, 51, 56, 0.24);
+  background: var(--noora-surface-overlay);
 }
 
 body[data-sidebar-open] #docs-mobile-sidebar-overlay {

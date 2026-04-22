@@ -23,6 +23,11 @@ defmodule Cache.Registry.Metadata do
         ]
       }
     },
+    "skipped_releases": {
+      "<version>": {
+        "reason": "string"
+      }
+    },
     "updated_at": "ISO8601 timestamp"
   }
   ```
@@ -37,6 +42,8 @@ defmodule Cache.Registry.Metadata do
   * `releases.<version>.manifests` - List of Package.swift variants for this release
   * `releases.<version>.manifests[].swift_version` - Swift version suffix (e.g., "5.9") or null for default
   * `releases.<version>.manifests[].swift_tools_version` - Swift tools version from manifest or null
+  * `skipped_releases` - Optional map of normalized version strings to permanent skip reasons
+  * `skipped_releases.<version>.reason` - Machine-readable reason code for not mirroring a release
   * `updated_at` - ISO8601 timestamp of last sync (for staleness detection)
 
   ## Example
@@ -158,6 +165,7 @@ defmodule Cache.Registry.Metadata do
 
       {:error, {:http_error, 429, _}} ->
         :telemetry.execute([:cache, :s3, :upload], %{duration: duration}, %{result: :rate_limited})
+
         Logger.warning("S3 rate limited writing metadata for #{scope}/#{name}")
         {:error, {:s3_error, :rate_limited}}
 
@@ -189,16 +197,23 @@ defmodule Cache.Registry.Metadata do
     case result do
       {:ok, _response} ->
         :telemetry.execute([:cache, :s3, :delete], %{duration: duration, count: 1}, %{result: :ok})
+
         Cachex.del(cache_name, cache_key(scope, name))
         :ok
 
       {:error, {:http_error, 429, _}} ->
-        :telemetry.execute([:cache, :s3, :delete], %{duration: duration, count: 0}, %{result: :rate_limited})
+        :telemetry.execute([:cache, :s3, :delete], %{duration: duration, count: 0}, %{
+          result: :rate_limited
+        })
+
         Logger.warning("S3 rate limited deleting metadata for #{scope}/#{name}")
         {:error, {:s3_error, :rate_limited}}
 
       {:error, reason} ->
-        :telemetry.execute([:cache, :s3, :delete], %{duration: duration, count: 0}, %{result: :error})
+        :telemetry.execute([:cache, :s3, :delete], %{duration: duration, count: 0}, %{
+          result: :error
+        })
+
         Logger.error("Failed to delete metadata from S3 for #{scope}/#{name}: #{inspect(reason)}")
         {:error, reason}
     end

@@ -35,6 +35,7 @@ defmodule Tuist.Builds.Analytics do
       )
 
     query
+    |> apply_filters(opts)
     |> ClickHouseRepo.all()
     |> Enum.map(fn row ->
       %{category: row.category, value: row.value || 0}

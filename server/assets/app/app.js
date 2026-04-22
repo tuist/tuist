@@ -23,7 +23,7 @@ import { LiveSocket } from "phoenix_live_view";
 import topbar from "./js/vendor/topbar.js";
 import Noora from "noora";
 import "./app.css";
-import ThemeSwitcher, { observeThemeChanges } from "./js/ThemeSwitcher.js";
+import ThemeSwitcher, { ThemeToggle, observeThemeChanges } from "./js/ThemeSwitcher.js";
 import ImageFallback from "./js/ImageFallback.js";
 import DeeplinkValidation from "./js/DeeplinkValidation.js";
 import Clipboard from "./js/Clipboard.js";
@@ -59,6 +59,7 @@ Hooks.TextAttachmentContent = TextAttachmentContent;
 
 observeThemeChanges();
 Hooks.ThemeSwitcher = ThemeSwitcher;
+Hooks.ThemeToggle = ThemeToggle;
 
 let liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,

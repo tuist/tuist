@@ -55,7 +55,9 @@ defmodule Tuist.Docs.Loader do
       phoenix_heex: true
     ],
     render: [unsafe: true],
-    syntax_highlight: [formatter: {:html_inline, theme: "github_light"}]
+    syntax_highlight: [
+      formatter: {:html_multi_themes, themes: [light: "github_light", dark: "github_dark"], default_theme: "light-dark()"}
+    ]
   ]
 
   def load_pages! do
@@ -158,7 +160,12 @@ defmodule Tuist.Docs.Loader do
     html =
       [markdown: processed_markdown]
       |> MDEx.new()
-      |> MDExMermaid.attach(mermaid_init: "")
+      |> MDExMermaid.attach(
+        mermaid_init: "",
+        mermaid_pre_attrs: fn seq ->
+          ~s(id="mermaid-#{seq}" class="mermaid" phx-hook="MermaidDiagram" phx-update="ignore")
+        end
+      )
       |> MDEx.Document.put_options(@mdex_options)
       |> MDEx.to_html!()
       |> convert_github_alerts()

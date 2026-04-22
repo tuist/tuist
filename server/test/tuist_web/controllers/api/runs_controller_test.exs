@@ -725,7 +725,7 @@ defmodule TuistWeb.API.RunsControllerTest do
       assert build.cacheable_task_local_hits_count == 2
       assert build.cacheable_task_remote_hits_count == 2
 
-      {cacheable_tasks, _meta} =
+      {:ok, {cacheable_tasks, _meta}} =
         Builds.list_cacheable_tasks(%{
           filters: [%{field: :build_run_id, op: :==, value: build.id}],
           order_by: [:key],
@@ -782,7 +782,7 @@ defmodule TuistWeb.API.RunsControllerTest do
       assert build.cacheable_task_remote_hits_count == 0
 
       # Verify no cacheable tasks are created in ClickHouse
-      {cacheable_tasks, _meta} =
+      {:ok, {cacheable_tasks, _meta}} =
         Builds.list_cacheable_tasks(%{
           filters: [%{field: :build_run_id, op: :==, value: build.id}]
         })
@@ -1038,7 +1038,7 @@ defmodule TuistWeb.API.RunsControllerTest do
       Buffer.flush()
       [build] = get_builds_for_project(project.id)
 
-      {cacheable_tasks, _meta} =
+      {:ok, {cacheable_tasks, _meta}} =
         Builds.list_cacheable_tasks(%{
           filters: [%{field: :build_run_id, op: :==, value: build.id}],
           order_by: [:key],

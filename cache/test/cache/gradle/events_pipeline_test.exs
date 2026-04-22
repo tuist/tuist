@@ -2,7 +2,20 @@ defmodule Cache.Gradle.EventsPipelineTest do
   use ExUnit.Case, async: true
   use Mimic
 
+  import Cache.AnalyticsCircuitBreakerTestHelpers, only: [setup_analytics_circuit_breaker: 1]
+
   alias Cache.Gradle.EventsPipeline
+
+  @server_url "http://localhost:4000"
+  @webhook_url "#{@server_url}/webhooks/gradle-cache"
+
+  setup :set_mimic_from_context
+  setup :setup_analytics_circuit_breaker
+
+  setup do
+    stub(Cache.Authentication, :server_url, fn -> @server_url end)
+    :ok
+  end
 
   describe "handle_batch/4" do
     test "skips sending events when API key is not configured" do
@@ -35,8 +48,6 @@ defmodule Cache.Gradle.EventsPipelineTest do
     end
 
     test "sends batch of events to the gradle-cache webhook" do
-      stub(Cache.Authentication, :server_url, fn -> "http://localhost:4000" end)
-
       account_handle = "test-account"
       project_handle = "test-project"
 
@@ -65,11 +76,11 @@ defmodule Cache.Gradle.EventsPipelineTest do
           }
         end)
 
-      expect(Req, :request, fn options ->
-        assert options[:url] == "http://localhost:4000/webhooks/gradle-cache"
-        assert options[:method] == :post
+      expect(Req, :request, fn request ->
+        assert to_string(request.url) == @webhook_url
+        assert request.method == :post
 
-        decoded_body = JSON.decode!(options[:body])
+        decoded_body = JSON.decode!(request.body)
 
         assert decoded_body["events"] == [
                  %{
@@ -88,12 +99,12 @@ defmodule Cache.Gradle.EventsPipelineTest do
                  }
                ]
 
-        headers = options[:headers]
-        assert {"content-type", "application/json"} in headers
-        assert Enum.any?(headers, fn {key, _value} -> key == "x-cache-signature" end)
-        assert Enum.any?(headers, fn {key, _value} -> key == "x-cache-endpoint" end)
+        headers = request.headers
+        assert headers["content-type"] == ["application/json"]
+        assert is_list(headers["x-cache-signature"])
+        assert is_list(headers["x-cache-endpoint"])
 
-        {:ok, %{status: 202, body: ""}}
+        {:ok, %Req.Response{status: 202, body: ""}}
       end)
 
       result =

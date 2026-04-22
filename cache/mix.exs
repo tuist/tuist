@@ -6,7 +6,9 @@ defmodule Cache.MixProject do
       app: :cache,
       version: "0.1.0",
       elixir: "~> 1.18",
+      build_path: build_path(),
       elixirc_paths: elixirc_paths(Mix.env()),
+      elixirc_options: [check_cwd: false],
       start_permanent: Mix.env() == :prod,
       aliases: aliases(),
       deps: deps()
@@ -22,6 +24,13 @@ defmodule Cache.MixProject do
 
   defp elixirc_paths(:test), do: ["lib", "test/support"]
   defp elixirc_paths(_), do: ["lib"]
+
+  defp build_path do
+    case System.get_env("TUIST_MIX_BUILD_ROOT") do
+      root when root in [nil, ""] -> "_build"
+      root -> Path.join(root, "cache")
+    end
+  end
 
   defp deps do
     [
@@ -55,6 +64,7 @@ defmodule Cache.MixProject do
       {:plug_cowboy, "~> 2.7"},
       {:prom_ex, git: "https://github.com/pepicrft/prom_ex", branch: "finch"},
       {:req, "~> 0.5"},
+      {:req_fuse, "~> 0.3.2"},
       {:styler, "~> 1.0", only: [:dev, :test], runtime: false},
       {:sweet_xml, "~> 0.7"},
       {:uuid_v7, "~> 0.6"},

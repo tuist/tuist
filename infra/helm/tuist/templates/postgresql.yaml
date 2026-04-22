@@ -29,7 +29,11 @@ spec:
     metadata:
       labels:
         {{- include "tuist.componentLabels" (dict "root" . "component" "postgresql") | nindent 8 }}
+        {{- with .Values.global.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
     spec:
+{{ include "tuist.podScheduling" . | nindent 6 }}
       containers:
         - name: postgresql
           image: "{{ .Values.postgresql.embedded.image.repository }}:{{ .Values.postgresql.embedded.image.tag }}"
@@ -47,6 +51,8 @@ spec:
                 secretKeyRef:
                   name: {{ include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
                   key: postgres-password
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
           volumeMounts:
             - name: data
               mountPath: /var/lib/postgresql/data

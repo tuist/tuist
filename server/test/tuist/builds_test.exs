@@ -861,7 +861,7 @@ defmodule Tuist.BuildsTest do
         )
 
       # When
-      {tasks, meta} =
+      {:ok, {tasks, meta}} =
         Builds.list_cacheable_tasks(%{
           page_size: 2,
           filters: [%{field: :build_run_id, op: :==, value: build.id}]
@@ -885,7 +885,7 @@ defmodule Tuist.BuildsTest do
         )
 
       # When - filter by type
-      {swift_tasks, _meta} =
+      {:ok, {swift_tasks, _meta}} =
         Builds.list_cacheable_tasks(%{
           filters: [
             %{field: :build_run_id, op: :==, value: build.id},
@@ -910,7 +910,7 @@ defmodule Tuist.BuildsTest do
         )
 
       # When
-      {tasks, _meta} =
+      {:ok, {tasks, _meta}} =
         Builds.list_cacheable_tasks(%{
           filters: [%{field: :build_run_id, op: :==, value: build.id}],
           order_by: [:key],
@@ -927,7 +927,7 @@ defmodule Tuist.BuildsTest do
       {:ok, build} = RunsFixtures.build_fixture(cacheable_tasks: [])
 
       # When
-      {tasks, meta} =
+      {:ok, {tasks, meta}} =
         Builds.list_cacheable_tasks(%{
           filters: [%{field: :build_run_id, op: :==, value: build.id}]
         })
@@ -935,6 +935,21 @@ defmodule Tuist.BuildsTest do
       # Then
       assert tasks == []
       assert meta.total_count == 0
+    end
+
+    test "returns {:error, errors} when a filter value is invalid" do
+      # When
+      result =
+        Builds.list_cacheable_tasks(%{
+          filters: [
+            %{field: :build_run_id, op: :==, value: "00000000-0000-0000-0000-000000000000"},
+            %{field: :status, op: :==, value: "hit"}
+          ]
+        })
+
+      # Then
+      assert {:error, errors} = result
+      assert Keyword.has_key?(errors, :filters)
     end
   end
 

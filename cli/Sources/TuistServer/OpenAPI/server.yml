@@ -83,6 +83,14 @@ components:
       type: integer
       x-struct:
       x-validate:
+    TestCaseEventsPage:
+      default: 1
+      description: The page number to return.
+      minimum: 1
+      title: TestCaseEventsPage
+      type: integer
+      x-struct:
+      x-validate:
     TestCasesIndexPage:
       default: 1
       description: The page number to return.
@@ -2969,6 +2977,15 @@ components:
         - failure
       title: BuildStatus
       type: string
+      x-struct:
+      x-validate:
+    TestCaseEventsPageSize:
+      default: 20
+      description: The maximum number of events to return in a single page.
+      maximum: 100
+      minimum: 1
+      title: TestCaseEventsPageSize
+      type: integer
       x-struct:
       x-validate:
     RunsBuild:
@@ -7351,6 +7368,139 @@ paths:
       summary: List build targets for a given build.
       tags:
         - Builds
+  /api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/events:
+    get:
+      callbacks: {}
+      operationId: listTestCaseEvents
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The ID of the test case.
+          in: path
+          name: test_case_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page_size
+          required: false
+          schema:
+            default: 20
+            description: The maximum number of events to return in a single page.
+            maximum: 100
+            minimum: 1
+            title: TestCaseEventsPageSize
+            type: integer
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page
+          required: false
+          schema:
+            default: 1
+            description: The page number to return.
+            minimum: 1
+            title: TestCaseEventsPage
+            type: integer
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  events:
+                    items:
+                      properties:
+                        actor:
+                          description: The user who triggered the event, or null for system events.
+                          nullable: true
+                          properties:
+                            id:
+                              description: The actor's account ID.
+                              type: integer
+                              x-struct:
+                              x-validate:
+                            name:
+                              description: The actor's account handle.
+                              type: string
+                              x-struct:
+                              x-validate:
+                          required:
+                            - id
+                            - name
+                          type: object
+                          x-struct:
+                          x-validate:
+                        event_type:
+                          description: The type of event.
+                          enum:
+                            - first_run
+                            - marked_flaky
+                            - unmarked_flaky
+                            - quarantined
+                            - unquarantined
+                          type: string
+                          x-struct:
+                          x-validate:
+                        inserted_at:
+                          description: Unix timestamp of when the event occurred.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                      required:
+                        - event_type
+                        - inserted_at
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  pagination_metadata:
+                    $ref: '#/components/schemas/PaginationMetadata'
+                required:
+                  - events
+                  - pagination_metadata
+                type: object
+                x-struct:
+                x-validate:
+          description: List of test case events
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to access this resource
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Test case not found
+      summary: List events for a test case.
+      tags:
+        - Test Cases
   /api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}:
     get:
       callbacks: {}

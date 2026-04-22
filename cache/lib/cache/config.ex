@@ -33,6 +33,22 @@ defmodule Cache.Config do
     api_key() != nil
   end
 
+  def analytics_failure_threshold do
+    Application.get_env(:cache, :analytics_failure_threshold, 3)
+  end
+
+  def analytics_cooldown_ms do
+    Application.get_env(:cache, :analytics_cooldown_ms, 60_000)
+  end
+
+  def analytics_receive_timeout_ms do
+    Application.get_env(:cache, :analytics_receive_timeout_ms, 2_000)
+  end
+
+  def analytics_pool_timeout_ms do
+    Application.get_env(:cache, :analytics_pool_timeout_ms, 1_000)
+  end
+
   @doc """
   Returns the API key for server communication, or nil if not configured.
   """

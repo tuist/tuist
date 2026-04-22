@@ -167,6 +167,80 @@ defmodule Tuist.Billing do
     usage_prices ++ flat_prices
   end
 
+  @doc """
+  Creates or switches the subscription to enterprise with
+  `collection_method: send_invoice`, so the customer is invoice-billed and no
+  card/Stripe Checkout redirect is required.
+
+  When `params` contains billing details (`:name`, `:billing_email`,
+  `:address`), the Stripe customer is updated first. Callers that already
+  have a customer with those details on file can pass just `%{cadence: ...}`.
+  """
+  def upgrade_to_enterprise(%Account{} = account, params) do
+    account = Accounts.create_customer_when_absent(account)
+
+    if Map.has_key?(params, :address) do
+      {:ok, _customer} =
+        Stripe.Customer.update(account.customer_id, %{
+          name: params.name,
+          email: params.billing_email,
+          address: params.address
+        })
+    end
+
+    subscription_items = enterprise_subscription_items(Map.get(params, :cadence, "monthly"))
+    current_subscription = get_current_active_subscription(account)
+
+    stripe_sub =
+      if is_nil(current_subscription) do
+        {:ok, sub} =
+          Stripe.Subscription.create(%{
+            customer: account.customer_id,
+            items: subscription_items,
+            collection_method: "send_invoice",
+            days_until_due: Map.get(params, :days_until_due, 30)
+          })
+
+        sub
+      else
+        {:ok, current_stripe_sub} = Stripe.Subscription.retrieve(current_subscription.subscription_id)
+        items_to_delete = Enum.map(current_stripe_sub.items.data, &%{id: &1.id, deleted: true})
+
+        {:ok, sub} =
+          Stripe.Subscription.update(current_subscription.subscription_id, %{
+            items: items_to_delete ++ subscription_items,
+            collection_method: "send_invoice",
+            days_until_due: Map.get(params, :days_until_due, 30)
+          })
+
+        sub
+      end
+
+    on_subscription_change(stripe_sub)
+    {:ok, stripe_sub}
+  end
+
+  defp enterprise_subscription_items(cadence) do
+    available_prices = Tuist.Environment.stripe_prices()
+    key = if cadence == "yearly", do: "flat_yearly", else: "flat_monthly"
+
+    # Enterprise is negotiated per-deal; start the subscription with 0 seats
+    # so sales can fill in the actual quantity on Stripe without us guessing.
+    (available_prices["enterprise"][key] || [])
+    |> Enum.take(1)
+    |> Enum.map(&%{price: &1, quantity: 0})
+  end
+
+  @doc """
+  Flags an active Stripe subscription to cancel at the end of the current
+  billing period. The local DB row keeps its `active`/`trialing` status until
+  Stripe emits the cancellation event at period end; we don't mark it cancelled
+  up-front because the customer still has access.
+  """
+  def cancel_subscription_at_period_end(%Subscription{} = subscription) do
+    Stripe.Subscription.update(subscription.subscription_id, %{cancel_at_period_end: true})
+  end
+
   def on_subscription_change(subscription) do
     case Accounts.get_account_from_customer_id(subscription.customer) do
       {:error, :not_found} ->
@@ -204,7 +278,8 @@ defmodule Tuist.Billing do
           status: subscription.status,
           account_id: account.id,
           default_payment_method: subscription.default_payment_method,
-          trial_end: trial_end
+          trial_end: trial_end,
+          cancel_at_period_end: Map.get(subscription, :cancel_at_period_end, false) || false
         })
         |> Repo.insert!()
 
@@ -214,7 +289,8 @@ defmodule Tuist.Billing do
           plan: plan,
           status: subscription.status,
           default_payment_method: subscription.default_payment_method,
-          trial_end: trial_end
+          trial_end: trial_end,
+          cancel_at_period_end: Map.get(subscription, :cancel_at_period_end, false) || false
         })
         |> Repo.update!()
     end

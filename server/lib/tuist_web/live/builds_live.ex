@@ -95,22 +95,4 @@ defmodule TuistWeb.BuildsLive do
 
     {:noreply, push_patch(socket, to: "/#{selected_account.name}/#{selected_project.name}/builds?#{query_params}")}
   end
-
-  def handle_event(
-        "configuration_insights_period_changed",
-        %{"value" => %{"start" => start_date, "end" => end_date}, "preset" => preset},
-        %{assigns: %{selected_account: selected_account, selected_project: selected_project}} = socket
-      ) do
-    query_params =
-      if preset == "custom" do
-        socket.assigns.uri.query
-        |> Query.put("configuration-insights-date-range", "custom")
-        |> Query.put("configuration-insights-start-date", start_date)
-        |> Query.put("configuration-insights-end-date", end_date)
-      else
-        Query.put(socket.assigns.uri.query, "configuration-insights-date-range", preset)
-      end
-
-    {:noreply, push_patch(socket, to: "/#{selected_account.name}/#{selected_project.name}/builds?#{query_params}")}
-  end
 end

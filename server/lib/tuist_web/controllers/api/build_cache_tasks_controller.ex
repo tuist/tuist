@@ -134,7 +134,7 @@ defmodule TuistWeb.API.BuildCacheTasksController do
       {:ok, %{project_id: project_id}} when project_id == selected_project.id ->
         filters = build_filters(build_id, params)
 
-        {tasks, meta} =
+        {:ok, {tasks, meta}} =
           Builds.list_cacheable_tasks(%{
             filters: filters,
             order_by: [:inserted_at],

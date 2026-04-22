@@ -302,7 +302,10 @@ defmodule Tuist.Builds do
   end
 
   def list_cacheable_tasks(attrs) do
-    ClickHouseFlop.validate_and_run!(CacheableTask, attrs, for: CacheableTask)
+    case ClickHouseFlop.validate_and_run(CacheableTask, attrs, for: CacheableTask) do
+      {:ok, result} -> {:ok, result}
+      {:error, %Flop.Meta{errors: errors}} -> {:error, errors}
+    end
   end
 
   def list_cas_outputs(attrs) do
