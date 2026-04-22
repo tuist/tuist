@@ -7,8 +7,11 @@ defmodule Tuist.Docs.Redirects do
   """
 
   alias Tuist.Docs.Paths
+  alias Tuist.Locale
 
   @docs_path_regex ~r{^/(?<locale>[^/]+)/docs(?<rest>/.*)?$}
+  @supported_locales Locale.supported_locales()
+  @legacy_english_fallback_locales ["ar", "pl", "pt"]
 
   @rules [
     # Legacy docs.tuist.io pages
@@ -151,6 +154,25 @@ defmodule Tuist.Docs.Redirects do
 
   def rules, do: @rules
 
+  def legacy_host_path(request_path) when is_binary(request_path) do
+    case normalize_legacy_segments(request_path) do
+      [] ->
+        "/en/docs"
+
+      ["docs" | rest] ->
+        build_legacy_docs_host_path(rest)
+
+      [locale | rest] when locale in @supported_locales ->
+        build_docs_path(locale, "/" <> Enum.join(rest, "/"), "")
+
+      [locale | rest] when locale in @legacy_english_fallback_locales ->
+        build_docs_path("en", "/" <> Enum.join(rest, "/"), "")
+
+      segments ->
+        build_docs_path("en", "/" <> Enum.join(segments, "/"), "")
+    end
+  end
+
   def resolve(request_path, query_string \\ "")
 
   def resolve(request_path, query_string) when is_binary(request_path) do
@@ -225,6 +247,35 @@ defmodule Tuist.Docs.Redirects do
     locale
     |> Paths.public_path(rest)
     |> append_query_string(query_string)
+  end
+
+  defp build_legacy_docs_host_path([]), do: "/en/docs"
+
+  defp build_legacy_docs_host_path([locale | rest]) when locale in @supported_locales do
+    build_docs_path(locale, "/" <> Enum.join(rest, "/"), "")
+  end
+
+  defp build_legacy_docs_host_path([locale | rest]) when locale in @legacy_english_fallback_locales do
+    build_docs_path("en", "/" <> Enum.join(rest, "/"), "")
+  end
+
+  defp build_legacy_docs_host_path(segments) do
+    build_docs_path("en", "/" <> Enum.join(segments, "/"), "")
+  end
+
+  defp normalize_legacy_segments(request_path) do
+    request_path
+    |> String.trim()
+    |> String.trim_leading("/")
+    |> String.split("/", trim: true)
+    |> drop_trailing_index()
+  end
+
+  defp drop_trailing_index(segments) do
+    case Enum.reverse(segments) do
+      ["index" | rest] -> Enum.reverse(rest)
+      _ -> segments
+    end
   end
 
   defp append_query_string(path, ""), do: path

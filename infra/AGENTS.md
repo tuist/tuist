@@ -46,20 +46,10 @@ Cloudflare Worker that geo-routes requests to `registry.tuist.dev` to the neares
 
 **Adding/Removing Regions:** Update the `ROUTES` table in `src/index.ts` and deploy with `wrangler deploy`.
 
-### Docs Redirector (`docs-redirector/`)
-Cloudflare Worker that permanently redirects the legacy `docs.tuist.dev` host to the current docs site at `tuist.dev/:locale/docs/...`.
-
-- `wrangler.toml` - Worker configuration and the `docs.tuist.dev/*` route
-- `src/index.mjs` - Host-level docs redirect logic and locale fallback handling
-- `AGENTS.md` - Component-specific guidance
-
-**Locale Handling:** Current docs locales preserve their locale segment. Legacy VitePress locales that are no longer routed by Phoenix fall back to English to avoid redirecting users into 404s.
-
 ## Deployment
 Infrastructure components are deployed on Render as private services. Configuration changes should be tested in staging before production.
 
 The Registry Router is deployed as a Cloudflare Worker via `wrangler deploy` from `infra/registry-router/`.
-The Docs Redirector is deployed as a Cloudflare Worker via `wrangler deploy` from `infra/docs-redirector/`.
 Helm charts under `infra/helm/` target Kubernetes-based self-hosted deployments.
 
 ## Environment Variables
