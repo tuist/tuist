@@ -23,30 +23,30 @@
   }
 }
 
-/* The Enterprise upgrade modal hosts this form; Noora portals it out of
-   `#ops-accounts` into the modal body at runtime, so these selectors stay
-   at the top level. The form width drives the modal's content width —
-   giving it a min-width is enough, no need to reach into the modal's
-   internal DOM. */
-[data-part="enterprise-form"] {
+/* The Enterprise upgrade form. Noora's modal portals it out of
+   `#ops-accounts` at runtime, so this lives at the top level and scopes
+   everything via the `.enterprise-upgrade-form` class instead. The form's
+   min-width drives the modal's content width — the modal sizes to fit
+   its body, so we don't need to reach into the modal's internal DOM. */
+.enterprise-upgrade-form {
   display: flex;
   flex-direction: column;
   gap: var(--noora-spacing-4);
   min-width: 480px;
-}
 
-/* Stack a label above a Noora select — `.select` doesn't render its own
-   field-label (the trigger acts as placeholder), so we pair it with
-   `<.label>` inside this wrapper to match the other form fields. */
-[data-part="select-field"] {
-  display: flex;
-  flex-direction: column;
-  gap: var(--noora-spacing-2);
-}
+  /* Stack a label above a Noora <.select> to match the other fields; the
+     select's trigger doubles as the placeholder, so we pair it with an
+     explicit <.label> inside this wrapper. */
+  & .select-field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-2);
 
-/* The country picker has ~60 entries; cap the dropdown height so it scrolls
-   instead of covering the modal. Noora's dropdown content already has
-   `overflow-y: auto`, so we only need to set max-height. */
-[data-part="select-field"] .noora-dropdown-content {
-  max-height: 240px;
+    /* The country picker has ~60 entries; cap the dropdown height so it
+       scrolls instead of covering the modal. Noora's dropdown content
+       already has `overflow-y: auto`, so we only need the max-height. */
+    & .noora-dropdown-content {
+      max-height: 240px;
+    }
+  }
 }

@@ -60,7 +60,7 @@
             <form
               id={"enterprise-form-#{account.id}"}
               phx-submit="submit_enterprise_upgrade"
-              data-part="enterprise-form"
+              class="enterprise-upgrade-form"
             >
               <input type="hidden" name="account_id" value={account.id} />
               <.text_input
@@ -110,7 +110,7 @@
                 required
                 show_required
               />
-              <div data-part="select-field">
+              <div class="select-field">
                 <.label label="Country" required />
                 <.select
                   id={"enterprise-address-country-#{account.id}"}
@@ -122,7 +122,7 @@
                 </.select>
               </div>
 
-              <div data-part="select-field">
+              <div class="select-field">
                 <.label label="Billing cadence" />
                 <.select
                   id={"enterprise-cadence-#{account.id}"}
