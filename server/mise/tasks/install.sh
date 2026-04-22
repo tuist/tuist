@@ -3,12 +3,14 @@
 
 set -euo pipefail
 
+CLICKHOUSE_HTTP_URL="${TUIST_SERVER_CLICKHOUSE_HTTP_URL:-http://127.0.0.1:${TUIST_SERVER_CLICKHOUSE_HTTP_PORT:-8123}}"
+
 postgres_database_exists() {
   psql -Atqc "SELECT 1 FROM pg_database WHERE datname = '${TUIST_SERVER_POSTGRES_DB}'" postgres | grep -qx 1
 }
 
 clickhouse_database_exists() {
-  curl -fsS http://localhost:8123 --data-binary "EXISTS DATABASE ${TUIST_SERVER_CLICKHOUSE_DB}" | grep -qx 1
+  curl -fsS "${CLICKHOUSE_HTTP_URL}" --data-binary "EXISTS DATABASE ${TUIST_SERVER_CLICKHOUSE_DB}" | grep -qx 1
 }
 
 bootstrap_postgres_database() {
