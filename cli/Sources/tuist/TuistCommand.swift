@@ -195,7 +195,9 @@ public struct TuistCommand: AsyncParsableCommand {
                                 try await trackableCommand.run(
                                     fullHandle: config.fullHandle,
                                     serverURL: serverURL,
-                                    shouldTrackAnalytics: shouldTrackAnalytics
+                                    shouldTrackAnalytics: shouldTrackAnalytics,
+                                    optionalAuthentication: config.project.generatedProject?.generationOptions.optionalAuthentication
+                                        == true
                                 )
                             }
                         }
@@ -203,7 +205,9 @@ public struct TuistCommand: AsyncParsableCommand {
                         try await trackableCommand.run(
                             fullHandle: config.fullHandle,
                             serverURL: serverURL,
-                            shouldTrackAnalytics: shouldTrackAnalytics
+                            shouldTrackAnalytics: shouldTrackAnalytics,
+                            optionalAuthentication: config.project.generatedProject?.generationOptions.optionalAuthentication
+                                == true
                         )
                     }
                 }

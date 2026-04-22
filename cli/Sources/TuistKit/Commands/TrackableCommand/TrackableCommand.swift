@@ -67,7 +67,8 @@ public class TrackableCommand {
     public func run(
         fullHandle: String?,
         serverURL: URL?,
-        shouldTrackAnalytics: Bool
+        shouldTrackAnalytics: Bool,
+        optionalAuthentication: Bool = false
     ) async throws {
         let timer = clock.startTimer()
         let ranAt = clock.now
@@ -79,37 +80,42 @@ public class TrackableCommand {
         }
         let path = try await Environment.current.pathRelativeToWorkingDirectory(pathArgument)
         let runMetadataStorage = RunMetadataStorage()
-        try await RunMetadataStorage.$current.withValue(runMetadataStorage) {
-            do {
-                if var asyncCommand = command as? AsyncParsableCommand {
-                    try await asyncCommand.run()
-                } else {
-                    try command.run()
+        let usesOptionalAuthentication =
+            optionalAuthentication
+            && (((command as? TrackableParsableCommand)?.analyticsRequired == true) || Environment.current.isCI)
+        try await withServerAuthenticationConfig(optionalAuthentication: usesOptionalAuthentication) {
+            try await RunMetadataStorage.$current.withValue(runMetadataStorage) {
+                do {
+                    if var asyncCommand = command as? AsyncParsableCommand {
+                        try await asyncCommand.run()
+                    } else {
+                        try command.run()
+                    }
+                    if let fullHandle, let serverURL, shouldTrackAnalytics {
+                        try await uploadCommandEvent(
+                            timer: timer,
+                            status: .success,
+                            runId: runMetadataStorage.runId,
+                            path: path,
+                            runMetadataStorage: runMetadataStorage,
+                            fullHandle: fullHandle,
+                            serverURL: serverURL
+                        )
+                    }
+                } catch {
+                    if let fullHandle, let serverURL, shouldTrackAnalytics {
+                        try await uploadCommandEvent(
+                            timer: timer,
+                            status: .failure("\(error)"),
+                            runId: await runMetadataStorage.runId,
+                            path: path,
+                            runMetadataStorage: runMetadataStorage,
+                            fullHandle: fullHandle,
+                            serverURL: serverURL
+                        )
+                    }
+                    throw error
                 }
-                if let fullHandle, let serverURL, shouldTrackAnalytics {
-                    try await uploadCommandEvent(
-                        timer: timer,
-                        status: .success,
-                        runId: runMetadataStorage.runId,
-                        path: path,
-                        runMetadataStorage: runMetadataStorage,
-                        fullHandle: fullHandle,
-                        serverURL: serverURL
-                    )
-                }
-            } catch {
-                if let fullHandle, let serverURL, shouldTrackAnalytics {
-                    try await uploadCommandEvent(
-                        timer: timer,
-                        status: .failure("\(error)"),
-                        runId: await runMetadataStorage.runId,
-                        path: path,
-                        runMetadataStorage: runMetadataStorage,
-                        fullHandle: fullHandle,
-                        serverURL: serverURL
-                    )
-                }
-                throw error
             }
         }
     }
@@ -196,6 +202,24 @@ public class TrackableCommand {
                 ],
                 environment: ProcessInfo.processInfo.environment
             )
+        }
+    }
+
+    private func withServerAuthenticationConfig<T>(
+        optionalAuthentication: Bool,
+        _ action: () async throws -> T
+    ) async throws -> T {
+        guard optionalAuthentication else {
+            return try await action()
+        }
+        let currentConfiguration = ServerAuthenticationConfig.current
+        return try await ServerAuthenticationConfig.$current.withValue(
+            .init(
+                backgroundRefresh: currentConfiguration.backgroundRefresh,
+                optionalAuthentication: true
+            )
+        ) {
+            try await action()
         }
     }
 
