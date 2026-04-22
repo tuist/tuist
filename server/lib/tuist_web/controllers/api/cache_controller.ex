@@ -38,7 +38,8 @@ defmodule TuistWeb.API.CacheController do
 
   operation(:endpoints,
     summary: "Get cache endpoints.",
-    description: "Returns custom cache endpoints if configured for the account, otherwise returns default endpoints.",
+    description:
+      "Returns cache endpoints for the requested account and cache technology. The default technology preserves the existing custom-endpoint fallback behavior, while Kura returns only account-specific Kura endpoints.",
     operation_id: "getCacheEndpoints",
     parameters: [
       account_handle: [
@@ -46,6 +47,17 @@ defmodule TuistWeb.API.CacheController do
         type: :string,
         required: false,
         description: "The name of the account to get custom cache endpoints for."
+      ],
+      technology: [
+        in: :query,
+        type: %Schema{
+          title: "Technology",
+          type: :string,
+          enum: ["default", "kura"],
+          default: "default"
+        },
+        required: false,
+        description: "The cache technology to resolve endpoints for."
       ]
     ],
     responses: %{
@@ -67,9 +79,14 @@ defmodule TuistWeb.API.CacheController do
   )
 
   def endpoints(conn, params) do
-    endpoints = Accounts.get_cache_endpoints_for_handle(params[:account_handle])
+    endpoints =
+      Accounts.get_cache_endpoints_for_handle(params[:account_handle], technology(params))
+
     json(conn, %{endpoints: endpoints})
   end
+
+  defp technology(%{technology: "kura"}), do: :kura
+  defp technology(_), do: :default
 
   operation(:get_cache_action_item,
     summary: "Get a cache action item.",

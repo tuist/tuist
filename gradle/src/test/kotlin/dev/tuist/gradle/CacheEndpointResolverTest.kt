@@ -25,7 +25,8 @@ class CacheEndpointResolverTest {
             override fun getCacheEndpoints(
                 serverURL: URI,
                 accountHandle: String,
-                tokenProvider: TokenProvider
+                tokenProvider: TokenProvider,
+                cacheTechnology: CacheTechnology
             ): List<String> = endpoints
         }
     }
@@ -97,7 +98,8 @@ class CacheEndpointResolverTest {
             override fun getCacheEndpoints(
                 serverURL: URI,
                 accountHandle: String,
-                tokenProvider: TokenProvider
+                tokenProvider: TokenProvider,
+                cacheTechnology: CacheTechnology
             ): List<String> {
                 callCount++
                 return listOf("https://cache.dev")
@@ -118,5 +120,30 @@ class CacheEndpointResolverTest {
         )
 
         assertEquals(2, callCount)
+    }
+
+    @Test
+    fun `TUIST_KURA requests Kura endpoints`() {
+        var requestedTechnology: CacheTechnology? = null
+        val capturingService = object : GetCacheEndpointsService() {
+            override fun getCacheEndpoints(
+                serverURL: URI,
+                accountHandle: String,
+                tokenProvider: TokenProvider,
+                cacheTechnology: CacheTechnology
+            ): List<String> {
+                requestedTechnology = cacheTechnology
+                return listOf("https://kura-cache.dev")
+            }
+        }
+
+        val result = CacheEndpointResolver.resolve(
+            serverURL, accountHandle, stubTokenProvider,
+            envProvider = { if (it == "TUIST_KURA") "1" else null },
+            getCacheEndpointsService = capturingService
+        )
+
+        assertEquals("https://kura-cache.dev", result)
+        assertEquals(CacheTechnology.KURA, requestedTechnology)
     }
 }

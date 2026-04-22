@@ -13,6 +13,7 @@ defmodule Tuist.Accounts.AccountCacheEndpoint do
   @primary_key {:id, :binary_id, autogenerate: true}
   schema "account_cache_endpoints" do
     field :url, :string
+    field :technology, Ecto.Enum, values: [default: 0, kura: 1], default: :default
 
     belongs_to :account, Account
 
@@ -21,11 +22,11 @@ defmodule Tuist.Accounts.AccountCacheEndpoint do
 
   def create_changeset(endpoint \\ %__MODULE__{}, attrs) do
     endpoint
-    |> cast(attrs, [:url, :account_id])
-    |> validate_required([:url, :account_id])
+    |> cast(attrs, [:url, :account_id, :technology])
+    |> validate_required([:url, :account_id, :technology])
     |> validate_url(:url)
     |> foreign_key_constraint(:account_id)
-    |> unique_constraint([:account_id, :url], message: "has already been added")
+    |> unique_constraint([:account_id, :technology, :url], message: "has already been added")
   end
 
   defp validate_url(changeset, field) do

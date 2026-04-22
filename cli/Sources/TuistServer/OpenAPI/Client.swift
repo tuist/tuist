@@ -1892,15 +1892,15 @@ public struct Client: APIProtocol {
                     in: &request,
                     style: .form,
                     explode: true,
-                    name: "git_branch",
-                    value: input.query.git_branch
+                    name: "page",
+                    value: input.query.page
                 )
                 try converter.setQueryItemAsURI(
                     in: &request,
                     style: .form,
                     explode: true,
-                    name: "page",
-                    value: input.query.page
+                    name: "git_branch",
+                    value: input.query.git_branch
                 )
                 try converter.setQueryItemAsURI(
                     in: &request,
@@ -9171,7 +9171,7 @@ public struct Client: APIProtocol {
     }
     /// Get cache endpoints.
     ///
-    /// Returns custom cache endpoints if configured for the account, otherwise returns default endpoints.
+    /// Returns cache endpoints for the requested account and cache technology. The default technology preserves the existing custom-endpoint fallback behavior, while Kura returns only account-specific Kura endpoints.
     ///
     /// - Remark: HTTP `GET /api/cache/endpoints`.
     /// - Remark: Generated from `#/paths//api/cache/endpoints/get(getCacheEndpoints)`.
@@ -9195,6 +9195,13 @@ public struct Client: APIProtocol {
                     explode: true,
                     name: "account_handle",
                     value: input.query.account_handle
+                )
+                try converter.setQueryItemAsURI(
+                    in: &request,
+                    style: .form,
+                    explode: true,
+                    name: "technology",
+                    value: input.query.technology
                 )
                 converter.setAcceptHeader(
                     in: &request.headerFields,

@@ -157,10 +157,17 @@ struct CleanService {
                 guard handles.count == 2 else { return }
                 let accountHandle = handles[0]
                 let projectHandle = handles[1]
+                let cacheTechnology: CacheTechnology =
+                    if let value = Environment.current.variables["TUIST_KURA"], value.isEmpty == false {
+                        .kura
+                    } else {
+                        .default
+                    }
 
                 let endpoints = try await getCacheEndpointsService.getCacheEndpoints(
                     serverURL: serverURL,
-                    accountHandle: accountHandle
+                    accountHandle: accountHandle,
+                    cacheTechnology: cacheTechnology
                 )
 
                 try await withThrowingTaskGroup(of: Void.self) { group in

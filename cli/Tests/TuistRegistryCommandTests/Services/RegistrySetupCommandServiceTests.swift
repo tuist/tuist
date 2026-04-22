@@ -3,6 +3,7 @@ import Foundation
 import Mockable
 import Testing
 import TuistConfigLoader
+import TuistEnvironment
 import TuistEnvironmentTesting
 import TuistNooraTesting
 import TuistServer
@@ -113,6 +114,43 @@ struct RegistrySetupCommandServiceTests {
                     .setPackageDendencySCMToRegistryTransformation(.any)
                     .called(0)
             #endif
+        }
+    }
+
+    @Test(.withMockedEnvironment(), .withMockedNoora)
+    func setup_when_kura_is_enabled_uses_standard_registry_endpoint() async throws {
+        try await fileSystem.runInTemporaryDirectory(prefix: "setup") { temporaryPath in
+            // Given
+            let mockEnvironment = try #require(Environment.mocked)
+            mockEnvironment.variables = ["TUIST_KURA": "1"]
+
+            given(configLoader)
+                .loadConfig(path: .any)
+                .willReturn(.test())
+            let serverURL = try #require(URL(string: "https://test.tuist.io"))
+            given(serverEnvironmentService)
+                .url(configServerURL: .any)
+                .willReturn(serverURL)
+            #if canImport(TuistLoader)
+                given(manifestFilesLocator)
+                    .locatePackageManifest(at: .any)
+                    .willProduce { $0.appending(component: "Package.swift") }
+            #else
+                try await fileSystem.writeText(
+                    "// swift-tools-version: 5.9",
+                    at: temporaryPath.appending(component: "Package.swift")
+                )
+            #endif
+
+            // When
+            try await subject.run(path: temporaryPath.pathString)
+
+            // Then
+            let configurationPath = temporaryPath.appending(
+                components: ".swiftpm", "configuration", "registries.json"
+            )
+            let fileContents = try await fileSystem.readTextFile(at: configurationPath)
+            #expect(fileContents.contains("https://test.tuist.io/api/registry/swift"))
         }
     }
 

@@ -149,6 +149,49 @@ defmodule TuistWeb.API.CacheControllerTest do
       response = json_response(conn, 200)
       assert response["endpoints"] == expected_endpoints
     end
+
+    test "returns Kura endpoints when requested for an account", %{conn: conn} do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      {:ok, _} =
+        Accounts.create_account_cache_endpoint(account, %{
+          url: "https://kura-cache-1.example.com",
+          technology: :kura
+        })
+
+      {:ok, _} =
+        Accounts.create_account_cache_endpoint(account, %{
+          url: "https://kura-cache-2.example.com",
+          technology: :kura
+        })
+
+      conn = Authentication.put_current_user(conn, user)
+
+      # When
+      conn = get(conn, ~p"/api/cache/endpoints?account_handle=#{account.name}&technology=kura")
+
+      # Then
+      response = json_response(conn, 200)
+
+      assert Enum.sort(response["endpoints"]) ==
+               Enum.sort(["https://kura-cache-1.example.com", "https://kura-cache-2.example.com"])
+    end
+
+    test "returns empty list when Kura is requested without account-specific endpoints", %{conn: conn} do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      conn = Authentication.put_current_user(conn, user)
+
+      # When
+      conn = get(conn, ~p"/api/cache/endpoints?account_handle=#{account.name}&technology=kura")
+
+      # Then
+      response = json_response(conn, 200)
+      assert response["endpoints"] == []
+    end
   end
 
   describe "GET /api/cache" do

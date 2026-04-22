@@ -90,6 +90,47 @@
             }
         }
 
+        @Test(.withMockedEnvironment()) func login_when_kura_is_enabled_uses_standard_registry_endpoint() async throws {
+            try await withMockedDependencies {
+                // Given
+                let serverURL = try #require(URL(string: "https://test.tuist.io"))
+                let registryURL = serverURL.appending(path: "api/registry/swift")
+
+                given(configLoader)
+                    .loadConfig(path: .any)
+                    .willReturn(.test(fullHandle: "tuist/tuist"))
+                given(fullHandleService)
+                    .parse(.any)
+                    .willReturn((accountHandle: "tuist", projectHandle: "tuist"))
+                given(serverEnvironmentService)
+                    .url(configServerURL: .any)
+                    .willReturn(serverURL)
+                let mockEnvironment = try #require(Environment.mocked)
+                mockEnvironment.variables = ["TUIST_KURA": "1"]
+                given(createAccountTokenService)
+                    .createAccountToken(
+                        accountHandle: .any,
+                        scopes: .any,
+                        name: .any,
+                        expiresAt: .any,
+                        projectHandles: .any,
+                        serverURL: .any
+                    )
+                    .willReturn(.init(id: "token-id", token: "token"))
+                given(swiftPackageManagerController)
+                    .packageRegistryLogin(token: .value("token"), registryURL: .value(registryURL))
+                    .willReturn()
+
+                // When
+                try await subject.run(path: nil)
+
+                // Then
+                verify(swiftPackageManagerController)
+                    .packageRegistryLogin(token: .value("token"), registryURL: .value(registryURL))
+                    .called(1)
+            }
+        }
+
         @Test(.withMockedEnvironment()) func login_when_ci() async throws {
             try await withMockedDependencies {
                 try await fileSystem.runInTemporaryDirectory(prefix: "RegistryLoginService") { path in
