@@ -381,7 +381,14 @@ defmodule TuistWeb.TestCasesLive do
     sort_order = params["sort_order"] || "desc"
     search = params["search"] || ""
 
-    flop_filters = build_flop_filters(filters, search)
+    {start_datetime, end_datetime} = socket.assigns.analytics_period
+
+    flop_filters =
+      build_flop_filters(filters, search) ++
+        [
+          %{field: :last_ran_at, op: :>=, value: start_datetime},
+          %{field: :last_ran_at, op: :<=, value: end_datetime}
+        ]
 
     order_by = [String.to_existing_atom(sort_by)]
     order_directions = [String.to_existing_atom(sort_order)]

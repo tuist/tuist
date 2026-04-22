@@ -1566,6 +1566,27 @@ defmodule Tuist.Tests do
     end
   end
 
+  defp apply_quarantined_time_filter(query, opts) do
+    start_datetime = Keyword.get(opts, :start_datetime)
+    end_datetime = Keyword.get(opts, :end_datetime)
+
+    query
+    |> then(fn q ->
+      if start_datetime do
+        from(tc in q, where: tc.last_ran_at >= ^DateTime.to_naive(start_datetime))
+      else
+        q
+      end
+    end)
+    |> then(fn q ->
+      if end_datetime do
+        from(tc in q, where: tc.last_ran_at <= ^DateTime.to_naive(end_datetime))
+      else
+        q
+      end
+    end)
+  end
+
   defp apply_name_search(query, nil), do: query
   defp apply_name_search(query, term), do: from(q in query, where: ilike(q.name, ^"%#{term}%"))
 
@@ -1600,7 +1621,7 @@ defmodule Tuist.Tests do
   Lists test cases that are currently quarantined for a project.
   Returns quarantined test cases with information about who quarantined them.
   """
-  def list_quarantined_test_cases(project_id, attrs) do
+  def list_quarantined_test_cases(project_id, attrs, opts \\ []) do
     page = Map.get(attrs, :page, 1)
     page_size = Map.get(attrs, :page_size, 20)
     order_by = attrs |> Map.get(:order_by, [:last_ran_at]) |> List.first()
@@ -1616,6 +1637,7 @@ defmodule Tuist.Tests do
     results =
       project_id
       |> build_quarantined_test_cases_query(search_term, quarantined_by_filter, module_name_filter, suite_name_filter)
+      |> apply_quarantined_time_filter(opts)
       |> apply_quarantined_order(order_by, order_direction)
       |> from(limit: ^page_size, offset: ^offset)
       |> ClickHouseRepo.all()
@@ -1637,6 +1659,7 @@ defmodule Tuist.Tests do
         module_name_filter,
         suite_name_filter
       )
+      |> apply_quarantined_time_filter(opts)
       |> ClickHouseRepo.one()
 
     total_pages = if total_count > 0, do: ceil(total_count / page_size), else: 0

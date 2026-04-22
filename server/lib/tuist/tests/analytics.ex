@@ -155,10 +155,10 @@ defmodule Tuist.Tests.Analytics do
         end)
       end)
 
-    current_count = quarantined_count_at(project_id, end_datetime)
+    count = List.last(values) || 0
 
     %{
-      count: current_count,
+      count: count,
       values: values,
       dates: dates
     }
@@ -176,18 +176,6 @@ defmodule Tuist.Tests.Analytics do
     DateTime.add(datetime, 3599, :second)
   end
 
-  defp quarantined_count_at(project_id, datetime) do
-    inner =
-      from(tc in TestCase,
-        where: tc.project_id == ^project_id,
-        where: tc.inserted_at <= ^datetime,
-        group_by: tc.id,
-        having: fragment("argMax(?, ?) = 1", tc.is_quarantined, tc.inserted_at),
-        select: tc.id
-      )
-
-    ClickHouseRepo.one(from(tc in subquery(inner), select: count())) || 0
-  end
 
   @scatter_data_limit 10_000
 
