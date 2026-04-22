@@ -5,6 +5,7 @@ import FileSystem
 import Foundation
 import Mockable
 import Path
+import TuistHTTP
 import TuistThreadSafe
 
 public struct MultipartUploadArtifactPart {
@@ -60,12 +61,12 @@ public protocol MultipartUploadArtifactServicing {
 }
 
 public struct MultipartUploadArtifactService: MultipartUploadArtifactServicing {
-    private let urlSession: URLSession?
+    private let urlSession: URLSession
     private let fileSystem: FileSysteming
     private let retryProvider: RetryProviding
 
     public init(
-        urlSession: URLSession? = nil,
+        urlSession: URLSession = .tuistShared,
         fileSystem: FileSysteming = FileSystem(),
         retryProvider: RetryProviding = RetryProvider()
     ) {
@@ -79,7 +80,6 @@ public struct MultipartUploadArtifactService: MultipartUploadArtifactServicing {
         generateUploadURL: @escaping (MultipartUploadArtifactPart) async throws -> String,
         updateProgress: @escaping (Double) -> Void
     ) async throws -> [(etag: String, partNumber: Int)] {
-        let urlSession = urlSession ?? .tuistShared
         let partSize = 10 * 1024 * 1024
         guard let inputStream = InputStream(url: URL(fileURLWithPath: artifactPath.pathString)) else {
             throw MultipartUploadArtifactServiceError.cannotCreateInputStream(artifactPath)
@@ -116,7 +116,7 @@ public struct MultipartUploadArtifactService: MultipartUploadArtifactServicing {
                             }
 
                             let request = uploadRequest(url: url, fileSize: UInt64(bytesRead), data: partData)
-                            let etag = try await upload(for: request, urlSession: urlSession)
+                            let etag = try await upload(for: request)
                             uploadedParts.mutate { $0.append((etag: etag, partNumber: currentPartNumber)) }
                             updateProgress(Double(uploadedParts.value.count) / Double(numberOfParts))
                         }
@@ -131,7 +131,7 @@ public struct MultipartUploadArtifactService: MultipartUploadArtifactServicing {
             .sorted(by: { $0.partNumber < $1.partNumber })
     }
 
-    private func upload(for request: URLRequest, urlSession: URLSession) async throws -> String {
+    private func upload(for request: URLRequest) async throws -> String {
         let (data, response) = try await urlSession.data(for: request)
         guard let urlResponse = response as? HTTPURLResponse else {
             throw MultipartUploadArtifactServiceError.noURLResponse(request.url)

@@ -46,12 +46,12 @@ enum CreateTestCaseRunAttachmentServiceError: LocalizedError {
 public struct CreateTestCaseRunAttachmentService: CreateTestCaseRunAttachmentServicing {
     private let fileSystem: FileSystem
     private let fullHandleService: FullHandleServicing
-    private let urlSession: URLSession?
+    private let urlSession: URLSession
 
     public init(
         fileSystem: FileSystem = FileSystem(),
         fullHandleService: FullHandleServicing = FullHandleService(),
-        urlSession: URLSession? = nil
+        urlSession: URLSession = .tuistShared
     ) {
         self.fileSystem = fileSystem
         self.fullHandleService = fullHandleService
@@ -69,7 +69,6 @@ public struct CreateTestCaseRunAttachmentService: CreateTestCaseRunAttachmentSer
     ) async throws -> String {
         let client = Client.authenticated(serverURL: serverURL)
         let handles = try fullHandleService.parse(fullHandle)
-        let urlSession = urlSession ?? .tuistShared
 
         let response = try await client.createTestCaseRunAttachment(
             .init(
