@@ -1551,7 +1551,7 @@ jobs:
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
         run: |
-          export GRAFANA_ACCESS_POLICY_TOKEN=$(op read "op://tuist/GRAFANA_ACCESS_POLICY_TOKEN/password")
+          export GRAFANA_ACCESS_POLICY_TOKEN=$(op read "op://tuist/TUIST_GRAFANA_PLUGIN_TOKEN/password")
           mise run bundle -- --signature-type community
 
       - name: Upload Grafana plugin artifacts
