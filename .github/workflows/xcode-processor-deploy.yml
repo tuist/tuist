@@ -1,4 +1,4 @@
-name: Xcode Processor Deploy
+# name: Xcode Processor Deploy
 
 # NOTE: Production deploy is disabled pending migration to Kubernetes.
 # Auto-deploys to the Scaleway Mac mini have been unreliable. There is no
