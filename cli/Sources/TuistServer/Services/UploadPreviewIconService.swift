@@ -40,20 +40,20 @@ enum UploadPreviewIconServiceError: LocalizedError {
 public struct UploadPreviewIconService: UploadPreviewIconServicing {
     private let fullHandleService: FullHandleServicing
     private let fileSystem: FileSysteming
-    private let urlSession: URLSession
+    private let urlSession: URLSession?
 
     public init() {
         self.init(
             fullHandleService: FullHandleService(),
             fileSystem: FileSystem(),
-            urlSession: .tuistShared
+            urlSession: nil
         )
     }
 
     init(
         fullHandleService: FullHandleServicing,
         fileSystem: FileSysteming,
-        urlSession: URLSession
+        urlSession: URLSession?
     ) {
         self.fullHandleService = fullHandleService
         self.fileSystem = fileSystem
@@ -67,6 +67,7 @@ public struct UploadPreviewIconService: UploadPreviewIconServicing {
         fullHandle: String
     ) async throws {
         let client = Client.authenticated(serverURL: serverURL)
+        let urlSession = urlSession ?? .tuistShared
 
         let handles = try fullHandleService.parse(fullHandle)
 

@@ -370,7 +370,6 @@ class TuistBuildCacheTest {
 
     private class TestBuildCacheKey(private val hash: String) : BuildCacheKey {
         override fun getHashCode(): String = hash
-        override fun getDisplayName(): String = hash
         override fun toByteArray(): ByteArray = hash.toByteArray()
     }
 

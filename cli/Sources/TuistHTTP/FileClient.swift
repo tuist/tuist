@@ -57,14 +57,14 @@ import Path
     public struct FileClient: FileClienting {
         // MARK: - Attributes
 
-        let session: URLSession
+        let session: URLSession?
         private let fileSystem: FileSysteming
         private let successStatusCodeRange = 200 ..< 300
 
         // MARK: - Init
 
         public init(
-            session: URLSession = .tuistShared,
+            session: URLSession? = nil,
             fileSystem: FileSysteming = FileSystem()
         ) {
             self.session = session
@@ -74,6 +74,7 @@ import Path
         // MARK: - Public
 
         public func download(url: URL) async throws -> AbsolutePath {
+            let session = session ?? .tuistShared
             let request = URLRequest(url: url)
             do {
                 let (localUrl, response) = try await session.download(for: request)
@@ -101,6 +102,7 @@ import Path
         }
 
         public func upload(file: AbsolutePath, hash _: String, to url: URL) async throws -> Bool {
+            let session = session ?? .tuistShared
             guard let metadata = try await fileSystem.fileMetadata(at: file) else {
                 throw FileClientError.noLocalURL(URLRequest(url: url))
             }
