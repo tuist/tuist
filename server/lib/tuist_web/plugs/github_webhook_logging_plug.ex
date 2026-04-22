@@ -7,20 +7,20 @@ defmodule TuistWeb.Plugs.GitHubWebhookLoggingPlug do
   """
   @behaviour Plug
 
+  use TuistWeb, :verified_routes
+
   import Plug.Conn
 
   alias TuistWeb.RemoteIp
 
   require Logger
 
-  @github_webhook_path "/webhooks/github"
-
   @impl true
   def init(opts), do: opts
 
   @impl true
   def call(conn, _opts) do
-    if conn.request_path == @github_webhook_path do
+    if conn.request_path == github_webhook_path() do
       register_before_send(conn, &log_request/1)
     else
       conn
@@ -68,6 +68,8 @@ defmodule TuistWeb.Plugs.GitHubWebhookLoggingPlug do
       _value -> true
     end
   end
+
+  defp github_webhook_path, do: ~p"/webhooks/github"
 
   defp format_ip(nil), do: nil
   defp format_ip(ip), do: ip |> :inet_parse.ntoa() |> to_string()
