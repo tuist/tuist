@@ -345,6 +345,7 @@ func enabledTraits(
     processTraits(
         from: rootPackageInfo.dependencies,
         enabledTraitsForCurrentPackage: [],
+        packageInfos: packageInfos,
         result: &result
     )
 
@@ -353,6 +354,7 @@ func enabledTraits(
         processTraits(
             from: packageInfo.dependencies,
             enabledTraitsForCurrentPackage: enabledForThisPackage,
+            packageInfos: packageInfos,
             result: &result
         )
     }
@@ -363,17 +365,62 @@ func enabledTraits(
 private func processTraits(
     from dependencies: [PackageDependency],
     enabledTraitsForCurrentPackage: Set<String>,
+    packageInfos: [String: PackageInfo],
     result: inout [String: Set<String>]
 ) {
     for dependency in dependencies {
-        for trait in dependency.traits {
+        let enabledTraits = dependency.traits.reduce(into: Set<String>()) { result, trait in
             if let condition = trait.condition {
                 if !condition.isDisjoint(with: enabledTraitsForCurrentPackage) {
-                    result[dependency.identity, default: []].insert(trait.name)
+                    result.insert(trait.name)
                 }
             } else {
-                result[dependency.identity, default: []].insert(trait.name)
+                result.insert(trait.name)
             }
+        }
+
+        let resolvedTraits = resolvedEnabledTraits(
+            enabledTraits,
+            packageTraits: packageInfos[dependency.identity]?.traits ?? []
+        )
+
+        guard !resolvedTraits.isEmpty else { continue }
+        result[dependency.identity, default: []].formUnion(resolvedTraits)
+    }
+}
+
+private func resolvedEnabledTraits(
+    _ traitNames: some Collection<String>,
+    packageTraits: [PackageTrait]
+) -> Set<String> {
+    var resolvedTraitNames = Set(traitNames)
+
+    resolveEnabledTraitNames(
+        resolvedTraitNames,
+        packageTraits: packageTraits,
+        into: &resolvedTraitNames
+    )
+
+    return resolvedTraitNames
+}
+
+private func resolveEnabledTraitNames(
+    _ traitNames: some Collection<String>,
+    packageTraits: [PackageTrait],
+    into resolvedTraitNames: inout Set<String>
+) {
+    for traitName in traitNames {
+        guard let trait = packageTraits.first(where: { $0.name == traitName }) else {
+            continue
+        }
+
+        for enabledTrait in trait.enabledTraits {
+            guard resolvedTraitNames.insert(enabledTrait).inserted else { continue }
+            resolveEnabledTraitNames(
+                [enabledTrait],
+                packageTraits: packageTraits,
+                into: &resolvedTraitNames
+            )
         }
     }
 }
