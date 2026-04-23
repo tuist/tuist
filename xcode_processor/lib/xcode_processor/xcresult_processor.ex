@@ -3,12 +3,12 @@ defmodule XcodeProcessor.XCResultProcessor do
 
   require Logger
 
-  def process_local(zip_path, opts \\ []) do
+  def process_local(archive_path, opts \\ []) do
     bucket = Keyword.get(opts, :s3_bucket) || XcodeProcessor.Environment.s3_bucket()
     temp_dir = make_temp_dir()
 
     try do
-      result = process_zip(zip_path, temp_dir)
+      result = process_archive(archive_path, temp_dir)
 
       with {:ok, parsed_data} <- result do
         upload_attachments(parsed_data, bucket, opts)
@@ -21,15 +21,15 @@ defmodule XcodeProcessor.XCResultProcessor do
   def process(storage_key, opts \\ []) do
     bucket = XcodeProcessor.Environment.s3_bucket()
     temp_dir = make_temp_dir()
-    zip_path = Path.join(temp_dir, "xcresult.zip")
+    archive_path = Path.join(temp_dir, "xcresult-archive")
 
     try do
       :telemetry.span([:xcode_processor, :xcresult], %{}, fn ->
         download_result =
           :telemetry.span([:xcode_processor, :s3, :download], %{}, fn ->
-            case ExAws.S3.download_file(bucket, storage_key, zip_path) |> ExAws.request() do
+            case ExAws.S3.download_file(bucket, storage_key, archive_path) |> ExAws.request() do
               {:ok, _} ->
-                file_size = File.stat!(zip_path).size
+                file_size = File.stat!(archive_path).size
                 {:ok, %{file_size: file_size}}
 
               {:error, reason} ->
@@ -43,7 +43,7 @@ defmodule XcodeProcessor.XCResultProcessor do
               error
 
             _ ->
-              result = process_zip(zip_path, temp_dir)
+              result = process_archive(archive_path, temp_dir)
 
               with {:ok, parsed_data} <- result do
                 upload_attachments(parsed_data, bucket, opts)
@@ -58,20 +58,40 @@ defmodule XcodeProcessor.XCResultProcessor do
     end
   end
 
-  defp process_zip(zip_path, temp_dir) do
-    {:ok, _} = :zip.unzip(~c"#{zip_path}", [{:cwd, ~c"#{temp_dir}"}])
+  defp process_archive(archive_path, temp_dir) do
+    with :ok <- extract_archive(archive_path, temp_dir),
+         xcresult_path when not is_nil(xcresult_path) <- find_xcresult(temp_dir) do
+      root_dir = Path.dirname(xcresult_path)
 
-    case find_xcresult(temp_dir) do
-      nil ->
-        {:error, :xcresult_not_found}
+      with {:ok, parsed_data} <- parse_xcresult(xcresult_path, root_dir) do
+        quarantined_tests = read_quarantined_tests(xcresult_path)
+        {:ok, apply_quarantine(parsed_data, quarantined_tests)}
+      end
+    else
+      nil -> {:error, :xcresult_not_found}
+      {:error, _} = error -> error
+    end
+  end
 
-      xcresult_path ->
-        root_dir = Path.dirname(xcresult_path)
+  # Callers upload either a PKZIP archive (legacy CLI clients) or an
+  # AppleArchive payload (newer CLI clients — faster via LZFSE). Sniff the
+  # magic bytes and dispatch: Erlang's `:zip` for PKZIP, the Swift NIF
+  # (AppleArchive framework) for everything else.
+  @pkzip_magic <<0x50, 0x4B>>
 
-        with {:ok, parsed_data} <- parse_xcresult(xcresult_path, root_dir) do
-          quarantined_tests = read_quarantined_tests(xcresult_path)
-          {:ok, apply_quarantine(parsed_data, quarantined_tests)}
+  defp extract_archive(archive_path, temp_dir) do
+    case File.open(archive_path, [:read, :binary], fn file -> IO.binread(file, 2) end) do
+      {:ok, @pkzip_magic} ->
+        case :zip.unzip(~c"#{archive_path}", [{:cwd, ~c"#{temp_dir}"}]) do
+          {:ok, _} -> :ok
+          {:error, reason} -> {:error, {:zip_unzip_failed, reason}}
         end
+
+      {:ok, _} ->
+        XcodeProcessor.XCResultNIF.decompress_archive(archive_path, temp_dir)
+
+      {:error, reason} ->
+        {:error, {:archive_read_failed, reason}}
     end
   end
 

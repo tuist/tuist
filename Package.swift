@@ -375,6 +375,7 @@ tuistServerDependencies.append(contentsOf: [
     "TuistCore", "TuistProcess", "TuistCI",
     "TuistAutomation", "TuistXCActivityLog",
     "TuistXCResultService",
+    .target(name: "TuistAppleArchiver", condition: .when(platforms: [.macOS])),
     xcodeGraphDependency,
 ])
 tuistHTTPDependencies.append(contentsOf: ["TuistSupport", "TuistHAR"])
