@@ -15,29 +15,17 @@ defmodule TuistWeb.AcceptInvitationLive do
       {:ok, invitation} ->
         {:ok, organization} = Accounts.get_organization_by_id(invitation.organization_id)
         account = Accounts.get_account_from_organization(organization)
-        invitee = resolve_invitee(session_user, invitation)
 
-        socket =
-          assign(socket,
-            token: token,
-            invitation: invitation,
-            organization_name: account.name,
-            invitee: invitee,
-            mismatched_session_user: mismatched?(session_user, invitation)
-          )
-
-        {:ok, socket}
+        {:ok,
+         assign(socket,
+           token: token,
+           invitation: invitation,
+           organization_name: account.name,
+           invitee_state: resolve_invitee(session_user, invitation)
+         )}
 
       {:error, :not_found} ->
-        socket =
-          assign(socket,
-            token: token,
-            invitation: nil,
-            invitee: nil,
-            mismatched_session_user: false
-          )
-
-        {:ok, socket}
+        {:ok, assign(socket, token: token, invitation: nil, invitee_state: :not_found)}
     end
   end
 
@@ -62,8 +50,8 @@ defmodule TuistWeb.AcceptInvitationLive do
               <.dots_light />
               <.dots_dark />
             </div>
-            <%= cond do %>
-              <% is_nil(@invitation) -> %>
+            <%= case @invitee_state do %>
+              <% :not_found -> %>
                 <div data-part="header">
                   <h1 data-part="title">
                     {dgettext("dashboard_account", "Invitation not found")}
@@ -81,7 +69,7 @@ defmodule TuistWeb.AcceptInvitationLive do
                     )
                   }
                 />
-              <% @mismatched_session_user -> %>
+              <% :mismatched -> %>
                 <div data-part="header">
                   <h1 data-part="title">
                     {dgettext("dashboard_account", "Wrong account")}
@@ -94,7 +82,7 @@ defmodule TuistWeb.AcceptInvitationLive do
                     )}
                   </span>
                 </div>
-              <% is_nil(@invitee) -> %>
+              <% :no_user -> %>
                 <div data-part="header">
                   <h1 data-part="title">
                     {dgettext("dashboard_account", "You have been invited")}
@@ -117,7 +105,7 @@ defmodule TuistWeb.AcceptInvitationLive do
                     label={dgettext("dashboard_account", "Create an account")}
                   />
                 </div>
-              <% true -> %>
+              <% {:ok, _invitee} -> %>
                 <div data-part="header">
                   <h1 data-part="title">
                     {dgettext("dashboard_account", "You have been invited")}
@@ -167,7 +155,7 @@ defmodule TuistWeb.AcceptInvitationLive do
                 </div>
             <% end %>
 
-            <div :if={is_nil(@invitation) or @mismatched_session_user} data-part="actions">
+            <div :if={@invitee_state in [:not_found, :mismatched]} data-part="actions">
               <.link_button
                 navigate={~p"/users/log_in"}
                 variant="primary"
@@ -189,18 +177,14 @@ defmodule TuistWeb.AcceptInvitationLive do
     """
   end
 
-  defp resolve_invitee(%{email: email} = user, %{invitee_email: email}), do: user
+  defp resolve_invitee(%{email: email} = user, %{invitee_email: email}), do: {:ok, user}
 
   defp resolve_invitee(nil, invitation) do
     case Accounts.get_user_by_email(invitation.invitee_email) do
-      {:ok, user} -> user
-      {:error, :not_found} -> nil
+      {:ok, user} -> {:ok, user}
+      {:error, :not_found} -> :no_user
     end
   end
 
-  defp resolve_invitee(_session_user, _invitation), do: nil
-
-  defp mismatched?(nil, _invitation), do: false
-  defp mismatched?(%{email: email}, %{invitee_email: email}), do: false
-  defp mismatched?(_user, _invitation), do: true
+  defp resolve_invitee(_session_user, _invitation), do: :mismatched
 end
