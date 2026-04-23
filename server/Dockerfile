@@ -1,5 +1,5 @@
-ARG ELIXIR_VERSION=1.19.1
-ARG OTP_VERSION=28.1
+ARG ELIXIR_VERSION=1.19.5
+ARG OTP_VERSION=28.4.3
 # hexpm/elixir uses date-pinned tags; their specific bookworm tag has both
 # linux/amd64 and linux/arm64/v8 manifests so the builder stage is multi-arch.
 ARG DEBIAN_BUILDER_VERSION=bookworm-20260406-slim

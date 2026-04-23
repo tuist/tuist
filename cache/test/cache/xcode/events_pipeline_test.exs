@@ -2,12 +2,18 @@ defmodule Cache.Xcode.EventsPipelineTest do
   use ExUnit.Case, async: true
   use Mimic
 
+  import Cache.AnalyticsCircuitBreakerTestHelpers, only: [setup_analytics_circuit_breaker: 1]
+
   alias Cache.Xcode.EventsPipeline
 
+  @server_url "http://localhost:4000"
+  @webhook_url "#{@server_url}/webhooks/cache"
+
   setup :set_mimic_from_context
+  setup :setup_analytics_circuit_breaker
 
   setup do
-    stub(Cache.Authentication, :server_url, fn -> "http://localhost:4000" end)
+    stub(Cache.Authentication, :server_url, fn -> @server_url end)
     :ok
   end
 
@@ -98,11 +104,11 @@ defmodule Cache.Xcode.EventsPipelineTest do
           }
         end)
 
-      expect(Req, :request, fn options ->
-        assert options[:url] == "http://localhost:4000/webhooks/cache"
-        assert options[:method] == :post
+      expect(Req, :request, fn request ->
+        assert to_string(request.url) == @webhook_url
+        assert request.method == :post
 
-        body = options[:body]
+        body = request.body
         decoded_body = JSON.decode!(body)
         assert length(decoded_body["events"]) == 2
 
@@ -120,12 +126,12 @@ defmodule Cache.Xcode.EventsPipelineTest do
         assert Enum.at(decoded_body["events"], 1)["size"] == 2048
         assert Enum.at(decoded_body["events"], 1)["cas_id"] == "def456"
 
-        headers = options[:headers]
-        assert {"content-type", "application/json"} in headers
-        assert Enum.any?(headers, fn {key, _value} -> key == "x-cache-signature" end)
-        assert Enum.any?(headers, fn {key, _value} -> key == "x-cache-endpoint" end)
+        headers = request.headers
+        assert headers["content-type"] == ["application/json"]
+        assert is_list(headers["x-cache-signature"])
+        assert is_list(headers["x-cache-endpoint"])
 
-        {:ok, %{status: 202, body: ""}}
+        {:ok, %Req.Response{status: 202, body: ""}}
       end)
 
       result =

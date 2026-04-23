@@ -208,6 +208,84 @@ defmodule TuistWeb.Plugs.WebhookPlugTest do
 
       refute_receive {:handled, _conn, _payload}
     end
+
+    test "returns 401 before reading the body when signature header is missing" do
+      # Given
+      secret = "my-secret"
+      payload = ~s({"action": "opened"})
+
+      parser_opts =
+        Plug.Parsers.init(
+          parsers: [:json],
+          body_reader: {TimeoutBodyReader, :read_body, []},
+          json_decoder: Phoenix.json_library()
+        )
+
+      options = [
+        at: "/webhook/github",
+        secret: secret,
+        handler: TestHandler,
+        signature_header: "x-hub-signature-256",
+        signature_prefix: "sha256=",
+        parser_opts: parser_opts
+      ]
+
+      conn =
+        :post
+        |> conn("/webhook/github", payload)
+        |> put_req_header("content-type", "application/json")
+
+      # When
+      result = WebhookPlug.call(conn, options)
+
+      # Then
+      assert result.status == 401
+      assert result.resp_body == "Missing x-hub-signature-256 header"
+      assert result.halted == true
+
+      refute_receive {:handled, _conn, _payload}
+    end
+
+    test "returns 413 when the payload exceeds the configured body limit" do
+      # Given
+      secret = "my-secret"
+      payload = ~s({"action":"opened"})
+
+      parser_opts =
+        Plug.Parsers.init(
+          parsers: [:json],
+          body_reader: {WebhookPlug.CacheBodyReader, :read_body, []},
+          json_decoder: Phoenix.json_library(),
+          length: 10
+        )
+
+      options = [
+        at: "/webhook/github",
+        secret: secret,
+        handler: TestHandler,
+        signature_header: "x-hub-signature-256",
+        signature_prefix: "sha256=",
+        parser_opts: parser_opts
+      ]
+
+      signature = generate_signature(payload, secret, "sha256=")
+
+      conn =
+        :post
+        |> conn("/webhook/github", payload)
+        |> put_req_header("content-type", "application/json")
+        |> put_req_header("x-hub-signature-256", signature)
+
+      # When
+      result = WebhookPlug.call(conn, options)
+
+      # Then
+      assert result.status == 413
+      assert result.resp_body == "Payload Too Large"
+      assert result.halted == true
+
+      refute_receive {:handled, _conn, _payload}
+    end
   end
 
   describe "call/2 with cache-style signature (no prefix)" do

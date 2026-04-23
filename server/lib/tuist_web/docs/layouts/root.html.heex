@@ -1,10 +1,5 @@
 <!DOCTYPE html>
-<html
-  lang={Gettext.get_locale(TuistWeb.Gettext)}
-  class="[scrollbar-gutter:stable]"
-  data-theme="light"
-  style="color-scheme: light"
->
+<html lang={Gettext.get_locale(TuistWeb.Gettext)} class="[scrollbar-gutter:stable]">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
@@ -24,28 +19,40 @@
     </style>
     <script nonce={get_csp_nonce()} type="module">
       import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
-      mermaid.initialize({
-        startOnLoad: true,
-        securityLevel: "loose",
-        theme: "base",
-        themeVariables: {
-          primaryColor: "#f1f2f4",
-          primaryBorderColor: "#c7ccd1",
-          primaryTextColor: "#171a1c",
-          secondaryColor: "#f9fafa",
-          tertiaryColor: "#fdfdfd",
-          lineColor: "#848f9a",
-          textColor: "#171a1c",
-          fontFamily: "Inter, sans-serif",
-          fontSize: "14px",
-          nodeBorder: "#c7ccd1",
-          nodeTextColor: "#171a1c",
-          edgeLabelBackground: "#fdfdfd",
-        },
-      });
-      document.addEventListener("phx:page-loading-stop", () => {
-        mermaid.run({ querySelector: ".mermaid" });
-      });
+
+      const lightTheme = {
+        primaryColor: "#f1f2f4",
+        primaryBorderColor: "#c7ccd1",
+        primaryTextColor: "#171a1c",
+        secondaryColor: "#f9fafa",
+        tertiaryColor: "#fdfdfd",
+        lineColor: "#848f9a",
+        textColor: "#171a1c",
+        fontFamily: "Inter, sans-serif",
+        fontSize: "14px",
+        nodeBorder: "#c7ccd1",
+        nodeTextColor: "#171a1c",
+        edgeLabelBackground: "#fdfdfd",
+      };
+
+      const darkTheme = {
+        primaryColor: "#22262a",
+        primaryBorderColor: "#464646",
+        primaryTextColor: "#f1f2f4",
+        secondaryColor: "#1b1e22",
+        tertiaryColor: "#131619",
+        lineColor: "#848f9a",
+        textColor: "#f1f2f4",
+        fontFamily: "Inter, sans-serif",
+        fontSize: "14px",
+        nodeBorder: "#464646",
+        nodeTextColor: "#f1f2f4",
+        edgeLabelBackground: "#131619",
+      };
+
+      window.mermaid = mermaid;
+      window.mermaidThemeVariables = () =>
+        document.documentElement.dataset.theme === "dark" ? darkTheme : lightTheme;
     </script>
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -121,7 +128,7 @@
           placeholder="Search..."
         />
 
-        <.inline_dropdown id="docs-language-selector" label={language_name(@locale)}>
+        <.inline_dropdown id="docs-language-selector" size="large" label={language_name(@locale)}>
           <.dropdown_item
             :for={lang <- TuistWeb.Marketing.Localization.languages()}
             label={lang.native}
@@ -164,11 +171,12 @@
             <.brand_bluesky />
           </.neutral_button>
         </div>
+        <.theme_toggle id="docs-theme-toggle" label={dgettext("docs", "Toggle theme")} />
         <.button
           :if={is_nil(assigns[:current_user])}
           label={dgettext("docs", "Log in")}
           variant="primary"
-          size="small"
+          size="large"
           href={~p"/docs/login?#{%{return_to: @current_path}}"}
         />
         <.account_dropdown
@@ -181,11 +189,16 @@
         />
       </div>
       <div data-part="mobile-actions">
+        <.theme_toggle
+          id="docs-mobile-theme-toggle"
+          size="large"
+          label={dgettext("docs", "Toggle theme")}
+        />
         <.button
           :if={is_nil(assigns[:current_user])}
           label={dgettext("docs", "Log in")}
           variant="primary"
-          size="small"
+          size="large"
           href={~p"/docs/login?#{%{return_to: @current_path}}"}
         />
         <.account_dropdown

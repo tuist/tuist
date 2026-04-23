@@ -402,8 +402,8 @@ config :tuist, Oban,
            {"*/10 * * * *", Tuist.Alerts.Workers.AlertWorker},
            {"@daily", Tuist.Billing.Workers.SyncStripeMetersWorker},
            {"@daily", Tuist.Accounts.Workers.UpdateAllAccountsUsageWorker},
-           {"@daily", Tuist.Tests.Workers.ClearCooledDownFlakyTestsScheduler},
-           {"@hourly", Tuist.Tests.Workers.ExpireStaleTestRunsWorker}
+           {"@hourly", Tuist.Tests.Workers.ExpireStaleTestRunsWorker},
+           {"* * * * *", Tuist.Automations.Workers.AutomationScheduler}
          ],
          else: []
        )}

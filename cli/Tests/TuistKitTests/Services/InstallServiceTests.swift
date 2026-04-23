@@ -1,6 +1,5 @@
 import Foundation
 import Mockable
-import TSCUtility
 import TuistConfig
 import TuistConfigLoader
 import TuistConstants
@@ -60,11 +59,10 @@ final class InstallServiceTests: TuistUnitTestCase {
             .update(at: .any, arguments: .any, printOutput: .any)
             .willReturn()
 
-        let stubbedSwiftVersion = TSCUtility.Version(5, 3, 0)
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(
-                .test(project: .generated(.test(swiftVersion: .init(stringLiteral: stubbedSwiftVersion.description))))
+                .test(project: .generated(.test()))
             )
 
         pluginService.fetchRemotePluginsStub = { _ in
@@ -142,11 +140,10 @@ final class InstallServiceTests: TuistUnitTestCase {
             .resolve(at: .any, arguments: .any, printOutput: .any)
             .willReturn()
 
-        let stubbedSwiftVersion = TSCUtility.Version(5, 3, 0)
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(
-                Tuist.test(project: .generated(.test(swiftVersion: .init(stringLiteral: stubbedSwiftVersion.description))))
+                Tuist.test(project: .generated(.test()))
             )
 
         pluginService.fetchRemotePluginsStub = { _ in }
@@ -193,11 +190,10 @@ final class InstallServiceTests: TuistUnitTestCase {
             .resolve(at: .any, arguments: .any, printOutput: .any)
             .willReturn()
 
-        let stubbedSwiftVersion = TSCUtility.Version(5, 3, 0)
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(
-                Tuist.test(project: .generated(.test(swiftVersion: .init(stringLiteral: stubbedSwiftVersion.description))))
+                Tuist.test(project: .generated(.test()))
             )
 
         pluginService.fetchRemotePluginsStub = { _ in }
@@ -284,12 +280,10 @@ final class InstallServiceTests: TuistUnitTestCase {
             .locatePackageManifest(at: .any)
             .willReturn(stubbedPath.appending(components: "Tuist", "Package.swift"))
 
-        let stubbedSwiftVersion = TSCUtility.Version(5, 3, 0)
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(
                 Tuist.test(project: .generated(.test(
-                    swiftVersion: .init(stringLiteral: stubbedSwiftVersion.description),
                     installOptions: .test(
                         passthroughSwiftPackageManagerArguments: ["--replace-scm-with-registry"]
                     )
@@ -334,12 +328,10 @@ final class InstallServiceTests: TuistUnitTestCase {
             .locatePackageManifest(at: .any)
             .willReturn(stubbedPath.appending(components: "Tuist", "Package.swift"))
 
-        let stubbedSwiftVersion = TSCUtility.Version(5, 3, 0)
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(
                 Tuist.test(project: .generated(.test(
-                    swiftVersion: .init(stringLiteral: stubbedSwiftVersion.description),
                     installOptions: .test(
                         passthroughSwiftPackageManagerArguments: ["--replace-scm-with-registry"]
                     )
@@ -384,12 +376,10 @@ final class InstallServiceTests: TuistUnitTestCase {
             .locatePackageManifest(at: .any)
             .willReturn(stubbedPath.appending(components: "Tuist", "Package.swift"))
 
-        let stubbedSwiftVersion = TSCUtility.Version(5, 3, 0)
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(
                 Tuist.test(project: .generated(.test(
-                    swiftVersion: .init(stringLiteral: stubbedSwiftVersion.description),
                     installOptions: .test(
                         passthroughSwiftPackageManagerArguments: ["--replace-scm-with-registry"]
                     )

@@ -14,12 +14,13 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
   def init(:preview), do: :preview
   def init(:test), do: :test
   def init(:build), do: :build
+  def init(:automation_alert), do: :automation_alert
 
   def init(opts) when is_list(opts) do
     opts
   end
 
-  @project_categories [:run, :bundle, :cache, :preview, :test, :build]
+  @project_categories [:run, :bundle, :cache, :preview, :test, :build, :automation_alert]
 
   def call(conn, category) when category in @project_categories do
     authorize_project(conn, category)

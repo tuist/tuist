@@ -8,6 +8,10 @@ defmodule Cache.Xcode.EventsPipeline do
 
   alias Broadway.Message
 
+  @buffer_name :xcode_events_buffer
+
+  def buffer_name, do: @buffer_name
+
   def start_link(_opts) do
     batch_size = Application.get_env(:cache, :events_batch_size, 100)
     batch_timeout = Application.get_env(:cache, :events_batch_timeout, 5_000)
@@ -15,7 +19,7 @@ defmodule Cache.Xcode.EventsPipeline do
     Broadway.start_link(__MODULE__,
       name: __MODULE__,
       producer: [
-        module: {OffBroadwayMemory.Producer, buffer: :xcode_events_buffer},
+        module: {OffBroadwayMemory.Producer, buffer: buffer_name()},
         concurrency: 1
       ],
       processors: [
@@ -35,7 +39,15 @@ defmodule Cache.Xcode.EventsPipeline do
   Pushes a Xcode cache event to the pipeline asynchronously.
   """
   def async_push(event) do
-    OffBroadwayMemory.Buffer.async_push(:xcode_events_buffer, event)
+    async_push(event, buffer_name())
+  end
+
+  def async_push(event, buffer_name) do
+    if Cache.AnalyticsCircuitBreaker.accept_event?(webhook_url()) do
+      OffBroadwayMemory.Buffer.async_push(buffer_name, event)
+    else
+      :ok
+    end
   end
 
   @impl true
@@ -53,9 +65,6 @@ defmodule Cache.Xcode.EventsPipeline do
   end
 
   defp send_batch(events) do
-    server_url = Cache.Authentication.server_url()
-    url = "#{server_url}/webhooks/cache"
-
     api_events =
       Enum.map(events, fn event ->
         %{
@@ -69,6 +78,10 @@ defmodule Cache.Xcode.EventsPipeline do
 
     body = JSON.encode!(%{events: api_events})
 
-    Cache.WebhookClient.signed_post(url, body, "Xcode cache analytics")
+    Cache.WebhookClient.signed_post(webhook_url(), body, "Xcode cache analytics")
+  end
+
+  defp webhook_url do
+    "#{Cache.Authentication.server_url()}/webhooks/cache"
   end
 end

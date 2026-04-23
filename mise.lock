@@ -109,18 +109,12 @@ checksum = "sha256:2902d2a278597e4983d70ed6d694fcab36b29b0b7d109771c59d7da7147af
 url = "https://github.com/caddyserver/caddy/releases/download/v2.11.2/caddy_2.11.2_windows_amd64.zip"
 
 [[tools.elixir]]
-version = "1.19.1"
+version = "1.19.5"
 backend = "core:elixir"
 
-[tools.elixir."platforms.macos-arm64"]
-checksum = "blake3:76681c4c67ae2b78b3b7e8b624a24699db1f8f4d8849181e4b9e6bdc5b218428"
-
 [[tools.erlang]]
-version = "28.1"
+version = "28.4.3"
 backend = "core:erlang"
-
-[tools.erlang."platforms.macos-arm64"]
-checksum = "blake3:bff63ba6bebaec189cffd0652357721298a314bd4dbb7351f241e563cc08b46b"
 
 [[tools.git-cliff]]
 version = "2.6.0"
@@ -157,12 +151,27 @@ url = "https://github.com/orhun/git-cliff/releases/download/v2.6.0/git-cliff-2.6
 version = "8.12.1"
 backend = "aqua:gradle/gradle"
 
+[tools.gradle."platforms.linux-arm64"]
+url = "https://github.com/gradle/gradle-distributions/releases/download/v8.12.1/gradle-8.12.1-bin.zip"
+
+[tools.gradle."platforms.linux-arm64-musl"]
+url = "https://github.com/gradle/gradle-distributions/releases/download/v8.12.1/gradle-8.12.1-bin.zip"
+
 [tools.gradle."platforms.linux-x64"]
 checksum = "blake3:7761b714daf36ba736871d060669a60eb6a728aad96ae817d3972d82f64730e9"
 url = "https://github.com/gradle/gradle-distributions/releases/download/v8.12.1/gradle-8.12.1-bin.zip"
 
+[tools.gradle."platforms.linux-x64-musl"]
+url = "https://github.com/gradle/gradle-distributions/releases/download/v8.12.1/gradle-8.12.1-bin.zip"
+
 [tools.gradle."platforms.macos-arm64"]
 checksum = "blake3:7761b714daf36ba736871d060669a60eb6a728aad96ae817d3972d82f64730e9"
+url = "https://github.com/gradle/gradle-distributions/releases/download/v8.12.1/gradle-8.12.1-bin.zip"
+
+[tools.gradle."platforms.macos-x64"]
+url = "https://github.com/gradle/gradle-distributions/releases/download/v8.12.1/gradle-8.12.1-bin.zip"
+
+[tools.gradle."platforms.windows-x64"]
 url = "https://github.com/gradle/gradle-distributions/releases/download/v8.12.1/gradle-8.12.1-bin.zip"
 
 [[tools.java]]
@@ -366,32 +375,32 @@ url = "https://github.com/realm/SwiftLint/releases/download/0.59.1/portable_swif
 url = "https://github.com/realm/SwiftLint/releases/download/0.59.1/portable_swiftlint.zip"
 
 [[tools.tuist]]
-version = "4.183.1"
+version = "4.184.1"
 backend = "aqua:tuist/tuist"
 
 [tools.tuist."platforms.linux-arm64"]
-checksum = "sha256:62a06c42c0aece5872c5d2bfc8a8fd6d912ffe90a101cc2ab4ff1c1c81ab3cb1"
-url = "https://github.com/tuist/tuist/releases/download/4.183.1/tuist-linux-aarch64.tar.gz"
+checksum = "sha256:52095136697f2f97ca2177d900b729f91e94bd650502e751e5aea82d0a2af64d"
+url = "https://github.com/tuist/tuist/releases/download/4.184.1/tuist-linux-aarch64.tar.gz"
 
 [tools.tuist."platforms.linux-arm64-musl"]
-checksum = "sha256:62a06c42c0aece5872c5d2bfc8a8fd6d912ffe90a101cc2ab4ff1c1c81ab3cb1"
-url = "https://github.com/tuist/tuist/releases/download/4.183.1/tuist-linux-aarch64.tar.gz"
+checksum = "sha256:52095136697f2f97ca2177d900b729f91e94bd650502e751e5aea82d0a2af64d"
+url = "https://github.com/tuist/tuist/releases/download/4.184.1/tuist-linux-aarch64.tar.gz"
 
 [tools.tuist."platforms.linux-x64"]
-checksum = "sha256:ab3ef1638415a756a8f416c9edc789455e790e5d778eb43692d786d9347fe752"
-url = "https://github.com/tuist/tuist/releases/download/4.183.1/tuist-linux-x86_64.tar.gz"
+checksum = "sha256:081c9c1f534e5060ef88bc07f3f60b200fca852da19ae89a1bb1d724283d9f71"
+url = "https://github.com/tuist/tuist/releases/download/4.184.1/tuist-linux-x86_64.tar.gz"
 
 [tools.tuist."platforms.linux-x64-musl"]
-checksum = "sha256:ab3ef1638415a756a8f416c9edc789455e790e5d778eb43692d786d9347fe752"
-url = "https://github.com/tuist/tuist/releases/download/4.183.1/tuist-linux-x86_64.tar.gz"
+checksum = "sha256:081c9c1f534e5060ef88bc07f3f60b200fca852da19ae89a1bb1d724283d9f71"
+url = "https://github.com/tuist/tuist/releases/download/4.184.1/tuist-linux-x86_64.tar.gz"
 
 [tools.tuist."platforms.macos-arm64"]
-checksum = "sha256:cdf05f9aac540a0a4095f068b2ee469f4787009005a04cbe5ed5d861f156071b"
-url = "https://github.com/tuist/tuist/releases/download/4.183.1/tuist.zip"
+checksum = "sha256:975697f27de93b94d851c9f85b2e8c538880c40abb27164898e2d8424ae8367d"
+url = "https://github.com/tuist/tuist/releases/download/4.184.1/tuist.zip"
 
 [tools.tuist."platforms.macos-x64"]
-checksum = "sha256:cdf05f9aac540a0a4095f068b2ee469f4787009005a04cbe5ed5d861f156071b"
-url = "https://github.com/tuist/tuist/releases/download/4.183.1/tuist.zip"
+checksum = "sha256:975697f27de93b94d851c9f85b2e8c538880c40abb27164898e2d8424ae8367d"
+url = "https://github.com/tuist/tuist/releases/download/4.184.1/tuist.zip"
 
 [[tools.yq]]
 version = "4.52.5"

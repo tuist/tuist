@@ -38,14 +38,22 @@ defmodule TuistWeb.Plugs.WebhookPlug do
   @impl true
   def init(options) do
     read_timeout = Keyword.get(options, :read_timeout, 15_000)
+    body_length = Keyword.get(options, :body_length)
+
+    parser_options =
+      maybe_put_parser_option(
+        [
+          parsers: [:json],
+          body_reader: {CacheBodyReader, :read_body, []},
+          json_decoder: Phoenix.json_library(),
+          read_timeout: read_timeout
+        ],
+        :length,
+        body_length
+      )
 
     parser_opts =
-      Plug.Parsers.init(
-        parsers: [:json],
-        body_reader: {CacheBodyReader, :read_body, []},
-        json_decoder: Phoenix.json_library(),
-        read_timeout: read_timeout
-      )
+      Plug.Parsers.init(parser_options)
 
     Keyword.put(options, :parser_opts, parser_opts)
   end
@@ -72,46 +80,25 @@ defmodule TuistWeb.Plugs.WebhookPlug do
     signature_header = get_config(options, :signature_header) || "x-hub-signature-256"
     signature_prefix = get_config(options, :signature_prefix)
     parser_opts = get_config(options, :parser_opts)
+    signature = conn |> get_req_header(signature_header) |> List.first()
 
-    conn =
-      try do
-        Plug.Parsers.call(conn, parser_opts)
-      rescue
-        error in Bandit.HTTPError ->
-          if error.plug_status == :request_timeout do
-            conn
-            |> send_resp(408, "Request Timeout")
-            |> halt()
-          else
-            reraise error, __STACKTRACE__
-          end
-      end
-
-    if conn.halted do
+    if is_nil(signature) do
       conn
+      |> send_resp(401, "Missing #{signature_header} header")
+      |> halt()
     else
-      signature = conn |> get_req_header(signature_header) |> List.first()
+      conn = parse_request_body(conn, parser_opts)
 
-      cond do
-        is_nil(signature) ->
-          conn
-          |> send_resp(401, "Missing #{signature_header} header")
-          |> halt()
-
-        conn.assigns.raw_body
-        |> List.wrap()
-        |> IO.iodata_to_binary()
-        |> verify_signature(
-          secret,
-          signature,
-          signature_prefix
-        ) ->
+      if conn.halted do
+        conn
+      else
+        if valid_signature?(conn, secret, signature, signature_prefix) do
           handle_verified_webhook(conn, module)
-
-        true ->
+        else
           conn
           |> send_resp(403, "Invalid signature")
           |> halt()
+        end
       end
     end
   end
@@ -141,6 +128,34 @@ defmodule TuistWeb.Plugs.WebhookPlug do
 
     Plug.Crypto.secure_compare(signature_in_header, expected_signature_with_prefix)
   end
+
+  defp valid_signature?(conn, secret, signature, signature_prefix) do
+    conn.assigns.raw_body
+    |> List.wrap()
+    |> IO.iodata_to_binary()
+    |> verify_signature(secret, signature, signature_prefix)
+  end
+
+  defp parse_request_body(conn, parser_opts) do
+    Plug.Parsers.call(conn, parser_opts)
+  rescue
+    error in Bandit.HTTPError ->
+      if error.plug_status == :request_timeout do
+        conn
+        |> send_resp(408, "Request Timeout")
+        |> halt()
+      else
+        reraise error, __STACKTRACE__
+      end
+
+    Plug.Parsers.RequestTooLargeError ->
+      conn
+      |> send_resp(413, "Payload Too Large")
+      |> halt()
+  end
+
+  defp maybe_put_parser_option(options, _key, nil), do: options
+  defp maybe_put_parser_option(options, key, value), do: Keyword.put(options, key, value)
 
   defp parse_secret!({m, f, a}), do: apply(m, f, a)
   defp parse_secret!(fun) when is_function(fun), do: fun.()
