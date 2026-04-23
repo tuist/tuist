@@ -926,6 +926,7 @@ var targets: [Target] = [
             "TuistServer",
             "TuistEnvironmentTesting",
             "TuistOIDC",
+            "TuistTesting",
             "TuistUserInputReader",
             pathDependency,
             fileSystemDependency,
@@ -986,6 +987,7 @@ var targets: [Target] = [
             "TuistConfigLoader",
             "TuistEnvironmentTesting",
             "TuistNooraTesting",
+            "TuistTesting",
             mockableDependency,
         ],
         path: "cli/Tests/TuistRegistryCommandTests"
