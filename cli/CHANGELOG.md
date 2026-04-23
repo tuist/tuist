@@ -1,7 +1,18 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.184.0<!-- RELEASE NOTES START -->
+## What's Changed in 4.184.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* Support  optional Buildable Folders by [@PaulTaykalo](https://github.com/PaulTaykalo) in [#9974](https://github.com/tuist/tuist/pull/9974)
+* error instead of silently ignoring mismatched test shard flags by [@fortmarek](https://github.com/fortmarek) in [#10392](https://github.com/tuist/tuist/pull/10392)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.184.1...4.184.2
+
+## What's Changed in 4.184.1<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
 
@@ -17,7 +28,7 @@ All notable changes to this project will be documented in this file.
 
 
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.183.0...4.184.0
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.183.0...4.184.1
 
 ## What's Changed in 4.183.0<!-- RELEASE NOTES START -->
 
