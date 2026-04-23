@@ -1,58 +1,47 @@
 # Infrastructure
 
-This node covers infrastructure and deployment assets under `infra/`.
+Deployment assets for the Tuist stack — both the managed cluster we operate and the self-host chart our customers install.
 
-## Components
+## Layout
 
-### Helm (`helm/`)
-Kubernetes deployment assets for self-hosted and customer-managed Tuist installations.
+### `helm/tuist/` — main Tuist Helm chart
+Umbrella chart for the server, cache, processor, and optional embedded infrastructure (Postgres, ClickHouse, object storage, observability). Used by:
+- **Self-hosters** — `helm install tuist infra/helm/tuist` with their own `values.yaml`. `managedSecrets: false` (the default) keeps behavior self-hosted: DATABASE_URL / S3 / etc. come from values directly.
+- **Managed cluster (us)** — layered with `values-managed-common.yaml` + `values-managed-{staging,canary,production}.yaml`. `managedSecrets: true` swaps the chart to ESO-driven secret sync from 1Password, external databases, Hetzner Cloud LoadBalancer annotations, etc.
 
-- `tuist/` - Umbrella chart for the Tuist server, cache service, processor, and optional infrastructure dependencies
-- Supports embedded or external PostgreSQL, ClickHouse, object storage, and observability components
-- Includes local validation flows using `helm` and small clusters such as `kind`
+When editing this chart, anything gated behind `managedSecrets` must stay gated so self-hosters aren't forced into the ESO dependency.
 
-### Grafana Alloy (`grafana-alloy/`)
-Prometheus metrics collector that scrapes metrics from Tuist server instances and forwards them to Grafana Cloud.
+### `helm/alloy/` — in-cluster Grafana Alloy (managed only)
+Ships telemetry (metrics / traces / logs) from the managed workload clusters to Grafana Cloud. Self-hosters get embedded Grafana / Prometheus / Loki / Tempo via the main chart's `observability.enabled` block instead; they never touch this chart.
 
-- `config.alloy` - Alloy configuration for scraping production, canary, and staging instances
-- `Dockerfile` - Container image for deploying Alloy on Render
+README: [`helm/alloy/README.md`](helm/alloy/README.md).
 
-**Scraped Targets:**
-- Production: `tuist:9091`
-- Canary: `tuist-canary:9091`
-- Staging: `tuist-staging:9091`
+### `helm/platform/` — platform bootstrap chart
+cert-manager + ingress-nginx + external-dns + ESO controllers, installed once per workload cluster. Provider-specific LB annotations live in per-provider overlays (e.g., `values-hetzner.yaml`).
 
-**Metrics Destination:** Grafana Cloud Prometheus (EU West 2)
+### `k8s/` — Syself Apalla cluster manifests
+Cluster API CRs and cluster-scoped manifests that stand up our managed Kubernetes clusters on Hetzner via Syself Apalla:
+- `syself/workload-cluster-{staging,canary,production}.yaml` — per-env Cluster CRs (control plane + worker shape, region, k8s version).
+- `syself/cluster-stack.yaml` — ClusterStack subscription (controls which k8s version + node image build we use).
+- `syself/ci-service-account.yaml` — SA + RBAC for the GitHub Actions deployer.
+- `syself/baremetal-host-worker.yaml.example` — HetznerBareMetalHost template. Kept for the future bare-metal move (see "Why not bare metal" in the migration PR); unused today.
+- `syself/ingress-nginx-values.yaml` — Helm values with Hetzner LB annotations.
+- `syself-onboarding.md` — end-to-end runbook for standing up a new workload cluster.
+- `provider-evaluation.md` — historical record of the provider decision (Syself vs. GKE etc.).
 
-### Registry Router (`registry-router/`)
-Cloudflare Worker that geo-routes requests to `registry.tuist.dev` to the nearest healthy cache origin based on the requester's continent. Replaces the Cloudflare Load Balancing setup.
-
-- `wrangler.toml` - Worker configuration, routes, KV binding, and cron trigger
-- `src/index.ts` - Geo-routing logic, health-check cron handler, and failover
-- `package.json` - Project manifest
-
-**Origins:**
-- `cache-eu-central.tuist.dev`
-- `cache-eu-north.tuist.dev`
-- `cache-us-east.tuist.dev`
-- `cache-us-east-2.tuist.dev`
-- `cache-us-east-3.tuist.dev`
-- `cache-us-west.tuist.dev`
-- `cache-ap-southeast.tuist.dev`
-- `cache-sa-west.tuist.dev`
-- `cache-au-east.tuist.dev`
-
-**Health Checks:** Cron Trigger every 60s writes health state to Workers KV (TTL 120s). Missing keys are treated as healthy (fail-open).
-
-**Adding/Removing Regions:** Update the `ROUTES` table in `src/index.ts` and deploy with `wrangler deploy`.
+### `registry-router/` — Cloudflare Worker for `registry.tuist.dev`
+Geo-routes cache registry requests to the nearest healthy cache origin based on the requester's continent. Unrelated to the Kubernetes migration.
 
 ## Deployment
-Infrastructure components are deployed on Render as private services. Configuration changes should be tested in staging before production.
 
-The Registry Router is deployed as a Cloudflare Worker via `wrangler deploy` from `infra/registry-router/`.
-Helm charts under `infra/helm/` target Kubernetes-based self-hosted deployments.
+- **Tuist server** (managed) is deployed to our Syself Kubernetes clusters via the CI workflows:
+  - `.github/workflows/server-deployment.yml` — build + deploy to one environment (workflow_dispatch or workflow_call).
+  - `.github/workflows/server-production-deployment.yml` — cascade on push-to-main: canary → acceptance tests → production, with hotfix fast-path.
+- **Registry Router** — `wrangler deploy` from `registry-router/`.
+- **Helm charts** under `helm/` target Kubernetes (managed + self-hosted).
 
-## Environment Variables
-The Alloy service requires:
-- `PROMETHEUS_USERNAME` - Grafana Cloud username
-- `PROMETHEUS_TOKEN` - Grafana Cloud API token
+## Conventions
+
+- Keep the main Tuist chart (`helm/tuist/`) provider-agnostic. Managed-cluster-specific behavior hides behind feature flags (`managedSecrets`, `externalSecrets`) that default to self-host-safe values.
+- Don't let `helm/alloy/` grow dependencies on things the self-host chart needs — the two are consumed by different users.
+- When a new managed-cluster operational step becomes reproducible, document it in `k8s/syself-onboarding.md` rather than in this AGENTS.md. This file maps the territory; the runbook walks you through it.
