@@ -327,6 +327,8 @@ defmodule L10n.Translator do
   @default_timeout 900_000
   @max_attempts 3
   @base_retry_delay_ms 1_000
+  @retryable_statuses [429, 500, 502, 503, 504]
+  @retryable_transport_reasons [:closed, :timeout, :econnrefused, :econnreset]
 
   @plural_forms %{
     "es" => "nplurals=2; plural=n != 1;",
@@ -442,47 +444,51 @@ defmodule L10n.Translator do
         {:ok, response}
 
       {:error, error} ->
-        message = Exception.message(error)
-
-        if retryable_error?(message) and attempt < @max_attempts do
-          delay = trunc(@base_retry_delay_ms * :math.pow(2, attempt - 1))
-
-          IO.puts(
-            "    #{locale}: transient provider error, retrying in #{delay} ms (attempt #{attempt + 1}/#{@max_attempts})"
-          )
-
-          Process.sleep(delay)
-          generate_text_with_retries(resolved_model, messages, timeout, locale, attempt + 1)
-        else
-          {:error, message}
-        end
+        handle_retry(error, resolved_model, messages, timeout, locale, attempt)
     end
   end
 
-  defp retryable_error?(message) do
-    lowercased_message = String.downcase(message)
+  defp handle_retry(error, resolved_model, messages, timeout, locale, attempt) do
+    case retry_delay_ms(error, attempt) do
+      nil ->
+        {:error, Exception.message(error)}
 
-    Enum.any?(
-      [
-        " 429",
-        "(429)",
-        " 500",
-        "(500)",
-        " 502",
-        "(502)",
-        " 503",
-        "(503)",
-        " 504",
-        "(504)",
-        "connection reset",
-        "econnreset",
-        "rate limit",
-        "temporarily unavailable",
-        "timed out",
-        "timeout"
-      ],
-      &String.contains?(lowercased_message, &1)
-    )
+      delay ->
+        IO.puts(
+          "    #{locale}: transient provider error, retrying in #{delay} ms (attempt #{attempt + 1}/#{@max_attempts})"
+        )
+
+        Process.sleep(delay)
+        generate_text_with_retries(resolved_model, messages, timeout, locale, attempt + 1)
+    end
+  end
+
+  defp retry_delay_ms(error, attempt) when attempt < @max_attempts do
+    if retryable_error?(error), do: backoff_delay_ms(attempt)
+  end
+
+  defp retry_delay_ms(_error, _attempt), do: nil
+
+  defp retryable_error?(%ReqLLM.Error.API.Request{status: status})
+       when status in @retryable_statuses,
+       do: true
+
+  defp retryable_error?(%ReqLLM.Error.API.Response{status: status})
+       when status in @retryable_statuses,
+       do: true
+
+  defp retryable_error?(%ReqLLM.Error.API.Request{cause: %Req.TransportError{reason: reason}})
+       when reason in @retryable_transport_reasons,
+       do: true
+
+  defp retryable_error?(%Req.TransportError{reason: reason})
+       when reason in @retryable_transport_reasons,
+       do: true
+
+  defp retryable_error?(_error), do: false
+
+  defp backoff_delay_ms(attempt) do
+    @base_retry_delay_ms * Integer.pow(2, attempt - 1)
   end
 
   @doc """
