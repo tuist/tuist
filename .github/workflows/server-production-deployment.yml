@@ -11,14 +11,20 @@ name: Server Production Deployment
 #
 # Each leg is delegated to server-deployment.yml via workflow_call so
 # plan/build/deploy logic stays in one place. This workflow only owns the
-# cascade shape, acceptance tests, and Slack notifications.
+# cascade shape + acceptance tests.
 #
-# Required secrets:
-#   KUBECONFIG (per-env, on the server-k8s-canary / server-k8s-production
-#     GitHub Environments) — base64-encoded kubeconfig for each cluster.
-#   SLACK_DEPLOY_WEBHOOK (repo secret) — Slack Incoming Webhook URL.
-#     Failure messages fire for any failed leg; success messages fire
-#     only when production lands green (cascade or hotfix).
+# Slack notifications:
+#   - Any failure on main → .github/workflows/notify-failure.yml picks up
+#     the `workflow_run` event for this workflow's name and pings Slack.
+#   - Production success → .github/workflows/notify-deploy-success.yml
+#     picks up the same `workflow_run` event on success and pings Slack.
+#   Both rely on the SLACK_WEBHOOK_URL item in the `cache` 1Password
+#   vault; the OP_SERVICE_ACCOUNT_TOKEN repo secret already authenticates
+#   them.
+#
+# Required per-env secrets (on server-k8s-canary / server-k8s-production
+# GitHub Environments):
+#   KUBECONFIG — base64-encoded kubeconfig for each cluster.
 
 on:
   push:
@@ -126,88 +132,8 @@ jobs:
       commit_sha: ${{ github.sha }}
     secrets: inherit
 
-  # --------------------------------------------------------------------------
-  # Slack notifications.
-  #   - Failure: fires on any failed leg, names the leg that broke.
-  #   - Success: fires only when production (standard or hotfix) lands green.
-  # --------------------------------------------------------------------------
-  notify-failure:
-    name: Slack notify (failure)
-    needs: [canary, acceptance-tests, production, production-hotfix]
-    if: always() && failure()
-    runs-on: namespace-profile-default
-    steps:
-      - id: where
-        run: |
-          if [ "${{ needs.canary.result }}" = "failure" ]; then
-            label="canary"
-          elif [ "${{ needs.acceptance-tests.result }}" = "failure" ]; then
-            label="canary acceptance tests"
-          elif [ "${{ needs.production.result }}" = "failure" ]; then
-            label="production"
-          elif [ "${{ needs.production-hotfix.result }}" = "failure" ]; then
-            label="production (hotfix)"
-          else
-            label="unknown leg"
-          fi
-          echo "label=$label" >> "$GITHUB_OUTPUT"
-      - uses: slackapi/slack-github-action@v2
-        with:
-          webhook: ${{ secrets.SLACK_DEPLOY_WEBHOOK }}
-          webhook-type: incoming-webhook
-          payload: |
-            {
-              "text": ":red_circle: Tuist server deploy failed — *${{ steps.where.outputs.label }}*",
-              "blocks": [
-                {
-                  "type": "section",
-                  "text": {
-                    "type": "mrkdwn",
-                    "text": ":red_circle: *Tuist server deploy failed — ${{ steps.where.outputs.label }}*"
-                  }
-                },
-                {
-                  "type": "context",
-                  "elements": [
-                    { "type": "mrkdwn", "text": "SHA: `${{ inputs.commit_sha || github.sha }}`" },
-                    { "type": "mrkdwn", "text": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View run>" }
-                  ]
-                }
-              ]
-            }
-
-  notify-production-success:
-    name: Slack notify (production success)
-    needs: [production, production-hotfix]
-    if: >-
-      always() && (
-        needs.production.result == 'success' ||
-        needs.production-hotfix.result == 'success'
-      )
-    runs-on: namespace-profile-default
-    steps:
-      - uses: slackapi/slack-github-action@v2
-        with:
-          webhook: ${{ secrets.SLACK_DEPLOY_WEBHOOK }}
-          webhook-type: incoming-webhook
-          payload: |
-            {
-              "text": ":white_check_mark: Tuist server production deploy succeeded",
-              "blocks": [
-                {
-                  "type": "section",
-                  "text": {
-                    "type": "mrkdwn",
-                    "text": ":white_check_mark: *Tuist server production deploy succeeded*"
-                  }
-                },
-                {
-                  "type": "context",
-                  "elements": [
-                    { "type": "mrkdwn", "text": "SHA: `${{ inputs.commit_sha || github.sha }}`" },
-                    { "type": "mrkdwn", "text": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View run>" },
-                    { "type": "mrkdwn", "text": "<https://tuist.dev|tuist.dev>" }
-                  ]
-                }
-              ]
-            }
+# Slack notifications for this workflow live in
+# .github/workflows/notify-failure.yml (failures) and
+# .github/workflows/notify-deploy-success.yml (production success) —
+# both listen to workflow_run events so they stay decoupled from the
+# cascade shape and can be reused by other deploy workflows.

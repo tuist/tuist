@@ -176,37 +176,5 @@ jobs:
           kubectl -n "${{ needs.plan.outputs.namespace }}" run smoke-$RANDOM --rm -i --restart=Never --image=curlimages/curl \
             --command -- curl -fsS "http://tuist-tuist-server/ready"
 
-  # Slack notification on deploy failure — only when this workflow was
-  # triggered directly (workflow_dispatch). When called from
-  # server-production-deployment.yml's cascade, the caller emits its own
-  # failure notification so we don't double-ping.
-  notify-failure:
-    name: Slack notify (failure)
-    needs: [plan, build, deploy]
-    if: always() && failure() && github.event_name == 'workflow_dispatch'
-    runs-on: namespace-profile-default
-    steps:
-      - uses: slackapi/slack-github-action@v2
-        with:
-          webhook: ${{ secrets.SLACK_DEPLOY_WEBHOOK }}
-          webhook-type: incoming-webhook
-          payload: |
-            {
-              "text": ":red_circle: Tuist server deploy failed — *${{ inputs.environment }}*",
-              "blocks": [
-                {
-                  "type": "section",
-                  "text": {
-                    "type": "mrkdwn",
-                    "text": ":red_circle: *Tuist server deploy failed — ${{ inputs.environment }}*"
-                  }
-                },
-                {
-                  "type": "context",
-                  "elements": [
-                    { "type": "mrkdwn", "text": "SHA: `${{ env.DEPLOY_SHA }}`" },
-                    { "type": "mrkdwn", "text": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View run>" }
-                  ]
-                }
-              ]
-            }
+# Failure notifications to Slack are handled by .github/workflows/notify-failure.yml
+# which listens to workflow_run events for any named workflow on main.
