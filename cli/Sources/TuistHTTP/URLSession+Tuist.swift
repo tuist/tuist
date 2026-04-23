@@ -60,6 +60,24 @@ private func makeTuistURLSession(useEnvironmentProxy: Bool) -> URLSession {
     #endif
 }
 
+final class DeferredSharedURLSession: @unchecked Sendable {
+    private let lock = NSLock()
+    private var session: URLSession?
+
+    func resolve() -> URLSession {
+        lock.lock()
+        defer { lock.unlock() }
+
+        if let session {
+            return session
+        }
+
+        let session = URLSession.tuistShared
+        self.session = session
+        return session
+    }
+}
+
 extension URLSession {
     public static var tuistShared: URLSession {
         makeTuistURLSession(useEnvironmentProxy: HTTPSettings.current.useEnvironmentProxy)

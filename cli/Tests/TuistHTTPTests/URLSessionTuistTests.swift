@@ -63,5 +63,41 @@
                     == "proxy.tuist.dev"
             )
         }
+
+        @Test(.withMockedEnvironment())
+        func deferredSharedURLSession_resolves_runtime_settings_on_first_use() async throws {
+            let environment = try #require(Environment.mocked)
+            environment.variables["HTTPS_PROXY"] = "http://proxy.tuist.dev:8080"
+
+            let previousSettings = HTTPSettings.current
+            HTTPSettings.current = .init(useEnvironmentProxy: true)
+            defer { HTTPSettings.current = previousSettings }
+
+            let deferredSession = DeferredSharedURLSession()
+            HTTPSettings.current = .init(useEnvironmentProxy: false)
+
+            let resolvedSession = deferredSession.resolve()
+
+            #expect(resolvedSession.configuration.connectionProxyDictionary == nil)
+        }
+
+        @Test(.withMockedEnvironment())
+        func deferredSharedURLSession_reuses_the_first_resolved_session() async throws {
+            let environment = try #require(Environment.mocked)
+            environment.variables["HTTPS_PROXY"] = "http://proxy.tuist.dev:8080"
+
+            let previousSettings = HTTPSettings.current
+            defer { HTTPSettings.current = previousSettings }
+
+            let deferredSession = DeferredSharedURLSession()
+            HTTPSettings.current = .init(useEnvironmentProxy: false)
+            let firstSession = deferredSession.resolve()
+
+            HTTPSettings.current = .init(useEnvironmentProxy: true)
+            let secondSession = deferredSession.resolve()
+
+            #expect(firstSession === secondSession)
+            #expect(secondSession.configuration.connectionProxyDictionary == nil)
+        }
     }
 #endif

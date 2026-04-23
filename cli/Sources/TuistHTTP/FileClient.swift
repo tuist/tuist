@@ -57,17 +57,19 @@ import Path
     public struct FileClient: FileClienting {
         // MARK: - Attributes
 
-        let session: URLSession
+        private let session: URLSession?
+        private let deferredSharedSession: DeferredSharedURLSession
         private let fileSystem: FileSysteming
         private let successStatusCodeRange = 200 ..< 300
 
         // MARK: - Init
 
         public init(
-            session: URLSession = .tuistShared,
+            session: URLSession? = nil,
             fileSystem: FileSysteming = FileSystem()
         ) {
             self.session = session
+            deferredSharedSession = DeferredSharedURLSession()
             self.fileSystem = fileSystem
         }
 
@@ -75,6 +77,7 @@ import Path
 
         public func download(url: URL) async throws -> AbsolutePath {
             let request = URLRequest(url: url)
+            let session = resolvedSession()
             do {
                 let (localUrl, response) = try await session.download(for: request)
                 guard let httpResponse = response as? HTTPURLResponse else {
@@ -107,6 +110,7 @@ import Path
             let fileSize = UInt64(metadata.size)
             let fileData = try Data(contentsOf: file.url)
             let request = uploadRequest(url: url, fileSize: fileSize, data: fileData)
+            let session = resolvedSession()
             do {
                 let (_, response) = try await session.data(for: request)
                 guard let httpResponse = response as? HTTPURLResponse else {
@@ -142,6 +146,10 @@ import Path
             request.setValue("zip", forHTTPHeaderField: "Content-Encoding")
             request.httpBody = data
             return request
+        }
+
+        private func resolvedSession() -> URLSession {
+            session ?? deferredSharedSession.resolve()
         }
 
         // MARK: - HAR Recording

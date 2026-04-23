@@ -15,10 +15,12 @@ import OpenAPIRuntime
 /// uses `data(for:delegate:)` which triggers the URLSessionTaskDelegate methods including
 /// `didFinishCollecting` for capturing detailed timing metrics.
 public struct TuistURLSessionTransport: ClientTransport {
-    private let session: URLSession
+    private let session: URLSession?
+    private let deferredSharedSession: DeferredSharedURLSession
 
-    public init(session: URLSession = .tuistShared) {
+    public init(session: URLSession? = nil) {
         self.session = session
+        deferredSharedSession = DeferredSharedURLSession()
     }
 
     public func send(
@@ -28,6 +30,7 @@ public struct TuistURLSessionTransport: ClientTransport {
         operationID _: String
     ) async throws -> (HTTPResponse, HTTPBody?) {
         let urlRequest = try await buildURLRequest(from: request, body: body, baseURL: baseURL)
+        let session = resolvedSession()
 
         #if canImport(TuistHAR)
             let metricsDelegate = TaskMetricsDelegate()
@@ -54,6 +57,10 @@ public struct TuistURLSessionTransport: ClientTransport {
         let responseBody: HTTPBody? = data.isEmpty ? nil : HTTPBody(data)
 
         return (httpResponseObj, responseBody)
+    }
+
+    private func resolvedSession() -> URLSession {
+        session ?? deferredSharedSession.resolve()
     }
 
     private func buildURLRequest(from request: HTTPRequest, body: HTTPBody?, baseURL: URL) async throws -> URLRequest {
