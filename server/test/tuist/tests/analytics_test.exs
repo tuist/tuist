@@ -2004,4 +2004,240 @@ defmodule Tuist.Tests.AnalyticsTest do
       assert Enum.max(got.values) <= 1
     end
   end
+
+  describe "flaky_tests_analytics/2" do
+    test "returns zero when no test cases are flagged as flaky" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:00:00Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      # When
+      got =
+        Analytics.flaky_tests_analytics(
+          project.id,
+          start_datetime: ~U[2024-04-01 00:00:00Z],
+          end_datetime: ~U[2024-04-30 23:59:59Z]
+        )
+
+      # Then
+      assert got.count == 0
+      assert Enum.all?(got.values, &(&1 == 0))
+    end
+
+    test "reflects marked_flaky / unmarked_flaky events across the period" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:00:00Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          is_flaky: false,
+          inserted_at: ~N[2024-04-01 00:00:00.000000]
+        )
+
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      RunsFixtures.test_case_event_fixture(
+        test_case_id: test_case.id,
+        event_type: "marked_flaky",
+        inserted_at: ~N[2024-04-10 12:00:00.000000]
+      )
+
+      RunsFixtures.test_case_event_fixture(
+        test_case_id: test_case.id,
+        event_type: "unmarked_flaky",
+        inserted_at: ~N[2024-04-20 12:00:00.000000]
+      )
+
+      # When
+      got =
+        Analytics.flaky_tests_analytics(
+          project.id,
+          start_datetime: ~U[2024-04-01 00:00:00Z],
+          end_datetime: ~U[2024-04-30 23:59:59Z]
+        )
+
+      # Then
+      april_5_index = Enum.find_index(got.dates, &(&1 == ~D[2024-04-05]))
+      april_15_index = Enum.find_index(got.dates, &(&1 == ~D[2024-04-15]))
+      april_25_index = Enum.find_index(got.dates, &(&1 == ~D[2024-04-25]))
+
+      assert Enum.at(got.values, april_5_index) == 0
+      assert Enum.at(got.values, april_15_index) == 1
+      assert Enum.at(got.values, april_25_index) == 0
+
+      assert got.count == Enum.at(got.values, -1)
+    end
+
+    test "honors the is_ci filter by scoping to test cases with matching runs in the period" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:00:00Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      ci_tc =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          is_flaky: true,
+          inserted_at: ~N[2024-04-01 00:00:00.000000]
+        )
+
+      local_tc =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          is_flaky: true,
+          inserted_at: ~N[2024-04-01 00:00:00.000000]
+        )
+
+      IngestRepo.insert_all(TestCase, [
+        ci_tc |> Map.from_struct() |> Map.delete(:__meta__),
+        local_tc |> Map.from_struct() |> Map.delete(:__meta__)
+      ])
+
+      # Each one marked flaky mid-period
+      RunsFixtures.test_case_event_fixture(
+        test_case_id: ci_tc.id,
+        event_type: "marked_flaky",
+        inserted_at: ~N[2024-04-10 12:00:00.000000]
+      )
+
+      RunsFixtures.test_case_event_fixture(
+        test_case_id: local_tc.id,
+        event_type: "marked_flaky",
+        inserted_at: ~N[2024-04-10 12:00:00.000000]
+      )
+
+      # CI-only test case has a CI run within the period; local-only has a local run
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: ci_tc.id,
+        is_ci: true,
+        ran_at: ~N[2024-04-15 09:00:00.000000]
+      )
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: local_tc.id,
+        is_ci: false,
+        ran_at: ~N[2024-04-15 09:00:00.000000]
+      )
+
+      base_opts = [start_datetime: ~U[2024-04-01 00:00:00Z], end_datetime: ~U[2024-04-30 23:59:59Z]]
+
+      any_env = Analytics.flaky_tests_analytics(project.id, base_opts)
+      ci_only = Analytics.flaky_tests_analytics(project.id, Keyword.put(base_opts, :is_ci, true))
+      local_only = Analytics.flaky_tests_analytics(project.id, Keyword.put(base_opts, :is_ci, false))
+
+      # Then
+      assert any_env.count == 2
+      assert ci_only.count == 1
+      assert local_only.count == 1
+    end
+  end
+
+  describe "test_cases_count_analytics/2" do
+    test "returns zero when no test cases have runs" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:00:00Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      # When
+      got =
+        Analytics.test_cases_count_analytics(
+          project.id,
+          start_datetime: ~U[2024-04-01 00:00:00Z],
+          end_datetime: ~U[2024-04-30 23:59:59Z]
+        )
+
+      # Then
+      assert got.count == 0
+      assert Enum.all?(got.values, &(&1 == 0))
+    end
+
+    test "counts distinct test cases active within the 14-day window and drops when runs stop" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:00:00Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      tc_a_id = UUIDv7.generate()
+      tc_b_id = UUIDv7.generate()
+
+      # Test case A: runs April 5 only (so active April 5 → April 19, drops off April 20+)
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: tc_a_id,
+        ran_at: ~N[2024-04-05 09:00:00.000000]
+      )
+
+      # Test case B: runs on April 20 (active April 20 → end)
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: tc_b_id,
+        ran_at: ~N[2024-04-20 09:00:00.000000]
+      )
+
+      # When
+      got =
+        Analytics.test_cases_count_analytics(
+          project.id,
+          start_datetime: ~U[2024-04-01 00:00:00Z],
+          end_datetime: ~U[2024-04-30 23:59:59Z]
+        )
+
+      # Then
+      april_4_index = Enum.find_index(got.dates, &(&1 == ~D[2024-04-04]))
+      april_10_index = Enum.find_index(got.dates, &(&1 == ~D[2024-04-10]))
+      april_18_index = Enum.find_index(got.dates, &(&1 == ~D[2024-04-18]))
+      april_20_index = Enum.find_index(got.dates, &(&1 == ~D[2024-04-20]))
+      april_25_index = Enum.find_index(got.dates, &(&1 == ~D[2024-04-25]))
+
+      # Before any run
+      assert Enum.at(got.values, april_4_index) == 0
+      # Only A within window
+      assert Enum.at(got.values, april_10_index) == 1
+      # A still within 14d of April 5
+      assert Enum.at(got.values, april_18_index) == 1
+      # B now active, A still within 14d (April 5 + 14 = April 19)
+      assert Enum.at(got.values, april_20_index) == 1
+      # A has dropped off (April 25 is >14d after April 5), B still active
+      assert Enum.at(got.values, april_25_index) == 1
+
+      # Current count reflects state at end_datetime
+      assert got.count == Enum.at(got.values, -1)
+    end
+
+    test "honors the is_ci filter" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:00:00Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      ci_only_id = UUIDv7.generate()
+      local_only_id = UUIDv7.generate()
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: ci_only_id,
+        is_ci: true,
+        ran_at: ~N[2024-04-20 09:00:00.000000]
+      )
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: local_only_id,
+        is_ci: false,
+        ran_at: ~N[2024-04-20 09:00:00.000000]
+      )
+
+      base_opts = [start_datetime: ~U[2024-04-01 00:00:00Z], end_datetime: ~U[2024-04-30 23:59:59Z]]
+
+      any_env = Analytics.test_cases_count_analytics(project.id, base_opts)
+      ci_only = Analytics.test_cases_count_analytics(project.id, Keyword.put(base_opts, :is_ci, true))
+      local_only = Analytics.test_cases_count_analytics(project.id, Keyword.put(base_opts, :is_ci, false))
+
+      # Then
+      assert any_env.count == 2
+      assert ci_only.count == 1
+      assert local_only.count == 1
+    end
+  end
 end
