@@ -290,7 +290,9 @@ defmodule L10n.Lock do
         entries =
           map
           |> Enum.sort_by(&elem(&1, 0))
-          |> Enum.map(fn {k, v} -> "#{inner_pad}#{JSON.encode!(k)}: #{pretty_json(v, indent + 1)}" end)
+          |> Enum.map(fn {k, v} ->
+            "#{inner_pad}#{JSON.encode!(k)}: #{pretty_json(v, indent + 1)}"
+          end)
           |> Enum.join(",\n")
 
         "{\n#{entries}\n#{pad}}"
@@ -323,12 +325,17 @@ defmodule L10n.Translator do
   """
 
   @default_timeout 900_000
+  @max_attempts 3
+  @base_retry_delay_ms 1_000
+  @retryable_statuses [429, 500, 502, 503, 504]
+  @retryable_transport_reasons [:closed, :timeout, :econnrefused, :econnreset]
 
   @plural_forms %{
     "es" => "nplurals=2; plural=n != 1;",
     "ja" => "nplurals=1; plural=0;",
     "ko" => "nplurals=1; plural=0;",
-    "ru" => "nplurals=3; plural=n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2;",
+    "ru" =>
+      "nplurals=3; plural=n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2;",
     "yue_Hant" => "nplurals=1; plural=0;",
     "zh_Hans" => "nplurals=1; plural=0;",
     "zh_Hant" => "nplurals=1; plural=0;"
@@ -411,10 +418,7 @@ defmodule L10n.Translator do
 
     resolved_model = resolve_model(model)
 
-    case ReqLLM.generate_text(resolved_model, messages,
-           max_tokens: 64_000,
-           receive_timeout: timeout
-         ) do
+    case generate_text_with_retries(resolved_model, messages, timeout, locale) do
       {:ok, response} ->
         text =
           response
@@ -426,9 +430,65 @@ defmodule L10n.Translator do
 
         {:ok, text}
 
-      {:error, error} ->
-        {:error, Exception.message(error)}
+      {:error, reason} ->
+        {:error, reason}
     end
+  end
+
+  defp generate_text_with_retries(resolved_model, messages, timeout, locale, attempt \\ 1) do
+    case ReqLLM.generate_text(resolved_model, messages,
+           max_tokens: 64_000,
+           receive_timeout: timeout
+         ) do
+      {:ok, response} ->
+        {:ok, response}
+
+      {:error, error} ->
+        handle_retry(error, resolved_model, messages, timeout, locale, attempt)
+    end
+  end
+
+  defp handle_retry(error, resolved_model, messages, timeout, locale, attempt) do
+    case retry_delay_ms(error, attempt) do
+      nil ->
+        {:error, Exception.message(error)}
+
+      delay ->
+        IO.puts(
+          "    #{locale}: transient provider error, retrying in #{delay} ms (attempt #{attempt + 1}/#{@max_attempts})"
+        )
+
+        Process.sleep(delay)
+        generate_text_with_retries(resolved_model, messages, timeout, locale, attempt + 1)
+    end
+  end
+
+  defp retry_delay_ms(error, attempt) when attempt < @max_attempts do
+    if retryable_error?(error), do: backoff_delay_ms(attempt)
+  end
+
+  defp retry_delay_ms(_error, _attempt), do: nil
+
+  defp retryable_error?(%ReqLLM.Error.API.Request{status: status})
+       when status in @retryable_statuses,
+       do: true
+
+  defp retryable_error?(%ReqLLM.Error.API.Response{status: status})
+       when status in @retryable_statuses,
+       do: true
+
+  defp retryable_error?(%ReqLLM.Error.API.Request{cause: %Req.TransportError{reason: reason}})
+       when reason in @retryable_transport_reasons,
+       do: true
+
+  defp retryable_error?(%Req.TransportError{reason: reason})
+       when reason in @retryable_transport_reasons,
+       do: true
+
+  defp retryable_error?(_error), do: false
+
+  defp backoff_delay_ms(attempt) do
+    @base_retry_delay_ms * Integer.pow(2, attempt - 1)
   end
 
   @doc """
@@ -439,7 +499,17 @@ defmodule L10n.Translator do
   to disk, and locked. Returns a list of `{:translated, locale}`,
   `{:skipped, locale}`, or `{:error, locale, reason}` tuples.
   """
-  def translate_all(pot_content, targets, context_body, model, l10n_dir, repo_root, pot_relative_path, context_files, opts) do
+  def translate_all(
+        pot_content,
+        targets,
+        context_body,
+        model,
+        l10n_dir,
+        repo_root,
+        pot_relative_path,
+        context_files,
+        opts
+      ) do
     request_timeout = Keyword.get(opts, :timeout, @default_timeout)
     force = Keyword.get(opts, :force, false)
     source_hash = L10n.Context.hash_content(pot_content)
@@ -449,7 +519,9 @@ defmodule L10n.Translator do
       fn target ->
         locale = target["locale"]
         language = target["language"]
-        {locale_override, locale_override_files} = Keyword.get(opts, :locale_override_fn, fn _ -> {"", []} end).(locale)
+
+        {locale_override, locale_override_files} =
+          Keyword.get(opts, :locale_override_fn, fn _ -> {"", []} end).(locale)
 
         hash =
           L10n.Lock.compute_hash(
@@ -589,7 +661,10 @@ defmodule L10n.CLI do
 
     model = Keyword.get(opts, :model) || Map.get(frontmatter, "model", "openai:gpt-4.1-mini")
     sources = Map.get(frontmatter, "sources", [])
-    target_path_template = Map.get(frontmatter, "target_path", "priv/gettext/{locale}/LC_MESSAGES")
+
+    target_path_template =
+      Map.get(frontmatter, "target_path", "priv/gettext/{locale}/LC_MESSAGES")
+
     raw_targets = Map.get(frontmatter, "targets", %{})
 
     all_targets =
@@ -640,7 +715,8 @@ defmodule L10n.CLI do
           )
         end,
         max_concurrency: Keyword.get(opts, :pot_concurrency, 4),
-        timeout: :infinity  # pot-level timeout is infinite; per-locale tasks have their own timeout
+        # pot-level timeout is infinite; per-locale tasks have their own timeout
+        timeout: :infinity
       )
       |> Enum.flat_map(fn {:ok, results} -> results end)
     end
