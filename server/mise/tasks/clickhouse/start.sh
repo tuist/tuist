@@ -9,10 +9,15 @@ CLICKHOUSE_NATIVE_PORT="${TUIST_SERVER_CLICKHOUSE_NATIVE_PORT:-9000}"
 CLICKHOUSE_INTERSERVER_HTTP_PORT="${TUIST_SERVER_CLICKHOUSE_INTERSERVER_HTTP_PORT:-9009}"
 CLICKHOUSE_MYSQL_PORT="${TUIST_SERVER_CLICKHOUSE_MYSQL_PORT:-9004}"
 CLICKHOUSE_POSTGRESQL_PORT="${TUIST_SERVER_CLICKHOUSE_POSTGRESQL_PORT:-9005}"
+CLICKHOUSE_KEEPER_PORT="${TUIST_SERVER_CLICKHOUSE_KEEPER_PORT:-9181}"
+CLICKHOUSE_KEEPER_RAFT_PORT="${TUIST_SERVER_CLICKHOUSE_KEEPER_RAFT_PORT:-9234}"
 CLICKHOUSE_HTTP_URL="${TUIST_SERVER_CLICKHOUSE_HTTP_URL:-http://127.0.0.1:${CLICKHOUSE_HTTP_PORT}}"
 
 CONFIG_DIR="${CLICKHOUSE_RUNTIME_DIR}/config.d"
 DATA_DIR="${CLICKHOUSE_RUNTIME_DIR}/data"
+COORDINATION_DIR="${DATA_DIR}/coordination"
+COORDINATION_LOG_DIR="${COORDINATION_DIR}/log"
+COORDINATION_SNAPSHOTS_DIR="${COORDINATION_DIR}/snapshots"
 TMP_DIR="${CLICKHOUSE_RUNTIME_DIR}/tmp"
 USER_FILES_DIR="${CLICKHOUSE_RUNTIME_DIR}/user_files"
 FORMAT_SCHEMA_DIR="${CLICKHOUSE_RUNTIME_DIR}/format_schemas"
@@ -22,7 +27,15 @@ STARTUP_LOG="${LOG_DIR}/startup.log"
 SERVER_LOG="${LOG_DIR}/server.log"
 ERROR_LOG="${LOG_DIR}/error.log"
 
-mkdir -p "${CONFIG_DIR}" "${DATA_DIR}" "${TMP_DIR}" "${USER_FILES_DIR}" "${FORMAT_SCHEMA_DIR}" "${LOG_DIR}"
+mkdir -p \
+  "${CONFIG_DIR}" \
+  "${DATA_DIR}" \
+  "${COORDINATION_LOG_DIR}" \
+  "${COORDINATION_SNAPSHOTS_DIR}" \
+  "${TMP_DIR}" \
+  "${USER_FILES_DIR}" \
+  "${FORMAT_SCHEMA_DIR}" \
+  "${LOG_DIR}"
 
 # Create config.d with query_log enabled (ClickHouse merges this with embedded defaults)
 cat > "${CONFIG_DIR}/query_log.xml" << 'EOF'
@@ -31,6 +44,38 @@ cat > "${CONFIG_DIR}/query_log.xml" << 'EOF'
         <database>system</database>
         <table>query_log</table>
     </query_log>
+</clickhouse>
+EOF
+
+# Transactions need keeper enabled so the sandbox can begin and roll back
+# ClickHouse sessions during tests.
+cat > "${CONFIG_DIR}/transactions.xml" <<EOF
+<clickhouse>
+    <allow_experimental_transactions>1</allow_experimental_transactions>
+    <keeper_server>
+        <tcp_port>${CLICKHOUSE_KEEPER_PORT}</tcp_port>
+        <server_id>1</server_id>
+        <log_storage_path>${COORDINATION_LOG_DIR}</log_storage_path>
+        <snapshot_storage_path>${COORDINATION_SNAPSHOTS_DIR}</snapshot_storage_path>
+        <coordination_settings>
+            <operation_timeout_ms>10000</operation_timeout_ms>
+            <session_timeout_ms>30000</session_timeout_ms>
+            <raft_logs_level>information</raft_logs_level>
+        </coordination_settings>
+        <raft_configuration>
+            <server>
+                <id>1</id>
+                <hostname>127.0.0.1</hostname>
+                <port>${CLICKHOUSE_KEEPER_RAFT_PORT}</port>
+            </server>
+        </raft_configuration>
+    </keeper_server>
+    <zookeeper>
+        <node>
+            <host>127.0.0.1</host>
+            <port>${CLICKHOUSE_KEEPER_PORT}</port>
+        </node>
+    </zookeeper>
 </clickhouse>
 EOF
 

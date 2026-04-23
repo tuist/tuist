@@ -35,10 +35,6 @@ defmodule TuistTestSupport.Cases.ConnCase do
   setup tags do
     TuistTestSupport.Cases.DataCase.setup_sandbox(tags)
 
-    on_exit(fn ->
-      TuistTestSupport.Utilities.truncate_clickhouse_tables()
-    end)
-
     {:ok, conn: Phoenix.ConnTest.build_conn()}
   end
 

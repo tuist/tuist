@@ -113,3 +113,4 @@ Mimic.copy(Tuist.Tasks)
 
 ExUnit.start(exclude: [:skip])
 Ecto.Adapters.SQL.Sandbox.mode(Tuist.Repo, :manual)
+Ecto.Adapters.SQL.Sandbox.mode(Tuist.IngestRepo, :manual)

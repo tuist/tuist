@@ -27,7 +27,7 @@ config :tuist, Tuist.ClickHouseRepo,
   database: "tuist_test#{System.get_env("MIX_TEST_PARTITION")}",
   # Workaround for ClickHouse lazy materialization bug with projections
   # https://github.com/ClickHouse/ClickHouse/issues/80201
-  settings: [readonly: 1, query_plan_optimize_lazy_materialization: 0]
+  settings: [readonly: 1, query_plan_optimize_lazy_materialization: 0, session_timezone: "UTC"]
 
 config :tuist, Tuist.IngestRepo,
   hostname: "localhost",
@@ -35,11 +35,14 @@ config :tuist, Tuist.IngestRepo,
   database: "tuist_test#{System.get_env("MIX_TEST_PARTITION")}",
   flush_interval_ms: 5000,
   max_buffer_size: 100_000,
-  pool_size: 5,
+  pool: Ecto.Adapters.SQL.Sandbox,
+  pool_size: System.schedulers_online() * 2,
+  queue_target: 5000,
+  queue_interval: 1000,
   sync_writes: true,
   # Workaround for ClickHouse lazy materialization bug with projections
   # https://github.com/ClickHouse/ClickHouse/issues/80201
-  settings: [query_plan_optimize_lazy_materialization: 0]
+  settings: [query_plan_optimize_lazy_materialization: 0, session_timezone: "UTC"]
 
 # Configures Bamboo API Client
 config :tuist, Tuist.Mailer, adapter: Bamboo.TestAdapter
