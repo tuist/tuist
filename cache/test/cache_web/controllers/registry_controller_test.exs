@@ -263,35 +263,6 @@ defmodule CacheWeb.RegistryControllerTest do
              }
     end
 
-    test "filters stale non-semantic releases from metadata", %{conn: conn} do
-      scope = "realm"
-      name = "realm-swift"
-
-      metadata = %{
-        "scope" => scope,
-        "name" => name,
-        "releases" => %{
-          "10.28.1" => %{"checksum" => "abc123"},
-          "0.0.24b" => %{"checksum" => "legacy"}
-        }
-      }
-
-      expect(Metadata, :get_package, fn ^scope, ^name -> {:ok, metadata} end)
-
-      conn =
-        conn
-        |> registry_json_conn()
-        |> get("/api/registry/swift/#{scope}/#{name}")
-
-      assert conn.status == 200
-
-      response = json_response(conn, :ok)
-
-      assert response["releases"] == %{
-               "10.28.1" => %{"url" => "/api/registry/swift/realm/realm-swift/10.28.1"}
-             }
-    end
-
     test "returns 404 when package not found", %{conn: conn} do
       scope = "unknown"
       name = "nonexistent"

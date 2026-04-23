@@ -7,7 +7,8 @@ defmodule Cache.Registry.KeyNormalizer do
   synchronization via S3TransferWorker.
   """
 
-  @semver_regex ~r/^\d+\.\d+(\.\d+)?(-[0-9A-Za-z-]+([.+][0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$/
+  @source_tag_regex ~r/^v?\d+\.\d+(\.\d+)?(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$/
+  @storage_version_regex ~r/^\d+\.\d+(\.\d+)?(-[0-9A-Za-z-]+(\+[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$/
 
   @doc """
   Normalizes a scope by downcasing it.
@@ -94,11 +95,17 @@ defmodule Cache.Registry.KeyNormalizer do
   end
 
   @doc """
-  Returns whether a version normalizes to a supported semantic version.
+  Returns whether a raw upstream tag matches the accepted source tag format.
   """
-  def valid_semver?(version) when is_binary(version) do
-    normalized_version = normalize_version(version)
-    Regex.match?(@semver_regex, normalized_version)
+  def valid_source_tag?(version) when is_binary(version) do
+    Regex.match?(@source_tag_regex, version)
+  end
+
+  @doc """
+  Returns whether a normalized registry storage version matches the accepted format.
+  """
+  def valid_storage_version?(version) when is_binary(version) do
+    Regex.match?(@storage_version_regex, version)
   end
 
   defp add_trailing_semantic_version_zeros(version) do

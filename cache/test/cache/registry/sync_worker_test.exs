@@ -153,7 +153,7 @@ defmodule Cache.Registry.SyncWorkerTest do
     refute_enqueued(worker: ReleaseWorker)
   end
 
-  test "removes stale non-semantic versions from metadata during sync" do
+  test "ignores tags that do not match the accepted source format" do
     expect(Lock, :try_acquire, 2, fn
       :sync, _ -> {:ok, :acquired}
       {:package, "realm", "realm-swift"}, _ -> {:ok, :acquired}
@@ -173,30 +173,35 @@ defmodule Cache.Registry.SyncWorkerTest do
     expect(SyncCursor, :get, fn -> 0 end)
     expect(SyncCursor, :put, fn 0 -> :ok end)
 
-    expect(Metadata, :get_package, fn "realm", "realm-swift" ->
-      {:ok,
-       %{
-         "repository_full_handle" => "realm/realm-swift",
-         "releases" => %{
-           "10.28.1" => %{"checksum" => "abc123"},
-           "0.0.24b" => %{"checksum" => "legacy"}
-         },
-         "skipped_releases" => %{"0.0.24b" => %{"reason" => "invalid_semver"}}
-       }}
-    end)
+    expect(Metadata, :get_package, fn "realm", "realm-swift" -> {:error, :not_found} end)
 
-    expect(Metadata, :put_package, fn "realm", "realm-swift", metadata ->
-      assert metadata["releases"] == %{"10.28.1" => %{"checksum" => "abc123"}}
-      assert metadata["skipped_releases"] == %{}
-      :ok
-    end)
+    expect(Metadata, :put_package, fn "realm", "realm-swift", _metadata -> :ok end)
 
     expect(TuistCommon.GitHub, :list_tags, fn "realm/realm-swift", "token", _ ->
-      {:ok, ["10.28.1"]}
+      {:ok, ["10.28.1", "0.0.24b"]}
     end)
 
     assert :ok = SyncWorker.perform(%Oban.Job{args: %{}})
-    refute_enqueued(worker: ReleaseWorker)
+
+    assert_enqueued(
+      worker: ReleaseWorker,
+      args: %{
+        "scope" => "realm",
+        "name" => "realm-swift",
+        "repository_full_handle" => "realm/realm-swift",
+        "tag" => "10.28.1"
+      }
+    )
+
+    refute_enqueued(
+      worker: ReleaseWorker,
+      args: %{
+        "scope" => "realm",
+        "name" => "realm-swift",
+        "repository_full_handle" => "realm/realm-swift",
+        "tag" => "0.0.24b"
+      }
+    )
   end
 
   @tag capture_log: true
