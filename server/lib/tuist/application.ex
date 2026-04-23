@@ -149,18 +149,16 @@ defmodule Tuist.Application do
     loki_url = Environment.loki_url()
 
     # LokiLoggerHandler pushes logs directly from the app process to Loki.
-    # On k8s we prefer letting the app write to stdout and having a
+    # On the managed cluster we let the app write to stdout and have a
     # cluster-level agent (Grafana Alloy) tail container logs via the
-    # Kubernetes API — it's more robust (no in-process queue, no
-    # crash-on-first-push state machine, no auth creds in the app pod) and
-    # matches GKE's native log collection pattern.
+    # Kubernetes API — more robust (no in-process queue, no
+    # crash-on-first-push state machine, no auth creds in the app pod).
     #
-    # For Render / self-hosted setups that still want the in-process push,
-    # the handler is attached in the background with retry, but only when
-    # TUIST_LOKI_INPROC=1 is explicitly set. Any other value treats
-    # TUIST_LOKI_URL as the Loki endpoint the out-of-process collector
-    # (Alloy / Promtail) should write to — useful info for dashboards and
-    # for environments that do still run the handler.
+    # Self-hosted setups that still want the in-process push can opt in by
+    # setting TUIST_LOKI_INPROC=1; the handler is then attached in the
+    # background with retry. Any other value treats TUIST_LOKI_URL as the
+    # Loki endpoint the out-of-process collector (Alloy / Promtail) should
+    # write to — useful info for dashboards.
     if loki_url && System.get_env("TUIST_LOKI_INPROC") in ~w(1 true TRUE) do
       spawn_supervised_task(fn -> attach_loki_handler_with_retry(loki_url, 0) end)
     end
