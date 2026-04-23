@@ -24,26 +24,17 @@ server:
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
       value: http://alloy-tuist-alloy.observability.svc.cluster.local:4317
 
-  # Until we point DNS at the cluster, expose the app via a LoadBalancer
-  # Service directly — Hetzner's CCM provisions a public IP, no Ingress /
-  # TLS plumbing needed. Flip back to ClusterIP + ingress.enabled=true
-  # once Cloudflare + cert-manager are wired.
-  service:
-    type: LoadBalancer
-    port: 80
-    targetPort: 8080
-    # Hetzner Cloud Controller Manager reads these to pick the LB's
-    # datacenter + tier. The Kubernetes Service spec ignores unknown
-    # annotations so this stays harmless on non-Hetzner clusters.
-    annotations:
-      load-balancer.hetzner.cloud/location: fsn1
-      load-balancer.hetzner.cloud/type: lb11
-      load-balancer.hetzner.cloud/name: tuist-staging
+  appUrl: https://staging.tuist.dev
 
-  appUrl: http://cloud-staging.tuist.dev  # Set to the IP once the LB appears — or leave hostnamed for later.
-
+  # ingress-nginx fronts the server on port 443 with a Cloudflare Origin CA
+  # cert (synced into the tuist-tls-cloudflare-origin Secret out-of-band;
+  # 15-year validity, renewal is a future-us problem). Cloudflare is set
+  # to Full (strict) SSL — edge ↔ origin now runs HTTPS.
   ingress:
-    enabled: false
+    enabled: true
+    className: nginx
+    host: staging.tuist.dev
+    tlsSecretName: tuist-tls-cloudflare-origin
 
   autoscaling:
     enabled: false
