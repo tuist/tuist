@@ -128,6 +128,63 @@ defmodule Tuist.Metrics.AggregatorTest do
     end
   end
 
+  describe "eviction of stale accounts" do
+    setup do
+      ref = make_ref()
+      test_pid = self()
+      event = Aggregator.eviction_event()
+      handler_id = {__MODULE__, :eviction, ref}
+
+      :telemetry.attach(
+        handler_id,
+        event,
+        fn ^event, measurements, metadata, _ ->
+          send(test_pid, {ref, measurements, metadata})
+        end,
+        nil
+      )
+
+      on_exit(fn -> :telemetry.detach(handler_id) end)
+
+      {:ok, ref: ref}
+    end
+
+    test "does not touch accounts scraped within the staleness window", %{ref: ref} do
+      Aggregator.increment_counter(1, "tuist_cli_invocations_total", {"acme/app", "generate", "false", "success"})
+      # Refresh its scrape marker before the sweep fires.
+      Aggregator.record_scrape(1)
+
+      send(Process.whereis(Aggregator), :evict_stale)
+
+      refute_receive {^ref, _, _}, 200
+      assert Aggregator.snapshot(1) != []
+    end
+
+    test "drops counters and histograms for accounts whose scrape stopped", %{ref: ref} do
+      Aggregator.increment_counter(2, "tuist_cli_invocations_total", {"acme/app", "generate", "false", "success"})
+
+      Aggregator.observe_histogram(
+        2,
+        "tuist_xcode_build_run_duration_seconds",
+        {"acme/app", "App", "false", "success"},
+        1.0
+      )
+
+      _ = :sys.get_state(Aggregator)
+
+      # Rewind the account's last-seen timestamp past the staleness cutoff
+      # rather than sleeping, keeping the test fast and deterministic.
+      :ets.insert(:tuist_metrics_last_scrape, {2, System.monotonic_time(:millisecond) - to_timeout(hour: 1)})
+
+      send(Process.whereis(Aggregator), :evict_stale)
+
+      assert_receive {^ref, %{accounts: 1, rows: rows}, _meta}, 1_000
+      assert rows >= 1
+
+      assert Aggregator.snapshot(2) == []
+    end
+  end
+
   describe "periodic stats telemetry" do
     test "emits a stats event with size and memory measurements" do
       ref = make_ref()

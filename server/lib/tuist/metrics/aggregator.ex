@@ -24,18 +24,23 @@ defmodule Tuist.Metrics.Aggregator do
   `init/1` beyond the first so ops notices if the process becomes flappy. The
   restart count is held in `:persistent_term` which survives process death.
 
-  ### Cardinality caveat
+  ### Cardinality and eviction
 
   The schema label vocabularies are bounded per-account by the **customer's**
-  deployment shape, not globally. A customer with thousands of projects,
-  schemes, or Xcode versions can drive the ETS table to arbitrary size — there
-  is no TTL/eviction policy in this process. Keep an eye on per-account
-  cardinality (we may want to add a defensive cap in a future revision).
+  deployment shape, not globally. Left alone the table would grow with every
+  new label combination, so the aggregator runs a periodic eviction sweep
+  (default every 5 minutes) that drops entries for accounts whose scrape
+  endpoint has not been hit recently (default 30 minutes). Actively scraped
+  accounts keep their data; idle ones are reclaimed.
 
-  The process periodically emits a `[:tuist, :metrics, :aggregator, :stats]`
-  telemetry event carrying `%{size, memory_bytes, memory_words}`. Attach a
-  handler (Prometheus exporter, StatsD, log line) to alert on unexpected
-  growth before it becomes an incident.
+  Two telemetry events make the behaviour observable:
+
+    * `[:tuist, :metrics, :aggregator, :stats]` — `%{size, memory_bytes,
+      memory_words}`, published periodically so ops can alert on growth.
+    * `[:tuist, :metrics, :aggregator, :evicted]` — `%{accounts, rows}`,
+      published after each sweep that removed something.
+
+  Attach a handler (Prometheus exporter, StatsD, log line) in prod.
   """
 
   use GenServer
@@ -45,15 +50,23 @@ defmodule Tuist.Metrics.Aggregator do
   require Logger
 
   @table :tuist_metrics_aggregator
+  @last_scrape_table :tuist_metrics_last_scrape
   @counter_tag :c
   @histogram_tag :h
   @stats_event [:tuist, :metrics, :aggregator, :stats]
+  @eviction_event [:tuist, :metrics, :aggregator, :evicted]
   @default_stats_interval_ms to_timeout(minute: 1)
+  @default_eviction_interval_ms to_timeout(minute: 5)
+  # Teams typically scrape every 15s–1min. 30 minutes is a comfortable
+  # multiple of that — survives a collector restart or network blip —
+  # while still bounding memory for accounts that stopped scraping.
+  @default_scrape_staleness_ms to_timeout(minute: 30)
 
   # ---- Public API --------------------------------------------------------
 
   def start_link(opts \\ []) do
-    GenServer.start_link(__MODULE__, Keyword.take(opts, [:stats_interval_ms]), Keyword.merge([name: __MODULE__], opts))
+    init_opts = Keyword.take(opts, [:stats_interval_ms, :eviction_interval_ms, :scrape_staleness_ms])
+    GenServer.start_link(__MODULE__, init_opts, Keyword.merge([name: __MODULE__], opts))
   end
 
   @doc """
@@ -64,6 +77,14 @@ defmodule Tuist.Metrics.Aggregator do
   def stats_event, do: @stats_event
 
   @doc """
+  The telemetry event name emitted after each eviction sweep. The
+  measurements carry the count of evicted accounts and deleted ETS
+  rows so ops can see whether the aggregator's memory pressure is
+  coming from expected churn or a cardinality bug.
+  """
+  def eviction_event, do: @eviction_event
+
+  @doc """
   Atomically bumps a counter metric. Safe to call from any process; does not
   message the aggregator.
   """
@@ -71,6 +92,7 @@ defmodule Tuist.Metrics.Aggregator do
     if table_ready?() do
       key = counter_key(account_id, metric, labels)
       :ets.update_counter(@table, key, {2, count}, {key, 0})
+      seed_last_scrape_if_absent(account_id)
     end
 
     :ok
@@ -108,6 +130,12 @@ defmodule Tuist.Metrics.Aggregator do
   """
   def snapshot(account_id) do
     if table_ready?() do
+      # Every call that reaches here — local or cluster RPC during a
+      # scrape — counts as activity for this account, so refresh its
+      # last-scrape marker. Stops the eviction sweep from dropping data
+      # that is still being consumed.
+      record_scrape(account_id)
+
       counters =
         @table
         |> :ets.match_object({{@counter_tag, account_id, :_, :_}, :_})
@@ -120,11 +148,42 @@ defmodule Tuist.Metrics.Aggregator do
   end
 
   @doc """
-  Clears all accumulated metrics. Primarily used by tests.
+  Refreshes the last-seen timestamp for an account. `snapshot/1` calls
+  this automatically; exposed separately so a caller (e.g. a test or a
+  cluster-wide scrape coordinator) can mark an account as active
+  without also reading its data.
+  """
+  def record_scrape(account_id) do
+    if last_scrape_table_ready?() do
+      :ets.insert(@last_scrape_table, {account_id, now_ms()})
+    end
+
+    :ok
+  end
+
+  defp seed_last_scrape_if_absent(account_id) do
+    if last_scrape_table_ready?() do
+      # `insert_new` only writes if the key is absent, so active
+      # accounts (whose timestamps get refreshed on scrape) are not
+      # perturbed by write throughput. Brand-new accounts get a clock
+      # that starts ticking toward eviction from the first write.
+      :ets.insert_new(@last_scrape_table, {account_id, now_ms()})
+    end
+
+    :ok
+  end
+
+  @doc """
+  Clears all accumulated metrics and scrape timestamps. Primarily used
+  by tests.
   """
   def reset do
     if table_ready?() do
       :ets.delete_all_objects(@table)
+    end
+
+    if last_scrape_table_ready?() do
+      :ets.delete_all_objects(@last_scrape_table)
     end
 
     :ok
@@ -168,21 +227,40 @@ defmodule Tuist.Metrics.Aggregator do
       write_concurrency: true
     ])
 
+    :ets.new(@last_scrape_table, [
+      :set,
+      :public,
+      :named_table,
+      read_concurrency: true,
+      write_concurrency: true
+    ])
+
     log_restart_if_any()
 
-    # Periodically publish size + memory as a telemetry event so ops can
-    # attach a handler (Prometheus exporter, StatsD, logs) and alert on
-    # per-node growth. Passing 0 / nil disables the timer (useful in
-    # tests that trigger :emit_stats manually).
-    interval_ms = Keyword.get(opts, :stats_interval_ms, @default_stats_interval_ms)
+    stats_interval_ms = Keyword.get(opts, :stats_interval_ms, @default_stats_interval_ms)
+    eviction_interval_ms = Keyword.get(opts, :eviction_interval_ms, @default_eviction_interval_ms)
+    scrape_staleness_ms = Keyword.get(opts, :scrape_staleness_ms, @default_scrape_staleness_ms)
 
-    if is_integer(interval_ms) and interval_ms > 0 do
-      Process.send_after(self(), :emit_stats, interval_ms)
-      {:ok, %{stats_interval_ms: interval_ms}}
-    else
-      {:ok, %{stats_interval_ms: nil}}
-    end
+    maybe_schedule(self(), :emit_stats, stats_interval_ms)
+    maybe_schedule(self(), :evict_stale, eviction_interval_ms)
+
+    {:ok,
+     %{
+       stats_interval_ms: positive_or_nil(stats_interval_ms),
+       eviction_interval_ms: positive_or_nil(eviction_interval_ms),
+       scrape_staleness_ms: scrape_staleness_ms
+     }}
   end
+
+  defp maybe_schedule(_pid, _msg, interval) when not is_integer(interval) or interval <= 0, do: :ok
+
+  defp maybe_schedule(pid, msg, interval) do
+    Process.send_after(pid, msg, interval)
+    :ok
+  end
+
+  defp positive_or_nil(n) when is_integer(n) and n > 0, do: n
+  defp positive_or_nil(_), do: nil
 
   defp log_restart_if_any do
     count = :persistent_term.get({__MODULE__, :init_count}, 0) + 1
@@ -235,7 +313,69 @@ defmodule Tuist.Metrics.Aggregator do
     {:noreply, state}
   end
 
+  def handle_info(:evict_stale, state) do
+    evict_stale(state.scrape_staleness_ms)
+
+    if interval = state.eviction_interval_ms do
+      Process.send_after(self(), :evict_stale, interval)
+    end
+
+    {:noreply, state}
+  end
+
   def handle_info(_message, state), do: {:noreply, state}
+
+  defp evict_stale(staleness_ms) when is_integer(staleness_ms) and staleness_ms > 0 do
+    if last_scrape_table_ready?() and table_ready?() do
+      cutoff = now_ms() - staleness_ms
+
+      # select_delete returns the number of rows removed from the scrape
+      # table; the account_ids themselves come from a preceding select.
+      stale_accounts =
+        :ets.select(@last_scrape_table, [
+          {{:"$1", :"$2"}, [{:<, :"$2", cutoff}], [:"$1"]}
+        ])
+
+      row_count = Enum.reduce(stale_accounts, 0, fn account_id, acc -> acc + evict_account(account_id) end)
+
+      if stale_accounts != [] do
+        :telemetry.execute(
+          @eviction_event,
+          %{accounts: length(stale_accounts), rows: row_count},
+          %{staleness_ms: staleness_ms}
+        )
+      end
+    else
+      :ok
+    end
+  end
+
+  defp evict_stale(_), do: :ok
+
+  defp evict_account(account_id) do
+    # Separate patterns for counter (4-tuple key) and histogram count/sum
+    # (5-tuple key) and histogram bucket (6-tuple key). match_delete
+    # returns :true but not the count, so approximate via a select first.
+    counter_pattern = {{@counter_tag, account_id, :_, :_}, :_}
+    histogram_meta_pattern = {{@histogram_tag, account_id, :_, :_, :_}, :_}
+    histogram_bucket_pattern = {{@histogram_tag, account_id, :_, :_, :_, :_}, :_}
+
+    removed =
+      :ets.select_count(@table, [{counter_pattern, [], [true]}]) +
+        :ets.select_count(@table, [{histogram_meta_pattern, [], [true]}]) +
+        :ets.select_count(@table, [{histogram_bucket_pattern, [], [true]}])
+
+    :ets.match_delete(@table, counter_pattern)
+    :ets.match_delete(@table, histogram_meta_pattern)
+    :ets.match_delete(@table, histogram_bucket_pattern)
+    :ets.delete(@last_scrape_table, account_id)
+
+    removed
+  end
+
+  defp now_ms, do: System.monotonic_time(:millisecond)
+
+  defp last_scrape_table_ready?, do: :ets.whereis(@last_scrape_table) != :undefined
 
   defp emit_stats do
     case table_info() do
