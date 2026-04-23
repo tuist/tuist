@@ -4,6 +4,7 @@ defmodule CacheWeb.RegistryControllerTest do
 
   alias Cache.CacheArtifacts
   alias Cache.Registry
+  alias Cache.Registry.AlternateManifests
   alias Cache.Registry.Metadata
   alias Cache.S3
   alias Cache.S3Transfers
@@ -523,6 +524,8 @@ defmodule CacheWeb.RegistryControllerTest do
 
       expect(Metadata, :get_package, fn ^scope, ^name -> {:error, :not_found} end)
 
+      expect(AlternateManifests, :list, fn ^scope, ^name, ^version -> [] end)
+
       expect(S3Transfers, :enqueue_registry_download, fn _key -> {:ok, %{}} end)
 
       expect(S3, :presign_download_url, fn _key, _opts ->
@@ -559,6 +562,135 @@ defmodule CacheWeb.RegistryControllerTest do
 
       assert conn.status == 404
       assert get_resp_header(conn, "content-version") == ["1"]
+    end
+
+    test "falls back to S3 discovery when metadata has no manifests", %{conn: conn} do
+      scope = "mxcl"
+      name = "promisekit"
+      version = "6.18.1"
+
+      metadata = %{
+        "scope" => scope,
+        "name" => name,
+        "releases" => %{version => %{"checksum" => "deadbeef"}}
+      }
+
+      expect(Registry.Disk, :exists?, fn ^scope, ^name, ^version, "Package.swift" -> true end)
+
+      expect(Registry.Disk, :local_accel_path, fn ^scope, ^name, ^version, "Package.swift" ->
+        "/internal/local/registry/swift/mxcl/promisekit/6.18.1/Package.swift"
+      end)
+
+      expect(Metadata, :get_package, fn ^scope, ^name -> {:ok, metadata} end)
+
+      expect(AlternateManifests, :list, fn ^scope, ^name, ^version ->
+        [%{"swift_version" => "5.3", "swift_tools_version" => nil}]
+      end)
+
+      conn =
+        conn
+        |> registry_swift_conn()
+        |> get("/api/registry/swift/#{scope}/#{name}/#{version}/Package.swift")
+
+      assert conn.status == 200
+      [link_header] = get_resp_header(conn, "link")
+      assert link_header =~ "rel=\"alternate\""
+      assert link_header =~ "swift-version=5.3"
+      assert link_header =~ "filename=\"Package@swift-5.3.swift\""
+      refute link_header =~ "swift-tools-version="
+    end
+
+    test "falls back to S3 discovery when metadata is missing entirely", %{conn: conn} do
+      scope = "mxcl"
+      name = "promisekit"
+      version = "6.18.1"
+
+      expect(Registry.Disk, :exists?, fn ^scope, ^name, ^version, "Package.swift" -> true end)
+
+      expect(Registry.Disk, :local_accel_path, fn ^scope, ^name, ^version, "Package.swift" ->
+        "/internal/local/registry/swift/mxcl/promisekit/6.18.1/Package.swift"
+      end)
+
+      expect(Metadata, :get_package, fn ^scope, ^name -> {:error, :not_found} end)
+
+      expect(AlternateManifests, :list, fn ^scope, ^name, ^version ->
+        [%{"swift_version" => "5.3", "swift_tools_version" => nil}]
+      end)
+
+      conn =
+        conn
+        |> registry_swift_conn()
+        |> get("/api/registry/swift/#{scope}/#{name}/#{version}/Package.swift")
+
+      assert conn.status == 200
+      [link_header] = get_resp_header(conn, "link")
+      assert link_header =~ "swift-version=5.3"
+    end
+
+    test "does not call S3 discovery when metadata already has manifests", %{conn: conn} do
+      scope = "apple"
+      name = "swift-argument-parser"
+      version = "1.0.0"
+
+      metadata = %{
+        "scope" => scope,
+        "name" => name,
+        "releases" => %{
+          version => %{
+            "checksum" => "abc",
+            "manifests" => [
+              %{"swift_version" => "5.9", "swift_tools_version" => "5.9"}
+            ]
+          }
+        }
+      }
+
+      expect(Registry.Disk, :exists?, fn ^scope, ^name, ^version, "Package.swift" -> true end)
+
+      expect(Registry.Disk, :local_accel_path, fn ^scope, ^name, ^version, "Package.swift" ->
+        "/internal/local/registry/swift/apple/swift-argument-parser/1.0.0/Package.swift"
+      end)
+
+      expect(Metadata, :get_package, fn ^scope, ^name -> {:ok, metadata} end)
+
+      stub(AlternateManifests, :list, fn _, _, _ ->
+        flunk("must not list S3 when metadata is already populated")
+      end)
+
+      conn =
+        conn
+        |> registry_swift_conn()
+        |> get("/api/registry/swift/#{scope}/#{name}/#{version}/Package.swift")
+
+      assert conn.status == 200
+      [link_header] = get_resp_header(conn, "link")
+      assert link_header =~ "swift-version=5.9"
+    end
+
+    test "omits link header when neither metadata nor S3 reveal alternates", %{conn: conn} do
+      scope = "foo"
+      name = "bar"
+      version = "1.0.0"
+
+      expect(Registry.Disk, :exists?, fn ^scope, ^name, ^version, "Package.swift" -> true end)
+
+      expect(Registry.Disk, :local_accel_path, fn ^scope, ^name, ^version, "Package.swift" ->
+        "/internal/local/registry/swift/foo/bar/1.0.0/Package.swift"
+      end)
+
+      expect(Metadata, :get_package, fn ^scope, ^name ->
+        {:ok, %{"releases" => %{version => %{"checksum" => "abc"}}}}
+      end)
+
+      expect(AlternateManifests, :list, fn ^scope, ^name, ^version -> [] end)
+
+      conn =
+        conn
+        |> registry_swift_conn()
+        |> get("/api/registry/swift/#{scope}/#{name}/#{version}/Package.swift")
+
+      assert conn.status == 200
+      assert get_resp_header(conn, "link") == []
     end
   end
 
