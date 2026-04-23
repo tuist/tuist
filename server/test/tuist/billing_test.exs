@@ -200,6 +200,27 @@ defmodule Tuist.BillingTest do
       subscription = Billing.get_current_active_subscription(account)
       assert subscription.plan == :air
       assert subscription.default_payment_method == "pm_some-id"
+      refute subscription.cancel_at_period_end
+    end
+
+    test "persists cancel_at_period_end from the Stripe payload" do
+      # Given
+      user = AccountsFixtures.user_fixture(customer_id: "customer_id")
+      account = Accounts.get_account_from_user(user)
+
+      # When
+      Billing.on_subscription_change(%{
+        id: "sub_some-id",
+        status: "active",
+        customer: "customer_id",
+        default_payment_method: "pm_some-id",
+        cancel_at_period_end: true,
+        items: %{data: [%{price: %{id: "pro.usage"}}, %{price: %{id: "pro.flat.monthly"}}]}
+      })
+
+      # Then
+      subscription = Billing.get_current_active_subscription(account)
+      assert subscription.cancel_at_period_end
     end
 
     test "when a user downgrades from the pro to the air plan" do
@@ -730,7 +751,7 @@ defmodule Tuist.BillingTest do
 
       expect(Stripe.Subscription, :create, fn %{
                                                 customer: "customer_id",
-                                                items: [%{price: "enterprise.flat.monthly", quantity: 1}],
+                                                items: [%{price: "enterprise.flat.monthly", quantity: 0}],
                                                 collection_method: "send_invoice",
                                                 days_until_due: 30
                                               } ->
@@ -778,7 +799,7 @@ defmodule Tuist.BillingTest do
                                                 items: [
                                                   %{id: "pro.flat.monthly", deleted: true},
                                                   %{id: "pro.usage", deleted: true},
-                                                  %{price: "enterprise.flat.yearly", quantity: 1}
+                                                  %{price: "enterprise.flat.yearly", quantity: 0}
                                                 ],
                                                 collection_method: "send_invoice",
                                                 days_until_due: 30

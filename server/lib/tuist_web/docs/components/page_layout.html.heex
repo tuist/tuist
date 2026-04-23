@@ -2,6 +2,7 @@
   id="docs-page-layout"
   data-part="page"
 >
+  <textarea :if={@markdown != ""} id="docs-page-markdown" hidden readonly>{@markdown}</textarea>
   <div
     :if={@headings != []}
     id="docs-mobile-toc"
@@ -64,12 +65,15 @@
       </div>
     </nav>
     <div id="docs-content">
-      <div id="docs-mobile-copy" data-part="mobile-copy">
+      <div :if={@markdown != ""} id="docs-mobile-copy" data-part="mobile-copy">
         <.button_dropdown
           id="docs-mobile-copy-dropdown"
           label={dgettext("docs", "Copy page")}
           size="medium"
-          phx-click="copy-page-markdown"
+          phx-hook="DocsCopyPageButton"
+          data-default-label={dgettext("docs", "Copy page")}
+          data-copied-label={dgettext("docs", "Copied")}
+          data-markdown-source-id="docs-page-markdown"
           align="end"
         >
           <:icon_left><.copy /></:icon_left>
@@ -98,6 +102,11 @@
       </div>
       {render_slot(@inner_block)}
     </div>
-    <.toc :if={@headings != []} headings={@headings} current_slug={@current_slug} />
+    <.toc
+      :if={@headings != []}
+      headings={@headings}
+      current_slug={@current_slug}
+      markdown={@markdown}
+    />
   </div>
 </main>

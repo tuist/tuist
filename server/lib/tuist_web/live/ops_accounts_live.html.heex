@@ -33,6 +33,13 @@
             style="light-fill"
           />
         </:col>
+        <:col :let={account} label="Status">
+          <.badge_cell
+            label={status_label(subscription_status(account))}
+            color={status_color(subscription_status(account))}
+            style="light-fill"
+          />
+        </:col>
         <:col :let={account} label="Stripe customer">
           <.text_cell label={account.customer_id || "Not created"} />
         </:col>
@@ -43,8 +50,9 @@
             <.dropdown_item
               label="Manage on Stripe"
               value="manage"
-              phx-click="manage"
-              phx-value-id={account.id}
+              href={~p"/ops/accounts/#{account.id}/stripe-session"}
+              target="_blank"
+              rel="noopener noreferrer"
             >
               <:left_icon><.credit_card /></:left_icon>
             </.dropdown_item>
@@ -60,7 +68,10 @@
             </.dropdown_item>
 
             <.dropdown_item
-              :if={current_plan(account) in [:pro, :enterprise]}
+              :if={
+                current_plan(account) in [:pro, :enterprise] and
+                  subscription_status(account) != :cancelled
+              }
               label="Cancel plan"
               value="cancel"
               phx-click="cancel_plan"

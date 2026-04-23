@@ -106,7 +106,7 @@ defmodule Noora.ButtonDropdown do
       data-on-interact-outside={@on_interact_outside}
       data-align={@align}
     >
-      <button data-part="main-button" disabled={@disabled} type="button" {@rest}>
+      <button id={@id <> "-button"} data-part="main-button" disabled={@disabled} type="button" {@rest}>
         <div :if={has_slot_content?(@icon_left, assigns)} data-part="icon-left">
           {render_slot(@icon_left)}
         </div>

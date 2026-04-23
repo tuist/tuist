@@ -53,7 +53,6 @@
             #expect(result == TuistConfig.Tuist(
                 project: .generated(TuistGeneratedProjectOptions(
                     compatibleXcodeVersions: .all,
-                    swiftVersion: nil,
                     plugins: [],
                     generationOptions: .test(),
                     installOptions: .test(),
@@ -81,7 +80,6 @@
             #expect(result == TuistConfig.Tuist(
                 project: .generated(TuistGeneratedProjectOptions(
                     compatibleXcodeVersions: .all,
-                    swiftVersion: nil,
                     plugins: [],
                     generationOptions: .test(),
                     installOptions: .test(),
@@ -160,7 +158,6 @@
             #expect(result == TuistConfig.Tuist(
                 project: .generated(TuistGeneratedProjectOptions(
                     compatibleXcodeVersions: .all,
-                    swiftVersion: nil,
                     plugins: [],
                     generationOptions: .test(),
                     installOptions: .test(),
@@ -195,7 +192,6 @@
             #expect(result == TuistConfig.Tuist(
                 project: .generated(TuistGeneratedProjectOptions(
                     compatibleXcodeVersions: .all,
-                    swiftVersion: nil,
                     plugins: [],
                     generationOptions: .test(
                         buildInsightsDisabled: false,
@@ -230,7 +226,6 @@
             #expect(result == TuistConfig.Tuist(
                 project: .generated(TuistGeneratedProjectOptions(
                     compatibleXcodeVersions: .all,
-                    swiftVersion: nil,
                     plugins: [],
                     generationOptions: .test(
                         buildInsightsDisabled: false,

@@ -145,7 +145,7 @@ defmodule TuistWeb.API.TestCasesControllerTest do
         )
 
       expect(Tests, :list_test_cases, fn _project_id, options ->
-        assert %{field: :is_quarantined, op: :==, value: true} in options.filters
+        assert %{field: :state, op: :==, value: "muted"} in options.filters
 
         {[quarantined_test_case],
          %{

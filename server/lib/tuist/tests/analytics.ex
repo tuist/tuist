@@ -182,7 +182,7 @@ defmodule Tuist.Tests.Analytics do
         where: tc.project_id == ^project_id,
         where: tc.inserted_at <= ^datetime,
         group_by: tc.id,
-        having: fragment("argMax(?, ?) = 1", tc.is_quarantined, tc.inserted_at),
+        having: fragment("argMax(?, ?) = 'muted'", tc.state, tc.inserted_at),
         select: tc.id
       )
 

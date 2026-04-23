@@ -122,6 +122,32 @@ defmodule TuistWeb.AccountDropdown do
   defp log_out_path(_), do: ~p"/users/log_out"
 
   attr :id, :string, required: true
+  attr :label, :string, required: true
+  attr :size, :string, values: ~w(small medium large), default: "large"
+
+  def theme_toggle(assigns) do
+    ~H"""
+    <.button
+      id={@id}
+      variant="secondary"
+      size={@size}
+      icon_only
+      phx-hook="ThemeToggle"
+      aria-label={@label}
+      title={@label}
+      data-part="theme-toggle"
+    >
+      <span data-part="theme-toggle-light-icon" aria-hidden="true">
+        <.sun_high />
+      </span>
+      <span data-part="theme-toggle-dark-icon" aria-hidden="true">
+        <.moon_stars />
+      </span>
+    </.button>
+    """
+  end
+
+  attr :id, :string, required: true
   attr :name, :string, required: true
 
   defp theme_light(assigns) do

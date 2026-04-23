@@ -9,6 +9,7 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "${SCRIPT_PATH}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 ROOT_INSTANCE_FILE="${PROJECT_ROOT}/.tuist-dev-instance"
+CACHE_ROOT="${XDG_CACHE_HOME:-${HOME}/.cache}/tuist"
 CLICKHOUSE_STATE_ROOT="${XDG_STATE_HOME:-${HOME}/.local/state}/tuist"
 
 resolve_git_path() {
@@ -35,7 +36,43 @@ resolve_git_path() {
   fi
 }
 
+resolve_git_common_dir() {
+  local git_dir=""
+
+  if command -v git >/dev/null 2>&1 && git -C "${PROJECT_ROOT}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    git_dir="$(
+      git -C "${PROJECT_ROOT}" rev-parse --path-format=absolute --git-common-dir 2>/dev/null ||
+        git -C "${PROJECT_ROOT}" rev-parse --git-common-dir 2>/dev/null ||
+        true
+    )"
+
+    if [[ -n "${git_dir}" && "${git_dir}" != /* ]]; then
+      git_dir="${PROJECT_ROOT}/${git_dir#./}"
+    fi
+  fi
+
+  if [[ -n "${git_dir}" ]]; then
+    printf '%s' "${git_dir}"
+  else
+    printf '%s' "${PROJECT_ROOT}/.git"
+  fi
+}
+
+stable_hash() {
+  local input="$1"
+
+  if command -v shasum >/dev/null 2>&1; then
+    printf '%s' "${input}" | shasum -a 256 | awk '{print substr($1, 1, 12)}'
+  elif command -v sha256sum >/dev/null 2>&1; then
+    printf '%s' "${input}" | sha256sum | awk '{print substr($1, 1, 12)}'
+  else
+    printf '%s' "${input}" | cksum | awk '{print $1}'
+  fi
+}
+
 INSTANCE_FILE="$(resolve_git_path "tuist-dev-instance" "${ROOT_INSTANCE_FILE}")"
+COMMON_GIT_DIR="$(resolve_git_common_dir)"
+MIX_BUILD_ROOT_KEY="$(stable_hash "${COMMON_GIT_DIR}")"
 
 validate_suffix() {
   local suffix="$1"
@@ -92,6 +129,7 @@ project_basename="$(basename "${PROJECT_ROOT}")"
 project_hostname="$(printf '%s' "${project_basename}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g; s/^-*//; s/-*$//')"
 
 export TUIST_DEV_INSTANCE="${suffix}"
+export TUIST_MIX_BUILD_ROOT="${CACHE_ROOT}/mix/${MIX_BUILD_ROOT_KEY}"
 export TUIST_SERVER_PORT="$((8080 + suffix))"
 export TUIST_SERVER_HOSTNAME="${project_hostname}.localhost"
 export TUIST_SERVER_URL="http://localhost:${TUIST_SERVER_PORT}"

@@ -41,7 +41,7 @@ config :cache, Oban,
   plugins: false,
   testing: :manual
 
-config :cache, :req_options, plug: {Req.Test, Cache.Authentication}
+config :cache, :authentication_req_options, plug: {Req.Test, Cache.Authentication}
 
 config :cache, :s3,
   bucket: "test-bucket",

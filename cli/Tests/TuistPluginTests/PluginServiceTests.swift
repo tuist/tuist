@@ -486,7 +486,6 @@ final class PluginServiceTests: TuistUnitTestCase {
     {
         TuistConfig.TuistGeneratedProjectOptions(
             compatibleXcodeVersions: .all,
-            swiftVersion: nil,
             plugins: plugins,
             generationOptions: .test(),
             installOptions: .test(),
