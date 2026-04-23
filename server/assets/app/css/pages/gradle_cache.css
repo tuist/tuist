@@ -13,10 +13,10 @@
 
   & > [data-part="filters"] {
     display: flex;
-    align-items: center;
-    gap: var(--noora-spacing-4);
     flex-wrap: wrap;
     justify-content: flex-end;
+    align-items: center;
+    gap: var(--noora-spacing-4);
   }
 
   & > [data-part="analytics-card"] {
