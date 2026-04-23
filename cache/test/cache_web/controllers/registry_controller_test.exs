@@ -1184,6 +1184,8 @@ defmodule CacheWeb.RegistryControllerTest do
 
       expect(Metadata, :get_package, fn ^scope, ^name -> {:error, :not_found} end)
 
+      expect(AlternateManifests, :list, fn ^scope, ^name, ^version -> [] end)
+
       reject(S3Transfers, :enqueue_registry_download, 1)
       reject(CacheArtifacts, :track_artifact_access, 1)
 
