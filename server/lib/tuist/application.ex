@@ -233,9 +233,7 @@ defmodule Tuist.Application do
         Logger.info("LokiLoggerHandler attached after #{attempt + 1} attempt(s)")
 
       {:error, reason} ->
-        Logger.warning(
-          "LokiLoggerHandler attach attempt #{attempt + 1} failed: #{inspect(reason)} — retrying"
-        )
+        Logger.warning("LokiLoggerHandler attach attempt #{attempt + 1} failed: #{inspect(reason)} — retrying")
 
         attach_loki_handler_with_retry(loki_url, attempt + 1)
     end
