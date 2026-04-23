@@ -229,7 +229,7 @@
               do: format_number(@test_cases_count_analytics.result.count)
           }
           id="widget-test-cases-count"
-          legend_color="secondary"
+          legend_color="tertiary"
           trend_value={
             if @test_cases_count_analytics.ok?,
               do: @test_cases_count_analytics.result.trend,
@@ -313,6 +313,7 @@
             }
             series={[
               %{
+                color: @analytics_chart_data.result.color,
                 data:
                   Enum.zip(
                     @analytics_chart_data.result.dates,

@@ -324,7 +324,8 @@ defmodule TuistWeb.TestCasesLive do
             dates: test_cases_count_analytics.dates,
             values: test_cases_count_analytics.values,
             name: dgettext("dashboard_tests", "Test cases"),
-            value_formatter: "{value}"
+            value_formatter: "{value}",
+            color: "var:noora-chart-tertiary"
           }
 
         "test_case_run_count" ->
@@ -332,7 +333,8 @@ defmodule TuistWeb.TestCasesLive do
             dates: test_case_runs_analytics.dates,
             values: test_case_runs_analytics.values,
             name: dgettext("dashboard_tests", "Test case runs"),
-            value_formatter: "{value}"
+            value_formatter: "{value}",
+            color: "var:noora-chart-primary"
           }
 
         "failed_test_case_run_count" ->
@@ -340,7 +342,8 @@ defmodule TuistWeb.TestCasesLive do
             dates: failed_test_case_runs_analytics.dates,
             values: failed_test_case_runs_analytics.values,
             name: dgettext("dashboard_tests", "Failed test case runs"),
-            value_formatter: "{value}"
+            value_formatter: "{value}",
+            color: "var:noora-chart-destructive"
           }
 
         "test_case_run_duration" ->
@@ -363,7 +366,8 @@ defmodule TuistWeb.TestCasesLive do
             dates: test_case_runs_duration_analytics.dates,
             values: values,
             name: name,
-            value_formatter: "fn:formatMilliseconds"
+            value_formatter: "fn:formatMilliseconds",
+            color: "var:noora-chart-secondary"
           }
       end
 
