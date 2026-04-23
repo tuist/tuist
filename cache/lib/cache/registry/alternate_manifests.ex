@@ -8,13 +8,13 @@ defmodule Cache.Registry.AlternateManifests do
   was added). Without this fallback, SwiftPM never sees the alternates and may
   pick a root `Package.swift` that the active toolchain cannot compile.
 
-  Results are cached with a short TTL so dependency resolution does not list
-  S3 on every manifest fetch.
+  Each discovered manifest's `swift_tools_version` is read from the file
+  content. Although the spec marks the Link header attribute as optional,
+  SwiftPM (verified with 6.2.3) only selects alternates that advertise
+  `swift-tools-version`, so the read is required for the fallback to be useful.
 
-  `swift_tools_version` is intentionally not populated — the Link header
-  attribute is optional per the Swift Package Registry spec and SwiftPM picks
-  alternates by filename. Skipping the per-file content fetch keeps the read
-  path to a single S3 list call.
+  Results are cached with a short TTL so dependency resolution does not list
+  and fetch from S3 on every manifest request.
   """
 
   alias Cache.Config
@@ -25,6 +25,7 @@ defmodule Cache.Registry.AlternateManifests do
   @cache_name :registry_alternate_manifests_cache
   @ttl to_timeout(minute: 10)
   @alternate_manifest_regex ~r/\APackage@swift-(\d+)(?:\.(\d+))?(?:\.(\d+))?\.swift\z/
+  @swift_tools_version_regex ~r/^\/\/ swift-tools-version:\s?(\d+)(?:\.(\d+))?(?:\.(\d+))?/
 
   def child_spec(_opts) do
     %{
@@ -63,9 +64,11 @@ defmodule Cache.Registry.AlternateManifests do
       bucket
       |> ExAws.S3.list_objects_v2(prefix: prefix)
       |> ExAws.stream!()
-      |> Stream.map(fn %{key: key} -> Path.basename(key) end)
-      |> Stream.flat_map(&filename_to_descriptor/1)
-      |> Enum.to_list()
+      |> Stream.map(fn %{key: key} -> {key, Path.basename(key)} end)
+      |> Stream.filter(fn {_key, filename} -> alternate_manifest?(filename) end)
+      |> Enum.flat_map(fn {key, filename} ->
+        descriptor_for(bucket, key, filename, scope, name, version)
+      end)
     rescue
       error ->
         Logger.warning(
@@ -77,19 +80,52 @@ defmodule Cache.Registry.AlternateManifests do
     end
   end
 
-  defp filename_to_descriptor(filename) do
-    case Regex.run(@alternate_manifest_regex, filename) do
-      [_, major] ->
-        [%{"swift_version" => major, "swift_tools_version" => nil}]
+  defp alternate_manifest?(filename), do: Regex.match?(@alternate_manifest_regex, filename)
 
-      [_, major, minor] ->
-        [%{"swift_version" => "#{major}.#{minor}", "swift_tools_version" => nil}]
+  defp descriptor_for(bucket, key, filename, scope, name, version) do
+    case fetch_content(bucket, key) do
+      {:ok, content} ->
+        [
+          %{
+            "swift_version" => filename_swift_version(filename),
+            "swift_tools_version" => parse_swift_tools_version(content)
+          }
+        ]
 
-      [_, major, minor, patch] ->
-        [%{"swift_version" => "#{major}.#{minor}.#{patch}", "swift_tools_version" => nil}]
+      {:error, reason} ->
+        Logger.warning(
+          "Failed to fetch alternate manifest #{key} for #{scope}/#{name}@#{version}: " <>
+            inspect(reason)
+        )
 
-      _ ->
         []
+    end
+  end
+
+  defp fetch_content(bucket, key) do
+    case bucket
+         |> ExAws.S3.get_object(key)
+         |> ExAws.request() do
+      {:ok, %{body: body}} -> {:ok, body}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp filename_swift_version(filename) do
+    case Regex.run(@alternate_manifest_regex, filename) do
+      [_, major] -> major
+      [_, major, minor] -> "#{major}.#{minor}"
+      [_, major, minor, patch] -> "#{major}.#{minor}.#{patch}"
+      _ -> nil
+    end
+  end
+
+  defp parse_swift_tools_version(content) do
+    case Regex.run(@swift_tools_version_regex, content) do
+      [_, major] -> major
+      [_, major, minor] -> "#{major}.#{minor}"
+      [_, major, minor, patch] -> "#{major}.#{minor}.#{patch}"
+      _ -> nil
     end
   end
 end

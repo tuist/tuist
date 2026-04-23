@@ -15,7 +15,7 @@ defmodule Cache.Registry.AlternateManifestsTest do
     {:ok, cache_name: cache_name}
   end
 
-  test "discovers alternate manifests from S3 and ignores non-manifest objects",
+  test "discovers alternate manifests and reads swift_tools_version from each file",
        %{cache_name: cache_name} do
     scope = "mxcl"
     name = "promisekit"
@@ -26,7 +26,7 @@ defmodule Cache.Registry.AlternateManifestsTest do
       %S3{bucket: "test-bucket", path: "list"}
     end)
 
-    expect(ExAws, :stream!, fn %S3{} ->
+    expect(ExAws, :stream!, fn %S3{path: "list"} ->
       [
         %{key: "registry/swift/#{scope}/#{name}/#{version}/Package.swift"},
         %{key: "registry/swift/#{scope}/#{name}/#{version}/Package@swift-4.2.swift"},
@@ -36,12 +36,27 @@ defmodule Cache.Registry.AlternateManifestsTest do
       ]
     end)
 
+    expect(ExAws.S3, :get_object, 3, fn "test-bucket", key ->
+      %S3{bucket: "test-bucket", path: key}
+    end)
+
+    expect(ExAws, :request, 3, fn %S3{path: path} ->
+      tools_version =
+        cond do
+          String.ends_with?(path, "/Package@swift-4.2.swift") -> "4.2"
+          String.ends_with?(path, "/Package@swift-5.0.swift") -> "5.0"
+          String.ends_with?(path, "/Package@swift-5.3.swift") -> "5.3"
+        end
+
+      {:ok, %{body: "// swift-tools-version:#{tools_version}\n"}}
+    end)
+
     manifests = AlternateManifests.list(scope, name, version, cache_name: cache_name)
 
     assert manifests == [
-             %{"swift_version" => "4.2", "swift_tools_version" => nil},
-             %{"swift_version" => "5.0", "swift_tools_version" => nil},
-             %{"swift_version" => "5.3", "swift_tools_version" => nil}
+             %{"swift_version" => "4.2", "swift_tools_version" => "4.2"},
+             %{"swift_version" => "5.0", "swift_tools_version" => "5.0"},
+             %{"swift_version" => "5.3", "swift_tools_version" => "5.3"}
            ]
   end
 
@@ -50,8 +65,16 @@ defmodule Cache.Registry.AlternateManifestsTest do
       %S3{bucket: "test-bucket", path: "list"}
     end)
 
-    expect(ExAws, :stream!, 1, fn %S3{} ->
+    expect(ExAws, :stream!, 1, fn %S3{path: "list"} ->
       [%{key: "registry/swift/apple/swift-collections/1.3.0/Package@swift-6.0.swift"}]
+    end)
+
+    expect(ExAws.S3, :get_object, 1, fn "test-bucket", key ->
+      %S3{bucket: "test-bucket", path: key}
+    end)
+
+    expect(ExAws, :request, 1, fn %S3{} ->
+      {:ok, %{body: "// swift-tools-version:6.0\n"}}
     end)
 
     first =
@@ -61,7 +84,7 @@ defmodule Cache.Registry.AlternateManifestsTest do
       AlternateManifests.list("apple", "swift-collections", "1.3.0", cache_name: cache_name)
 
     assert first == second
-    assert first == [%{"swift_version" => "6.0", "swift_tools_version" => nil}]
+    assert first == [%{"swift_version" => "6.0", "swift_tools_version" => "6.0"}]
   end
 
   test "returns empty list when only the root Package.swift is present",
@@ -78,6 +101,39 @@ defmodule Cache.Registry.AlternateManifestsTest do
     end)
 
     assert AlternateManifests.list("foo", "bar", "1.0.0", cache_name: cache_name) == []
+  end
+
+  test "skips manifest files that fail to fetch", %{cache_name: cache_name} do
+    expect(ExAws.S3, :list_objects_v2, fn "test-bucket", _opts ->
+      %S3{bucket: "test-bucket", path: "list"}
+    end)
+
+    expect(ExAws, :stream!, fn %S3{} ->
+      [
+        %{key: "registry/swift/foo/bar/1.0.0/Package@swift-5.3.swift"},
+        %{key: "registry/swift/foo/bar/1.0.0/Package@swift-6.0.swift"}
+      ]
+    end)
+
+    expect(ExAws.S3, :get_object, 2, fn "test-bucket", key ->
+      %S3{bucket: "test-bucket", path: key}
+    end)
+
+    expect(ExAws, :request, 2, fn %S3{path: path} ->
+      if String.ends_with?(path, "/Package@swift-5.3.swift") do
+        {:ok, %{body: "// swift-tools-version:5.3\n"}}
+      else
+        {:error, {:http_error, 500, %{}}}
+      end
+    end)
+
+    log =
+      ExUnit.CaptureLog.capture_log(fn ->
+        assert AlternateManifests.list("foo", "bar", "1.0.0", cache_name: cache_name) ==
+                 [%{"swift_version" => "5.3", "swift_tools_version" => "5.3"}]
+      end)
+
+    assert log =~ "Failed to fetch alternate manifest"
   end
 
   test "returns empty list and logs warning when S3 raises", %{cache_name: cache_name} do

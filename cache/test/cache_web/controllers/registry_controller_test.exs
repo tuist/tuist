@@ -584,7 +584,7 @@ defmodule CacheWeb.RegistryControllerTest do
       expect(Metadata, :get_package, fn ^scope, ^name -> {:ok, metadata} end)
 
       expect(AlternateManifests, :list, fn ^scope, ^name, ^version ->
-        [%{"swift_version" => "5.3", "swift_tools_version" => nil}]
+        [%{"swift_version" => "5.3", "swift_tools_version" => "5.3"}]
       end)
 
       conn =
@@ -597,7 +597,7 @@ defmodule CacheWeb.RegistryControllerTest do
       assert link_header =~ "rel=\"alternate\""
       assert link_header =~ "swift-version=5.3"
       assert link_header =~ "filename=\"Package@swift-5.3.swift\""
-      refute link_header =~ "swift-tools-version="
+      assert link_header =~ "swift-tools-version=\"5.3\""
     end
 
     test "falls back to S3 discovery when metadata is missing entirely", %{conn: conn} do
@@ -614,7 +614,7 @@ defmodule CacheWeb.RegistryControllerTest do
       expect(Metadata, :get_package, fn ^scope, ^name -> {:error, :not_found} end)
 
       expect(AlternateManifests, :list, fn ^scope, ^name, ^version ->
-        [%{"swift_version" => "5.3", "swift_tools_version" => nil}]
+        [%{"swift_version" => "5.3", "swift_tools_version" => "5.3"}]
       end)
 
       conn =
