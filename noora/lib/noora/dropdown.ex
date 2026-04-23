@@ -86,6 +86,13 @@ defmodule Noora.Dropdown do
     <.portal :if={!@icon_only} id={@id <> "-label-portal"} target={"#" <> @id <> "-label-target"}>
       {@label}
     </.portal>
+    <.portal
+      :if={!@icon_only and has_slot_content?(@icon, assigns)}
+      id={@id <> "-icon-portal"}
+      target={"#" <> @id <> "-icon-target"}
+    >
+      {render_slot(@icon)}
+    </.portal>
     <div
       id={@id}
       class="noora-dropdown"
@@ -107,7 +114,7 @@ defmodule Noora.Dropdown do
       <button :if={!@icon_only} data-part="trigger" disabled={@disabled} type="button">
         <div data-part="label-wrapper">
           <div :if={has_slot_content?(@icon, assigns)} data-part="icon">
-            {render_slot(@icon)}
+            <span id={@id <> "-icon-target"}></span>
           </div>
           <span :if={@secondary_text} data-part="secondary-text">
             {@secondary_text}

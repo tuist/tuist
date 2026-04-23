@@ -373,6 +373,32 @@ final class TestServiceTests: TuistUnitTestCase {
         )
     }
 
+    func test_throws_when_shard_planning_flags_are_passed_without_build_only() async throws {
+        await XCTAssertThrowsSpecific(
+            {
+                try await testRun(
+                    path: try temporaryPath(),
+                    action: .test,
+                    shardTotal: 5
+                )
+            },
+            TestServiceError.shardPlanningRequiresBuildOnly
+        )
+    }
+
+    func test_throws_when_shard_index_is_passed_without_without_building() async throws {
+        await XCTAssertThrowsSpecific(
+            {
+                try await testRun(
+                    path: try temporaryPath(),
+                    action: .test,
+                    shardIndex: 0
+                )
+            },
+            TestServiceError.shardIndexRequiresWithoutBuilding
+        )
+    }
+
     func test_throws_an_error_when_config_is_not_for_generated_project() async throws {
         // Given
         givenGenerator()

@@ -33,12 +33,16 @@ defmodule TuistWeb.GradleCacheLive do
     {:ok, socket}
   end
 
-  def handle_params(_params, uri, socket) do
+  def handle_params(_params, uri, %{assigns: %{selected_project: project}} = socket) do
     params = Query.query_params(uri)
+
+    {has_builds_check, _} = Gradle.list_builds(project.id, %{page_size: 1})
+    has_builds? = not Enum.empty?(has_builds_check)
 
     {
       :noreply,
       socket
+      |> assign(:has_builds?, has_builds?)
       |> assign(:current_params, params)
       |> assign_analytics(params)
       |> assign_recent_builds(params)
@@ -241,7 +245,21 @@ defmodule TuistWeb.GradleCacheLive do
   defp analytics_trend_label(_), do: dgettext("dashboard_gradle", "since last month")
 
   defp assign_recent_builds(%{assigns: %{selected_project: project, selected_account: account}} = socket, _params) do
-    {builds, _meta} = Gradle.list_builds(project.id, %{page_size: @recent_builds_page_size})
+    {start_datetime, end_datetime} = socket.assigns.analytics_period
+    analytics_environment = socket.assigns.analytics_environment
+
+    filters =
+      [
+        %{field: :inserted_at, op: :>=, value: start_datetime},
+        %{field: :inserted_at, op: :<, value: DateTime.add(end_datetime, 1, :second)}
+      ] ++
+        case analytics_environment do
+          "ci" -> [%{field: :is_ci, op: :==, value: true}]
+          "local" -> [%{field: :is_ci, op: :==, value: false}]
+          _ -> []
+        end
+
+    {builds, _meta} = Gradle.list_builds(project.id, %{page_size: @recent_builds_page_size, filters: filters})
     builds = Repo.preload(builds, :built_by_account)
 
     recent_builds_chart_data =

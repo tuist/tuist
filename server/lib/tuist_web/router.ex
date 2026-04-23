@@ -507,6 +507,14 @@ defmodule TuistWeb.Router do
           end
         end
 
+        scope "/automations/alerts" do
+          get "/", Automations.AlertsController, :index
+          post "/", Automations.AlertsController, :create
+          get "/:alert_id", Automations.AlertsController, :show
+          put "/:alert_id", Automations.AlertsController, :update
+          delete "/:alert_id", Automations.AlertsController, :delete
+        end
+
         scope "/builds" do
           get "/", BuildsController, :index
           get "/:build_id", BuildsController, :show
@@ -658,7 +666,7 @@ defmodule TuistWeb.Router do
   scope "/ops", TuistWeb do
     pipe_through [:browser_app, :ops]
 
-    get "/accounts/:id/stripe-session", OpsController, :stripe_session
+    get "/accounts/:id/stripe-customer", OpsController, :stripe_customer
   end
 
   scope "/ops" do
