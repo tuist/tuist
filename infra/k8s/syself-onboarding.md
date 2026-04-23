@@ -48,107 +48,65 @@ rm -rf ~/.kube/cache/oidc-login
 
 ## 2. Prepare the Hetzner account
 
-Syself provisions into **your** Hetzner account. Two sides to the setup: Hetzner Cloud (for the control-plane VMs) and Hetzner Robot (for the dedicated bare-metal worker).
+Syself provisions into **your** Hetzner Cloud account. We currently use cloud VMs only (no Hetzner Robot bare-metal) — see the migration PR's "Why not bare metal" section for the reasoning.
 
-### 2a. Hetzner Cloud (control plane + LBs)
-
-1. **Create a dedicated Hetzner Cloud project** at <https://console.hetzner.cloud/projects> (e.g. `tuist-staging`). Keeping staging / production in separate projects isolates blast radius and simplifies billing.
+1. **Create a Hetzner Cloud project** at <https://console.hetzner.cloud/projects> (e.g. `tuist-syself`). All three managed clusters share one Hetzner project because Syself's ClusterClass hardcodes the Kubernetes Secret name that holds the API token.
 2. **Generate an API token** in that project with **read + write** permissions. Save it to 1Password immediately — Hetzner only shows it once.
    ```bash
-   op item create --vault Tuist --category='API Credential' \
-     --title='hetzner-tuist-staging' \
-     hcloud_token='<paste token>'
+   op item create --vault Founders --category='API Credential' \
+     --title='hetzner-tuist-syself' \
+     credential='<paste token>'
    ```
-3. **Upload an SSH key pair** to the project (Syself uses it to bootstrap the bare-metal worker from rescue mode):
+3. **Upload an SSH key pair** to the project (Syself embeds it in every VM it creates, useful for `kubectl debug`-free troubleshooting):
    ```bash
    ssh-keygen -t ed25519 -f ~/.ssh/tuist-syself -N ''
    # Upload the .pub contents via Hetzner Cloud console: Security → SSH Keys → Add.
-   op document create ~/.ssh/tuist-syself --vault Tuist --title='ssh-tuist-syself'
    ```
 
-### 2b. Hetzner Robot (bare-metal worker)
+## 3. Create the Hetzner Secret in the management cluster
 
-1. **Rent a dedicated server** at <https://robot.hetzner.com> in **Falkenstein** (to match `region: fsn1`). Recommended for staging:
-   - **AX41-NVMe** or **AX42** — 6-core Ryzen, 64 GB RAM, 2× 512 GB NVMe (~€50/mo)
-   - **EX44** — 6-core i5-13500, 64 GB RAM, 2× 512 GB NVMe (~€49/mo) as a fallback
-2. **Create a Webservice/app user** so Syself's `caph` provider can drive the Robot API: Settings (👤) → *Webservice and app settings* → create a user + password. Save both to 1Password:
-   ```bash
-   op item create --vault Tuist --category='API Credential' \
-     --title='hetzner-robot-tuist-staging' \
-     robot_user='<paste user>' \
-     robot_password='<paste password>'
-   ```
-3. **Upload the same SSH key** from §2a into Robot (Settings → Key management) so the same private key unlocks rescue mode on dedicated boxes.
-4. Note the **server ID** of the rented machine — visible as `#<id>` in the Robot server list. You'll plug it into the HetznerBareMetalHost CR below.
-
-## 3. Create the Hetzner Secrets in the management cluster
-
-These live **in the management cluster's namespace for your org**. Syself's `caph` provider reads them when it provisions nodes.
+Syself's `caph` provider reads this Secret when it provisions nodes. It lives in the management cluster's namespace for your org (`org-<yourorg>`). One Secret, shared across all workload clusters — see the Cluster CR file for context on why.
 
 ```bash
 export KUBECONFIG=~/.kube/tuist-syself-mgmt.yaml
 ORG_NS="$(kubectl config view --minify -o jsonpath='{.contexts[0].context.namespace}')"
 
-# Hetzner Cloud API token — caph uses it to create/destroy VMs and LBs.
-kubectl -n "$ORG_NS" create secret generic hetzner-staging \
-  --from-literal=hcloud="$(op read 'op://Tuist/hetzner-tuist-staging/hcloud_token')"
+kubectl -n "$ORG_NS" create secret generic hetzner \
+  --from-literal=hcloud="$(op read 'op://Founders/hetzner-tuist-syself/credential')" \
+  --from-literal=hcloud-ssh-key-name=tuist-syself
 
-# Robot credentials + SSH key — caph uses these to reinstall bare-metal
-# servers from rescue mode.
-kubectl -n "$ORG_NS" create secret generic hetzner-ssh-staging \
-  --from-literal=sshkey-name=tuist-syself \
-  --from-file=ssh-privatekey=$HOME/.ssh/tuist-syself \
-  --from-file=ssh-publickey=$HOME/.ssh/tuist-syself.pub \
-  --from-literal=robot-user="$(op read 'op://Tuist/hetzner-robot-tuist-staging/robot_user')" \
-  --from-literal=robot-password="$(op read 'op://Tuist/hetzner-robot-tuist-staging/robot_password')"
+# Upload the SSH public key to Hetzner Cloud via API (the ClusterClass
+# attaches it to every VM by name).
+TOKEN=$(kubectl -n "$ORG_NS" get secret hetzner -o jsonpath='{.data.hcloud}' | base64 -d)
+curl -sX POST https://api.hetzner.cloud/v1/ssh_keys \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d "$(jq -n --arg key "$(cat ~/.ssh/tuist-syself.pub)" '{name:"tuist-syself", public_key:$key}')"
 ```
 
 Verify:
 
 ```bash
-kubectl -n "$ORG_NS" get secrets
+kubectl -n "$ORG_NS" get secret hetzner
 ```
 
-## 4. Register the bare-metal worker
+## 4. Provision the workload cluster
 
-Before applying the Cluster CR, tell Apalla which Robot server to take over. Template is in [`infra/k8s/syself/baremetal-host-worker.yaml.example`](syself/baremetal-host-worker.yaml.example) — copy it, fill in the `serverID` and namespace, apply.
-
-```bash
-cp infra/k8s/syself/baremetal-host-worker.yaml.example /tmp/worker-1.yaml
-# Edit /tmp/worker-1.yaml:
-#   metadata.namespace: <your org namespace>
-#   spec.serverID:      <Robot server ID>
-kubectl apply -f /tmp/worker-1.yaml
-```
-
-First provisioning boots the server into rescue mode, detects the disks, and populates status. Watch it:
-
-```bash
-kubectl -n "$ORG_NS" describe hetznerbaremetalhost tuist-staging-worker-1
-# Look at status.hardwareDetails.storage[] for the NVMe WWN, then edit the
-# CR to pin spec.rootDeviceHints.wwn so reinstalls always land on the same
-# disk. (You can also leave it empty and let Apalla pick — fine for a
-# single-disk box.)
-```
-
-## 5. Provision the workload cluster
-
-The Cluster CR template is checked in at [`infra/k8s/syself/workload-cluster-staging.yaml`](syself/workload-cluster-staging.yaml). Shape:
+The per-env Cluster CRs are checked in at [`infra/k8s/syself/workload-cluster-{staging,canary,production}.yaml`](syself/). Shape (staging shown; canary mirrors it; production swaps the worker type):
 
 - Region: `fsn1` (Falkenstein)
-- Control plane: 3 × `cpx11` cloud VMs (HA, tolerates 1 node failure, enables zero-downtime upgrades)
-- Worker: 1 × Hetzner Robot bare-metal server registered in §4 (matched via `workerHostSelectorBareMetal: {role: worker, cluster: tuist-staging}`)
-- Pod/service CIDRs and `topology.class` match the Syself docs example for Kubernetes 1.34
+- Control plane: 3 × `cpx22` cloud VMs (HA, tolerates 1 node failure, enables zero-downtime upgrades)
+- Workers: 2 × `cpx22` (staging/canary) or 2 × `ccx23` (production, dedicated vCPU)
+- Pod/service CIDRs and `topology.class` follow the Syself docs example for Kubernetes 1.34
 
 Before applying:
 
-1. Replace `REPLACE_ME_ORG_NAMESPACE` with your org's namespace.
-2. Confirm `topology.class` matches a currently-available `ClusterStackRelease`:
+1. Confirm `topology.class` matches a currently-available `ClusterStackRelease`:
    ```bash
    kubectl get clusterstackreleases
    ```
    Bump `class` + `version` together if a newer release is out.
-3. Apply:
+2. Apply (staging shown; canary + production use their own CR files):
    ```bash
    kubectl apply -f infra/k8s/syself/workload-cluster-staging.yaml
    ```
@@ -163,37 +121,20 @@ kubectl -n "$ORG_NS" describe cluster tuist-staging
 # Good for diagnosing stuck phases (InfrastructureReady, ControlPlaneReady, …).
 ```
 
-Fetch the workload cluster kubeconfig:
+Fetch the workload cluster kubeconfig directly from the CAPI-managed Secret (we avoid `clusterctl get kubeconfig` because the pinned v1.13 CLI is built for v1beta2 management clusters, while Syself's is v1beta1):
 
 ```bash
-clusterctl -n "$ORG_NS" get kubeconfig tuist-staging > ~/.kube/tuist-staging.yaml
+kubectl -n "$ORG_NS" get secret tuist-staging-kubeconfig -o jsonpath='{.data.value}' \
+  | base64 -d > ~/.kube/tuist-staging.yaml
 chmod 600 ~/.kube/tuist-staging.yaml
 
 # Switch to the workload cluster.
 export KUBECONFIG=~/.kube/tuist-staging.yaml
 kubectl get nodes
-# Expect 3 control-plane + 1 worker, all Ready.
+# Expect 3 control-plane + 2 workers, all Ready.
 ```
 
-## 6. Install ingress-nginx (Hetzner LB integration)
-
-Staging exposes the server via a Hetzner Cloud LoadBalancer. Helm values for the LB annotations are checked in at [`infra/k8s/syself/ingress-nginx-values.yaml`](syself/ingress-nginx-values.yaml).
-
-```bash
-helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
-helm repo update
-
-helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
-  -n ingress-nginx --create-namespace \
-  -f infra/k8s/syself/ingress-nginx-values.yaml
-
-# External IP surfaces in ~60s once Hetzner provisions the LB.
-kubectl -n ingress-nginx get svc ingress-nginx-controller -w
-```
-
-Point `staging.tuist.dev` at that IP via Cloudflare (A record, proxied off while cert-manager is doing DNS-01, flip on afterwards).
-
-## 7. Bootstrap the server secrets
+## 5. Bootstrap the server secrets
 
 `MASTER_KEY` (decrypts `priv/secrets/stag.yml.enc` baked into the image) is synced from 1Password via [external-secrets-operator](https://external-secrets.io). The chart's `externalSecrets` block in `values-managed-common.yaml` already references a `ClusterSecretStore` named `onepassword`. Install ESO + the store once per workload cluster:
 
@@ -237,7 +178,7 @@ kubectl get clustersecretstore onepassword
 
 The Tuist chart's `ExternalSecret` resource will pick `MASTER_KEY` up automatically when Helm installs in the next section.
 
-## 8. Create the CI ServiceAccount + kubeconfig
+## 6. Create the CI ServiceAccount + kubeconfig
 
 GitHub Actions deploys via a namespace-scoped ServiceAccount with a long-lived token (the Syself-documented headless pattern). The manifest is checked in at [`infra/k8s/syself/ci-service-account.yaml`](syself/ci-service-account.yaml).
 
@@ -284,7 +225,7 @@ shred -u /tmp/ci-kubeconfig.yaml
 
 The token is persistent — revoke by deleting the `github-actions-deployer-token` Secret, or rotate by recreating it.
 
-## 9. First deploy
+## 7. First deploy
 
 ### Manual dry-run
 
@@ -321,7 +262,7 @@ After the manual smoke test passes:
 gh workflow run server-deployment.yml -f environment=staging
 ```
 
-## 10. Observability
+## 8. Observability
 
 The in-cluster Alloy chart at [`infra/helm/alloy/`](../helm/alloy/) forwards metrics / traces / logs to Grafana Cloud. Install it once per workload cluster:
 
@@ -330,9 +271,9 @@ helm upgrade --install alloy infra/helm/alloy \
   -n observability --create-namespace
 ```
 
-Prerequisite: the ClusterSecretStore from §7 must already exist — the chart pulls the three Grafana Cloud tokens (Prometheus, Loki, Tempo) through it.
+Prerequisite: the ClusterSecretStore from §5 must already exist — the chart pulls the three Grafana Cloud tokens (Prometheus, Loki, Tempo) through it.
 
-## 11. Teardown
+## 9. Teardown
 
 Workload cluster:
 
@@ -355,24 +296,18 @@ Check the `namespace:` in the kubeconfig context — Syself's template ships wit
 kubectl -n "$ORG_NS" describe cluster tuist-staging
 kubectl -n "$ORG_NS" get hetznercluster,hcloudmachine,machine
 ```
-Most often a bad `hetzner-staging` Secret (API token typo or missing permission).
+Most often a bad `hetzner` Secret (API token typo, missing permission, or missing `hcloud-ssh-key-name`).
 
-**`Cluster` stuck in `WaitingForAvailableMachines` on the worker**
-The bare-metal worker isn't ready yet. Check:
-```bash
-kubectl -n "$ORG_NS" describe hetznerbaremetalhost tuist-staging-worker-1
-kubectl -n "$ORG_NS" get hetznerbaremetalmachines
-```
-Common causes: wrong `serverID`, the Robot user doesn't have API access to that server, or the `role=worker, cluster=tuist-staging` labels on the host don't match the Cluster's `workerHostSelectorBareMetal`.
+**`HCloudMachine` stuck with `ServerCreateFailedIrrecoverableError` / "unsupported location"**
+Hetzner's per-DC capacity or server-type stock varies. Two common causes:
+- Hetzner is out of stock for that type in that DC — pick a different server type (`kubectl patch cluster ... controlPlaneMachineTypeHcloud` or `workerMachineTypeHcloud`) and `kubectl delete machine` the stuck ones so CAPI reconciles.
+- Customer-level limits hit (server count, dedicated vCPUs, primary IPs). Check `https://console.hetzner.cloud/your-account/limits` and request an increase via support.
 
-**ingress-nginx LoadBalancer stuck in `<pending>`**
-Hetzner's cloud-controller-manager needs the `load-balancer.hetzner.cloud/location` annotation to pick a DC. Verify `kubectl -n ingress-nginx describe svc ingress-nginx-controller` includes it. Also check the `hcloud-cloud-controller-manager` logs:
+**LoadBalancer stuck in `<pending>`**
+Hetzner's cloud-controller-manager needs the `load-balancer.hetzner.cloud/location` annotation on the Service to pick a DC. Verify `kubectl describe svc <name>` includes it. CCM logs:
 ```bash
 kubectl -n kube-system logs -l app=hcloud-cloud-controller-manager
 ```
-
-**cert-manager certificate stuck at `Issuing`**
-DNS-01 challenges need the Cloudflare token to have `Zone.DNS:Edit` on `tuist.dev`. Propagation usually completes in 60–90s.
 
 **`** (ArgumentError) argument error` from the server pod**
 `MASTER_KEY` is wrong or missing. ESO sync issue or 1Password item name mismatch. Check:

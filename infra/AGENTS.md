@@ -24,8 +24,7 @@ Cluster API CRs and cluster-scoped manifests that stand up our managed Kubernete
 - `syself/workload-cluster-{staging,canary,production}.yaml` — per-env Cluster CRs (control plane + worker shape, region, k8s version).
 - `syself/cluster-stack.yaml` — ClusterStack subscription (controls which k8s version + node image build we use).
 - `syself/ci-service-account.yaml` — SA + RBAC for the GitHub Actions deployer.
-- `syself/baremetal-host-worker.yaml.example` — HetznerBareMetalHost template. Kept for the future bare-metal move (see "Why not bare metal" in the migration PR); unused today.
-- `syself/ingress-nginx-values.yaml` — Helm values with Hetzner LB annotations.
+- `syself/ingress-nginx-values.yaml` — Helm values with Hetzner LB annotations (for a future ingress-nginx-based setup; not installed today).
 - `syself-onboarding.md` — end-to-end runbook for standing up a new workload cluster.
 - `provider-evaluation.md` — historical record of the provider decision (Syself vs. GKE etc.).
 
