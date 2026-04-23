@@ -39,8 +39,7 @@ defmodule TuistWeb.API.CacheController do
 
   operation(:endpoints,
     summary: "Get cache endpoints.",
-    description:
-      "Returns cache endpoints for the requested account. When the KURA client feature flag is enabled through the x-tuist-feature-flags header, only account-specific Kura endpoints are returned.",
+    description: "Returns cache endpoints for the requested account.",
     operation_id: "getCacheEndpoints",
     parameters: [
       {:account_handle,
@@ -49,13 +48,6 @@ defmodule TuistWeb.API.CacheController do
          type: :string,
          required: false,
          description: "The name of the account to get custom cache endpoints for."
-       ]},
-      {:"x-tuist-feature-flags",
-       [
-         in: :header,
-         type: :string,
-         required: false,
-         description: "Comma-separated client feature flags. Include `kura` to resolve Kura cache endpoints."
        ]}
     ],
     responses: %{

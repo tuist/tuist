@@ -9171,7 +9171,7 @@ public struct Client: APIProtocol {
     }
     /// Get cache endpoints.
     ///
-    /// Returns cache endpoints for the requested account. When the KURA client feature flag is enabled through the x-tuist-feature-flags header, only account-specific Kura endpoints are returned.
+    /// Returns cache endpoints for the requested account.
     ///
     /// - Remark: HTTP `GET /api/cache/endpoints`.
     /// - Remark: Generated from `#/paths//api/cache/endpoints/get(getCacheEndpoints)`.
@@ -9195,11 +9195,6 @@ public struct Client: APIProtocol {
                     explode: true,
                     name: "account_handle",
                     value: input.query.account_handle
-                )
-                try converter.setHeaderFieldAsURI(
-                    in: &request.headerFields,
-                    name: "x-tuist-feature-flags",
-                    value: input.headers.x_hyphen_tuist_hyphen_feature_hyphen_flags
                 )
                 converter.setAcceptHeader(
                     in: &request.headerFields,

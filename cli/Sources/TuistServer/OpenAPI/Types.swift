@@ -431,7 +431,7 @@ public protocol APIProtocol: Sendable {
     func getTestCase(_ input: Operations.getTestCase.Input) async throws -> Operations.getTestCase.Output
     /// Get cache endpoints.
     ///
-    /// Returns cache endpoints for the requested account. When the KURA client feature flag is enabled through the x-tuist-feature-flags header, only account-specific Kura endpoints are returned.
+    /// Returns cache endpoints for the requested account.
     ///
     /// - Remark: HTTP `GET /api/cache/endpoints`.
     /// - Remark: Generated from `#/paths//api/cache/endpoints/get(getCacheEndpoints)`.
@@ -1696,7 +1696,7 @@ extension APIProtocol {
     }
     /// Get cache endpoints.
     ///
-    /// Returns cache endpoints for the requested account. When the KURA client feature flag is enabled through the x-tuist-feature-flags header, only account-specific Kura endpoints are returned.
+    /// Returns cache endpoints for the requested account.
     ///
     /// - Remark: HTTP `GET /api/cache/endpoints`.
     /// - Remark: Generated from `#/paths//api/cache/endpoints/get(getCacheEndpoints)`.
@@ -35776,7 +35776,7 @@ public enum Operations {
     }
     /// Get cache endpoints.
     ///
-    /// Returns cache endpoints for the requested account. When the KURA client feature flag is enabled through the x-tuist-feature-flags header, only account-specific Kura endpoints are returned.
+    /// Returns cache endpoints for the requested account.
     ///
     /// - Remark: HTTP `GET /api/cache/endpoints`.
     /// - Remark: Generated from `#/paths//api/cache/endpoints/get(getCacheEndpoints)`.
@@ -35800,21 +35800,14 @@ public enum Operations {
             public var query: Operations.getCacheEndpoints.Input.Query
             /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/header`.
             public struct Headers: Sendable, Hashable {
-                /// Comma-separated client feature flags. Include `kura` to resolve Kura cache endpoints.
-                ///
-                /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/header/x-tuist-feature-flags`.
-                public var x_hyphen_tuist_hyphen_feature_hyphen_flags: Swift.String?
                 public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getCacheEndpoints.AcceptableContentType>]
                 /// Creates a new `Headers`.
                 ///
                 /// - Parameters:
-                ///   - x_hyphen_tuist_hyphen_feature_hyphen_flags: Comma-separated client feature flags. Include `kura` to resolve Kura cache endpoints.
                 ///   - accept:
                 public init(
-                    x_hyphen_tuist_hyphen_feature_hyphen_flags: Swift.String? = nil,
                     accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getCacheEndpoints.AcceptableContentType>] = .defaultValues()
                 ) {
-                    self.x_hyphen_tuist_hyphen_feature_hyphen_flags = x_hyphen_tuist_hyphen_feature_hyphen_flags
                     self.accept = accept
                 }
             }
