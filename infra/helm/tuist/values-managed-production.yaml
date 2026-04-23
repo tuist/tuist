@@ -9,10 +9,8 @@
 server:
   replicaCount: 2
 
-  appUrl: https://cloud.tuist.dev
+  appUrl: https://tuist.dev
 
-  # Production-specific env. Processor URL mirrors Render's prod DNS
-  # (`processor.tuist.dev`), not the canary / staging variants.
   extraEnv:
     - name: TUIST_DATABASE_POOL_SIZE
       value: "15"
@@ -32,22 +30,25 @@ server:
     enabled: true
     minAvailable: 1
 
+  # LoadBalancer service with Hetzner Cloud Controller Manager annotations.
+  # Cloudflare terminates TLS at the edge and proxies to the Hetzner LB
+  # over HTTP — no cert-manager / ingress-nginx / external-dns required
+  # inside the cluster. End-to-end TLS (Ingress + cert-manager + external-
+  # dns) is a planned follow-up; the Cloudflare hop is over Hetzner's
+  # European backbone so it's not "the public internet" in a threat-model
+  # sense, but upgrading is still the right long-term move.
   ingress:
-    enabled: true
-    className: nginx
-    host: cloud.tuist.dev
-    tlsSecretName: cloud-tuist-dev-tls
+    enabled: false
+  service:
+    type: LoadBalancer
+    port: 80
+    targetPort: 8080
     annotations:
-      cert-manager.io/cluster-issuer: letsencrypt-cloudflare
-      external-dns.alpha.kubernetes.io/hostname: cloud.tuist.dev
-      # Allow larger uploads (binaries, reports).
-      nginx.ingress.kubernetes.io/proxy-body-size: "500m"
-      nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
-      nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
-      # Stable client IP for rate-limiting and access logs.
-      nginx.ingress.kubernetes.io/use-forwarded-headers: "true"
+      load-balancer.hetzner.cloud/location: fsn1
+      load-balancer.hetzner.cloud/type: lb11
+      load-balancer.hetzner.cloud/name: tuist-production
 
-  # Full prod resource envelope — matches the Render Pro Max class we leave behind.
+  # Full prod resource envelope — sized against the ccx23 worker.
   resources:
     requests:
       cpu: "1000m"
@@ -56,7 +57,8 @@ server:
       cpu: "3000m"
       memory: "4Gi"
 
-  # Optional: anti-affinity so the two replicas never colocate on one node.
+  # Pod anti-affinity so the two replicas never land on the same worker.
+  # With 2 × ccx23 workers this gives us a replica per node.
   affinity:
     podAntiAffinity:
       preferredDuringSchedulingIgnoredDuringExecution:

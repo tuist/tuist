@@ -20,17 +20,21 @@ server:
   podDisruptionBudget:
     enabled: false
 
+  # LoadBalancer service with Hetzner Cloud Controller Manager annotations.
+  # Cloudflare terminates TLS at the edge and proxies to the Hetzner LB
+  # over HTTP — no cert-manager / ingress-nginx / external-dns required
+  # inside the cluster. End-to-end TLS (Ingress + cert-manager + external-
+  # dns) is a planned follow-up.
   ingress:
-    enabled: true
-    className: nginx
-    host: canary.tuist.dev
-    tlsSecretName: canary-tuist-dev-tls
+    enabled: false
+  service:
+    type: LoadBalancer
+    port: 80
+    targetPort: 8080
     annotations:
-      cert-manager.io/cluster-issuer: letsencrypt-cloudflare
-      external-dns.alpha.kubernetes.io/hostname: canary.tuist.dev
-      nginx.ingress.kubernetes.io/proxy-body-size: "500m"
-      nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
-      nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+      load-balancer.hetzner.cloud/location: fsn1
+      load-balancer.hetzner.cloud/type: lb11
+      load-balancer.hetzner.cloud/name: tuist-canary
 
   # Canary is always a single pod, so no anti-affinity here.
   resources:
@@ -41,8 +45,8 @@ server:
       cpu: "2000m"
       memory: "2Gi"
 
-  # Canary-specific env. Processor URL mirrors Render's canary DNS so the
-  # canary server hits the canary processor instance, not staging's.
+  # Canary-specific env. Points at its own processor instance so it
+  # doesn't blow up staging's processor when exercising new code paths.
   extraEnv:
     - name: TUIST_DATABASE_POOL_SIZE
       value: "15"

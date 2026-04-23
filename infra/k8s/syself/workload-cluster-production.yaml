@@ -1,0 +1,66 @@
+# Production workload Cluster for Tuist on Syself Apalla (Hetzner).
+#
+# Applied to the Syself-operated management cluster, which provisions the
+# actual nodes in our Hetzner project via Cluster API (caph provider).
+#
+# Shape:
+#   - Region: fsn1 (Falkenstein)
+#   - Control plane: 3 × cpx22 cloud VMs (2 vCPU / 4 GB / 80 GB). HA.
+#     ~€27/mo combined.
+#   - Workers: 2 × ccx23 dedicated-vCPU VMs (4 vCPU / 16 GB / 160 GB
+#     NVMe). Dedicated cores eliminate CPU noisy-neighbor jitter on the
+#     one env where p99 latency matters; 32 GB of RAM across the two
+#     workers leaves plenty of headroom for the Phoenix BEAM plus the
+#     system pods (Alloy, ESO, ingress-nginx, cert-manager). API-driven
+#     so the chart's HorizontalPodAutoscaler still works for traffic
+#     spikes. ~€60/mo combined.
+#
+# Total: ~€87/mo. Bare metal deliberately NOT used at this stage — see
+# the migration PR's "Why not bare metal" section for the reasoning.
+# Short version: Tuist's workload is I/O-bound on external managed
+# databases (Supabase / ClickHouse Cloud / Tigris), so none of bare
+# metal's usual wins (local NVMe IOPS, massive RAM) apply. Bare metal
+# becomes the right choice once we bring Postgres / ClickHouse into the
+# cluster.
+#
+# All three managed clusters share a single Hetzner Cloud project; see
+# workload-cluster-canary.yaml for the context on the Syself ClusterClass
+# limitation that forces this.
+
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: Cluster
+metadata:
+  name: tuist
+  namespace: org-tuist
+spec:
+  clusterNetwork:
+    services:
+      cidrBlocks:
+        - 10.128.0.0/12
+    pods:
+      cidrBlocks:
+        - 192.168.0.0/16
+    serviceDomain: cluster.local
+  topology:
+    class: hetzner-apalla-1-34-v6
+    version: v1.34.6
+    controlPlane:
+      replicas: 3
+    workers:
+      machineDeployments:
+        - class: workeramd64hcloud
+          name: md-0
+          replicas: 2
+          failureDomain: fsn1
+    variables:
+      - name: region
+        value: fsn1
+      - name: controlPlaneMachineTypeHcloud
+        value: cpx22
+      - name: controlPlaneMachineArchHcloud
+        value: amd64
+      - name: workerMachineTypeHcloud
+        value: ccx23
+      - name: SSHKeyNameHcloud
+        value:
+          - name: tuist-syself

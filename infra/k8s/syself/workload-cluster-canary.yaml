@@ -1,0 +1,58 @@
+# Canary workload Cluster for Tuist on Syself Apalla (Hetzner).
+#
+# Applied to the Syself-operated management cluster, which provisions the
+# actual nodes in our Hetzner project via Cluster API (caph provider).
+#
+# Shape mirrors staging — canary is a pre-prod gate that sees the same
+# commits as production but with a smaller slice of traffic, so a shared-
+# vCPU footprint is plenty:
+#   - Region: fsn1 (Falkenstein)
+#   - Control plane: 3 × cpx22 cloud VMs (2 vCPU / 4 GB / 80 GB). HA,
+#     zero-downtime kube-apiserver upgrades. ~€27/mo combined.
+#   - Workers: 2 × cpx22. Two-worker minimum because the baseline system
+#     pods (cilium-operator, hubble, CSI controllers, metrics-server,
+#     ESO, Alloy) saturate one cpx22 before the Phoenix server can
+#     schedule. Also gives soft-HA. ~€18/mo combined.
+#
+# Total: ~€45/mo. All three managed clusters (staging, canary, production)
+# share a single Hetzner Cloud project because Syself's ClusterClass hard-
+# codes the `hetzner` Secret name and we all live in the `org-tuist`
+# management namespace.
+
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: Cluster
+metadata:
+  name: tuist-canary
+  namespace: org-tuist
+spec:
+  clusterNetwork:
+    services:
+      cidrBlocks:
+        - 10.128.0.0/12
+    pods:
+      cidrBlocks:
+        - 192.168.0.0/16
+    serviceDomain: cluster.local
+  topology:
+    class: hetzner-apalla-1-34-v6
+    version: v1.34.6
+    controlPlane:
+      replicas: 3
+    workers:
+      machineDeployments:
+        - class: workeramd64hcloud
+          name: md-0
+          replicas: 2
+          failureDomain: fsn1
+    variables:
+      - name: region
+        value: fsn1
+      - name: controlPlaneMachineTypeHcloud
+        value: cpx22
+      - name: controlPlaneMachineArchHcloud
+        value: amd64
+      - name: workerMachineTypeHcloud
+        value: cpx22
+      - name: SSHKeyNameHcloud
+        value:
+          - name: tuist-syself
