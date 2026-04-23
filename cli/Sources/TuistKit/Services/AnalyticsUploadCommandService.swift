@@ -3,7 +3,6 @@ import Foundation
 import Path
 import TuistCore
 import TuistConfigLoader
-import TuistEnvironment
 import TuistServer
 import TuistSupport
 
@@ -41,14 +40,14 @@ struct AnalyticsUploadCommandService {
     ) async throws {
         let eventPath = try AbsolutePath(validating: eventFilePath)
         let sessionDirectory = try sessionDirectory.map { try AbsolutePath(validating: $0) }
-        do {
+        try await withCleanup(of: eventPath) {
             guard let url = URL(string: serverURL) else {
                 throw AnalyticsUploadCommandServiceError.invalidServerURL(serverURL)
             }
 
             let commandEvent: CommandEvent = try await fileSystem.readJSONFile(at: eventPath)
             let optionalAuthentication = await resolveOptionalAuthentication(commandArguments: commandEvent.commandArguments)
-            try await withServerAuthenticationConfig(optionalAuthentication: optionalAuthentication) {
+            try await ServerAuthenticationConfig.withOptionalAuthentication(optionalAuthentication) {
                 _ = try await uploadAnalyticsService.upload(
                     commandEvent: commandEvent,
                     fullHandle: fullHandle,
@@ -56,45 +55,30 @@ struct AnalyticsUploadCommandService {
                     sessionDirectory: sessionDirectory
                 )
             }
-        } catch {
-            try? await fileSystem.remove(eventPath)
-            throw error
-        }
-
-        try? await fileSystem.remove(eventPath)
-    }
-
-    private func withServerAuthenticationConfig<T>(
-        optionalAuthentication: Bool,
-        _ action: () async throws -> T
-    ) async throws -> T {
-        guard optionalAuthentication else {
-            return try await action()
-        }
-        let currentConfiguration = ServerAuthenticationConfig.current
-        return try await ServerAuthenticationConfig.$current.withValue(
-            .init(
-                backgroundRefresh: currentConfiguration.backgroundRefresh,
-                optionalAuthentication: true
-            )
-        ) {
-            try await action()
         }
     }
 
     private func resolveOptionalAuthentication(commandArguments: [String]) async -> Bool {
-        let pathIndex = commandArguments.firstIndex(of: "--path")
-        let pathArgument: String? = if let pathIndex, commandArguments.endIndex > pathIndex + 1 {
-            commandArguments[pathIndex + 1]
-        } else {
-            nil
-        }
+        guard let path = try? await CommandArguments.path(in: commandArguments),
+              let config = try? await configLoader.loadConfig(path: path)
+        else { return false }
+
+        return config.project.generatedProject?.generationOptions.optionalAuthentication == true
+    }
+
+    private func withCleanup<T>(
+        of path: AbsolutePath,
+        _ operation: () async throws -> T
+    ) async throws -> T {
+        let result: Result<T, Error>
+
         do {
-            let path = try await Environment.current.pathRelativeToWorkingDirectory(pathArgument)
-            let config = try await configLoader.loadConfig(path: path)
-            return config.project.generatedProject?.generationOptions.optionalAuthentication == true
+            result = .success(try await operation())
         } catch {
-            return false
+            result = .failure(error)
         }
+
+        try? await fileSystem.remove(path)
+        return try result.get()
     }
 }

@@ -72,18 +72,12 @@ public class TrackableCommand {
     ) async throws {
         let timer = clock.startTimer()
         let ranAt = clock.now
-        let pathIndex = commandArguments.firstIndex(of: "--path")
-        let pathArgument: String? = if let pathIndex, commandArguments.endIndex > pathIndex + 1 {
-            commandArguments[pathIndex + 1]
-        } else {
-            nil
-        }
-        let path = try await Environment.current.pathRelativeToWorkingDirectory(pathArgument)
+        let path = try await CommandArguments.path(in: commandArguments)
         let runMetadataStorage = RunMetadataStorage()
         let usesOptionalAuthentication =
             optionalAuthentication
             && (((command as? TrackableParsableCommand)?.analyticsRequired == true) || Environment.current.isCI)
-        try await withServerAuthenticationConfig(optionalAuthentication: usesOptionalAuthentication) {
+        try await ServerAuthenticationConfig.withOptionalAuthentication(usesOptionalAuthentication) {
             try await RunMetadataStorage.$current.withValue(runMetadataStorage) {
                 do {
                     if var asyncCommand = command as? AsyncParsableCommand {
@@ -99,7 +93,8 @@ public class TrackableCommand {
                             path: path,
                             runMetadataStorage: runMetadataStorage,
                             fullHandle: fullHandle,
-                            serverURL: serverURL
+                            serverURL: serverURL,
+                            ranAt: ranAt
                         )
                     }
                 } catch {
@@ -111,7 +106,8 @@ public class TrackableCommand {
                             path: path,
                             runMetadataStorage: runMetadataStorage,
                             fullHandle: fullHandle,
-                            serverURL: serverURL
+                            serverURL: serverURL,
+                            ranAt: ranAt
                         )
                     }
                     throw error
@@ -127,7 +123,8 @@ public class TrackableCommand {
         path: AbsolutePath,
         runMetadataStorage: RunMetadataStorage,
         fullHandle: String,
-        serverURL: URL
+        serverURL: URL,
+        ranAt: Date
     ) async throws {
         let durationInSeconds = timer.stop()
         let durationInMs = Int(durationInSeconds * 1000)
@@ -147,7 +144,7 @@ public class TrackableCommand {
             targetContentHashSubhashes: runMetadataStorage.targetContentHashSubhashes,
             previewId: runMetadataStorage.previewId,
             resultBundlePath: runMetadataStorage.resultBundlePath,
-            ranAt: Date(),
+            ranAt: ranAt,
             buildRunId: runMetadataStorage.buildRunId,
             testRunId: runMetadataStorage.testRunId,
             cacheEndpoint: runMetadataStorage.cacheEndpoint
@@ -202,24 +199,6 @@ public class TrackableCommand {
                 ],
                 environment: ProcessInfo.processInfo.environment
             )
-        }
-    }
-
-    private func withServerAuthenticationConfig<T>(
-        optionalAuthentication: Bool,
-        _ action: () async throws -> T
-    ) async throws -> T {
-        guard optionalAuthentication else {
-            return try await action()
-        }
-        let currentConfiguration = ServerAuthenticationConfig.current
-        return try await ServerAuthenticationConfig.$current.withValue(
-            .init(
-                backgroundRefresh: currentConfiguration.backgroundRefresh,
-                optionalAuthentication: true
-            )
-        ) {
-            try await action()
         }
     }
 

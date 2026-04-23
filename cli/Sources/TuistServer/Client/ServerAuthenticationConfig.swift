@@ -10,4 +10,24 @@ public struct ServerAuthenticationConfig {
         self.backgroundRefresh = backgroundRefresh
         self.optionalAuthentication = optionalAuthentication
     }
+
+    public func enablingOptionalAuthentication() -> Self {
+        .init(
+            backgroundRefresh: backgroundRefresh,
+            optionalAuthentication: true
+        )
+    }
+
+    public static func withOptionalAuthentication<T>(
+        _ isEnabled: Bool,
+        _ operation: () async throws -> T
+    ) async throws -> T {
+        guard isEnabled else {
+            return try await operation()
+        }
+
+        return try await Self.$current.withValue(current.enablingOptionalAuthentication()) {
+            try await operation()
+        }
+    }
 }
