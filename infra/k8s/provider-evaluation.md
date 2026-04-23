@@ -1,8 +1,10 @@
 # Kubernetes Provider Evaluation — Server Migration off Render
 
-> **Status**: proposal for team review
+> **Status**: decided. **We chose Syself on Hetzner.** Staging is live on a 3×cpx22 / 2×cpx22 cluster in Falkenstein — see [`syself-onboarding.md`](syself-onboarding.md).
+>
+> GKE was validated end-to-end as a parallel POC (cluster up, chart deploys, secrets via Workload Identity + ESO). It works. We went with Syself instead because of vendor consolidation with our existing Hetzner cache fleet and ~2–3× lower cost at our scale. The sections below are kept verbatim as the record of how we got there.
+>
 > **Author**: prepared for the infra discussion, 2026-04-21
-> **Decision needed**: pick a managed Kubernetes provider for the Tuist server migration off Render
 
 ## TL;DR
 

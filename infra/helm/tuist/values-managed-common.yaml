@@ -32,7 +32,7 @@ server:
   # OAuth, Mailgun, etc.) live in priv/secrets/<env>.yml.enc baked into the
   # image. The app decrypts them at boot when MASTER_KEY is present in the
   # environment. MASTER_KEY itself is synced from 1Password by ESO — see
-  # externalSecrets below and infra/k8s/gke-onboarding.md for the bootstrap.
+  # externalSecrets below and infra/k8s/syself-onboarding.md for the bootstrap.
   managedSecrets: true
   externalSecrets:
     refreshInterval: "1h"

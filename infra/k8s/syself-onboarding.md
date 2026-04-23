@@ -195,19 +195,47 @@ Point `staging.tuist.dev` at that IP via Cloudflare (A record, proxied off while
 
 ## 7. Bootstrap the server secrets
 
-`MASTER_KEY` (decrypts `priv/secrets/stag.yml.enc` baked into the image) is synced from 1Password via [external-secrets-operator](https://external-secrets.io). Same pattern as on GKE — see [gke-onboarding.md §3](gke-onboarding.md) for the 1Password / ESO flow. The chart's `externalSecrets` block in `values-managed-common.yaml` already references a `ClusterSecretStore` named `onepassword`; install ESO and the store once per workload cluster:
+`MASTER_KEY` (decrypts `priv/secrets/stag.yml.enc` baked into the image) is synced from 1Password via [external-secrets-operator](https://external-secrets.io). The chart's `externalSecrets` block in `values-managed-common.yaml` already references a `ClusterSecretStore` named `onepassword`. Install ESO + the store once per workload cluster:
 
 ```bash
-# ESO CRDs + controller
+# 1) ESO CRDs + controller
 helm repo add external-secrets https://charts.external-secrets.io
 helm upgrade --install external-secrets external-secrets/external-secrets \
   -n external-secrets --create-namespace \
   --set installCRDs=true
 
-# ClusterSecretStore pointing at the 1Password SDK (token in a Secret).
-# See the GKE onboarding doc §3b for the exact manifest — it's identical
-# between providers, just applied into a different cluster.
+# 2) Stash the 1Password Service Account token in the cluster. The SA must
+#    have read access to the tuist-k8s-staging vault which holds MASTER_KEY
+#    (plus the Grafana Cloud tokens Alloy consumes).
+kubectl create namespace onepassword --dry-run=client -o yaml | kubectl apply -f -
+kubectl -n onepassword create secret generic onepassword-sa-token \
+  --from-literal=token="$(op read 'op://Founders/<1p-item-uuid>/credential')" \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+# 3) Wire it up as a ClusterSecretStore.
+cat <<'YAML' | kubectl apply -f -
+apiVersion: external-secrets.io/v1
+kind: ClusterSecretStore
+metadata:
+  name: onepassword
+spec:
+  provider:
+    onepasswordSDK:
+      vault: tuist-k8s-staging
+      auth:
+        serviceAccountSecretRef:
+          name: onepassword-sa-token
+          namespace: onepassword
+          key: token
+YAML
+
+# 4) Confirm it went Ready.
+kubectl get clustersecretstore onepassword
+# NAME          READY
+# onepassword   True
 ```
+
+The Tuist chart's `ExternalSecret` resource will pick `MASTER_KEY` up automatically when Helm installs in the next section.
 
 ## 8. Create the CI ServiceAccount + kubeconfig
 

@@ -27,15 +27,14 @@ kubectl -n platform create secret generic cloudflare-api-token \
 helm dependency update infra/helm/platform
 
 # 4. Install the platform with the right provider overlay.
-# Pick exactly one:
 helm upgrade --install platform infra/helm/platform \
   -n platform \
-  -f infra/helm/platform/values-hetzner.yaml    # Syself / Hetzner
-# or
-helm upgrade --install platform infra/helm/platform \
-  -n platform \
-  -f infra/helm/platform/values-gke.yaml        # Google Kubernetes Engine
+  -f infra/helm/platform/values-hetzner.yaml
 ```
+
+Other clouds can plug in by adding a `values-<provider>.yaml` overlay that
+sets the provider-specific LoadBalancer annotations + any LB-specific
+ingress-nginx config.
 
 ## Local validation
 

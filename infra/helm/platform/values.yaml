@@ -42,16 +42,14 @@ ingress-nginx:
       type: LoadBalancer
       externalTrafficPolicy: Local
       # Provider-specific LB annotations are set via overlays so this base
-      # chart stays portable. See values-platform-hetzner.yaml and
-      # values-platform-gke.yaml. Leaving annotations empty here means any
-      # cloud provider's default LB controller (GCP, AWS, Hetzner, etc.) will
-      # provision a plain public LB with its own defaults — works on all of
-      # them, but without provider-native features like PROXY protocol.
+      # chart stays portable (see values-hetzner.yaml). Leaving annotations
+      # empty here means any cloud provider's default LB controller will
+      # provision a plain public LB with its own defaults — works everywhere,
+      # but without provider-native features like PROXY protocol.
       annotations: {}
-    # Proxy protocol is a Hetzner-oriented default because we currently run
-    # there. The GKE overlay disables it because GCP's regional/TCP LB needs
-    # different config. Kept here for backwards compat with in-cluster installs
-    # that already expect the Hetzner-style forwarding.
+    # Proxy protocol is a Hetzner-oriented default because that's where the
+    # managed Tuist cluster runs. Other providers should disable these in
+    # their own overlay when their LB doesn't pass through PROXY headers.
     config:
       use-forwarded-headers: "true"
       use-proxy-protocol: "true"

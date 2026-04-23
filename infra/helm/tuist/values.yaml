@@ -45,7 +45,7 @@ server:
   # Sync secrets from an external store via external-secrets-operator. Only
   # consulted when managedSecrets is true and masterKey is empty. The store
   # must already exist (ClusterSecretStore/SecretStore) and be configured
-  # elsewhere (see infra/k8s/gke-onboarding.md for the 1Password flow).
+  # elsewhere (see infra/k8s/syself-onboarding.md for the 1Password flow).
   externalSecrets:
     refreshInterval: "1h"
     storeRef:

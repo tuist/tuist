@@ -11,35 +11,30 @@
 server:
   replicaCount: 1
 
-  # Non-secret runtime config. Ported from Render's staging blueprint.
-  # Observability endpoints (TUIST_LOKI_URL, TUIST_OTEL_EXPORTER_OTLP_ENDPOINT)
-  # are intentionally NOT set — Render pointed at an internal `tuist-fmpt`
-  # Alloy pserv that isn't reachable from GKE. Follow-up: deploy Alloy in-cluster
-  # + repoint these at the in-cluster Service.
+  # Non-secret runtime config. Traces go to the in-cluster Alloy collector
+  # via OTLP gRPC; Alloy forwards them to Grafana Cloud Tempo. Logs follow
+  # a different path — the server writes to stdout and Alloy tails pod logs
+  # via the Kubernetes API — so TUIST_LOKI_URL stays unset (the in-app
+  # LokiLoggerHandler only attaches when TUIST_LOKI_INPROC=1).
   extraEnv:
     - name: TUIST_DATABASE_POOL_SIZE
       value: "15"
     - name: TUIST_PROCESSOR_URL
       value: http://processor-staging.tuist.dev:4002
-    # Traces go to the in-cluster Alloy collector via OTLP gRPC. Alloy
-    # forwards them to Grafana Cloud Tempo. Logs follow a different path:
-    # the server writes to stdout and Alloy tails pod logs via the k8s API,
-    # so TUIST_LOKI_URL is deliberately unset — the in-app LokiLoggerHandler
-    # only attaches when TUIST_LOKI_INPROC=1 which we leave off here.
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
       value: http://alloy-tuist-alloy.observability.svc.cluster.local:4317
 
   # Until we point DNS at the cluster, expose the app via a LoadBalancer
-  # Service directly — GCP provisions a regional public IP, no Ingress / TLS
-  # plumbing needed. Flip back to ClusterIP + ingress.enabled=true once
-  # Cloudflare + cert-manager are wired.
+  # Service directly — Hetzner's CCM provisions a public IP, no Ingress /
+  # TLS plumbing needed. Flip back to ClusterIP + ingress.enabled=true
+  # once Cloudflare + cert-manager are wired.
   service:
     type: LoadBalancer
     port: 80
     targetPort: 8080
-    # Hetzner Cloud Controller Manager reads these to provision an LB in
-    # the right DC + tier. Cloud providers without this CCM (e.g. GKE)
-    # ignore unknown annotations, so the same overlay works on both.
+    # Hetzner Cloud Controller Manager reads these to pick the LB's
+    # datacenter + tier. The Kubernetes Service spec ignores unknown
+    # annotations so this stays harmless on non-Hetzner clusters.
     annotations:
       load-balancer.hetzner.cloud/location: fsn1
       load-balancer.hetzner.cloud/type: lb11
