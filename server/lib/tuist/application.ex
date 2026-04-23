@@ -148,18 +148,10 @@ defmodule Tuist.Application do
   defp start_loki_logger do
     loki_url = Environment.loki_url()
 
-    # LokiLoggerHandler pushes logs directly from the app process to Loki.
-    # On the managed cluster we let the app write to stdout and have a
-    # cluster-level agent (Grafana Alloy) tail container logs via the
-    # Kubernetes API — more robust (no in-process queue, no
-    # crash-on-first-push state machine, no auth creds in the app pod).
-    #
-    # Self-hosted setups that still want the in-process push can opt in by
-    # setting TUIST_LOKI_INPROC=1; the handler is then attached in the
-    # background with retry. Any other value treats TUIST_LOKI_URL as the
-    # Loki endpoint the out-of-process collector (Alloy / Promtail) should
-    # write to — useful info for dashboards.
-    if loki_url && System.get_env("TUIST_LOKI_INPROC") in ~w(1 true TRUE) do
+    # Setting TUIST_LOKI_URL attaches an in-process log handler that
+    # pushes each event to Loki directly. Attach in the background with
+    # retry so a slow DNS / CNI startup doesn't fail the first attempt.
+    if loki_url do
       spawn_supervised_task(fn -> attach_loki_handler_with_retry(loki_url, 0) end)
     end
   end
@@ -171,7 +163,7 @@ defmodule Tuist.Application do
   defp attach_loki_handler_with_retry(loki_url, attempt) when attempt < @loki_attach_max_attempts do
     # Exponential backoff capped at @loki_attach_max_backoff_ms. Total
     # wait across 10 attempts is ~5 min, which covers the longest DNS /
-    # CNI propagation delays we've seen on GKE after a fresh pod schedule.
+    # CNI propagation delays we've seen on k8s after a fresh pod schedule.
     backoff =
       @loki_attach_base_backoff_ms
       |> Kernel.*(:math.pow(2, attempt))
