@@ -21,10 +21,12 @@ defmodule Tuist.IngestRepo.Migrations.AddProjectFilterProjectionToTestModuleRuns
     MODIFY SETTING deduplicate_merge_projection_mode = 'rebuild'
     """
 
+    # IF NOT EXISTS so re-runs are no-ops (CH DDL isn't transactional; see
+    # 20260410120000 for context).
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     execute """
     ALTER TABLE test_module_runs
-    ADD PROJECTION proj_by_project_is_ci_branch_ran_at (
+    ADD PROJECTION IF NOT EXISTS proj_by_project_is_ci_branch_ran_at (
       SELECT *
       ORDER BY project_id, is_ci, git_branch, ran_at
     )
