@@ -30,23 +30,14 @@ server:
     enabled: true
     minAvailable: 1
 
-  # LoadBalancer service with Hetzner Cloud Controller Manager annotations.
-  # Cloudflare terminates TLS at the edge and proxies to the Hetzner LB
-  # over HTTP — no cert-manager / ingress-nginx / external-dns required
-  # inside the cluster. End-to-end TLS (Ingress + cert-manager + external-
-  # dns) is a planned follow-up; the Cloudflare hop is over Hetzner's
-  # European backbone so it's not "the public internet" in a threat-model
-  # sense, but upgrading is still the right long-term move.
+  # ingress-nginx fronts the server on port 443 with a Cloudflare Origin
+  # CA cert (synced into the tuist-tls-cloudflare-origin Secret out-of-
+  # band; 15-year validity). Cloudflare is set to Full (strict) SSL.
   ingress:
-    enabled: false
-  service:
-    type: LoadBalancer
-    port: 80
-    targetPort: 8080
-    annotations:
-      load-balancer.hetzner.cloud/location: fsn1
-      load-balancer.hetzner.cloud/type: lb11
-      load-balancer.hetzner.cloud/name: tuist-production
+    enabled: true
+    className: nginx
+    host: tuist.dev
+    tlsSecretName: tuist-tls-cloudflare-origin
 
   # Full prod resource envelope — sized against the ccx23 worker.
   resources:
