@@ -13,6 +13,7 @@ extension Client {
             middlewares: HARRecordingMiddlewareFactory.middlewares() + [
                 RetryMiddleware(),
                 RequestIdMiddleware(),
+                ServerClientFeatureFlagsHeadersMiddleware(),
                 ServerClientCLIMetadataHeadersMiddleware(),
                 ServerClientAuthenticationMiddleware(authenticationURL: authenticationURL),
                 VerboseLoggingMiddleware(),
@@ -29,6 +30,7 @@ extension Client {
             middlewares: HARRecordingMiddlewareFactory.middlewares() + [
                 RetryMiddleware(),
                 RequestIdMiddleware(),
+                ServerClientFeatureFlagsHeadersMiddleware(),
                 VerboseLoggingMiddleware(),
                 OutputWarningsMiddleware(),
             ]

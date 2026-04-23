@@ -101,7 +101,10 @@ defmodule Tuist.Docs.CLI.Renderer do
       |> MDEx.new()
       |> MDEx.to_html!(
         extension: [header_ids: "", table: true],
-        syntax_highlight: [formatter: {:html_inline, theme: "github_light"}]
+        syntax_highlight: [
+          formatter:
+            {:html_multi_themes, themes: [light: "github_light", dark: "github_dark"], default_theme: "light-dark()"}
+        ]
       )
       |> HTML.wrap_code_blocks()
       |> HTML.add_heading_anchors()

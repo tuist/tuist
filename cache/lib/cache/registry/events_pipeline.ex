@@ -35,7 +35,11 @@ defmodule Cache.Registry.EventsPipeline do
   Pushes a registry download event to the pipeline asynchronously.
   """
   def async_push(event) do
-    OffBroadwayMemory.Buffer.async_push(:registry_events_buffer, event)
+    if Cache.AnalyticsCircuitBreaker.accept_event?(webhook_url()) do
+      OffBroadwayMemory.Buffer.async_push(:registry_events_buffer, event)
+    else
+      :ok
+    end
   end
 
   @impl true
@@ -53,9 +57,6 @@ defmodule Cache.Registry.EventsPipeline do
   end
 
   defp send_batch(events) do
-    server_url = Cache.Authentication.server_url()
-    url = "#{server_url}/webhooks/registry"
-
     api_events =
       Enum.map(events, fn event ->
         %{
@@ -67,6 +68,10 @@ defmodule Cache.Registry.EventsPipeline do
 
     body = JSON.encode!(%{events: api_events})
 
-    Cache.WebhookClient.signed_post(url, body, "registry download events")
+    Cache.WebhookClient.signed_post(webhook_url(), body, "registry download events")
+  end
+
+  defp webhook_url do
+    "#{Cache.Authentication.server_url()}/webhooks/registry"
   end
 end

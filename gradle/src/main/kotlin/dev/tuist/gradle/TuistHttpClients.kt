@@ -20,7 +20,9 @@ import java.util.concurrent.TimeUnit
  * clients automatically route requests through it; otherwise they use direct
  * connections. No explicit configuration is exposed to users.
  */
-open class TuistHttpClients {
+open class TuistHttpClients(
+    private val environmentVariables: Map<String, String> = System.getenv()
+) {
 
     val javaProxy: java.net.Proxy? by lazy { environmentProxy() }
 
@@ -28,6 +30,7 @@ open class TuistHttpClients {
         OkHttpClient.Builder()
             .connectTimeout(DEFAULT_CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .readTimeout(DEFAULT_READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .addInterceptor(FeatureFlagsInterceptor(environmentVariables))
             .applyProxy()
             .build()
     }
@@ -65,6 +68,9 @@ open class TuistHttpClients {
         val connection = raw as HttpURLConnection
         connection.connectTimeout = connectTimeoutMs
         connection.readTimeout = readTimeoutMs
+        FeatureFlagsHeaders.headerValue(environmentVariables)?.let { headerValue ->
+            connection.setRequestProperty(FeatureFlagsHeaders.HEADER_NAME, headerValue)
+        }
         return connection
     }
 

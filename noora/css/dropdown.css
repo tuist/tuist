@@ -210,6 +210,47 @@
       }
     }
   }
+
+  &[data-size="large"] {
+    & > [data-part="trigger"] {
+      gap: var(--noora-spacing-3);
+      box-shadow: var(--noora-button-border-secondary);
+      border-radius: var(--noora-radius-medium);
+      background: var(--noora-button-background-secondary);
+      padding: var(--noora-spacing-3);
+
+      & > [data-part="label"] {
+        color: var(--noora-button-secondary-label);
+        font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+      }
+
+      & > [data-part="icon"] {
+        width: var(--noora-icon-size-large);
+        height: var(--noora-icon-size-large);
+      }
+
+      & [data-part="indicator"] {
+        & > div {
+          width: var(--noora-icon-size-large);
+          height: var(--noora-icon-size-large);
+        }
+      }
+
+      &:hover {
+        background: var(--noora-button-background-secondary-hover);
+        box-shadow: var(--noora-button-border-secondary);
+      }
+
+      &:focus-visible {
+        background: var(--noora-button-background-secondary-hover);
+        box-shadow: var(--noora-button-border-secondary-focus);
+      }
+    }
+
+    html[data-theme="dark"] & > [data-part="trigger"]:hover {
+      box-shadow: var(--noora-button-border-secondary-hover);
+    }
+  }
 }
 
 .noora-dropdown-content {
