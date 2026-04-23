@@ -169,9 +169,7 @@ defmodule Tuist.Tests.Analytics do
   Returns analytics for the number of flaky test cases over time for a project.
   At each bucket endpoint T, the value is the number of test cases currently
   flagged as flaky, derived by replaying `marked_flaky` / `unmarked_flaky`
-  events from `test_case_events`. Reflects the persistent `is_flaky` flag on
-  `TestCase`, not a run-window approximation, and is not affected by whether
-  the test case is still "active" in the suite.
+  events from `test_case_events`.
   """
   def flaky_tests_analytics(project_id, opts \\ []) do
     start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
