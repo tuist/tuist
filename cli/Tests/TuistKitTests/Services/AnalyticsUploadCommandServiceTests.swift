@@ -39,7 +39,8 @@ struct AnalyticsUploadCommandServiceTests {
                 commandEvent: .matching { $0.name == event.name },
                 fullHandle: .value(fullHandle),
                 serverURL: .value(URL(string: serverURL)!),
-                sessionDirectory: .any
+                sessionDirectory: .any,
+                skipResultBundleUpload: .any
             )
             .willReturn(serverCommandEvent)
 
@@ -56,7 +57,8 @@ struct AnalyticsUploadCommandServiceTests {
                 commandEvent: .any,
                 fullHandle: .value(fullHandle),
                 serverURL: .value(URL(string: serverURL)!),
-                sessionDirectory: .any
+                sessionDirectory: .any,
+                skipResultBundleUpload: .any
             )
             .called(1)
     }
@@ -77,7 +79,8 @@ struct AnalyticsUploadCommandServiceTests {
                 commandEvent: .any,
                 fullHandle: .value(fullHandle),
                 serverURL: .value(URL(string: serverURL)!),
-                sessionDirectory: .any
+                sessionDirectory: .any,
+                skipResultBundleUpload: .any
             )
             .willReturn(serverCommandEvent)
 
@@ -108,7 +111,8 @@ struct AnalyticsUploadCommandServiceTests {
                 commandEvent: .any,
                 fullHandle: .value(fullHandle),
                 serverURL: .value(URL(string: serverURL)!),
-                sessionDirectory: .any
+                sessionDirectory: .any,
+                skipResultBundleUpload: .any
             )
             .willThrow(TestError.uploadFailed)
 

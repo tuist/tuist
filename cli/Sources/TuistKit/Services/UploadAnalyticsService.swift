@@ -15,7 +15,8 @@ public protocol UploadAnalyticsServicing {
         commandEvent: CommandEvent,
         fullHandle: String,
         serverURL: URL,
-        sessionDirectory: AbsolutePath?
+        sessionDirectory: AbsolutePath?,
+        skipResultBundleUpload: Bool
     ) async throws -> ServerCommandEvent
 }
 
@@ -45,7 +46,8 @@ public struct UploadAnalyticsService: UploadAnalyticsServicing {
         commandEvent: CommandEvent,
         fullHandle: String,
         serverURL: URL,
-        sessionDirectory: AbsolutePath? = nil
+        sessionDirectory: AbsolutePath? = nil,
+        skipResultBundleUpload: Bool = false
     ) async throws -> ServerCommandEvent {
         let runsDirectory = try cacheDirectoriesProvider.cacheDirectory(for: .runs)
         let runDirectory = runsDirectory.appending(component: commandEvent.runId)
@@ -60,7 +62,7 @@ public struct UploadAnalyticsService: UploadAnalyticsServicing {
 
         let (accountHandle, projectHandle) = try fullHandleService.parse(fullHandle)
 
-        if try await fileSystem.exists(resultBundlePath) {
+        if !skipResultBundleUpload, try await fileSystem.exists(resultBundlePath) {
             try await analyticsArtifactUploadService.uploadAndAnalyzeResultBundle(
                 resultBundlePath,
                 accountHandle: accountHandle,

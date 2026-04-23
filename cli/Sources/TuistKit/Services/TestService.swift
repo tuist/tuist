@@ -266,6 +266,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
             )
 
         let mode = mode ?? TestProcessingMode.default(for: config.url)
+        if mode == .local {
+            await RunMetadataStorage.current.update(resultBundleUploadSkipped: true)
+        }
 
         if let shardIndex, action == .testWithoutBuilding {
             try await runShard(

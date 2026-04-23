@@ -82,6 +82,9 @@ struct XcodeBuildTestCommandService {
         let path = try await path(passthroughXcodebuildArguments: passthroughXcodebuildArguments)
         let config = try await configLoader.loadConfig(path: path)
         let mode = mode ?? TestProcessingMode.default(for: config.url)
+        if mode == .local {
+            await RunMetadataStorage.current.update(resultBundleUploadSkipped: true)
+        }
 
         var shardPlanId: String?
         var shardTestProductsPath: AbsolutePath?

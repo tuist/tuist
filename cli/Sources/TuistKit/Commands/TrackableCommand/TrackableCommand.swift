@@ -151,6 +151,7 @@ public class TrackableCommand {
             path: path
         )
         let buildRunURL = await runMetadataStorage.buildRunURL
+        let skipResultBundleUpload = await runMetadataStorage.resultBundleUploadSkipped
         if (command as? TrackableParsableCommand)?.analyticsRequired == true || Environment.current.isCI {
             Logger.current.info("Uploading run metadata...")
             do {
@@ -158,7 +159,8 @@ public class TrackableCommand {
                     commandEvent: commandEvent,
                     fullHandle: fullHandle,
                     serverURL: serverURL,
-                    sessionDirectory: sessionDirectory
+                    sessionDirectory: sessionDirectory,
+                    skipResultBundleUpload: skipResultBundleUpload
                 )
                 if let testRunURL = serverCommandEvent.testRunURL {
                     Logger.current

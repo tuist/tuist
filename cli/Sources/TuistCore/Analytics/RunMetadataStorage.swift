@@ -55,6 +55,12 @@ public actor RunMetadataStorage {
         self.resultBundlePath = resultBundlePath
     }
 
+    /// Whether the result bundle upload should be skipped (e.g. when `--inspect-mode local` processes it locally).
+    public private(set) var resultBundleUploadSkipped: Bool = false
+    public func update(resultBundleUploadSkipped: Bool) {
+        self.resultBundleUploadSkipped = resultBundleUploadSkipped
+    }
+
     /// The ID of the latest build run.
     public private(set) var buildRunId: String?
     public func update(buildRunId: String?) {
