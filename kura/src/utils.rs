@@ -9,7 +9,7 @@ use sha2::{Digest, Sha256};
 use tokio::io::AsyncWriteExt;
 use uuid::Uuid;
 
-use crate::{artifact::kind::ArtifactKind, io::IoController};
+use crate::{artifact::producer::ArtifactProducer, io::IoController};
 
 #[derive(Debug)]
 pub struct TempBodyFile {
@@ -70,13 +70,13 @@ pub fn temp_file_path(directory: &Path, prefix: &str) -> PathBuf {
 }
 
 pub fn artifact_storage_id(
-    kind: ArtifactKind,
+    producer: ArtifactProducer,
     tenant_id: &str,
     namespace_id: &str,
     key: &str,
 ) -> String {
     let mut hasher = Sha256::new();
-    hasher.update(kind.as_str().as_bytes());
+    hasher.update(producer.as_str().as_bytes());
     hasher.update([0]);
     hasher.update(tenant_id.as_bytes());
     hasher.update([0]);
@@ -86,36 +86,28 @@ pub fn artifact_storage_id(
     hex::encode(hasher.finalize())
 }
 
-pub fn blob_path(data_dir: &Path, kind: ArtifactKind, artifact_id: &str) -> PathBuf {
+pub fn blob_path(data_dir: &Path, artifact_id: &str) -> PathBuf {
     data_dir
         .join("blobs")
-        .join(kind.as_str())
         .join(&artifact_id[0..2])
         .join(&artifact_id[2..4])
         .join(artifact_id)
 }
 
-pub fn segment_path(data_dir: &Path, kind: ArtifactKind, segment_id: &str) -> PathBuf {
-    data_dir
-        .join("segments")
-        .join(kind.as_str())
-        .join(format!("{segment_id}.seg"))
+pub fn segment_path(data_dir: &Path, segment_id: &str) -> PathBuf {
+    data_dir.join("segments").join(format!("{segment_id}.seg"))
 }
 
 pub fn namespace_artifact_index_key(namespace_id: &str, artifact_id: &str) -> String {
     format!("{namespace_id}\0{artifact_id}")
 }
 
-pub fn segment_artifact_index_key(
-    kind: ArtifactKind,
-    segment_id: &str,
-    artifact_id: &str,
-) -> String {
-    format!("{}\0{segment_id}\0{artifact_id}", kind.as_str())
+pub fn segment_artifact_index_key(segment_id: &str, artifact_id: &str) -> String {
+    format!("{segment_id}\0{artifact_id}")
 }
 
-pub fn segment_artifact_index_prefix(kind: ArtifactKind, segment_id: &str) -> String {
-    format!("{}\0{segment_id}\0", kind.as_str())
+pub fn segment_artifact_index_prefix(segment_id: &str) -> String {
+    format!("{segment_id}\0")
 }
 
 pub fn now_ms() -> u64 {
@@ -127,6 +119,14 @@ pub fn now_ms() -> u64 {
 
 pub fn module_key(category: &str, hash: &str, name: &str) -> String {
     format!("{category}/{hash}/{name}")
+}
+
+pub fn action_cache_key(raw_key: &str) -> String {
+    format!("action_cache/{raw_key}")
+}
+
+pub fn blob_key(raw_key: &str) -> String {
+    format!("blob/{raw_key}")
 }
 
 pub fn url_encode(value: &str) -> String {
@@ -160,18 +160,18 @@ mod tests {
 
     #[test]
     fn artifact_ids_are_stable() {
-        let a = artifact_storage_id(ArtifactKind::Xcode, "tenant", "ios", "abc");
-        let b = artifact_storage_id(ArtifactKind::Xcode, "tenant", "ios", "abc");
-        let c = artifact_storage_id(ArtifactKind::Gradle, "tenant", "ios", "abc");
+        let a = artifact_storage_id(ArtifactProducer::Xcode, "tenant", "ios", "abc");
+        let b = artifact_storage_id(ArtifactProducer::Xcode, "tenant", "ios", "abc");
+        let c = artifact_storage_id(ArtifactProducer::Gradle, "tenant", "ios", "abc");
 
         assert_eq!(a, b);
         assert_ne!(a, c);
     }
 
     #[test]
-    fn key_value_artifact_ids_use_key_value_storage_key() {
+    fn artifact_ids_include_producer() {
         let mut hasher = Sha256::new();
-        hasher.update(b"key_value");
+        hasher.update(b"xcode");
         hasher.update([0]);
         hasher.update(b"tenant");
         hasher.update([0]);
@@ -180,7 +180,7 @@ mod tests {
         hasher.update(b"abc");
 
         assert_eq!(
-            artifact_storage_id(ArtifactKind::KeyValue, "tenant", "ios", "abc"),
+            artifact_storage_id(ArtifactProducer::Xcode, "tenant", "ios", "abc"),
             hex::encode(hasher.finalize())
         );
     }
@@ -191,6 +191,12 @@ mod tests {
             module_key("builds", "hash-1", "Module.framework"),
             "builds/hash-1/Module.framework"
         );
+    }
+
+    #[test]
+    fn route_keys_are_scoped() {
+        assert_eq!(action_cache_key("cas-1"), "action_cache/cas-1");
+        assert_eq!(blob_key("artifact-1"), "blob/artifact-1");
     }
 
     #[test]
@@ -211,38 +217,28 @@ mod tests {
 
     #[test]
     fn blob_paths_are_partitioned_by_hash_prefix() {
-        let path = blob_path(
-            Path::new("/data"),
-            ArtifactKind::Module,
-            "abcdef1234567890abcdef1234567890",
-        );
+        let path = blob_path(Path::new("/data"), "abcdef1234567890abcdef1234567890");
 
         assert_eq!(
             path,
-            PathBuf::from("/data/blobs/module/ab/cd/abcdef1234567890abcdef1234567890")
+            PathBuf::from("/data/blobs/ab/cd/abcdef1234567890abcdef1234567890")
         );
     }
 
     #[test]
-    fn segment_paths_are_partitioned_by_kind() {
-        let path = segment_path(Path::new("/data"), ArtifactKind::Gradle, "01962a2d-8f1f");
+    fn segment_paths_are_shared() {
+        let path = segment_path(Path::new("/data"), "01962a2d-8f1f");
 
-        assert_eq!(
-            path,
-            PathBuf::from("/data/segments/gradle/01962a2d-8f1f.seg")
-        );
+        assert_eq!(path, PathBuf::from("/data/segments/01962a2d-8f1f.seg"));
     }
 
     #[test]
-    fn segment_artifact_index_keys_include_kind_segment_and_artifact() {
+    fn segment_artifact_index_keys_include_segment_and_artifact() {
         assert_eq!(
-            segment_artifact_index_key(ArtifactKind::Module, "segment-1", "artifact-1"),
-            "module\0segment-1\0artifact-1"
+            segment_artifact_index_key("segment-1", "artifact-1"),
+            "segment-1\0artifact-1"
         );
-        assert_eq!(
-            segment_artifact_index_prefix(ArtifactKind::Module, "segment-1"),
-            "module\0segment-1\0"
-        );
+        assert_eq!(segment_artifact_index_prefix("segment-1"), "segment-1\0");
     }
 
     #[tokio::test]

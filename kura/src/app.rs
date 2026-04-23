@@ -209,10 +209,10 @@ fn spawn_snapshot_task(state: Arc<AppState>) {
                     state
                         .metrics
                         .update_multipart_uploads(snapshot.multipart_uploads);
-                    for (kind, generation, count) in snapshot.segment_counts {
+                    for (generation, count) in snapshot.segment_counts {
                         state
                             .metrics
-                            .update_segment_generation_count(kind, generation, count);
+                            .update_segment_generation_count(generation, count);
                     }
                     state.metrics.update_rocksdb_memory(
                         snapshot.rocksdb_block_cache_usage_bytes,
