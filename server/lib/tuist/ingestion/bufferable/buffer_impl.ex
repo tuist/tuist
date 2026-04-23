@@ -6,15 +6,15 @@ defmodule Tuist.Ingestion.Bufferable.BufferImpl do
 
     quote do
       alias Tuist.Ingestion.Buffer
+      alias Tuist.Ingestion.Bufferable
       alias Tuist.IngestRepo
 
       @parent unquote(parent)
-      @write_through_repo Mix.env() == :test
 
       defp opts do
         case :persistent_term.get({__MODULE__, :opts}, nil) do
           nil ->
-            computed = Tuist.Ingestion.Bufferable.compile_time_prepare(@parent)
+            computed = Bufferable.compile_time_prepare(@parent)
             :persistent_term.put({__MODULE__, :opts}, computed)
             computed
 
@@ -38,7 +38,7 @@ defmodule Tuist.Ingestion.Bufferable.BufferImpl do
       end
 
       def insert(row) do
-        if @write_through_repo do
+        if write_through_repo?() do
           %{fields: fields} = opts()
           IngestRepo.insert_all(@parent, [write_through_row(row, fields)])
           {:ok, row}
@@ -58,7 +58,7 @@ defmodule Tuist.Ingestion.Bufferable.BufferImpl do
       def insert_all([]), do: {0, nil}
 
       def insert_all(rows) do
-        if @write_through_repo do
+        if write_through_repo?() do
           %{fields: fields} = opts()
           rows = Enum.map(rows, &write_through_row(&1, fields))
           IngestRepo.insert_all(@parent, rows)
@@ -79,11 +79,17 @@ defmodule Tuist.Ingestion.Bufferable.BufferImpl do
       end
 
       def flush do
-        if @write_through_repo do
+        if write_through_repo?() do
           :ok
         else
           Buffer.flush(__MODULE__)
         end
+      end
+
+      defp write_through_repo? do
+        :tuist
+        |> Application.get_env(Bufferable, [])
+        |> Keyword.get(:write_through_repo, false)
       end
 
       defp write_through_row(row, fields) do
