@@ -41,10 +41,13 @@ defmodule TuistWeb.HeadersTest do
     end
 
     test "returns normalized client feature flags from repeated header values", %{conn: conn} do
+      # `Plug.Conn.put_req_header/3` replaces the existing value for a key, so
+      # we have to write the header tuples onto `req_headers` directly to
+      # simulate the repeated-header case the parser is meant to support.
+      header = Headers.client_feature_flags_header()
+
       conn =
-        conn
-        |> Plug.Conn.put_req_header(Headers.client_feature_flags_header(), "A, b")
-        |> Plug.Conn.put_req_header(Headers.client_feature_flags_header(), " c , a")
+        update_in(conn.req_headers, &(&1 ++ [{header, "A, b"}, {header, " c , a"}]))
 
       assert Headers.get_client_feature_flags(conn) == MapSet.new(["A", "B", "C"])
     end
