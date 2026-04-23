@@ -184,30 +184,22 @@
       />
       <div class="select-field">
         <.label label="Country" required />
-        <select id="enterprise-address-country" name="address_country" required>
-          <option
-            value=""
-            disabled
-            selected={prefill_address(@upgrade_target_customer, :country) == ""}
-          >
-            Select a country
-          </option>
-          <option
-            :for={{code, name} <- countries()}
-            value={code}
-            selected={code == prefill_address(@upgrade_target_customer, :country)}
-          >
-            {name}
-          </option>
-        </select>
+        <.select
+          id="enterprise-address-country"
+          label="Select a country"
+          name="address_country"
+          value={prefill_address(@upgrade_target_customer, :country)}
+        >
+          <:item :for={{code, name} <- countries()} value={code} label={name} />
+        </.select>
       </div>
 
       <div class="select-field">
         <.label label="Billing cadence" />
-        <select id="enterprise-cadence" name="cadence">
-          <option value="monthly" selected>Monthly</option>
-          <option value="yearly">Yearly</option>
-        </select>
+        <.select id="enterprise-cadence" label="Monthly" name="cadence" value="monthly">
+          <:item value="monthly" label="Monthly" />
+          <:item value="yearly" label="Yearly" />
+        </.select>
       </div>
     </form>
 

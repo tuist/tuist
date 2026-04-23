@@ -61,6 +61,19 @@ defmodule Noora.Select do
       data-name={@name}
       data-on-value-change={@on_value_change}
     >
+      <select
+        :if={@name}
+        data-part="hidden-select"
+        name={@name}
+        tabindex="-1"
+        aria-hidden="true"
+        style="position: absolute; border: 0; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap;"
+      >
+        <option value=""></option>
+        <option :for={item <- @item} value={item.value} selected={item.value == @value}>
+          {item.label}
+        </option>
+      </select>
       <button data-part="trigger" disabled={@disabled} type="button">
         <div data-part="label-wrapper">
           <div :if={Enum.find(@item, &(&1.value == @value))[:icon]} data-part="icon">
