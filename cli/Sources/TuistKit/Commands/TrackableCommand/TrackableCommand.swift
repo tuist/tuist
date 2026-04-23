@@ -76,7 +76,7 @@ public class TrackableCommand {
         let runMetadataStorage = RunMetadataStorage()
         let usesOptionalAuthentication =
             optionalAuthentication
-            && (((command as? TrackableParsableCommand)?.analyticsRequired == true) || Environment.current.isCI)
+                && (((command as? TrackableParsableCommand)?.analyticsRequired == true) || Environment.current.isCI)
         try await ServerAuthenticationConfig.withOptionalAuthentication(usesOptionalAuthentication) {
             try await RunMetadataStorage.$current.withValue(runMetadataStorage) {
                 do {

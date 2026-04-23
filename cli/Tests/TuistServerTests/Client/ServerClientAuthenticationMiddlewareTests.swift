@@ -29,7 +29,7 @@ struct ServerClientAuthenticationMiddlewareTests {
             serverURL: .value(url),
             refreshIfNeeded: .value(true)
         )
-            .willReturn(nil)
+        .willReturn(nil)
 
         // When / Then
         await #expect(throws: ClientAuthenticationError.notAuthenticated, performing: {
@@ -59,7 +59,7 @@ struct ServerClientAuthenticationMiddlewareTests {
             serverURL: .value(url),
             refreshIfNeeded: .value(true)
         )
-            .willReturn(token)
+        .willReturn(token)
         var gotRequest: HTTPRequest!
 
         // When
@@ -105,7 +105,7 @@ struct ServerClientAuthenticationMiddlewareTests {
             serverURL: .value(authenticationURL),
             refreshIfNeeded: .value(true)
         )
-            .willReturn(token)
+        .willReturn(token)
         var gotRequest: HTTPRequest!
 
         // When
@@ -158,7 +158,7 @@ struct ServerClientAuthenticationMiddlewareTests {
             serverURL: .value(baseURL),
             refreshIfNeeded: .value(true)
         )
-            .willReturn(token)
+        .willReturn(token)
         var gotRequest: HTTPRequest!
 
         // When
@@ -199,7 +199,7 @@ struct ServerClientAuthenticationMiddlewareTests {
             serverURL: .value(url),
             refreshIfNeeded: .value(false)
         )
-            .willReturn(nil)
+        .willReturn(nil)
         var gotRequest: HTTPRequest!
 
         // When

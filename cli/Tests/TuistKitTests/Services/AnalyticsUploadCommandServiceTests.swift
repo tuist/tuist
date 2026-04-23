@@ -155,7 +155,10 @@ struct AnalyticsUploadCommandServiceTests {
         }
     }
 
-    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func run_enables_optional_authentication_from_repo_config() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment()
+    ) func run_enables_optional_authentication_from_repo_config() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let eventFilePath = temporaryDirectory.appending(component: "event.json")
@@ -196,7 +199,10 @@ struct AnalyticsUploadCommandServiceTests {
         #expect(values == [true])
     }
 
-    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func run_falls_back_to_required_authentication_when_config_loading_fails()
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment()
+    ) func run_falls_back_to_required_authentication_when_config_loading_fails()
         async throws
     {
         // Given

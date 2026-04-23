@@ -1,8 +1,8 @@
 import FileSystem
 import Foundation
 import Path
-import TuistCore
 import TuistConfigLoader
+import TuistCore
 import TuistServer
 import TuistSupport
 
@@ -63,7 +63,7 @@ struct AnalyticsUploadCommandService {
               let config = try? await configLoader.loadConfig(path: path)
         else { return false }
 
-        return config.project.generatedProject?.generationOptions.optionalAuthentication == true
+        return config.project.optionalAuthentication
     }
 
     private func withCleanup<T>(

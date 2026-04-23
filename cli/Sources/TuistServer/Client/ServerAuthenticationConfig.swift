@@ -26,7 +26,7 @@ public struct ServerAuthenticationConfig {
             return try await operation()
         }
 
-        return try await Self.$current.withValue(current.enablingOptionalAuthentication()) {
+        return try await $current.withValue(current.enablingOptionalAuthentication()) {
             try await operation()
         }
     }

@@ -181,8 +181,7 @@ public struct TuistCommand: AsyncParsableCommand {
                     let shouldTrackAnalytics = processedArguments.prefix(2) != ["inspect", "build"]
                         && processedArguments.prefix(2) != ["auth", "refresh-token"]
                         && processedArguments.first != "analytics-upload"
-                    let optionalAuthentication = config.project.generatedProject?.generationOptions.optionalAuthentication
-                        == true
+                    let optionalAuthentication = config.project.optionalAuthentication
                     let runTrackableCommand = {
                         try await trackableCommand.run(
                             fullHandle: config.fullHandle,
