@@ -9,11 +9,9 @@ defmodule TuistWeb.API.ProjectTokensController do
   alias TuistWeb.API.Schemas.ProjectToken
   alias TuistWeb.Authentication
 
-  plug(
-    TuistWeb.Plugs.CastAndValidate,
+  plug TuistWeb.Plugs.CastAndValidate,
     json_render_error_v2: true,
     render_error: TuistWeb.RenderAPIErrorPlug
-  )
 
   tags ["Project tokens"]
 

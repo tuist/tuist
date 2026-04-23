@@ -9,10 +9,9 @@ defmodule TuistWeb.API.AuthController do
   alias Tuist.Time
   alias TuistWeb.API.Schemas.AuthenticationTokens
 
-  plug(TuistWeb.Plugs.CastAndValidate,
+  plug TuistWeb.Plugs.CastAndValidate,
     json_render_error_v2: true,
     render_error: TuistWeb.RenderAPIErrorPlug
-  )
 
   @refresh_token_ttl {4, :weeks}
   @access_token_ttl {10, :minutes}

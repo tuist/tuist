@@ -18,15 +18,14 @@ defmodule TuistWeb.API.PreviewsController do
   alias TuistWeb.API.Schemas.PreviewSupportedPlatform
   alias TuistWeb.Authentication
 
-  plug(TuistWeb.Plugs.API.TransformQueryArrayParamsPlug, [:supported_platforms])
+  plug TuistWeb.Plugs.API.TransformQueryArrayParamsPlug, [:supported_platforms]
 
-  plug(TuistWeb.Plugs.CastAndValidate,
+  plug TuistWeb.Plugs.CastAndValidate,
     json_render_error_v2: true,
     render_error: TuistWeb.RenderAPIErrorPlug
-  )
 
-  plug(TuistWeb.Plugs.LoaderPlug)
-  plug(TuistWeb.API.Authorization.AuthorizationPlug, :preview)
+  plug TuistWeb.Plugs.LoaderPlug
+  plug TuistWeb.API.Authorization.AuthorizationPlug, :preview
 
   tags(["Previews"])
 

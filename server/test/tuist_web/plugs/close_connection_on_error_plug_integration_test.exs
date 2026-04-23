@@ -13,8 +13,8 @@ defmodule TuistWeb.Plugs.CloseConnectionOnErrorPlugIntegrationTest do
   defmodule TestRouter do
     use Plug.Router
 
-    plug(:match)
-    plug(:dispatch)
+    plug :match
+    plug :dispatch
 
     post "/early_error" do
       conn

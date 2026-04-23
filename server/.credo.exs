@@ -1,5 +1,6 @@
 alias Credo.Checks.DisallowDirectivesInFunction
 alias Credo.Checks.DisallowGlobalStateMutation
+alias Credo.Checks.DisallowParensInPlug
 alias Credo.Checks.DisallowSpec
 alias Credo.Checks.TimestampsType
 
@@ -24,6 +25,7 @@ alias Credo.Checks.TimestampsType
           {TimestampsType, files: %{included: ["priv/repo/migrations/"]}, allowed_type: :timestamptz},
           {TimestampsType, files: %{included: ["lib/"]}, allowed_type: :utc_datetime},
           {DisallowSpec, []},
+          {DisallowParensInPlug, []},
           {DisallowDirectivesInFunction, files: %{included: ["lib/"]}},
           {ExcellentMigrations.CredoCheck.MigrationsSafety, []},
           {Credo.Checks.UnusedReturnValue, files: %{excluded: ["priv/repo/migrations/"]}},

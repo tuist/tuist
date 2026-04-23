@@ -8,13 +8,12 @@ defmodule TuistWeb.API.ShardsController do
   alias TuistWeb.API.Schemas.Shards.Shard
   alias TuistWeb.API.Schemas.Shards.ShardPlan
 
-  plug(OpenApiSpex.Plug.CastAndValidate,
+  plug OpenApiSpex.Plug.CastAndValidate,
     json_render_error_v2: true,
     render_error: TuistWeb.RenderAPIErrorPlug
-  )
 
-  plug(TuistWeb.Plugs.LoaderPlug)
-  plug(TuistWeb.API.Authorization.AuthorizationPlug, :test)
+  plug TuistWeb.Plugs.LoaderPlug
+  plug TuistWeb.API.Authorization.AuthorizationPlug, :test
 
   tags(["Shards"])
 

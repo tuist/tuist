@@ -11,10 +11,9 @@ defmodule TuistWeb.API.AccountController do
   alias TuistWeb.API.Schemas.ValidationError
   alias TuistWeb.Authentication
 
-  plug(TuistWeb.Plugs.CastAndValidate,
+  plug TuistWeb.Plugs.CastAndValidate,
     json_render_error_v2: true,
     render_error: TuistWeb.RenderAPIErrorPlug
-  )
 
   tags ["Account"]
 

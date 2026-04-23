@@ -14,9 +14,9 @@ defmodule TuistWeb.Marketing.MarketingController do
   alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Marketing.Localization
 
-  plug(:assign_default_head_tags)
-  plug(:put_resp_header_cache_control)
-  plug(:put_resp_header_server)
+  plug :assign_default_head_tags
+  plug :put_resp_header_cache_control
+  plug :put_resp_header_server
 
   def qa(conn, _params) do
     read_more_posts = Enum.take(Blog.get_posts(), 3)

@@ -6,13 +6,12 @@ defmodule TuistWeb.API.BundleArtifactsController do
   alias Tuist.Bundles
   alias TuistWeb.API.Schemas.Error
 
-  plug(TuistWeb.Plugs.CastAndValidate,
+  plug TuistWeb.Plugs.CastAndValidate,
     json_render_error_v2: true,
     render_error: TuistWeb.RenderAPIErrorPlug
-  )
 
-  plug(TuistWeb.Plugs.LoaderPlug)
-  plug(TuistWeb.API.Authorization.AuthorizationPlug, :bundle)
+  plug TuistWeb.Plugs.LoaderPlug
+  plug TuistWeb.API.Authorization.AuthorizationPlug, :bundle
 
   tags ["Bundles"]
 

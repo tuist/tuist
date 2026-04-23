@@ -9,13 +9,12 @@ defmodule TuistWeb.API.Automations.AlertsController do
   alias TuistWeb.API.Schemas.AutomationAlertAction
   alias TuistWeb.API.Schemas.Error
 
-  plug(TuistWeb.Plugs.CastAndValidate,
+  plug TuistWeb.Plugs.CastAndValidate,
     json_render_error_v2: true,
     render_error: TuistWeb.RenderAPIErrorPlug
-  )
 
-  plug(TuistWeb.Plugs.LoaderPlug)
-  plug(TuistWeb.API.Authorization.AuthorizationPlug, :automation_alert)
+  plug TuistWeb.Plugs.LoaderPlug
+  plug TuistWeb.API.Authorization.AuthorizationPlug, :automation_alert
 
   tags ["Automation Alerts"]
 

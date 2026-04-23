@@ -9,13 +9,12 @@ defmodule TuistWeb.API.TestCasesController do
   alias TuistWeb.API.Schemas.PaginationMetadata
   alias TuistWeb.API.Schemas.TestCase
 
-  plug(TuistWeb.Plugs.CastAndValidate,
+  plug TuistWeb.Plugs.CastAndValidate,
     json_render_error_v2: true,
     render_error: TuistWeb.RenderAPIErrorPlug
-  )
 
-  plug(TuistWeb.Plugs.LoaderPlug)
-  plug(TuistWeb.API.Authorization.AuthorizationPlug, :test)
+  plug TuistWeb.Plugs.LoaderPlug
+  plug TuistWeb.API.Authorization.AuthorizationPlug, :test
 
   tags ["Test Cases"]
 

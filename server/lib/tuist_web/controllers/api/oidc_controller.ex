@@ -15,11 +15,9 @@ defmodule TuistWeb.API.OIDCController do
   alias Tuist.Projects
   alias TuistWeb.API.Schemas.Error
 
-  plug(
-    TuistWeb.Plugs.CastAndValidate,
+  plug TuistWeb.Plugs.CastAndValidate,
     json_render_error_v2: true,
     render_error: TuistWeb.RenderAPIErrorPlug
-  )
 
   tags(["OIDC Authentication"])
 

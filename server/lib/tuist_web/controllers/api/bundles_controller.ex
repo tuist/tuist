@@ -16,14 +16,12 @@ defmodule TuistWeb.API.BundlesController do
   alias TuistWeb.API.Schemas.ValidationError
   alias TuistWeb.Authentication
 
-  plug(TuistWeb.Plugs.LoaderPlug)
-  plug(TuistWeb.API.Authorization.AuthorizationPlug, :bundle)
+  plug TuistWeb.Plugs.LoaderPlug
+  plug TuistWeb.API.Authorization.AuthorizationPlug, :bundle
 
-  plug(
-    TuistWeb.Plugs.CastAndValidate,
+  plug TuistWeb.Plugs.CastAndValidate,
     json_render_error_v2: true,
     render_error: TuistWeb.RenderAPIErrorPlug
-  )
 
   tags(["Bundles"])
 
