@@ -2005,6 +2005,71 @@ defmodule Tuist.Tests.AnalyticsTest do
     end
   end
 
+  describe "flaky_tests_analytics/2" do
+    test "returns zero when no flaky events exist" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:00:00Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      # When
+      got =
+        Analytics.flaky_tests_analytics(
+          project.id,
+          start_datetime: ~U[2024-04-01 00:00:00Z],
+          end_datetime: ~U[2024-04-30 23:59:59Z]
+        )
+
+      # Then
+      assert got.count == 0
+      assert Enum.all?(got.values, &(&1 == 0))
+    end
+
+    test "tracks marked_flaky / unmarked_flaky events across the period" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:00:00Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          is_flaky: false,
+          inserted_at: ~N[2024-04-01 00:00:00.000000]
+        )
+
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      # Marked flaky on April 10, unmarked on April 20
+      RunsFixtures.test_case_event_fixture(
+        test_case_id: test_case.id,
+        event_type: "marked_flaky",
+        inserted_at: ~N[2024-04-10 12:00:00.000000]
+      )
+
+      RunsFixtures.test_case_event_fixture(
+        test_case_id: test_case.id,
+        event_type: "unmarked_flaky",
+        inserted_at: ~N[2024-04-20 12:00:00.000000]
+      )
+
+      # When
+      got =
+        Analytics.flaky_tests_analytics(
+          project.id,
+          start_datetime: ~U[2024-04-01 00:00:00Z],
+          end_datetime: ~U[2024-04-30 23:59:59Z]
+        )
+
+      # Then
+      april_5_index = Enum.find_index(got.dates, &(&1 == ~D[2024-04-05]))
+      april_15_index = Enum.find_index(got.dates, &(&1 == ~D[2024-04-15]))
+      april_25_index = Enum.find_index(got.dates, &(&1 == ~D[2024-04-25]))
+
+      assert Enum.at(got.values, april_5_index) == 0
+      assert Enum.at(got.values, april_15_index) == 1
+      assert Enum.at(got.values, april_25_index) == 0
+    end
+  end
+
   describe "test_cases_count_analytics/2" do
     test "returns zero when no test cases have runs" do
       # Given

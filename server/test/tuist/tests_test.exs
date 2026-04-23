@@ -7303,59 +7303,6 @@ defmodule Tuist.TestsTest do
     end
   end
 
-  describe "project_test_cases_count/1" do
-    test "returns the number of test cases scoped to the project" do
-      # Given
-      project = ProjectsFixtures.project_fixture()
-      other_project = ProjectsFixtures.project_fixture()
-
-      for _ <- 1..3 do
-        test_case = RunsFixtures.test_case_fixture(project_id: project.id)
-        IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
-      end
-
-      other_test_case = RunsFixtures.test_case_fixture(project_id: other_project.id)
-
-      IngestRepo.insert_all(TestCase, [
-        other_test_case |> Map.from_struct() |> Map.delete(:__meta__)
-      ])
-
-      # When
-      count = Tests.project_test_cases_count(project.id)
-
-      # Then
-      assert count == 3
-    end
-  end
-
-  describe "project_flaky_test_cases_count/1" do
-    test "returns only the number of flaky test cases scoped to the project" do
-      # Given
-      project = ProjectsFixtures.project_fixture()
-      other_project = ProjectsFixtures.project_fixture()
-
-      for is_flaky <- [true, true, false] do
-        test_case =
-          RunsFixtures.test_case_fixture(project_id: project.id, is_flaky: is_flaky)
-
-        IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
-      end
-
-      other_test_case =
-        RunsFixtures.test_case_fixture(project_id: other_project.id, is_flaky: true)
-
-      IngestRepo.insert_all(TestCase, [
-        other_test_case |> Map.from_struct() |> Map.delete(:__meta__)
-      ])
-
-      # When
-      count = Tests.project_flaky_test_cases_count(project.id)
-
-      # Then
-      assert count == 2
-    end
-  end
-
   describe "expire_stale_in_progress_test_runs/0" do
     test "marks stale in_progress test runs as failure" do
       project = ProjectsFixtures.project_fixture()

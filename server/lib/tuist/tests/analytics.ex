@@ -164,6 +164,81 @@ defmodule Tuist.Tests.Analytics do
     }
   end
 
+  @doc """
+  Returns analytics for the number of flaky test cases over time for a project.
+  Computes the number of test cases currently marked as flaky at each bucket
+  endpoint by replaying `marked_flaky` / `unmarked_flaky` events from the
+  `test_case_events` table. Mirrors `quarantined_tests_analytics/2`.
+  """
+  def flaky_tests_analytics(project_id, opts \\ []) do
+    start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+
+    date_period = date_period(start_datetime: start_datetime, end_datetime: end_datetime)
+    dates = date_range_for_date_period(date_period, start_datetime: start_datetime, end_datetime: end_datetime)
+    date_endpoints = Enum.map(dates, &date_to_end_of_bucket(&1, date_period))
+
+    project_test_case_ids_subquery =
+      from(tc in TestCase,
+        where: tc.project_id == ^project_id,
+        group_by: tc.id,
+        select: tc.id
+      )
+
+    max_endpoint = List.last(date_endpoints) || end_datetime
+
+    events =
+      ClickHouseRepo.all(
+        from(e in TestCaseEvent,
+          where: e.test_case_id in subquery(project_test_case_ids_subquery),
+          where: e.event_type in ["marked_flaky", "unmarked_flaky"],
+          where: e.inserted_at <= ^max_endpoint,
+          select: %{test_case_id: e.test_case_id, event_type: e.event_type, inserted_at: e.inserted_at},
+          order_by: [asc: e.inserted_at]
+        )
+      )
+
+    events_by_tc = Enum.group_by(events, & &1.test_case_id)
+
+    values =
+      Enum.map(date_endpoints, fn endpoint ->
+        endpoint_naive = DateTime.to_naive(endpoint)
+
+        Enum.count(events_by_tc, fn {_tc_id, tc_events} ->
+          last_event =
+            tc_events
+            |> Enum.take_while(&(NaiveDateTime.compare(&1.inserted_at, endpoint_naive) != :gt))
+            |> List.last()
+
+          last_event != nil and last_event.event_type == "marked_flaky"
+        end)
+      end)
+
+    previous_endpoint = DateTime.add(start_datetime, -1, :second)
+    previous_count = flaky_count_at(project_id, previous_endpoint)
+    current_count = flaky_count_at(project_id, end_datetime)
+
+    %{
+      trend: trend(previous_value: previous_count, current_value: current_count),
+      count: current_count,
+      values: values,
+      dates: dates
+    }
+  end
+
+  defp flaky_count_at(project_id, datetime) do
+    inner =
+      from(tc in TestCase,
+        where: tc.project_id == ^project_id,
+        where: tc.inserted_at <= ^datetime,
+        group_by: tc.id,
+        having: fragment("argMax(?, ?) = 1", tc.is_flaky, tc.inserted_at),
+        select: tc.id
+      )
+
+    ClickHouseRepo.one(from(tc in subquery(inner), select: count())) || 0
+  end
+
   # Window used to decide whether a test case is considered "active" at a given
   # point in time. Matches the 14-day window used by `Tuist.Tests.list_test_cases/2`.
   @test_cases_active_window_days 14
