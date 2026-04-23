@@ -1,5 +1,3 @@
-import FileSystem
-import FileSystemTesting
 import Foundation
 import Mockable
 import Testing
@@ -185,22 +183,11 @@ struct CacheGraphContentHasherTests {
     }
 
     @Test(
-        .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
-    ) func contentHashes_when_target_contains_testable_import_hashes_are_not_computed() async throws {
+    ) func contentHashes_when_target_depends_on_XCTest_hashes_are_not_computed() async throws {
         // Given
-        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        let includedSource = temporaryDirectory.appending(component: "Included.swift")
-        let testableImportSource = temporaryDirectory.appending(component: "TestSupport.swift")
-        try await FileSystem().writeText("import Foundation\n", at: includedSource)
-        try await FileSystem().writeText("@testable import ApolloAPI\n", at: testableImportSource)
-
-        let included = Target.test(name: "Included", product: .framework, sources: [SourceFile(path: includedSource)])
-        let testSupport = Target.test(
-            name: "TestSupport",
-            product: .framework,
-            sources: [SourceFile(path: testableImportSource)]
-        )
+        let included = Target.test(name: "Included", product: .framework)
+        let testSupport = Target.test(name: "TestSupport", product: .uiTests)
         let project = Project.test(
             path: "/Project/Path",
             targets: [included, testSupport]
@@ -210,7 +197,7 @@ struct CacheGraphContentHasherTests {
             target: project.targets["Included"]!,
             project: project
         )
-        let testableImportTarget = GraphTarget(
+        let xctestTarget = GraphTarget(
             path: project.path,
             target: project.targets["TestSupport"]!,
             project: project
@@ -250,7 +237,7 @@ struct CacheGraphContentHasherTests {
             .contentHashes(
                 for: .any,
                 include: .matching { filter in
-                    filter(includedTarget) && !filter(testableImportTarget)
+                    filter(includedTarget) && !filter(xctestTarget)
                 },
                 destination: .any,
                 additionalStrings: .any
