@@ -86,6 +86,7 @@ pub fn artifact_storage_id(
     hex::encode(hasher.finalize())
 }
 
+#[cfg(test)]
 pub fn blob_path(data_dir: &Path, artifact_id: &str) -> PathBuf {
     data_dir
         .join("blobs")
@@ -248,7 +249,9 @@ mod tests {
             Metrics::new("eu-west".into(), "acme".into()),
             8,
             Duration::from_secs(1),
-        );
+            vec![directory.path().to_path_buf()],
+        )
+        .expect("failed to create io controller");
         let request = Request::builder()
             .body(Body::from("hello"))
             .expect("failed to build request");
@@ -271,7 +274,9 @@ mod tests {
             Metrics::new("eu-west".into(), "acme".into()),
             8,
             Duration::from_secs(1),
-        );
+            vec![directory.path().to_path_buf()],
+        )
+        .expect("failed to create io controller");
         let request = Request::builder()
             .body(Body::from("hello"))
             .expect("failed to build request");

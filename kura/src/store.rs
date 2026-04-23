@@ -43,7 +43,7 @@ use crate::{
         state::SegmentState,
     },
     utils::{
-        artifact_storage_id, blob_path, module_key, namespace_artifact_index_key, now_ms,
+        artifact_storage_id, module_key, namespace_artifact_index_key, now_ms,
         segment_artifact_index_key, segment_artifact_index_prefix, segment_path, temp_file_path,
     },
 };
@@ -1080,6 +1080,7 @@ impl Store {
         }
     }
 
+    #[cfg(test)]
     pub async fn apply_replicated_artifact_from_bytes(
         &self,
         producer: ArtifactProducer,
@@ -2215,7 +2216,9 @@ mod tests {
             Metrics::new(config.region.clone(), config.tenant_id.clone()),
             config.file_descriptor_pool_size,
             std::time::Duration::from_millis(config.file_descriptor_acquire_timeout_ms),
-        );
+            vec![config.tmp_dir.clone(), config.data_dir.clone()],
+        )
+        .expect("failed to create io controller");
         let memory = MemoryController::new(
             io.metrics(),
             config.memory_soft_limit_bytes,
@@ -2348,7 +2351,9 @@ mod tests {
             reopened_metrics,
             config.file_descriptor_pool_size,
             std::time::Duration::from_millis(config.file_descriptor_acquire_timeout_ms),
-        );
+            vec![config.tmp_dir.clone(), config.data_dir.clone()],
+        )
+        .expect("failed to create reopened io controller");
         let reopened_memory = MemoryController::new(
             reopened_io.metrics(),
             config.memory_soft_limit_bytes,
@@ -3098,7 +3103,9 @@ mod tests {
             reopened_metrics,
             config.file_descriptor_pool_size,
             std::time::Duration::from_millis(config.file_descriptor_acquire_timeout_ms),
-        );
+            vec![config.tmp_dir.clone(), config.data_dir.clone()],
+        )
+        .expect("failed to create reopened io controller");
         let reopened_memory = MemoryController::new(
             reopened_io.metrics(),
             config.memory_soft_limit_bytes,
@@ -3152,7 +3159,9 @@ mod tests {
             reopened_metrics,
             config.file_descriptor_pool_size,
             std::time::Duration::from_millis(config.file_descriptor_acquire_timeout_ms),
-        );
+            vec![config.tmp_dir.clone(), config.data_dir.clone()],
+        )
+        .expect("failed to create reopened io controller");
         let reopened_memory = MemoryController::new(
             reopened_io.metrics(),
             config.memory_soft_limit_bytes,

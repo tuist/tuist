@@ -25,10 +25,6 @@ pub struct ArtifactManifest {
 }
 
 impl ArtifactManifest {
-    pub fn is_inline(&self) -> bool {
-        self.inline
-    }
-
     pub fn is_segment_backed(&self) -> bool {
         self.segment_id.is_some()
     }

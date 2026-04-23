@@ -12,6 +12,7 @@ pub enum ArtifactProducer {
 }
 
 impl ArtifactProducer {
+    #[cfg(test)]
     pub const fn all() -> [Self; 6] {
         [
             Self::Xcode,

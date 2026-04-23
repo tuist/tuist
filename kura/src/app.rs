@@ -46,7 +46,8 @@ pub async fn run() -> Result<(), String> {
         metrics.clone(),
         config.file_descriptor_pool_size,
         Duration::from_millis(config.file_descriptor_acquire_timeout_ms),
-    );
+        vec![config.tmp_dir.clone(), config.data_dir.clone()],
+    )?;
     let memory = MemoryController::new(
         metrics.clone(),
         config.memory_soft_limit_bytes,
