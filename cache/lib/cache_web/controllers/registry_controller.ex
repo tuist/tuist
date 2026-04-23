@@ -13,7 +13,7 @@ defmodule CacheWeb.RegistryController do
   alias Cache.S3Transfers
   alias CacheWeb.API.Schemas.SafePathComponent
 
-  plug :ensure_registry_enabled
+  plug(:ensure_registry_enabled)
 
   defp ensure_registry_enabled(conn, _opts) do
     if Config.registry_enabled?() do
@@ -84,7 +84,7 @@ defmodule CacheWeb.RegistryController do
         case Metadata.get_package(scope, name) do
           {:ok, metadata} ->
             releases =
-              Map.new(metadata["releases"] || %{}, fn {version, _release_data} ->
+              Map.new(valid_releases(metadata), fn {version, _release_data} ->
                 {version, %{url: "/api/registry/swift/#{scope}/#{name}/#{version}"}}
               end)
 
@@ -190,7 +190,9 @@ defmodule CacheWeb.RegistryController do
               conn
               |> put_resp_header("content-version", "1")
               |> put_status(303)
-              |> redirect(to: "/api/registry/swift/#{scope}/#{name}/#{normalized_version}/Package.swift")
+              |> redirect(
+                to: "/api/registry/swift/#{scope}/#{name}/#{normalized_version}/Package.swift"
+              )
             end
         end
 
@@ -228,7 +230,7 @@ defmodule CacheWeb.RegistryController do
   end
 
   defp render_release_response(conn, scope, name, normalized_version, metadata) do
-    releases = metadata["releases"] || %{}
+    releases = valid_releases(metadata)
 
     case Map.get(releases, normalized_version) do
       nil ->
@@ -351,7 +353,8 @@ defmodule CacheWeb.RegistryController do
     end
   end
 
-  defp maybe_put_alternate_manifest_link(conn, _scope, _name, _version, swift_version) when not is_nil(swift_version) do
+  defp maybe_put_alternate_manifest_link(conn, _scope, _name, _version, swift_version)
+       when not is_nil(swift_version) do
     conn
   end
 
@@ -524,11 +527,24 @@ defmodule CacheWeb.RegistryController do
   defp normalize_registry_version(version) do
     normalized_version = KeyNormalizer.normalize_version(version)
 
-    if SafePathComponent.valid?(normalized_version) do
+    if SafePathComponent.valid?(normalized_version) and
+         KeyNormalizer.valid_semver?(normalized_version) do
       {:ok, normalized_version}
     else
       {:error, :invalid_path_params}
     end
+  end
+
+  defp valid_releases(metadata) do
+    metadata
+    |> Map.get("releases", %{})
+    |> Enum.reduce(%{}, fn {version, release_data}, acc ->
+      if KeyNormalizer.valid_semver?(version) do
+        Map.put(acc, version, release_data)
+      else
+        acc
+      end
+    end)
   end
 
   defp scope_name_from_full_handle(repository_full_handle) do

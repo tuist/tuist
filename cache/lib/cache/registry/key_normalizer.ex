@@ -7,6 +7,8 @@ defmodule Cache.Registry.KeyNormalizer do
   synchronization via S3TransferWorker.
   """
 
+  @semver_regex ~r/^\d+\.\d+(\.\d+)?(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$/
+
   @doc """
   Normalizes a scope by downcasing it.
 
@@ -89,6 +91,14 @@ defmodule Cache.Registry.KeyNormalizer do
       _ ->
         add_trailing_semantic_version_zeros(version)
     end
+  end
+
+  @doc """
+  Returns whether a version normalizes to a supported semantic version.
+  """
+  def valid_semver?(version) when is_binary(version) do
+    normalized_version = normalize_version(version)
+    Regex.match?(@semver_regex, normalized_version)
   end
 
   defp add_trailing_semantic_version_zeros(version) do

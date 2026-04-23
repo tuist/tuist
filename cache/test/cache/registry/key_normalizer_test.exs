@@ -96,6 +96,19 @@ defmodule Cache.Registry.KeyNormalizerTest do
     end
   end
 
+  describe "valid_semver?/1" do
+    test "accepts supported semantic versions after normalization" do
+      assert KeyNormalizer.valid_semver?("v1.2.3")
+      assert KeyNormalizer.valid_semver?("1.2")
+      assert KeyNormalizer.valid_semver?("1.0.0-alpha.1")
+    end
+
+    test "rejects non-semantic versions" do
+      refute KeyNormalizer.valid_semver?("0.0.24b")
+      refute KeyNormalizer.valid_semver?("3.2.0.1")
+    end
+  end
+
   describe "package_object_key/2" do
     test "constructs full key with version and path" do
       result =

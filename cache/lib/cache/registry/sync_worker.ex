@@ -88,6 +88,7 @@ defmodule Cache.Registry.SyncWorker do
         {:ok, metadata} -> metadata
         {:error, :not_found} -> empty_metadata(scope, name, full_handle)
       end
+      |> sanitize_metadata()
 
     case TuistCommon.GitHub.list_tags(full_handle, token, @github_opts) do
       {:ok, tags} ->
@@ -109,7 +110,7 @@ defmodule Cache.Registry.SyncWorker do
     known_versions = Map.keys(releases) ++ Map.keys(skipped_releases)
 
     tags
-    |> Enum.filter(&valid_semver?/1)
+    |> Enum.filter(&KeyNormalizer.valid_semver?/1)
     |> Enum.reject(&String.contains?(&1, "-dev"))
     |> Enum.uniq_by(&KeyNormalizer.normalize_version/1)
     |> Enum.filter(fn tag ->
@@ -148,11 +149,29 @@ defmodule Cache.Registry.SyncWorker do
     }
   end
 
-  defp valid_semver?(version) do
-    Regex.match?(
-      ~r/^v?\d+\.\d+(\.\d+)?(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$/,
-      version
-    )
+  defp sanitize_metadata(metadata) do
+    metadata
+    |> sanitize_versions("releases")
+    |> sanitize_versions("skipped_releases")
+  end
+
+  defp sanitize_versions(metadata, key) do
+    case Map.fetch(metadata, key) do
+      {:ok, versions} ->
+        filtered_versions =
+          Enum.reduce(versions, %{}, fn {version, value}, acc ->
+            if KeyNormalizer.valid_semver?(version) do
+              Map.put(acc, version, value)
+            else
+              acc
+            end
+          end)
+
+        Map.put(metadata, key, filtered_versions)
+
+      :error ->
+        metadata
+    end
   end
 
   defp apply_allowlist(packages, nil), do: packages
