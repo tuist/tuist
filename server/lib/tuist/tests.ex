@@ -50,6 +50,17 @@ defmodule Tuist.Tests do
 
   require OpenTelemetry.Tracer
 
+  # Number of days of run history used to decide whether a test case is "active"
+  # (i.e. still part of the suite). Used by `list_test_cases/2` and by the Test
+  # Cases / Flaky Tests analytics charts so they stay in sync.
+  @active_window_days 14
+
+  @doc """
+  Number of trailing days used across the product to decide whether a test case
+  is still considered part of the suite.
+  """
+  def active_window_days, do: @active_window_days
+
   # Keys present on the `Test` struct that are NOT columns on the `test_runs`
   # ClickHouse table (Ecto metadata + association loaders). Used to scrub the
   # struct when re-inserting an updated row via `IngestRepo.insert_all/2`.
@@ -1419,8 +1430,8 @@ defmodule Tuist.Tests do
       if has_name_filter do
         base_query
       else
-        two_weeks_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -14, :day)
-        where(base_query, [test_case], test_case.last_ran_at >= ^two_weeks_ago)
+        window_start = NaiveDateTime.add(NaiveDateTime.utc_now(), -@active_window_days, :day)
+        where(base_query, [test_case], test_case.last_ran_at >= ^window_start)
       end
 
     Tuist.ClickHouseFlop.validate_and_run!(base_query, attrs, for: TestCase)

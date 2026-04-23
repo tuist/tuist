@@ -7,6 +7,7 @@ defmodule Tuist.Tests.Analytics do
   alias Postgrex.Interval
   alias Tuist.ClickHouseRepo
   alias Tuist.CommandEvents.Event
+  alias Tuist.Tests
   alias Tuist.Tests.Test
   alias Tuist.Tests.TestCase
   alias Tuist.Tests.TestCaseEvent
@@ -15,10 +16,6 @@ defmodule Tuist.Tests.Analytics do
   alias Tuist.Tests.TestCaseRunDailyAggregate
 
   @test_case_runs_by_inserted_at {"test_case_runs_by_inserted_at", TestCaseRun}
-
-  # Window used to decide whether a test case is considered "active" at a given
-  # point in time. Matches the 14-day window used by `Tuist.Tests.list_test_cases/2`.
-  @test_cases_active_window_days 14
 
   def test_run_analytics(project_id, opts \\ []) do
     start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
@@ -183,7 +180,7 @@ defmodule Tuist.Tests.Analytics do
     dates = date_range_for_date_period(date_period, start_datetime: start_datetime, end_datetime: end_datetime)
     date_endpoints = Enum.map(dates, &date_to_end_of_bucket(&1, date_period))
 
-    window_seconds = @test_cases_active_window_days * 86_400
+    window_seconds = Tests.active_window_days() * 86_400
 
     previous_endpoint = DateTime.add(start_datetime, -1, :second)
     previous_count = flaky_tests_count_at(project_id, previous_endpoint, window_seconds)
@@ -228,7 +225,7 @@ defmodule Tuist.Tests.Analytics do
     dates = date_range_for_date_period(date_period, start_datetime: start_datetime, end_datetime: end_datetime)
     date_endpoints = Enum.map(dates, &date_to_end_of_bucket(&1, date_period))
 
-    window_seconds = @test_cases_active_window_days * 86_400
+    window_seconds = Tests.active_window_days() * 86_400
 
     previous_endpoint = DateTime.add(start_datetime, -1, :second)
     previous_count = active_test_cases_count(project_id, previous_endpoint, window_seconds)
