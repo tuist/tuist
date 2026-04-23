@@ -2006,7 +2006,7 @@ defmodule Tuist.Tests.AnalyticsTest do
   end
 
   describe "test_cases_count_analytics/2" do
-    test "returns zero when no test cases exist" do
+    test "returns zero when no test cases have runs" do
       # Given
       stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:00:00Z] end)
       project = ProjectsFixtures.project_fixture()
@@ -2024,29 +2024,26 @@ defmodule Tuist.Tests.AnalyticsTest do
       assert Enum.all?(got.values, &(&1 == 0))
     end
 
-    test "produces a cumulative curve over time" do
+    test "counts distinct test cases active within the 14-day window and drops when runs stop" do
       # Given
       stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:00:00Z] end)
       project = ProjectsFixtures.project_fixture()
 
-      # One test case seen on April 5, another on April 20
-      tc_1 =
-        RunsFixtures.test_case_fixture(
-          project_id: project.id,
-          name: "first",
-          inserted_at: ~N[2024-04-05 09:00:00.000000]
-        )
+      tc_a_id = UUIDv7.generate()
+      tc_b_id = UUIDv7.generate()
 
-      tc_2 =
-        RunsFixtures.test_case_fixture(
-          project_id: project.id,
-          name: "second",
-          inserted_at: ~N[2024-04-20 09:00:00.000000]
-        )
+      # Test case A: runs April 5 only (so active April 5 → April 19, drops off April 20+)
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: tc_a_id,
+        ran_at: ~N[2024-04-05 09:00:00.000000]
+      )
 
-      IngestRepo.insert_all(
-        TestCase,
-        Enum.map([tc_1, tc_2], &(&1 |> Map.from_struct() |> Map.delete(:__meta__)))
+      # Test case B: runs on April 20 (active April 20 → end)
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: tc_b_id,
+        ran_at: ~N[2024-04-20 09:00:00.000000]
       )
 
       # When
@@ -2058,15 +2055,25 @@ defmodule Tuist.Tests.AnalyticsTest do
         )
 
       # Then
-      assert got.count == 2
-
       april_4_index = Enum.find_index(got.dates, &(&1 == ~D[2024-04-04]))
       april_10_index = Enum.find_index(got.dates, &(&1 == ~D[2024-04-10]))
+      april_18_index = Enum.find_index(got.dates, &(&1 == ~D[2024-04-18]))
+      april_20_index = Enum.find_index(got.dates, &(&1 == ~D[2024-04-20]))
       april_25_index = Enum.find_index(got.dates, &(&1 == ~D[2024-04-25]))
 
+      # Before any run
       assert Enum.at(got.values, april_4_index) == 0
+      # Only A within window
       assert Enum.at(got.values, april_10_index) == 1
-      assert Enum.at(got.values, april_25_index) == 2
+      # A still within 14d of April 5
+      assert Enum.at(got.values, april_18_index) == 1
+      # B now active, A still within 14d (April 5 + 14 = April 19)
+      assert Enum.at(got.values, april_20_index) == 1
+      # A has dropped off (April 25 is >14d after April 5), B still active
+      assert Enum.at(got.values, april_25_index) == 1
+
+      # Current count reflects state at end_datetime
+      assert got.count == Enum.at(got.values, -1)
     end
   end
 end

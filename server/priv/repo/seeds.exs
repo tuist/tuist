@@ -1029,6 +1029,40 @@ failure_counter = :counters.new(1, [:atomics])
 all_test_cases_list = Enum.to_list(all_test_cases)
 quarantined_test_cases_list = Enum.to_list(quarantined_test_cases)
 
+# Give each test case an "active window" measured in days-ago, so the Test Cases
+# count chart has a realistic shape: new tests appear over time and some drop off
+# when they're no longer part of the suite.
+#   - first_active_day_ago: how many days ago the test case first existed
+#   - last_active_day_ago : the last day the test case was still being run
+#     (0 means it's still active today)
+max_history_day_offset = 400
+
+test_case_active_windows =
+  Map.new(all_test_cases_list, fn tc ->
+    first_active = Enum.random(0..max_history_day_offset)
+    # ~15% of test cases drop off the suite at some earlier point.
+    last_active =
+      if Enum.random(1..100) <= 15 and first_active > 20 do
+        Enum.random(10..(first_active - 10))
+      else
+        0
+      end
+
+    {tc.id, {first_active, last_active}}
+  end)
+
+# Bucket by day for O(1) lookup during case-run generation.
+all_test_cases_by_day =
+  Map.new(0..max_history_day_offset, fn day ->
+    active =
+      Enum.filter(all_test_cases_list, fn tc ->
+        {first_active, last_active} = Map.fetch!(test_case_active_windows, tc.id)
+        day <= first_active and day >= last_active
+      end)
+
+    {day, active}
+  end)
+
 # Chunk generator function - processes one chunk and inserts to DB immediately
 chunk_processor = fn chunk_indices ->
   chunk_count = length(chunk_indices)
@@ -1130,13 +1164,26 @@ chunk_processor = fn chunk_indices ->
 
                 {case_list_inner, fail_list_inner} =
                   Enum.reduce(1..case_count, {[], []}, fn _, {cl_inner, fl_inner} ->
+                    # Restrict the candidate pool to test cases whose active window
+                    # includes this run's day, so test cases appear/disappear over time.
+                    test_day_offset =
+                      min(
+                        max_history_day_offset,
+                        Date.diff(Date.utc_today(), NaiveDateTime.to_date(test.ran_at))
+                      )
+
+                    active_pool =
+                      Map.get(all_test_cases_by_day, test_day_offset, all_test_cases_list)
+
+                    active_pool = if Enum.empty?(active_pool), do: all_test_cases_list, else: active_pool
+
                     # Ensure quarantined test cases get test_case_runs (10% chance to pick from quarantined)
                     # This ensures they have last_run_id populated for proper link rendering
                     test_case =
                       if length(quarantined_test_cases_list) > 0 and Enum.random(1..10) == 1 do
                         Enum.random(quarantined_test_cases_list)
                       else
-                        Enum.random(all_test_cases_list)
+                        Enum.random(active_pool)
                       end
 
                     case_status =

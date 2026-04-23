@@ -164,10 +164,15 @@ defmodule Tuist.Tests.Analytics do
     }
   end
 
+  # Window used to decide whether a test case is considered "active" at a given
+  # point in time. Matches the 14-day window used by `Tuist.Tests.list_test_cases/2`.
+  @test_cases_active_window_days 14
+
   @doc """
-  Returns analytics for the cumulative number of test cases over time for a project.
-  Each bucket's value is the total number of distinct test cases first seen by
-  that bucket's endpoint. The last bucket equals the current total.
+  Returns analytics for the number of active test cases over time for a project.
+  A test case is counted at bucket endpoint T if it has at least one run in the
+  14 days ending at T. The chart can both rise (new test cases appear) and fall
+  (test cases stop being run).
   """
   def test_cases_count_analytics(project_id, opts \\ []) do
     start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
@@ -176,28 +181,15 @@ defmodule Tuist.Tests.Analytics do
     date_period = date_period(start_datetime: start_datetime, end_datetime: end_datetime)
     dates = date_range_for_date_period(date_period, start_datetime: start_datetime, end_datetime: end_datetime)
     date_endpoints = Enum.map(dates, &date_to_end_of_bucket(&1, date_period))
-    max_endpoint = List.last(date_endpoints) || end_datetime
 
-    first_seens =
-      from(tc in TestCase,
-        where: tc.project_id == ^project_id,
-        where: tc.inserted_at <= ^max_endpoint,
-        group_by: tc.id,
-        select: fragment("min(?)", tc.inserted_at)
-      )
-      |> ClickHouseRepo.all()
-      |> Enum.sort(fn a, b -> NaiveDateTime.compare(a, b) != :gt end)
+    window_seconds = @test_cases_active_window_days * 86_400
 
-    values =
-      Enum.map(date_endpoints, fn endpoint ->
-        endpoint_naive = DateTime.to_naive(endpoint)
-        Enum.count(first_seens, &(NaiveDateTime.compare(&1, endpoint_naive) != :gt))
-      end)
+    previous_endpoint = DateTime.add(start_datetime, -1, :second)
+    previous_count = active_test_cases_count(project_id, previous_endpoint, window_seconds)
+
+    values = Enum.map(date_endpoints, &active_test_cases_count(project_id, &1, window_seconds))
 
     current_count = List.last(values) || 0
-
-    start_naive = DateTime.to_naive(start_datetime)
-    previous_count = Enum.count(first_seens, &(NaiveDateTime.compare(&1, start_naive) != :gt))
 
     %{
       trend: trend(previous_value: previous_count, current_value: current_count),
@@ -205,6 +197,19 @@ defmodule Tuist.Tests.Analytics do
       values: values,
       dates: dates
     }
+  end
+
+  defp active_test_cases_count(project_id, endpoint, window_seconds) do
+    window_start = DateTime.add(endpoint, -window_seconds, :second)
+
+    ClickHouseRepo.one(
+      from(tcr in TestCaseRun,
+        where: tcr.project_id == ^project_id,
+        where: tcr.ran_at >= ^window_start,
+        where: tcr.ran_at <= ^endpoint,
+        select: fragment("uniqExact(?)", tcr.test_case_id)
+      )
+    ) || 0
   end
 
   defp date_to_end_of_bucket(%Date{} = date, :day) do

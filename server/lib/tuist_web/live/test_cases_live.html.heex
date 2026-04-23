@@ -82,33 +82,6 @@
     <div data-part="analytics-content">
       <div data-part="widgets">
         <.widget
-          loading={!@test_cases_count_analytics.ok?}
-          title={dgettext("dashboard_tests", "Test cases")}
-          description={
-            dgettext(
-              "dashboard_tests",
-              "Cumulative number of distinct test cases seen in this project over time."
-            )
-          }
-          value={
-            if @test_cases_count_analytics.ok?,
-              do: format_number(@test_cases_count_analytics.result.count)
-          }
-          id="widget-test-cases-count"
-          legend_color="secondary"
-          trend_value={
-            if @test_cases_count_analytics.ok?,
-              do: @test_cases_count_analytics.result.trend,
-              else: nil
-          }
-          trend_type={:neutral}
-          trend_label={@analytics_trend_label}
-          phx_click="select_widget"
-          phx_value_widget="test_cases_count"
-          selected={@analytics_selected_widget == "test_cases_count"}
-          empty={@test_cases_count_analytics.ok? && @test_cases_count_analytics.result.count == 0}
-        />
-        <.widget
           loading={!@test_case_runs_analytics.ok?}
           title={dgettext("dashboard_tests", "Test case runs")}
           description={
@@ -241,6 +214,33 @@
               @test_case_runs_duration_analytics.result.total_average_duration == 0
           }
           empty_label={dgettext("dashboard_tests", "No data")}
+        />
+        <.widget
+          loading={!@test_cases_count_analytics.ok?}
+          title={dgettext("dashboard_tests", "Test cases")}
+          description={
+            dgettext(
+              "dashboard_tests",
+              "Number of distinct test cases with at least one run in the 14 days ending on each date."
+            )
+          }
+          value={
+            if @test_cases_count_analytics.ok?,
+              do: format_number(@test_cases_count_analytics.result.count)
+          }
+          id="widget-test-cases-count"
+          legend_color="secondary"
+          trend_value={
+            if @test_cases_count_analytics.ok?,
+              do: @test_cases_count_analytics.result.trend,
+              else: nil
+          }
+          trend_type={:neutral}
+          trend_label={@analytics_trend_label}
+          phx_click="select_widget"
+          phx_value_widget="test_cases_count"
+          selected={@analytics_selected_widget == "test_cases_count"}
+          empty={@test_cases_count_analytics.ok? && @test_cases_count_analytics.result.count == 0}
         />
       </div>
       <.card_section :if={!@analytics_chart_data.ok?}>
