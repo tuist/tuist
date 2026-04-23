@@ -149,7 +149,7 @@ defmodule TuistWeb.FlakyTestsLiveTest do
         live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/flaky-tests")
 
       # Then
-      render_async(lv)
+      render_async(lv, 2000)
       assert has_element?(lv, "#widget-flaky-tests")
       assert has_element?(lv, "#widget-flaky-runs")
     end

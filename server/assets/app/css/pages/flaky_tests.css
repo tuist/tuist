@@ -36,25 +36,25 @@
     gap: var(--noora-spacing-4);
   }
 
+  & [data-part="analytics-chart"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-7);
+    padding: var(--noora-spacing-5);
+  }
+
+  & .noora-card {
+    overflow-x: hidden;
+  }
+
   & .noora-chart {
     width: 105%;
     height: 200px;
   }
 
   & > [data-part="flaky-tests"] {
-    overflow-x: hidden;
-
     & .noora-dropdown-item:not([data-selected]) svg {
       visibility: hidden;
-    }
-
-    & > [data-part="analytics-content"] > [data-part="analytics-chart-section"] {
-      padding: var(--noora-spacing-5);
-
-      & .noora-chart {
-        padding: var(--noora-spacing-3);
-        height: 200px;
-      }
     }
   }
 
