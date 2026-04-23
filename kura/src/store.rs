@@ -886,7 +886,7 @@ impl Store {
     }
 
     fn load_segment_state(&self, kind: ArtifactKind) -> Result<SegmentState, String> {
-        let key = kind.as_str().as_bytes();
+        let key = kind.storage_key().as_bytes();
         let Some(bytes) = self
             .db
             .get_cf(self.cf(ROCKSDB_CF_SEGMENT_STATE), key)
@@ -905,7 +905,7 @@ impl Store {
         self.db
             .put_cf(
                 self.cf(ROCKSDB_CF_SEGMENT_STATE),
-                kind.as_str().as_bytes(),
+                kind.storage_key().as_bytes(),
                 bytes,
             )
             .map_err(|error| format!("failed to persist segment state: {error}"))

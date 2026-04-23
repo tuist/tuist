@@ -89,6 +89,10 @@ mod tests {
         ] {
             assert_eq!(ArtifactKind::from_str(kind.as_str()), Some(kind));
         }
+        assert_eq!(
+            ArtifactKind::from_str("keyvalue"),
+            Some(ArtifactKind::KeyValue)
+        );
         assert_eq!(ArtifactKind::from_str("unknown"), None);
     }
 
