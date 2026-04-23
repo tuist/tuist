@@ -261,11 +261,7 @@ defmodule TuistWeb.FlakyTestsLive do
       {:ok, %{flaky_runs_analytics: Analytics.test_run_analytics(project.id, Keyword.put(opts, :is_flaky, true))}}
     end)
     |> assign_async(:flaky_tests_analytics, fn ->
-      {:ok,
-       %{
-         flaky_tests_analytics:
-           Analytics.flaky_tests_analytics(project.id, start_datetime: start_datetime, end_datetime: end_datetime)
-       }}
+      {:ok, %{flaky_tests_analytics: Analytics.flaky_tests_analytics(project.id, opts)}}
     end)
   end
 

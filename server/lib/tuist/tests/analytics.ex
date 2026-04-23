@@ -169,22 +169,21 @@ defmodule Tuist.Tests.Analytics do
   Returns analytics for the number of flaky test cases over time for a project.
   At each bucket endpoint T, the value is the number of test cases currently
   flagged as flaky, derived by replaying `marked_flaky` / `unmarked_flaky`
-  events from `test_case_events`.
+  events from `test_case_events`. Honors `:is_ci` to scope to test cases that
+  have at least one matching run within the analytics period (since events
+  themselves have no environment attached).
   """
   def flaky_tests_analytics(project_id, opts \\ []) do
     start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
     end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+    is_ci = Keyword.get(opts, :is_ci)
 
     date_period = date_period(start_datetime: start_datetime, end_datetime: end_datetime)
     dates = date_range_for_date_period(date_period, start_datetime: start_datetime, end_datetime: end_datetime)
     date_endpoints = Enum.map(dates, &date_to_end_of_bucket(&1, date_period))
 
     project_test_case_ids_subquery =
-      from(tc in TestCase,
-        where: tc.project_id == ^project_id,
-        group_by: tc.id,
-        select: tc.id
-      )
+      scoped_project_test_case_ids(project_id, start_datetime, end_datetime, is_ci)
 
     max_endpoint = List.last(date_endpoints) || end_datetime
 
@@ -239,15 +238,36 @@ defmodule Tuist.Tests.Analytics do
     end)
   end
 
+  defp scoped_project_test_case_ids(project_id, _start_datetime, _end_datetime, nil) do
+    from(tc in TestCase,
+      where: tc.project_id == ^project_id,
+      group_by: tc.id,
+      select: tc.id
+    )
+  end
+
+  defp scoped_project_test_case_ids(project_id, start_datetime, end_datetime, is_ci) when is_boolean(is_ci) do
+    from(tcr in TestCaseRun,
+      where: tcr.project_id == ^project_id,
+      where: tcr.ran_at >= ^start_datetime,
+      where: tcr.ran_at <= ^end_datetime,
+      where: tcr.is_ci == ^is_ci,
+      group_by: tcr.test_case_id,
+      select: tcr.test_case_id
+    )
+  end
+
   @doc """
   Returns analytics for the number of active test cases over time for a project.
   A test case is counted at bucket endpoint T if it has at least one run in the
   14 days ending at T. The chart can both rise (new test cases appear) and fall
-  (test cases stop being run).
+  (test cases stop being run). Honors `:is_ci` to scope to CI-only or local-only
+  runs.
   """
   def test_cases_count_analytics(project_id, opts \\ []) do
     start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
     end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+    is_ci = Keyword.get(opts, :is_ci)
 
     date_period = date_period(start_datetime: start_datetime, end_datetime: end_datetime)
     dates = date_range_for_date_period(date_period, start_datetime: start_datetime, end_datetime: end_datetime)
@@ -256,9 +276,9 @@ defmodule Tuist.Tests.Analytics do
     window_seconds = Tests.active_window_days() * 86_400
 
     previous_endpoint = DateTime.add(start_datetime, -1, :second)
-    previous_count = active_test_cases_count(project_id, previous_endpoint, window_seconds)
+    previous_count = active_test_cases_count(project_id, previous_endpoint, window_seconds, is_ci)
 
-    values = Enum.map(date_endpoints, &active_test_cases_count(project_id, &1, window_seconds))
+    values = Enum.map(date_endpoints, &active_test_cases_count(project_id, &1, window_seconds, is_ci))
 
     current_count = List.last(values) || 0
 
@@ -270,17 +290,17 @@ defmodule Tuist.Tests.Analytics do
     }
   end
 
-  defp active_test_cases_count(project_id, endpoint, window_seconds) do
+  defp active_test_cases_count(project_id, endpoint, window_seconds, is_ci) do
     window_start = DateTime.add(endpoint, -window_seconds, :second)
 
-    ClickHouseRepo.one(
-      from(tcr in TestCaseRun,
-        where: tcr.project_id == ^project_id,
-        where: tcr.ran_at >= ^window_start,
-        where: tcr.ran_at <= ^endpoint,
-        select: fragment("uniqExact(?)", tcr.test_case_id)
-      )
-    ) || 0
+    from(tcr in TestCaseRun,
+      where: tcr.project_id == ^project_id,
+      where: tcr.ran_at >= ^window_start,
+      where: tcr.ran_at <= ^endpoint,
+      select: fragment("uniqExact(?)", tcr.test_case_id)
+    )
+    |> apply_is_ci_filter(is_ci)
+    |> ClickHouseRepo.one() || 0
   end
 
   defp date_to_end_of_bucket(%Date{} = date, :day) do

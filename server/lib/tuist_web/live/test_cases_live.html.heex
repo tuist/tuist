@@ -240,7 +240,11 @@
           phx_click="select_widget"
           phx_value_widget="test_cases_count"
           selected={@analytics_selected_widget == "test_cases_count"}
-          empty={@test_cases_count_analytics.ok? && @test_cases_count_analytics.result.count == 0}
+          empty={
+            @test_cases_count_analytics.ok? &&
+              @test_cases_count_analytics.result.count == 0 &&
+              Enum.all?(@test_cases_count_analytics.result.values, &(&1 == 0))
+          }
         />
       </div>
       <.card_section :if={!@analytics_chart_data.ok?}>
@@ -257,7 +261,8 @@
              (@analytics_selected_widget == "failed_test_case_run_count" and
                 @failed_test_case_runs_analytics.result.count != 0) or
              (@analytics_selected_widget == "test_cases_count" and
-                @test_cases_count_analytics.result.count != 0))
+                (@test_cases_count_analytics.result.count != 0 or
+                   Enum.any?(@test_cases_count_analytics.result.values, &(&1 > 0)))))
       }>
         <div data-part="analytics-chart">
           <.chart

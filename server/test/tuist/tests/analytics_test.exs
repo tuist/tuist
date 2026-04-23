@@ -2069,6 +2069,70 @@ defmodule Tuist.Tests.AnalyticsTest do
 
       assert got.count == Enum.at(got.values, -1)
     end
+
+    test "honors the is_ci filter by scoping to test cases with matching runs in the period" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:00:00Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      ci_tc =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          is_flaky: true,
+          inserted_at: ~N[2024-04-01 00:00:00.000000]
+        )
+
+      local_tc =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          is_flaky: true,
+          inserted_at: ~N[2024-04-01 00:00:00.000000]
+        )
+
+      IngestRepo.insert_all(TestCase, [
+        ci_tc |> Map.from_struct() |> Map.delete(:__meta__),
+        local_tc |> Map.from_struct() |> Map.delete(:__meta__)
+      ])
+
+      # Each one marked flaky mid-period
+      RunsFixtures.test_case_event_fixture(
+        test_case_id: ci_tc.id,
+        event_type: "marked_flaky",
+        inserted_at: ~N[2024-04-10 12:00:00.000000]
+      )
+
+      RunsFixtures.test_case_event_fixture(
+        test_case_id: local_tc.id,
+        event_type: "marked_flaky",
+        inserted_at: ~N[2024-04-10 12:00:00.000000]
+      )
+
+      # CI-only test case has a CI run within the period; local-only has a local run
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: ci_tc.id,
+        is_ci: true,
+        ran_at: ~N[2024-04-15 09:00:00.000000]
+      )
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: local_tc.id,
+        is_ci: false,
+        ran_at: ~N[2024-04-15 09:00:00.000000]
+      )
+
+      base_opts = [start_datetime: ~U[2024-04-01 00:00:00Z], end_datetime: ~U[2024-04-30 23:59:59Z]]
+
+      any_env = Analytics.flaky_tests_analytics(project.id, base_opts)
+      ci_only = Analytics.flaky_tests_analytics(project.id, Keyword.put(base_opts, :is_ci, true))
+      local_only = Analytics.flaky_tests_analytics(project.id, Keyword.put(base_opts, :is_ci, false))
+
+      # Then
+      assert any_env.count == 2
+      assert ci_only.count == 1
+      assert local_only.count == 1
+    end
   end
 
   describe "test_cases_count_analytics/2" do
@@ -2140,6 +2204,40 @@ defmodule Tuist.Tests.AnalyticsTest do
 
       # Current count reflects state at end_datetime
       assert got.count == Enum.at(got.values, -1)
+    end
+
+    test "honors the is_ci filter" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:00:00Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      ci_only_id = UUIDv7.generate()
+      local_only_id = UUIDv7.generate()
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: ci_only_id,
+        is_ci: true,
+        ran_at: ~N[2024-04-20 09:00:00.000000]
+      )
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: local_only_id,
+        is_ci: false,
+        ran_at: ~N[2024-04-20 09:00:00.000000]
+      )
+
+      base_opts = [start_datetime: ~U[2024-04-01 00:00:00Z], end_datetime: ~U[2024-04-30 23:59:59Z]]
+
+      any_env = Analytics.test_cases_count_analytics(project.id, base_opts)
+      ci_only = Analytics.test_cases_count_analytics(project.id, Keyword.put(base_opts, :is_ci, true))
+      local_only = Analytics.test_cases_count_analytics(project.id, Keyword.put(base_opts, :is_ci, false))
+
+      # Then
+      assert any_env.count == 2
+      assert ci_only.count == 1
+      assert local_only.count == 1
     end
   end
 end
