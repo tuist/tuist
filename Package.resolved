@@ -1,5 +1,5 @@
 {
-  "originHash" : "1f6d96b59d4ac0c449d7302ca00a15240d8bc98a9c2e8b6100f7ea87bf0ece99",
+  "originHash" : "e7cc2f639b111ae703f70506d041c53598b1c6add7ed309d3440671bcd5b9095",
   "pins" : [
     {
       "identity" : "1024jp.gzipswift",
@@ -30,7 +30,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "1.5.1"
+        "version" : "1.7.0"
       }
     },
     {
@@ -54,7 +54,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "1.18.0"
+        "version" : "1.19.0"
       }
     },
     {
@@ -78,7 +78,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "1.6.0"
+        "version" : "1.7.0"
       }
     },
     {
@@ -110,7 +110,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "1.32.1"
+        "version" : "1.34.0"
       }
     },
     {
@@ -118,7 +118,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "1.39.1"
+        "version" : "1.43.0"
       }
     },
     {
@@ -126,7 +126,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "2.36.0"
+        "version" : "2.37.0"
       }
     },
     {
@@ -134,7 +134,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "1.26.0"
+        "version" : "1.27.0"
       }
     },
     {
@@ -198,7 +198,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "0.18.0"
+        "version" : "0.18.1"
       }
     },
     {
@@ -383,7 +383,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "1.22.0"
+        "version" : "1.23.0"
       }
     },
     {
@@ -455,7 +455,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "1.4.1"
+        "version" : "1.5.0"
       }
     },
     {

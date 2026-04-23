@@ -1030,7 +1030,7 @@ struct ResourcesProjectMapperTests {
     }
 
     @Test
-    func mapWhenStaticTargetHasXcstringsKeepsThemInResources() async throws {
+    func mapWhenStaticTargetHasXcstringsAddsThemToSources() async throws {
         // Given
         let resources: [ResourceFileElement] = [
             .file(path: "/Resources/Localizable.xcstrings"),
@@ -1047,22 +1047,19 @@ struct ResourcesProjectMapperTests {
         // Then
         let gotTarget = try #require(gotProject.targets.values.sorted().last)
         let xcstringsSources = gotTarget.sources.filter { $0.path.extension == "xcstrings" }
-        #expect(xcstringsSources.isEmpty)
-        let xcstringsResources = gotTarget.resources.resources.filter { $0.path.extension == "xcstrings" }
-        #expect(xcstringsResources.count == 1)
+        #expect(xcstringsSources.count == 1)
         let expectedXcstringsPath = try AbsolutePath(validating: "/Resources/Localizable.xcstrings")
-        #expect(xcstringsResources.first?.path == expectedXcstringsPath)
+        #expect(xcstringsSources.first?.path == expectedXcstringsPath)
+        let xcstringsResources = gotTarget.resources.resources.filter { $0.path.extension == "xcstrings" }
+        #expect(xcstringsResources.isEmpty)
 
         let resourcesTarget = try #require(gotProject.targets.values.sorted().first)
         #expect(resourcesTarget.product == .bundle)
-        let companionXcstrings = resourcesTarget.resources.resources.filter { $0.path.extension == "xcstrings" }
-        #expect(companionXcstrings.isEmpty)
-        let companionOtherResources = resourcesTarget.resources.resources.filter { $0.path.extension != "xcstrings" }
-        #expect(companionOtherResources.count == 1)
+        #expect(resourcesTarget.resources.resources == resources)
     }
 
     @Test
-    func mapWhenStaticTargetHasResourcesDoesNotSetPackageResourceBuildSettings() async throws {
+    func mapWhenStaticTargetHasResourcesSetsPackageResourceBuildSettings() async throws {
         // Given
         let resources: [ResourceFileElement] = [
             .file(path: "/Resources/Assets.xcassets"),
@@ -1077,10 +1074,45 @@ struct ResourcesProjectMapperTests {
 
         // Then
         let gotTarget = try #require(gotProject.targets.values.sorted().last)
+        let expectedBundleName = "\(project.name)_\(target.name)"
         let bundleNameSetting = gotTarget.settings?.base["PACKAGE_RESOURCE_BUNDLE_NAME"]
-        #expect(bundleNameSetting == nil)
+        #expect(bundleNameSetting == .string(expectedBundleName))
         let targetKindSetting = gotTarget.settings?.base["PACKAGE_RESOURCE_TARGET_KIND"]
-        #expect(targetKindSetting == nil)
+        #expect(targetKindSetting == .string("regular"))
+    }
+
+    @Test
+    func mapWhenStaticTargetHasResourceBuildableFoldersSetsPackageResourceBuildSettings() async throws {
+        // Given
+        let buildableFolders = [BuildableFolder(
+            path: try AbsolutePath(validating: "/Resources"),
+            exceptions: BuildableFolderExceptions(exceptions: []),
+            resolvedFiles: [
+                BuildableFolderFile(path: try AbsolutePath(validating: "/Resources/Localizable.xcstrings"), compilerFlags: nil),
+            ]
+        )]
+        let target = Target.test(
+            product: .staticFramework,
+            sources: ["/Absolute/File.swift"],
+            resources: .init([]),
+            buildableFolders: buildableFolders
+        )
+        let project = Project.test(targets: [target])
+        given(buildableFolderChecker).containsResources(.value(buildableFolders)).willReturn(true)
+        given(buildableFolderChecker).containsSources(.value(buildableFolders)).willReturn(false)
+
+        // When
+        let (gotProject, _) = try await subject.map(project: project)
+
+        // Then
+        let gotTarget = try #require(gotProject.targets.values.sorted().last)
+        let expectedBundleName = "\(project.name)_\(target.name)"
+        #expect(gotTarget.settings?.base["PACKAGE_RESOURCE_BUNDLE_NAME"] == .string(expectedBundleName))
+        #expect(gotTarget.settings?.base["PACKAGE_RESOURCE_TARGET_KIND"] == .string("regular"))
+
+        let resourcesTarget = try #require(gotProject.targets.values.sorted().first)
+        #expect(resourcesTarget.product == .bundle)
+        #expect(resourcesTarget.buildableFolders == buildableFolders)
     }
 
     // MARK: - Helpers

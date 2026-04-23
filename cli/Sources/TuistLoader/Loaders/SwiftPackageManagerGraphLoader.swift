@@ -340,40 +340,110 @@ func enabledTraits(
     rootPackageInfo: PackageInfo,
     packageInfos: [String: PackageInfo]
 ) -> [String: Set<String>] {
-    var result: [String: Set<String>] = [:]
+    var reachablePackages: Set<String> = []
+    var activeTraitsByPackage: [String: Set<String>] = [:]
+    var pendingPackages: [String] = []
+
+    func mergeActiveTraits(
+        for packageID: String,
+        traits: Set<String>
+    ) {
+        let existingTraits = activeTraitsByPackage[packageID] ?? []
+        let mergedTraits = existingTraits.union(traits)
+        let insertedPackage = reachablePackages.insert(packageID).inserted
+
+        if insertedPackage || mergedTraits != existingTraits {
+            activeTraitsByPackage[packageID] = mergedTraits
+            pendingPackages.append(packageID)
+        }
+    }
 
     processTraits(
         from: rootPackageInfo.dependencies,
-        enabledTraitsForCurrentPackage: [],
-        result: &result
+        enabledTraitsForCurrentPackage: resolvedEnabledTraits(
+            [],
+            packageTraits: rootPackageInfo.traits ?? []
+        ),
+        packageInfos: packageInfos,
+        mergeActiveTraits: mergeActiveTraits(for:traits:)
     )
 
-    for (packageId, packageInfo) in packageInfos {
-        let enabledForThisPackage = result[packageId] ?? []
+    while let packageID = pendingPackages.popLast() {
+        guard let packageInfo = packageInfos[packageID] else { continue }
+
         processTraits(
             from: packageInfo.dependencies,
-            enabledTraitsForCurrentPackage: enabledForThisPackage,
-            result: &result
+            enabledTraitsForCurrentPackage: activeTraitsByPackage[packageID] ?? [],
+            packageInfos: packageInfos,
+            mergeActiveTraits: mergeActiveTraits(for:traits:)
         )
     }
 
-    return result
+    return activeTraitsByPackage.filter { !$0.value.isEmpty }
 }
 
 private func processTraits(
     from dependencies: [PackageDependency],
     enabledTraitsForCurrentPackage: Set<String>,
-    result: inout [String: Set<String>]
+    packageInfos: [String: PackageInfo],
+    mergeActiveTraits: (_ packageID: String, _ traits: Set<String>) -> Void
 ) {
     for dependency in dependencies {
-        for trait in dependency.traits {
+        let enabledTraits = dependency.traits.reduce(into: Set<String>()) { result, trait in
             if let condition = trait.condition {
                 if !condition.isDisjoint(with: enabledTraitsForCurrentPackage) {
-                    result[dependency.identity, default: []].insert(trait.name)
+                    result.insert(trait.name)
                 }
             } else {
-                result[dependency.identity, default: []].insert(trait.name)
+                result.insert(trait.name)
             }
+        }
+
+        let resolvedTraits = resolvedEnabledTraits(
+            enabledTraits,
+            packageTraits: packageInfos[dependency.identity]?.traits ?? []
+        )
+
+        mergeActiveTraits(dependency.identity, resolvedTraits)
+    }
+}
+
+private func resolvedEnabledTraits(
+    _ traitNames: some Collection<String>,
+    packageTraits: [PackageTrait]
+) -> Set<String> {
+    var resolvedTraitNames = Set(traitNames)
+
+    if packageTraits.contains(where: { $0.name == "default" }) {
+        resolvedTraitNames.insert("default")
+    }
+
+    resolveEnabledTraitNames(
+        resolvedTraitNames,
+        packageTraits: packageTraits,
+        into: &resolvedTraitNames
+    )
+
+    return resolvedTraitNames
+}
+
+private func resolveEnabledTraitNames(
+    _ traitNames: some Collection<String>,
+    packageTraits: [PackageTrait],
+    into resolvedTraitNames: inout Set<String>
+) {
+    for traitName in traitNames {
+        guard let trait = packageTraits.first(where: { $0.name == traitName }) else {
+            continue
+        }
+
+        for enabledTrait in trait.enabledTraits {
+            guard resolvedTraitNames.insert(enabledTrait).inserted else { continue }
+            resolveEnabledTraitNames(
+                [enabledTrait],
+                packageTraits: packageTraits,
+                into: &resolvedTraitNames
+            )
         }
     }
 }
