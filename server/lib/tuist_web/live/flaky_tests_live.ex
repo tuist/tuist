@@ -261,9 +261,6 @@ defmodule TuistWeb.FlakyTestsLive do
       {:ok, %{flaky_runs_analytics: Analytics.test_run_analytics(project.id, Keyword.put(opts, :is_flaky, true))}}
     end)
     |> assign_async(:flaky_tests_analytics, fn ->
-      # The flaky tests "currently flagged" metric is driven by marked_flaky /
-      # unmarked_flaky events, not by the per-run is_ci filter, so we pass the
-      # bare period only.
       {:ok,
        %{
          flaky_tests_analytics:
