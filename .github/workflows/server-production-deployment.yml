@@ -1,0 +1,213 @@
+name: Server Production Deployment
+
+# Promotion cascade: canary → acceptance tests → production.
+#
+# Triggers:
+#   push to main     — standard promotion. Commits whose subject contains
+#                      "(hotfix)" fast-path to production without waiting
+#                      for canary + tests.
+#   workflow_dispatch — run the cascade against a pinned SHA (useful to
+#                      re-promote a past commit).
+#
+# Each leg is delegated to server-deployment.yml via workflow_call so
+# plan/build/deploy logic stays in one place. This workflow only owns the
+# cascade shape, acceptance tests, and Slack notifications.
+#
+# Required secrets:
+#   KUBECONFIG (per-env, on the server-k8s-canary / server-k8s-production
+#     GitHub Environments) — base64-encoded kubeconfig for each cluster.
+#   SLACK_DEPLOY_WEBHOOK (repo secret) — Slack Incoming Webhook URL.
+#     Failure messages fire for any failed leg; success messages fire
+#     only when production lands green (cascade or hotfix).
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - server/**
+      - tuist_common/**
+      - noora/**
+      - processor/**
+      - xcode_processor/**
+      - infra/helm/tuist/**
+      - .github/workflows/server-production-deployment.yml
+      - .github/workflows/server-deployment.yml
+      - server/pnpm-lock.yaml
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: Commit SHA to deploy (defaults to the event's SHA)
+        required: false
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
+jobs:
+  # --------------------------------------------------------------------------
+  # Canary leg — runs for every push (hotfix or not) and for manual dispatch.
+  # On hotfix pushes it still runs as a safety net; the hotfix fast-path below
+  # deploys production in parallel without waiting for tests.
+  # --------------------------------------------------------------------------
+  canary:
+    uses: ./.github/workflows/server-deployment.yml
+    with:
+      environment: canary
+      commit_sha: ${{ inputs.commit_sha || github.sha }}
+    secrets: inherit
+
+  acceptance-tests:
+    name: Acceptance Tests
+    needs: canary
+    runs-on: namespace-profile-default-macos
+    timeout-minutes: 15
+    environment: server-k8s-canary
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.commit_sha || github.sha }}
+          token: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN }}
+          submodules: recursive
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
+      - name: Restore cache
+        id: cache-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: .build
+          key: ${{ runner.os }}-cli-cache-ee-${{ hashFiles('Package.resolved') }}
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          github_token: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN || github.token }}
+      - name: Authenticate with Tuist
+        run: tuist auth login
+      - name: Setup Tuist
+        run: tuist setup
+      - name: Install Tuist dependencies
+        if: steps.cache-restore.outputs.cache-matched-key == ''
+        run: tuist install
+      - name: Initialize TuistCacheEE submodule
+        env:
+          TUIST_GITHUB_TOKEN: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN }}
+        run: mise run cli:ee
+      - name: Test
+        env:
+          TUIST_EE: 1
+        run: tuist test TuistCacheEEAcceptanceTests --no-selective-testing -- -retry-tests-on-failure -test-iterations 2
+
+  # --------------------------------------------------------------------------
+  # Production leg — standard path: canary ready + tests green.
+  # Skipped on hotfix pushes (the hotfix job below runs instead).
+  # --------------------------------------------------------------------------
+  production:
+    needs: acceptance-tests
+    if: >-
+      (github.event_name == 'push' && !contains(github.event.head_commit.message, '(hotfix)')) ||
+      github.event_name == 'workflow_dispatch'
+    uses: ./.github/workflows/server-deployment.yml
+    with:
+      environment: production
+      commit_sha: ${{ inputs.commit_sha || github.sha }}
+    secrets: inherit
+
+  # --------------------------------------------------------------------------
+  # Hotfix fast-path: push-to-main with "(hotfix)" in the commit subject
+  # ships production without waiting for canary + acceptance tests. Kept
+  # independent of the cascade so a flaky acceptance test can't block an
+  # urgent fix. Canary still runs above as a safety net.
+  # --------------------------------------------------------------------------
+  production-hotfix:
+    if: github.event_name == 'push' && contains(github.event.head_commit.message, '(hotfix)')
+    uses: ./.github/workflows/server-deployment.yml
+    with:
+      environment: production
+      commit_sha: ${{ github.sha }}
+    secrets: inherit
+
+  # --------------------------------------------------------------------------
+  # Slack notifications.
+  #   - Failure: fires on any failed leg, names the leg that broke.
+  #   - Success: fires only when production (standard or hotfix) lands green.
+  # --------------------------------------------------------------------------
+  notify-failure:
+    name: Slack notify (failure)
+    needs: [canary, acceptance-tests, production, production-hotfix]
+    if: always() && failure()
+    runs-on: namespace-profile-default
+    steps:
+      - id: where
+        run: |
+          if [ "${{ needs.canary.result }}" = "failure" ]; then
+            label="canary"
+          elif [ "${{ needs.acceptance-tests.result }}" = "failure" ]; then
+            label="canary acceptance tests"
+          elif [ "${{ needs.production.result }}" = "failure" ]; then
+            label="production"
+          elif [ "${{ needs.production-hotfix.result }}" = "failure" ]; then
+            label="production (hotfix)"
+          else
+            label="unknown leg"
+          fi
+          echo "label=$label" >> "$GITHUB_OUTPUT"
+      - uses: slackapi/slack-github-action@v2
+        with:
+          webhook: ${{ secrets.SLACK_DEPLOY_WEBHOOK }}
+          webhook-type: incoming-webhook
+          payload: |
+            {
+              "text": ":red_circle: Tuist server deploy failed — *${{ steps.where.outputs.label }}*",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": ":red_circle: *Tuist server deploy failed — ${{ steps.where.outputs.label }}*"
+                  }
+                },
+                {
+                  "type": "context",
+                  "elements": [
+                    { "type": "mrkdwn", "text": "SHA: `${{ inputs.commit_sha || github.sha }}`" },
+                    { "type": "mrkdwn", "text": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View run>" }
+                  ]
+                }
+              ]
+            }
+
+  notify-production-success:
+    name: Slack notify (production success)
+    needs: [production, production-hotfix]
+    if: >-
+      always() && (
+        needs.production.result == 'success' ||
+        needs.production-hotfix.result == 'success'
+      )
+    runs-on: namespace-profile-default
+    steps:
+      - uses: slackapi/slack-github-action@v2
+        with:
+          webhook: ${{ secrets.SLACK_DEPLOY_WEBHOOK }}
+          webhook-type: incoming-webhook
+          payload: |
+            {
+              "text": ":white_check_mark: Tuist server production deploy succeeded",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": ":white_check_mark: *Tuist server production deploy succeeded*"
+                  }
+                },
+                {
+                  "type": "context",
+                  "elements": [
+                    { "type": "mrkdwn", "text": "SHA: `${{ inputs.commit_sha || github.sha }}`" },
+                    { "type": "mrkdwn", "text": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View run>" },
+                    { "type": "mrkdwn", "text": "<https://tuist.dev|tuist.dev>" }
+                  ]
+                }
+              ]
+            }
