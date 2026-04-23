@@ -164,6 +164,49 @@ defmodule Tuist.Tests.Analytics do
     }
   end
 
+  @doc """
+  Returns analytics for the cumulative number of test cases over time for a project.
+  Each bucket's value is the total number of distinct test cases first seen by
+  that bucket's endpoint. The last bucket equals the current total.
+  """
+  def test_cases_count_analytics(project_id, opts \\ []) do
+    start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+
+    date_period = date_period(start_datetime: start_datetime, end_datetime: end_datetime)
+    dates = date_range_for_date_period(date_period, start_datetime: start_datetime, end_datetime: end_datetime)
+    date_endpoints = Enum.map(dates, &date_to_end_of_bucket(&1, date_period))
+    max_endpoint = List.last(date_endpoints) || end_datetime
+
+    first_seens =
+      from(tc in TestCase,
+        where: tc.project_id == ^project_id,
+        where: tc.inserted_at <= ^max_endpoint,
+        group_by: tc.id,
+        select: fragment("min(?)", tc.inserted_at)
+      )
+      |> ClickHouseRepo.all()
+      |> Enum.sort(fn a, b -> NaiveDateTime.compare(a, b) != :gt end)
+
+    values =
+      Enum.map(date_endpoints, fn endpoint ->
+        endpoint_naive = DateTime.to_naive(endpoint)
+        Enum.count(first_seens, &(NaiveDateTime.compare(&1, endpoint_naive) != :gt))
+      end)
+
+    current_count = List.last(values) || 0
+
+    start_naive = DateTime.to_naive(start_datetime)
+    previous_count = Enum.count(first_seens, &(NaiveDateTime.compare(&1, start_naive) != :gt))
+
+    %{
+      trend: trend(previous_value: previous_count, current_value: current_count),
+      count: current_count,
+      values: values,
+      dates: dates
+    }
+  end
+
   defp date_to_end_of_bucket(%Date{} = date, :day) do
     DateTime.new!(date, ~T[23:59:59], "Etc/UTC")
   end

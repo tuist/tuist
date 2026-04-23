@@ -82,6 +82,33 @@
     <div data-part="analytics-content">
       <div data-part="widgets">
         <.widget
+          loading={!@test_cases_count_analytics.ok?}
+          title={dgettext("dashboard_tests", "Test cases")}
+          description={
+            dgettext(
+              "dashboard_tests",
+              "Cumulative number of distinct test cases seen in this project over time."
+            )
+          }
+          value={
+            if @test_cases_count_analytics.ok?,
+              do: format_number(@test_cases_count_analytics.result.count)
+          }
+          id="widget-test-cases-count"
+          legend_color="secondary"
+          trend_value={
+            if @test_cases_count_analytics.ok?,
+              do: @test_cases_count_analytics.result.trend,
+              else: nil
+          }
+          trend_type={:neutral}
+          trend_label={@analytics_trend_label}
+          phx_click="select_widget"
+          phx_value_widget="test_cases_count"
+          selected={@analytics_selected_widget == "test_cases_count"}
+          empty={@test_cases_count_analytics.ok? && @test_cases_count_analytics.result.count == 0}
+        />
+        <.widget
           loading={!@test_case_runs_analytics.ok?}
           title={dgettext("dashboard_tests", "Test case runs")}
           description={
@@ -228,7 +255,9 @@
              (@analytics_selected_widget == "test_case_run_count" and
                 @test_case_runs_analytics.result.count != 0) or
              (@analytics_selected_widget == "failed_test_case_run_count" and
-                @failed_test_case_runs_analytics.result.count != 0))
+                @failed_test_case_runs_analytics.result.count != 0) or
+             (@analytics_selected_widget == "test_cases_count" and
+                @test_cases_count_analytics.result.count != 0))
       }>
         <div data-part="analytics-chart">
           <.chart
@@ -430,17 +459,6 @@
     </div>
   </.card>
   <.card title={dgettext("dashboard_tests", "Test Cases")} icon="exchange" data-part="test-cases">
-    <.card_section data-part="totals-section">
-      <div data-part="legends">
-        <.skeleton_legend :if={!@total_test_cases_count.ok?} />
-        <.legend
-          :if={@total_test_cases_count.ok?}
-          title={dgettext("dashboard_tests", "Total Tests")}
-          value={@total_test_cases_count.result}
-          style="secondary"
-        />
-      </div>
-    </.card_section>
     <.card_section data-part="test-cases-section">
       <div data-part="filters">
         <.form for={%{}} phx-change="search-test-cases" phx-debounce="200">

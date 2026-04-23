@@ -31,6 +31,10 @@ defmodule TuistWeb.TestCasesLiveTest do
         }
       end)
 
+      stub(Analytics, :test_cases_count_analytics, fn _, _ ->
+        %{dates: [], values: [], count: 0, trend: 0.0}
+      end)
+
       :ok
     end
 
@@ -77,6 +81,7 @@ defmodule TuistWeb.TestCasesLiveTest do
       # Then
       assert has_element?(lv, "[data-part='analytics']")
       assert has_element?(lv, "[data-part='widgets']")
+      assert has_element?(lv, "#widget-test-cases-count")
       assert has_element?(lv, "#widget-test-case-run-count")
       assert has_element?(lv, "#widget-failed-test-case-run-count")
       assert has_element?(lv, "#widget-test-case-run-duration")
@@ -125,7 +130,7 @@ defmodule TuistWeb.TestCasesLiveTest do
       assert has_element?(lv, "[data-part='test-cases']")
     end
 
-    test "renders total test cases legend", %{
+    test "renders total test cases widget", %{
       conn: conn,
       organization: organization,
       project: project
@@ -135,8 +140,8 @@ defmodule TuistWeb.TestCasesLiveTest do
         live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-cases")
 
       # Then
-      html = render_async(lv)
-      assert html =~ "Total Tests"
+      render_async(lv)
+      assert has_element?(lv, "#widget-test-cases-count")
     end
   end
 
