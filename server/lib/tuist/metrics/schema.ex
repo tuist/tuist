@@ -37,7 +37,11 @@ defmodule Tuist.Metrics.Schema do
       type: :histogram,
       namespace: :xcode,
       help: "Observed duration of Xcode build runs in seconds.",
-      labels: [:project, :scheme, :is_ci, :status, :xcode_version, :macos_version],
+      # Histogram labels are deliberately narrower than the counter's. Every
+      # extra label multiplies by ~13 ETS rows (count + sum + 11 buckets), so
+      # version dimensions live only on the counter where drill-down queries
+      # happen. Percentile dashboards aggregate across versions anyway.
+      labels: [:project, :scheme, :is_ci, :status],
       buckets: @default_buckets
     },
     %{
@@ -52,7 +56,7 @@ defmodule Tuist.Metrics.Schema do
       type: :histogram,
       namespace: :xcode,
       help: "Observed duration of Xcode test runs in seconds.",
-      labels: [:project, :scheme, :is_ci, :status, :xcode_version, :macos_version],
+      labels: [:project, :scheme, :is_ci, :status],
       buckets: @default_buckets
     },
     %{
@@ -82,7 +86,7 @@ defmodule Tuist.Metrics.Schema do
       type: :histogram,
       namespace: :gradle,
       help: "Observed duration of Gradle build runs in seconds.",
-      labels: [:project, :module, :is_ci, :status, :gradle_version, :jvm_version],
+      labels: [:project, :module, :is_ci, :status],
       buckets: @default_buckets
     },
     %{
@@ -97,7 +101,7 @@ defmodule Tuist.Metrics.Schema do
       type: :histogram,
       namespace: :gradle,
       help: "Observed duration of Gradle test runs in seconds.",
-      labels: [:project, :module, :is_ci, :status, :gradle_version, :jvm_version],
+      labels: [:project, :module, :is_ci, :status],
       buckets: @default_buckets
     },
     # ---- CLI -------------------------------------------------------------

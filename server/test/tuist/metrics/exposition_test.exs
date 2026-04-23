@@ -64,7 +64,7 @@ defmodule Tuist.Metrics.ExpositionTest do
         %{
           metric: "tuist_xcode_build_run_duration_seconds",
           type: :histogram,
-          labels: {"acme/app", "App", "false", "success", "15.0", "14.0"},
+          labels: {"acme/app", "App", "false", "success"},
           count: 3,
           sum: 4.5,
           buckets: [

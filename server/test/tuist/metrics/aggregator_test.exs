@@ -39,7 +39,7 @@ defmodule Tuist.Metrics.AggregatorTest do
 
   describe "histogram observations" do
     test "accumulates count, sum, and bucket distribution" do
-      labels = {"acme/app", "App", "false", "success", "15.0", "14.0"}
+      labels = {"acme/app", "App", "false", "success"}
       metric = "tuist_xcode_build_run_duration_seconds"
 
       Aggregator.observe_histogram(1, metric, labels, 0.25)
@@ -63,7 +63,7 @@ defmodule Tuist.Metrics.AggregatorTest do
     end
 
     test "observations after an account snapshot still land in later snapshots" do
-      labels = {"acme/app", "App", "false", "success", "15.0", "14.0"}
+      labels = {"acme/app", "App", "false", "success"}
       metric = "tuist_xcode_build_run_duration_seconds"
 
       Aggregator.observe_histogram(1, metric, labels, 1.0)
@@ -101,7 +101,7 @@ defmodule Tuist.Metrics.AggregatorTest do
       Aggregator.observe_histogram(
         1,
         "tuist_xcode_build_run_duration_seconds",
-        {"acme/app", "App", "false", "success", "15.0", "14.0"},
+        {"acme/app", "App", "false", "success"},
         1.0
       )
 
