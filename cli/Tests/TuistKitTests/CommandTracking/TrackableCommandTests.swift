@@ -142,7 +142,9 @@ final class TrackableCommandTests: TuistTestCase {
     func test_whenOptionalAuthenticationIsEnabled_forTrackedCommands_wraps_command_execution() async throws {
         // Given
         let recorder = AuthenticationConfigRecorder()
-        let command = ConfigObservingCommand(recorder: recorder, analyticsRequired: true)
+        ConfigObservingCommandState.recorder = recorder
+        ConfigObservingCommandState.analyticsRequired = true
+        let command = ConfigObservingCommand()
         try makeSubject(command: command)
 
         // When
@@ -194,6 +196,11 @@ private actor AuthenticationConfigRecorder {
     }
 }
 
+private enum ConfigObservingCommandState {
+    static var recorder = AuthenticationConfigRecorder()
+    static var analyticsRequired = false
+}
+
 private struct TestCommand: TrackableParsableCommand, ParsableCommand {
     enum TestError: FatalError, Equatable {
         case commandFailed
@@ -230,10 +237,11 @@ private struct ConfigObservingCommand: TrackableParsableCommand, AsyncParsableCo
         CommandConfiguration(commandName: "observe")
     }
 
-    let recorder: AuthenticationConfigRecorder
-    let analyticsRequired: Bool
+    var analyticsRequired: Bool {
+        ConfigObservingCommandState.analyticsRequired
+    }
 
     func run() async throws {
-        await recorder.record(ServerAuthenticationConfig.current.optionalAuthentication)
+        await ConfigObservingCommandState.recorder.record(ServerAuthenticationConfig.current.optionalAuthentication)
     }
 }
