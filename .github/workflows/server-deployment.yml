@@ -175,6 +175,3 @@ jobs:
           kubectl -n "${{ needs.plan.outputs.namespace }}" rollout status deploy/tuist-tuist-server --timeout=10m
           kubectl -n "${{ needs.plan.outputs.namespace }}" run smoke-$RANDOM --rm -i --restart=Never --image=curlimages/curl \
             --command -- curl -fsS "http://tuist-tuist-server/ready"
-
-# Failure notifications to Slack are handled by .github/workflows/notify-failure.yml
-# which listens to workflow_run events for any named workflow on main.
