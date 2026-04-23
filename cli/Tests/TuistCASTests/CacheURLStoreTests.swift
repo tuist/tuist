@@ -30,7 +30,7 @@
             let endpointTwo = "https://cache.example.two.com"
 
             given(getCacheEndpoints)
-                .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value(nil), cacheTechnology: .value(.default))
+                .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value(nil))
                 .willReturn([endpoint, endpointTwo])
 
             given(latencyService)
@@ -49,7 +49,7 @@
             // Then
             #expect(result.absoluteString == endpoint)
             verify(getCacheEndpoints)
-                .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value(nil), cacheTechnology: .value(.default))
+                .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value(nil))
                 .called(1)
         }
 
@@ -60,7 +60,7 @@
             let endpoint = "https://cache.example.com"
 
             given(getCacheEndpoints)
-                .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value(nil), cacheTechnology: .value(.default))
+                .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value(nil))
                 .willReturn([endpoint])
 
             // When
@@ -69,7 +69,7 @@
             // Then
             #expect(result.absoluteString == endpoint)
             verify(getCacheEndpoints)
-                .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value(nil), cacheTechnology: .value(.default))
+                .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value(nil))
                 .called(1)
             // Should NOT measure latency for single endpoint
             verify(latencyService)
@@ -86,7 +86,7 @@
             let mediumEndpoint = "https://medium.example.com"
 
             given(getCacheEndpoints)
-                .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value(nil), cacheTechnology: .value(.default))
+                .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value(nil))
                 .willReturn([slowEndpoint, fastEndpoint, mediumEndpoint])
 
             given(latencyService)
@@ -116,7 +116,7 @@
             let reachableEndpoint = "https://reachable.example.com"
 
             given(getCacheEndpoints)
-                .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value(nil), cacheTechnology: .value(.default))
+                .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value(nil))
                 .willReturn([unreachableEndpoint, reachableEndpoint])
 
             given(latencyService)
@@ -142,7 +142,7 @@
             let endpoint2 = "https://endpoint2.example.com"
 
             given(getCacheEndpoints)
-                .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value(nil), cacheTechnology: .value(.default))
+                .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value(nil))
                 .willReturn([endpoint1, endpoint2])
 
             given(latencyService)
@@ -161,7 +161,7 @@
             let serverURL = URL(string: "https://tuist.dev")!
 
             given(getCacheEndpoints)
-                .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value(nil), cacheTechnology: .value(.default))
+                .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value(nil))
                 .willReturn([])
 
             // When/Then
@@ -178,7 +178,10 @@
             let accountHandle = "my-org"
 
             given(getCacheEndpoints)
-                .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value(accountHandle), cacheTechnology: .value(.default))
+                .getCacheEndpoints(
+                    serverURL: .value(serverURL),
+                    accountHandle: .value(accountHandle)
+                )
                 .willReturn([endpoint])
 
             // When
@@ -187,7 +190,10 @@
             // Then
             #expect(result.absoluteString == endpoint)
             verify(getCacheEndpoints)
-                .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value(accountHandle), cacheTechnology: .value(.default))
+                .getCacheEndpoints(
+                    serverURL: .value(serverURL),
+                    accountHandle: .value(accountHandle)
+                )
                 .called(1)
         }
 
@@ -204,7 +210,7 @@
             // Then
             #expect(result.absoluteString == overrideEndpoint)
             verify(getCacheEndpoints)
-                .getCacheEndpoints(serverURL: .any, accountHandle: .any, cacheTechnology: .any)
+                .getCacheEndpoints(serverURL: .any, accountHandle: .any)
                 .called(0)
             verify(latencyService)
                 .measureLatency(for: .any)
@@ -224,23 +230,38 @@
         }
 
         @Test(.withMockedEnvironment())
-        func uses_kura_technology_when_environment_variable_is_set() async throws {
+        func separates_cached_endpoints_when_kura_feature_flag_is_enabled() async throws {
             // Given
             let serverURL = URL(string: "https://tuist.dev")!
-            let endpoint = "https://kura-cache.example.com"
-            Environment.mocked?.variables["TUIST_KURA"] = "1"
+            let defaultEndpoint = "https://cache.example.com"
+            let kuraEndpoint = "https://kura-cache.example.com"
+            let kuraGetCacheEndpoints = MockGetCacheEndpointsServicing()
+            let kuraSubject = CacheURLStore(
+                cachedValueStore: cachedValueStore,
+                getCacheEndpointsService: kuraGetCacheEndpoints,
+                endpointLatencyService: latencyService
+            )
 
             given(getCacheEndpoints)
-                .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value(nil), cacheTechnology: .value(.kura))
-                .willReturn([endpoint])
+                .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value(nil))
+                .willReturn([defaultEndpoint])
 
             // When
-            let result = try await subject.getCacheURL(for: serverURL, accountHandle: nil)
+            let defaultResult = try await subject.getCacheURL(for: serverURL, accountHandle: nil)
+            Environment.mocked?.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
+            given(kuraGetCacheEndpoints)
+                .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value(nil))
+                .willReturn([kuraEndpoint])
+            let kuraResult = try await kuraSubject.getCacheURL(for: serverURL, accountHandle: nil)
 
             // Then
-            #expect(result.absoluteString == endpoint)
+            #expect(defaultResult.absoluteString == defaultEndpoint)
+            #expect(kuraResult.absoluteString == kuraEndpoint)
             verify(getCacheEndpoints)
-                .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value(nil), cacheTechnology: .value(.kura))
+                .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value(nil))
+                .called(1)
+            verify(kuraGetCacheEndpoints)
+                .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value(nil))
                 .called(1)
         }
     }

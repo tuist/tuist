@@ -6,8 +6,7 @@ import OpenAPIRuntime
 public protocol GetCacheEndpointsServicing: Sendable {
     func getCacheEndpoints(
         serverURL: URL,
-        accountHandle: String?,
-        cacheTechnology: CacheTechnology
+        accountHandle: String?
     ) async throws -> [String]
 }
 
@@ -27,13 +26,12 @@ public struct GetCacheEndpointsService: GetCacheEndpointsServicing {
 
     public func getCacheEndpoints(
         serverURL: URL,
-        accountHandle: String?,
-        cacheTechnology: CacheTechnology
+        accountHandle: String?
     ) async throws -> [String] {
         let client = Client.authenticated(serverURL: serverURL)
 
         let response = try await client.getCacheEndpoints(
-            .init(query: .init(account_handle: accountHandle, technology: cacheTechnology.queryValue))
+            .init(query: .init(account_handle: accountHandle))
         )
 
         switch response {

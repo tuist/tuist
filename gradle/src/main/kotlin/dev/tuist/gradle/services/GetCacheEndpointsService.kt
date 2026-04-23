@@ -1,6 +1,5 @@
 package dev.tuist.gradle.services
 
-import dev.tuist.gradle.CacheTechnology
 import dev.tuist.gradle.TokenProvider
 import dev.tuist.gradle.TuistHttpClients
 import dev.tuist.gradle.api.CacheApi
@@ -18,11 +17,10 @@ open class GetCacheEndpointsService(
     open fun getCacheEndpoints(
         serverURL: URI,
         accountHandle: String,
-        tokenProvider: TokenProvider,
-        cacheTechnology: CacheTechnology = CacheTechnology.DEFAULT
+        tokenProvider: TokenProvider
     ): List<String> {
         val api = retrofitProvider(serverURL, tokenProvider).create(CacheApi::class.java)
-        val response = api.getCacheEndpoints(accountHandle, cacheTechnology.queryValue).execute()
+        val response = api.getCacheEndpoints(accountHandle).execute()
         if (!response.isSuccessful) {
             throw RuntimeException(
                 response.errorBody()?.string()

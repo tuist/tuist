@@ -431,7 +431,7 @@ public protocol APIProtocol: Sendable {
     func getTestCase(_ input: Operations.getTestCase.Input) async throws -> Operations.getTestCase.Output
     /// Get cache endpoints.
     ///
-    /// Returns cache endpoints for the requested account and cache technology. The default technology preserves the existing custom-endpoint fallback behavior, while Kura returns only account-specific Kura endpoints.
+    /// Returns cache endpoints for the requested account. When the KURA client feature flag is enabled through the x-tuist-feature-flags header, only account-specific Kura endpoints are returned.
     ///
     /// - Remark: HTTP `GET /api/cache/endpoints`.
     /// - Remark: Generated from `#/paths//api/cache/endpoints/get(getCacheEndpoints)`.
@@ -1696,7 +1696,7 @@ extension APIProtocol {
     }
     /// Get cache endpoints.
     ///
-    /// Returns cache endpoints for the requested account and cache technology. The default technology preserves the existing custom-endpoint fallback behavior, while Kura returns only account-specific Kura endpoints.
+    /// Returns cache endpoints for the requested account. When the KURA client feature flag is enabled through the x-tuist-feature-flags header, only account-specific Kura endpoints are returned.
     ///
     /// - Remark: HTTP `GET /api/cache/endpoints`.
     /// - Remark: Generated from `#/paths//api/cache/endpoints/get(getCacheEndpoints)`.
@@ -7410,11 +7410,6 @@ public enum Components {
             public enum CodingKeys: String, CodingKey {
                 case error
             }
-        }
-        /// - Remark: Generated from `#/components/schemas/Technology`.
-        @frozen public enum Technology: String, Codable, Hashable, Sendable, CaseIterable {
-            case _default = "default"
-            case kura = "kura"
         }
         /// The page number to return.
         ///
@@ -16224,14 +16219,14 @@ public enum Operations {
             public var path: Operations.listBundles.Input.Path
             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query`.
             public struct Query: Sendable, Hashable {
-                /// Page number for pagination.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page`.
-                public var page: Swift.Int?
                 /// Filter bundles by git branch.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/git_branch`.
                 public var git_branch: Swift.String?
+                /// Page number for pagination.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page`.
+                public var page: Swift.Int?
                 /// Number of items per page.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page_size`.
@@ -16239,16 +16234,16 @@ public enum Operations {
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
-                ///   - page: Page number for pagination.
                 ///   - git_branch: Filter bundles by git branch.
+                ///   - page: Page number for pagination.
                 ///   - page_size: Number of items per page.
                 public init(
-                    page: Swift.Int? = nil,
                     git_branch: Swift.String? = nil,
+                    page: Swift.Int? = nil,
                     page_size: Swift.Int? = nil
                 ) {
-                    self.page = page
                     self.git_branch = git_branch
+                    self.page = page
                     self.page_size = page_size
                 }
             }
@@ -35781,7 +35776,7 @@ public enum Operations {
     }
     /// Get cache endpoints.
     ///
-    /// Returns cache endpoints for the requested account and cache technology. The default technology preserves the existing custom-endpoint fallback behavior, while Kura returns only account-specific Kura endpoints.
+    /// Returns cache endpoints for the requested account. When the KURA client feature flag is enabled through the x-tuist-feature-flags header, only account-specific Kura endpoints are returned.
     ///
     /// - Remark: HTTP `GET /api/cache/endpoints`.
     /// - Remark: Generated from `#/paths//api/cache/endpoints/get(getCacheEndpoints)`.
@@ -35794,26 +35789,12 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/query/account_handle`.
                 public var account_handle: Swift.String?
-                /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/query/technology`.
-                @frozen public enum technologyPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                    case _default = "default"
-                    case kura = "kura"
-                }
-                /// The cache technology to resolve endpoints for.
-                ///
-                /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/query/technology`.
-                public var technology: Operations.getCacheEndpoints.Input.Query.technologyPayload?
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
                 ///   - account_handle: The name of the account to get custom cache endpoints for.
-                ///   - technology: The cache technology to resolve endpoints for.
-                public init(
-                    account_handle: Swift.String? = nil,
-                    technology: Operations.getCacheEndpoints.Input.Query.technologyPayload? = nil
-                ) {
+                public init(account_handle: Swift.String? = nil) {
                     self.account_handle = account_handle
-                    self.technology = technology
                 }
             }
             public var query: Operations.getCacheEndpoints.Input.Query

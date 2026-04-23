@@ -18,7 +18,7 @@ Sensitive authentication data (passwords, tokens) are excluded from exports.
 - Organization memberships and roles
 - Account billing information and subscriptions
 - API tokens and project tokens (existence only, not values)
-- Custom cache endpoint configurations
+- Custom cache endpoint configurations, including technology-specific endpoint groups (for example, default and Kura)
 - Organization SSO configuration metadata, including the configured SSO provider, provider URL, and full OAuth2 endpoint URLs
 
 ### Projects & Development

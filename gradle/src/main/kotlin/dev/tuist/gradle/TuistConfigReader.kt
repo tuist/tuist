@@ -65,12 +65,10 @@ object CacheEndpointResolver {
             return envEndpoint
         }
 
-        val cacheTechnology = CacheTechnology.fromEnvironment(envProvider)
         val endpoints = getCacheEndpointsService.getCacheEndpoints(
             serverURL = serverURL,
             accountHandle = accountHandle,
-            tokenProvider = tokenProvider,
-            cacheTechnology = cacheTechnology
+            tokenProvider = tokenProvider
         )
 
         if (endpoints.isEmpty()) {

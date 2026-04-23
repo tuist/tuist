@@ -298,8 +298,7 @@ final class CleanServiceTests: TuistUnitTestCase {
                 given(getCacheEndpointsService)
                     .getCacheEndpoints(
                         serverURL: .value(serverURL),
-                        accountHandle: .value("tuist"),
-                        cacheTechnology: .value(.default)
+                        accountHandle: .value("tuist")
                     )
                     .willReturn([cacheEndpoint])
 

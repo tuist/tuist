@@ -54,8 +54,8 @@ public struct CacheURLStore: CacheURLStoring {
             return url
         }
 
-        let cacheTechnology = currentCacheTechnology()
-        let key = "cache_url_\(serverURL.absoluteString)_\(accountHandle ?? "global")_\(cacheTechnology.rawValue)"
+        let key =
+            "cache_url_\(serverURL.absoluteString)_\(accountHandle ?? "global")_\(currentCacheEndpointKeySuffix())"
         let nsKey = key as NSString
 
         if let cachedURLString = localCache.object(forKey: nsKey) as? String {
@@ -104,12 +104,10 @@ public struct CacheURLStore: CacheURLStoring {
         -> (value: String, expiresAt: Date?)?
     {
         Logger.current.debug("Selecting best cache endpoint for \(serverURL.absoluteString)")
-        let cacheTechnology = currentCacheTechnology()
 
         let endpoints = try await getCacheEndpointsService.getCacheEndpoints(
             serverURL: serverURL,
-            accountHandle: accountHandle,
-            cacheTechnology: cacheTechnology
+            accountHandle: accountHandle
         )
 
         guard !endpoints.isEmpty else {
@@ -159,11 +157,11 @@ public struct CacheURLStore: CacheURLStoring {
         return (value: bestEndpoint.0, expiresAt: expirationDate)
     }
 
-    private func currentCacheTechnology() -> CacheTechnology {
-        if let value = Environment.current.variables["TUIST_KURA"], value.isEmpty == false {
-            return .kura
+    private func currentCacheEndpointKeySuffix() -> String {
+        if ClientFeatureFlags.contains("kura") {
+            "kura"
         } else {
-            return .default
+            "default"
         }
     }
 }

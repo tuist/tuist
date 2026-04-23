@@ -3628,15 +3628,6 @@ components:
       type: object
       x-struct:
       x-validate:
-    Technology:
-      default: default
-      enum:
-        - default
-        - kura
-      title: Technology
-      type: string
-      x-struct:
-      x-validate:
     GradleBuildsIndexPage:
       default: 1
       description: The page number to return.
@@ -7795,20 +7786,20 @@ paths:
       callbacks: {}
       operationId: listBundles
       parameters:
-        - description: Page number for pagination.
-          in: query
-          name: page
-          required: false
-          schema:
-            type: integer
-            x-struct:
-            x-validate:
         - description: Filter bundles by git branch.
           in: query
           name: git_branch
           required: false
           schema:
             type: string
+            x-struct:
+            x-validate:
+        - description: Page number for pagination.
+          in: query
+          name: page
+          required: false
+          schema:
+            type: integer
             x-struct:
             x-validate:
         - description: The handle of the account.
@@ -13731,7 +13722,7 @@ paths:
   /api/cache/endpoints:
     get:
       callbacks: {}
-      description: Returns cache endpoints for the requested account and cache technology. The default technology preserves the existing custom-endpoint fallback behavior, while Kura returns only account-specific Kura endpoints.
+      description: Returns cache endpoints for the requested account. When the KURA client feature flag is enabled through the x-tuist-feature-flags header, only account-specific Kura endpoints are returned.
       operationId: getCacheEndpoints
       parameters:
         - description: The name of the account to get custom cache endpoints for.
@@ -13739,19 +13730,6 @@ paths:
           name: account_handle
           required: false
           schema:
-            type: string
-            x-struct:
-            x-validate:
-        - description: The cache technology to resolve endpoints for.
-          in: query
-          name: technology
-          required: false
-          schema:
-            default: default
-            enum:
-              - default
-              - kura
-            title: Technology
             type: string
             x-struct:
             x-validate:
