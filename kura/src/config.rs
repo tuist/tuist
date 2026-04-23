@@ -282,13 +282,11 @@ impl Config {
             internal_tls_key_path,
         ) {
             (None, None, None) => None,
-            (Some(ca_cert_path), Some(cert_path), Some(key_path)) => {
-                Some(PeerTlsConfig {
-                    ca_cert_path,
-                    cert_path,
-                    key_path,
-                })
-            }
+            (Some(ca_cert_path), Some(cert_path), Some(key_path)) => Some(PeerTlsConfig {
+                ca_cert_path,
+                cert_path,
+                key_path,
+            }),
             _ => {
                 invalid.push(format!(
                     "{KURA_INTERNAL_TLS_CA_CERT_PATH}, {KURA_INTERNAL_TLS_CERT_PATH}, and {KURA_INTERNAL_TLS_KEY_PATH} must either all be set or all be unset"
@@ -666,9 +664,7 @@ impl Config {
         if let (Some(port), Some(grpc_port), Some(internal_port)) = (port, grpc_port, internal_port)
         {
             if internal_port == port {
-                invalid.push(format!(
-                    "{KURA_INTERNAL_PORT} must differ from {KURA_PORT}"
-                ));
+                invalid.push(format!("{KURA_INTERNAL_PORT} must differ from {KURA_PORT}"));
             }
             if internal_port == grpc_port {
                 invalid.push(format!(
@@ -694,9 +690,7 @@ impl Config {
                         invalid.push(scheme_error.clone());
                     }
                     if port != Some(internal_port) {
-                        invalid.push(format!(
-                            "{KURA_NODE_URL} must target port {internal_port}"
-                        ));
+                        invalid.push(format!("{KURA_NODE_URL} must target port {internal_port}"));
                     }
                 }
                 Err(error) => invalid.push(format!("{KURA_NODE_URL} must be a valid URL: {error}")),
@@ -706,14 +700,11 @@ impl Config {
                 match reqwest::Url::parse(peer) {
                     Ok(url) => {
                         if url.scheme() != expected_scheme {
-                            invalid.push(format!(
-                                "peer URL {peer} must use {expected_scheme}"
-                            ));
+                            invalid.push(format!("peer URL {peer} must use {expected_scheme}"));
                         }
                         if url.port_or_known_default() != Some(internal_port) {
-                            invalid.push(format!(
-                                "peer URL {peer} must target port {internal_port}"
-                            ));
+                            invalid
+                                .push(format!("peer URL {peer} must target port {internal_port}"));
                         }
                     }
                     Err(error) => invalid.push(format!("peer URL {peer} must be valid: {error}")),
@@ -979,10 +970,14 @@ mod tests {
 
     #[test]
     fn from_lookup_derives_resource_defaults_for_optional_tuning() {
-        let config = config_from(&[]).expect("expected config defaults to derive from host resources");
+        let config =
+            config_from(&[]).expect("expected config defaults to derive from host resources");
 
         assert_eq!(config.internal_port, 7443);
-        assert_eq!(config.peers, vec!["http://kura.example.com:7443".to_owned()]);
+        assert_eq!(
+            config.peers,
+            vec!["http://kura.example.com:7443".to_owned()]
+        );
         assert_eq!(config.file_descriptor_pool_size, 256);
         assert_eq!(config.file_descriptor_acquire_timeout_ms, 5_000);
         assert_eq!(config.segment_handle_cache_size, 64);

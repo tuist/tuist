@@ -30,6 +30,29 @@ env:
   MISE_GITHUB_TOKEN: ${{ github.token }}
 
 jobs:
+  format:
+    name: Format
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: rust
+          working_directory: kura
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: kura-rust-${{ runner.os }}
+          workspaces: |
+            kura -> target
+
+      - name: Check formatting
+        run: env -u RUSTUP_TOOLCHAIN cargo fmt --check
+
   compile:
     name: Compile
     runs-on: ubuntu-latest
@@ -44,19 +67,14 @@ jobs:
           install_args: rust
           working_directory: kura
 
-      - name: Restore Rust Cache
-        uses: actions/cache@v4
+      - uses: Swatinem/rust-cache@v2
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            kura/target
-          key: kura-rust-${{ runner.os }}-${{ hashFiles('kura/Cargo.lock') }}
-          restore-keys: |
-            kura-rust-${{ runner.os }}-
+          shared-key: kura-rust-${{ runner.os }}
+          workspaces: |
+            kura -> target
 
       - name: Compile without warnings
-        run: RUSTFLAGS="-D warnings" cargo check --locked --all-targets
+        run: env -u RUSTUP_TOOLCHAIN RUSTFLAGS="-D warnings" cargo check --locked --all-targets
 
   clippy:
     name: Clippy
@@ -72,19 +90,14 @@ jobs:
           install_args: rust
           working_directory: kura
 
-      - name: Restore Rust Cache
-        uses: actions/cache@v4
+      - uses: Swatinem/rust-cache@v2
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            kura/target
-          key: kura-rust-${{ runner.os }}-${{ hashFiles('kura/Cargo.lock') }}
-          restore-keys: |
-            kura-rust-${{ runner.os }}-
+          shared-key: kura-rust-${{ runner.os }}
+          workspaces: |
+            kura -> target
 
       - name: Run clippy
-        run: cargo clippy --locked --all-targets -- -D warnings
+        run: env -u RUSTUP_TOOLCHAIN cargo clippy --locked --all-targets -- -D warnings
 
   tests:
     name: Tests
@@ -100,19 +113,40 @@ jobs:
           install_args: rust
           working_directory: kura
 
-      - name: Restore Rust Cache
-        uses: actions/cache@v4
+      - uses: Swatinem/rust-cache@v2
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            kura/target
-          key: kura-rust-${{ runner.os }}-${{ hashFiles('kura/Cargo.lock') }}
-          restore-keys: |
-            kura-rust-${{ runner.os }}-
+          shared-key: kura-rust-${{ runner.os }}
+          workspaces: |
+            kura -> target
 
       - name: Run tests
-        run: cargo test --locked
+        run: env -u RUSTUP_TOOLCHAIN cargo test --locked
+
+  audit:
+    name: Audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: rust
+          working_directory: kura
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: kura-rust-${{ runner.os }}
+          workspaces: |
+            kura -> target
+
+      - name: Install cargo-audit
+        run: env -u RUSTUP_TOOLCHAIN cargo install cargo-audit --locked
+
+      - name: Audit dependencies
+        run: env -u RUSTUP_TOOLCHAIN cargo audit
 
   e2e:
     name: E2E (${{ matrix.shard_name }})
