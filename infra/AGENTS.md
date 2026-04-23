@@ -26,7 +26,6 @@ Cluster API CRs and cluster-scoped manifests that stand up our managed Kubernete
 - `syself/ci-service-account.yaml` — SA + RBAC for the GitHub Actions deployer.
 - `syself/ingress-nginx-values.yaml` — Helm values with Hetzner LB annotations (for a future ingress-nginx-based setup; not installed today).
 - `syself-onboarding.md` — end-to-end runbook for standing up a new workload cluster.
-- `provider-evaluation.md` — historical record of the provider decision (Syself vs. GKE etc.).
 
 ### `registry-router/` — Cloudflare Worker for `registry.tuist.dev`
 Geo-routes cache registry requests to the nearest healthy cache origin based on the requester's continent. Unrelated to the Kubernetes migration.
