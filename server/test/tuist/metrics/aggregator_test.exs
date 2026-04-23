@@ -10,13 +10,14 @@ defmodule Tuist.Metrics.AggregatorTest do
 
   describe "counter atomicity" do
     test "concurrent increments land every bump" do
-      for _ <- 1..200 do
-        Task.async(fn ->
-          Aggregator.increment_counter(1, "tuist_cli_invocations_total", {"acme/app", "generate", "false", "success"})
-        end)
-      end
-      |> Task.await_many()
+      for_result =
+        for _ <- 1..200 do
+          Task.async(fn ->
+            Aggregator.increment_counter(1, "tuist_cli_invocations_total", {"acme/app", "generate", "false", "success"})
+          end)
+        end
 
+      Task.await_many(for_result)
       snapshot = Aggregator.snapshot(1)
       counter = Enum.find(snapshot, &(&1.metric == "tuist_cli_invocations_total"))
       assert counter.value == 200
@@ -67,12 +68,12 @@ defmodule Tuist.Metrics.AggregatorTest do
 
       Aggregator.observe_histogram(1, metric, labels, 1.0)
       _ = :sys.get_state(Aggregator)
-      first = Aggregator.snapshot(1) |> Enum.find(&(&1.metric == metric))
+      first = 1 |> Aggregator.snapshot() |> Enum.find(&(&1.metric == metric))
       assert first.count == 1
 
       Aggregator.observe_histogram(1, metric, labels, 2.0)
       _ = :sys.get_state(Aggregator)
-      second = Aggregator.snapshot(1) |> Enum.find(&(&1.metric == metric))
+      second = 1 |> Aggregator.snapshot() |> Enum.find(&(&1.metric == metric))
       assert second.count == 2
     end
   end
@@ -83,10 +84,10 @@ defmodule Tuist.Metrics.AggregatorTest do
       Aggregator.increment_counter(2, "tuist_cli_invocations_total", {"beta/app", "test", "true", "failure"}, 4)
 
       assert [entry_1] =
-               Aggregator.snapshot(1) |> Enum.filter(&(&1.metric == "tuist_cli_invocations_total"))
+               1 |> Aggregator.snapshot() |> Enum.filter(&(&1.metric == "tuist_cli_invocations_total"))
 
       assert [entry_2] =
-               Aggregator.snapshot(2) |> Enum.filter(&(&1.metric == "tuist_cli_invocations_total"))
+               2 |> Aggregator.snapshot() |> Enum.filter(&(&1.metric == "tuist_cli_invocations_total"))
 
       assert entry_1.value == 1
       assert entry_2.value == 4
