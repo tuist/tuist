@@ -131,9 +131,3 @@ jobs:
       environment: production
       commit_sha: ${{ github.sha }}
     secrets: inherit
-
-# Slack notifications for this workflow live in
-# .github/workflows/notify-failure.yml (failures) and
-# .github/workflows/notify-deploy-success.yml (production success) —
-# both listen to workflow_run events so they stay decoupled from the
-# cascade shape and can be reused by other deploy workflows.
