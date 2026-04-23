@@ -74,6 +74,35 @@ wait_for_contains() {
   return 1
 }
 
+wait_for_all_contains() {
+  local url="$1"
+  shift
+  local attempts=45
+  local sleep_seconds=2
+  local body
+  local needle
+  local matched
+
+  for _ in $(seq 1 "$attempts"); do
+    body="$(curl -fsS "$url" 2>/dev/null || true)"
+    matched=1
+    for needle in "$@"; do
+      if [[ "$body" != *"$needle"* ]]; then
+        matched=0
+        break
+      fi
+    done
+    if [ -n "$body" ] && [ "$matched" -eq 1 ]; then
+      printf '%s' "$body"
+      return 0
+    fi
+    sleep "$sleep_seconds"
+  done
+
+  printf 'Timed out waiting for [%s] in %s\n' "$*" "$url" >&2
+  return 1
+}
+
 new_marker() {
   python3 - <<'PY'
 import secrets
