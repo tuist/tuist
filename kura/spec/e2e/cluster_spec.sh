@@ -151,9 +151,11 @@ Describe 'core cluster behaviour'
     The variable grafana_health should include '"database": "ok"'
 
     capture_into prometheus_query \
-      wait_for_contains \
+      wait_for_all_contains \
       "${PROMETHEUS_URL}/api/v1/query?query=kura_node_info" \
-      'eu-west' || return 1
+      'us-east' \
+      'eu-west' \
+      'ap-south' || return 1
     The variable prometheus_query should include 'us-east'
     The variable prometheus_query should include 'eu-west'
     The variable prometheus_query should include 'ap-south'
