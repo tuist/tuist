@@ -6,10 +6,11 @@
 # Shape:
 #   - Region: fsn1 (Falkenstein). Lowest latency to Supabase (eu-central-1)
 #     and ClickHouse Frankfurt.
-#   - Control plane: 3 × cpx11 (cloud, 2 vCPU / 2 GB each). HA: tolerates 1
-#     node failure and enables zero-downtime kube-apiserver upgrades. Cloud
-#     (not bare metal) keeps staging cheap — the three CPs cost ~€15/mo
-#     combined vs ~€150+/mo for bare-metal CPs.
+#   - Control plane: 3 × cpx21 (cloud, 3 vCPU / 4 GB / 80 GB each). HA:
+#     tolerates 1 node failure and enables zero-downtime kube-apiserver
+#     upgrades. 80 GB is the minimum disk that accepts Syself's Packer
+#     snapshot (disk_size=80) — cpx21's 40 GB disk is rejected by the
+#     Hetzner API. Three CPs cost ~€21/mo combined.
 #   - Workers: 1 × Hetzner Robot bare-metal server. The Tuist server runs
 #     there — dedicated NVMe + bandwidth, no noisy-neighbor. Register each
 #     server with a HetznerBareMetalHost CR (see
@@ -33,7 +34,7 @@ apiVersion: cluster.x-k8s.io/v1beta1
 kind: Cluster
 metadata:
   name: tuist-staging
-  namespace: REPLACE_ME_ORG_NAMESPACE
+  namespace: org-tuist
 spec:
   clusterNetwork:
     services:
@@ -47,7 +48,6 @@ spec:
     class: hetzner-apalla-1-34-v6
     version: v1.34.6
     controlPlane:
-      class: hcloud
       replicas: 3
     workers:
       machineDeployments:
@@ -62,16 +62,25 @@ spec:
                     role: worker
                     cluster: tuist-staging
     variables:
-      variables:
-        - name: region
-          value: fsn1
-        - name: controlPlaneMachineTypeHcloud
-          value: cpx11
-        # Uncomment and fill in to expose the kube-apiserver via a custom
-        # domain (DNS + Hetzner LB must be pre-created — see onboarding §4).
-        # - name: clusterEndpointHost
-        #   value: k8s-staging.tuist.dev
-        # - name: clusterLoadBalancerType
-        #   value: lb11
-        # - name: clusterLoadBalancerName
-        #   value: tuist-staging-apiserver-lb
+      - name: region
+        value: fsn1
+      - name: controlPlaneMachineTypeHcloud
+        value: cpx21
+      - name: controlPlaneMachineArchHcloud
+        value: amd64
+      # Required by the ClusterClass even though we don't spin up any
+      # cloud workers — the class defines a cloud-worker variant and the
+      # variable is mandatory. Value is effectively unused.
+      - name: workerMachineTypeHcloud
+        value: cpx21
+      - name: SSHKeyNameHcloud
+        value:
+          - name: tuist-syself
+      # Uncomment and fill in to expose the kube-apiserver via a custom
+      # domain (DNS + Hetzner LB must be pre-created — see onboarding §4).
+      # - name: clusterEndpointHost
+      #   value: k8s-staging.tuist.dev
+      # - name: clusterLoadBalancerType
+      #   value: lb11
+      # - name: clusterLoadBalancerName
+      #   value: tuist-staging-apiserver-lb
