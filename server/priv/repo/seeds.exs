@@ -1923,7 +1923,81 @@ unquarantined_events =
     end)
   end)
 
-test_case_events = quarantined_events ++ unquarantined_events
+flaky_ids = Enum.map(flaky_test_case_defs, fn {_def, id, _is_quarantined} -> id end)
+
+# Generate marked_flaky / unmarked_flaky events for currently-flaky test cases.
+# Odd number of events so the sequence ends on "marked_flaky", matching the
+# current is_flaky = true state.
+marked_flaky_events =
+  Enum.flat_map(flaky_ids, fn test_case_id ->
+    num_events = Enum.random([1, 3, 5])
+    base_date = DateTime.utc_now()
+
+    event_timestamps =
+      1..num_events
+      |> Enum.map(fn _ -> Enum.random(1..120) end)
+      |> Enum.sort(:desc)
+      |> Enum.map(fn day_offset ->
+        base_date |> DateTime.add(-day_offset, :day) |> DateTime.to_naive()
+      end)
+
+    event_timestamps
+    |> Enum.with_index()
+    |> Enum.map(fn {inserted_at, index} ->
+      event_type = if rem(index, 2) == 0, do: "marked_flaky", else: "unmarked_flaky"
+
+      %{
+        id: UUIDv7.generate(),
+        test_case_id: test_case_id,
+        event_type: event_type,
+        actor_id: nil,
+        inserted_at: inserted_at
+      }
+    end)
+  end)
+
+# Pick ~10% of currently-non-flaky test cases and give them a history of being
+# flaky that ended with "unmarked_flaky", so the Flaky Tests chart has both
+# upward and downward movement.
+non_flaky_ids =
+  test_case_id_map
+  |> Map.values()
+  |> Enum.reject(&(&1 in flaky_ids))
+
+past_flaky_sample_count = div(length(non_flaky_ids), 10)
+
+unmarked_flaky_events =
+  non_flaky_ids
+  |> Enum.take_random(past_flaky_sample_count)
+  |> Enum.flat_map(fn test_case_id ->
+    # Even number of events so the sequence ends on "unmarked_flaky".
+    num_events = Enum.random([2, 4])
+    base_date = DateTime.utc_now()
+
+    event_timestamps =
+      1..num_events
+      |> Enum.map(fn _ -> Enum.random(1..120) end)
+      |> Enum.sort(:desc)
+      |> Enum.map(fn day_offset ->
+        base_date |> DateTime.add(-day_offset, :day) |> DateTime.to_naive()
+      end)
+
+    event_timestamps
+    |> Enum.with_index()
+    |> Enum.map(fn {inserted_at, index} ->
+      event_type = if rem(index, 2) == 0, do: "marked_flaky", else: "unmarked_flaky"
+
+      %{
+        id: UUIDv7.generate(),
+        test_case_id: test_case_id,
+        event_type: event_type,
+        actor_id: nil,
+        inserted_at: inserted_at
+      }
+    end)
+  end)
+
+test_case_events = quarantined_events ++ unquarantined_events ++ marked_flaky_events ++ unmarked_flaky_events
 
 # Insert test case events
 if length(test_case_events) > 0 do
@@ -1932,6 +2006,7 @@ end
 
 IO.puts("  - Test case events: #{length(test_case_events)}")
 IO.puts("  - Currently quarantined: #{length(quarantined_ids)}, unquarantined: #{length(unquarantined_ids)}")
+IO.puts("  - Currently flaky: #{length(flaky_ids)}, past-flaky (unmarked): #{past_flaky_sample_count}")
 
 IO.puts("Generating #{seed_config.command_events} command events in parallel...")
 

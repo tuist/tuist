@@ -167,10 +167,11 @@ defmodule Tuist.Tests.Analytics do
 
   @doc """
   Returns analytics for the number of flaky test cases over time for a project.
-  A test case is counted at bucket endpoint T if it has at least one flaky run
-  (is_flaky = true) in the 14 days ending at T. Uses the same run-window logic
-  as `test_cases_count_analytics/2` so the widget value and chart values are
-  always derived from the same source and stay consistent.
+  At each bucket endpoint T, the value is the number of test cases currently
+  flagged as flaky, derived by replaying `marked_flaky` / `unmarked_flaky`
+  events from `test_case_events`. Reflects the persistent `is_flaky` flag on
+  `TestCase`, not a run-window approximation, and is not affected by whether
+  the test case is still "active" in the suite.
   """
   def flaky_tests_analytics(project_id, opts \\ []) do
     start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
@@ -180,13 +181,43 @@ defmodule Tuist.Tests.Analytics do
     dates = date_range_for_date_period(date_period, start_datetime: start_datetime, end_datetime: end_datetime)
     date_endpoints = Enum.map(dates, &date_to_end_of_bucket(&1, date_period))
 
-    window_seconds = Tests.active_window_days() * 86_400
+    project_test_case_ids_subquery =
+      from(tc in TestCase,
+        where: tc.project_id == ^project_id,
+        group_by: tc.id,
+        select: tc.id
+      )
 
-    previous_endpoint = DateTime.add(start_datetime, -1, :second)
-    previous_count = flaky_tests_count_at(project_id, previous_endpoint, window_seconds)
+    max_endpoint = List.last(date_endpoints) || end_datetime
 
-    values = Enum.map(date_endpoints, &flaky_tests_count_at(project_id, &1, window_seconds))
+    events =
+      ClickHouseRepo.all(
+        from(e in TestCaseEvent,
+          where: e.test_case_id in subquery(project_test_case_ids_subquery),
+          where: e.event_type in ["marked_flaky", "unmarked_flaky"],
+          where: e.inserted_at <= ^max_endpoint,
+          select: %{test_case_id: e.test_case_id, event_type: e.event_type, inserted_at: e.inserted_at},
+          order_by: [asc: e.inserted_at]
+        )
+      )
 
+    events_by_tc = Enum.group_by(events, & &1.test_case_id)
+
+    values =
+      Enum.map(date_endpoints, fn endpoint ->
+        endpoint_naive = DateTime.to_naive(endpoint)
+
+        Enum.count(events_by_tc, fn {_tc_id, tc_events} ->
+          last_event =
+            tc_events
+            |> Enum.take_while(&(NaiveDateTime.compare(&1.inserted_at, endpoint_naive) != :gt))
+            |> List.last()
+
+          last_event != nil and last_event.event_type == "marked_flaky"
+        end)
+      end)
+
+    previous_count = flaky_count_from_events(events_by_tc, DateTime.add(start_datetime, -1, :second))
     current_count = List.last(values) || 0
 
     %{
@@ -197,18 +228,17 @@ defmodule Tuist.Tests.Analytics do
     }
   end
 
-  defp flaky_tests_count_at(project_id, endpoint, window_seconds) do
-    window_start = DateTime.add(endpoint, -window_seconds, :second)
+  defp flaky_count_from_events(events_by_tc, datetime) do
+    datetime_naive = DateTime.to_naive(datetime)
 
-    ClickHouseRepo.one(
-      from(tcr in TestCaseRun,
-        where: tcr.project_id == ^project_id,
-        where: tcr.is_flaky == true,
-        where: tcr.ran_at >= ^window_start,
-        where: tcr.ran_at <= ^endpoint,
-        select: fragment("uniqExact(?)", tcr.test_case_id)
-      )
-    ) || 0
+    Enum.count(events_by_tc, fn {_tc_id, tc_events} ->
+      last_event =
+        tc_events
+        |> Enum.take_while(&(NaiveDateTime.compare(&1.inserted_at, datetime_naive) != :gt))
+        |> List.last()
+
+      last_event != nil and last_event.event_type == "marked_flaky"
+    end)
   end
 
   @doc """
