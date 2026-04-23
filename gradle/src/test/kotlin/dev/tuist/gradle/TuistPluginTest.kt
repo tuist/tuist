@@ -293,46 +293,6 @@ class TuistPluginTest {
     }
 
     @Test
-    fun `plugin reads network proxy from tuist toml`() {
-        File(testProjectDir, "tuist.toml").writeText("""
-            project = "test-account/test-project"
-
-            [network]
-            proxy = false
-        """.trimIndent())
-
-        settingsFile.writeText("""
-            import dev.tuist.gradle.TuistGradleConfig
-
-            plugins {
-                id("dev.tuist")
-            }
-
-            rootProject.name = "test-project"
-        """.trimIndent())
-
-        buildFile.writeText("""
-            import dev.tuist.gradle.TuistGradleConfig
-
-            tasks.register("printProxyConfig") {
-                doLast {
-                    val config = project.extensions.extraProperties["tuist.config"] as TuistGradleConfig
-                    println("proxy=${'$'}{config.network.proxy}")
-                }
-            }
-        """.trimIndent())
-
-        val result = GradleRunner.create()
-            .withProjectDir(testProjectDir)
-            .withArguments("printProxyConfig")
-            .withPluginClasspath()
-            .build()
-
-        assertEquals(TaskOutcome.SUCCESS, result.task(":printProxyConfig")?.outcome)
-        assertTrue(result.output.contains("proxy=false"))
-    }
-
-    @Test
     fun `build insights logs message when configured`() {
         settingsFile.writeText("""
             plugins {

@@ -301,7 +301,6 @@ var tuistConfigLoaderTestDependencies: [Target.Dependency] = [
     "TuistConfigLoader",
     "TuistConfig",
     "TuistConstants",
-    "TuistHTTP",
     "TuistRootDirectoryLocator",
     pathDependency,
     fileSystemDependency,
@@ -909,8 +908,6 @@ var targets: [Target] = [
         name: "TuistHTTPTests",
         dependencies: [
             "TuistHTTP",
-            "TuistEnvironment",
-            "TuistEnvironmentTesting",
             mockableDependency,
         ],
         path: "cli/Tests/TuistHTTPTests"

@@ -5,7 +5,6 @@ import Path
 import TuistConfig
 import TuistConstants
 import TuistEnvironment
-import TuistHTTP
 
 @Mockable
 public protocol ConfigLoading: Sendable {
@@ -44,19 +43,14 @@ public struct ConfigLoader: ConfigLoading {
     public func loadConfig(path: AbsolutePath) async throws -> TuistConfig.Tuist {
         #if os(macOS)
             if let _ = try await swiftConfigLoader.locateConfig(at: path) {
-                let config = try await swiftConfigLoader.loadConfig(path: path)
-                applyRuntimeSettings(from: config)
-                return config
+                return try await swiftConfigLoader.loadConfig(path: path)
             }
         #endif
 
         if let tomlConfig = try await tomlConfigLoader.loadConfig(at: path) {
-            let config = configFromToml(tomlConfig)
-            applyRuntimeSettings(from: config)
-            return config
+            return configFromToml(tomlConfig)
         }
 
-        applyRuntimeSettings(from: .default)
         return .default
     }
 
@@ -65,12 +59,7 @@ public struct ConfigLoader: ConfigLoading {
             project: .defaultGeneratedProject(),
             fullHandle: tomlConfig.project,
             inspectOptions: .init(redundantDependencies: .init(ignoreTagsMatching: [])),
-            url: tomlConfig.url ?? Constants.URLs.production,
-            network: .init(proxy: tomlConfig.network?.proxy ?? true)
+            url: tomlConfig.url ?? Constants.URLs.production
         )
-    }
-
-    private func applyRuntimeSettings(from config: TuistConfig.Tuist) {
-        HTTPSettings.current = .init(useEnvironmentProxy: config.network.proxy)
     }
 }

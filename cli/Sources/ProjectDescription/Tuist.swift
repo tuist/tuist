@@ -28,19 +28,6 @@
 public typealias Config = Tuist
 
 public struct Tuist: Codable, Equatable, Sendable {
-    /// Options for configuring network behavior.
-    public struct Network: Codable, Equatable, Sendable {
-        /// When `true` (default), Tuist automatically uses the proxy defined by
-        /// `HTTPS_PROXY`/`HTTP_PROXY` when present in the environment.
-        public let proxy: Bool
-
-        /// Creates network options.
-        /// - Parameter proxy: Whether Tuist should use the proxy defined in the environment. Defaults to `true`.
-        public static func network(proxy: Bool = true) -> Self {
-            Network(proxy: proxy)
-        }
-    }
-
     /// Options for configuring the Xcode Cache behavior.
     public struct Cache: Codable, Equatable, Sendable {
         /// When `true` (default), the local proxy uploads artifacts to the remote cache.
@@ -63,9 +50,6 @@ public struct Tuist: Codable, Equatable, Sendable {
 
     /// The options to use when running `tuist inspect`.
     public let inspectOptions: InspectOptions
-
-    /// The network configuration.
-    public let network: Network
 
     /// The Xcode Cache configuration.
     public let cache: Cache
@@ -91,7 +75,6 @@ public struct Tuist: Codable, Equatable, Sendable {
         cloud: Cloud? = nil,
         fullHandle: String? = nil,
         url: String = "https://tuist.dev",
-        network: Network = .network(),
         swiftVersion _: Version? = nil,
         plugins: [PluginLocation] = [],
         generationOptions: GenerationOptions = .options(),
@@ -113,7 +96,6 @@ public struct Tuist: Codable, Equatable, Sendable {
         )
         self.fullHandle = fullHandle
         self.inspectOptions = inspectOptions
-        self.network = network
         cache = .cache()
         self.url = url
         dumpIfNeeded(self)
@@ -124,13 +106,11 @@ public struct Tuist: Codable, Equatable, Sendable {
         inspectOptions: InspectOptions = .options(),
         cache: Cache = .cache(),
         url: String = "https://tuist.dev",
-        network: Network = .network(),
         project: TuistProject
     ) {
         self.project = project
         self.fullHandle = fullHandle
         self.inspectOptions = inspectOptions
-        self.network = network
         self.cache = cache
         self.url = url
         dumpIfNeeded(self)

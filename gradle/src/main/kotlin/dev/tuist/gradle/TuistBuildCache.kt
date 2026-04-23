@@ -23,8 +23,6 @@ open class TuistBuildCache : AbstractBuildCache() {
     @Deprecated("No longer used. The plugin resolves auth natively.")
     var executablePath: String? = null
     var url: String? = null
-    lateinit var projectDir: String
-    var useEnvironmentProxy: Boolean = true
     var allowInsecureProtocol: Boolean = false
 }
 
@@ -41,8 +39,8 @@ class TuistBuildCacheServiceFactory : BuildCacheServiceFactory<TuistBuildCache> 
             .type("Tuist")
             .config("project", configuration.project ?: "(from tuist.toml)")
 
-        val projectDir = java.io.File(configuration.projectDir)
-        val httpClients = TuistHttpClients(useEnvironmentProxy = configuration.useEnvironmentProxy)
+        val projectDir = java.io.File(System.getProperty("user.dir"))
+        val httpClients = TuistHttpClients()
         val configurationProvider = DefaultConfigurationProvider(
             project = configuration.project,
             serverUrl = configuration.url ?: "https://tuist.dev",

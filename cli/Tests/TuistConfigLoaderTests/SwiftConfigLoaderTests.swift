@@ -180,8 +180,7 @@
             stubConfig(
                 .test(
                     fullHandle: "tuist/tuist",
-                    url: "https://test.tuist.io",
-                    network: .network(proxy: false)
+                    url: "https://test.tuist.io"
                 ),
                 at: configPath.parentDirectory
             )
@@ -203,8 +202,7 @@
                 )),
                 fullHandle: "tuist/tuist",
                 inspectOptions: .test(),
-                url: expectedURL,
-                network: .init(proxy: false)
+                url: expectedURL
             ))
         }
 

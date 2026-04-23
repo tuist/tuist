@@ -46,12 +46,12 @@ enum CreateTestCaseRunAttachmentServiceError: LocalizedError {
 public struct CreateTestCaseRunAttachmentService: CreateTestCaseRunAttachmentServicing {
     private let fileSystem: FileSystem
     private let fullHandleService: FullHandleServicing
-    private let urlSession: URLSession?
+    private let urlSession: URLSession
 
     public init(
         fileSystem: FileSystem = FileSystem(),
         fullHandleService: FullHandleServicing = FullHandleService(),
-        urlSession: URLSession? = nil
+        urlSession: URLSession = .tuistShared
     ) {
         self.fileSystem = fileSystem
         self.fullHandleService = fullHandleService
@@ -99,7 +99,6 @@ public struct CreateTestCaseRunAttachmentService: CreateTestCaseRunAttachmentSer
                 request.setValue(Self.contentType(for: fileName), forHTTPHeaderField: "Content-Type")
                 request.httpBody = try await fileSystem.readFile(at: filePath)
 
-                let urlSession = urlSession ?? .tuistShared
                 let (_, uploadResponse) = try await urlSession.data(for: request)
                 guard let httpResponse = uploadResponse as? HTTPURLResponse,
                       (200 ..< 300).contains(httpResponse.statusCode)

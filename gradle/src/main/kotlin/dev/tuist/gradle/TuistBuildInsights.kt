@@ -2,7 +2,6 @@ package dev.tuist.gradle
 
 import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
-import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.internal.GradleInternal
@@ -112,10 +111,8 @@ abstract class TuistBuildInsightsService :
     interface Params : BuildServiceParameters {
         val url: Property<String>
         val project: Property<String>
-        val useEnvironmentProxy: Property<Boolean>
         val gradleVersion: Property<String>
         val rootProjectName: Property<String>
-        val projectDir: DirectoryProperty
     }
 
     private val logger = Logging.getLogger(TuistBuildInsightsService::class.java)
@@ -148,7 +145,10 @@ abstract class TuistBuildInsightsService :
 
     override fun started(buildOperation: BuildOperationDescriptor, startEvent: OperationStartEvent) {
         val opId = buildOperation.id ?: return
-        buildOperation.parentId?.let { operationParents[opId] = it }
+        val parentId = buildOperation.parentId
+        if (parentId != null) {
+            operationParents[opId] = parentId
+        }
 
         val details = buildOperation.details
         if (details is ExecuteTaskBuildOperationType.Details) {
@@ -221,11 +221,12 @@ abstract class TuistBuildInsightsService :
      * the cache load op up to the task op and returns `:app:compileKotlin`.
      */
     private fun findTaskPathForOperation(opId: OperationIdentifier): String? {
-        var currentId = opId
-        while (true) {
+        var currentId: OperationIdentifier? = opId
+        while (currentId != null) {
             operationTaskPaths[currentId]?.let { return it }
-            currentId = operationParents[currentId] ?: return null
+            currentId = operationParents[currentId]
         }
+        return null
     }
 
     override fun onFinish(event: FinishEvent) {
@@ -311,8 +312,8 @@ abstract class TuistBuildInsightsService :
 
     private fun sendReport(machineMetrics: List<MachineMetricSample>) {
         val projectValue = parameters.project.orNull
-        val httpClients = TuistHttpClients(useEnvironmentProxy = parameters.useEnvironmentProxy.get())
-        val projectDir = parameters.projectDir.asFile.get()
+        val httpClients = TuistHttpClients()
+        val projectDir = java.io.File(System.getProperty("user.dir"))
 
         val configProvider = DefaultConfigurationProvider(
             project = projectValue,
@@ -346,7 +347,7 @@ abstract class TuistBuildInsightsService :
         val response = httpClient.execute { config ->
             val resolvedUrl = ServerUrlResolver.resolve(
                 extensionUrl = parameters.url.get(),
-                projectDir = projectDir
+                projectDir = java.io.File(System.getProperty("user.dir"))
             )
             val url = URI(resolvedUrl).resolve("/api/projects/${config.accountHandle}/${config.projectHandle}/gradle/builds")
             val connection = httpClient.openConnection(url, config)
@@ -457,10 +458,8 @@ internal abstract class TuistBuildInsightsPlugin @Inject constructor(
         ) {
             parameters.url.set(config.url)
             config.project?.let { parameters.project.set(it) }
-            parameters.useEnvironmentProxy.set(config.network.proxy)
             parameters.gradleVersion.set(project.gradle.gradleVersion)
             parameters.rootProjectName.set(project.rootProject.name)
-            parameters.projectDir.set(project.rootProject.layout.projectDirectory)
         }
 
         eventsListenerRegistry.onTaskCompletion(serviceProvider)

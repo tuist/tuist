@@ -5,7 +5,6 @@ import FileSystem
 import Foundation
 import Mockable
 import Path
-import TuistHTTP
 import TuistThreadSafe
 
 public struct MultipartUploadArtifactPart {
@@ -61,12 +60,12 @@ public protocol MultipartUploadArtifactServicing {
 }
 
 public struct MultipartUploadArtifactService: MultipartUploadArtifactServicing {
-    private let urlSession: URLSession?
+    private let urlSession: URLSession
     private let fileSystem: FileSysteming
     private let retryProvider: RetryProviding
 
     public init(
-        urlSession: URLSession? = nil,
+        urlSession: URLSession = .tuistShared,
         fileSystem: FileSysteming = FileSystem(),
         retryProvider: RetryProviding = RetryProvider()
     ) {
@@ -132,7 +131,6 @@ public struct MultipartUploadArtifactService: MultipartUploadArtifactServicing {
     }
 
     private func upload(for request: URLRequest) async throws -> String {
-        let urlSession = urlSession ?? .tuistShared
         let (data, response) = try await urlSession.data(for: request)
         guard let urlResponse = response as? HTTPURLResponse else {
             throw MultipartUploadArtifactServiceError.noURLResponse(request.url)
