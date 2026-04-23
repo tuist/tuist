@@ -5,7 +5,6 @@ use crate::artifact::{class::ArtifactClass, client::ArtifactClient};
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ArtifactKind {
-    #[serde(alias = "keyvalue")]
     KeyValue,
     Xcode,
     Gradle,
@@ -26,18 +25,9 @@ impl ArtifactKind {
         }
     }
 
-    pub fn storage_key(self) -> &'static str {
-        match self {
-            Self::KeyValue => "keyvalue",
-            Self::Xcode => "xcode",
-            Self::Gradle => "gradle",
-            Self::Module => "module",
-        }
-    }
-
     pub fn from_str(value: &str) -> Option<Self> {
         match value {
-            "key_value" | "keyvalue" => Some(Self::KeyValue),
+            "key_value" => Some(Self::KeyValue),
             "xcode" => Some(Self::Xcode),
             "gradle" => Some(Self::Gradle),
             "module" => Some(Self::Module),
@@ -99,23 +89,19 @@ mod tests {
         ] {
             assert_eq!(ArtifactKind::from_str(kind.as_str()), Some(kind));
         }
-        assert_eq!(
-            ArtifactKind::from_str("keyvalue"),
-            Some(ArtifactKind::KeyValue)
-        );
         assert_eq!(ArtifactKind::from_str("unknown"), None);
     }
 
     #[test]
-    fn serde_keeps_legacy_keyvalue_payloads_compatible() {
-        assert_eq!(
-            serde_json::from_str::<ArtifactKind>("\"keyvalue\"")
-                .expect("legacy artifact kind should deserialize"),
-            ArtifactKind::KeyValue
-        );
+    fn serde_roundtrips_key_value_payloads() {
         assert_eq!(
             serde_json::to_string(&ArtifactKind::KeyValue).expect("artifact kind should serialize"),
             "\"key_value\""
+        );
+        assert_eq!(
+            serde_json::from_str::<ArtifactKind>("\"key_value\"")
+                .expect("artifact kind should deserialize"),
+            ArtifactKind::KeyValue
         );
     }
 

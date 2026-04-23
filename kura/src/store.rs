@@ -28,7 +28,7 @@ use crate::{
     config::Config,
     constants::{
         DESIRED_CURRENT_SEGMENTS, DESIRED_NEW_SEGMENTS, DESIRED_OLD_SEGMENTS,
-        MAX_MODULE_TOTAL_BYTES, MAX_SEGMENT_BYTES, ROCKSDB_BYTES_PER_SYNC, ROCKSDB_CF_KEYVALUE,
+        MAX_MODULE_TOTAL_BYTES, MAX_SEGMENT_BYTES, ROCKSDB_BYTES_PER_SYNC, ROCKSDB_CF_KEY_VALUE,
         ROCKSDB_CF_MANIFESTS, ROCKSDB_CF_MULTIPART_UPLOADS, ROCKSDB_CF_NAMESPACE_ARTIFACTS,
         ROCKSDB_CF_NAMESPACE_TOMBSTONES, ROCKSDB_CF_OUTBOX, ROCKSDB_CF_SEGMENT_ARTIFACTS,
         ROCKSDB_CF_SEGMENT_STATE, ROCKSDB_WAL_BYTES_PER_SYNC,
@@ -194,7 +194,7 @@ impl Store {
                 ),
             ),
             ColumnFamilyDescriptor::new(
-                ROCKSDB_CF_KEYVALUE,
+                ROCKSDB_CF_KEY_VALUE,
                 rocksdb_column_family_options(
                     config,
                     &rocksdb_block_cache,
@@ -748,7 +748,7 @@ impl Store {
             artifact_id.as_bytes(),
             manifest_bytes,
         );
-        batch.put_cf(self.cf(ROCKSDB_CF_KEYVALUE), artifact_id.as_bytes(), bytes);
+        batch.put_cf(self.cf(ROCKSDB_CF_KEY_VALUE), artifact_id.as_bytes(), bytes);
         batch.put_cf(
             self.cf(ROCKSDB_CF_NAMESPACE_ARTIFACTS),
             namespace_artifact_index_key(&metadata.namespace_id, &artifact_id).as_bytes(),
@@ -767,7 +767,7 @@ impl Store {
 
     fn keyvalue_bytes(&self, artifact_id: &str) -> Result<Option<Vec<u8>>, String> {
         self.db
-            .get_cf(self.cf(ROCKSDB_CF_KEYVALUE), artifact_id.as_bytes())
+            .get_cf(self.cf(ROCKSDB_CF_KEY_VALUE), artifact_id.as_bytes())
             .map_err(|error| format!("failed to read keyvalue bytes: {error}"))
     }
 
@@ -886,7 +886,7 @@ impl Store {
     }
 
     fn load_segment_state(&self, kind: ArtifactKind) -> Result<SegmentState, String> {
-        let key = kind.storage_key().as_bytes();
+        let key = kind.as_str().as_bytes();
         let Some(bytes) = self
             .db
             .get_cf(self.cf(ROCKSDB_CF_SEGMENT_STATE), key)
@@ -905,7 +905,7 @@ impl Store {
         self.db
             .put_cf(
                 self.cf(ROCKSDB_CF_SEGMENT_STATE),
-                kind.storage_key().as_bytes(),
+                kind.as_str().as_bytes(),
                 bytes,
             )
             .map_err(|error| format!("failed to persist segment state: {error}"))
@@ -1226,7 +1226,7 @@ impl Store {
                     continue;
                 }
                 if manifest.kind == ArtifactKind::KeyValue {
-                    batch.delete_cf(self.cf(ROCKSDB_CF_KEYVALUE), artifact_id.as_bytes());
+                    batch.delete_cf(self.cf(ROCKSDB_CF_KEY_VALUE), artifact_id.as_bytes());
                 }
                 if let Some(blob_path) = manifest.blob_path {
                     blob_paths.push(PathBuf::from(blob_path));

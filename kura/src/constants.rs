@@ -11,8 +11,7 @@ pub const ROCKSDB_BYTES_PER_SYNC: u64 = 1024 * 1024;
 pub const ROCKSDB_WAL_BYTES_PER_SYNC: u64 = 1024 * 1024;
 
 pub const ROCKSDB_CF_MANIFESTS: &str = "manifests";
-pub const ROCKSDB_CF_KEYVALUE: &str = "keyvalue";
-// Keep the on-disk column family name stable to avoid migrating existing data.
+pub const ROCKSDB_CF_KEY_VALUE: &str = "key_value";
 pub const ROCKSDB_CF_NAMESPACE_ARTIFACTS: &str = "project_artifacts";
 pub const ROCKSDB_CF_NAMESPACE_TOMBSTONES: &str = "namespace_tombstones";
 pub const ROCKSDB_CF_MULTIPART_UPLOADS: &str = "multipart_uploads";
