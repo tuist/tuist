@@ -175,7 +175,7 @@ struct GenerateServiceTests {
         }
     }
 
-    @Test func passes_allPossible_when_targets_focused_overrides_explicit_profile() async throws {
+    @Test func passes_none_when_explicit_none_is_used_with_targets_focused() async throws {
         // Given
         let workspacePath = try AbsolutePath(validating: "/test.xcworkspace")
         let environment = MapperEnvironment()
@@ -208,7 +208,7 @@ struct GenerateServiceTests {
                 config: .any,
                 includedTargets: .value(["App"]),
                 configuration: .any,
-                cacheProfile: .matching { $0 == .allPossible },
+                cacheProfile: .matching { $0 == .none },
                 cacheStorage: .any
             )
             .called(1)
@@ -335,6 +335,64 @@ struct GenerateServiceTests {
                 includedTargets: .value([]),
                 configuration: .any,
                 cacheProfile: .matching { $0 == .init(base: .onlyExternal, targetQueries: ["tag:cacheable"]) },
+                cacheStorage: .any
+            )
+            .called(1)
+    }
+
+    @Test func passes_command_default_profile_with_focused_targets() async throws {
+        // Given
+        let workspacePath = try AbsolutePath(validating: "/test.xcworkspace")
+        let environment = MapperEnvironment()
+        let tuist = Tuist.test(project:
+            .generated(.test(cacheOptions: .test(
+                keepSourceTargets: false,
+                profiles: .init(
+                    [
+                        "ci": .init(
+                            base: .commandDefault,
+                            targetQueries: ["tag:cacheable"],
+                            exceptTargetQueries: ["tag:no-cache"]
+                        ),
+                    ],
+                    default: "ci"
+                )
+            )))
+        )
+        given(configLoader).loadConfig(path: .any).willReturn(tuist)
+        given(generator)
+            .generateWithGraph(path: .any, options: .any)
+            .willReturn(
+                (
+                    workspacePath,
+                    .test(),
+                    environment
+                )
+            )
+
+        // When
+        try await subject.run(
+            path: nil,
+            includedTargets: ["App"],
+            noOpen: true,
+            configuration: nil,
+            ignoreBinaryCache: false,
+            cacheProfile: nil
+        )
+
+        // Then
+        verify(generatorFactory)
+            .generation(
+                config: .any,
+                includedTargets: .value(["App"]),
+                configuration: .any,
+                cacheProfile: .matching {
+                    $0 == .init(
+                        base: .allPossible,
+                        targetQueries: ["tag:cacheable"],
+                        exceptTargetQueries: ["tag:no-cache"]
+                    )
+                },
                 cacheStorage: .any
             )
             .called(1)

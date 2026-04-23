@@ -416,6 +416,57 @@ final class TestServiceTests: TuistUnitTestCase {
         )
     }
 
+    func test_run_resolves_configured_command_default_cache_profile() async throws {
+        // Given
+        givenGenerator()
+        let path = try temporaryPath()
+        let expectedProfile = CacheProfile(
+            base: .allPossible,
+            targetQueries: ["tag:cacheable"],
+            exceptTargetQueries: ["tag:no-cache"]
+        )
+        given(generator)
+            .generateWithGraph(path: .value(path), options: .any)
+            .willReturn((path, .test(), MapperEnvironment()))
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .generated(.test(cacheOptions: .test(
+                profiles: .init(
+                    [
+                        "ci": .init(
+                            base: .commandDefault,
+                            targetQueries: ["tag:cacheable"],
+                            exceptTargetQueries: ["tag:no-cache"]
+                        ),
+                    ],
+                    default: "ci"
+                )
+            )))))
+
+        // When
+        try await testRun(
+            path: path,
+            generateOnly: true
+        )
+
+        // Then
+        verify(generatorFactory)
+            .testing(
+                config: .any,
+                testPlan: .any,
+                includedTargets: .any,
+                excludedTargets: .any,
+                skipUITests: .any,
+                skipUnitTests: .any,
+                configuration: .any,
+                cacheProfile: .matching { $0 == expectedProfile },
+                ignoreSelectiveTesting: .any,
+                cacheStorage: .any,
+                destination: .any
+            )
+            .called(1)
+    }
+
     func test_run_tests_with_specified_arch() async throws {
         // Given
         givenGenerator()
@@ -521,7 +572,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 skipUITests: .any,
                 skipUnitTests: .any,
                 configuration: .any,
-                ignoreBinaryCache: .any,
+                cacheProfile: .any,
                 ignoreSelectiveTesting: .any,
                 cacheStorage: .any,
                 destination: .value(.test(device: .test(name: "Test iPhone"))),
@@ -1880,7 +1931,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 skipUITests: .any,
                 skipUnitTests: .any,
                 configuration: .any,
-                ignoreBinaryCache: .any,
+                cacheProfile: .any,
                 ignoreSelectiveTesting: .any,
                 cacheStorage: .any,
                 destination: .any,
@@ -1942,7 +1993,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 skipUITests: .any,
                 skipUnitTests: .any,
                 configuration: .any,
-                ignoreBinaryCache: .any,
+                cacheProfile: .any,
                 ignoreSelectiveTesting: .any,
                 cacheStorage: .any,
                 destination: .any,
@@ -3407,7 +3458,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 skipUITests: .any,
                 skipUnitTests: .any,
                 configuration: .any,
-                ignoreBinaryCache: .any,
+                cacheProfile: .any,
                 ignoreSelectiveTesting: .any,
                 cacheStorage: .any,
                 destination: .any,
