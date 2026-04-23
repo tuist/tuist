@@ -12,6 +12,7 @@ on:
       - Gradle
       - Gradle Cache Acceptance
       - Handbook
+      - Kura
       - Noora
       - Processor
       - Processor Deploy

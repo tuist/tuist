@@ -1,6 +1,48 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.185.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* support config-driven network proxy opt-out by [@pepicrft](https://github.com/pepicrft) in [#10334](https://github.com/tuist/tuist/pull/10334)
+### 🐛 Bug Fixes
+
+* skip result bundle upload when --inspect-mode local by [@fortmarek](https://github.com/fortmarek) in [#10401](https://github.com/tuist/tuist/pull/10401)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.184.2...4.185.0
+
+## What's Changed in 4.184.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* Support  optional Buildable Folders by [@PaulTaykalo](https://github.com/PaulTaykalo) in [#9974](https://github.com/tuist/tuist/pull/9974)
+* error instead of silently ignoring mismatched test shard flags by [@fortmarek](https://github.com/fortmarek) in [#10392](https://github.com/tuist/tuist/pull/10392)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.184.1...4.184.2
+
+## What's Changed in 4.184.1<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add feature flag headers by [@pepicrft](https://github.com/pepicrft) in [#10382](https://github.com/tuist/tuist/pull/10382)
+### 🐛 Bug Fixes
+
+* map static library dependencies in XcodeGraph by [@pepicrft](https://github.com/pepicrft) in [#10358](https://github.com/tuist/tuist/pull/10358)
+* ensure package product dependencies are initialized by [@pepicrft](https://github.com/pepicrft) in [#10370](https://github.com/tuist/tuist/pull/10370)
+* preserve scheme buildAction targets in `tuist test <scheme>` focus by [@fortmarek](https://github.com/fortmarek) in [#10367](https://github.com/tuist/tuist/pull/10367)
+### 🚜 Refactor
+
+* deprecate unused `swiftVersion` on `TuistProject.tuist(...)` by [@fortmarek](https://github.com/fortmarek) in [#10381](https://github.com/tuist/tuist/pull/10381)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.183.0...4.184.1
+
 ## What's Changed in 4.183.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features

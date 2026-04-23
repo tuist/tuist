@@ -10,6 +10,7 @@ defmodule TuistWeb.Router do
 
   alias TuistWeb.Marketing.Localization
   alias TuistWeb.Marketing.MarketingController
+  alias TuistWeb.Plugs.LegacyRedirectsPlug
   alias TuistWeb.Plugs.LocalePlug
   alias TuistWeb.Plugs.ObservabilityContextPlug
   alias TuistWeb.Plugs.SentryContextPlug
@@ -110,7 +111,7 @@ defmodule TuistWeb.Router do
   pipeline :browser_marketing do
     plug :accepts, ["html"]
     plug :enable_robot_indexing
-    plug TuistWeb.Plugs.LegacyRedirectsPlug
+    plug LegacyRedirectsPlug
     plug :fetch_session
     plug :fetch_live_flash
     plug :put_root_layout, html: {TuistWeb.Marketing.Layouts, :root}
@@ -131,6 +132,7 @@ defmodule TuistWeb.Router do
   pipeline :browser_docs do
     plug :accepts, ["html"]
     plug :enable_robot_indexing
+    plug LegacyRedirectsPlug
     plug :fetch_session
     plug :fetch_live_flash
     plug :put_root_layout, html: {TuistWeb.Docs.Layouts, :root}
@@ -494,6 +496,14 @@ defmodule TuistWeb.Router do
           end
         end
 
+        scope "/automations/alerts" do
+          get "/", Automations.AlertsController, :index
+          post "/", Automations.AlertsController, :create
+          get "/:alert_id", Automations.AlertsController, :show
+          put "/:alert_id", Automations.AlertsController, :update
+          delete "/:alert_id", Automations.AlertsController, :delete
+        end
+
         scope "/builds" do
           get "/", BuildsController, :index
           get "/:build_id", BuildsController, :show
@@ -631,6 +641,12 @@ defmodule TuistWeb.Router do
     plug :assign_current_path
   end
 
+  scope "/ops", TuistWeb do
+    pipe_through [:browser_app, :ops]
+
+    get "/accounts/:id/stripe-customer", OpsController, :stripe_customer
+  end
+
   scope "/ops" do
     pipe_through [:browser_app, :ops]
 
@@ -663,6 +679,7 @@ defmodule TuistWeb.Router do
         {TuistWeb.LayoutLive, :ops}
       ] do
       live "/", TuistWeb.OpsCacheLive
+      live "/accounts", TuistWeb.OpsAccountsLive
     end
   end
 

@@ -149,6 +149,7 @@ public final class AuthenticationService: ObservableObject {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        ClientFeatureFlags.addHeader(to: &request)
 
         let parameters = [
             "email": email,
@@ -180,6 +181,7 @@ public final class AuthenticationService: ObservableObject {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        ClientFeatureFlags.addHeader(to: &request)
 
         let parameters = [
             "identity_token": identityToken,
@@ -290,6 +292,7 @@ public final class AuthenticationService: ObservableObject {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        ClientFeatureFlags.addHeader(to: &request)
 
         let parameters = [
             "grant_type": "authorization_code",

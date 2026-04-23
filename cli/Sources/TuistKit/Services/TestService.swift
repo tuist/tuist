@@ -33,6 +33,8 @@ public enum TestServiceError: FatalError, Equatable {
     case actionInvalid
     case testProductsNotFound
     case unspecifiedPlatform(target: String, platforms: [String])
+    case shardPlanningRequiresBuildOnly
+    case shardIndexRequiresWithoutBuilding
 
     // Error description
 
@@ -76,6 +78,12 @@ public enum TestServiceError: FatalError, Equatable {
         case let .unspecifiedPlatform(target, platforms):
             return
                 "Only single platform targets supported. The target \(target) specifies multiple supported platforms (\(platforms.joined(separator: ", ")))."
+        case .shardPlanningRequiresBuildOnly:
+            return
+                "Shard planning flags (--shard-min/--shard-max/--shard-total) only apply when building tests for sharding. Pass --build-only to create a shard plan, or remove the shard flag(s) to run tests normally."
+        case .shardIndexRequiresWithoutBuilding:
+            return
+                "--shard-index only applies when executing a previously built shard. Pass --without-building to run the shard, or remove --shard-index to run tests normally."
         }
     }
 
@@ -85,7 +93,8 @@ public enum TestServiceError: FatalError, Equatable {
         switch self {
         case .schemeNotFound, .schemeWithoutTestableTargets, .testPlanNotFound,
              .testIdentifierInvalid, .duplicatedTestTargets,
-             .nothingToSkip, .actionInvalid, .testProductsNotFound, .unspecifiedPlatform:
+             .nothingToSkip, .actionInvalid, .testProductsNotFound, .unspecifiedPlatform,
+             .shardPlanningRequiresBuildOnly, .shardIndexRequiresWithoutBuilding:
             return .abort
         }
     }
@@ -240,6 +249,15 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 skipTestTargets: skipTestTargets
             )
         }
+
+        let isSharding = shardMin != nil || shardMax != nil || shardTotal != nil
+        if isSharding, action != .build {
+            throw TestServiceError.shardPlanningRequiresBuildOnly
+        }
+        if shardIndex != nil, action != .testWithoutBuilding {
+            throw TestServiceError.shardIndexRequiresWithoutBuilding
+        }
+
         // Load config
         let config = try await configLoader.loadConfig(path: path)
             .assertingIsGeneratedProjectOrSwiftPackage(
@@ -248,6 +266,12 @@ public struct TestService { // swiftlint:disable:this type_body_length
             )
 
         let mode = mode ?? TestProcessingMode.default(for: config.url)
+        if mode == .remote {
+            let runBundlePath = try cacheDirectoriesProvider
+                .cacheDirectory(for: .runs)
+                .appending(components: runId, "\(Constants.resultBundleName).xcresult")
+            await RunMetadataStorage.current.update(resultBundlePath: runBundlePath)
+        }
 
         if let shardIndex, action == .testWithoutBuilding {
             try await runShard(
@@ -363,8 +387,6 @@ public struct TestService { // swiftlint:disable:this type_body_length
             passedResultBundlePath: passedResultBundlePath,
             config: config
         )
-
-        let isSharding = shardMin != nil || shardMax != nil || shardTotal != nil
 
         let schemes: [Scheme]
         if let schemeName {

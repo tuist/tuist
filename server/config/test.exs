@@ -1,12 +1,5 @@
 import Config
 
-test_postgres_db = System.get_env("TUIST_SERVER_TEST_POSTGRES_DB") || "tuist_test#{System.get_env("MIX_TEST_PARTITION")}"
-
-test_clickhouse_db =
-  System.get_env("TUIST_SERVER_TEST_CLICKHOUSE_DB") || "tuist_test#{System.get_env("MIX_TEST_PARTITION")}"
-
-test_port = String.to_integer(System.get_env("TUIST_SERVER_TEST_PORT") || "4002")
-
 # Only in tests, remove the complexity from the password hashing algorithm
 config :bcrypt_elixir, :log_rounds, 1
 
@@ -31,7 +24,7 @@ config :tuist, Oban, testing: :manual
 config :tuist, Tuist.ClickHouseRepo,
   hostname: "localhost",
   port: 8123,
-  database: test_clickhouse_db,
+  database: "tuist_test#{System.get_env("MIX_TEST_PARTITION")}",
   # Workaround for ClickHouse lazy materialization bug with projections
   # https://github.com/ClickHouse/ClickHouse/issues/80201
   settings: [readonly: 1, query_plan_optimize_lazy_materialization: 0]
@@ -39,7 +32,7 @@ config :tuist, Tuist.ClickHouseRepo,
 config :tuist, Tuist.IngestRepo,
   hostname: "localhost",
   port: 8123,
-  database: test_clickhouse_db,
+  database: "tuist_test#{System.get_env("MIX_TEST_PARTITION")}",
   flush_interval_ms: 5000,
   max_buffer_size: 100_000,
   pool_size: 5,
@@ -60,7 +53,7 @@ config :tuist, Tuist.Repo,
   username: "postgres",
   password: "postgres",
   hostname: "localhost",
-  database: test_postgres_db,
+  database: "tuist_test#{System.get_env("MIX_TEST_PARTITION")}",
   pool: Ecto.Adapters.SQL.Sandbox,
   pool_size: System.schedulers_online() * 2,
   queue_target: 5000,
@@ -71,7 +64,7 @@ config :tuist, Tuist.Tasks, sync: true
 # We don't run a server during test. If one is required,
 # you can enable the server option below.
 config :tuist, TuistWeb.Endpoint,
-  http: [ip: {127, 0, 0, 1}, port: test_port],
+  http: [ip: {127, 0, 0, 1}, port: 4002],
   secret_key_base: "pbaHQK0N946e06chs5G1/RUJnkI//2QshGgUvJQkADTV3AiQHV/dXlLdjnaQxtxx",
   server: false
 

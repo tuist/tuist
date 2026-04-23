@@ -1,4 +1,5 @@
 import { flashCopyCheck } from "../../shared/js/hooks/code-copy.js";
+import { copyTextToClipboard } from "../../shared/js/clipboard.js";
 
 const INSTALL_COMMANDS = {
   mise: "mise install tuist",
@@ -69,8 +70,7 @@ const DocsInstallTabsHook = {
 
       copyButton.addEventListener("click", (event) => {
         stopCardNavigation(event);
-        navigator.clipboard
-          .writeText(codeElement.textContent.trim())
+        copyTextToClipboard(codeElement.textContent.trim())
           .then(() => flashCopyCheck(copyButton))
           .catch((err) => console.error("Failed to copy code:", err));
       });

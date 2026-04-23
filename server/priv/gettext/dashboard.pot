@@ -42,7 +42,7 @@ msgstr ""
 msgid "500"
 msgstr ""
 
-#: lib/tuist_web/components/account_dropdown.ex:64
+#: lib/tuist_web/components/account_dropdown.ex:65
 #, elixir-autogen, elixir-format
 msgid "Account settings"
 msgstr ""
@@ -99,12 +99,12 @@ msgstr ""
 msgid "Create organization"
 msgstr ""
 
-#: lib/tuist_web/components/account_dropdown.ex:90
+#: lib/tuist_web/components/account_dropdown.ex:91
 #, elixir-autogen, elixir-format
 msgid "Download macOS app"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:398
+#: lib/tuist_web/components/app_layout_components.ex:405
 #, elixir-autogen, elixir-format
 msgid "Emails"
 msgstr ""
@@ -114,12 +114,12 @@ msgstr ""
 msgid "Error"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:413
+#: lib/tuist_web/components/app_layout_components.ex:420
 #, elixir-autogen, elixir-format
 msgid "Errors"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:391
+#: lib/tuist_web/components/app_layout_components.ex:398
 #, elixir-autogen, elixir-format
 msgid "Flags"
 msgstr ""
@@ -135,7 +135,7 @@ msgstr ""
 msgid "Go to dashboard"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:421
+#: lib/tuist_web/components/app_layout_components.ex:428
 #, elixir-autogen, elixir-format
 msgid "Grafana"
 msgstr ""
@@ -156,7 +156,7 @@ msgstr ""
 msgid "Invalid installation request. Please try again."
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:385
+#: lib/tuist_web/components/app_layout_components.ex:392
 #, elixir-autogen, elixir-format
 msgid "Jobs"
 msgstr ""
@@ -166,12 +166,12 @@ msgstr ""
 msgid "Learn more"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:379
+#: lib/tuist_web/components/app_layout_components.ex:386
 #, elixir-autogen, elixir-format
 msgid "LiveDashboard"
 msgstr ""
 
-#: lib/tuist_web/components/account_dropdown.ex:108
+#: lib/tuist_web/components/account_dropdown.ex:109
 #, elixir-autogen, elixir-format
 msgid "Log out"
 msgstr ""
@@ -222,7 +222,7 @@ msgstr ""
 msgid "Oops, we couldn't find that page"
 msgstr ""
 
-#: lib/tuist_web/components/account_dropdown.ex:80
+#: lib/tuist_web/components/account_dropdown.ex:81
 #, elixir-autogen, elixir-format
 msgid "Operations"
 msgstr ""
@@ -282,12 +282,12 @@ msgstr ""
 msgid "Sorry, you made too many requests. Please try again later."
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:405
+#: lib/tuist_web/components/app_layout_components.ex:412
 #, elixir-autogen, elixir-format
 msgid "Storage"
 msgstr ""
 
-#: lib/tuist_web/components/account_dropdown.ex:99
+#: lib/tuist_web/components/account_dropdown.ex:100
 #, elixir-autogen, elixir-format
 msgid "Switch to your preferred theme"
 msgstr ""
@@ -373,8 +373,8 @@ msgstr ""
 msgid "Too many requests."
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:446
-#: lib/tuist_web/components/app_layout_components.ex:483
+#: lib/tuist_web/components/app_layout_components.ex:453
+#: lib/tuist_web/components/app_layout_components.ex:490
 #, elixir-autogen, elixir-format
 msgid "Tuist Icon"
 msgstr ""
@@ -614,7 +614,13 @@ msgstr ""
 msgid "Your identity provider returned an authentication error. Please try again or contact your organization admin."
 msgstr ""
 
-#: lib/tuist_web/components/account_dropdown.ex:72
+#: lib/tuist_web/components/account_dropdown.ex:73
 #, elixir-autogen, elixir-format
 msgid "Dashboard"
+msgstr ""
+
+#: lib/tuist_web/components/app_layout_components.ex:380
+#: lib/tuist_web/live/ops_accounts_live.html.heex:3
+#, elixir-autogen, elixir-format
+msgid "Accounts"
 msgstr ""

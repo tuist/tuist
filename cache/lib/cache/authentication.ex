@@ -198,7 +198,12 @@ defmodule Cache.Authentication do
     base_url = server_url()
     url = "#{base_url}/api/projects"
 
-    req_options = Application.get_env(:cache, :req_options, [])
+    req_options =
+      Application.get_env(
+        :cache,
+        :authentication_req_options,
+        Application.get_env(:cache, :req_options, [])
+      )
 
     Keyword.merge(
       [url: url, headers: headers, finch: Cache.Finch, retry: false, cache: false],

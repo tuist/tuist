@@ -5,6 +5,16 @@ name: Xcode Processor Staging Deploy
 # issues. Re-enable by uncommenting the blocks below once the service runs
 # on k8s.
 
+on:
+  workflow_dispatch:
+
+jobs:
+  disabled:
+    name: Disabled
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Xcode processor staging deploy is intentionally disabled pending the Kubernetes migration."
+
 # permissions:
 #   contents: read
 #
