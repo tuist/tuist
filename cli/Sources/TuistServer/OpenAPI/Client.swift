@@ -1892,15 +1892,15 @@ public struct Client: APIProtocol {
                     in: &request,
                     style: .form,
                     explode: true,
-                    name: "git_branch",
-                    value: input.query.git_branch
+                    name: "page",
+                    value: input.query.page
                 )
                 try converter.setQueryItemAsURI(
                     in: &request,
                     style: .form,
                     explode: true,
-                    name: "page",
-                    value: input.query.page
+                    name: "git_branch",
+                    value: input.query.git_branch
                 )
                 try converter.setQueryItemAsURI(
                     in: &request,
@@ -9195,6 +9195,11 @@ public struct Client: APIProtocol {
                     explode: true,
                     name: "account_handle",
                     value: input.query.account_handle
+                )
+                try converter.setHeaderFieldAsURI(
+                    in: &request.headerFields,
+                    name: "x-tuist-feature-flags",
+                    value: input.headers.x_hyphen_tuist_hyphen_feature_hyphen_flags
                 )
                 converter.setAcceptHeader(
                     in: &request.headerFields,
