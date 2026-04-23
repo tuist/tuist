@@ -12,10 +12,10 @@
 #     snapshot (disk_size=80) — cpx11's 40 GB disk is rejected by the
 #     Hetzner API, and the cheaper cpx21 (older Intel gen) is frequently
 #     out of stock in fsn1-dc14. Three CPs cost ~€27/mo combined.
-#   - Worker: 1 × ccx23 (cloud, dedicated-vCPU, 4 vCPU / 16 GB / 160 GB
-#     NVMe, ~€30/mo). No CPU noisy-neighbor but still a VM. Cheap way to
-#     unblock staging without the Robot procurement ceremony. Production
-#     gets a real Hetzner Robot AX41-NVMe bare-metal worker later.
+#   - Worker: 1 × cpx22 (cloud, 2 vCPU / 4 GB / 80 GB, ~€9/mo). Shared
+#     vCPU, matching the control plane. Plenty for a low-traffic Phoenix
+#     server; canary will reuse this shape. Production gets a real
+#     Hetzner Robot AX41-NVMe bare-metal worker later.
 #
 # Before applying:
 #   1. Set `metadata.namespace` to the namespace Syself issued for your org
@@ -61,7 +61,7 @@ spec:
       - name: controlPlaneMachineArchHcloud
         value: amd64
       - name: workerMachineTypeHcloud
-        value: ccx23
+        value: cpx22
       - name: SSHKeyNameHcloud
         value:
           - name: tuist-syself
