@@ -5636,7 +5636,7 @@ struct PackageInfoMapperTests {
             ]
         )
 
-        let result = enabledTraits(
+        let result = SwiftPackageManagerGraphLoader.enabledTraits(
             rootPackageInfo: rootPackageInfo,
             packageInfos: [:]
         )
@@ -5655,7 +5655,7 @@ struct PackageInfoMapperTests {
             ]
         )
 
-        let result = enabledTraits(
+        let result = SwiftPackageManagerGraphLoader.enabledTraits(
             rootPackageInfo: rootPackageInfo,
             packageInfos: [:]
         )
@@ -5695,7 +5695,7 @@ struct PackageInfoMapperTests {
             ]
         )
 
-        let result = enabledTraits(
+        let result = SwiftPackageManagerGraphLoader.enabledTraits(
             rootPackageInfo: rootPackageInfo,
             packageInfos: ["hummingbird": hummingbirdInfo]
         )
@@ -5732,7 +5732,7 @@ struct PackageInfoMapperTests {
             ]
         )
 
-        let result = enabledTraits(
+        let result = SwiftPackageManagerGraphLoader.enabledTraits(
             rootPackageInfo: rootPackageInfo,
             packageInfos: ["hummingbird": hummingbirdInfo]
         )
@@ -5769,7 +5769,7 @@ struct PackageInfoMapperTests {
             ]
         )
 
-        let result = enabledTraits(
+        let result = SwiftPackageManagerGraphLoader.enabledTraits(
             rootPackageInfo: rootPackageInfo,
             packageInfos: ["dependency-a": dependencyAInfo]
         )
@@ -5808,7 +5808,7 @@ struct PackageInfoMapperTests {
             ]
         )
 
-        let result = enabledTraits(
+        let result = SwiftPackageManagerGraphLoader.enabledTraits(
             rootPackageInfo: rootPackageInfo,
             packageInfos: ["dependency-a": dependencyAInfo]
         )
@@ -5838,7 +5838,7 @@ struct PackageInfoMapperTests {
             ]
         )
 
-        let result = enabledTraits(
+        let result = SwiftPackageManagerGraphLoader.enabledTraits(
             rootPackageInfo: rootPackageInfo,
             packageInfos: [:]
         )
@@ -6010,7 +6010,7 @@ struct PackageInfoMapperTests {
             "hummingbird": hummingbirdInfo,
             "swift-configuration": swiftConfigurationInfo,
         ]
-        let activeTraits = enabledTraits(
+        let activeTraits = SwiftPackageManagerGraphLoader.enabledTraits(
             rootPackageInfo: rootPackageInfo,
             packageInfos: packageInfos
         )

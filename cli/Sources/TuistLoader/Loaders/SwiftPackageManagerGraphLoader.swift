@@ -226,7 +226,7 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
         )
 
         let packageInfoDictionaryById = Dictionary(uniqueKeysWithValues: packageInfos.map { ($0.id, $0.info) })
-        let enabledTraitsPerPackage = enabledTraits(
+        let enabledTraitsPerPackage = Self.enabledTraits(
             rootPackageInfo: rootPackage,
             packageInfos: packageInfoDictionaryById
         )
@@ -277,7 +277,7 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
         isLocalDependencyKind(kind) ? .local : .remote
     }
 
-    private func enabledTraits(
+    static func enabledTraits(
         rootPackageInfo: PackageInfo,
         packageInfos: [String: PackageInfo]
     ) -> [String: Set<String>] {
@@ -303,7 +303,7 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
         return result
     }
 
-    private func processTraits(
+    private static func processTraits(
         from dependencies: [PackageDependency],
         enabledTraitsForCurrentPackage: Set<String>,
         packageInfos: [String: PackageInfo],
@@ -330,7 +330,7 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
         }
     }
 
-    private func resolvedEnabledTraits(
+    private static func resolvedEnabledTraits(
         _ traitNames: some Collection<String>,
         packageTraits: [PackageTrait]
     ) -> Set<String> {
@@ -345,7 +345,7 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
         return resolvedTraitNames
     }
 
-    private func resolveEnabledTraitNames(
+    private static func resolveEnabledTraitNames(
         _ traitNames: some Collection<String>,
         packageTraits: [PackageTrait],
         into resolvedTraitNames: inout Set<String>
