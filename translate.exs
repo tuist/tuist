@@ -173,7 +173,13 @@ defmodule L10n.Lock do
   and contains the full context tree used to produce the translation, including
   individual hashes for the source .pot file and each L10N.md context file.
   A translation is considered stale when any of these hashes change.
+
+  To avoid unnecessary retranslations, source reference comments are normalized
+  before hashing so line-number-only churn in `#:` comments does not invalidate
+  existing translations.
   """
+
+  @reference_comment_prefix "#: "
 
   @doc """
   Computes a composite SHA-256 hash from the .pot content, merged context body,
@@ -181,8 +187,23 @@ defmodule L10n.Lock do
   staleness comparison.
   """
   def compute_hash(pot_content, context_content, locale_override) do
-    data = pot_content <> "\n---\n" <> context_content <> "\n---\n" <> (locale_override || "")
+    data =
+      normalized_pot_content(pot_content) <>
+        "\n---\n" <> context_content <> "\n---\n" <> (locale_override || "")
+
     :crypto.hash(:sha256, data) |> Base.encode16(case: :lower)
+  end
+
+  @doc """
+  Computes the source hash stored in the lock file.
+
+  The hash uses normalized reference comments so line-number-only changes in
+  Gettext references do not force retranslation.
+  """
+  def source_hash(pot_content) do
+    normalized_pot_content(pot_content)
+    |> then(&:crypto.hash(:sha256, &1))
+    |> Base.encode16(case: :lower)
   end
 
   @doc """
@@ -279,6 +300,53 @@ defmodule L10n.Lock do
       {:ok, content} -> JSON.decode(content)
       {:error, _} -> {:error, :not_found}
     end
+  end
+
+  defp normalized_pot_content(content) do
+    content
+    |> String.split("\n", trim: false)
+    |> normalize_pot_lines([])
+    |> Enum.reverse()
+    |> Enum.join("\n")
+  end
+
+  defp normalize_pot_lines([], acc), do: acc
+
+  defp normalize_pot_lines([@reference_comment_prefix <> _ = line | rest], acc) do
+    {reference_lines, remaining_lines} = take_reference_block([line | rest], [])
+    normalized_line = normalize_reference_block(reference_lines)
+    normalize_pot_lines(remaining_lines, [normalized_line | acc])
+  end
+
+  defp normalize_pot_lines([line | rest], acc) do
+    normalize_pot_lines(rest, [line | acc])
+  end
+
+  defp take_reference_block([@reference_comment_prefix <> _ = line | rest], acc) do
+    take_reference_block(rest, [line | acc])
+  end
+
+  defp take_reference_block(lines, acc) do
+    {Enum.reverse(acc), lines}
+  end
+
+  defp normalize_reference_block(reference_lines) do
+    references =
+      reference_lines
+      |> Enum.flat_map(&reference_tokens/1)
+      |> Enum.map(&normalize_reference/1)
+      |> Enum.uniq()
+      |> Enum.sort()
+
+    @reference_comment_prefix <> Enum.join(references, " ")
+  end
+
+  defp reference_tokens(@reference_comment_prefix <> references) do
+    String.split(references, ~r/\s+/, trim: true)
+  end
+
+  defp normalize_reference(reference) do
+    String.replace(reference, ~r/:\d+$/, "")
   end
 
   defp pretty_json(value, indent \\ 0) do
@@ -512,7 +580,7 @@ defmodule L10n.Translator do
       ) do
     request_timeout = Keyword.get(opts, :timeout, @default_timeout)
     force = Keyword.get(opts, :force, false)
-    source_hash = L10n.Context.hash_content(pot_content)
+    source_hash = L10n.Lock.source_hash(pot_content)
 
     targets
     |> Task.async_stream(
