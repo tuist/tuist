@@ -12,38 +12,97 @@ use opentelemetry_sdk::{
     propagation::TraceContextPropagator,
     trace::{Sampler, SdkTracerProvider},
 };
+use sentry::{ClientInitGuard, ClientOptions};
 use tracing::{Span, warn};
 use tracing_opentelemetry::OpenTelemetrySpanExt;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use crate::config::Config;
 
-pub fn init_tracing(config: &Config) -> Option<SdkTracerProvider> {
+pub struct TelemetryGuards {
+    tracer_provider: Option<SdkTracerProvider>,
+    sentry_guard: Option<ClientInitGuard>,
+}
+
+impl TelemetryGuards {
+    pub fn shutdown(self) {
+        if let Some(provider) = self.tracer_provider
+            && let Err(error) = provider.shutdown()
+        {
+            eprintln!("failed to shutdown OTLP tracer provider: {error}");
+        }
+
+        drop(self.sentry_guard);
+    }
+}
+
+pub fn init_tracing(config: &Config) -> TelemetryGuards {
     global::set_text_map_propagator(TraceContextPropagator::new());
 
     let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| "kura=info".into());
     let fmt_layer = tracing_subscriber::fmt::layer();
+    let sentry_guard = init_sentry(config);
 
     match build_tracer_provider(config, &config.otlp_traces_endpoint) {
         Ok(tracer_provider) => {
             let tracer = tracer_provider.tracer("kura");
-            tracing_subscriber::registry()
-                .with(env_filter)
-                .with(fmt_layer)
-                .with(tracing_opentelemetry::layer().with_tracer(tracer))
-                .init();
-            Some(tracer_provider)
+            if sentry_guard.is_some() {
+                tracing_subscriber::registry()
+                    .with(env_filter)
+                    .with(fmt_layer)
+                    .with(tracing_opentelemetry::layer().with_tracer(tracer))
+                    .with(sentry::integrations::tracing::layer())
+                    .init();
+            } else {
+                tracing_subscriber::registry()
+                    .with(env_filter)
+                    .with(fmt_layer)
+                    .with(tracing_opentelemetry::layer().with_tracer(tracer))
+                    .init();
+            }
+            TelemetryGuards {
+                tracer_provider: Some(tracer_provider),
+                sentry_guard,
+            }
         }
         Err(error) => {
-            eprintln!("failed to initialize OTLP tracing, falling back to logs only: {error}");
-            tracing_subscriber::registry()
-                .with(env_filter)
-                .with(fmt_layer)
-                .init();
-            None
+            eprintln!(
+                "failed to initialize OTLP tracing, continuing without OTLP exporter: {error}"
+            );
+            if sentry_guard.is_some() {
+                tracing_subscriber::registry()
+                    .with(env_filter)
+                    .with(fmt_layer)
+                    .with(sentry::integrations::tracing::layer())
+                    .init();
+            } else {
+                tracing_subscriber::registry()
+                    .with(env_filter)
+                    .with(fmt_layer)
+                    .init();
+            }
+            TelemetryGuards {
+                tracer_provider: None,
+                sentry_guard,
+            }
         }
     }
+}
+
+fn init_sentry(config: &Config) -> Option<ClientInitGuard> {
+    let dsn = config.sentry_dsn.as_deref()?;
+
+    Some(sentry::init(ClientOptions {
+        dsn: Some(
+            dsn.parse()
+                .expect("sentry dsn should be valid when configuration is valid"),
+        ),
+        environment: Some(config.otel_deployment_environment.clone().into()),
+        release: Some(format!("{}@{}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION")).into()),
+        server_name: Some(config.otel_service_name.clone().into()),
+        ..Default::default()
+    }))
 }
 
 fn build_tracer_provider(config: &Config, endpoint: &str) -> Result<SdkTracerProvider, String> {

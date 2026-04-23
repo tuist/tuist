@@ -28,7 +28,7 @@ use crate::{
 
 pub async fn run() -> Result<(), String> {
     let config = Config::from_env().map_err(|error| format!("invalid configuration: {error}"))?;
-    let tracer_provider = init_tracing(&config);
+    let telemetry = init_tracing(&config);
 
     config
         .ensure_directories()
@@ -168,11 +168,7 @@ pub async fn run() -> Result<(), String> {
         let _ = internal_handle.await;
     }
 
-    if let Some(provider) = tracer_provider
-        && let Err(error) = provider.shutdown()
-    {
-        eprintln!("failed to shutdown OTLP tracer provider: {error}");
-    }
+    telemetry.shutdown();
 
     Ok(())
 }
