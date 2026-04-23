@@ -266,8 +266,11 @@ public struct TestService { // swiftlint:disable:this type_body_length
             )
 
         let mode = mode ?? TestProcessingMode.default(for: config.url)
-        if mode == .local {
-            await RunMetadataStorage.current.update(resultBundleUploadSkipped: true)
+        if mode == .remote {
+            let runBundlePath = try cacheDirectoriesProvider
+                .cacheDirectory(for: .runs)
+                .appending(components: runId, "\(Constants.resultBundleName).xcresult")
+            await RunMetadataStorage.current.update(resultBundlePath: runBundlePath)
         }
 
         if let shardIndex, action == .testWithoutBuilding {

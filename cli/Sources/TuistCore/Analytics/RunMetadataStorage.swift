@@ -49,16 +49,11 @@ public actor RunMetadataStorage {
         self.previewId = previewId
     }
 
-    /// Path to the result bundle that should be uploaded when running commands like `tuist xcodebuild test`
+    /// Path to the result bundle that should be uploaded when running commands like `tuist xcodebuild test`.
+    /// Leave `nil` to signal that no result bundle should be uploaded (e.g. when `--inspect-mode local` processes it locally).
     public private(set) var resultBundlePath: AbsolutePath?
     public func update(resultBundlePath: AbsolutePath?) {
         self.resultBundlePath = resultBundlePath
-    }
-
-    /// Whether the result bundle upload should be skipped (e.g. when `--inspect-mode local` processes it locally).
-    public private(set) var resultBundleUploadSkipped: Bool = false
-    public func update(resultBundleUploadSkipped: Bool) {
-        self.resultBundleUploadSkipped = resultBundleUploadSkipped
     }
 
     /// The ID of the latest build run.

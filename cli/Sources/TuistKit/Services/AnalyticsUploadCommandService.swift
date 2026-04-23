@@ -42,8 +42,7 @@ struct AnalyticsUploadCommandService {
                 commandEvent: commandEvent,
                 fullHandle: fullHandle,
                 serverURL: url,
-                sessionDirectory: sessionDirectory,
-                skipResultBundleUpload: false
+                sessionDirectory: sessionDirectory
             )
         } catch {
             try? await fileSystem.remove(eventPath)
