@@ -31,6 +31,11 @@ defmodule Tuist.Metrics.Aggregator do
   schemes, or Xcode versions can drive the ETS table to arbitrary size — there
   is no TTL/eviction policy in this process. Keep an eye on per-account
   cardinality (we may want to add a defensive cap in a future revision).
+
+  The process periodically emits a `[:tuist, :metrics, :aggregator, :stats]`
+  telemetry event carrying `%{size, memory_bytes, memory_words}`. Attach a
+  handler (Prometheus exporter, StatsD, log line) to alert on unexpected
+  growth before it becomes an incident.
   """
 
   use GenServer
@@ -42,12 +47,21 @@ defmodule Tuist.Metrics.Aggregator do
   @table :tuist_metrics_aggregator
   @counter_tag :c
   @histogram_tag :h
+  @stats_event [:tuist, :metrics, :aggregator, :stats]
+  @default_stats_interval_ms to_timeout(minute: 1)
 
   # ---- Public API --------------------------------------------------------
 
   def start_link(opts \\ []) do
-    GenServer.start_link(__MODULE__, :ok, Keyword.merge([name: __MODULE__], opts))
+    GenServer.start_link(__MODULE__, Keyword.take(opts, [:stats_interval_ms]), Keyword.merge([name: __MODULE__], opts))
   end
+
+  @doc """
+  The telemetry event name under which the aggregator periodically
+  publishes size and memory stats. Attach a handler in production to
+  scrape this into your existing metrics pipeline or alerting.
+  """
+  def stats_event, do: @stats_event
 
   @doc """
   Atomically bumps a counter metric. Safe to call from any process; does not
@@ -118,22 +132,23 @@ defmodule Tuist.Metrics.Aggregator do
 
   @doc """
   Returns size and memory information about the aggregator's ETS table.
-  Intended for observability — on a running instance, call this from a
-  periodic task to emit a `[:tuist, :metrics, :aggregator, :stats]`
-  telemetry event so memory growth per account / label combination is
-  alertable before it becomes an incident.
+  Intended for observability. The same data is published periodically
+  as a `[:tuist, :metrics, :aggregator, :stats]` telemetry event; call
+  this directly if you need an on-demand read.
 
   Returns `nil` if the table hasn't been created yet.
   """
   def table_info do
     if table_ready?() do
+      word_size = :erlang.system_info(:wordsize)
+      memory_words = :ets.info(@table, :memory)
+
       %{
-        # `size` is the number of entries (one per counter, one per
-        # histogram bucket, plus two per histogram for count + sum).
+        # Number of entries (one per counter, one per histogram bucket,
+        # plus two per histogram for count + sum).
         size: :ets.info(@table, :size),
-        # `memory` is expressed in words; multiply by `:erlang.system_info(:wordsize)`
-        # for bytes.
-        memory_words: :ets.info(@table, :memory)
+        memory_words: memory_words,
+        memory_bytes: memory_words * word_size
       }
     end
   end
@@ -141,7 +156,7 @@ defmodule Tuist.Metrics.Aggregator do
   # ---- GenServer ---------------------------------------------------------
 
   @impl true
-  def init(:ok) do
+  def init(opts) do
     # `:public` lets telemetry handlers bump counters without message-passing.
     # `read_concurrency` helps scrape traffic (all histogram reads stream
     # through ETS without contending with writers).
@@ -154,7 +169,19 @@ defmodule Tuist.Metrics.Aggregator do
     ])
 
     log_restart_if_any()
-    {:ok, %{}}
+
+    # Periodically publish size + memory as a telemetry event so ops can
+    # attach a handler (Prometheus exporter, StatsD, logs) and alert on
+    # per-node growth. Passing 0 / nil disables the timer (useful in
+    # tests that trigger :emit_stats manually).
+    interval_ms = Keyword.get(opts, :stats_interval_ms, @default_stats_interval_ms)
+
+    if is_integer(interval_ms) and interval_ms > 0 do
+      Process.send_after(self(), :emit_stats, interval_ms)
+      {:ok, %{stats_interval_ms: interval_ms}}
+    else
+      {:ok, %{stats_interval_ms: nil}}
+    end
   end
 
   defp log_restart_if_any do
@@ -195,6 +222,33 @@ defmodule Tuist.Metrics.Aggregator do
     end
 
     {:noreply, state}
+  end
+
+  @impl true
+  def handle_info(:emit_stats, state) do
+    emit_stats()
+
+    if interval = state.stats_interval_ms do
+      Process.send_after(self(), :emit_stats, interval)
+    end
+
+    {:noreply, state}
+  end
+
+  def handle_info(_message, state), do: {:noreply, state}
+
+  defp emit_stats do
+    case table_info() do
+      nil ->
+        :ok
+
+      %{size: size, memory_bytes: memory_bytes, memory_words: memory_words} ->
+        :telemetry.execute(
+          @stats_event,
+          %{size: size, memory_bytes: memory_bytes, memory_words: memory_words},
+          %{}
+        )
+    end
   end
 
   # ---- Keys and decoding -------------------------------------------------

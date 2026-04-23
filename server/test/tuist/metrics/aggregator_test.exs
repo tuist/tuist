@@ -114,15 +114,49 @@ defmodule Tuist.Metrics.AggregatorTest do
   end
 
   describe "table_info" do
-    test "reports a positive size and memory once the table has entries" do
-      assert %{size: 0, memory_words: words} = Aggregator.table_info()
+    test "reports size + memory in words and bytes once the table has entries" do
+      assert %{size: 0, memory_words: words, memory_bytes: bytes} = Aggregator.table_info()
       assert is_integer(words) and words >= 0
+      assert is_integer(bytes) and bytes == words * :erlang.system_info(:wordsize)
 
       Aggregator.increment_counter(1, "tuist_cli_invocations_total", {"acme/app", "generate", "false", "success"})
 
       info = Aggregator.table_info()
       assert info.size >= 1
       assert info.memory_words > 0
+      assert info.memory_bytes == info.memory_words * :erlang.system_info(:wordsize)
+    end
+  end
+
+  describe "periodic stats telemetry" do
+    test "emits a stats event with size and memory measurements" do
+      ref = make_ref()
+      test_pid = self()
+      event = Aggregator.stats_event()
+      handler_id = {__MODULE__, ref}
+
+      :telemetry.attach(
+        handler_id,
+        event,
+        fn ^event, measurements, metadata, _ ->
+          send(test_pid, {ref, measurements, metadata})
+        end,
+        nil
+      )
+
+      on_exit(fn -> :telemetry.detach(handler_id) end)
+
+      Aggregator.increment_counter(7, "tuist_cli_invocations_total", {"acme/app", "generate", "false", "success"})
+
+      # Drive the handler directly — the periodic timer uses a 60s interval,
+      # which won't fire inside a unit test run. Sending :emit_stats exercises
+      # the same code path the timer does.
+      send(Process.whereis(Aggregator), :emit_stats)
+
+      assert_receive {^ref, %{size: size, memory_bytes: memory_bytes, memory_words: memory_words}, _meta}, 1_000
+      assert size >= 1
+      assert memory_words > 0
+      assert memory_bytes == memory_words * :erlang.system_info(:wordsize)
     end
   end
 end
