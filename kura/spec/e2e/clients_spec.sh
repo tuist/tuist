@@ -1,6 +1,6 @@
 # shellcheck shell=bash
 
-Describe 'client protocol interoperability'
+Describe 'actively supported protocol interoperability'
   Include spec/e2e/support.sh
 
   setup_suite() {
@@ -95,50 +95,4 @@ Describe 'client protocol interoperability'
     The variable second_output_body should include "${marker}"
   End
 
-  It 'replicates Nx self-hosted cache entries across regions'
-    marker="nx-$(new_marker)"
-    work1="$(mktemp -d "${SUITE_TMP_DIR}/nx-1.XXXXXX")"
-
-    create_nx_workspace "$work1" "$marker"
-    capture_into first_build nx_build "$work1" "${KURA_US_URL}" || return 1
-    first_output="$(cat "$work1/dist/apps/demo/out.txt")"
-    The variable first_build should not include '[remote cache]'
-    The variable first_output should include "${marker}"
-
-    second_build=""
-    second_output=""
-    for attempt in $(seq 1 10); do
-      work2="$(mktemp -d "${SUITE_TMP_DIR}/nx-2.${attempt}.XXXXXX")"
-      cp -R "$work1/." "$work2/"
-      rm -rf "$work2/.nx" "$work2/dist"
-      capture_into second_build nx_build "$work2" "${KURA_EU_URL}" || return 1
-      second_output="$(cat "$work2/dist/apps/demo/out.txt")"
-      if [[ "${second_build}" == *'[remote cache]'* ]]; then
-        break
-      fi
-      sleep 1
-    done
-
-    The variable second_build should include '[remote cache]'
-    The variable second_output should include "${marker}"
-  End
-
-  It 'syncs Metro cache artifacts across regions'
-    work="$(mktemp -d "${SUITE_TMP_DIR}/metro.XXXXXX")"
-    key_hex="$(new_marker)$(new_marker)"
-    payload="metro-$(new_marker)"
-
-    create_metro_workspace "$work"
-    metro_put "$work" "${KURA_US_URL}/api/metro/cache" "$key_hex" "$payload" || return 1
-
-    metro_body=""
-    for _ in $(seq 1 20); do
-      if capture_into metro_body metro_get "$work" "${KURA_EU_URL}/api/metro/cache" "$key_hex"; then
-        break
-      fi
-      sleep 1
-    done
-
-    The variable metro_body should eq "${payload}"
-  End
 End

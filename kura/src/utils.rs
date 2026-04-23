@@ -76,7 +76,7 @@ pub fn artifact_storage_id(
     key: &str,
 ) -> String {
     let mut hasher = Sha256::new();
-    hasher.update(kind.as_str().as_bytes());
+    hasher.update(kind.storage_key().as_bytes());
     hasher.update([0]);
     hasher.update(tenant_id.as_bytes());
     hasher.update([0]);
@@ -89,7 +89,7 @@ pub fn artifact_storage_id(
 pub fn blob_path(data_dir: &Path, kind: ArtifactKind, artifact_id: &str) -> PathBuf {
     data_dir
         .join("blobs")
-        .join(kind.as_str())
+        .join(kind.storage_key())
         .join(&artifact_id[0..2])
         .join(&artifact_id[2..4])
         .join(artifact_id)
@@ -98,7 +98,7 @@ pub fn blob_path(data_dir: &Path, kind: ArtifactKind, artifact_id: &str) -> Path
 pub fn segment_path(data_dir: &Path, kind: ArtifactKind, segment_id: &str) -> PathBuf {
     data_dir
         .join("segments")
-        .join(kind.as_str())
+        .join(kind.storage_key())
         .join(format!("{segment_id}.seg"))
 }
 
@@ -111,11 +111,11 @@ pub fn segment_artifact_index_key(
     segment_id: &str,
     artifact_id: &str,
 ) -> String {
-    format!("{}\0{segment_id}\0{artifact_id}", kind.as_str())
+    format!("{}\0{segment_id}\0{artifact_id}", kind.storage_key())
 }
 
 pub fn segment_artifact_index_prefix(kind: ArtifactKind, segment_id: &str) -> String {
-    format!("{}\0{segment_id}\0", kind.as_str())
+    format!("{}\0{segment_id}\0", kind.storage_key())
 }
 
 pub fn now_ms() -> u64 {
@@ -166,6 +166,23 @@ mod tests {
 
         assert_eq!(a, b);
         assert_ne!(a, c);
+    }
+
+    #[test]
+    fn keyvalue_artifact_ids_keep_legacy_storage_key() {
+        let mut hasher = Sha256::new();
+        hasher.update(b"keyvalue");
+        hasher.update([0]);
+        hasher.update(b"tenant");
+        hasher.update([0]);
+        hasher.update(b"ios");
+        hasher.update([0]);
+        hasher.update(b"abc");
+
+        assert_eq!(
+            artifact_storage_id(ArtifactKind::KeyValue, "tenant", "ios", "abc"),
+            hex::encode(hasher.finalize())
+        );
     }
 
     #[test]

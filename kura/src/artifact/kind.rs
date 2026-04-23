@@ -5,7 +5,8 @@ use crate::artifact::{class::ArtifactClass, client::ArtifactClient};
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ArtifactKind {
-    Keyvalue,
+    #[serde(alias = "keyvalue")]
+    KeyValue,
     Xcode,
     Gradle,
     Module,
@@ -13,12 +14,21 @@ pub enum ArtifactKind {
 
 impl ArtifactKind {
     pub const fn all() -> [Self; 4] {
-        [Self::Keyvalue, Self::Xcode, Self::Gradle, Self::Module]
+        [Self::KeyValue, Self::Xcode, Self::Gradle, Self::Module]
     }
 
     pub fn as_str(self) -> &'static str {
         match self {
-            Self::Keyvalue => "keyvalue",
+            Self::KeyValue => "key_value",
+            Self::Xcode => "xcode",
+            Self::Gradle => "gradle",
+            Self::Module => "module",
+        }
+    }
+
+    pub fn storage_key(self) -> &'static str {
+        match self {
+            Self::KeyValue => "keyvalue",
             Self::Xcode => "xcode",
             Self::Gradle => "gradle",
             Self::Module => "module",
@@ -27,7 +37,7 @@ impl ArtifactKind {
 
     pub fn from_str(value: &str) -> Option<Self> {
         match value {
-            "keyvalue" => Some(Self::Keyvalue),
+            "key_value" | "keyvalue" => Some(Self::KeyValue),
             "xcode" => Some(Self::Xcode),
             "gradle" => Some(Self::Gradle),
             "module" => Some(Self::Module),
@@ -36,12 +46,12 @@ impl ArtifactKind {
     }
 
     pub fn uses_segment_storage(self) -> bool {
-        !matches!(self, Self::Keyvalue)
+        !matches!(self, Self::KeyValue)
     }
 
     pub fn client(self) -> ArtifactClient {
         match self {
-            Self::Keyvalue => ArtifactClient::Generic,
+            Self::KeyValue => ArtifactClient::Generic,
             Self::Xcode => ArtifactClient::Xcode,
             Self::Gradle => ArtifactClient::Gradle,
             Self::Module => ArtifactClient::Module,
@@ -50,7 +60,7 @@ impl ArtifactKind {
 
     pub fn artifact_class(self) -> ArtifactClass {
         match self {
-            Self::Keyvalue => ArtifactClass::ActionCache,
+            Self::KeyValue => ArtifactClass::ActionCache,
             Self::Xcode | Self::Gradle | Self::Module => ArtifactClass::Blob,
         }
     }
@@ -60,7 +70,7 @@ impl ArtifactKind {
         artifact_class: ArtifactClass,
     ) -> Result<Self, String> {
         match (client, artifact_class) {
-            (ArtifactClient::Generic, ArtifactClass::ActionCache) => Ok(Self::Keyvalue),
+            (ArtifactClient::Generic, ArtifactClass::ActionCache) => Ok(Self::KeyValue),
             (ArtifactClient::Xcode, ArtifactClass::Blob) => Ok(Self::Xcode),
             (ArtifactClient::Gradle, ArtifactClass::Blob) => Ok(Self::Gradle),
             (ArtifactClient::Module, ArtifactClass::Blob) => Ok(Self::Module),
@@ -82,19 +92,36 @@ mod tests {
     #[test]
     fn artifact_kind_roundtrips() {
         for kind in [
-            ArtifactKind::Keyvalue,
+            ArtifactKind::KeyValue,
             ArtifactKind::Xcode,
             ArtifactKind::Gradle,
             ArtifactKind::Module,
         ] {
             assert_eq!(ArtifactKind::from_str(kind.as_str()), Some(kind));
         }
+        assert_eq!(
+            ArtifactKind::from_str("keyvalue"),
+            Some(ArtifactKind::KeyValue)
+        );
         assert_eq!(ArtifactKind::from_str("unknown"), None);
     }
 
     #[test]
+    fn serde_keeps_legacy_keyvalue_payloads_compatible() {
+        assert_eq!(
+            serde_json::from_str::<ArtifactKind>("\"keyvalue\"")
+                .expect("legacy artifact kind should deserialize"),
+            ArtifactKind::KeyValue
+        );
+        assert_eq!(
+            serde_json::to_string(&ArtifactKind::KeyValue).expect("artifact kind should serialize"),
+            "\"key_value\""
+        );
+    }
+
+    #[test]
     fn only_binary_artifacts_use_segment_storage() {
-        assert!(!ArtifactKind::Keyvalue.uses_segment_storage());
+        assert!(!ArtifactKind::KeyValue.uses_segment_storage());
         assert!(ArtifactKind::Xcode.uses_segment_storage());
         assert!(ArtifactKind::Gradle.uses_segment_storage());
         assert!(ArtifactKind::Module.uses_segment_storage());
@@ -102,9 +129,9 @@ mod tests {
 
     #[test]
     fn normalized_metadata_dimensions_follow_kind() {
-        assert_eq!(ArtifactKind::Keyvalue.client().as_str(), "generic");
+        assert_eq!(ArtifactKind::KeyValue.client().as_str(), "generic");
         assert_eq!(
-            ArtifactKind::Keyvalue.artifact_class().as_str(),
+            ArtifactKind::KeyValue.artifact_class().as_str(),
             "action_cache"
         );
         assert_eq!(ArtifactKind::Xcode.client().as_str(), "xcode");

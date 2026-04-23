@@ -389,7 +389,7 @@ impl Store {
         spec: PersistArtifactSpec<'_>,
         source_path: &Path,
     ) -> Result<PersistArtifactOutcome, String> {
-        if spec.kind == ArtifactKind::Keyvalue {
+        if spec.kind == ArtifactKind::KeyValue {
             let bytes = self.io.read(source_path).await?;
             self.io.remove_file_if_exists(source_path).await;
             return self
@@ -562,7 +562,7 @@ impl Store {
         let readable_bytes = manifest.size.saturating_sub(read_offset);
         let limit = read_limit.unwrap_or(readable_bytes).min(readable_bytes);
 
-        if manifest.kind == ArtifactKind::Keyvalue
+        if manifest.kind == ArtifactKind::KeyValue
             && let Some(bytes) = self.keyvalue_bytes(&manifest.artifact_id)?
         {
             let start = read_offset as usize;
@@ -676,7 +676,7 @@ impl Store {
     }
 
     async fn storage_exists(&self, manifest: &ArtifactManifest) -> Result<bool, String> {
-        if manifest.kind == ArtifactKind::Keyvalue
+        if manifest.kind == ArtifactKind::KeyValue
             && self.keyvalue_bytes(&manifest.artifact_id)?.is_some()
         {
             return Ok(true);
@@ -707,11 +707,11 @@ impl Store {
         replication_targets: &[String],
     ) -> Result<PersistArtifactOutcome, String> {
         let artifact_id =
-            artifact_storage_id(ArtifactKind::Keyvalue, &self.tenant_id, namespace_id, key);
+            artifact_storage_id(ArtifactKind::KeyValue, &self.tenant_id, namespace_id, key);
 
         let existing = self.manifest_from_db(&artifact_id)?;
         if let Some(existing) = &existing
-            && existing.kind == ArtifactKind::Keyvalue
+            && existing.kind == ArtifactKind::KeyValue
             && self.keyvalue_bytes(&artifact_id)?.is_some()
             && existing.blob_path.is_none()
             && (manifest_version_ms(existing) >= version_ms || version_ms == 0)
@@ -726,9 +726,9 @@ impl Store {
 
         let manifest = ArtifactManifest {
             artifact_id: artifact_id.clone(),
-            kind: ArtifactKind::Keyvalue,
-            client: ArtifactKind::Keyvalue.client(),
-            artifact_class: ArtifactKind::Keyvalue.artifact_class(),
+            kind: ArtifactKind::KeyValue,
+            client: ArtifactKind::KeyValue.client(),
+            artifact_class: ArtifactKind::KeyValue.artifact_class(),
             namespace_id: namespace_id.to_owned(),
             key: key.to_owned(),
             content_type: content_type.to_owned(),
@@ -886,7 +886,7 @@ impl Store {
     }
 
     fn load_segment_state(&self, kind: ArtifactKind) -> Result<SegmentState, String> {
-        let key = kind.as_str().as_bytes();
+        let key = kind.storage_key().as_bytes();
         let Some(bytes) = self
             .db
             .get_cf(self.cf(ROCKSDB_CF_SEGMENT_STATE), key)
@@ -905,7 +905,7 @@ impl Store {
         self.db
             .put_cf(
                 self.cf(ROCKSDB_CF_SEGMENT_STATE),
-                kind.as_str().as_bytes(),
+                kind.storage_key().as_bytes(),
                 bytes,
             )
             .map_err(|error| format!("failed to persist segment state: {error}"))
@@ -1130,7 +1130,7 @@ impl Store {
         spec: PersistArtifactSpec<'_>,
         bytes: &[u8],
     ) -> Result<PersistArtifactOutcome, String> {
-        if spec.kind == ArtifactKind::Keyvalue {
+        if spec.kind == ArtifactKind::KeyValue {
             return self
                 .persist_keyvalue_artifact_with_version(
                     spec.namespace_id,
@@ -1225,7 +1225,7 @@ impl Store {
                 if !delete_everything && manifest_version_ms(&manifest) > version_ms {
                     continue;
                 }
-                if manifest.kind == ArtifactKind::Keyvalue {
+                if manifest.kind == ArtifactKind::KeyValue {
                     batch.delete_cf(self.cf(ROCKSDB_CF_KEYVALUE), artifact_id.as_bytes());
                 }
                 if let Some(blob_path) = manifest.blob_path {
@@ -2302,7 +2302,7 @@ mod tests {
 
         let manifest = store
             .persist_artifact_from_bytes(
-                ArtifactKind::Keyvalue,
+                ArtifactKind::KeyValue,
                 "ios",
                 "artifact-1",
                 "application/json",
@@ -2386,7 +2386,7 @@ mod tests {
 
         let first = store
             .persist_artifact_from_bytes(
-                ArtifactKind::Keyvalue,
+                ArtifactKind::KeyValue,
                 "ios",
                 "action-a",
                 "application/json",
@@ -2673,7 +2673,7 @@ mod tests {
 
         let manifest = store
             .persist_artifact_from_bytes(
-                ArtifactKind::Keyvalue,
+                ArtifactKind::KeyValue,
                 "android",
                 "gradle-1",
                 "application/json",
@@ -2689,7 +2689,7 @@ mod tests {
 
         assert!(
             store
-                .fetch_artifact(ArtifactKind::Keyvalue, "android", "gradle-1")
+                .fetch_artifact(ArtifactKind::KeyValue, "android", "gradle-1")
                 .await
                 .expect("failed to fetch artifact")
                 .is_none()
@@ -3010,7 +3010,7 @@ mod tests {
 
         let manifest = store
             .persist_artifact_from_bytes_and_enqueue(
-                ArtifactKind::Keyvalue,
+                ArtifactKind::KeyValue,
                 "ios",
                 "cas-1",
                 "application/json",
@@ -3034,7 +3034,7 @@ mod tests {
             assert_eq!(
                 message.operation,
                 ReplicationOperation::UpsertArtifact {
-                    kind: ArtifactKind::Keyvalue,
+                    kind: ArtifactKind::KeyValue,
                     namespace_id: "ios".into(),
                     key: "cas-1".into(),
                     content_type: "application/json".into(),
@@ -3052,7 +3052,7 @@ mod tests {
 
         store
             .persist_artifact_from_bytes(
-                ArtifactKind::Keyvalue,
+                ArtifactKind::KeyValue,
                 "ios",
                 "cas-1",
                 "application/json",
@@ -3149,7 +3149,7 @@ mod tests {
 
         let error = store
             .persist_artifact_from_bytes_and_enqueue(
-                ArtifactKind::Keyvalue,
+                ArtifactKind::KeyValue,
                 "ios",
                 "cas-1",
                 "application/json",
@@ -3177,7 +3177,7 @@ mod tests {
             Store::open(&config, reopened_io, reopened_memory).expect("failed to reopen store");
 
         let manifest = reopened
-            .fetch_artifact(ArtifactKind::Keyvalue, "ios", "cas-1")
+            .fetch_artifact(ArtifactKind::KeyValue, "ios", "cas-1")
             .await
             .expect("artifact fetch should succeed")
             .expect("keyvalue should remain visible after restart");

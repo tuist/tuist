@@ -15,9 +15,24 @@
 - 🪨 Local metadata, multipart state, and the replication outbox live in RocksDB
 - 🔁 Blobs and cache metadata replicate to peer nodes with eventual consistency
 - 🔎 Nodes can discover peers through DNS and bootstrap themselves from already-running nodes
-- 📦 The HTTP API covers key value entries, Xcode CAS artifacts, Gradle artifacts, multipart module uploads, Nx self-hosted cache artifacts, Metro cache artifacts, and namespace clean
+- 📦 Kura actively supports Bazel and Buck2 REAPI, Xcode Cache, Gradle, and [Tuist Module Cache](https://tuist.dev/en/docs/guides/features/cache/module-cache)
+- 🧪 Compatibility endpoints for Nx and React Native Metro are available, but they are not a primary focus today
 - 🧰 The gRPC API exposes the Bazel Remote Execution cache services used by Bazel and Buck2
 - 📊 The local stack includes Grafana, Prometheus, Loki, Promtail, and Tempo traces
+
+## Supported cache protocols
+
+Actively supported:
+
+- `Bazel` and `Buck2`: Bazel Remote Execution API v2 over gRPC on `KURA_GRPC_PORT`
+- `Xcode Cache`: HTTP CAS artifacts on `POST/GET /api/cache/cas/{id}` and action-cache style entries on `PUT/GET /api/cache/keyvalue`
+- `Gradle`: `PUT/GET /api/cache/gradle/{cache_key}`
+- [`Module Cache`](https://tuist.dev/en/docs/guides/features/cache/module-cache): multipart uploads on `POST /api/cache/module/start`, `POST /api/cache/module/part`, `POST /api/cache/module/complete`, and `HEAD/GET /api/cache/module/{id}`
+
+Compatibility surfaces:
+
+- `Nx`: self-hosted remote cache API on `GET/PUT /v1/cache/{hash}`
+- `React Native Metro`: `HttpStore` / `HttpGetStore` on `GET/PUT /api/metro/cache/{cache_key}`
 
 ## Local stack 🧪
 
@@ -39,12 +54,6 @@ Useful endpoints:
 - `http://localhost:9090` for Prometheus
 - `http://localhost:3100` for Loki
 - `http://localhost:3200` for Tempo
-
-Supported cache protocols:
-
-- `Bazel` and `Buck2`: Bazel Remote Execution API v2 over gRPC on `KURA_GRPC_PORT`
-- `Nx`: self-hosted remote cache API on `GET/PUT /v1/cache/{hash}`
-- `React Native Metro`: `HttpStore` / `HttpGetStore` on `GET/PUT /api/metro/cache/{cache_key}`
 
 ## Toolchain 🛠️
 
@@ -78,20 +87,18 @@ Kura is easier to read by subsystem than by tutorial step. The sections below gr
 
 ## 🔌 Protocol Surfaces
 
-Kura exposes multiple cache protocols behind one service:
+Kura exposes multiple cache protocols behind one service. The actively supported surfaces are:
 
-The following HTTP surfaces are Tuist-specific client protocols. They exist so Tuist clients can talk to Kura without changing their cache behavior:
-
-- 🍎 `Xcode CAS`: `POST/GET /api/cache/cas/{id}?tenant_id=...&namespace_id=...`
-- 🗂️ `Keyvalue / action-cache style entries`: `PUT /api/cache/keyvalue?tenant_id=...&namespace_id=...`
+- 🛠️ `Bazel` and `Buck2`: REAPI over gRPC on `KURA_GRPC_PORT`
+- 🍎 `Xcode Cache`: `POST/GET /api/cache/cas/{id}?tenant_id=...&namespace_id=...`
+- 🗂️ `KeyValue / action-cache entries`: `PUT /api/cache/keyvalue?tenant_id=...&namespace_id=...`
 - 🐘 `Gradle`: `PUT/GET /api/cache/gradle/{cache_key}?tenant_id=...&namespace_id=...`
-- 📦 `Multipart module cache uploads`: `POST /api/cache/module/start?...`, `POST /api/cache/module/part?...`, `POST /api/cache/module/complete?...`, `HEAD/GET /api/cache/module/{id}?...`
+- 📦 [`Module Cache`](https://tuist.dev/en/docs/guides/features/cache/module-cache): `POST /api/cache/module/start?...`, `POST /api/cache/module/part?...`, `POST /api/cache/module/complete?...`, `HEAD/GET /api/cache/module/{id}?...`
 
-Kura also exposes broader ecosystem protocols that are not specific to Tuist:
+Kura also exposes compatibility endpoints that are not a primary focus today:
 
 - 🧱 `Nx`: `PUT/GET /v1/cache/{hash}`
 - 📱 `Metro`: `PUT/GET /api/metro/cache/{cache_key}`
-- 🛠️ `Bazel` and `Buck2`: REAPI over gRPC on `KURA_GRPC_PORT`
 
 The local compose stack is still the quickest way to exercise all of those surfaces together:
 

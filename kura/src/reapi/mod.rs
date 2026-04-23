@@ -246,7 +246,7 @@ impl ActionCache for ReapiService {
             .await?;
         self.state
             .metrics
-            .record_artifact_read(ArtifactKind::Keyvalue, "ok", manifest.size);
+            .record_artifact_read(ArtifactKind::KeyValue, "ok", manifest.size);
         Ok(response)
     }
 
@@ -283,7 +283,7 @@ impl ActionCache for ReapiService {
             .state
             .store
             .persist_artifact_from_bytes_and_enqueue(
-                ArtifactKind::Keyvalue,
+                ArtifactKind::KeyValue,
                 namespace_id,
                 &key,
                 "application/x-protobuf",
@@ -295,7 +295,7 @@ impl ActionCache for ReapiService {
         self.state.notify.notify_one();
         self.state
             .metrics
-            .record_artifact_write(ArtifactKind::Keyvalue, "ok", manifest.size);
+            .record_artifact_write(ArtifactKind::KeyValue, "ok", manifest.size);
         let mut response = Response::new(action_result);
         self.apply_response_headers(&mut response, extension, principal.as_ref())
             .await?;
@@ -749,20 +749,20 @@ where
 {
     let manifest = match state
         .store
-        .fetch_artifact(ArtifactKind::Keyvalue, namespace_id, key)
+        .fetch_artifact(ArtifactKind::KeyValue, namespace_id, key)
         .await
     {
         Ok(Some(manifest)) => manifest,
         Ok(None) => {
             state
                 .metrics
-                .record_artifact_read(ArtifactKind::Keyvalue, "not_found", 0);
+                .record_artifact_read(ArtifactKind::KeyValue, "not_found", 0);
             return Err(Status::not_found(format!("{label} not found")));
         }
         Err(error) => {
             state
                 .metrics
-                .record_artifact_read(ArtifactKind::Keyvalue, "error", 0);
+                .record_artifact_read(ArtifactKind::KeyValue, "error", 0);
             return Err(Status::internal(format!("failed to load {label}: {error}")));
         }
     };
@@ -771,13 +771,13 @@ where
         .map_err(|error| {
             state
                 .metrics
-                .record_artifact_read(ArtifactKind::Keyvalue, "error", 0);
+                .record_artifact_read(ArtifactKind::KeyValue, "error", 0);
             Status::internal(format!("failed to read {label}: {error}"))
         })?;
     let decoded = T::decode(bytes.as_slice()).map_err(|error| {
         state
             .metrics
-            .record_artifact_read(ArtifactKind::Keyvalue, "error", 0);
+            .record_artifact_read(ArtifactKind::KeyValue, "error", 0);
         Status::internal(format!("failed to decode {label}: {error}"))
     })?;
     Ok((manifest, decoded))
@@ -1085,7 +1085,7 @@ mod tests {
             .state
             .store
             .persist_artifact_from_bytes(
-                ArtifactKind::Keyvalue,
+                ArtifactKind::KeyValue,
                 DEFAULT_INSTANCE_NAME,
                 &key,
                 "application/x-protobuf",
@@ -1106,7 +1106,7 @@ mod tests {
 
         let rendered = context.state.metrics.render();
         assert!(rendered.contains("kura_artifact_reads_total"));
-        assert!(rendered.contains("kind=\"keyvalue\""));
+        assert!(rendered.contains("kind=\"key_value\""));
         assert!(rendered.contains("artifact_class=\"action_cache\""));
         assert!(rendered.contains("result=\"ok\""));
     }

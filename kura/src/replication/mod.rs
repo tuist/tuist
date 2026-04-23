@@ -295,7 +295,7 @@ async fn bootstrap_artifact_from_peer(
         .error_for_status()
         .map_err(|error| format!("bootstrap artifact response failed: {error}"))?;
 
-    if manifest.kind == crate::artifact::kind::ArtifactKind::Keyvalue {
+    if manifest.kind == crate::artifact::kind::ArtifactKind::KeyValue {
         let bytes = response
             .bytes()
             .await
@@ -979,7 +979,7 @@ mod tests {
     #[tokio::test]
     async fn bootstrap_tombstones_prevent_stale_manifest_resurrection() {
         let stale_manifest = bootstrap_test_manifest(
-            ArtifactKind::Keyvalue,
+            ArtifactKind::KeyValue,
             "ios",
             "cas-1",
             "application/json",
@@ -1038,7 +1038,7 @@ mod tests {
             local
                 .state
                 .store
-                .fetch_artifact(ArtifactKind::Keyvalue, "ios", "cas-1")
+                .fetch_artifact(ArtifactKind::KeyValue, "ios", "cas-1")
                 .await
                 .expect("artifact fetch should succeed")
                 .is_none()
@@ -1048,7 +1048,7 @@ mod tests {
     #[tokio::test]
     async fn bootstrap_stale_manifest_then_tombstone_converges_to_delete() {
         let stale_manifest = bootstrap_test_manifest(
-            ArtifactKind::Keyvalue,
+            ArtifactKind::KeyValue,
             "ios",
             "cas-1",
             "application/json",
@@ -1092,7 +1092,7 @@ mod tests {
             local
                 .state
                 .store
-                .fetch_artifact(ArtifactKind::Keyvalue, "ios", "cas-1")
+                .fetch_artifact(ArtifactKind::KeyValue, "ios", "cas-1")
                 .await
                 .expect("artifact fetch should succeed")
                 .is_some()
@@ -1106,7 +1106,7 @@ mod tests {
             local
                 .state
                 .store
-                .fetch_artifact(ArtifactKind::Keyvalue, "ios", "cas-1")
+                .fetch_artifact(ArtifactKind::KeyValue, "ios", "cas-1")
                 .await
                 .expect("artifact fetch should succeed")
                 .is_none()

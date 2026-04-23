@@ -128,7 +128,7 @@ mod tests {
     fn exposes_normalized_storage_metadata() {
         let manifest = ArtifactManifest {
             artifact_id: "artifact".into(),
-            kind: ArtifactKind::Keyvalue,
+            kind: ArtifactKind::KeyValue,
             client: ArtifactClient::Generic,
             artifact_class: ArtifactClass::ActionCache,
             namespace_id: "ios".into(),

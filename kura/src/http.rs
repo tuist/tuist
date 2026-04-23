@@ -689,7 +689,7 @@ async fn get_keyvalue(
 
     get_artifact(
         state,
-        ArtifactKind::Keyvalue,
+        ArtifactKind::KeyValue,
         &namespace.namespace_id,
         &cas_id,
         None,
@@ -806,7 +806,7 @@ async fn put_keyvalue(
     match state
         .store
         .persist_artifact_from_bytes_and_enqueue(
-            ArtifactKind::Keyvalue,
+            ArtifactKind::KeyValue,
             &namespace.namespace_id,
             &cas_id,
             "application/json",
@@ -819,13 +819,13 @@ async fn put_keyvalue(
             state.notify.notify_one();
             state
                 .metrics
-                .record_artifact_write(ArtifactKind::Keyvalue, "ok", manifest.size);
+                .record_artifact_write(ArtifactKind::KeyValue, "ok", manifest.size);
             StatusCode::NO_CONTENT.into_response()
         }
         Err(error) => {
             state
                 .metrics
-                .record_artifact_write(ArtifactKind::Keyvalue, "error", 0);
+                .record_artifact_write(ArtifactKind::KeyValue, "error", 0);
             error_response(
                 StatusCode::SERVICE_UNAVAILABLE,
                 format!("Failed to persist key-value entry: {error}"),
@@ -1260,7 +1260,7 @@ async fn internal_replicate_artifact(
         }
     }
 
-    if kind == ArtifactKind::Keyvalue {
+    if kind == ArtifactKind::KeyValue {
         let bytes = match to_bytes(request.into_body(), state.config.max_keyvalue_bytes).await {
             Ok(bytes) => bytes,
             Err(error) => {
