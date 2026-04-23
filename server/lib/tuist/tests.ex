@@ -313,7 +313,11 @@ defmodule Tuist.Tests do
             :test_created
           )
 
-          emit_test_run_metrics(test, project, test_case_runs)
+          # Skip metrics for intermediate shard inserts; the final shard
+          # flips the run to success/failure and emits on the update path.
+          if test.status != "in_progress" do
+            emit_test_run_metrics(test, project, test_case_runs)
+          end
         end)
 
         {:ok, %{test | test_case_runs: test_case_runs}}
@@ -425,6 +429,13 @@ defmodule Tuist.Tests do
               "#{project.account.name}/#{project.name}",
               :test_created
             )
+
+            # Emit metrics exactly once per run — when the last shard
+            # flips the run to success/failure. Earlier shard updates
+            # still leave the run in in_progress and are skipped.
+            if merged_status != "in_progress" do
+              emit_test_run_metrics(updated_test, project, test_case_runs)
+            end
           end)
 
           {:ok, %{updated_test | test_case_runs: test_case_runs}}

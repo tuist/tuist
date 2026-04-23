@@ -5,13 +5,7 @@ defmodule Tuist.MetricsTest do
   alias Tuist.Metrics.Aggregator
 
   setup do
-    # The Aggregator is normally supervised. If a previous test left counters
-    # in the ETS table, clean them.
-    case GenServer.whereis(Aggregator) do
-      nil -> start_supervised!(Aggregator)
-      _ -> Aggregator.reset()
-    end
-
+    Aggregator.reset()
     :ok
   end
 

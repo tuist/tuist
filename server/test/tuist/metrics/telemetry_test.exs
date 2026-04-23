@@ -10,11 +10,7 @@ defmodule Tuist.Metrics.TelemetryTest do
   setup do
     MetricsTelemetry.attach()
     on_exit(&MetricsTelemetry.detach/0)
-
-    case GenServer.whereis(Aggregator) do
-      nil -> start_supervised!(Aggregator)
-      _ -> Aggregator.reset()
-    end
+    Aggregator.reset()
 
     user = AccountsFixtures.user_fixture(preload: [:account])
     project = ProjectsFixtures.project_fixture(account_id: user.account.id)
@@ -82,6 +78,33 @@ defmodule Tuist.Metrics.TelemetryTest do
 
     assert histogram.count == 1
     assert_in_delta histogram.sum, 1.5, 1.0e-6
+  end
+
+  test "labels CLI invocations with integer status codes as failure", %{account: account, project: project} do
+    command_event = %{
+      project_id: project.id,
+      name: "test",
+      is_ci: true,
+      # Event.changeset/1 normalizes status to 0=success / 1=failure
+      # before telemetry sees it; error_message may be nil on failure.
+      status: 1,
+      error_message: nil
+    }
+
+    :telemetry.execute(
+      [:tuist, :run, :command],
+      %{duration: 1_000},
+      %{command_event: command_event}
+    )
+
+    _ = :sys.get_state(Aggregator)
+
+    snapshot = Metrics.snapshot(account.id)
+
+    counter = Enum.find(snapshot, &(&1.metric == "tuist_cli_invocations_total"))
+    assert counter.value == 1
+    # The `status` label is the last positional value in the counter tuple.
+    assert elem(counter.labels, tuple_size(counter.labels) - 1) == "failure"
   end
 
   test "bridges cache events into the Xcode cache counter", %{account: account, project: project} do

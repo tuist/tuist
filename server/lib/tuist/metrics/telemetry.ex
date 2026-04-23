@@ -209,11 +209,18 @@ defmodule Tuist.Metrics.Telemetry do
   defp ms_to_seconds(ms) when is_float(ms), do: ms / 1_000
   defp ms_to_seconds(_), do: 0
 
+  # Event.changeset/1 normalizes status to an integer (0=success, 1=failure)
+  # before telemetry ever sees it, but we accept the atom form too for
+  # callers that emit directly. Avoid the error_message fallback — the
+  # analytics API does not require error_message on failures, so presence
+  # is not a reliable success signal.
   defp command_status(event) do
-    if Map.get(event, :status) == :success or event_get(event, :error_message) in [nil, ""] do
-      "success"
-    else
-      "failure"
+    case event_get(event, :status) do
+      0 -> "success"
+      :success -> "success"
+      1 -> "failure"
+      :failure -> "failure"
+      _ -> "success"
     end
   end
 

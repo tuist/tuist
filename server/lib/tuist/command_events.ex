@@ -216,13 +216,13 @@ defmodule Tuist.CommandEvents do
           length(event.cacheable_targets) - length(event.local_cache_target_hits) -
             length(event.remote_cache_target_hits)
       },
-      %{event_type: :miss}
+      %{event_type: :miss, project_id: command_event.project_id}
     )
 
     :telemetry.execute(
       Tuist.Telemetry.event_name_cache(),
       %{count: length(event.local_cache_target_hits)},
-      %{event_type: :local_hit}
+      %{event_type: :local_hit, project_id: command_event.project_id}
     )
 
     :telemetry.execute(
@@ -230,7 +230,7 @@ defmodule Tuist.CommandEvents do
       %{
         count: length(event.remote_cache_target_hits)
       },
-      %{event_type: :remote_hit}
+      %{event_type: :remote_hit, project_id: command_event.project_id}
     )
 
     command_event

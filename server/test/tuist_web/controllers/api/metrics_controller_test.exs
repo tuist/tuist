@@ -10,12 +10,7 @@ defmodule TuistWeb.API.MetricsControllerTest do
 
   setup do
     stub(Environment, :tuist_hosted?, fn -> true end)
-
-    case GenServer.whereis(Aggregator) do
-      nil -> start_supervised!(Aggregator)
-      _ -> Aggregator.reset()
-    end
-
+    Aggregator.reset()
     :ok
   end
 

@@ -116,6 +116,28 @@ defmodule Tuist.Metrics.Aggregator do
     :ok
   end
 
+  @doc """
+  Returns size and memory information about the aggregator's ETS table.
+  Intended for observability — on a running instance, call this from a
+  periodic task to emit a `[:tuist, :metrics, :aggregator, :stats]`
+  telemetry event so memory growth per account / label combination is
+  alertable before it becomes an incident.
+
+  Returns `nil` if the table hasn't been created yet.
+  """
+  def table_info do
+    if table_ready?() do
+      %{
+        # `size` is the number of entries (one per counter, one per
+        # histogram bucket, plus two per histogram for count + sum).
+        size: :ets.info(@table, :size),
+        # `memory` is expressed in words; multiply by `:erlang.system_info(:wordsize)`
+        # for bytes.
+        memory_words: :ets.info(@table, :memory)
+      }
+    end
+  end
+
   # ---- GenServer ---------------------------------------------------------
 
   @impl true
