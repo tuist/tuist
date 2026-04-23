@@ -446,15 +446,7 @@ defmodule Tuist.CommandEvents do
     |> Enum.map(&Event.normalize_enums/1)
   end
 
-  def run_average_durations(
-        project_id,
-        start_datetime,
-        end_datetime,
-        date_period,
-        time_bucket,
-        name,
-        opts
-      ) do
+  def run_average_durations(project_id, start_datetime, end_datetime, date_period, time_bucket, name, opts) do
     date_format = get_date_format(time_bucket)
 
     date_range_query =
@@ -564,15 +556,7 @@ defmodule Tuist.CommandEvents do
     |> ClickHouseRepo.all()
   end
 
-  def cache_hit_rate_percentiles(
-        project_id,
-        start_datetime,
-        end_datetime,
-        _date_period,
-        time_bucket,
-        percentile,
-        opts
-      ) do
+  def cache_hit_rate_percentiles(project_id, start_datetime, end_datetime, _date_period, time_bucket, percentile, opts) do
     date_format = get_date_format(time_bucket)
 
     # For hit rate (higher is better), flip the percentile to get descending order
@@ -715,14 +699,7 @@ defmodule Tuist.CommandEvents do
     |> ClickHouseRepo.one()
   end
 
-  def selective_testing_hit_rate_percentiles(
-        project_id,
-        start_datetime,
-        end_datetime,
-        time_bucket,
-        percentile,
-        opts
-      ) do
+  def selective_testing_hit_rate_percentiles(project_id, start_datetime, end_datetime, time_bucket, percentile, opts) do
     date_format = get_date_format(time_bucket)
 
     # For hit rate (higher is better), flip the percentile to get descending order
@@ -756,13 +733,7 @@ defmodule Tuist.CommandEvents do
     |> ClickHouseRepo.all()
   end
 
-  def selective_testing_hit_rate_period_percentile(
-        project_id,
-        start_datetime,
-        end_datetime,
-        percentile,
-        opts
-      ) do
+  def selective_testing_hit_rate_period_percentile(project_id, start_datetime, end_datetime, percentile, opts) do
     # For hit rate (higher is better), flip the percentile to get descending order
     # p99 means 99% of runs achieved this hit rate or better
     flipped_percentile = 1 - percentile
@@ -790,14 +761,7 @@ defmodule Tuist.CommandEvents do
     |> ClickHouseRepo.one()
   end
 
-  def selective_testing_hit_rates(
-        project_id,
-        start_datetime,
-        end_datetime,
-        _date_period,
-        time_bucket,
-        opts
-      ) do
+  def selective_testing_hit_rates(project_id, start_datetime, end_datetime, _date_period, time_bucket, opts) do
     date_format = get_date_format(time_bucket)
 
     query =
@@ -900,8 +864,7 @@ defmodule Tuist.CommandEvents do
 
   defp apply_category_filter(query, nil), do: query
 
-  defp apply_category_filter(query, category),
-    do: where(query, [event: e], e.category == ^category)
+  defp apply_category_filter(query, category), do: where(query, [event: e], e.category == ^category)
 
   defp apply_status_filter(query, nil), do: query
   defp apply_status_filter(query, :success), do: where(query, [event: e], e.status == 0)
@@ -1060,8 +1023,7 @@ defmodule Tuist.CommandEvents do
   defp sort_optimized_table(%{order_by: [field | _]}) when field in [:hit_rate, "hit_rate"],
     do: "command_events_by_hit_rate"
 
-  defp sort_optimized_table(%{order_by: [field | _]}) when field in [:ran_at, "ran_at"],
-    do: "command_events_by_ran_at"
+  defp sort_optimized_table(%{order_by: [field | _]}) when field in [:ran_at, "ran_at"], do: "command_events_by_ran_at"
 
   defp sort_optimized_table(_), do: nil
 end
