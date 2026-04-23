@@ -1,35 +1,9 @@
 # Staging workload Cluster for Tuist on Syself Apalla (Hetzner).
 #
-# Applied to the Syself-operated management cluster, which provisions the
-# actual nodes in our Hetzner project via Cluster API (caph provider).
-#
-# Shape:
-#   - Region: fsn1 (Falkenstein). Lowest latency to Supabase (eu-central-1)
-#     and ClickHouse Frankfurt.
-#   - Control plane: 3 × cpx22 (cloud AMD EPYC, 2 vCPU / 4 GB / 80 GB each).
-#     HA: tolerates 1 node failure and enables zero-downtime kube-apiserver
-#     upgrades. 80 GB is the minimum disk that accepts Syself's Packer
-#     snapshot (disk_size=80) — cpx11's 40 GB disk is rejected by the
-#     Hetzner API, and the cheaper cpx21 (older Intel gen) is frequently
-#     out of stock in fsn1-dc14. Three CPs cost ~€27/mo combined.
-#   - Workers: 2 × cpx22 (cloud, 2 vCPU / 4 GB / 80 GB each, ~€18/mo).
-#     A single worker ends up memory-saturated by system pods
-#     (cilium-operator, hubble, CSI controllers, metrics-server, ESO,
-#     Alloy) before the Phoenix server can schedule, so two is the
-#     minimum viable shape. Also gives soft-HA in case one node dies.
-#     Canary will reuse this shape; production gets real Hetzner Robot
-#     AX41-NVMe bare-metal workers later.
-#
-# Before applying:
-#   1. Set `metadata.namespace` to the namespace Syself issued for your org
-#      (see the onboarding email / the kubeconfig's `namespace:` field).
-#   2. Confirm `topology.class` matches an available ClusterStackRelease:
-#        kubectl get clusterstackreleases
-#      Bump `class` + `version` together if a newer release is out.
-#   3. (Optional) Expose the kube-apiserver via a custom domain: uncomment
-#      the `clusterEndpointHost` / `clusterLoadBalancer*` variables, create
-#      the Hetzner LB + DNS A record per the Syself docs
-#      (infra/k8s/syself-onboarding.md §4).
+# Shape: 3 × cpx22 cloud control plane + 2 × cpx22 workers in fsn1.
+# ~€45/mo. Two-worker minimum because the baseline system pods
+# (cilium-operator, hubble, CSI controllers, metrics-server, ESO, Alloy)
+# saturate a single cpx22 before the Phoenix server can schedule.
 
 apiVersion: cluster.x-k8s.io/v1beta1
 kind: Cluster

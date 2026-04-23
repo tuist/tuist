@@ -1,31 +1,8 @@
 # Production workload Cluster for Tuist on Syself Apalla (Hetzner).
 #
-# Applied to the Syself-operated management cluster, which provisions the
-# actual nodes in our Hetzner project via Cluster API (caph provider).
-#
-# Shape:
-#   - Region: fsn1 (Falkenstein)
-#   - Control plane: 3 × cpx22 cloud VMs (2 vCPU / 4 GB / 80 GB). HA.
-#     ~€27/mo combined.
-#   - Workers: 2 × ccx23 dedicated-vCPU VMs (4 vCPU / 16 GB / 160 GB
-#     NVMe). Dedicated cores eliminate CPU noisy-neighbor jitter on the
-#     one env where p99 latency matters; 32 GB of RAM across the two
-#     workers leaves plenty of headroom for the Phoenix BEAM plus the
-#     system pods (Alloy, ESO, ingress-nginx, cert-manager). API-driven
-#     so the chart's HorizontalPodAutoscaler still works for traffic
-#     spikes. ~€60/mo combined.
-#
-# Total: ~€87/mo. Bare metal deliberately NOT used at this stage — see
-# the migration PR's "Why not bare metal" section for the reasoning.
-# Short version: Tuist's workload is I/O-bound on external managed
-# databases (Supabase / ClickHouse Cloud / Tigris), so none of bare
-# metal's usual wins (local NVMe IOPS, massive RAM) apply. Bare metal
-# becomes the right choice once we bring Postgres / ClickHouse into the
-# cluster.
-#
-# All three managed clusters share a single Hetzner Cloud project; see
-# workload-cluster-canary.yaml for the context on the Syself ClusterClass
-# limitation that forces this.
+# Shape: 3 × cpx22 cloud control plane + 2 × ccx23 dedicated-vCPU workers
+# in fsn1. ~€87/mo. Dedicated cores on the workers give us predictable
+# p99 latency without foreclosing HPA.
 
 apiVersion: cluster.x-k8s.io/v1beta1
 kind: Cluster
