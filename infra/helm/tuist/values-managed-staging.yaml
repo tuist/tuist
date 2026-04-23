@@ -37,6 +37,13 @@ server:
     type: LoadBalancer
     port: 80
     targetPort: 8080
+    # Hetzner Cloud Controller Manager reads these to provision an LB in
+    # the right DC + tier. Cloud providers without this CCM (e.g. GKE)
+    # ignore unknown annotations, so the same overlay works on both.
+    annotations:
+      load-balancer.hetzner.cloud/location: fsn1
+      load-balancer.hetzner.cloud/type: lb11
+      load-balancer.hetzner.cloud/name: tuist-staging
 
   appUrl: http://cloud-staging.tuist.dev  # Set to the IP once the LB appears — or leave hostnamed for later.
 
