@@ -214,7 +214,7 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
              module_name: "AuthModule",
              suite_name: "AuthSuite",
              is_flaky: false,
-             is_quarantined: false,
+             state: "enabled",
              last_status: :success,
              last_duration: 1500,
              last_ran_at: ~N[2024-01-01 12:00:00],

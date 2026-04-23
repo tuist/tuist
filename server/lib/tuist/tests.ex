@@ -22,7 +22,6 @@ defmodule Tuist.Tests do
   import Ecto.Query
 
   alias Tuist.Accounts.Account
-  alias Tuist.Alerts.Workers.FlakyThresholdCheckWorker
   alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
   alias Tuist.Projects.Project
@@ -325,7 +324,6 @@ defmodule Tuist.Tests do
 
         Tuist.Tasks.run_async(fn ->
           mark_test_run_as_flaky(test, test_case_ids_with_flaky_run)
-          schedule_flaky_threshold_check(test.project_id, test_case_ids_with_flaky_run)
 
           project = Tuist.Projects.get_project_by_id(test.project_id)
 
@@ -437,7 +435,6 @@ defmodule Tuist.Tests do
 
           Tuist.Tasks.run_async(fn ->
             mark_test_run_as_flaky(updated_test, test_case_ids_with_flaky_run)
-            schedule_flaky_threshold_check(updated_test.project_id, test_case_ids_with_flaky_run)
 
             project = Tuist.Projects.get_project_by_id(updated_test.project_id)
 
@@ -499,16 +496,6 @@ defmodule Tuist.Tests do
         inserted_at: now
       }
     ])
-  end
-
-  defp schedule_flaky_threshold_check(_project_id, []), do: :ok
-
-  defp schedule_flaky_threshold_check(project_id, test_case_ids) do
-    %{project_id: project_id, test_case_ids: test_case_ids}
-    |> FlakyThresholdCheckWorker.new(schedule_in: 5)
-    |> Oban.insert!()
-
-    :ok
   end
 
   defp mark_test_run_as_flaky(test, []), do: test
@@ -573,7 +560,7 @@ defmodule Tuist.Tests do
 
         current_run_is_flaky = Map.get(data, :is_flaky, false)
         existing_is_flaky = Map.get(existing, :is_flaky, false)
-        existing_is_quarantined = Map.get(existing, :is_quarantined, false)
+        existing_state = Map.get(existing, :state, "enabled")
 
         test_case = %{
           id: id,
@@ -585,8 +572,8 @@ defmodule Tuist.Tests do
           last_duration: data.duration,
           last_ran_at: data.ran_at,
           is_flaky: existing_is_flaky,
-          is_quarantined: existing_is_quarantined,
           last_run_id: test_run_id,
+          state: existing_state,
           inserted_at: now,
           recent_durations: new_durations,
           avg_duration: new_avg
@@ -620,7 +607,7 @@ defmodule Tuist.Tests do
         id: test_case.id,
         recent_durations: test_case.recent_durations,
         is_flaky: test_case.is_flaky,
-        is_quarantined: test_case.is_quarantined
+        state: test_case.state
       }
     )
     |> IngestRepo.all()
@@ -660,17 +647,17 @@ defmodule Tuist.Tests do
   Updates a test case by inserting a new row with the given attributes.
   ClickHouse ReplacingMergeTree will keep the most recent row.
 
-  Only `is_flaky` and `is_quarantined` are valid update attributes.
+  Only `is_flaky` and `state` are valid update attributes.
 
   Creates test case events to track the state change.
 
   ## Parameters
   - `test_case_id` - the test case UUID to update
-  - `update_attrs` - map with `:is_flaky` and/or `:is_quarantined` boolean values
+  - `update_attrs` - map with `:is_flaky` boolean and/or `:state` (`"enabled"` | `"muted"`)
   - `opts` - optional keyword list with `:actor_id` (account_id for user actions, nil for system)
   """
   def update_test_case(test_case_id, update_attrs, opts \\ []) when is_map(update_attrs) do
-    valid_keys = [:is_flaky, :is_quarantined]
+    valid_keys = [:is_flaky, :state]
     filtered_attrs = Map.take(update_attrs, valid_keys)
     actor_id = Keyword.get(opts, :actor_id)
 
@@ -722,9 +709,9 @@ defmodule Tuist.Tests do
       end
 
     events =
-      case {Map.get(old_test_case, :is_quarantined, false), Map.get(new_attrs, :is_quarantined)} do
-        {false, true} -> [:quarantined | events]
-        {true, false} -> [:unquarantined | events]
+      case {Map.get(old_test_case, :state, "enabled"), Map.get(new_attrs, :state)} do
+        {old_state, "muted"} when old_state != "muted" -> [:muted | events]
+        {"muted", "enabled"} -> [:unmuted | events]
         _ -> events
       end
 
@@ -961,6 +948,10 @@ defmodule Tuist.Tests do
         avg_test_case_duration: avg_test_case_duration,
         shard_id: if(shard_plan, do: shard_plan.id),
         shard_index: shard_index,
+        project_id: test.project_id,
+        is_ci: test.is_ci,
+        git_branch: test.git_branch || "",
+        ran_at: test.ran_at,
         inserted_at: NaiveDateTime.utc_now()
       }
 
@@ -1142,6 +1133,10 @@ defmodule Tuist.Tests do
           avg_test_case_duration: avg_test_case_duration,
           shard_id: if(shard_plan, do: shard_plan.id),
           shard_index: shard_index,
+          project_id: test.project_id,
+          is_ci: test.is_ci,
+          git_branch: test.git_branch || "",
+          ran_at: test.ran_at,
           inserted_at: NaiveDateTime.utc_now()
         }
 
@@ -1702,7 +1697,7 @@ defmodule Tuist.Tests do
         as: :test_case,
         hints: ["FINAL"],
         where: test_case.project_id == ^project_id,
-        where: test_case.is_quarantined == true,
+        where: test_case.state == "muted",
         select: %{
           id: test_case.id,
           name: test_case.name,
@@ -1754,7 +1749,7 @@ defmodule Tuist.Tests do
         as: :test_case,
         hints: ["FINAL"],
         where: test_case.project_id == ^project_id,
-        where: test_case.is_quarantined == true,
+        where: test_case.state == "muted",
         select: count(test_case.id)
       )
 
@@ -1794,7 +1789,7 @@ defmodule Tuist.Tests do
     quarantined_ids_subquery =
       from(tc in TestCase,
         hints: ["FINAL"],
-        where: tc.project_id == ^project_id and tc.is_quarantined == true,
+        where: tc.project_id == ^project_id and tc.state == "muted",
         select: tc.id
       )
 
@@ -2324,96 +2319,6 @@ defmodule Tuist.Tests do
     IngestRepo.insert_all(ShardRun, missing_shard_runs)
 
     :ok
-  end
-
-  @doc """
-  Clears cooled down flaky tests for a specific project.
-
-  A test case's flaky flag has cooled down if there have been no flaky
-  test case runs within the project's configured `flaky_cooldown_days`
-  window (defaults to 14 days).
-
-  Returns {:ok, count} where count is the number of test cases cleared.
-  """
-  def clear_cooled_down_flaky_tests(%Project{} = project) do
-    flaky_test_cases =
-      ClickHouseRepo.all(
-        from(test_case in TestCase,
-          hints: ["FINAL"],
-          where: test_case.is_flaky == true and test_case.project_id == ^project.id
-        )
-      )
-
-    now = NaiveDateTime.utc_now()
-    cutoff = NaiveDateTime.add(now, -project.flaky_cooldown_days, :day)
-
-    test_case_ids = Enum.map(flaky_test_cases, & &1.id)
-
-    latest_flaky_runs =
-      from(flaky_run in FlakyTestCaseRun,
-        where: flaky_run.test_case_id in ^test_case_ids,
-        group_by: flaky_run.test_case_id,
-        select: {flaky_run.test_case_id, max(flaky_run.inserted_at)}
-      )
-      |> ClickHouseRepo.all()
-      |> Map.new()
-
-    cooled_down_test_cases =
-      Enum.filter(flaky_test_cases, fn test_case ->
-        case Map.get(latest_flaky_runs, test_case.id) do
-          nil -> true
-          latest_run -> NaiveDateTime.before?(latest_run, cutoff)
-        end
-      end)
-
-    test_cases_to_update =
-      Enum.map(cooled_down_test_cases, fn test_case ->
-        should_unquarantine = test_case.is_quarantined and project.auto_quarantine_flaky_tests
-
-        updates = %{is_flaky: false, inserted_at: now}
-        updates = if should_unquarantine, do: Map.put(updates, :is_quarantined, false), else: updates
-
-        test_case
-        |> Map.from_struct()
-        |> Map.delete(:__meta__)
-        |> Map.merge(updates)
-      end)
-
-    TestCase.Buffer.insert_all(test_cases_to_update)
-
-    if Enum.any?(cooled_down_test_cases) do
-      events =
-        Enum.flat_map(cooled_down_test_cases, fn test_case ->
-          should_unquarantine = test_case.is_quarantined and project.auto_quarantine_flaky_tests
-
-          flaky_event = %{
-            id: UUIDv7.generate(),
-            test_case_id: test_case.id,
-            event_type: "unmarked_flaky",
-            actor_id: nil,
-            inserted_at: now
-          }
-
-          if should_unquarantine do
-            [
-              flaky_event,
-              %{
-                id: UUIDv7.generate(),
-                test_case_id: test_case.id,
-                event_type: "unquarantined",
-                actor_id: nil,
-                inserted_at: now
-              }
-            ]
-          else
-            [flaky_event]
-          end
-        end)
-
-      TestCaseEvent.Buffer.insert_all(events)
-    end
-
-    {:ok, length(test_cases_to_update)}
   end
 
   def create_test_case_run_attachment(attrs) do

@@ -547,7 +547,7 @@
                     size="large"
                   />
                   <.badge
-                    :if={test_case.is_quarantined}
+                    :if={test_case.state == "muted"}
                     label={dgettext("dashboard_tests", "Quarantined")}
                     color="destructive"
                     style="light-fill"

@@ -16,6 +16,7 @@ defmodule TuistWeb.API.Schemas.TestCase do
       :avg_duration,
       :is_flaky,
       :is_quarantined,
+      :state,
       :url
     ],
     properties: %{
@@ -69,7 +70,14 @@ defmodule TuistWeb.API.Schemas.TestCase do
       },
       is_quarantined: %Schema{
         type: :boolean,
-        description: "Whether the test case is quarantined"
+        deprecated: true,
+        description: "Whether the test case is quarantined. Deprecated: use `state` instead."
+      },
+      state: %Schema{
+        type: :string,
+        enum: ["enabled", "muted"],
+        description:
+          "Lifecycle state of the test case. `enabled` means it runs as part of the suite and contributes to pass/fail counts. `muted` (what used to be called \"quarantined\") means it still runs so we keep collecting flakiness signal, but failures no longer fail the build."
       },
       url: %Schema{
         type: :string,

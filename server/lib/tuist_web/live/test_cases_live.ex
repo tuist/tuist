@@ -437,7 +437,7 @@ defmodule TuistWeb.TestCasesLive do
   end
 
   defp convert_trait_filter(%{field: :test_case_trait, value: :quarantined} = filter) do
-    %{filter | field: :is_quarantined, value: true}
+    %{filter | field: :state, value: "muted"}
   end
 
   defp convert_trait_filter(filter), do: filter

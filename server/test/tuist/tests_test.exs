@@ -2497,7 +2497,7 @@ defmodule Tuist.TestsTest do
       assert Enum.at(test_cases_desc, 2).name == "fastTest"
     end
 
-    test "preserves is_quarantined when a new test run is ingested" do
+    test "preserves state when a new test run is ingested" do
       # Given
       project = ProjectsFixtures.project_fixture()
 
@@ -2517,10 +2517,9 @@ defmodule Tuist.TestsTest do
         )
 
       {[test_case], _meta} = Tests.list_test_cases(project.id, %{})
-      assert test_case.is_quarantined == false
 
-      # When - quarantine the test case, then ingest a new test run
-      {:ok, _} = Tests.update_test_case(test_case.id, %{is_quarantined: true})
+      # When - mute the test case, then ingest a new test run
+      {:ok, _} = Tests.update_test_case(test_case.id, %{state: "muted"})
 
       {:ok, _test_run2} =
         RunsFixtures.test_fixture(
@@ -2537,9 +2536,9 @@ defmodule Tuist.TestsTest do
           ]
         )
 
-      # Then - the test case should still be quarantined
+      # Then - the test case should still be muted
       {[updated_test_case], _meta} = Tests.list_test_cases(project.id, %{})
-      assert updated_test_case.is_quarantined == true
+      assert updated_test_case.state == "muted"
     end
   end
 
@@ -2891,12 +2890,6 @@ defmodule Tuist.TestsTest do
       assert flaky_case.name == "testFlakyExample"
       assert flaky_case.status == "success"
       assert flaky_case.is_flaky == true
-
-      # Verify that a FlakyThresholdCheckWorker was enqueued to mark the test_case as flaky
-      assert_enqueued(
-        worker: Tuist.Alerts.Workers.FlakyThresholdCheckWorker,
-        args: %{project_id: project.id, test_case_ids: [flaky_case.test_case_id]}
-      )
     end
 
     test "marks test_case_run as flaky but not test_case for non-CI runs with repetitions" do
@@ -3871,7 +3864,7 @@ defmodule Tuist.TestsTest do
   end
 
   describe "update_test_case/3 quarantine" do
-    test "marks a test case as quarantined" do
+    test "mutes a test case" do
       project = ProjectsFixtures.project_fixture()
 
       {:ok, _test_run} =
@@ -3890,27 +3883,26 @@ defmodule Tuist.TestsTest do
         )
 
       {[test_case], _meta} = Tests.list_test_cases(project.id, %{})
-      assert test_case.is_quarantined == false
 
-      result = Tests.update_test_case(test_case.id, %{is_quarantined: true})
+      result = Tests.update_test_case(test_case.id, %{state: "muted"})
 
       assert {:ok, updated_test_case} = result
-      assert updated_test_case.is_quarantined == true
+      assert updated_test_case.state == "muted"
       assert updated_test_case.id == test_case.id
 
       {:ok, fetched_test_case} = Tests.get_test_case_by_id(test_case.id)
-      assert fetched_test_case.is_quarantined == true
+      assert fetched_test_case.state == "muted"
     end
 
     test "returns error when test case does not exist" do
       non_existent_id = UUIDv7.generate()
 
-      result = Tests.update_test_case(non_existent_id, %{is_quarantined: true})
+      result = Tests.update_test_case(non_existent_id, %{state: "muted"})
 
       assert result == {:error, :not_found}
     end
 
-    test "unquarantines a test case" do
+    test "unmutes a test case" do
       project = ProjectsFixtures.project_fixture()
 
       {:ok, _test_run} =
@@ -3930,18 +3922,18 @@ defmodule Tuist.TestsTest do
 
       {[test_case], _meta} = Tests.list_test_cases(project.id, %{})
 
-      {:ok, _} = Tests.update_test_case(test_case.id, %{is_quarantined: true})
-      {:ok, quarantined_test_case} = Tests.get_test_case_by_id(test_case.id)
-      assert quarantined_test_case.is_quarantined == true
+      {:ok, _} = Tests.update_test_case(test_case.id, %{state: "muted"})
+      {:ok, muted_test_case} = Tests.get_test_case_by_id(test_case.id)
+      assert muted_test_case.state == "muted"
 
-      result = Tests.update_test_case(test_case.id, %{is_quarantined: false})
+      result = Tests.update_test_case(test_case.id, %{state: "enabled"})
 
       assert {:ok, updated_test_case} = result
-      assert updated_test_case.is_quarantined == false
+      assert updated_test_case.state == "enabled"
       assert updated_test_case.id == test_case.id
 
       {:ok, fetched_test_case} = Tests.get_test_case_by_id(test_case.id)
-      assert fetched_test_case.is_quarantined == false
+      assert fetched_test_case.state == "enabled"
     end
   end
 
@@ -5909,291 +5901,6 @@ defmodule Tuist.TestsTest do
     end
   end
 
-  describe "clear_cooled_down_flaky_tests/1" do
-    test "does not clear flaky flag when test case has recent flaky runs" do
-      project = ProjectsFixtures.project_fixture()
-      test_case_id = Ecto.UUID.generate()
-
-      test_case =
-        RunsFixtures.test_case_fixture(
-          id: test_case_id,
-          project_id: project.id,
-          is_flaky: true
-        )
-
-      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
-
-      # Create a recent flaky run (within 14 days)
-      RunsFixtures.test_case_run_fixture(
-        project_id: project.id,
-        test_case_id: test_case_id,
-        is_flaky: true,
-        inserted_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3, :day)
-      )
-
-      RunsFixtures.optimize_test_case_runs()
-
-      {:ok, _count} = Tests.clear_cooled_down_flaky_tests(project)
-
-      {:ok, fetched_test_case} = Tests.get_test_case_by_id(test_case_id)
-      assert fetched_test_case.is_flaky == true
-    end
-
-    test "clears flaky flag when test case has no recent flaky runs" do
-      project = ProjectsFixtures.project_fixture()
-      test_case_id = Ecto.UUID.generate()
-
-      test_case =
-        RunsFixtures.test_case_fixture(
-          id: test_case_id,
-          project_id: project.id,
-          is_flaky: true
-        )
-
-      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
-
-      # Create an old flaky run (more than 14 days ago)
-      RunsFixtures.test_case_run_fixture(
-        project_id: project.id,
-        test_case_id: test_case_id,
-        is_flaky: true,
-        inserted_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -20, :day)
-      )
-
-      RunsFixtures.optimize_test_case_runs()
-
-      {:ok, count} = Tests.clear_cooled_down_flaky_tests(project)
-
-      assert count >= 1
-
-      {:ok, fetched_test_case} = Tests.get_test_case_by_id(test_case_id)
-      assert fetched_test_case.is_flaky == false
-    end
-
-    test "clears flaky flag when test case has no flaky runs at all" do
-      project = ProjectsFixtures.project_fixture()
-      test_case_id = Ecto.UUID.generate()
-
-      test_case =
-        RunsFixtures.test_case_fixture(
-          id: test_case_id,
-          project_id: project.id,
-          is_flaky: true
-        )
-
-      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
-
-      # Create a non-flaky run
-      RunsFixtures.test_case_run_fixture(
-        project_id: project.id,
-        test_case_id: test_case_id,
-        is_flaky: false,
-        inserted_at: NaiveDateTime.utc_now()
-      )
-
-      RunsFixtures.optimize_test_case_runs()
-
-      {:ok, count} = Tests.clear_cooled_down_flaky_tests(project)
-
-      assert count >= 1
-
-      {:ok, fetched_test_case} = Tests.get_test_case_by_id(test_case_id)
-      assert fetched_test_case.is_flaky == false
-    end
-
-    test "only clears cooled down flaky tests, preserving recent ones" do
-      project = ProjectsFixtures.project_fixture()
-      stale_test_case_id = Ecto.UUID.generate()
-      recent_test_case_id = Ecto.UUID.generate()
-
-      stale_test_case =
-        RunsFixtures.test_case_fixture(
-          id: stale_test_case_id,
-          project_id: project.id,
-          name: "staleTest",
-          is_flaky: true
-        )
-
-      recent_test_case =
-        RunsFixtures.test_case_fixture(
-          id: recent_test_case_id,
-          project_id: project.id,
-          name: "recentTest",
-          is_flaky: true
-        )
-
-      IngestRepo.insert_all(TestCase, [
-        stale_test_case |> Map.from_struct() |> Map.delete(:__meta__),
-        recent_test_case |> Map.from_struct() |> Map.delete(:__meta__)
-      ])
-
-      # Old flaky run for stale test case
-      RunsFixtures.test_case_run_fixture(
-        project_id: project.id,
-        test_case_id: stale_test_case_id,
-        is_flaky: true,
-        inserted_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -20, :day)
-      )
-
-      # Recent flaky run for recent test case
-      RunsFixtures.test_case_run_fixture(
-        project_id: project.id,
-        test_case_id: recent_test_case_id,
-        is_flaky: true,
-        inserted_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3, :day)
-      )
-
-      RunsFixtures.optimize_test_case_runs()
-
-      {:ok, count} = Tests.clear_cooled_down_flaky_tests(project)
-
-      assert count >= 1
-
-      {:ok, fetched_stale} = Tests.get_test_case_by_id(stale_test_case_id)
-      assert fetched_stale.is_flaky == false
-
-      {:ok, fetched_recent} = Tests.get_test_case_by_id(recent_test_case_id)
-      assert fetched_recent.is_flaky == true
-    end
-
-    test "does not affect non-flaky test cases" do
-      project = ProjectsFixtures.project_fixture()
-      non_flaky_test_case_id = Ecto.UUID.generate()
-
-      test_case =
-        RunsFixtures.test_case_fixture(
-          id: non_flaky_test_case_id,
-          project_id: project.id,
-          is_flaky: false
-        )
-
-      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
-
-      {:ok, _count} = Tests.clear_cooled_down_flaky_tests(project)
-
-      {:ok, fetched_test_case} = Tests.get_test_case_by_id(non_flaky_test_case_id)
-      assert fetched_test_case.is_flaky == false
-    end
-
-    test "does not unquarantine when project has auto_quarantine_flaky_tests disabled" do
-      project = ProjectsFixtures.project_fixture()
-      test_case_id = Ecto.UUID.generate()
-
-      test_case =
-        RunsFixtures.test_case_fixture(
-          id: test_case_id,
-          project_id: project.id,
-          is_flaky: true,
-          is_quarantined: true
-        )
-
-      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
-
-      {:ok, _count} = Tests.clear_cooled_down_flaky_tests(project)
-
-      {:ok, fetched_test_case} = Tests.get_test_case_by_id(test_case_id)
-      assert fetched_test_case.is_flaky == false
-      assert fetched_test_case.is_quarantined == true
-    end
-
-    test "unquarantines when project has auto_quarantine_flaky_tests enabled" do
-      project = ProjectsFixtures.project_fixture()
-
-      project =
-        project
-        |> Ecto.Changeset.change(auto_quarantine_flaky_tests: true)
-        |> Tuist.Repo.update!()
-
-      test_case_id = Ecto.UUID.generate()
-
-      test_case =
-        RunsFixtures.test_case_fixture(
-          id: test_case_id,
-          project_id: project.id,
-          is_flaky: true,
-          is_quarantined: true
-        )
-
-      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
-
-      {:ok, _count} = Tests.clear_cooled_down_flaky_tests(project)
-
-      {:ok, fetched_test_case} = Tests.get_test_case_by_id(test_case_id)
-      assert fetched_test_case.is_flaky == false
-      assert fetched_test_case.is_quarantined == false
-    end
-
-    test "respects project-specific flaky_cooldown_days setting" do
-      project = ProjectsFixtures.project_fixture()
-
-      project =
-        project
-        |> Ecto.Changeset.change(flaky_cooldown_days: 3)
-        |> Tuist.Repo.update!()
-
-      test_case_id = Ecto.UUID.generate()
-
-      test_case =
-        RunsFixtures.test_case_fixture(
-          id: test_case_id,
-          project_id: project.id,
-          is_flaky: true
-        )
-
-      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
-
-      RunsFixtures.test_case_run_fixture(
-        project_id: project.id,
-        test_case_id: test_case_id,
-        is_flaky: true,
-        inserted_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -5, :day)
-      )
-
-      RunsFixtures.optimize_test_case_runs()
-
-      {:ok, count} = Tests.clear_cooled_down_flaky_tests(project)
-
-      assert count >= 1
-
-      {:ok, fetched_test_case} = Tests.get_test_case_by_id(test_case_id)
-      assert fetched_test_case.is_flaky == false
-    end
-
-    test "does not clear flaky flag when within project-specific flaky_cooldown_days" do
-      project = ProjectsFixtures.project_fixture()
-
-      project =
-        project
-        |> Ecto.Changeset.change(flaky_cooldown_days: 30)
-        |> Tuist.Repo.update!()
-
-      test_case_id = Ecto.UUID.generate()
-
-      test_case =
-        RunsFixtures.test_case_fixture(
-          id: test_case_id,
-          project_id: project.id,
-          is_flaky: true
-        )
-
-      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
-
-      RunsFixtures.test_case_run_fixture(
-        project_id: project.id,
-        test_case_id: test_case_id,
-        is_flaky: true,
-        inserted_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -20, :day)
-      )
-
-      RunsFixtures.optimize_test_case_runs()
-
-      {:ok, _count} = Tests.clear_cooled_down_flaky_tests(project)
-
-      {:ok, fetched_test_case} = Tests.get_test_case_by_id(test_case_id)
-      assert fetched_test_case.is_flaky == true
-    end
-  end
-
   describe "is_new detection for test case runs" do
     test "marks test_case_run as new when no prior CI run exists on default branch" do
       # Given - a project with default_branch "main"
@@ -6693,34 +6400,34 @@ defmodule Tuist.TestsTest do
       assert hd(events).event_type == "unmarked_flaky"
     end
 
-    test "creates quarantined event when is_quarantined changes from false to true" do
+    test "creates muted event when is_quarantined changes from false to true (derived state change)" do
       # Given
       project = ProjectsFixtures.project_fixture()
       test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_quarantined: false)
       IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
 
       # When
-      {:ok, _updated} = Tests.update_test_case(test_case.id, %{is_quarantined: true})
+      {:ok, _updated} = Tests.update_test_case(test_case.id, %{state: "muted"})
 
       # Then
       {events, _meta} = Tests.list_test_case_events(test_case.id)
       assert length(events) == 1
-      assert hd(events).event_type == "quarantined"
+      assert hd(events).event_type == "muted"
       assert is_nil(hd(events).actor)
     end
 
-    test "creates multiple events when both is_flaky and is_quarantined change" do
+    test "creates multiple events when both is_flaky and state change" do
       # Given
       project = ProjectsFixtures.project_fixture()
       user = AccountsFixtures.user_fixture(preload: [:account])
-      test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_flaky: false, is_quarantined: false)
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_flaky: false)
       IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
 
       # When
       {:ok, _updated} =
         Tests.update_test_case(
           test_case.id,
-          %{is_flaky: true, is_quarantined: true},
+          %{is_flaky: true, state: "muted"},
           actor_id: user.account.id
         )
 
@@ -6729,7 +6436,7 @@ defmodule Tuist.TestsTest do
       assert length(events) == 2
       event_types = Enum.map(events, & &1.event_type)
       assert "marked_flaky" in event_types
-      assert "quarantined" in event_types
+      assert "muted" in event_types
     end
   end
 

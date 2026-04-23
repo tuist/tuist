@@ -496,6 +496,14 @@ defmodule TuistWeb.Router do
           end
         end
 
+        scope "/automations/alerts" do
+          get "/", Automations.AlertsController, :index
+          post "/", Automations.AlertsController, :create
+          get "/:alert_id", Automations.AlertsController, :show
+          put "/:alert_id", Automations.AlertsController, :update
+          delete "/:alert_id", Automations.AlertsController, :delete
+        end
+
         scope "/builds" do
           get "/", BuildsController, :index
           get "/:build_id", BuildsController, :show
