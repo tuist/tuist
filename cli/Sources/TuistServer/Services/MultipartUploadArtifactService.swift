@@ -61,12 +61,12 @@ public protocol MultipartUploadArtifactServicing {
 }
 
 public struct MultipartUploadArtifactService: MultipartUploadArtifactServicing {
-    private let urlSession: URLSession
+    private let urlSession: URLSession?
     private let fileSystem: FileSysteming
     private let retryProvider: RetryProviding
 
     public init(
-        urlSession: URLSession = .tuistShared,
+        urlSession: URLSession? = nil,
         fileSystem: FileSysteming = FileSystem(),
         retryProvider: RetryProviding = RetryProvider()
     ) {
@@ -132,6 +132,7 @@ public struct MultipartUploadArtifactService: MultipartUploadArtifactServicing {
     }
 
     private func upload(for request: URLRequest) async throws -> String {
+        let urlSession = urlSession ?? .tuistShared
         let (data, response) = try await urlSession.data(for: request)
         guard let urlResponse = response as? HTTPURLResponse else {
             throw MultipartUploadArtifactServiceError.noURLResponse(request.url)

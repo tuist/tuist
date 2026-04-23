@@ -16,11 +16,9 @@ import OpenAPIRuntime
 /// `didFinishCollecting` for capturing detailed timing metrics.
 public struct TuistURLSessionTransport: ClientTransport {
     private let session: URLSession?
-    private let deferredSharedSession: DeferredSharedURLSession
 
     public init(session: URLSession? = nil) {
         self.session = session
-        deferredSharedSession = DeferredSharedURLSession()
     }
 
     public func send(
@@ -60,7 +58,7 @@ public struct TuistURLSessionTransport: ClientTransport {
     }
 
     private func resolvedSession() -> URLSession {
-        session ?? deferredSharedSession.resolve()
+        session ?? .tuistShared
     }
 
     private func buildURLRequest(from request: HTTPRequest, body: HTTPBody?, baseURL: URL) async throws -> URLRequest {

@@ -20,6 +20,7 @@ public struct HTTPSettings: Sendable {
             lock.lock()
             storedCurrent = newValue
             lock.unlock()
+            invalidateSharedTuistURLSession()
         }
     }
 }

@@ -65,39 +65,41 @@
         }
 
         @Test(.withMockedEnvironment())
-        func deferredSharedURLSession_resolves_runtime_settings_on_first_use() async throws {
+        func tuistShared_reuses_the_process_shared_session() async throws {
             let environment = try #require(Environment.mocked)
             environment.variables["HTTPS_PROXY"] = "http://proxy.tuist.dev:8080"
 
             let previousSettings = HTTPSettings.current
-            HTTPSettings.current = .init(useEnvironmentProxy: true)
+            HTTPSettings.current = .init(useEnvironmentProxy: false)
             defer { HTTPSettings.current = previousSettings }
 
-            let deferredSession = DeferredSharedURLSession()
-            HTTPSettings.current = .init(useEnvironmentProxy: false)
+            let firstSession = URLSession.tuistShared
+            let secondSession = URLSession.tuistShared
 
-            let resolvedSession = deferredSession.resolve()
-
-            #expect(resolvedSession.configuration.connectionProxyDictionary == nil)
+            #expect(firstSession === secondSession)
+            #expect(firstSession.configuration.connectionProxyDictionary == nil)
         }
 
         @Test(.withMockedEnvironment())
-        func deferredSharedURLSession_reuses_the_first_resolved_session() async throws {
+        func tuistShared_recreates_the_shared_session_when_runtime_settings_change() async throws {
             let environment = try #require(Environment.mocked)
             environment.variables["HTTPS_PROXY"] = "http://proxy.tuist.dev:8080"
 
             let previousSettings = HTTPSettings.current
             defer { HTTPSettings.current = previousSettings }
 
-            let deferredSession = DeferredSharedURLSession()
             HTTPSettings.current = .init(useEnvironmentProxy: false)
-            let firstSession = deferredSession.resolve()
+            let firstSession = URLSession.tuistShared
 
             HTTPSettings.current = .init(useEnvironmentProxy: true)
-            let secondSession = deferredSession.resolve()
+            let secondSession = URLSession.tuistShared
 
-            #expect(firstSession === secondSession)
-            #expect(secondSession.configuration.connectionProxyDictionary == nil)
+            #expect(firstSession !== secondSession)
+            #expect(firstSession.configuration.connectionProxyDictionary == nil)
+            #expect(
+                secondSession.configuration.connectionProxyDictionary?[kCFNetworkProxiesHTTPProxy as String] as? String
+                    == "proxy.tuist.dev"
+            )
         }
     }
 #endif

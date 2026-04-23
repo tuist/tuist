@@ -60,27 +60,49 @@ private func makeTuistURLSession(useEnvironmentProxy: Bool) -> URLSession {
     #endif
 }
 
-final class DeferredSharedURLSession: @unchecked Sendable {
+private final class SharedTuistURLSession: @unchecked Sendable {
     private let lock = NSLock()
+    private var useEnvironmentProxy: Bool?
     private var session: URLSession?
 
-    func resolve() -> URLSession {
+    func resolve(useEnvironmentProxy: Bool) -> URLSession {
+        let sessionToInvalidate: URLSession?
         lock.lock()
-        defer { lock.unlock() }
 
-        if let session {
+        if let session, self.useEnvironmentProxy == useEnvironmentProxy {
+            lock.unlock()
             return session
         }
 
-        let session = URLSession.tuistShared
+        sessionToInvalidate = session
+        let session = makeTuistURLSession(useEnvironmentProxy: useEnvironmentProxy)
+        self.useEnvironmentProxy = useEnvironmentProxy
         self.session = session
+        lock.unlock()
+        sessionToInvalidate?.invalidateAndCancel()
         return session
     }
+
+    func invalidate() {
+        let sessionToInvalidate: URLSession?
+        lock.lock()
+        useEnvironmentProxy = nil
+        sessionToInvalidate = session
+        session = nil
+        lock.unlock()
+        sessionToInvalidate?.invalidateAndCancel()
+    }
+}
+
+private let sharedTuistURLSession = SharedTuistURLSession()
+
+func invalidateSharedTuistURLSession() {
+    sharedTuistURLSession.invalidate()
 }
 
 extension URLSession {
     public static var tuistShared: URLSession {
-        makeTuistURLSession(useEnvironmentProxy: HTTPSettings.current.useEnvironmentProxy)
+        sharedTuistURLSession.resolve(useEnvironmentProxy: HTTPSettings.current.useEnvironmentProxy)
     }
 
     public static func tuistShared(useEnvironmentProxy: Bool) -> URLSession {

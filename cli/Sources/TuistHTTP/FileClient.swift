@@ -58,7 +58,6 @@ import Path
         // MARK: - Attributes
 
         private let session: URLSession?
-        private let deferredSharedSession: DeferredSharedURLSession
         private let fileSystem: FileSysteming
         private let successStatusCodeRange = 200 ..< 300
 
@@ -69,7 +68,6 @@ import Path
             fileSystem: FileSysteming = FileSystem()
         ) {
             self.session = session
-            deferredSharedSession = DeferredSharedURLSession()
             self.fileSystem = fileSystem
         }
 
@@ -149,7 +147,7 @@ import Path
         }
 
         private func resolvedSession() -> URLSession {
-            session ?? deferredSharedSession.resolve()
+            session ?? .tuistShared
         }
 
         // MARK: - HAR Recording
