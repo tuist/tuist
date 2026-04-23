@@ -1,6 +1,16 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.185.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* support config-driven network proxy opt-out by [@pepicrft](https://github.com/pepicrft) in [#10334](https://github.com/tuist/tuist/pull/10334)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.184.2...4.185.0
+
 ## What's Changed in 4.184.2<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
