@@ -29,8 +29,10 @@ Test sharding follows a two-phase workflow:
 Generate your project, build your tests, and create a shard plan:
 
 ```sh
-tuist test --shard-total 5
+tuist test --build-only --shard-total 5
 ```
+
+The `--build-only` flag tells Tuist to build the tests without running them. Tuist errors out if you pass shard planning flags (`--shard-min`/`--shard-max`/`--shard-total`) without `--build-only`.
 
 This command:
 1. Generates the Xcode project from your manifests
@@ -57,8 +59,10 @@ This command:
 Each shard runner executes its assigned tests:
 
 ```sh
-tuist test
+tuist test --without-building
 ```
+
+The `--without-building` flag tells Tuist to run the tests using the previously built products instead of rebuilding. Tuist errors out if `TUIST_SHARD_INDEX` / `--shard-index` is set without `--without-building`.
 
 ### Test options {#test-options}
 
@@ -108,7 +112,7 @@ jobs:
       - uses: jdx/mise-action@v2
       - run: tuist auth login
       - id: build
-        run: tuist test --shard-total 5
+        run: tuist test --build-only --shard-total 5
 
   test:
     name: "Shard #${{ matrix.shard }}"
@@ -125,7 +129,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: jdx/mise-action@v2
       - run: tuist auth login
-      - run: tuist test
+      - run: tuist test --without-building
 ```
 
 ### GitLab CI {#gitlab-ci}
@@ -143,7 +147,7 @@ build-shards:
   tags: [macos]
   script:
     - tuist auth login
-    - tuist test --shard-total 5
+    - tuist test --build-only --shard-total 5
   artifacts:
     paths:
       - .tuist-shard-child-pipeline.yml
@@ -164,7 +168,7 @@ test-shards:
   tags: [macos]
   script:
     - tuist auth login
-    - tuist test
+    - tuist test --without-building
 ```
 
 ### CircleCI {#circleci}
@@ -189,7 +193,7 @@ jobs:
           name: Build and plan shards
           command: |
             tuist auth login
-            tuist test --shard-total 5
+            tuist test --build-only --shard-total 5
       - continuation/continue:
           configuration_path: .circleci/continue-config.yml
           parameters: .tuist-shard-continuation.json
@@ -226,7 +230,7 @@ jobs:
           command: |
             export TUIST_SHARD_INDEX=<< parameters.shard-index >>
             tuist auth login
-            tuist test
+            tuist test --without-building
 
 workflows:
   test:
@@ -247,7 +251,7 @@ steps:
   - label: "Build test shards"
     command: |
       tuist auth login
-      tuist test --shard-total 5
+      tuist test --build-only --shard-total 5
       buildkite-agent pipeline upload .tuist-shard-pipeline.yml
     agents:
       queue: macos
@@ -259,7 +263,7 @@ Each generated step has `TUIST_SHARD_INDEX` set in its environment. Add the test
 # .buildkite/shard-step.sh
 #!/bin/bash
 tuist auth login
-tuist test
+tuist test --without-building
 ```
 
 ### Codemagic {#codemagic}
@@ -278,7 +282,7 @@ workflows:
       - name: Build and plan shards
         script: |
           tuist auth login
-          tuist test --shard-total 5
+          tuist test --build-only --shard-total 5
 
   test-shard-0: &shard-workflow
     name: "Shard #0"
@@ -291,7 +295,7 @@ workflows:
       - name: Run shard
         script: |
           tuist auth login
-          tuist test
+          tuist test --without-building
 
   test-shard-1:
     <<: *shard-workflow
@@ -358,7 +362,7 @@ workflows:
           inputs:
             - content: |
                 tuist auth login
-                tuist test --shard-total 5
+                tuist test --build-only --shard-total 5
 
   test-shard-0: &shard-workflow
     envs:
@@ -369,7 +373,7 @@ workflows:
           inputs:
             - content: |
                 tuist auth login
-                tuist test
+                tuist test --without-building
   test-shard-1:
     <<: *shard-workflow
     envs:
@@ -403,6 +407,7 @@ To use shared volumes:
 
 ```sh
 tuist test \
+  --build-only \
   --shard-total 5 \
   --shard-skip-upload \
   -- \
@@ -412,7 +417,7 @@ tuist test \
 2. In the **test phase**, pass the same `-testProductsPath` so Tuist reads the test products locally instead of downloading them:
 
 ```sh
-tuist test -- -testProductsPath /path/to/shared/volume/$UNIQUE_ID/MyScheme.xctestproducts
+tuist test --without-building -- -testProductsPath /path/to/shared/volume/$UNIQUE_ID/MyScheme.xctestproducts
 ```
 
 | Flag | Environment variable | Description |
@@ -427,6 +432,7 @@ If your CI provider already has artifact upload and download steps, you can let 
 
 ```sh
 tuist test \
+  --build-only \
   --shard-total 5 \
   --shard-archive-path /tmp/shards/${UNIQUE_ID}/bundle.aar
 ```
@@ -437,6 +443,7 @@ tuist test \
 
 ```sh
 tuist test \
+  --without-building \
   --shard-archive-path /tmp/shards/${UNIQUE_ID}/bundle.aar
 ```
 
@@ -467,7 +474,7 @@ jobs:
       - uses: jdx/mise-action@v2
       - run: tuist auth login
       - id: build
-        run: tuist test --shard-total 5
+        run: tuist test --build-only --shard-total 5
       - uses: actions/upload-artifact@v4
         with:
           name: test-shard-archive
@@ -494,7 +501,7 @@ jobs:
         with:
           name: test-shard-archive
           path: /tmp/shards/${{ github.run_id }}
-      - run: tuist test
+      - run: tuist test --without-building
       - if: always()
         run: rm -rf /tmp/shards/${{ github.run_id }}
 ```
