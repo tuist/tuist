@@ -6,6 +6,18 @@ import Testing
 @testable import TuistTesting
 
 struct EnvironmentTests {
+    @Test() func isSwiftFileSystemBackendEnabled_isEnabledByDefault() {
+        let subject = Environment(variables: [:])
+
+        #expect(subject.isSwiftFileSystemBackendEnabled)
+    }
+
+    @Test() func isSwiftFileSystemBackendEnabled_isDisabledWhenUsingAnyOtherValue() {
+        let subject = Environment(variables: ["TUIST_FILESYSTEM_BACKEND": "legacy"])
+
+        #expect(!subject.isSwiftFileSystemBackendEnabled)
+    }
+
     // MARK: - Cache Directory Tests
 
     @Test() func cacheDirectory_withTuistXDGCacheHome() throws {
