@@ -24,7 +24,7 @@
       & > [data-part="title"] {
         display: flex;
         flex-direction: row;
-        align-items: flex-start;
+        align-items: center;
         gap: var(--noora-spacing-4);
 
         & > [data-part="badge-success"] {
@@ -91,6 +91,10 @@
       flex-direction: row;
       gap: var(--noora-spacing-4);
     }
+  }
+
+  & .noora-dropdown-item:not([data-selected]) [data-part="right-icon"] svg {
+    visibility: hidden;
   }
 
   & [data-part="test-case-details-section"] {

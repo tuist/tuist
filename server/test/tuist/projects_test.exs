@@ -6,6 +6,7 @@ defmodule Tuist.ProjectsTest do
   alias Tuist.Accounts
   alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Accounts.ProjectAccount
+  alias Tuist.Automations
   alias Tuist.Base64
   alias Tuist.Projects
   alias Tuist.Projects.ProjectToken
@@ -170,6 +171,64 @@ defmodule Tuist.ProjectsTest do
     test "returns project and account handles" do
       assert {:ok, %{account_handle: "tuist-org", project_handle: "tuist"}} ==
                Projects.get_project_and_account_handles_from_full_handle("tuist-org/tuist")
+    end
+  end
+
+  describe "create_project/2" do
+    test "seeds a default 'Flaky test detection' alert" do
+      # Given
+      organization = AccountsFixtures.organization_fixture()
+      account = Accounts.get_account_from_organization(organization)
+
+      # When
+      {:ok, project} =
+        Projects.create_project(%{name: "flaky-demo", account: %{id: account.id}})
+
+      # Then
+      alerts = Automations.list_alerts(project.id)
+      assert [alert] = alerts
+      assert alert.name == "Flaky test detection"
+      assert alert.enabled == true
+      assert alert.monitor_type == "flaky_run_count"
+      assert alert.trigger_actions == [%{"type" => "add_label", "label" => "flaky"}]
+      assert alert.recovery_enabled == true
+      assert alert.recovery_actions == [%{"type" => "remove_label", "label" => "flaky"}]
+    end
+
+    test "rolls back the project insert if alert seeding fails" do
+      # Given: simulate a seeding failure by stubbing default_alert_attrs
+      # with an invalid monitor type so the changeset is rejected. The whole
+      # transaction must roll back — we don't want a project created without
+      # its alert.
+      organization = AccountsFixtures.organization_fixture()
+      account = Accounts.get_account_from_organization(organization)
+      count_before = Projects.get_projects_count()
+
+      Mimic.stub(Automations, :default_alert_attrs, fn project_id ->
+        %{project_id: project_id, name: "Bad", monitor_type: "nope", trigger_actions: []}
+      end)
+
+      # When
+      assert {:error, _changeset} =
+               Projects.create_project(%{name: "flaky-demo", account: %{id: account.id}})
+
+      # Then: no new project was persisted
+      assert Projects.get_projects_count() == count_before
+    end
+  end
+
+  describe "create_project!/2" do
+    test "seeds a default 'Flaky test detection' alert" do
+      # Given
+      organization = AccountsFixtures.organization_fixture()
+      account = Accounts.get_account_from_organization(organization)
+
+      # When
+      project =
+        Projects.create_project!(%{name: "flaky-demo", account: %{id: account.id}})
+
+      # Then
+      assert [_alert] = Automations.list_alerts(project.id)
     end
   end
 
