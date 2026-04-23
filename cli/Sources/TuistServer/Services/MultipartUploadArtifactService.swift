@@ -5,7 +5,6 @@ import FileSystem
 import Foundation
 import Mockable
 import Path
-import TuistHTTP
 import TuistThreadSafe
 
 public struct MultipartUploadArtifactPart {
