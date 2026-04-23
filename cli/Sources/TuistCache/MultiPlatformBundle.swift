@@ -70,10 +70,6 @@ public enum MultiPlatformBundle {
         }
     }
 
-    public static func isMultiPlatformBundle(path: AbsolutePath) -> Bool {
-        path.extension == bundleExtension
-    }
-
     public static func readManifest(
         at wrapperPath: AbsolutePath,
         fileSystem: FileSysteming
