@@ -430,6 +430,17 @@
     </div>
   </.card>
   <.card title={dgettext("dashboard_tests", "Test Cases")} icon="exchange" data-part="test-cases">
+    <.card_section data-part="totals-section">
+      <div data-part="legends">
+        <.skeleton_legend :if={!@total_test_cases_count.ok?} />
+        <.legend
+          :if={@total_test_cases_count.ok?}
+          title={dgettext("dashboard_tests", "Total Tests")}
+          value={@total_test_cases_count.result}
+          style="secondary"
+        />
+      </div>
+    </.card_section>
     <.card_section data-part="test-cases-section">
       <div data-part="filters">
         <.form for={%{}} phx-change="search-test-cases" phx-debounce="200">

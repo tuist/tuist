@@ -406,6 +406,9 @@ defmodule TuistWeb.TestCasesLive do
       end,
       reset: true
     )
+    |> assign_async(:total_test_cases_count, fn ->
+      {:ok, %{total_test_cases_count: Tests.project_test_cases_count(project.id)}}
+    end)
   end
 
   defp parse_page(nil), do: 1

@@ -244,6 +244,15 @@ defmodule TuistWeb.FlakyTestsLive do
     |> assign_async(:flaky_runs_analytics, fn ->
       {:ok, %{flaky_runs_analytics: Analytics.test_run_analytics(project.id, Keyword.put(opts, :is_flaky, true))}}
     end)
+    |> assign_async(:test_cases_totals, fn ->
+      {:ok,
+       %{
+         test_cases_totals: %{
+           flaky_count: Tests.project_flaky_test_cases_count(project.id),
+           total_count: Tests.project_test_cases_count(project.id)
+         }
+       }}
+    end)
   end
 
   defp environment_label("any"), do: dgettext("dashboard_tests", "Any")

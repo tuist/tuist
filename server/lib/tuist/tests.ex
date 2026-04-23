@@ -111,6 +111,26 @@ defmodule Tuist.Tests do
     ) || 0
   end
 
+  def project_test_cases_count(project_id) do
+    ClickHouseRepo.one(
+      from(tc in TestCase,
+        hints: ["FINAL"],
+        where: tc.project_id == ^project_id,
+        select: count()
+      )
+    ) || 0
+  end
+
+  def project_flaky_test_cases_count(project_id) do
+    ClickHouseRepo.one(
+      from(tc in TestCase,
+        hints: ["FINAL"],
+        where: tc.project_id == ^project_id and tc.is_flaky == true,
+        select: count()
+      )
+    ) || 0
+  end
+
   def project_test_schemes(%Project{} = project) do
     thirty_days_ago = DateTime.add(DateTime.utc_now(), -30, :day)
 

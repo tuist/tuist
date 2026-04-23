@@ -124,6 +124,20 @@ defmodule TuistWeb.TestCasesLiveTest do
       # Then - page should load successfully with default sort
       assert has_element?(lv, "[data-part='test-cases']")
     end
+
+    test "renders total test cases legend", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      # When
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-cases")
+
+      # Then
+      html = render_async(lv)
+      assert html =~ "Total Tests"
+    end
   end
 
   defp create_test_run_with_cases(project, account) do

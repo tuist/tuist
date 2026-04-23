@@ -132,6 +132,28 @@ defmodule TuistWeb.FlakyTestsLiveTest do
       assert has_element?(lv, "#flaky-tests-table", "testRecentFlaky")
       refute has_element?(lv, "#flaky-tests-table", "testOldFlaky")
     end
+
+    test "renders flaky tests and total tests totals", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      # Given
+      recent = NaiveDateTime.add(NaiveDateTime.utc_now(), -60)
+      create_flaky_test_case(project, "testFlakyOne", ran_at: recent)
+      create_flaky_test_case(project, "testFlakyTwo", ran_at: recent)
+      create_non_flaky_test_case(project, "testPassing")
+      RunsFixtures.optimize_test_case_runs()
+
+      # When
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/flaky-tests")
+
+      # Then
+      html = render_async(lv)
+      assert html =~ "Flaky Tests"
+      assert html =~ "Total Tests"
+    end
   end
 
   defp create_flaky_test_case(project, name, opts) do
@@ -145,6 +167,14 @@ defmodule TuistWeb.FlakyTestsLiveTest do
         opts
       )
     )
+
+    test_case
+  end
+
+  defp create_non_flaky_test_case(project, name) do
+    test_case = RunsFixtures.test_case_fixture(project_id: project.id, name: name, is_flaky: false)
+
+    IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
 
     test_case
   end

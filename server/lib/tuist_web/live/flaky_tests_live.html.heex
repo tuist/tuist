@@ -87,6 +87,24 @@
         </:actions>
       </.date_picker>
     </:actions>
+    <.card_section data-part="totals-section">
+      <div data-part="legends">
+        <.skeleton_legend :if={!@test_cases_totals.ok?} />
+        <.skeleton_legend :if={!@test_cases_totals.ok?} />
+        <.legend
+          :if={@test_cases_totals.ok?}
+          title={dgettext("dashboard_tests", "Flaky Tests")}
+          value={@test_cases_totals.result.flaky_count}
+          style="flaky"
+        />
+        <.legend
+          :if={@test_cases_totals.ok?}
+          title={dgettext("dashboard_tests", "Total Tests")}
+          value={@test_cases_totals.result.total_count}
+          style="secondary"
+        />
+      </div>
+    </.card_section>
     <.card_section
       :if={!@flaky_runs_analytics.ok?}
       data-part="analytics-chart-section-skeleton"
