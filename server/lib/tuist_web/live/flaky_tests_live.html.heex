@@ -134,7 +134,7 @@
               do: format_number(@flaky_runs_analytics.result.count)
           }
           id="widget-flaky-runs"
-          legend_color="flaky"
+          legend_color="primary"
           trend_value={
             if @flaky_runs_analytics.ok?,
               do: @flaky_runs_analytics.result.trend,
@@ -225,7 +225,11 @@
           }
           series={[
             %{
-              color: "var:noora-chart-flaky",
+              color:
+                case @analytics_selected_widget do
+                  "flaky_tests" -> "var:noora-chart-flaky"
+                  _ -> "var:noora-chart-primary"
+                end,
               data:
                 case @analytics_selected_widget do
                   "flaky_tests" ->

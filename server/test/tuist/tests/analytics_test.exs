@@ -2006,7 +2006,7 @@ defmodule Tuist.Tests.AnalyticsTest do
   end
 
   describe "flaky_tests_analytics/2" do
-    test "returns zero when no flaky events exist" do
+    test "returns zero when no flaky runs exist" do
       # Given
       stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:00:00Z] end)
       project = ProjectsFixtures.project_fixture()
@@ -2024,31 +2024,28 @@ defmodule Tuist.Tests.AnalyticsTest do
       assert Enum.all?(got.values, &(&1 == 0))
     end
 
-    test "tracks marked_flaky / unmarked_flaky events across the period" do
+    test "counts distinct flaky test cases within the 14-day window and drops when runs stop" do
       # Given
       stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:00:00Z] end)
       project = ProjectsFixtures.project_fixture()
 
-      test_case =
-        RunsFixtures.test_case_fixture(
-          project_id: project.id,
-          is_flaky: false,
-          inserted_at: ~N[2024-04-01 00:00:00.000000]
-        )
+      tc_a_id = UUIDv7.generate()
+      tc_b_id = UUIDv7.generate()
 
-      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
-
-      # Marked flaky on April 10, unmarked on April 20
-      RunsFixtures.test_case_event_fixture(
-        test_case_id: test_case.id,
-        event_type: "marked_flaky",
-        inserted_at: ~N[2024-04-10 12:00:00.000000]
+      # Test case A: flaky run on April 5 only (active April 5 → April 19)
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: tc_a_id,
+        is_flaky: true,
+        ran_at: ~N[2024-04-05 09:00:00.000000]
       )
 
-      RunsFixtures.test_case_event_fixture(
-        test_case_id: test_case.id,
-        event_type: "unmarked_flaky",
-        inserted_at: ~N[2024-04-20 12:00:00.000000]
+      # Test case B: non-flaky run on April 10 (should never be counted)
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: tc_b_id,
+        is_flaky: false,
+        ran_at: ~N[2024-04-10 09:00:00.000000]
       )
 
       # When
@@ -2060,13 +2057,15 @@ defmodule Tuist.Tests.AnalyticsTest do
         )
 
       # Then
-      april_5_index = Enum.find_index(got.dates, &(&1 == ~D[2024-04-05]))
-      april_15_index = Enum.find_index(got.dates, &(&1 == ~D[2024-04-15]))
+      april_4_index = Enum.find_index(got.dates, &(&1 == ~D[2024-04-04]))
+      april_10_index = Enum.find_index(got.dates, &(&1 == ~D[2024-04-10]))
       april_25_index = Enum.find_index(got.dates, &(&1 == ~D[2024-04-25]))
 
-      assert Enum.at(got.values, april_5_index) == 0
-      assert Enum.at(got.values, april_15_index) == 1
+      assert Enum.at(got.values, april_4_index) == 0
+      assert Enum.at(got.values, april_10_index) == 1
       assert Enum.at(got.values, april_25_index) == 0
+
+      assert got.count == Enum.at(got.values, -1)
     end
   end
 
