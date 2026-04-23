@@ -6,6 +6,9 @@ All notable changes to this project will be documented in this file.
 ### ⛰️  Features
 
 * support config-driven network proxy opt-out by [@pepicrft](https://github.com/pepicrft) in [#10334](https://github.com/tuist/tuist/pull/10334)
+### 🐛 Bug Fixes
+
+* skip result bundle upload when --inspect-mode local by [@fortmarek](https://github.com/fortmarek) in [#10401](https://github.com/tuist/tuist/pull/10401)
 
 
 
