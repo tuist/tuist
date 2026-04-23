@@ -21,21 +21,19 @@ defmodule TuistWeb.API.CacheController do
     render_error: TuistWeb.RenderAPIErrorPlug
   )
 
-  plug(TuistWeb.Plugs.LoaderPlug when action not in [:endpoints])
+  plug TuistWeb.Plugs.LoaderPlug when action not in [:endpoints]
 
-  plug(
-    TuistWeb.API.Authorization.AuthorizationPlug,
-    [
-      category: :cache,
-      caching: true,
-      cache_ttl: to_timeout(minute: 1)
-    ]
-    when action not in [:endpoints]
-  )
+  plug TuistWeb.API.Authorization.AuthorizationPlug,
+       [
+         category: :cache,
+         caching: true,
+         cache_ttl: to_timeout(minute: 1)
+       ]
+       when action not in [:endpoints]
 
-  plug(TuistWeb.API.Authorization.BillingPlug when action not in [:endpoints])
+  plug TuistWeb.API.Authorization.BillingPlug when action not in [:endpoints]
 
-  plug(:sign)
+  plug :sign
 
   tags(["Cache"])
 
