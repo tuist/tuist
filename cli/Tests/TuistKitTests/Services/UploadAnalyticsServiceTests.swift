@@ -81,7 +81,11 @@ struct UploadAnalyticsServiceTests {
             .cacheDirectory(for: .value(.runs))
             .willReturn(temporaryDirectory)
 
-        let event = CommandEvent.test()
+        let resultBundle = temporaryDirectory
+            .appending(components: "some-run-id", "\(Constants.resultBundleName).xcresult")
+        try await fileSystem.makeDirectory(at: resultBundle)
+
+        let event = CommandEvent.test(resultBundlePath: resultBundle)
         let eventID = UUID().uuidString
         let serverCommandEvent: ServerCommandEvent = .test(id: eventID)
 
@@ -96,10 +100,6 @@ struct UploadAnalyticsServiceTests {
         given(fullHandleService)
             .parse(.value(fullHandle))
             .willReturn(("tuist-org", "tuist"))
-
-        let resultBundle = temporaryDirectory
-            .appending(components: event.runId, "\(Constants.resultBundleName).xcresult")
-        try await fileSystem.makeDirectory(at: resultBundle)
 
         given(analyticsArtifactUploadService)
             .uploadAndAnalyzeResultBundle(
@@ -122,6 +122,57 @@ struct UploadAnalyticsServiceTests {
         #expect(got == serverCommandEvent)
         let exists = try await fileSystem.exists(resultBundle)
         #expect(exists == false)
+    }
+
+    @Test(.inTemporaryDirectory) func upload_does_not_upload_result_bundle_when_path_is_nil() async throws {
+        // Given — exercises the "local processing" contract: nil resultBundlePath
+        //         signals that no upload should happen, even if a bundle exists at
+        //         the conventional location.
+        let fileSystem = FileSystem()
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+
+        given(cacheDirectoriesProvider)
+            .cacheDirectory(for: .value(.runs))
+            .willReturn(temporaryDirectory)
+
+        let event = CommandEvent.test(resultBundlePath: nil)
+        let conventionalBundlePath = temporaryDirectory
+            .appending(components: event.runId, "\(Constants.resultBundleName).xcresult")
+        try await fileSystem.makeDirectory(at: conventionalBundlePath)
+
+        let serverCommandEvent: ServerCommandEvent = .test(id: UUID().uuidString)
+
+        given(createCommandEventService)
+            .createCommandEvent(
+                commandEvent: .value(event),
+                projectId: .value(fullHandle),
+                serverURL: .value(serverURL)
+            )
+            .willReturn(serverCommandEvent)
+
+        given(fullHandleService)
+            .parse(.value(fullHandle))
+            .willReturn(("tuist-org", "tuist"))
+
+        // When
+        _ = try await subject.upload(
+            commandEvent: event,
+            fullHandle: fullHandle,
+            serverURL: serverURL
+        )
+
+        // Then
+        verify(analyticsArtifactUploadService)
+            .uploadAndAnalyzeResultBundle(
+                .any,
+                accountHandle: .any,
+                projectHandle: .any,
+                commandEventId: .any,
+                serverURL: .any
+            )
+            .called(0)
+        let exists = try await fileSystem.exists(conventionalBundlePath)
+        #expect(exists == true)
     }
 
     @Test(.inTemporaryDirectory) func upload_does_not_upload_result_bundle_when_not_exists() async throws {

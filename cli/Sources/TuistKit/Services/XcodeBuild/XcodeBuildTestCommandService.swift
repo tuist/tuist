@@ -130,6 +130,9 @@ struct XcodeBuildTestCommandService {
         }
 
         let resultBundlePath = await RunMetadataStorage.current.resultBundlePath
+        if mode == .local {
+            await RunMetadataStorage.current.update(resultBundlePath: nil)
+        }
 
         let quarantinedTests = await testQuarantineService.quarantinedTests(config: config, skipQuarantine: skipQuarantine)
 

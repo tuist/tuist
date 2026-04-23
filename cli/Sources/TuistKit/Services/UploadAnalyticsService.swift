@@ -2,7 +2,6 @@ import FileSystem
 import Foundation
 import Mockable
 import Path
-import TuistConstants
 import TuistCore
 import TuistHTTP
 import TuistServer
@@ -48,9 +47,6 @@ public struct UploadAnalyticsService: UploadAnalyticsServicing {
         sessionDirectory: AbsolutePath? = nil
     ) async throws -> ServerCommandEvent {
         let runsDirectory = try cacheDirectoriesProvider.cacheDirectory(for: .runs)
-        let runDirectory = runsDirectory.appending(component: commandEvent.runId)
-        let resultBundlePath = commandEvent.resultBundlePath
-            ?? runDirectory.appending(component: "\(Constants.resultBundleName).xcresult")
 
         let serverCommandEvent = try await createCommandEventService.createCommandEvent(
             commandEvent: commandEvent,
@@ -60,7 +56,9 @@ public struct UploadAnalyticsService: UploadAnalyticsServicing {
 
         let (accountHandle, projectHandle) = try fullHandleService.parse(fullHandle)
 
-        if try await fileSystem.exists(resultBundlePath) {
+        if let resultBundlePath = commandEvent.resultBundlePath,
+           try await fileSystem.exists(resultBundlePath)
+        {
             try await analyticsArtifactUploadService.uploadAndAnalyzeResultBundle(
                 resultBundlePath,
                 accountHandle: accountHandle,
@@ -68,12 +66,10 @@ public struct UploadAnalyticsService: UploadAnalyticsServicing {
                 commandEventId: serverCommandEvent.id,
                 serverURL: serverURL
             )
-        }
 
-        if resultBundlePath.parentDirectory.commonAncestor(with: runsDirectory) == runsDirectory,
-           try await fileSystem.exists(resultBundlePath)
-        {
-            try await fileSystem.remove(resultBundlePath)
+            if resultBundlePath.parentDirectory.commonAncestor(with: runsDirectory) == runsDirectory {
+                try await fileSystem.remove(resultBundlePath)
+            }
         }
 
         if let sessionDirectory, try await fileSystem.exists(sessionDirectory) {
