@@ -1,0 +1,5 @@
+# Temporary files and local runtime state.
+/tmp/
+/log/
+/data/
+/target/

@@ -1,0 +1,20 @@
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+
+scrape_configs:
+  - job_name: kura
+    static_configs:
+      - targets: ["kura-us:4000"]
+        labels:
+          region: us-east
+      - targets: ["kura-eu:4000"]
+        labels:
+          region: eu-west
+      - targets: ["kura-ap:4000"]
+        labels:
+          region: ap-south
+
+  - job_name: tempo
+    static_configs:
+      - targets: ["tempo:3200"]
