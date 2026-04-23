@@ -13,4 +13,5 @@ This module handles CLI integration with the cache service and cache features.
 ## Invariants
 - Only cacheable products are hashed (frameworks, static frameworks, bundles, macros).
 - Targets that depend on XCTest are excluded from cache hashing.
+- Targets whose Swift sources use `@testable import` are excluded from cache hashing.
 - Cache version bumps invalidate incompatible artifacts.

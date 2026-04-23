@@ -1,3 +1,5 @@
+import FileSystem
+import FileSystemTesting
 import Foundation
 import Mockable
 import Testing
@@ -175,6 +177,80 @@ struct CacheGraphContentHasherTests {
                 for: .any,
                 include: .matching { filter in
                     filter(includedTarget) && !filter(excludedTarget) && !filter(excludedTargetResource)
+                },
+                destination: .any,
+                additionalStrings: .any
+            )
+            .called(1)
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
+    ) func contentHashes_when_target_contains_testable_import_hashes_are_not_computed() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let includedSource = temporaryDirectory.appending(component: "Included.swift")
+        let testableImportSource = temporaryDirectory.appending(component: "TestSupport.swift")
+        try await FileSystem().writeText("import Foundation\n", at: includedSource)
+        try await FileSystem().writeText("@testable import ApolloAPI\n", at: testableImportSource)
+
+        let included = Target.test(name: "Included", product: .framework, sources: [SourceFile(path: includedSource)])
+        let testSupport = Target.test(
+            name: "TestSupport",
+            product: .framework,
+            sources: [SourceFile(path: testableImportSource)]
+        )
+        let project = Project.test(
+            path: "/Project/Path",
+            targets: [included, testSupport]
+        )
+        let includedTarget = GraphTarget(
+            path: project.path,
+            target: project.targets["Included"]!,
+            project: project
+        )
+        let testableImportTarget = GraphTarget(
+            path: project.path,
+            target: project.targets["TestSupport"]!,
+            project: project
+        )
+        let graph = Graph.test(
+            path: project.path,
+            projects: [
+                project.path: project,
+            ]
+        )
+
+        given(graphContentHasher)
+            .contentHashes(
+                for: .any,
+                include: .any,
+                destination: .any,
+                additionalStrings: .any
+            )
+            .willReturn([:])
+        given(defaultConfigurationFetcher)
+            .fetch(configuration: .any, defaultConfiguration: .any, graph: .any)
+            .willReturn("Debug")
+        let swiftVersionProviderMock = try #require(SwiftVersionProvider.mocked)
+        given(swiftVersionProviderMock).swiftlangVersion().willReturn("5.10.0")
+
+        // When
+        _ = try await subject.contentHashes(
+            for: graph,
+            configuration: "Debug",
+            defaultConfiguration: nil,
+            excludedTargets: [],
+            destination: nil
+        )
+
+        // Then
+        verify(graphContentHasher)
+            .contentHashes(
+                for: .any,
+                include: .matching { filter in
+                    filter(includedTarget) && !filter(testableImportTarget)
                 },
                 destination: .any,
                 additionalStrings: .any

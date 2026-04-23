@@ -25,6 +25,7 @@ public struct CacheGraphContentHasher: CacheGraphContentHashing {
     private let contentHasher: ContentHashing
     private let versionFetcher: CacheVersionFetching
     private static let cachableProducts: Set<Product> = [.framework, .staticFramework, .bundle, .macro]
+    private static let testableImportPattern = #"(?m)^\s*@testable\s+import\b"#
     private let defaultConfigurationFetcher: DefaultConfigurationFetching
     private let fileSystem: FileSysteming
 
@@ -75,6 +76,10 @@ public struct CacheGraphContentHasher: CacheGraphContentHashing {
             defaultConfiguration: defaultConfiguration,
             graph: graph
         )
+        let testableImportTargets = try await testableImportTargets(
+            graphTraverser: graphTraverser,
+            excludedTargets: excludedTargets
+        )
 
         let hashes = try await graphContentHasher.contentHashes(
             for: graph,
@@ -82,7 +87,8 @@ public struct CacheGraphContentHasher: CacheGraphContentHashing {
                 isGraphTargetHashable(
                     $0,
                     graphTraverser: graphTraverser,
-                    excludedTargets: excludedTargets
+                    excludedTargets: excludedTargets,
+                    testableImportTargets: testableImportTargets
                 )
             },
             destination: destination,
@@ -99,7 +105,8 @@ public struct CacheGraphContentHasher: CacheGraphContentHashing {
     private func isGraphTargetHashable(
         _ target: GraphTarget,
         graphTraverser: GraphTraversing,
-        excludedTargets: Set<String>
+        excludedTargets: Set<String>,
+        testableImportTargets: Set<GraphTarget>
     ) -> Bool {
         let product = target.target.product
         let name = target.target.name
@@ -109,11 +116,57 @@ public struct CacheGraphContentHasher: CacheGraphContentHashing {
             .contains(target.target.name.dropPrefix("\(target.project.name)_"))
         let dependsOnXCTest = graphTraverser.dependsOnXCTest(path: target.path, name: name)
         let isHashableProduct = CacheGraphContentHasher.cachableProducts.contains(product)
+        let containsTestableImports = testableImportTargets.contains(target)
 
-        return isHashableProduct && !isExcluded && !dependsOnXCTest
+        return isHashableProduct && !isExcluded && !dependsOnXCTest && !containsTestableImports
     }
 
     private func isMacro(_ target: GraphTarget, graphTraverser: GraphTraversing) -> Bool {
         !graphTraverser.directSwiftMacroExecutables(path: target.path, name: target.target.name).isEmpty
+    }
+
+    private func testableImportTargets(
+        graphTraverser: GraphTraversing,
+        excludedTargets: Set<String>
+    ) async throws -> Set<GraphTarget> {
+        let candidates = Array(graphTraverser.allTargets().filter { target in
+            isHashableCandidate(target, graphTraverser: graphTraverser, excludedTargets: excludedTargets)
+        })
+        let maxConcurrentTasks = Environment.current.isSwiftFileSystemBackendEnabled ? Int.max : 100
+        let matches = try await candidates.concurrentCompactMap(maxConcurrentTasks: maxConcurrentTasks) { target in
+            try await containsTestableImports(in: target.target) ? target : nil
+        }
+
+        return Set(matches.compactMap { $0 })
+    }
+
+    private func isHashableCandidate(
+        _ target: GraphTarget,
+        graphTraverser: GraphTraversing,
+        excludedTargets: Set<String>
+    ) -> Bool {
+        let product = target.target.product
+        let name = target.target.name
+        let isExcluded = excludedTargets.contains(name) || excludedTargets
+            .contains(target.target.name.dropPrefix("\(target.project.name)_"))
+        let dependsOnXCTest = graphTraverser.dependsOnXCTest(path: target.path, name: name)
+        let isHashableProduct = CacheGraphContentHasher.cachableProducts.contains(product)
+
+        return isHashableProduct && !isExcluded && !dependsOnXCTest
+    }
+
+    private func containsTestableImports(in target: Target) async throws -> Bool {
+        let sourceFiles = (target.sources.map(\.path) + target.buildableFolders.flatMap(\.resolvedFiles).map(\.path))
+            .filter { $0.extension == "swift" }
+
+        for sourceFile in sourceFiles {
+            guard try await fileSystem.exists(sourceFile) else { continue }
+            let sourceCode = try await fileSystem.readTextFile(at: sourceFile)
+            if sourceCode.range(of: CacheGraphContentHasher.testableImportPattern, options: .regularExpression) != nil {
+                return true
+            }
+        }
+
+        return false
     }
 }
