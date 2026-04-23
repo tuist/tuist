@@ -5938,9 +5938,11 @@ struct PackageInfoMapperTests {
         .withMockedSwiftVersionProvider
     ) func map_whenDependencyUsesDefaultTrait_includesHummingbirdConfigurationDependency() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
-        try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "hummingbird/Sources/HummingbirdCore")))
+        try await fileSystem
+            .makeDirectory(at: basePath.appending(try RelativePath(validating: "hummingbird/Sources/HummingbirdCore")))
         try await fileSystem.touch(
-            basePath.appending(try RelativePath(validating: "hummingbird/Sources/HummingbirdCore/HTTP1Channel+ConfigReader.swift"))
+            basePath
+                .appending(try RelativePath(validating: "hummingbird/Sources/HummingbirdCore/HTTP1Channel+ConfigReader.swift"))
         )
         try await fileSystem.makeDirectory(
             at: basePath.appending(try RelativePath(validating: "swift-configuration/Sources/Configuration"))
