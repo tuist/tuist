@@ -101,6 +101,8 @@ defmodule Cache.Registry.KeyNormalizerTest do
       assert KeyNormalizer.valid_semver?("v1.2.3")
       assert KeyNormalizer.valid_semver?("1.2")
       assert KeyNormalizer.valid_semver?("1.0.0-alpha.1")
+      assert KeyNormalizer.valid_semver?("1.0.0-alpha.1.2")
+      assert KeyNormalizer.valid_semver?("1.0.0-alpha+1+2")
     end
 
     test "rejects non-semantic versions" do

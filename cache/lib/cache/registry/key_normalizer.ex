@@ -7,7 +7,7 @@ defmodule Cache.Registry.KeyNormalizer do
   synchronization via S3TransferWorker.
   """
 
-  @semver_regex ~r/^\d+\.\d+(\.\d+)?(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$/
+  @semver_regex ~r/^\d+\.\d+(\.\d+)?(-[0-9A-Za-z-]+([.+][0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$/
 
   @doc """
   Normalizes a scope by downcasing it.

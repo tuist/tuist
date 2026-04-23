@@ -473,6 +473,31 @@ defmodule CacheWeb.RegistryControllerTest do
       assert response["version"] == "1.0.0"
     end
 
+    test "normalizes multi-segment prereleases before lookup", %{conn: conn} do
+      scope = "apple"
+      name = "swift-argument-parser"
+
+      metadata = %{
+        "scope" => scope,
+        "name" => name,
+        "releases" => %{
+          "1.2.3-alpha+1+2" => %{"checksum" => "abc123"}
+        }
+      }
+
+      expect(Metadata, :get_package, fn ^scope, ^name -> {:ok, metadata} end)
+
+      conn =
+        conn
+        |> registry_json_conn()
+        |> get("/api/registry/swift/#{scope}/#{name}/1.2.3-alpha.1.2")
+
+      assert conn.status == 200
+
+      response = json_response(conn, :ok)
+      assert response["version"] == "1.2.3-alpha+1+2"
+    end
+
     test "returns 404 when version not found", %{conn: conn} do
       scope = "apple"
       name = "swift-argument-parser"
@@ -698,8 +723,7 @@ defmodule CacheWeb.RegistryControllerTest do
       expect(S3Transfers, :enqueue_registry_download, fn _key -> {:ok, %{}} end)
 
       expect(S3, :presign_download_url, fn _key, _opts ->
-        {:ok,
-         "https://s3.example.com/registry/swift/apple/swift-argument-parser/1.0.0/source_archive.zip?signed=true"}
+        {:ok, "https://s3.example.com/registry/swift/apple/swift-argument-parser/1.0.0/source_archive.zip?signed=true"}
       end)
 
       expect(S3, :remote_accel_path, fn _url ->
@@ -802,8 +826,7 @@ defmodule CacheWeb.RegistryControllerTest do
       expect(S3, :exists?, fn _key, _opts -> true end)
 
       expect(S3, :presign_download_url, fn _key, _opts ->
-        {:ok,
-         "https://s3.example.com/registry/swift/apple/swift-argument-parser/1.0.0/source_archive.zip?signed=true"}
+        {:ok, "https://s3.example.com/registry/swift/apple/swift-argument-parser/1.0.0/source_archive.zip?signed=true"}
       end)
 
       expect(S3, :remote_accel_path, fn _url ->
@@ -969,8 +992,7 @@ defmodule CacheWeb.RegistryControllerTest do
       expect(S3Transfers, :enqueue_registry_download, fn _key -> {:ok, %{}} end)
 
       expect(S3, :presign_download_url, fn _key, _opts ->
-        {:ok,
-         "https://s3.example.com/registry/swift/apple/swift-argument-parser/1.0.0/Package.swift?signed=true"}
+        {:ok, "https://s3.example.com/registry/swift/apple/swift-argument-parser/1.0.0/Package.swift?signed=true"}
       end)
 
       expect(S3, :remote_accel_path, fn _url ->
@@ -1238,8 +1260,7 @@ defmodule CacheWeb.RegistryControllerTest do
       reject(CacheArtifacts, :track_artifact_access, 1)
 
       expect(S3, :presign_download_url, fn _key, _opts ->
-        {:ok,
-         "https://s3.example.com/registry/swift/apple/swift-argument-parser/1.0.0/Package.swift?signed=true"}
+        {:ok, "https://s3.example.com/registry/swift/apple/swift-argument-parser/1.0.0/Package.swift?signed=true"}
       end)
 
       expect(S3, :remote_accel_path, fn _url ->

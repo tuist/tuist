@@ -71,6 +71,47 @@ defmodule Cache.Registry.SyncWorkerTest do
     )
   end
 
+  test "enqueues release workers for multi-segment prereleases" do
+    expect(Lock, :try_acquire, 2, fn
+      :sync, _ -> {:ok, :acquired}
+      {:package, "apple", "swift-argument-parser"}, _ -> {:ok, :acquired}
+    end)
+
+    expect(SwiftPackageIndex, :list_packages, fn "token" ->
+      {:ok,
+       [
+         %{
+           scope: "apple",
+           name: "swift-argument-parser",
+           repository_full_handle: "apple/swift-argument-parser"
+         }
+       ]}
+    end)
+
+    expect(SyncCursor, :get, fn -> 0 end)
+    expect(SyncCursor, :put, fn 0 -> :ok end)
+
+    expect(Metadata, :get_package, fn "apple", "swift-argument-parser" -> {:error, :not_found} end)
+
+    expect(Metadata, :put_package, fn "apple", "swift-argument-parser", _metadata -> :ok end)
+
+    expect(TuistCommon.GitHub, :list_tags, fn "apple/swift-argument-parser", "token", _ ->
+      {:ok, ["1.2.3-alpha.1.2"]}
+    end)
+
+    assert :ok = SyncWorker.perform(%Oban.Job{args: %{}})
+
+    assert_enqueued(
+      worker: ReleaseWorker,
+      args: %{
+        "scope" => "apple",
+        "name" => "swift-argument-parser",
+        "repository_full_handle" => "apple/swift-argument-parser",
+        "tag" => "1.2.3-alpha.1.2"
+      }
+    )
+  end
+
   test "does not enqueue release workers for skipped versions" do
     expect(Lock, :try_acquire, 2, fn
       :sync, _ -> {:ok, :acquired}
