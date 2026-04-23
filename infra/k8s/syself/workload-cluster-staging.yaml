@@ -12,10 +12,13 @@
 #     snapshot (disk_size=80) — cpx11's 40 GB disk is rejected by the
 #     Hetzner API, and the cheaper cpx21 (older Intel gen) is frequently
 #     out of stock in fsn1-dc14. Three CPs cost ~€27/mo combined.
-#   - Worker: 1 × cpx22 (cloud, 2 vCPU / 4 GB / 80 GB, ~€9/mo). Shared
-#     vCPU, matching the control plane. Plenty for a low-traffic Phoenix
-#     server; canary will reuse this shape. Production gets a real
-#     Hetzner Robot AX41-NVMe bare-metal worker later.
+#   - Workers: 2 × cpx22 (cloud, 2 vCPU / 4 GB / 80 GB each, ~€18/mo).
+#     A single worker ends up memory-saturated by system pods
+#     (cilium-operator, hubble, CSI controllers, metrics-server, ESO,
+#     Alloy) before the Phoenix server can schedule, so two is the
+#     minimum viable shape. Also gives soft-HA in case one node dies.
+#     Canary will reuse this shape; production gets real Hetzner Robot
+#     AX41-NVMe bare-metal workers later.
 #
 # Before applying:
 #   1. Set `metadata.namespace` to the namespace Syself issued for your org
@@ -51,7 +54,7 @@ spec:
       machineDeployments:
         - class: workeramd64hcloud
           name: md-0
-          replicas: 1
+          replicas: 2
           failureDomain: fsn1
     variables:
       - name: region
