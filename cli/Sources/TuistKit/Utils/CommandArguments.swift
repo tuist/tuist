@@ -22,7 +22,7 @@ public enum CommandArguments {
     }
 
     public static func pathArgument(in arguments: [String]) -> String? {
-        value(for: ["--path", "--p"], in: arguments)
+        value(for: ["--path", "-p"], in: arguments)
     }
 
     public static func path(in arguments: [String]) async throws -> AbsolutePath {

@@ -158,14 +158,14 @@ struct AnalyticsUploadCommandServiceTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedEnvironment()
-    ) func run_enables_optional_authentication_from_repo_config() async throws {
+    ) func run_enables_optional_authentication_from_repo_config_when_using_short_path_option() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let eventFilePath = temporaryDirectory.appending(component: "event.json")
         let mockedEnvironment = try #require(Environment.mocked)
         let currentWorkingDirectory = try await mockedEnvironment.currentWorkingDirectory()
         let projectPath = currentWorkingDirectory.appending(component: "Project")
-        let event = CommandEvent.test(commandArguments: ["test", "--path", "Project"])
+        let event = CommandEvent.test(commandArguments: ["test", "-p", "Project"])
         let eventData = try JSONEncoder().encode(event)
         try eventData.write(to: eventFilePath.url, options: .atomic)
         let recorder = AuthenticationConfigRecorder()
@@ -202,7 +202,7 @@ struct AnalyticsUploadCommandServiceTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedEnvironment()
-    ) func run_falls_back_to_required_authentication_when_config_loading_fails()
+    ) func run_falls_back_to_required_authentication_when_config_loading_fails_with_short_path_option()
         async throws
     {
         // Given
@@ -211,7 +211,7 @@ struct AnalyticsUploadCommandServiceTests {
         let mockedEnvironment = try #require(Environment.mocked)
         let currentWorkingDirectory = try await mockedEnvironment.currentWorkingDirectory()
         let projectPath = currentWorkingDirectory.appending(component: "Project")
-        let event = CommandEvent.test(commandArguments: ["test", "--path", "Project"])
+        let event = CommandEvent.test(commandArguments: ["test", "-p", "Project"])
         let eventData = try JSONEncoder().encode(event)
         try eventData.write(to: eventFilePath.url, options: .atomic)
         let recorder = AuthenticationConfigRecorder()
