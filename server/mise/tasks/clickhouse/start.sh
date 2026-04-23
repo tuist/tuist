@@ -47,8 +47,9 @@ cat > "${CONFIG_DIR}/query_log.xml" << 'EOF'
 </clickhouse>
 EOF
 
-# Transactions need keeper enabled so the sandbox can begin and roll back
-# ClickHouse sessions during tests.
+# ClickHouse Keeper is the built-in coordination service (the ZooKeeper
+# replacement). Transactions need it enabled so the sandbox can begin and roll
+# back ClickHouse sessions during tests.
 cat > "${CONFIG_DIR}/transactions.xml" <<EOF
 <clickhouse>
     <allow_experimental_transactions>1</allow_experimental_transactions>
