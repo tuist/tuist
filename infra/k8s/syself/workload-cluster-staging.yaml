@@ -6,15 +6,16 @@
 # Shape:
 #   - Region: fsn1 (Falkenstein). Lowest latency to Supabase (eu-central-1)
 #     and ClickHouse Frankfurt.
-#   - Control plane: 3 × cpx21 (cloud, 3 vCPU / 4 GB / 80 GB each). HA:
-#     tolerates 1 node failure and enables zero-downtime kube-apiserver
+#   - Control plane: 3 × cpx22 (cloud AMD EPYC, 2 vCPU / 4 GB / 80 GB each).
+#     HA: tolerates 1 node failure and enables zero-downtime kube-apiserver
 #     upgrades. 80 GB is the minimum disk that accepts Syself's Packer
-#     snapshot (disk_size=80) — cpx21's 40 GB disk is rejected by the
-#     Hetzner API. Three CPs cost ~€21/mo combined.
-#   - Workers: 1 × Hetzner Robot bare-metal server. The Tuist server runs
-#     there — dedicated NVMe + bandwidth, no noisy-neighbor. Register each
-#     server with a HetznerBareMetalHost CR (see
-#     baremetal-host-worker.yaml.example).
+#     snapshot (disk_size=80) — cpx11's 40 GB disk is rejected by the
+#     Hetzner API, and the cheaper cpx21 (older Intel gen) is frequently
+#     out of stock in fsn1-dc14. Three CPs cost ~€27/mo combined.
+#   - Worker: 1 × ccx23 (cloud, dedicated-vCPU, 4 vCPU / 16 GB / 160 GB
+#     NVMe, ~€30/mo). No CPU noisy-neighbor but still a VM. Cheap way to
+#     unblock staging without the Robot procurement ceremony. Production
+#     gets a real Hetzner Robot AX41-NVMe bare-metal worker later.
 #
 # Before applying:
 #   1. Set `metadata.namespace` to the namespace Syself issued for your org
@@ -22,10 +23,7 @@
 #   2. Confirm `topology.class` matches an available ClusterStackRelease:
 #        kubectl get clusterstackreleases
 #      Bump `class` + `version` together if a newer release is out.
-#   3. Apply the HetznerBareMetalHost CR(s) first — the Cluster stays in
-#      WaitingForAvailableMachines until at least one matching host is
-#      registered.
-#   4. (Optional) Expose the kube-apiserver via a custom domain: uncomment
+#   3. (Optional) Expose the kube-apiserver via a custom domain: uncomment
 #      the `clusterEndpointHost` / `clusterLoadBalancer*` variables, create
 #      the Hetzner LB + DNS A record per the Syself docs
 #      (infra/k8s/syself-onboarding.md §4).
@@ -51,28 +49,19 @@ spec:
       replicas: 3
     workers:
       machineDeployments:
-        - class: workeramd64baremetal
+        - class: workeramd64hcloud
           name: md-0
           replicas: 1
-          variables:
-            overrides:
-              - name: workerHostSelectorBareMetal
-                value:
-                  matchLabels:
-                    role: worker
-                    cluster: tuist-staging
+          failureDomain: fsn1
     variables:
       - name: region
         value: fsn1
       - name: controlPlaneMachineTypeHcloud
-        value: cpx21
+        value: cpx22
       - name: controlPlaneMachineArchHcloud
         value: amd64
-      # Required by the ClusterClass even though we don't spin up any
-      # cloud workers — the class defines a cloud-worker variant and the
-      # variable is mandatory. Value is effectively unused.
       - name: workerMachineTypeHcloud
-        value: cpx21
+        value: ccx23
       - name: SSHKeyNameHcloud
         value:
           - name: tuist-syself
