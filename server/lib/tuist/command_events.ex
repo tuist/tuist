@@ -355,7 +355,7 @@ defmodule Tuist.CommandEvents do
   end
 
   defp metadata_repo_query(query, params) do
-    if Mix.env() == :test do
+    if metadata_queries_bypass_dynamic_repo?() do
       # ClickHouse system tables do not participate in transactions, so test
       # metadata introspection has to bypass the sandboxed dynamic repo even
       # though normal ClickHouse reads and writes stay transaction-backed.
@@ -370,6 +370,12 @@ defmodule Tuist.CommandEvents do
     else
       IngestRepo.query(query, params)
     end
+  end
+
+  defp metadata_queries_bypass_dynamic_repo? do
+    :tuist
+    |> Application.get_env(__MODULE__, [])
+    |> Keyword.get(:metadata_queries_bypass_dynamic_repo, false)
   end
 
   def get_project_last_interaction_data(project_ids) do

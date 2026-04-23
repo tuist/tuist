@@ -3,7 +3,11 @@ defmodule Tuist.ClickHouseRepo do
   Read-only ClickHouse repository for Tuist application.
   """
 
-  @default_dynamic_repo if Mix.env() == :test, do: Tuist.IngestRepo, else: __MODULE__
+  @default_dynamic_repo (
+                          :tuist
+                          |> Application.compile_env(__MODULE__, [])
+                          |> Keyword.get(:default_dynamic_repo, __MODULE__)
+                        )
 
   use Ecto.Repo,
     otp_app: :tuist,
