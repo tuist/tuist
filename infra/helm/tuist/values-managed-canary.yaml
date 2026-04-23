@@ -45,8 +45,6 @@ server:
       cpu: "2000m"
       memory: "2Gi"
 
-  # Canary-specific env. Points at its own processor instance so it
-  # doesn't blow up staging's processor when exercising new code paths.
   extraEnv:
     - name: TUIST_DATABASE_POOL_SIZE
       value: "15"
