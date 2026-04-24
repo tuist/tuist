@@ -50,7 +50,6 @@ This node covers the Tuist CLI workspace under `cli/`. Follow downlinks for subs
       COMPILATION_CACHE_ENABLE_CACHING=NO
   ```
 - Swift Testing filters use the pattern `ModuleTests/SuiteName` (the type name without the `struct` keyword). For a single `@Test` function: `ModuleTests/SuiteName/function_name`.
-- For tests that live inside the `XcodeGraph` SPM package (e.g. `XcodeGraphMapperTests`), generate them too (`tuist generate ... XcodeGraphMapperTests --no-open`) and run via the Xcode workspace — don't fall back to `swift test`.
 
 ## Linting
 - Before committing changes, run `mise run cli:lint --fix` to ensure code is properly formatted.
