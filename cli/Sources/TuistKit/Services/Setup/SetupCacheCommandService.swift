@@ -93,6 +93,7 @@ struct SetupCacheCommandService {
                     .alert(
                         "Xcode Cache has been enabled 🎉",
                         takeaways: [
+                            "Learn more in the \(.link(title: "Xcode cache docs", href: "https://tuist.dev/en/docs/guides/features/cache/xcode-cache"))",
                             "Xcode talks to the cache daemon over the socket at \(.accent(socketPath))",
                         ]
                     )
