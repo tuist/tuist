@@ -6,8 +6,8 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
 
-#: lib/tuist_web/live/docs_live.ex:60
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:656
+#: lib/tuist_web/live/docs_live.ex:63
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:667
 #, elixir-autogen, elixir-format
 msgid "Page not found"
 msgstr "ページが見つかりません"
@@ -20,4 +20,4 @@ msgstr "ビルドが見つかりません"
 #: lib/tuist_web/controllers/build_controller.ex:29
 #, elixir-autogen, elixir-format
 msgid "You are not authorized to access this build"
-msgstr "このビルドへのアクセス権がありません"
+msgstr "このビルドにアクセスする権限がありません"

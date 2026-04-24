@@ -37,7 +37,7 @@ msgstr "429"
 msgid "500"
 msgstr "500"
 
-#: lib/tuist_web/components/account_dropdown.ex:60
+#: lib/tuist_web/components/account_dropdown.ex:65
 #, elixir-autogen, elixir-format
 msgid "Account settings"
 msgstr "帳戶設定"
@@ -94,12 +94,12 @@ msgstr "快取執行"
 msgid "Create organization"
 msgstr "建立組織"
 
-#: lib/tuist_web/components/account_dropdown.ex:75
+#: lib/tuist_web/components/account_dropdown.ex:91
 #, elixir-autogen, elixir-format
 msgid "Download macOS app"
 msgstr "下載 macOS 應用程式"
 
-#: lib/tuist_web/components/layouts/ops.html.heex:37
+#: lib/tuist_web/components/app_layout_components.ex:405
 #, elixir-autogen, elixir-format
 msgid "Emails"
 msgstr "電子郵件"
@@ -109,12 +109,12 @@ msgstr "電子郵件"
 msgid "Error"
 msgstr "錯誤"
 
-#: lib/tuist_web/components/layouts/ops.html.heex:51
+#: lib/tuist_web/components/app_layout_components.ex:420
 #, elixir-autogen, elixir-format
 msgid "Errors"
 msgstr "錯誤"
 
-#: lib/tuist_web/components/layouts/ops.html.heex:31
+#: lib/tuist_web/components/app_layout_components.ex:398
 #, elixir-autogen, elixir-format
 msgid "Flags"
 msgstr "旗標"
@@ -128,9 +128,9 @@ msgstr "開始使用"
 #: lib/tuist_web/controllers/error_html.ex:155
 #, elixir-autogen, elixir-format
 msgid "Go to dashboard"
-msgstr "前往儀表板"
+msgstr "前往控制台"
 
-#: lib/tuist_web/components/layouts/ops.html.heex:61
+#: lib/tuist_web/components/app_layout_components.ex:428
 #, elixir-autogen, elixir-format
 msgid "Grafana"
 msgstr "Grafana"
@@ -144,14 +144,14 @@ msgstr "整合"
 #: lib/tuist_web/controllers/github_app_setup_controller.ex:28
 #, elixir-autogen, elixir-format
 msgid "Invalid GitHub app installation. Please try again."
-msgstr "GitHub 應用程式安裝無效。請再試一次。"
+msgstr "無效的 GitHub 應用程式安裝。請再試一次。"
 
 #: lib/tuist_web/controllers/github_app_setup_controller.ex:31
 #, elixir-autogen, elixir-format
 msgid "Invalid installation request. Please try again."
-msgstr "安裝請求無效。請再試一次。"
+msgstr "無效的安裝請求。請再試一次。"
 
-#: lib/tuist_web/components/layouts/ops.html.heex:26
+#: lib/tuist_web/components/app_layout_components.ex:392
 #, elixir-autogen, elixir-format
 msgid "Jobs"
 msgstr "工作"
@@ -161,12 +161,12 @@ msgstr "工作"
 msgid "Learn more"
 msgstr "了解更多"
 
-#: lib/tuist_web/components/layouts/ops.html.heex:21
+#: lib/tuist_web/components/app_layout_components.ex:386
 #, elixir-autogen, elixir-format
 msgid "LiveDashboard"
 msgstr "LiveDashboard"
 
-#: lib/tuist_web/components/account_dropdown.ex:93
+#: lib/tuist_web/components/account_dropdown.ex:109
 #, elixir-autogen, elixir-format
 msgid "Log out"
 msgstr "登出"
@@ -184,7 +184,7 @@ msgstr "模組快取"
 #: lib/tuist_web/components/percentile_dropdown_widget.ex:117
 #, elixir-autogen, elixir-format
 msgid "N/A"
-msgstr "無資料"
+msgstr "不適用"
 
 #: lib/tuist_web/components/app_components.ex:60
 #, elixir-autogen, elixir-format
@@ -205,23 +205,22 @@ msgstr "找不到"
 #: lib/tuist_web/authorization.ex:46
 #, elixir-autogen, elixir-format
 msgid "Only operations roles can access this page."
-msgstr "僅有操作權限角色可存取此頁面。"
+msgstr "僅限作業角色可以造訪此頁面。"
 
 #: lib/tuist_web/controllers/error_html.ex:98
 #, elixir-autogen, elixir-format
 msgid "Oops! Something went wrong"
-msgstr "哎呀！出了點問題"
+msgstr "哎呀！發生了問題"
 
 #: lib/tuist_web/controllers/error_html.ex:65
 #, elixir-autogen, elixir-format
 msgid "Oops, we couldn't find that page"
-msgstr "哎呀，我們找不到該頁面"
+msgstr "抱歉，我們找不到該頁面"
 
-#: lib/tuist_web/components/account_dropdown.ex:68
-#: lib/tuist_web/components/layouts/ops.html.heex:11
+#: lib/tuist_web/components/account_dropdown.ex:81
 #, elixir-autogen, elixir-format
 msgid "Operations"
-msgstr "操作"
+msgstr "作業"
 
 #: lib/tuist_web/components/app_layout_components.ex:23
 #, elixir-autogen, elixir-format
@@ -231,7 +230,7 @@ msgstr "總覽"
 #: lib/tuist_web/controllers/error_html.ex:44
 #, elixir-autogen, elixir-format
 msgid "Please, make sure you are accessing the right resource and that you have the permissions to access it."
-msgstr "請確保您正在存取正確的資源，並且擁有相應的存取權限。"
+msgstr "請確認您正在存取正確的資源，並且擁有存取權限。"
 
 #: lib/tuist_web/components/app_components.ex:51
 #, elixir-autogen, elixir-format
@@ -253,16 +252,20 @@ msgstr "專案"
 msgid "Server error"
 msgstr "伺服器錯誤"
 
-#: lib/tuist_web/components/app_layout_components.ex:353
 #: lib/tuist_web/components/layouts/account.html.heex:69
 #, elixir-autogen, elixir-format
 msgid "Settings"
 msgstr "設定"
 
+#: lib/tuist_web/components/app_layout_components.ex:353
+#, elixir-autogen, elixir-format
+msgid "Project Settings"
+msgstr "專案設定"
+
 #: lib/tuist_web/controllers/error_html.ex:101
 #, elixir-autogen, elixir-format
 msgid "Sorry, something went wrong on our side. Contact us at contact@tuist.dev and we'll look into it."
-msgstr "抱歉，我們這邊出了點問題。請聯絡 contact@tuist.dev，我們會調查此事。"
+msgstr "抱歉，我們這邊發生了問題。請聯絡 contact@tuist.dev，我們會調查此事。"
 
 #: lib/tuist_web/controllers/error_html.ex:58
 #, elixir-autogen, elixir-format
@@ -272,17 +275,17 @@ msgstr "抱歉，您尋找的頁面不存在或已被移動。"
 #: lib/tuist_web/controllers/error_html.ex:79
 #, elixir-autogen, elixir-format
 msgid "Sorry, you made too many requests. Please try again later."
-msgstr "抱歉，您的請求過於頻繁。請稍後再試。"
+msgstr "抱歉，您的請求次數過多。請稍後再試。"
 
-#: lib/tuist_web/components/layouts/ops.html.heex:44
+#: lib/tuist_web/components/app_layout_components.ex:412
 #, elixir-autogen, elixir-format
 msgid "Storage"
-msgstr "儲存"
+msgstr "儲存空間"
 
-#: lib/tuist_web/components/account_dropdown.ex:84
+#: lib/tuist_web/components/account_dropdown.ex:100
 #, elixir-autogen, elixir-format
 msgid "Switch to your preferred theme"
-msgstr "切換至您偏好的主題"
+msgstr "切換到您偏好的主題"
 
 #: lib/tuist_web/components/app_layout_components.ex:94
 #: lib/tuist_web/components/app_layout_components.ex:269
@@ -312,10 +315,10 @@ msgstr "找不到帳戶 %{account_handle}。"
 msgid "The account you are looking for doesn't exist or has been moved."
 msgstr "您尋找的帳戶不存在或已被移動。"
 
-#: lib/tuist_web/controllers/auth_controller.ex:25
+#: lib/tuist_web/controllers/auth_controller.ex:29
 #, elixir-autogen, elixir-format
 msgid "The authentication URL is not supported"
-msgstr "不支援此驗證 URL"
+msgstr "此認證 URL 不被支援"
 
 #: lib/tuist_web/authorization.ex:63
 #: lib/tuist_web/authorization.ex:79
@@ -338,7 +341,7 @@ msgstr "找不到專案 %{project_slug}。"
 #: lib/tuist_web/plugs/loader_plug.ex:120
 #, elixir-autogen, elixir-format
 msgid "The project full handle %{project_slug} is invalid. It should follow the convention 'account_handle/project_handle'."
-msgstr "專案完整識別 %{project_slug} 無效。應遵循規範 'account_handle/project_handle'。"
+msgstr "專案完整代號 %{project_slug} 無效。應遵循 'account_handle/project_handle' 的慣例。"
 
 #: lib/tuist_web/live/layout_live.ex:61
 #, elixir-autogen, elixir-format
@@ -365,8 +368,8 @@ msgstr "請求過多"
 msgid "Too many requests."
 msgstr "請求過多。"
 
-#: lib/tuist_web/components/app_layout_components.ex:380
-#: lib/tuist_web/components/app_layout_components.ex:416
+#: lib/tuist_web/components/app_layout_components.ex:453
+#: lib/tuist_web/components/app_layout_components.ex:490
 #, elixir-autogen, elixir-format
 msgid "Tuist Icon"
 msgstr "Tuist 圖示"
@@ -374,7 +377,7 @@ msgstr "Tuist 圖示"
 #: lib/tuist_web/components/layout_components.ex:56
 #, elixir-autogen, elixir-format
 msgid "Tuist extends Apple's tools, helping you ship apps that stand out."
-msgstr "Tuist 擴展蘋果的工具，幫助您發佈卓越的應用程式。"
+msgstr "Tuist 擴充了 Apple 的工具，幫助您交付脫穎而出的應用程式。"
 
 #: lib/tuist_web/controllers/error_html.ex:40
 #, elixir-autogen, elixir-format
@@ -396,7 +399,7 @@ msgstr "Xcode 快取"
 #: lib/tuist_web/controllers/error_html.ex:41
 #, elixir-autogen, elixir-format
 msgid "You are not authorized to view this page"
-msgstr "您無權檢視此頁面"
+msgstr "您沒有權限查看此頁面"
 
 #: lib/tuist_web/authorization.ex:21
 #: lib/tuist_web/authorization.ex:40
@@ -404,7 +407,7 @@ msgstr "您無權檢視此頁面"
 #: lib/tuist_web/authorization.ex:72
 #, elixir-autogen, elixir-format
 msgid "You need to be authenticated to access this page."
-msgstr "您需要進行身份驗證才能存取此頁面。"
+msgstr "您需要先登入以存取此頁面。"
 
 #: lib/tuist_web/controllers/user_session_controller.ex:28
 #, elixir-autogen, elixir-format
@@ -440,17 +443,17 @@ msgstr "不穩定測試"
 #: lib/tuist_web/components/public_project_cta_banner.ex:33
 #, elixir-autogen, elixir-format
 msgid "Ready to speed up your builds and unlock insights for your app?"
-msgstr "準備好加速您的建置並解鎖應用程式洞察了嗎？"
+msgstr "準備好加速建置並解鎖您的應用程式洞察了嗎？"
 
 #: lib/tuist_web/components/public_project_cta_banner.ex:47
 #, elixir-autogen, elixir-format
 msgid "Talk to us"
-msgstr "與我們聯繫"
+msgstr "與我們聯絡"
 
 #: lib/tuist_web/components/public_project_cta_banner.ex:26
 #, elixir-autogen, elixir-format
 msgid "This is a public dashboard for the %{account_name}/%{project_name} project."
-msgstr "這是 %{account_name}/%{project_name} 專案的公開儀表板。"
+msgstr "這是 %{account_name}/%{project_name} 專案的公開控制台。"
 
 #: lib/tuist_web/components/app_layout_components.ex:120
 #: lib/tuist_web/components/app_layout_components.ex:295
@@ -461,7 +464,7 @@ msgstr "隔離測試"
 #: lib/tuist_web/components/app_layout_components.ex:180
 #, elixir-autogen, elixir-format
 msgid "Generations"
-msgstr "世代"
+msgstr "版本"
 
 #: lib/tuist_web/components/app_layout_components.ex:319
 #, elixir-autogen, elixir-format
@@ -473,7 +476,8 @@ msgstr "Gradle 快取"
 msgid "Create project"
 msgstr "建立專案"
 
-#: lib/tuist_web/components/layouts/ops.html.heex:16
+#: lib/tuist_web/components/app_layout_components.ex:373
+#: lib/tuist_web/live/ops_cache_live.html.heex:3
 #, elixir-autogen, elixir-format
 msgid "Cache"
 msgstr "快取"
@@ -486,40 +490,132 @@ msgstr "預覽的 APK 不存在或已過期。"
 #: lib/tuist_web/components/layouts/account.html.heex:57
 #, elixir-autogen, elixir-format
 msgid "SSO"
-msgstr "單一登入(Single Sign-On)"
+msgstr "單一登入 (SSO)"
 
 #: lib/tuist_web/live/components/machine_metrics_charts.ex:73
 #, elixir-autogen, elixir-format
 msgid "Metrics"
 msgstr "指標"
 
-#: lib/tuist_web/controllers/auth_controller.ex:289
-#, elixir-autogen, elixir-format
-msgid "Failed to authenticate."
-msgstr "驗證失敗。"
-
-#: lib/tuist_web/controllers/auth_controller.ex:65
-#: lib/tuist_web/controllers/auth_controller.ex:75
-#: lib/tuist_web/controllers/auth_controller.ex:85
-#: lib/tuist_web/controllers/auth_controller.ex:204
-#: lib/tuist_web/controllers/auth_controller.ex:214
-#: lib/tuist_web/controllers/auth_controller.ex:224
-#, elixir-autogen, elixir-format
-msgid "Failed to authenticate with Okta."
-msgstr "使用 Okta 驗證失敗。"
-
 #: lib/tuist_web/controllers/error_html.ex:28
 #, elixir-autogen, elixir-format
 msgid "Authentication failed"
-msgstr "驗證失敗"
+msgstr "認證失敗"
 
-#: lib/tuist_web/controllers/auth_controller.ex:280
+#: lib/tuist_web/controllers/auth_controller.ex:296
+#: lib/tuist_web/controllers/auth_controller.ex:468
 #, elixir-autogen, elixir-format
 msgid "Your identity provider denied access. Please ask your organization admin to assign you to the Tuist application."
-msgstr "您的身份提供者拒絕了存取。請聯絡您組織的管理員，將您指派到 Tuist 應用程式。"
+msgstr "您的身份提供者拒絕存取。請聯繫您的組織管理員，將您指派至 Tuist 應用程式。"
 
 #: lib/tuist_web/components/app_layout_components.ex:131
 #: lib/tuist_web/components/app_layout_components.ex:306
 #, elixir-autogen, elixir-format
 msgid "Shards"
 msgstr "分片"
+
+#: lib/tuist_web/controllers/auth_controller.ex:305
+#, elixir-autogen, elixir-format
+msgid "Authentication with the identity provider failed. Please try again."
+msgstr "身份提供者認證失敗。請再試一次。"
+
+#: lib/tuist_web/controllers/auth_controller.ex:552
+#, elixir-autogen, elixir-format
+msgid "Failed to authenticate with the SSO provider. Please try again."
+msgstr "未能與 SSO 提供者認證。請再試一次。"
+
+#: lib/tuist_web/controllers/auth_controller.ex:447
+#, elixir-autogen, elixir-format
+msgid "SSO is not fully configured for this organization. Ask an organization admin to review the SSO settings."
+msgstr "此組織尚未完整設定 SSO。請組織管理員檢查 SSO 設定。"
+
+#: lib/tuist_web/controllers/auth_controller.ex:510
+#, elixir-autogen, elixir-format
+msgid "The SSO authorization code is invalid or expired. Please restart the sign-in flow."
+msgstr "SSO 授權碼無效或已過期。請重新開始登入流程。"
+
+#: lib/tuist_web/controllers/auth_controller.ex:482
+#, elixir-autogen, elixir-format
+msgid "The SSO provider callback is missing an authorization code. Please restart the sign-in flow."
+msgstr "SSO 提供者回調缺少授權碼。請重新開始登入流程。"
+
+#: lib/tuist_web/controllers/auth_controller.ex:433
+#, elixir-autogen, elixir-format
+msgid "The SSO request is missing an organization identifier. Please start the sign-in flow again from the login page."
+msgstr "SSO 請求缺少組織識別碼。請從登入頁面重新開始登入流程。"
+
+#: lib/tuist_web/controllers/auth_controller.ex:461
+#, elixir-autogen, elixir-format
+msgid "The SSO response could not be validated because the request state did not match. Please try again."
+msgstr "無法驗證 SSO 回應，因請求狀態不符。請再試一次。"
+
+#: lib/tuist_web/controllers/auth_controller.ex:489
+#, elixir-autogen, elixir-format
+msgid "The configured SSO endpoints are invalid. Ask your organization admin to review the SSO settings."
+msgstr "配置的 SSO 端點無效。請組織管理員檢查 SSO 設定。"
+
+#: lib/tuist_web/components/layouts/ops.html.heex:8
+#, elixir-autogen, elixir-format
+msgid "Tuist Ops"
+msgstr "Tuist 運維"
+
+#: lib/tuist_web/controllers/auth_controller.ex:496
+#, elixir-autogen, elixir-format
+msgid "Tuist couldn't exchange the authorization code with your identity provider. Ask your organization admin to verify the SSO credentials and callback URL."
+msgstr "Tuist 無法與您的身份提供者交換授權碼。請組織管理員確認 SSO 認證資訊及回調 URL。"
+
+#: lib/tuist_web/controllers/auth_controller.ex:503
+#, elixir-autogen, elixir-format
+msgid "Tuist couldn't fetch your profile from your identity provider. Ask your organization admin to verify the user info endpoint and configured scopes."
+msgstr "Tuist 無法從您的身份提供者取得個人資料。請組織管理員確認使用者資訊端點與配置的權限範圍。"
+
+#: lib/tuist_web/controllers/auth_controller.ex:545
+#, elixir-autogen, elixir-format
+msgid "We couldn't complete the SSO callback for this request. Please try again."
+msgstr "我們無法完成此請求的 SSO 回調。請再試一次。"
+
+#: lib/tuist_web/controllers/auth_controller.ex:440
+#, elixir-autogen, elixir-format
+msgid "We couldn't find the organization for this SSO request. Please verify that you are using the correct SSO link."
+msgstr "找不到此 SSO 請求對應的組織。請確認您使用的是正確的 SSO 連結。"
+
+#: lib/tuist_web/controllers/auth_controller.ex:538
+#, elixir-autogen, elixir-format
+msgid "We couldn't start the SSO flow for this organization. Please verify the SSO configuration and try again."
+msgstr "無法啟動此組織的 SSO 流程。請確認 SSO 設定並重試。"
+
+#: lib/tuist_web/controllers/auth_controller.ex:454
+#, elixir-autogen, elixir-format
+msgid "Your SSO session has expired. Please restart the sign-in flow from the login page."
+msgstr "您的 SSO 會話已過期。請從登入頁面重新開始登入流程。"
+
+#: lib/tuist_web/controllers/auth_controller.ex:531
+#, elixir-autogen, elixir-format
+msgid "Your Tuist account already exists, but it isn't a member of this organization. Ask an organization admin to add you, then sign in with SSO again."
+msgstr "您的 Tuist 帳戶已存在，但不是此組織的成員。請組織管理員新增您，然後再次使用 SSO 登入。"
+
+#: lib/tuist_web/controllers/auth_controller.ex:517
+#, elixir-autogen, elixir-format
+msgid "Your identity provider response is missing a stable user identifier. Ask your organization admin to review the user info claims."
+msgstr "您的身份提供者回應缺少穩定的使用者識別碼。請組織管理員檢查使用者資訊要件。"
+
+#: lib/tuist_web/controllers/auth_controller.ex:524
+#, elixir-autogen, elixir-format
+msgid "Your identity provider response is missing an email address. Ask your organization admin to include the email claim."
+msgstr "您的身份提供者回應缺少電子郵件地址。請組織管理員加入電子郵件權限。"
+
+#: lib/tuist_web/controllers/auth_controller.ex:475
+#, elixir-autogen, elixir-format
+msgid "Your identity provider returned an authentication error. Please try again or contact your organization admin."
+msgstr "您的身份提供者回傳認證錯誤。請再試一次或聯繫您的組織管理員。"
+
+#: lib/tuist_web/components/account_dropdown.ex:73
+#, elixir-autogen, elixir-format
+msgid "Dashboard"
+msgstr "控制台"
+
+#: lib/tuist_web/components/app_layout_components.ex:380
+#: lib/tuist_web/live/ops_accounts_live.html.heex:3
+#, elixir-autogen, elixir-format
+msgid "Accounts"
+msgstr "帳戶"
