@@ -57,7 +57,20 @@ defmodule XcodeProcessor.XCResultNIF do
     end
   end
 
+  @doc """
+  Extracts an AppleArchive (.aar) payload into `destination_dir` using the
+  native Apple Archive framework. PKZIP archives are not handled here — the
+  caller should dispatch on magic bytes first.
+  """
+  def decompress_archive(source_path, destination_dir) do
+    decompress_archive_nif(source_path, destination_dir)
+  end
+
   defp parse_nif(_xcresult_path, _root_directory) do
+    :erlang.nif_error(:nif_not_loaded)
+  end
+
+  defp decompress_archive_nif(_source_path, _destination_dir) do
     :erlang.nif_error(:nif_not_loaded)
   end
 end

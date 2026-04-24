@@ -7589,6 +7589,8 @@ paths:
                             - first_run
                             - marked_flaky
                             - unmarked_flaky
+                            - muted
+                            - unmuted
                             - quarantined
                             - unquarantined
                             - muted

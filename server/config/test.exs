@@ -1,5 +1,7 @@
 import Config
 
+alias Ecto.Adapters.SQL.Sandbox
+
 # Only in tests, remove the complexity from the password hashing algorithm
 config :bcrypt_elixir, :log_rounds, 1
 
@@ -25,9 +27,12 @@ config :tuist, Tuist.ClickHouseRepo,
   hostname: "localhost",
   port: 8123,
   database: "tuist_test#{System.get_env("MIX_TEST_PARTITION")}",
+  default_dynamic_repo: Tuist.IngestRepo,
   # Workaround for ClickHouse lazy materialization bug with projections
   # https://github.com/ClickHouse/ClickHouse/issues/80201
-  settings: [readonly: 1, query_plan_optimize_lazy_materialization: 0]
+  settings: [readonly: 1, query_plan_optimize_lazy_materialization: 0, session_timezone: "UTC"]
+
+config :tuist, Tuist.CommandEvents, metadata_queries_bypass_dynamic_repo: true
 
 config :tuist, Tuist.IngestRepo,
   hostname: "localhost",
@@ -35,11 +40,17 @@ config :tuist, Tuist.IngestRepo,
   database: "tuist_test#{System.get_env("MIX_TEST_PARTITION")}",
   flush_interval_ms: 5000,
   max_buffer_size: 100_000,
-  pool_size: 5,
+  pool: Sandbox,
+  pool_size: System.schedulers_online() * 2,
+  queue_target: 5000,
+  queue_interval: 1000,
   sync_writes: true,
   # Workaround for ClickHouse lazy materialization bug with projections
   # https://github.com/ClickHouse/ClickHouse/issues/80201
-  settings: [query_plan_optimize_lazy_materialization: 0]
+  settings: [query_plan_optimize_lazy_materialization: 0, session_timezone: "UTC"]
+
+# Keep ClickHouse buffer writes in the calling test process so they share the sandboxed transaction.
+config :tuist, Tuist.Ingestion.Bufferable, write_through_repo: true
 
 # Configures Bamboo API Client
 config :tuist, Tuist.Mailer, adapter: Bamboo.TestAdapter
@@ -54,7 +65,7 @@ config :tuist, Tuist.Repo,
   password: "postgres",
   hostname: "localhost",
   database: "tuist_test#{System.get_env("MIX_TEST_PARTITION")}",
-  pool: Ecto.Adapters.SQL.Sandbox,
+  pool: Sandbox,
   pool_size: System.schedulers_online() * 2,
   queue_target: 5000,
   queue_interval: 1000

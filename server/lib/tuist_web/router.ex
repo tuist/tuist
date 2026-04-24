@@ -644,7 +644,7 @@ defmodule TuistWeb.Router do
   scope "/ops", TuistWeb do
     pipe_through [:browser_app, :ops]
 
-    get "/accounts/:id/stripe-session", OpsController, :stripe_session
+    get "/accounts/:id/stripe-customer", OpsController, :stripe_customer
   end
 
   scope "/ops" do

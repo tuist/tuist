@@ -2,7 +2,6 @@ defmodule TuistWeb.OpsControllerTest do
   use TuistTestSupport.Cases.ConnCase
   use Mimic
 
-  alias Tuist.Billing
   alias Tuist.Environment
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
@@ -16,17 +15,27 @@ defmodule TuistWeb.OpsControllerTest do
     %{conn: conn, user: user}
   end
 
-  test "GET /ops/accounts/:id/stripe-session redirects to the Stripe billing portal", %{
+  test "GET /ops/accounts/:id/stripe-customer redirects to the live Stripe dashboard", %{
     conn: conn,
     user: user
   } do
-    expect(Billing, :create_session, fn customer_id ->
-      assert customer_id == user.account.customer_id
-      %{url: "https://billing.stripe.test/session"}
-    end)
+    stub(Environment, :stripe_api_key, fn -> "sk_live_abc123" end)
 
-    conn = get(conn, ~p"/ops/accounts/#{user.account.id}/stripe-session")
+    conn = get(conn, ~p"/ops/accounts/#{user.account.id}/stripe-customer")
 
-    assert redirected_to(conn, 302) == "https://billing.stripe.test/session"
+    assert redirected_to(conn, 302) ==
+             "https://dashboard.stripe.com/customers/#{user.account.customer_id}"
+  end
+
+  test "uses the /test dashboard segment when a test-mode Stripe key is configured", %{
+    conn: conn,
+    user: user
+  } do
+    stub(Environment, :stripe_api_key, fn -> "sk_test_abc123" end)
+
+    conn = get(conn, ~p"/ops/accounts/#{user.account.id}/stripe-customer")
+
+    assert redirected_to(conn, 302) ==
+             "https://dashboard.stripe.com/test/customers/#{user.account.customer_id}"
   end
 end

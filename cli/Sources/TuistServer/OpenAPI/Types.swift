@@ -15643,6 +15643,8 @@ public enum Operations {
                                 case first_run = "first_run"
                                 case marked_flaky = "marked_flaky"
                                 case unmarked_flaky = "unmarked_flaky"
+                                case muted = "muted"
+                                case unmuted = "unmuted"
                                 case quarantined = "quarantined"
                                 case unquarantined = "unquarantined"
                                 case muted = "muted"

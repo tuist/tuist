@@ -1,0 +1,29 @@
+services:
+  kura-us:
+    environment: &kura_extension_env
+      KURA_EXTENSION_ENABLED: "true"
+      KURA_EXTENSION_SCRIPT_PATH: /etc/kura/extensions/hooks.lua
+      KURA_EXTENSION_HOOK_TIMEOUT_MS: "50"
+      KURA_EXTENSION_AUTH_CACHE_ALLOW_TTL_SECONDS: "600"
+      KURA_EXTENSION_AUTH_CACHE_DENY_TTL_SECONDS: "3"
+      KURA_EXTENSION_FAIL_CLOSED_AUTHENTICATE: "true"
+      KURA_EXTENSION_FAIL_CLOSED_AUTHORIZE: "true"
+      KURA_EXTENSION_FAIL_OPEN_RESPONSE_HEADERS: "true"
+      KURA_EXTENSION_JWT_VERIFIER_PRIMARY_ALGORITHM: HS256
+      KURA_EXTENSION_JWT_VERIFIER_PRIMARY_SECRET: extension-jwt-secret
+      KURA_EXTENSION_SIGNER_CACHE_PRIMARY_ALGORITHM: hmac-sha256
+      KURA_EXTENSION_SIGNER_CACHE_PRIMARY_SECRET: extension-signing-secret
+    volumes:
+      - ./test/e2e/extensions/jwt_auth.lua:/etc/kura/extensions/hooks.lua:ro
+
+  kura-eu:
+    environment:
+      <<: *kura_extension_env
+    volumes:
+      - ./test/e2e/extensions/jwt_auth.lua:/etc/kura/extensions/hooks.lua:ro
+
+  kura-ap:
+    environment:
+      <<: *kura_extension_env
+    volumes:
+      - ./test/e2e/extensions/jwt_auth.lua:/etc/kura/extensions/hooks.lua:ro

@@ -37,12 +37,12 @@ defmodule Cache.Registry.Metadata do
   * `scope` - The package scope (e.g., "apple" for github.com/apple/...)
   * `name` - The package name (e.g., "swift-argument-parser")
   * `repository_full_handle` - Full GitHub handle (e.g., "apple/swift-argument-parser")
-  * `releases` - Map of version strings to release data
+  * `releases` - Map of normalized registry storage version strings to release data
   * `releases.<version>.checksum` - SHA256 checksum of the source archive (hex, lowercase)
   * `releases.<version>.manifests` - List of Package.swift variants for this release
   * `releases.<version>.manifests[].swift_version` - Swift version suffix (e.g., "5.9") or null for default
   * `releases.<version>.manifests[].swift_tools_version` - Swift tools version from manifest or null
-  * `skipped_releases` - Optional map of normalized version strings to permanent skip reasons
+  * `skipped_releases` - Optional map of normalized registry storage version strings to permanent skip reasons
   * `skipped_releases.<version>.reason` - Machine-readable reason code for not mirroring a release
   * `updated_at` - ISO8601 timestamp of last sync (for staleness detection)
 
@@ -110,7 +110,8 @@ defmodule Cache.Registry.Metadata do
   Fetches package metadata from cache or S3.
 
   Returns `{:ok, metadata_map}` on success, `{:error, :not_found}` if the package
-  doesn't exist in S3.
+  doesn't exist in S3. Returned metadata is sanitized so only valid normalized
+  storage versions remain in `releases` and `skipped_releases`.
 
   ## Options
 
@@ -130,7 +131,9 @@ defmodule Cache.Registry.Metadata do
           fetch_from_s3(scope, name, cache_key, cache_name)
 
         {:ok, %{metadata: metadata} = cached} ->
-          maybe_revalidate(scope, name, cache_key, cached, metadata, cache_name)
+          sanitized_metadata = sanitize_package(metadata)
+          cached = maybe_cache_sanitized_metadata(cache_name, cache_key, cached, sanitized_metadata)
+          maybe_revalidate(scope, name, cache_key, cached, sanitized_metadata, cache_name)
 
         _ ->
           fetch_from_s3(scope, name, cache_key, cache_name)
@@ -141,13 +144,15 @@ defmodule Cache.Registry.Metadata do
   @doc """
   Writes package metadata to S3 and invalidates the cache.
 
-  Returns `:ok` on success, `{:error, reason}` on failure.
+  Returns `:ok` on success, `{:error, reason}` on failure. Metadata is sanitized
+  before writing so stored release keys always use valid normalized storage versions.
   """
   def put_package(scope, name, metadata, opts \\ []) do
     cache_name = Keyword.get(opts, :cache_name, cache_name())
     {scope, name} = KeyNormalizer.normalize_scope_name(scope, name)
     key = s3_key(scope, name)
     bucket = bucket()
+    metadata = sanitize_package(metadata)
     json_body = JSON.encode!(metadata)
 
     {duration, result} =
@@ -255,6 +260,7 @@ defmodule Cache.Registry.Metadata do
 
         case JSON.decode(body) do
           {:ok, metadata} ->
+            metadata = sanitize_package(metadata)
             etag = S3.etag_from_headers(headers)
             Cachex.put(cache_name, cache_key, cache_value(metadata, etag), ttl: @ttl)
             {:ok, metadata}
@@ -354,6 +360,41 @@ defmodule Cache.Registry.Metadata do
       etag: etag,
       checked_at: DateTime.truncate(DateTime.utc_now(), :second)
     }
+  end
+
+  defp sanitize_package(metadata) do
+    metadata
+    |> sanitize_versions("releases")
+    |> sanitize_versions("skipped_releases")
+  end
+
+  defp sanitize_versions(metadata, key) do
+    case Map.fetch(metadata, key) do
+      {:ok, versions} ->
+        filtered_versions =
+          Enum.reduce(versions, %{}, fn {version, value}, acc ->
+            if KeyNormalizer.valid_storage_version?(version) do
+              Map.put(acc, version, value)
+            else
+              acc
+            end
+          end)
+
+        Map.put(metadata, key, filtered_versions)
+
+      :error ->
+        metadata
+    end
+  end
+
+  defp maybe_cache_sanitized_metadata(cache_name, cache_key, cached, sanitized_metadata) do
+    if sanitized_metadata == cached.metadata do
+      cached
+    else
+      sanitized_cached = %{cached | metadata: sanitized_metadata}
+      Cachex.put(cache_name, cache_key, sanitized_cached, ttl: @ttl)
+      sanitized_cached
+    end
   end
 
   defp parse_s3_key(key) do

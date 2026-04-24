@@ -942,6 +942,7 @@ public enum Module: String, CaseIterable {
                     .target(name: "XCResultParser", condition: .when([.macos])),
                     .target(name: Module.machineMetrics.targetName, condition: .when([.macos])),
                     .target(name: Module.simulator.targetName),
+                    .target(name: Module.appleArchiver.targetName, condition: .when([.macos])),
                     .target(name: Module.automation.targetName, condition: .when([.macos])),
                     .target(name: Module.ci.targetName, condition: .when([.macos])),
                     .target(name: Module.process.targetName, condition: .when([.macos])),
@@ -1808,6 +1809,7 @@ public enum Module: String, CaseIterable {
             case .server:
                 [
                     .target(name: Module.android.targetName),
+                    .target(name: Module.appleArchiver.targetName, condition: .when([.macos])),
                     .target(name: Module.support.targetName),
                     .target(name: Module.testing.targetName),
                     .target(name: Module.core.targetName),

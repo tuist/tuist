@@ -1,5 +1,5 @@
 [tools]
-    tuist = "4.184.1"
+    tuist = "4.185.1"
     swiftlint = "0.59.1"
     "elixir" = "1.19.5"
     "erlang" = "28.4.3"

@@ -132,6 +132,27 @@ defmodule TuistWeb.FlakyTestsLiveTest do
       assert has_element?(lv, "#flaky-tests-table", "testRecentFlaky")
       refute has_element?(lv, "#flaky-tests-table", "testOldFlaky")
     end
+
+    test "renders flaky tests and flaky runs widgets", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      # Given
+      recent = NaiveDateTime.add(NaiveDateTime.utc_now(), -60)
+      create_flaky_test_case(project, "testFlakyOne", ran_at: recent)
+      create_flaky_test_case(project, "testFlakyTwo", ran_at: recent)
+      RunsFixtures.optimize_test_case_runs()
+
+      # When
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/flaky-tests")
+
+      # Then
+      render_async(lv, 2000)
+      assert has_element?(lv, "#widget-flaky-tests")
+      assert has_element?(lv, "#widget-flaky-runs")
+    end
   end
 
   defp create_flaky_test_case(project, name, opts) do
