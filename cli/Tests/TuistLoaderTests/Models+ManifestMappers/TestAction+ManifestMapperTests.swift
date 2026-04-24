@@ -221,11 +221,11 @@ struct TestActionManifestMapperTests {
         #expect(testAction.testPlans?[0].path == derivedDirectory.appending(component: "UnitTests.xctestplan"))
         #expect(testAction.testPlans?[0].name == "UnitTests")
         #expect(testAction.testPlans?[0].isDefault == true)
-        #expect(testAction.testPlans?[0].isGenerated == true)
+        #expect(testAction.testPlans?[0].kind == .generated)
         #expect(testAction.testPlans?[0].testTargets.map(\.target.name) == ["AppTests"])
         #expect(testAction.testPlans?[1].path == derivedDirectory.appending(component: "SnapshotTests.xctestplan"))
         #expect(testAction.testPlans?[1].isDefault == false)
-        #expect(testAction.testPlans?[1].isGenerated == true)
+        #expect(testAction.testPlans?[1].kind == .generated)
     }
 
     @Test(.inTemporaryDirectory) func action_with_generated_test_plan_honors_explicit_path() async throws {
@@ -253,7 +253,7 @@ struct TestActionManifestMapperTests {
 
         // Then
         #expect(testAction.testPlans?.first?.path == explicitPath)
-        #expect(testAction.testPlans?.first?.isGenerated == true)
+        #expect(testAction.testPlans?.first?.kind == .generated)
     }
 
     @Test(.inTemporaryDirectory) func action_mixes_generated_and_preconfigured_plans() async throws {
@@ -282,9 +282,9 @@ struct TestActionManifestMapperTests {
 
         // Then
         #expect(testAction.testPlans?.count == 2)
-        #expect(testAction.testPlans?[0].isGenerated == true)
+        #expect(testAction.testPlans?[0].kind == .generated)
         #expect(testAction.testPlans?[0].isDefault == true)
-        #expect(testAction.testPlans?[1].isGenerated == false)
+        #expect(testAction.testPlans?[1].kind == .referenced)
         #expect(testAction.testPlans?[1].path == preConfiguredPath)
     }
 

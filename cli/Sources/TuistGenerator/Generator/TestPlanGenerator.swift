@@ -14,7 +14,7 @@ enum TestPlanGenerator {
         generatedProjects: [AbsolutePath: GeneratedProject],
         rootPath: AbsolutePath
     ) -> TestPlanDescriptor? {
-        guard testPlan.isGenerated else { return nil }
+        guard testPlan.kind == .generated else { return nil }
 
         var testTargets: [TestPlanDescriptor.TestTarget] = []
         for testableTarget in testPlan.testTargets {

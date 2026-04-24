@@ -16,8 +16,6 @@ public struct TestPlan: Hashable, Codable, Sendable {
     public let isDefault: Bool
     public let kind: Kind
 
-    public var isGenerated: Bool { kind == .generated }
-
     public init(
         path: AbsolutePath,
         testTargets: [TestableTarget],
