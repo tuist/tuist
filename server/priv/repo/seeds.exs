@@ -25,6 +25,7 @@ alias Tuist.Shards.ShardPlanTestSuite
 alias Tuist.Shards.ShardRun
 alias Tuist.Slack.Installation
 alias Tuist.Tests.Test
+alias Tuist.Tests.TestCase
 alias Tuist.Tests.TestCaseEvent
 alias Tuist.Tests.TestCaseRun
 alias Tuist.Tests.TestModuleRun
@@ -990,7 +991,7 @@ skipped_count = Enum.count(flaky_test_case_defs, fn {_def, _id, state} -> state 
 
 quarantined_test_cases =
   if length(flaky_test_case_updates) > 0 do
-    IngestRepo.insert_all(Tuist.Tests.TestCase, flaky_test_case_updates, timeout: 120_000)
+    IngestRepo.insert_all(TestCase, flaky_test_case_updates, timeout: 120_000)
 
     IO.puts(
       "Updated #{length(flaky_test_case_updates)} test cases as flaky (#{muted_count} muted, #{skipped_count} skipped, #{length(unquarantined_ids)} enabled)"
@@ -1913,11 +1914,9 @@ if length(quarantined_test_cases) > 0 do
       }
     end)
 
-  IngestRepo.insert_all(Tuist.Tests.TestCase, quarantined_test_case_updates, timeout: 120_000)
+  IngestRepo.insert_all(TestCase, quarantined_test_case_updates, timeout: 120_000)
 
-  IO.puts(
-    "  - Created #{length(quarantined_case_runs)} runs for quarantined test cases (with last_run_id)"
-  )
+  IO.puts("  - Created #{length(quarantined_case_runs)} runs for quarantined test cases (with last_run_id)")
 end
 
 # =============================================================================
