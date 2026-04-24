@@ -91,6 +91,48 @@ struct GeneratorAcceptanceTests {
     }
 }
 
+struct GenerateAcceptanceTestAppWithGeneratedTestPlan {
+    @Test(.withFixture("generated_app_with_generated_test_plan"), .inTemporaryDirectory)
+    func app_with_generated_test_plan() async throws {
+        // Given
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let fileSystem = FileSystem()
+
+        // When
+        try await TuistTest.run(GenerateCommand.self, ["--path", fixtureDirectory.pathString, "--no-open"])
+
+        // Then: Tuist writes each plan to Derived/TestPlans/<name>.xctestplan
+        let derivedPlans = fixtureDirectory.appending(components: "Derived", "TestPlans")
+        let unitPlanPath = derivedPlans.appending(component: "UnitTests.xctestplan")
+        let snapshotPlanPath = derivedPlans.appending(component: "SnapshotTests.xctestplan")
+        #expect(try await fileSystem.exists(unitPlanPath))
+        #expect(try await fileSystem.exists(snapshotPlanPath))
+
+        // And: the scheme references both plans, first one is the default
+        let xcodeproj = try XcodeProj(
+            pathString: fixtureDirectory.appending(component: "App.xcodeproj").pathString
+        )
+        let scheme = try #require(
+            xcodeproj.sharedData?.schemes.first { $0.name == "App" }
+        )
+        let planReferences = try #require(scheme.testAction?.testPlans)
+        #expect(planReferences.map(\.reference) == [
+            "container:Derived/TestPlans/UnitTests.xctestplan",
+            "container:Derived/TestPlans/SnapshotTests.xctestplan",
+        ])
+        #expect(planReferences.first?.default == true)
+        #expect(planReferences.last?.default == false)
+
+        // And: the generated JSON references the expected test targets
+        let unitPlanData = try Data(contentsOf: unitPlanPath.url)
+        let unitPlanJSON = try #require(
+            try JSONSerialization.jsonObject(with: unitPlanData) as? [String: Any]
+        )
+        let unitTargets = try #require(unitPlanJSON["testTargets"] as? [[String: Any]])
+        #expect(unitTargets.compactMap { ($0["target"] as? [String: Any])?["name"] as? String } == ["AppTests"])
+    }
+}
+
 struct GenerateAcceptanceTestiOSAppWithTests {
     @Test(.withFixture("generated_ios_app_with_tests"), .inTemporaryDirectory)
     func ios_app_with_tests() async throws {
