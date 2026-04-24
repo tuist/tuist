@@ -38,7 +38,7 @@
 
         @Option(
             name: .long,
-            help: "Processing mode: 'local' parses the xcresult on this machine, 'remote' uploads it for server-side processing, 'off' is a no-op. When omitted, defaults to 'remote' for tuist-hosted instances and 'local' for self-hosted ones.",
+            help: "Processing mode: 'local' parses the xcresult on this machine, 'remote' uploads it for server-side processing, 'off' skips test analysis entirely (nothing is parsed, archived, or uploaded). When omitted, defaults to 'remote' for tuist-hosted instances and 'local' for self-hosted ones.",
             envKey: .inspectTestMode
         )
         var mode: TestProcessingMode?

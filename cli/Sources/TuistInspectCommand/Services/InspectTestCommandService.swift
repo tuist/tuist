@@ -113,7 +113,9 @@
                 )
             case .off:
                 AlertController.current.warning(
-                    .alert("'tuist inspect test' requires a processing mode; 'off' skips upload and has nothing to inspect.")
+                    .alert(
+                        "'tuist inspect test' cannot run with mode 'off' — 'off' skips test analysis entirely, leaving nothing for this command to do."
+                    )
                 )
             }
         }
