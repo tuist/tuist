@@ -11,22 +11,22 @@ msgstr ""
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:246
 #, elixir-autogen, elixir-format
 msgid "Account not found. Please try again."
-msgstr "未找到账户。请重试。"
+msgstr "未找到账户。请再试一次。"
 
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:148
 #, elixir-autogen, elixir-format
 msgid "Failed to save Slack installation. Please try again."
-msgstr "保存 Slack 安装失败。请重试。"
+msgstr "保存 Slack 安装失败。请再试一次。"
 
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:47
 #, elixir-autogen, elixir-format
 msgid "Invalid Slack authorization. Please try again."
-msgstr "无效的 Slack 授权。请重试。"
+msgstr "无效的 Slack 授权。请再试一次。"
 
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:97
 #, elixir-autogen, elixir-format
 msgid "Invalid authorization request. Please try again."
-msgstr "无效的授权请求。请重试。"
+msgstr "无效的授权请求。请再试一次。"
 
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:144
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:162
@@ -40,17 +40,17 @@ msgstr "Slack 授权失败：%{reason}"
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:182
 #, elixir-autogen, elixir-format
 msgid "Failed to save channel selection. Please try again."
-msgstr "保存频道选择失败。请重试。"
+msgstr "保存频道选择失败。请再试一次。"
 
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:242
 #, elixir-autogen, elixir-format
 msgid "Project not found. Please try again."
-msgstr "未找到项目。请重试。"
+msgstr "未找到项目。请再试一次。"
 
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:174
 #, elixir-autogen, elixir-format
 msgid "Alert rule not found. Please try again."
-msgstr "未找到警报规则。请重试。"
+msgstr "未找到告警规则。请再试一次。"
 
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:89
 #, elixir-autogen, elixir-format
