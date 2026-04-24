@@ -228,6 +228,34 @@ struct TestActionManifestMapperTests {
         #expect(testAction.testPlans?[1].isGenerated == true)
     }
 
+    @Test(.inTemporaryDirectory) func action_with_generated_test_plan_honors_explicit_path() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let explicitPath = temporaryDirectory.appending(components: "TestPlans", "UnitTests.xctestplan")
+        let projectPath = temporaryDirectory.appending(component: "App.xcodeproj")
+
+        let manifest = ProjectDescription.TestAction.testPlans([
+            ProjectDescription.TestPlan(
+                name: "UnitTests",
+                path: .path(explicitPath.pathString),
+                testTargets: [
+                    .testableTarget(target: .project(path: .path(projectPath.pathString), target: "AppTests")),
+                ]
+            ),
+        ])
+        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryDirectory, rootDirectory: temporaryDirectory)
+
+        // When
+        let testAction = try await XcodeGraph.TestAction.from(
+            manifest: manifest,
+            generatorPaths: generatorPaths
+        )
+
+        // Then
+        #expect(testAction.testPlans?.first?.path == explicitPath)
+        #expect(testAction.testPlans?.first?.isGenerated == true)
+    }
+
     @Test(.inTemporaryDirectory) func action_with_generated_test_plans_respects_explicit_default() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)

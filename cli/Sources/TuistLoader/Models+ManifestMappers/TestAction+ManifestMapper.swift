@@ -45,7 +45,11 @@ extension XcodeGraph.TestAction {
             var resolvedTestPlans: [XcodeGraph.TestPlan] = []
 
             for (index, plan) in generatedPlans.enumerated() {
-                let resolvedPath = derivedDirectory.appending(component: "\(plan.name).xctestplan")
+                let resolvedPath: AbsolutePath = if let explicitPath = plan.path {
+                    try generatorPaths.resolve(path: explicitPath)
+                } else {
+                    derivedDirectory.appending(component: "\(plan.name).xctestplan")
+                }
                 let testTargets = try plan.testTargets.map {
                     try XcodeGraph.TestableTarget.from(manifest: $0, generatorPaths: generatorPaths)
                 }
