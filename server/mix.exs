@@ -56,7 +56,7 @@ defmodule Tuist.MixProject do
       {:phoenix_live_view, "~> 1.1.0"},
       {:phoenix_view, "~> 2.0"},
       {:floki, ">= 0.33.0"},
-      {:html_to_markdown, "~> 2.30.0"},
+      {:html2markdown, "~> 0.3.1"},
       {:phoenix_live_dashboard, "~> 0.8.4"},
       {:heroicons,
        github: "tailwindlabs/heroicons", tag: "v2.1.1", sparse: "optimized", app: false, compile: false, depth: 1},

@@ -1,6 +1,5 @@
 [tools]
     tuist = "4.186.0"
-    rust = { version = "1.94.1", profile = "default", components = "clippy,rustfmt" }
     swiftlint = "0.59.1"
     "elixir" = "1.19.5"
     "erlang" = "28.4.3"

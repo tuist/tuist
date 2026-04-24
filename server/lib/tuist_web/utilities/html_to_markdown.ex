@@ -1,13 +1,10 @@
 defmodule TuistWeb.Utilities.HtmlToMarkdown do
   @moduledoc false
 
-  alias HtmlToMarkdown.Options
-
   @content_root_selectors ["main", "[role='main']", "article", "body"]
-  @conversion_options %Options{
-    code_block_style: :backticks,
-    extract_metadata: false,
-    heading_style: :atx
+  @conversion_options %{
+    markdown_flavor: :basic,
+    normalize_whitespace: true
   }
 
   def convert(html, opts \\ []) when is_binary(html) do
@@ -22,7 +19,7 @@ defmodule TuistWeb.Utilities.HtmlToMarkdown do
           |> content_root()
           |> absolutize_urls(base_uri(request_url))
           |> Floki.raw_html()
-          |> HtmlToMarkdown.convert!(@conversion_options)
+          |> Html2Markdown.convert(@conversion_options)
           |> cleanup_markdown()
           |> maybe_prepend_title(title)
 
