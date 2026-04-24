@@ -1902,8 +1902,12 @@ defmodule Tuist.Tests do
   defp mark_test_case_runs_as_flaky(runs) when is_list(runs) do
     ids = runs |> Enum.map(& &1.id) |> Enum.uniq()
 
+    # FINAL is required because `test_case_runs` is a ReplacingMergeTree:
+    # without it, a run that has already been re-inserted (e.g. previously
+    # marked flaky) can return multiple versions for the same id until the
+    # merge collapses them, and we'd re-insert every version.
     full_runs =
-      ClickHouseRepo.all(from(tcr in TestCaseRun, where: tcr.id in ^ids))
+      ClickHouseRepo.all(from(tcr in TestCaseRun, hints: ["FINAL"], where: tcr.id in ^ids))
 
     updated_runs =
       Enum.map(full_runs, fn run ->
