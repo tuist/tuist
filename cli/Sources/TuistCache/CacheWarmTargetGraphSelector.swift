@@ -1,3 +1,4 @@
+import TuistConfig
 import TuistCore
 import XcodeGraph
 
@@ -10,13 +11,18 @@ public enum CacheWarmTargetGraphSelection: Equatable {
 public enum CacheWarmTargetGraphSelector {
     public static func selection(
         graphTraverser: GraphTraversing,
-        requestedTargets: Set<String>
+        requestedTargets: Set<TargetQuery>
     ) -> CacheWarmTargetGraphSelection {
         guard !requestedTargets.isEmpty else {
             return .allReachable
         }
 
-        let requestedGraphTargets = graphTraverser.allTargets().filter { requestedTargets.contains($0.target.name) }
+        let requestedGraphTargets = graphTraverser.filterIncludedTargets(
+            basedOn: graphTraverser.allTargets(),
+            testPlan: nil,
+            includedTargets: requestedTargets,
+            excludedTargets: []
+        )
         guard !requestedGraphTargets.isEmpty else {
             return .allReachable
         }

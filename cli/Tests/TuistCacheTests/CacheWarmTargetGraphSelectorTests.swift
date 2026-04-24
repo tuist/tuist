@@ -1,5 +1,6 @@
 import Path
 import Testing
+import TuistConfig
 import TuistCore
 import XcodeGraph
 
@@ -31,7 +32,26 @@ struct CacheWarmTargetGraphSelectorTests {
 
         let selection = CacheWarmTargetGraphSelector.selection(
             graphTraverser: graphTraverser,
-            requestedTargets: ["App", "AppUITests"]
+            requestedTargets: [.named("App"), .named("AppUITests")]
+        )
+
+        #expect(selection == .explicit(expectedTargets))
+    }
+
+    @Test
+    func selection_when_requested_targets_include_tags_keeps_only_non_test_tagged_branches() {
+        let graph = makeGraph()
+        let graphTraverser = GraphTraverser(graph: graph)
+        let localPath = try! AbsolutePath(validating: "/Local") // swiftlint:disable:this force_try
+        let localProject = graph.projects[localPath]!
+        let expectedTargets: Set<GraphTarget> = [
+            GraphTarget(path: localPath, target: localProject.targets["App"]!, project: localProject),
+            GraphTarget(path: localPath, target: localProject.targets["AppCore"]!, project: localProject),
+        ]
+
+        let selection = CacheWarmTargetGraphSelector.selection(
+            graphTraverser: graphTraverser,
+            requestedTargets: [.tagged("cacheable")]
         )
 
         #expect(selection == .explicit(expectedTargets))
@@ -43,7 +63,7 @@ struct CacheWarmTargetGraphSelectorTests {
 
         let selection = CacheWarmTargetGraphSelector.selection(
             graphTraverser: graphTraverser,
-            requestedTargets: ["AppUITests"]
+            requestedTargets: [.named("AppUITests")]
         )
 
         #expect(selection == .noNonTestRoots)
@@ -57,7 +77,8 @@ struct CacheWarmTargetGraphSelectorTests {
         let app = Target.test(
             name: "App",
             product: .app,
-            dependencies: [.target(name: appCore.name)]
+            dependencies: [.target(name: appCore.name)],
+            metadata: .test(tags: ["cacheable"])
         )
         let buildingDetailsMocks = Target.test(
             name: "BuildingDetailsMocks",
@@ -70,7 +91,8 @@ struct CacheWarmTargetGraphSelectorTests {
             dependencies: [
                 .target(name: app.name),
                 .target(name: buildingDetailsMocks.name),
-            ]
+            ],
+            metadata: .test(tags: ["cacheable"])
         )
 
         let localProject = Project.test(

@@ -98,9 +98,10 @@ import XcodeGraph
             let path = try await Environment.current.pathRelativeToWorkingDirectory(directory)
             let config = try await configLoader.loadConfig(path: path)
             let cacheStorage = try await CacheStorageFactory().cacheStorage(config: config)
+            let requestedTargetsToBinaryCache = Set(targetsToBinaryCache.map { TargetQuery(stringLiteral: $0) })
             let generator = generatorFactory.binaryCacheWarmingPreload(
                 config: config,
-                targetsToBinaryCache: Set(targetsToBinaryCache.map { TargetQuery(stringLiteral: $0) })
+                targetsToBinaryCache: requestedTargetsToBinaryCache
             )
 
             // The loading of the graph triggers the fetching of remote binaries into the local cache to speed up warming.
@@ -146,7 +147,7 @@ import XcodeGraph
                 for: graph,
                 configuration: configuration,
                 config: config,
-                requestedTargetsToBinaryCache: targetsToBinaryCache,
+                requestedTargetsToBinaryCache: requestedTargetsToBinaryCache,
                 cacheProfile: profile,
                 cacheStorage: cacheStorage
             )
@@ -867,7 +868,7 @@ import XcodeGraph
             for graph: Graph,
             configuration: String,
             config: Tuist,
-            requestedTargetsToBinaryCache: Set<String>,
+            requestedTargetsToBinaryCache: Set<TargetQuery>,
             cacheProfile: CacheProfile,
             cacheStorage: CacheStoring
         ) async throws -> [(GraphTarget, String)] {
@@ -891,15 +892,14 @@ import XcodeGraph
                 excludedTargets: excludedTargets,
                 destination: nil
             )
-            let selectedHashesByCacheableTarget: [GraphTarget: TargetContentHash]
-            switch CacheWarmTargetGraphSelector.selection(
+            let selectedHashesByCacheableTarget = switch CacheWarmTargetGraphSelector.selection(
                 graphTraverser: graphTraverser,
                 requestedTargets: requestedTargetsToBinaryCache
             ) {
             case .allReachable:
-                selectedHashesByCacheableTarget = hashesByCacheableTarget
+                hashesByCacheableTarget
             case let .explicit(allowedTargets):
-                selectedHashesByCacheableTarget = Dictionary(
+                Dictionary(
                     uniqueKeysWithValues: hashesByCacheableTarget.filter { allowedTargets.contains($0.key) }
                 )
             case .noNonTestRoots:
@@ -946,6 +946,5 @@ import XcodeGraph
                 existingTargetHashes.contains($0.hash) ? nil : ($0.target, $0.hash)
             }
         }
-
     }
 #endif
