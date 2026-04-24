@@ -1251,31 +1251,24 @@ public struct TestService { // swiftlint:disable:this type_body_length
     }
 
     private func passthroughSkippedTestTargetNames(_ arguments: [String]) -> Set<String> {
-        var names: Set<String> = []
-        var index = arguments.startIndex
-        while index < arguments.endIndex {
-            let argument = arguments[index]
-            let value: String?
-            if argument == "-skip-testing",
-               arguments.index(after: index) < arguments.endIndex
-            {
-                value = arguments[arguments.index(after: index)]
-                index = arguments.index(index, offsetBy: 2)
+        passthroughSkipTestingValues(arguments)
+            .compactMap { try? TestIdentifier(string: $0) }
+            // Only whole-target skips (no `/Class` or `/Class/Method`) remove a target entirely.
+            .filter { $0.class == nil && $0.method == nil }
+            .reduce(into: Set<String>()) { $0.insert($1.target) }
+    }
+
+    private func passthroughSkipTestingValues(_ arguments: [String]) -> [String] {
+        var values: [String] = []
+        var iterator = arguments.makeIterator()
+        while let argument = iterator.next() {
+            if argument == "-skip-testing", let value = iterator.next() {
+                values.append(value)
             } else if argument.hasPrefix("-skip-testing:") {
-                value = String(argument.dropFirst("-skip-testing:".count))
-                index = arguments.index(after: index)
-            } else {
-                index = arguments.index(after: index)
-                continue
-            }
-            guard let identifier = value else { continue }
-            // Only whole-target skips (no `/Class` or `/Class/Method` suffix) remove a target entirely.
-            let components = identifier.split(separator: "/", omittingEmptySubsequences: false)
-            if components.count == 1, !components[0].isEmpty {
-                names.insert(String(components[0]))
+                values.append(String(argument.dropFirst("-skip-testing:".count)))
             }
         }
-        return names
+        return values
     }
 
     private func initialTestTargets(
