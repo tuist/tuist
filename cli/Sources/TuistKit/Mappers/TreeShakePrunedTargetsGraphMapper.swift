@@ -211,7 +211,7 @@ public struct TreeShakePrunedTargetsGraphMapper: GraphMapping {
                 path: testPlan.path,
                 testTargets: testTargets,
                 isDefault: testPlan.isDefault,
-                isGenerated: testPlan.isGenerated
+                kind: testPlan.kind
             )
         }
     }

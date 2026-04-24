@@ -154,7 +154,7 @@ extension XcodeGraph.TestPlan {
                         path: resolvedPath,
                         testTargets: targets,
                         isDefault: resolved.isEmpty,
-                        isGenerated: true
+                        kind: .generated
                     )
                 )
             }

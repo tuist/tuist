@@ -2,24 +2,33 @@ import Foundation
 import Path
 
 public struct TestPlan: Hashable, Codable, Sendable {
+    /// How the `.xctestplan` file comes to exist on disk.
+    public enum Kind: String, Hashable, Codable, Sendable {
+        /// The file already exists on disk and is maintained by the user.
+        case referenced
+        /// The file is produced by Tuist during project generation.
+        case generated
+    }
+
     public let name: String
     public let path: AbsolutePath
     public let testTargets: [TestableTarget]
     public let isDefault: Bool
-    /// When `true`, the `.xctestplan` file at `path` is (re)written by Tuist during generation.
-    public let isGenerated: Bool
+    public let kind: Kind
+
+    public var isGenerated: Bool { kind == .generated }
 
     public init(
         path: AbsolutePath,
         testTargets: [TestableTarget],
         isDefault: Bool,
-        isGenerated: Bool = false
+        kind: Kind = .referenced
     ) {
         name = path.basenameWithoutExt
         self.path = path
         self.testTargets = testTargets
         self.isDefault = isDefault
-        self.isGenerated = isGenerated
+        self.kind = kind
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -27,7 +36,7 @@ public struct TestPlan: Hashable, Codable, Sendable {
         case path
         case testTargets
         case isDefault
-        case isGenerated
+        case kind
     }
 
     public init(from decoder: Decoder) throws {
@@ -36,6 +45,6 @@ public struct TestPlan: Hashable, Codable, Sendable {
         path = try container.decode(AbsolutePath.self, forKey: .path)
         testTargets = try container.decode([TestableTarget].self, forKey: .testTargets)
         isDefault = try container.decode(Bool.self, forKey: .isDefault)
-        isGenerated = try container.decodeIfPresent(Bool.self, forKey: .isGenerated) ?? false
+        kind = try container.decodeIfPresent(Kind.self, forKey: .kind) ?? .referenced
     }
 }

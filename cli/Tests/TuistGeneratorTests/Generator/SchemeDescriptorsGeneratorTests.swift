@@ -881,14 +881,14 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
                 TestableTarget(target: TargetReference(projectPath: projectPath, name: "AppTests")),
             ],
             isDefault: true,
-            isGenerated: true
+            kind: .generated
         )
         let existingPlanPath = projectPath.appending(component: "Existing.xctestplan")
         let existingPlan = TestPlan(
             path: existingPlanPath,
             testTargets: [],
             isDefault: false,
-            isGenerated: false
+            kind: .referenced
         )
         let scheme = Scheme.test(
             testAction: TestAction.test(testPlans: [plan, existingPlan])
