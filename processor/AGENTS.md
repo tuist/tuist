@@ -34,3 +34,7 @@ swift build -c release
 ```bash
 mix test
 ```
+
+## Dashboards
+
+The Grafana dashboard for this service is checked in at [`infra/grafana-dashboards/processor-service.json`](../infra/grafana-dashboards/processor-service.json) and kept in sync with Grafana Cloud via Git Sync. See `infra/AGENTS.md` for the editing workflow.
