@@ -28,21 +28,4 @@ public struct TestPlan: Hashable, Codable, Sendable {
         self.isDefault = isDefault
         self.kind = kind
     }
-
-    private enum CodingKeys: String, CodingKey {
-        case name
-        case path
-        case testTargets
-        case isDefault
-        case kind
-    }
-
-    public init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        name = try container.decode(String.self, forKey: .name)
-        path = try container.decode(AbsolutePath.self, forKey: .path)
-        testTargets = try container.decode([TestableTarget].self, forKey: .testTargets)
-        isDefault = try container.decode(Bool.self, forKey: .isDefault)
-        kind = try container.decodeIfPresent(Kind.self, forKey: .kind) ?? .referenced
-    }
 }
