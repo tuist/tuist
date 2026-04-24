@@ -442,7 +442,24 @@ class ProjectFileElements {
         }
 
         // If it matches the file that we are adding or it's not a group we can exit.
-        if (closestRelativeAbsolutePath == fileElement.path) || !(firstElement.element is PBXGroup) {
+        if closestRelativeAbsolutePath == fileElement.path {
+            return
+        }
+
+        if firstElement.element is PBXFileSystemSynchronizedRootGroup {
+            addFileElementRelativeToGroup(
+                from: sourceRootPath,
+                fileAbsolutePath: fileElement.path,
+                fileRelativePath: fileElementRelativeToSourceRoot,
+                name: fileElement.path.basename,
+                expectedSignature: expectedSignature,
+                toGroup: group,
+                pbxproj: pbxproj
+            )
+            return
+        }
+
+        if !(firstElement.element is PBXGroup) {
             return
         }
 
@@ -782,25 +799,6 @@ class ProjectFileElements {
 
     func file(path: AbsolutePath) -> PBXFileReference? {
         elements[path] as? PBXFileReference
-    }
-
-    @discardableResult
-    func addStandaloneFile(path: AbsolutePath, pbxproj: PBXProj) -> PBXFileReference {
-        if let existingFile = file(path: path) {
-            return existingFile
-        }
-
-        let lastKnownFileType = path.extension.flatMap { Xcode.filetype(extension: $0) }
-        let file = PBXFileReference(
-            sourceTree: .absolute,
-            name: path.basename,
-            lastKnownFileType: lastKnownFileType,
-            path: path.pathString,
-            xcLanguageSpecificationIdentifier: xcLanguageSpecificationIdentifierFromLastKnownFileType(lastKnownFileType)
-        )
-        pbxproj.add(object: file)
-        elements[path] = file
-        return file
     }
 
     func isLocalized(path: AbsolutePath) -> Bool {

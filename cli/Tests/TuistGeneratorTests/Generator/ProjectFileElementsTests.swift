@@ -487,6 +487,48 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         ])
     }
 
+    func test_generateProjectFiles_whenExplicitResourceIsInsideSynchronizedGroup() throws {
+        // Given
+        let xcstringsPath = try AbsolutePath(validating: "/project/Resources/Localizable.xcstrings")
+        let target = Target.test(
+            resources: .init([.file(path: xcstringsPath)]),
+            buildableFolders: [
+                BuildableFolder(
+                    path: "/project/Resources",
+                    exceptions: BuildableFolderExceptions(exceptions: []),
+                    resolvedFiles: [
+                        BuildableFolderFile(path: xcstringsPath, compilerFlags: nil),
+                    ]
+                ),
+            ]
+        )
+        let project = Project.test(
+            path: "/project",
+            sourceRootPath: "/project",
+            xcodeProjPath: "/project/Project.xcodeproj",
+            targets: [target]
+        )
+        let graph = Graph.test()
+        let graphTraverser = GraphTraverser(graph: graph)
+        let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj)
+
+        // When
+        try subject.generateProjectFiles(
+            project: project,
+            graphTraverser: graphTraverser,
+            groups: groups,
+            pbxproj: pbxproj
+        )
+
+        // Then
+        XCTAssertNotNil(subject.file(path: xcstringsPath))
+        let projectGroup = groups.sortedMain.group(named: "Project")
+        XCTAssertEqual(projectGroup?.flattenedChildren.sorted(), [
+            "Localizable.xcstrings",
+            "Resources",
+        ])
+    }
+
     func test_generateProducts_stableOrder() throws {
         for _ in 0 ..< 5 {
             let pbxproj = PBXProj()

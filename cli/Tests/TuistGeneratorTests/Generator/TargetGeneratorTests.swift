@@ -234,65 +234,6 @@ struct TargetGeneratorTests {
         #expect(exception.membershipExceptions == ["ExcludedFolder", "ExcludedFile.swift"])
     }
 
-    @Test func generateTarget_synchronizedGroups_excludesBuildableFolderXCStringsFromMembershipWhenUsingCompanionBundle(
-    ) async throws {
-        // Given
-        let buildableFolderPath = path.appending(component: "Feature")
-        let xcstringsPath = buildableFolderPath.appending(components: ["Resources", "Localizable.xcstrings"])
-        let target = Target.test(
-            name: "MyFramework",
-            product: .staticFramework,
-            settings: Settings(base: [
-                "PACKAGE_RESOURCE_BUNDLE_NAME": "Project_MyFramework",
-            ], configurations: [:]),
-            scripts: [],
-            buildableFolders: [
-                BuildableFolder(
-                    path: buildableFolderPath,
-                    exceptions: [],
-                    resolvedFiles: [
-                        BuildableFolderFile(path: xcstringsPath, compilerFlags: nil),
-                    ]
-                ),
-            ]
-        )
-        let project = Project.test(
-            path: path,
-            sourceRootPath: path,
-            xcodeProjPath: path.appending(component: "Test.xcodeproj"),
-            targets: [target]
-        )
-        let graph = Graph.test()
-        let graphTraverser = GraphTraverser(graph: graph)
-        let groups = ProjectGroups.generate(
-            project: project,
-            pbxproj: pbxproj
-        )
-        try fileElements.generateProjectFiles(
-            project: project,
-            graphTraverser: graphTraverser,
-            groups: groups,
-            pbxproj: pbxproj
-        )
-
-        // When
-        let generatedTarget = try await subject.generateTarget(
-            target: target,
-            project: project,
-            pbxproj: pbxproj,
-            pbxProject: pbxProject,
-            projectSettings: Settings.test(),
-            fileElements: fileElements,
-            path: path,
-            graphTraverser: graphTraverser
-        )
-
-        // Then
-        let group = try #require(generatedTarget.fileSystemSynchronizedGroups?.first)
-        let exceptions = try #require(group.exceptions as? [PBXFileSystemSynchronizedBuildFileExceptionSet])
-        #expect(exceptions.contains(where: { $0.membershipExceptions == ["Resources/Localizable.xcstrings"] }))
-    }
-
     @Test func generateTarget_productName() async throws {
         // Given
         let target = Target.test(

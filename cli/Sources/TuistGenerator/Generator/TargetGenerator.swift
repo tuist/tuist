@@ -246,26 +246,6 @@ struct TargetGenerator: TargetGenerating {
                 synchronizedGroup.exceptions?.append(exceptionSet)
             }
 
-            let xcstringsMembershipExceptions = synchronizedXCStringsExcludedFromMembership(
-                buildableFolderPath: buildableFolder.path,
-                target: target,
-                buildableFolderExceptions: buildableFolder.exceptions,
-                resolvedFiles: buildableFolder.resolvedFiles
-            )
-            if !xcstringsMembershipExceptions.isEmpty {
-                let exceptionSet = PBXFileSystemSynchronizedBuildFileExceptionSet(
-                    target: pbxTarget,
-                    membershipExceptions: xcstringsMembershipExceptions,
-                    publicHeaders: nil,
-                    privateHeaders: nil,
-                    additionalCompilerFlagsByRelativePath: nil,
-                    attributesByRelativePath: nil,
-                    platformFiltersByRelativePath: nil
-                )
-                pbxproj.add(object: exceptionSet)
-                synchronizedGroup.exceptions?.append(exceptionSet)
-            }
-
             if !explicitFolders.isEmpty {
                 synchronizedGroup.explicitFolders = explicitFolders
             }
@@ -307,31 +287,6 @@ struct TargetGenerator: TargetGenerating {
             public: Array(publicHeaders.subtracting(existingPublicHeaders)).sorted(),
             private: Array(privateHeaders.subtracting(existingPrivateHeaders)).sorted()
         )
-    }
-
-    private func synchronizedXCStringsExcludedFromMembership(
-        buildableFolderPath: AbsolutePath,
-        target: Target,
-        buildableFolderExceptions: BuildableFolderExceptions,
-        resolvedFiles: [BuildableFolderFile]
-    ) -> [String] {
-        guard target.settings?.base["PACKAGE_RESOURCE_BUNDLE_NAME"] != nil else { return [] }
-
-        let existingMembershipExceptions = Set(
-            buildableFolderExceptions
-                .flatMap(\.excluded)
-                .filter { $0.isDescendant(of: buildableFolderPath) }
-                .map { $0.relative(to: buildableFolderPath).pathString }
-        )
-
-        let xcstringsPaths = Set(
-            resolvedFiles
-                .map(\.path)
-                .filter { $0.extension == "xcstrings" }
-                .map { $0.relative(to: buildableFolderPath).pathString }
-        )
-
-        return Array(xcstringsPaths.subtracting(existingMembershipExceptions)).sorted()
     }
 
     func generateTargetDependencies(

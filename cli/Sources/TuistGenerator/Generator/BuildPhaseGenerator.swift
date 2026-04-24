@@ -406,11 +406,6 @@ struct BuildPhaseGenerator: BuildPhaseGenerating {
             files: target.resources.resources,
             fileElements: fileElements
         ))
-        pbxBuildFiles.append(contentsOf: generateBuildableFolderXCStringsBuildFiles(
-            target: target,
-            fileElements: fileElements,
-            pbxproj: pbxproj
-        ))
 
         try pbxBuildFiles.append(contentsOf: generateResourceBundle(
             path: path,
@@ -577,31 +572,6 @@ struct BuildPhaseGenerator: BuildPhaseGenerating {
             }
         }
         return pbxBuildFiles
-    }
-
-    private func generateBuildableFolderXCStringsBuildFiles(
-        target: Target,
-        fileElements: ProjectFileElements,
-        pbxproj: PBXProj
-    ) -> [PBXBuildFile] {
-        guard target.settings?.base["PACKAGE_RESOURCE_BUNDLE_NAME"] != nil else { return [] }
-
-        let explicitResourcePaths = Set(target.resources.resources.map(\.path))
-        return Array(
-            Set(
-                target.buildableFolders
-                    .flatMap(\.resolvedFiles)
-                    .map(\.path)
-                    .filter { $0.extension == "xcstrings" }
-                    .filter { !explicitResourcePaths.contains($0) }
-            )
-        )
-        .sorted()
-        .map { path in
-            let fileReference = fileElements.file(path: path)
-                ?? fileElements.addStandaloneFile(path: path, pbxproj: pbxproj)
-            return PBXBuildFile(file: fileReference)
-        }
     }
 
     private func generateCoreDataModels(

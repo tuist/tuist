@@ -400,7 +400,7 @@ struct ResourcesProjectMapperTests {
     }
 
     @Test
-    func mapWhenStaticTargetBuildableFolderContainsOnlyXcstringsSharesThemAcrossTargets() async throws {
+    func mapWhenStaticTargetBuildableFolderContainsOnlyXcstringsAddsExplicitResourcesOnOriginalTarget() async throws {
         // Given
         let sourcesFolderPath = try AbsolutePath(validating: "/Sources")
         let resourcesFolderPath = try AbsolutePath(validating: "/Resources")
@@ -439,7 +439,8 @@ struct ResourcesProjectMapperTests {
 
         // Then
         let gotTarget = try #require(gotProject.targets.values.sorted().last)
-        #expect(gotTarget.buildableFolders == buildableFolders)
+        #expect(gotTarget.buildableFolders == [buildableFolders[0]])
+        #expect(gotTarget.resources.resources == [.file(path: xcstringsPath)])
 
         let resourcesTarget = try #require(gotProject.targets.values.sorted().first)
         #expect(resourcesTarget.product == .bundle)
@@ -447,7 +448,7 @@ struct ResourcesProjectMapperTests {
     }
 
     @Test
-    func mapWhenStaticTargetBuildableFolderContainsSourcesAndXcstringsSharesCatalogsAcrossTargets() async throws {
+    func mapWhenStaticTargetBuildableFolderContainsSourcesAndXcstringsPromotesCatalogToExplicitResource() async throws {
         // Given
         let buildableFolderPath = try AbsolutePath(validating: "/FeatureModule")
         let swiftFilePath = try AbsolutePath(validating: "/FeatureModule/FeatureView.swift")
@@ -477,7 +478,25 @@ struct ResourcesProjectMapperTests {
 
         // Then
         let gotTarget = try #require(gotProject.targets.values.sorted().last)
-        #expect(gotTarget.buildableFolders == [buildableFolder])
+        #expect(gotTarget.buildableFolders == [
+            BuildableFolder(
+                path: buildableFolderPath,
+                exceptions: BuildableFolderExceptions(
+                    exceptions: [
+                        BuildableFolderException(
+                            excluded: [xcstringsPath],
+                            compilerFlags: [:],
+                            publicHeaders: [],
+                            privateHeaders: []
+                        ),
+                    ]
+                ),
+                resolvedFiles: [
+                    BuildableFolderFile(path: swiftFilePath, compilerFlags: nil),
+                ]
+            ),
+        ])
+        #expect(gotTarget.resources.resources == [.file(path: xcstringsPath)])
 
         let resourcesTarget = try #require(gotProject.targets.values.sorted().first)
         #expect(resourcesTarget.product == .bundle)
