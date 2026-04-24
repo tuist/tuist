@@ -4,9 +4,9 @@ description: >
   Grafana Kubernetes Monitoring for the Tuist-managed cluster. Wraps the
   upstream grafana/k8s-monitoring chart and adds an ExternalSecret that
   syncs the Grafana Cloud Prometheus / Loki / Tempo tokens from 1Password
-  via external-secrets-operator. Replaces the hand-rolled infra/helm/alloy
-  chart: same telemetry path, plus cluster-level metrics (kube-state-metrics,
-  node-exporter, kubelet, cAdvisor) and events so the Grafana Cloud
+  via external-secrets-operator. Ships cluster-level metrics
+  (kube-state-metrics, node-exporter, kubelet, cAdvisor), events, pod
+  logs, and the OTLP receiver for server traces so the Grafana Cloud
   Kubernetes app lights up.
 type: application
 version: 0.1.0

@@ -1,22 +1,18 @@
 # Grafana Kubernetes Monitoring for the Tuist managed cluster
 
-Wraps [`grafana/k8s-monitoring`](https://github.com/grafana/k8s-monitoring-helm) (v4) so the Tuist-managed workload clusters forward not just the app telemetry but the full Kubernetes picture — cluster/pod/node metrics, cluster events, and the standard labels the Grafana Cloud **Kubernetes** app expects.
+Wraps [`grafana/k8s-monitoring`](https://github.com/grafana/k8s-monitoring-helm) (v4) so the Tuist-managed workload clusters forward the full Kubernetes telemetry picture to Grafana Cloud. What you get out of the box:
 
-Supersedes [`infra/helm/alloy/`](../alloy/). Same destinations (Grafana Cloud Prometheus / Loki / Tempo), same 1Password-via-ESO token sync, broader coverage.
+| Signal | Source |
+|---|---|
+| Server app metrics | Auto-discovered via `prometheus.io/scrape=true` annotation on the server pods |
+| Server traces | OTLP gRPC :4317 → Grafana Cloud Tempo |
+| Server logs | stdout tailed from `/var/log/pods` by a per-node Alloy DaemonSet → Grafana Cloud Loki |
+| kube-state-metrics | Deployed + scraped (workload / pod / deployment / replica state) |
+| node-exporter | Deployed as DaemonSet (node CPU / mem / disk / net) |
+| kubelet + cAdvisor | Scraped (container resource usage) |
+| Kubernetes Events | Streamed to Loki as structured logs |
 
-## What this adds over the old chart
-
-| Signal | Old (`helm/alloy`) | New (`helm/k8s-monitoring`) |
-|---|---|---|
-| Server app metrics | Static scrape of the `tuist-tuist-server` Service `/metrics` | Auto-discovered via `prometheus.io/scrape=true` annotation already on the server pods |
-| Server traces | OTLP gRPC on :4317 → Tempo | Same, via `alloy-receiver` |
-| Server logs | stdout tailed via kubelet API → Loki | stdout tailed via DaemonSet `/var/log/pods` → Loki (narrower blast radius) |
-| **kube-state-metrics** | — | Deployed + scraped (workload/pod/deployment/replica state) |
-| **node-exporter** | — | Deployed as DaemonSet (node CPU/mem/disk/net) |
-| **kubelet + cAdvisor** | — | Scraped (container resource usage) |
-| **Kubernetes Events** | — | Streamed to Loki as structured logs |
-
-With all four the Grafana Cloud **Observability → Kubernetes** app lights up (Cluster / Namespace / Workload / Pod / Node views) without importing dashboards by hand.
+With these in place the Grafana Cloud **Observability → Kubernetes** app populates automatically (Cluster / Namespace / Workload / Pod / Node views) without importing dashboards by hand.
 
 ## Install
 
@@ -47,13 +43,13 @@ Prerequisites:
 
 ## Server-side wiring
 
-The managed Tuist server pushes OTLP spans to Alloy. With this chart the receiver Service moves from the old name to:
+The managed Tuist server pushes OTLP spans to the `alloy-receiver` Service:
 
 ```
 http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
 ```
 
-`infra/helm/tuist/values-managed-{staging,canary,production}.yaml` already point `TUIST_OTEL_EXPORTER_OTLP_ENDPOINT` at this address — confirm after a chart bump.
+`infra/helm/tuist/values-managed-{staging,canary,production}.yaml` set `TUIST_OTEL_EXPORTER_OTLP_ENDPOINT` to this address.
 
 Server pod metrics are discovered automatically: the server Deployment carries `prometheus.io/scrape: "true"` and `prometheus.io/port: "9091"`, and `annotationAutodiscovery` picks those up without any static scrape-target config.
 
@@ -109,14 +105,12 @@ In Grafana Cloud: **Observability → Kubernetes → Cluster navigation** and pi
 | `env` | `destinations.*.extraLabels` in overlays | metrics, logs (Loki/Prometheus external labels) |
 | `deployment.environment` | `destinations.grafana-cloud-traces.processors.attributes.actions` in overlays | traces (OTLP resource attribute) |
 
-The old chart added `env` + `service_name=tuist-server` labels on every signal. Here the server signals get labeled via the upstream chart's k8s attribute processor, which expands automatically from pod metadata — no hand-rolled relabel rules.
+Server-level labels (`namespace`, `pod`, `container`, deployment/statefulset names) are attached automatically by the upstream chart's k8s attribute processor from pod metadata.
 
 ## RBAC — what access does this chart get?
 
-Broader than the old chart (which only needed `pods/log` via kubelet proxy). The new split:
-
 - `alloy-metrics` — cluster-wide `get/list/watch` on nodes/pods/services/endpoints for target discovery, plus `/metrics/cadvisor` on kubelets.
-- `alloy-logs` — node-local hostPath to `/var/log/pods`. A compromised pod can only read logs from the single node it runs on (narrower than the old kubelet-proxy model).
+- `alloy-logs` — node-local hostPath to `/var/log/pods`. A compromised pod can only read logs from the single node it runs on.
 - `alloy-singleton` — cluster-wide `get/list/watch` on events.
 - `alloy-receiver` — none beyond standard pod execution.
 - `kube-state-metrics` — cluster-wide read on most core/apps/batch objects (standard for KSM).

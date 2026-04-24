@@ -123,9 +123,9 @@ k8s-monitoring:
     enabled: true
     collector: alloy-metrics
 
-  # DaemonSet-based pod log tailing via /var/log/pods hostPath. Narrower
-  # blast radius than the previous kubelet-proxy approach: a compromised
-  # Alloy pod can only read logs from the single node it runs on.
+  # DaemonSet-based pod log tailing via /var/log/pods hostPath. A
+  # compromised Alloy pod can only read logs from the single node it
+  # runs on.
   podLogsViaLoki:
     enabled: true
     collector: alloy-logs
