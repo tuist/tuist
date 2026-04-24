@@ -5,7 +5,7 @@ defmodule TuistWeb.Plugs.MarkdownNegotiationPlugTest do
   import Phoenix.ConnTest
   import Plug.Conn
 
-  alias TuistWeb.DocsMarkdown
+  alias Tuist.Docs
 
   @endpoint TuistWeb.Endpoint
 
@@ -35,7 +35,7 @@ defmodule TuistWeb.Plugs.MarkdownNegotiationPlugTest do
   end
 
   test "docs pages negotiate markdown for agent requests" do
-    {:ok, expected_markdown} = DocsMarkdown.get("en", ["guides", "install-tuist"])
+    expected_markdown = Docs.get_page("en", ["guides", "install-tuist"]).markdown
 
     conn =
       build_conn()

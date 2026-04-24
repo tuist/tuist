@@ -4,7 +4,8 @@ defmodule TuistWeb.Plugs.MarkdownNegotiationPlug do
 
   import Plug.Conn
 
-  alias TuistWeb.DocsMarkdown
+  alias Tuist.Docs
+  alias TuistWeb.Marketing.Localization
   alias TuistWeb.Utilities.HtmlToMarkdown
   alias TuistWeb.Utilities.MarkdownResponse
 
@@ -125,9 +126,19 @@ defmodule TuistWeb.Plugs.MarkdownNegotiationPlug do
   defp blank_to_nil(value), do: value
 
   defp markdown_override(request_path) do
-    case DocsMarkdown.from_request_path(request_path) do
-      {:ok, markdown} -> markdown
-      :error -> nil
+    case String.split(request_path, "/", trim: true) do
+      [locale, "docs" | path_segments] ->
+        if locale in Localization.all_locales() do
+          case Docs.get_page(locale, path_segments) do
+            %{markdown: markdown} when is_binary(markdown) and markdown != "" -> markdown
+            _ -> nil
+          end
+        else
+          nil
+        end
+
+      _ ->
+        nil
     end
   end
 end
