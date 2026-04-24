@@ -1,0 +1,98 @@
+nameOverride: ""
+fullnameOverride: ""
+
+image:
+  repository: grafana/alloy
+  tag: v1.11.0
+  pullPolicy: IfNotPresent
+
+replicaCount: 1
+
+# Ports exposed by the Alloy container. Matches config.alloy:
+#   3100  Loki push API (server pushes structured logs here)
+#   4317  OTLP gRPC (server pushes traces here)
+#   12345 Alloy UI / health endpoint
+ports:
+  loki: 3100
+  otlp: 4317
+  ui: 12345
+
+service:
+  type: ClusterIP
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+# Environment this Alloy instance reports (attached as the `env` label on
+# every metric, log, and trace). Per-env values files override.
+env: ""
+
+# Prometheus scrape targets. Per-env values files set these (one target per
+# workload cluster, addressing the Tuist server's ClusterIP Service).
+scrape:
+  interval: 30s
+  targets: []
+
+# Grafana Cloud credentials.
+#
+#   - URLs and usernames are plain strings (not secret; numeric instance IDs
+#     and public endpoints) and live in this values file.
+#   - Tokens are synced from 1Password via ESO. Each token is its own 1P item
+#     with the value under the default `password` field, matching how the
+#     user pasted them in (category: Password).
+grafanaCloud:
+  prometheus:
+    url: https://prometheus-prod-24-prod-eu-west-2.grafana.net/api/prom/push
+    username: "1774467"
+    token:
+      item: PROMETHEUS_TOKEN
+      field: password
+  loki:
+    url: https://logs-prod-012.grafana.net/loki/api/v1/push
+    username: "986520"
+    token:
+      item: LOKI_TOKEN
+      field: password
+  tempo:
+    # Tempo OTLP gRPC endpoint, no scheme prefix; port is explicit.
+    url: tempo-prod-10-prod-eu-west-2.grafana.net:443
+    username: "980835"
+    token:
+      item: TEMPO_TOKEN
+      field: password
+
+# Kubernetes pod log tailing. Alloy uses the discovery.kubernetes component
+# to find pods, then loki.source.kubernetes to stream their stdout logs via
+# the kubelet API and forward them to Grafana Cloud Loki. Apps just write to
+# stdout — no in-app Loki client required.
+podDiscovery:
+  # Scope to specific namespaces so Alloy only tails the Tuist workloads
+  # (not kube-system, ESO, etc.). Empty list = all namespaces. Per-env
+  # values files set this to the cluster's single workload namespace.
+  namespaces: []
+  # Extra label selectors limiting which pods get tailed. Omit to tail every
+  # pod in the namespaces above.
+  labelSelectors: []
+  #   - label: "app.kubernetes.io/component=server"
+
+# ServiceAccount + RBAC for the k8s log tailer. Needs get/list/watch on pods
+# plus read access to pod logs via nodes/proxy (kubelet API).
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+rbac:
+  create: true
+
+externalSecrets:
+  enabled: true
+  refreshInterval: "1h"
+  storeRef:
+    kind: ClusterSecretStore
+    name: onepassword

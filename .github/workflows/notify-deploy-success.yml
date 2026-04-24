@@ -1,28 +1,14 @@
-name: Notify Slack on failure
+name: Notify Slack on deploy success
+
+# Mirrors notify-failure.yml but for successes, scoped to deploy
+# workflows where a green run is newsworthy. Today that's just
+# "Server Production Deployment" — we intentionally stay quiet on
+# staging/canary successes and only ping Slack when production lands.
 
 on:
   workflow_run:
     workflows:
-      - Android
-      - App
-      - Cache
-      - Cache Deploy
-      - CLI
-      - CLI Cache EE
-      - Gradle
-      - Gradle Cache Acceptance
-      - Handbook
-      - Kura
-      - Noora
-      - Processor
-      - Processor Deploy
-      - Release
-      - Secret Scanning
-      - Server
-      - Server Deployment
       - Server Production Deployment
-      - Xcode Processor
-      - Xcode Processor Deploy
     branches: [main]
     types: [completed]
 
@@ -30,7 +16,7 @@ permissions: {}
 
 jobs:
   notify:
-    if: ${{ github.event.workflow_run.conclusion == 'failure' }}
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - uses: 1password/install-cli-action@v2
@@ -45,5 +31,5 @@ jobs:
           webhook-type: incoming-webhook
           payload: |
             {
-              "text": "`${{ github.event.workflow_run.name }}` failed on main: ${{ github.event.workflow_run.html_url }}"
+              "text": ":white_check_mark: `${{ github.event.workflow_run.name }}` succeeded on main: ${{ github.event.workflow_run.html_url }}"
             }

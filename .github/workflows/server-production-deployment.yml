@@ -1,85 +1,79 @@
 name: Server Production Deployment
 
+# Promotion cascade: canary → acceptance tests → production.
+#
+# Triggers:
+#   push to main     — standard promotion. Commits whose subject contains
+#                      "(hotfix)" fast-path to production without waiting
+#                      for canary + tests.
+#   workflow_dispatch — run the cascade against a pinned SHA (useful to
+#                      re-promote a past commit).
+#
+# Each leg is delegated to server-deployment.yml via workflow_call so
+# plan/build/deploy logic stays in one place. This workflow only owns the
+# cascade shape + acceptance tests.
+#
+# Slack notifications:
+#   - Any failure on main → .github/workflows/notify-failure.yml picks up
+#     the `workflow_run` event for this workflow's name and pings Slack.
+#   - Production success → .github/workflows/notify-deploy-success.yml
+#     picks up the same `workflow_run` event on success and pings Slack.
+#   Both rely on the SLACK_WEBHOOK_URL item in the `cache` 1Password
+#   vault; the OP_SERVICE_ACCOUNT_TOKEN repo secret already authenticates
+#   them.
+#
+# Required per-env secrets (on server-k8s-canary / server-k8s-production
+# GitHub Environments):
+#   KUBECONFIG — base64-encoded kubeconfig for each cluster.
+
 on:
   push:
     branches:
       - main
     paths:
       - server/**
+      - tuist_common/**
       - noora/**
+      - processor/**
+      - xcode_processor/**
+      - infra/helm/tuist/**
       - .github/workflows/server-production-deployment.yml
+      - .github/workflows/server-deployment.yml
       - server/pnpm-lock.yaml
-
   workflow_dispatch:
     inputs:
       commit_sha:
-        description: The commit SHA to deploy. When not passed, it deploys the latest commit available in `main`.
+        description: Commit SHA to deploy (defaults to the event's SHA)
         required: false
 
 permissions:
-  id-token: write
   contents: read
-
-concurrency:
-  group: server-production-deployment-${{ github.head_ref || github.run_id }}
-  cancel-in-progress: true
-
-env:
-  MISE_VERSION: "2026.4.18"
-  CI: true
-  RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
-  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  MISE_GITHUB_TOKEN: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN || github.token }}
-  PNPM_HOME: ~/.pnpm
-  TUIST_ENABLE_CACHING: "true"
+  packages: write
+  id-token: write
 
 jobs:
+  # --------------------------------------------------------------------------
+  # Canary leg — runs for every push (hotfix or not) and for manual dispatch.
+  # On hotfix pushes it still runs as a safety net; the hotfix fast-path below
+  # deploys production in parallel without waiting for tests.
+  # --------------------------------------------------------------------------
   canary:
-    environment: server-canary
-    name: Canary Deployment
-    env:
-      DOCKER_BUILDKIT: 1
-    runs-on: namespace-profile-default
-    defaults:
-      run:
-        working-directory: server
-    timeout-minutes: 40
-    steps:
-      - uses: actions/checkout@v4
-        if: ${{ github.event.inputs.commit_sha == '' }}
-      - uses: actions/checkout@v4
-        if: ${{ github.event.inputs.commit_sha != '' }}
-        with:
-          ref: ${{ github.event.inputs.commit_sha }}
-      - uses: jdx/mise-action@v4.0.1
-        with:
-          version: ${{ env.MISE_VERSION }}
-          install: false
-          github_token: ${{ env.MISE_GITHUB_TOKEN }}
-      - name: "Get version"
-        id: version
-        run: |
-          version=$(./mise/tasks/generate-version.sh)
-          echo "::set-output name=version::$version"
-      - name: Update version in mix.exs
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          sed -i 's/version: "[^"]*"/version: "'$VERSION'"/' mix.exs
-      - name: Trigger canary deploy with Render CLI
-        env:
-          MISE_GITHUB_ATTESTATIONS: 0
-          GITHUB_TOKEN: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN }}
-        run: |
-          mise exec "github:render-oss/cli@2.6.1" -- cli_v2.6.1 deploys create srv-d35uiopr0fns73bfve00 --output json --confirm --wait --commit "$GITHUB_SHA"
+    uses: ./.github/workflows/server-deployment.yml
+    with:
+      environment: canary
+      commit_sha: ${{ inputs.commit_sha || github.sha }}
+    secrets: inherit
+
   acceptance-tests:
     name: Acceptance Tests
+    needs: canary
     runs-on: namespace-profile-default-macos
     timeout-minutes: 15
-    needs: canary
-    environment: server-canary
+    environment: server-k8s-canary
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ inputs.commit_sha || github.sha }}
           token: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN }}
           submodules: recursive
       - name: Select Xcode
@@ -92,8 +86,7 @@ jobs:
           key: ${{ runner.os }}-cli-cache-ee-${{ hashFiles('Package.resolved') }}
       - uses: jdx/mise-action@v4.0.1
         with:
-          version: ${{ env.MISE_VERSION }}
-          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+          github_token: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN || github.token }}
       - name: Authenticate with Tuist
         run: tuist auth login
       - name: Setup Tuist
@@ -109,80 +102,32 @@ jobs:
         env:
           TUIST_EE: 1
         run: tuist test TuistCacheEEAcceptanceTests --no-selective-testing -- -retry-tests-on-failure -test-iterations 2
+
+  # --------------------------------------------------------------------------
+  # Production leg — standard path: canary ready + tests green.
+  # Skipped on hotfix pushes (the hotfix job below runs instead).
+  # --------------------------------------------------------------------------
   production:
-    environment: server-production
-    name: Production Deployment
-    env:
-      DOCKER_BUILDKIT: 1
-    runs-on: namespace-profile-default
-    timeout-minutes: 60
-    if: ${{ !contains(github.event.head_commit.message, '(hotfix)') }}
     needs: acceptance-tests
-    defaults:
-      run:
-        working-directory: server
-    steps:
-      - uses: actions/checkout@v4
-        if: ${{ github.event.inputs.commit_sha == '' }}
-      - uses: actions/checkout@v4
-        if: ${{ github.event.inputs.commit_sha != '' }}
-        with:
-          ref: ${{ github.event.inputs.commit_sha }}
-      - uses: jdx/mise-action@v4.0.1
-        with:
-          version: ${{ env.MISE_VERSION }}
-          install: false
-          github_token: ${{ env.MISE_GITHUB_TOKEN }}
-      - name: "Get version"
-        id: version
-        run: |
-          version=$(./mise/tasks/generate-version.sh)
-          echo "::set-output name=version::$version"
-      - name: Update version in mix.exs
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          sed -i 's/version: "[^"]*"/version: "'$VERSION'"/' mix.exs
-      - name: Trigger production deploy with Render CLI
-        env:
-          MISE_GITHUB_ATTESTATIONS: 0
-          GITHUB_TOKEN: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN }}
-        run: |
-          mise exec "github:render-oss/cli@2.6.1" -- cli_v2.6.1 deploys create srv-d35an4ggjchc73evd8m0 --output json --confirm --wait --commit "$GITHUB_SHA"
+    if: >-
+      (github.event_name == 'push' && !contains(github.event.head_commit.message, '(hotfix)')) ||
+      github.event_name == 'workflow_dispatch'
+    uses: ./.github/workflows/server-deployment.yml
+    with:
+      environment: production
+      commit_sha: ${{ inputs.commit_sha || github.sha }}
+    secrets: inherit
+
+  # --------------------------------------------------------------------------
+  # Hotfix fast-path: push-to-main with "(hotfix)" in the commit subject
+  # ships production without waiting for canary + acceptance tests. Kept
+  # independent of the cascade so a flaky acceptance test can't block an
+  # urgent fix. Canary still runs above as a safety net.
+  # --------------------------------------------------------------------------
   production-hotfix:
-    environment: server-production
-    name: Hotfix Production Deployment
-    env:
-      DOCKER_BUILDKIT: 1
-    runs-on: namespace-profile-default
-    timeout-minutes: 60
-    if: ${{ contains(github.event.head_commit.message, '(hotfix)') }}
-    defaults:
-      run:
-        working-directory: server
-    steps:
-      - uses: actions/checkout@v4
-        if: ${{ github.event.inputs.commit_sha == '' }}
-      - uses: actions/checkout@v4
-        if: ${{ github.event.inputs.commit_sha != '' }}
-        with:
-          ref: ${{ github.event.inputs.commit_sha }}
-      - uses: jdx/mise-action@v4.0.1
-        with:
-          version: ${{ env.MISE_VERSION }}
-          install: false
-          github_token: ${{ env.MISE_GITHUB_TOKEN }}
-      - name: "Get version"
-        id: version
-        run: |
-          version=$(./mise/tasks/generate-version.sh)
-          echo "::set-output name=version::$version"
-      - name: Update version in mix.exs
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          sed -i 's/version: "[^"]*"/version: "'$VERSION'"/' mix.exs
-      - name: Trigger production deploy with Render CLI
-        env:
-          MISE_GITHUB_ATTESTATIONS: 0
-          GITHUB_TOKEN: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN }}
-        run: |
-          mise exec "github:render-oss/cli@2.6.1" -- cli_v2.6.1 deploys create srv-d35an4ggjchc73evd8m0 --output json --confirm --wait --commit "$GITHUB_SHA"
+    if: github.event_name == 'push' && contains(github.event.head_commit.message, '(hotfix)')
+    uses: ./.github/workflows/server-deployment.yml
+    with:
+      environment: production
+      commit_sha: ${{ github.sha }}
+    secrets: inherit

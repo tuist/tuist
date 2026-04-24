@@ -1,0 +1,45 @@
+# ClusterStack subscription for the Tuist org namespace.
+#
+# Tells Syself's Cluster Stack Operator to download + prepare the
+# `hetzner-apalla-1-34` stack at version v6. Must be applied before any
+# Cluster CR references it via topology.class, otherwise the Cluster stays
+# in WaitingForClusterClass.
+#
+# autoSubscribe=false + an explicit version pins us; bump `versions: [...]`
+# + `topology.version` in the Cluster CR together when a newer stack ships.
+#
+# HetznerClusterStackReleaseTemplate.nodeImages enumerates which image
+# variants this stack will prepare. Our shape: cloud control plane + bare-
+# metal worker, so we include both hcloud CP and baremetal worker images.
+# (workeramd64hcloud kept for flexibility if we ever add cloud workers.)
+
+apiVersion: clusterstack.x-k8s.io/v1alpha1
+kind: ClusterStack
+metadata:
+  name: hetzner-apalla-1-34
+  namespace: org-tuist
+spec:
+  provider: hetzner
+  name: apalla
+  kubernetesVersion: "1.34"
+  channel: stable
+  autoSubscribe: false
+  versions:
+    - v6
+  providerRef:
+    name: hetzner-apalla-1-34
+    kind: HetznerClusterStackReleaseTemplate
+    apiVersion: infrastructure.clusterstack.x-k8s.io/v1alpha1
+---
+apiVersion: infrastructure.clusterstack.x-k8s.io/v1alpha1
+kind: HetznerClusterStackReleaseTemplate
+metadata:
+  name: hetzner-apalla-1-34
+  namespace: org-tuist
+spec:
+  template:
+    spec:
+      nodeImages:
+        - controlplaneamd64hcloud
+        - workeramd64hcloud
+        - workeramd64baremetal
