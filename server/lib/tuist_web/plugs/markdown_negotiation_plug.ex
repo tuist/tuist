@@ -4,19 +4,24 @@ defmodule TuistWeb.Plugs.MarkdownNegotiationPlug do
 
   import Plug.Conn
 
+  alias TuistWeb.DocsMarkdown
   alias TuistWeb.Utilities.HtmlToMarkdown
+  alias TuistWeb.Utilities.MarkdownResponse
 
   @accept_header "accept"
   @markdown_content_type "text/markdown"
   @markdown_private_key :markdown_requested
+  @markdown_override_private_key :markdown_override
 
   def init(opts), do: opts
 
   def call(%Plug.Conn{method: method} = conn, _opts) when method in ["GET", "HEAD"] do
     markdown_requested? = markdown_requested?(conn)
+    markdown_override = markdown_override(conn, markdown_requested?)
 
     conn
     |> put_private(@markdown_private_key, markdown_requested?)
+    |> put_private(@markdown_override_private_key, markdown_override)
     |> maybe_rewrite_accept_header(markdown_requested?)
     |> register_before_send(&negotiate_response/1)
   end
@@ -50,8 +55,15 @@ defmodule TuistWeb.Plugs.MarkdownNegotiationPlug do
 
   defp negotiate_response(conn) do
     conn
-    |> ensure_vary_accept()
     |> maybe_convert_to_markdown()
+    |> ensure_vary_accept()
+  end
+
+  defp maybe_convert_to_markdown(
+         %Plug.Conn{private: %{@markdown_private_key => true, @markdown_override_private_key => markdown}} = conn
+       )
+       when is_binary(markdown) and markdown != "" do
+    MarkdownResponse.prepare(conn, markdown, vary_accept: true)
   end
 
   defp maybe_convert_to_markdown(%Plug.Conn{private: %{@markdown_private_key => true}} = conn) do
@@ -62,13 +74,7 @@ defmodule TuistWeb.Plugs.MarkdownNegotiationPlug do
           |> IO.iodata_to_binary()
           |> HtmlToMarkdown.convert(request_url: current_request_url(conn))
 
-        token_estimate = markdown_token_estimate(markdown)
-
-        conn
-        |> delete_resp_header("content-length")
-        |> put_resp_header("x-markdown-tokens", Integer.to_string(token_estimate))
-        |> put_resp_content_type(@markdown_content_type, "utf-8")
-        |> Map.put(:resp_body, markdown)
+        MarkdownResponse.prepare(conn, markdown, vary_accept: true)
 
       _ ->
         conn
@@ -113,14 +119,12 @@ defmodule TuistWeb.Plugs.MarkdownNegotiationPlug do
   defp blank_to_nil(""), do: nil
   defp blank_to_nil(value), do: value
 
-  defp markdown_token_estimate(markdown) do
-    # Cloudflare documents this header as an estimate, so a lightweight
-    # character-based approximation is enough for negotiation support.
-    markdown
-    |> String.length()
-    |> Kernel./(4)
-    |> Float.ceil()
-    |> trunc()
-    |> max(1)
+  defp markdown_override(conn, true) do
+    case DocsMarkdown.from_request_path(conn.request_path) do
+      {:ok, markdown} -> markdown
+      :error -> :error
+    end
   end
+
+  defp markdown_override(_conn, false), do: :error
 end
