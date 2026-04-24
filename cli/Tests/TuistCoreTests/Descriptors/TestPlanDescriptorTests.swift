@@ -1,11 +1,11 @@
 import Foundation
 import Path
+import Testing
 import TuistCore
 import XcodeProj
-import XCTest
 
-final class TestPlanDescriptorTests: XCTestCase {
-    func test_encode_produces_valid_xctestplan_json() throws {
+struct TestPlanDescriptorTests {
+    @Test func encode_produces_valid_xctestplan_json() throws {
         // Given
         let pbxTarget = PBXNativeTarget(name: "AppTests")
         let descriptor = TestPlanDescriptor(
@@ -24,17 +24,17 @@ final class TestPlanDescriptorTests: XCTestCase {
         let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
 
         // Then
-        XCTAssertEqual(json?["version"] as? Int, 1)
-        let testTargets = try XCTUnwrap(json?["testTargets"] as? [[String: Any]])
-        XCTAssertEqual(testTargets.count, 1)
-        let target = try XCTUnwrap(testTargets.first?["target"] as? [String: String])
-        XCTAssertEqual(target["containerPath"], "container:App.xcodeproj")
-        XCTAssertEqual(target["name"], "AppTests")
-        XCTAssertNotNil(target["identifier"])
-        XCTAssertNil(testTargets.first?["enabled"]) // enabled omitted when true
+        #expect(json?["version"] as? Int == 1)
+        let testTargets = try #require(json?["testTargets"] as? [[String: Any]])
+        #expect(testTargets.count == 1)
+        let target = try #require(testTargets.first?["target"] as? [String: String])
+        #expect(target["containerPath"] == "container:App.xcodeproj")
+        #expect(target["name"] == "AppTests")
+        #expect(target["identifier"] != nil)
+        #expect(testTargets.first?["enabled"] == nil) // enabled omitted when true
     }
 
-    func test_encode_configuration_id_is_deterministic_per_path() throws {
+    @Test func encode_configuration_id_is_deterministic_per_path() throws {
         // Given
         let target = PBXNativeTarget(name: "AppTests")
         func descriptor(at pathString: String) throws -> TestPlanDescriptor {
@@ -53,16 +53,16 @@ final class TestPlanDescriptorTests: XCTestCase {
 
         // Then
         func configurationID(_ object: Any) throws -> String {
-            let dict = try XCTUnwrap(object as? [String: Any])
-            let configurations = try XCTUnwrap(dict["configurations"] as? [[String: Any]])
-            return try XCTUnwrap(configurations.first?["id"] as? String)
+            let dict = try #require(object as? [String: Any])
+            let configurations = try #require(dict["configurations"] as? [[String: Any]])
+            return try #require(configurations.first?["id"] as? String)
         }
 
-        XCTAssertEqual(try configurationID(firstRun), try configurationID(secondRun))
-        XCTAssertNotEqual(try configurationID(firstRun), try configurationID(differentPath))
+        #expect(try configurationID(firstRun) == configurationID(secondRun))
+        #expect(try configurationID(firstRun) != configurationID(differentPath))
     }
 
-    func test_encode_marks_disabled_targets() throws {
+    @Test func encode_marks_disabled_targets() throws {
         // Given
         let pbxTarget = PBXNativeTarget(name: "AppTests")
         let descriptor = TestPlanDescriptor(
@@ -81,7 +81,7 @@ final class TestPlanDescriptorTests: XCTestCase {
         let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
 
         // Then
-        let testTargets = try XCTUnwrap(json?["testTargets"] as? [[String: Any]])
-        XCTAssertEqual(testTargets.first?["enabled"] as? Bool, false)
+        let testTargets = try #require(json?["testTargets"] as? [[String: Any]])
+        #expect(testTargets.first?["enabled"] as? Bool == false)
     }
 }
