@@ -122,13 +122,6 @@ jobs:
     if: needs.plan.outputs.skip_build != 'true'
     runs-on: namespace-profile-default-with-volume
     timeout-minutes: 40
-    # Dedupe concurrent builds of the same SHA - if canary and production
-    # deploys race on a single commit they'd otherwise both try to build
-    # + push the same `sha-<SHA>` tag. Second run waits for the first so
-    # it picks up the already-pushed image.
-    concurrency:
-      group: server-build-${{ needs.plan.outputs.image_tag }}
-      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
         with:
@@ -140,23 +133,7 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      # Skip the build if the tag already exists in GHCR - lets a retried
-      # deploy, a second overlay deploy (staging after canary on the same
-      # SHA), or a workflow re-run reuse the image we already pushed.
-      - name: Check if image already exists
-        id: exists
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          tag="${{ needs.plan.outputs.image_tag }}"
-          if docker manifest inspect "${REGISTRY}/${IMAGE_NAME}:${tag}" >/dev/null 2>&1; then
-            echo "Image ${tag} already exists - skipping build."
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-          fi
       - uses: docker/build-push-action@v6
-        if: steps.exists.outputs.exists != 'true'
         with:
           context: .
           file: ./server/Dockerfile

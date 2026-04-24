@@ -73,10 +73,6 @@ jobs:
     timeout-minutes: 40
     outputs:
       image_tag: ${{ steps.tag.outputs.image_tag }}
-    # Dedupe with server-deployment.yml's build job on the same SHA.
-    concurrency:
-      group: server-build-sha-${{ inputs.commit_sha || github.sha }}
-      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
         with:
@@ -92,18 +88,7 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Check if image already exists
-        id: exists
-        run: |
-          tag="${{ steps.tag.outputs.image_tag }}"
-          if docker manifest inspect "${REGISTRY}/${IMAGE_NAME}:${tag}" >/dev/null 2>&1; then
-            echo "Image ${tag} already exists - skipping build."
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-          fi
       - uses: docker/build-push-action@v6
-        if: steps.exists.outputs.exists != 'true'
         with:
           context: .
           file: ./server/Dockerfile
