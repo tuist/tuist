@@ -28,14 +28,15 @@ resources:
     cpu: 500m
     memory: 512Mi
 
-# Prometheus scrape targets. Default scrapes the Tuist server's /metrics on the
-# ClusterIP Service in the tuist-staging namespace. Add more entries here when
-# we onboard canary / production.
+# Environment this Alloy instance reports (attached as the `env` label on
+# every metric, log, and trace). Per-env values files override.
+env: ""
+
+# Prometheus scrape targets. Per-env values files set these (one target per
+# workload cluster, addressing the Tuist server's ClusterIP Service).
 scrape:
   interval: 30s
-  targets:
-    - address: tuist-tuist-server.tuist-staging.svc.cluster.local:9091
-      instance: staging
+  targets: []
 
 # Grafana Cloud credentials.
 #
@@ -71,10 +72,9 @@ grafanaCloud:
 # stdout — no in-app Loki client required.
 podDiscovery:
   # Scope to specific namespaces so Alloy only tails the Tuist workloads
-  # (not kube-system, ESO, etc.). Empty list = all namespaces.
-  namespaces:
-    - tuist-staging
-    - tuist  # placeholder for production/canary
+  # (not kube-system, ESO, etc.). Empty list = all namespaces. Per-env
+  # values files set this to the cluster's single workload namespace.
+  namespaces: []
   # Extra label selectors limiting which pods get tailed. Omit to tail every
   # pod in the namespaces above.
   labelSelectors: []

@@ -135,7 +135,7 @@ data:
       rule {
         action        = "replace"
         target_label  = "env"
-        replacement   = "staging"
+        replacement   = {{ required "Alloy requires `env` (e.g. staging / canary / production) to be set" .Values.env | quote }}
       }
     }
 

@@ -11,6 +11,14 @@ server:
 
   appUrl: https://tuist.dev
 
+  # HA scale-out needs distributed Erlang so PubSub + the in-memory rate
+  # limiter work across pods. Emits a headless Service that libcluster's
+  # Kubernetes.DNS strategy uses to discover peers; the chart wires
+  # TUIST_CLUSTER_DNS_SERVICE / TUIST_CLUSTER_APP_NAME into each pod.
+  cluster:
+    enabled: true
+    applicationName: tuist
+
   extraEnv:
     - name: TUIST_DATABASE_POOL_SIZE
       value: "15"
