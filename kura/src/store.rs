@@ -2212,6 +2212,7 @@ mod tests {
             otlp_traces_endpoint: "http://127.0.0.1:4318/v1/traces".into(),
             otel_service_name: "kura-test".into(),
             otel_deployment_environment: "test".into(),
+            sentry_dsn: None,
         };
         override_config(&mut config);
         std::fs::create_dir_all(config.tmp_dir.join("uploads"))
