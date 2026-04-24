@@ -108,13 +108,14 @@ struct TestCaseEventsCommandServiceTests {
         given(serverEnvironmentService).url(configServerURL: .value(tuist.url)).willReturn(serverURL)
         let eventsResponse = Operations.listTestCaseEvents.Output.Ok.Body.jsonPayload(
             events: [
+                ServerTestCaseEvent.test(eventType: .muted, insertedAt: 1_700_000_001),
                 ServerTestCaseEvent.test(eventType: .quarantined, insertedAt: 1_700_000_000),
             ],
             pagination_metadata: .init(
                 has_next_page: false,
                 has_previous_page: false,
                 page_size: 20,
-                total_count: 1
+                total_count: 2
             )
         )
         given(listTestCaseEventsService).listTestCaseEvents(
@@ -137,6 +138,7 @@ struct TestCaseEventsCommandServiceTests {
 
         // Then
         #expect(ui().contains("Events"))
+        #expect(ui().contains("Muted (automatic)"))
         #expect(ui().contains("Quarantined (automatic)"))
     }
 

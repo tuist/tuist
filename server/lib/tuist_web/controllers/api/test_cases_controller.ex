@@ -345,7 +345,15 @@ defmodule TuistWeb.API.TestCasesController do
                  properties: %{
                    event_type: %Schema{
                      type: :string,
-                     enum: ["first_run", "marked_flaky", "unmarked_flaky", "quarantined", "unquarantined"],
+                     enum: [
+                       "first_run",
+                       "marked_flaky",
+                       "unmarked_flaky",
+                       "muted",
+                       "unmuted",
+                       "quarantined",
+                       "unquarantined"
+                     ],
                      description: "The type of event."
                    },
                    inserted_at: %Schema{type: :integer, description: "Unix timestamp of when the event occurred."},
