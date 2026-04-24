@@ -35,7 +35,15 @@ The file ends with a `SELECT … information_schema.role_table_grants …` sanit
 
 Only the **password** lives in 1P — the chart composes the full `DATABASE_URL` from it + the non-secret `processor.database.{host,port,username,name,params}` values. Rotation is then a single-item update plus one `ALTER ROLE`.
 
-Put the generated password in the `password` field of a `PROCESSOR_DATABASE_PASSWORD` item in the env's `tuist-k8s-<env>` vault. Set `processor.database.host` in the env's Helm values overlay (the Supabase pooler hostname from Dashboard → Settings → Database → Connection pooling → Host). ESO's `ExternalSecret` in the chart ([`infra/helm/tuist/templates/processor-external-secrets.yaml`](../helm/tuist/templates/processor-external-secrets.yaml)) picks up the password on each refresh and renders:
+Put the generated password in the `password` field of a `PROCESSOR_DATABASE_PASSWORD` item in the env's `tuist-k8s-<env>` vault — **`op item create`** on first setup (the item doesn't exist yet), `op item edit` thereafter:
+
+```bash
+op item create --vault tuist-k8s-<env> --category Password \
+  --title PROCESSOR_DATABASE_PASSWORD \
+  password="$PW"
+```
+
+Set `processor.database.host` in the env's Helm values overlay (the Supabase pooler hostname from Dashboard → Settings → Database → Connection pooling → Host). ESO's `ExternalSecret` in the chart ([`infra/helm/tuist/templates/processor-external-secrets.yaml`](../helm/tuist/templates/processor-external-secrets.yaml)) picks up the password on each refresh and renders:
 
 ```
 postgres://tuist_processor:<url-encoded-password>@<host>:6543/postgres?sslmode=require
