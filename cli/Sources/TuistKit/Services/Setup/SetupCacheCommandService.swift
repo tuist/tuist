@@ -89,8 +89,14 @@ struct SetupCacheCommandService {
             if let generationOptions = config.project.generatedProject?.generationOptions,
                generationOptions.enableCaching == true
             {
-                Logger.current.info("Xcode Cache has been enabled 🎉", metadata: .success)
-                Logger.current.info("Xcode talks to the cache daemon over the socket at: \(socketPath)")
+                AlertController.current.success(
+                    .alert(
+                        "Xcode Cache has been enabled 🎉",
+                        takeaways: [
+                            "Xcode talks to the cache daemon over the socket at \(.accent(socketPath))",
+                        ]
+                    )
+                )
             } else {
                 Logger.current.info(
                     """

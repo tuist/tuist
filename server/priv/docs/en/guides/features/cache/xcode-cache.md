@@ -201,7 +201,7 @@ then the Xcode cache daemon (the local socket started by `tuist setup cache`) is
    tuist setup cache
    ```
 
-   If you need more detail on why `launchctl` is failing, run `tuist setup cache --verbose` to see the path of the generated LaunchAgent plist (for example `~/Library/LaunchAgents/tuist.cache.<org>_<project>.plist`) and the bootstrap step.
+   If `launchctl` itself is failing, run `tuist setup cache --verbose` to see the bootstrap step and the path of the generated LaunchAgent plist (for example `~/Library/LaunchAgents/tuist.cache.<org>_<project>.plist`).
 
 On CI, run `tuist setup cache` on every job before any `xcodebuild` or `tuist build`/`tuist cache warm` invocation. On developer machines, `tuist setup cache` only needs to run once per machine, but wiring it into a `post-checkout` Git hook (or an equivalent bootstrap script) is a reliable way to make sure the daemon is running after a reboot or a fresh clone.
 
