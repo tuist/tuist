@@ -118,12 +118,15 @@ struct XcodeBuildTestCommandServiceTests {
         try await subject.run(passthroughXcodebuildArguments: arguments)
 
         // Then
+        let expectedResultBundlePath = temporaryDirectory.appending(components: "cache", uniqueID)
         verify(xcodeBuildController)
-            .run(arguments: .any)
+            .run(arguments: .value([
+                "test",
+                "-scheme", "MyAppTests",
+                "-resultBundlePath", expectedResultBundlePath.pathString,
+            ]))
             .called(1)
 
-        let expectedResultBundlePath = temporaryDirectory.appending(components: "cache", uniqueID)
-        await #expect(RunMetadataStorage.current.resultBundlePath == expectedResultBundlePath)
         await #expect(RunMetadataStorage.current.buildRunId == activityLogPath.basenameWithoutExt)
     }
 
@@ -160,7 +163,10 @@ struct XcodeBuildTestCommandServiceTests {
         // When
         try await subject.run(passthroughXcodebuildArguments: arguments)
 
-        // Then
+        // Then — the user-supplied `-resultBundlePath` arg is forwarded verbatim to
+        // xcodebuild. `RunMetadataStorage.resultBundlePath` is intentionally left `nil`
+        // for test flows: both local (test summary) and remote (uploadResultBundle)
+        // own the bundle handoff without relying on `UploadAnalyticsService`.
         verify(xcodeBuildController)
             .run(
                 arguments: .value([
@@ -170,8 +176,6 @@ struct XcodeBuildTestCommandServiceTests {
                 ])
             )
             .called(1)
-
-        await #expect(RunMetadataStorage.current.resultBundlePath == resultBundlePath)
     }
 
     @Test(.inTemporaryDirectory, .withMockedDependencies())

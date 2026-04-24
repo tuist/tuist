@@ -266,12 +266,6 @@ public struct TestService { // swiftlint:disable:this type_body_length
             )
 
         let mode = mode ?? TestProcessingMode.default(for: config.url)
-        if mode == .remote {
-            let runBundlePath = try cacheDirectoriesProvider
-                .cacheDirectory(for: .runs)
-                .appending(components: runId, "\(Constants.resultBundleName).xcresult")
-            await RunMetadataStorage.current.update(resultBundlePath: runBundlePath)
-        }
 
         if let shardIndex, action == .testWithoutBuilding {
             try await runShard(
@@ -291,7 +285,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 testPlanConfiguration: testPlanConfiguration,
                 passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
                 runId: runId,
-                shardArchivePath: shardArchivePath
+                shardArchivePath: shardArchivePath,
+                mode: mode
             )
             return
         }
@@ -313,7 +308,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 skipTestTargets: skipTestTargets,
                 testPlanConfiguration: testPlanConfiguration,
                 passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
-                runId: runId
+                runId: runId,
+                mode: mode
             )
             return
         }
@@ -594,7 +590,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
         testPlanConfiguration: TestPlanConfiguration?,
         passthroughXcodeBuildArguments: [String],
         runId: String,
-        shardArchivePath: AbsolutePath?
+        shardArchivePath: AbsolutePath?,
+        mode: TestProcessingMode
     ) async throws {
         guard let fullHandle = config.fullHandle else {
             throw TestServiceError.actionInvalid
@@ -659,7 +656,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
             testError = error
         }
 
-        let summary = await testSummary(resultBundlePath: resultBundlePath, quarantinedTests: [])
+        let summary = mode == .local
+            ? await testSummary(resultBundlePath: resultBundlePath, quarantinedTests: [])
+            : nil
         await uploadResultBundleIfNeeded(
             testSummary: summary,
             resultBundlePath: resultBundlePath,
@@ -667,7 +666,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
             config: config,
             action: .testWithoutBuilding,
             shardPlanId: shard.shardPlanId,
-            shardIndex: shardIndex
+            shardIndex: shardIndex,
+            mode: mode
         )
 
         if let selectiveTestingGraph = shard.selectiveTestingGraph {
@@ -711,7 +711,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
         skipTestTargets: [TestIdentifier],
         testPlanConfiguration: TestPlanConfiguration?,
         passthroughXcodeBuildArguments: [String],
-        runId: String
+        runId: String,
+        mode: TestProcessingMode
     ) async throws {
         Logger.current.notice(
             "Skipping project generation, using selective testing graph from .xctestproducts bundle...",
@@ -766,13 +767,16 @@ public struct TestService { // swiftlint:disable:this type_body_length
             testError = error
         }
 
-        let summary = await testSummary(resultBundlePath: resultBundlePath, quarantinedTests: [])
+        let summary = mode == .local
+            ? await testSummary(resultBundlePath: resultBundlePath, quarantinedTests: [])
+            : nil
         await uploadResultBundleIfNeeded(
             testSummary: summary,
             resultBundlePath: resultBundlePath,
             projectDerivedDataDirectory: derivedDataPath,
             config: config,
-            action: .testWithoutBuilding
+            action: .testWithoutBuilding,
+            mode: mode
         )
 
         try await storeSuccessfulTestHashesFromGraph(

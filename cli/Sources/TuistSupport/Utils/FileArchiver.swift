@@ -2,6 +2,7 @@ import FileSystem
 import Foundation
 import Mockable
 import Path
+import TuistLogging
 
 /// An interface to archive files in a zip file.
 @Mockable
@@ -36,10 +37,26 @@ public class FileArchiver: FileArchiving {
         // ZIPFoundation does not support zipping array of items, we instead copy them all to a single directory.
         let pathsDirectoryPath = temporaryDirectory.appending(component: "\(name)-paths")
         try await fileSystem.makeDirectory(at: pathsDirectoryPath)
+
+        Logger.current.debug(
+            "Archiving \(paths.count) path(s) into \(name).zip (staging at \(pathsDirectoryPath.pathString))"
+        )
+
+        let copyStart = Date()
         for path in paths {
             try await fileSystem.copy(path, to: pathsDirectoryPath.appending(component: path.basename))
         }
+        let copyElapsed = Date().timeIntervalSince(copyStart)
+        Logger.current.debug("Staging copy for \(name).zip finished in \(String(format: "%.2fs", copyElapsed))")
+
+        let zipStart = Date()
         try await fileSystem.zipFileOrDirectoryContent(at: pathsDirectoryPath, to: destinationZipPath)
+        let zipElapsed = Date().timeIntervalSince(zipStart)
+        let zipBytes = (try? await fileSystem.fileMetadata(at: destinationZipPath)?.size) ?? 0
+        Logger.current.debug(
+            "Zipped \(name).zip in \(String(format: "%.2fs", zipElapsed)) (output: \(zipBytes) bytes)"
+        )
+
         return destinationZipPath
     }
 
