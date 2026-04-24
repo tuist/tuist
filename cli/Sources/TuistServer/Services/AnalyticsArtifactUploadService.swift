@@ -89,7 +89,7 @@
             self.multipartUploadCompleteAnalyticsService = multipartUploadCompleteAnalyticsService
             self.completeAnalyticsArtifactsUploadsService = completeAnalyticsArtifactsUploadsService
             #if canImport(TuistAppleArchiver)
-                self.appleArchiver = AppleArchiver()
+                appleArchiver = AppleArchiver()
             #endif
         }
 
