@@ -5636,7 +5636,7 @@ struct PackageInfoMapperTests {
             ]
         )
 
-        let result = enabledTraits(
+        let result = SwiftPackageManagerGraphLoader.enabledTraits(
             rootPackageInfo: rootPackageInfo,
             packageInfos: [:]
         )
@@ -5655,12 +5655,89 @@ struct PackageInfoMapperTests {
             ]
         )
 
-        let result = enabledTraits(
+        let result = SwiftPackageManagerGraphLoader.enabledTraits(
             rootPackageInfo: rootPackageInfo,
             packageInfos: [:]
         )
 
         #expect(result.isEmpty)
+    }
+
+    @Test(.withMockedSwiftVersionProvider)
+    func enabledTraits_whenDependencyUsesDefaultTrait_resolvesUnderlyingTraits() {
+        let rootPackageInfo = PackageInfo.test(
+            name: "RootPackage",
+            products: [],
+            targets: [],
+            dependencies: [
+                PackageDependency(
+                    identity: "hummingbird",
+                    traits: [PackageDependencyTrait(name: "default")]
+                ),
+            ]
+        )
+
+        let hummingbirdInfo = PackageInfo.test(
+            name: "hummingbird",
+            products: [],
+            targets: [],
+            traits: [
+                PackageTrait(
+                    enabledTraits: ["ConfigurationSupport"],
+                    name: "default",
+                    description: "The default traits of this package."
+                ),
+                PackageTrait(
+                    enabledTraits: [],
+                    name: "ConfigurationSupport",
+                    description: "Enable support for swift-configuration package."
+                ),
+            ]
+        )
+
+        let result = SwiftPackageManagerGraphLoader.enabledTraits(
+            rootPackageInfo: rootPackageInfo,
+            packageInfos: ["hummingbird": hummingbirdInfo]
+        )
+
+        #expect(result["hummingbird"] == Set(["default", "ConfigurationSupport"]))
+    }
+
+    @Test(.withMockedSwiftVersionProvider)
+    func enabledTraits_whenDependencyExplicitlyDisablesTraits_doesNotEnableDefaultTraits() {
+        let rootPackageInfo = PackageInfo.test(
+            name: "RootPackage",
+            products: [],
+            targets: [],
+            dependencies: [
+                PackageDependency(identity: "hummingbird", traits: []),
+            ]
+        )
+
+        let hummingbirdInfo = PackageInfo.test(
+            name: "hummingbird",
+            products: [],
+            targets: [],
+            traits: [
+                PackageTrait(
+                    enabledTraits: ["ConfigurationSupport"],
+                    name: "default",
+                    description: "The default traits of this package."
+                ),
+                PackageTrait(
+                    enabledTraits: [],
+                    name: "ConfigurationSupport",
+                    description: "Enable support for swift-configuration package."
+                ),
+            ]
+        )
+
+        let result = SwiftPackageManagerGraphLoader.enabledTraits(
+            rootPackageInfo: rootPackageInfo,
+            packageInfos: ["hummingbird": hummingbirdInfo]
+        )
+
+        #expect(result["hummingbird"] == nil)
     }
 
     @Test(.withMockedSwiftVersionProvider)
@@ -5692,7 +5769,7 @@ struct PackageInfoMapperTests {
             ]
         )
 
-        let result = enabledTraits(
+        let result = SwiftPackageManagerGraphLoader.enabledTraits(
             rootPackageInfo: rootPackageInfo,
             packageInfos: ["dependency-a": dependencyAInfo]
         )
@@ -5731,7 +5808,7 @@ struct PackageInfoMapperTests {
             ]
         )
 
-        let result = enabledTraits(
+        let result = SwiftPackageManagerGraphLoader.enabledTraits(
             rootPackageInfo: rootPackageInfo,
             packageInfos: ["dependency-a": dependencyAInfo]
         )
@@ -5761,7 +5838,7 @@ struct PackageInfoMapperTests {
             ]
         )
 
-        let result = enabledTraits(
+        let result = SwiftPackageManagerGraphLoader.enabledTraits(
             rootPackageInfo: rootPackageInfo,
             packageInfos: [:]
         )
@@ -5854,6 +5931,105 @@ struct PackageInfoMapperTests {
         let swiftConditions = baseSettings?["SWIFT_ACTIVE_COMPILATION_CONDITIONS"]
 
         #expect(swiftConditions == .array(["$(inherited)", "ActualFeature"]))
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
+    ) func map_whenDependencyUsesDefaultTrait_includesHummingbirdConfigurationDependency() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        try await fileSystem
+            .makeDirectory(at: basePath.appending(try RelativePath(validating: "hummingbird/Sources/HummingbirdCore")))
+        try await fileSystem.touch(
+            basePath
+                .appending(try RelativePath(validating: "hummingbird/Sources/HummingbirdCore/HTTP1Channel+ConfigReader.swift"))
+        )
+        try await fileSystem.makeDirectory(
+            at: basePath.appending(try RelativePath(validating: "swift-configuration/Sources/Configuration"))
+        )
+        try await fileSystem.touch(
+            basePath.appending(try RelativePath(validating: "swift-configuration/Sources/Configuration/Configuration.swift"))
+        )
+
+        let rootPackageInfo = PackageInfo.test(
+            name: "RootPackage",
+            products: [],
+            targets: [],
+            dependencies: [
+                PackageDependency(
+                    identity: "hummingbird",
+                    traits: [PackageDependencyTrait(name: "default")]
+                ),
+            ]
+        )
+
+        let hummingbirdInfo = PackageInfo.test(
+            name: "hummingbird",
+            products: [
+                .init(name: "Hummingbird", type: .library(.automatic), targets: ["HummingbirdCore"]),
+            ],
+            targets: [
+                .test(
+                    name: "HummingbirdCore",
+                    dependencies: [
+                        .product(
+                            name: "Configuration",
+                            package: "swift-configuration",
+                            moduleAliases: nil,
+                            condition: .init(platformNames: [], config: nil, traits: ["ConfigurationSupport"])
+                        ),
+                    ]
+                ),
+            ],
+            traits: [
+                PackageTrait(
+                    enabledTraits: ["ConfigurationSupport"],
+                    name: "default",
+                    description: "The default traits of this package."
+                ),
+                PackageTrait(
+                    enabledTraits: [],
+                    name: "ConfigurationSupport",
+                    description: "Enable support for swift-configuration package."
+                ),
+            ],
+            platforms: [.ios]
+        )
+        let swiftConfigurationInfo = PackageInfo.test(
+            name: "swift-configuration",
+            products: [
+                .init(name: "Configuration", type: .library(.automatic), targets: ["Configuration"]),
+            ],
+            targets: [
+                .test(name: "Configuration"),
+            ],
+            platforms: [.ios]
+        )
+
+        let packageInfos = [
+            "hummingbird": hummingbirdInfo,
+            "swift-configuration": swiftConfigurationInfo,
+        ]
+        let activeTraits = SwiftPackageManagerGraphLoader.enabledTraits(
+            rootPackageInfo: rootPackageInfo,
+            packageInfos: packageInfos
+        )
+
+        #expect(activeTraits["hummingbird"] == Set(["default", "ConfigurationSupport"]))
+
+        let project = try await subject.map(
+            package: "hummingbird",
+            basePath: basePath,
+            packageInfos: packageInfos,
+            enabledTraits: activeTraits["hummingbird"] ?? []
+        )
+
+        let target = try #require(project?.targets.first(where: { $0.name == "HummingbirdCore" }))
+        #expect(target.dependencies.count == 1)
+        #expect(target.dependencies.first == .external(name: "Configuration"))
+
+        let swiftConditions = target.settings?.base["SWIFT_ACTIVE_COMPILATION_CONDITIONS"]
+        #expect(swiftConditions == .array(["$(inherited)", "ConfigurationSupport"]))
     }
 
     @Test(

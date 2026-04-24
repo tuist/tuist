@@ -1029,6 +1029,40 @@ failure_counter = :counters.new(1, [:atomics])
 all_test_cases_list = Enum.to_list(all_test_cases)
 quarantined_test_cases_list = Enum.to_list(quarantined_test_cases)
 
+# Give each test case an "active window" measured in days-ago, so the Test Cases
+# count chart has a realistic shape: new tests appear over time and some drop off
+# when they're no longer part of the suite.
+#   - first_active_day_ago: how many days ago the test case first existed
+#   - last_active_day_ago : the last day the test case was still being run
+#     (0 means it's still active today)
+max_history_day_offset = 400
+
+test_case_active_windows =
+  Map.new(all_test_cases_list, fn tc ->
+    first_active = Enum.random(0..max_history_day_offset)
+    # ~15% of test cases drop off the suite at some earlier point.
+    last_active =
+      if Enum.random(1..100) <= 15 and first_active > 20 do
+        Enum.random(10..(first_active - 10))
+      else
+        0
+      end
+
+    {tc.id, {first_active, last_active}}
+  end)
+
+# Bucket by day for O(1) lookup during case-run generation.
+all_test_cases_by_day =
+  Map.new(0..max_history_day_offset, fn day ->
+    active =
+      Enum.filter(all_test_cases_list, fn tc ->
+        {first_active, last_active} = Map.fetch!(test_case_active_windows, tc.id)
+        day <= first_active and day >= last_active
+      end)
+
+    {day, active}
+  end)
+
 # Chunk generator function - processes one chunk and inserts to DB immediately
 chunk_processor = fn chunk_indices ->
   chunk_count = length(chunk_indices)
@@ -1130,13 +1164,26 @@ chunk_processor = fn chunk_indices ->
 
                 {case_list_inner, fail_list_inner} =
                   Enum.reduce(1..case_count, {[], []}, fn _, {cl_inner, fl_inner} ->
+                    # Restrict the candidate pool to test cases whose active window
+                    # includes this run's day, so test cases appear/disappear over time.
+                    test_day_offset =
+                      min(
+                        max_history_day_offset,
+                        Date.diff(Date.utc_today(), NaiveDateTime.to_date(test.ran_at))
+                      )
+
+                    active_pool =
+                      Map.get(all_test_cases_by_day, test_day_offset, all_test_cases_list)
+
+                    active_pool = if Enum.empty?(active_pool), do: all_test_cases_list, else: active_pool
+
                     # Ensure quarantined test cases get test_case_runs (10% chance to pick from quarantined)
                     # This ensures they have last_run_id populated for proper link rendering
                     test_case =
                       if length(quarantined_test_cases_list) > 0 and Enum.random(1..10) == 1 do
                         Enum.random(quarantined_test_cases_list)
                       else
-                        Enum.random(all_test_cases_list)
+                        Enum.random(active_pool)
                       end
 
                     case_status =
@@ -1876,7 +1923,81 @@ unquarantined_events =
     end)
   end)
 
-test_case_events = quarantined_events ++ unquarantined_events
+flaky_ids = Enum.map(flaky_test_case_defs, fn {_def, id, _is_quarantined} -> id end)
+
+# Generate marked_flaky / unmarked_flaky events for currently-flaky test cases.
+# Odd number of events so the sequence ends on "marked_flaky", matching the
+# current is_flaky = true state.
+marked_flaky_events =
+  Enum.flat_map(flaky_ids, fn test_case_id ->
+    num_events = Enum.random([1, 3, 5])
+    base_date = DateTime.utc_now()
+
+    event_timestamps =
+      1..num_events
+      |> Enum.map(fn _ -> Enum.random(1..120) end)
+      |> Enum.sort(:desc)
+      |> Enum.map(fn day_offset ->
+        base_date |> DateTime.add(-day_offset, :day) |> DateTime.to_naive()
+      end)
+
+    event_timestamps
+    |> Enum.with_index()
+    |> Enum.map(fn {inserted_at, index} ->
+      event_type = if rem(index, 2) == 0, do: "marked_flaky", else: "unmarked_flaky"
+
+      %{
+        id: UUIDv7.generate(),
+        test_case_id: test_case_id,
+        event_type: event_type,
+        actor_id: nil,
+        inserted_at: inserted_at
+      }
+    end)
+  end)
+
+# Pick ~10% of currently-non-flaky test cases and give them a history of being
+# flaky that ended with "unmarked_flaky", so the Flaky Tests chart has both
+# upward and downward movement.
+non_flaky_ids =
+  test_case_id_map
+  |> Map.values()
+  |> Enum.reject(&(&1 in flaky_ids))
+
+past_flaky_sample_count = div(length(non_flaky_ids), 10)
+
+unmarked_flaky_events =
+  non_flaky_ids
+  |> Enum.take_random(past_flaky_sample_count)
+  |> Enum.flat_map(fn test_case_id ->
+    # Even number of events so the sequence ends on "unmarked_flaky".
+    num_events = Enum.random([2, 4])
+    base_date = DateTime.utc_now()
+
+    event_timestamps =
+      1..num_events
+      |> Enum.map(fn _ -> Enum.random(1..120) end)
+      |> Enum.sort(:desc)
+      |> Enum.map(fn day_offset ->
+        base_date |> DateTime.add(-day_offset, :day) |> DateTime.to_naive()
+      end)
+
+    event_timestamps
+    |> Enum.with_index()
+    |> Enum.map(fn {inserted_at, index} ->
+      event_type = if rem(index, 2) == 0, do: "marked_flaky", else: "unmarked_flaky"
+
+      %{
+        id: UUIDv7.generate(),
+        test_case_id: test_case_id,
+        event_type: event_type,
+        actor_id: nil,
+        inserted_at: inserted_at
+      }
+    end)
+  end)
+
+test_case_events = quarantined_events ++ unquarantined_events ++ marked_flaky_events ++ unmarked_flaky_events
 
 # Insert test case events
 if length(test_case_events) > 0 do
@@ -1885,6 +2006,7 @@ end
 
 IO.puts("  - Test case events: #{length(test_case_events)}")
 IO.puts("  - Currently quarantined: #{length(quarantined_ids)}, unquarantined: #{length(unquarantined_ids)}")
+IO.puts("  - Currently flaky: #{length(flaky_ids)}, past-flaky (unmarked): #{past_flaky_sample_count}")
 
 IO.puts("Generating #{seed_config.command_events} command events in parallel...")
 

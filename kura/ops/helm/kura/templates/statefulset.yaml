@@ -1,0 +1,221 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "kura.fullname" . }}
+  labels:
+    {{- include "kura.labels" . | nindent 4 }}
+spec:
+  serviceName: {{ include "kura.headlessServiceName" . }}
+  replicas: {{ .Values.replicaCount }}
+  podManagementPolicy: Parallel
+  selector:
+    matchLabels:
+      {{- include "kura.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "kura.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "kura.serviceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: kura
+          image: "{{ .Values.image.repository }}:{{ default .Chart.AppVersion .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.httpPort }}
+              protocol: TCP
+            - name: grpc
+              containerPort: {{ .Values.service.grpcPort }}
+              protocol: TCP
+            - name: peer
+              containerPort: {{ .Values.peerTls.internalPort }}
+              protocol: TCP
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: KURA_PORT
+              value: {{ printf "%d" (int .Values.service.httpPort) | quote }}
+            - name: KURA_GRPC_PORT
+              value: {{ printf "%d" (int .Values.service.grpcPort) | quote }}
+            - name: KURA_TENANT_ID
+              value: {{ .Values.config.tenantId | quote }}
+            - name: KURA_REGION
+              value: {{ .Values.config.region | quote }}
+            - name: KURA_TMP_DIR
+              value: /tmp/kura
+            - name: KURA_DATA_DIR
+              value: /var/cache/kura
+            - name: KURA_NODE_URL
+              value: "{{ ternary "https" "http" .Values.peerTls.enabled }}://$(POD_NAME).{{ include "kura.headlessServiceName" . }}.$(POD_NAMESPACE).svc.cluster.local:{{ int .Values.peerTls.internalPort }}"
+            - name: KURA_PEERS
+              value: {{ include "kura.seedPeers" . | quote }}
+            - name: KURA_INTERNAL_PORT
+              value: {{ printf "%d" (int .Values.peerTls.internalPort) | quote }}
+            {{- if .Values.config.discovery.enabled }}
+            - name: KURA_DISCOVERY_DNS_NAME
+              value: "{{ include "kura.headlessServiceName" . }}.$(POD_NAMESPACE).svc.cluster.local"
+            {{- end }}
+            {{- if .Values.peerTls.enabled }}
+            - name: KURA_INTERNAL_TLS_CA_CERT_PATH
+              value: {{ printf "/etc/kura/peer-tls/%s" .Values.peerTls.caCertFileName | quote }}
+            - name: KURA_INTERNAL_TLS_CERT_PATH
+              value: {{ printf "/etc/kura/peer-tls/%s" .Values.peerTls.certFileName | quote }}
+            - name: KURA_INTERNAL_TLS_KEY_PATH
+              value: {{ printf "/etc/kura/peer-tls/%s" .Values.peerTls.keyFileName | quote }}
+            {{- end }}
+            - name: KURA_FILE_DESCRIPTOR_POOL_SIZE
+              value: {{ printf "%d" (int .Values.config.fileDescriptors.poolSize) | quote }}
+            - name: KURA_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS
+              value: {{ printf "%d" (int64 .Values.config.fileDescriptors.acquireTimeoutMs) | quote }}
+            - name: KURA_SEGMENT_HANDLE_CACHE_SIZE
+              value: {{ printf "%d" (int .Values.config.fileDescriptors.segmentHandleCacheSize) | quote }}
+            - name: KURA_MEMORY_SOFT_LIMIT_BYTES
+              value: {{ printf "%d" (int64 .Values.config.memory.softLimitBytes) | quote }}
+            - name: KURA_MEMORY_HARD_LIMIT_BYTES
+              value: {{ printf "%d" (int64 .Values.config.memory.hardLimitBytes) | quote }}
+            - name: KURA_MANIFEST_CACHE_MAX_BYTES
+              value: {{ printf "%d" (int64 .Values.config.memory.manifestCacheMaxBytes) | quote }}
+            - name: KURA_MAX_KEYVALUE_BYTES
+              value: {{ printf "%d" (int64 .Values.config.memory.maxKeyvalueBytes) | quote }}
+            - name: KURA_METADATA_STORE_MAX_OPEN_FILES
+              value: {{ printf "%d" (int .Values.config.metadataStore.maxOpenFiles) | quote }}
+            - name: KURA_METADATA_STORE_MAX_BACKGROUND_JOBS
+              value: {{ printf "%d" (int .Values.config.metadataStore.maxBackgroundJobs) | quote }}
+            - name: KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
+              value: {{ .Values.config.telemetry.otlpTracesEndpoint | quote }}
+            - name: KURA_OTEL_SERVICE_NAME
+              value: $(POD_NAME)
+            - name: KURA_OTEL_DEPLOYMENT_ENVIRONMENT
+              value: {{ .Values.config.telemetry.deploymentEnvironment | quote }}
+            {{- if .Values.extension.enabled }}
+            - name: KURA_EXTENSION_ENABLED
+              value: "true"
+            - name: KURA_EXTENSION_SCRIPT_PATH
+              value: {{ printf "%s/%s" .Values.extension.mountDir .Values.extension.scriptFileName | quote }}
+            {{- end }}
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with .Values.extraEnvFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp/kura
+            - name: data
+              mountPath: /var/cache/kura
+            {{- if .Values.peerTls.enabled }}
+            - name: peer-tls
+              mountPath: /etc/kura/peer-tls
+              readOnly: true
+            {{- end }}
+            {{- if .Values.extension.enabled }}
+            - name: extension-script
+              mountPath: {{ .Values.extension.mountDir }}
+              readOnly: true
+            {{- end }}
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          readinessProbe:
+            httpGet:
+              path: /up
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /up
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 20
+            timeoutSeconds: 5
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      volumes:
+        - name: tmp
+          emptyDir:
+            {{- if .Values.tmpStorage.sizeLimit }}
+            sizeLimit: {{ .Values.tmpStorage.sizeLimit }}
+            {{- end }}
+        {{- if not .Values.persistence.enabled }}
+        - name: data
+          emptyDir: {}
+        {{- end }}
+        {{- if .Values.extension.enabled }}
+        - name: extension-script
+          configMap:
+            name: {{ include "kura.extensionConfigMapName" . }}
+        {{- end }}
+        {{- if .Values.peerTls.enabled }}
+        - name: peer-tls
+          secret:
+            secretName: {{ include "kura.peerTlsSecretName" . }}
+        {{- end }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+  {{- if .Values.persistence.enabled }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+        {{- with .Values.persistence.annotations }}
+        annotations:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+      spec:
+        accessModes:
+          {{- toYaml .Values.persistence.accessModes | nindent 10 }}
+        resources:
+          requests:
+            storage: {{ .Values.persistence.size }}
+        {{- if .Values.persistence.storageClass }}
+        storageClassName: {{ .Values.persistence.storageClass | quote }}
+        {{- end }}
+  {{- end }}
