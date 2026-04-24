@@ -77,7 +77,9 @@ where
         metrics.clone(),
         config.file_descriptor_pool_size,
         Duration::from_millis(config.file_descriptor_acquire_timeout_ms),
-    );
+        vec![config.tmp_dir.clone(), config.data_dir.clone()],
+    )
+    .expect("failed to create test io controller");
     let memory = MemoryController::new(
         metrics.clone(),
         config.memory_soft_limit_bytes,

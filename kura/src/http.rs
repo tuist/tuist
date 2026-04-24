@@ -14,14 +14,14 @@ use tokio_util::io::ReaderStream;
 use tracing::{Instrument, field};
 
 use crate::{
-    artifact::{kind::ArtifactKind, manifest::ArtifactManifest},
+    artifact::{manifest::ArtifactManifest, producer::ArtifactProducer},
     constants::{MAX_GRADLE_BYTES, MAX_MODULE_PART_BYTES, MAX_MODULE_TOTAL_BYTES, MAX_XCODE_BYTES},
     extension::{AccessDecision, ExtensionContext},
     multipart::error::MultipartError,
     replication::replication_targets,
     state::SharedState,
     telemetry::attach_parent_context,
-    utils::{BodyReadError, module_key, read_request_to_temp},
+    utils::{BodyReadError, action_cache_key, blob_key, module_key, read_request_to_temp},
 };
 
 pub fn public_router(state: SharedState) -> Router {
@@ -210,7 +210,8 @@ impl UploadIdQuery {
 
 #[derive(Debug, PartialEq, Eq)]
 struct ReplicateArtifactQuery {
-    kind: String,
+    producer: String,
+    inline: bool,
     namespace_id: String,
     key: String,
     content_type: String,
@@ -233,6 +234,7 @@ struct LegacyAnalyticsContext<'a> {
 struct BlobPutSpec<'a> {
     namespace_id: &'a str,
     key: &'a str,
+    analytics_key: Option<&'a str>,
     max_bytes: u64,
     success_status: StatusCode,
     analytics: Option<LegacyAnalyticsContext<'a>>,
@@ -266,7 +268,16 @@ impl PageQuery {
 impl ReplicateArtifactQuery {
     fn from_params(params: &HashMap<String, String>) -> Result<Self, String> {
         Ok(Self {
-            kind: required_param(params, "kind")?,
+            producer: required_param(params, "producer")?,
+            inline: params
+                .get("inline")
+                .map(|value| {
+                    value
+                        .parse::<bool>()
+                        .map_err(|error| format!("Invalid inline: {error}"))
+                })
+                .transpose()?
+                .unwrap_or(false),
             namespace_id: required_param(params, "namespace_id")?,
             key: required_param(params, "key")?,
             content_type: required_param(params, "content_type")?,
@@ -429,8 +440,7 @@ async fn extension_context_from_http(
         operation: metadata.operation,
         tenant_id: metadata.tenant_id,
         namespace_id: metadata.namespace_id,
-        client: metadata.client,
-        artifact_class: metadata.artifact_class,
+        producer: metadata.producer,
         artifact_key: metadata.artifact_key,
         artifact_hash: metadata.artifact_hash,
         headers: headers.clone(),
@@ -446,8 +456,7 @@ struct HttpExtensionMetadata {
     operation: String,
     tenant_id: Option<String>,
     namespace_id: Option<String>,
-    client: Option<String>,
-    artifact_class: Option<String>,
+    producer: Option<String>,
     artifact_key: Option<String>,
     artifact_hash: Option<String>,
 }
@@ -468,18 +477,16 @@ async fn http_extension_metadata(
             operation: "artifact.read".into(),
             tenant_id,
             namespace_id,
-            client: Some("generic".into()),
-            artifact_class: Some("action_cache".into()),
-            artifact_key: last_path_segment,
+            producer: Some("xcode".into()),
+            artifact_key: last_path_segment.as_deref().map(action_cache_key),
             artifact_hash: None,
         },
         "/api/cache/keyvalue" => HttpExtensionMetadata {
             operation: "artifact.write".into(),
             tenant_id,
             namespace_id,
-            client: Some("generic".into()),
-            artifact_class: Some("action_cache".into()),
-            artifact_key: query.get("cas_id").cloned(),
+            producer: Some("xcode".into()),
+            artifact_key: query.get("cas_id").map(|cas_id| action_cache_key(cas_id)),
             artifact_hash: None,
         },
         "/api/cache/cas/{id}" => HttpExtensionMetadata {
@@ -491,9 +498,8 @@ async fn http_extension_metadata(
             .into(),
             tenant_id,
             namespace_id,
-            client: Some("xcode".into()),
-            artifact_class: Some("blob".into()),
-            artifact_key: last_path_segment.clone(),
+            producer: Some("xcode".into()),
+            artifact_key: last_path_segment.as_deref().map(blob_key),
             artifact_hash: last_path_segment.clone(),
         },
         "/api/cache/gradle/{cache_key}" => HttpExtensionMetadata {
@@ -505,8 +511,7 @@ async fn http_extension_metadata(
             .into(),
             tenant_id,
             namespace_id,
-            client: Some("gradle".into()),
-            artifact_class: Some("blob".into()),
+            producer: Some("gradle".into()),
             artifact_key: last_path_segment.clone(),
             artifact_hash: last_path_segment.clone(),
         },
@@ -520,8 +525,7 @@ async fn http_extension_metadata(
             .into(),
             tenant_id,
             namespace_id,
-            client: Some("module".into()),
-            artifact_class: Some("blob".into()),
+            producer: Some("module".into()),
             artifact_key: Some(module_key_from_query(query)),
             artifact_hash: query.get("hash").cloned(),
         },
@@ -546,8 +550,7 @@ async fn http_extension_metadata(
                 operation: "artifact.write".into(),
                 tenant_id,
                 namespace_id,
-                client: Some("module".into()),
-                artifact_class: Some("blob".into()),
+                producer: Some("module".into()),
                 artifact_key,
                 artifact_hash,
             }
@@ -556,8 +559,7 @@ async fn http_extension_metadata(
             operation: "namespace.delete".into(),
             tenant_id,
             namespace_id,
-            client: None,
-            artifact_class: None,
+            producer: None,
             artifact_key: None,
             artifact_hash: None,
         },
@@ -572,8 +574,7 @@ async fn http_extension_metadata(
                 .into(),
                 tenant_id: Some("default".into()),
                 namespace_id,
-                client: Some("nx".into()),
-                artifact_class: Some("blob".into()),
+                producer: Some("nx".into()),
                 artifact_key: last_path_segment.clone(),
                 artifact_hash: last_path_segment,
             }
@@ -589,8 +590,7 @@ async fn http_extension_metadata(
                 .into(),
                 tenant_id: Some("default".into()),
                 namespace_id,
-                client: Some("metro".into()),
-                artifact_class: Some("blob".into()),
+                producer: Some("metro".into()),
                 artifact_key: last_path_segment.clone(),
                 artifact_hash: last_path_segment,
             }
@@ -599,8 +599,7 @@ async fn http_extension_metadata(
             operation: "request".into(),
             tenant_id,
             namespace_id,
-            client: None,
-            artifact_class: None,
+            producer: None,
             artifact_key: None,
             artifact_hash: None,
         },
@@ -689,16 +688,25 @@ async fn get_keyvalue(
 
     get_artifact(
         state,
-        ArtifactKind::KeyValue,
+        ArtifactProducer::Xcode,
         &namespace.namespace_id,
-        &cas_id,
+        &action_cache_key(&cas_id),
+        None,
         None,
     )
     .await
 }
 
 async fn get_nx(AxumPath(hash): AxumPath<String>, State(state): State<SharedState>) -> Response {
-    get_artifact(state, ArtifactKind::Module, NX_NAMESPACE_ID, &hash, None).await
+    get_artifact(
+        state,
+        ArtifactProducer::Nx,
+        NX_NAMESPACE_ID,
+        &hash,
+        None,
+        None,
+    )
+    .await
 }
 
 async fn put_nx(
@@ -708,11 +716,12 @@ async fn put_nx(
 ) -> Response {
     put_blob_artifact(
         state,
-        ArtifactKind::Module,
+        ArtifactProducer::Nx,
         request,
         BlobPutSpec {
             namespace_id: NX_NAMESPACE_ID,
             key: &hash,
+            analytics_key: None,
             max_bytes: MAX_MODULE_TOTAL_BYTES,
             success_status: StatusCode::OK,
             analytics: None,
@@ -727,9 +736,10 @@ async fn get_metro(
 ) -> Response {
     get_artifact(
         state,
-        ArtifactKind::Module,
+        ArtifactProducer::Metro,
         METRO_NAMESPACE_ID,
         &cache_key,
+        None,
         None,
     )
     .await
@@ -742,11 +752,12 @@ async fn put_metro(
 ) -> Response {
     put_blob_artifact(
         state,
-        ArtifactKind::Module,
+        ArtifactProducer::Metro,
         request,
         BlobPutSpec {
             namespace_id: METRO_NAMESPACE_ID,
             key: &cache_key,
+            analytics_key: None,
             max_bytes: MAX_MODULE_TOTAL_BYTES,
             success_status: StatusCode::OK,
             analytics: None,
@@ -788,6 +799,7 @@ async fn put_keyvalue(
     };
 
     let cas_id = body.cas_id.clone();
+    let key = action_cache_key(&cas_id);
     let payload = serde_json::json!({
         "cas_id": body.cas_id,
         "entries": body.entries.into_iter().map(|entry| serde_json::json!({ "value": entry.value })).collect::<Vec<_>>()
@@ -805,10 +817,10 @@ async fn put_keyvalue(
 
     match state
         .store
-        .persist_artifact_from_bytes_and_enqueue(
-            ArtifactKind::KeyValue,
+        .persist_inline_artifact_from_bytes_and_enqueue(
+            ArtifactProducer::Xcode,
             &namespace.namespace_id,
-            &cas_id,
+            &key,
             "application/json",
             &payload_bytes,
             &targets,
@@ -819,13 +831,13 @@ async fn put_keyvalue(
             state.notify.notify_one();
             state
                 .metrics
-                .record_artifact_write(ArtifactKind::KeyValue, "ok", manifest.size);
+                .record_artifact_write(ArtifactProducer::Xcode, "ok", manifest.size);
             StatusCode::NO_CONTENT.into_response()
         }
         Err(error) => {
             state
                 .metrics
-                .record_artifact_write(ArtifactKind::KeyValue, "error", 0);
+                .record_artifact_write(ArtifactProducer::Xcode, "error", 0);
             error_response(
                 StatusCode::SERVICE_UNAVAILABLE,
                 format!("Failed to persist key-value entry: {error}"),
@@ -846,9 +858,10 @@ async fn get_xcode(
 
     get_artifact(
         state,
-        ArtifactKind::Xcode,
+        ArtifactProducer::Xcode,
         &namespace.namespace_id,
-        &id,
+        &blob_key(&id),
+        Some(&id),
         Some(LegacyAnalyticsContext {
             tenant_id: &namespace.tenant_id,
             namespace_id: &namespace.namespace_id,
@@ -870,11 +883,12 @@ async fn put_xcode(
 
     put_blob_artifact(
         state,
-        ArtifactKind::Xcode,
+        ArtifactProducer::Xcode,
         request,
         BlobPutSpec {
             namespace_id: &namespace.namespace_id,
-            key: &id,
+            key: &blob_key(&id),
+            analytics_key: Some(&id),
             max_bytes: MAX_XCODE_BYTES,
             success_status: StatusCode::NO_CONTENT,
             analytics: Some(LegacyAnalyticsContext {
@@ -898,9 +912,10 @@ async fn get_gradle(
 
     get_artifact(
         state,
-        ArtifactKind::Gradle,
+        ArtifactProducer::Gradle,
         &namespace.namespace_id,
         &cache_key,
+        Some(&cache_key),
         Some(LegacyAnalyticsContext {
             tenant_id: &namespace.tenant_id,
             namespace_id: &namespace.namespace_id,
@@ -922,11 +937,12 @@ async fn put_gradle(
 
     put_blob_artifact(
         state,
-        ArtifactKind::Gradle,
+        ArtifactProducer::Gradle,
         request,
         BlobPutSpec {
             namespace_id: &namespace.namespace_id,
             key: &cache_key,
+            analytics_key: Some(&cache_key),
             max_bytes: MAX_GRADLE_BYTES,
             success_status: StatusCode::CREATED,
             analytics: Some(LegacyAnalyticsContext {
@@ -950,7 +966,7 @@ async fn head_module(
     match state
         .store
         .artifact_exists(
-            ArtifactKind::Module,
+            ArtifactProducer::Module,
             &query.namespace.namespace_id,
             &query.artifact_key(),
         )
@@ -976,9 +992,10 @@ async fn get_module(
 
     get_artifact(
         state,
-        ArtifactKind::Module,
+        ArtifactProducer::Module,
         &query.namespace.namespace_id,
         &query.artifact_key(),
+        None,
         None,
     )
     .await
@@ -996,7 +1013,7 @@ async fn start_module_upload(
     match state
         .store
         .artifact_exists(
-            ArtifactKind::Module,
+            ArtifactProducer::Module,
             &query.namespace.namespace_id,
             &query.artifact_key(),
         )
@@ -1113,7 +1130,7 @@ async fn complete_module_upload(
             state.notify.notify_one();
             state
                 .metrics
-                .record_artifact_write(ArtifactKind::Module, "ok", manifest.size);
+                .record_artifact_write(ArtifactProducer::Module, "ok", manifest.size);
             StatusCode::NO_CONTENT.into_response()
         }
         Err(MultipartError::NotFound) => error_response(StatusCode::NOT_FOUND, "Upload not found"),
@@ -1231,13 +1248,13 @@ async fn internal_replicate_artifact(
         Err(message) => return error_response(StatusCode::BAD_REQUEST, message),
     };
 
-    let kind = match ArtifactKind::from_str(&query.kind) {
-        Some(kind) => kind,
-        None => return error_response(StatusCode::BAD_REQUEST, "Invalid artifact kind"),
+    let producer = match ArtifactProducer::from_str(&query.producer) {
+        Some(producer) => producer,
+        None => return error_response(StatusCode::BAD_REQUEST, "Invalid artifact producer"),
     };
 
     match state.store.artifact_apply_outcome(
-        kind,
+        producer,
         &query.namespace_id,
         &query.key,
         query.version_ms,
@@ -1260,7 +1277,7 @@ async fn internal_replicate_artifact(
         }
     }
 
-    if kind == ArtifactKind::KeyValue {
+    if query.inline {
         let bytes = match to_bytes(request.into_body(), state.config.max_keyvalue_bytes).await {
             Ok(bytes) => bytes,
             Err(error) => {
@@ -1279,8 +1296,8 @@ async fn internal_replicate_artifact(
 
         return match state
             .store
-            .apply_replicated_artifact_from_bytes(
-                kind,
+            .apply_replicated_inline_artifact_from_bytes(
+                producer,
                 &query.namespace_id,
                 &query.key,
                 &query.content_type,
@@ -1339,7 +1356,7 @@ async fn internal_replicate_artifact(
     match state
         .store
         .apply_replicated_artifact_from_path(
-            kind,
+            producer,
             &query.namespace_id,
             &query.key,
             &query.content_type,
@@ -1407,28 +1424,40 @@ async fn internal_delete_namespace(
 
 async fn get_artifact(
     state: SharedState,
-    kind: ArtifactKind,
+    producer: ArtifactProducer,
     namespace_id: &str,
     key: &str,
+    analytics_key: Option<&str>,
     analytics: Option<LegacyAnalyticsContext<'_>>,
 ) -> Response {
-    match state.store.fetch_artifact(kind, namespace_id, key).await {
+    match state
+        .store
+        .fetch_artifact(producer, namespace_id, key)
+        .await
+    {
         Ok(Some(manifest)) => {
             state
                 .metrics
-                .record_artifact_read(kind, "ok", manifest.size);
+                .record_artifact_read(producer, "ok", manifest.size);
             let response = serve_file(&state, StatusCode::OK, &manifest).await;
             if response.status().is_success() {
-                record_legacy_cache_event(&state, kind, "download", analytics, key, manifest.size);
+                record_legacy_cache_event(
+                    &state,
+                    producer,
+                    "download",
+                    analytics,
+                    analytics_key.unwrap_or(key),
+                    manifest.size,
+                );
             }
             response
         }
         Ok(None) => {
-            state.metrics.record_artifact_read(kind, "not_found", 0);
+            state.metrics.record_artifact_read(producer, "not_found", 0);
             StatusCode::NOT_FOUND.into_response()
         }
         Err(error) => {
-            state.metrics.record_artifact_read(kind, "error", 0);
+            state.metrics.record_artifact_read(producer, "error", 0);
             error_response(
                 StatusCode::SERVICE_UNAVAILABLE,
                 format!("Failed to fetch artifact: {error}"),
@@ -1439,13 +1468,13 @@ async fn get_artifact(
 
 async fn put_blob_artifact(
     state: SharedState,
-    kind: ArtifactKind,
+    producer: ArtifactProducer,
     request: Request,
     spec: BlobPutSpec<'_>,
 ) -> Response {
     match state
         .store
-        .artifact_exists(kind, spec.namespace_id, spec.key)
+        .artifact_exists(producer, spec.namespace_id, spec.key)
         .await
     {
         Ok(true) => return spec.success_status.into_response(),
@@ -1485,7 +1514,7 @@ async fn put_blob_artifact(
     match state
         .store
         .persist_artifact_from_path_and_enqueue(
-            kind,
+            producer,
             spec.namespace_id,
             spec.key,
             "application/octet-stream",
@@ -1498,19 +1527,19 @@ async fn put_blob_artifact(
             state.notify.notify_one();
             state
                 .metrics
-                .record_artifact_write(kind, "ok", manifest.size);
+                .record_artifact_write(producer, "ok", manifest.size);
             record_legacy_cache_event(
                 &state,
-                kind,
+                producer,
                 "upload",
                 spec.analytics,
-                spec.key,
+                spec.analytics_key.unwrap_or(spec.key),
                 manifest.size,
             );
             spec.success_status.into_response()
         }
         Err(error) => {
-            state.metrics.record_artifact_write(kind, "error", 0);
+            state.metrics.record_artifact_write(producer, "error", 0);
             error_response(
                 StatusCode::SERVICE_UNAVAILABLE,
                 format!("Failed to persist artifact: {error}"),
@@ -1521,7 +1550,7 @@ async fn put_blob_artifact(
 
 fn record_legacy_cache_event(
     state: &SharedState,
-    kind: ArtifactKind,
+    producer: ArtifactProducer,
     action: &str,
     analytics: Option<LegacyAnalyticsContext<'_>>,
     key: &str,
@@ -1534,17 +1563,17 @@ fn record_legacy_cache_event(
         return;
     };
 
-    match (kind, action) {
-        (ArtifactKind::Xcode, "download") => {
+    match (producer, action) {
+        (ArtifactProducer::Xcode, "download") => {
             analytics.enqueue_xcode_download(context.tenant_id, context.namespace_id, key, size)
         }
-        (ArtifactKind::Xcode, "upload") => {
+        (ArtifactProducer::Xcode, "upload") => {
             analytics.enqueue_xcode_upload(context.tenant_id, context.namespace_id, key, size)
         }
-        (ArtifactKind::Gradle, "download") => {
+        (ArtifactProducer::Gradle, "download") => {
             analytics.enqueue_gradle_download(context.tenant_id, context.namespace_id, key, size)
         }
-        (ArtifactKind::Gradle, "upload") => {
+        (ArtifactProducer::Gradle, "upload") => {
             analytics.enqueue_gradle_upload(context.tenant_id, context.namespace_id, key, size)
         }
         _ => {}
@@ -1592,8 +1621,10 @@ mod tests {
 
     use super::*;
     use crate::{
+        artifact::producer::ArtifactProducer,
         config::AnalyticsConfig,
         test_support::{response_text, test_context},
+        utils::blob_key,
     };
 
     #[tokio::test]
@@ -1977,9 +2008,9 @@ mod tests {
             .state
             .store
             .persist_artifact_from_bytes(
-                ArtifactKind::Xcode,
+                ArtifactProducer::Xcode,
                 "ios",
-                "artifact-1",
+                &blob_key("artifact-1"),
                 "application/octet-stream",
                 b"xcode-binary",
             )

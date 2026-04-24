@@ -1,5 +1,5 @@
 use std::{
-    path::Path,
+    path::{Component, Path, PathBuf},
     pin::Pin,
     sync::Arc,
     task::{Context, Poll},
@@ -24,6 +24,8 @@ struct IoControllerInner {
     pool: Pool<FileDescriptorToken>,
     acquire_timeout: Duration,
     metrics: Metrics,
+    cwd: PathBuf,
+    allowed_roots: Vec<PathBuf>,
 }
 
 #[derive(Debug)]
@@ -40,7 +42,21 @@ pub struct PersistentFile {
 }
 
 impl IoController {
-    pub fn new(metrics: Metrics, pool_size: usize, acquire_timeout: Duration) -> Self {
+    pub fn new(
+        metrics: Metrics,
+        pool_size: usize,
+        acquire_timeout: Duration,
+        allowed_roots: Vec<PathBuf>,
+    ) -> Result<Self, String> {
+        if allowed_roots.is_empty() {
+            return Err("IoController requires at least one allowed storage root".into());
+        }
+        let cwd =
+            std::env::current_dir().map_err(|error| format!("failed to determine cwd: {error}"))?;
+        let mut normalized_roots = Vec::with_capacity(allowed_roots.len());
+        for root in allowed_roots {
+            normalized_roots.push(normalize_path(&cwd, &root)?);
+        }
         let pool = Pool::from(
             std::iter::repeat_with(|| FileDescriptorToken)
                 .take(pool_size)
@@ -51,16 +67,19 @@ impl IoController {
                 pool,
                 acquire_timeout,
                 metrics,
+                cwd,
+                allowed_roots: normalized_roots,
             }),
         };
         controller.record_pool_status();
-        controller
+        Ok(controller)
     }
 
     pub async fn create_file(&self, path: &Path) -> Result<TrackedFile, String> {
+        let path = self.validate_path(path)?;
         let lease = self.acquire("create_file").await?;
         let started_at = Instant::now();
-        match File::create(path).await {
+        match File::create(&path).await {
             Ok(file) => {
                 self.inner.metrics.record_file_operation(
                     "create_file",
@@ -86,9 +105,10 @@ impl IoController {
     }
 
     pub async fn open_file(&self, path: &Path) -> Result<TrackedFile, String> {
+        let path = self.validate_path(path)?;
         let lease = self.acquire("open_file").await?;
         let started_at = Instant::now();
-        match File::open(path).await {
+        match File::open(&path).await {
             Ok(file) => {
                 self.inner.metrics.record_file_operation(
                     "open_file",
@@ -114,13 +134,14 @@ impl IoController {
     }
 
     pub async fn open_append_file(&self, path: &Path) -> Result<TrackedFile, String> {
+        let path = self.validate_path(path)?;
         let lease = self.acquire("open_append_file").await?;
         let started_at = Instant::now();
         match OpenOptions::new()
             .create(true)
             .append(true)
             .read(true)
-            .open(path)
+            .open(&path)
             .await
         {
             Ok(file) => {
@@ -151,9 +172,9 @@ impl IoController {
     }
 
     pub async fn open_persistent_read_file(&self, path: &Path) -> Result<PersistentFile, String> {
+        let path = self.validate_path(path)?;
         let lease = self.acquire("open_persistent_read_file").await?;
         let started_at = Instant::now();
-        let path = path.to_path_buf();
         match tokio::task::spawn_blocking({
             let path = path.clone();
             move || std::fs::File::open(&path)
@@ -200,8 +221,9 @@ impl IoController {
     }
 
     pub async fn create_dir_all(&self, path: &Path) -> Result<(), String> {
+        let path = self.validate_path(path)?;
         self.run("create_dir_all", 0, async {
-            fs::create_dir_all(path)
+            fs::create_dir_all(&path)
                 .await
                 .map_err(|error| format!("failed to create directory {}: {error}", path.display()))
         })
@@ -209,8 +231,9 @@ impl IoController {
     }
 
     pub async fn metadata_len(&self, path: &Path) -> Result<u64, String> {
+        let path = self.validate_path(path)?;
         self.run("metadata", 0, async {
-            fs::metadata(path)
+            fs::metadata(&path)
                 .await
                 .map(|metadata| metadata.len())
                 .map_err(|error| format!("failed to stat {}: {error}", path.display()))
@@ -219,8 +242,9 @@ impl IoController {
     }
 
     pub async fn path_exists(&self, path: &Path) -> Result<bool, String> {
+        let path = self.validate_path(path)?;
         self.run("exists", 0, async {
-            match fs::metadata(path).await {
+            match fs::metadata(&path).await {
                 Ok(_) => Ok(true),
                 Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
                 Err(error) => Err(format!("failed to inspect {}: {error}", path.display())),
@@ -230,8 +254,10 @@ impl IoController {
     }
 
     pub async fn rename(&self, from: &Path, to: &Path) -> Result<(), String> {
+        let from = self.validate_path(from)?;
+        let to = self.validate_path(to)?;
         self.run("rename", 0, async {
-            fs::rename(from, to).await.map_err(|error| {
+            fs::rename(&from, &to).await.map_err(|error| {
                 format!(
                     "failed to rename {} to {}: {error}",
                     from.display(),
@@ -243,8 +269,10 @@ impl IoController {
     }
 
     pub async fn copy(&self, from: &Path, to: &Path) -> Result<u64, String> {
+        let from = self.validate_path(from)?;
+        let to = self.validate_path(to)?;
         self.run("copy", 0, async {
-            fs::copy(from, to).await.map_err(|error| {
+            fs::copy(&from, &to).await.map_err(|error| {
                 format!(
                     "failed to copy {} to {}: {error}",
                     from.display(),
@@ -256,8 +284,9 @@ impl IoController {
     }
 
     pub async fn remove_file(&self, path: &Path) -> Result<(), String> {
+        let path = self.validate_path(path)?;
         self.run("remove_file", 0, async {
-            fs::remove_file(path)
+            fs::remove_file(&path)
                 .await
                 .map_err(|error| format!("failed to remove {}: {error}", path.display()))
         })
@@ -265,8 +294,9 @@ impl IoController {
     }
 
     pub async fn remove_dir_all(&self, path: &Path) -> Result<(), String> {
+        let path = self.validate_path(path)?;
         self.run("remove_dir_all", 0, async {
-            fs::remove_dir_all(path)
+            fs::remove_dir_all(&path)
                 .await
                 .map_err(|error| format!("failed to remove directory {}: {error}", path.display()))
         })
@@ -274,8 +304,9 @@ impl IoController {
     }
 
     pub async fn write(&self, path: &Path, bytes: &[u8]) -> Result<(), String> {
+        let path = self.validate_path(path)?;
         self.run("write", bytes.len() as u64, async {
-            fs::write(path, bytes)
+            fs::write(&path, bytes)
                 .await
                 .map_err(|error| format!("failed to write {}: {error}", path.display()))
         })
@@ -283,8 +314,9 @@ impl IoController {
     }
 
     pub async fn read(&self, path: &Path) -> Result<Vec<u8>, String> {
+        let path = self.validate_path(path)?;
         self.run("read", 0, async {
-            fs::read(path)
+            fs::read(&path)
                 .await
                 .map_err(|error| format!("failed to read {}: {error}", path.display()))
         })
@@ -387,6 +419,23 @@ impl IoController {
             status.waiting,
         );
     }
+
+    fn validate_path(&self, path: &Path) -> Result<PathBuf, String> {
+        let normalized = normalize_path(&self.inner.cwd, path)?;
+        if self
+            .inner
+            .allowed_roots
+            .iter()
+            .any(|root| normalized.starts_with(root))
+        {
+            return Ok(normalized);
+        }
+
+        Err(format!(
+            "refused to access path outside configured storage roots: {}",
+            path.display()
+        ))
+    }
 }
 
 struct FileDescriptorLease {
@@ -459,9 +508,9 @@ impl TrackedFile {
 
 impl IoController {
     pub async fn sync_directory(&self, path: &Path) -> Result<(), String> {
+        let path = self.validate_path(path)?;
         #[cfg(unix)]
         {
-            let path = path.to_path_buf();
             self.run("sync_directory", 0, async move {
                 tokio::task::spawn_blocking({
                     let path = path.clone();
@@ -496,8 +545,33 @@ impl IoController {
     }
 }
 
+fn normalize_path(cwd: &Path, path: &Path) -> Result<PathBuf, String> {
+    let joined = if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        cwd.join(path)
+    };
+    let mut normalized = PathBuf::new();
+    for component in joined.components() {
+        match component {
+            Component::Prefix(prefix) => normalized.push(prefix.as_os_str()),
+            Component::RootDir => normalized.push(component.as_os_str()),
+            Component::CurDir => {}
+            Component::Normal(part) => normalized.push(part),
+            Component::ParentDir => {
+                return Err(format!(
+                    "refused path containing parent traversal component: {}",
+                    path.display()
+                ));
+            }
+        }
+    }
+    Ok(normalized)
+}
+
 #[cfg(test)]
 mod tests {
+    use tempfile::tempdir;
     use tokio::{sync::oneshot, time::timeout};
 
     use super::*;
@@ -505,7 +579,14 @@ mod tests {
     #[tokio::test]
     async fn controller_blocks_when_all_permits_are_checked_out() {
         let metrics = Metrics::new("eu-west".into(), "acme".into());
-        let controller = IoController::new(metrics, 1, Duration::from_secs(1));
+        let directory = tempdir().expect("failed to create temp dir");
+        let controller = IoController::new(
+            metrics,
+            1,
+            Duration::from_secs(1),
+            vec![directory.path().to_path_buf()],
+        )
+        .expect("controller should initialize");
         let first = controller
             .acquire("test")
             .await
@@ -534,5 +615,52 @@ mod tests {
             .await
             .expect("waiter task should complete")
             .expect("second permit should acquire after release");
+    }
+
+    #[tokio::test]
+    async fn rejects_paths_outside_allowed_roots() {
+        let metrics = Metrics::new("eu-west".into(), "acme".into());
+        let allowed_root = tempdir().expect("failed to create allowed root");
+        let outside_root = tempdir().expect("failed to create outside root");
+        let controller = IoController::new(
+            metrics,
+            1,
+            Duration::from_secs(1),
+            vec![allowed_root.path().to_path_buf()],
+        )
+        .expect("controller should initialize");
+
+        let error = match controller
+            .create_file(&outside_root.path().join("escape"))
+            .await
+        {
+            Ok(_) => panic!("path outside the allowed roots should be rejected"),
+            Err(error) => error,
+        };
+
+        assert!(error.contains("outside configured storage roots"));
+    }
+
+    #[tokio::test]
+    async fn rejects_paths_with_parent_traversal_components() {
+        let metrics = Metrics::new("eu-west".into(), "acme".into());
+        let allowed_root = tempdir().expect("failed to create allowed root");
+        let controller = IoController::new(
+            metrics,
+            1,
+            Duration::from_secs(1),
+            vec![allowed_root.path().to_path_buf()],
+        )
+        .expect("controller should initialize");
+
+        let error = match controller
+            .create_file(&allowed_root.path().join("nested").join("..").join("escape"))
+            .await
+        {
+            Ok(_) => panic!("path traversal should be rejected"),
+            Err(error) => error,
+        };
+
+        assert!(error.contains("parent traversal component"));
     }
 }
