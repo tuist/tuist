@@ -188,7 +188,7 @@ struct TestActionManifestMapperTests {
         #expect(testAction.testPlans?.first?.path == testPlanPath)
     }
 
-    @Test(.inTemporaryDirectory) func action_with_generated_test_plans_defaults_first_as_default() async throws {
+    @Test(.inTemporaryDirectory) func action_with_generated_test_plans_uses_first_as_default() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let projectPath = temporaryDirectory.appending(component: "App.xcodeproj")
@@ -286,39 +286,6 @@ struct TestActionManifestMapperTests {
         #expect(testAction.testPlans?[0].isDefault == true)
         #expect(testAction.testPlans?[1].isGenerated == false)
         #expect(testAction.testPlans?[1].path == preConfiguredPath)
-    }
-
-    @Test(.inTemporaryDirectory) func action_with_generated_test_plans_respects_explicit_default() async throws {
-        // Given
-        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        let projectPath = temporaryDirectory.appending(component: "App.xcodeproj")
-
-        let manifest = ProjectDescription.TestAction.testPlans([
-            .testPlan(
-                name: "UnitTests",
-                testTargets: [
-                    .testableTarget(target: .project(path: .path(projectPath.pathString), target: "AppTests")),
-                ]
-            ),
-            .testPlan(
-                name: "SnapshotTests",
-                testTargets: [
-                    .testableTarget(target: .project(path: .path(projectPath.pathString), target: "AppSnapshotTests")),
-                ],
-                isDefault: true
-            ),
-        ])
-        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryDirectory, rootDirectory: temporaryDirectory)
-
-        // When
-        let testAction = try await XcodeGraph.TestAction.from(
-            manifest: manifest,
-            generatorPaths: generatorPaths
-        )
-
-        // Then
-        #expect(testAction.testPlans?[0].isDefault == false)
-        #expect(testAction.testPlans?[1].isDefault == true)
     }
 
     @Test(.inTemporaryDirectory, .withScopedAlertController())
