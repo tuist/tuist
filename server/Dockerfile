@@ -88,7 +88,10 @@ COPY xcode_processor/config /xcode_processor/config
 # local cache on network flakes, producing "Unknown package in lockfile"
 # errors on packages that clearly exist in mix.lock. Exit non-zero if every
 # attempt fails (the naive `|| sleep && break` form was masking failures).
-RUN set -e; \
+# Cache mounts for hex/rebar stores speed up redownloads when mix.lock changes.
+RUN --mount=type=cache,id=mix-hex,target=/root/.hex \
+    --mount=type=cache,id=mix-rebar3,target=/root/.cache/rebar3 \
+    set -e; \
     attempts=0; \
     until mix deps.get --only $MIX_ENV; do \
       attempts=$((attempts + 1)); \
@@ -106,7 +109,12 @@ COPY server/config/config.exs server/config/${MIX_ENV}.exs config/
 COPY processor/lib /processor/lib
 COPY xcode_processor/lib /xcode_processor/lib
 
-RUN mix deps.compile
+# Cache mount on _build persists compiled dep artifacts across builds, so
+# incremental compilation survives even when this layer is invalidated.
+# The mount masks the image layer, so /app/_build is empty in the committed
+# layer — every subsequent RUN that reads _build must use the same mount id.
+RUN --mount=type=cache,id=mix-build,target=/app/_build \
+    mix deps.compile
 
 # ========================================
 # Stage 3: Main application builder
@@ -122,25 +130,39 @@ COPY examples/xcode /examples/xcode
 
 COPY server/lib lib
 
-RUN mix compile --warnings-as-errors
-
-# Install Chromium for OG image generation (headless, no GPU)
+# Install Chromium before the big mix RUN so it can generate OG images.
+# Kept in its own layer (no mix mount needed) so it caches independently
+# of source changes, and runs before mix compile so the compile RUN
+# doesn't interleave apt-get network I/O with Elixir compilation.
 RUN apt-get update -y && \
   apt-get install -y --no-install-recommends chromium fonts-noto-cjk fonts-noto-core && \
   apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Generate OG images using headless Chromium
-RUN mix docs.gen.og_images
-RUN mix marketing.gen.og_images
+# All mix steps that read/write _build share the same cache mount id so
+# incremental compilation persists both within this build (across RUNs)
+# and across builds (via BuildKit persistent cache).
+RUN --mount=type=cache,id=mix-build,target=/app/_build \
+    mix compile --warnings-as-errors
+
+RUN --mount=type=cache,id=mix-build,target=/app/_build \
+    mix docs.gen.og_images
+RUN --mount=type=cache,id=mix-build,target=/app/_build \
+    mix marketing.gen.og_images
 
 COPY server/config/runtime.exs config/
 COPY server/rel rel
 
 COPY --from=npm-deps /app/node_modules /app/node_modules
 COPY --from=npm-deps /noora/priv/static /noora/priv/static
-RUN mix assets.deploy
+RUN --mount=type=cache,id=mix-build,target=/app/_build \
+    mix assets.deploy
 
-RUN mix release
+# mix release writes into the cache mount, so we copy the release output
+# out to /release (a real image path) in the same RUN. Downstream stages
+# COPY --from=builder /release instead of /app/_build/${MIX_ENV}/rel/tuist.
+RUN --mount=type=cache,id=mix-build,target=/app/_build \
+    mix release && \
+    cp -r /app/_build/${MIX_ENV}/rel/tuist /release
 
 # ========================================
 # Stage: NIF bridge builder (for selfhosted)
@@ -151,16 +173,16 @@ FROM builder AS nif-bridge-builder
 COPY processor/native/xcactivitylog_nif/nif_bridge.c /tmp/nif/nif_bridge.c
 COPY --from=swift-builder /nif/libXCActivityLogNIF.so /tmp/nif/libXCActivityLogNIF.so
 
-RUN mkdir -p /app/_build/prod/rel/tuist/lib/processor-0.1.0/priv/native && \
+RUN mkdir -p /release/lib/processor-0.1.0/priv/native && \
     ERL_INCLUDE=$(erl -eval 'io:format("~s/erts-~s/include", [code:root_dir(), erlang:system_info(version)])' -s init stop -noshell) && \
     cc -shared -fPIC \
-      -o /app/_build/prod/rel/tuist/lib/processor-0.1.0/priv/native/xcactivitylog_nif.so \
+      -o /release/lib/processor-0.1.0/priv/native/xcactivitylog_nif.so \
       /tmp/nif/nif_bridge.c \
       -I"$ERL_INCLUDE" \
       -L/tmp/nif \
       -lXCActivityLogNIF \
       -Wl,-rpath,'$ORIGIN' && \
-    cp /tmp/nif/libXCActivityLogNIF.so /app/_build/prod/rel/tuist/lib/processor-0.1.0/priv/native/
+    cp /tmp/nif/libXCActivityLogNIF.so /release/lib/processor-0.1.0/priv/native/
 
 # ========================================
 # Stage 5: Common runtime base
@@ -192,7 +214,7 @@ ARG EMBED_CLICKHOUSE=false
 ENV MIX_ENV=$MIX_ENV
 ENV TUIST_HOSTED=$TUIST_HOSTED
 
-COPY --from=builder --chown=nobody:root /app/_build/${MIX_ENV}/rel/tuist ./
+COPY --from=builder --chown=nobody:root /release ./
 
 COPY server/priv/secrets/can.yml.enc /app/priv/secrets/can.yml.enc
 COPY server/priv/secrets/stag.yml.enc /app/priv/secrets/stag.yml.enc
@@ -237,7 +259,7 @@ COPY --from=swift-builder /nif/swift-libs/ /usr/local/lib/
 RUN ldconfig
 
 # Copy compiled NIF .so files into processor priv dir
-COPY --from=nif-bridge-builder /app/_build/prod/rel/tuist/lib/processor-0.1.0/priv/native/ /app/lib/processor-0.1.0/priv/native/
+COPY --from=nif-bridge-builder /release/lib/processor-0.1.0/priv/native/ /app/lib/processor-0.1.0/priv/native/
 
 USER nobody
 
