@@ -28,8 +28,15 @@ jobs:
           # Get PR author info
           PR_AUTHOR="${{ github.event.pull_request.user.login }}"
           PR_AUTHOR_ID="${{ github.event.pull_request.user.id }}"
+          PR_AUTHOR_TYPE="${{ github.event.pull_request.user.type }}"
 
-          echo "Checking CLA status for: $PR_AUTHOR (ID: $PR_AUTHOR_ID)"
+          echo "Checking CLA status for: $PR_AUTHOR (ID: $PR_AUTHOR_ID, type: $PR_AUTHOR_TYPE)"
+
+          if [[ "$PR_AUTHOR_TYPE" == "Bot" ]]; then
+            echo "✅ PR author $PR_AUTHOR is a bot, CLA not required"
+            echo "cla_required=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
 
           # Check allowlist first
           ALLOWLIST="pepicrft,cschmatzler,asmitbm,fortmarek"
