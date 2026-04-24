@@ -114,12 +114,7 @@ COPY server/config/prod.exs server/config/can.exs server/config/stag.exs config/
 # Copy path dependency sources for compilation
 COPY xcode_processor/lib /xcode_processor/lib
 
-# Cache mount on _build persists compiled dep artifacts across builds, so
-# incremental compilation survives even when this layer is invalidated.
-# The mount masks the image layer, so /app/_build is empty in the committed
-# layer — every subsequent RUN that reads _build must use the same mount id.
-RUN --mount=type=cache,id=mix-build,target=/app/_build \
-    mix deps.compile
+RUN mix deps.compile
 
 # ========================================
 # Stage 3: Main application builder
@@ -136,39 +131,25 @@ COPY examples/xcode /examples/xcode
 
 COPY server/lib lib
 
-# Install Chromium before the big mix RUN so it can generate OG images.
-# Kept in its own layer (no mix mount needed) so it caches independently
-# of source changes, and runs before mix compile so the compile RUN
-# doesn't interleave apt-get network I/O with Elixir compilation.
+RUN mix compile --warnings-as-errors
+
+# Install Chromium for OG image generation (headless, no GPU)
 RUN apt-get update -y && \
   apt-get install -y --no-install-recommends chromium fonts-noto-cjk fonts-noto-core && \
   apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# All mix steps that read/write _build share the same cache mount id so
-# incremental compilation persists both within this build (across RUNs)
-# and across builds (via BuildKit persistent cache).
-RUN --mount=type=cache,id=mix-build,target=/app/_build \
-    mix compile --warnings-as-errors
-
-RUN --mount=type=cache,id=mix-build,target=/app/_build \
-    mix docs.gen.og_images
-RUN --mount=type=cache,id=mix-build,target=/app/_build \
-    mix marketing.gen.og_images
+# Generate OG images using headless Chromium
+RUN mix docs.gen.og_images
+RUN mix marketing.gen.og_images
 
 COPY server/config/runtime.exs config/
 COPY server/rel rel
 
 COPY --from=npm-deps /app/node_modules /app/node_modules
 COPY --from=npm-deps /noora/priv/static /noora/priv/static
-RUN --mount=type=cache,id=mix-build,target=/app/_build \
-    mix assets.deploy
+RUN mix assets.deploy
 
-# mix release writes into the cache mount, so we copy the release output
-# out to /release (a real image path) in the same RUN. Downstream stages
-# COPY --from=builder /release instead of /app/_build/${MIX_ENV}/rel/tuist.
-RUN --mount=type=cache,id=mix-build,target=/app/_build \
-    mix release && \
-    cp -r /app/_build/${MIX_ENV}/rel/tuist /release
+RUN mix release
 
 # ========================================
 # Stage: NIF bridge builder
@@ -181,7 +162,7 @@ FROM builder AS nif-bridge-builder
 COPY server/native/xcactivitylog_nif/nif_bridge.c /tmp/nif/nif_bridge.c
 COPY --from=swift-builder /nif/libXCActivityLogNIF.so /tmp/nif/libXCActivityLogNIF.so
 
-RUN TUIST_REL_DIR=$(ls -d /release/lib/tuist-*) && \
+RUN TUIST_REL_DIR=$(ls -d /app/_build/${MIX_ENV}/rel/tuist/lib/tuist-*) && \
     mkdir -p "$TUIST_REL_DIR/priv/native" && \
     ERL_INCLUDE=$(erl -eval 'io:format("~s/erts-~s/include", [code:root_dir(), erlang:system_info(version)])' -s init stop -noshell) && \
     cc -shared -fPIC \
@@ -232,7 +213,7 @@ RUN ldconfig
 # Release taken from nif-bridge-builder so the compiled xcactivitylog_nif +
 # libXCActivityLogNIF are already under lib/tuist-<vsn>/priv/native where
 # Tuist.Processor.XCActivityLogNIF.load_nif expects them.
-COPY --from=nif-bridge-builder --chown=nobody:root /release ./
+COPY --from=nif-bridge-builder --chown=nobody:root /app/_build/${MIX_ENV}/rel/tuist ./
 
 COPY server/priv/secrets/can.yml.enc /app/priv/secrets/can.yml.enc
 COPY server/priv/secrets/stag.yml.enc /app/priv/secrets/stag.yml.enc
