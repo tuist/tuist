@@ -784,6 +784,25 @@ class ProjectFileElements {
         elements[path] as? PBXFileReference
     }
 
+    @discardableResult
+    func addStandaloneFile(path: AbsolutePath, pbxproj: PBXProj) -> PBXFileReference {
+        if let existingFile = file(path: path) {
+            return existingFile
+        }
+
+        let lastKnownFileType = path.extension.flatMap { Xcode.filetype(extension: $0) }
+        let file = PBXFileReference(
+            sourceTree: .absolute,
+            name: path.basename,
+            lastKnownFileType: lastKnownFileType,
+            path: path.pathString,
+            xcLanguageSpecificationIdentifier: xcLanguageSpecificationIdentifierFromLastKnownFileType(lastKnownFileType)
+        )
+        pbxproj.add(object: file)
+        elements[path] = file
+        return file
+    }
+
     func isLocalized(path: AbsolutePath) -> Bool {
         path.extension == "lproj"
     }

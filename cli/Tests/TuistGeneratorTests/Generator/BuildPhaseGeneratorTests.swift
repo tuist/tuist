@@ -942,6 +942,52 @@ struct BuildPhaseGeneratorTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
+    ) func generateResourcesBuildPhase_whenStaticTargetHasBuildableFolderXCStrings() throws {
+        // Given
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
+        let xcstringPath = try AbsolutePath(validating: "/Feature/Resources/Localizable.xcstrings")
+        let target = Target.test(
+            product: .staticFramework,
+            settings: Settings(base: [
+                "PACKAGE_RESOURCE_BUNDLE_NAME": "Project_Feature",
+            ], configurations: [:]),
+            buildableFolders: [
+                BuildableFolder(
+                    path: "/Feature",
+                    exceptions: [],
+                    resolvedFiles: [
+                        BuildableFolderFile(path: xcstringPath, compilerFlags: nil),
+                    ]
+                ),
+            ]
+        )
+        let fileElements = ProjectFileElements()
+        let pbxproj = PBXProj()
+        let nativeTarget = PBXNativeTarget(name: "Test")
+        pbxproj.add(object: nativeTarget)
+        let graph = Graph.test(path: temporaryPath)
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        try subject.generateResourcesBuildPhase(
+            path: "/path",
+            target: target,
+            graphTraverser: graphTraverser,
+            pbxTarget: nativeTarget,
+            fileElements: fileElements,
+            pbxproj: pbxproj
+        )
+
+        // Then
+        let resourceBuildPhase = try #require(nativeTarget.buildPhases.first as? PBXResourcesBuildPhase)
+        #expect(resourceBuildPhase.files?.map(\.file?.path) == [xcstringPath.pathString])
+        #expect(fileElements.file(path: xcstringPath) != nil)
+    }
+
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .withMockedXcodeController,
+        .inTemporaryDirectory
     ) func generateResourcesBuildPhase_whenMultiPlatformResourceFiles() throws {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
