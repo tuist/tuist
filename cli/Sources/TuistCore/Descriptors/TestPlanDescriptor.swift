@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import Path
 import XcodeProj
@@ -45,7 +46,7 @@ public struct TestPlanDescriptor: Equatable {
         let plan = XCTestPlanPayload(
             configurations: [
                 XCTestPlanPayload.Configuration(
-                    id: UUID(uuidString: "91BDB644-1AEA-4734-9E55-F6DA2F59DF74")!,
+                    id: Self.configurationID(for: path),
                     name: "Configuration 1",
                     options: [:]
                 ),
@@ -67,6 +68,20 @@ public struct TestPlanDescriptor: Equatable {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
         return try encoder.encode(plan)
+    }
+
+    /// Deterministic UUID derived from the plan's absolute path.
+    ///
+    /// Keeps the configuration ID stable across regenerations (no git churn when a plan is
+    /// pinned to a checked-in location) while being unique per plan.
+    private static func configurationID(for path: AbsolutePath) -> UUID {
+        let digest = Array(SHA256.hash(data: Data(path.pathString.utf8)).prefix(16))
+        return UUID(uuid: (
+            digest[0], digest[1], digest[2], digest[3],
+            digest[4], digest[5], digest[6], digest[7],
+            digest[8], digest[9], digest[10], digest[11],
+            digest[12], digest[13], digest[14], digest[15]
+        ))
     }
 }
 
