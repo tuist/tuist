@@ -60,6 +60,15 @@ defmodule TuistWeb.API.TestCasesController do
         type: :string,
         description: "Filter by suite name."
       ],
+      state: [
+        in: :query,
+        type: %Schema{
+          title: "TestCasesIndexState",
+          type: :string,
+          enum: ["enabled", "muted"]
+        },
+        description: "Filter by test case state."
+      ],
       page_size: [
         in: :query,
         type: %Schema{
@@ -129,7 +138,8 @@ defmodule TuistWeb.API.TestCasesController do
             suite: build_suite(test_case.suite_name),
             avg_duration: test_case.avg_duration,
             is_flaky: test_case.is_flaky,
-            is_quarantined: test_case.is_quarantined,
+            is_quarantined: (test_case.state || "enabled") == "muted",
+            state: test_case.state || "enabled",
             url: ~p"/#{selected_project.account.name}/#{selected_project.name}/tests/test-cases/#{test_case.id}"
           }
         end),
@@ -193,7 +203,12 @@ defmodule TuistWeb.API.TestCasesController do
                }
              },
              is_flaky: %Schema{type: :boolean, description: "Whether the test case is marked as flaky."},
-             is_quarantined: %Schema{type: :boolean, description: "Whether the test case is quarantined."},
+             is_quarantined: %Schema{
+               type: :boolean,
+               deprecated: true,
+               description: "Whether the test case is quarantined. Deprecated: use `state` instead."
+             },
+             state: %Schema{type: :string, enum: ["enabled", "muted"], description: "The state of the test case."},
              last_status: %Schema{
                type: :string,
                enum: ["success", "failure", "skipped"],
@@ -214,6 +229,7 @@ defmodule TuistWeb.API.TestCasesController do
              :module,
              :is_flaky,
              :is_quarantined,
+             :state,
              :last_status,
              :last_duration,
              :last_ran_at,
@@ -247,7 +263,8 @@ defmodule TuistWeb.API.TestCasesController do
             },
             suite: build_suite(test_case.suite_name),
             is_flaky: test_case.is_flaky,
-            is_quarantined: test_case.is_quarantined,
+            is_quarantined: (test_case.state || "enabled") == "muted",
+            state: test_case.state || "enabled",
             last_status: to_string(test_case.last_status),
             last_duration: test_case.last_duration,
             last_ran_at: test_case.last_ran_at |> DateTime.from_naive!("Etc/UTC") |> DateTime.to_unix(),
@@ -328,7 +345,15 @@ defmodule TuistWeb.API.TestCasesController do
                  properties: %{
                    event_type: %Schema{
                      type: :string,
-                     enum: ["first_run", "marked_flaky", "unmarked_flaky", "quarantined", "unquarantined"],
+                     enum: [
+                       "first_run",
+                       "marked_flaky",
+                       "unmarked_flaky",
+                       "muted",
+                       "unmuted",
+                       "quarantined",
+                       "unquarantined"
+                     ],
                      description: "The type of event."
                    },
                    inserted_at: %Schema{type: :integer, description: "Unix timestamp of when the event occurred."},
@@ -408,18 +433,22 @@ defmodule TuistWeb.API.TestCasesController do
   defp build_filters(params) do
     []
     |> maybe_add_filter(:is_flaky, Map.get(params, :flaky))
-    |> maybe_add_filter(:is_quarantined, Map.get(params, :quarantined))
+    |> maybe_add_quarantined_filter(Map.get(params, :quarantined))
     |> maybe_add_filter(:module_name, Map.get(params, :module_name))
     |> maybe_add_filter(:name, Map.get(params, :name))
     |> maybe_add_filter(:suite_name, Map.get(params, :suite_name))
+    |> maybe_add_filter(:state, Map.get(params, :state))
   end
 
   defp maybe_add_filter(filters, _field, nil), do: filters
 
-  defp maybe_add_filter(filters, field, true) when field in [:is_flaky, :is_quarantined],
-    do: filters ++ [%{field: field, op: :==, value: true}]
+  defp maybe_add_filter(filters, :is_flaky, true), do: filters ++ [%{field: :is_flaky, op: :==, value: true}]
 
   defp maybe_add_filter(filters, field, value), do: filters ++ [%{field: field, op: :==, value: value}]
+
+  defp maybe_add_quarantined_filter(filters, nil), do: filters
+  defp maybe_add_quarantined_filter(filters, true), do: filters ++ [%{field: :state, op: :==, value: "muted"}]
+  defp maybe_add_quarantined_filter(filters, false), do: filters ++ [%{field: :state, op: :==, value: "enabled"}]
 
   defp build_suite(nil), do: nil
   defp build_suite(""), do: nil

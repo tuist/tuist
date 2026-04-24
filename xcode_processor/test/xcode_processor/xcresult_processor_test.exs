@@ -224,6 +224,69 @@ defmodule XcodeProcessor.XCResultProcessorTest do
       refute Map.has_key?(attachment, "file_path")
     end
 
+    test "dispatches to AppleArchive NIF when the downloaded payload is not PKZIP" do
+      # AppleArchive LZFSE-compressed streams start with the "bvx" prefix; any
+      # non-PKZIP header routes through `XCResultNIF.decompress_archive`.
+      fixture_dir =
+        Path.join(
+          System.tmp_dir!(),
+          "xcresult_aar_fixture_#{:erlang.unique_integer([:positive])}"
+        )
+
+      File.mkdir_p!(fixture_dir)
+      fixture_path = Path.join(fixture_dir, "fixture.aar")
+      File.write!(fixture_path, <<0x62, 0x76, 0x78, 0x32, "fake-aar-body">>)
+      on_exit(fn -> File.rm_rf(fixture_dir) end)
+
+      parsed_data = %{"tests" => [%{"name" => "testAar", "status" => "passed"}]}
+
+      stub(ExAws.S3, :download_file, fn _bucket, _key, dest_path ->
+        File.cp!(fixture_path, dest_path)
+        %ExAws.Operation.S3{http_method: :get, bucket: "tuist", path: "key"}
+      end)
+
+      expect(ExAws, :request, fn _ -> {:ok, :done} end)
+
+      expect(XcodeProcessor.XCResultNIF, :decompress_archive, fn _archive_path, temp_dir ->
+        File.mkdir_p!(Path.join(temp_dir, "Test.xcresult"))
+        File.write!(Path.join([temp_dir, "Test.xcresult", "Info.plist"]), "fake-plist")
+        :ok
+      end)
+
+      expect(XcodeProcessor.XCResultNIF, :parse, fn xcresult_path, _root ->
+        assert String.ends_with?(xcresult_path, "Test.xcresult")
+        {:ok, parsed_data}
+      end)
+
+      assert {:ok, ^parsed_data} = XCResultProcessor.process("some/key.aar")
+    end
+
+    test "surfaces NIF decompression failures for AppleArchive payloads" do
+      fixture_dir =
+        Path.join(
+          System.tmp_dir!(),
+          "xcresult_aar_failure_#{:erlang.unique_integer([:positive])}"
+        )
+
+      File.mkdir_p!(fixture_dir)
+      fixture_path = Path.join(fixture_dir, "fixture.aar")
+      File.write!(fixture_path, <<0x62, 0x76, 0x78, 0x32, "fake-aar-body">>)
+      on_exit(fn -> File.rm_rf(fixture_dir) end)
+
+      stub(ExAws.S3, :download_file, fn _bucket, _key, dest_path ->
+        File.cp!(fixture_path, dest_path)
+        %ExAws.Operation.S3{http_method: :get, bucket: "tuist", path: "key"}
+      end)
+
+      expect(ExAws, :request, fn _ -> {:ok, :done} end)
+
+      expect(XcodeProcessor.XCResultNIF, :decompress_archive, fn _archive_path, _temp_dir ->
+        {:error, "decompression failed"}
+      end)
+
+      assert {:error, "decompression failed"} = XCResultProcessor.process("some/key.aar")
+    end
+
     test "cleans up temp directory even when processing fails" do
       stub(ExAws.S3, :download_file, fn _bucket, _key, _dest_path ->
         %ExAws.Operation.S3{http_method: :get, bucket: "tuist", path: "key"}

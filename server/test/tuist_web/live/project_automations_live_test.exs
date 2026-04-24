@@ -1,229 +1,166 @@
 defmodule TuistWeb.ProjectAutomationsLiveTest do
-  use TuistTestSupport.Cases.ConnCase, async: true
+  use TuistTestSupport.Cases.ConnCase, async: false
   use TuistTestSupport.Cases.LiveCase
   use TuistTestSupport.Cases.StubCase, dashboard_project: true
-  use Mimic
 
   import Phoenix.LiveViewTest
 
-  alias Tuist.Projects
-  alias Tuist.Repo
+  alias Tuist.Automations
+  alias TuistTestSupport.Fixtures.AutomationsFixtures
+
+  defp open(conn, organization, project) do
+    live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/automations")
+  end
 
   describe "page rendering" do
-    test "renders the project automations page", %{
-      conn: conn,
-      organization: organization,
-      project: project
-    } do
-      {:ok, _lv, html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/automations")
+    test "shows the empty state when no automations exist", %{conn: conn, organization: organization, project: project} do
+      {:ok, _lv, html} = open(conn, organization, project)
 
-      assert html =~ "Automations"
-      assert html =~ "Flaky test detection"
-      assert html =~ "Test quarantine"
+      assert html =~ "Test case automations"
+      assert html =~ "No automations yet"
     end
 
-    test "shows correct default values for new project", %{
-      conn: conn,
-      organization: organization,
-      project: project
-    } do
-      {:ok, _lv, html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/automations")
+    test "lists existing automations in the table", %{conn: conn, organization: organization, project: project} do
+      automation = AutomationsFixtures.automation_alert_fixture(project: project, name: "My automation")
 
-      # Default values: auto_mark_flaky_tests=true, auto_mark_flaky_threshold=1, auto_quarantine_flaky_tests=true
-      assert html =~ "Auto-mark tests as flaky"
-      assert html =~ "Auto-quarantine flaky tests"
-      assert html =~ ~s|value="1"|
+      {:ok, _lv, html} = open(conn, organization, project)
+
+      assert html =~ "My automation"
+      refute html =~ "No automations yet"
+      assert html =~ automation.id
     end
   end
 
-  describe "auto-mark flaky tests" do
-    test "toggles auto-mark flaky setting", %{
-      conn: conn,
-      organization: organization,
-      project: project
-    } do
-      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/automations")
+  describe "creating an automation" do
+    test "creates an automation through the modal form", %{conn: conn, organization: organization, project: project} do
+      {:ok, lv, _html} = open(conn, organization, project)
 
-      assert project.auto_mark_flaky_tests
+      render_hook(lv, "open_create_automation_modal", %{})
+      render_hook(lv, "update_create_automation_form_name", %{"value" => "Auto-quarantine"})
+      render_hook(lv, "save_automation", %{})
 
-      _html = lv |> element(~s|#auto-mark-flaky-toggle|) |> render_click()
-
-      updated_project = Projects.get_project_by_id(project.id)
-      refute updated_project.auto_mark_flaky_tests
+      assert [automation] = Automations.list_alerts(project.id)
+      assert automation.name == "Auto-quarantine"
+      assert automation.monitor_type == "flakiness_rate"
+      # Non-destructive default: label-only, no quarantine. Users can add
+      # `change_state: muted` explicitly from the "Add action" dropdown.
+      assert [%{"type" => "add_label", "label" => "flaky"}] = automation.trigger_actions
     end
 
-    test "updates auto-mark flaky threshold", %{
+    test "preserves the type-specific threshold default when switching types", %{
       conn: conn,
       organization: organization,
       project: project
     } do
-      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/automations")
+      {:ok, lv, _html} = open(conn, organization, project)
 
-      assert project.auto_mark_flaky_threshold == 1
+      render_hook(lv, "open_create_automation_modal", %{})
+      render_hook(lv, "update_create_automation_form_name", %{"value" => "Flaky runs"})
+      render_hook(lv, "update_create_automation_form_type", %{"data" => "flaky_run_count"})
+      render_hook(lv, "save_automation", %{})
 
-      lv
-      |> element(~s|#auto-mark-flaky-threshold|)
-      |> render_keyup(%{"value" => "5"})
-
-      updated_project = Projects.get_project_by_id(project.id)
-      assert updated_project.auto_mark_flaky_threshold == 5
+      assert [automation] = Automations.list_alerts(project.id)
+      assert automation.monitor_type == "flaky_run_count"
+      assert automation.trigger_config["threshold"] == 3
     end
 
-    test "ignores invalid threshold values", %{
+    test "supports adding multiple actions and dropping the change_state option once added", %{
       conn: conn,
       organization: organization,
       project: project
     } do
-      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/automations")
+      {:ok, lv, _html} = open(conn, organization, project)
 
-      assert project.auto_mark_flaky_threshold == 1
+      render_hook(lv, "open_create_automation_modal", %{})
+      render_hook(lv, "update_create_automation_form_name", %{"value" => "Multi-action"})
+      # Default trigger action is `add_label: flaky`; user opts into quarantine
+      # via the dropdown to layer `change_state: muted` on top.
+      render_hook(lv, "add_create_automation_form_trigger_action", %{"data" => "change_state"})
+      render_hook(lv, "save_automation", %{})
 
-      lv
-      |> element(~s|#auto-mark-flaky-threshold|)
-      |> render_keyup(%{"value" => "invalid"})
+      assert [automation] = Automations.list_alerts(project.id)
 
-      updated_project = Projects.get_project_by_id(project.id)
-      assert updated_project.auto_mark_flaky_threshold == 1
+      assert [
+               %{"type" => "add_label", "label" => "flaky"},
+               %{"type" => "change_state", "state" => "muted"}
+             ] = automation.trigger_actions
     end
 
-    test "ignores zero or negative threshold values", %{
+    test "deleting all trigger actions does not save (validation rejects empty list)", %{
       conn: conn,
       organization: organization,
       project: project
     } do
-      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/automations")
+      {:ok, lv, _html} = open(conn, organization, project)
 
-      lv
-      |> element(~s|#auto-mark-flaky-threshold|)
-      |> render_keyup(%{"value" => "0"})
+      render_hook(lv, "open_create_automation_modal", %{})
+      render_hook(lv, "update_create_automation_form_name", %{"value" => "Empty actions"})
+      render_hook(lv, "delete_create_automation_form_trigger_action", %{"index" => "0"})
+      render_hook(lv, "save_automation", %{})
 
-      updated_project = Projects.get_project_by_id(project.id)
-      assert updated_project.auto_mark_flaky_threshold == 1
-
-      lv
-      |> element(~s|#auto-mark-flaky-threshold|)
-      |> render_keyup(%{"value" => "-1"})
-
-      updated_project = Projects.get_project_by_id(project.id)
-      assert updated_project.auto_mark_flaky_threshold == 1
+      assert Automations.list_alerts(project.id) == []
     end
   end
 
-  describe "auto-quarantine" do
-    test "toggles auto-quarantine setting", %{
+  describe "editing an automation" do
+    test "edit_automation populates the form and save_automation updates the existing automation", %{
       conn: conn,
       organization: organization,
       project: project
     } do
-      refute project.auto_quarantine_flaky_tests
+      automation = AutomationsFixtures.automation_alert_fixture(project: project, name: "Original")
 
-      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/automations")
+      {:ok, lv, _html} = open(conn, organization, project)
 
-      _html = lv |> element(~s|#auto-quarantine-toggle|) |> render_click()
+      render_hook(lv, "edit_automation", %{"id" => automation.id})
+      render_hook(lv, "update_create_automation_form_name", %{"value" => "Renamed"})
+      render_hook(lv, "save_automation", %{})
 
-      updated_project = Projects.get_project_by_id(project.id)
-      assert updated_project.auto_quarantine_flaky_tests
+      assert [updated] = Automations.list_alerts(project.id)
+      assert updated.id == automation.id
+      assert updated.name == "Renamed"
     end
 
-    test "can toggle auto-quarantine back off", %{
+    test "edit_automation does nothing for an automation in another project", %{
       conn: conn,
       organization: organization,
       project: project
     } do
-      {:ok, _} = Projects.update_project(project, %{auto_quarantine_flaky_tests: true})
-
-      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/automations")
-
-      _html = lv |> element(~s|#auto-quarantine-toggle|) |> render_click()
-
-      updated_project = Projects.get_project_by_id(project.id)
-      refute updated_project.auto_quarantine_flaky_tests
+      other = AutomationsFixtures.automation_alert_fixture()
+      {:ok, lv, _html} = open(conn, organization, project)
+      render_hook(lv, "edit_automation", %{"id" => other.id})
+      assert {:ok, ^other} = Automations.get_alert(other.id)
     end
   end
 
-  describe "flaky alerts" do
-    test "toggles flaky alerts when channel is configured", %{
+  describe "toggling and deleting" do
+    test "toggle_automation_enabled flips the enabled flag", %{
       conn: conn,
       organization: organization,
       project: project
     } do
-      account = Repo.preload(organization.account, [:slack_installation])
-
-      {:ok, _installation} =
-        Tuist.Slack.create_installation(%{
-          account_id: account.id,
-          team_id: "T123",
-          team_name: "Test Team",
-          access_token: "xoxb-test-token",
-          bot_user_id: "U123"
-        })
-
-      {:ok, _} =
-        Projects.update_project(project, %{
-          flaky_test_alerts_slack_channel_id: "C123",
-          flaky_test_alerts_slack_channel_name: "alerts"
-        })
-
-      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/automations")
-
-      refute project.flaky_test_alerts_enabled
-
-      _html = lv |> element(~s|#flaky-alerts-toggle|) |> render_click()
-
-      updated_project = Projects.get_project_by_id(project.id)
-      assert updated_project.flaky_test_alerts_enabled
+      automation = AutomationsFixtures.automation_alert_fixture(project: project, enabled: true)
+      {:ok, lv, _html} = open(conn, organization, project)
+      render_hook(lv, "toggle_automation_enabled", %{"id" => automation.id})
+      assert {:ok, %{enabled: false}} = Automations.get_alert(automation.id)
     end
 
-    test "handles flaky_alert_channel_selected event", %{
-      conn: conn,
-      organization: organization,
-      project: project
-    } do
-      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/automations")
-
-      render_hook(lv, "flaky_alert_channel_selected", %{"channel_id" => "C456", "channel_name" => "new-alerts"})
-
-      updated_project = Projects.get_project_by_id(project.id)
-      assert updated_project.flaky_test_alerts_slack_channel_id == "C456"
-      assert updated_project.flaky_test_alerts_slack_channel_name == "new-alerts"
-      assert updated_project.flaky_test_alerts_enabled
+    test "delete_automation removes the automation", %{conn: conn, organization: organization, project: project} do
+      automation = AutomationsFixtures.automation_alert_fixture(project: project)
+      {:ok, lv, _html} = open(conn, organization, project)
+      render_hook(lv, "delete_automation", %{"id" => automation.id})
+      assert {:error, :not_found} = Automations.get_alert(automation.id)
     end
 
-    test "shows connect slack button when no slack installation", %{
+    test "delete_automation does not delete an automation in another project", %{
       conn: conn,
       organization: organization,
       project: project
     } do
-      {:ok, _lv, html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/automations")
-
-      assert html =~ "Connect Slack"
-    end
-
-    test "shows channel tag when channel is configured", %{
-      conn: conn,
-      organization: organization,
-      project: project
-    } do
-      account = Repo.preload(organization.account, [:slack_installation])
-
-      {:ok, _installation} =
-        Tuist.Slack.create_installation(%{
-          account_id: account.id,
-          team_id: "T123",
-          team_name: "Test Team",
-          access_token: "xoxb-test-token",
-          bot_user_id: "U123"
-        })
-
-      {:ok, _} =
-        Projects.update_project(project, %{
-          flaky_test_alerts_slack_channel_id: "C123",
-          flaky_test_alerts_slack_channel_name: "my-channel"
-        })
-
-      {:ok, _lv, html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/automations")
-
-      assert html =~ "#my-channel"
+      other = AutomationsFixtures.automation_alert_fixture()
+      {:ok, lv, _html} = open(conn, organization, project)
+      render_hook(lv, "delete_automation", %{"id" => other.id})
+      assert {:ok, ^other} = Automations.get_alert(other.id)
     end
   end
 end

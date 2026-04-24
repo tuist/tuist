@@ -20,7 +20,8 @@ defmodule TuistWeb.OpsAccountsLive do
     {:ok,
      socket
      |> assign(:head_title, "Accounts · Tuist Ops")
-     |> assign(:upgrade_target_account, nil)}
+     |> assign(:upgrade_target_account, nil)
+     |> assign(:upgrade_target_customer, nil)}
   end
 
   @impl true
@@ -73,25 +74,13 @@ defmodule TuistWeb.OpsAccountsLive do
   end
 
   @impl true
-  def handle_event("manage", %{"id" => id}, socket) do
-    case Accounts.get_account_by_id(String.to_integer(id)) do
-      {:ok, account} ->
-        account = Accounts.create_customer_when_absent(account)
-        session = Billing.create_session(account.customer_id)
-        {:noreply, redirect(socket, external: session.url)}
-
-      {:error, :not_found} ->
-        {:noreply, put_flash(socket, :error, "Account not found.")}
-    end
-  end
-
-  @impl true
   def handle_event("initiate_enterprise_upgrade", %{"id" => id}, socket) do
     case Accounts.get_account_by_id(String.to_integer(id)) do
       {:ok, account} ->
         account = Accounts.create_customer_when_absent(account)
+        customer = fetch_stripe_customer(account.customer_id)
 
-        if customer_has_billing_details?(account.customer_id) do
+        if customer_has_billing_details?(customer) do
           # Customer already has name/email/address on Stripe — upgrade in
           # one click without prompting ops to re-enter anything.
           {:ok, _sub} = Billing.upgrade_to_enterprise(account, %{cadence: "monthly"})
@@ -105,11 +94,12 @@ defmodule TuistWeb.OpsAccountsLive do
            |> push_patch(to: ~p"/ops/accounts?#{socket.assigns.query_params}")}
         else
           # Missing billing details — point the shared modal at this account
-          # and open it client-side. Setting the assign first ensures the
-          # modal's DOM exists before the client receives `open-modal`.
+          # and open it client-side. The customer struct (if any) is passed
+          # along so partially-filled details pre-populate the form.
           {:noreply,
            socket
            |> assign(:upgrade_target_account, account)
+           |> assign(:upgrade_target_customer, customer)
            |> push_event("open-modal", %{id: "enterprise-modal"})}
         end
 
@@ -127,6 +117,7 @@ defmodule TuistWeb.OpsAccountsLive do
         {:noreply,
          socket
          |> assign(:upgrade_target_account, nil)
+         |> assign(:upgrade_target_customer, nil)
          |> put_flash(
            :info,
            "#{account.name} upgraded to Enterprise. Stripe will send an invoice for the first period."
@@ -159,33 +150,55 @@ defmodule TuistWeb.OpsAccountsLive do
   def handle_event("close_enterprise_modal", _params, socket) do
     # Noora's modal dismiss (X) fires this as a plain `phx-click` because
     # `on_dismiss` is a string. Close the modal client-side and clear the
-    # assign so the modal node leaves the DOM.
+    # assigns so the modal node leaves the DOM.
     {:noreply,
      socket
      |> assign(:upgrade_target_account, nil)
+     |> assign(:upgrade_target_customer, nil)
      |> push_event("close-modal", %{id: "enterprise-modal"})}
   end
 
-  # Required to start an invoice-billed Enterprise subscription on Stripe.
-  defp customer_has_billing_details?(customer_id) do
-    case Stripe.Customer.retrieve(customer_id) do
-      {:ok, %{address: %{} = address} = customer} ->
-        Enum.all?(
-          [
-            customer.name,
-            customer.email,
-            address.line1,
-            address.city,
-            address.postal_code,
-            address.country
-          ],
-          &(is_binary(&1) and &1 != "")
-        )
+  # Fetches the Stripe customer for pre-filling the upgrade form. Returns
+  # an empty map if the account has no customer id yet or the API call fails.
+  defp fetch_stripe_customer(nil), do: %{}
 
-      _ ->
-        false
+  defp fetch_stripe_customer(customer_id) do
+    case Stripe.Customer.retrieve(customer_id) do
+      {:ok, customer} -> customer
+      _ -> %{}
     end
   end
+
+  # Required to start an invoice-billed Enterprise subscription on Stripe.
+  defp customer_has_billing_details?(%{address: %{} = address} = customer) do
+    Enum.all?(
+      [
+        Map.get(customer, :name),
+        Map.get(customer, :email),
+        address.line1,
+        address.city,
+        address.postal_code,
+        address.country
+      ],
+      &(is_binary(&1) and &1 != "")
+    )
+  end
+
+  defp customer_has_billing_details?(_), do: false
+
+  # Pre-fill helpers — look up a field from the Stripe customer first, then
+  # fall back to whatever we have locally.
+  def prefill(customer, field, fallback \\ "")
+  def prefill(nil, _field, fallback), do: fallback
+  def prefill(%{} = customer, field, fallback), do: Map.get(customer, field) || fallback
+
+  def prefill_address(nil, _field), do: ""
+
+  def prefill_address(%{address: %{} = address}, field) do
+    Map.get(address, field) || ""
+  end
+
+  def prefill_address(_, _), do: ""
 
   defp parse_upgrade_params(params) do
     %{
@@ -230,6 +243,22 @@ defmodule TuistWeb.OpsAccountsLive do
   def plan_color(:enterprise), do: "success"
   def plan_color(:open_source), do: "information"
   def plan_color(_), do: "neutral"
+
+  # `cancel_at_period_end` takes priority — a subscription flagged for
+  # cancellation still reports `status: "active"` until the period ends.
+  # Accounts without a subscription are on the Air plan, which is always
+  # active (there's nothing to cancel).
+  def subscription_status(%Account{subscriptions: [%{cancel_at_period_end: true} | _]}), do: :cancelled
+  def subscription_status(%Account{subscriptions: [%{status: "trialing"} | _]}), do: :trialing
+  def subscription_status(_), do: :active
+
+  def status_label(:active), do: "Active"
+  def status_label(:trialing), do: "Trialing"
+  def status_label(:cancelled), do: "Cancelled"
+
+  def status_color(:active), do: "success"
+  def status_color(:trialing), do: "information"
+  def status_color(:cancelled), do: "warning"
 
   # ISO 3166-1 alpha-2 codes for the countries most likely to appear on
   # Enterprise invoices. Extend as needed. Sorted alphabetically by name.

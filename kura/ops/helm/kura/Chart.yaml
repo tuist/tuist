@@ -1,0 +1,7 @@
+apiVersion: v2
+name: kura
+description: Kura distributed cache mesh for build artifacts and metadata
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+

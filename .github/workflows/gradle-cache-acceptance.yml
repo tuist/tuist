@@ -95,20 +95,9 @@ jobs:
       - name: Install server deps
         working-directory: server
         run: mix deps.get
-      - name: Compile server
-        working-directory: server
-        run: mix compile
       - name: Start ClickHouse
         working-directory: server
         run: mise run --no-deps clickhouse:start
-      - name: Setup main server
-        working-directory: server
-        run: |
-          mix ecto.create
-          mix run priv/repo/timezone.exs
-          mix ecto.load
-          mix ecto.migrate
-          mix run priv/repo/seeds.exs
       - name: Restore cache deps
         uses: actions/cache@v4
         with:
@@ -121,17 +110,44 @@ jobs:
       - name: Install cache deps
         working-directory: cache
         run: mix deps.get
+      - name: Setup main server
+        working-directory: server
+        run: |
+          # Single mix do so compile + all ecto tasks + seeds share one BEAM
+          # (and peak memory only once) before we ever start the web server.
+          MIX_ENV=dev mix do \
+            compile, \
+            ecto.create, \
+            run priv/repo/timezone.exs, \
+            ecto.load, \
+            ecto.migrate, \
+            run priv/repo/seeds.exs
       - name: Start main server
         working-directory: server
         run: |
-          MIX_ENV=dev mix phx.server &
+          # nohup + disown so the backgrounded BEAM survives the bash
+          # shell exiting when this step finishes — otherwise the e2e
+          # step hits nothing-listening. ELIXIR_ERL_OPTIONS="+S 1" forces
+          # serial compile if the manifest is stale, so the recompile
+          # peak doesn't overshoot the runner's memory ceiling (the
+          # parallel compiler holds a copy of every in-flight module per
+          # worker, and this project plus deps is enough to OOM at 4
+          # workers).
+          nohup bash -c 'ELIXIR_ERL_OPTIONS="+S 1" MIX_ENV=dev mix phx.server' >/tmp/main-server.log 2>&1 &
+          disown
           server_url="${TUIST_SERVER_URL:-http://localhost:8080}"
-          for i in {1..30}; do
-            if curl -sf "$server_url" >/dev/null 2>&1; then
-              echo "Main server is ready"
+          port="${server_url##*:}"
+          for i in {1..180}; do
+            if nc -z localhost "$port" 2>/dev/null; then
+              echo "Main server is listening on :${port} after ${i} attempts"
               break
             fi
-            echo "Waiting for main server... ($i/30)"
+            if [ "$i" = "180" ]; then
+              echo "Main server never came up on :${port}" >&2
+              echo "--- main-server.log tail ---" >&2
+              tail -50 /tmp/main-server.log >&2
+              exit 1
+            fi
             sleep 2
           done
       - name: Start cache server

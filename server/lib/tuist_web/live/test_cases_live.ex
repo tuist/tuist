@@ -142,7 +142,8 @@ defmodule TuistWeb.TestCasesLive do
            socket.assigns.selected_duration_type,
            socket.assigns.test_case_runs_analytics.result,
            socket.assigns.failed_test_case_runs_analytics.result,
-           socket.assigns.test_case_runs_duration_analytics.result
+           socket.assigns.test_case_runs_duration_analytics.result,
+           socket.assigns.test_cases_count_analytics.result
          )
 
        assign(socket, :analytics_chart_data, %{socket.assigns.analytics_chart_data | result: chart_data})
@@ -174,7 +175,8 @@ defmodule TuistWeb.TestCasesLive do
            type,
            socket.assigns.test_case_runs_analytics.result,
            socket.assigns.failed_test_case_runs_analytics.result,
-           socket.assigns.test_case_runs_duration_analytics.result
+           socket.assigns.test_case_runs_duration_analytics.result,
+           socket.assigns.test_cases_count_analytics.result
          )
 
        assign(socket, :analytics_chart_data, %{socket.assigns.analytics_chart_data | result: chart_data})
@@ -274,6 +276,7 @@ defmodule TuistWeb.TestCasesLive do
         :test_case_runs_analytics,
         :failed_test_case_runs_analytics,
         :test_case_runs_duration_analytics,
+        :test_cases_count_analytics,
         :analytics_chart_data
       ],
       fn ->
@@ -285,39 +288,55 @@ defmodule TuistWeb.TestCasesLive do
         test_case_runs_duration_analytics =
           Analytics.test_case_run_duration_analytics(project.id, opts)
 
+        test_cases_count_analytics = Analytics.test_cases_count_analytics(project.id, opts)
+
         {:ok,
          %{
            test_case_runs_analytics: test_case_runs_analytics,
            failed_test_case_runs_analytics: failed_test_case_runs_analytics,
            test_case_runs_duration_analytics: test_case_runs_duration_analytics,
+           test_cases_count_analytics: test_cases_count_analytics,
            analytics_chart_data:
              analytics_chart_data(
                analytics_selected_widget,
                selected_duration_type,
                test_case_runs_analytics,
                failed_test_case_runs_analytics,
-               test_case_runs_duration_analytics
+               test_case_runs_duration_analytics,
+               test_cases_count_analytics
              )
          }}
       end
     )
   end
 
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   defp analytics_chart_data(
          analytics_selected_widget,
          selected_duration_type,
          test_case_runs_analytics,
          failed_test_case_runs_analytics,
-         test_case_runs_duration_analytics
+         test_case_runs_duration_analytics,
+         test_cases_count_analytics
        ) do
     chart_data =
       case analytics_selected_widget do
+        "test_cases_count" ->
+          %{
+            dates: test_cases_count_analytics.dates,
+            values: test_cases_count_analytics.values,
+            name: dgettext("dashboard_tests", "Test cases"),
+            value_formatter: "{value}",
+            color: "var:noora-chart-tertiary"
+          }
+
         "test_case_run_count" ->
           %{
             dates: test_case_runs_analytics.dates,
             values: test_case_runs_analytics.values,
             name: dgettext("dashboard_tests", "Test case runs"),
-            value_formatter: "{value}"
+            value_formatter: "{value}",
+            color: "var:noora-chart-primary"
           }
 
         "failed_test_case_run_count" ->
@@ -325,7 +344,8 @@ defmodule TuistWeb.TestCasesLive do
             dates: failed_test_case_runs_analytics.dates,
             values: failed_test_case_runs_analytics.values,
             name: dgettext("dashboard_tests", "Failed test case runs"),
-            value_formatter: "{value}"
+            value_formatter: "{value}",
+            color: "var:noora-chart-destructive"
           }
 
         "test_case_run_duration" ->
@@ -348,7 +368,8 @@ defmodule TuistWeb.TestCasesLive do
             dates: test_case_runs_duration_analytics.dates,
             values: values,
             name: name,
-            value_formatter: "fn:formatMilliseconds"
+            value_formatter: "fn:formatMilliseconds",
+            color: "var:noora-chart-secondary"
           }
       end
 
@@ -443,7 +464,7 @@ defmodule TuistWeb.TestCasesLive do
   end
 
   defp convert_trait_filter(%{field: :test_case_trait, value: :quarantined} = filter) do
-    %{filter | field: :is_quarantined, value: true}
+    %{filter | field: :state, value: "muted"}
   end
 
   defp convert_trait_filter(filter), do: filter

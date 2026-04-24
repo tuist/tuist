@@ -109,7 +109,7 @@ defmodule Cache.Registry.SyncWorker do
     known_versions = Map.keys(releases) ++ Map.keys(skipped_releases)
 
     tags
-    |> Enum.filter(&valid_semver?/1)
+    |> Enum.filter(&KeyNormalizer.valid_source_tag?/1)
     |> Enum.reject(&String.contains?(&1, "-dev"))
     |> Enum.uniq_by(&KeyNormalizer.normalize_version/1)
     |> Enum.filter(fn tag ->
@@ -146,13 +146,6 @@ defmodule Cache.Registry.SyncWorker do
       "releases" => %{},
       "updated_at" => DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601()
     }
-  end
-
-  defp valid_semver?(version) do
-    Regex.match?(
-      ~r/^v?\d+\.\d+(\.\d+)?(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$/,
-      version
-    )
   end
 
   defp apply_allowlist(packages, nil), do: packages

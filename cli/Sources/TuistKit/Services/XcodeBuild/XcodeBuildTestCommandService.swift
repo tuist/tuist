@@ -75,9 +75,11 @@ struct XcodeBuildTestCommandService {
         mode: TestProcessingMode? = nil
     ) async throws {
         var passthroughXcodebuildArguments = passthroughXcodebuildArguments
-        try await passthroughXcodebuildArguments.append(
-            contentsOf: resultBundlePathArguments(passthroughXcodebuildArguments: passthroughXcodebuildArguments)
-        )
+        let (
+            resultBundlePathArgs,
+            resolvedResultBundlePath
+        ) = try await resolveResultBundlePath(passthroughXcodebuildArguments: passthroughXcodebuildArguments)
+        passthroughXcodebuildArguments.append(contentsOf: resultBundlePathArgs)
 
         let path = try await path(passthroughXcodebuildArguments: passthroughXcodebuildArguments)
         let config = try await configLoader.loadConfig(path: path)
@@ -129,8 +131,7 @@ struct XcodeBuildTestCommandService {
             }
         }
 
-        let resultBundlePath = await RunMetadataStorage.current.resultBundlePath
-
+        let resultBundlePath: AbsolutePath? = resolvedResultBundlePath
         let quarantinedTests = await testQuarantineService.quarantinedTests(config: config, skipQuarantine: skipQuarantine)
 
         do {
@@ -261,27 +262,24 @@ struct XcodeBuildTestCommandService {
         }
     }
 
-    private func resultBundlePathArguments(
+    private func resolveResultBundlePath(
         passthroughXcodebuildArguments: [String]
-    ) async throws -> [String] {
+    ) async throws -> (additionalArguments: [String], resultBundlePath: AbsolutePath) {
         if let resultBundlePathString = passedValue(
             for: "-resultBundlePath",
             arguments: passthroughXcodebuildArguments
         ) {
             let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
             let resultBundlePath = try AbsolutePath(validating: resultBundlePathString, relativeTo: currentWorkingDirectory)
-            await RunMetadataStorage.current.update(
-                resultBundlePath: resultBundlePath
-            )
-            return []
+            return (additionalArguments: [], resultBundlePath: resultBundlePath)
         } else {
             let resultBundlePath = try cacheDirectoriesProvider
                 .cacheDirectory(for: .runs)
                 .appending(components: uniqueIDGenerator.uniqueID())
-            await RunMetadataStorage.current.update(
+            return (
+                additionalArguments: ["-resultBundlePath", resultBundlePath.pathString],
                 resultBundlePath: resultBundlePath
             )
-            return ["-resultBundlePath", resultBundlePath.pathString]
         }
     }
 

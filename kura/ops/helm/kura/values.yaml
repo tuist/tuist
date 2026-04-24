@@ -1,0 +1,107 @@
+replicaCount: 3
+
+image:
+  repository: ghcr.io/tuist/kura
+  tag: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext: {}
+securityContext: {}
+
+service:
+  type: ClusterIP
+  annotations: {}
+  loadBalancerIP: ""
+  externalTrafficPolicy: ""
+  httpPort: 4000
+  grpcPort: 50051
+
+peerTls:
+  enabled: false
+  internalPort: 7443
+  secretName: ""
+  caCertFileName: ca.pem
+  certFileName: tls.crt
+  keyFileName: tls.key
+
+headlessService:
+  annotations: {}
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: kura.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+persistence:
+  enabled: true
+  accessModes:
+    - ReadWriteOnce
+  size: 20Gi
+  storageClass: ""
+  annotations: {}
+
+tmpStorage:
+  sizeLimit: ""
+
+resources: {}
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
+
+pdb:
+  enabled: true
+  minAvailable: 1
+
+config:
+  tenantId: default
+  region: fr-par
+  fileDescriptors:
+    poolSize: 128
+    acquireTimeoutMs: 5000
+    segmentHandleCacheSize: 32
+  memory:
+    softLimitBytes: 536870912
+    hardLimitBytes: 805306368
+    manifestCacheMaxBytes: 67108864
+    maxKeyvalueBytes: 1048576
+  metadataStore:
+    maxOpenFiles: 1024
+    maxBackgroundJobs: 4
+  telemetry:
+    otlpTracesEndpoint: http://otel-collector:4318/v1/traces
+    deploymentEnvironment: production
+  discovery:
+    enabled: true
+
+# Use extraEnv or extraEnvFrom to inject optional secrets such as KURA_SENTRY_DSN.
+extraEnv: []
+extraEnvFrom: []
+extraVolumes: []
+extraVolumeMounts: []
+
+extension:
+  enabled: false
+  existingConfigMap: ""
+  script: ""
+  mountDir: /etc/kura/extensions
+  scriptFileName: hooks.lua

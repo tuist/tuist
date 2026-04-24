@@ -26,7 +26,6 @@ defmodule TuistWeb.API.RunsControllerTest do
 
   setup do
     stub(VCS, :enqueue_vcs_pull_request_comment, fn _args -> {:ok, %{}} end)
-    TuistTestSupport.Utilities.truncate_clickhouse_tables()
     :ok
   end
 
@@ -229,9 +228,9 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       # When
       {404, _, response_json_string} =
-        assert_error_sent :not_found, fn ->
+        assert_error_sent(:not_found, fn ->
           get(conn, "/api/projects/#{user.account.name}/#{non_existent_project_name}/runs")
-        end
+        end)
 
       assert Jason.decode!(response_json_string) == %{
                "message" => "The project #{project_slug} was not found."
@@ -343,7 +342,9 @@ defmodule TuistWeb.API.RunsControllerTest do
       assert build.status == "failure"
       assert build.category == "incremental"
 
-      assert build.issues |> Enum.map(&Map.take(&1, [:type, :message, :build_run_id])) |> Enum.sort_by(& &1.message) == [
+      assert build.issues
+             |> Enum.map(&Map.take(&1, [:type, :message, :build_run_id]))
+             |> Enum.sort_by(& &1.message) == [
                %{
                  type: "error",
                  message: "Expected ';' after expression",
@@ -356,7 +357,9 @@ defmodule TuistWeb.API.RunsControllerTest do
                }
              ]
 
-      assert build.files |> Enum.map(&Map.take(&1, [:type, :path, :build_run_id])) |> Enum.sort_by(& &1.path) == [
+      assert build.files
+             |> Enum.map(&Map.take(&1, [:type, :path, :build_run_id]))
+             |> Enum.sort_by(& &1.path) == [
                %{
                  type: "c",
                  path: "File.m",
@@ -740,7 +743,8 @@ defmodule TuistWeb.API.RunsControllerTest do
         %{type: "swift", status: "hit_remote", key: "cache_key_5", build_run_id: build.id}
       ]
 
-      actual_tasks = Enum.map(cacheable_tasks, &Map.take(&1, [:type, :status, :key, :build_run_id]))
+      actual_tasks =
+        Enum.map(cacheable_tasks, &Map.take(&1, [:type, :status, :key, :build_run_id]))
 
       assert actual_tasks == expected_tasks
 
@@ -892,7 +896,16 @@ defmodule TuistWeb.API.RunsControllerTest do
       actual_outputs =
         Enum.map(
           cas_outputs,
-          &Map.take(&1, [:node_id, :checksum, :size, :duration, :compressed_size, :operation, :type, :build_run_id])
+          &Map.take(&1, [
+            :node_id,
+            :checksum,
+            :size,
+            :duration,
+            :compressed_size,
+            :operation,
+            :type,
+            :build_run_id
+          ])
         )
 
       assert actual_outputs == expected_outputs
@@ -920,7 +933,7 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       # When
       {404, _, response_json_string} =
-        assert_error_sent :not_found, fn ->
+        assert_error_sent(:not_found, fn ->
           post(
             conn,
             ~p"/api/projects/#{non_existent_account_name}/#{non_existent_project_name}/runs",
@@ -929,7 +942,7 @@ defmodule TuistWeb.API.RunsControllerTest do
             duration: 1000,
             is_ci: false
           )
-        end
+        end)
 
       assert Jason.decode!(response_json_string) == %{
                "message" => "The project #{project_slug} was not found."

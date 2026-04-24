@@ -28,6 +28,42 @@ struct BuildableFolderManifestMapperFolderExistsTests {
         }
     }
 
+    @Test(.inTemporaryDirectory) func from_whenFolderDoesNotExistAndIsOptional_returnsNil() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let folderPath = temporaryDirectory.appending(component: "NonExistingFolder")
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryDirectory,
+            rootDirectory: temporaryDirectory
+        )
+        let manifest = ProjectDescription.BuildableFolder.folder(.path(folderPath.pathString), optional: true)
+
+        let got = try await XcodeGraph.BuildableFolder.from(
+            manifest: manifest,
+            generatorPaths: generatorPaths,
+            targetName: "Target"
+        )
+
+        #expect(got == nil)
+    }
+
+    @Test(.inTemporaryDirectory) func from_whenFolderDoesNotExistAndIsNotOptional_throwsBuildableFolderNotFound() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let folderPath = temporaryDirectory.appending(component: "NonExistingFolder")
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryDirectory,
+            rootDirectory: temporaryDirectory
+        )
+        let manifest = ProjectDescription.BuildableFolder.folder(.path(folderPath.pathString), optional: false)
+
+        await #expect(throws: BuildableFolderManifestMapperError.folderNotFound(targetName: "Target", path: folderPath)) {
+            try await XcodeGraph.BuildableFolder.from(
+                manifest: manifest,
+                generatorPaths: generatorPaths,
+                targetName: "Target"
+            )
+        }
+    }
+
     @Test(.inTemporaryDirectory) func from_whenFolderExists_mapsCorrectly() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let folderPath = temporaryDirectory.appending(component: "ExistingFolder")
@@ -41,11 +77,11 @@ struct BuildableFolderManifestMapperFolderExistsTests {
         )
         let manifest = ProjectDescription.BuildableFolder.folder(.path(folderPath.pathString))
 
-        let got = try await XcodeGraph.BuildableFolder.from(
+        let got = try #require(try await XcodeGraph.BuildableFolder.from(
             manifest: manifest,
             generatorPaths: generatorPaths,
             targetName: "Target"
-        )
+        ))
 
         #expect(got.path == folderPath)
         #expect(got.resolvedFiles.count == 1)

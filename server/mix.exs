@@ -6,7 +6,9 @@ defmodule Tuist.MixProject do
       app: :tuist,
       version: "0.1.0",
       elixir: "~> 1.16",
+      build_path: build_path(),
       elixirc_paths: elixirc_paths(Mix.env()),
+      elixirc_options: [check_cwd: false],
       test_paths: ["test"],
       start_permanent: Enum.member?([:prod, :stag, :can], Mix.env()),
       releases: releases(),
@@ -32,6 +34,13 @@ defmodule Tuist.MixProject do
   defp elixirc_paths(:dev), do: ["lib", "credo"]
   defp elixirc_paths(_), do: ["lib"]
 
+  defp build_path do
+    case System.get_env("TUIST_MIX_BUILD_ROOT") do
+      root when root in [nil, ""] -> "_build"
+      root -> Path.join(root, "server")
+    end
+  end
+
   # Specifies your project dependencies.
   #
   # Type `mix help deps` for examples and options.
@@ -40,6 +49,7 @@ defmodule Tuist.MixProject do
       {:phoenix, "~> 1.7"},
       {:phoenix_ecto, "~> 4.4"},
       {:ecto_sql, "~> 3.12"},
+      {:db_connection, "~> 2.9", override: true},
       {:postgrex, ">= 0.0.0"},
       {:phoenix_html, "~> 4.0"},
       {:phoenix_live_reload, "~> 1.6.1", only: :dev},
@@ -129,7 +139,8 @@ defmodule Tuist.MixProject do
       {:redix, "~> 1.1"},
       {:redis_mutex, "~> 1.1"},
       {:hammer_backend_redis, "~> 7.0"},
-      {:ecto_ch, "~> 0.8.3"},
+      {:ch, git: "https://github.com/tuist/ch.git", branch: "codex/experimental-transactions", override: true},
+      {:ecto_ch, git: "https://github.com/tuist/ecto_ch.git", branch: "codex/experimental-transactions", override: true},
       {:noora, path: "../noora"},
       {:zstream, "~> 0.6"},
       {:cloak_ecto, "~> 1.3.0"},

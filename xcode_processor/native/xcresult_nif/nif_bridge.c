@@ -17,6 +17,13 @@ extern int parse_xcresult(
     int *output_len
 );
 
+extern int decompress_archive(
+    const char *source_path,
+    const char *destination_dir,
+    char **error_ptr,
+    int *error_len
+);
+
 static ERL_NIF_TERM parse_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
 {
     if (argc != 2) {
@@ -76,8 +83,60 @@ static ERL_NIF_TERM parse_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[
     );
 }
 
+static ERL_NIF_TERM decompress_archive_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
+{
+    if (argc != 2) {
+        return enif_make_badarg(env);
+    }
+
+    ErlNifBinary source_bin;
+    if (!enif_inspect_binary(env, argv[0], &source_bin)) {
+        return enif_make_badarg(env);
+    }
+
+    ErlNifBinary dest_bin;
+    if (!enif_inspect_binary(env, argv[1], &dest_bin)) {
+        return enif_make_badarg(env);
+    }
+
+    char *source = malloc(source_bin.size + 1);
+    if (!source) return enif_make_badarg(env);
+    memcpy(source, source_bin.data, source_bin.size);
+    source[source_bin.size] = '\0';
+
+    char *destination = malloc(dest_bin.size + 1);
+    if (!destination) { free(source); return enif_make_badarg(env); }
+    memcpy(destination, dest_bin.data, dest_bin.size);
+    destination[dest_bin.size] = '\0';
+
+    char *error_output = NULL;
+    int error_len = 0;
+
+    int result = decompress_archive(source, destination, &error_output, &error_len);
+
+    free(source);
+    free(destination);
+
+    if (result == 0) {
+        if (error_output) free(error_output);
+        return enif_make_atom(env, "ok");
+    }
+
+    ERL_NIF_TERM reason;
+    if (error_output && error_len > 0) {
+        unsigned char *bin_data = enif_make_new_binary(env, error_len, &reason);
+        memcpy(bin_data, error_output, error_len);
+        free(error_output);
+    } else {
+        reason = enif_make_atom(env, "decompress_failed");
+    }
+
+    return enif_make_tuple2(env, enif_make_atom(env, "error"), reason);
+}
+
 static ErlNifFunc nif_funcs[] = {
-    {"parse_nif", 2, parse_nif, ERL_NIF_DIRTY_JOB_CPU_BOUND}
+    {"parse_nif", 2, parse_nif, ERL_NIF_DIRTY_JOB_CPU_BOUND},
+    {"decompress_archive_nif", 2, decompress_archive_nif, ERL_NIF_DIRTY_JOB_IO_BOUND}
 };
 
 ERL_NIF_INIT(Elixir.XcodeProcessor.XCResultNIF, nif_funcs, NULL, NULL, NULL, NULL)
