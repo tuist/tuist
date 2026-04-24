@@ -120,7 +120,7 @@ public struct TestAction: Equatable, Codable, Sendable {
     /// path references. If no entry is marked as default, the first one is used.
     ///
     /// - Parameters:
-    ///   - testPlans: List of test plan entries.
+    ///   - testPlans: List of test plans to run.
     ///   - configuration: Configuration to be used.
     ///   - attachDebugger: A boolean controlling whether a debugger is attached to the process running the tests.
     ///   - preActions: Actions to execute before running the tests.
