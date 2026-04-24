@@ -60,14 +60,33 @@ defmodule TuistWeb.BundlesLive do
 
     bundle_size_branch =
       case params["bundle-size-branch"] do
-        "any" -> "any"
-        _ -> "default-branch"
+        "any" ->
+          "any"
+
+        _ ->
+          if Bundles.has_bundles_in_project_default_branch?(project, name: bundle_size_selected_app) do
+            "default-branch"
+          else
+            "any"
+          end
       end
 
     bundle_size_selected_widget = params["bundle-size-selected-widget"] || "install-size"
 
     %{preset: preset, period: {bundle_start_date, _} = period} =
       DatePicker.date_picker_params(params, "bundle-size")
+
+    effective_git_branch =
+      cond do
+        bundle_size_branch == "any" ->
+          nil
+
+        Bundles.has_bundles_in_project_default_branch?(project) ->
+          project.default_branch
+
+        true ->
+          nil
+      end
 
     {
       :noreply,
@@ -85,12 +104,15 @@ defmodule TuistWeb.BundlesLive do
       |> assign(:bundle_size_preset, preset)
       |> assign(:bundle_size_period, period)
       |> assign(:bundle_size_branch, bundle_size_branch)
+      |> assign(:bundle_size_effective_branch, effective_git_branch)
       |> assign(
         :bundle_size_last_bundle,
         Bundles.last_project_bundle(project,
           name: bundle_size_selected_app,
-          git_branch: bundle_size_git_branch(bundle_size_branch, project),
-          type: string_to_bundle_type(bundles_type)
+          git_branch: effective_git_branch,
+          type: string_to_bundle_type(bundles_type),
+          period: period,
+          fallback: false
         )
       )
       |> assign(
@@ -98,8 +120,9 @@ defmodule TuistWeb.BundlesLive do
         Bundles.last_project_bundle(project,
           name: bundle_size_selected_app,
           inserted_before: bundle_start_date,
-          git_branch: bundle_size_git_branch(bundle_size_branch, project),
-          type: string_to_bundle_type(bundles_type)
+          git_branch: effective_git_branch,
+          type: string_to_bundle_type(bundles_type),
+          fallback: false
         )
       )
       |> assign(:bundle_size_selected_widget, bundle_size_selected_widget)
@@ -109,21 +132,14 @@ defmodule TuistWeb.BundlesLive do
         fetch_bundle_size_analytics_data(
           project,
           bundle_size_selected_widget,
-          bundle_size_branch,
+          effective_git_branch,
           bundles_type,
+          bundle_size_selected_app,
           params
         )
       end)
       |> assign_bundles(params)
     }
-  end
-
-  # Returns actual git branch based on the branch dropdown value.
-  defp bundle_size_git_branch(bundle_size_branch, project) do
-    case bundle_size_branch do
-      "default-branch" -> project.default_branch
-      value -> value
-    end
   end
 
   defp assign_bundles(
@@ -139,9 +155,17 @@ defmodule TuistWeb.BundlesLive do
        ) do
     filters = Filter.Operations.decode_filters_from_query(params, available_filters)
 
-    base_flop_filters = [
-      %{field: :project_id, op: :==, value: project.id}
-    ]
+    {start_datetime, end_datetime} = socket.assigns.bundle_size_period
+
+    base_flop_filters =
+      [
+        %{field: :project_id, op: :==, value: project.id},
+        %{field: :inserted_at, op: :>=, value: start_datetime},
+        %{field: :inserted_at, op: :<=, value: end_datetime}
+      ]
+      |> maybe_add_type_filter(socket.assigns.bundles_type)
+      |> maybe_add_name_filter(socket.assigns.bundle_size_selected_app)
+      |> maybe_add_branch_filter(socket.assigns.bundle_size_effective_branch)
 
     filter_flop_filters = build_flop_filters(filters)
     flop_filters = base_flop_filters ++ filter_flop_filters
@@ -218,14 +242,14 @@ defmodule TuistWeb.BundlesLive do
     size_filters ++ platform_filters ++ other_filters
   end
 
-  defp fetch_bundle_size_analytics_data(project, bundle_size_selected_widget, bundle_size_branch, bundles_type, params) do
-    git_branch =
-      cond do
-        bundle_size_branch == "any" -> nil
-        Bundles.has_bundles_in_project_default_branch?(project) -> project.default_branch
-        true -> nil
-      end
-
+  defp fetch_bundle_size_analytics_data(
+         project,
+         bundle_size_selected_widget,
+         git_branch,
+         bundles_type,
+         bundle_size_selected_app,
+         params
+       ) do
     bundle_type = string_to_bundle_type(bundles_type)
 
     %{period: {start_datetime, end_datetime}} =
@@ -236,7 +260,8 @@ defmodule TuistWeb.BundlesLive do
       start_datetime: start_datetime,
       end_datetime: end_datetime,
       git_branch: git_branch,
-      type: bundle_type
+      type: bundle_type,
+      name: bundle_size_selected_app
     ]
 
     bundle_size_analytics =
@@ -393,6 +418,15 @@ defmodule TuistWeb.BundlesLive do
   def bundles_type_label("aab"), do: dgettext("dashboard_cache", "AAB")
   def bundles_type_label("apk"), do: dgettext("dashboard_cache", "APK")
   def bundles_type_label(_), do: dgettext("dashboard_cache", "Any")
+
+  defp maybe_add_type_filter(filters, "any"), do: filters
+  defp maybe_add_type_filter(filters, type), do: [%{field: :type, op: :==, value: type} | filters]
+
+  defp maybe_add_name_filter(filters, nil), do: filters
+  defp maybe_add_name_filter(filters, name), do: [%{field: :name, op: :==, value: name} | filters]
+
+  defp maybe_add_branch_filter(filters, nil), do: filters
+  defp maybe_add_branch_filter(filters, branch), do: [%{field: :git_branch, op: :==, value: branch} | filters]
 
   defp string_to_bundle_type("ipa"), do: :ipa
   defp string_to_bundle_type("app"), do: :app
