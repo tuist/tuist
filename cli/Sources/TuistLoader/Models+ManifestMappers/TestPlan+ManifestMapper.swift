@@ -33,13 +33,13 @@ extension TestPlan {
             isDefault: isDefault
         )
     }
-}
 
-/// Strips the `container:` prefix from an `.xctestplan` container path, returning the
-/// project-relative portion that follows it. Returns the input unchanged when no prefix is
-/// present.
-private func projectRelativePath(from containerPath: String) -> String {
-    let prefix = "container:"
-    guard containerPath.hasPrefix(prefix) else { return containerPath }
-    return String(containerPath.dropFirst(prefix.count))
+    /// Strips the `container:` prefix from an `.xctestplan` container path, returning the
+    /// project-relative portion that follows it. Returns the input unchanged when no prefix is
+    /// present.
+    private static func projectRelativePath(from containerPath: String) -> String {
+        let prefix = "container:"
+        guard containerPath.hasPrefix(prefix) else { return containerPath }
+        return String(containerPath.dropFirst(prefix.count))
+    }
 }
