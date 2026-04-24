@@ -14,24 +14,20 @@ public final class ErrorHandling: ObservableObject {
 
     @MainActor
     public func handle(error: Error) {
-        let errorDescription: String
         if let clientError = error as? ClientError {
-            if let underlyingServerClientError = clientError.underlyingError
-                as? ClientAuthenticationError
-            {
+            if clientError.underlyingError is ClientAuthenticationError {
                 Task {
                     try await ServerCredentialsStore.current.delete(
                         serverURL: ServerEnvironmentService().url()
                     )
                 }
                 return
-            } else {
-                errorDescription = clientError.underlyingError.localizedDescription
             }
+            currentAlert = ErrorAlert(message: clientError.underlyingError.localizedDescription)
+            return
         } else {
-            errorDescription = error.localizedDescription
+            currentAlert = ErrorAlert(message: error.localizedDescription)
         }
-        currentAlert = ErrorAlert(message: errorDescription)
     }
 }
 
