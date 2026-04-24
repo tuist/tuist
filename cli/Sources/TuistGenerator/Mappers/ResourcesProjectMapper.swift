@@ -517,8 +517,8 @@ extension BuildableFolder {
         sharedEntries: [BuildableFolderFile],
         resourceOnlyEntries: [BuildableFolderFile]
     ) {
-        let originalOnlyEntries = resolvedFiles.filter { $0.path.shouldStayOnlyOnOriginalTargetWhenSplittingResources }
-        let sharedEntries = resolvedFiles.filter { $0.path.shouldBeSharedAcrossTargetsWhenSplittingResources }
+        let originalOnlyEntries = resolvedFiles.filter(\.path.shouldStayOnlyOnOriginalTargetWhenSplittingResources)
+        let sharedEntries = resolvedFiles.filter(\.path.shouldBeSharedAcrossTargetsWhenSplittingResources)
         let resourceOnlyEntries = resolvedFiles.filter {
             !$0.path.shouldStayOnlyOnOriginalTargetWhenSplittingResources
                 && !$0.path.shouldBeSharedAcrossTargetsWhenSplittingResources
