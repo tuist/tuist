@@ -57,6 +57,9 @@ WORKDIR /app
 # ========================================
 FROM ${BUILDER_IMAGE} AS deps-builder
 
+ARG TARGETOS
+ARG TARGETARCH
+
 RUN apt-get update -y && apt-get upgrade -y && apt-get install -y build-essential git \
   && apt-get clean && rm -f /var/lib/apt/lists/*_*
 
@@ -115,15 +118,20 @@ COPY xcode_processor/lib /xcode_processor/lib
 
 # Cache mount on _build persists compiled dep artifacts across builds, so
 # incremental compilation survives even when this layer is invalidated.
+# Scope the cache by target platform and MIX_ENV so precompiled NIFs don't
+# leak across incompatible targets (for example arm64 vs amd64 Linux builds).
 # The mount masks the image layer, so /app/_build is empty in the committed
 # layer — every subsequent RUN that reads _build must use the same mount id.
-RUN --mount=type=cache,id=mix-build,target=/app/_build \
+RUN --mount=type=cache,id=server-mix-build-v2-${TARGETOS}-${TARGETARCH}-${MIX_ENV},target=/app/_build \
     mix deps.compile
 
 # ========================================
 # Stage 3: Main application builder
 # ========================================
 FROM deps-builder AS builder
+
+ARG TARGETOS
+ARG TARGETARCH
 
 COPY server/priv priv
 COPY skills/skills priv/static/skills
@@ -145,12 +153,12 @@ RUN apt-get update -y && \
 # All mix steps that read/write _build share the same cache mount id so
 # incremental compilation persists both within this build (across RUNs)
 # and across builds (via BuildKit persistent cache).
-RUN --mount=type=cache,id=mix-build,target=/app/_build \
+RUN --mount=type=cache,id=server-mix-build-v2-${TARGETOS}-${TARGETARCH}-${MIX_ENV},target=/app/_build \
     mix compile --warnings-as-errors
 
-RUN --mount=type=cache,id=mix-build,target=/app/_build \
+RUN --mount=type=cache,id=server-mix-build-v2-${TARGETOS}-${TARGETARCH}-${MIX_ENV},target=/app/_build \
     mix docs.gen.og_images
-RUN --mount=type=cache,id=mix-build,target=/app/_build \
+RUN --mount=type=cache,id=server-mix-build-v2-${TARGETOS}-${TARGETARCH}-${MIX_ENV},target=/app/_build \
     mix marketing.gen.og_images
 
 COPY server/config/runtime.exs config/
@@ -158,13 +166,13 @@ COPY server/rel rel
 
 COPY --from=npm-deps /app/node_modules /app/node_modules
 COPY --from=npm-deps /noora/priv/static /noora/priv/static
-RUN --mount=type=cache,id=mix-build,target=/app/_build \
+RUN --mount=type=cache,id=server-mix-build-v2-${TARGETOS}-${TARGETARCH}-${MIX_ENV},target=/app/_build \
     mix assets.deploy
 
 # mix release writes into the cache mount, so we copy the release output
 # out to /release (a real image path) in the same RUN. Downstream stages
 # COPY --from=builder /release instead of /app/_build/${MIX_ENV}/rel/tuist.
-RUN --mount=type=cache,id=mix-build,target=/app/_build \
+RUN --mount=type=cache,id=server-mix-build-v2-${TARGETOS}-${TARGETARCH}-${MIX_ENV},target=/app/_build \
     mix release && \
     cp -r /app/_build/${MIX_ENV}/rel/tuist /release
 
