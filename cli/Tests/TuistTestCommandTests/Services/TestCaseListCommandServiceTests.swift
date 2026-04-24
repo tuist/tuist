@@ -523,7 +523,8 @@ extension Components.Schemas.TestCase {
         suiteName: String? = nil,
         avgDuration: Int = 100,
         isFlaky: Bool = false,
-        isQuarantined: Bool = false
+        isQuarantined: Bool = false,
+        state: Components.Schemas.TestCase.statePayload = .enabled
     ) -> Self {
         .init(
             avg_duration: avgDuration,
@@ -532,6 +533,7 @@ extension Components.Schemas.TestCase {
             is_quarantined: isQuarantined,
             module: .init(id: UUID().uuidString, name: moduleName),
             name: name,
+            state: state,
             suite: suiteName.map { .init(id: UUID().uuidString, name: $0) },
             url: "https://tuist.dev/test-case/\(UUID().uuidString)"
         )

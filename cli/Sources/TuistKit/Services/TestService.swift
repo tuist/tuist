@@ -327,11 +327,11 @@ public struct TestService { // swiftlint:disable:this type_body_length
             return
         }
 
-        let skipTestTargets = skipTestTargets
         let quarantinedTests = await testQuarantineService.quarantinedTests(
             config: config,
             skipQuarantine: skipQuarantine
         )
+        let skipTestTargets = skipTestTargets + quarantinedTests.skipped
 
         let graphTraverser = GraphTraverser(graph: graph)
         let version = osVersion?.version()
@@ -491,7 +491,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 testPlanConfiguration: testPlanConfiguration,
                 passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
                 config: config,
-                quarantinedTests: quarantinedTests,
+                quarantinedTests: quarantinedTests.muted,
                 mode: mode
             )
         } catch {

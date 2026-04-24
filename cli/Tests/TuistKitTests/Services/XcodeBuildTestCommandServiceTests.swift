@@ -44,7 +44,7 @@ struct XcodeBuildTestCommandServiceTests {
     init() {
         given(testQuarantineService)
             .quarantinedTests(config: .any, skipQuarantine: .any)
-            .willReturn([])
+            .willReturn(.empty)
         given(testQuarantineService)
             .markQuarantinedTests(testSummary: .any, quarantinedTests: .any)
             .willProduce { summary, _ in summary }

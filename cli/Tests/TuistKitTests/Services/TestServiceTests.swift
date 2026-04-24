@@ -142,7 +142,7 @@ final class TestServiceTests: TuistUnitTestCase {
 
         given(testQuarantineService)
             .quarantinedTests(config: .any, skipQuarantine: .any)
-            .willReturn([])
+            .willReturn(.empty)
         given(testQuarantineService)
             .markQuarantinedTests(testSummary: .any, quarantinedTests: .any)
             .willProduce { summary, _ in summary }
@@ -3065,10 +3065,14 @@ final class TestServiceTests: TuistUnitTestCase {
         testQuarantineService.reset()
         given(testQuarantineService)
             .quarantinedTests(config: .any, skipQuarantine: .any)
-            .willReturn([
-                try TestIdentifier(target: "AppTests", class: "QuarantinedSuite", method: "testQuarantined()"),
-                try TestIdentifier(target: "CoreTests", class: nil, method: "testAnotherQuarantined()"),
-            ])
+            .willReturn(
+                QuarantinedTests(
+                    muted: [
+                        try TestIdentifier(target: "AppTests", class: "QuarantinedSuite", method: "testQuarantined()"),
+                        try TestIdentifier(target: "CoreTests", class: nil, method: "testAnotherQuarantined()"),
+                    ]
+                )
+            )
         given(testQuarantineService)
             .markQuarantinedTests(testSummary: .any, quarantinedTests: .any)
             .willProduce { summary, _ in summary }
@@ -3138,6 +3142,109 @@ final class TestServiceTests: TuistUnitTestCase {
                 retryCount: .any,
                 testTargets: .any,
                 skipTestTargets: .value([]),
+                testPlanConfiguration: .any,
+                passthroughXcodeBuildArguments: .any
+            )
+            .called(1)
+    }
+
+    func test_run_passes_skipped_quarantined_tests_as_skip_testing() async throws {
+        // Given
+        givenGenerator()
+        let path = try temporaryPath()
+        let fullHandle = "organization/project"
+
+        configLoader.reset()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject(), fullHandle: fullHandle))
+
+        let skippedIdentifier = try TestIdentifier(
+            target: "CoreTests",
+            class: "SlowSuite",
+            method: "testSuperSlow()"
+        )
+
+        testQuarantineService.reset()
+        given(testQuarantineService)
+            .quarantinedTests(config: .any, skipQuarantine: .any)
+            .willReturn(
+                QuarantinedTests(
+                    muted: [
+                        try TestIdentifier(target: "AppTests", class: "FlakySuite", method: "testFlaky()"),
+                    ],
+                    skipped: [skippedIdentifier]
+                )
+            )
+        given(testQuarantineService)
+            .markQuarantinedTests(testSummary: .any, quarantinedTests: .any)
+            .willProduce { summary, _ in summary }
+        given(testQuarantineService)
+            .onlyQuarantinedTestsFailed(testSummary: .any)
+            .willReturn(false)
+
+        buildGraphInspector.reset()
+        given(buildGraphInspector)
+            .testableSchemes(graphTraverser: .any)
+            .willReturn([Scheme.test(name: "ProjectScheme")])
+        given(buildGraphInspector)
+            .workspaceSchemes(graphTraverser: .any)
+            .willReturn([Scheme.test(name: "ProjectScheme")])
+        given(buildGraphInspector)
+            .buildArguments(project: .any, target: .any, configuration: .any, skipSigning: .any)
+            .willReturn([])
+        given(buildGraphInspector)
+            .testableTarget(
+                scheme: .any, testPlan: .any, testTargets: .any, skipTestTargets: .any,
+                graphTraverser: .any,
+                action: .any
+            )
+            .willReturn(.test())
+
+        given(generator)
+            .generateWithGraph(path: .value(path), options: .any)
+            .willProduce { path, _ in
+                (path, .test(workspace: .test(schemes: [.test(name: "ProjectScheme")])), MapperEnvironment())
+            }
+
+        xcodebuildController.reset()
+        given(xcodebuildController)
+            .test(
+                .any,
+                scheme: .any,
+                clean: .any,
+                destination: .any,
+                action: .any,
+                rosetta: .any,
+                derivedDataPath: .any,
+                resultBundlePath: .any,
+                arguments: .any,
+                retryCount: .any,
+                testTargets: .any,
+                skipTestTargets: .any,
+                testPlanConfiguration: .any,
+                passthroughXcodeBuildArguments: .any
+            )
+            .willReturn(())
+
+        // When
+        try await testRun(path: path)
+
+        // Then — skipped quarantined tests land in skipTestTargets; muted ones don't.
+        verify(xcodebuildController)
+            .test(
+                .any,
+                scheme: .any,
+                clean: .any,
+                destination: .any,
+                action: .any,
+                rosetta: .any,
+                derivedDataPath: .any,
+                resultBundlePath: .any,
+                arguments: .any,
+                retryCount: .any,
+                testTargets: .any,
+                skipTestTargets: .value([skippedIdentifier]),
                 testPlanConfiguration: .any,
                 passthroughXcodeBuildArguments: .any
             )
@@ -3321,7 +3428,7 @@ final class TestServiceTests: TuistUnitTestCase {
         testQuarantineService.reset()
         given(testQuarantineService)
             .quarantinedTests(config: .any, skipQuarantine: .any)
-            .willReturn([])
+            .willReturn(.empty)
         given(testQuarantineService)
             .markQuarantinedTests(testSummary: .any, quarantinedTests: .any)
             .willProduce { summary, _ in summary }

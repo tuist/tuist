@@ -132,9 +132,13 @@ struct XcodeBuildTestCommandService {
         let resultBundlePath = await RunMetadataStorage.current.resultBundlePath
 
         let quarantinedTests = await testQuarantineService.quarantinedTests(config: config, skipQuarantine: skipQuarantine)
+        let mutedTests = quarantinedTests.muted
+        let xcodeBuildArgumentsWithSkip = passthroughXcodebuildArguments + quarantinedTests.skipped.flatMap { skipped in
+            ["-skip-testing", skipped.description]
+        }
 
         do {
-            try await xcodeBuildController.run(arguments: passthroughXcodebuildArguments)
+            try await xcodeBuildController.run(arguments: xcodeBuildArgumentsWithSkip)
         } catch {
             if let derivedDataPath {
                 await updateBuildRunId(projectDerivedDataDirectory: derivedDataPath)
@@ -146,7 +150,7 @@ struct XcodeBuildTestCommandService {
                 if let parsed = try await xcResultService.parse(path: resultBundlePath, rootDirectory: rootDirectory) {
                     testSummary = testQuarantineService.markQuarantinedTests(
                         testSummary: parsed,
-                        quarantinedTests: quarantinedTests
+                        quarantinedTests: mutedTests
                     )
                 }
             }
@@ -156,7 +160,7 @@ struct XcodeBuildTestCommandService {
                 resultBundlePath: resultBundlePath,
                 projectDerivedDataDirectory: derivedDataPath,
                 config: config,
-                quarantinedTests: quarantinedTests,
+                quarantinedTests: quarantinedTests.all,
                 shardPlanId: shardPlanId,
                 shardIndex: shardIndex,
                 mode: mode
@@ -169,7 +173,7 @@ struct XcodeBuildTestCommandService {
                 let testStatuses = try await xcResultService.parseTestStatuses(path: resultBundlePath)
                 quarantinePass = testQuarantineService.onlyQuarantinedTestsFailed(
                     testStatuses: testStatuses,
-                    quarantinedTests: quarantinedTests
+                    quarantinedTests: mutedTests
                 )
             } else {
                 quarantinePass = false
@@ -197,7 +201,10 @@ struct XcodeBuildTestCommandService {
         if mode == .local, let resultBundlePath {
             let rootDirectory = await rootDirectory()
             if let parsed = try await xcResultService.parse(path: resultBundlePath, rootDirectory: rootDirectory) {
-                testSummary = testQuarantineService.markQuarantinedTests(testSummary: parsed, quarantinedTests: quarantinedTests)
+                testSummary = testQuarantineService.markQuarantinedTests(
+                    testSummary: parsed,
+                    quarantinedTests: mutedTests
+                )
             }
         }
         await uploadResultBundleIfNeeded(
@@ -205,7 +212,7 @@ struct XcodeBuildTestCommandService {
             resultBundlePath: resultBundlePath,
             projectDerivedDataDirectory: derivedDataPath,
             config: config,
-            quarantinedTests: quarantinedTests,
+            quarantinedTests: quarantinedTests.all,
             shardPlanId: shardPlanId,
             shardIndex: shardIndex,
             mode: mode

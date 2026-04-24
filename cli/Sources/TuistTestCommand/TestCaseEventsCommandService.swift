@@ -124,6 +124,10 @@ struct TestCaseEventsCommandService: TestCaseEventsCommandServicing {
         case .unmarked_flaky: return "Unmarked flaky"
         case .quarantined: return "Quarantined"
         case .unquarantined: return "Unquarantined"
+        case .muted: return "Muted"
+        case .unmuted: return "Unmuted"
+        case .skipped: return "Skipped"
+        case .unskipped: return "Unskipped"
         }
     }
 }

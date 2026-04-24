@@ -69,7 +69,7 @@ struct TestQuarantineServiceTests {
     }
 
     @Test(.withMockedDependencies())
-    func quarantinedTests_returnsTestIdentifiers() async throws {
+    func quarantinedTests_returnsMutedIdentifiers() async throws {
         let config = Tuist.test(fullHandle: "org/project")
         let serverURL = URL(string: "https://tuist.dev")!
 
@@ -83,8 +83,14 @@ struct TestQuarantineServiceTests {
                 page_size: 500, total_count: 2, total_pages: 1
             ),
             test_cases: [
-                .test(id: "1", module: .test(name: "AppTests"), name: "testFoo()", suite: .test(name: "FooSuite")),
-                .test(id: "2", module: .test(name: "CoreTests"), name: "testBar()"),
+                .test(
+                    id: "1",
+                    module: .test(name: "AppTests"),
+                    name: "testFoo()",
+                    state: .muted,
+                    suite: .test(name: "FooSuite")
+                ),
+                .test(id: "2", module: .test(name: "CoreTests"), name: "testBar()", state: .muted),
             ]
         )
 
@@ -97,11 +103,45 @@ struct TestQuarantineServiceTests {
 
         let result = await subject.quarantinedTests(config: config, skipQuarantine: false)
 
-        let expected = [
+        let expectedMuted = [
             try TestIdentifier(target: "AppTests", class: "FooSuite", method: "testFoo()"),
             try TestIdentifier(target: "CoreTests", class: nil, method: "testBar()"),
         ]
-        #expect(result == expected)
+        #expect(result.muted == expectedMuted)
+        #expect(result.skipped.isEmpty)
+    }
+
+    @Test(.withMockedDependencies())
+    func quarantinedTests_separatesSkippedFromMuted() async throws {
+        let config = Tuist.test(fullHandle: "org/project")
+        let serverURL = URL(string: "https://tuist.dev")!
+
+        given(serverEnvironmentService)
+            .url(configServerURL: .any)
+            .willReturn(serverURL)
+
+        let response = Operations.listTestCases.Output.Ok.Body.jsonPayload(
+            pagination_metadata: .init(
+                current_page: 1, has_next_page: false, has_previous_page: false,
+                page_size: 500, total_count: 2, total_pages: 1
+            ),
+            test_cases: [
+                .test(id: "1", module: .test(name: "AppTests"), name: "testMuted()", state: .muted),
+                .test(id: "2", module: .test(name: "CoreTests"), name: "testSkipped()", state: .skipped),
+            ]
+        )
+
+        given(listTestCasesService)
+            .listTestCases(
+                fullHandle: .any, serverURL: .any, flaky: .any,
+                quarantined: .any, page: .any, pageSize: .any
+            )
+            .willReturn(response)
+
+        let result = await subject.quarantinedTests(config: config, skipQuarantine: false)
+
+        #expect(result.muted == [try TestIdentifier(target: "AppTests", class: nil, method: "testMuted()")])
+        #expect(result.skipped == [try TestIdentifier(target: "CoreTests", class: nil, method: "testSkipped()")])
     }
 
     // MARK: - markQuarantinedTests
@@ -399,6 +439,7 @@ extension Components.Schemas.TestCase {
         isQuarantined: Bool = true,
         module: Components.Schemas.TestCase.modulePayload = .test(),
         name: String = "testExample()",
+        state: Components.Schemas.TestCase.statePayload = .muted,
         suite: Components.Schemas.TestCase.suitePayload? = nil
     ) -> Self {
         .init(
@@ -408,6 +449,7 @@ extension Components.Schemas.TestCase {
             is_quarantined: isQuarantined,
             module: module,
             name: name,
+            state: state,
             suite: suite,
             url: "https://tuist.dev/test-cases/\(id)"
         )
