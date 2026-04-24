@@ -5,6 +5,55 @@ defmodule TuistWeb.WellKnownControllerTest do
   alias Tuist.Environment
   alias Tuist.Namespace.JWTToken
 
+  describe "GET /.well-known/api-catalog" do
+    test "returns a linkset API catalog", %{conn: conn} do
+      conn =
+        conn
+        |> put_req_header("accept", "application/linkset+json")
+        |> get("/.well-known/api-catalog")
+
+      assert response(conn, 200)
+
+      assert get_resp_header(conn, "content-type") == [
+               ~s(application/linkset+json; profile="https://www.rfc-editor.org/info/rfc9727")
+             ]
+
+      assert get_resp_header(conn, "link") == [
+               ~s(</.well-known/api-catalog>; rel="api-catalog"; type="application/linkset+json"; profile="https://www.rfc-editor.org/info/rfc9727")
+             ]
+
+      assert Jason.decode!(conn.resp_body) == %{
+               "linkset" => [
+                 %{
+                   "anchor" => "http://www.example.com/api",
+                   "service-desc" => [
+                     %{
+                       "href" => "http://www.example.com/api/spec",
+                       "type" => "application/json"
+                     }
+                   ],
+                   "service-doc" => [
+                     %{
+                       "href" => "http://www.example.com/api/docs",
+                       "type" => "text/html"
+                     }
+                   ]
+                 }
+               ]
+             }
+    end
+
+    test "includes an api-catalog link header on HEAD requests", %{conn: conn} do
+      conn = head(conn, "/.well-known/api-catalog")
+
+      assert response(conn, 200) == ""
+
+      assert get_resp_header(conn, "link") == [
+               ~s(</.well-known/api-catalog>; rel="api-catalog"; type="application/linkset+json"; profile="https://www.rfc-editor.org/info/rfc9727")
+             ]
+    end
+  end
+
   describe "GET /.well-known/openid_configuration" do
     test "returns the OpenID configuration", %{conn: conn} do
       issuer = "https://test.example.com"

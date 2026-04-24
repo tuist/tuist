@@ -4,6 +4,20 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
 
   alias Tuist.Loops
 
+  describe "GET /" do
+    test "includes agent discovery link headers on the homepage", %{conn: conn} do
+      conn = get(conn, "/")
+
+      assert html_response(conn, 200)
+      assert [link_header] = get_resp_header(conn, "link")
+      assert link_header =~ ~s(</.well-known/api-catalog>; rel="api-catalog")
+      assert link_header =~ ~s(type="application/linkset+json")
+      assert link_header =~ ~s(profile="https://www.rfc-editor.org/info/rfc9727")
+      assert link_header =~ ~s(</api/spec>; rel="service-desc"; type="application/json")
+      assert link_header =~ ~s(</api/docs>; rel="service-doc"; type="text/html")
+    end
+  end
+
   describe "POST /newsletter" do
     test "successfully sends confirmation email", %{conn: conn} do
       # Given
