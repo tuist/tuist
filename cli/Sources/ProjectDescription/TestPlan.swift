@@ -15,9 +15,9 @@
 /// `testPlan(path:)`, and `relativeToManifest(_:)`, `relativeToRoot(_:)`, and
 /// `relativeToCurrentFile(_:)` are available as convenience factories for the path form.
 public struct TestPlan: Equatable, Codable, Sendable, ExpressibleByStringLiteral {
-    /// Describes where the `.xctestplan` comes from: either a path the user maintains or a
-    /// specification Tuist uses to generate the file.
-    public enum Source: Equatable, Codable, Sendable {
+    /// Whether the `.xctestplan` is a reference to an existing file or a specification Tuist
+    /// uses to generate one.
+    public enum Kind: Equatable, Codable, Sendable {
         /// Reference to an existing `.xctestplan` at the given path. Glob patterns are supported.
         case path(Path)
 
@@ -30,14 +30,14 @@ public struct TestPlan: Equatable, Codable, Sendable, ExpressibleByStringLiteral
         case generated(name: String, testTargets: [TestableTarget], path: Path?)
     }
 
-    public let source: Source
+    public let kind: Kind
 
-    private init(source: Source) {
-        self.source = source
+    private init(kind: Kind) {
+        self.kind = kind
     }
 
     public init(stringLiteral value: String) {
-        self.init(source: .path(Path(stringLiteral: value)))
+        self.init(kind: .path(Path(stringLiteral: value)))
     }
 
     /// Reference an existing, hand-maintained `.xctestplan` file.
@@ -46,7 +46,7 @@ public struct TestPlan: Equatable, Codable, Sendable, ExpressibleByStringLiteral
     /// literals work directly (e.g. `.testPlan(path: "TestPlans/Foo.xctestplan")`). Glob
     /// patterns are supported — matching files are sorted and attached in that order.
     public static func testPlan(path: Path) -> TestPlan {
-        TestPlan(source: .path(path))
+        TestPlan(kind: .path(path))
     }
 
     /// Have Tuist generate a `.xctestplan` file from the given test targets.
@@ -59,7 +59,7 @@ public struct TestPlan: Equatable, Codable, Sendable, ExpressibleByStringLiteral
         testTargets: [TestableTarget],
         path: Path? = nil
     ) -> TestPlan {
-        TestPlan(source: .generated(name: name, testTargets: testTargets, path: path))
+        TestPlan(kind: .generated(name: name, testTargets: testTargets, path: path))
     }
 
     /// Reference a `.xctestplan` file at a path relative to the manifest directory.
