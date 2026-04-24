@@ -394,8 +394,7 @@ defmodule TuistWeb.API.RunsControllerTest do
                "id" => build.id,
                "duration" => 1000,
                "project_id" => project.id,
-               "url" =>
-                 url(~p"/#{project.account.name}/#{project.name}/builds/build-runs/#{build.id}")
+               "url" => url(~p"/#{project.account.name}/#{project.name}/builds/build-runs/#{build.id}")
              }
 
       response
@@ -441,8 +440,7 @@ defmodule TuistWeb.API.RunsControllerTest do
                "id" => build.id,
                "duration" => 1000,
                "project_id" => project.id,
-               "url" =>
-                 url(~p"/#{project.account.name}/#{project.name}/builds/build-runs/#{build.id}")
+               "url" => url(~p"/#{project.account.name}/#{project.name}/builds/build-runs/#{build.id}")
              }
 
       response
@@ -489,8 +487,7 @@ defmodule TuistWeb.API.RunsControllerTest do
                "id" => build.id,
                "duration" => 1000,
                "project_id" => project.id,
-               "url" =>
-                 url(~p"/#{project.account.name}/#{project.name}/builds/build-runs/#{build.id}")
+               "url" => url(~p"/#{project.account.name}/#{project.name}/builds/build-runs/#{build.id}")
              }
 
       response
@@ -587,8 +584,7 @@ defmodule TuistWeb.API.RunsControllerTest do
                "id" => build.id,
                "duration" => 1000,
                "project_id" => project.id,
-               "url" =>
-                 url(~p"/#{project.account.name}/#{project.name}/builds/build-runs/#{build.id}")
+               "url" => url(~p"/#{project.account.name}/#{project.name}/builds/build-runs/#{build.id}")
              }
 
       response
@@ -633,8 +629,7 @@ defmodule TuistWeb.API.RunsControllerTest do
                "id" => build.id,
                "duration" => 1000,
                "project_id" => project.id,
-               "url" =>
-                 url(~p"/#{project.account.name}/#{project.name}/builds/build-runs/#{build.id}")
+               "url" => url(~p"/#{project.account.name}/#{project.name}/builds/build-runs/#{build.id}")
              }
     end
 
@@ -676,8 +671,7 @@ defmodule TuistWeb.API.RunsControllerTest do
                "id" => build.id,
                "duration" => 1500,
                "project_id" => project.id,
-               "url" =>
-                 url(~p"/#{project.account.name}/#{project.name}/builds/build-runs/#{build.id}")
+               "url" => url(~p"/#{project.account.name}/#{project.name}/builds/build-runs/#{build.id}")
              }
     end
 
@@ -759,8 +753,7 @@ defmodule TuistWeb.API.RunsControllerTest do
                "id" => build.id,
                "duration" => 1000,
                "project_id" => project.id,
-               "url" =>
-                 url(~p"/#{project.account.name}/#{project.name}/builds/build-runs/#{build.id}")
+               "url" => url(~p"/#{project.account.name}/#{project.name}/builds/build-runs/#{build.id}")
              }
     end
 
@@ -805,8 +798,7 @@ defmodule TuistWeb.API.RunsControllerTest do
                "id" => build.id,
                "duration" => 1000,
                "project_id" => project.id,
-               "url" =>
-                 url(~p"/#{project.account.name}/#{project.name}/builds/build-runs/#{build.id}")
+               "url" => url(~p"/#{project.account.name}/#{project.name}/builds/build-runs/#{build.id}")
              }
     end
 
@@ -923,8 +915,7 @@ defmodule TuistWeb.API.RunsControllerTest do
                "id" => build.id,
                "duration" => 1000,
                "project_id" => project.id,
-               "url" =>
-                 url(~p"/#{project.account.name}/#{project.name}/builds/build-runs/#{build.id}")
+               "url" => url(~p"/#{project.account.name}/#{project.name}/builds/build-runs/#{build.id}")
              }
     end
 
@@ -1014,8 +1005,7 @@ defmodule TuistWeb.API.RunsControllerTest do
                "id" => build.id,
                "duration" => 1000,
                "project_id" => project.id,
-               "url" =>
-                 url(~p"/#{project.account.name}/#{project.name}/builds/build-runs/#{build.id}")
+               "url" => url(~p"/#{project.account.name}/#{project.name}/builds/build-runs/#{build.id}")
              }
     end
 
@@ -1105,8 +1095,7 @@ defmodule TuistWeb.API.RunsControllerTest do
                "id" => build.id,
                "duration" => 1000,
                "project_id" => project.id,
-               "url" =>
-                 url(~p"/#{project.account.name}/#{project.name}/builds/build-runs/#{build.id}")
+               "url" => url(~p"/#{project.account.name}/#{project.name}/builds/build-runs/#{build.id}")
              }
     end
 
@@ -1157,8 +1146,7 @@ defmodule TuistWeb.API.RunsControllerTest do
                "id" => test_run.id,
                "duration" => 5000,
                "project_id" => project.id,
-               "url" =>
-                 url(~p"/#{project.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
+               "url" => url(~p"/#{project.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
              }
     end
 
@@ -1277,8 +1265,7 @@ defmodule TuistWeb.API.RunsControllerTest do
                "id" => test_run.id,
                "duration" => 10_000,
                "project_id" => project.id,
-               "url" =>
-                 url(~p"/#{project.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
+               "url" => url(~p"/#{project.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
              }
     end
 
@@ -1425,8 +1412,7 @@ defmodule TuistWeb.API.RunsControllerTest do
                "id" => test_run.id,
                "duration" => 0,
                "project_id" => project.id,
-               "url" =>
-                 url(~p"/#{project.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
+               "url" => url(~p"/#{project.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
              }
     end
 
@@ -1492,8 +1478,7 @@ defmodule TuistWeb.API.RunsControllerTest do
                "id" => test_run.id,
                "duration" => 3000,
                "project_id" => project.id,
-               "url" =>
-                 url(~p"/#{project.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
+               "url" => url(~p"/#{project.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
              }
     end
 
@@ -1544,8 +1529,7 @@ defmodule TuistWeb.API.RunsControllerTest do
                "id" => test_run.id,
                "duration" => 5000,
                "project_id" => project.id,
-               "url" =>
-                 url(~p"/#{project.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
+               "url" => url(~p"/#{project.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
              }
     end
 
@@ -1590,8 +1574,7 @@ defmodule TuistWeb.API.RunsControllerTest do
                "id" => test_run.id,
                "duration" => 5000,
                "project_id" => project.id,
-               "url" =>
-                 url(~p"/#{project.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
+               "url" => url(~p"/#{project.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
              }
     end
 
@@ -1635,8 +1618,7 @@ defmodule TuistWeb.API.RunsControllerTest do
                "id" => test_run.id,
                "duration" => 8000,
                "project_id" => project.id,
-               "url" =>
-                 url(~p"/#{project.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
+               "url" => url(~p"/#{project.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
              }
     end
   end

@@ -63,8 +63,7 @@ defmodule Tuist.Tests do
     :run_destinations
   ]
 
-  def valid_ci_providers,
-    do: ["github", "gitlab", "bitrise", "circleci", "buildkite", "codemagic"]
+  def valid_ci_providers, do: ["github", "gitlab", "bitrise", "circleci", "buildkite", "codemagic"]
 
   def total_test_run_count do
     Test
@@ -73,9 +72,7 @@ defmodule Tuist.Tests do
   end
 
   def total_test_case_run_count do
-    ClickHouseRepo.one(
-      from(d in TestCaseRunDashboardCount, select: fragment("countMerge(count)"))
-    ) || 0
+    ClickHouseRepo.one(from(d in TestCaseRunDashboardCount, select: fragment("countMerge(count)"))) || 0
   end
 
   def flaky_test_case_run_count do
@@ -297,8 +294,7 @@ defmodule Tuist.Tests do
     end)
   end
 
-  defp normalize_string_keys(list) when is_list(list),
-    do: Enum.map(list, &normalize_string_keys/1)
+  defp normalize_string_keys(list) when is_list(list), do: Enum.map(list, &normalize_string_keys/1)
 
   defp normalize_string_keys(value), do: value
 
@@ -736,7 +732,9 @@ defmodule Tuist.Tests do
     {events, meta} =
       Tuist.ClickHouseFlop.validate_and_run!(
         from(e in TestCaseEvent, where: e.test_case_id == ^test_case_id),
-        attrs, for: TestCaseEvent)
+        attrs,
+        for: TestCaseEvent
+      )
 
     events = Repo.preload(events, :actor)
     {events, meta}
@@ -1119,15 +1117,7 @@ defmodule Tuist.Tests do
     |> MapSet.new()
   end
 
-  defp create_test_suites(
-         test,
-         module_id,
-         test_suites,
-         test_cases,
-         test_case_run_data,
-         shard_plan,
-         shard_index
-       ) do
+  defp create_test_suites(test, module_id, test_suites, test_cases, test_case_run_data, shard_plan, shard_index) do
     test_cases_by_suite =
       Enum.group_by(test_cases, fn case_attrs ->
         Map.get(case_attrs, :test_suite_name, "")
@@ -1212,14 +1202,11 @@ defmodule Tuist.Tests do
       |> Enum.uniq_by(fn data -> {data.name, data.module_name, data.suite_name} end)
 
     {test_case_id_map, test_case_ids_with_flaky_run, new_test_case_ids} =
-      create_test_cases(test.project_id, test_case_data_list, existing_test_cases,
-        test_run_id: test.id
-      )
+      create_test_cases(test.project_id, test_case_data_list, existing_test_cases, test_run_id: test.id)
 
     {test_case_runs, all_failures, all_repetitions, all_attachments, all_arguments} =
       Enum.reduce(test_cases, {[], [], [], [], []}, fn case_attrs,
-                                                       {runs_acc, failures_acc, reps_acc,
-                                                        attachments_acc, args_acc} ->
+                                                       {runs_acc, failures_acc, reps_acc, attachments_acc, args_acc} ->
         suite_name = Map.get(case_attrs, :test_suite_name, "") || ""
 
         test_suite_run_id = Map.get(suite_name_to_id, suite_name)
@@ -1626,11 +1613,9 @@ defmodule Tuist.Tests do
   defp apply_flaky_order(query, :last_flaky_at, :asc),
     do: from([tc, stats] in query, order_by: [asc: stats.last_flaky_at])
 
-  defp apply_flaky_order(query, :name, :desc),
-    do: from([tc, _stats] in query, order_by: [desc: tc.name])
+  defp apply_flaky_order(query, :name, :desc), do: from([tc, _stats] in query, order_by: [desc: tc.name])
 
-  defp apply_flaky_order(query, :name, :asc),
-    do: from([tc, _stats] in query, order_by: [asc: tc.name])
+  defp apply_flaky_order(query, :name, :asc), do: from([tc, _stats] in query, order_by: [asc: tc.name])
 
   defp apply_flaky_order(query, _, _),
     do: from([tc, stats] in query, order_by: [desc: coalesce(stats.flaky_runs_count, 0)])
@@ -1900,14 +1885,11 @@ defmodule Tuist.Tests do
   defp apply_quarantined_order(query, :last_ran_at, :asc),
     do: from([test_case: tc] in query, order_by: [asc: tc.last_ran_at])
 
-  defp apply_quarantined_order(query, :name, :desc),
-    do: from([test_case: tc] in query, order_by: [desc: tc.name])
+  defp apply_quarantined_order(query, :name, :desc), do: from([test_case: tc] in query, order_by: [desc: tc.name])
 
-  defp apply_quarantined_order(query, :name, :asc),
-    do: from([test_case: tc] in query, order_by: [asc: tc.name])
+  defp apply_quarantined_order(query, :name, :asc), do: from([test_case: tc] in query, order_by: [asc: tc.name])
 
-  defp apply_quarantined_order(query, _, _),
-    do: from([test_case: tc] in query, order_by: [desc: tc.last_ran_at])
+  defp apply_quarantined_order(query, _, _), do: from([test_case: tc] in query, order_by: [desc: tc.last_ran_at])
 
   defp apply_quarantined_by_filter(query, nil), do: query
 
@@ -1921,10 +1903,7 @@ defmodule Tuist.Tests do
     do: from([quarantine: quarantine] in query, where: quarantine.actor_id == ^user_id)
 
   defp apply_quarantined_by_filter(query, {:!=, user_id}) when is_integer(user_id),
-    do:
-      from([quarantine: quarantine] in query,
-        where: quarantine.actor_id != ^user_id or is_nil(quarantine.actor_id)
-      )
+    do: from([quarantine: quarantine] in query, where: quarantine.actor_id != ^user_id or is_nil(quarantine.actor_id))
 
   defp apply_quarantined_by_filter(query, _), do: query
 
@@ -1935,8 +1914,7 @@ defmodule Tuist.Tests do
 
   defp apply_suite_name_filter(query, nil), do: query
 
-  defp apply_suite_name_filter(query, term),
-    do: from([test_case: tc] in query, where: ilike(tc.suite_name, ^"%#{term}%"))
+  defp apply_suite_name_filter(query, term), do: from([test_case: tc] in query, where: ilike(tc.suite_name, ^"%#{term}%"))
 
   defp row_to_quarantined_test_case(row, quarantine_info) do
     %QuarantinedTestCase{

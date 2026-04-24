@@ -86,14 +86,7 @@ defmodule Tuist.Builds.Analytics do
     }
   end
 
-  defp build_count(
-         project_id,
-         start_datetime,
-         end_datetime,
-         date_period,
-         clickhouse_interval,
-         opts
-       ) do
+  defp build_count(project_id, start_datetime, end_datetime, date_period, clickhouse_interval, opts) do
     {filter_clauses, filter_params} = build_filter_clauses(opts)
 
     query = """
@@ -694,8 +687,7 @@ defmodule Tuist.Builds.Analytics do
 
         %{
           date: date,
-          cache_hit_rate:
-            (cacheable_task_local_hits + cacheable_task_remote_hits) / cacheable_tasks
+          cache_hit_rate: (cacheable_task_local_hits + cacheable_task_remote_hits) / cacheable_tasks
         }
       end
     end)
@@ -1424,13 +1416,7 @@ defmodule Tuist.Builds.Analytics do
     }
   end
 
-  defp cache_hit_rate_period_percentile(
-         project_id,
-         percentile,
-         start_datetime,
-         end_datetime,
-         opts
-       ) do
+  defp cache_hit_rate_period_percentile(project_id, percentile, start_datetime, end_datetime, opts) do
     {filter_clauses, filter_params} = build_filter_clauses(opts)
 
     # ClickHouse quantile uses "lower-is-better" convention, so we invert for hit rate where higher is better
@@ -2038,13 +2024,7 @@ defmodule Tuist.Builds.Analytics do
     }
   end
 
-  defp module_cache_hit_rate_period_percentile(
-         project_id,
-         percentile,
-         start_datetime,
-         end_datetime,
-         opts
-       ) do
+  defp module_cache_hit_rate_period_percentile(project_id, percentile, start_datetime, end_datetime, opts) do
     result =
       CommandEvents.cache_hit_rate_period_percentile(
         project_id,

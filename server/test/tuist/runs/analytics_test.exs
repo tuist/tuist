@@ -126,9 +126,7 @@ defmodule Tuist.Runs.AnalyticsTest do
 
       # When
       got =
-        Analytics.runs_analytics(project.id, "generate",
-          start_datetime: DateTime.add(DateTime.utc_now(), -2, :day)
-        )
+        Analytics.runs_analytics(project.id, "generate", start_datetime: DateTime.add(DateTime.utc_now(), -2, :day))
 
       # Then
       assert got.values == [0, 1, 2]
@@ -172,9 +170,7 @@ defmodule Tuist.Runs.AnalyticsTest do
 
       # When
       got =
-        Analytics.runs_analytics(project.id, "generate",
-          start_datetime: DateTime.add(DateTime.utc_now(), -365, :day)
-        )
+        Analytics.runs_analytics(project.id, "generate", start_datetime: DateTime.add(DateTime.utc_now(), -365, :day))
 
       # Then
       assert got.values == [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 2]

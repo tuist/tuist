@@ -100,14 +100,11 @@ defmodule Tuist.CommandEventsTest do
       event_name_run_command = Tuist.Telemetry.event_name_run_command()
       event_name_cache = Tuist.Telemetry.event_name_cache()
 
-      assert_received {^event_name_run_command, ^run_create_ref, %{duration: 100},
-                       %{command_event: ^command_event}}
+      assert_received {^event_name_run_command, ^run_create_ref, %{duration: 100}, %{command_event: ^command_event}}
 
-      assert_received {^event_name_cache, ^cache_event_ref, %{count: 1},
-                       %{event_type: :local_hit}}
+      assert_received {^event_name_cache, ^cache_event_ref, %{count: 1}, %{event_type: :local_hit}}
 
-      assert_received {^event_name_cache, ^cache_event_ref, %{count: 2},
-                       %{event_type: :remote_hit}}
+      assert_received {^event_name_cache, ^cache_event_ref, %{count: 2}, %{event_type: :remote_hit}}
 
       assert_received {^event_name_cache, ^cache_event_ref, %{count: 1}, %{event_type: :miss}}
     end
