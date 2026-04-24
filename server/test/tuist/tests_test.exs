@@ -3935,6 +3935,63 @@ defmodule Tuist.TestsTest do
       {:ok, fetched_test_case} = Tests.get_test_case_by_id(test_case.id)
       assert fetched_test_case.state == "enabled"
     end
+
+    test "skips a test case" do
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, _test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "success",
+              duration: 1000,
+              test_cases: [
+                %{name: "testOne", status: "success", duration: 100}
+              ]
+            }
+          ]
+        )
+
+      {[test_case], _meta} = Tests.list_test_cases(project.id, %{})
+
+      result = Tests.update_test_case(test_case.id, %{state: "skipped"})
+
+      assert {:ok, updated_test_case} = result
+      assert updated_test_case.state == "skipped"
+
+      {:ok, fetched_test_case} = Tests.get_test_case_by_id(test_case.id)
+      assert fetched_test_case.state == "skipped"
+    end
+
+    test "transitions directly from muted to skipped" do
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, _test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "success",
+              duration: 1000,
+              test_cases: [
+                %{name: "testOne", status: "success", duration: 100}
+              ]
+            }
+          ]
+        )
+
+      {[test_case], _meta} = Tests.list_test_cases(project.id, %{})
+      {:ok, _} = Tests.update_test_case(test_case.id, %{state: "muted"})
+
+      {:ok, updated_test_case} = Tests.update_test_case(test_case.id, %{state: "skipped"})
+      assert updated_test_case.state == "skipped"
+
+      {:ok, fetched_test_case} = Tests.get_test_case_by_id(test_case.id)
+      assert fetched_test_case.state == "skipped"
+    end
   end
 
   describe "list_flaky_test_cases/2" do
@@ -6416,6 +6473,42 @@ defmodule Tuist.TestsTest do
       assert is_nil(hd(events).actor)
     end
 
+    test "creates skipped event when state transitions from enabled to skipped" do
+      project = ProjectsFixtures.project_fixture()
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id, state: "enabled")
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      {:ok, _updated} = Tests.update_test_case(test_case.id, %{state: "skipped"})
+
+      {events, _meta} = Tests.list_test_case_events(test_case.id)
+      assert length(events) == 1
+      assert hd(events).event_type == "skipped"
+    end
+
+    test "creates unskipped event when a skipped test case goes back to enabled" do
+      project = ProjectsFixtures.project_fixture()
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id, state: "skipped")
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      {:ok, _updated} = Tests.update_test_case(test_case.id, %{state: "enabled"})
+
+      {events, _meta} = Tests.list_test_case_events(test_case.id)
+      assert length(events) == 1
+      assert hd(events).event_type == "unskipped"
+    end
+
+    test "creates skipped event when transitioning from muted to skipped" do
+      project = ProjectsFixtures.project_fixture()
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id, state: "muted")
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      {:ok, _updated} = Tests.update_test_case(test_case.id, %{state: "skipped"})
+
+      {events, _meta} = Tests.list_test_case_events(test_case.id)
+      assert length(events) == 1
+      assert hd(events).event_type == "skipped"
+    end
+
     test "creates multiple events when both is_flaky and state change" do
       # Given
       project = ProjectsFixtures.project_fixture()
@@ -6477,6 +6570,71 @@ defmodule Tuist.TestsTest do
       quarantined_test = hd(quarantined_tests)
       assert quarantined_test.name == "quarantinedTest"
       assert quarantined_test.module_name == "QuarantineModule"
+    end
+
+    test "returns skipped test cases alongside muted ones" do
+      project = ProjectsFixtures.project_fixture()
+
+      muted_test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          name: "mutedTest",
+          state: "muted"
+        )
+
+      skipped_test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          name: "skippedTest",
+          state: "skipped"
+        )
+
+      IngestRepo.insert_all(TestCase, [
+        muted_test_case |> Map.from_struct() |> Map.delete(:__meta__),
+        skipped_test_case |> Map.from_struct() |> Map.delete(:__meta__)
+      ])
+
+      {results, meta} = Tests.list_quarantined_test_cases(project.id, %{})
+
+      assert meta.total_count == 2
+      names = Enum.map(results, & &1.name)
+      assert "mutedTest" in names
+      assert "skippedTest" in names
+
+      states = Enum.map(results, & &1.state)
+      assert "muted" in states
+      assert "skipped" in states
+    end
+
+    test "supports filtering by state to show only skipped test cases" do
+      project = ProjectsFixtures.project_fixture()
+
+      muted_test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          name: "mutedTest",
+          state: "muted"
+        )
+
+      skipped_test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          name: "skippedTest",
+          state: "skipped"
+        )
+
+      IngestRepo.insert_all(TestCase, [
+        muted_test_case |> Map.from_struct() |> Map.delete(:__meta__),
+        skipped_test_case |> Map.from_struct() |> Map.delete(:__meta__)
+      ])
+
+      {results, meta} =
+        Tests.list_quarantined_test_cases(project.id, %{
+          filters: [%{field: :state, op: :==, value: "skipped"}]
+        })
+
+      assert meta.total_count == 1
+      assert [%{name: "skippedTest", state: "skipped"}] = results
     end
 
     test "does not return duplicates when quarantined and marked_flaky events share the same timestamp" do

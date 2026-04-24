@@ -633,7 +633,7 @@ defmodule Tuist.Tests do
 
   ## Parameters
   - `test_case_id` - the test case UUID to update
-  - `update_attrs` - map with `:is_flaky` boolean and/or `:state` (`"enabled"` | `"muted"`)
+  - `update_attrs` - map with `:is_flaky` boolean and/or `:state` (`"enabled"` | `"muted"` | `"skipped"`)
   - `opts` - optional keyword list with `:actor_id` (account_id for user actions, nil for system)
   """
   def update_test_case(test_case_id, update_attrs, opts \\ []) when is_map(update_attrs) do
@@ -690,8 +690,12 @@ defmodule Tuist.Tests do
 
     events =
       case {Map.get(old_test_case, :state, "enabled"), Map.get(new_attrs, :state)} do
-        {old_state, "muted"} when old_state != "muted" -> [:muted | events]
+        {old_state, new_state} when old_state == new_state -> events
+        {_old, nil} -> events
         {"muted", "enabled"} -> [:unmuted | events]
+        {"skipped", "enabled"} -> [:unskipped | events]
+        {_old, "muted"} -> [:muted | events]
+        {_old, "skipped"} -> [:skipped | events]
         _ -> events
       end
 
@@ -1607,10 +1611,17 @@ defmodule Tuist.Tests do
     quarantined_by_filter = extract_quarantined_by_filter(filters)
     module_name_filter = extract_text_filter(filters, :module_name)
     suite_name_filter = extract_text_filter(filters, :suite_name)
+    state_filter = extract_state_filter(filters)
 
     results =
       project_id
-      |> build_quarantined_test_cases_query(search_term, quarantined_by_filter, module_name_filter, suite_name_filter)
+      |> build_quarantined_test_cases_query(
+        search_term,
+        quarantined_by_filter,
+        module_name_filter,
+        suite_name_filter,
+        state_filter
+      )
       |> apply_quarantined_order(order_by, order_direction)
       |> from(limit: ^page_size, offset: ^offset)
       |> ClickHouseRepo.all()
@@ -1630,7 +1641,8 @@ defmodule Tuist.Tests do
         search_term,
         quarantined_by_filter,
         module_name_filter,
-        suite_name_filter
+        suite_name_filter,
+        state_filter
       )
       |> ClickHouseRepo.one()
 
@@ -1665,35 +1677,47 @@ defmodule Tuist.Tests do
     end)
   end
 
+  defp extract_state_filter(filters) do
+    Enum.find_value(filters, fn
+      %{field: :state, value: value} when value in ["muted", "skipped"] -> value
+      %{field: "state", value: value} when value in ["muted", "skipped"] -> value
+      _ -> nil
+    end)
+  end
+
   defp build_quarantined_test_cases_query(
          project_id,
          search_term,
          quarantined_by_filter,
          module_name_filter,
-         suite_name_filter
+         suite_name_filter,
+         state_filter
        ) do
     base_query =
-      from(test_case in TestCase,
-        as: :test_case,
-        hints: ["FINAL"],
-        where: test_case.project_id == ^project_id,
-        where: test_case.state == "muted",
-        select: %{
-          id: test_case.id,
-          name: test_case.name,
-          module_name: test_case.module_name,
-          suite_name: test_case.suite_name,
-          last_ran_at: test_case.last_ran_at,
-          last_run_id: test_case.last_run_id,
-          last_status: test_case.last_status
-        }
+      apply_quarantined_state_filter(
+        from(test_case in TestCase,
+          as: :test_case,
+          hints: ["FINAL"],
+          where: test_case.project_id == ^project_id,
+          select: %{
+            id: test_case.id,
+            name: test_case.name,
+            module_name: test_case.module_name,
+            suite_name: test_case.suite_name,
+            last_ran_at: test_case.last_ran_at,
+            last_run_id: test_case.last_run_id,
+            last_status: test_case.last_status,
+            state: test_case.state
+          }
+        ),
+        state_filter
       )
 
     base_query =
       if quarantined_by_filter do
         quarantine_info_subquery =
           from(e in TestCaseEvent,
-            where: e.event_type == "quarantined",
+            where: e.event_type in ["quarantined", "muted", "skipped"],
             group_by: e.test_case_id,
             select: %{
               test_case_id: e.test_case_id,
@@ -1722,22 +1746,25 @@ defmodule Tuist.Tests do
          search_term,
          quarantined_by_filter,
          module_name_filter,
-         suite_name_filter
+         suite_name_filter,
+         state_filter
        ) do
     base_query =
-      from(test_case in TestCase,
-        as: :test_case,
-        hints: ["FINAL"],
-        where: test_case.project_id == ^project_id,
-        where: test_case.state == "muted",
-        select: count(test_case.id)
+      apply_quarantined_state_filter(
+        from(test_case in TestCase,
+          as: :test_case,
+          hints: ["FINAL"],
+          where: test_case.project_id == ^project_id,
+          select: count(test_case.id)
+        ),
+        state_filter
       )
 
     base_query =
       if quarantined_by_filter do
         quarantine_info_subquery =
           from(e in TestCaseEvent,
-            where: e.event_type == "quarantined",
+            where: e.event_type in ["quarantined", "muted", "skipped"],
             group_by: e.test_case_id,
             select: %{
               test_case_id: e.test_case_id,
@@ -1769,14 +1796,14 @@ defmodule Tuist.Tests do
     quarantined_ids_subquery =
       from(tc in TestCase,
         hints: ["FINAL"],
-        where: tc.project_id == ^project_id and tc.state == "muted",
+        where: tc.project_id == ^project_id and tc.state in ["muted", "skipped"],
         select: tc.id
       )
 
     actor_ids =
       from(e in TestCaseEvent,
         where: e.test_case_id in subquery(quarantined_ids_subquery),
-        where: e.event_type == "quarantined",
+        where: e.event_type in ["quarantined", "muted", "skipped"],
         group_by: e.test_case_id,
         having: fragment("argMax(?, ?) IS NOT NULL", e.actor_id, e.inserted_at),
         select: fragment("argMax(?, ?)", e.actor_id, e.inserted_at)
@@ -1797,7 +1824,7 @@ defmodule Tuist.Tests do
     query =
       from(e in TestCaseEvent,
         where: e.test_case_id in ^test_case_ids,
-        where: e.event_type == "quarantined",
+        where: e.event_type in ["quarantined", "muted", "skipped"],
         group_by: e.test_case_id,
         select: %{
           test_case_id: e.test_case_id,
@@ -1845,6 +1872,12 @@ defmodule Tuist.Tests do
 
   defp apply_quarantined_order(query, _, _), do: from([test_case: tc] in query, order_by: [desc: tc.last_ran_at])
 
+  defp apply_quarantined_state_filter(query, nil),
+    do: from([test_case: tc] in query, where: tc.state in ["muted", "skipped"])
+
+  defp apply_quarantined_state_filter(query, state) when state in ["muted", "skipped"],
+    do: from([test_case: tc] in query, where: tc.state == ^state)
+
   defp apply_quarantined_by_filter(query, nil), do: query
 
   defp apply_quarantined_by_filter(query, {:==, :tuist}),
@@ -1880,7 +1913,8 @@ defmodule Tuist.Tests do
       quarantined_by_account_name: Map.get(quarantine_info, :actor_name),
       last_ran_at: row.last_ran_at,
       last_run_id: row.last_run_id,
-      last_status: row.last_status
+      last_status: row.last_status,
+      state: row.state
     }
   end
 

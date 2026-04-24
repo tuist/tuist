@@ -132,7 +132,15 @@ defmodule Tuist.Tests.Analytics do
       ClickHouseRepo.all(
         from(e in TestCaseEvent,
           where: e.test_case_id in subquery(project_test_case_ids_subquery),
-          where: e.event_type in ["quarantined", "unquarantined"],
+          where:
+            e.event_type in [
+              "quarantined",
+              "unquarantined",
+              "muted",
+              "unmuted",
+              "skipped",
+              "unskipped"
+            ],
           where: e.inserted_at <= ^max_endpoint,
           select: %{test_case_id: e.test_case_id, event_type: e.event_type, inserted_at: e.inserted_at},
           order_by: [asc: e.inserted_at]
@@ -151,7 +159,7 @@ defmodule Tuist.Tests.Analytics do
             |> Enum.take_while(&(NaiveDateTime.compare(&1.inserted_at, endpoint_naive) != :gt))
             |> List.last()
 
-          last_event != nil and last_event.event_type == "quarantined"
+          last_event != nil and last_event.event_type in ["quarantined", "muted", "skipped"]
         end)
       end)
 
@@ -182,7 +190,7 @@ defmodule Tuist.Tests.Analytics do
         where: tc.project_id == ^project_id,
         where: tc.inserted_at <= ^datetime,
         group_by: tc.id,
-        having: fragment("argMax(?, ?) = 'muted'", tc.state, tc.inserted_at),
+        having: fragment("argMax(?, ?) IN ('muted', 'skipped')", tc.state, tc.inserted_at),
         select: tc.id
       )
 

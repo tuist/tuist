@@ -41,7 +41,14 @@
         />
         <.badge
           :if={(@test_case_detail.state || "enabled") == "muted"}
-          label={dgettext("dashboard_tests", "Quarantined")}
+          label={dgettext("dashboard_tests", "Muted")}
+          color="destructive"
+          style="light-fill"
+          size="large"
+        />
+        <.badge
+          :if={(@test_case_detail.state || "enabled") == "skipped"}
+          label={dgettext("dashboard_tests", "Skipped")}
           color="destructive"
           style="light-fill"
           size="large"
@@ -86,11 +93,20 @@
         </.dropdown_item>
         <.dropdown_item
           value="muted"
-          label={dgettext("dashboard_tests", "Quarantined")}
+          label={dgettext("dashboard_tests", "Muted")}
           on_click="set-state"
           data-selected={(@test_case_detail.state || "enabled") == "muted"}
         >
           <:left_icon><.icon name="volume_3" /></:left_icon>
+          <:right_icon><.check /></:right_icon>
+        </.dropdown_item>
+        <.dropdown_item
+          value="skipped"
+          label={dgettext("dashboard_tests", "Skipped")}
+          on_click="set-state"
+          data-selected={(@test_case_detail.state || "enabled") == "skipped"}
+        >
+          <:left_icon><.icon name="player_track_next" /></:left_icon>
           <:right_icon><.check /></:right_icon>
         </.dropdown_item>
       </.dropdown>

@@ -931,22 +931,31 @@ test_case_definitions =
 {test_case_id_map, _test_cases_with_flaky_run, _new_test_case_ids} =
   Tuist.Tests.create_test_cases(tuist_project.id, test_case_definitions, %{})
 
-# Update flaky test cases to be marked as is_flaky
-# ~70% stay quarantined, ~30% get unquarantined (to show chart going down)
-# (create_test_cases doesn't set these from input, so we insert updated rows)
+# Update flaky test cases to be marked as is_flaky.
+# Split the flaky population across three states so both quarantine modes are exercised:
+#   ~30% enabled (not quarantined — recovered, chart dips)
+#   ~40% muted   (quarantine · mute mode — still runs, failures masked)
+#   ~30% skipped (quarantine · skip mode — excluded from execution via -skip-testing)
+# (create_test_cases doesn't set these from input, so we insert updated rows.)
 flaky_test_case_defs =
   test_case_definitions
   |> Enum.filter(& &1.is_flaky)
   |> Enum.map(fn def ->
     id = test_case_id_map[{def.name, def.module_name, def.suite_name}]
-    # ~30% will be unquarantined
-    is_quarantined = Enum.random(1..10) > 3
-    {def, id, is_quarantined}
+
+    state =
+      case Enum.random(1..10) do
+        n when n <= 3 -> "enabled"
+        n when n <= 7 -> "muted"
+        _ -> "skipped"
+      end
+
+    {def, id, state}
   end)
-  |> Enum.reject(fn {_def, id, _is_quarantined} -> is_nil(id) end)
+  |> Enum.reject(fn {_def, id, _state} -> is_nil(id) end)
 
 flaky_test_case_updates =
-  Enum.map(flaky_test_case_defs, fn {def, id, is_quarantined} ->
+  Enum.map(flaky_test_case_defs, fn {def, id, state} ->
     now = NaiveDateTime.utc_now()
 
     %{
@@ -959,30 +968,36 @@ flaky_test_case_updates =
       last_duration: def.duration,
       last_ran_at: def.ran_at,
       is_flaky: true,
-      state: if(is_quarantined, do: "muted", else: "enabled"),
+      state: state,
       inserted_at: now,
       recent_durations: [def.duration],
       avg_duration: def.duration
     }
   end)
 
-# Track which test cases are quarantined vs unquarantined for event generation
+# Track which test cases are quarantined (muted or skipped) vs enabled for event generation.
+quarantined_states = ["muted", "skipped"]
+
 {quarantined_ids, unquarantined_ids} =
   flaky_test_case_defs
-  |> Enum.split_with(fn {_def, _id, is_quarantined} -> is_quarantined end)
-  |> then(fn {quarantined, unquarantined} ->
-    {Enum.map(quarantined, fn {_def, id, _} -> id end), Enum.map(unquarantined, fn {_def, id, _} -> id end)}
+  |> Enum.split_with(fn {_def, _id, state} -> state in quarantined_states end)
+  |> then(fn {quarantined, enabled} ->
+    {Enum.map(quarantined, fn {_def, id, _} -> id end), Enum.map(enabled, fn {_def, id, _} -> id end)}
   end)
+
+muted_count = Enum.count(flaky_test_case_defs, fn {_def, _id, state} -> state == "muted" end)
+skipped_count = Enum.count(flaky_test_case_defs, fn {_def, _id, state} -> state == "skipped" end)
 
 quarantined_test_cases =
   if length(flaky_test_case_updates) > 0 do
     IngestRepo.insert_all(Tuist.Tests.TestCase, flaky_test_case_updates, timeout: 120_000)
 
     IO.puts(
-      "Updated #{length(flaky_test_case_updates)} test cases as flaky (#{length(quarantined_ids)} quarantined, #{length(unquarantined_ids)} unquarantined)"
+      "Updated #{length(flaky_test_case_updates)} test cases as flaky (#{muted_count} muted, #{skipped_count} skipped, #{length(unquarantined_ids)} enabled)"
     )
 
-    # Keep track of quarantined test cases for ensuring they get test runs
+    # Keep track of quarantined test cases for ensuring they get test runs.
+    # Only muted tests actually run and produce results; skipped tests are excluded from execution.
     flaky_test_case_updates
     |> Enum.filter(&(&1.state == "muted"))
     |> Enum.map(fn tc ->

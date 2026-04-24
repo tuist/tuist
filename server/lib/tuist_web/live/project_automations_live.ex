@@ -414,11 +414,13 @@ defmodule TuistWeb.ProjectAutomationsLive do
   def monitor_type_label("flaky_run_count"), do: dgettext("dashboard_projects", "Flaky runs")
   def monitor_type_label(_), do: dgettext("dashboard_projects", "Unknown")
 
-  def state_action_label("muted"), do: dgettext("dashboard_projects", "Quarantine")
+  def state_action_label("muted"), do: dgettext("dashboard_projects", "Mute")
+  def state_action_label("skipped"), do: dgettext("dashboard_projects", "Skip")
   def state_action_label("enabled"), do: dgettext("dashboard_projects", "Enable")
   def state_action_label(_), do: dgettext("dashboard_projects", "Unknown")
 
-  def trigger_action_label("muted"), do: dgettext("dashboard_projects", "Quarantined")
+  def trigger_action_label("muted"), do: dgettext("dashboard_projects", "Muted")
+  def trigger_action_label("skipped"), do: dgettext("dashboard_projects", "Skipped")
   def trigger_action_label("enabled"), do: dgettext("dashboard_projects", "Enabled")
   def trigger_action_label(_), do: dgettext("dashboard_projects", "Unknown")
 

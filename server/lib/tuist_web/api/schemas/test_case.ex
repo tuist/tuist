@@ -71,13 +71,14 @@ defmodule TuistWeb.API.Schemas.TestCase do
       is_quarantined: %Schema{
         type: :boolean,
         deprecated: true,
-        description: "Whether the test case is quarantined. Deprecated: use `state` instead."
+        description:
+          "Whether the test case is quarantined (either `muted` or `skipped`). Deprecated: use `state` instead."
       },
       state: %Schema{
         type: :string,
-        enum: ["enabled", "muted"],
+        enum: ["enabled", "muted", "skipped"],
         description:
-          "Lifecycle state of the test case. `enabled` means it runs as part of the suite and contributes to pass/fail counts. `muted` (what used to be called \"quarantined\") means it still runs so we keep collecting flakiness signal, but failures no longer fail the build."
+          "Lifecycle state of the test case. `enabled` means it runs as part of the suite and contributes to pass/fail counts. `muted` (mute-mode quarantine) means it still runs so we keep collecting flakiness signal, but failures no longer fail the build. `skipped` (skip-mode quarantine) means it is excluded from execution entirely — no `.xcresult` entry is produced."
       },
       url: %Schema{
         type: :string,

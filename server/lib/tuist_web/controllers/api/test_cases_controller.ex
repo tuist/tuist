@@ -65,7 +65,7 @@ defmodule TuistWeb.API.TestCasesController do
         type: %Schema{
           title: "TestCasesIndexState",
           type: :string,
-          enum: ["enabled", "muted"]
+          enum: ["enabled", "muted", "skipped"]
         },
         description: "Filter by test case state."
       ],
@@ -138,7 +138,7 @@ defmodule TuistWeb.API.TestCasesController do
             suite: build_suite(test_case.suite_name),
             avg_duration: test_case.avg_duration,
             is_flaky: test_case.is_flaky,
-            is_quarantined: (test_case.state || "enabled") == "muted",
+            is_quarantined: quarantined?(test_case.state),
             state: test_case.state || "enabled",
             url: ~p"/#{selected_project.account.name}/#{selected_project.name}/tests/test-cases/#{test_case.id}"
           }
@@ -206,9 +206,14 @@ defmodule TuistWeb.API.TestCasesController do
              is_quarantined: %Schema{
                type: :boolean,
                deprecated: true,
-               description: "Whether the test case is quarantined. Deprecated: use `state` instead."
+               description:
+                 "Whether the test case is quarantined (either `muted` or `skipped`). Deprecated: use `state` instead."
              },
-             state: %Schema{type: :string, enum: ["enabled", "muted"], description: "The state of the test case."},
+             state: %Schema{
+               type: :string,
+               enum: ["enabled", "muted", "skipped"],
+               description: "The state of the test case."
+             },
              last_status: %Schema{
                type: :string,
                enum: ["success", "failure", "skipped"],
@@ -263,7 +268,7 @@ defmodule TuistWeb.API.TestCasesController do
             },
             suite: build_suite(test_case.suite_name),
             is_flaky: test_case.is_flaky,
-            is_quarantined: (test_case.state || "enabled") == "muted",
+            is_quarantined: quarantined?(test_case.state),
             state: test_case.state || "enabled",
             last_status: to_string(test_case.last_status),
             last_duration: test_case.last_duration,
@@ -345,7 +350,17 @@ defmodule TuistWeb.API.TestCasesController do
                  properties: %{
                    event_type: %Schema{
                      type: :string,
-                     enum: ["first_run", "marked_flaky", "unmarked_flaky", "quarantined", "unquarantined"],
+                     enum: [
+                       "first_run",
+                       "marked_flaky",
+                       "unmarked_flaky",
+                       "quarantined",
+                       "unquarantined",
+                       "muted",
+                       "unmuted",
+                       "skipped",
+                       "unskipped"
+                     ],
                      description: "The type of event."
                    },
                    inserted_at: %Schema{type: :integer, description: "Unix timestamp of when the event occurred."},
@@ -439,10 +454,16 @@ defmodule TuistWeb.API.TestCasesController do
   defp maybe_add_filter(filters, field, value), do: filters ++ [%{field: field, op: :==, value: value}]
 
   defp maybe_add_quarantined_filter(filters, nil), do: filters
-  defp maybe_add_quarantined_filter(filters, true), do: filters ++ [%{field: :state, op: :==, value: "muted"}]
+
+  defp maybe_add_quarantined_filter(filters, true),
+    do: filters ++ [%{field: :state, op: :in, value: ["muted", "skipped"]}]
+
   defp maybe_add_quarantined_filter(filters, false), do: filters ++ [%{field: :state, op: :==, value: "enabled"}]
 
   defp build_suite(nil), do: nil
   defp build_suite(""), do: nil
   defp build_suite(suite_name), do: %{id: suite_name, name: suite_name}
+
+  defp quarantined?(state) when state in ["muted", "skipped"], do: true
+  defp quarantined?(_), do: false
 end
