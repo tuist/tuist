@@ -19,7 +19,12 @@ public final class ErrorHandling: ObservableObject {
             if let underlyingServerClientError = clientError.underlyingError
                 as? ClientAuthenticationError
             {
-                errorDescription = "\(underlyingServerClientError.errorDescription ?? "Unknown error")"
+                Task {
+                    try await ServerCredentialsStore.current.delete(
+                        serverURL: ServerEnvironmentService().url()
+                    )
+                }
+                return
             } else {
                 errorDescription = clientError.underlyingError.localizedDescription
             }

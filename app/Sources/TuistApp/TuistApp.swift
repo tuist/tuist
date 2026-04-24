@@ -62,61 +62,68 @@ import TuistServer
 
     @main
     struct TuistApp: App {
-        @StateObject private var authenticationService = AuthenticationService()
-        @State var activeTab = TabIdentifier.previews
-
         var body: some Scene {
             WindowGroup {
                 ServerCredentialsStore.$current.withValue(
                     ServerCredentialsStore(backend: .keychain)
                 ) {
                     CachedValueStore.$current.withValue(CachedValueStore(backend: .inSystemProcess)) {
-                        Group {
-                            if case let .loggedIn(account: account) = authenticationService.authenticationState {
-                                TabView(selection: $activeTab) {
-                                    PreviewsView()
-                                        .environmentObject(authenticationService)
-                                        .tabItem {
-                                            NooraIcon(.deviceMobile)
-                                            Text("Previews")
-                                        }
-                                        .tag(TabIdentifier.previews)
-
-                                    ProfileView(account: account)
-                                        .environmentObject(authenticationService)
-                                        .tabItem {
-                                            NooraIcon(.user)
-                                                .frame(width: 24, height: 24)
-                                            Text("Profile")
-                                        }
-                                        .tag(TabIdentifier.profile)
-                                }
-                                .onOpenURL { _ in
-                                    activeTab = .previews
-                                }
-                                .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { _ in
-                                    activeTab = .previews
-                                }
-                                .accentColor(Noora.Colors.accent)
-                            } else {
-                                LogInView()
-                                #if DEBUG
-                                    .task {
-                                        await checkForAutomaticLogin()
-                                    }
-                                #endif
-                            }
-                        }
-                        .withErrorHandling()
-                        .task {
-                            TuistSDK(
-                                fullHandle: "tuist/tuist",
-                                apiKey: "tuist_019b26d5-fd7e-7b79-ae62-b5525b26ce38_OTSCoR3hGfPI20i1Hfnpl7HPSWI="
-                            )
-                            .monitorPreviewUpdates()
-                        }
+                        RootView()
                     }
                 }
+            }
+        }
+    }
+
+    private struct RootView: View {
+        @StateObject private var authenticationService = AuthenticationService()
+        @State private var activeTab = TabIdentifier.previews
+
+        var body: some View {
+            Group {
+                if case let .loggedIn(account: account) = authenticationService.authenticationState {
+                    TabView(selection: $activeTab) {
+                        PreviewsView()
+                            .environmentObject(authenticationService)
+                            .tabItem {
+                                NooraIcon(.deviceMobile)
+                                Text("Previews")
+                            }
+                            .tag(TabIdentifier.previews)
+
+                        ProfileView(account: account)
+                            .environmentObject(authenticationService)
+                            .tabItem {
+                                NooraIcon(.user)
+                                    .frame(width: 24, height: 24)
+                                Text("Profile")
+                            }
+                            .tag(TabIdentifier.profile)
+                    }
+                    .onOpenURL { _ in
+                        activeTab = .previews
+                    }
+                    .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { _ in
+                        activeTab = .previews
+                    }
+                    .accentColor(Noora.Colors.accent)
+                } else {
+                    LogInView()
+                        .environmentObject(authenticationService)
+                    #if DEBUG
+                        .task {
+                            await checkForAutomaticLogin()
+                        }
+                    #endif
+                }
+            }
+            .withErrorHandling()
+            .task {
+                TuistSDK(
+                    fullHandle: "tuist/tuist",
+                    apiKey: "tuist_019b26d5-fd7e-7b79-ae62-b5525b26ce38_OTSCoR3hGfPI20i1Hfnpl7HPSWI="
+                )
+                .monitorPreviewUpdates()
             }
         }
 
