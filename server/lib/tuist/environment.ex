@@ -558,6 +558,10 @@ defmodule Tuist.Environment do
     get([:processor, :url], secrets)
   end
 
+  def processor_discovery_url(secrets \\ secrets()) do
+    get([:processor, :discovery_url], secrets)
+  end
+
   def processor_webhook_secret(secrets \\ secrets()) do
     get([:processor, :webhook_secret], secrets)
   end

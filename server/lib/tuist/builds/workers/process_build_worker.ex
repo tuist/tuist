@@ -4,6 +4,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
 
   alias Tuist.Accounts
   alias Tuist.Builds
+  alias Tuist.Builds.ProcessorDispatcher
   alias Tuist.Storage
 
   require Logger
@@ -16,7 +17,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
         attempt: attempt,
         max_attempts: max_attempts
       }) do
-    processor_url = Tuist.Environment.processor_url()
+    {:ok, processor_url} = ProcessorDispatcher.pick_url()
     xcode_cache_upload_enabled = Map.get(args, "xcode_cache_upload_enabled", false)
 
     result =

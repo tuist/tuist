@@ -4,6 +4,12 @@ defmodule Processor.BuildProcessor do
   @apple_reference_date_offset 978_307_200
 
   def process(storage_key, xcode_cache_upload_enabled) do
+    Processor.InFlight.track(fn ->
+      do_process(storage_key, xcode_cache_upload_enabled)
+    end)
+  end
+
+  defp do_process(storage_key, xcode_cache_upload_enabled) do
     bucket = Application.get_env(:processor, :s3_bucket, "tuist")
     temp_dir = make_temp_dir()
     build_path = Path.join(temp_dir, "build.zip")

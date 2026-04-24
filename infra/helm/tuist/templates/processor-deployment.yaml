@@ -1,0 +1,161 @@
+{{- if .Values.processor.enabled }}
+{{- $processorSecretName := ternary (include "tuist.componentName" (dict "root" . "component" "processor-external-secrets")) (include "tuist.componentName" (dict "root" . "component" "app-secrets")) .Values.processor.managedSecrets }}
+{{- $objectStorageAccessKey := include "tuist.objectStorageAccessKey" . -}}
+{{- $objectStorageSecretKey := include "tuist.objectStorageSecretKey" . -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "processor") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: processor
+spec:
+  replicas: {{ .Values.processor.replicaCount }}
+  strategy:
+    {{- toYaml .Values.processor.strategy | nindent 4 }}
+  selector:
+    matchLabels:
+      {{- include "tuist.componentLabels" (dict "root" . "component" "processor") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "tuist.componentLabels" (dict "root" . "component" "processor") | nindent 8 }}
+        {{- with .Values.global.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- with .Values.processor.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: {{ .Values.processor.service.targetPort | quote }}
+        prometheus.io/path: /metrics
+        {{- with .Values.processor.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      terminationGracePeriodSeconds: {{ .Values.processor.terminationGracePeriodSeconds }}
+      {{- include "tuist.podScheduling" . | nindent 6 }}
+      # Soft anti-affinity: the scheduler prefers one replica per node so a
+      # worker VM loss still leaves a healthy pod. Falls back to co-locating
+      # during a rolling deploy (maxSurge=1, maxUnavailable=0) when only two
+      # worker nodes exist.
+      {{- if .Values.processor.topologySpread.enabled }}
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              {{- include "tuist.componentLabels" (dict "root" . "component" "processor") | nindent 14 }}
+      {{- end }}
+      {{- with .Values.processor.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: processor
+          image: "{{ .Values.processor.image.repository }}:{{ .Values.processor.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.processor.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.processor.service.targetPort }}
+          env:
+            - name: PORT
+              value: {{ .Values.processor.service.targetPort | quote }}
+            - name: PHX_SERVER
+              value: "true"
+            - name: SECRET_KEY_BASE
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $processorSecretName }}
+                  key: processor-secret-key-base
+            - name: WEBHOOK_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $processorSecretName }}
+                  key: processor-webhook-secret
+            - name: S3_ENDPOINT
+              value: {{ include "tuist.objectStorageEndpoint" . | quote }}
+            - name: S3_REGION
+              value: {{ .Values.processor.s3.region | default (include "tuist.objectStorageRegion" .) | quote }}
+            - name: S3_BUCKET
+              value: {{ .Values.processor.s3.bucketName | default (include "tuist.objectStorageBucketDefault" .) | quote }}
+            - name: S3_VIRTUAL_HOST
+              value: {{ .Values.processor.s3.virtualHost | ternary "true" "false" | quote }}
+            - name: S3_BUCKET_AS_HOST
+              value: {{ .Values.processor.s3.bucketAsHost | ternary "true" "false" | quote }}
+            # In self-hosted mode the S3 creds come from app-secrets, which is
+            # populated from `objectStorage.external.{accessKey,secretKey}`.
+            # In managed mode the keys aren't exposed through values — the
+            # server reads them from priv/secrets/<env>.yml.enc — so ESO
+            # syncs the same bucket creds into the processor's Secret.
+            {{- if or $objectStorageAccessKey .Values.processor.managedSecrets }}
+            - name: S3_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $processorSecretName }}
+                  key: object-storage-access-key
+            {{- end }}
+            {{- if or $objectStorageSecretKey .Values.processor.managedSecrets }}
+            - name: S3_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $processorSecretName }}
+                  key: object-storage-secret-key
+            {{- end }}
+            {{- if .Values.processor.sentry.dsn }}
+            - name: SENTRY_DSN_PROCESSOR
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $processorSecretName }}
+                  key: processor-sentry-dsn
+            {{- end }}
+            - name: DEPLOY_ENV
+              value: {{ .Values.processor.deployEnv | quote }}
+            - name: GIT_SHA
+              value: {{ .Values.processor.image.tag | default .Chart.AppVersion | quote }}
+            {{- with .Values.processor.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: {{ .Values.processor.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.processor.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.processor.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.processor.probes.readiness.failureThreshold }}
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: {{ .Values.processor.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.processor.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.processor.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.processor.probes.liveness.failureThreshold }}
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: {{ .Values.processor.probes.startup.initialDelaySeconds }}
+            periodSeconds: {{ .Values.processor.probes.startup.periodSeconds }}
+            timeoutSeconds: {{ .Values.processor.probes.startup.timeoutSeconds }}
+            failureThreshold: {{ .Values.processor.probes.startup.failureThreshold }}
+          lifecycle:
+            preStop:
+              exec:
+                # Stop accepting new webhook work a few seconds before the
+                # release shuts down, so in-flight parsing can finish cleanly
+                # rather than being 503'd during a rolling deploy.
+                command: ["sh", "-c", "sleep 10"]
+          resources:
+            {{- toYaml .Values.processor.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: {{ .Values.processor.tmpSizeLimit | quote }}
+{{- end }}

@@ -13,6 +13,7 @@ defmodule Processor.Application do
     children = [
       {Phoenix.PubSub, name: Processor.PubSub},
       {Finch, name: Processor.Finch, pools: finch_pools()},
+      Processor.InFlight,
       ProcessorWeb.Endpoint,
       Processor.PromEx
     ]

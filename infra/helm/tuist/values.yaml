@@ -147,6 +147,109 @@ server:
     # topologies that prefer a post-install Job instead.
     asHook: false
 
+processor:
+  # Linux-based xcactivitylog processor. The server's ProcessBuildWorker Oban
+  # job dispatches a signed webhook to one of these pods whenever a build
+  # archive is uploaded; the pod downloads from S3, parses via the Swift NIF,
+  # and returns the structured build data.
+  #
+  # Disabled by default — self-hosters who don't want build-archive parsing
+  # can leave it off and the server will fall back to in-process parsing.
+  enabled: false
+  replicaCount: 2
+  image:
+    repository: ghcr.io/tuist/processor
+    tag: ""
+    pullPolicy: IfNotPresent
+  service:
+    port: 4002
+    targetPort: 4002
+  resources: {}
+  extraEnv: []
+  # When true, the chart provisions an ExternalSecret that syncs the
+  # processor's SECRET_KEY_BASE / WEBHOOK_SECRET / SENTRY_DSN_PROCESSOR
+  # from the configured store (1Password by default). When false, the
+  # values must be provided via secretKeyBase / webhookSecret below.
+  managedSecrets: false
+  # Static secret values for self-hosted installs. Ignored when
+  # managedSecrets is true.
+  secretKeyBase: ""
+  webhookSecret: ""
+  externalSecrets:
+    refreshInterval: "1h"
+    storeRef:
+      kind: ClusterSecretStore
+      name: onepassword
+    secretKeyBase:
+      item: PROCESSOR_SECRET_KEY_BASE
+      field: password
+    webhookSecret:
+      item: PROCESSOR_WEBHOOK_SECRET
+      field: password
+    s3AccessKeyId:
+      item: PROCESSOR_S3_ACCESS_KEY_ID
+      field: password
+    s3SecretAccessKey:
+      item: PROCESSOR_S3_SECRET_ACCESS_KEY
+      field: password
+    sentryDsn:
+      item: SENTRY_DSN_PROCESSOR
+      field: password
+  sentry:
+    # When set, SENTRY_DSN_PROCESSOR is wired into the pod either from the
+    # app-secrets Secret (self-hosted) or from ESO (managed). Leave empty to
+    # disable Sentry reporting.
+    dsn: ""
+  deployEnv: production
+  s3:
+    # Bucket + S3 toggles used by the processor when downloading the build
+    # archive. Fall back to the chart-wide objectStorage defaults when empty.
+    region: ""
+    bucketName: ""
+    virtualHost: true
+    bucketAsHost: true
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      # maxUnavailable: 0 keeps at least one processor available for the
+      # server during a rolling deploy. maxSurge: 1 lets the surge pod
+      # co-locate on one of the two worker VMs when the topology spread
+      # can't satisfy strict separation.
+      maxSurge: 1
+      maxUnavailable: 0
+  topologySpread:
+    # Prefer one replica per Kubernetes node; ScheduleAnyway keeps the surge
+    # pod from being stuck pending during a deploy on a 2-node cluster.
+    enabled: true
+  affinity: {}
+  podDisruptionBudget:
+    enabled: false
+    minAvailable: 1
+  podAnnotations: {}
+  podLabels: {}
+  # /health probes Phoenix boot. The NIF dylib loads lazily on the first
+  # webhook call, so startup is fast — give the pod ~60s to come up.
+  probes:
+    readiness:
+      initialDelaySeconds: 5
+      periodSeconds: 10
+      timeoutSeconds: 3
+      failureThreshold: 3
+    liveness:
+      initialDelaySeconds: 30
+      periodSeconds: 20
+      timeoutSeconds: 3
+      failureThreshold: 3
+    startup:
+      initialDelaySeconds: 0
+      periodSeconds: 5
+      timeoutSeconds: 3
+      failureThreshold: 30
+  terminationGracePeriodSeconds: 1260
+  # Build archives are unzipped into the pod's /tmp. Scale to match the
+  # largest archive plus headroom for CAS metadata.
+  tmpSizeLimit: 10Gi
+
 cache:
   enabled: true
   replicaCount: 1

@@ -106,6 +106,61 @@ server:
 
   terminationGracePeriodSeconds: 60
 
+# Processor runs in-cluster for the managed deployment — same namespace, same
+# rolling-deploy cycle, per-env image rebuilt alongside the server. The chart
+# provisions a headless Service so the server's ProcessBuildWorker can resolve
+# each pod's A record and dispatch to the least-busy replica. SECRET_KEY_BASE
+# and WEBHOOK_SECRET are synced from 1Password by ESO.
+#
+# The WEBHOOK_SECRET in 1P ("PROCESSOR_WEBHOOK_SECRET") must match the server's
+# `processor.webhook_secret` baked into priv/secrets/<env>.yml.enc. The two are
+# decoupled on purpose (processor has no master key), so updating one without
+# the other breaks dispatch until both rotate.
+processor:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: ghcr.io/tuist/processor
+    tag: ""  # Set by CI to the commit SHA on each deploy.
+    pullPolicy: IfNotPresent
+  managedSecrets: true
+  externalSecrets:
+    refreshInterval: "1h"
+    storeRef:
+      kind: ClusterSecretStore
+      name: onepassword
+    secretKeyBase:
+      item: PROCESSOR_SECRET_KEY_BASE
+      field: password
+    webhookSecret:
+      item: PROCESSOR_WEBHOOK_SECRET
+      field: password
+    s3AccessKeyId:
+      item: PROCESSOR_S3_ACCESS_KEY_ID
+      field: password
+    s3SecretAccessKey:
+      item: PROCESSOR_S3_SECRET_ACCESS_KEY
+      field: password
+    sentryDsn:
+      item: SENTRY_DSN_PROCESSOR
+      field: password
+  sentry:
+    dsn: enabled  # Truthy so the ESO template + secret key get rendered; the
+                  # actual DSN flows from 1Password.
+  s3:
+    virtualHost: true
+    bucketAsHost: true
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+  resources:
+    requests:
+      cpu: "250m"
+      memory: "512Mi"
+    limits:
+      cpu: "1000m"
+      memory: "1Gi"
+
 # Everything below = external. The managed deployment never runs embedded
 # Postgres / ClickHouse / object storage / observability stacks.
 cache:

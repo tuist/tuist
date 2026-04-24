@@ -1,0 +1,25 @@
+{{- if .Values.processor.enabled }}
+# Headless Service so the server can resolve per-pod A records via DNS and
+# query each replica's /stats endpoint before dispatching a build. The
+# ClusterIP Service next to this one stays around as a convenience for callers
+# that don't need per-pod selection.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "tuist.processorHeadlessServiceName" . }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: processor
+spec:
+  clusterIP: None
+  # Only publish ready pods. The server will skip discovery failures and fall
+  # back to the ClusterIP Service, so including not-ready pods would route
+  # work to replicas that are booting or draining.
+  publishNotReadyAddresses: false
+  selector:
+    {{- include "tuist.componentLabels" (dict "root" . "component" "processor") | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.processor.service.targetPort }}
+      targetPort: {{ .Values.processor.service.targetPort }}
+{{- end }}
