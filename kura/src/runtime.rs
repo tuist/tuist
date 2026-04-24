@@ -43,7 +43,6 @@ impl TrafficState {
 pub struct RuntimeState {
     draining: AtomicBool,
     serving: AtomicBool,
-    initial_discovery_completed: AtomicBool,
     writer_lock_owned: AtomicBool,
     http_inflight: AtomicUsize,
     grpc_inflight: AtomicUsize,
@@ -54,7 +53,6 @@ impl RuntimeState {
         Arc::new(Self {
             draining: AtomicBool::new(false),
             serving: AtomicBool::new(false),
-            initial_discovery_completed: AtomicBool::new(false),
             writer_lock_owned: AtomicBool::new(true),
             http_inflight: AtomicUsize::new(0),
             grpc_inflight: AtomicUsize::new(0),
@@ -73,18 +71,12 @@ impl RuntimeState {
         !self.serving.swap(true, Ordering::SeqCst)
     }
 
+    pub fn clear_serving(&self) -> bool {
+        self.serving.swap(false, Ordering::SeqCst)
+    }
+
     pub fn is_serving(&self) -> bool {
         self.serving.load(Ordering::SeqCst)
-    }
-
-    pub fn mark_initial_discovery_completed(&self) -> bool {
-        !self
-            .initial_discovery_completed
-            .swap(true, Ordering::SeqCst)
-    }
-
-    pub fn initial_discovery_completed(&self) -> bool {
-        self.initial_discovery_completed.load(Ordering::SeqCst)
     }
 
     pub fn writer_lock_owned(&self) -> bool {

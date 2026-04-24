@@ -1,14 +1,11 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
-    io::ErrorKind,
-    path::PathBuf,
     sync::Arc,
 };
 
 use reqwest::Client;
 use tokio::{
-    fs,
-    sync::{Mutex, Notify, RwLock},
+    sync::{Mutex, Notify},
     time::{Duration, Instant},
 };
 
@@ -37,17 +34,14 @@ pub struct AppState {
     pub analytics: Option<Analytics>,
     pub client: Client,
     pub notify: Notify,
-    pub members: RwLock<BTreeSet<String>>,
-    pub peer_nodes: RwLock<BTreeMap<String, String>>,
-    pub bootstrapped_peers: Mutex<BTreeSet<String>>,
-    pub bootstrap_inflight_peers: Mutex<BTreeSet<String>>,
-    pub readiness_settle_until: Mutex<Instant>,
+    pub readiness: Mutex<ReadinessState>,
 }
 
 pub type SharedState = Arc<AppState>;
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct ReadinessReport {
+    pub generation: u64,
     pub ready: bool,
     pub state: TrafficState,
     pub reasons: Vec<String>,
@@ -61,11 +55,139 @@ pub struct ReadinessReport {
     pub grpc_inflight: usize,
 }
 
-impl AppState {
-    pub fn drain_marker_path(&self) -> PathBuf {
-        self.config.tmp_dir.join("drain")
+#[derive(Debug, PartialEq, Eq)]
+pub struct ClusterStatusReport {
+    pub generation: u64,
+    pub members: Vec<String>,
+    pub connected_nodes: Vec<String>,
+}
+
+#[derive(Debug, Default, PartialEq, Eq)]
+pub(crate) struct MembershipUpdate {
+    pub discovered_peers: Vec<String>,
+    pub lost_peers: Vec<String>,
+    pub known_peer_count: usize,
+    pub initial_discovery_completed: bool,
+    pub generation_changed: bool,
+}
+
+#[derive(Debug)]
+pub(crate) struct ReadinessState {
+    generation: u64,
+    initial_discovery_completed: bool,
+    settle_until: Instant,
+    members: BTreeSet<String>,
+    known_peers: BTreeSet<String>,
+    bootstrapped_peers: BTreeSet<String>,
+    bootstrap_inflight_peers: BTreeSet<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ReadinessSnapshot {
+    generation: u64,
+    initial_discovery_completed: bool,
+    readiness_settled: bool,
+    members: Vec<String>,
+    known_peers: Vec<String>,
+    bootstrapped_peers: Vec<String>,
+    bootstrap_inflight_peers: Vec<String>,
+}
+
+impl ReadinessState {
+    pub(crate) fn new(now: Instant) -> Self {
+        Self {
+            generation: 0,
+            initial_discovery_completed: false,
+            settle_until: now,
+            members: BTreeSet::new(),
+            known_peers: BTreeSet::new(),
+            bootstrapped_peers: BTreeSet::new(),
+            bootstrap_inflight_peers: BTreeSet::new(),
+        }
     }
 
+    fn apply_membership(
+        &mut self,
+        members: BTreeSet<String>,
+        known_peers: BTreeSet<String>,
+        now: Instant,
+    ) -> MembershipUpdate {
+        let discovered_peers = known_peers
+            .difference(&self.known_peers)
+            .cloned()
+            .collect::<Vec<_>>();
+        let lost_peers = self
+            .known_peers
+            .difference(&known_peers)
+            .cloned()
+            .collect::<Vec<_>>();
+        let topology_changed = !discovered_peers.is_empty() || !lost_peers.is_empty();
+        let generation_changed;
+        if !self.initial_discovery_completed {
+            self.initial_discovery_completed = true;
+            self.generation += 1;
+            self.settle_until = now + READINESS_SETTLE_WINDOW;
+            generation_changed = true;
+        } else if topology_changed {
+            self.generation += 1;
+            self.settle_until = now + READINESS_SETTLE_WINDOW;
+            generation_changed = true;
+        } else {
+            generation_changed = false;
+        }
+
+        self.members = members;
+        self.known_peers = known_peers;
+        self.bootstrapped_peers
+            .retain(|peer| self.known_peers.contains(peer));
+        self.bootstrap_inflight_peers
+            .retain(|peer| self.known_peers.contains(peer));
+
+        MembershipUpdate {
+            discovered_peers,
+            lost_peers,
+            known_peer_count: self.known_peers.len(),
+            initial_discovery_completed: self.initial_discovery_completed,
+            generation_changed,
+        }
+    }
+
+    fn note_bootstrap_started(&mut self, peer: &str) -> bool {
+        if !self.known_peers.contains(peer)
+            || self.bootstrapped_peers.contains(peer)
+            || self.bootstrap_inflight_peers.contains(peer)
+        {
+            return false;
+        }
+        self.bootstrap_inflight_peers.insert(peer.to_string());
+        true
+    }
+
+    fn note_bootstrap_succeeded(&mut self, peer: &str) {
+        self.bootstrap_inflight_peers.remove(peer);
+        if self.known_peers.contains(peer) {
+            self.bootstrapped_peers.insert(peer.to_string());
+        }
+    }
+
+    fn note_bootstrap_failed(&mut self, peer: &str) {
+        self.bootstrap_inflight_peers.remove(peer);
+    }
+
+    fn snapshot(&self, now: Instant) -> ReadinessSnapshot {
+        ReadinessSnapshot {
+            generation: self.generation,
+            initial_discovery_completed: self.initial_discovery_completed,
+            readiness_settled: now >= self.settle_until,
+            members: self.members.iter().cloned().collect(),
+            known_peers: self.known_peers.iter().cloned().collect(),
+            bootstrapped_peers: self.bootstrapped_peers.iter().cloned().collect(),
+            bootstrap_inflight_peers: self.bootstrap_inflight_peers.iter().cloned().collect(),
+        }
+    }
+}
+
+impl AppState {
     pub fn start_http_request(&self) -> InflightGuard {
         self.runtime.start_http_request(&self.metrics)
     }
@@ -74,127 +196,97 @@ impl AppState {
         self.runtime.start_grpc_request(&self.metrics)
     }
 
-    pub fn enter_draining(&self) {
-        self.runtime.request_drain();
-    }
-
-    pub async fn mark_initial_discovery_completed(&self) {
-        self.runtime.mark_initial_discovery_completed();
-        self.extend_readiness_settle_window().await;
-    }
-
-    pub async fn clear_stale_drain_marker(&self) -> Result<bool, String> {
-        let drain_marker_path = self.drain_marker_path();
-        match fs::remove_file(&drain_marker_path).await {
-            Ok(()) => Ok(true),
-            Err(error) if error.kind() == ErrorKind::NotFound => Ok(false),
-            Err(error) => Err(format!(
-                "failed to clear stale drain marker {}: {error}",
-                drain_marker_path.display()
-            )),
-        }
-    }
-
-    pub async fn extend_readiness_settle_window(&self) {
-        if self.runtime.is_serving() {
-            return;
-        }
-        *self.readiness_settle_until.lock().await = Instant::now() + READINESS_SETTLE_WINDOW;
-    }
-
-    async fn readiness_settle_window_elapsed(&self) -> bool {
-        Instant::now() >= *self.readiness_settle_until.lock().await
+    pub fn enter_draining(&self) -> bool {
+        self.runtime.request_drain()
     }
 
     #[cfg(test)]
     pub async fn expire_readiness_settle_window(&self) {
-        *self.readiness_settle_until.lock().await = Instant::now();
+        self.readiness.lock().await.settle_until = Instant::now();
     }
 
-    pub async fn refresh_drain_marker(&self) -> Result<(), String> {
-        if self.runtime.is_draining() {
-            return Ok(());
-        }
-        match fs::try_exists(self.drain_marker_path())
-            .await
-            .map_err(|error| format!("failed to inspect drain marker: {error}"))?
+    pub async fn apply_membership_view(
+        &self,
+        members: BTreeSet<String>,
+        peer_nodes: BTreeMap<String, String>,
+    ) -> MembershipUpdate {
+        let known_peers = peer_nodes.keys().cloned().collect::<BTreeSet<_>>();
+
         {
-            true => {
-                self.enter_draining();
-                Ok(())
+            let mut readiness = self.readiness.lock().await;
+            let membership_update =
+                readiness.apply_membership(members, known_peers, Instant::now());
+            if membership_update.generation_changed {
+                self.runtime.clear_serving();
             }
-            false => Ok(()),
-        }
-    }
-
-    pub async fn forget_peers(&self, peers: &[String]) {
-        if peers.is_empty() {
-            return;
-        }
-        let peer_set = peers.iter().cloned().collect::<BTreeSet<_>>();
-        {
-            let mut bootstrapped = self.bootstrapped_peers.lock().await;
-            bootstrapped.retain(|peer| !peer_set.contains(peer));
-        }
-        {
-            let mut inflight = self.bootstrap_inflight_peers.lock().await;
-            inflight.retain(|peer| !peer_set.contains(peer));
+            membership_update
         }
     }
 
     pub async fn note_bootstrap_started(&self, peer: &str) -> bool {
-        {
-            let bootstrapped = self.bootstrapped_peers.lock().await;
-            if bootstrapped.contains(peer) {
-                return false;
-            }
-        }
-        let mut inflight = self.bootstrap_inflight_peers.lock().await;
-        if inflight.contains(peer) {
-            return false;
-        }
-        inflight.insert(peer.to_string());
-        true
+        self.readiness.lock().await.note_bootstrap_started(peer)
     }
 
     pub async fn note_bootstrap_succeeded(&self, peer: &str) {
-        self.bootstrap_inflight_peers.lock().await.remove(peer);
-        self.bootstrapped_peers
-            .lock()
-            .await
-            .insert(peer.to_string());
+        self.readiness.lock().await.note_bootstrap_succeeded(peer);
     }
 
     pub async fn note_bootstrap_failed(&self, peer: &str) {
-        self.bootstrap_inflight_peers.lock().await.remove(peer);
+        self.readiness.lock().await.note_bootstrap_failed(peer);
     }
 
-    async fn bootstrap_gate_satisfied(&self, known_peers: &[String]) -> bool {
-        let inflight = self.bootstrap_inflight_peers.lock().await;
-        if known_peers.iter().any(|peer| inflight.contains(peer)) {
-            return false;
+    async fn readiness_snapshot(&self) -> ReadinessSnapshot {
+        self.readiness.lock().await.snapshot(Instant::now())
+    }
+
+    pub async fn cluster_status_report(&self) -> ClusterStatusReport {
+        let snapshot = self.readiness_snapshot().await;
+        ClusterStatusReport {
+            generation: snapshot.generation,
+            members: snapshot.members,
+            connected_nodes: snapshot.known_peers,
         }
-        drop(inflight);
-        let bootstrapped = self.bootstrapped_peers.lock().await;
-        known_peers.iter().all(|peer| bootstrapped.contains(peer))
+    }
+
+    pub async fn replication_targets(&self) -> Vec<String> {
+        let snapshot = self.readiness_snapshot().await;
+        let mut targets = self.config.peers.iter().cloned().collect::<BTreeSet<_>>();
+        targets.extend(snapshot.known_peers);
+        targets.remove(&self.config.node_url);
+        targets.into_iter().collect()
     }
 
     pub async fn maybe_mark_serving(&self) {
-        if self.runtime.is_draining()
-            || self.runtime.is_serving()
-            || !self.runtime.initial_discovery_completed()
-            || !self.readiness_settle_window_elapsed().await
+        if self.runtime.is_draining() || self.runtime.is_serving() {
+            return;
+        }
+        let snapshot = self.readiness_snapshot().await;
+        if !snapshot.initial_discovery_completed || !snapshot.readiness_settled {
+            return;
+        }
+
+        let bootstrapped = snapshot
+            .bootstrapped_peers
+            .iter()
+            .cloned()
+            .collect::<BTreeSet<_>>();
+        let bootstrap_inflight = snapshot
+            .bootstrap_inflight_peers
+            .iter()
+            .cloned()
+            .collect::<BTreeSet<_>>();
+        if snapshot
+            .known_peers
+            .iter()
+            .any(|peer| bootstrap_inflight.contains(peer))
         {
             return;
         }
-        let known_peers = self
-            .peer_nodes
-            .read()
-            .await
-            .keys()
-            .cloned()
-            .collect::<Vec<_>>();
-        if self.bootstrap_gate_satisfied(&known_peers).await {
+        if snapshot
+            .known_peers
+            .iter()
+            .all(|peer| bootstrapped.contains(peer))
+        {
             self.runtime.mark_serving();
         }
     }
@@ -202,32 +294,10 @@ impl AppState {
     pub async fn readiness_report(&self) -> ReadinessReport {
         self.maybe_mark_serving().await;
 
+        let snapshot = self.readiness_snapshot().await;
         let draining = self.runtime.is_draining();
         let state = self.runtime.traffic_state();
         let writer_lock_owned = self.runtime.writer_lock_owned();
-        let initial_discovery_completed = self.runtime.initial_discovery_completed();
-        let readiness_settled = self.readiness_settle_window_elapsed().await;
-        let known_peers = self
-            .peer_nodes
-            .read()
-            .await
-            .keys()
-            .cloned()
-            .collect::<Vec<_>>();
-        let bootstrapped_peers = self
-            .bootstrapped_peers
-            .lock()
-            .await
-            .iter()
-            .cloned()
-            .collect::<Vec<_>>();
-        let bootstrap_inflight_peers = self
-            .bootstrap_inflight_peers
-            .lock()
-            .await
-            .iter()
-            .cloned()
-            .collect::<Vec<_>>();
         let mut reasons = Vec::new();
         if !writer_lock_owned {
             reasons.push("writer lock not held".to_string());
@@ -235,18 +305,26 @@ impl AppState {
         if draining {
             reasons.push("draining".to_string());
         }
-        if !initial_discovery_completed {
+        if !snapshot.initial_discovery_completed {
             reasons.push("initial discovery incomplete".to_string());
         }
-        if !self.runtime.is_serving() && initial_discovery_completed && !readiness_settled {
+        if !self.runtime.is_serving()
+            && snapshot.initial_discovery_completed
+            && !snapshot.readiness_settled
+        {
             reasons.push("discovery settling".to_string());
         }
-        if !self.runtime.is_serving() && !bootstrap_inflight_peers.is_empty() {
+        if !self.runtime.is_serving() && !snapshot.bootstrap_inflight_peers.is_empty() {
             reasons.push("bootstrap in progress".to_string());
         }
         if !self.runtime.is_serving() {
-            let bootstrapped = bootstrapped_peers.iter().cloned().collect::<BTreeSet<_>>();
-            let missing = known_peers
+            let bootstrapped = snapshot
+                .bootstrapped_peers
+                .iter()
+                .cloned()
+                .collect::<BTreeSet<_>>();
+            let missing = snapshot
+                .known_peers
                 .iter()
                 .filter(|peer| !bootstrapped.contains(*peer))
                 .cloned()
@@ -258,15 +336,16 @@ impl AppState {
 
         let ready = writer_lock_owned && !draining && self.runtime.is_serving();
         ReadinessReport {
+            generation: snapshot.generation,
             ready,
             state,
             reasons,
             draining,
             writer_lock_owned,
-            initial_discovery_completed,
-            known_peers,
-            bootstrapped_peers,
-            bootstrap_inflight_peers,
+            initial_discovery_completed: snapshot.initial_discovery_completed,
+            known_peers: snapshot.known_peers,
+            bootstrapped_peers: snapshot.bootstrapped_peers,
+            bootstrap_inflight_peers: snapshot.bootstrap_inflight_peers,
             http_inflight: self.runtime.http_inflight(),
             grpc_inflight: self.runtime.grpc_inflight(),
         }
@@ -285,6 +364,174 @@ impl AppState {
             report.known_peers.len(),
             report.bootstrapped_peers.len(),
             report.bootstrap_inflight_peers.len(),
+        );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use tokio::sync::Barrier;
+
+    use crate::test_support::test_context;
+
+    use super::*;
+
+    #[test]
+    fn readiness_state_advances_generation_and_reconciles_peer_sets() {
+        let now = Instant::now();
+        let mut readiness = ReadinessState::new(now);
+
+        let initial = readiness.apply_membership(
+            BTreeSet::from(["remote-a".to_string(), "remote-b".to_string()]),
+            BTreeSet::from([
+                "http://peer-a.kura.internal:7443".to_string(),
+                "http://peer-b.kura.internal:7443".to_string(),
+            ]),
+            now,
+        );
+        assert_eq!(readiness.generation, 1);
+        assert!(initial.initial_discovery_completed);
+        assert!(initial.lost_peers.is_empty());
+        assert_eq!(initial.known_peer_count, 2);
+        assert_eq!(
+            initial.discovered_peers,
+            vec![
+                "http://peer-a.kura.internal:7443".to_string(),
+                "http://peer-b.kura.internal:7443".to_string()
+            ]
+        );
+
+        assert!(readiness.note_bootstrap_started("http://peer-a.kura.internal:7443"));
+        readiness.note_bootstrap_succeeded("http://peer-a.kura.internal:7443");
+        assert!(
+            readiness
+                .bootstrapped_peers
+                .contains("http://peer-a.kura.internal:7443")
+        );
+
+        let topology_change = readiness.apply_membership(
+            BTreeSet::from(["remote-a".to_string(), "remote-c".to_string()]),
+            BTreeSet::from([
+                "http://peer-a.kura.internal:7443".to_string(),
+                "http://peer-c.kura.internal:7443".to_string(),
+            ]),
+            now + Duration::from_secs(1),
+        );
+        assert_eq!(readiness.generation, 2);
+        assert_eq!(
+            topology_change.discovered_peers,
+            vec!["http://peer-c.kura.internal:7443".to_string()]
+        );
+        assert_eq!(
+            topology_change.lost_peers,
+            vec!["http://peer-b.kura.internal:7443".to_string()]
+        );
+        assert!(
+            readiness
+                .bootstrapped_peers
+                .contains("http://peer-a.kura.internal:7443")
+        );
+        assert!(
+            !readiness
+                .bootstrapped_peers
+                .contains("http://peer-b.kura.internal:7443")
+        );
+    }
+
+    #[test]
+    fn readiness_state_deduplicates_bootstrap_start_per_peer() {
+        let now = Instant::now();
+        let mut readiness = ReadinessState::new(now);
+        readiness.apply_membership(
+            BTreeSet::from(["remote".to_string()]),
+            BTreeSet::from(["http://peer.kura.internal:7443".to_string()]),
+            now,
+        );
+
+        assert!(readiness.note_bootstrap_started("http://peer.kura.internal:7443"));
+        assert!(!readiness.note_bootstrap_started("http://peer.kura.internal:7443"));
+        readiness.note_bootstrap_failed("http://peer.kura.internal:7443");
+        assert!(readiness.note_bootstrap_started("http://peer.kura.internal:7443"));
+    }
+
+    #[tokio::test]
+    async fn app_state_serializes_concurrent_bootstrap_start_requests() {
+        let context = test_context(|_| {}).await;
+        let peer = "http://peer.kura.internal:7443".to_string();
+        context
+            .state
+            .apply_membership_view(
+                BTreeSet::from(["remote".to_string()]),
+                BTreeMap::from([(peer.clone(), "remote".to_string())]),
+            )
+            .await;
+
+        let barrier = Arc::new(Barrier::new(3));
+        let state_one = context.state.clone();
+        let barrier_one = barrier.clone();
+        let peer_one = peer.clone();
+        let first = tokio::spawn(async move {
+            barrier_one.wait().await;
+            state_one.note_bootstrap_started(&peer_one).await
+        });
+        let state_two = context.state.clone();
+        let barrier_two = barrier.clone();
+        let second = tokio::spawn(async move {
+            barrier_two.wait().await;
+            state_two.note_bootstrap_started(&peer).await
+        });
+
+        barrier.wait().await;
+        let first_started = first.await.expect("first bootstrap task should finish");
+        let second_started = second.await.expect("second bootstrap task should finish");
+        assert_eq!(
+            [first_started, second_started]
+                .into_iter()
+                .filter(|started| *started)
+                .count(),
+            1
+        );
+    }
+
+    #[tokio::test]
+    async fn app_state_returns_to_joining_when_membership_generation_advances() {
+        let context = test_context(|_| {}).await;
+        let peer_a = "http://peer-a.kura.internal:7443".to_string();
+        let peer_b = "http://peer-b.kura.internal:7443".to_string();
+        context
+            .state
+            .apply_membership_view(
+                BTreeSet::from(["remote-a".to_string()]),
+                BTreeMap::from([(peer_a.clone(), "remote-a".to_string())]),
+            )
+            .await;
+        context.state.note_bootstrap_succeeded(&peer_a).await;
+        context.state.expire_readiness_settle_window().await;
+        context.state.maybe_mark_serving().await;
+
+        let serving = context.state.readiness_report().await;
+        assert!(serving.ready);
+        assert_eq!(serving.state, TrafficState::Serving);
+
+        context
+            .state
+            .apply_membership_view(
+                BTreeSet::from(["remote-a".to_string(), "remote-b".to_string()]),
+                BTreeMap::from([
+                    (peer_a.clone(), "remote-a".to_string()),
+                    (peer_b.clone(), "remote-b".to_string()),
+                ]),
+            )
+            .await;
+
+        let joining = context.state.readiness_report().await;
+        assert!(!joining.ready);
+        assert_eq!(joining.state, TrafficState::Joining);
+        assert!(
+            joining
+                .reasons
+                .iter()
+                .any(|reason| reason.contains("discovery settling"))
         );
     }
 }

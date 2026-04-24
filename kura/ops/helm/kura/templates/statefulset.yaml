@@ -168,7 +168,7 @@ spec:
                 command:
                   - /bin/sh
                   - -c
-                  - touch /tmp/kura/drain && sleep 20
+                  - KURA_PID="$(tr ' ' '\n' </proc/1/task/1/children | head -n1)" && if [ -n "$KURA_PID" ]; then kill -USR1 "$KURA_PID"; fi && sleep 20
           {{- with .Values.resources }}
           resources:
             {{- toYaml . | nindent 12 }}

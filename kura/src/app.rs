@@ -1,5 +1,4 @@
 use std::{
-    collections::{BTreeMap, BTreeSet},
     net::{Ipv4Addr, SocketAddr},
     sync::Arc,
     time::Duration,
@@ -7,7 +6,7 @@ use std::{
 
 use axum_server::Handle;
 use hyper_util::rt::TokioTimer;
-use tokio::sync::{Notify, RwLock};
+use tokio::sync::Notify;
 use tokio::time::Instant;
 use tracing::info;
 
@@ -23,7 +22,7 @@ use crate::{
     reapi,
     replication::{spawn_membership_task, spawn_outbox_task},
     runtime::{DataDirLock, RuntimeState},
-    state::AppState,
+    state::{AppState, ReadinessState},
     store::Store,
     telemetry::init_tracing,
 };
@@ -59,7 +58,6 @@ pub async fn run() -> Result<(), String> {
         config.memory_hard_limit_bytes,
     );
     let store = Store::open(&config, io.clone(), memory.clone())?;
-    let members = RwLock::new(BTreeSet::new());
     let client = build_peer_client(&config).await?;
     let notify = Notify::new();
 
@@ -75,24 +73,15 @@ pub async fn run() -> Result<(), String> {
         analytics,
         client,
         notify,
-        members,
-        peer_nodes: RwLock::new(BTreeMap::new()),
-        bootstrapped_peers: tokio::sync::Mutex::new(BTreeSet::new()),
-        bootstrap_inflight_peers: tokio::sync::Mutex::new(BTreeSet::new()),
-        readiness_settle_until: tokio::sync::Mutex::new(Instant::now()),
+        readiness: tokio::sync::Mutex::new(ReadinessState::new(Instant::now())),
     });
-    if state.clear_stale_drain_marker().await? {
-        info!(
-            "Cleared stale drain marker at {}",
-            state.drain_marker_path().display()
-        );
-    }
     state.sync_runtime_metrics().await;
 
     spawn_membership_task(state.clone());
     spawn_outbox_task(state.clone());
     spawn_snapshot_task(state.clone());
-    spawn_runtime_watch_task(state.clone());
+    spawn_runtime_metrics_task(state.clone());
+    spawn_drain_signal_task(state.clone());
 
     let address = SocketAddr::from((Ipv4Addr::UNSPECIFIED, state.config.port));
     let grpc_address = SocketAddr::from((Ipv4Addr::UNSPECIFIED, state.config.grpc_port));
@@ -177,7 +166,7 @@ pub async fn run() -> Result<(), String> {
     let public_shutdown_state = state.clone();
     tokio::spawn(async move {
         shutdown_signal().await;
-        public_shutdown_state.enter_draining();
+        let _ = public_shutdown_state.enter_draining();
         public_shutdown_state.sync_runtime_metrics().await;
         public_shutdown_handle.graceful_shutdown(None);
     });
@@ -289,17 +278,35 @@ fn spawn_snapshot_task(state: Arc<AppState>) {
     });
 }
 
-fn spawn_runtime_watch_task(state: Arc<AppState>) {
+fn spawn_runtime_metrics_task(state: Arc<AppState>) {
     tokio::spawn(async move {
         loop {
-            if let Err(error) = state.refresh_drain_marker().await {
-                tracing::warn!("failed to refresh drain marker: {error}");
-            }
             state.sync_runtime_metrics().await;
             tokio::time::sleep(Duration::from_secs(1)).await;
         }
     });
 }
+
+#[cfg(unix)]
+fn spawn_drain_signal_task(state: Arc<AppState>) {
+    tokio::spawn(async move {
+        let mut signal =
+            tokio::signal::unix::signal(tokio::signal::unix::SignalKind::user_defined1())
+                .expect("failed to install SIGUSR1 handler");
+        loop {
+            if signal.recv().await.is_none() {
+                return;
+            }
+            if state.enter_draining() {
+                state.sync_runtime_metrics().await;
+                info!("received SIGUSR1, entering draining state");
+            }
+        }
+    });
+}
+
+#[cfg(not(unix))]
+fn spawn_drain_signal_task(_state: Arc<AppState>) {}
 
 struct ProcessMemorySnapshot {
     resident_bytes: u64,

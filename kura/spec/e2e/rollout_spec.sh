@@ -44,7 +44,7 @@ Describe 'warm rollout lifecycle'
       --data-binary "warm-rollout-binary")"
     The variable artifact_status should eq 204
 
-    dc exec -T kura-us sh -lc 'touch /tmp/kura/drain' >/dev/null 2>&1 || return 1
+    dc exec -T kura-us sh -lc 'KURA_PID="$(tr " " "\n" </proc/1/task/1/children | head -n1)" && [ -n "$KURA_PID" ] && kill -USR1 "$KURA_PID"' >/dev/null 2>&1 || return 1
 
     capture_into ready_status wait_for_status "${KURA_US_URL}/ready" 503 || return 1
     The variable ready_status should eq 503

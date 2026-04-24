@@ -1,14 +1,10 @@
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    sync::Arc,
-    time::Duration,
-};
+use std::{sync::Arc, time::Duration};
 
 use axum::response::Response;
 use http_body_util::BodyExt;
 use reqwest::Client;
 use tempfile::TempDir;
-use tokio::sync::{Notify, RwLock};
+use tokio::sync::Notify;
 use tokio::time::Instant;
 
 use crate::{
@@ -19,7 +15,7 @@ use crate::{
     memory::MemoryController,
     metrics::Metrics,
     runtime::{DataDirLock, RuntimeState},
-    state::AppState,
+    state::{AppState, ReadinessState},
     store::Store,
 };
 
@@ -116,11 +112,7 @@ where
         analytics,
         client,
         notify: Notify::new(),
-        members: RwLock::new(BTreeSet::new()),
-        peer_nodes: RwLock::new(BTreeMap::new()),
-        bootstrapped_peers: tokio::sync::Mutex::new(BTreeSet::new()),
-        bootstrap_inflight_peers: tokio::sync::Mutex::new(BTreeSet::new()),
-        readiness_settle_until: tokio::sync::Mutex::new(Instant::now()),
+        readiness: tokio::sync::Mutex::new(ReadinessState::new(Instant::now())),
     });
     state.sync_runtime_metrics().await;
 

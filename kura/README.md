@@ -308,7 +308,7 @@ The repository includes a Helm chart at `ops/helm/kura` that deploys Kura as a `
 - 🚪 optional ingress for the HTTP API
 - 🧩 optional inline extension script mounting through a `ConfigMap`
 - 🔐 optional peer mTLS for `/_internal/*` traffic via a mounted Kubernetes `Secret`
-- 🚦 `/ready` for public readiness and `/up` for liveness, with a `preStop` drain hook that removes pods from traffic before `SIGTERM`
+- 🚦 `/ready` for public readiness and `/up` for liveness, with a `preStop` `SIGUSR1` drain hook that removes pods from traffic before `SIGTERM`
 
 Lint and render the chart:
 

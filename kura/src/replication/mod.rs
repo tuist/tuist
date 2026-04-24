@@ -60,7 +60,6 @@ pub async fn enqueue_replication_for_artifact(state: &SharedState, manifest: &Ar
 
 pub fn spawn_membership_task(state: SharedState) {
     tokio::spawn(async move {
-        let mut initial_discovery_completed = false;
         loop {
             let mut members = BTreeSet::new();
             let mut peer_nodes = BTreeMap::new();
@@ -93,35 +92,11 @@ pub fn spawn_membership_task(state: SharedState) {
                 }
             }
 
-            *state.members.write().await = members;
-            let (discovered_peers, lost_peers) = {
-                let mut known_peers = state.peer_nodes.write().await;
-                let lost_peers = known_peers
-                    .keys()
-                    .filter(|peer| !peer_nodes.contains_key(*peer))
-                    .cloned()
-                    .collect::<Vec<_>>();
-                let discovered_peers = peer_nodes
-                    .keys()
-                    .filter(|peer| !known_peers.contains_key(*peer))
-                    .cloned()
-                    .collect::<Vec<_>>();
-                *known_peers = peer_nodes;
-                (discovered_peers, lost_peers)
-            };
-            if !lost_peers.is_empty() {
-                state.forget_peers(&lost_peers).await;
-            }
-            if !initial_discovery_completed {
-                state.mark_initial_discovery_completed().await;
-                initial_discovery_completed = true;
-            } else if !discovered_peers.is_empty() || !lost_peers.is_empty() {
-                state.extend_readiness_settle_window().await;
-            }
+            let membership_update = state.apply_membership_view(members, peer_nodes).await;
             state
                 .metrics
-                .update_discovered_peer_nodes(state.peer_nodes.read().await.len());
-            for peer in discovered_peers {
+                .update_discovered_peer_nodes(membership_update.known_peer_count);
+            for peer in membership_update.discovered_peers {
                 maybe_spawn_bootstrap_task(state.clone(), peer).await;
             }
             state.maybe_mark_serving().await;
@@ -150,10 +125,7 @@ pub fn spawn_outbox_task(state: SharedState) {
 }
 
 pub async fn replication_targets(state: &SharedState) -> Vec<String> {
-    let mut targets = state.config.peers.iter().cloned().collect::<BTreeSet<_>>();
-    targets.extend(state.peer_nodes.read().await.keys().cloned());
-    targets.remove(&state.config.node_url);
-    targets.into_iter().collect()
+    state.replication_targets().await
 }
 
 async fn maybe_spawn_bootstrap_task(state: SharedState, peer: String) {

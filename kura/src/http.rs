@@ -685,35 +685,29 @@ fn status_from_u16(status: u16) -> StatusCode {
 }
 
 async fn up(State(state): State<SharedState>) -> impl IntoResponse {
-    let members = state.members.read().await.clone();
-    let peer_nodes = state.peer_nodes.read().await.clone();
-    let mut all_members = members;
-    all_members.insert(state.config.region.clone());
-    let mut nodes = peer_nodes.keys().cloned().collect::<Vec<_>>();
+    let cluster = state.cluster_status_report().await;
+    let mut all_members = cluster.members;
+    all_members.push(state.config.region.clone());
+    all_members.sort();
+    let mut nodes = cluster.connected_nodes.clone();
     nodes.push(state.config.node_url.clone());
     nodes.sort();
 
     Json(serde_json::json!({
         "status": "ok",
+        "generation": cluster.generation,
         "tenant_id": state.config.tenant_id.clone(),
         "region": state.config.region.clone(),
         "node": state.config.region.clone(),
         "node_url": state.config.node_url.clone(),
-        "connected_nodes": peer_nodes.keys().cloned().collect::<Vec<_>>(),
-        "ring_members": peer_nodes.len() + 1,
+        "connected_nodes": cluster.connected_nodes,
+        "ring_members": nodes.len(),
         "members": all_members.into_iter().collect::<Vec<_>>(),
         "nodes": nodes,
     }))
 }
 
 async fn ready(State(state): State<SharedState>) -> impl IntoResponse {
-    if let Err(error) = state.refresh_drain_marker().await {
-        return error_response(
-            StatusCode::SERVICE_UNAVAILABLE,
-            format!("Failed to evaluate readiness: {error}"),
-        );
-    }
-
     let readiness = state.readiness_report().await;
     let status = if readiness.ready {
         StatusCode::OK
@@ -725,6 +719,7 @@ async fn ready(State(state): State<SharedState>) -> impl IntoResponse {
         status,
         Json(serde_json::json!({
             "status": if readiness.ready { "ok" } else { "not_ready" },
+            "generation": readiness.generation,
             "state": readiness.state.as_str(),
             "ready": readiness.ready,
             "draining": readiness.draining,
@@ -1719,13 +1714,16 @@ mod tests {
             config.region = "us-east".into();
         })
         .await;
-        context.state.members.write().await.insert("eu-west".into());
         context
             .state
-            .peer_nodes
-            .write()
-            .await
-            .insert("http://peer.kura.internal:4000".into(), "eu-west".into());
+            .apply_membership_view(
+                std::collections::BTreeSet::from(["eu-west".to_string()]),
+                std::collections::BTreeMap::from([(
+                    "http://peer.kura.internal:4000".to_string(),
+                    "eu-west".to_string(),
+                )]),
+            )
+            .await;
 
         let response = router(context.state.clone())
             .oneshot(
@@ -1741,6 +1739,7 @@ mod tests {
         let body: Value = serde_json::from_str(&response_text(response).await)
             .expect("failed to decode up response");
         assert_eq!(body["ring_members"], 2);
+        assert_eq!(body["generation"], 1);
         assert_eq!(body["region"], "us-east");
         assert!(body["members"].to_string().contains("eu-west"));
         assert!(
@@ -1756,11 +1755,11 @@ mod tests {
         let peer = "http://peer.kura.internal:7443".to_string();
         context
             .state
-            .peer_nodes
-            .write()
-            .await
-            .insert(peer.clone(), "remote".into());
-        context.state.mark_initial_discovery_completed().await;
+            .apply_membership_view(
+                std::collections::BTreeSet::from(["remote".to_string()]),
+                std::collections::BTreeMap::from([(peer.clone(), "remote".to_string())]),
+            )
+            .await;
         assert!(context.state.note_bootstrap_started(&peer).await);
 
         let response = public_router(context.state.clone())
@@ -1822,9 +1821,57 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn up_and_ready_share_the_same_membership_generation() {
+        let context = test_context(|_| {}).await;
+        let peer = "http://peer.kura.internal:7443".to_string();
+        context
+            .state
+            .apply_membership_view(
+                std::collections::BTreeSet::from(["remote".to_string()]),
+                std::collections::BTreeMap::from([(peer.clone(), "remote".to_string())]),
+            )
+            .await;
+        context.state.note_bootstrap_succeeded(&peer).await;
+        context.state.expire_readiness_settle_window().await;
+        context.state.maybe_mark_serving().await;
+
+        let up_response = public_router(context.state.clone())
+            .oneshot(
+                Request::builder()
+                    .uri("/up")
+                    .body(Body::empty())
+                    .expect("failed to build up request"),
+            )
+            .await
+            .expect("up route should respond");
+        let up_body: Value =
+            serde_json::from_str(&response_text(up_response).await).expect("up response json");
+
+        let ready_response = public_router(context.state.clone())
+            .oneshot(
+                Request::builder()
+                    .uri("/ready")
+                    .body(Body::empty())
+                    .expect("failed to build ready request"),
+            )
+            .await
+            .expect("ready route should respond");
+        let ready_body: Value = serde_json::from_str(&response_text(ready_response).await)
+            .expect("ready response json");
+
+        assert_eq!(up_body["generation"], ready_body["generation"]);
+    }
+
+    #[tokio::test]
     async fn ready_reports_draining_state() {
         let context = test_context(|_| {}).await;
-        context.state.mark_initial_discovery_completed().await;
+        context
+            .state
+            .apply_membership_view(
+                std::collections::BTreeSet::new(),
+                std::collections::BTreeMap::new(),
+            )
+            .await;
         context.state.expire_readiness_settle_window().await;
         context.state.maybe_mark_serving().await;
         context.state.enter_draining();
@@ -1849,7 +1896,13 @@ mod tests {
     #[tokio::test]
     async fn draining_public_requests_return_service_unavailable_and_close_http1_connections() {
         let context = test_context(|_| {}).await;
-        context.state.mark_initial_discovery_completed().await;
+        context
+            .state
+            .apply_membership_view(
+                std::collections::BTreeSet::new(),
+                std::collections::BTreeMap::new(),
+            )
+            .await;
         context.state.expire_readiness_settle_window().await;
         context.state.maybe_mark_serving().await;
         context.state.enter_draining();
@@ -1869,27 +1922,6 @@ mod tests {
         assert_eq!(
             response.headers().get(axum::http::header::CONNECTION),
             Some(&HeaderValue::from_static("close"))
-        );
-    }
-
-    #[tokio::test]
-    async fn clear_stale_drain_marker_removes_existing_file() {
-        let context = test_context(|_| {}).await;
-        tokio::fs::write(context.state.drain_marker_path(), b"stale-marker")
-            .await
-            .expect("failed to create stale drain marker");
-
-        let removed = context
-            .state
-            .clear_stale_drain_marker()
-            .await
-            .expect("clearing stale marker should succeed");
-
-        assert!(removed);
-        assert!(
-            !tokio::fs::try_exists(context.state.drain_marker_path())
-                .await
-                .expect("marker existence check should succeed")
         );
     }
 
