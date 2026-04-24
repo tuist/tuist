@@ -9,6 +9,7 @@ import TuistConfigLoader
 import TuistCore
 import TuistEnvironment
 import TuistExtension
+import TuistHasher
 import TuistLoader
 import TuistPlugin
 import TuistServer
@@ -892,14 +893,15 @@ import XcodeGraph
                 excludedTargets: excludedTargets,
                 destination: nil
             )
-            let selectedHashesByCacheableTarget = switch CacheWarmTargetGraphSelector.selection(
+            let selectedHashesByCacheableTarget: [GraphTarget: TargetContentHash]
+            switch CacheWarmTargetGraphSelector.selection(
                 graphTraverser: graphTraverser,
                 requestedTargets: requestedTargetsToBinaryCache
             ) {
             case .allReachable:
-                hashesByCacheableTarget
+                selectedHashesByCacheableTarget = hashesByCacheableTarget
             case let .explicit(allowedTargets):
-                Dictionary(
+                selectedHashesByCacheableTarget = Dictionary(
                     uniqueKeysWithValues: hashesByCacheableTarget.filter { allowedTargets.contains($0.key) }
                 )
             case .noNonTestRoots:
