@@ -56,7 +56,7 @@ extension XcodeGraph.TestAction {
             preferredScreenCaptureFormat = nil
             skippedTests = nil
         } else if let paths = manifest.testPlans {
-            let entries = paths.map { ProjectDescription.TestPlan.preConfigured(path: $0) }
+            let entries = paths.map { ProjectDescription.TestPlan.path($0) }
             let resolvedTestPlans = try await XcodeGraph.TestPlan.resolve(
                 entries: entries,
                 generatorPaths: generatorPaths,
@@ -136,7 +136,7 @@ extension XcodeGraph.TestAction {
 
 extension XcodeGraph.TestPlan {
     /// Resolves a list of `ProjectDescription.TestPlan` entries into the graph's `TestPlan` values,
-    /// expanding globs for pre-configured files and computing derived paths for generated ones.
+    /// expanding globs for `.path` entries and computing derived paths for `.generated` ones.
     ///
     /// If no entry sets `isDefault`, the first resolved plan is marked as the default.
     static func resolve(
@@ -147,7 +147,7 @@ extension XcodeGraph.TestPlan {
     ) async throws -> [XcodeGraph.TestPlan] {
         let hasExplicitDefault = entries.contains { entry in
             switch entry {
-            case let .preConfigured(_, isDefault): isDefault
+            case let .path(_, isDefault): isDefault
             case let .generated(_, _, _, isDefault): isDefault
             }
         }
@@ -160,8 +160,8 @@ extension XcodeGraph.TestPlan {
         var resolved: [XcodeGraph.TestPlan] = []
         for entry in entries {
             switch entry {
-            case let .preConfigured(path, isDefault):
-                try await appendPreConfigured(
+            case let .path(path, isDefault):
+                try await appendPathEntry(
                     path: path,
                     markAsDefault: hasExplicitDefault ? isDefault : resolved.isEmpty,
                     generatorPaths: generatorPaths,
@@ -193,7 +193,7 @@ extension XcodeGraph.TestPlan {
         return resolved
     }
 
-    private static func appendPreConfigured(
+    private static func appendPathEntry(
         path: ProjectDescription.Path,
         markAsDefault: Bool,
         generatorPaths: GeneratorPaths,

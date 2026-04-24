@@ -1,14 +1,16 @@
 /// A test plan entry on a `TestAction`.
 ///
-/// Supports both pre-configured `.xctestplan` files maintained by hand and plans whose
-/// `.xctestplan` file Tuist generates from Swift. Both kinds can be mixed in a single
+/// Supports both hand-maintained `.xctestplan` files (`.path`) and plans whose file Tuist
+/// generates from Swift (`.generated`). Both kinds can be mixed in a single
 /// `TestAction.testPlans(_:)` call.
 public enum TestPlan: Equatable, Codable, Sendable {
-    /// Reference an existing, hand-maintained `.xctestplan` file.
+    /// Reference an existing, hand-maintained `.xctestplan` file at the given path.
     ///
-    /// The path supports globbing (e.g. `"TestPlans/*.xctestplan"`) — matching files are sorted
-    /// and attached in that order.
-    case preConfigured(path: Path, isDefault: Bool = false)
+    /// The associated `path` value is a `Path`, which conforms to `ExpressibleByStringLiteral`,
+    /// so string literals work directly (e.g. `.path("TestPlans/Foo.xctestplan")`). Glob
+    /// patterns are supported (e.g. `.path("TestPlans/*.xctestplan")`) — matching files are
+    /// sorted and attached in that order.
+    case path(_ path: Path, isDefault: Bool = false)
 
     /// Have Tuist generate a `.xctestplan` file from the given test targets.
     ///

@@ -270,7 +270,7 @@ struct TestActionManifestMapperTests {
                     .testableTarget(target: .project(path: .path(projectPath.pathString), target: "AppTests")),
                 ]
             ),
-            .preConfigured(path: .path(preConfiguredPath.pathString)),
+            .path(.path(preConfiguredPath.pathString)),
         ])
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryDirectory, rootDirectory: temporaryDirectory)
 
