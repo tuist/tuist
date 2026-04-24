@@ -16,10 +16,11 @@ controller:
     annotations:
       load-balancer.hetzner.cloud/location: fsn1
       load-balancer.hetzner.cloud/type: lb11
-      load-balancer.hetzner.cloud/name: tuist-ingress
-      # Preserve client source IP so rate-limiters and logs see the real
-      # caller, not the LB node. Requires ingress-nginx to run as a Service
-      # of type LoadBalancer with externalTrafficPolicy=Local.
+      # No `load-balancer.hetzner.cloud/name` — each cluster's Hetzner
+      # CCM needs a DIFFERENT LB, and hardcoding a shared name here makes
+      # them fight over the same Hetzner LB resource (the last cluster
+      # to reconcile ends up owning it). Leaving it unset lets Hetzner
+      # derive a unique name per cluster from the CCM's own defaults.
       load-balancer.hetzner.cloud/use-private-ip: "false"
     externalTrafficPolicy: Local
   # Small cluster — default HPA + 2 replicas is overkill for staging traffic.
