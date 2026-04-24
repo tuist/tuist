@@ -57,6 +57,31 @@ defmodule Cache.Registry.MetadataTest do
       assert metadata == @sample_metadata
     end
 
+    test "sanitizes cached metadata before returning it", %{cache_name: cache_name} do
+      scope = "apple"
+      name = "swift-argument-parser"
+
+      cached_metadata =
+        @sample_metadata
+        |> put_in(["releases", "0.0.24b"], %{"checksum" => "legacy"})
+        |> put_in(["skipped_releases"], %{"0.0.24b" => %{"reason" => "invalid_semver"}})
+
+      cached = %{
+        metadata: cached_metadata,
+        etag: "some-etag",
+        checked_at: DateTime.truncate(DateTime.utc_now(), :second)
+      }
+
+      Cachex.put(cache_name, {scope, name}, cached)
+
+      assert {:ok, metadata} = Metadata.get_package(scope, name, cache_name: cache_name)
+      refute Map.has_key?(metadata["releases"], "0.0.24b")
+      refute Map.has_key?(metadata["skipped_releases"], "0.0.24b")
+
+      assert {:ok, sanitized_cached} = Cachex.get(cache_name, {scope, name})
+      refute Map.has_key?(sanitized_cached.metadata["releases"], "0.0.24b")
+    end
+
     test "fetches from S3 and caches when not in cache", %{cache_name: cache_name} do
       scope = "apple"
       name = "swift-argument-parser"
@@ -76,6 +101,29 @@ defmodule Cache.Registry.MetadataTest do
 
       assert {:ok, cached} = Cachex.get(cache_name, {scope, name})
       assert cached.metadata == @sample_metadata
+    end
+
+    test "sanitizes invalid versions fetched from S3", %{cache_name: cache_name} do
+      scope = "apple"
+      name = "swift-argument-parser"
+      s3_key = "registry/metadata/#{scope}/#{name}/index.json"
+
+      dirty_metadata =
+        @sample_metadata
+        |> put_in(["releases", "0.0.24b"], %{"checksum" => "legacy"})
+        |> put_in(["skipped_releases"], %{"0.0.24b" => %{"reason" => "invalid_semver"}})
+
+      expect(ExAws.S3, :get_object, fn "test-registry-bucket", ^s3_key ->
+        %S3{bucket: "test-registry-bucket", path: s3_key}
+      end)
+
+      expect(ExAws, :request, fn %S3{} ->
+        {:ok, %{body: JSON.encode!(dirty_metadata), headers: %{"etag" => "\"etag\""}}}
+      end)
+
+      assert {:ok, metadata} = Metadata.get_package(scope, name, cache_name: cache_name)
+      refute Map.has_key?(metadata["releases"], "0.0.24b")
+      refute Map.has_key?(metadata["skipped_releases"], "0.0.24b")
     end
 
     test "returns :not_found when S3 returns 404", %{cache_name: cache_name} do
@@ -164,6 +212,30 @@ defmodule Cache.Registry.MetadataTest do
       assert :ok = Metadata.put_package(scope, name, @sample_metadata, cache_name: cache_name)
 
       assert {:ok, nil} = Cachex.get(cache_name, {scope, name})
+    end
+
+    test "sanitizes invalid versions before writing metadata", %{cache_name: cache_name} do
+      scope = "apple"
+      name = "swift-argument-parser"
+      s3_key = "registry/metadata/#{scope}/#{name}/index.json"
+
+      dirty_metadata =
+        @sample_metadata
+        |> put_in(["releases", "0.0.24b"], %{"checksum" => "legacy"})
+        |> put_in(["skipped_releases"], %{"0.0.24b" => %{"reason" => "invalid_semver"}})
+
+      expect(ExAws.S3, :put_object, fn "test-registry-bucket", ^s3_key, body, _opts ->
+        written_metadata = JSON.decode!(body)
+        refute Map.has_key?(written_metadata["releases"], "0.0.24b")
+        refute Map.has_key?(written_metadata["skipped_releases"], "0.0.24b")
+        %S3{bucket: "test-registry-bucket", path: s3_key}
+      end)
+
+      expect(ExAws, :request, fn %S3{} ->
+        {:ok, %{status_code: 200}}
+      end)
+
+      assert :ok = Metadata.put_package(scope, name, dirty_metadata, cache_name: cache_name)
     end
 
     test "returns error when S3 write fails", %{cache_name: cache_name} do

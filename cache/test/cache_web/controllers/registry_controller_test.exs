@@ -201,7 +201,9 @@ defmodule CacheWeb.RegistryControllerTest do
     test "returns 404 when package is missing", %{conn: conn} do
       url = "https://github.com/apple/swift-argument-parser"
 
-      expect(Metadata, :get_package, fn "apple", "swift-argument-parser" -> {:error, :not_found} end)
+      expect(Metadata, :get_package, fn "apple", "swift-argument-parser" ->
+        {:error, :not_found}
+      end)
 
       conn =
         conn
@@ -442,6 +444,31 @@ defmodule CacheWeb.RegistryControllerTest do
       assert response["version"] == "1.0.0"
     end
 
+    test "normalizes multi-segment prereleases before lookup", %{conn: conn} do
+      scope = "apple"
+      name = "swift-argument-parser"
+
+      metadata = %{
+        "scope" => scope,
+        "name" => name,
+        "releases" => %{
+          "1.2.3-alpha+1+2" => %{"checksum" => "abc123"}
+        }
+      }
+
+      expect(Metadata, :get_package, fn ^scope, ^name -> {:ok, metadata} end)
+
+      conn =
+        conn
+        |> registry_json_conn()
+        |> get("/api/registry/swift/#{scope}/#{name}/1.2.3-alpha.1.2")
+
+      assert conn.status == 200
+
+      response = json_response(conn, :ok)
+      assert response["version"] == "1.2.3-alpha+1+2"
+    end
+
     test "returns 404 when version not found", %{conn: conn} do
       scope = "apple"
       name = "swift-argument-parser"
@@ -502,6 +529,18 @@ defmodule CacheWeb.RegistryControllerTest do
 
       response = json_response(conn, :service_unavailable)
       assert response["message"] == "Registry is temporarily unavailable. Please try again later."
+    end
+
+    test "returns 400 when version is not semantic", %{conn: conn} do
+      conn =
+        conn
+        |> registry_json_conn()
+        |> get("/api/registry/swift/realm/realm-swift/0.0.24b")
+
+      assert conn.status == 400
+
+      response = json_response(conn, :bad_request)
+      assert response["message"] == "Invalid path parameters."
     end
   end
 
@@ -1154,7 +1193,9 @@ defmodule CacheWeb.RegistryControllerTest do
       name = "swift-argument-parser"
       version = "1.0.0"
 
-      expect(Registry.Disk, :exists?, fn ^scope, ^name, ^version, "Package@swift-5.8.swift" -> false end)
+      expect(Registry.Disk, :exists?, fn ^scope, ^name, ^version, "Package@swift-5.8.swift" ->
+        false
+      end)
 
       expect(S3, :exists?, fn _key, _opts -> false end)
 
