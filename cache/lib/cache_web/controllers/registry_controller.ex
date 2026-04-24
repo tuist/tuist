@@ -4,6 +4,7 @@ defmodule CacheWeb.RegistryController do
   alias Cache.CacheArtifacts
   alias Cache.Config
   alias Cache.Registry
+  alias Cache.Registry.AlternateManifests
   alias Cache.Registry.EventsPipeline
   alias Cache.Registry.KeyNormalizer
   alias Cache.Registry.Metadata
@@ -355,26 +356,36 @@ defmodule CacheWeb.RegistryController do
   end
 
   defp maybe_put_alternate_manifest_link(conn, scope, name, version, nil) do
-    case Metadata.get_package(scope, name) do
-      {:ok, metadata} ->
-        releases = metadata["releases"] || %{}
+    manifests = manifests_for_link_header(scope, name, version)
+    put_alternate_manifest_link(conn, scope, name, version, manifests)
+  end
 
-        case Map.get(releases, version) do
-          %{"manifests" => manifests} when is_list(manifests) ->
-            link_header = build_alternate_manifests_link(scope, name, version, manifests)
+  defp manifests_for_link_header(scope, name, version) do
+    metadata_manifests =
+      case Metadata.get_package(scope, name) do
+        {:ok, metadata} ->
+          metadata["releases"]
+          |> Kernel.||(%{})
+          |> Map.get(version, %{})
+          |> Map.get("manifests")
 
-            if link_header == "" do
-              conn
-            else
-              put_resp_header(conn, "link", link_header)
-            end
+        _ ->
+          nil
+      end
 
-          _ ->
-            conn
-        end
+    if is_list(metadata_manifests) and metadata_manifests != [] do
+      metadata_manifests
+    else
+      AlternateManifests.list(scope, name, version)
+    end
+  end
 
-      _ ->
-        conn
+  defp put_alternate_manifest_link(conn, _scope, _name, _version, []), do: conn
+
+  defp put_alternate_manifest_link(conn, scope, name, version, manifests) do
+    case build_alternate_manifests_link(scope, name, version, manifests) do
+      "" -> conn
+      link_header -> put_resp_header(conn, "link", link_header)
     end
   end
 
