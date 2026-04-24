@@ -3,13 +3,12 @@ import Path
 import TuistCore
 import XcodeGraph
 
-/// Builds `TestPlanDescriptor` values from the graph's generated test plans and the generated
-/// projects that own their targets.
-enum TestPlanGenerator {
-    /// Produces a descriptor for a generated test plan, returning `nil` when none of its test
-    /// targets can be resolved against the generated projects.
-    static func descriptor(
-        for testPlan: TestPlan,
+extension TestPlanDescriptor {
+    /// Builds a descriptor for a generated test plan from the graph and the generated projects
+    /// that own its targets. Returns `nil` when the plan isn't Tuist-generated or when none of
+    /// its test targets can be resolved.
+    static func from(
+        testPlan: TestPlan,
         graphTraverser: GraphTraversing,
         generatedProjects: [AbsolutePath: GeneratedProject],
         rootPath: AbsolutePath

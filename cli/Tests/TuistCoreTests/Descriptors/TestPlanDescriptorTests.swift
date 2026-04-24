@@ -4,7 +4,7 @@ import TuistCore
 import XcodeProj
 import XCTest
 
-final class TestPlanGeneratorTests: XCTestCase {
+final class TestPlanDescriptorTests: XCTestCase {
     func test_encode_produces_valid_xctestplan_json() throws {
         // Given
         let pbxTarget = PBXNativeTarget(name: "AppTests")

@@ -157,8 +157,8 @@ struct SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             generatedProjects: generatedProjects
         )
         let testPlanSideEffects: [SideEffectDescriptor] = scheme.testAction?.testPlans?.compactMap { plan in
-            TestPlanGenerator.descriptor(
-                for: plan,
+            TestPlanDescriptor.from(
+                testPlan: plan,
                 graphTraverser: graphTraverser,
                 generatedProjects: generatedProjects,
                 rootPath: path
