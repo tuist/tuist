@@ -45,7 +45,7 @@ public struct XcodeBuildTestWithoutBuildingCommand: AsyncParsableCommand, Tracka
 
     @Option(
         name: .long,
-        help: "Inspect mode: 'local' parses the xcresult on this machine, 'remote' uploads it for server-side processing. When omitted, defaults to 'remote' for tuist-hosted instances and 'local' for self-hosted ones.",
+        help: "Inspect mode: 'local' parses the xcresult on this machine, 'remote' uploads it for server-side processing, 'off' skips result bundle upload entirely (for runs that only need selective testing and command event metadata). When omitted, defaults to 'remote' for tuist-hosted instances and 'local' for self-hosted ones.",
         envKey: .inspectTestMode
     )
     var inspectMode: TestProcessingMode?

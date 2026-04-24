@@ -111,6 +111,10 @@
                     resolvedResultBundlePath: resolvedResultBundlePath,
                     config: config
                 )
+            case .off:
+                AlertController.current.warning(
+                    .alert("'tuist inspect test' requires a processing mode; 'off' skips upload and has nothing to inspect.")
+                )
             }
         }
 
