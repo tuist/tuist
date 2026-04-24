@@ -1,0 +1,16 @@
+# Alloy overlay for the production workload cluster.
+# Install with:
+#   helm upgrade --install alloy infra/helm/alloy \
+#     -n observability --create-namespace \
+#     -f infra/helm/alloy/values-production.yaml
+
+env: production
+
+scrape:
+  targets:
+    - address: tuist-tuist-server.tuist.svc.cluster.local:9091
+      instance: production
+
+podDiscovery:
+  namespaces:
+    - tuist

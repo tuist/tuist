@@ -83,7 +83,58 @@ defmodule Tuist.Application do
       OpentelemetryEcto.setup([event_prefix: [:tuist, :repo]] ++ ecto_skip_metrics)
       OpentelemetryEcto.setup([event_prefix: [:tuist, :ingest_repo]] ++ ecto_skip_metrics)
       OpentelemetryEcto.setup([event_prefix: [:tuist, :click_house_repo]] ++ ecto_skip_metrics)
+
+      kick_opentelemetry_exporter_after_boot()
     end
+  end
+
+  # opentelemetry_exporter starts as part of :extra_applications at release
+  # boot — before the pod's ClusterIP Service DNS is guaranteed to resolve
+  # (especially true just after pod start on k8s, where kube-dns can lag).
+  # Its very first export attempt hits :no_endpoints and the batch processor
+  # never recovers — subsequent spans are silently dropped.
+  #
+  # Workaround: stop + start the exporter a few seconds later, once DNS is
+  # up. The fresh gRPC channel resolves the endpoint correctly and from
+  # then on export works normally.
+  defp kick_opentelemetry_exporter_after_boot do
+    spawn_supervised_task(fn -> do_kick_opentelemetry_exporter() end)
+  end
+
+  defp do_kick_opentelemetry_exporter do
+    Process.sleep(8_000)
+
+    case Application.stop(:opentelemetry_exporter) do
+      :ok ->
+        case Application.start(:opentelemetry_exporter) do
+          :ok ->
+            Logger.info("Restarted :opentelemetry_exporter to clear boot-time :no_endpoints state")
+
+          {:error, reason} ->
+            Logger.warning("Failed to restart :opentelemetry_exporter: #{inspect(reason)}")
+        end
+
+      {:error, reason} ->
+        Logger.warning("Failed to stop :opentelemetry_exporter for restart: #{inspect(reason)}")
+    end
+  end
+
+  # Start a fire-and-forget task with crash-reporting wrapped around it.
+  # `Task.start/1` swallows exceptions silently; wrapping the body in a
+  # `try/rescue` guarantees anything that goes wrong reaches Logger (and
+  # Sentry via the Sentry logger handler).
+  defp spawn_supervised_task(fun) do
+    Task.start(fn ->
+      try do
+        fun.()
+      rescue
+        e ->
+          Logger.error(
+            "Unhandled exception in background task: #{Exception.message(e)}\n" <>
+              Exception.format_stacktrace(__STACKTRACE__)
+          )
+      end
+    end)
   end
 
   defp start_sentry_logger do
@@ -97,41 +148,119 @@ defmodule Tuist.Application do
   defp start_loki_logger do
     loki_url = Environment.loki_url()
 
+    # Setting TUIST_LOKI_URL attaches an in-process log handler that
+    # pushes each event to Loki directly. Attach in the background with
+    # retry so a slow DNS / CNI startup doesn't fail the first attempt.
     if loki_url do
-      LokiLoggerHandler.attach(:loki_handler,
-        loki_url: loki_url,
-        storage: :memory,
-        labels: %{
-          app: {:static, "tuist-server"},
-          service_name: {:static, "tuist-server"},
-          service_namespace: {:static, "tuist"},
-          env: {:static, to_string(Environment.env())},
-          level: :level
-        },
-        structured_metadata: [
-          :trace_id,
-          :span_id,
-          :request_id,
-          :auth_account_handle,
-          :selected_account_handle,
-          :selected_project_handle,
-          :method,
-          :route,
-          :request_path,
-          :reason,
-          :error,
-          :kind,
-          :event,
-          :duration_ms,
-          :remote_address,
-          :remote_port,
-          :recv_oct,
-          :send_oct,
-          :req_body_bytes,
-          :request_span_context,
-          :connection_span_context
-        ]
-      )
+      spawn_supervised_task(fn -> attach_loki_handler_with_retry(loki_url, 0) end)
+    end
+  end
+
+  @loki_attach_max_attempts 10
+  @loki_attach_base_backoff_ms 1_000
+  @loki_attach_max_backoff_ms 30_000
+
+  defp attach_loki_handler_with_retry(loki_url, attempt) when attempt < @loki_attach_max_attempts do
+    # Exponential backoff capped at @loki_attach_max_backoff_ms. Total
+    # wait across 10 attempts is ~5 min, which covers the longest DNS /
+    # CNI propagation delays we've seen on k8s after a fresh pod schedule.
+    backoff =
+      @loki_attach_base_backoff_ms
+      |> Kernel.*(:math.pow(2, attempt))
+      |> round()
+      |> min(@loki_attach_max_backoff_ms)
+
+    Process.sleep(backoff)
+
+    # Call :logger.add_handler/3 directly so we can set filters + overload
+    # options that LokiLoggerHandler.attach/2 doesn't expose:
+    #
+    #   - `filters`: drop log events whose module is inside LokiLoggerHandler
+    #     itself. Its Sender emits Logger.warning on failed pushes, and those
+    #     warnings would otherwise re-enter this handler, get buffered, fail
+    #     to push, emit another warning, and so on. The kernel logger kills
+    #     overloaded handlers (removed_failing_handler), so this amplification
+    #     was disabling the handler within a few seconds of startup.
+    #   - `overload_kill_enable: false`: additional guard so transient bursts
+    #     (e.g., a retry storm after Alloy restarts) don't permanently kill
+    #     the handler.
+    handler_config = %{
+      loki_url: loki_url,
+      storage: :memory,
+      labels: %{
+        app: {:static, "tuist-server"},
+        service_name: {:static, "tuist-server"},
+        service_namespace: {:static, "tuist"},
+        env: {:static, to_string(Environment.env())},
+        level: :level
+      },
+      structured_metadata: [
+        :trace_id,
+        :span_id,
+        :request_id,
+        :auth_account_handle,
+        :selected_account_handle,
+        :selected_project_handle,
+        :method,
+        :route,
+        :request_path,
+        :reason,
+        :error,
+        :kind,
+        :event,
+        :duration_ms,
+        :remote_address,
+        :remote_port,
+        :recv_oct,
+        :send_oct,
+        :req_body_bytes,
+        :request_span_context,
+        :connection_span_context
+      ]
+    }
+
+    logger_config = %{
+      config: handler_config,
+      filters: [
+        loki_self_logs: {&__MODULE__.filter_loki_self_logs/2, []}
+      ],
+      filter_default: :log,
+      overload_kill_enable: false
+    }
+
+    case :logger.add_handler(:loki_handler, LokiLoggerHandler.Handler, logger_config) do
+      :ok ->
+        Logger.info("LokiLoggerHandler attached after #{attempt + 1} attempt(s)")
+
+      {:error, reason} ->
+        Logger.warning("LokiLoggerHandler attach attempt #{attempt + 1} failed: #{inspect(reason)} — retrying")
+
+        attach_loki_handler_with_retry(loki_url, attempt + 1)
+    end
+  end
+
+  defp attach_loki_handler_with_retry(_loki_url, _attempt) do
+    Logger.error("LokiLoggerHandler attach gave up after #{@loki_attach_max_attempts} attempts")
+  end
+
+  # :logger filter callback. Drops log events that originated inside
+  # LokiLoggerHandler itself — prevents a feedback loop where failed-push
+  # warnings get buffered and retried, amplifying the queue until the kernel
+  # kills the handler. Must be a public function for :logger to resolve it.
+  @doc false
+  def filter_loki_self_logs(log_event, _extra) do
+    case log_event do
+      %{meta: %{mfa: {module, _function, _arity}}} ->
+        mod_str = Atom.to_string(module)
+
+        if String.starts_with?(mod_str, "Elixir.LokiLoggerHandler") do
+          :stop
+        else
+          :ignore
+        end
+
+      _ ->
+        :ignore
     end
   end
 

@@ -1,0 +1,35 @@
+name: Notify Slack on deploy success
+
+# Mirrors notify-failure.yml but for successes, scoped to deploy
+# workflows where a green run is newsworthy. Today that's just
+# "Server Production Deployment" — we intentionally stay quiet on
+# staging/canary successes and only ping Slack when production lands.
+
+on:
+  workflow_run:
+    workflows:
+      - Server Production Deployment
+    branches: [main]
+    types: [completed]
+
+permissions: {}
+
+jobs:
+  notify:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: 1password/install-cli-action@v2
+      - name: Load secrets from 1Password
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.CACHE_OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          echo "SLACK_WEBHOOK_URL=$(op read 'op://cache/SLACK_WEBHOOK_URL/password')" >> $GITHUB_ENV
+      - uses: slackapi/slack-github-action@v2
+        with:
+          webhook: ${{ env.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload: |
+            {
+              "text": ":white_check_mark: `${{ github.event.workflow_run.name }}` succeeded on main: ${{ github.event.workflow_run.html_url }}"
+            }
