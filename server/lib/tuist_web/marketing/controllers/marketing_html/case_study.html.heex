@@ -7,7 +7,7 @@
     <header data-part="header">
       <div data-part="content">
         <div data-part="category">
-          <a href={~p"/customers"}>{dgettext("marketing", "Customers")}</a>
+          <a href={localized_href("/customers")}>{dgettext("marketing", "Customers")}</a>
           <.math_slash aria-hidden="true" />
           <span>{@case_study.company}</span>
         </div>
@@ -42,7 +42,7 @@
           <span data-part="label">{dgettext("marketing", "Founded")}</span>
           <span data-part="value">{@case_study.founded_date}</span>
         </div>
-        <div data-part="entry">
+        <div :if={@case_study.onboarded_date} data-part="entry">
           <span data-part="label">{dgettext("marketing", "Onboarded")}</span>
           <span data-part="value">
             {Timex.format!(@case_study.onboarded_date, "{Mfull} {YYYY}")}

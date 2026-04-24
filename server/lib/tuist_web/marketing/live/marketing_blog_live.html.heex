@@ -44,7 +44,7 @@
     <section data-part="filters-bar">
       <div data-part="categories">
         <.link
-          patch={~p"/blog"}
+          patch={TuistWeb.Marketing.MarketingHTML.localized_href("/blog")}
           data-selected={is_nil(@selected_category)}
           data-part="category"
         >
@@ -52,7 +52,7 @@
         </.link>
         <.link
           :for={category <- Enum.reject(@categories, &is_nil/1)}
-          patch={~p"/blog?category=#{to_string(category)}"}
+          patch={TuistWeb.Marketing.MarketingHTML.localized_href("/blog?category=#{to_string(category)}")}
           data-selected={@selected_category == to_string(category)}
           data-part="category"
         >

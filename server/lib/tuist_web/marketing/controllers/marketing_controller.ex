@@ -27,7 +27,9 @@ defmodule TuistWeb.Marketing.MarketingController do
     |> assign(:head_title, "Tuist · A virtual platform team for mobile devs who ship")
     |> assign(
       :head_image,
-      Tuist.Environment.app_url(path: OpenGraph.marketing_og_image_path("/marketing/images/og/generated/home.jpg"))
+      Tuist.Environment.app_url(
+        path: OpenGraph.marketing_og_image_path("/marketing/images/og/generated/home.jpg")
+      )
     )
     |> assign(:head_twitter_card, "summary_large_image")
     |> assign(:read_more_posts, read_more_posts)
@@ -48,7 +50,9 @@ defmodule TuistWeb.Marketing.MarketingController do
     )
     |> assign(
       :head_image,
-      Tuist.Environment.app_url(path: OpenGraph.marketing_og_image_path("/marketing/images/og/generated/home.jpg"))
+      Tuist.Environment.app_url(
+        path: OpenGraph.marketing_og_image_path("/marketing/images/og/generated/home.jpg")
+      )
     )
     |> assign(:head_twitter_card, "summary_large_image")
     |> assign(:featured_testimonials, get_featured_testimonials(locale))
@@ -247,7 +251,9 @@ defmodule TuistWeb.Marketing.MarketingController do
     )
     |> assign(
       :head_image,
-      Tuist.Environment.app_url(path: OpenGraph.marketing_og_image_path("/marketing/images/og/generated/about.jpg"))
+      Tuist.Environment.app_url(
+        path: OpenGraph.marketing_og_image_path("/marketing/images/og/generated/about.jpg")
+      )
     )
     |> assign(:head_twitter_card, "summary_large_image")
     |> assign(
@@ -269,7 +275,9 @@ defmodule TuistWeb.Marketing.MarketingController do
     )
     |> assign(
       :head_image,
-      Tuist.Environment.app_url(path: OpenGraph.marketing_og_image_path("/marketing/images/og/generated/support.jpg"))
+      Tuist.Environment.app_url(
+        path: OpenGraph.marketing_og_image_path("/marketing/images/og/generated/support.jpg")
+      )
     )
     |> assign(:head_twitter_card, "summary_large_image")
     |> assign(
@@ -286,7 +294,8 @@ defmodule TuistWeb.Marketing.MarketingController do
     |> assign_structured_data(
       get_breadcrumbs_structured_data([
         {dgettext("marketing", "Tuist"), Tuist.Environment.app_url(path: ~p"/")},
-        {dgettext("marketing", "Swift Stories Newsletter"), Tuist.Environment.app_url(path: ~p"/newsletter")}
+        {dgettext("marketing", "Swift Stories Newsletter"),
+         Tuist.Environment.app_url(path: ~p"/newsletter")}
       ])
     )
     |> assign(
@@ -341,7 +350,10 @@ defmodule TuistWeb.Marketing.MarketingController do
             |> assign(
               :head_image,
               Tuist.Environment.app_url(
-                path: OpenGraph.marketing_og_image_path("/marketing/images/og/generated/tuist-digest.jpg")
+                path:
+                  OpenGraph.marketing_og_image_path(
+                    "/marketing/images/og/generated/tuist-digest.jpg"
+                  )
               )
             )
             |> assign(:head_twitter_card, "summary_large_image")
@@ -355,7 +367,10 @@ defmodule TuistWeb.Marketing.MarketingController do
             |> assign(
               :head_image,
               Tuist.Environment.app_url(
-                path: OpenGraph.marketing_og_image_path("/marketing/images/og/generated/tuist-digest.jpg")
+                path:
+                  OpenGraph.marketing_og_image_path(
+                    "/marketing/images/og/generated/tuist-digest.jpg"
+                  )
               )
             )
             |> assign(:head_twitter_card, "summary_large_image")
@@ -373,7 +388,8 @@ defmodule TuistWeb.Marketing.MarketingController do
         |> assign(
           :head_image,
           Tuist.Environment.app_url(
-            path: OpenGraph.marketing_og_image_path("/marketing/images/og/generated/tuist-digest.jpg")
+            path:
+              OpenGraph.marketing_og_image_path("/marketing/images/og/generated/tuist-digest.jpg")
           )
         )
         |> assign(:head_twitter_card, "summary_large_image")
@@ -423,7 +439,9 @@ defmodule TuistWeb.Marketing.MarketingController do
 
         nil ->
           raise NotFoundError,
-                dgettext("marketing", "The newsletter issue %{issue_number} was not found.", issue_number: issue_number)
+                dgettext("marketing", "The newsletter issue %{issue_number} was not found.",
+                  issue_number: issue_number
+                )
       end
 
     conn =
@@ -488,6 +506,13 @@ defmodule TuistWeb.Marketing.MarketingController do
 
     post_urls = Enum.map(Blog.get_posts(), &Tuist.Environment.app_url(path: &1.slug))
 
+    case_study_urls =
+      for locale <- Localization.all_locales(),
+          case_study <- Customers.get_case_studies() do
+        localized_path = Localization.localized_href(case_study.slug, locale)
+        Tuist.Environment.app_url(path: localized_path)
+      end
+
     newsletter_issue_urls =
       Enum.map(
         Newsletter.issues(),
@@ -510,7 +535,9 @@ defmodule TuistWeb.Marketing.MarketingController do
         &Tuist.Environment.app_url(path: Tuist.Docs.Paths.public_path_from_slug(&1))
       )
 
-    entries = localized_entries ++ page_urls ++ post_urls ++ newsletter_issue_urls ++ docs_urls
+    entries =
+      localized_entries ++
+        case_study_urls ++ page_urls ++ post_urls ++ newsletter_issue_urls ++ docs_urls
 
     conn
     |> assign(:entries, entries)
@@ -568,18 +595,20 @@ defmodule TuistWeb.Marketing.MarketingController do
   end
 
   def case_study(%{request_path: request_path} = conn, _params) do
+    locale = Gettext.get_locale(TuistWeb.Gettext)
     request_path = Localization.path_without_locale(request_path)
-
-    case_study =
-      Enum.find(Customers.get_case_studies(), &(&1.slug == String.trim_trailing(request_path, "/")))
+    case_study = Customers.get_case_study(request_path, locale)
 
     if is_nil(case_study) do
       raise NotFoundError
     else
       related_case_studies =
-        Customers.get_case_studies()
+        Customers.get_case_studies(locale)
         |> Enum.reject(&(&1.slug == case_study.slug))
         |> Enum.take_random(3)
+
+      customers_path = Localization.localized_href("/customers", locale)
+      case_study_path = Localization.localized_href(case_study.slug, locale)
 
       conn
       |> assign(:head_title, case_study.title)
@@ -592,11 +621,11 @@ defmodule TuistWeb.Marketing.MarketingController do
       |> assign_structured_data(
         get_breadcrumbs_structured_data([
           {dgettext("marketing", "Tuist"), Tuist.Environment.app_url(path: ~p"/")},
-          {dgettext("marketing", "Customers"), Tuist.Environment.app_url(path: ~p"/customers")},
-          {case_study.title, Tuist.Environment.app_url(path: case_study.slug)}
+          {dgettext("marketing", "Customers"), Tuist.Environment.app_url(path: customers_path)},
+          {case_study.title, Tuist.Environment.app_url(path: case_study_path)}
         ])
       )
-      |> assign_structured_data(get_case_study_article_structured_data(case_study))
+      |> assign_structured_data(get_case_study_article_structured_data(case_study, locale))
       |> assign(:case_study, case_study)
       |> assign(:related_case_studies, related_case_studies)
       |> render(:case_study, layout: false)
@@ -615,7 +644,8 @@ defmodule TuistWeb.Marketing.MarketingController do
          <p>Our commitment to open-source and our core values shape our unique approach to pricing. Unlike many models that try to extract every dollar from you with "contact sales" calls, limited demos, and other sales tactics, we believe in fairness and transparency. We treat everyone equally and set prices that are fair for all. By choosing our services, you are not only getting a great product but also supporting the development of more open-source projects. We see building a thriving business as a long-term journey, not a short-term sprint filled with shady practices. You can %{read_more}  about our philosophy.</p>
          <p>By supporting Tuist, you are also supporting the development of more open-source software for the Swift ecosystem.</p>
          """,
-         read_more: "<a href=\"#{~p"/blog/2024/11/05/our-pricing-philosophy"}\">#{dgettext("marketing", "read more")}</a>"
+         read_more:
+           "<a href=\"#{~p"/blog/2024/11/05/our-pricing-philosophy"}\">#{dgettext("marketing", "read more")}</a>"
        )},
       {dgettext("marketing", "How can I estimate the cost of my project?"),
        dgettext(
@@ -639,7 +669,9 @@ defmodule TuistWeb.Marketing.MarketingController do
     |> assign(:plans, plans)
     |> assign(
       :head_image,
-      Tuist.Environment.app_url(path: OpenGraph.marketing_og_image_path("/marketing/images/og/generated/pricing.jpg"))
+      Tuist.Environment.app_url(
+        path: OpenGraph.marketing_og_image_path("/marketing/images/og/generated/pricing.jpg")
+      )
     )
     |> assign(:head_twitter_card, "summary_large_image")
     |> assign_structured_data(get_faq_structured_data(faqs))

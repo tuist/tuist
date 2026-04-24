@@ -12,6 +12,7 @@ defmodule TuistWeb.Marketing.StructuredMarkup do
     statics: TuistWeb.static_paths()
 
   alias Tuist.Marketing.Blog
+  alias TuistWeb.Marketing.Localization
   alias TuistWeb.Marketing.StructuredMarkup
 
   def assign_structured_data(%Plug.Conn{} = conn, data) do
@@ -109,7 +110,8 @@ defmodule TuistWeb.Marketing.StructuredMarkup do
             "name" => "Tuist #{plan.name}",
             "url" => Tuist.Environment.app_url(path: ~p"/pricing"),
             "priceCurrency" => "USD",
-            "price" => if(plan.price == "Free", do: "0.00", else: String.trim_leading(plan.price, "$")),
+            "price" =>
+              if(plan.price == "Free", do: "0.00", else: String.trim_leading(plan.price, "$")),
             "description" => plan.description,
             "availability" => "https://schema.org/InStock",
             "priceValidUntil" => "2025-12-31",
@@ -216,7 +218,8 @@ defmodule TuistWeb.Marketing.StructuredMarkup do
       "@context" => "https://schema.org",
       "@type" => "ItemList",
       "name" => dgettext("marketing", "Changelog"),
-      "description" => dgettext("marketing", "Stay updated with the latest changes and improvements in Tuist."),
+      "description" =>
+        dgettext("marketing", "Stay updated with the latest changes and improvements in Tuist."),
       "publisher" => StructuredMarkup.get_organization_structured_data(),
       "itemListElement" =>
         entries
@@ -254,15 +257,16 @@ defmodule TuistWeb.Marketing.StructuredMarkup do
     }
   end
 
-  def get_case_study_article_structured_data(case_study) do
+  def get_case_study_article_structured_data(case_study, locale \\ "en") do
     date_time = DateTime.new!(case_study.date, ~T[00:00:00], "Etc/UTC")
+    case_study_path = Localization.localized_href(case_study.slug, locale)
 
     %{
       "@context" => "https://schema.org",
       "@type" => "Article",
       "mainEntityOfPage" => %{
         "@type" => "WebPage",
-        "@id" => Tuist.Environment.app_url(path: case_study.slug)
+        "@id" => Tuist.Environment.app_url(path: case_study_path)
       },
       "headline" => case_study.title,
       "description" => case_study.excerpt,
@@ -279,7 +283,7 @@ defmodule TuistWeb.Marketing.StructuredMarkup do
     }
   end
 
-  def get_case_studies_structured_data(cases) do
+  def get_case_studies_structured_data(cases, locale \\ "en") do
     %{
       "@context" => "https://schema.org",
       "@type" => "CollectionPage",
@@ -289,11 +293,14 @@ defmodule TuistWeb.Marketing.StructuredMarkup do
           cases
           |> Enum.with_index()
           |> Enum.map(fn {case_study, index} ->
-            case_study |> get_case_study_article_structured_data() |> Map.put("position", index + 1)
+            case_study
+            |> get_case_study_article_structured_data(locale)
+            |> Map.put("position", index + 1)
           end)
       },
       "name" => dgettext("marketing", "Tuist Customers"),
-      "description" => dgettext("marketing", "Learn how teams use Tuist to scale their iOS development."),
+      "description" =>
+        dgettext("marketing", "Learn how teams use Tuist to scale their iOS development."),
       "publisher" => StructuredMarkup.get_organization_structured_data()
     }
   end
