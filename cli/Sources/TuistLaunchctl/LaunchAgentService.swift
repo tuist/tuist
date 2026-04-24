@@ -136,13 +136,9 @@ public struct LaunchAgentService: LaunchAgentServicing {
             components: "Library", "LaunchAgents", plistFileName
         )
 
-        do {
+        if try await launchctlController.isLoaded(label: label) {
             try await launchctlController.bootout(label: label)
             Logger.current.debug("Booted out LaunchAgent")
-        } catch {
-            Logger.current.debug(
-                "Failed to boot out LaunchAgent (it may not be loaded): \(error.localizedDescription)"
-            )
         }
 
         if try await fileSystem.exists(plistPath) {
