@@ -638,36 +638,32 @@ impl Store {
 
     async fn persist_inline_artifact_with_version(
         &self,
-        producer: ArtifactProducer,
-        namespace_id: &str,
-        key: &str,
-        content_type: &str,
+        spec: PersistArtifactSpec<'_>,
         bytes: &[u8],
-        version_ms: u64,
-        replication_targets: &[String],
     ) -> Result<PersistArtifactOutcome, String> {
-        let artifact_id = artifact_storage_id(producer, &self.tenant_id, namespace_id, key);
+        let artifact_id =
+            artifact_storage_id(spec.producer, &self.tenant_id, spec.namespace_id, spec.key);
 
         let existing = self.manifest_from_db(&artifact_id)?;
         if let Some(existing) = &existing
             && existing.inline
             && self.inline_bytes(&artifact_id)?.is_some()
-            && (manifest_version_ms(existing) >= version_ms || version_ms == 0)
+            && (manifest_version_ms(existing) >= spec.version_ms || spec.version_ms == 0)
         {
             return Ok(PersistArtifactOutcome::IgnoredStale(existing.clone()));
         }
-        if self.namespace_tombstone_blocks(namespace_id, version_ms)? {
+        if self.namespace_tombstone_blocks(spec.namespace_id, spec.version_ms)? {
             return Ok(PersistArtifactOutcome::IgnoredTombstone);
         }
 
-        let persisted_version_ms = persisted_version_ms(version_ms);
+        let persisted_version_ms = persisted_version_ms(spec.version_ms);
 
         let manifest = ArtifactManifest {
             artifact_id: artifact_id.clone(),
-            producer,
-            namespace_id: namespace_id.to_owned(),
-            key: key.to_owned(),
-            content_type: content_type.to_owned(),
+            producer: spec.producer,
+            namespace_id: spec.namespace_id.to_owned(),
+            key: spec.key.to_owned(),
+            content_type: spec.content_type.to_owned(),
             inline: true,
             blob_path: None,
             segment_id: None,
@@ -691,7 +687,7 @@ impl Store {
             namespace_artifact_index_key(&metadata.namespace_id, &artifact_id).as_bytes(),
             [],
         );
-        self.append_artifact_replication_messages(&mut batch, &manifest, replication_targets)?;
+        self.append_artifact_replication_messages(&mut batch, &manifest, spec.replication_targets)?;
 
         self.write_batch_sync(batch, "keyvalue batch")?;
         self.maybe_cache_manifest(manifest.clone());
@@ -1031,16 +1027,16 @@ impl Store {
         content_type: &str,
         bytes: &[u8],
     ) -> Result<ArtifactManifest, String> {
+        let spec = PersistArtifactSpec {
+            producer,
+            namespace_id,
+            key,
+            content_type,
+            version_ms: now_ms(),
+            replication_targets: &[],
+        };
         match self
-            .persist_inline_artifact_with_version(
-                producer,
-                namespace_id,
-                key,
-                content_type,
-                bytes,
-                now_ms(),
-                &[],
-            )
+            .persist_inline_artifact_with_version(spec, bytes)
             .await?
         {
             PersistArtifactOutcome::Applied(manifest)
@@ -1060,16 +1056,16 @@ impl Store {
         bytes: &[u8],
         replication_targets: &[String],
     ) -> Result<ArtifactManifest, String> {
+        let spec = PersistArtifactSpec {
+            producer,
+            namespace_id,
+            key,
+            content_type,
+            version_ms: now_ms(),
+            replication_targets,
+        };
         match self
-            .persist_inline_artifact_with_version(
-                producer,
-                namespace_id,
-                key,
-                content_type,
-                bytes,
-                now_ms(),
-                replication_targets,
-            )
+            .persist_inline_artifact_with_version(spec, bytes)
             .await?
         {
             PersistArtifactOutcome::Applied(manifest)
@@ -1113,16 +1109,16 @@ impl Store {
         bytes: &[u8],
         version_ms: u64,
     ) -> Result<ArtifactApplyOutcome, String> {
+        let spec = PersistArtifactSpec {
+            producer,
+            namespace_id,
+            key,
+            content_type,
+            version_ms,
+            replication_targets: &[],
+        };
         Ok(self
-            .persist_inline_artifact_with_version(
-                producer,
-                namespace_id,
-                key,
-                content_type,
-                bytes,
-                version_ms,
-                &[],
-            )
+            .persist_inline_artifact_with_version(spec, bytes)
             .await?
             .apply_outcome())
     }
