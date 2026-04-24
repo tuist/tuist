@@ -2,10 +2,7 @@ import FileSystem
 import Foundation
 import Path
 import ProjectDescription
-import TuistAlert
-import TuistConstants
 import TuistCore
-import TuistSupport
 import XcodeGraph
 
 extension XcodeGraph.TestAction {
@@ -110,109 +107,5 @@ extension XcodeGraph.TestAction {
             testPlans: testPlans,
             skippedTests: skippedTests
         )
-    }
-}
-
-extension XcodeGraph.TestPlan {
-    /// Resolves a list of `ProjectDescription.TestPlan` entries into the graph's `TestPlan` values,
-    /// expanding globs for path entries and computing derived paths for generated ones. The first
-    /// resolved plan is marked as the default.
-    static func resolve(
-        entries: [ProjectDescription.TestPlan],
-        generatorPaths: GeneratorPaths,
-        schemeName: String?,
-        fileSystem: FileSystem
-    ) async throws -> [XcodeGraph.TestPlan] {
-        let derivedDirectory = generatorPaths.manifestDirectory
-            .appending(
-                components: Constants.DerivedDirectory.name,
-                Constants.DerivedDirectory.testPlans
-            )
-
-        var resolved: [XcodeGraph.TestPlan] = []
-        for entry in entries {
-            switch entry {
-            case let .path(path):
-                try await appendPathEntry(
-                    path: path,
-                    generatorPaths: generatorPaths,
-                    schemeName: schemeName,
-                    fileSystem: fileSystem,
-                    into: &resolved
-                )
-            case let .generated(name, testTargets, path):
-                let resolvedPath: AbsolutePath = if let explicitPath = path {
-                    try generatorPaths.resolve(path: explicitPath)
-                } else {
-                    derivedDirectory.appending(component: "\(name).xctestplan")
-                }
-                let targets = try testTargets.map {
-                    try XcodeGraph.TestableTarget.from(manifest: $0, generatorPaths: generatorPaths)
-                }
-                resolved.append(
-                    XcodeGraph.TestPlan(
-                        path: resolvedPath,
-                        testTargets: targets,
-                        isDefault: resolved.isEmpty,
-                        kind: .generated
-                    )
-                )
-            }
-        }
-
-        return resolved
-    }
-
-    private static func appendPathEntry(
-        path: ProjectDescription.Path,
-        generatorPaths: GeneratorPaths,
-        schemeName: String?,
-        fileSystem: FileSystem,
-        into resolved: inout [XcodeGraph.TestPlan]
-    ) async throws {
-        let resolvedPath = try generatorPaths.resolve(path: path)
-        let pathString = resolvedPath.pathString
-
-        if pathString.contains("*") {
-            let globPathString = String(pathString.dropFirst())
-            do {
-                let globPaths = try await fileSystem
-                    .throwingGlob(directory: .root, include: [globPathString])
-                    .collect()
-                    .filter { $0.extension == "xctestplan" }
-                    .sorted()
-
-                for globPath in globPaths {
-                    let testPlan = try await TestPlan.from(
-                        path: globPath,
-                        isDefault: resolved.isEmpty,
-                        generatorPaths: generatorPaths
-                    )
-                    resolved.append(testPlan)
-                }
-            } catch GlobError.nonExistentDirectory {
-                // Skip non-existent glob patterns.
-            }
-            return
-        }
-
-        guard try await fileSystem.exists(resolvedPath) else {
-            let schemeContext = schemeName.map { " referenced by the scheme '\($0)'" } ?? ""
-            AlertController.current.warning(
-                .alert(
-                    "Test plan \(resolvedPath.basename) does not exist at \(resolvedPath.pathString)\(schemeContext)"
-                )
-            )
-            return
-        }
-
-        guard resolvedPath.extension == "xctestplan" else { return }
-
-        let testPlan = try await TestPlan.from(
-            path: resolvedPath,
-            isDefault: resolved.isEmpty,
-            generatorPaths: generatorPaths
-        )
-        resolved.append(testPlan)
     }
 }
