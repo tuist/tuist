@@ -194,13 +194,13 @@ struct TestActionManifestMapperTests {
         let projectPath = temporaryDirectory.appending(component: "App.xcodeproj")
 
         let manifest = ProjectDescription.TestAction.testPlans([
-            ProjectDescription.TestPlan(
+            .generated(
                 name: "UnitTests",
                 testTargets: [
                     .testableTarget(target: .project(path: .path(projectPath.pathString), target: "AppTests")),
                 ]
             ),
-            ProjectDescription.TestPlan(
+            .generated(
                 name: "SnapshotTests",
                 testTargets: [
                     .testableTarget(target: .project(path: .path(projectPath.pathString), target: "AppSnapshotTests")),
@@ -235,12 +235,12 @@ struct TestActionManifestMapperTests {
         let projectPath = temporaryDirectory.appending(component: "App.xcodeproj")
 
         let manifest = ProjectDescription.TestAction.testPlans([
-            ProjectDescription.TestPlan(
+            .generated(
                 name: "UnitTests",
-                path: .path(explicitPath.pathString),
                 testTargets: [
                     .testableTarget(target: .project(path: .path(projectPath.pathString), target: "AppTests")),
-                ]
+                ],
+                path: .path(explicitPath.pathString)
             ),
         ])
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryDirectory, rootDirectory: temporaryDirectory)
@@ -256,19 +256,51 @@ struct TestActionManifestMapperTests {
         #expect(testAction.testPlans?.first?.isGenerated == true)
     }
 
+    @Test(.inTemporaryDirectory) func action_mixes_generated_and_preconfigured_plans() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let preConfiguredPath = temporaryDirectory.appending(component: "Legacy.xctestplan")
+        try await fileSystem.writeText(testPlanContent, at: preConfiguredPath)
+        let projectPath = temporaryDirectory.appending(component: "App.xcodeproj")
+
+        let manifest = ProjectDescription.TestAction.testPlans([
+            .generated(
+                name: "UnitTests",
+                testTargets: [
+                    .testableTarget(target: .project(path: .path(projectPath.pathString), target: "AppTests")),
+                ]
+            ),
+            .preConfigured(path: .path(preConfiguredPath.pathString)),
+        ])
+        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryDirectory, rootDirectory: temporaryDirectory)
+
+        // When
+        let testAction = try await XcodeGraph.TestAction.from(
+            manifest: manifest,
+            generatorPaths: generatorPaths
+        )
+
+        // Then
+        #expect(testAction.testPlans?.count == 2)
+        #expect(testAction.testPlans?[0].isGenerated == true)
+        #expect(testAction.testPlans?[0].isDefault == true)
+        #expect(testAction.testPlans?[1].isGenerated == false)
+        #expect(testAction.testPlans?[1].path == preConfiguredPath)
+    }
+
     @Test(.inTemporaryDirectory) func action_with_generated_test_plans_respects_explicit_default() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let projectPath = temporaryDirectory.appending(component: "App.xcodeproj")
 
         let manifest = ProjectDescription.TestAction.testPlans([
-            ProjectDescription.TestPlan(
+            .generated(
                 name: "UnitTests",
                 testTargets: [
                     .testableTarget(target: .project(path: .path(projectPath.pathString), target: "AppTests")),
                 ]
             ),
-            ProjectDescription.TestPlan(
+            .generated(
                 name: "SnapshotTests",
                 testTargets: [
                     .testableTarget(target: .project(path: .path(projectPath.pathString), target: "AppSnapshotTests")),

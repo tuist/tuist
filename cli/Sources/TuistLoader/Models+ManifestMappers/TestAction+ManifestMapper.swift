@@ -35,36 +35,15 @@ extension XcodeGraph.TestAction {
         let skippedTests: [String]?
         let fileSystem = FileSystem()
 
-        if let generatedPlans = manifest.generatedTestPlans, !generatedPlans.isEmpty {
-            let hasExplicitDefault = generatedPlans.contains(where: \.isDefault)
-            let derivedDirectory = generatorPaths.manifestDirectory
-                .appending(
-                    components: Constants.DerivedDirectory.name,
-                    Constants.DerivedDirectory.testPlans
-                )
-            var resolvedTestPlans: [XcodeGraph.TestPlan] = []
+        if let entries = manifest.testPlanEntries, !entries.isEmpty {
+            let resolvedTestPlans = try await XcodeGraph.TestPlan.resolve(
+                entries: entries,
+                generatorPaths: generatorPaths,
+                schemeName: schemeName,
+                fileSystem: fileSystem
+            )
 
-            for (index, plan) in generatedPlans.enumerated() {
-                let resolvedPath: AbsolutePath = if let explicitPath = plan.path {
-                    try generatorPaths.resolve(path: explicitPath)
-                } else {
-                    derivedDirectory.appending(component: "\(plan.name).xctestplan")
-                }
-                let testTargets = try plan.testTargets.map {
-                    try XcodeGraph.TestableTarget.from(manifest: $0, generatorPaths: generatorPaths)
-                }
-                let isDefault = hasExplicitDefault ? plan.isDefault : index == 0
-                resolvedTestPlans.append(
-                    XcodeGraph.TestPlan(
-                        path: resolvedPath,
-                        testTargets: testTargets,
-                        isDefault: isDefault,
-                        isGenerated: true
-                    )
-                )
-            }
-
-            testPlans = resolvedTestPlans
+            testPlans = resolvedTestPlans.isEmpty ? nil : resolvedTestPlans
 
             targets = []
             arguments = nil
@@ -76,61 +55,17 @@ extension XcodeGraph.TestAction {
             region = nil
             preferredScreenCaptureFormat = nil
             skippedTests = nil
-        } else if let plans = manifest.testPlans {
-            var resolvedTestPlans: [XcodeGraph.TestPlan] = []
-
-            for path in plans {
-                let resolvedPath = try generatorPaths.resolve(path: path)
-                let pathString = resolvedPath.pathString
-
-                // Check if path contains glob patterns
-                if pathString.contains("*") {
-                    let globPathString = String(pathString.dropFirst())
-
-                    do {
-                        let globPaths = try await fileSystem
-                            .throwingGlob(directory: .root, include: [globPathString])
-                            .collect()
-                            .filter { $0.extension == "xctestplan" }
-                            .sorted()
-
-                        for globPath in globPaths {
-                            let testPlan = try await TestPlan.from(
-                                path: globPath,
-                                isDefault: resolvedTestPlans.isEmpty,
-                                generatorPaths: generatorPaths
-                            )
-                            resolvedTestPlans.append(testPlan)
-                        }
-                    } catch GlobError.nonExistentDirectory {
-                        // Skip non-existent glob patterns
-                        continue
-                    }
-                } else {
-                    // Handle as literal path
-                    if try await fileSystem.exists(resolvedPath) {
-                        if resolvedPath.extension == "xctestplan" {
-                            let testPlan = try await TestPlan.from(
-                                path: resolvedPath,
-                                isDefault: resolvedTestPlans.isEmpty,
-                                generatorPaths: generatorPaths
-                            )
-                            resolvedTestPlans.append(testPlan)
-                        }
-                    } else {
-                        let schemeContext = schemeName.map { " referenced by the scheme '\($0)'" } ?? ""
-                        AlertController.current.warning(
-                            .alert(
-                                "Test plan \(resolvedPath.basename) does not exist at \(resolvedPath.pathString)\(schemeContext)"
-                            )
-                        )
-                    }
-                }
-            }
+        } else if let paths = manifest.testPlans {
+            let entries = paths.map { ProjectDescription.TestPlan.preConfigured(path: $0) }
+            let resolvedTestPlans = try await XcodeGraph.TestPlan.resolve(
+                entries: entries,
+                generatorPaths: generatorPaths,
+                schemeName: schemeName,
+                fileSystem: fileSystem
+            )
 
             testPlans = resolvedTestPlans.isEmpty ? nil : resolvedTestPlans
 
-            // not used when using test plans
             targets = []
             arguments = nil
             coverage = false
@@ -196,5 +131,122 @@ extension XcodeGraph.TestAction {
             testPlans: testPlans,
             skippedTests: skippedTests
         )
+    }
+}
+
+extension XcodeGraph.TestPlan {
+    /// Resolves a list of `ProjectDescription.TestPlan` entries into the graph's `TestPlan` values,
+    /// expanding globs for pre-configured files and computing derived paths for generated ones.
+    ///
+    /// If no entry sets `isDefault`, the first resolved plan is marked as the default.
+    static func resolve(
+        entries: [ProjectDescription.TestPlan],
+        generatorPaths: GeneratorPaths,
+        schemeName: String?,
+        fileSystem: FileSystem
+    ) async throws -> [XcodeGraph.TestPlan] {
+        let hasExplicitDefault = entries.contains { entry in
+            switch entry {
+            case let .preConfigured(_, isDefault): isDefault
+            case let .generated(_, _, _, isDefault): isDefault
+            }
+        }
+        let derivedDirectory = generatorPaths.manifestDirectory
+            .appending(
+                components: Constants.DerivedDirectory.name,
+                Constants.DerivedDirectory.testPlans
+            )
+
+        var resolved: [XcodeGraph.TestPlan] = []
+        for entry in entries {
+            switch entry {
+            case let .preConfigured(path, isDefault):
+                try await appendPreConfigured(
+                    path: path,
+                    markAsDefault: hasExplicitDefault ? isDefault : resolved.isEmpty,
+                    generatorPaths: generatorPaths,
+                    schemeName: schemeName,
+                    fileSystem: fileSystem,
+                    into: &resolved,
+                    hasExplicitDefault: hasExplicitDefault
+                )
+            case let .generated(name, testTargets, path, isDefault):
+                let resolvedPath: AbsolutePath = if let explicitPath = path {
+                    try generatorPaths.resolve(path: explicitPath)
+                } else {
+                    derivedDirectory.appending(component: "\(name).xctestplan")
+                }
+                let targets = try testTargets.map {
+                    try XcodeGraph.TestableTarget.from(manifest: $0, generatorPaths: generatorPaths)
+                }
+                resolved.append(
+                    XcodeGraph.TestPlan(
+                        path: resolvedPath,
+                        testTargets: targets,
+                        isDefault: hasExplicitDefault ? isDefault : resolved.isEmpty,
+                        isGenerated: true
+                    )
+                )
+            }
+        }
+
+        return resolved
+    }
+
+    private static func appendPreConfigured(
+        path: ProjectDescription.Path,
+        markAsDefault: Bool,
+        generatorPaths: GeneratorPaths,
+        schemeName: String?,
+        fileSystem: FileSystem,
+        into resolved: inout [XcodeGraph.TestPlan],
+        hasExplicitDefault: Bool
+    ) async throws {
+        let resolvedPath = try generatorPaths.resolve(path: path)
+        let pathString = resolvedPath.pathString
+
+        if pathString.contains("*") {
+            let globPathString = String(pathString.dropFirst())
+            do {
+                let globPaths = try await fileSystem
+                    .throwingGlob(directory: .root, include: [globPathString])
+                    .collect()
+                    .filter { $0.extension == "xctestplan" }
+                    .sorted()
+
+                for globPath in globPaths {
+                    let isDefault = hasExplicitDefault ? markAsDefault : resolved.isEmpty
+                    let testPlan = try await TestPlan.from(
+                        path: globPath,
+                        isDefault: isDefault,
+                        generatorPaths: generatorPaths
+                    )
+                    resolved.append(testPlan)
+                }
+            } catch GlobError.nonExistentDirectory {
+                // Skip non-existent glob patterns.
+            }
+            return
+        }
+
+        guard try await fileSystem.exists(resolvedPath) else {
+            let schemeContext = schemeName.map { " referenced by the scheme '\($0)'" } ?? ""
+            AlertController.current.warning(
+                .alert(
+                    "Test plan \(resolvedPath.basename) does not exist at \(resolvedPath.pathString)\(schemeContext)"
+                )
+            )
+            return
+        }
+
+        guard resolvedPath.extension == "xctestplan" else { return }
+
+        let isDefault = hasExplicitDefault ? markAsDefault : resolved.isEmpty
+        let testPlan = try await TestPlan.from(
+            path: resolvedPath,
+            isDefault: isDefault,
+            generatorPaths: generatorPaths
+        )
+        resolved.append(testPlan)
     }
 }
