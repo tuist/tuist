@@ -282,6 +282,10 @@ url = "https://github.com/rclone/rclone/releases/download/v1.73.3/rclone-v1.73.3
 checksum = "sha256:1c51142576194d124ffa9654f45bab972530da22a3a339509bf9bed399f9dea3"
 url = "https://github.com/rclone/rclone/releases/download/v1.73.3/rclone-v1.73.3-windows-amd64.zip"
 
+[[tools.rust]]
+version = "1.94.1"
+backend = "core:rust"
+
 [[tools.sops]]
 version = "3.9.3"
 backend = "aqua:getsops/sops"

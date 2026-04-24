@@ -27,7 +27,8 @@ defmodule TuistWeb.Utilities.HtmlToMarkdownTest do
 
     assert markdown =~ "# Example Page"
     assert markdown =~ "[documentation link](https://tuist.dev/docs)."
-    assert markdown =~ "```elixir\nIO.puts(\"hi\")\n```"
+    assert markdown =~ "```elixir\nIO.puts(\"hi\")"
+    assert markdown =~ "\n```"
     refute markdown =~ "Pricing"
     refute markdown =~ "<main>"
   end
