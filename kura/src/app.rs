@@ -8,6 +8,7 @@ use std::{
 use axum_server::Handle;
 use hyper_util::rt::TokioTimer;
 use tokio::sync::{Notify, RwLock};
+use tokio::time::Instant;
 use tracing::info;
 
 use crate::{
@@ -78,7 +79,14 @@ pub async fn run() -> Result<(), String> {
         peer_nodes: RwLock::new(BTreeMap::new()),
         bootstrapped_peers: tokio::sync::Mutex::new(BTreeSet::new()),
         bootstrap_inflight_peers: tokio::sync::Mutex::new(BTreeSet::new()),
+        readiness_settle_until: tokio::sync::Mutex::new(Instant::now()),
     });
+    if state.clear_stale_drain_marker().await? {
+        info!(
+            "Cleared stale drain marker at {}",
+            state.drain_marker_path().display()
+        );
+    }
     state.sync_runtime_metrics().await;
 
     spawn_membership_task(state.clone());

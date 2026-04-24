@@ -1760,7 +1760,7 @@ mod tests {
             .write()
             .await
             .insert(peer.clone(), "remote".into());
-        context.state.mark_initial_discovery_completed();
+        context.state.mark_initial_discovery_completed().await;
         assert!(context.state.note_bootstrap_started(&peer).await);
 
         let response = public_router(context.state.clone())
@@ -1795,6 +1795,25 @@ mod tests {
             )
             .await
             .expect("ready route should respond");
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        let body: Value = serde_json::from_str(&response_text(response).await)
+            .expect("ready response should be json");
+        assert_eq!(body["state"], "joining");
+        assert_eq!(body["ready"], false);
+        assert!(body["reasons"].to_string().contains("discovery settling"));
+
+        context.state.expire_readiness_settle_window().await;
+        context.state.maybe_mark_serving().await;
+
+        let response = public_router(context.state.clone())
+            .oneshot(
+                Request::builder()
+                    .uri("/ready")
+                    .body(Body::empty())
+                    .expect("failed to build request"),
+            )
+            .await
+            .expect("ready route should respond");
         assert_eq!(response.status(), StatusCode::OK);
         let body: Value = serde_json::from_str(&response_text(response).await)
             .expect("ready response should be json");
@@ -1805,7 +1824,8 @@ mod tests {
     #[tokio::test]
     async fn ready_reports_draining_state() {
         let context = test_context(|_| {}).await;
-        context.state.mark_initial_discovery_completed();
+        context.state.mark_initial_discovery_completed().await;
+        context.state.expire_readiness_settle_window().await;
         context.state.maybe_mark_serving().await;
         context.state.enter_draining();
 
@@ -1829,7 +1849,8 @@ mod tests {
     #[tokio::test]
     async fn draining_public_requests_return_service_unavailable_and_close_http1_connections() {
         let context = test_context(|_| {}).await;
-        context.state.mark_initial_discovery_completed();
+        context.state.mark_initial_discovery_completed().await;
+        context.state.expire_readiness_settle_window().await;
         context.state.maybe_mark_serving().await;
         context.state.enter_draining();
 
@@ -1848,6 +1869,27 @@ mod tests {
         assert_eq!(
             response.headers().get(axum::http::header::CONNECTION),
             Some(&HeaderValue::from_static("close"))
+        );
+    }
+
+    #[tokio::test]
+    async fn clear_stale_drain_marker_removes_existing_file() {
+        let context = test_context(|_| {}).await;
+        tokio::fs::write(context.state.drain_marker_path(), b"stale-marker")
+            .await
+            .expect("failed to create stale drain marker");
+
+        let removed = context
+            .state
+            .clear_stale_drain_marker()
+            .await
+            .expect("clearing stale marker should succeed");
+
+        assert!(removed);
+        assert!(
+            !tokio::fs::try_exists(context.state.drain_marker_path())
+                .await
+                .expect("marker existence check should succeed")
         );
     }
 

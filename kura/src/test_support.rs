@@ -9,6 +9,7 @@ use http_body_util::BodyExt;
 use reqwest::Client;
 use tempfile::TempDir;
 use tokio::sync::{Notify, RwLock};
+use tokio::time::Instant;
 
 use crate::{
     analytics::Analytics,
@@ -119,6 +120,7 @@ where
         peer_nodes: RwLock::new(BTreeMap::new()),
         bootstrapped_peers: tokio::sync::Mutex::new(BTreeSet::new()),
         bootstrap_inflight_peers: tokio::sync::Mutex::new(BTreeSet::new()),
+        readiness_settle_until: tokio::sync::Mutex::new(Instant::now()),
     });
     state.sync_runtime_metrics().await;
 

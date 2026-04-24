@@ -113,8 +113,10 @@ pub fn spawn_membership_task(state: SharedState) {
                 state.forget_peers(&lost_peers).await;
             }
             if !initial_discovery_completed {
-                state.mark_initial_discovery_completed();
+                state.mark_initial_discovery_completed().await;
                 initial_discovery_completed = true;
+            } else if !discovered_peers.is_empty() || !lost_peers.is_empty() {
+                state.extend_readiness_settle_window().await;
             }
             state
                 .metrics

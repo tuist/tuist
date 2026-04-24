@@ -1,5 +1,6 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
+    io::ErrorKind,
     path::PathBuf,
     sync::Arc,
 };
@@ -8,6 +9,7 @@ use reqwest::Client;
 use tokio::{
     fs,
     sync::{Mutex, Notify, RwLock},
+    time::{Duration, Instant},
 };
 
 use crate::{
@@ -20,6 +22,8 @@ use crate::{
     runtime::{DataDirLock, InflightGuard, RuntimeState, TrafficState},
     store::Store,
 };
+
+const READINESS_SETTLE_WINDOW: Duration = Duration::from_secs(5);
 
 pub struct AppState {
     pub config: Config,
@@ -37,6 +41,7 @@ pub struct AppState {
     pub peer_nodes: RwLock<BTreeMap<String, String>>,
     pub bootstrapped_peers: Mutex<BTreeSet<String>>,
     pub bootstrap_inflight_peers: Mutex<BTreeSet<String>>,
+    pub readiness_settle_until: Mutex<Instant>,
 }
 
 pub type SharedState = Arc<AppState>;
@@ -73,8 +78,37 @@ impl AppState {
         self.runtime.request_drain();
     }
 
-    pub fn mark_initial_discovery_completed(&self) {
+    pub async fn mark_initial_discovery_completed(&self) {
         self.runtime.mark_initial_discovery_completed();
+        self.extend_readiness_settle_window().await;
+    }
+
+    pub async fn clear_stale_drain_marker(&self) -> Result<bool, String> {
+        let drain_marker_path = self.drain_marker_path();
+        match fs::remove_file(&drain_marker_path).await {
+            Ok(()) => Ok(true),
+            Err(error) if error.kind() == ErrorKind::NotFound => Ok(false),
+            Err(error) => Err(format!(
+                "failed to clear stale drain marker {}: {error}",
+                drain_marker_path.display()
+            )),
+        }
+    }
+
+    pub async fn extend_readiness_settle_window(&self) {
+        if self.runtime.is_serving() {
+            return;
+        }
+        *self.readiness_settle_until.lock().await = Instant::now() + READINESS_SETTLE_WINDOW;
+    }
+
+    async fn readiness_settle_window_elapsed(&self) -> bool {
+        Instant::now() >= *self.readiness_settle_until.lock().await
+    }
+
+    #[cfg(test)]
+    pub async fn expire_readiness_settle_window(&self) {
+        *self.readiness_settle_until.lock().await = Instant::now();
     }
 
     pub async fn refresh_drain_marker(&self) -> Result<(), String> {
@@ -149,6 +183,7 @@ impl AppState {
         if self.runtime.is_draining()
             || self.runtime.is_serving()
             || !self.runtime.initial_discovery_completed()
+            || !self.readiness_settle_window_elapsed().await
         {
             return;
         }
@@ -171,6 +206,7 @@ impl AppState {
         let state = self.runtime.traffic_state();
         let writer_lock_owned = self.runtime.writer_lock_owned();
         let initial_discovery_completed = self.runtime.initial_discovery_completed();
+        let readiness_settled = self.readiness_settle_window_elapsed().await;
         let known_peers = self
             .peer_nodes
             .read()
@@ -201,6 +237,9 @@ impl AppState {
         }
         if !initial_discovery_completed {
             reasons.push("initial discovery incomplete".to_string());
+        }
+        if !self.runtime.is_serving() && initial_discovery_completed && !readiness_settled {
+            reasons.push("discovery settling".to_string());
         }
         if !self.runtime.is_serving() && !bootstrap_inflight_peers.is_empty() {
             reasons.push("bootstrap in progress".to_string());
