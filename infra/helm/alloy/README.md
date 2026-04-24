@@ -1,4 +1,8 @@
-# Grafana Alloy for the Tuist managed cluster
+# Grafana Alloy for the Tuist managed cluster (DEPRECATED)
+
+**Superseded by [`infra/helm/k8s-monitoring/`](../k8s-monitoring/README.md).** The new chart covers the same telemetry paths (Grafana Cloud Prometheus / Loki / Tempo, same ESO token sync) plus cluster / pod / node metrics and events, so the Grafana Cloud Kubernetes app works out of the box. Retained in-tree during the migration; delete this directory once the replacement is verified in production.
+
+---
 
 In-cluster telemetry collector. Forwards metrics, logs, and traces from the Tuist workloads to Grafana Cloud.
 

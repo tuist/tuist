@@ -147,7 +147,7 @@ helm upgrade --install external-secrets external-secrets/external-secrets \
 
 # 2) Stash the 1Password Service Account token in the cluster. The SA must
 #    have read access to the tuist-k8s-staging vault which holds MASTER_KEY
-#    (plus the Grafana Cloud tokens Alloy consumes).
+#    (plus the Grafana Cloud tokens the k8s-monitoring chart consumes).
 kubectl create namespace onepassword --dry-run=client -o yaml | kubectl apply -f -
 kubectl -n onepassword create secret generic onepassword-sa-token \
   --from-literal=token="$(op read 'op://Founders/<1p-item-uuid>/credential')" \
@@ -264,14 +264,18 @@ gh workflow run server-deployment.yml -f environment=staging
 
 ## 8. Observability
 
-The in-cluster Alloy chart at [`infra/helm/alloy/`](../helm/alloy/) forwards metrics / traces / logs to Grafana Cloud. Install it once per workload cluster:
+The in-cluster [`infra/helm/k8s-monitoring/`](../helm/k8s-monitoring/) chart forwards the full Kubernetes telemetry picture (cluster / pod / node metrics, events, pod logs, server traces) to Grafana Cloud. Install it once per workload cluster:
 
 ```bash
-helm upgrade --install alloy infra/helm/alloy \
-  -n observability --create-namespace
+helm dependency update infra/helm/k8s-monitoring
+helm upgrade --install k8s-monitoring infra/helm/k8s-monitoring \
+  -n observability --create-namespace \
+  -f infra/helm/k8s-monitoring/values-staging.yaml
 ```
 
 Prerequisite: the ClusterSecretStore from §5 must already exist — the chart pulls the three Grafana Cloud tokens (Prometheus, Loki, Tempo) through it.
+
+After install, check **Observability → Kubernetes** in Grafana Cloud for the cluster named `tuist-staging` / `tuist-canary` / `tuist-production`. Full verification steps live in [`infra/helm/k8s-monitoring/README.md`](../helm/k8s-monitoring/README.md).
 
 ## 9. Teardown
 

@@ -11,10 +11,13 @@ Umbrella chart for the server, cache, processor, and optional embedded infrastru
 
 When editing this chart, anything gated behind `managedSecrets` must stay gated so self-hosters aren't forced into the ESO dependency.
 
-### `helm/alloy/` — in-cluster Grafana Alloy (managed only)
-Ships telemetry (metrics / traces / logs) from the managed workload clusters to Grafana Cloud. Self-hosters get embedded Grafana / Prometheus / Loki / Tempo via the main chart's `observability.enabled` block instead; they never touch this chart.
+### `helm/k8s-monitoring/` — in-cluster Grafana Kubernetes Monitoring (managed only)
+Wraps the upstream `grafana/k8s-monitoring` chart and adds the 1Password-via-ESO token sync. Ships the full Kubernetes telemetry picture (cluster / pod / node metrics + events + pod logs + OTLP receiver for server traces) to Grafana Cloud, so the Grafana Cloud Kubernetes app lights up without dashboard imports. Self-hosters get embedded Grafana / Prometheus / Loki / Tempo via the main chart's `observability.enabled` block instead; they never touch this chart.
 
-README: [`helm/alloy/README.md`](helm/alloy/README.md).
+README: [`helm/k8s-monitoring/README.md`](helm/k8s-monitoring/README.md).
+
+### `helm/alloy/` — deprecated
+Predecessor to `helm/k8s-monitoring/`. Same Grafana Cloud destinations, narrower signal coverage (app metrics / server traces / pod logs only, no cluster/node metrics or events). Retained in-tree during the migration; delete once the new chart is verified in production.
 
 ### `helm/platform/` — platform bootstrap chart
 cert-manager + ingress-nginx + external-dns + ESO controllers, installed once per workload cluster. Provider-specific LB annotations live in per-provider overlays (e.g., `values-hetzner.yaml`).
@@ -41,5 +44,5 @@ Geo-routes cache registry requests to the nearest healthy cache origin based on 
 ## Conventions
 
 - Keep the main Tuist chart (`helm/tuist/`) provider-agnostic. Managed-cluster-specific behavior hides behind feature flags (`managedSecrets`, `externalSecrets`) that default to self-host-safe values.
-- Don't let `helm/alloy/` grow dependencies on things the self-host chart needs — the two are consumed by different users.
+- Don't let `helm/k8s-monitoring/` grow dependencies on things the self-host chart needs — the two are consumed by different users.
 - When a new managed-cluster operational step becomes reproducible, document it in `k8s/syself-onboarding.md` rather than in this AGENTS.md. This file maps the territory; the runbook walks you through it.
