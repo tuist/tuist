@@ -14015,6 +14015,164 @@ paths:
       summary: Get a test case by ID.
       tags:
         - Test Cases
+    put:
+      callbacks: {}
+      description: Updates mutable fields on a test case. Supports changing `state` (currently `enabled`, `muted`, or `skipped`) and toggling `is_flaky`. At least one of the fields must be provided. Corresponding events (`muted`/`unmuted`, `skipped`/`unskipped`, `marked_flaky`/`unmarked_flaky`) are recorded automatically when values transition.
+      operationId: updateTestCase
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The ID of the test case.
+          in: path
+          name: test_case_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                is_flaky:
+                  description: Whether to mark the test case as flaky.
+                  type: boolean
+                  x-struct:
+                  x-validate:
+                state:
+                  description: The new state of the test case. Currently one of `enabled`, `muted`, or `skipped`; the field is left as an open string so adding new states in the future doesn't break clients pinned to the older spec.
+                  type: string
+                  x-struct:
+                  x-validate:
+              type: object
+              x-struct:
+              x-validate:
+        description: Test case update params
+        required: false
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  id:
+                    description: The test case ID.
+                    format: uuid
+                    type: string
+                    x-struct:
+                    x-validate:
+                  is_flaky:
+                    description: Whether the test case is marked as flaky.
+                    type: boolean
+                    x-struct:
+                    x-validate:
+                  is_quarantined:
+                    deprecated: true
+                    description: 'Whether the test case is quarantined. Deprecated: use `state` instead.'
+                    type: boolean
+                    x-struct:
+                    x-validate:
+                  module:
+                    properties:
+                      id:
+                        description: ID of the module.
+                        type: string
+                        x-struct:
+                        x-validate:
+                      name:
+                        description: Name of the module.
+                        type: string
+                        x-struct:
+                        x-validate:
+                    required:
+                      - id
+                      - name
+                    type: object
+                    x-struct:
+                    x-validate:
+                  name:
+                    description: Name of the test case.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  state:
+                    description: The state of the test case. Currently one of `enabled`, `muted`, or `skipped`; the field is left as an open string so adding new states in the future doesn't break clients pinned to the older spec.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  suite:
+                    nullable: true
+                    properties:
+                      id:
+                        description: ID of the suite.
+                        type: string
+                        x-struct:
+                        x-validate:
+                      name:
+                        description: Name of the suite.
+                        type: string
+                        x-struct:
+                        x-validate:
+                    required:
+                      - id
+                      - name
+                    type: object
+                    x-struct:
+                    x-validate:
+                  url:
+                    description: URL to view the test case in the dashboard.
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - id
+                  - name
+                  - module
+                  - is_flaky
+                  - is_quarantined
+                  - state
+                  - url
+                type: object
+                x-struct:
+                x-validate:
+          description: The updated test case
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid update params (empty body or malformed field values)
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to update this resource
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Test case not found
+      summary: Update a test case.
+      tags:
+        - Test Cases
   /api/cache/endpoints:
     get:
       callbacks: {}

@@ -136,6 +136,23 @@ extension Flag where Value == Bool {
     }
 }
 
+extension Flag where Value == Bool? {
+    public init(
+        name: NameSpecification = .long,
+        inversion: FlagInversion,
+        exclusivity: FlagExclusivity = .chooseLast,
+        help: ArgumentHelp? = nil,
+        envKey: EnvKey
+    ) {
+        self.init(
+            name: name,
+            inversion: inversion,
+            exclusivity: exclusivity,
+            help: help?.withEnvKey(envKey)
+        )
+    }
+}
+
 extension Argument {
     public init<T>(
         wrappedValue value: [T] = [],

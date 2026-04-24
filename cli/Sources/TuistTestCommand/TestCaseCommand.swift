@@ -10,6 +10,7 @@ public struct TestCaseCommand: ParsableCommand {
             subcommands: [
                 TestCaseListCommand.self,
                 TestCaseShowCommand.self,
+                TestCaseUpdateCommand.self,
                 TestCaseEventsCommand.self,
                 TestCaseRunCommand.self,
             ]

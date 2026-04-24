@@ -8,6 +8,7 @@ defmodule TuistWeb.API.TestCasesController do
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.PaginationMetadata
   alias TuistWeb.API.Schemas.TestCase
+  alias TuistWeb.Authentication
 
   plug(TuistWeb.Plugs.CastAndValidate,
     json_render_error_v2: true,
@@ -282,6 +283,130 @@ defmodule TuistWeb.API.TestCasesController do
             total_runs: analytics.total_count,
             failed_runs: analytics.failed_count,
             url: ~p"/#{selected_project.account.name}/#{selected_project.name}/tests/test-cases/#{test_case.id}"
+          })
+        else
+          conn
+          |> put_status(:not_found)
+          |> json(%{message: "Test case not found."})
+        end
+
+      {:error, :not_found} ->
+        conn
+        |> put_status(:not_found)
+        |> json(%{message: "Test case not found."})
+    end
+  end
+
+  operation(:update,
+    summary: "Update a test case.",
+    description:
+      "Updates mutable fields on a test case. Supports changing `state` between `enabled` and `muted` and toggling " <>
+        "`is_flaky`. Corresponding events (`muted`/`unmuted`, `marked_flaky`/`unmarked_flaky`) are recorded " <>
+        "automatically when values transition.",
+    operation_id: "updateTestCase",
+    parameters: [
+      account_handle: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The handle of the account."
+      ],
+      project_handle: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The handle of the project."
+      ],
+      test_case_id: [
+        in: :path,
+        schema: %Schema{type: :string, format: :uuid},
+        required: true,
+        description: "The ID of the test case."
+      ]
+    ],
+    request_body:
+      {"Test case update params", "application/json",
+       %Schema{
+         type: :object,
+         properties: %{
+           state: %Schema{
+             type: :string,
+             enum: ["enabled", "muted"],
+             description: "The new state of the test case."
+           },
+           is_flaky: %Schema{
+             type: :boolean,
+             description: "Whether to mark the test case as flaky."
+           }
+         }
+       }},
+    responses: %{
+      ok:
+        {"The updated test case", "application/json",
+         %Schema{
+           type: :object,
+           properties: %{
+             id: %Schema{type: :string, format: :uuid, description: "The test case ID."},
+             name: %Schema{type: :string, description: "Name of the test case."},
+             module: %Schema{
+               type: :object,
+               required: [:id, :name],
+               properties: %{
+                 id: %Schema{type: :string, description: "ID of the module."},
+                 name: %Schema{type: :string, description: "Name of the module."}
+               }
+             },
+             suite: %Schema{
+               type: :object,
+               nullable: true,
+               required: [:id, :name],
+               properties: %{
+                 id: %Schema{type: :string, description: "ID of the suite."},
+                 name: %Schema{type: :string, description: "Name of the suite."}
+               }
+             },
+             is_flaky: %Schema{type: :boolean, description: "Whether the test case is marked as flaky."},
+             is_quarantined: %Schema{
+               type: :boolean,
+               deprecated: true,
+               description: "Whether the test case is quarantined. Deprecated: use `state` instead."
+             },
+             state: %Schema{type: :string, enum: ["enabled", "muted"], description: "The state of the test case."},
+             url: %Schema{type: :string, description: "URL to view the test case in the dashboard."}
+           },
+           required: [:id, :name, :module, :is_flaky, :is_quarantined, :state, :url]
+         }},
+      not_found: {"Test case not found", "application/json", Error},
+      forbidden: {"You don't have permission to update this resource", "application/json", Error}
+    }
+  )
+
+  def update(
+        %{assigns: %{selected_project: selected_project}, params: %{test_case_id: test_case_id}, body_params: body_params} =
+          conn,
+        _params
+      ) do
+    attrs = Map.take(body_params, [:state, :is_flaky])
+
+    case Tests.get_test_case_by_id(test_case_id) do
+      {:ok, test_case} ->
+        if test_case.project_id == selected_project.id do
+          actor_id = Authentication.authenticated_subject_account(conn).id
+
+          {:ok, updated_test_case} = Tests.update_test_case(test_case_id, attrs, actor_id: actor_id)
+
+          json(conn, %{
+            id: updated_test_case.id,
+            name: updated_test_case.name,
+            module: %{
+              id: updated_test_case.module_name,
+              name: updated_test_case.module_name
+            },
+            suite: build_suite(updated_test_case.suite_name),
+            is_flaky: updated_test_case.is_flaky,
+            is_quarantined: (updated_test_case.state || "enabled") == "muted",
+            state: updated_test_case.state || "enabled",
+            url: ~p"/#{selected_project.account.name}/#{selected_project.name}/tests/test-cases/#{updated_test_case.id}"
           })
         else
           conn
