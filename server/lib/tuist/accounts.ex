@@ -1745,10 +1745,14 @@ defmodule Tuist.Accounts do
   def user?(account), do: !is_nil(account.user_id)
 
   @doc """
-  Lists all custom cache endpoints for the given account.
+  Lists all account cache endpoints for the given account and cache technology.
   """
-  def list_account_cache_endpoints(%Account{} = account) do
-    Repo.all(from(e in AccountCacheEndpoint, where: e.account_id == ^account.id))
+  def list_account_cache_endpoints(%Account{} = account, technology \\ :default) do
+    Repo.all(
+      from(e in AccountCacheEndpoint,
+        where: e.account_id == ^account.id and e.technology == ^technology
+      )
+    )
   end
 
   @doc """
@@ -1766,15 +1770,19 @@ defmodule Tuist.Accounts do
   end
 
   @doc """
-  Returns custom cache endpoint URLs for the given account handle, or default endpoints if none configured.
+  Returns cache endpoint URLs for the given account handle and cache technology.
 
-  Custom endpoints are only returned when:
+  For the default cache technology, custom endpoints are only returned when:
   - The account exists
   - The account is on the enterprise plan when Tuist-hosted
   - The account has `custom_cache_endpoints_enabled` set to `true`
   - The account has at least one custom cache endpoint configured
+
+  For Kura, account-specific endpoints are returned only when they have been configured.
   """
-  def get_cache_endpoints_for_handle(account_handle) when is_binary(account_handle) do
+  def get_cache_endpoints_for_handle(account_handle, technology \\ :default)
+
+  def get_cache_endpoints_for_handle(account_handle, :default) when is_binary(account_handle) do
     if Environment.tuist_hosted?() do
       account_handle
       |> get_account_by_handle()
@@ -1788,7 +1796,15 @@ defmodule Tuist.Accounts do
     end
   end
 
-  def get_cache_endpoints_for_handle(_), do: CacheEndpoints.active_endpoint_urls()
+  def get_cache_endpoints_for_handle(account_handle, :kura) when is_binary(account_handle) do
+    account_handle
+    |> get_account_by_handle()
+    |> kura_cache_endpoints()
+    |> Enum.map(& &1.url)
+  end
+
+  def get_cache_endpoints_for_handle(_, :default), do: CacheEndpoints.active_endpoint_urls()
+  def get_cache_endpoints_for_handle(_, :kura), do: []
 
   defp custom_cache_endpoints(%Account{custom_cache_endpoints_enabled: true} = account) do
     if custom_cache_endpoints_available?(account) do
@@ -1799,6 +1815,9 @@ defmodule Tuist.Accounts do
   end
 
   defp custom_cache_endpoints(_), do: []
+
+  defp kura_cache_endpoints(%Account{} = account), do: list_account_cache_endpoints(account, :kura)
+  defp kura_cache_endpoints(_), do: []
 
   @doc """
   Creates a custom cache endpoint for the given account.

@@ -12,6 +12,7 @@ defmodule TuistWeb.API.CacheControllerTest do
   alias TuistTestSupport.Fixtures.BillingFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistWeb.Authentication
+  alias TuistWeb.Headers
 
   setup do
     cache = String.to_atom(UUIDv7.generate())
@@ -104,10 +105,14 @@ defmodule TuistWeb.API.CacheControllerTest do
       {:ok, account} = Accounts.update_account(account, %{custom_cache_endpoints_enabled: true})
 
       {:ok, _endpoint1} =
-        Accounts.create_account_cache_endpoint(account, %{url: "https://custom-cache-1.example.com"})
+        Accounts.create_account_cache_endpoint(account, %{
+          url: "https://custom-cache-1.example.com"
+        })
 
       {:ok, _endpoint2} =
-        Accounts.create_account_cache_endpoint(account, %{url: "https://custom-cache-2.example.com"})
+        Accounts.create_account_cache_endpoint(account, %{
+          url: "https://custom-cache-2.example.com"
+        })
 
       default_endpoints = [
         "https://cache-eu-central-test.tuist.dev",
@@ -125,7 +130,10 @@ defmodule TuistWeb.API.CacheControllerTest do
       response = json_response(conn, 200)
 
       assert Enum.sort(response["endpoints"]) ==
-               Enum.sort(["https://custom-cache-1.example.com", "https://custom-cache-2.example.com"])
+               Enum.sort([
+                 "https://custom-cache-1.example.com",
+                 "https://custom-cache-2.example.com"
+               ])
     end
 
     test "returns default endpoints when account_handle does not exist",
@@ -148,6 +156,58 @@ defmodule TuistWeb.API.CacheControllerTest do
       # Then
       response = json_response(conn, 200)
       assert response["endpoints"] == expected_endpoints
+    end
+
+    test "returns Kura endpoints when requested for an account", %{conn: conn} do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      {:ok, _} =
+        Accounts.create_account_cache_endpoint(account, %{
+          url: "https://kura-cache-1.example.com",
+          technology: :kura
+        })
+
+      {:ok, _} =
+        Accounts.create_account_cache_endpoint(account, %{
+          url: "https://kura-cache-2.example.com",
+          technology: :kura
+        })
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> Headers.put_client_feature_flags(["kura"])
+
+      # When
+      conn = get(conn, ~p"/api/cache/endpoints?account_handle=#{account.name}")
+
+      # Then
+      response = json_response(conn, 200)
+
+      assert Enum.sort(response["endpoints"]) ==
+               Enum.sort(["https://kura-cache-1.example.com", "https://kura-cache-2.example.com"])
+    end
+
+    test "returns empty list when Kura is requested without account-specific endpoints", %{
+      conn: conn
+    } do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> Headers.put_client_feature_flags(["kura"])
+
+      # When
+      conn = get(conn, ~p"/api/cache/endpoints?account_handle=#{account.name}")
+
+      # Then
+      response = json_response(conn, 200)
+      assert response["endpoints"] == []
     end
   end
 
