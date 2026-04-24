@@ -1,20 +1,19 @@
 {
-  "context_files": [
-    {
-      "hash": "d8ddb528531aa9d4820a4cd80a344266e13f3da9342ed7490baac74cfce73919",
-      "path": "server/L10N.md"
+  "hash": "51792f15a9638752aacfa6c15bb5bc797620ebe1c2af44a7fd6a7e674ea3f2a9",
+  "hash_tree": {
+    "context": {
+      "child": {
+        "file": "server/L10N.md",
+        "hash": "0879bdf5dc534e1a0d665bfee7247bc56bdf5c07163f270a05bd2666a07536e6"
+      },
+      "file": "L10N.md",
+      "hash": "5d5910c58a27c289d172b18f0bca28176bf6b6a74bd894e27273f55199cd2816"
     },
-    {
-      "hash": "228bdeb0404f501a25aaf9fde3ec22f8c937b03edbeaf3ce3e35b274f07a140f",
-      "path": "L10N.md"
+    "source": {
+      "file": "server/priv/gettext/dashboard_slack.pot",
+      "hash": "f5a2013f8d003a45f3150f3d0e7a1cea008566d1ec7b4b7fee3cc7613bf6910c"
     }
-  ],
-  "hash": "dd62a1a1a2f33de0e669d2081f75f1578672f4fdc0f79b65451fc23cc9373693",
-  "locale_override_files": [],
-  "model": "openai:gpt-4.1-mini",
-  "source": {
-    "file": "server/priv/gettext/dashboard_slack.pot",
-    "hash": "51ba2e94b4c0217c3e7757dfa0ccdc666fd96ed193038a27a46a70c1219a4c07"
   },
-  "translated_at": "2026-03-31T17:10:03.726912Z"
+  "model": "openai:gpt-4.1-mini",
+  "translated_at": "2026-04-24T08:24:22.386951Z"
 }

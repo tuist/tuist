@@ -12,18 +12,18 @@ msgstr ""
 msgid "%{hit_rate}%"
 msgstr "%{hit_rate}%"
 
-#: lib/tuist_web/live/build_run_live.ex:636
+#: lib/tuist_web/live/build_run_live.ex:638
 #, elixir-autogen, elixir-format
 msgid "%{message} in %{link}"
 msgstr "%{message} в %{link}"
 
-#: lib/tuist_web/live/xcode_builds_live.html.heex:213
+#: lib/tuist_web/live/xcode_builds_live.html.heex:222
 #, elixir-autogen, elixir-format
 msgid "%{percentage}%"
 msgstr "%{percentage}%"
 
 #: lib/tuist_web/live/generate_runs_live.html.heex:101
-#: lib/tuist_web/live/run_detail_live.html.heex:178
+#: lib/tuist_web/live/run_detail_live.html.heex:180
 #, elixir-autogen, elixir-format
 msgid "%{run_duration}s"
 msgstr "%{run_duration}с"
@@ -33,26 +33,26 @@ msgstr "%{run_duration}с"
 msgid "Additional strings"
 msgstr "Дополнительные строки"
 
-#: lib/tuist_web/live/xcode_builds_live.ex:331
-#: lib/tuist_web/live/xcode_builds_live.ex:339
-#: lib/tuist_web/live/xcode_builds_live.ex:342
-#: lib/tuist_web/live/xcode_builds_live.html.heex:39
-#: lib/tuist_web/live/xcode_builds_live.html.heex:62
-#: lib/tuist_web/live/xcode_builds_live.html.heex:85
-#: lib/tuist_web/live/xcode_builds_live.html.heex:115
+#: lib/tuist_web/live/xcode_builds_live.ex:382
+#: lib/tuist_web/live/xcode_builds_live.ex:392
+#: lib/tuist_web/live/xcode_builds_live.ex:395
+#: lib/tuist_web/live/xcode_builds_live.html.heex:41
+#: lib/tuist_web/live/xcode_builds_live.html.heex:64
+#: lib/tuist_web/live/xcode_builds_live.html.heex:89
+#: lib/tuist_web/live/xcode_builds_live.html.heex:119
 #, elixir-autogen, elixir-format
 msgid "Any"
 msgstr "Любой"
 
-#: lib/tuist_web/live/xcode_builds_live.html.heex:411
+#: lib/tuist_web/live/xcode_builds_live.html.heex:443
 #, elixir-autogen, elixir-format
 msgid "Average"
 msgstr "Среднее"
 
-#: lib/tuist_web/live/xcode_builds_live.html.heex:251
+#: lib/tuist_web/live/xcode_builds_live.html.heex:260
 #, elixir-autogen, elixir-format
 msgid "Avg. build duration"
-msgstr "Средняя длительность сборки"
+msgstr "Средняя продолжительность сборки"
 
 #: lib/tuist_web/live/build_run_live.html.heex:1037
 #, elixir-autogen, elixir-format
@@ -66,7 +66,7 @@ msgstr "Средняя задержка записи ключей кэша"
 
 #: lib/tuist_web/live/generate_runs_live.ex:279
 #: lib/tuist_web/live/generate_runs_live.html.heex:84
-#: lib/tuist_web/live/xcode_build_runs_live.ex:237
+#: lib/tuist_web/live/xcode_build_runs_live.ex:241
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:121
 #, elixir-autogen, elixir-format
 msgid "Branch"
@@ -89,35 +89,35 @@ msgstr "Запуск сборки"
 msgid "Build Runs"
 msgstr "Запуски сборок"
 
-#: lib/tuist_web/live/build_run_live.ex:884
+#: lib/tuist_web/live/build_run_live.ex:886
 #: lib/tuist_web/live/build_run_live.html.heex:262
 #: lib/tuist_web/live/build_run_live.html.heex:469
 #: lib/tuist_web/live/build_run_live.html.heex:485
 #: lib/tuist_web/live/build_run_live.html.heex:531
-#: lib/tuist_web/live/xcode_builds_live.html.heex:659
-#: lib/tuist_web/live/xcode_builds_live.html.heex:713
+#: lib/tuist_web/live/xcode_builds_live.html.heex:662
+#: lib/tuist_web/live/xcode_builds_live.html.heex:716
 #, elixir-autogen, elixir-format
 msgid "Build duration"
-msgstr "Длительность сборки"
+msgstr "Продолжительность сборки"
 
-#: lib/tuist_web/live/build_run_live.ex:41
+#: lib/tuist_web/live/build_run_live.ex:44
 #: lib/tuist_web/live/build_run_live.ex:55
 #, elixir-autogen, elixir-format
 msgid "Build not found."
 msgstr "Сборка не найдена."
 
-#: lib/tuist_web/live/xcode_builds_live.ex:173
+#: lib/tuist_web/live/xcode_builds_live.ex:197
 #, elixir-autogen, elixir-format
 msgid "Build runs"
 msgstr "Запуски сборок"
 
-#: lib/tuist_web/live/xcode_builds_live.ex:201
-#: lib/tuist_web/live/xcode_builds_live.html.heex:208
+#: lib/tuist_web/live/xcode_builds_live.ex:225
+#: lib/tuist_web/live/xcode_builds_live.html.heex:217
 #, elixir-autogen, elixir-format
 msgid "Build success rate"
 msgstr "Процент успешных сборок"
 
-#: lib/tuist_web/live/xcode_builds_live.html.heex:81
+#: lib/tuist_web/live/xcode_builds_live.html.heex:85
 #, elixir-autogen, elixir-format
 msgid "Build:"
 msgstr "Сборка:"
@@ -128,7 +128,7 @@ msgid "Buildable folders"
 msgstr "Папки для сборки"
 
 #: lib/tuist_web/live/builds_live.ex:15
-#: lib/tuist_web/live/xcode_builds_live.html.heex:3
+#: lib/tuist_web/live/xcode_builds_live.html.heex:195
 #, elixir-autogen, elixir-format
 msgid "Builds"
 msgstr "Сборки"
@@ -146,35 +146,36 @@ msgstr "Собрано с помощью"
 #: lib/tuist_web/components/runs/module_cache_tab.ex:241
 #, elixir-autogen, elixir-format
 msgid "Bundle ID"
-msgstr "ID пакета"
+msgstr "Идентификатор пакета"
 
 #: lib/tuist_web/live/build_run_live.html.heex:902
 #, elixir-autogen, elixir-format
 msgid "CAS Outputs"
-msgstr "Результаты CAS"
+msgstr "Выходные данные CAS"
 
 #: lib/tuist_web/live/build_run_live.html.heex:1259
 #, elixir-autogen, elixir-format
 msgid "CAS output"
-msgstr "Результат CAS"
+msgstr "Выход CAS"
 
 #: lib/tuist_web/live/build_run_live.html.heex:1371
 #, elixir-autogen, elixir-format
 msgid "CAS outputs"
-msgstr "Результаты CAS"
+msgstr "Выходы CAS"
 
 #: lib/tuist_web/live/build_run_live.html.heex:1605
 #, elixir-autogen, elixir-format
 msgid "CAS outputs will appear here when using Tuist cache"
-msgstr "Результаты CAS будут отображаться здесь при использовании кэша Tuist"
+msgstr "Выходы CAS появятся здесь при использовании кэша Tuist"
 
 #: lib/tuist_web/live/build_run_live.html.heex:1323
 #, elixir-autogen, elixir-format
 msgid "CAS outputs:"
-msgstr "Результаты CAS:"
+msgstr "Выходы CAS:"
 
-#: lib/tuist_web/live/xcode_builds_live.ex:333
-#: lib/tuist_web/live/xcode_builds_live.html.heex:131
+#: lib/tuist_web/live/xcode_builds_live.ex:384
+#: lib/tuist_web/live/xcode_builds_live.ex:385
+#: lib/tuist_web/live/xcode_builds_live.html.heex:135
 #, elixir-autogen, elixir-format
 msgid "CI"
 msgstr "CI"
@@ -193,7 +194,7 @@ msgstr "Запуски кэша"
 #: lib/tuist_web/live/build_run_live.html.heex:827
 #, elixir-autogen, elixir-format
 msgid "Cache Summary"
-msgstr "Обзор кэша"
+msgstr "Сводка кэша"
 
 #: lib/tuist_web/live/build_run_live.html.heex:878
 #, elixir-autogen, elixir-format
@@ -223,42 +224,42 @@ msgstr "Промахи кэша"
 #: lib/tuist_web/live/build_run_live.html.heex:886
 #, elixir-autogen, elixir-format
 msgid "Cache uploads"
-msgstr "Выгрузки в кэш"
+msgstr "Загрузки кэша"
 
 #: lib/tuist_web/live/build_run_live.html.heex:897
 #, elixir-autogen, elixir-format
 msgid "Cacheable Tasks"
-msgstr "Кэшируемые задачи"
+msgstr "Задачи, которые можно кэшировать"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:401
 #, elixir-autogen, elixir-format
 msgid "Cacheable targets"
-msgstr "Кэшируемые цели"
+msgstr "Цели, которые можно кэшировать"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:101
 #, elixir-autogen, elixir-format
 msgid "Cacheable targets:"
-msgstr "Кэшируемые цели:"
+msgstr "Цели, которые можно кэшировать:"
 
 #: lib/tuist_web/live/build_run_live.html.heex:968
 #, elixir-autogen, elixir-format
 msgid "Cacheable tasks"
-msgstr "Кэшируемые задачи"
+msgstr "Задачи, которые можно кэшировать"
 
 #: lib/tuist_web/live/build_run_live.html.heex:846
 #, elixir-autogen, elixir-format
 msgid "Cacheable tasks that were not found in cache."
-msgstr "Кэшируемые задачи, которые не были найдены в кэше."
+msgstr "Кэшируемые задачи, не найденные в кэше."
 
 #: lib/tuist_web/live/build_run_live.html.heex:835
 #, elixir-autogen, elixir-format
 msgid "Cacheable tasks that were retrieved from cache (local + remote)."
-msgstr "Кэшируемые задачи, которые были взяты из кэша (локального + удалённого)."
+msgstr "Кэшируемые задачи, полученные из кэша (локального и удалённого)."
 
 #: lib/tuist_web/live/build_run_live.html.heex:1297
 #, elixir-autogen, elixir-format
 msgid "Cacheable tasks will appear here when using Tuist cache"
-msgstr "Кэшируемые задачи будут отображаться здесь при использовании кэша Tuist"
+msgstr "Кэшируемые задачи появятся здесь при использовании кэша Tuist"
 
 #: lib/tuist_web/live/build_run_live.html.heex:920
 #, elixir-autogen, elixir-format
@@ -266,35 +267,37 @@ msgid "Cacheable tasks:"
 msgstr "Кэшируемые задачи:"
 
 #: lib/tuist_web/live/build_run_live.html.heex:280
-#: lib/tuist_web/live/xcode_build_runs_live.ex:245
+#: lib/tuist_web/live/xcode_build_runs_live.ex:249
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:154
-#: lib/tuist_web/live/xcode_builds_live.html.heex:884
+#: lib/tuist_web/live/xcode_builds_live.ex:435
+#: lib/tuist_web/live/xcode_builds_live.html.heex:357
+#: lib/tuist_web/live/xcode_builds_live.html.heex:887
 #, elixir-autogen, elixir-format
 msgid "Category"
 msgstr "Категория"
 
-#: lib/tuist_web/live/xcode_build_runs_live.ex:250
-#: lib/tuist_web/live/xcode_builds_live.html.heex:101
+#: lib/tuist_web/live/xcode_build_runs_live.ex:254
+#: lib/tuist_web/live/xcode_builds_live.html.heex:105
 #, elixir-autogen, elixir-format
 msgid "Clean"
-msgstr "Чистая"
+msgstr "Clean"
 
 #: lib/tuist_web/live/build_run_live.html.heex:203
 #: lib/tuist_web/live/generate_runs_live.ex:258
 #: lib/tuist_web/live/generate_runs_live.html.heex:58
-#: lib/tuist_web/live/run_detail_live.html.heex:113
+#: lib/tuist_web/live/run_detail_live.html.heex:115
 #, elixir-autogen, elixir-format
 msgid "Command"
 msgstr "Команда"
 
-#: lib/tuist_web/live/run_detail_live.html.heex:169
+#: lib/tuist_web/live/run_detail_live.html.heex:171
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:127
 #, elixir-autogen, elixir-format
 msgid "Commit SHA"
 msgstr "SHA коммита"
 
-#: lib/tuist_web/live/build_run_live.ex:855
-#: lib/tuist_web/live/build_run_live.ex:892
+#: lib/tuist_web/live/build_run_live.ex:857
+#: lib/tuist_web/live/build_run_live.ex:894
 #: lib/tuist_web/live/build_run_live.html.heex:470
 #: lib/tuist_web/live/build_run_live.html.heex:493
 #: lib/tuist_web/live/build_run_live.html.heex:552
@@ -303,7 +306,7 @@ msgstr "SHA коммита"
 #: lib/tuist_web/live/build_run_live.html.heex:700
 #, elixir-autogen, elixir-format
 msgid "Compilation duration"
-msgstr "Длительность компиляции"
+msgstr "Время компиляции"
 
 #: lib/tuist_web/live/build_run_live.html.heex:1477
 #: lib/tuist_web/live/build_run_live.html.heex:1478
@@ -313,24 +316,24 @@ msgstr "Длительность компиляции"
 msgid "Compressed Size"
 msgstr "Сжатый размер"
 
-#: lib/tuist_web/live/build_run_live.ex:1093
+#: lib/tuist_web/live/build_run_live.ex:1095
 #, elixir-autogen, elixir-format
 msgid "Compressed Size (MB)"
 msgstr "Сжатый размер (МБ)"
 
 #: lib/tuist_web/live/build_run_live.html.heex:218
-#: lib/tuist_web/live/xcode_build_runs_live.ex:212
+#: lib/tuist_web/live/xcode_build_runs_live.ex:216
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:91
 #, elixir-autogen, elixir-format
 msgid "Configuration"
 msgstr "Конфигурация"
 
-#: lib/tuist_web/live/xcode_builds_live.html.heex:557
+#: lib/tuist_web/live/xcode_builds_live.html.heex:607
 #, elixir-autogen, elixir-format
 msgid "Configuration Insights"
-msgstr "Анализ конфигурации"
+msgstr "Аналитика конфигураций"
 
-#: lib/tuist_web/live/xcode_builds_live.html.heex:58
+#: lib/tuist_web/live/xcode_builds_live.html.heex:60
 #, elixir-autogen, elixir-format
 msgid "Configuration:"
 msgstr "Конфигурация:"
@@ -363,7 +366,7 @@ msgstr "Зависимости"
 #: lib/tuist_web/components/runs/module_cache_tab.ex:299
 #, elixir-autogen, elixir-format
 msgid "Deployment target"
-msgstr "Цель развёртывания"
+msgstr "Цель развертывания"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:247
 #, elixir-autogen, elixir-format
@@ -371,13 +374,13 @@ msgid "Destinations"
 msgstr "Назначения"
 
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:193
-#: lib/tuist_web/live/xcode_builds_live.ex:337
-#: lib/tuist_web/live/xcode_builds_live.html.heex:579
+#: lib/tuist_web/live/xcode_builds_live.ex:390
+#: lib/tuist_web/live/xcode_builds_live.html.heex:631
 #, elixir-autogen, elixir-format
 msgid "Device"
 msgstr "Устройство"
 
-#: lib/tuist_web/live/build_run_live.ex:1066
+#: lib/tuist_web/live/build_run_live.ex:1068
 #: lib/tuist_web/live/build_run_live.html.heex:1384
 #: lib/tuist_web/live/build_run_live.html.heex:1540
 #, elixir-autogen, elixir-format
@@ -385,15 +388,15 @@ msgid "Download"
 msgstr "Скачать"
 
 #: lib/tuist_web/live/build_run_live.html.heex:88
-#: lib/tuist_web/live/run_detail_live.html.heex:63
+#: lib/tuist_web/live/run_detail_live.html.heex:64
 #, elixir-autogen, elixir-format
 msgid "Download result"
-msgstr "Результат загрузки"
+msgstr "Результат скачивания"
 
 #: lib/tuist_web/live/build_run_live.html.heex:1425
 #, elixir-autogen, elixir-format
 msgid "Download throughput"
-msgstr "Пропускная способность загрузки"
+msgstr "Пропускная способность при скачивании"
 
 #: lib/tuist_web/live/generate_runs_live.html.heex:13
 #: lib/tuist_web/live/generate_runs_live.html.heex:21
@@ -401,7 +404,7 @@ msgstr "Пропускная способность загрузки"
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:13
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:21
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:135
-#: lib/tuist_web/live/xcode_builds_live.html.heex:876
+#: lib/tuist_web/live/xcode_builds_live.html.heex:879
 #, elixir-autogen, elixir-format
 msgid "Duration"
 msgstr "Длительность"
@@ -409,14 +412,16 @@ msgstr "Длительность"
 #: lib/tuist_web/components/runs/module_cache_tab.ex:311
 #, elixir-autogen, elixir-format
 msgid "Entitlements"
-msgstr "Права"
+msgstr "Права доступа"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:289
+#: lib/tuist_web/live/xcode_builds_live.ex:434
+#: lib/tuist_web/live/xcode_builds_live.html.heex:356
 #, elixir-autogen, elixir-format
 msgid "Environment"
 msgstr "Окружение"
 
-#: lib/tuist_web/live/xcode_builds_live.html.heex:111
+#: lib/tuist_web/live/xcode_builds_live.html.heex:115
 #, elixir-autogen, elixir-format
 msgid "Environment:"
 msgstr "Окружение:"
@@ -439,111 +444,112 @@ msgstr "Ошибки и предупреждения"
 msgid "External"
 msgstr "Внешние"
 
-#: lib/tuist_web/live/build_run_live.ex:921
+#: lib/tuist_web/live/build_run_live.ex:923
 #: lib/tuist_web/live/build_run_live.html.heex:239
 #: lib/tuist_web/live/build_run_live.html.heex:579
 #: lib/tuist_web/live/generate_runs_live.ex:271
 #: lib/tuist_web/live/generate_runs_live.html.heex:81
-#: lib/tuist_web/live/run_detail_live.html.heex:142
-#: lib/tuist_web/live/xcode_build_runs_live.ex:227
+#: lib/tuist_web/live/run_detail_live.html.heex:144
+#: lib/tuist_web/live/xcode_build_runs_live.ex:231
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:107
-#: lib/tuist_web/live/xcode_builds_live.html.heex:861
+#: lib/tuist_web/live/xcode_builds_live.ex:446
+#: lib/tuist_web/live/xcode_builds_live.html.heex:864
 #, elixir-autogen, elixir-format
 msgid "Failed"
 msgstr "Неудачно"
 
-#: lib/tuist_web/live/xcode_builds_live.ex:187
-#: lib/tuist_web/live/xcode_builds_live.html.heex:230
-#: lib/tuist_web/live/xcode_builds_live.html.heex:780
+#: lib/tuist_web/live/xcode_builds_live.ex:211
+#: lib/tuist_web/live/xcode_builds_live.html.heex:239
+#: lib/tuist_web/live/xcode_builds_live.html.heex:783
 #, elixir-autogen, elixir-format
 msgid "Failed builds"
 msgstr "Неудачные сборки"
 
-#: lib/tuist_web/live/build_run_live.ex:652
+#: lib/tuist_web/live/build_run_live.ex:654
 #, elixir-autogen, elixir-format
 msgid "Failed compiling C file %{path}"
-msgstr "Ошибка компиляции C-файла %{path}"
+msgstr "Не удалось скомпилировать C-файл %{path}"
 
-#: lib/tuist_web/live/build_run_live.ex:655
-#: lib/tuist_web/live/build_run_live.ex:691
+#: lib/tuist_web/live/build_run_live.ex:657
+#: lib/tuist_web/live/build_run_live.ex:693
 #, elixir-autogen, elixir-format
 msgid "Failed compiling Swift file %{path}"
-msgstr "Ошибка компиляции Swift-файла %{path}"
+msgstr "Не удалось скомпилировать Swift-файл %{path}"
 
-#: lib/tuist_web/live/build_run_live.ex:688
+#: lib/tuist_web/live/build_run_live.ex:690
 #, elixir-autogen, elixir-format
 msgid "Failed compiling XIB file %{path}"
-msgstr "Ошибка компиляции XIB-файла %{path}"
+msgstr "Не удалось скомпилировать XIB-файл %{path}"
 
-#: lib/tuist_web/live/build_run_live.ex:670
+#: lib/tuist_web/live/build_run_live.ex:672
 #, elixir-autogen, elixir-format
 msgid "Failed compiling assets catalog %{path}"
-msgstr "Ошибка компиляции каталога ресурсов %{path}"
+msgstr "Не удалось скомпилировать каталог ресурсов %{path}"
 
-#: lib/tuist_web/live/build_run_live.ex:673
+#: lib/tuist_web/live/build_run_live.ex:675
 #, elixir-autogen, elixir-format
 msgid "Failed compiling storyboard %{path}"
-msgstr "Ошибка компиляции storyboard %{path}"
+msgstr "Не удалось скомпилировать сториборд %{path}"
 
-#: lib/tuist_web/live/build_run_live.ex:667
+#: lib/tuist_web/live/build_run_live.ex:669
 #, elixir-autogen, elixir-format
 msgid "Failed copying Swift libraries %{path}"
-msgstr "Ошибка копирования Swift-библиотек %{path}"
+msgstr "Ошибка при копировании библиотек Swift %{path}"
 
-#: lib/tuist_web/live/build_run_live.ex:682
+#: lib/tuist_web/live/build_run_live.ex:684
 #, elixir-autogen, elixir-format
 msgid "Failed copying resource file %{path}"
-msgstr "Ошибка копирования файла ресурсов %{path}"
+msgstr "Ошибка при копировании файла ресурсов %{path}"
 
-#: lib/tuist_web/live/build_run_live.ex:661
+#: lib/tuist_web/live/build_run_live.ex:663
 #, elixir-autogen, elixir-format
 msgid "Failed creating static library %{path}"
-msgstr "Ошибка создания статической библиотеки %{path}"
+msgstr "Не удалось создать статическую библиотеку %{path}"
 
-#: lib/tuist_web/live/build_run_live.ex:658
+#: lib/tuist_web/live/build_run_live.ex:660
 #, elixir-autogen, elixir-format
 msgid "Failed executing script %{script_name}"
-msgstr "Ошибка выполнения скрипта %{script_name}"
+msgstr "Ошибка при выполнении скрипта %{script_name}"
 
-#: lib/tuist_web/live/build_run_live.ex:664
+#: lib/tuist_web/live/build_run_live.ex:666
 #, elixir-autogen, elixir-format
 msgid "Failed linking %{path}"
 msgstr "Ошибка линковки %{path}"
 
-#: lib/tuist_web/live/build_run_live.ex:679
+#: lib/tuist_web/live/build_run_live.ex:681
 #, elixir-autogen, elixir-format
 msgid "Failed linking storyboards %{path}"
-msgstr "Ошибка линковки storyboard %{path}"
+msgstr "Ошибка линковки сторибордов %{path}"
 
-#: lib/tuist_web/live/build_run_live.ex:685
+#: lib/tuist_web/live/build_run_live.ex:687
 #, elixir-autogen, elixir-format
 msgid "Failed merging Swift module %{path}"
-msgstr "Ошибка объединения модуля Swift %{path}"
+msgstr "Не удалось объединить модуль Swift %{path}"
 
-#: lib/tuist_web/live/build_run_live.ex:694
+#: lib/tuist_web/live/build_run_live.ex:696
 #, elixir-autogen, elixir-format
 msgid "Failed precompiling bridging header %{path}"
-msgstr "Ошибка прекомпиляции bridging header %{path}"
+msgstr "Не удалось предварительно скомпилировать bridging header %{path}"
 
-#: lib/tuist_web/live/build_run_live.ex:706
+#: lib/tuist_web/live/build_run_live.ex:708
 #, elixir-autogen, elixir-format
 msgid "Failed processing %{path}"
 msgstr "Ошибка обработки %{path}"
 
-#: lib/tuist_web/live/build_run_live.ex:700
+#: lib/tuist_web/live/build_run_live.ex:702
 #, elixir-autogen, elixir-format
 msgid "Failed validating %{path}"
-msgstr "Ошибка проверки %{path}"
+msgstr "Не удалось проверить %{path}"
 
-#: lib/tuist_web/live/build_run_live.ex:697
+#: lib/tuist_web/live/build_run_live.ex:699
 #, elixir-autogen, elixir-format
 msgid "Failed validating embedded binary %{path}"
 msgstr "Ошибка проверки встроенного бинарного файла %{path}"
 
-#: lib/tuist_web/live/build_run_live.ex:676
+#: lib/tuist_web/live/build_run_live.ex:678
 #, elixir-autogen, elixir-format
 msgid "Failed writing auxiliary file %{path}"
-msgstr "Ошибка записи вспомогательного файла %{path}"
+msgstr "Не удалось записать вспомогательный файл %{path}"
 
 #: lib/tuist_web/live/build_run_live.html.heex:626
 #: lib/tuist_web/live/build_run_live.html.heex:642
@@ -556,7 +562,7 @@ msgstr "Файл"
 #: lib/tuist_web/live/build_run_live.html.heex:605
 #, elixir-autogen, elixir-format
 msgid "File Breakdown"
-msgstr "Разбиение по файлам"
+msgstr "Разбивка по файлам"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:136
 #: lib/tuist_web/live/build_run_live.html.heex:502
@@ -576,7 +582,7 @@ msgid "Generate Runs"
 msgstr "Создать запуски"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:192
-#: lib/tuist_web/live/run_detail_live.html.heex:312
+#: lib/tuist_web/live/run_detail_live.html.heex:314
 #, elixir-autogen, elixir-format
 msgid "Hash"
 msgstr "Хэш"
@@ -587,11 +593,11 @@ msgid "Headers"
 msgstr "Заголовки"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:170
-#: lib/tuist_web/live/build_run_live.ex:1041
+#: lib/tuist_web/live/build_run_live.ex:1043
 #: lib/tuist_web/live/build_run_live.html.heex:1197
 #: lib/tuist_web/live/run_detail_live.ex:323
-#: lib/tuist_web/live/run_detail_live.html.heex:290
-#: lib/tuist_web/live/test_run_live.ex:1049
+#: lib/tuist_web/live/run_detail_live.html.heex:292
+#: lib/tuist_web/live/test_run_live.ex:1101
 #, elixir-autogen, elixir-format
 msgid "Hit"
 msgstr "Попадание"
@@ -603,11 +609,11 @@ msgstr "Попадание"
 msgid "Hit rate"
 msgstr "Процент попаданий"
 
-#: lib/tuist_web/live/xcode_build_runs_live.ex:249
-#: lib/tuist_web/live/xcode_builds_live.html.heex:93
+#: lib/tuist_web/live/xcode_build_runs_live.ex:253
+#: lib/tuist_web/live/xcode_builds_live.html.heex:97
 #, elixir-autogen, elixir-format
 msgid "Incremental"
-msgstr "Инкрементальный"
+msgstr "Инкрементальная"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:305
 #, elixir-autogen, elixir-format
@@ -624,17 +630,18 @@ msgstr "Ключ"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:180
 #: lib/tuist_web/components/runs/module_cache_tab.ex:416
-#: lib/tuist_web/live/build_run_live.ex:1045
+#: lib/tuist_web/live/build_run_live.ex:1047
 #: lib/tuist_web/live/build_run_live.html.heex:985
 #: lib/tuist_web/live/build_run_live.html.heex:1200
 #: lib/tuist_web/live/run_detail_live.ex:328
-#: lib/tuist_web/live/run_detail_live.html.heex:300
-#: lib/tuist_web/live/test_run_live.ex:1054
-#: lib/tuist_web/live/xcode_builds_live.ex:332
-#: lib/tuist_web/live/xcode_builds_live.html.heex:123
+#: lib/tuist_web/live/run_detail_live.html.heex:302
+#: lib/tuist_web/live/test_run_live.ex:1106
+#: lib/tuist_web/live/xcode_builds_live.ex:383
+#: lib/tuist_web/live/xcode_builds_live.ex:386
+#: lib/tuist_web/live/xcode_builds_live.html.heex:127
 #, elixir-autogen, elixir-format
 msgid "Local"
-msgstr "Локально"
+msgstr "Локальный"
 
 #: lib/tuist_web/live/build_run_live.html.heex:775
 #: lib/tuist_web/live/build_run_live.html.heex:818
@@ -649,12 +656,12 @@ msgstr "Устройство Mac"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:186
 #: lib/tuist_web/components/runs/module_cache_tab.ex:442
-#: lib/tuist_web/live/build_run_live.ex:1047
+#: lib/tuist_web/live/build_run_live.ex:1049
 #: lib/tuist_web/live/build_run_live.html.heex:1013
 #: lib/tuist_web/live/build_run_live.html.heex:1212
 #: lib/tuist_web/live/run_detail_live.ex:329
-#: lib/tuist_web/live/run_detail_live.html.heex:306
-#: lib/tuist_web/live/test_run_live.ex:1055
+#: lib/tuist_web/live/run_detail_live.html.heex:308
+#: lib/tuist_web/live/test_run_live.ex:1107
 #, elixir-autogen, elixir-format
 msgid "Missed"
 msgstr "Пропущено"
@@ -663,7 +670,7 @@ msgstr "Пропущено"
 #: lib/tuist_web/live/build_run_live.html.heex:468
 #: lib/tuist_web/live/build_run_live.html.heex:477
 #: lib/tuist_web/live/build_run_live.html.heex:517
-#: lib/tuist_web/live/run_detail_live.html.heex:276
+#: lib/tuist_web/live/run_detail_live.html.heex:278
 #, elixir-autogen, elixir-format
 msgid "Module"
 msgstr "Модуль"
@@ -672,15 +679,15 @@ msgstr "Модуль"
 #: lib/tuist_web/live/build_run_live.html.heex:447
 #, elixir-autogen, elixir-format
 msgid "Module Breakdown"
-msgstr "Разбиение по модулям"
+msgstr "Разбивка по модулям"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:73
-#: lib/tuist_web/live/run_detail_live.html.heex:97
+#: lib/tuist_web/live/run_detail_live.html.heex:99
 #, elixir-autogen, elixir-format
 msgid "Module Cache"
 msgstr "Кэш модулей"
 
-#: lib/tuist_web/live/build_run_live.ex:900
+#: lib/tuist_web/live/build_run_live.ex:902
 #, elixir-autogen, elixir-format
 msgid "Name"
 msgstr "Имя"
@@ -688,7 +695,7 @@ msgstr "Имя"
 #: lib/tuist_web/live/build_run_live.html.heex:1603
 #, elixir-autogen, elixir-format
 msgid "No CAS outputs found"
-msgstr "Результаты CAS не найдены"
+msgstr "Выходы CAS не найдены"
 
 #: lib/tuist_web/live/build_run_live.html.heex:1295
 #, elixir-autogen, elixir-format
@@ -705,17 +712,17 @@ msgstr "Нет данных"
 
 #: lib/tuist_web/live/generate_runs_live.html.heex:131
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:215
-#: lib/tuist_web/live/xcode_builds_live.html.heex:548
-#: lib/tuist_web/live/xcode_builds_live.html.heex:729
-#: lib/tuist_web/live/xcode_builds_live.html.heex:900
+#: lib/tuist_web/live/xcode_builds_live.html.heex:598
+#: lib/tuist_web/live/xcode_builds_live.html.heex:732
+#: lib/tuist_web/live/xcode_builds_live.html.heex:903
 #, elixir-autogen, elixir-format
 msgid "No data yet"
-msgstr "Данных пока нет"
+msgstr "Данные пока отсутствуют"
 
 #: lib/tuist_web/live/build_run_live.html.heex:816
 #, elixir-autogen, elixir-format
 msgid "No errors detected"
-msgstr "Ошибок не выявлено"
+msgstr "Ошибок не обнаружено"
 
 #: lib/tuist_web/live/build_run_live.html.heex:722
 #, elixir-autogen, elixir-format
@@ -724,7 +731,7 @@ msgstr "Файлы не найдены"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:203
 #: lib/tuist_web/live/build_run_live.html.heex:586
-#: lib/tuist_web/live/run_detail_live.html.heex:320
+#: lib/tuist_web/live/run_detail_live.html.heex:322
 #, elixir-autogen, elixir-format
 msgid "No modules found"
 msgstr "Модули не найдены"
@@ -732,35 +739,36 @@ msgstr "Модули не найдены"
 #: lib/tuist_web/live/build_run_live.html.heex:773
 #, elixir-autogen, elixir-format
 msgid "No warnings detected"
-msgstr "Предупреждений не выявлено"
+msgstr "Предупреждений не обнаружено"
 
 #: lib/tuist_web/live/build_run_live.html.heex:296
-#: lib/tuist_web/live/run_detail_live.html.heex:165
-#: lib/tuist_web/live/run_detail_live.html.heex:171
+#: lib/tuist_web/live/run_detail_live.html.heex:167
+#: lib/tuist_web/live/run_detail_live.html.heex:173
 #, elixir-autogen, elixir-format
 msgid "None"
 msgstr "Нет"
 
-#: lib/tuist_web/live/run_detail_live.html.heex:213
+#: lib/tuist_web/live/run_detail_live.html.heex:215
 #, elixir-autogen, elixir-format
 msgid "Optimization Summary"
 msgstr "Сводка оптимизаций"
 
 #: lib/tuist_web/live/build_run_live.html.heex:166
-#: lib/tuist_web/live/run_detail_live.html.heex:83
+#: lib/tuist_web/live/run_detail_live.html.heex:85
 #, elixir-autogen, elixir-format
 msgid "Overview"
 msgstr "Обзор"
 
-#: lib/tuist_web/live/build_run_live.ex:920
+#: lib/tuist_web/live/build_run_live.ex:922
 #: lib/tuist_web/live/build_run_live.html.heex:232
 #: lib/tuist_web/live/build_run_live.html.heex:574
 #: lib/tuist_web/live/generate_runs_live.ex:270
 #: lib/tuist_web/live/generate_runs_live.html.heex:79
-#: lib/tuist_web/live/run_detail_live.html.heex:135
-#: lib/tuist_web/live/xcode_build_runs_live.ex:226
+#: lib/tuist_web/live/run_detail_live.html.heex:137
+#: lib/tuist_web/live/xcode_build_runs_live.ex:230
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:102
-#: lib/tuist_web/live/xcode_builds_live.html.heex:856
+#: lib/tuist_web/live/xcode_builds_live.ex:445
+#: lib/tuist_web/live/xcode_builds_live.html.heex:859
 #, elixir-autogen, elixir-format
 msgid "Passed"
 msgstr "Успешно"
@@ -780,8 +788,8 @@ msgstr "Продукт"
 msgid "Product name"
 msgstr "Название продукта"
 
-#: lib/tuist_web/live/build_run_live.ex:871
-#: lib/tuist_web/live/build_run_live.ex:908
+#: lib/tuist_web/live/build_run_live.ex:873
+#: lib/tuist_web/live/build_run_live.ex:910
 #: lib/tuist_web/live/build_run_live.html.heex:695
 #, elixir-autogen, elixir-format
 msgid "Project"
@@ -795,41 +803,41 @@ msgstr "Настройки проекта"
 #: lib/tuist_web/live/generate_runs_live.html.heex:14
 #: lib/tuist_web/live/generate_runs_live.html.heex:29
 #: lib/tuist_web/live/generate_runs_live.html.heex:111
-#: lib/tuist_web/live/run_detail_live.html.heex:154
+#: lib/tuist_web/live/run_detail_live.html.heex:156
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:14
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:29
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:165
-#: lib/tuist_web/live/xcode_builds_live.html.heex:893
+#: lib/tuist_web/live/xcode_builds_live.html.heex:896
 #, elixir-autogen, elixir-format
 msgid "Ran at"
-msgstr "Выполнено в"
+msgstr "Запущен в"
 
-#: lib/tuist_web/live/generate_runs_live.ex:313
+#: lib/tuist_web/live/generate_runs_live.ex:314
 #: lib/tuist_web/live/generate_runs_live.html.heex:87
-#: lib/tuist_web/live/run_detail_live.html.heex:150
-#: lib/tuist_web/live/xcode_build_runs_live.ex:304
+#: lib/tuist_web/live/run_detail_live.html.heex:152
+#: lib/tuist_web/live/xcode_build_runs_live.ex:309
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:130
-#: lib/tuist_web/live/xcode_builds_live.html.heex:873
+#: lib/tuist_web/live/xcode_builds_live.html.heex:876
 #, elixir-autogen, elixir-format
 msgid "Ran by"
-msgstr "Выполнено пользователем"
+msgstr "Запущен пользователем"
 
-#: lib/tuist_web/live/xcode_builds_live.html.heex:739
+#: lib/tuist_web/live/xcode_builds_live.html.heex:742
 #, elixir-autogen, elixir-format
 msgid "Recent Builds"
 msgstr "Последние сборки"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:174
 #: lib/tuist_web/components/runs/module_cache_tab.ex:429
-#: lib/tuist_web/live/build_run_live.ex:1046
+#: lib/tuist_web/live/build_run_live.ex:1048
 #: lib/tuist_web/live/build_run_live.html.heex:999
 #: lib/tuist_web/live/build_run_live.html.heex:1206
 #: lib/tuist_web/live/run_detail_live.ex:327
-#: lib/tuist_web/live/run_detail_live.html.heex:294
-#: lib/tuist_web/live/test_run_live.ex:1053
+#: lib/tuist_web/live/run_detail_live.html.heex:296
+#: lib/tuist_web/live/test_run_live.ex:1105
 #, elixir-autogen, elixir-format
 msgid "Remote"
-msgstr "Удалённо"
+msgstr "Удалённый"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:265
 #, elixir-autogen, elixir-format
@@ -841,19 +849,21 @@ msgstr "Ресурсы"
 msgid "Run"
 msgstr "Запуск"
 
-#: lib/tuist_web/live/run_detail_live.html.heex:175
+#: lib/tuist_web/live/run_detail_live.html.heex:177
 #, elixir-autogen, elixir-format
 msgid "Run duration"
 msgstr "Длительность запуска"
 
-#: lib/tuist_web/live/xcode_build_runs_live.ex:204
+#: lib/tuist_web/live/xcode_build_runs_live.ex:205
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:58
-#: lib/tuist_web/live/xcode_builds_live.html.heex:845
+#: lib/tuist_web/live/xcode_builds_live.ex:432
+#: lib/tuist_web/live/xcode_builds_live.html.heex:355
+#: lib/tuist_web/live/xcode_builds_live.html.heex:848
 #, elixir-autogen, elixir-format
 msgid "Scheme"
 msgstr "Схема"
 
-#: lib/tuist_web/live/xcode_builds_live.html.heex:35
+#: lib/tuist_web/live/xcode_builds_live.html.heex:30
 #, elixir-autogen, elixir-format
 msgid "Scheme:"
 msgstr "Схема:"
@@ -863,35 +873,36 @@ msgstr "Схема:"
 #: lib/tuist_web/live/build_run_live.html.heex:616
 #: lib/tuist_web/live/build_run_live.html.heex:1152
 #: lib/tuist_web/live/build_run_live.html.heex:1465
-#: lib/tuist_web/live/run_detail_live.html.heex:267
+#: lib/tuist_web/live/run_detail_live.html.heex:269
+#: lib/tuist_web/live/xcode_builds_live.html.heex:35
 #, elixir-autogen, elixir-format
 msgid "Search..."
 msgstr "Поиск..."
 
-#: lib/tuist_web/live/run_detail_live.html.heex:257
+#: lib/tuist_web/live/run_detail_live.html.heex:259
 #, elixir-autogen, elixir-format
 msgid "Selective Testing"
 msgstr "Селективное тестирование"
 
-#: lib/tuist_web/live/run_detail_live.html.heex:230
-#, elixir-autogen, elixir-format
-msgid "Selective test hits"
-msgstr "Селективные попадания тестов"
-
 #: lib/tuist_web/live/run_detail_live.html.heex:232
 #, elixir-autogen, elixir-format
-msgid "Selective test hits represents the number of test modules that were skipped thanks to the selective testing."
-msgstr "Селективные попадания тестов представляют собой количество тестовых модулей, которые были пропущены благодаря селективному тестированию."
+msgid "Selective test hits"
+msgstr "Попадания селективных тестов"
 
-#: lib/tuist_web/live/run_detail_live.html.heex:244
+#: lib/tuist_web/live/run_detail_live.html.heex:234
 #, elixir-autogen, elixir-format
-msgid "Selective test misses"
-msgstr "Селективные промахи тестов"
+msgid "Selective test hits represents the number of test modules that were skipped thanks to the selective testing."
+msgstr "Попадания селективных тестов — это количество тестовых модулей, которые были пропущены благодаря селективному тестированию."
 
 #: lib/tuist_web/live/run_detail_live.html.heex:246
 #, elixir-autogen, elixir-format
+msgid "Selective test misses"
+msgstr "Промахи селективных тестов"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:248
+#, elixir-autogen, elixir-format
 msgid "Selective test misses represents the number of test modules that were run as they were not successfully run before."
-msgstr "Селективные промахи тестов представляют собой количество тестовых модулей, которые были запущены, так как они не выполнялись успешно ранее."
+msgstr "Промахи селективных тестов — это количество тестовых модулей, которые были запущены, поскольку они не были успешно выполнены ранее."
 
 #: lib/tuist_web/live/build_run_live.html.heex:1476
 #: lib/tuist_web/live/build_run_live.html.heex:1496
@@ -900,7 +911,7 @@ msgstr "Селективные промахи тестов представля�
 msgid "Size"
 msgstr "Размер"
 
-#: lib/tuist_web/live/build_run_live.ex:1085
+#: lib/tuist_web/live/build_run_live.ex:1087
 #, elixir-autogen, elixir-format
 msgid "Size (MB)"
 msgstr "Размер (МБ)"
@@ -915,7 +926,7 @@ msgid "Sort by:"
 msgstr "Сортировать по:"
 
 #: lib/tuist_web/live/build_run_live.html.heex:292
-#: lib/tuist_web/live/run_detail_live.html.heex:162
+#: lib/tuist_web/live/run_detail_live.html.heex:164
 #, elixir-autogen, elixir-format
 msgid "Source"
 msgstr "Источник"
@@ -925,18 +936,19 @@ msgstr "Источник"
 msgid "Sources"
 msgstr "Источники"
 
-#: lib/tuist_web/live/build_run_live.ex:916
-#: lib/tuist_web/live/build_run_live.ex:1062
+#: lib/tuist_web/live/build_run_live.ex:918
+#: lib/tuist_web/live/build_run_live.ex:1064
 #: lib/tuist_web/live/build_run_live.html.heex:229
 #: lib/tuist_web/live/build_run_live.html.heex:1537
 #: lib/tuist_web/live/generate_runs_live.ex:266
-#: lib/tuist_web/live/run_detail_live.html.heex:132
-#: lib/tuist_web/live/xcode_build_runs_live.ex:222
+#: lib/tuist_web/live/run_detail_live.html.heex:134
+#: lib/tuist_web/live/xcode_build_runs_live.ex:226
+#: lib/tuist_web/live/xcode_builds_live.ex:433
 #, elixir-autogen, elixir-format
 msgid "Status"
 msgstr "Статус"
 
-#: lib/tuist_web/live/xcode_builds_live.html.heex:775
+#: lib/tuist_web/live/xcode_builds_live.html.heex:778
 #, elixir-autogen, elixir-format
 msgid "Successful builds"
 msgstr "Успешные сборки"
@@ -944,14 +956,14 @@ msgstr "Успешные сборки"
 #: lib/tuist_web/components/runs/module_cache_tab.ex:29
 #, elixir-autogen, elixir-format
 msgid "Summary"
-msgstr "Сводка"
+msgstr "Резюме"
 
-#: lib/tuist_web/live/run_detail_live.html.heex:193
+#: lib/tuist_web/live/run_detail_live.html.heex:195
 #, elixir-autogen, elixir-format
 msgid "Swift version"
 msgstr "Версия Swift"
 
-#: lib/tuist_web/live/build_run_live.ex:863
+#: lib/tuist_web/live/build_run_live.ex:865
 #: lib/tuist_web/live/build_run_live.html.heex:692
 #, elixir-autogen, elixir-format
 msgid "Target"
@@ -960,7 +972,7 @@ msgstr "Цель"
 #: lib/tuist_web/components/runs/module_cache_tab.ex:283
 #, elixir-autogen, elixir-format
 msgid "Target scripts"
-msgstr "Скрипты цели"
+msgstr "Скрипты целей"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:329
 #, elixir-autogen, elixir-format
@@ -982,15 +994,15 @@ msgstr "Попадания задач"
 msgid "Task misses"
 msgstr "Промахи задач"
 
-#: lib/tuist_web/live/run_detail_live.html.heex:105
+#: lib/tuist_web/live/run_detail_live.html.heex:107
 #, elixir-autogen, elixir-format
 msgid "Test Details"
 msgstr "Детали теста"
 
-#: lib/tuist_web/live/run_detail_live.html.heex:90
+#: lib/tuist_web/live/run_detail_live.html.heex:92
 #, elixir-autogen, elixir-format
 msgid "Test Optimizations"
-msgstr "Оптимизации тестов"
+msgstr "Оптимизации теста"
 
 #: lib/tuist_web/live/run_detail_live.html.heex:4
 #, elixir-autogen, elixir-format
@@ -1002,17 +1014,17 @@ msgstr "Запуски тестов"
 msgid "Test: %{scheme}"
 msgstr "Тест: %{scheme}"
 
-#: lib/tuist_web/live/xcode_builds_live.html.heex:263
+#: lib/tuist_web/live/xcode_builds_live.html.heex:272
 #, elixir-autogen, elixir-format
 msgid "The average build duration with individual percentile intervals."
-msgstr "Средняя длительность сборки с указанием индивидуальных интервалов перцентилей."
+msgstr "Средняя длительность сборки с индивидуальными интервалами перцентилей."
 
-#: lib/tuist_web/live/xcode_builds_live.html.heex:232
+#: lib/tuist_web/live/xcode_builds_live.html.heex:241
 #, elixir-autogen, elixir-format
 msgid "The number of builds that failed."
 msgstr "Количество неудачных сборок."
 
-#: lib/tuist_web/live/xcode_builds_live.html.heex:210
+#: lib/tuist_web/live/xcode_builds_live.html.heex:219
 #, elixir-autogen, elixir-format
 msgid "The percentage of builds that succeeded."
 msgstr "Процент успешных сборок."
@@ -1022,7 +1034,7 @@ msgstr "Процент успешных сборок."
 msgid "The percentage of cacheable tasks that were cache hits (local + remote)."
 msgstr "Процент кэшируемых задач, которые были попаданиями в кэш (локальный + удалённый)."
 
-#: lib/tuist_web/live/xcode_builds_live.html.heex:195
+#: lib/tuist_web/live/xcode_builds_live.html.heex:204
 #, elixir-autogen, elixir-format
 msgid "The total number of builds."
 msgstr "Общее количество сборок."
@@ -1030,37 +1042,37 @@ msgstr "Общее количество сборок."
 #: lib/tuist_web/live/build_run_live.html.heex:1044
 #, elixir-autogen, elixir-format
 msgid "Time to read cache keys, which uniquely identify cacheable tasks, from cache."
-msgstr "Время чтения ключей кэша, которые уникально идентифицируют кэшируемые задачи, из кэша."
+msgstr "Время чтения ключей кэша, которые однозначно идентифицируют кэшируемые задачи."
 
 #: lib/tuist_web/live/build_run_live.html.heex:1100
 #, elixir-autogen, elixir-format
 msgid "Time to write cache keys, which uniquely identify cacheable tasks, to cache."
-msgstr "Время записи ключей кэша, которые уникально идентифицируют кэшируемые задачи, в кэш."
+msgstr "Время записи ключей кэша, которые однозначно идентифицируют кэшируемые задачи."
 
 #: lib/tuist_web/live/build_run_live.html.heex:1427
 #, elixir-autogen, elixir-format
 msgid "Time-weighted average download throughput in megabits per second."
-msgstr "Средневзвешенная по времени пропускная способность загрузки в мегабитах в секунду."
+msgstr "Средняя пропускная способность загрузки в мегабитах в секунду с учётом времени."
 
 #: lib/tuist_web/live/build_run_live.html.heex:1444
 #, elixir-autogen, elixir-format
 msgid "Time-weighted average upload throughput in megabits per second."
-msgstr "Средневзвешенная по времени пропускная способность выгрузки в мегабитах в секунду."
+msgstr "Средняя пропускная способность выгрузки в мегабитах в секунду с учётом времени."
 
-#: lib/tuist_web/live/xcode_builds_live.html.heex:193
+#: lib/tuist_web/live/xcode_builds_live.html.heex:202
 #, elixir-autogen, elixir-format
 msgid "Total builds"
 msgstr "Всего сборок"
 
-#: lib/tuist_web/live/run_detail_live.html.heex:219
+#: lib/tuist_web/live/run_detail_live.html.heex:221
 #, elixir-autogen, elixir-format
 msgid "Total modules"
 msgstr "Всего модулей"
 
-#: lib/tuist_web/live/run_detail_live.html.heex:221
+#: lib/tuist_web/live/run_detail_live.html.heex:223
 #, elixir-autogen, elixir-format
 msgid "Total modules represents the total number of testable modules."
-msgstr "Всего модулей представляет собой общее количество тестируемых модулей."
+msgstr "Общее количество модулей представляет общее число тестируемых модулей."
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:37
 #, elixir-autogen, elixir-format
@@ -1075,15 +1087,15 @@ msgstr "Общее количество модулей, которые могл�
 #: lib/tuist_web/live/build_run_live.html.heex:880
 #, elixir-autogen, elixir-format
 msgid "Total size of cache artifacts downloaded."
-msgstr "Общий размер артефактов кэша, загруженных из него."
+msgstr "Общий размер загруженных артефактов кэша."
 
 #: lib/tuist_web/live/build_run_live.html.heex:888
 #, elixir-autogen, elixir-format
 msgid "Total size of cache artifacts uploaded."
-msgstr "Общий размер артефактов кэша, загруженных в него."
+msgstr "Общий размер загруженных в кэш артефактов."
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:204
-#: lib/tuist_web/live/run_detail_live.html.heex:321
+#: lib/tuist_web/live/run_detail_live.html.heex:323
 #, elixir-autogen, elixir-format
 msgid "Try changing your search term"
 msgstr "Попробуйте изменить поисковый запрос"
@@ -1094,13 +1106,13 @@ msgstr "Попробуйте изменить поисковый запрос"
 msgid "Try updating your search"
 msgstr "Попробуйте обновить поиск"
 
-#: lib/tuist_web/live/run_detail_live.html.heex:186
+#: lib/tuist_web/live/run_detail_live.html.heex:188
 #, elixir-autogen, elixir-format
 msgid "Tuist version"
 msgstr "Версия Tuist"
 
-#: lib/tuist_web/live/build_run_live.ex:1028
-#: lib/tuist_web/live/build_run_live.ex:1075
+#: lib/tuist_web/live/build_run_live.ex:1030
+#: lib/tuist_web/live/build_run_live.ex:1077
 #: lib/tuist_web/live/build_run_live.html.heex:678
 #: lib/tuist_web/live/build_run_live.html.heex:1217
 #: lib/tuist_web/live/build_run_live.html.heex:1551
@@ -1108,7 +1120,7 @@ msgstr "Версия Tuist"
 msgid "Type"
 msgstr "Тип"
 
-#: lib/tuist_web/live/xcode_builds_live.html.heex:567
+#: lib/tuist_web/live/xcode_builds_live.html.heex:617
 #, elixir-autogen, elixir-format
 msgid "Type:"
 msgstr "Тип:"
@@ -1118,17 +1130,19 @@ msgstr "Тип:"
 #: lib/tuist_web/live/build_run_live.html.heex:221
 #: lib/tuist_web/live/build_run_live.html.heex:284
 #: lib/tuist_web/live/build_run_live.html.heex:1195
-#: lib/tuist_web/live/run_detail_live.html.heex:314
+#: lib/tuist_web/live/run_detail_live.html.heex:316
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:94
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:158
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:180
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:188
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:196
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:199
-#: lib/tuist_web/live/xcode_builds_live.ex:352
-#: lib/tuist_web/live/xcode_builds_live.html.heex:848
-#: lib/tuist_web/live/xcode_builds_live.html.heex:868
-#: lib/tuist_web/live/xcode_builds_live.html.heex:888
+#: lib/tuist_web/live/xcode_builds_live.ex:405
+#: lib/tuist_web/live/xcode_builds_live.ex:439
+#: lib/tuist_web/live/xcode_builds_live.ex:442
+#: lib/tuist_web/live/xcode_builds_live.html.heex:851
+#: lib/tuist_web/live/xcode_builds_live.html.heex:871
+#: lib/tuist_web/live/xcode_builds_live.html.heex:891
 #, elixir-autogen, elixir-format
 msgid "Unknown"
 msgstr "Неизвестно"
@@ -1138,106 +1152,106 @@ msgstr "Неизвестно"
 msgid "Unknown scheme"
 msgstr "Неизвестная схема"
 
-#: lib/tuist_web/live/build_run_live.ex:1067
+#: lib/tuist_web/live/build_run_live.ex:1069
 #: lib/tuist_web/live/build_run_live.html.heex:1401
 #: lib/tuist_web/live/build_run_live.html.heex:1546
 #, elixir-autogen, elixir-format
 msgid "Upload"
-msgstr "Выгрузить"
+msgstr "Загрузка"
 
 #: lib/tuist_web/live/build_run_live.html.heex:1442
 #, elixir-autogen, elixir-format
 msgid "Upload throughput"
-msgstr "Пропускная способность выгрузки"
+msgstr "Пропускная способность загрузки"
 
 #: lib/tuist_web/live/build_run_live.html.heex:405
-#: lib/tuist_web/live/xcode_builds_live.html.heex:746
+#: lib/tuist_web/live/xcode_builds_live.html.heex:749
 #, elixir-autogen, elixir-format
 msgid "View more"
 msgstr "Показать больше"
 
-#: lib/tuist_web/live/build_run_live.ex:710
+#: lib/tuist_web/live/build_run_live.ex:712
 #, elixir-autogen, elixir-format
 msgid "Warning when compiling C file %{path}"
 msgstr "Предупреждение при компиляции C-файла %{path}"
 
-#: lib/tuist_web/live/build_run_live.ex:713
-#: lib/tuist_web/live/build_run_live.ex:749
+#: lib/tuist_web/live/build_run_live.ex:715
+#: lib/tuist_web/live/build_run_live.ex:751
 #, elixir-autogen, elixir-format
 msgid "Warning when compiling Swift file %{path}"
 msgstr "Предупреждение при компиляции Swift-файла %{path}"
 
-#: lib/tuist_web/live/build_run_live.ex:746
+#: lib/tuist_web/live/build_run_live.ex:748
 #, elixir-autogen, elixir-format
 msgid "Warning when compiling XIB file %{path}"
 msgstr "Предупреждение при компиляции XIB-файла %{path}"
 
-#: lib/tuist_web/live/build_run_live.ex:728
+#: lib/tuist_web/live/build_run_live.ex:730
 #, elixir-autogen, elixir-format
 msgid "Warning when compiling assets catalog %{path}"
 msgstr "Предупреждение при компиляции каталога ресурсов %{path}"
 
-#: lib/tuist_web/live/build_run_live.ex:731
+#: lib/tuist_web/live/build_run_live.ex:733
 #, elixir-autogen, elixir-format
 msgid "Warning when compiling storyboard %{path}"
-msgstr "Предупреждение при компиляции storyboard %{path}"
+msgstr "Предупреждение при компиляции сториборда %{path}"
 
-#: lib/tuist_web/live/build_run_live.ex:725
+#: lib/tuist_web/live/build_run_live.ex:727
 #, elixir-autogen, elixir-format
 msgid "Warning when copying Swift libraries %{path}"
-msgstr "Предупреждение при копировании Swift-библиотек %{path}"
+msgstr "Предупреждение при копировании библиотек Swift %{path}"
 
-#: lib/tuist_web/live/build_run_live.ex:740
+#: lib/tuist_web/live/build_run_live.ex:742
 #, elixir-autogen, elixir-format
 msgid "Warning when copying resource file %{path}"
 msgstr "Предупреждение при копировании файла ресурсов %{path}"
 
-#: lib/tuist_web/live/build_run_live.ex:719
+#: lib/tuist_web/live/build_run_live.ex:721
 #, elixir-autogen, elixir-format
 msgid "Warning when creating static library %{path}"
 msgstr "Предупреждение при создании статической библиотеки %{path}"
 
-#: lib/tuist_web/live/build_run_live.ex:716
+#: lib/tuist_web/live/build_run_live.ex:718
 #, elixir-autogen, elixir-format
 msgid "Warning when executing script %{script_name}"
 msgstr "Предупреждение при выполнении скрипта %{script_name}"
 
-#: lib/tuist_web/live/build_run_live.ex:722
+#: lib/tuist_web/live/build_run_live.ex:724
 #, elixir-autogen, elixir-format
 msgid "Warning when linking %{path}"
 msgstr "Предупреждение при линковке %{path}"
 
-#: lib/tuist_web/live/build_run_live.ex:737
+#: lib/tuist_web/live/build_run_live.ex:739
 #, elixir-autogen, elixir-format
 msgid "Warning when linking storyboards %{path}"
-msgstr "Предупреждение при линковке storyboard %{path}"
+msgstr "Предупреждение при линковке сторибордов %{path}"
 
-#: lib/tuist_web/live/build_run_live.ex:743
+#: lib/tuist_web/live/build_run_live.ex:745
 #, elixir-autogen, elixir-format
 msgid "Warning when merging Swift module %{path}"
 msgstr "Предупреждение при объединении модуля Swift %{path}"
 
-#: lib/tuist_web/live/build_run_live.ex:752
+#: lib/tuist_web/live/build_run_live.ex:754
 #, elixir-autogen, elixir-format
 msgid "Warning when precompiling bridging header %{path}"
-msgstr "Предупреждение при прекомпиляции bridging header %{path}"
+msgstr "Предупреждение при предварительной компиляции bridging header %{path}"
 
-#: lib/tuist_web/live/build_run_live.ex:764
+#: lib/tuist_web/live/build_run_live.ex:766
 #, elixir-autogen, elixir-format
 msgid "Warning when processing %{path}"
 msgstr "Предупреждение при обработке %{path}"
 
-#: lib/tuist_web/live/build_run_live.ex:758
+#: lib/tuist_web/live/build_run_live.ex:760
 #, elixir-autogen, elixir-format
 msgid "Warning when validating %{path}"
 msgstr "Предупреждение при проверке %{path}"
 
-#: lib/tuist_web/live/build_run_live.ex:755
+#: lib/tuist_web/live/build_run_live.ex:757
 #, elixir-autogen, elixir-format
 msgid "Warning when validating embedded binary %{path}"
 msgstr "Предупреждение при проверке встроенного бинарного файла %{path}"
 
-#: lib/tuist_web/live/build_run_live.ex:734
+#: lib/tuist_web/live/build_run_live.ex:736
 #, elixir-autogen, elixir-format
 msgid "Warning when writing auxiliary file %{path}"
 msgstr "Предупреждение при записи вспомогательного файла %{path}"
@@ -1257,34 +1271,34 @@ msgid "Xcode Cache"
 msgstr "Кэш Xcode"
 
 #: lib/tuist_web/live/build_run_live.html.heex:302
-#: lib/tuist_web/live/xcode_build_runs_live.ex:258
+#: lib/tuist_web/live/xcode_build_runs_live.ex:262
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:177
-#: lib/tuist_web/live/xcode_builds_live.ex:335
-#: lib/tuist_web/live/xcode_builds_live.html.heex:571
-#: lib/tuist_web/live/xcode_builds_live.html.heex:865
+#: lib/tuist_web/live/xcode_builds_live.ex:388
+#: lib/tuist_web/live/xcode_builds_live.html.heex:621
+#: lib/tuist_web/live/xcode_builds_live.html.heex:868
 #, elixir-autogen, elixir-format
 msgid "Xcode version"
 msgstr "Версия Xcode"
 
 #: lib/tuist_web/live/build_run_live.html.heex:308
-#: lib/tuist_web/live/run_detail_live.html.heex:200
-#: lib/tuist_web/live/xcode_build_runs_live.ex:266
+#: lib/tuist_web/live/run_detail_live.html.heex:202
+#: lib/tuist_web/live/xcode_build_runs_live.ex:270
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:185
-#: lib/tuist_web/live/xcode_builds_live.ex:336
-#: lib/tuist_web/live/xcode_builds_live.html.heex:587
+#: lib/tuist_web/live/xcode_builds_live.ex:389
+#: lib/tuist_web/live/xcode_builds_live.html.heex:639
 #, elixir-autogen, elixir-format
 msgid "macOS version"
 msgstr "Версия macOS"
 
-#: lib/tuist_web/live/xcode_builds_live.html.heex:453
+#: lib/tuist_web/live/xcode_builds_live.html.heex:485
 #, elixir-autogen, elixir-format
 msgid "p50"
 msgstr "p50"
 
-#: lib/tuist_web/live/xcode_builds_live.html.heex:250
+#: lib/tuist_web/live/xcode_builds_live.html.heex:259
 #, elixir-autogen, elixir-format
 msgid "p50 build duration"
-msgstr "p50 длительность сборки"
+msgstr "p50 продолжительность сборки"
 
 #: lib/tuist_web/live/build_run_live.html.heex:1040
 #, elixir-autogen, elixir-format
@@ -1296,15 +1310,15 @@ msgstr "p50 задержка чтения ключей кэша"
 msgid "p50 latency writing cache keys"
 msgstr "p50 задержка записи ключей кэша"
 
-#: lib/tuist_web/live/xcode_builds_live.html.heex:439
+#: lib/tuist_web/live/xcode_builds_live.html.heex:471
 #, elixir-autogen, elixir-format
 msgid "p90"
 msgstr "p90"
 
-#: lib/tuist_web/live/xcode_builds_live.html.heex:249
+#: lib/tuist_web/live/xcode_builds_live.html.heex:258
 #, elixir-autogen, elixir-format
 msgid "p90 build duration"
-msgstr "p90 длительность сборки"
+msgstr "p90 продолжительность сборки"
 
 #: lib/tuist_web/live/build_run_live.html.heex:1039
 #, elixir-autogen, elixir-format
@@ -1316,15 +1330,15 @@ msgstr "p90 задержка чтения ключей кэша"
 msgid "p90 latency writing cache keys"
 msgstr "p90 задержка записи ключей кэша"
 
-#: lib/tuist_web/live/xcode_builds_live.html.heex:425
+#: lib/tuist_web/live/xcode_builds_live.html.heex:457
 #, elixir-autogen, elixir-format
 msgid "p99"
 msgstr "p99"
 
-#: lib/tuist_web/live/xcode_builds_live.html.heex:248
+#: lib/tuist_web/live/xcode_builds_live.html.heex:257
 #, elixir-autogen, elixir-format
 msgid "p99 build duration"
-msgstr "p99 длительность сборки"
+msgstr "p99 продолжительность сборки"
 
 #: lib/tuist_web/live/build_run_live.html.heex:1038
 #, elixir-autogen, elixir-format
@@ -1336,17 +1350,17 @@ msgstr "p99 задержка чтения ключей кэша"
 msgid "p99 latency writing cache keys"
 msgstr "p99 задержка записи ключей кэша"
 
-#: lib/tuist_web/live/xcode_builds_live.ex:329
+#: lib/tuist_web/live/xcode_builds_live.ex:380
 #, elixir-autogen, elixir-format
 msgid "since last month"
 msgstr "с прошлого месяца"
 
-#: lib/tuist_web/live/xcode_builds_live.ex:326
+#: lib/tuist_web/live/xcode_builds_live.ex:377
 #, elixir-autogen, elixir-format
 msgid "since last week"
-msgstr "с прошлой недели"
+msgstr "со прошлой недели"
 
-#: lib/tuist_web/live/xcode_builds_live.ex:327
+#: lib/tuist_web/live/xcode_builds_live.ex:378
 #, elixir-autogen, elixir-format
 msgid "since last year"
 msgstr "с прошлого года"
@@ -1359,66 +1373,59 @@ msgstr "с прошлого года"
 msgid "•"
 msgstr "•"
 
-#: lib/tuist_web/live/xcode_builds_live.html.heex:180
-#: lib/tuist_web/live/xcode_builds_live.html.heex:636
+#: lib/tuist_web/live/xcode_builds_live.html.heex:184
 #, elixir-autogen, elixir-format
 msgid "Apply"
 msgstr "Применить"
 
-#: lib/tuist_web/live/xcode_builds_live.html.heex:171
-#: lib/tuist_web/live/xcode_builds_live.html.heex:627
+#: lib/tuist_web/live/xcode_builds_live.html.heex:175
 #, elixir-autogen, elixir-format
 msgid "Cancel"
 msgstr "Отмена"
 
-#: lib/tuist_web/live/xcode_builds_live.html.heex:162
-#: lib/tuist_web/live/xcode_builds_live.html.heex:618
+#: lib/tuist_web/live/xcode_builds_live.html.heex:166
 #, elixir-autogen, elixir-format
 msgid "Custom"
 msgstr "Пользовательский"
 
-#: lib/tuist_web/live/xcode_builds_live.html.heex:159
-#: lib/tuist_web/live/xcode_builds_live.html.heex:615
+#: lib/tuist_web/live/xcode_builds_live.html.heex:163
 #, elixir-autogen, elixir-format
 msgid "Last 12 months"
 msgstr "Последние 12 месяцев"
 
-#: lib/tuist_web/live/xcode_builds_live.html.heex:144
-#: lib/tuist_web/live/xcode_builds_live.html.heex:600
+#: lib/tuist_web/live/xcode_builds_live.html.heex:148
 #, elixir-autogen, elixir-format
 msgid "Last 24 hours"
 msgstr "Последние 24 часа"
 
-#: lib/tuist_web/live/xcode_builds_live.html.heex:154
-#: lib/tuist_web/live/xcode_builds_live.html.heex:610
+#: lib/tuist_web/live/xcode_builds_live.html.heex:158
 #, elixir-autogen, elixir-format
 msgid "Last 30 days"
 msgstr "Последние 30 дней"
 
-#: lib/tuist_web/live/xcode_builds_live.html.heex:149
-#: lib/tuist_web/live/xcode_builds_live.html.heex:605
+#: lib/tuist_web/live/xcode_builds_live.html.heex:153
 #, elixir-autogen, elixir-format
 msgid "Last 7 days"
 msgstr "Последние 7 дней"
 
-#: lib/tuist_web/live/xcode_builds_live.ex:328
+#: lib/tuist_web/live/xcode_builds_live.ex:379
 #, elixir-autogen, elixir-format
 msgid "since last period"
 msgstr "с прошлого периода"
 
-#: lib/tuist_web/live/xcode_builds_live.ex:325
+#: lib/tuist_web/live/xcode_builds_live.ex:376
 #, elixir-autogen, elixir-format
 msgid "since yesterday"
-msgstr "с прошлого дня"
+msgstr "со вчерашнего дня"
 
 #: lib/tuist_web/live/generate_runs_live.ex:295
-#: lib/tuist_web/live/run_detail_live.html.heex:123
+#: lib/tuist_web/live/run_detail_live.html.heex:125
 #, elixir-autogen, elixir-format
 msgid "Cache Endpoint"
-msgstr "Точка доступа кэша"
+msgstr "Точка доступа к кэшу"
 
-#: lib/tuist_web/live/xcode_builds_live.ex:345
-#: lib/tuist_web/live/xcode_builds_live.html.heex:16
+#: lib/tuist_web/live/xcode_builds_live.ex:398
+#: lib/tuist_web/live/xcode_builds_live.html.heex:11
 #, elixir-autogen, elixir-format
 msgid "All"
 msgstr "Все"
@@ -1433,12 +1440,12 @@ msgstr "Пользовательские метаданные"
 msgid "Generations"
 msgstr "Поколения"
 
-#: lib/tuist_web/live/xcode_builds_live.html.heex:12
+#: lib/tuist_web/live/xcode_builds_live.html.heex:7
 #, elixir-autogen, elixir-format
 msgid "Tag:"
 msgstr "Тег:"
 
-#: lib/tuist_web/live/xcode_build_runs_live.ex:281
+#: lib/tuist_web/live/xcode_build_runs_live.ex:285
 #, elixir-autogen, elixir-format
 msgid "Tags"
 msgstr "Теги"
@@ -1460,14 +1467,14 @@ msgid "Download build"
 msgstr "Скачать сборку"
 
 #: lib/tuist_web/live/build_run_live.html.heex:246
-#: lib/tuist_web/live/xcode_build_runs_live.ex:229
+#: lib/tuist_web/live/xcode_build_runs_live.ex:233
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:117
 #, elixir-autogen, elixir-format
 msgid "Failed processing"
 msgstr "Ошибка обработки"
 
 #: lib/tuist_web/live/build_run_live.html.heex:252
-#: lib/tuist_web/live/xcode_build_runs_live.ex:228
+#: lib/tuist_web/live/xcode_build_runs_live.ex:232
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:112
 #, elixir-autogen, elixir-format
 msgid "Processing"
@@ -1488,7 +1495,12 @@ msgstr "Обновить"
 msgid "This usually takes a few seconds. If the page doesn't update automatically, click the refresh button."
 msgstr "Обычно это занимает несколько секунд. Если страница не обновляется автоматически, нажмите кнопку обновления."
 
-#: lib/tuist_web/live/run_detail_live.html.heex:74
+#: lib/tuist_web/live/run_detail_live.html.heex:75
 #, elixir-autogen, elixir-format
 msgid "Download session"
-msgstr "Скачать сессию"
+msgstr "Загрузить сессию"
+
+#: lib/tuist_web/live/xcode_builds_live.html.heex:504
+#, elixir-autogen, elixir-format
+msgid "The 10,000 entry limit has been reached, data is only included up to %{date}. Try filtering by scheme, configuration, or other properties to narrow down the dataset."
+msgstr "Достигнут лимит в 10,000 записей, данные включены только до %{date}. Попробуйте отфильтровать по схеме, конфигурации или другим свойствам, чтобы сузить набор данных."
