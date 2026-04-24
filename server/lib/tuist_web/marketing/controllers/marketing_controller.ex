@@ -10,13 +10,15 @@ defmodule TuistWeb.Marketing.MarketingController do
   alias Tuist.Marketing.Customers
   alias Tuist.Marketing.Newsletter
   alias Tuist.Marketing.Pages
+  alias TuistWeb.AgentDiscovery
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Marketing.Localization
 
-  plug(:assign_default_head_tags)
-  plug(:put_resp_header_cache_control)
-  plug(:put_resp_header_server)
+  plug :assign_default_head_tags
+  plug :put_agent_discovery_links when action in [:home]
+  plug :put_resp_header_cache_control
+  plug :put_resp_header_server
 
   def qa(conn, _params) do
     read_more_posts = Enum.take(Blog.get_posts(), 3)
@@ -702,6 +704,10 @@ defmodule TuistWeb.Marketing.MarketingController do
     |> assign(:head_twitter_card, "summary_large_image")
     |> assign(:head_include_blog_rss_and_atom, true)
     |> assign(:head_include_changelog_rss_and_atom, true)
+  end
+
+  defp put_agent_discovery_links(conn, _opts) do
+    put_resp_header(conn, "link", AgentDiscovery.homepage_link_header_value())
   end
 
   defp put_resp_header_cache_control(conn, _opts) do
