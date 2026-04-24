@@ -83,6 +83,7 @@ struct SetupCacheCommandServiceTests {
             .called(1)
 
         TuistTest.expectLogs("Xcode Cache has been enabled 🎉")
+        TuistTest.expectLogs("Xcode talks to the cache daemon over the socket at: ")
     }
 
     @Test(
@@ -341,6 +342,7 @@ struct SetupCacheCommandServiceTests {
         TuistTest
             .expectLogs("To enable Xcode Cache for this project, set the enableCaching property in your Tuist.swift file to true:"
             )
+        TuistTest.expectLogs("Xcode talks to the cache daemon over the socket at: ")
     }
 
     @Test(

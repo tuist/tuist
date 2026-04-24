@@ -83,11 +83,14 @@ struct SetupCacheCommandService {
             environmentVariables: environmentVariables
         )
 
+        let socketPath = Environment.current.cacheSocketPathString(for: fullHandle)
+
         if try await manifestLoader.hasRootManifest(at: path) {
             if let generationOptions = config.project.generatedProject?.generationOptions,
                generationOptions.enableCaching == true
             {
                 Logger.current.info("Xcode Cache has been enabled 🎉", metadata: .success)
+                Logger.current.info("Xcode talks to the cache daemon over the socket at: \(socketPath)")
             } else {
                 Logger.current.info(
                     """
@@ -103,6 +106,8 @@ struct SetupCacheCommandService {
                             )
                         )
                     )
+
+                    Xcode talks to the cache daemon over the socket at: \(socketPath)
                     """
                 )
             }
@@ -113,7 +118,7 @@ struct SetupCacheCommandService {
 
                 To finish the setup, set the following build settings in Xcode projects that you want to use caching for:
                 COMPILATION_CACHE_ENABLE_CACHING=YES
-                COMPILATION_CACHE_REMOTE_SERVICE_PATH=\(Environment.current.cacheSocketPathString(for: fullHandle))
+                COMPILATION_CACHE_REMOTE_SERVICE_PATH=\(socketPath)
                 COMPILATION_CACHE_ENABLE_PLUGIN=YES
                 COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS=YES
 

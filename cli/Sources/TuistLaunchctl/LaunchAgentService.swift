@@ -28,6 +28,11 @@ public protocol LaunchAgentServicing {
         programArguments: [String],
         environmentVariables: [String: String]
     ) async throws
+
+    func teardownLaunchAgent(
+        label: String,
+        plistFileName: String
+    ) async throws
 }
 
 public struct LaunchAgentService: LaunchAgentServicing {
@@ -121,6 +126,29 @@ public struct LaunchAgentService: LaunchAgentServicing {
         }
 
         Logger.current.debug("LaunchAgent configured and loaded successfully")
+    }
+
+    public func teardownLaunchAgent(
+        label: String,
+        plistFileName: String
+    ) async throws {
+        let plistPath = Environment.current.homeDirectory.appending(
+            components: "Library", "LaunchAgents", plistFileName
+        )
+
+        do {
+            try await launchctlController.bootout(label: label)
+            Logger.current.debug("Booted out LaunchAgent")
+        } catch {
+            Logger.current.debug(
+                "Failed to boot out LaunchAgent (it may not be loaded): \(error.localizedDescription)"
+            )
+        }
+
+        if try await fileSystem.exists(plistPath) {
+            try await fileSystem.remove(plistPath)
+            Logger.current.debug("Removed LaunchAgent plist at: \(plistPath.pathString)")
+        }
     }
 
     private func determineTuistBinaryPath() async throws -> AbsolutePath {
