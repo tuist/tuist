@@ -40,6 +40,7 @@ defmodule Tuist.Tests do
   alias Tuist.Tests.TestCaseRun
   alias Tuist.Tests.TestCaseRunArgument
   alias Tuist.Tests.TestCaseRunAttachment
+  alias Tuist.Tests.TestCaseRunByCommit
   alias Tuist.Tests.TestCaseRunByShardId
   alias Tuist.Tests.TestCaseRunByTestRun
   alias Tuist.Tests.TestCaseRunDashboardCount
@@ -1044,11 +1045,12 @@ defmodule Tuist.Tests do
     test_case_id_set = MapSet.new(test_case_ids)
 
     query =
-      from(tcr in TestCaseRun,
+      from(tcr in TestCaseRunByCommit,
         where: tcr.project_id == ^project_id,
         where: tcr.git_commit_sha == ^git_commit_sha,
         where: tcr.is_ci == true,
-        where: tcr.status in ["success", "failure"]
+        where: tcr.status in ["success", "failure"],
+        select: %{id: tcr.id, test_case_id: tcr.test_case_id, status: tcr.status}
       )
 
     query
@@ -1898,10 +1900,13 @@ defmodule Tuist.Tests do
   defp mark_test_case_runs_as_flaky([]), do: :ok
 
   defp mark_test_case_runs_as_flaky(runs) when is_list(runs) do
+    ids = runs |> Enum.map(& &1.id) |> Enum.uniq()
+
+    full_runs =
+      ClickHouseRepo.all(from(tcr in TestCaseRun, where: tcr.id in ^ids))
+
     updated_runs =
-      runs
-      |> Enum.uniq_by(& &1.id)
-      |> Enum.map(fn run ->
+      Enum.map(full_runs, fn run ->
         run
         |> Map.from_struct()
         |> Map.drop([:__meta__, :ran_by_account, :failures, :repetitions, :crash_report, :attachments])
