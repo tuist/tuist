@@ -131,7 +131,7 @@ extension XcodeGraph.TestPlan {
 
         var resolved: [XcodeGraph.TestPlan] = []
         for entry in entries {
-            switch entry.kind {
+            switch entry {
             case let .path(path):
                 try await appendPathEntry(
                     path: path,

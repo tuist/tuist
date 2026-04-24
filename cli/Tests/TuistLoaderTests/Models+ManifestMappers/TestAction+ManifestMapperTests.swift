@@ -19,7 +19,7 @@ struct TestActionManifestMapperTests {
         try await fileSystem.writeText(testPlanContent, at: testPlanPath)
 
         let manifest = ProjectDescription.TestAction.testPlans([
-            .testPlan(path: .path(testPlanPath.pathString)),
+            .path(.path(testPlanPath.pathString)),
         ])
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryDirectory, rootDirectory: temporaryDirectory)
 
@@ -42,7 +42,7 @@ struct TestActionManifestMapperTests {
         try await fileSystem.writeText(testPlanContent, at: testPlanPath)
 
         let manifest = ProjectDescription.TestAction.testPlans([
-            .testPlan(path: "*.xctestplan"),
+            .path("*.xctestplan"),
         ])
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryDirectory, rootDirectory: temporaryDirectory)
 
@@ -68,7 +68,7 @@ struct TestActionManifestMapperTests {
         try await fileSystem.writeText(testPlanContent, at: testPlan2Path)
 
         let manifest = ProjectDescription.TestAction.testPlans([
-            .testPlan(path: "*.xctestplan"),
+            .path("*.xctestplan"),
         ])
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryDirectory, rootDirectory: temporaryDirectory)
 
@@ -97,7 +97,7 @@ struct TestActionManifestMapperTests {
         try await fileSystem.writeText(testPlanContent, at: testPlanPath)
 
         let manifest = ProjectDescription.TestAction.testPlans([
-            .testPlan(path: "**/*.xctestplan"),
+            .path("**/*.xctestplan"),
         ])
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryDirectory, rootDirectory: temporaryDirectory)
 
@@ -123,8 +123,8 @@ struct TestActionManifestMapperTests {
         try await fileSystem.writeText(testPlanContent, at: globPlanPath)
 
         let manifest = ProjectDescription.TestAction.testPlans([
-            .testPlan(path: .path(literalPlanPath.pathString)),
-            .testPlan(path: "Glob*.xctestplan"),
+            .path(.path(literalPlanPath.pathString)),
+            .path("Glob*.xctestplan"),
         ])
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryDirectory, rootDirectory: temporaryDirectory)
 
@@ -149,7 +149,7 @@ struct TestActionManifestMapperTests {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
 
         let manifest = ProjectDescription.TestAction.testPlans([
-            .testPlan(path: "*.xctestplan"),
+            .path("*.xctestplan"),
         ])
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryDirectory, rootDirectory: temporaryDirectory)
 
@@ -173,7 +173,7 @@ struct TestActionManifestMapperTests {
         try await fileSystem.writeText("test", at: textFilePath)
 
         let manifest = ProjectDescription.TestAction.testPlans([
-            .testPlan(path: "TestPlan.*"),
+            .path("TestPlan.*"),
         ])
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryDirectory, rootDirectory: temporaryDirectory)
 
@@ -194,13 +194,13 @@ struct TestActionManifestMapperTests {
         let projectPath = temporaryDirectory.appending(component: "App.xcodeproj")
 
         let manifest = ProjectDescription.TestAction.testPlans([
-            .testPlan(
+            .generated(
                 name: "UnitTests",
                 testTargets: [
                     .testableTarget(target: .project(path: .path(projectPath.pathString), target: "AppTests")),
                 ]
             ),
-            .testPlan(
+            .generated(
                 name: "SnapshotTests",
                 testTargets: [
                     .testableTarget(target: .project(path: .path(projectPath.pathString), target: "AppSnapshotTests")),
@@ -235,7 +235,7 @@ struct TestActionManifestMapperTests {
         let projectPath = temporaryDirectory.appending(component: "App.xcodeproj")
 
         let manifest = ProjectDescription.TestAction.testPlans([
-            .testPlan(
+            .generated(
                 name: "UnitTests",
                 testTargets: [
                     .testableTarget(target: .project(path: .path(projectPath.pathString), target: "AppTests")),
@@ -264,13 +264,13 @@ struct TestActionManifestMapperTests {
         let projectPath = temporaryDirectory.appending(component: "App.xcodeproj")
 
         let manifest = ProjectDescription.TestAction.testPlans([
-            .testPlan(
+            .generated(
                 name: "UnitTests",
                 testTargets: [
                     .testableTarget(target: .project(path: .path(projectPath.pathString), target: "AppTests")),
                 ]
             ),
-            .testPlan(path: .path(preConfiguredPath.pathString)),
+            .path(.path(preConfiguredPath.pathString)),
         ])
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryDirectory, rootDirectory: temporaryDirectory)
 
@@ -296,7 +296,7 @@ struct TestActionManifestMapperTests {
         let schemeName = "MyScheme"
 
         let manifest = ProjectDescription.TestAction.testPlans([
-            .testPlan(path: .path(missingPlanPath.pathString)),
+            .path(.path(missingPlanPath.pathString)),
         ])
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryDirectory, rootDirectory: temporaryDirectory)
 

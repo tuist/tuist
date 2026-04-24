@@ -3,8 +3,7 @@
 /// You can create a test action with either a set of test targets or test plans using the `.targets` or `.testPlans` static
 /// methods respectively.
 public struct TestAction: Equatable, Codable, Sendable {
-    /// Test plans attached to the action. The first plan, or the one marked with
-    /// `isDefault: true`, is the default. See `TestPlan` for how to construct entries.
+    /// Test plans attached to the action. The first plan in the list is the default.
     public var testPlans: [TestPlan]?
 
     /// A list of testable targets, that are targets which are defined in the project with testable information.
