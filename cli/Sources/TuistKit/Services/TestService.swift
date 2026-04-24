@@ -460,7 +460,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
             testPlanConfiguration: testPlanConfiguration,
             mapperEnvironment: mapperEnvironment,
             graph: graph,
-            action: action
+            action: action,
+            passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
         ), action == .build {
             try await outputEmptyShardMatrixIfNeeded(isSharding: isSharding, action: action)
             return
@@ -1018,7 +1019,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
             testPlanConfiguration: testPlanConfiguration,
             mapperEnvironment: mapperEnvironment,
             graph: graph,
-            action: action
+            action: action,
+            passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
         ) {
             if action != .build {
                 try await uploadSkippedTestSummary(
@@ -1182,7 +1184,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
         testPlanConfiguration: TestPlanConfiguration?,
         mapperEnvironment: MapperEnvironment,
         graph: Graph,
-        action: XcodeBuildTestAction
+        action: XcodeBuildTestAction,
+        passthroughXcodeBuildArguments: [String] = []
     ) -> Bool {
         let testActionTargets = testActionTargets(
             for: schemes,
@@ -1224,7 +1227,19 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 )
         }
 
-        let testedTargetNames = testActionTargets.map(\.name).sorted()
+        let passthroughSkippedTargetNames = passthroughSkippedTestTargetNames(passthroughXcodeBuildArguments)
+        let targetsAfterPassthroughSkip = testActionTargets
+            .filter { !passthroughSkippedTargetNames.contains($0.name) }
+
+        if targetsAfterPassthroughSkip.isEmpty, !testActionTargets.isEmpty {
+            Logger.current
+                .notice(
+                    "All test targets selected by selective testing are excluded by -skip-testing in the xcodebuild passthrough arguments, finishing early"
+                )
+            return false
+        }
+
+        let testedTargetNames = targetsAfterPassthroughSkip.map(\.name).sorted()
         if !testedTargetNames.isEmpty {
             Logger.current
                 .notice(
@@ -1233,6 +1248,34 @@ public struct TestService { // swiftlint:disable:this type_body_length
         }
 
         return true
+    }
+
+    private func passthroughSkippedTestTargetNames(_ arguments: [String]) -> Set<String> {
+        var names: Set<String> = []
+        var index = arguments.startIndex
+        while index < arguments.endIndex {
+            let argument = arguments[index]
+            let value: String?
+            if argument == "-skip-testing",
+               arguments.index(after: index) < arguments.endIndex
+            {
+                value = arguments[arguments.index(after: index)]
+                index = arguments.index(index, offsetBy: 2)
+            } else if argument.hasPrefix("-skip-testing:") {
+                value = String(argument.dropFirst("-skip-testing:".count))
+                index = arguments.index(after: index)
+            } else {
+                index = arguments.index(after: index)
+                continue
+            }
+            guard let identifier = value else { continue }
+            // Only whole-target skips (no `/Class` or `/Class/Method` suffix) remove a target entirely.
+            let components = identifier.split(separator: "/", omittingEmptySubsequences: false)
+            if components.count == 1, !components[0].isEmpty {
+                names.insert(String(components[0]))
+            }
+        }
+        return names
     }
 
     private func initialTestTargets(
