@@ -1,6 +1,7 @@
 import CryptoKit
 import Foundation
 import Path
+import XcodeGraph
 import XcodeProj
 
 /// Describes a generated `.xctestplan` file.
@@ -44,24 +45,20 @@ public struct TestPlanDescriptor: Equatable {
     ///   `pbxTarget.uuid` returns stable blueprint identifiers.
     public func encode() throws -> Data {
         let plan = XCTestPlan(
-            configurations: [
-                XCTestPlan.Configuration(
-                    id: configurationID,
-                    name: "Configuration 1",
-                    options: [:]
-                ),
-            ],
-            defaultOptions: [:],
             testTargets: testTargets.map { target in
                 XCTestPlan.TestTarget(
-                    enabled: target.isEnabled ? nil : false,
-                    target: XCTestPlan.TargetReference(
+                    target: XCTestPlan.TestTargetReference(
                         containerPath: target.containerPath,
                         identifier: target.pbxTarget.uuid,
                         name: target.pbxTarget.name
-                    )
+                    ),
+                    enabled: target.isEnabled ? nil : false
                 )
             },
+            configurations: [
+                XCTestPlan.Configuration(id: configurationID, name: "Configuration 1"),
+            ],
+            defaultOptions: [:],
             version: 1
         )
 
@@ -83,28 +80,4 @@ public struct TestPlanDescriptor: Equatable {
             digest[12], digest[13], digest[14], digest[15]
         ))
     }
-}
-
-private struct XCTestPlan: Encodable {
-    struct Configuration: Encodable {
-        let id: UUID
-        let name: String
-        let options: [String: String]
-    }
-
-    struct TargetReference: Encodable {
-        let containerPath: String
-        let identifier: String
-        let name: String
-    }
-
-    struct TestTarget: Encodable {
-        let enabled: Bool?
-        let target: TargetReference
-    }
-
-    let configurations: [Configuration]
-    let defaultOptions: [String: String]
-    let testTargets: [TestTarget]
-    let version: Int
 }
