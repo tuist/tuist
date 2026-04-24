@@ -93,6 +93,7 @@ config:
   discovery:
     enabled: true
 
+# Use extraEnv or extraEnvFrom to inject optional secrets such as KURA_SENTRY_DSN.
 extraEnv: []
 extraEnvFrom: []
 extraVolumes: []

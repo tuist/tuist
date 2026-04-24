@@ -9,7 +9,7 @@ msgstr ""
 #: lib/tuist_web/live/integrations_live.html.heex:50
 #, elixir-autogen, elixir-format
 msgid "Add new project connection"
-msgstr "新增專案連線"
+msgstr "新增專案連接"
 
 #: lib/tuist_web/live/integrations_live.html.heex:113
 #, elixir-autogen, elixir-format
@@ -24,22 +24,22 @@ msgstr "選擇 Tuist 專案"
 #: lib/tuist_web/live/integrations_live.html.heex:92
 #, elixir-autogen, elixir-format
 msgid "Choose a repository"
-msgstr "選擇一個儲存庫"
+msgstr "選擇一個代碼庫"
 
 #: lib/tuist_web/live/integrations_live.html.heex:43
 #, elixir-autogen, elixir-format
 msgid "Choose repository to connect to"
-msgstr "選擇要連結的儲存庫"
+msgstr "選擇要連接的代碼庫"
 
 #: lib/tuist_web/live/integrations_live.html.heex:9
 #, elixir-autogen, elixir-format
 msgid "Connect any of your GitHub repositories to a project"
-msgstr "將您的任一 GitHub 儲存庫連接到專案"
+msgstr "將您的任何 GitHub 代碼庫連接到專案"
 
 #: lib/tuist_web/live/integrations_live.ex:163
 #, elixir-autogen, elixir-format
 msgid "Connected %{time_ago}"
-msgstr "已連接 %{time_ago}"
+msgstr "已於 %{time_ago} 連接"
 
 #: lib/tuist_web/live/integrations_live.ex:165
 #, elixir-autogen, elixir-format
@@ -49,7 +49,7 @@ msgstr "由 %{name} 於 %{time_ago} 連接"
 #: lib/tuist_web/live/integrations_live.html.heex:120
 #, elixir-autogen, elixir-format
 msgid "Create Connection"
-msgstr "建立連線"
+msgstr "建立連接"
 
 #: lib/tuist_web/live/integrations_live.html.heex:6
 #, elixir-autogen, elixir-format
@@ -80,7 +80,7 @@ msgstr "管理整合"
 #: lib/tuist_web/live/integrations_live.html.heex:162
 #, elixir-autogen, elixir-format
 msgid "Remove connection"
-msgstr "移除連線"
+msgstr "移除連接"
 
 #: lib/tuist_web/live/integrations_live.ex:16
 #, elixir-autogen, elixir-format
@@ -90,7 +90,7 @@ msgstr "您無權執行此操作。"
 #: lib/tuist_web/live/integrations_live.html.heex:38
 #, elixir-autogen, elixir-format
 msgid "Your access to repositories depends on your GitHub and Tuist integration setup."
-msgstr "您對儲存庫的存取權取決於您在 GitHub 與 Tuist 的整合設定。"
+msgstr "您對代碼庫的存取權限取決於您的 GitHub 與 Tuist 整合設定。"
 
 #: lib/tuist_web/live/integrations_live.html.heex:190
 #, elixir-autogen, elixir-format
@@ -105,7 +105,7 @@ msgstr "連接 Slack 以接收專案分析報告"
 #: lib/tuist_web/live/integrations_live.html.heex:197
 #, elixir-autogen, elixir-format
 msgid "Disconnect from %{team_name}"
-msgstr "斷開與 %{team_name} 的連線"
+msgstr "與 %{team_name} 中斷連接"
 
 #: lib/tuist_web/live/integrations_live.html.heex:177
 #, elixir-autogen, elixir-format
