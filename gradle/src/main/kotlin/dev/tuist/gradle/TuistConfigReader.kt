@@ -65,7 +65,11 @@ object CacheEndpointResolver {
             return envEndpoint
         }
 
-        val endpoints = getCacheEndpointsService.getCacheEndpoints(serverURL, accountHandle, tokenProvider)
+        val endpoints = getCacheEndpointsService.getCacheEndpoints(
+            serverURL = serverURL,
+            accountHandle = accountHandle,
+            tokenProvider = tokenProvider
+        )
 
         if (endpoints.isEmpty()) {
             throw NoCacheEndpointsException(accountHandle)
