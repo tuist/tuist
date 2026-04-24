@@ -99,6 +99,7 @@ struct SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             schemes.append(descriptor)
             sideEffects.append(contentsOf: schemeSideEffects)
         }
+        try validateNoDuplicateTestPlanPaths(in: sideEffects)
         Logger.current.debug("SchemeDescriptorsGenerator: Finished generating workspace schemes")
         return (schemes, sideEffects)
     }
@@ -124,8 +125,20 @@ struct SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             schemes.append(descriptor)
             sideEffects.append(contentsOf: schemeSideEffects)
         }
+        try validateNoDuplicateTestPlanPaths(in: sideEffects)
         Logger.current.debug("SchemeDescriptorsGenerator: Finished generating project schemes for \(project.name)")
         return (schemes, sideEffects)
+    }
+
+    /// Two schemes targeting the same generated `.xctestplan` path would silently overwrite each
+    /// other at side-effect execution time. Fail fast with a clear error instead.
+    private func validateNoDuplicateTestPlanPaths(in sideEffects: [SideEffectDescriptor]) throws {
+        var seen: Set<AbsolutePath> = []
+        for case let .testPlan(descriptor) in sideEffects {
+            guard seen.insert(descriptor.path).inserted else {
+                throw SchemeDescriptorsGeneratorError.duplicateGeneratedTestPlanPath(descriptor.path)
+            }
+        }
     }
 
     // swiftlint:disable function_body_length
@@ -1140,5 +1153,21 @@ extension TestAction {
             preferredScreenCaptureFormat: nil,
             testPlans: nil
         )
+    }
+}
+
+enum SchemeDescriptorsGeneratorError: FatalError, Equatable {
+    case duplicateGeneratedTestPlanPath(AbsolutePath)
+
+    var type: ErrorType { .abort }
+
+    var description: String {
+        switch self {
+        case let .duplicateGeneratedTestPlanPath(path):
+            """
+            Multiple generated test plans resolve to the same path \(path.pathString). \
+            Give each plan a distinct name or pin one of them to an explicit path.
+            """
+        }
     }
 }

@@ -2,6 +2,7 @@ import Foundation
 import Path
 import Testing
 import TuistCore
+import XcodeGraph
 import XcodeProj
 
 struct TestPlanDescriptorTests {
@@ -14,7 +15,8 @@ struct TestPlanDescriptorTests {
                 TestPlanDescriptor.TestTarget(
                     pbxTarget: pbxTarget,
                     containerPath: "container:App.xcodeproj",
-                    isEnabled: true
+                    isEnabled: true,
+                    parallelization: .swiftTestingOnly
                 ),
             ]
         )
@@ -32,6 +34,7 @@ struct TestPlanDescriptorTests {
         #expect(target["name"] == "AppTests")
         #expect(target["identifier"] != nil)
         #expect(testTargets.first?["enabled"] == nil) // enabled omitted when true
+        #expect(testTargets.first?["parallelizable"] == nil) // swiftTestingOnly omits the field
     }
 
     @Test func encode_configuration_id_is_deterministic_per_path() throws {
@@ -41,7 +44,12 @@ struct TestPlanDescriptorTests {
             TestPlanDescriptor(
                 path: try AbsolutePath(validating: pathString),
                 testTargets: [
-                    .init(pbxTarget: target, containerPath: "container:App.xcodeproj", isEnabled: true),
+                    .init(
+                        pbxTarget: target,
+                        containerPath: "container:App.xcodeproj",
+                        isEnabled: true,
+                        parallelization: .swiftTestingOnly
+                    ),
                 ]
             )
         }
@@ -71,7 +79,8 @@ struct TestPlanDescriptorTests {
                 TestPlanDescriptor.TestTarget(
                     pbxTarget: pbxTarget,
                     containerPath: "container:App.xcodeproj",
-                    isEnabled: false
+                    isEnabled: false,
+                    parallelization: .swiftTestingOnly
                 ),
             ]
         )
@@ -83,5 +92,35 @@ struct TestPlanDescriptorTests {
         // Then
         let testTargets = try #require(json?["testTargets"] as? [[String: Any]])
         #expect(testTargets.first?["enabled"] as? Bool == false)
+    }
+
+    @Test func encode_parallelization_writes_parallelizable_field() throws {
+        // Given
+        let pbxTarget = PBXNativeTarget(name: "AppTests")
+        func descriptor(parallelization: TestableTarget.Parallelization) throws -> TestPlanDescriptor {
+            TestPlanDescriptor(
+                path: try AbsolutePath(validating: "/tmp/Plan.xctestplan"),
+                testTargets: [
+                    .init(
+                        pbxTarget: pbxTarget,
+                        containerPath: "container:App.xcodeproj",
+                        isEnabled: true,
+                        parallelization: parallelization
+                    ),
+                ]
+            )
+        }
+
+        func parallelizable(_ plan: TestPlanDescriptor) throws -> Any? {
+            let data = try plan.encode()
+            let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+            let testTargets = try #require(json?["testTargets"] as? [[String: Any]])
+            return testTargets.first?["parallelizable"]
+        }
+
+        // Then
+        #expect(try parallelizable(descriptor(parallelization: .all)) as? Bool == true)
+        #expect(try parallelizable(descriptor(parallelization: .none)) as? Bool == false)
+        #expect(try parallelizable(descriptor(parallelization: .swiftTestingOnly)) == nil)
     }
 }

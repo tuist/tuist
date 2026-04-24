@@ -920,6 +920,48 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         )
     }
 
+    func test_generateProjectSchemes_rejects_duplicate_generated_test_plan_paths() throws {
+        // Given: two schemes targeting the same generated test plan path
+        let projectPath = try AbsolutePath(validating: "/Project")
+        let target = Target.test(name: "App", product: .app)
+        let testTarget = Target.test(name: "AppTests", product: .unitTests)
+        let sharedPath = projectPath.appending(component: "UnitTests.xctestplan")
+        let plan = TestPlan(
+            path: sharedPath,
+            testTargets: [
+                TestableTarget(target: TargetReference(projectPath: projectPath, name: "AppTests")),
+            ],
+            isDefault: true,
+            kind: .generated
+        )
+        let schemeA = Scheme.test(name: "A", testAction: TestAction.test(testPlans: [plan]))
+        let schemeB = Scheme.test(name: "B", testAction: TestAction.test(testPlans: [plan]))
+        let project = Project.test(
+            path: projectPath,
+            targets: [target, testTarget],
+            schemes: [schemeA, schemeB]
+        )
+        let graph = Graph.test(projects: [project.path: project])
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When / Then
+        XCTAssertThrowsError(
+            try subject.generateProjectSchemes(
+                project: project,
+                generatedProject: generatedProject(
+                    targets: Array(project.targets.values),
+                    projectPath: project.xcodeProjPath.pathString
+                ),
+                graphTraverser: graphTraverser
+            )
+        ) { error in
+            XCTAssertEqual(
+                error as? SchemeDescriptorsGeneratorError,
+                .duplicateGeneratedTestPlanPath(sharedPath)
+            )
+        }
+    }
+
     func test_schemeTestAction_when_usingTestPlans_with_disabled_attachDebugger() throws {
         // Given
         let project = Project.test()

@@ -34,7 +34,8 @@ extension TestPlanDescriptor {
                 TestPlanDescriptor.TestTarget(
                     pbxTarget: pbxTarget,
                     containerPath: "container:\(containerRelativePath)",
-                    isEnabled: !testableTarget.isSkipped
+                    isEnabled: !testableTarget.isSkipped,
+                    parallelization: testableTarget.parallelization
                 )
             )
         }

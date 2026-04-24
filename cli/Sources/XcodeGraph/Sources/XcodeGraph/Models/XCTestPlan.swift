@@ -1,17 +1,20 @@
+@preconcurrency import AnyCodable
 import Foundation
 
 /// Swift representation of the JSON schema Xcode uses for `.xctestplan` files.
 ///
 /// Fields that don't apply to a particular use-case (reading an existing plan vs. generating
 /// a new one) are modelled as optionals so that encoders can omit them and decoders can
-/// tolerate their absence.
+/// tolerate their absence. The `options` / `defaultOptions` payloads are modelled as
+/// `[String: AnyCodable]` because Xcode stores a mix of booleans, strings, and nested target
+/// references there.
 public struct XCTestPlan: Codable, Equatable, Sendable {
     public struct Configuration: Codable, Equatable, Sendable {
         public let id: UUID
         public let name: String
-        public let options: [String: String]
+        public let options: [String: AnyCodable]
 
-        public init(id: UUID, name: String, options: [String: String] = [:]) {
+        public init(id: UUID, name: String, options: [String: AnyCodable] = [:]) {
             self.id = id
             self.name = name
             self.options = options
@@ -56,14 +59,14 @@ public struct XCTestPlan: Codable, Equatable, Sendable {
     }
 
     public let configurations: [Configuration]?
-    public let defaultOptions: [String: String]?
+    public let defaultOptions: [String: AnyCodable]?
     public let testTargets: [TestTarget]
     public let version: Int?
 
     public init(
         testTargets: [TestTarget],
         configurations: [Configuration]? = nil,
-        defaultOptions: [String: String]? = nil,
+        defaultOptions: [String: AnyCodable]? = nil,
         version: Int? = nil
     ) {
         self.configurations = configurations

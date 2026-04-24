@@ -27,10 +27,20 @@ public struct TestPlanDescriptor: Equatable {
         /// Whether the target runs or is skipped in the plan.
         public let isEnabled: Bool
 
-        public init(pbxTarget: PBXTarget, containerPath: String, isEnabled: Bool) {
+        /// How the target's tests run in parallel. Controls the `parallelizable` field in the
+        /// generated `.xctestplan`.
+        public let parallelization: TestableTarget.Parallelization
+
+        public init(
+            pbxTarget: PBXTarget,
+            containerPath: String,
+            isEnabled: Bool,
+            parallelization: TestableTarget.Parallelization
+        ) {
             self.pbxTarget = pbxTarget
             self.containerPath = containerPath
             self.isEnabled = isEnabled
+            self.parallelization = parallelization
         }
     }
 
@@ -52,7 +62,8 @@ public struct TestPlanDescriptor: Equatable {
                         identifier: target.pbxTarget.uuid,
                         name: target.pbxTarget.name
                     ),
-                    enabled: target.isEnabled ? nil : false
+                    enabled: target.isEnabled ? nil : false,
+                    parallelizable: target.parallelization.xcTestPlanValue
                 )
             },
             configurations: [
@@ -79,5 +90,19 @@ public struct TestPlanDescriptor: Equatable {
             digest[8], digest[9], digest[10], digest[11],
             digest[12], digest[13], digest[14], digest[15]
         ))
+    }
+}
+
+extension TestableTarget.Parallelization {
+    /// Maps parallelization onto the `parallelizable` field of an `.xctestplan`.
+    ///
+    /// Xcode treats an absent `parallelizable` as "Swift Testing only", so `swiftTestingOnly`
+    /// returns `nil` (the key gets omitted during encoding).
+    fileprivate var xcTestPlanValue: Bool? {
+        switch self {
+        case .all: true
+        case .none: false
+        case .swiftTestingOnly: nil
+        }
     }
 }
