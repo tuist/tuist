@@ -21,7 +21,7 @@ protocol SchemeDescriptorsGenerating {
         workspace: Workspace,
         generatedProjects: [AbsolutePath: GeneratedProject],
         graphTraverser: GraphTraversing
-    ) throws -> [SchemeDescriptor]
+    ) throws -> SchemeGenerationResult
 
     /// Generates the schemes for the project targets.
     ///
@@ -35,7 +35,19 @@ protocol SchemeDescriptorsGenerating {
         project: Project,
         generatedProject: GeneratedProject,
         graphTraverser: GraphTraversing
-    ) throws -> [SchemeDescriptor]
+    ) throws -> SchemeGenerationResult
+}
+
+/// Output of scheme generation: the scheme descriptors plus any generated test plan descriptors
+/// that need to be written alongside them.
+struct SchemeGenerationResult {
+    let schemes: [SchemeDescriptor]
+    let testPlanDescriptors: [TestPlanDescriptor]
+
+    init(schemes: [SchemeDescriptor], testPlanDescriptors: [TestPlanDescriptor] = []) {
+        self.schemes = schemes
+        self.testPlanDescriptors = testPlanDescriptors
+    }
 }
 
 extension XCScheme {
@@ -78,41 +90,50 @@ struct SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         workspace: Workspace,
         generatedProjects: [AbsolutePath: GeneratedProject],
         graphTraverser: GraphTraversing
-    ) throws -> [SchemeDescriptor] {
+    ) throws -> SchemeGenerationResult {
         Logger.current.debug("SchemeDescriptorsGenerator: Generating \(workspace.schemes.count) workspace schemes")
-        let schemes = try workspace.schemes.map { scheme in
+        let rootPath = workspace.xcWorkspacePath.parentDirectory
+        var schemes: [SchemeDescriptor] = []
+        var testPlanDescriptors: [TestPlanDescriptor] = []
+        for scheme in workspace.schemes {
             Logger.current.debug("SchemeDescriptorsGenerator: Generating workspace scheme \(scheme.name)")
-            return try generateScheme(
+            let generated = try generateScheme(
                 scheme: scheme,
-                path: workspace.xcWorkspacePath.parentDirectory,
+                path: rootPath,
                 graphTraverser: graphTraverser,
                 generatedProjects: generatedProjects,
                 lastUpgradeCheck: workspace.generationOptions.lastXcodeUpgradeCheck
             )
+            schemes.append(generated.scheme)
+            testPlanDescriptors.append(contentsOf: generated.testPlanDescriptors)
         }
         Logger.current.debug("SchemeDescriptorsGenerator: Finished generating workspace schemes")
-        return schemes
+        return SchemeGenerationResult(schemes: schemes, testPlanDescriptors: testPlanDescriptors)
     }
 
     func generateProjectSchemes(
         project: Project,
         generatedProject: GeneratedProject,
         graphTraverser: GraphTraversing
-    ) throws -> [SchemeDescriptor] {
+    ) throws -> SchemeGenerationResult {
         Logger.current
             .debug("SchemeDescriptorsGenerator: Generating \(project.schemes.count) project schemes for \(project.name)")
-        let result = try project.schemes.map { scheme in
+        var schemes: [SchemeDescriptor] = []
+        var testPlanDescriptors: [TestPlanDescriptor] = []
+        for scheme in project.schemes {
             Logger.current.debug("SchemeDescriptorsGenerator: Generating project scheme \(scheme.name)")
-            return try generateScheme(
+            let generated = try generateScheme(
                 scheme: scheme,
                 path: project.xcodeProjPath.parentDirectory,
                 graphTraverser: graphTraverser,
                 generatedProjects: [project.xcodeProjPath: generatedProject],
                 lastUpgradeCheck: project.lastUpgradeCheck
             )
+            schemes.append(generated.scheme)
+            testPlanDescriptors.append(contentsOf: generated.testPlanDescriptors)
         }
         Logger.current.debug("SchemeDescriptorsGenerator: Finished generating project schemes for \(project.name)")
-        return result
+        return SchemeGenerationResult(schemes: schemes, testPlanDescriptors: testPlanDescriptors)
     }
 
     // swiftlint:disable function_body_length
@@ -130,7 +151,7 @@ struct SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         graphTraverser: GraphTraversing,
         generatedProjects: [AbsolutePath: GeneratedProject],
         lastUpgradeCheck: XcodeGraph.Version?
-    ) throws -> SchemeDescriptor {
+    ) throws -> (scheme: SchemeDescriptor, testPlanDescriptors: [TestPlanDescriptor]) {
         let generatedBuildAction = try schemeBuildAction(
             scheme: scheme,
             graphTraverser: graphTraverser,
@@ -143,6 +164,14 @@ struct SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             rootPath: path,
             generatedProjects: generatedProjects
         )
+        let testPlanDescriptors: [TestPlanDescriptor] = scheme.testAction?.testPlans?.compactMap { plan in
+            TestPlanGenerator.descriptor(
+                for: plan,
+                graphTraverser: graphTraverser,
+                generatedProjects: generatedProjects,
+                rootPath: path
+            )
+        } ?? []
         let generatedLaunchAction = try schemeLaunchAction(
             scheme: scheme,
             graphTraverser: graphTraverser,
@@ -188,7 +217,10 @@ struct SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             wasCreatedForAppExtension: wasCreatedForAppExtension
         )
 
-        return SchemeDescriptor(xcScheme: xcscheme, shared: scheme.shared, hidden: scheme.hidden)
+        return (
+            scheme: SchemeDescriptor(xcScheme: xcscheme, shared: scheme.shared, hidden: scheme.hidden),
+            testPlanDescriptors: testPlanDescriptors
+        )
     } // swiftlint:enable function_body_length
 
     /// Generates the scheme build action.

@@ -34,7 +34,39 @@ extension XcodeGraph.TestAction {
         let skippedTests: [String]?
         let fileSystem = FileSystem()
 
-        if let plans = manifest.testPlans {
+        if let generatedPlans = manifest.generatedTestPlans, !generatedPlans.isEmpty {
+            let hasExplicitDefault = generatedPlans.contains(where: \.isDefault)
+            var resolvedTestPlans: [XcodeGraph.TestPlan] = []
+
+            for (index, plan) in generatedPlans.enumerated() {
+                let resolvedPath = try generatorPaths.resolve(path: plan.path)
+                let testTargets = try plan.testTargets.map {
+                    try XcodeGraph.TestableTarget.from(manifest: $0, generatorPaths: generatorPaths)
+                }
+                let isDefault = hasExplicitDefault ? plan.isDefault : index == 0
+                resolvedTestPlans.append(
+                    XcodeGraph.TestPlan(
+                        path: resolvedPath,
+                        testTargets: testTargets,
+                        isDefault: isDefault,
+                        isGenerated: true
+                    )
+                )
+            }
+
+            testPlans = resolvedTestPlans
+
+            targets = []
+            arguments = nil
+            coverage = false
+            codeCoverageTargets = []
+            expandVariablesFromTarget = nil
+            diagnosticsOptions = .init()
+            language = nil
+            region = nil
+            preferredScreenCaptureFormat = nil
+            skippedTests = nil
+        } else if let plans = manifest.testPlans {
             var resolvedTestPlans: [XcodeGraph.TestPlan] = []
 
             for path in plans {

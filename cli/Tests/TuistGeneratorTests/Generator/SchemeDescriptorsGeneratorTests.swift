@@ -320,7 +320,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             project: project,
             generatedProject: generatedProject,
             graphTraverser: graphTraverser
-        )
+        ).schemes
 
         // Then
         let buildActions = schemeDescriptors.compactMap(\.xcScheme.buildAction)
@@ -356,7 +356,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             project: project,
             generatedProject: generatedProject,
             graphTraverser: graphTraverser
-        )
+        ).schemes
 
         // Then
         // `runPostActionsOnFailure` is omitted when not enabled (Xcode automatically removes it)
@@ -867,6 +867,47 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         XCTAssertEqual(result.selectedLauncherIdentifier, "Xcode.DebuggerFoundation.Launcher.LLDB")
         XCTAssertEqual(result.testPlans?.count, 1)
         XCTAssertEqual(result.testPlans?.first?.reference, "container:folder/Plan.xctestplan")
+    }
+
+    func test_generateProjectSchemes_emits_testPlanDescriptors_for_generated_plans() throws {
+        // Given
+        let projectPath = try AbsolutePath(validating: "/Project")
+        let target = Target.test(name: "App", product: .app)
+        let testTarget = Target.test(name: "AppTests", product: .unitTests)
+        let planPath = projectPath.appending(component: "UnitTests.xctestplan")
+        let plan = TestPlan(
+            path: planPath,
+            testTargets: [
+                TestableTarget(target: TargetReference(projectPath: projectPath, name: "AppTests")),
+            ],
+            isDefault: true,
+            isGenerated: true
+        )
+        let existingPlanPath = projectPath.appending(component: "Existing.xctestplan")
+        let existingPlan = TestPlan(
+            path: existingPlanPath,
+            testTargets: [],
+            isDefault: false,
+            isGenerated: false
+        )
+        let scheme = Scheme.test(
+            testAction: TestAction.test(testPlans: [plan, existingPlan])
+        )
+        let project = Project.test(path: projectPath, targets: [target, testTarget], schemes: [scheme])
+        let graph = Graph.test(projects: [project.path: project])
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let result = try subject.generateProjectSchemes(
+            project: project,
+            generatedProject: generatedProject(targets: Array(project.targets.values), projectPath: project.xcodeProjPath.pathString),
+            graphTraverser: graphTraverser
+        )
+
+        // Then
+        XCTAssertEqual(result.testPlanDescriptors.count, 1)
+        XCTAssertEqual(result.testPlanDescriptors.first?.path, planPath)
+        XCTAssertEqual(result.testPlanDescriptors.first?.testTargets.map(\.pbxTarget.name), ["AppTests"])
     }
 
     func test_schemeTestAction_when_usingTestPlans_with_disabled_attachDebugger() throws {
@@ -2258,7 +2299,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             project: project,
             generatedProject: generatedProject(targets: Array(project.targets.values)),
             graphTraverser: graphTraverser
-        )
+        ).schemes
 
         // Then
         let schemes = result.map(\.xcScheme.name)
@@ -2300,7 +2341,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             project: project,
             generatedProject: generatedProject(targets: Array(project.targets.values)),
             graphTraverser: graphTraverser
-        )
+        ).schemes
 
         // Then
         let schemeForExtension = result.map(\.xcScheme.wasCreatedForAppExtension)
@@ -2338,7 +2379,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             workspace: workspace,
             generatedProjects: [generatedProject.path: generatedProject],
             graphTraverser: graphTraverser
-        )
+        ).schemes
 
         XCTAssertEqual(
             result.first?.xcScheme.lastUpgradeVersion,
@@ -2367,7 +2408,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             project: project,
             generatedProject: generatedProject(targets: Array(project.targets.values)),
             graphTraverser: graphTraverser
-        )
+        ).schemes
 
         XCTAssertEqual(
             result.first?.xcScheme.lastUpgradeVersion,

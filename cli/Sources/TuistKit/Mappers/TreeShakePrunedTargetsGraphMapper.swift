@@ -210,7 +210,8 @@ public struct TreeShakePrunedTargetsGraphMapper: GraphMapping {
             return TestPlan(
                 path: testPlan.path,
                 testTargets: testTargets,
-                isDefault: testPlan.isDefault
+                isDefault: testPlan.isDefault,
+                isGenerated: testPlan.isGenerated
             )
         }
     }

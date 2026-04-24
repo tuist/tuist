@@ -188,6 +188,81 @@ struct TestActionManifestMapperTests {
         #expect(testAction.testPlans?.first?.path == testPlanPath)
     }
 
+    @Test(.inTemporaryDirectory) func action_with_generated_test_plans_defaults_first_as_default() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let firstPath = temporaryDirectory.appending(component: "First.xctestplan")
+        let secondPath = temporaryDirectory.appending(component: "Second.xctestplan")
+        let projectPath = temporaryDirectory.appending(component: "App.xcodeproj")
+
+        let manifest = ProjectDescription.TestAction.testPlans([
+            ProjectDescription.TestPlan(
+                path: .path(firstPath.pathString),
+                testTargets: [
+                    .testableTarget(target: .project(path: .path(projectPath.pathString), target: "AppTests")),
+                ]
+            ),
+            ProjectDescription.TestPlan(
+                path: .path(secondPath.pathString),
+                testTargets: [
+                    .testableTarget(target: .project(path: .path(projectPath.pathString), target: "AppSnapshotTests")),
+                ]
+            ),
+        ])
+        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryDirectory, rootDirectory: temporaryDirectory)
+
+        // When
+        let testAction = try await XcodeGraph.TestAction.from(
+            manifest: manifest,
+            generatorPaths: generatorPaths
+        )
+
+        // Then
+        #expect(testAction.testPlans?.count == 2)
+        #expect(testAction.testPlans?[0].path == firstPath)
+        #expect(testAction.testPlans?[0].isDefault == true)
+        #expect(testAction.testPlans?[0].isGenerated == true)
+        #expect(testAction.testPlans?[0].testTargets.map(\.target.name) == ["AppTests"])
+        #expect(testAction.testPlans?[1].path == secondPath)
+        #expect(testAction.testPlans?[1].isDefault == false)
+        #expect(testAction.testPlans?[1].isGenerated == true)
+    }
+
+    @Test(.inTemporaryDirectory) func action_with_generated_test_plans_respects_explicit_default() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let firstPath = temporaryDirectory.appending(component: "First.xctestplan")
+        let secondPath = temporaryDirectory.appending(component: "Second.xctestplan")
+        let projectPath = temporaryDirectory.appending(component: "App.xcodeproj")
+
+        let manifest = ProjectDescription.TestAction.testPlans([
+            ProjectDescription.TestPlan(
+                path: .path(firstPath.pathString),
+                testTargets: [
+                    .testableTarget(target: .project(path: .path(projectPath.pathString), target: "AppTests")),
+                ]
+            ),
+            ProjectDescription.TestPlan(
+                path: .path(secondPath.pathString),
+                testTargets: [
+                    .testableTarget(target: .project(path: .path(projectPath.pathString), target: "AppSnapshotTests")),
+                ],
+                isDefault: true
+            ),
+        ])
+        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryDirectory, rootDirectory: temporaryDirectory)
+
+        // When
+        let testAction = try await XcodeGraph.TestAction.from(
+            manifest: manifest,
+            generatorPaths: generatorPaths
+        )
+
+        // Then
+        #expect(testAction.testPlans?[0].isDefault == false)
+        #expect(testAction.testPlans?[1].isDefault == true)
+    }
+
     @Test(.inTemporaryDirectory, .withScopedAlertController())
     func action_with_literal_test_plan_missing_file_warns() async throws {
         // Given
