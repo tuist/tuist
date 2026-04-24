@@ -4,6 +4,7 @@ This area owns Plug middleware for request processing.
 
 ## Responsibilities
 - Implement request/response middleware (auth, analytics, rate limiting).
+- Handle cross-cutting response negotiation, such as alternate agent-friendly representations.
 - Enforce cross-cutting concerns before controllers/LiveViews.
 
 ## Boundaries

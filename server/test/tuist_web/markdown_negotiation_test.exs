@@ -1,0 +1,50 @@
+defmodule TuistWeb.MarkdownNegotiationTest do
+  use ExUnit.Case, async: true
+  use TuistWeb, :verified_routes
+
+  import Phoenix.ConnTest
+  import Plug.Conn
+
+  @endpoint TuistWeb.Endpoint
+
+  test "marketing pages negotiate markdown for agent requests" do
+    conn =
+      build_conn()
+      |> put_req_header("accept", "text/markdown")
+      |> get(~p"/")
+
+    body = response(conn, 200)
+
+    assert get_resp_header(conn, "content-type") == ["text/markdown; charset=utf-8"]
+    assert Enum.any?(get_resp_header(conn, "vary"), &String.contains?(&1, "Accept"))
+    assert [token_estimate] = get_resp_header(conn, "x-markdown-tokens")
+    assert String.to_integer(token_estimate) > 0
+    assert body =~ "#"
+    refute body =~ "<html"
+  end
+
+  test "marketing pages keep HTML as the default representation" do
+    conn = get(build_conn(), ~p"/")
+
+    assert get_resp_header(conn, "content-type") == ["text/html; charset=utf-8"]
+    assert Enum.any?(get_resp_header(conn, "vary"), &String.contains?(&1, "Accept"))
+    assert get_resp_header(conn, "x-markdown-tokens") == []
+    assert html_response(conn, 200) =~ "Tuist"
+  end
+
+  test "docs pages negotiate markdown for agent requests" do
+    conn =
+      build_conn()
+      |> put_req_header("accept", "text/markdown")
+      |> get(~p"/en/docs/guides/install-tuist")
+
+    body = response(conn, 200)
+
+    assert get_resp_header(conn, "content-type") == ["text/markdown; charset=utf-8"]
+    assert Enum.any?(get_resp_header(conn, "vary"), &String.contains?(&1, "Accept"))
+    assert [token_estimate] = get_resp_header(conn, "x-markdown-tokens")
+    assert String.to_integer(token_estimate) > 0
+    assert body =~ "# Install Tuist"
+    refute body =~ "<html"
+  end
+end
