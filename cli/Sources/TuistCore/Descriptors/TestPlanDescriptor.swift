@@ -43,9 +43,9 @@ public struct TestPlanDescriptor: Equatable {
     /// - Note: Must be called after the owning `.xcodeproj` has been written so that
     ///   `pbxTarget.uuid` returns stable blueprint identifiers.
     public func encode() throws -> Data {
-        let plan = XCTestPlanPayload(
+        let plan = XCTestPlan(
             configurations: [
-                XCTestPlanPayload.Configuration(
+                XCTestPlan.Configuration(
                     id: configurationID,
                     name: "Configuration 1",
                     options: [:]
@@ -53,9 +53,9 @@ public struct TestPlanDescriptor: Equatable {
             ],
             defaultOptions: [:],
             testTargets: testTargets.map { target in
-                XCTestPlanPayload.TestTarget(
+                XCTestPlan.TestTarget(
                     enabled: target.isEnabled ? nil : false,
-                    target: XCTestPlanPayload.TargetReference(
+                    target: XCTestPlan.TargetReference(
                         containerPath: target.containerPath,
                         identifier: target.pbxTarget.uuid,
                         name: target.pbxTarget.name
@@ -85,7 +85,7 @@ public struct TestPlanDescriptor: Equatable {
     }
 }
 
-private struct XCTestPlanPayload: Encodable {
+private struct XCTestPlan: Encodable {
     struct Configuration: Encodable {
         let id: UUID
         let name: String
