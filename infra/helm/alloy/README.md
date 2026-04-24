@@ -1,6 +1,17 @@
 # Grafana Alloy for the Tuist managed cluster (DEPRECATED)
 
-**Superseded by [`infra/helm/k8s-monitoring/`](../k8s-monitoring/README.md).** The new chart covers the same telemetry paths (Grafana Cloud Prometheus / Loki / Tempo, same ESO token sync) plus cluster / pod / node metrics and events, so the Grafana Cloud Kubernetes app works out of the box. Retained in-tree during the migration; delete this directory once the replacement is verified in production.
+**Superseded by [`infra/helm/k8s-monitoring/`](../k8s-monitoring/README.md).** The new chart covers the same telemetry paths (Grafana Cloud Prometheus / Loki / Tempo, same ESO token sync) plus cluster / pod / node metrics and events, so the Grafana Cloud Kubernetes app works out of the box.
+
+## Cutover / cleanup
+
+Cleanup is deliberately manual — `helm uninstall` is destructive and the cutover per cluster is a one-time event, so it doesn't belong in the every-deploy CI workflow. Once the new receiver is live on a cluster and the server is pushing traces to it, drop the old release:
+
+```bash
+export KUBECONFIG=~/.kube/<env>.yaml
+helm uninstall alloy -n observability
+```
+
+After all three clusters (staging, canary, production) have been cut over, delete this directory + any remaining references in a follow-up PR.
 
 ---
 
