@@ -8,6 +8,7 @@ All notable changes to this project will be documented in this file.
 * AppleArchive for xcresult upload + respect --inspect-mode remote by [@fortmarek](https://github.com/fortmarek) in [#10416](https://github.com/tuist/tuist/pull/10416)
 ### 🐛 Bug Fixes
 
+* respect repo optional auth in command tracking by [@pepicrft](https://github.com/pepicrft) in [#10387](https://github.com/tuist/tuist/pull/10387)
 * scope cache warm target selection to non-test roots by [@pepicrft](https://github.com/pepicrft) in [#10398](https://github.com/tuist/tuist/pull/10398)
 * make swift-file-system the default filesystem backend by [@pepicrft](https://github.com/pepicrft) in [#10418](https://github.com/tuist/tuist/pull/10418)
 * restore static framework .xcstrings localization by [@pepicrft](https://github.com/pepicrft) in [#10423](https://github.com/tuist/tuist/pull/10423)
