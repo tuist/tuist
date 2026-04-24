@@ -900,14 +900,20 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         // When
         let result = try subject.generateProjectSchemes(
             project: project,
-            generatedProject: generatedProject(targets: Array(project.targets.values), projectPath: project.xcodeProjPath.pathString),
+            generatedProject: generatedProject(
+                targets: Array(project.targets.values),
+                projectPath: project.xcodeProjPath.pathString
+            ),
             graphTraverser: graphTraverser
         )
 
         // Then
         XCTAssertEqual(result.testPlanDescriptors.count, 1)
         XCTAssertEqual(result.testPlanDescriptors.first?.path, planPath)
-        XCTAssertEqual(result.testPlanDescriptors.first?.testTargets.map(\.pbxTarget.name), ["AppTests"])
+        XCTAssertEqual(
+            result.testPlanDescriptors.first?.testTargets.map(\.pbxTarget.name),
+            ["AppTests"]
+        )
     }
 
     func test_schemeTestAction_when_usingTestPlans_with_disabled_attachDebugger() throws {
