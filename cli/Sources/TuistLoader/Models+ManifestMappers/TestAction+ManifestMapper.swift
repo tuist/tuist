@@ -3,6 +3,7 @@ import Foundation
 import Path
 import ProjectDescription
 import TuistAlert
+import TuistConstants
 import TuistCore
 import TuistSupport
 import XcodeGraph
@@ -36,10 +37,15 @@ extension XcodeGraph.TestAction {
 
         if let generatedPlans = manifest.generatedTestPlans, !generatedPlans.isEmpty {
             let hasExplicitDefault = generatedPlans.contains(where: \.isDefault)
+            let derivedDirectory = generatorPaths.manifestDirectory
+                .appending(
+                    components: Constants.DerivedDirectory.name,
+                    Constants.DerivedDirectory.testPlans
+                )
             var resolvedTestPlans: [XcodeGraph.TestPlan] = []
 
             for (index, plan) in generatedPlans.enumerated() {
-                let resolvedPath = try generatorPaths.resolve(path: plan.path)
+                let resolvedPath = derivedDirectory.appending(component: "\(plan.name).xctestplan")
                 let testTargets = try plan.testTargets.map {
                     try XcodeGraph.TestableTarget.from(manifest: $0, generatorPaths: generatorPaths)
                 }

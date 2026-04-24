@@ -48,6 +48,7 @@ public enum Constants {
         public static let privacyManifest = "PrivacyManifests"
         public static let moduleMaps = "ModuleMaps"
         public static let sources = "Sources"
+        public static let testPlans = "TestPlans"
         public static let signingKeychain = "signing.keychain"
         public static let dependenciesDerivedDirectory = "tuist-derived"
         public static let dependenciesProjectDirectory = "Projects"
