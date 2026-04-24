@@ -15,18 +15,7 @@ defmodule TuistWeb.Utilities.MarkdownResponse do
     |> Map.put(:resp_body, markdown)
   end
 
-  def token_estimate(markdown) do
-    markdown
-    |> String.length()
-    |> Kernel./(4)
-    |> Float.ceil()
-    |> trunc()
-    |> max(1)
-  end
-
-  defp maybe_put_vary_accept(conn, false), do: conn
-
-  defp maybe_put_vary_accept(conn, true) do
+  def put_vary_accept(conn) do
     vary =
       conn
       |> get_resp_header("vary")
@@ -39,6 +28,19 @@ defmodule TuistWeb.Utilities.MarkdownResponse do
       put_resp_header(conn, "vary", Enum.join(vary ++ ["Accept"], ", "))
     end
   end
+
+  def token_estimate(markdown) do
+    markdown
+    |> String.length()
+    |> Kernel./(4)
+    |> Float.ceil()
+    |> trunc()
+    |> max(1)
+  end
+
+  defp maybe_put_vary_accept(conn, false), do: conn
+
+  defp maybe_put_vary_accept(conn, true), do: put_vary_accept(conn)
 
   defp to_vary_values(nil), do: []
 

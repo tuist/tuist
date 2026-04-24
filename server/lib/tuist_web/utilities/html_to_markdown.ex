@@ -2,38 +2,40 @@ defmodule TuistWeb.Utilities.HtmlToMarkdown do
   @moduledoc false
 
   @content_root_selectors ["main", "[role='main']", "article", "body"]
+  @heading_tags ~w(h1 h2 h3 h4 h5 h6)
   @conversion_options %{
     markdown_flavor: :basic,
     normalize_whitespace: true
   }
 
   def convert(html, opts \\ []) when is_binary(html) do
-    request_url = Keyword.get(opts, :request_url)
-
     case Floki.parse_document(html) do
       {:ok, document} ->
-        title = extract_title(document)
-
-        markdown =
-          document
-          |> content_root()
-          |> absolutize_urls(base_uri(request_url))
-          |> Floki.raw_html()
-          |> Html2Markdown.convert(@conversion_options)
-          |> cleanup_markdown()
-          |> maybe_prepend_title(title)
-
-        if markdown == "", do: title, else: markdown
+        document
+        |> document_to_markdown(Keyword.get(opts, :request_url))
+        |> fallback_to_title(extract_title(document))
 
       {:error, _reason} ->
         html
     end
   end
 
+  defp document_to_markdown(document, request_url) do
+    title = extract_title(document)
+
+    document
+    |> content_root()
+    |> maybe_insert_title_heading(title)
+    |> absolutize_urls(base_uri(request_url))
+    |> Floki.raw_html()
+    |> Html2Markdown.convert(@conversion_options)
+    |> String.trim()
+  end
+
   defp content_root(document) do
     Enum.find_value(@content_root_selectors, document, fn selector ->
       case Floki.find(document, selector) do
-        [node | _] -> [node]
+        [{_tag, _attrs, children} | _] -> children
         [] -> nil
       end
     end)
@@ -91,37 +93,47 @@ defmodule TuistWeb.Utilities.HtmlToMarkdown do
     ArgumentError -> value
   end
 
-  defp cleanup_markdown(markdown) do
-    markdown
-    |> String.replace("\r\n", "\n")
-    |> String.trim()
-  end
+  defp maybe_insert_title_heading(nodes, title) when title in [nil, ""], do: nodes
 
-  defp maybe_prepend_title(markdown, title) when title in [nil, ""], do: markdown
-  defp maybe_prepend_title("", title), do: "# " <> title
-
-  defp maybe_prepend_title(markdown, title) do
-    if starts_with_heading?(markdown, title) do
-      markdown
+  defp maybe_insert_title_heading(nodes, title) do
+    if first_heading_matches_title?(nodes, title) do
+      nodes
     else
-      "# " <> title <> "\n\n" <> markdown
+      prepend_title_heading(nodes, title)
     end
   end
 
-  defp starts_with_heading?(markdown, title) do
-    markdown
-    |> String.split("\n", parts: 2)
-    |> List.first()
-    |> normalize_heading()
-    |> Kernel.==(title)
+  defp prepend_title_heading(nodes, title) do
+    [title_heading(title) | nodes]
   end
 
-  defp normalize_heading(nil), do: ""
+  defp title_heading(title), do: {"h1", [], [title]}
 
-  defp normalize_heading(line) do
-    line
-    |> String.trim()
-    |> String.trim_leading("#")
+  defp fallback_to_title(markdown, title) when markdown == "" and title not in [nil, ""], do: title
+  defp fallback_to_title(markdown, _title), do: markdown
+
+  defp first_heading_matches_title?(nodes, title) do
+    case first_content_node(nodes) do
+      {tag, _attrs, children} when tag in @heading_tags ->
+        heading_text(children) == title
+
+      _ ->
+        false
+    end
+  end
+
+  defp first_content_node(nodes) when is_list(nodes) do
+    Enum.find(nodes, &content_node?/1)
+  end
+
+  defp content_node?({:comment, _}), do: false
+  defp content_node?(text) when is_binary(text), do: String.trim(text) != ""
+  defp content_node?({_tag, _attrs, _children}), do: true
+  defp content_node?(_node), do: false
+
+  defp heading_text(children) do
+    children
+    |> Floki.text()
     |> normalize_text()
   end
 

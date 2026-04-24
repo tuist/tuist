@@ -25,11 +25,40 @@ defmodule TuistWeb.Utilities.HtmlToMarkdownTest do
 
     markdown = HtmlToMarkdown.convert(html, request_url: "https://tuist.dev/about")
 
-    assert markdown =~ "# Example Page"
-    assert markdown =~ "[documentation link](https://tuist.dev/docs)."
-    assert markdown =~ "```elixir\nIO.puts(\"hi\")"
-    assert markdown =~ "\n```"
-    refute markdown =~ "Pricing"
-    refute markdown =~ "<main>"
+    assert markdown ==
+             String.trim_trailing("""
+             # Example Page
+
+             A [documentation link](https://tuist.dev/docs).
+
+             ```elixir
+             IO.puts("hi")
+
+             ```
+             """)
+  end
+
+  test "uses the document title when the content does not start with a heading" do
+    html = """
+    <html>
+      <head>
+        <title>Pricing</title>
+      </head>
+      <body>
+        <main>
+          <p>Simple pricing overview.</p>
+        </main>
+      </body>
+    </html>
+    """
+
+    markdown = HtmlToMarkdown.convert(html)
+
+    assert markdown ==
+             String.trim_trailing("""
+             # Pricing
+
+             Simple pricing overview.
+             """)
   end
 end

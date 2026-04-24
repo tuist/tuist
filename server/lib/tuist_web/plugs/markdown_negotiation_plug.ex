@@ -10,23 +10,27 @@ defmodule TuistWeb.Plugs.MarkdownNegotiationPlug do
 
   @accept_header "accept"
   @markdown_content_type "text/markdown"
-  @markdown_private_key :markdown_requested
-  @markdown_override_private_key :markdown_override
+  @markdown_request_private_key :markdown_request
+  @default_request_state %{requested?: false, override: nil}
 
   def init(opts), do: opts
 
   def call(%Plug.Conn{method: method} = conn, _opts) when method in ["GET", "HEAD"] do
-    markdown_requested? = markdown_requested?(conn)
-    markdown_override = markdown_override(conn, markdown_requested?)
-
     conn
-    |> put_private(@markdown_private_key, markdown_requested?)
-    |> put_private(@markdown_override_private_key, markdown_override)
-    |> maybe_rewrite_accept_header(markdown_requested?)
+    |> put_private(@markdown_request_private_key, build_request_state(conn))
+    |> maybe_rewrite_accept_header()
     |> register_before_send(&negotiate_response/1)
   end
 
   def call(conn, _opts), do: conn
+
+  defp build_request_state(conn) do
+    if markdown_requested?(conn) do
+      %{requested?: true, override: markdown_override(conn.request_path)}
+    else
+      @default_request_state
+    end
+  end
 
   defp markdown_requested?(conn) do
     conn
@@ -40,9 +44,15 @@ defmodule TuistWeb.Plugs.MarkdownNegotiationPlug do
     end)
   end
 
-  defp maybe_rewrite_accept_header(conn, false), do: conn
+  defp maybe_rewrite_accept_header(conn) do
+    if request_state(conn).requested? do
+      rewrite_accept_header_to_html(conn)
+    else
+      conn
+    end
+  end
 
-  defp maybe_rewrite_accept_header(conn, true) do
+  defp rewrite_accept_header_to_html(conn) do
     html_accept_header = {"accept", "text/html"}
 
     req_headers =
@@ -56,54 +66,49 @@ defmodule TuistWeb.Plugs.MarkdownNegotiationPlug do
   defp negotiate_response(conn) do
     conn
     |> maybe_convert_to_markdown()
-    |> ensure_vary_accept()
+    |> MarkdownResponse.put_vary_accept()
   end
 
-  defp maybe_convert_to_markdown(
-         %Plug.Conn{private: %{@markdown_private_key => true, @markdown_override_private_key => markdown}} = conn
-       )
-       when is_binary(markdown) and markdown != "" do
-    MarkdownResponse.prepare(conn, markdown, vary_accept: true)
-  end
+  defp maybe_convert_to_markdown(conn) do
+    case markdown_body(conn) do
+      {:ok, markdown} ->
+        MarkdownResponse.prepare(conn, markdown)
 
-  defp maybe_convert_to_markdown(%Plug.Conn{private: %{@markdown_private_key => true}} = conn) do
-    case get_resp_header(conn, "content-type") do
-      [<<"text/html", _::binary>> | _] ->
-        markdown =
-          conn.resp_body
-          |> IO.iodata_to_binary()
-          |> HtmlToMarkdown.convert(request_url: current_request_url(conn))
-
-        MarkdownResponse.prepare(conn, markdown, vary_accept: true)
-
-      _ ->
+      :error ->
         conn
     end
   end
 
-  defp maybe_convert_to_markdown(conn), do: conn
+  defp markdown_body(conn) do
+    request_state = request_state(conn)
 
-  defp ensure_vary_accept(conn) do
-    vary =
-      conn
-      |> get_resp_header("vary")
-      |> List.first()
-      |> to_vary_values()
+    cond do
+      not request_state.requested? ->
+        :error
 
-    if Enum.any?(vary, &(String.downcase(&1) == @accept_header)) do
-      conn
-    else
-      put_resp_header(conn, "vary", Enum.join(vary ++ ["Accept"], ", "))
+      is_binary(request_state.override) and request_state.override != "" ->
+        {:ok, request_state.override}
+
+      html_response?(conn) ->
+        {:ok, html_response_to_markdown(conn)}
+
+      true ->
+        :error
     end
   end
 
-  defp to_vary_values(nil), do: []
+  defp request_state(conn) do
+    Map.get(conn.private, @markdown_request_private_key, @default_request_state)
+  end
 
-  defp to_vary_values(value) do
-    value
-    |> String.split(",")
-    |> Enum.map(&String.trim/1)
-    |> Enum.reject(&(&1 == ""))
+  defp html_response?(conn) do
+    match?([<<"text/html", _::binary>> | _], get_resp_header(conn, "content-type"))
+  end
+
+  defp html_response_to_markdown(conn) do
+    conn.resp_body
+    |> IO.iodata_to_binary()
+    |> HtmlToMarkdown.convert(request_url: current_request_url(conn))
   end
 
   defp current_request_url(conn) do
@@ -119,12 +124,10 @@ defmodule TuistWeb.Plugs.MarkdownNegotiationPlug do
   defp blank_to_nil(""), do: nil
   defp blank_to_nil(value), do: value
 
-  defp markdown_override(conn, true) do
-    case DocsMarkdown.from_request_path(conn.request_path) do
+  defp markdown_override(request_path) do
+    case DocsMarkdown.from_request_path(request_path) do
       {:ok, markdown} -> markdown
-      :error -> :error
+      :error -> nil
     end
   end
-
-  defp markdown_override(_conn, false), do: :error
 end

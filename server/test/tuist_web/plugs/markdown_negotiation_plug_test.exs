@@ -1,4 +1,4 @@
-defmodule TuistWeb.MarkdownNegotiationTest do
+defmodule TuistWeb.Plugs.MarkdownNegotiationPlugTest do
   use ExUnit.Case, async: true
   use TuistWeb, :verified_routes
 
