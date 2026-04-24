@@ -61,4 +61,20 @@ defmodule TuistWeb.Utilities.HtmlToMarkdownTest do
              Simple pricing overview.
              """)
   end
+
+  test "preserves malformed URLs instead of raising" do
+    html = """
+    <html>
+      <body>
+        <main>
+          <p><a href="http://[bad">Broken link</a></p>
+        </main>
+      </body>
+    </html>
+    """
+
+    markdown = HtmlToMarkdown.convert(html, request_url: "https://tuist.dev/about")
+
+    assert markdown == "[Broken link](http://[bad)"
+  end
 end

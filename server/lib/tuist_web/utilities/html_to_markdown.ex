@@ -75,22 +75,27 @@ defmodule TuistWeb.Utilities.HtmlToMarkdown do
   defp maybe_absolute_url("", _base_uri), do: ""
 
   defp maybe_absolute_url(value, base_uri) do
-    uri = URI.parse(value)
+    case URI.new(value) do
+      {:ok, uri} ->
+        maybe_absolute_uri(uri, value, base_uri)
 
-    cond do
-      uri.scheme not in [nil, ""] ->
+      {:error, _reason} ->
         value
-
-      uri.host not in [nil, ""] ->
-        URI.to_string(%{uri | scheme: base_uri.scheme})
-
-      true ->
-        base_uri
-        |> URI.merge(value)
-        |> URI.to_string()
     end
-  rescue
-    ArgumentError -> value
+  end
+
+  defp maybe_absolute_uri(%URI{scheme: scheme}, value, _base_uri) when scheme not in [nil, ""] do
+    value
+  end
+
+  defp maybe_absolute_uri(%URI{host: host} = uri, _value, base_uri) when host not in [nil, ""] do
+    URI.to_string(%{uri | scheme: base_uri.scheme})
+  end
+
+  defp maybe_absolute_uri(uri, _value, base_uri) do
+    base_uri
+    |> URI.merge(uri)
+    |> URI.to_string()
   end
 
   defp maybe_insert_title_heading(nodes, title) when title in [nil, ""], do: nodes
