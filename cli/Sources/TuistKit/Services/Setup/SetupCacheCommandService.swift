@@ -74,7 +74,7 @@ struct SetupCacheCommandService {
             environmentVariables["TUIST_TOKEN"] = token
         }
 
-        let label = "tuist.cache.\(fullHandle.replacingOccurrences(of: "/", with: "_"))"
+        let label = Environment.current.cacheLaunchAgentLabel(for: fullHandle)
 
         try await launchAgentService.setupLaunchAgent(
             label: label,
