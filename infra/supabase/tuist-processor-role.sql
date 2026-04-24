@@ -34,13 +34,25 @@
 
 BEGIN;
 
+-- psql's `:'pw'` substitution only reaches top-level SQL, not the body of a
+-- `DO $$ ... $$` block (which is shipped verbatim to the server). Bounce the
+-- password through a server-side session setting so the DO block can read it
+-- via `current_setting/1`.
+SELECT set_config('tuist.processor_password', :'pw', false);
+
 -- Create the role (idempotent on re-run).
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'tuist_processor') THEN
-    EXECUTE format('CREATE ROLE tuist_processor LOGIN PASSWORD %L', :'pw');
+    EXECUTE format(
+      'CREATE ROLE tuist_processor LOGIN PASSWORD %L',
+      current_setting('tuist.processor_password')
+    );
   ELSE
-    EXECUTE format('ALTER ROLE tuist_processor WITH PASSWORD %L', :'pw');
+    EXECUTE format(
+      'ALTER ROLE tuist_processor WITH PASSWORD %L',
+      current_setting('tuist.processor_password')
+    );
   END IF;
 END
 $$;
