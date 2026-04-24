@@ -52,8 +52,10 @@ ingress:
 
 persistence:
   enabled: true
+  # Prefer ReadWriteOncePod to enforce one Kura writer per PVC.
+  # Override to ReadWriteOnce only when the CSI driver does not support it.
   accessModes:
-    - ReadWriteOnce
+    - ReadWriteOncePod
   size: 20Gi
   storageClass: ""
   annotations: {}

@@ -1,12 +1,12 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
-    future::Future,
     net::{Ipv4Addr, SocketAddr},
     sync::Arc,
     time::Duration,
 };
 
 use axum_server::Handle;
+use hyper_util::rt::TokioTimer;
 use tokio::sync::{Notify, RwLock};
 use tracing::info;
 
@@ -21,6 +21,7 @@ use crate::{
     peer_tls::{build_internal_rustls_config, build_peer_client},
     reapi,
     replication::{spawn_membership_task, spawn_outbox_task},
+    runtime::{DataDirLock, RuntimeState},
     state::AppState,
     store::Store,
     telemetry::init_tracing,
@@ -36,6 +37,9 @@ pub async fn run() -> Result<(), String> {
         .map_err(|error| format!("failed to create directories: {error}"))?;
 
     let metrics = Metrics::new(config.region.clone(), config.tenant_id.clone());
+    let data_dir_lock = DataDirLock::acquire(&config.data_dir).inspect_err(|_| {
+        metrics.record_writer_lock_acquire_failure();
+    })?;
     let extension = ExtensionEngine::from_env(metrics.clone())
         .await
         .map_err(|error| format!("failed to initialize extension engine: {error}"))?;
@@ -60,10 +64,12 @@ pub async fn run() -> Result<(), String> {
 
     let state = Arc::new(AppState {
         config,
+        _data_dir_lock: data_dir_lock,
         store,
         io,
         memory,
         metrics,
+        runtime: RuntimeState::new(),
         extension,
         analytics,
         client,
@@ -71,11 +77,14 @@ pub async fn run() -> Result<(), String> {
         members,
         peer_nodes: RwLock::new(BTreeMap::new()),
         bootstrapped_peers: tokio::sync::Mutex::new(BTreeSet::new()),
+        bootstrap_inflight_peers: tokio::sync::Mutex::new(BTreeSet::new()),
     });
+    state.sync_runtime_metrics().await;
 
     spawn_membership_task(state.clone());
     spawn_outbox_task(state.clone());
     spawn_snapshot_task(state.clone());
+    spawn_runtime_watch_task(state.clone());
 
     let address = SocketAddr::from((Ipv4Addr::UNSPECIFIED, state.config.port));
     let grpc_address = SocketAddr::from((Ipv4Addr::UNSPECIFIED, state.config.grpc_port));
@@ -88,9 +97,6 @@ pub async fn run() -> Result<(), String> {
         info!("Kura internal HTTP service listening on {internal_address}");
     }
 
-    let listener = tokio::net::TcpListener::bind(address)
-        .await
-        .map_err(|error| format!("failed to bind TCP listener: {error}"))?;
     let grpc_listener = tokio::net::TcpListener::bind(grpc_address)
         .await
         .map_err(|error| format!("failed to bind gRPC listener: {error}"))?;
@@ -158,9 +164,25 @@ pub async fn run() -> Result<(), String> {
     };
 
     let router = http::public_router(state.clone());
+    let public_handle = Handle::new();
+    let public_shutdown_handle = public_handle.clone();
+    let public_shutdown_state = state.clone();
+    tokio::spawn(async move {
+        shutdown_signal().await;
+        public_shutdown_state.enter_draining();
+        public_shutdown_state.sync_runtime_metrics().await;
+        public_shutdown_handle.graceful_shutdown(None);
+    });
 
-    axum::serve(listener, router)
-        .with_graceful_shutdown(shutdown_signal())
+    let mut public_server = axum_server::bind(address).handle(public_handle);
+    public_server
+        .http_builder()
+        .http1()
+        .keep_alive(true)
+        .timer(TokioTimer::new())
+        .header_read_timeout(Some(Duration::from_secs(30)));
+    public_server
+        .serve(router.into_make_service())
         .await
         .map_err(|error| format!("server error: {error}"))?;
     let _ = shutdown_tx.send(true);
@@ -255,6 +277,18 @@ fn spawn_snapshot_task(state: Arc<AppState>) {
             }
 
             tokio::time::sleep(Duration::from_secs(5)).await;
+        }
+    });
+}
+
+fn spawn_runtime_watch_task(state: Arc<AppState>) {
+    tokio::spawn(async move {
+        loop {
+            if let Err(error) = state.refresh_drain_marker().await {
+                tracing::warn!("failed to refresh drain marker: {error}");
+            }
+            state.sync_runtime_metrics().await;
+            tokio::time::sleep(Duration::from_secs(1)).await;
         }
     });
 }

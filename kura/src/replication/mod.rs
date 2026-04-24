@@ -60,6 +60,7 @@ pub async fn enqueue_replication_for_artifact(state: &SharedState, manifest: &Ar
 
 pub fn spawn_membership_task(state: SharedState) {
     tokio::spawn(async move {
+        let mut initial_discovery_completed = false;
         loop {
             let mut members = BTreeSet::new();
             let mut peer_nodes = BTreeMap::new();
@@ -109,10 +110,11 @@ pub fn spawn_membership_task(state: SharedState) {
                 (discovered_peers, lost_peers)
             };
             if !lost_peers.is_empty() {
-                let mut bootstrapped = state.bootstrapped_peers.lock().await;
-                for peer in lost_peers {
-                    bootstrapped.remove(&peer);
-                }
+                state.forget_peers(&lost_peers).await;
+            }
+            if !initial_discovery_completed {
+                state.mark_initial_discovery_completed();
+                initial_discovery_completed = true;
             }
             state
                 .metrics
@@ -120,6 +122,7 @@ pub fn spawn_membership_task(state: SharedState) {
             for peer in discovered_peers {
                 maybe_spawn_bootstrap_task(state.clone(), peer).await;
             }
+            state.maybe_mark_serving().await;
             sleep(Duration::from_secs(2)).await;
         }
     });
@@ -152,30 +155,30 @@ pub async fn replication_targets(state: &SharedState) -> Vec<String> {
 }
 
 async fn maybe_spawn_bootstrap_task(state: SharedState, peer: String) {
-    let mut bootstrapped = state.bootstrapped_peers.lock().await;
-    if !bootstrapped.insert(peer.clone()) {
+    if !state.note_bootstrap_started(&peer).await {
         return;
     }
-    drop(bootstrapped);
 
     tokio::spawn(async move {
         let started_at = std::time::Instant::now();
         let result = bootstrap_from_peer(&state, &peer).await;
         match result {
             Ok(stats) => {
+                state.note_bootstrap_succeeded(&peer).await;
                 state.metrics.record_bootstrap_run(
                     "ok",
                     started_at.elapsed(),
                     stats.tombstones_applied,
                     stats.artifacts_applied,
                 );
+                state.maybe_mark_serving().await;
             }
             Err(error) => {
                 warn!("bootstrap from {peer} failed: {error}");
                 state
                     .metrics
                     .record_bootstrap_run("error", started_at.elapsed(), 0, 0);
-                state.bootstrapped_peers.lock().await.remove(&peer);
+                state.note_bootstrap_failed(&peer).await;
             }
         }
     });

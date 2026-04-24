@@ -24,6 +24,7 @@ spec:
       {{- end }}
     spec:
       serviceAccountName: {{ include "kura.serviceAccountName" . }}
+      terminationGracePeriodSeconds: 300
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
@@ -142,7 +143,7 @@ spec:
             {{- end }}
           readinessProbe:
             httpGet:
-              path: /up
+              path: /ready
               port: http
             initialDelaySeconds: 5
             periodSeconds: 10
@@ -154,6 +155,20 @@ spec:
             initialDelaySeconds: 20
             periodSeconds: 20
             timeoutSeconds: 5
+          startupProbe:
+            httpGet:
+              path: /up
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 30
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                  - /bin/sh
+                  - -c
+                  - touch /tmp/kura/drain && sleep 20
           {{- with .Values.resources }}
           resources:
             {{- toYaml . | nindent 12 }}

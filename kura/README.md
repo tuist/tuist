@@ -45,8 +45,11 @@ docker compose up --build -d
 Useful endpoints:
 
 - `http://localhost:4101/up`
+- `http://localhost:4101/ready`
 - `http://localhost:4102/up`
+- `http://localhost:4102/ready`
 - `http://localhost:4103/up`
+- `http://localhost:4103/ready`
 - `grpc://localhost:5101` for Bazel/Buck2 REAPI against `kura-us`
 - `grpc://localhost:5102` for Bazel/Buck2 REAPI against `kura-eu`
 - `grpc://localhost:5103` for Bazel/Buck2 REAPI against `kura-ap`
@@ -299,11 +302,13 @@ It also exposes analytics-specific runtime metrics for:
 The repository includes a Helm chart at `ops/helm/kura` that deploys Kura as a `StatefulSet` with:
 
 - 💾 one PVC per pod for metadata-state and segment storage
+- 🔒 single-writer fencing through a process-held data-dir lock plus `ReadWriteOncePod` by default
 - 🧭 a headless service for stable pod DNS and peer discovery
 - 🌐 a regular service exposing both HTTP and gRPC
 - 🚪 optional ingress for the HTTP API
 - 🧩 optional inline extension script mounting through a `ConfigMap`
 - 🔐 optional peer mTLS for `/_internal/*` traffic via a mounted Kubernetes `Secret`
+- 🚦 `/ready` for public readiness and `/up` for liveness, with a `preStop` drain hook that removes pods from traffic before `SIGTERM`
 
 Lint and render the chart:
 
@@ -323,6 +328,8 @@ helm upgrade --install kura ./ops/helm/kura \
   --set config.region=fr-par \
   --set config.telemetry.otlpTracesEndpoint=http://otel-collector.monitoring.svc.cluster.local:4318/v1/traces
 ```
+
+The chart defaults persistence to `ReadWriteOncePod` so one Kura process owns each PVC. If your CSI driver does not support it, override `persistence.accessModes[0]=ReadWriteOnce`; Kura will still fence the volume with its app-level writer lock.
 
 For a local kind smoke test, the repo includes:
 

@@ -1345,6 +1345,7 @@ dependencies = [
  "hex",
  "hmac",
  "http-body-util",
+ "hyper-util",
  "jsonwebtoken",
  "libc",
  "mlua",

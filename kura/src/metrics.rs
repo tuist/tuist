@@ -44,6 +44,8 @@ pub struct Metrics {
     file_descriptor_available: Gauge,
     file_descriptor_waiting: Gauge,
     file_descriptor_capacity: Gauge,
+    http_inflight_requests: Gauge,
+    grpc_inflight_requests: Gauge,
     segment_handles_cached: Gauge,
     segment_handle_cache_capacity: Gauge,
     segment_handle_cache_lookups: Family<SegmentHandleCacheLookupLabels, Counter>,
@@ -59,6 +61,9 @@ pub struct Metrics {
     outbox_messages: Gauge,
     multipart_uploads: Gauge,
     discovered_peer_nodes: Gauge,
+    bootstrap_known_peers: Gauge,
+    bootstrap_completed_peers: Gauge,
+    bootstrap_inflight_peers: Gauge,
     bootstrap_runs: Family<BootstrapResultLabels, Counter>,
     bootstrap_duration: Histogram,
     bootstrap_applied_items: Family<BootstrapItemLabels, Counter>,
@@ -86,6 +91,12 @@ pub struct Metrics {
     memory_pressure_transitions: Family<MemoryPressureTransitionLabels, Counter>,
     background_work_paused: Family<BackgroundWorkerLabels, Gauge>,
     memory_actions: Family<MemoryActionLabels, Counter>,
+    traffic_state: Gauge,
+    ready_state: Gauge,
+    drain_state: Gauge,
+    initial_discovery_completed: Gauge,
+    writer_lock_owned: Gauge,
+    writer_lock_acquire_failures: Counter,
 }
 
 impl Metrics {
@@ -131,6 +142,8 @@ impl Metrics {
         let file_descriptor_available = Gauge::default();
         let file_descriptor_waiting = Gauge::default();
         let file_descriptor_capacity = Gauge::default();
+        let http_inflight_requests = Gauge::default();
+        let grpc_inflight_requests = Gauge::default();
         let segment_handles_cached = Gauge::default();
         let segment_handle_cache_capacity = Gauge::default();
         let segment_handle_cache_lookups =
@@ -147,6 +160,9 @@ impl Metrics {
         let outbox_messages = Gauge::default();
         let multipart_uploads = Gauge::default();
         let discovered_peer_nodes = Gauge::default();
+        let bootstrap_known_peers = Gauge::default();
+        let bootstrap_completed_peers = Gauge::default();
+        let bootstrap_inflight_peers = Gauge::default();
         let bootstrap_runs = Family::<BootstrapResultLabels, Counter>::default();
         let bootstrap_duration = Histogram::new(exponential_buckets(0.001, 2.0, 16));
         let bootstrap_applied_items = Family::<BootstrapItemLabels, Counter>::default();
@@ -182,6 +198,12 @@ impl Metrics {
             Family::<MemoryPressureTransitionLabels, Counter>::default();
         let background_work_paused = Family::<BackgroundWorkerLabels, Gauge>::default();
         let memory_actions = Family::<MemoryActionLabels, Counter>::default();
+        let traffic_state = Gauge::default();
+        let ready_state = Gauge::default();
+        let drain_state = Gauge::default();
+        let initial_discovery_completed = Gauge::default();
+        let writer_lock_owned = Gauge::default();
+        let writer_lock_acquire_failures = Counter::default();
         let process_start_time_seconds = Gauge::<i64>::default();
         process_start_time_seconds.set(
             SystemTime::now()
@@ -311,6 +333,16 @@ impl Metrics {
             file_descriptor_capacity.clone(),
         );
         registry.register(
+            "kura_http_inflight_requests",
+            "HTTP requests currently in flight across public and internal listeners",
+            http_inflight_requests.clone(),
+        );
+        registry.register(
+            "kura_grpc_inflight_requests",
+            "gRPC requests currently in flight",
+            grpc_inflight_requests.clone(),
+        );
+        registry.register(
             "kura_segment_handles_cached",
             "Long-lived segment file handles cached for offset-based reads",
             segment_handles_cached.clone(),
@@ -384,6 +416,21 @@ impl Metrics {
             "kura_discovered_peer_nodes",
             "Peer nodes currently discovered through health checks and DNS",
             discovered_peer_nodes.clone(),
+        );
+        registry.register(
+            "kura_bootstrap_known_peers",
+            "Peers currently considered part of the bootstrap readiness set",
+            bootstrap_known_peers.clone(),
+        );
+        registry.register(
+            "kura_bootstrap_completed_peers",
+            "Peers that finished bootstrap for this node",
+            bootstrap_completed_peers.clone(),
+        );
+        registry.register(
+            "kura_bootstrap_inflight_peers",
+            "Peers currently being bootstrapped",
+            bootstrap_inflight_peers.clone(),
         );
         registry.register(
             "kura_bootstrap_runs_total",
@@ -521,6 +568,36 @@ impl Metrics {
             memory_actions.clone(),
         );
         registry.register(
+            "kura_traffic_state",
+            "Current traffic state for this node: 0=joining, 1=serving, 2=draining",
+            traffic_state.clone(),
+        );
+        registry.register(
+            "kura_ready_state",
+            "Current readiness state for this node: 1=ready, 0=not ready",
+            ready_state.clone(),
+        );
+        registry.register(
+            "kura_drain_state",
+            "Current drain state for this node: 1=draining, 0=not draining",
+            drain_state.clone(),
+        );
+        registry.register(
+            "kura_initial_discovery_completed",
+            "Whether the first membership discovery pass has completed",
+            initial_discovery_completed.clone(),
+        );
+        registry.register(
+            "kura_writer_lock_owned",
+            "Whether this process currently owns the single-writer data-dir lock",
+            writer_lock_owned.clone(),
+        );
+        registry.register(
+            "kura_writer_lock_acquire_failures_total",
+            "Number of writer-lock acquisition failures detected during startup or tests",
+            writer_lock_acquire_failures.clone(),
+        );
+        registry.register(
             "kura_process_start_time_seconds",
             "Unix timestamp when the current Kura process started",
             process_start_time_seconds.clone(),
@@ -552,6 +629,8 @@ impl Metrics {
             file_descriptor_available,
             file_descriptor_waiting,
             file_descriptor_capacity,
+            http_inflight_requests,
+            grpc_inflight_requests,
             segment_handles_cached,
             segment_handle_cache_capacity,
             segment_handle_cache_lookups,
@@ -567,6 +646,9 @@ impl Metrics {
             outbox_messages,
             multipart_uploads,
             discovered_peer_nodes,
+            bootstrap_known_peers,
+            bootstrap_completed_peers,
+            bootstrap_inflight_peers,
             bootstrap_runs,
             bootstrap_duration,
             bootstrap_applied_items,
@@ -594,6 +676,12 @@ impl Metrics {
             memory_pressure_transitions,
             background_work_paused,
             memory_actions,
+            traffic_state,
+            ready_state,
+            drain_state,
+            initial_discovery_completed,
+            writer_lock_owned,
+            writer_lock_acquire_failures,
         };
 
         metrics
@@ -786,6 +874,14 @@ impl Metrics {
         self.file_descriptor_waiting.set(waiting as i64);
     }
 
+    pub fn update_http_inflight(&self, count: usize) {
+        self.http_inflight_requests.set(count as i64);
+    }
+
+    pub fn update_grpc_inflight(&self, count: usize) {
+        self.grpc_inflight_requests.set(count as i64);
+    }
+
     pub fn update_segment_handles_cached(&self, cached: usize) {
         self.segment_handles_cached.set(cached as i64);
     }
@@ -872,6 +968,12 @@ impl Metrics {
 
     pub fn update_discovered_peer_nodes(&self, count: usize) {
         self.discovered_peer_nodes.set(count as i64);
+    }
+
+    pub fn update_bootstrap_peers(&self, known: usize, completed: usize, inflight: usize) {
+        self.bootstrap_known_peers.set(known as i64);
+        self.bootstrap_completed_peers.set(completed as i64);
+        self.bootstrap_inflight_peers.set(inflight as i64);
     }
 
     pub fn record_bootstrap_run(
@@ -1041,6 +1143,27 @@ impl Metrics {
                 action: action.to_owned(),
             })
             .inc();
+    }
+
+    pub fn update_runtime_state(
+        &self,
+        traffic_state: i64,
+        ready: bool,
+        draining: bool,
+        initial_discovery_completed: bool,
+        writer_lock_owned: bool,
+    ) {
+        self.traffic_state.set(traffic_state);
+        self.ready_state.set(if ready { 1 } else { 0 });
+        self.drain_state.set(if draining { 1 } else { 0 });
+        self.initial_discovery_completed
+            .set(if initial_discovery_completed { 1 } else { 0 });
+        self.writer_lock_owned
+            .set(if writer_lock_owned { 1 } else { 0 });
+    }
+
+    pub fn record_writer_lock_acquire_failure(&self) {
+        self.writer_lock_acquire_failures.inc();
     }
 
     pub fn render(&self) -> String {
@@ -1258,6 +1381,8 @@ mod tests {
         metrics.record_file_descriptor_wait("ok", Duration::from_millis(1));
         metrics.record_file_operation("open_read", "ok", Duration::from_millis(2), 42);
         metrics.update_file_descriptor_pool(64, 3, 61, 1);
+        metrics.update_http_inflight(2);
+        metrics.update_grpc_inflight(1);
         metrics.update_segment_handles_cached(2);
         metrics.update_segment_handle_cache_capacity(8);
         metrics.record_segment_handle_cache_lookup("hit");
@@ -1273,6 +1398,7 @@ mod tests {
         metrics.update_outbox_messages(4);
         metrics.update_multipart_uploads(2);
         metrics.update_discovered_peer_nodes(3);
+        metrics.update_bootstrap_peers(3, 2, 1);
         metrics.record_bootstrap_run("ok", Duration::from_millis(6), 2, 5);
         metrics.update_analytics_queue(1000, 2);
         metrics.record_analytics_event("xcode", "sent", 2);
@@ -1287,6 +1413,8 @@ mod tests {
         metrics.record_memory_pressure_transition("normal", "constrained");
         metrics.update_background_work_paused("outbox", true);
         metrics.record_memory_action("manifest_cache_trim");
+        metrics.update_runtime_state(1, true, false, true, true);
+        metrics.record_writer_lock_acquire_failure();
 
         let rendered = metrics.render();
 
@@ -1309,6 +1437,8 @@ mod tests {
         assert!(rendered.contains("kura_file_descriptor_wait_seconds"));
         assert!(rendered.contains("kura_file_operations_total"));
         assert!(rendered.contains("kura_file_descriptor_in_use"));
+        assert!(rendered.contains("kura_http_inflight_requests"));
+        assert!(rendered.contains("kura_grpc_inflight_requests"));
         assert!(rendered.contains("kura_segment_handles_cached"));
         assert!(rendered.contains("kura_segment_handle_cache_capacity"));
         assert!(rendered.contains("kura_segment_handle_cache_lookups_total"));
@@ -1323,6 +1453,9 @@ mod tests {
         assert!(rendered.contains("kura_outbox_messages"));
         assert!(rendered.contains("kura_multipart_uploads"));
         assert!(rendered.contains("kura_discovered_peer_nodes"));
+        assert!(rendered.contains("kura_bootstrap_known_peers"));
+        assert!(rendered.contains("kura_bootstrap_completed_peers"));
+        assert!(rendered.contains("kura_bootstrap_inflight_peers"));
         assert!(rendered.contains("kura_bootstrap_runs_total"));
         assert!(rendered.contains("kura_bootstrap_duration_seconds"));
         assert!(rendered.contains("kura_bootstrap_applied_items_total"));
@@ -1344,6 +1477,12 @@ mod tests {
         assert!(rendered.contains("kura_memory_pressure_transitions_total"));
         assert!(rendered.contains("kura_background_work_paused"));
         assert!(rendered.contains("kura_memory_actions_total"));
+        assert!(rendered.contains("kura_traffic_state"));
+        assert!(rendered.contains("kura_ready_state"));
+        assert!(rendered.contains("kura_drain_state"));
+        assert!(rendered.contains("kura_initial_discovery_completed"));
+        assert!(rendered.contains("kura_writer_lock_owned"));
+        assert!(rendered.contains("kura_writer_lock_acquire_failures_total"));
         assert!(rendered.contains("kura_process_start_time_seconds"));
         assert!(rendered.contains("region=\"eu-west\""));
         assert!(rendered.contains("tenant_id=\"acme\""));

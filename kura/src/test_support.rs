@@ -11,8 +11,15 @@ use tempfile::TempDir;
 use tokio::sync::{Notify, RwLock};
 
 use crate::{
-    analytics::Analytics, config::Config, extension::SharedExtension, io::IoController,
-    memory::MemoryController, metrics::Metrics, state::AppState, store::Store,
+    analytics::Analytics,
+    config::Config,
+    extension::SharedExtension,
+    io::IoController,
+    memory::MemoryController,
+    metrics::Metrics,
+    runtime::{DataDirLock, RuntimeState},
+    state::AppState,
+    store::Store,
 };
 
 pub(crate) struct TestContext {
@@ -85,6 +92,8 @@ where
         config.memory_soft_limit_bytes,
         config.memory_hard_limit_bytes,
     );
+    let data_dir_lock =
+        DataDirLock::acquire(&config.data_dir).expect("failed to acquire test writer lock");
     let store =
         Store::open(&config, io.clone(), memory.clone()).expect("failed to open test store");
     let analytics =
@@ -96,10 +105,12 @@ where
         .expect("failed to build test client");
     let state = Arc::new(AppState {
         config,
+        _data_dir_lock: data_dir_lock,
         store,
         io,
         memory,
         metrics,
+        runtime: RuntimeState::new(),
         extension,
         analytics,
         client,
@@ -107,7 +118,9 @@ where
         members: RwLock::new(BTreeSet::new()),
         peer_nodes: RwLock::new(BTreeMap::new()),
         bootstrapped_peers: tokio::sync::Mutex::new(BTreeSet::new()),
+        bootstrap_inflight_peers: tokio::sync::Mutex::new(BTreeSet::new()),
     });
+    state.sync_runtime_metrics().await;
 
     TestContext {
         _temp_dir: temp_dir,

@@ -4,7 +4,7 @@ use axum::{
     Json, Router,
     body::{Body, to_bytes},
     extract::{MatchedPath, Path as AxumPath, Query, Request, State},
-    http::{HeaderValue, StatusCode},
+    http::{HeaderValue, StatusCode, Version},
     middleware::{self, Next},
     response::{IntoResponse, Response},
     routing::{delete, get, head, post, put},
@@ -29,6 +29,10 @@ pub fn public_router(state: SharedState) -> Router {
         .layer(middleware::from_fn_with_state(
             state.clone(),
             apply_extensions,
+        ))
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            reject_draining_public_requests,
         ))
         .layer(middleware::from_fn_with_state(
             state.clone(),
@@ -69,6 +73,7 @@ pub(crate) fn router(state: SharedState) -> Router {
 fn public_routes() -> Router<SharedState> {
     Router::new()
         .route("/up", get(up))
+        .route("/ready", get(ready))
         .route("/metrics", get(metrics_handler))
         .route("/v1/cache/{hash}", get(get_nx).put(put_nx))
         .route(
@@ -322,6 +327,7 @@ async fn track_http_metrics(
     req: Request,
     next: Next,
 ) -> Response {
+    let _request_guard = state.start_http_request();
     let start = std::time::Instant::now();
     let route = req
         .extensions()
@@ -353,6 +359,32 @@ async fn track_http_metrics(
         .metrics
         .record_http(route, method, response.status(), start.elapsed());
 
+    response
+}
+
+async fn reject_draining_public_requests(
+    State(state): State<SharedState>,
+    req: Request,
+    next: Next,
+) -> Response {
+    let route = req
+        .extensions()
+        .get::<MatchedPath>()
+        .map(|path| path.as_str().to_owned())
+        .unwrap_or_else(|| req.uri().path().to_owned());
+    let version = req.version();
+
+    if !is_probe_route(&route) && state.runtime.is_draining() {
+        return draining_response(version);
+    }
+
+    let mut response = next.run(req).await;
+    if state.runtime.is_draining() && is_http1(version) {
+        response.headers_mut().insert(
+            axum::http::header::CONNECTION,
+            HeaderValue::from_static("close"),
+        );
+    }
     response
 }
 
@@ -420,7 +452,15 @@ async fn apply_extensions(State(state): State<SharedState>, req: Request, next: 
 }
 
 fn should_skip_extension_route(route: &str) -> bool {
-    route == "/up" || route == "/metrics" || route.starts_with("/_internal/")
+    is_probe_route(route) || route.starts_with("/_internal/")
+}
+
+fn is_probe_route(route: &str) -> bool {
+    route == "/up" || route == "/ready" || route == "/metrics"
+}
+
+fn is_http1(version: Version) -> bool {
+    matches!(version, Version::HTTP_10 | Version::HTTP_11)
 }
 
 async fn extension_context_from_http(
@@ -664,6 +704,41 @@ async fn up(State(state): State<SharedState>) -> impl IntoResponse {
         "members": all_members.into_iter().collect::<Vec<_>>(),
         "nodes": nodes,
     }))
+}
+
+async fn ready(State(state): State<SharedState>) -> impl IntoResponse {
+    if let Err(error) = state.refresh_drain_marker().await {
+        return error_response(
+            StatusCode::SERVICE_UNAVAILABLE,
+            format!("Failed to evaluate readiness: {error}"),
+        );
+    }
+
+    let readiness = state.readiness_report().await;
+    let status = if readiness.ready {
+        StatusCode::OK
+    } else {
+        StatusCode::SERVICE_UNAVAILABLE
+    };
+
+    (
+        status,
+        Json(serde_json::json!({
+            "status": if readiness.ready { "ok" } else { "not_ready" },
+            "state": readiness.state.as_str(),
+            "ready": readiness.ready,
+            "draining": readiness.draining,
+            "writer_lock_owned": readiness.writer_lock_owned,
+            "initial_discovery_completed": readiness.initial_discovery_completed,
+            "known_peers": readiness.known_peers,
+            "bootstrapped_peers": readiness.bootstrapped_peers,
+            "bootstrap_inflight_peers": readiness.bootstrap_inflight_peers,
+            "http_inflight_requests": readiness.http_inflight,
+            "grpc_inflight_requests": readiness.grpc_inflight,
+            "reasons": readiness.reasons,
+        })),
+    )
+        .into_response()
 }
 
 async fn metrics_handler(State(state): State<SharedState>) -> impl IntoResponse {
@@ -1604,6 +1679,17 @@ async fn serve_file(
     }
 }
 
+fn draining_response(version: Version) -> Response {
+    let mut response = error_response(StatusCode::SERVICE_UNAVAILABLE, "server is draining");
+    if is_http1(version) {
+        response.headers_mut().insert(
+            axum::http::header::CONNECTION,
+            HeaderValue::from_static("close"),
+        );
+    }
+    response
+}
+
 fn error_response(status: StatusCode, message: impl Into<String>) -> Response {
     let body = Json(serde_json::json!({ "message": message.into() }));
     (status, body).into_response()
@@ -1661,6 +1747,107 @@ mod tests {
             body["connected_nodes"]
                 .to_string()
                 .contains("http://peer.kura.internal:4000")
+        );
+    }
+
+    #[tokio::test]
+    async fn ready_stays_unavailable_until_bootstrap_gate_completes() {
+        let context = test_context(|_| {}).await;
+        let peer = "http://peer.kura.internal:7443".to_string();
+        context
+            .state
+            .peer_nodes
+            .write()
+            .await
+            .insert(peer.clone(), "remote".into());
+        context.state.mark_initial_discovery_completed();
+        assert!(context.state.note_bootstrap_started(&peer).await);
+
+        let response = public_router(context.state.clone())
+            .oneshot(
+                Request::builder()
+                    .uri("/ready")
+                    .body(Body::empty())
+                    .expect("failed to build request"),
+            )
+            .await
+            .expect("ready route should respond");
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        let body: Value = serde_json::from_str(&response_text(response).await)
+            .expect("ready response should be json");
+        assert_eq!(body["state"], "joining");
+        assert_eq!(body["ready"], false);
+        assert!(
+            body["reasons"]
+                .to_string()
+                .contains("bootstrap in progress")
+        );
+
+        context.state.note_bootstrap_succeeded(&peer).await;
+        context.state.maybe_mark_serving().await;
+
+        let response = public_router(context.state.clone())
+            .oneshot(
+                Request::builder()
+                    .uri("/ready")
+                    .body(Body::empty())
+                    .expect("failed to build request"),
+            )
+            .await
+            .expect("ready route should respond");
+        assert_eq!(response.status(), StatusCode::OK);
+        let body: Value = serde_json::from_str(&response_text(response).await)
+            .expect("ready response should be json");
+        assert_eq!(body["state"], "serving");
+        assert_eq!(body["ready"], true);
+    }
+
+    #[tokio::test]
+    async fn ready_reports_draining_state() {
+        let context = test_context(|_| {}).await;
+        context.state.mark_initial_discovery_completed();
+        context.state.maybe_mark_serving().await;
+        context.state.enter_draining();
+
+        let response = public_router(context.state.clone())
+            .oneshot(
+                Request::builder()
+                    .uri("/ready")
+                    .body(Body::empty())
+                    .expect("failed to build request"),
+            )
+            .await
+            .expect("ready route should respond");
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        let body: Value = serde_json::from_str(&response_text(response).await)
+            .expect("ready response should be json");
+        assert_eq!(body["state"], "draining");
+        assert_eq!(body["draining"], true);
+        assert!(body["reasons"].to_string().contains("draining"));
+    }
+
+    #[tokio::test]
+    async fn draining_public_requests_return_service_unavailable_and_close_http1_connections() {
+        let context = test_context(|_| {}).await;
+        context.state.mark_initial_discovery_completed();
+        context.state.maybe_mark_serving().await;
+        context.state.enter_draining();
+
+        let response = public_router(context.state.clone())
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/v1/cache/some-hash")
+                    .version(Version::HTTP_11)
+                    .body(Body::empty())
+                    .expect("failed to build request"),
+            )
+            .await
+            .expect("public route should respond");
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        assert_eq!(
+            response.headers().get(axum::http::header::CONNECTION),
+            Some(&HeaderValue::from_static("close"))
         );
     }
 
