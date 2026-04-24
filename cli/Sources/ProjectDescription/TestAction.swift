@@ -3,19 +3,17 @@
 /// You can create a test action with either a set of test targets or test plans using the `.targets` or `.testPlans` static
 /// methods respectively.
 public struct TestAction: Equatable, Codable, Sendable {
-    /// List of test plans referenced by path.
-    ///
-    /// Kept for backwards compatibility — prefer `testPlanEntries` (the `[TestPlan]` overload of
-    /// `testPlans(_:)`), which supports both pre-configured files and Tuist-generated plans in a
-    /// single list. The first in the list is the default plan.
-    public var testPlans: [Path]?
-
     /// List of test plan entries attached to the action.
     ///
-    /// Each entry is either a pre-configured `.xctestplan` file (`TestPlan.preConfigured`) or a
-    /// plan whose file Tuist generates from Swift (`TestPlan.generated`). Both kinds can be mixed
-    /// freely. If no entry is marked as default, the first one is used.
-    public var testPlanEntries: [TestPlan]?
+    /// Each entry is either a hand-maintained `.xctestplan` file (`TestPlan.path`, or the
+    /// convenience factories `.relativeToManifest`, `.relativeToRoot`, `.relativeToCurrentFile`)
+    /// or a plan whose file Tuist generates from Swift (`TestPlan.generated`). Both kinds can
+    /// be mixed freely. If no entry is marked as default, the first one is used.
+    ///
+    /// Because `TestPlan` conforms to `ExpressibleByStringLiteral`, bare string literals are
+    /// accepted too — `testPlans(["Foo.xctestplan"])` is equivalent to
+    /// `testPlans([.path("Foo.xctestplan")])`.
+    public var testPlans: [TestPlan]?
 
     /// A list of testable targets, that are targets which are defined in the project with testable information.
     public var targets: [TestableTarget]
@@ -48,8 +46,7 @@ public struct TestAction: Equatable, Codable, Sendable {
     public var skippedTests: [String]?
 
     private init(
-        testPlans: [Path]?,
-        testPlanEntries: [TestPlan]?,
+        testPlans: [TestPlan]?,
         targets: [TestableTarget],
         arguments: Arguments?,
         configuration: ConfigurationName,
@@ -62,7 +59,6 @@ public struct TestAction: Equatable, Codable, Sendable {
         skippedTests: [String]?
     ) {
         self.testPlans = testPlans
-        self.testPlanEntries = testPlanEntries
         self.targets = targets
         self.arguments = arguments
         self.configuration = configuration
@@ -102,7 +98,6 @@ public struct TestAction: Equatable, Codable, Sendable {
     ) -> Self {
         Self(
             testPlans: nil,
-            testPlanEntries: nil,
             targets: targets,
             arguments: arguments,
             configuration: configuration,
@@ -116,45 +111,12 @@ public struct TestAction: Equatable, Codable, Sendable {
         )
     }
 
-    /// Returns a test action from a list of test plans referenced by path.
-    ///
-    /// Each path may include glob patterns. This overload is kept for backwards compatibility;
-    /// prefer the `[TestPlan]` overload, which can mix pre-configured and Tuist-generated plans.
-    ///
-    /// - Parameters:
-    ///   - testPlans: List of test plans to run.
-    ///   - configuration: Configuration to be used.
-    ///   - attachDebugger: A boolean controlling whether a debugger is attached to the process running the tests.
-    ///   - preActions: Actions to execute before running the tests.
-    ///   - postActions: Actions to execute after running the tests.
-    /// - Returns: A test action.
-    public static func testPlans(
-        _ testPlans: [Path],
-        configuration: ConfigurationName = .debug,
-        attachDebugger: Bool = true,
-        preActions: [ExecutionAction] = [],
-        postActions: [ExecutionAction] = []
-    ) -> Self {
-        Self(
-            testPlans: testPlans,
-            testPlanEntries: nil,
-            targets: [],
-            arguments: nil,
-            configuration: configuration,
-            attachDebugger: attachDebugger,
-            expandVariableFromTarget: nil,
-            preActions: preActions,
-            postActions: postActions,
-            options: .options(),
-            diagnosticsOptions: .options(),
-            skippedTests: nil
-        )
-    }
-
     /// Returns a test action from a list of test plan entries.
     ///
-    /// Each entry is either a `.preConfigured` file or a `.generated` plan Tuist builds from Swift;
-    /// both kinds can be mixed. If no entry is marked as default, the first one is used.
+    /// Each entry is either a `.path` to a hand-maintained `.xctestplan` (glob patterns supported)
+    /// or a `.generated` plan Tuist builds from Swift; both kinds can be mixed. Bare string literals
+    /// are also accepted and treated as `.path` entries. If no entry is marked as default, the
+    /// first one is used.
     ///
     /// - Parameters:
     ///   - testPlans: List of test plan entries.
@@ -171,8 +133,7 @@ public struct TestAction: Equatable, Codable, Sendable {
         postActions: [ExecutionAction] = []
     ) -> Self {
         Self(
-            testPlans: nil,
-            testPlanEntries: testPlans,
+            testPlans: testPlans,
             targets: [],
             arguments: nil,
             configuration: configuration,

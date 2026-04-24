@@ -19,7 +19,7 @@ struct TestActionManifestMapperTests {
         try await fileSystem.writeText(testPlanContent, at: testPlanPath)
 
         let manifest = ProjectDescription.TestAction.testPlans([
-            .path(testPlanPath.pathString),
+            .path(.path(testPlanPath.pathString)),
         ])
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryDirectory, rootDirectory: temporaryDirectory)
 
@@ -123,7 +123,7 @@ struct TestActionManifestMapperTests {
         try await fileSystem.writeText(testPlanContent, at: globPlanPath)
 
         let manifest = ProjectDescription.TestAction.testPlans([
-            .path(literalPlanPath.pathString),
+            .path(.path(literalPlanPath.pathString)),
             .path("Glob*.xctestplan"),
         ])
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryDirectory, rootDirectory: temporaryDirectory)
@@ -329,7 +329,7 @@ struct TestActionManifestMapperTests {
         let schemeName = "MyScheme"
 
         let manifest = ProjectDescription.TestAction.testPlans([
-            .path(missingPlanPath.pathString),
+            .path(.path(missingPlanPath.pathString)),
         ])
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryDirectory, rootDirectory: temporaryDirectory)
 

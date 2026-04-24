@@ -35,28 +35,7 @@ extension XcodeGraph.TestAction {
         let skippedTests: [String]?
         let fileSystem = FileSystem()
 
-        if let entries = manifest.testPlanEntries, !entries.isEmpty {
-            let resolvedTestPlans = try await XcodeGraph.TestPlan.resolve(
-                entries: entries,
-                generatorPaths: generatorPaths,
-                schemeName: schemeName,
-                fileSystem: fileSystem
-            )
-
-            testPlans = resolvedTestPlans.isEmpty ? nil : resolvedTestPlans
-
-            targets = []
-            arguments = nil
-            coverage = false
-            codeCoverageTargets = []
-            expandVariablesFromTarget = nil
-            diagnosticsOptions = .init()
-            language = nil
-            region = nil
-            preferredScreenCaptureFormat = nil
-            skippedTests = nil
-        } else if let paths = manifest.testPlans {
-            let entries = paths.map { ProjectDescription.TestPlan.path($0) }
+        if let entries = manifest.testPlans, !entries.isEmpty {
             let resolvedTestPlans = try await XcodeGraph.TestPlan.resolve(
                 entries: entries,
                 generatorPaths: generatorPaths,
