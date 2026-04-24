@@ -38,15 +38,15 @@ protocol SchemeDescriptorsGenerating {
     ) throws -> SchemeGenerationResult
 }
 
-/// Output of scheme generation: the scheme descriptors plus any generated test plan descriptors
-/// that need to be written alongside them.
+/// Output of scheme generation: the scheme descriptors plus any side effects (for example,
+/// generated `.xctestplan` files) that need to run alongside the project write.
 struct SchemeGenerationResult {
     let schemes: [SchemeDescriptor]
-    let testPlanDescriptors: [TestPlanDescriptor]
+    let sideEffects: [SideEffectDescriptor]
 
-    init(schemes: [SchemeDescriptor], testPlanDescriptors: [TestPlanDescriptor] = []) {
+    init(schemes: [SchemeDescriptor], sideEffects: [SideEffectDescriptor] = []) {
         self.schemes = schemes
-        self.testPlanDescriptors = testPlanDescriptors
+        self.sideEffects = sideEffects
     }
 }
 
@@ -94,7 +94,7 @@ struct SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         Logger.current.debug("SchemeDescriptorsGenerator: Generating \(workspace.schemes.count) workspace schemes")
         let rootPath = workspace.xcWorkspacePath.parentDirectory
         var schemes: [SchemeDescriptor] = []
-        var testPlanDescriptors: [TestPlanDescriptor] = []
+        var sideEffects: [SideEffectDescriptor] = []
         for scheme in workspace.schemes {
             Logger.current.debug("SchemeDescriptorsGenerator: Generating workspace scheme \(scheme.name)")
             let generated = try generateScheme(
@@ -105,10 +105,10 @@ struct SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
                 lastUpgradeCheck: workspace.generationOptions.lastXcodeUpgradeCheck
             )
             schemes.append(generated.scheme)
-            testPlanDescriptors.append(contentsOf: generated.testPlanDescriptors)
+            sideEffects.append(contentsOf: generated.sideEffects)
         }
         Logger.current.debug("SchemeDescriptorsGenerator: Finished generating workspace schemes")
-        return SchemeGenerationResult(schemes: schemes, testPlanDescriptors: testPlanDescriptors)
+        return SchemeGenerationResult(schemes: schemes, sideEffects: sideEffects)
     }
 
     func generateProjectSchemes(
@@ -119,7 +119,7 @@ struct SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         Logger.current
             .debug("SchemeDescriptorsGenerator: Generating \(project.schemes.count) project schemes for \(project.name)")
         var schemes: [SchemeDescriptor] = []
-        var testPlanDescriptors: [TestPlanDescriptor] = []
+        var sideEffects: [SideEffectDescriptor] = []
         for scheme in project.schemes {
             Logger.current.debug("SchemeDescriptorsGenerator: Generating project scheme \(scheme.name)")
             let generated = try generateScheme(
@@ -130,10 +130,10 @@ struct SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
                 lastUpgradeCheck: project.lastUpgradeCheck
             )
             schemes.append(generated.scheme)
-            testPlanDescriptors.append(contentsOf: generated.testPlanDescriptors)
+            sideEffects.append(contentsOf: generated.sideEffects)
         }
         Logger.current.debug("SchemeDescriptorsGenerator: Finished generating project schemes for \(project.name)")
-        return SchemeGenerationResult(schemes: schemes, testPlanDescriptors: testPlanDescriptors)
+        return SchemeGenerationResult(schemes: schemes, sideEffects: sideEffects)
     }
 
     // swiftlint:disable function_body_length
@@ -151,7 +151,7 @@ struct SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         graphTraverser: GraphTraversing,
         generatedProjects: [AbsolutePath: GeneratedProject],
         lastUpgradeCheck: XcodeGraph.Version?
-    ) throws -> (scheme: SchemeDescriptor, testPlanDescriptors: [TestPlanDescriptor]) {
+    ) throws -> (scheme: SchemeDescriptor, sideEffects: [SideEffectDescriptor]) {
         let generatedBuildAction = try schemeBuildAction(
             scheme: scheme,
             graphTraverser: graphTraverser,
@@ -164,13 +164,13 @@ struct SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             rootPath: path,
             generatedProjects: generatedProjects
         )
-        let testPlanDescriptors: [TestPlanDescriptor] = scheme.testAction?.testPlans?.compactMap { plan in
+        let testPlanSideEffects: [SideEffectDescriptor] = scheme.testAction?.testPlans?.compactMap { plan in
             TestPlanGenerator.descriptor(
                 for: plan,
                 graphTraverser: graphTraverser,
                 generatedProjects: generatedProjects,
                 rootPath: path
-            )
+            ).map(SideEffectDescriptor.testPlan)
         } ?? []
         let generatedLaunchAction = try schemeLaunchAction(
             scheme: scheme,
@@ -219,7 +219,7 @@ struct SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
 
         return (
             scheme: SchemeDescriptor(xcScheme: xcscheme, shared: scheme.shared, hidden: scheme.hidden),
-            testPlanDescriptors: testPlanDescriptors
+            sideEffects: testPlanSideEffects
         )
     } // swiftlint:enable function_body_length
 

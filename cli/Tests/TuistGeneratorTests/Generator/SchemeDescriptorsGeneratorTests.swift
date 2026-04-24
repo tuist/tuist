@@ -869,7 +869,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         XCTAssertEqual(result.testPlans?.first?.reference, "container:folder/Plan.xctestplan")
     }
 
-    func test_generateProjectSchemes_emits_testPlanDescriptors_for_generated_plans() throws {
+    func test_generateProjectSchemes_emits_testPlan_side_effects_for_generated_plans() throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/Project")
         let target = Target.test(name: "App", product: .app)
@@ -908,10 +908,14 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         )
 
         // Then
-        XCTAssertEqual(result.testPlanDescriptors.count, 1)
-        XCTAssertEqual(result.testPlanDescriptors.first?.path, planPath)
+        let testPlanDescriptors = result.sideEffects.compactMap { sideEffect -> TestPlanDescriptor? in
+            guard case let .testPlan(descriptor) = sideEffect else { return nil }
+            return descriptor
+        }
+        XCTAssertEqual(testPlanDescriptors.count, 1)
+        XCTAssertEqual(testPlanDescriptors.first?.path, planPath)
         XCTAssertEqual(
-            result.testPlanDescriptors.first?.testTargets.map(\.pbxTarget.name),
+            testPlanDescriptors.first?.testTargets.map(\.pbxTarget.name),
             ["AppTests"]
         )
     }

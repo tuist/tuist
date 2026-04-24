@@ -186,8 +186,7 @@ struct ProjectDescriptorGenerator: ProjectDescriptorGenerating {
             xcodeprojPath: project.xcodeProjPath,
             xcodeProj: xcodeProj,
             schemeDescriptors: schemeGeneration.schemes,
-            sideEffectDescriptors: [],
-            testPlanDescriptors: schemeGeneration.testPlanDescriptors
+            sideEffectDescriptors: schemeGeneration.sideEffects
         )
     }
 

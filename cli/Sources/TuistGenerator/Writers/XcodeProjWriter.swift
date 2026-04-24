@@ -52,8 +52,6 @@ public struct XcodeProjWriter: XcodeProjWriting {
         }
         try workspace.xcworkspace.write(path: workspace.xcworkspacePath.path, override: true)
 
-        try await writeTestPlans(workspace.testPlanDescriptors)
-
         // Write all schemes (XCWorkspace doesn't manage any schemes like XcodeProj.sharedData)
         try await writeSchemes(
             schemeDescriptors: workspace.schemeDescriptors,
@@ -86,10 +84,6 @@ public struct XcodeProjWriter: XcodeProjWriting {
         let project = enrichingXcodeProjWithSharedSchemes(descriptor: project)
         try project.xcodeProj.write(path: project.xcodeprojPath.path)
 
-        // `xcodeProj.write` fixes PBX object references; test plans must be written after so their
-        // target identifiers are stable.
-        try await writeTestPlans(project.testPlanDescriptors)
-
         // Write user schemes only
         try await writeSchemes(
             schemeDescriptors: project.userSchemeDescriptors,
@@ -102,18 +96,10 @@ public struct XcodeProjWriter: XcodeProjWriting {
             schemesOrderHint: schemesOrderHint
         )
 
+        // Side effects run last so that anything depending on a written `.xcodeproj` — including
+        // `.xctestplan` files that reference now-stable PBX blueprint identifiers — runs against
+        // finalized state.
         try await sideEffectDescriptorExecutor.execute(sideEffects: project.sideEffectDescriptors)
-    }
-
-    private func writeTestPlans(_ descriptors: [TestPlanDescriptor]) async throws {
-        for descriptor in descriptors {
-            let parent = descriptor.path.parentDirectory
-            if try await !fileSystem.exists(parent) {
-                try await fileSystem.makeDirectory(at: parent)
-            }
-            let data = try TestPlanGenerator.encode(descriptor)
-            try data.write(to: descriptor.path.url)
-        }
     }
 
     private func writeSchemes(

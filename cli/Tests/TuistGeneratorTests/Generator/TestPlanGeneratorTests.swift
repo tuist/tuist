@@ -1,9 +1,8 @@
 import Foundation
 import Path
+import TuistCore
 import XcodeProj
 import XCTest
-
-@testable import TuistGenerator
 
 final class TestPlanGeneratorTests: XCTestCase {
     func test_encode_produces_valid_xctestplan_json() throws {
@@ -21,7 +20,7 @@ final class TestPlanGeneratorTests: XCTestCase {
         )
 
         // When
-        let data = try TestPlanGenerator.encode(descriptor)
+        let data = try descriptor.encode()
         let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
 
         // Then
@@ -50,7 +49,7 @@ final class TestPlanGeneratorTests: XCTestCase {
         )
 
         // When
-        let data = try TestPlanGenerator.encode(descriptor)
+        let data = try descriptor.encode()
         let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
 
         // Then

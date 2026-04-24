@@ -165,8 +165,7 @@ struct WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
             xcworkspace: xcWorkspace,
             projectDescriptors: projects,
             schemeDescriptors: schemeGeneration.schemes,
-            sideEffectDescriptors: [],
-            testPlanDescriptors: schemeGeneration.testPlanDescriptors,
+            sideEffectDescriptors: schemeGeneration.sideEffects,
             workspaceSettingsDescriptor: workspaceSettingsGenerator.generateWorkspaceSettings(workspace: graphTraverser.workspace)
         )
     }
