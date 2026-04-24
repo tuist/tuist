@@ -228,7 +228,10 @@ defmodule XcodeProcessor.XCResultProcessorTest do
       # AppleArchive LZFSE-compressed streams start with the "bvx" prefix; any
       # non-PKZIP header routes through `XCResultNIF.decompress_archive`.
       fixture_dir =
-        Path.join(System.tmp_dir!(), "xcresult_aar_fixture_#{:erlang.unique_integer([:positive])}")
+        Path.join(
+          System.tmp_dir!(),
+          "xcresult_aar_fixture_#{:erlang.unique_integer([:positive])}"
+        )
 
       File.mkdir_p!(fixture_dir)
       fixture_path = Path.join(fixture_dir, "fixture.aar")
@@ -260,7 +263,10 @@ defmodule XcodeProcessor.XCResultProcessorTest do
 
     test "surfaces NIF decompression failures for AppleArchive payloads" do
       fixture_dir =
-        Path.join(System.tmp_dir!(), "xcresult_aar_failure_#{:erlang.unique_integer([:positive])}")
+        Path.join(
+          System.tmp_dir!(),
+          "xcresult_aar_failure_#{:erlang.unique_integer([:positive])}"
+        )
 
       File.mkdir_p!(fixture_dir)
       fixture_path = Path.join(fixture_dir, "fixture.aar")
