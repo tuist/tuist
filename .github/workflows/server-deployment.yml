@@ -10,12 +10,15 @@ name: Server Deployment
 #   - As a workflow_call target from server-production-deployment.yml,
 #     which chains canary → acceptance tests → production on push-to-main.
 #
-# Each environment is its own Kubernetes namespace. The image is rebuilt
-# per env so Mix.env() and the encrypted priv/secrets/<env>.yml.enc baked
-# in match.
+# Image architecture: a single env-agnostic image is built per commit
+# (MIX_ENV=prod always). The runtime picks canary/staging/production
+# behavior via the TUIST_DEPLOY_ENV env var set by the Helm overlay, and the
+# MASTER_KEY ESO secret decrypts the matching priv/secrets/<env>.yml.enc
+# file baked into the image. This means the same `sha-<SHA>` image is
+# promoted across environments - one build, N deploys.
 #
 # Required GitHub Environment secrets (per environment):
-#   KUBECONFIG — base64-encoded kubeconfig for that environment's cluster.
+#   KUBECONFIG - base64-encoded kubeconfig for that environment's cluster.
 # App secrets live inside the cluster (MASTER_KEY via ESO, DATABASE_URL /
 # ClickHouse / Tigris keys in priv/secrets/<env>.yml.enc baked into the
 # image).
@@ -45,6 +48,17 @@ on:
         description: Commit SHA to deploy (defaults to github.sha)
         required: false
         type: string
+      image_tag:
+        description: >-
+          Pre-built image tag to deploy. When set, the build job is
+          skipped and the deploy job uses this tag directly. When unset,
+          the workflow builds + pushes an image tagged sha-<commit_sha>.
+        required: false
+        type: string
+    outputs:
+      image_tag:
+        description: The image tag that was deployed.
+        value: ${{ jobs.plan.outputs.image_tag }}
 
 permissions:
   contents: read
@@ -66,41 +80,49 @@ jobs:
     name: Plan (${{ inputs.environment }})
     runs-on: namespace-profile-default
     outputs:
-      mix_env: ${{ steps.map.outputs.mix_env }}
       namespace: ${{ steps.map.outputs.namespace }}
       image_tag: ${{ steps.map.outputs.image_tag }}
       values_overlay: ${{ steps.map.outputs.values_overlay }}
       public_host: ${{ steps.map.outputs.public_host }}
       environment_key: ${{ steps.map.outputs.environment_key }}
+      skip_build: ${{ steps.map.outputs.skip_build }}
     steps:
       - id: map
         env:
           TARGET_ENV: ${{ inputs.environment }}
+          EXISTING_IMAGE_TAG: ${{ inputs.image_tag }}
         run: |
           case "$TARGET_ENV" in
             staging)
-              env_key=staging; mix_env=stag; namespace=tuist-staging
+              env_key=staging; namespace=tuist-staging
               overlay=values-managed-staging.yaml; host=staging.tuist.dev ;;
             canary)
-              env_key=canary; mix_env=can; namespace=tuist-canary
+              env_key=canary; namespace=tuist-canary
               overlay=values-managed-canary.yaml; host=canary.tuist.dev ;;
             production)
-              env_key=production; mix_env=prod; namespace=tuist
+              env_key=production; namespace=tuist
               overlay=values-managed-production.yaml; host=tuist.dev ;;
             *) echo "Unknown environment: $TARGET_ENV" >&2; exit 1 ;;
           esac
+          # Env-agnostic tag - same image promotes across environments.
+          if [ -n "$EXISTING_IMAGE_TAG" ]; then
+            tag="$EXISTING_IMAGE_TAG"; skip_build=true
+          else
+            tag="sha-${DEPLOY_SHA:0:12}"; skip_build=false
+          fi
           {
             echo "environment_key=$env_key"
-            echo "mix_env=$mix_env"
             echo "namespace=$namespace"
             echo "values_overlay=$overlay"
             echo "public_host=$host"
-            echo "image_tag=${TARGET_ENV}-sha-${DEPLOY_SHA:0:12}"
+            echo "image_tag=$tag"
+            echo "skip_build=$skip_build"
           } >> "$GITHUB_OUTPUT"
 
   build:
-    name: Build + push (${{ inputs.environment }})
+    name: Build + push
     needs: plan
+    if: needs.plan.outputs.skip_build != 'true'
     runs-on: namespace-profile-default-with-volume
     timeout-minutes: 40
     steps:
@@ -124,12 +146,13 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.plan.outputs.image_tag }}
           build-args: |
             TUIST_HOSTED=1
-            MIX_ENV=${{ needs.plan.outputs.mix_env }}
+            MIX_ENV=prod
             APT_CACHE_BUST=${{ env.DEPLOY_SHA }}
-          # Scope BuildKit cache per Mix env so staging/canary/production
-          # builds don't invalidate each other's layers.
-          cache-from: type=gha,scope=${{ needs.plan.outputs.mix_env }}
-          cache-to: type=gha,mode=max,scope=${{ needs.plan.outputs.mix_env }}
+          # One cache scope across all environments: the image is
+          # env-agnostic, so canary/staging/production builds all share
+          # layers.
+          cache-from: type=gha,scope=server-cluster
+          cache-to: type=gha,mode=max,scope=server-cluster
 
   observability-install:
     # Installs / upgrades the grafana/k8s-monitoring wrapper chart ahead of
@@ -172,6 +195,9 @@ jobs:
   deploy:
     name: Deploy to ${{ needs.plan.outputs.namespace }}
     needs: [plan, build, observability-install]
+    # `build` may be skipped when image_tag is passed in - keep running.
+    # `observability-install` always runs, so it must be a plain success.
+    if: always() && needs.plan.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped') && needs.observability-install.result == 'success'
     runs-on: namespace-profile-default
     environment:
       name: server-k8s-${{ needs.plan.outputs.environment_key }}

@@ -18,6 +18,11 @@ server:
   # so TUIST_LOKI_URL stays unset (the in-app LokiLoggerHandler only
   # attaches when TUIST_LOKI_INPROC=1).
   extraEnv:
+    # Selects which priv/secrets/<env>.yml.enc file the app decrypts at
+    # boot. Image is env-agnostic (built with MIX_ENV=prod); this flag
+    # plus the MASTER_KEY ESO secret pick the runtime deployment target.
+    - name: TUIST_DEPLOY_ENV
+      value: stag
     - name: TUIST_DATABASE_POOL_SIZE
       value: "15"
     - name: TUIST_PROCESSOR_URL
