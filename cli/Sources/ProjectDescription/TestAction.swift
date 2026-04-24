@@ -5,14 +5,15 @@
 public struct TestAction: Equatable, Codable, Sendable {
     /// List of test plan entries attached to the action.
     ///
-    /// Each entry is either a hand-maintained `.xctestplan` file (`TestPlan.path`, or the
-    /// convenience factories `.relativeToManifest`, `.relativeToRoot`, `.relativeToCurrentFile`)
-    /// or a plan whose file Tuist generates from Swift (`TestPlan.generated`). Both kinds can
-    /// be mixed freely. If no entry is marked as default, the first one is used.
+    /// Construct each entry with `TestPlan.testPlan(path:)` for a hand-maintained `.xctestplan`,
+    /// or `TestPlan.testPlan(name:testTargets:)` for a plan whose file Tuist generates from
+    /// Swift. Both kinds can be mixed freely. `TestPlan.relativeToManifest(_:)`,
+    /// `.relativeToRoot(_:)`, and `.relativeToCurrentFile(_:)` are convenience factories for
+    /// the path form.
     ///
     /// Because `TestPlan` conforms to `ExpressibleByStringLiteral`, bare string literals are
     /// accepted too — `testPlans(["Foo.xctestplan"])` is equivalent to
-    /// `testPlans([.path("Foo.xctestplan")])`.
+    /// `testPlans([.testPlan(path: "Foo.xctestplan")])`.
     public var testPlans: [TestPlan]?
 
     /// A list of testable targets, that are targets which are defined in the project with testable information.
@@ -113,10 +114,10 @@ public struct TestAction: Equatable, Codable, Sendable {
 
     /// Returns a test action from a list of test plan entries.
     ///
-    /// Each entry is either a `.path` to a hand-maintained `.xctestplan` (glob patterns supported)
-    /// or a `.generated` plan Tuist builds from Swift; both kinds can be mixed. Bare string literals
-    /// are also accepted and treated as `.path` entries. If no entry is marked as default, the
-    /// first one is used.
+    /// Each entry is either a `.testPlan(path:)` reference to a hand-maintained `.xctestplan`
+    /// (glob patterns supported) or a `.testPlan(name:testTargets:)` plan Tuist builds from
+    /// Swift; both kinds can be mixed. Bare string literals are also accepted and treated as
+    /// path references. If no entry is marked as default, the first one is used.
     ///
     /// - Parameters:
     ///   - testPlans: List of test plan entries.

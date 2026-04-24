@@ -115,7 +115,7 @@ extension XcodeGraph.TestAction {
 
 extension XcodeGraph.TestPlan {
     /// Resolves a list of `ProjectDescription.TestPlan` entries into the graph's `TestPlan` values,
-    /// expanding globs for `.path` entries and computing derived paths for `.generated` ones.
+    /// expanding globs for path entries and computing derived paths for generated ones.
     ///
     /// If no entry sets `isDefault`, the first resolved plan is marked as the default.
     static func resolve(
@@ -124,12 +124,7 @@ extension XcodeGraph.TestPlan {
         schemeName: String?,
         fileSystem: FileSystem
     ) async throws -> [XcodeGraph.TestPlan] {
-        let hasExplicitDefault = entries.contains { entry in
-            switch entry {
-            case let .path(_, isDefault): isDefault
-            case let .generated(_, _, _, isDefault): isDefault
-            }
-        }
+        let hasExplicitDefault = entries.contains(where: \.isDefault)
         let derivedDirectory = generatorPaths.manifestDirectory
             .appending(
                 components: Constants.DerivedDirectory.name,
@@ -138,18 +133,18 @@ extension XcodeGraph.TestPlan {
 
         var resolved: [XcodeGraph.TestPlan] = []
         for entry in entries {
-            switch entry {
-            case let .path(path, isDefault):
+            switch entry.source {
+            case let .path(path):
                 try await appendPathEntry(
                     path: path,
-                    markAsDefault: hasExplicitDefault ? isDefault : resolved.isEmpty,
+                    markAsDefault: hasExplicitDefault ? entry.isDefault : resolved.isEmpty,
                     generatorPaths: generatorPaths,
                     schemeName: schemeName,
                     fileSystem: fileSystem,
                     into: &resolved,
                     hasExplicitDefault: hasExplicitDefault
                 )
-            case let .generated(name, testTargets, path, isDefault):
+            case let .generated(name, testTargets, path):
                 let resolvedPath: AbsolutePath = if let explicitPath = path {
                     try generatorPaths.resolve(path: explicitPath)
                 } else {
@@ -162,7 +157,7 @@ extension XcodeGraph.TestPlan {
                     XcodeGraph.TestPlan(
                         path: resolvedPath,
                         testTargets: targets,
-                        isDefault: hasExplicitDefault ? isDefault : resolved.isEmpty,
+                        isDefault: hasExplicitDefault ? entry.isDefault : resolved.isEmpty,
                         isGenerated: true
                     )
                 )
