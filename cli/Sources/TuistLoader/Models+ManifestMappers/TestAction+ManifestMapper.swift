@@ -32,9 +32,9 @@ extension XcodeGraph.TestAction {
         let skippedTests: [String]?
         let fileSystem = FileSystem()
 
-        if let entries = manifest.testPlans, !entries.isEmpty {
-            let resolvedTestPlans = try await XcodeGraph.TestPlan.resolve(
-                entries: entries,
+        if let planManifests = manifest.testPlans, !planManifests.isEmpty {
+            let resolvedTestPlans = try await XcodeGraph.TestPlan.from(
+                manifests: planManifests,
                 generatorPaths: generatorPaths,
                 schemeName: schemeName,
                 fileSystem: fileSystem

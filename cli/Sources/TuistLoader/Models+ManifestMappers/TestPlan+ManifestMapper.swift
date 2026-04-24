@@ -8,11 +8,11 @@ import TuistSupport
 import XcodeGraph
 
 extension XcodeGraph.TestPlan {
-    /// Resolves a list of `ProjectDescription.TestPlan` entries into the graph's `TestPlan` values,
+    /// Maps a list of `ProjectDescription.TestPlan` manifests into graph-level `TestPlan` values,
     /// expanding globs for path entries and computing derived paths for generated ones. The first
     /// resolved plan is marked as the default.
-    static func resolve(
-        entries: [ProjectDescription.TestPlan],
+    static func from(
+        manifests: [ProjectDescription.TestPlan],
         generatorPaths: GeneratorPaths,
         schemeName: String?,
         fileSystem: FileSystem
@@ -24,8 +24,8 @@ extension XcodeGraph.TestPlan {
             )
 
         var resolved: [XcodeGraph.TestPlan] = []
-        for entry in entries {
-            switch entry {
+        for manifest in manifests {
+            switch manifest {
             case let .path(path):
                 try await appendPathEntry(
                     path: path,
@@ -57,9 +57,9 @@ extension XcodeGraph.TestPlan {
         return resolved
     }
 
-    /// Reads an existing `.xctestplan` file and maps it into the graph model. `TestPlan.resolve`
-    /// is the normal entry point; this method is exposed for call sites that already have a
-    /// resolved path in hand.
+    /// Reads an existing `.xctestplan` file and maps it into the graph model.
+    /// `TestPlan.from(manifests:...)` is the normal entry point; this method is exposed for call
+    /// sites that already have a resolved path in hand.
     static func from(
         path: AbsolutePath,
         isDefault: Bool,
