@@ -1,7 +1,8 @@
 /// A test plan entry on a `TestAction`.
 ///
-/// Construct with the `testPlan(...)` factory. One overload references an existing
-/// `.xctestplan` file by path; the other describes a plan Tuist generates from Swift:
+/// Use `testPlan(path:)` to reference an existing `.xctestplan` file, or
+/// `testPlan(name:testTargets:)` to have Tuist generate one from Swift so the list of test
+/// targets stays in sync with the manifest as features are added or removed:
 ///
 /// ```swift
 /// .testPlans([
@@ -10,10 +11,9 @@
 /// ])
 /// ```
 ///
-/// For backwards compatibility with existing manifests, `TestPlan` also conforms to
-/// `ExpressibleByStringLiteral` and exposes `.relativeToManifest(_:)`, `.relativeToRoot(_:)`,
-/// and `.relativeToCurrentFile(_:)` static factories that mirror `Path`, so
-/// `testPlans(["Foo.xctestplan", .relativeToManifest("Other.xctestplan")])` keeps working.
+/// A bare string literal in the list is shorthand for `testPlan(path:)`, and
+/// `relativeToManifest(_:)`, `relativeToRoot(_:)`, and `relativeToCurrentFile(_:)` are available
+/// as convenience factories for the path form.
 public struct TestPlan: Equatable, Codable, Sendable, ExpressibleByStringLiteral {
     /// Describes where the `.xctestplan` comes from: either a path the user maintains or a
     /// specification Tuist uses to generate the file.

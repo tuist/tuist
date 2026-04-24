@@ -3,17 +3,8 @@
 /// You can create a test action with either a set of test targets or test plans using the `.targets` or `.testPlans` static
 /// methods respectively.
 public struct TestAction: Equatable, Codable, Sendable {
-    /// List of test plan entries attached to the action.
-    ///
-    /// Construct each entry with `TestPlan.testPlan(path:)` for a hand-maintained `.xctestplan`,
-    /// or `TestPlan.testPlan(name:testTargets:)` for a plan whose file Tuist generates from
-    /// Swift. Both kinds can be mixed freely. `TestPlan.relativeToManifest(_:)`,
-    /// `.relativeToRoot(_:)`, and `.relativeToCurrentFile(_:)` are convenience factories for
-    /// the path form.
-    ///
-    /// Because `TestPlan` conforms to `ExpressibleByStringLiteral`, bare string literals are
-    /// accepted too — `testPlans(["Foo.xctestplan"])` is equivalent to
-    /// `testPlans([.testPlan(path: "Foo.xctestplan")])`.
+    /// Test plans attached to the action. The first plan, or the one marked with
+    /// `isDefault: true`, is the default. See `TestPlan` for how to construct entries.
     public var testPlans: [TestPlan]?
 
     /// A list of testable targets, that are targets which are defined in the project with testable information.
@@ -112,13 +103,7 @@ public struct TestAction: Equatable, Codable, Sendable {
         )
     }
 
-    /// Returns a test action from a list of test plan entries.
-    ///
-    /// Each entry is either a `.testPlan(path:)` reference to a hand-maintained `.xctestplan`
-    /// (glob patterns supported) or a `.testPlan(name:testTargets:)` plan Tuist builds from
-    /// Swift; both kinds can be mixed. Bare string literals are also accepted and treated as
-    /// path references. If no entry is marked as default, the first one is used.
-    ///
+    /// Returns a test action from a list of test plans.
     /// - Parameters:
     ///   - testPlans: List of test plans to run.
     ///   - configuration: Configuration to be used.
