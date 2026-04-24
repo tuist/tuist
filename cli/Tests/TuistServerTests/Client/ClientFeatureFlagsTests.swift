@@ -36,4 +36,19 @@ struct ClientFeatureFlagsTests {
 
         #expect(headerValue == "A,B")
     }
+
+    @Test func contains_matches_feature_flags_case_insensitively() async {
+        let environment = Environment(
+            variables: [
+                "TUIST_FEATURE_FLAG_KURA": "1",
+            ],
+            arguments: []
+        )
+
+        let containsKura = await Environment.$current.withValue(environment) {
+            ClientFeatureFlags.contains("kura")
+        }
+
+        #expect(containsKura)
+    }
 }

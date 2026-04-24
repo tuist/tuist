@@ -37,7 +37,7 @@ msgstr "バンドル識別子"
 #: lib/tuist_web/live/previews_live.html.heex:87
 #, elixir-autogen, elixir-format
 msgid "Commit SHA"
-msgstr "コミット SHA"
+msgstr "コミットSHA"
 
 #: lib/tuist_web/live/preview_live.html.heex:123
 #, elixir-autogen, elixir-format
@@ -57,7 +57,7 @@ msgstr "詳細"
 #: lib/tuist_web/live/preview_live.html.heex:10
 #, elixir-autogen, elixir-format
 msgid "Don't have the Tuist app installed?"
-msgstr "Tuistアプリをインストールしていますか？"
+msgstr "Tuistアプリをインストールしていませんか？"
 
 #: lib/tuist_web/live/preview_live.html.heex:23
 #: lib/tuist_web/live/preview_live.html.heex:87
@@ -89,7 +89,7 @@ msgstr "なし"
 #: lib/tuist_web/live/preview_live.html.heex:276
 #, elixir-autogen, elixir-format
 msgid "Or run using CLI"
-msgstr "または CLI を使用して実行"
+msgstr "またはCLIで実行"
 
 #: lib/tuist_web/live/previews_live.html.heex:74
 #, elixir-autogen, elixir-format
@@ -128,7 +128,7 @@ msgstr "実行"
 #: lib/tuist_web/live/previews_live.html.heex:6
 #, elixir-autogen, elixir-format
 msgid "Run the following command to share app preview."
-msgstr "アプリプレビューを共有するために以下のコマンドを実行してください。"
+msgstr "以下のコマンドを実行してアプリプレビューを共有します。"
 
 #: lib/tuist_web/live/preview_live.html.heex:190
 #: lib/tuist_web/live/preview_live.html.heex:236
@@ -154,7 +154,7 @@ msgstr "対応プラットフォーム"
 #: lib/tuist_web/live/preview_live.html.heex:269
 #, elixir-autogen, elixir-format
 msgid "This preview is only supported on simulators and can't be installed on a physical device"
-msgstr "このプレビューはシミュレーターのみ対応しており、実機へのインストールはできません"
+msgstr "このプレビューはシミュレーターのみ対応しており、物理デバイスにはインストールできません"
 
 #: lib/tuist_web/live/preview_live.html.heex:263
 #, elixir-autogen, elixir-format
@@ -196,7 +196,7 @@ msgstr "パッケージ名"
 #: lib/tuist_web/live/preview_live.html.heex:193
 #, elixir-autogen, elixir-format
 msgid "Scan this QR code on your Android device to download and install this version of the app"
-msgstr "このQRコードをAndroidデバイスでスキャンして、このバージョンのアプリをダウンロードしてインストールしてください"
+msgstr "このQRコードをAndroidデバイスでスキャンして、このバージョンのアプリをダウンロードおよびインストールしてください"
 
 #: lib/tuist_web/live/preview_live.html.heex:221
 #, elixir-autogen, elixir-format

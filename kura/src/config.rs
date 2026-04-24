@@ -41,6 +41,7 @@ const KURA_ANALYTICS_CIRCUIT_BREAKER_OPEN_MS: &str = "KURA_ANALYTICS_CIRCUIT_BRE
 const KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: &str = "KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT";
 const KURA_OTEL_SERVICE_NAME: &str = "KURA_OTEL_SERVICE_NAME";
 const KURA_OTEL_DEPLOYMENT_ENVIRONMENT: &str = "KURA_OTEL_DEPLOYMENT_ENVIRONMENT";
+const KURA_SENTRY_DSN: &str = "KURA_SENTRY_DSN";
 
 const BYTES_PER_MIB: u64 = 1024 * 1024;
 const DEFAULT_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS: u64 = 5_000;
@@ -79,6 +80,7 @@ pub struct Config {
     pub otlp_traces_endpoint: String,
     pub otel_service_name: String,
     pub otel_deployment_environment: String,
+    pub sentry_dsn: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -660,6 +662,16 @@ impl Config {
         let otel_service_name = required_value(&mut lookup, KURA_OTEL_SERVICE_NAME, &mut missing);
         let otel_deployment_environment =
             required_value(&mut lookup, KURA_OTEL_DEPLOYMENT_ENVIRONMENT, &mut missing);
+        let sentry_dsn = lookup(KURA_SENTRY_DSN)
+            .map(|value| value.trim().to_owned())
+            .filter(|value| !value.is_empty());
+        if let Some(dsn) = sentry_dsn.as_deref()
+            && let Err(error) = dsn.parse::<sentry::types::Dsn>()
+        {
+            invalid.push(format!(
+                "{KURA_SENTRY_DSN} must be a valid Sentry DSN: {error}"
+            ));
+        }
 
         if let (Some(port), Some(grpc_port), Some(internal_port)) = (port, grpc_port, internal_port)
         {
@@ -758,6 +770,7 @@ impl Config {
             otel_deployment_environment: otel_deployment_environment.expect(
                 "otel_deployment_environment should be present when configuration is valid",
             ),
+            sentry_dsn,
         })
     }
 
@@ -1003,6 +1016,7 @@ mod tests {
             (8 * BYTES_PER_MIB) as usize
         );
         assert_eq!(config.rocksdb_max_write_buffer_number, 4);
+        assert_eq!(config.sentry_dsn, None);
     }
 
     #[test]
@@ -1074,6 +1088,7 @@ mod tests {
         );
         assert_eq!(config.otel_service_name, "kura-eu");
         assert_eq!(config.otel_deployment_environment, "staging");
+        assert_eq!(config.sentry_dsn, None);
     }
 
     #[test]
@@ -1221,6 +1236,29 @@ mod tests {
         assert_eq!(config.rocksdb_write_buffer_manager_bytes, 48 * 1024 * 1024);
         assert_eq!(config.rocksdb_write_buffer_size_bytes, 8 * 1024 * 1024);
         assert_eq!(config.rocksdb_max_write_buffer_number, 6);
+    }
+
+    #[test]
+    fn from_lookup_parses_optional_sentry_dsn() {
+        let config = config_from(&[(
+            KURA_SENTRY_DSN,
+            "https://public@example.ingest.sentry.io/12345",
+        )])
+        .expect("expected sentry dsn to parse");
+
+        assert_eq!(
+            config.sentry_dsn.as_deref(),
+            Some("https://public@example.ingest.sentry.io/12345")
+        );
+    }
+
+    #[test]
+    fn from_lookup_rejects_invalid_sentry_dsn() {
+        let error = config_from(&[(KURA_SENTRY_DSN, "not-a-sentry-dsn")])
+            .expect_err("expected invalid sentry dsn to fail");
+
+        assert!(error.contains(KURA_SENTRY_DSN));
+        assert!(error.contains("valid Sentry DSN"));
     }
 
     #[test]

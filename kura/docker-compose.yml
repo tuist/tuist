@@ -28,6 +28,7 @@ services:
       KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://tempo:4318/v1/traces
       KURA_OTEL_SERVICE_NAME: kura-us
       KURA_OTEL_DEPLOYMENT_ENVIRONMENT: local
+      KURA_SENTRY_DSN: ${KURA_SENTRY_DSN:-}
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:4000/up >/dev/null"]
       interval: 10s

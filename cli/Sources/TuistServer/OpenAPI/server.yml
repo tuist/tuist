@@ -7589,8 +7589,6 @@ paths:
                             - first_run
                             - marked_flaky
                             - unmarked_flaky
-                            - muted
-                            - unmuted
                             - quarantined
                             - unquarantined
                             - muted
@@ -7925,14 +7923,6 @@ paths:
       callbacks: {}
       operationId: listBundles
       parameters:
-        - description: Filter bundles by git branch.
-          in: query
-          name: git_branch
-          required: false
-          schema:
-            type: string
-            x-struct:
-            x-validate:
         - description: Page number for pagination.
           in: query
           name: page
@@ -7941,20 +7931,28 @@ paths:
             type: integer
             x-struct:
             x-validate:
-        - description: The handle of the account.
-          in: path
-          name: account_handle
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
         - description: Number of items per page.
           in: query
           name: page_size
           required: false
           schema:
             type: integer
+            x-struct:
+            x-validate:
+        - description: Filter bundles by git branch.
+          in: query
+          name: git_branch
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
             x-struct:
             x-validate:
         - description: The handle of the project.
@@ -14028,7 +14026,7 @@ paths:
   /api/cache/endpoints:
     get:
       callbacks: {}
-      description: Returns custom cache endpoints if configured for the account, otherwise returns default endpoints.
+      description: Returns cache endpoints for the requested account.
       operationId: getCacheEndpoints
       parameters:
         - description: The name of the account to get custom cache endpoints for.

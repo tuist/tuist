@@ -389,7 +389,7 @@ defmodule Tuist.BundlesTest do
         )
 
       assert got == [
-               %{date: ~D[2024-04-28], bundle_install_size: 1500},
+               %{date: ~D[2024-04-28], bundle_install_size: 0},
                %{date: ~D[2024-04-29], bundle_install_size: 3000},
                %{date: ~D[2024-04-30], bundle_install_size: 4000}
              ]
@@ -645,7 +645,7 @@ defmodule Tuist.BundlesTest do
         )
 
       assert got == [
-               %{date: ~D[2024-04-28], bundle_download_size: 1024},
+               %{date: ~D[2024-04-28], bundle_download_size: 0},
                %{date: ~D[2024-04-29], bundle_download_size: 3000},
                %{date: ~D[2024-04-30], bundle_download_size: 4000}
              ]

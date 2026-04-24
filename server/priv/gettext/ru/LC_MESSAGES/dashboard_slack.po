@@ -11,22 +11,22 @@ msgstr ""
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:246
 #, elixir-autogen, elixir-format
 msgid "Account not found. Please try again."
-msgstr "Аккаунт не найден. Пожалуйста, попробуйте снова."
+msgstr "Учётная запись не найдена. Пожалуйста, попробуйте ещё раз."
 
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:148
 #, elixir-autogen, elixir-format
 msgid "Failed to save Slack installation. Please try again."
-msgstr "Не удалось сохранить установку Slack. Пожалуйста, попробуйте снова."
+msgstr "Не удалось сохранить установку Slack. Пожалуйста, попробуйте ещё раз."
 
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:47
 #, elixir-autogen, elixir-format
 msgid "Invalid Slack authorization. Please try again."
-msgstr "Недействительная авторизация Slack. Пожалуйста, попробуйте снова."
+msgstr "Неверная авторизация Slack. Пожалуйста, попробуйте ещё раз."
 
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:97
 #, elixir-autogen, elixir-format
 msgid "Invalid authorization request. Please try again."
-msgstr "Недействительный запрос авторизации. Пожалуйста, попробуйте снова."
+msgstr "Неверный запрос на авторизацию. Пожалуйста, попробуйте ещё раз."
 
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:144
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:162
@@ -40,19 +40,19 @@ msgstr "Авторизация Slack не удалась: %{reason}"
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:182
 #, elixir-autogen, elixir-format
 msgid "Failed to save channel selection. Please try again."
-msgstr "Не удалось сохранить выбор канала. Пожалуйста, попробуйте снова."
+msgstr "Не удалось сохранить выбор канала. Пожалуйста, попробуйте ещё раз."
 
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:242
 #, elixir-autogen, elixir-format
 msgid "Project not found. Please try again."
-msgstr "Проект не найден. Пожалуйста, попробуйте снова."
+msgstr "Проект не найден. Пожалуйста, попробуйте ещё раз."
 
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:174
 #, elixir-autogen, elixir-format
 msgid "Alert rule not found. Please try again."
-msgstr "Правило оповещения не найдено. Пожалуйста, попробуйте снова."
+msgstr "Правило оповещения не найдено. Пожалуйста, попробуйте ещё раз."
 
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:89
 #, elixir-autogen, elixir-format
 msgid "Authorization request expired. Please start the Slack connection process again."
-msgstr "Срок действия запроса авторизации истек. Пожалуйста, начните процесс подключения Slack заново."
+msgstr "Срок действия запроса на авторизацию истёк. Пожалуйста, начните процесс подключения Slack заново."

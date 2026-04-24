@@ -235,6 +235,8 @@ KURA_OTEL_DEPLOYMENT_ENVIRONMENT=production \
 ./target/release/kura
 ```
 
+Set `KURA_SENTRY_DSN` to also forward panics and `tracing::error!` events to Sentry. In Helm deployments, inject it via `extraEnv` or `extraEnvFrom`.
+
 ## 📊 Observability
 
 Kura ships with a fairly complete local observability story:
@@ -243,6 +245,7 @@ Kura ships with a fairly complete local observability story:
 - 📉 Grafana dashboards
 - 🪵 Loki and Promtail logs
 - 🧭 Tempo traces
+- 🚨 Optional Sentry error reporting for panics and error-level tracing events
 
 Prometheus exposes live metadata-store memory gauges:
 
