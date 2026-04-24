@@ -1,17 +1,18 @@
-defmodule Processor.XCActivityLogNIF do
+defmodule Tuist.Processor.XCActivityLogNIF do
   @moduledoc """
   NIF wrapper for parsing xcactivitylog files using Swift.
 
-  The native implementation depends on the XCLogParser Swift package
+  The native implementation depends on the TuistXCActivityLog Swift package
   and is compiled as a shared library loaded via Erlang NIFs.
 
-  Build the NIF with: `cd native/xcactivitylog_nif && ./build.sh`
+  Build the NIF with: `cd server/native/xcactivitylog_nif && ./build.sh`
+  (the server Dockerfile does this as part of the image build).
   """
 
   @on_load :load_nif
 
   def load_nif do
-    nif_path = ~c"#{:code.priv_dir(:processor)}/native/xcactivitylog_nif"
+    nif_path = ~c"#{:code.priv_dir(:tuist)}/native/xcactivitylog_nif"
 
     case :erlang.load_nif(nif_path, 0) do
       :ok -> :ok
@@ -35,12 +36,7 @@ defmodule Processor.XCActivityLogNIF do
     * `{:ok, map}` - Parsed build data as a map
     * `{:error, reason}` - If parsing fails
   """
-  def parse(
-        xcactivitylog_path,
-        cas_analytics_db_path,
-        legacy_cas_metadata_path,
-        xcode_cache_upload_enabled
-      ) do
+  def parse(xcactivitylog_path, cas_analytics_db_path, legacy_cas_metadata_path, xcode_cache_upload_enabled) do
     case parse_nif(
            xcactivitylog_path,
            cas_analytics_db_path,
@@ -55,12 +51,7 @@ defmodule Processor.XCActivityLogNIF do
     end
   end
 
-  defp parse_nif(
-         _xcactivitylog_path,
-         _cas_analytics_db_path,
-         _legacy_cas_metadata_path,
-         _xcode_cache_upload_enabled
-       ) do
+  defp parse_nif(_xcactivitylog_path, _cas_analytics_db_path, _legacy_cas_metadata_path, _xcode_cache_upload_enabled) do
     :erlang.nif_error(:nif_not_loaded)
   end
 end

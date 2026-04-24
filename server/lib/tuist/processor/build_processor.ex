@@ -1,52 +1,24 @@
-defmodule Processor.BuildProcessor do
-  @moduledoc false
+defmodule Tuist.Processor.BuildProcessor do
+  @moduledoc """
+  Parses xcactivitylog build archives.
+
+  The server's `ProcessBuildWorker` Oban job is the only caller: it downloads
+  the archive from S3 into a temp file, hands the path to `process_build/2`,
+  writes the returned structured data to the DB, and deletes the temp file.
+
+  On processor-mode pods (`TUIST_PROCESSOR_MODE=true`) this runs as the Oban
+  worker body — the CPU-heavy parse work is scheduled onto dedicated replicas
+  rather than every web server pod. On self-hosted installs it runs in the
+  same BEAM as the rest of the server.
+  """
 
   @apple_reference_date_offset 978_307_200
-
-  def process(storage_key, xcode_cache_upload_enabled) do
-    Processor.InFlight.track(fn ->
-      do_process(storage_key, xcode_cache_upload_enabled)
-    end)
-  end
-
-  defp do_process(storage_key, xcode_cache_upload_enabled) do
-    bucket = Application.get_env(:processor, :s3_bucket, "tuist")
-    temp_dir = make_temp_dir()
-    build_path = Path.join(temp_dir, "build.zip")
-
-    try do
-      :telemetry.span([:processor, :build], %{}, fn ->
-        download_result =
-          :telemetry.span([:processor, :s3, :download], %{}, fn ->
-            case ExAws.S3.download_file(bucket, storage_key, build_path) |> ExAws.request() do
-              {:ok, _} ->
-                file_size = File.stat!(build_path).size
-                {:ok, %{file_size: file_size}}
-
-              {:error, reason} ->
-                {{:error, reason}, %{}}
-            end
-          end)
-
-        result =
-          case download_result do
-            {:error, _} = error -> error
-            _ -> process_zip(build_path, temp_dir, xcode_cache_upload_enabled)
-          end
-
-        status = if match?({:ok, _}, result), do: :ok, else: :error
-        {result, %{status: status}}
-      end)
-    after
-      cleanup_temp(temp_dir)
-    end
-  end
 
   def process_build(build_zip_path, xcode_cache_upload_enabled) do
     temp_dir = make_temp_dir()
 
     try do
-      :telemetry.span([:processor, :build], %{}, fn ->
+      :telemetry.span([:tuist, :processor, :build], %{}, fn ->
         result = process_zip(build_zip_path, temp_dir, xcode_cache_upload_enabled)
         status = if match?({:ok, _}, result), do: :ok, else: :error
         {result, %{status: status}}
@@ -85,15 +57,10 @@ defmodule Processor.BuildProcessor do
     end
   end
 
-  defp parse_build(
-         xcactivitylog_path,
-         cas_analytics_db_path,
-         legacy_cas_metadata_path,
-         xcode_cache_upload_enabled
-       ) do
-    :telemetry.span([:processor, :build, :parse], %{}, fn ->
+  defp parse_build(xcactivitylog_path, cas_analytics_db_path, legacy_cas_metadata_path, xcode_cache_upload_enabled) do
+    :telemetry.span([:tuist, :processor, :build, :parse], %{}, fn ->
       result =
-        Processor.XCActivityLogNIF.parse(
+        Tuist.Processor.XCActivityLogNIF.parse(
           xcactivitylog_path,
           cas_analytics_db_path,
           legacy_cas_metadata_path,
@@ -106,7 +73,7 @@ defmodule Processor.BuildProcessor do
   end
 
   defp make_temp_dir do
-    temp_dir = Path.join(System.tmp_dir!(), "processor_#{:erlang.unique_integer([:positive])}")
+    temp_dir = Path.join(System.tmp_dir!(), "tuist_processor_#{:erlang.unique_integer([:positive])}")
     File.mkdir_p!(temp_dir)
     temp_dir
   end

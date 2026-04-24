@@ -4,20 +4,20 @@ One-shot SQL files for bootstrapping Postgres state that app migrations can't ow
 
 ## Files
 
-- [`tuist-processor-role.sql`](./tuist-processor-role.sql) — least-privilege role scoped to the Oban job table and the build-result write surface. Dormant until the processor is switched to an Oban Pro queue model; see PR [#10428](https://github.com/tuist/tuist/pull/10428) for the tradeoff analysis.
+- [`tuist-processor-role.sql`](./tuist-processor-role.sql) — least-privilege Postgres role the processor pods connect as. Required before the first deploy that sets `processor.enabled: true` in the Helm chart, otherwise ESO syncs an empty `DATABASE_URL` and processor pods crashloop.
 
 ## When to run
 
-- **New Supabase project** (e.g., spinning up a fourth env): run each file once, before the first app deploy, against the env's Supabase project.
+- **Before enabling `processor.enabled` for the first time** in a given env. Managed deployments: run against all three Supabase projects (staging / canary / production) before merging a chart change that enables the processor.
 - **Password rotation**: follow the rotation snippet at the top of each SQL file — `ALTER ROLE ... PASSWORD` only, no schema change.
-- **Grant surface change** (a new table in the worker's write path, say): edit the SQL file, re-run it against every env, commit the change. The `REVOKE ALL` + re-`GRANT` pattern makes each run idempotent.
+- **Grant surface change** (a new table the worker needs to read, say): edit the SQL file, re-run against every env, commit the change. The `REVOKE ALL` + re-`GRANT` pattern makes each run idempotent.
 
 ## How to run
 
 Two paths:
 
-1. **Supabase Dashboard → SQL Editor**, paste the file contents, set the `pw` variable at the top, click Run. Fine for one-off bootstrap.
-2. **Direct psql** (reproducible, scriptable):
+1. **Supabase Dashboard → SQL Editor**, paste the file contents, replace `:'pw'` with a quoted password literal, click Run. Fine for one-off bootstrap.
+2. **Direct psql** (reproducible, scriptable — recommended):
 
    ```bash
    # Direct URL lives in Supabase Dashboard → Settings → Database → Connection string → URI.
@@ -31,10 +31,20 @@ Two paths:
 
 The file ends with a `SELECT … information_schema.role_table_grants …` sanity query, so a clean run prints the exact set of tables + privileges the role holds.
 
+## Populating `PROCESSOR_DATABASE_URL` in 1Password
+
+Construct the URL from the Supabase pooler (port 6543, transaction mode) plus the role's password:
+
+```
+postgres://tuist_processor:<PW>@<pooler-host>:6543/postgres?sslmode=require&channel_binding=require
+```
+
+Put that full URL in the `password` field of a `PROCESSOR_DATABASE_URL` item in the env's `tuist-k8s-<env>` vault. ESO's `ExternalSecret` in the chart (see [`infra/helm/tuist/templates/processor-external-secrets.yaml`](../helm/tuist/templates/processor-external-secrets.yaml)) picks it up on the next refresh and feeds it to the processor pods as the `DATABASE_URL` env var.
+
 ## Why not an Ecto migration
 
 Three reasons, worst to best:
 
 1. **Permissions.** `CREATE ROLE` needs `CREATEROLE` on the connecting role. Supabase's app role doesn't have it. Only the `postgres` superuser can create roles, and the app never connects as `postgres` in prod.
 2. **Ownership.** Role state is infra, not app schema. Binding it to migrations means a fresh-env bring-up fails until someone manually bootstraps the role — circular.
-3. **Future flexibility.** If we ever move Postgres in-cluster (see [#10368](https://github.com/tuist/tuist/pull/10368) § "Why not bare metal?"), the declarative path is the Postgres operator's Cluster CR, not another Ecto migration. Keeping role provisioning SQL here makes that future collapse trivial.
+3. **Future flexibility.** If we ever move Postgres in-cluster (see [PR #10368](https://github.com/tuist/tuist/pull/10368) § "Why not bare metal?"), the declarative path is the Postgres operator's Cluster CR, not another Ecto migration. Keeping role provisioning SQL here makes that future collapse trivial.

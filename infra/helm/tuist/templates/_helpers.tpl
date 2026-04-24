@@ -193,16 +193,3 @@ http://{{ include "tuist.componentName" (dict "root" . "component" "otel-collect
 {{- define "tuist.serverHeadlessServiceName" -}}
 {{- include "tuist.componentName" (dict "root" . "component" "server-headless") -}}
 {{- end -}}
-
-{{- define "tuist.processorHeadlessServiceName" -}}
-{{- include "tuist.componentName" (dict "root" . "component" "processor-headless") -}}
-{{- end -}}
-
-{{/*
-Cluster-internal DNS name for the processor headless Service. Pod A records
-are published at <headless-name>.<namespace>.svc.<cluster-domain>, which the
-server resolves to discover per-pod IPs for least-busy dispatch.
-*/}}
-{{- define "tuist.processorDiscoveryUrl" -}}
-{{- printf "http://%s.%s.svc.cluster.local:%v" (include "tuist.processorHeadlessServiceName" .) .Release.Namespace .Values.processor.service.targetPort -}}
-{{- end -}}

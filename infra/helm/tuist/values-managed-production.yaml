@@ -84,9 +84,8 @@ objectStorage:
       registry: tuist-registry
 
 processor:
-  deployEnv: production
   extraEnv:
-    - name: OTEL_EXPORTER_OTLP_ENDPOINT
+    - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
       value: http://alloy-tuist-alloy.observability.svc.cluster.local:4317
   resources:
     requests:

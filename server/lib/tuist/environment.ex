@@ -554,16 +554,15 @@ defmodule Tuist.Environment do
     get([:cache_api_key], secrets)
   end
 
-  def processor_url(secrets \\ secrets()) do
-    get([:processor, :url], secrets)
+  def processor_mode? do
+    truthy?(System.get_env("TUIST_PROCESSOR_MODE", "0"))
   end
 
-  def processor_discovery_url(secrets \\ secrets()) do
-    get([:processor, :discovery_url], secrets)
-  end
-
-  def processor_webhook_secret(secrets \\ secrets()) do
-    get([:processor, :webhook_secret], secrets)
+  def process_build_queue_concurrency do
+    case System.get_env("TUIST_PROCESS_BUILD_QUEUE_CONCURRENCY") do
+      value when is_binary(value) and value != "" -> String.to_integer(value)
+      _ -> if processor_mode?(), do: 5, else: 2
+    end
   end
 
   def xcode_processor_url(secrets \\ secrets()) do

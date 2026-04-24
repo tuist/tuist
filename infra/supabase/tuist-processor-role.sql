@@ -1,10 +1,10 @@
--- Least-privilege Postgres role for the in-cluster processor.
+-- Least-privilege Postgres role for the Oban-queue processor.
 --
--- Currently dormant: the processor in this chart uses HTTP webhooks + the
--- /stats endpoint for least-busy dispatch, so it needs no DB access at all.
--- This role only comes into play if we ever switch the processor to an
--- Oban Pro queue model where it pulls jobs from Postgres directly (see the
--- PR #10428 thread for the tradeoff analysis).
+-- The processor pod is the `ProcessBuildWorker` consumer: it pulls jobs from
+-- the oban_jobs table, reads `accounts` and `projects` to resolve the build's
+-- owner, downloads the archive from S3, and writes parsed results to the
+-- ClickHouse builds tables via Tuist.IngestRepo. ClickHouse has its own auth
+-- plane and is scoped independently (out of this file's scope).
 --
 -- Why a file rather than an Ecto migration:
 --   1. Supabase only lets the `postgres` superuser run `CREATE ROLE`; the app
@@ -12,10 +12,11 @@
 --   2. Role provisioning is infra state, not app schema. Tying it to Ecto
 --      migrations means a fresh-env bring-up fails until someone creates the
 --      role first — the exact problem this file is structured to avoid.
---   3. If/when we move Postgres in-cluster, this file gets collapsed into the
---      Postgres operator's Cluster CR (declarative role management).
+--   3. If/when we move Postgres in-cluster, this file gets collapsed into
+--      the Postgres operator's Cluster CR (declarative role management).
 --
--- Usage (one-shot per Supabase project):
+-- Usage (one-shot per Supabase project, before the first deploy that enables
+-- `processor.enabled: true` in the Helm chart):
 --
 --   export DIRECT_URL="$(op read 'op://tuist-k8s-<env>/SUPABASE_DIRECT_URL/password')"
 --   export PW="$(op read 'op://tuist-k8s-<env>/PROCESSOR_DATABASE_URL/password')"
@@ -33,7 +34,7 @@
 
 BEGIN;
 
--- Create the role (idempotent — DO block so re-running doesn't error).
+-- Create the role (idempotent on re-run).
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'tuist_processor') THEN
@@ -44,42 +45,29 @@ BEGIN
 END
 $$;
 
--- Connect + schema access
 GRANT CONNECT ON DATABASE postgres TO tuist_processor;
 GRANT USAGE ON SCHEMA public TO tuist_processor;
 
--- Oban coordination. DELETE is needed for completed-job pruning.
+-- Oban coordination. DELETE is needed for Oban.Plugins.Pruner.
 GRANT SELECT, INSERT, UPDATE, DELETE ON oban_jobs, oban_peers TO tuist_processor;
 GRANT USAGE, SELECT ON SEQUENCE oban_jobs_id_seq TO tuist_processor;
 
--- Build-run writes. Narrow to the tables ProcessBuildWorker touches via
--- `Tuist.Builds.create_build/1`. Update the list if the worker's write
--- surface grows — the REVOKE ALL below stops silent fanout, but a grep
--- for `Tuist.Repo.insert` + `Tuist.Repo.update` under lib/tuist/builds/
--- is the source of truth.
-GRANT SELECT, INSERT, UPDATE ON
-  builds, build_targets, build_issues, build_files,
-  cacheable_tasks, cas_outputs, build_machine_metrics
-TO tuist_processor;
+-- Read-only lookups the worker performs. accounts.get_account_by_id/1
+-- resolves the account for S3 scoping; Project |> Repo.get/2 reads the
+-- project to decide whether to broadcast PubSub. Neither row is written to
+-- by the worker — hence no INSERT/UPDATE.
+GRANT SELECT ON accounts, projects TO tuist_processor;
 
--- Read-only lookups the worker performs (accounts.get_account_by_id, etc.).
--- Keep tight: `users`, `user_tokens`, `sessions`, billing — not listed here
--- on purpose.
-GRANT SELECT ON projects, accounts TO tuist_processor;
-
--- Explicit deny on everything else. Future migrations that add tables won't
--- grant tuist_processor anything unless we update this file.
+-- Everything else stays off-limits. Re-run this file after adding a new
+-- table-read to the worker; the REVOKE + re-GRANT pattern makes the
+-- intersection explicit and idempotent.
 REVOKE ALL ON ALL TABLES IN SCHEMA public FROM tuist_processor;
 GRANT SELECT, INSERT, UPDATE, DELETE ON oban_jobs, oban_peers TO tuist_processor;
-GRANT SELECT, INSERT, UPDATE ON
-  builds, build_targets, build_issues, build_files,
-  cacheable_tasks, cas_outputs, build_machine_metrics
-TO tuist_processor;
-GRANT SELECT ON projects, accounts TO tuist_processor;
+GRANT SELECT ON accounts, projects TO tuist_processor;
 
 COMMIT;
 
--- Post-apply sanity check (not wrapped in the transaction so it always runs):
+-- Sanity check (outside the transaction, always runs):
 SELECT
   grantee, table_name,
   string_agg(privilege_type, ', ' ORDER BY privilege_type) AS privileges
