@@ -29,12 +29,12 @@ use tokio_util::io::ReaderStream;
 use tonic::{Request, Response, Status, transport::Server};
 
 use crate::{
-    artifact::{kind::ArtifactKind, manifest::ArtifactManifest},
+    artifact::{manifest::ArtifactManifest, producer::ArtifactProducer},
     constants::MAX_MODULE_TOTAL_BYTES,
     extension::{AccessDecision, ExtensionContext, Principal},
     replication::replication_targets,
     state::SharedState,
-    utils::temp_file_path,
+    utils::{action_cache_key, blob_key, temp_file_path},
 };
 
 const DEFAULT_INSTANCE_NAME: &str = "default";
@@ -49,8 +49,7 @@ struct GrpcExtensionSpec<'a> {
     route: &'a str,
     operation: &'a str,
     namespace_id: Option<&'a str>,
-    client: Option<&'a str>,
-    artifact_class: Option<&'a str>,
+    producer: Option<&'a str>,
     artifact_key: Option<String>,
     artifact_hash: Option<String>,
 }
@@ -126,8 +125,7 @@ impl Capabilities for ReapiService {
             route: "reapi.capabilities.get",
             operation: "capabilities.read",
             namespace_id: None,
-            client: Some("reapi"),
-            artifact_class: None,
+            producer: Some("reapi"),
             artifact_key: None,
             artifact_hash: None,
         };
@@ -183,13 +181,12 @@ impl ActionCache for ReapiService {
             .action_digest
             .as_ref()
             .ok_or_else(|| Status::invalid_argument("missing action_digest"))?;
-        let key = digest_key(digest)?;
+        let key = action_cache_key(&digest_key(digest)?);
         let extension = GrpcExtensionSpec {
             route: "reapi.action_cache.get",
             operation: "artifact.read",
             namespace_id: Some(namespace_id),
-            client: Some("reapi"),
-            artifact_class: Some("action_cache"),
+            producer: Some("reapi"),
             artifact_key: Some(key.clone()),
             artifact_hash: Some(digest.hash.clone()),
         };
@@ -246,7 +243,7 @@ impl ActionCache for ReapiService {
             .await?;
         self.state
             .metrics
-            .record_artifact_read(ArtifactKind::KeyValue, "ok", manifest.size);
+            .record_artifact_read(ArtifactProducer::Reapi, "ok", manifest.size);
         Ok(response)
     }
 
@@ -266,13 +263,12 @@ impl ActionCache for ReapiService {
             .action_result
             .clone()
             .ok_or_else(|| Status::invalid_argument("missing action_result"))?;
-        let key = digest_key(digest)?;
+        let key = action_cache_key(&digest_key(digest)?);
         let extension = GrpcExtensionSpec {
             route: "reapi.action_cache.update",
             operation: "artifact.write",
             namespace_id: Some(namespace_id),
-            client: Some("reapi"),
-            artifact_class: Some("action_cache"),
+            producer: Some("reapi"),
             artifact_key: Some(key.clone()),
             artifact_hash: Some(digest.hash.clone()),
         };
@@ -282,8 +278,8 @@ impl ActionCache for ReapiService {
         let manifest = self
             .state
             .store
-            .persist_artifact_from_bytes_and_enqueue(
-                ArtifactKind::KeyValue,
+            .persist_inline_artifact_from_bytes_and_enqueue(
+                ArtifactProducer::Reapi,
                 namespace_id,
                 &key,
                 "application/x-protobuf",
@@ -295,7 +291,7 @@ impl ActionCache for ReapiService {
         self.state.notify.notify_one();
         self.state
             .metrics
-            .record_artifact_write(ArtifactKind::KeyValue, "ok", manifest.size);
+            .record_artifact_write(ArtifactProducer::Reapi, "ok", manifest.size);
         let mut response = Response::new(action_result);
         self.apply_response_headers(&mut response, extension, principal.as_ref())
             .await?;
@@ -318,19 +314,18 @@ impl ContentAddressableStorage for ReapiService {
             route: "reapi.cas.find_missing",
             operation: "artifact.inspect",
             namespace_id: Some(namespace_id),
-            client: Some("reapi"),
-            artifact_class: Some("blob"),
+            producer: Some("reapi"),
             artifact_key: None,
             artifact_hash: None,
         };
         let principal = self.authorize_request(&request, extension.clone()).await?;
         let mut missing = Vec::new();
         for digest in &request.get_ref().blob_digests {
-            let key = digest_key(digest)?;
+            let key = blob_key(&digest_key(digest)?);
             let exists = self
                 .state
                 .store
-                .artifact_exists(ArtifactKind::Module, namespace_id, &key)
+                .artifact_exists(ArtifactProducer::Reapi, namespace_id, &key)
                 .await
                 .map_err(|error| {
                     Status::internal(format!("failed to inspect CAS blob: {error}"))
@@ -358,8 +353,7 @@ impl ContentAddressableStorage for ReapiService {
             route: "reapi.cas.batch_update",
             operation: "artifact.write",
             namespace_id: Some(namespace_id),
-            client: Some("reapi"),
-            artifact_class: Some("blob"),
+            producer: Some("reapi"),
             artifact_key: None,
             artifact_hash: None,
         };
@@ -412,8 +406,7 @@ impl ContentAddressableStorage for ReapiService {
             route: "reapi.cas.batch_read",
             operation: "artifact.read",
             namespace_id: Some(namespace_id),
-            client: Some("reapi"),
-            artifact_class: Some("blob"),
+            producer: Some("reapi"),
             artifact_key: None,
             artifact_hash: None,
         };
@@ -486,8 +479,7 @@ impl ByteStream for ReapiService {
             route: "reapi.bytestream.read",
             operation: "artifact.read",
             namespace_id: Some(&resource.namespace_id),
-            client: Some("reapi"),
-            artifact_class: Some("blob"),
+            producer: Some("reapi"),
             artifact_key: Some(resource.key.clone()),
             artifact_hash: Some(resource.hash.clone()),
         };
@@ -501,20 +493,24 @@ impl ByteStream for ReapiService {
         let manifest = match self
             .state
             .store
-            .fetch_artifact(ArtifactKind::Module, &resource.namespace_id, &resource.key)
+            .fetch_artifact(
+                ArtifactProducer::Reapi,
+                &resource.namespace_id,
+                &resource.key,
+            )
             .await
         {
             Ok(Some(manifest)) => manifest,
             Ok(None) => {
                 self.state
                     .metrics
-                    .record_artifact_read(ArtifactKind::Module, "not_found", 0);
+                    .record_artifact_read(ArtifactProducer::Reapi, "not_found", 0);
                 return Err(Status::not_found("blob not found"));
             }
             Err(error) => {
                 self.state
                     .metrics
-                    .record_artifact_read(ArtifactKind::Module, "error", 0);
+                    .record_artifact_read(ArtifactProducer::Reapi, "error", 0);
                 return Err(Status::internal(format!(
                     "failed to read CAS blob: {error}"
                 )));
@@ -540,12 +536,12 @@ impl ByteStream for ReapiService {
             .map_err(|error| {
                 self.state
                     .metrics
-                    .record_artifact_read(ArtifactKind::Module, "error", 0);
+                    .record_artifact_read(ArtifactProducer::Reapi, "error", 0);
                 Status::internal(format!("failed to stream blob: {error}"))
             })?;
         self.state
             .metrics
-            .record_artifact_read(ArtifactKind::Module, "ok", bytes_to_read);
+            .record_artifact_read(ArtifactProducer::Reapi, "ok", bytes_to_read);
         let stream = ReaderStream::new(reader).map(|result| match result {
             Ok(bytes) => Ok(bytestream::ReadResponse {
                 data: bytes.to_vec(),
@@ -569,8 +565,7 @@ impl ByteStream for ReapiService {
             route: "reapi.bytestream.write",
             operation: "artifact.write",
             namespace_id: None,
-            client: Some("reapi"),
-            artifact_class: Some("blob"),
+            producer: Some("reapi"),
             artifact_key: None,
             artifact_hash: None,
         };
@@ -667,7 +662,7 @@ impl ByteStream for ReapiService {
             .state
             .store
             .persist_artifact_from_path_and_enqueue(
-                ArtifactKind::Module,
+                ArtifactProducer::Reapi,
                 &resource.namespace_id,
                 &resource.key,
                 "application/octet-stream",
@@ -679,7 +674,7 @@ impl ByteStream for ReapiService {
         self.state.notify.notify_one();
         self.state
             .metrics
-            .record_artifact_write(ArtifactKind::Module, "ok", manifest.size);
+            .record_artifact_write(ArtifactProducer::Reapi, "ok", manifest.size);
 
         let mut response = Response::new(bytestream::WriteResponse {
             committed_size: written as i64,
@@ -690,8 +685,7 @@ impl ByteStream for ReapiService {
                 route: "reapi.bytestream.write",
                 operation: "artifact.write",
                 namespace_id: Some(&resource.namespace_id),
-                client: Some("reapi"),
-                artifact_class: Some("blob"),
+                producer: Some("reapi"),
                 artifact_key: Some(resource.key),
                 artifact_hash: Some(resource.hash),
             },
@@ -710,8 +704,7 @@ impl ByteStream for ReapiService {
             route: "reapi.bytestream.query_write_status",
             operation: "artifact.inspect",
             namespace_id: Some(&resource.namespace_id),
-            client: Some("reapi"),
-            artifact_class: Some("blob"),
+            producer: Some("reapi"),
             artifact_key: Some(resource.key.clone()),
             artifact_hash: Some(resource.hash.clone()),
         };
@@ -719,7 +712,11 @@ impl ByteStream for ReapiService {
         let manifest = self
             .state
             .store
-            .fetch_artifact(ArtifactKind::Module, &resource.namespace_id, &resource.key)
+            .fetch_artifact(
+                ArtifactProducer::Reapi,
+                &resource.namespace_id,
+                &resource.key,
+            )
             .await
             .map_err(|error| Status::internal(format!("failed to inspect blob status: {error}")))?;
 
@@ -749,20 +746,20 @@ where
 {
     let manifest = match state
         .store
-        .fetch_artifact(ArtifactKind::KeyValue, namespace_id, key)
+        .fetch_artifact(ArtifactProducer::Reapi, namespace_id, key)
         .await
     {
         Ok(Some(manifest)) => manifest,
         Ok(None) => {
             state
                 .metrics
-                .record_artifact_read(ArtifactKind::KeyValue, "not_found", 0);
+                .record_artifact_read(ArtifactProducer::Reapi, "not_found", 0);
             return Err(Status::not_found(format!("{label} not found")));
         }
         Err(error) => {
             state
                 .metrics
-                .record_artifact_read(ArtifactKind::KeyValue, "error", 0);
+                .record_artifact_read(ArtifactProducer::Reapi, "error", 0);
             return Err(Status::internal(format!("failed to load {label}: {error}")));
         }
     };
@@ -771,13 +768,13 @@ where
         .map_err(|error| {
             state
                 .metrics
-                .record_artifact_read(ArtifactKind::KeyValue, "error", 0);
+                .record_artifact_read(ArtifactProducer::Reapi, "error", 0);
             Status::internal(format!("failed to read {label}: {error}"))
         })?;
     let decoded = T::decode(bytes.as_slice()).map_err(|error| {
         state
             .metrics
-            .record_artifact_read(ArtifactKind::KeyValue, "error", 0);
+            .record_artifact_read(ArtifactProducer::Reapi, "error", 0);
         Status::internal(format!("failed to decode {label}: {error}"))
     })?;
     Ok((manifest, decoded))
@@ -788,20 +785,20 @@ async fn maybe_read_cas_bytes(
     namespace_id: &str,
     digest: &reapi::Digest,
 ) -> Result<Option<Vec<u8>>, String> {
-    let key = digest_key(digest).map_err(|error| error.message().to_owned())?;
+    let key = blob_key(&digest_key(digest).map_err(|error| error.message().to_owned())?);
     let Some(manifest) = state
         .store
-        .fetch_artifact(ArtifactKind::Module, namespace_id, &key)
+        .fetch_artifact(ArtifactProducer::Reapi, namespace_id, &key)
         .await
         .inspect_err(|_| {
             state
                 .metrics
-                .record_artifact_read(ArtifactKind::Module, "error", 0);
+                .record_artifact_read(ArtifactProducer::Reapi, "error", 0);
         })?
     else {
         state
             .metrics
-            .record_artifact_read(ArtifactKind::Module, "not_found", 0);
+            .record_artifact_read(ArtifactProducer::Reapi, "not_found", 0);
         return Ok(None);
     };
     let bytes = read_manifest_bytes(state, &manifest)
@@ -809,11 +806,11 @@ async fn maybe_read_cas_bytes(
         .inspect_err(|_| {
             state
                 .metrics
-                .record_artifact_read(ArtifactKind::Module, "error", 0);
+                .record_artifact_read(ArtifactProducer::Reapi, "error", 0);
         })?;
     state
         .metrics
-        .record_artifact_read(ArtifactKind::Module, "ok", bytes.len() as u64);
+        .record_artifact_read(ArtifactProducer::Reapi, "ok", bytes.len() as u64);
     Ok(Some(bytes))
 }
 
@@ -824,12 +821,12 @@ async fn persist_cas_blob(
     bytes: &[u8],
 ) -> Result<(), String> {
     validate_digest_bytes(digest, bytes)?;
-    let key = digest_key(digest).map_err(|error| error.message().to_owned())?;
+    let key = blob_key(&digest_key(digest).map_err(|error| error.message().to_owned())?);
     let targets = replication_targets(state).await;
     let manifest = state
         .store
         .persist_artifact_from_bytes_and_enqueue(
-            ArtifactKind::Module,
+            ArtifactProducer::Reapi,
             namespace_id,
             &key,
             "application/octet-stream",
@@ -840,7 +837,7 @@ async fn persist_cas_blob(
     state.notify.notify_one();
     state
         .metrics
-        .record_artifact_write(ArtifactKind::Module, "ok", manifest.size);
+        .record_artifact_write(ArtifactProducer::Reapi, "ok", manifest.size);
     Ok(())
 }
 
@@ -918,8 +915,7 @@ fn grpc_extension_context(
         operation: spec.operation.to_owned(),
         tenant_id: None,
         namespace_id: spec.namespace_id.map(ToOwned::to_owned),
-        client: spec.client.map(ToOwned::to_owned),
-        artifact_class: spec.artifact_class.map(ToOwned::to_owned),
+        producer: spec.producer.map(ToOwned::to_owned),
         artifact_key: spec.artifact_key.clone(),
         artifact_hash: spec.artifact_hash.clone(),
         headers: metadata_to_btree(metadata),
@@ -1021,7 +1017,7 @@ fn parse_blob_resource_name(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{artifact::kind::ArtifactKind, test_support::test_context};
+    use crate::{artifact::producer::ArtifactProducer, test_support::test_context};
 
     #[test]
     fn parses_read_resource_names_with_and_without_instance_names() {
@@ -1079,13 +1075,13 @@ mod tests {
             hash: hex::encode(Sha256::digest(&bytes)),
             size_bytes: bytes.len() as i64,
         };
-        let key = digest_key(&digest).expect("digest key should build");
+        let key = action_cache_key(&digest_key(&digest).expect("digest key should build"));
 
         context
             .state
             .store
-            .persist_artifact_from_bytes(
-                ArtifactKind::KeyValue,
+            .persist_inline_artifact_from_bytes(
+                ArtifactProducer::Reapi,
                 DEFAULT_INSTANCE_NAME,
                 &key,
                 "application/x-protobuf",
@@ -1106,8 +1102,7 @@ mod tests {
 
         let rendered = context.state.metrics.render();
         assert!(rendered.contains("kura_artifact_reads_total"));
-        assert!(rendered.contains("kind=\"key_value\""));
-        assert!(rendered.contains("artifact_class=\"action_cache\""));
+        assert!(rendered.contains("producer=\"reapi\""));
         assert!(rendered.contains("result=\"ok\""));
     }
 
@@ -1122,13 +1117,13 @@ mod tests {
             hash: hex::encode(Sha256::digest(bytes)),
             size_bytes: bytes.len() as i64,
         };
-        let key = digest_key(&digest).expect("digest key should build");
+        let key = blob_key(&digest_key(&digest).expect("digest key should build"));
 
         context
             .state
             .store
             .persist_artifact_from_bytes(
-                ArtifactKind::Module,
+                ArtifactProducer::Reapi,
                 DEFAULT_INSTANCE_NAME,
                 &key,
                 "application/octet-stream",
@@ -1152,8 +1147,7 @@ mod tests {
 
         let rendered = context.state.metrics.render();
         assert!(rendered.contains("kura_artifact_reads_total"));
-        assert!(rendered.contains("kind=\"module\""));
-        assert!(rendered.contains("artifact_class=\"blob\""));
+        assert!(rendered.contains("producer=\"reapi\""));
         assert!(rendered.contains("result=\"ok\""));
     }
 }

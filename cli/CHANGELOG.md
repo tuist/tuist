@@ -1,7 +1,24 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.185.0<!-- RELEASE NOTES START -->
+## What's Changed in 4.186.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* AppleArchive for xcresult upload + respect --inspect-mode remote by [@fortmarek](https://github.com/fortmarek) in [#10416](https://github.com/tuist/tuist/pull/10416)
+### 🐛 Bug Fixes
+
+* scope cache warm target selection to non-test roots by [@pepicrft](https://github.com/pepicrft) in [#10398](https://github.com/tuist/tuist/pull/10398)
+* make swift-file-system the default filesystem backend by [@pepicrft](https://github.com/pepicrft) in [#10418](https://github.com/tuist/tuist/pull/10418)
+* restore static framework .xcstrings localization by [@pepicrft](https://github.com/pepicrft) in [#10423](https://github.com/tuist/tuist/pull/10423)
+* propagate default-enabled Swift package traits by [@pepicrft](https://github.com/pepicrft) in [#10403](https://github.com/tuist/tuist/pull/10403)
+* add muted/unmuted test case event types by [@justine-acorns](https://github.com/justine-acorns) in [#10417](https://github.com/tuist/tuist/pull/10417)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.185.1...4.186.0
+
+## What's Changed in 4.185.1<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
 
@@ -12,7 +29,7 @@ All notable changes to this project will be documented in this file.
 
 
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.184.2...4.185.0
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.184.2...4.185.1
 
 ## What's Changed in 4.184.2<!-- RELEASE NOTES START -->
 

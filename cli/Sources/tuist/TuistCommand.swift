@@ -148,14 +148,7 @@ public struct TuistCommand: AsyncParsableCommand {
         let processedArguments = Array(processArguments(arguments)?.dropFirst() ?? [])
 
         #if os(macOS)
-            let path: AbsolutePath
-            if let argumentIndex = CommandLine.arguments.firstIndex(of: "--path") {
-                path = try AbsolutePath(
-                    validating: CommandLine.arguments[argumentIndex + 1], relativeTo: .current
-                )
-            } else {
-                path = .current
-            }
+            let path = try await CommandArguments.path(in: processedArguments)
 
             try await CacheDirectoriesProvider.bootstrap()
 
@@ -188,23 +181,24 @@ public struct TuistCommand: AsyncParsableCommand {
                     let shouldTrackAnalytics = processedArguments.prefix(2) != ["inspect", "build"]
                         && processedArguments.prefix(2) != ["auth", "refresh-token"]
                         && processedArguments.first != "analytics-upload"
+                    let optionalAuthentication = config.project.optionalAuthentication
+                    let runTrackableCommand = {
+                        try await trackableCommand.run(
+                            fullHandle: config.fullHandle,
+                            serverURL: serverURL,
+                            shouldTrackAnalytics: shouldTrackAnalytics,
+                            optionalAuthentication: optionalAuthentication
+                        )
+                    }
                     if let nooraReadyCommand = command as? NooraReadyCommand {
                         let jsonThroughNoora = nooraReadyCommand.jsonThroughNoora
                         try await withLoggerForNoora(logFilePath: logFilePath) {
                             try await Noora.$current.withValue(initNoora(jsonThroughNoora: jsonThroughNoora)) {
-                                try await trackableCommand.run(
-                                    fullHandle: config.fullHandle,
-                                    serverURL: serverURL,
-                                    shouldTrackAnalytics: shouldTrackAnalytics
-                                )
+                                try await runTrackableCommand()
                             }
                         }
                     } else {
-                        try await trackableCommand.run(
-                            fullHandle: config.fullHandle,
-                            serverURL: serverURL,
-                            shouldTrackAnalytics: shouldTrackAnalytics
-                        )
+                        try await runTrackableCommand()
                     }
                 }
             } catch {

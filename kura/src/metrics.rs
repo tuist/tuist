@@ -15,7 +15,7 @@ use prometheus_client::{
     registry::Registry,
 };
 
-use crate::{artifact::kind::ArtifactKind, utils::replication_target_label};
+use crate::{artifact::producer::ArtifactProducer, utils::replication_target_label};
 
 #[derive(Clone)]
 pub struct Metrics {
@@ -207,27 +207,27 @@ impl Metrics {
         );
         registry.register(
             "kura_artifact_reads_total",
-            "Artifact reads by kind and result",
+            "Artifact reads by producer and result",
             artifact_reads.clone(),
         );
         registry.register(
             "kura_artifact_writes_total",
-            "Artifact writes by kind and result",
+            "Artifact writes by producer and result",
             artifact_writes.clone(),
         );
         registry.register(
             "kura_artifact_read_bytes_total",
-            "Artifact read throughput by kind and result",
+            "Artifact read throughput by producer and result",
             artifact_read_bytes.clone(),
         );
         registry.register(
             "kura_artifact_write_bytes_total",
-            "Artifact write throughput by kind and result",
+            "Artifact write throughput by producer and result",
             artifact_write_bytes.clone(),
         );
         registry.register(
             "kura_segment_refreshes_total",
-            "Segment refreshes by kind and result",
+            "Segment refreshes by producer and result",
             segment_refreshes.clone(),
         );
         registry.register(
@@ -437,7 +437,7 @@ impl Metrics {
         );
         registry.register(
             "kura_segment_generation_count",
-            "Segments currently tracked by generation and artifact kind",
+            "Segments currently tracked by generation",
             segment_generation_counts.clone(),
         );
         registry.register(
@@ -634,11 +634,9 @@ impl Metrics {
         }
     }
 
-    pub fn record_artifact_read(&self, kind: ArtifactKind, result: &str, bytes: u64) {
+    pub fn record_artifact_read(&self, producer: ArtifactProducer, result: &str, bytes: u64) {
         let labels = ArtifactOpLabels {
-            kind: kind.as_str().to_owned(),
-            client: kind.client().as_str().to_owned(),
-            artifact_class: kind.artifact_class().as_str().to_owned(),
+            producer: producer.as_str().to_owned(),
             result: result.to_owned(),
         };
         self.artifact_reads.get_or_create(&labels).inc();
@@ -649,11 +647,9 @@ impl Metrics {
         }
     }
 
-    pub fn record_artifact_write(&self, kind: ArtifactKind, result: &str, bytes: u64) {
+    pub fn record_artifact_write(&self, producer: ArtifactProducer, result: &str, bytes: u64) {
         let labels = ArtifactOpLabels {
-            kind: kind.as_str().to_owned(),
-            client: kind.client().as_str().to_owned(),
-            artifact_class: kind.artifact_class().as_str().to_owned(),
+            producer: producer.as_str().to_owned(),
             result: result.to_owned(),
         };
         self.artifact_writes.get_or_create(&labels).inc();
@@ -666,15 +662,13 @@ impl Metrics {
 
     pub fn record_segment_refresh(
         &self,
-        kind: ArtifactKind,
+        producer: ArtifactProducer,
         result: &str,
         bytes: u64,
         duration: Duration,
     ) {
         let labels = ArtifactOpLabels {
-            kind: kind.as_str().to_owned(),
-            client: kind.client().as_str().to_owned(),
-            artifact_class: kind.artifact_class().as_str().to_owned(),
+            producer: producer.as_str().to_owned(),
             result: result.to_owned(),
         };
         self.segment_refreshes.get_or_create(&labels).inc();
@@ -685,22 +679,23 @@ impl Metrics {
         }
         self.segment_refresh_duration
             .get_or_create(&ArtifactRouteLabels {
-                kind: kind.as_str().to_owned(),
-                client: kind.client().as_str().to_owned(),
-                artifact_class: kind.artifact_class().as_str().to_owned(),
+                producer: producer.as_str().to_owned(),
             })
             .observe(duration.as_secs_f64());
     }
 
-    pub fn record_segment_eviction(&self, kind: ArtifactKind, result: &str, artifacts: u64) {
+    pub fn record_segment_eviction(
+        &self,
+        producer: ArtifactProducer,
+        result: &str,
+        artifacts: u64,
+    ) {
         if artifacts == 0 {
             return;
         }
         self.segment_evicted_artifacts
             .get_or_create(&ArtifactOpLabels {
-                kind: kind.as_str().to_owned(),
-                client: kind.client().as_str().to_owned(),
-                artifact_class: kind.artifact_class().as_str().to_owned(),
+                producer: producer.as_str().to_owned(),
                 result: result.to_owned(),
             })
             .inc_by(artifacts);
@@ -957,15 +952,9 @@ impl Metrics {
             .inc();
     }
 
-    pub fn update_segment_generation_count(
-        &self,
-        kind: ArtifactKind,
-        generation: &str,
-        count: usize,
-    ) {
+    pub fn update_segment_generation_count(&self, generation: &str, count: usize) {
         self.segment_generation_counts
             .get_or_create(&SegmentGenerationLabels {
-                kind: kind.as_str().to_owned(),
                 generation: generation.to_owned(),
             })
             .set(count as i64);
@@ -1082,17 +1071,13 @@ struct HttpExceptionLabels {
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
 struct ArtifactOpLabels {
-    kind: String,
-    client: String,
-    artifact_class: String,
+    producer: String,
     result: String,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
 struct ArtifactRouteLabels {
-    kind: String,
-    client: String,
-    artifact_class: String,
+    producer: String,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
@@ -1174,7 +1159,6 @@ struct SegmentHandleEvictionLabels {
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
 struct SegmentGenerationLabels {
-    kind: String,
     generation: String,
 }
 
@@ -1258,10 +1242,10 @@ mod tests {
             StatusCode::INTERNAL_SERVER_ERROR,
             Duration::from_millis(20),
         );
-        metrics.record_artifact_read(ArtifactKind::Xcode, "ok", 5);
-        metrics.record_artifact_write(ArtifactKind::Module, "ok", 10);
-        metrics.record_segment_refresh(ArtifactKind::Xcode, "ok", 5, Duration::from_millis(4));
-        metrics.record_segment_eviction(ArtifactKind::Xcode, "ok", 2);
+        metrics.record_artifact_read(ArtifactProducer::Xcode, "ok", 5);
+        metrics.record_artifact_write(ArtifactProducer::Module, "ok", 10);
+        metrics.record_segment_refresh(ArtifactProducer::Xcode, "ok", 5, Duration::from_millis(4));
+        metrics.record_segment_eviction(ArtifactProducer::Xcode, "ok", 2);
         metrics.record_replication(
             "https://kura.example.com/internal",
             "upsert_artifact",
@@ -1295,7 +1279,7 @@ mod tests {
         metrics.record_analytics_batch("xcode", "ok", Duration::from_millis(7));
         metrics.update_analytics_circuit_state("xcode", 1);
         metrics.record_analytics_circuit_transition("xcode", "closed", "open");
-        metrics.update_segment_generation_count(ArtifactKind::Xcode, "old", 1);
+        metrics.update_segment_generation_count("old", 1);
         metrics.update_process_memory(1024, 2048);
         metrics.update_rocksdb_memory(256, 64, 4096, 512, 2048);
         metrics.update_memory_limits(4_096, 8_192);

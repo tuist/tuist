@@ -1,19 +1,18 @@
 use serde::{Deserialize, Serialize};
 
 use crate::artifact::{
-    class::ArtifactClass, client::ArtifactClient, kind::ArtifactKind, metadata::ArtifactMetadata,
-    storage_kind::StorageKind,
+    metadata::ArtifactMetadata, producer::ArtifactProducer, storage_kind::StorageKind,
 };
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ArtifactManifest {
     pub artifact_id: String,
-    pub kind: ArtifactKind,
-    pub client: ArtifactClient,
-    pub artifact_class: ArtifactClass,
+    pub producer: ArtifactProducer,
     pub namespace_id: String,
     pub key: String,
     pub content_type: String,
+    #[serde(default)]
+    pub inline: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub blob_path: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -35,7 +34,9 @@ impl ArtifactManifest {
     }
 
     pub fn storage_kind(&self) -> StorageKind {
-        if self.segment_id.is_some() {
+        if self.inline {
+            StorageKind::RocksdbInline
+        } else if self.segment_id.is_some() {
             StorageKind::Segment
         } else if self.blob_path.is_some() {
             StorageKind::FilesystemBlob
@@ -48,8 +49,7 @@ impl ArtifactManifest {
         ArtifactMetadata {
             tenant_id: tenant_id.to_owned(),
             namespace_id: self.namespace_id.clone(),
-            client: self.client,
-            artifact_class: self.artifact_class,
+            producer: self.producer,
             logical_key: self.logical_key().to_owned(),
             storage_kind: self.storage_kind(),
             content_type: self.content_type.clone(),
@@ -62,11 +62,12 @@ impl ArtifactManifest {
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct PersistedManifestRecord {
-    pub client: ArtifactClient,
-    pub artifact_class: ArtifactClass,
+    pub producer: ArtifactProducer,
     pub namespace_id: String,
     pub key: String,
     pub content_type: String,
+    #[serde(default)]
+    pub inline: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub blob_path: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -81,11 +82,11 @@ pub struct PersistedManifestRecord {
 impl PersistedManifestRecord {
     pub fn from_manifest(manifest: &ArtifactManifest) -> Self {
         Self {
-            client: manifest.client,
-            artifact_class: manifest.artifact_class,
+            producer: manifest.producer,
             namespace_id: manifest.namespace_id.clone(),
             key: manifest.key.clone(),
             content_type: manifest.content_type.clone(),
+            inline: manifest.inline,
             blob_path: manifest.blob_path.clone(),
             segment_id: manifest.segment_id.clone(),
             segment_offset: manifest.segment_offset,
@@ -96,16 +97,13 @@ impl PersistedManifestRecord {
     }
 
     pub fn into_manifest(self, artifact_id: &str) -> Result<ArtifactManifest, String> {
-        let kind = ArtifactKind::from_dimensions(self.client, self.artifact_class)?;
-
         Ok(ArtifactManifest {
             artifact_id: artifact_id.to_owned(),
-            kind,
-            client: self.client,
-            artifact_class: self.artifact_class,
+            producer: self.producer,
             namespace_id: self.namespace_id,
             key: self.key,
             content_type: self.content_type,
+            inline: self.inline,
             blob_path: self.blob_path,
             segment_id: self.segment_id,
             segment_offset: self.segment_offset,
@@ -118,9 +116,7 @@ impl PersistedManifestRecord {
 
 #[cfg(test)]
 mod tests {
-    use crate::artifact::{
-        class::ArtifactClass, client::ArtifactClient, kind::ArtifactKind, storage_kind::StorageKind,
-    };
+    use crate::artifact::{producer::ArtifactProducer, storage_kind::StorageKind};
 
     use super::{ArtifactManifest, PersistedManifestRecord};
 
@@ -128,12 +124,11 @@ mod tests {
     fn exposes_normalized_storage_metadata() {
         let manifest = ArtifactManifest {
             artifact_id: "artifact".into(),
-            kind: ArtifactKind::KeyValue,
-            client: ArtifactClient::Generic,
-            artifact_class: ArtifactClass::ActionCache,
+            producer: ArtifactProducer::Xcode,
             namespace_id: "ios".into(),
             key: "action-key".into(),
             content_type: "application/json".into(),
+            inline: true,
             blob_path: None,
             segment_id: None,
             segment_offset: None,
@@ -145,8 +140,7 @@ mod tests {
         let metadata = manifest.metadata("acme");
         assert_eq!(metadata.tenant_id, "acme");
         assert_eq!(metadata.namespace_id, "ios");
-        assert_eq!(metadata.client, ArtifactClient::Generic);
-        assert_eq!(metadata.artifact_class, ArtifactClass::ActionCache);
+        assert_eq!(metadata.producer, ArtifactProducer::Xcode);
         assert_eq!(metadata.logical_key, "action-key");
         assert_eq!(metadata.storage_kind, StorageKind::RocksdbInline);
         assert_eq!(metadata.content_type, "application/json");
@@ -159,12 +153,11 @@ mod tests {
     fn persisted_record_round_trips_without_storing_kind() {
         let manifest = ArtifactManifest {
             artifact_id: "artifact".into(),
-            kind: ArtifactKind::Gradle,
-            client: ArtifactClient::Gradle,
-            artifact_class: ArtifactClass::Blob,
+            producer: ArtifactProducer::Gradle,
             namespace_id: "android".into(),
             key: "artifact".into(),
             content_type: "application/octet-stream".into(),
+            inline: false,
             blob_path: Some("/tmp/blob".into()),
             segment_id: None,
             segment_offset: None,

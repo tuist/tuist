@@ -1,11 +1,10 @@
-use super::{class::ArtifactClass, client::ArtifactClient, storage_kind::StorageKind};
+use super::{producer::ArtifactProducer, storage_kind::StorageKind};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ArtifactMetadata {
     pub tenant_id: String,
     pub namespace_id: String,
-    pub client: ArtifactClient,
-    pub artifact_class: ArtifactClass,
+    pub producer: ArtifactProducer,
     pub logical_key: String,
     pub storage_kind: StorageKind,
     pub content_type: String,

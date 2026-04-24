@@ -43,12 +43,13 @@ pub async fn enqueue_replication_for_artifact(state: &SharedState, manifest: &Ar
         if let Err(error) = state.store.enqueue(OutboxMessage {
             target: peer.clone(),
             operation: ReplicationOperation::UpsertArtifact {
-                kind: manifest.kind,
+                producer: manifest.producer,
                 namespace_id: manifest.namespace_id.clone(),
                 key: manifest.key.clone(),
                 content_type: manifest.content_type.clone(),
                 artifact_id: manifest.artifact_id.clone(),
                 version_ms: manifest.version_ms,
+                inline: manifest.inline,
             },
         }) {
             warn!("failed to enqueue artifact replication for {peer}: {error}");
@@ -239,7 +240,7 @@ async fn bootstrap_manifests_from_peer(state: &SharedState, peer: &str) -> Resul
             .await?;
         for manifest in &page.manifests {
             let outcome = state.store.artifact_apply_outcome(
-                manifest.kind,
+                manifest.producer,
                 &manifest.namespace_id,
                 &manifest.key,
                 manifest.version_ms,
@@ -295,7 +296,7 @@ async fn bootstrap_artifact_from_peer(
         .error_for_status()
         .map_err(|error| format!("bootstrap artifact response failed: {error}"))?;
 
-    if manifest.kind == crate::artifact::kind::ArtifactKind::KeyValue {
+    if manifest.inline {
         let bytes = response
             .bytes()
             .await
@@ -306,8 +307,8 @@ async fn bootstrap_artifact_from_peer(
             .await?;
         return state
             .store
-            .apply_replicated_artifact_from_bytes(
-                manifest.kind,
+            .apply_replicated_inline_artifact_from_bytes(
+                manifest.producer,
                 &manifest.namespace_id,
                 &manifest.key,
                 &manifest.content_type,
@@ -326,7 +327,7 @@ async fn bootstrap_artifact_from_peer(
     state
         .store
         .apply_replicated_artifact_from_path(
-            manifest.kind,
+            manifest.producer,
             &manifest.namespace_id,
             &manifest.key,
             &manifest.content_type,
@@ -508,12 +509,13 @@ pub async fn process_outbox(state: &SharedState) -> Result<(), String> {
 async fn replicate_message(state: &SharedState, message: &OutboxMessage) -> Result<(), String> {
     match &message.operation {
         ReplicationOperation::UpsertArtifact {
-            kind,
+            producer,
             namespace_id,
             key,
             content_type,
             artifact_id,
             version_ms,
+            inline,
         } => {
             let manifest = match state.store.manifest(artifact_id)? {
                 Some(manifest) => manifest,
@@ -529,9 +531,10 @@ async fn replicate_message(state: &SharedState, message: &OutboxMessage) -> Resu
                 })?;
 
             let url = format!(
-                "{}/_internal/replicate/artifact?kind={}&namespace_id={}&key={}&content_type={}&version_ms={}",
+                "{}/_internal/replicate/artifact?producer={}&inline={}&namespace_id={}&key={}&content_type={}&version_ms={}",
                 message.target,
-                kind.as_str(),
+                producer.as_str(),
+                inline,
                 url_encode(namespace_id),
                 url_encode(key),
                 url_encode(content_type),
@@ -634,7 +637,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        artifact::kind::ArtifactKind,
+        artifact::producer::ArtifactProducer,
         failpoints::{FailpointAction, FailpointName},
         http::router,
         test_support::test_context,
@@ -657,7 +660,8 @@ mod tests {
     }
 
     fn bootstrap_test_manifest(
-        kind: ArtifactKind,
+        producer: ArtifactProducer,
+        inline: bool,
         namespace_id: &str,
         key: &str,
         content_type: &str,
@@ -665,13 +669,12 @@ mod tests {
         version_ms: u64,
     ) -> ArtifactManifest {
         ArtifactManifest {
-            artifact_id: artifact_storage_id(kind, "test-tenant", namespace_id, key),
-            kind,
-            client: kind.client(),
-            artifact_class: kind.artifact_class(),
+            artifact_id: artifact_storage_id(producer, "test-tenant", namespace_id, key),
+            producer,
             namespace_id: namespace_id.to_owned(),
             key: key.to_owned(),
             content_type: content_type.to_owned(),
+            inline,
             blob_path: None,
             segment_id: None,
             segment_offset: None,
@@ -695,7 +698,7 @@ mod tests {
             .state
             .store
             .persist_artifact_from_bytes(
-                ArtifactKind::Xcode,
+                ArtifactProducer::Xcode,
                 "namespace",
                 "artifact",
                 "application/octet-stream",
@@ -743,7 +746,7 @@ mod tests {
             .state
             .store
             .persist_artifact_from_bytes(
-                ArtifactKind::Gradle,
+                ArtifactProducer::Gradle,
                 "ios",
                 "artifact",
                 "application/octet-stream",
@@ -758,14 +761,14 @@ mod tests {
             .enqueue(OutboxMessage {
                 target: remote_url.clone(),
                 operation: ReplicationOperation::UpsertArtifact {
-                    kind: ArtifactKind::Gradle,
+                    producer: ArtifactProducer::Gradle,
                     namespace_id: "ios".into(),
                     key: "artifact".into(),
                     content_type: "application/octet-stream".into(),
                     artifact_id: local
                         .state
                         .store
-                        .fetch_artifact(ArtifactKind::Gradle, "ios", "artifact")
+                        .fetch_artifact(ArtifactProducer::Gradle, "ios", "artifact")
                         .await
                         .expect("artifact fetch should succeed")
                         .expect("artifact should exist")
@@ -773,11 +776,12 @@ mod tests {
                     version_ms: local
                         .state
                         .store
-                        .fetch_artifact(ArtifactKind::Gradle, "ios", "artifact")
+                        .fetch_artifact(ArtifactProducer::Gradle, "ios", "artifact")
                         .await
                         .expect("artifact fetch should succeed")
                         .expect("artifact should exist")
                         .version_ms,
+                    inline: false,
                 },
             })
             .expect("upsert should enqueue");
@@ -801,7 +805,7 @@ mod tests {
         let replicated = remote
             .state
             .store
-            .fetch_artifact(ArtifactKind::Gradle, "ios", "artifact")
+            .fetch_artifact(ArtifactProducer::Gradle, "ios", "artifact")
             .await
             .expect("artifact fetch should succeed")
             .expect("replicated artifact should exist");
@@ -840,7 +844,7 @@ mod tests {
             .state
             .store
             .persist_artifact_from_bytes(
-                ArtifactKind::Gradle,
+                ArtifactProducer::Gradle,
                 "ios",
                 "artifact",
                 "application/octet-stream",
@@ -855,12 +859,13 @@ mod tests {
             .enqueue(OutboxMessage {
                 target: remote_url,
                 operation: ReplicationOperation::UpsertArtifact {
-                    kind: ArtifactKind::Gradle,
+                    producer: ArtifactProducer::Gradle,
                     namespace_id: "ios".into(),
                     key: "artifact".into(),
                     content_type: "application/octet-stream".into(),
                     artifact_id: manifest.artifact_id.clone(),
                     version_ms: manifest.version_ms,
+                    inline: false,
                 },
             })
             .expect("outbox message should enqueue");
@@ -898,7 +903,7 @@ mod tests {
         let replicated = remote
             .state
             .store
-            .fetch_artifact(ArtifactKind::Gradle, "ios", "artifact")
+            .fetch_artifact(ArtifactProducer::Gradle, "ios", "artifact")
             .await
             .expect("artifact fetch should succeed")
             .expect("replicated artifact should exist");
@@ -924,7 +929,7 @@ mod tests {
             .state
             .store
             .persist_artifact_from_bytes(
-                ArtifactKind::Xcode,
+                ArtifactProducer::Xcode,
                 "ios",
                 "artifact",
                 "application/octet-stream",
@@ -939,7 +944,7 @@ mod tests {
             .state
             .store
             .apply_replicated_artifact_from_bytes(
-                ArtifactKind::Xcode,
+                ArtifactProducer::Xcode,
                 "ios",
                 "artifact",
                 "application/octet-stream",
@@ -957,7 +962,7 @@ mod tests {
         let manifest = local
             .state
             .store
-            .fetch_artifact(ArtifactKind::Xcode, "ios", "artifact")
+            .fetch_artifact(ArtifactProducer::Xcode, "ios", "artifact")
             .await
             .expect("artifact fetch should succeed")
             .expect("artifact should remain");
@@ -979,7 +984,8 @@ mod tests {
     #[tokio::test]
     async fn bootstrap_tombstones_prevent_stale_manifest_resurrection() {
         let stale_manifest = bootstrap_test_manifest(
-            ArtifactKind::KeyValue,
+            ArtifactProducer::Xcode,
+            true,
             "ios",
             "cas-1",
             "application/json",
@@ -1038,7 +1044,7 @@ mod tests {
             local
                 .state
                 .store
-                .fetch_artifact(ArtifactKind::KeyValue, "ios", "cas-1")
+                .fetch_artifact(ArtifactProducer::Xcode, "ios", "cas-1")
                 .await
                 .expect("artifact fetch should succeed")
                 .is_none()
@@ -1048,7 +1054,8 @@ mod tests {
     #[tokio::test]
     async fn bootstrap_stale_manifest_then_tombstone_converges_to_delete() {
         let stale_manifest = bootstrap_test_manifest(
-            ArtifactKind::KeyValue,
+            ArtifactProducer::Xcode,
+            true,
             "ios",
             "cas-1",
             "application/json",
@@ -1092,7 +1099,7 @@ mod tests {
             local
                 .state
                 .store
-                .fetch_artifact(ArtifactKind::KeyValue, "ios", "cas-1")
+                .fetch_artifact(ArtifactProducer::Xcode, "ios", "cas-1")
                 .await
                 .expect("artifact fetch should succeed")
                 .is_some()
@@ -1106,7 +1113,7 @@ mod tests {
             local
                 .state
                 .store
-                .fetch_artifact(ArtifactKind::KeyValue, "ios", "cas-1")
+                .fetch_artifact(ArtifactProducer::Xcode, "ios", "cas-1")
                 .await
                 .expect("artifact fetch should succeed")
                 .is_none()
@@ -1120,7 +1127,7 @@ mod tests {
             .state
             .store
             .persist_artifact_from_bytes(
-                ArtifactKind::Gradle,
+                ArtifactProducer::Gradle,
                 "ios",
                 "artifact",
                 "application/octet-stream",
@@ -1143,7 +1150,7 @@ mod tests {
             local
                 .state
                 .store
-                .fetch_artifact(ArtifactKind::Gradle, "ios", "artifact")
+                .fetch_artifact(ArtifactProducer::Gradle, "ios", "artifact")
                 .await
                 .expect("artifact fetch should succeed")
                 .is_none()
