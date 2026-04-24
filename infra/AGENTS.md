@@ -30,6 +30,17 @@ Cluster API CRs and cluster-scoped manifests that stand up our managed Kubernete
 ### `registry-router/` — Cloudflare Worker for `registry.tuist.dev`
 Geo-routes cache registry requests to the nearest healthy cache origin based on the requester's continent. Unrelated to the Kubernetes migration.
 
+### `grafana-dashboards/` — Grafana Cloud dashboards (managed only)
+Dashboard definitions synced with Grafana Cloud via [Git Sync](https://grafana.com/docs/grafana-cloud/as-code/observability-as-code/git-sync/). The `Tuist Dashboards` folder in Grafana Cloud is bound to this directory; changes propagate in both directions.
+
+Each file is a `dashboard.grafana.app/v1` resource. The raw dashboard JSON lives under `spec`; the wrapper (`apiVersion`, `kind`, `metadata.name`) is what Grafana Git Sync expects. `metadata.name` must match the dashboard UID.
+
+**Editing workflow:**
+- Prefer editing dashboards in the Grafana UI. On save, Grafana opens a pull request against `tuist/tuist` with the updated file. Direct commits to `main` from Grafana are disabled, so every UI save goes through PR review.
+- Editing files directly in the repo is also supported: after merge, Grafana pulls on its sync interval (60s) or via webhook.
+- **Adding a new dashboard:** create it in the `Tuist Dashboards` folder in Grafana Cloud (or move an existing unmanaged dashboard into it). The save dialog opens a PR with the wrapped file; merging it provisions the dashboard back.
+- **Self-host use:** self-hosters who just want to import one of these into their own Grafana should extract the `spec` first (e.g. `jq '.spec' cache-service.json > dashboard.json`), since the Grafana Import UI expects raw dashboard JSON rather than the resource wrapper.
+
 ## Deployment
 
 - **Tuist server** (managed) is deployed to our Syself Kubernetes clusters via the CI workflows:

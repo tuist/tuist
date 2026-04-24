@@ -223,7 +223,7 @@ The pool `last_value` metrics are labeled with:
 - `repo` — `cache` or `key_value`
 - `database` — `sqlite`
 
-If you use Grafana, you can import the [reference dashboard](https://raw.githubusercontent.com/tuist/tuist/refs/heads/main/cache/priv/grafana_dashboards/cache_service.json).
+If you use Grafana, a reference dashboard is published at [`infra/grafana-dashboards/cache-service.json`](https://raw.githubusercontent.com/tuist/tuist/refs/heads/main/infra/grafana-dashboards/cache-service.json). The file is wrapped in the Grafana `dashboard.grafana.app/v1` resource format so it can be provisioned via Git Sync; to import it manually, download it and extract the `.spec` field (for example, `jq '.spec' cache-service.json > dashboard.json`) before using Grafana's **Import** UI.
 
 ### Distributed tracing {#distributed-tracing}
 
