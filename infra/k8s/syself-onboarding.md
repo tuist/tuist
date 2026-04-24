@@ -264,7 +264,11 @@ gh workflow run server-deployment.yml -f environment=staging
 
 ## 8. Observability
 
-The in-cluster [`infra/helm/k8s-monitoring/`](../helm/k8s-monitoring/) chart forwards the full Kubernetes telemetry picture (cluster / pod / node metrics, events, pod logs, server traces) to Grafana Cloud. Install it once per workload cluster:
+The in-cluster [`infra/helm/k8s-monitoring/`](../helm/k8s-monitoring/) chart forwards the full Kubernetes telemetry picture (cluster / pod / node metrics, events, pod logs, server traces) to Grafana Cloud. It's installed automatically by the `observability-install` job in [`.github/workflows/server-deployment.yml`](../../.github/workflows/server-deployment.yml) — no manual `helm install` needed, the first server deploy against a new cluster brings it up.
+
+Prerequisite: the ClusterSecretStore from §5 must already exist before the first CI deploy — the chart pulls the three Grafana Cloud tokens (Prometheus, Loki, Tempo) through it.
+
+If you do need to run it by hand (e.g. bringing up a fresh cluster before the first CI deploy, or debugging locally):
 
 ```bash
 helm dependency update infra/helm/k8s-monitoring
@@ -273,9 +277,7 @@ helm upgrade --install k8s-monitoring infra/helm/k8s-monitoring \
   -f infra/helm/k8s-monitoring/values-staging.yaml
 ```
 
-Prerequisite: the ClusterSecretStore from §5 must already exist — the chart pulls the three Grafana Cloud tokens (Prometheus, Loki, Tempo) through it.
-
-After install, check **Observability → Kubernetes** in Grafana Cloud for the cluster named `tuist-staging` / `tuist-canary` / `tuist-production`. Full verification steps live in [`infra/helm/k8s-monitoring/README.md`](../helm/k8s-monitoring/README.md).
+After the chart is live, check **Observability → Kubernetes** in Grafana Cloud for the cluster named `tuist-staging` / `tuist-canary` / `tuist-production`. Full verification steps live in [`infra/helm/k8s-monitoring/README.md`](../helm/k8s-monitoring/README.md).
 
 ## 9. Teardown
 

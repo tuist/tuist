@@ -20,11 +20,12 @@ With all four the Grafana Cloud **Observability → Kubernetes** app lights up (
 
 ## Install
 
-```bash
-# First time or after bumping the subchart version in Chart.yaml
-helm dependency update infra/helm/k8s-monitoring
+Installed automatically by the `observability-install` job in [`.github/workflows/server-deployment.yml`](../../../.github/workflows/server-deployment.yml) — it runs before every server deploy and is idempotent, so the chart tracks whatever's committed on `main`. The first deploy against a new cluster brings it up; subsequent deploys are no-op upgrade checks.
 
-# Staging (canary/production mirror — just swap the overlay file)
+Manual install (only needed when bootstrapping a fresh cluster ahead of the first CI deploy, or iterating locally):
+
+```bash
+helm dependency update infra/helm/k8s-monitoring
 helm upgrade --install k8s-monitoring infra/helm/k8s-monitoring \
   -n observability --create-namespace \
   -f infra/helm/k8s-monitoring/values-staging.yaml
@@ -42,6 +43,7 @@ Prerequisites:
    | `TEMPO_TOKEN` | Password | `password` |
 
 3. **Grafana Cloud endpoints / usernames** — baked into `values.yaml`. Sanity-check they match the stack before installing a fresh cluster.
+4. **Worker nodes sized for the footprint.** Four Alloy DaemonSets × 2 workers + kube-state-metrics + node-exporter want ~1.5 GB per node on top of the app. Staging/canary clusters run on `cpx31` (8 GB/node), production on `ccx23` (16 GB/node). `cpx22` (4 GB) is too small — a rolling server update can't fit a fresh pod alongside the old one while the Alloy DaemonSets are pinned to the node.
 
 ## Server-side wiring
 

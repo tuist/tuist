@@ -37,6 +37,7 @@ on:
       - processor/**
       - xcode_processor/**
       - infra/helm/tuist/**
+      - infra/helm/k8s-monitoring/**
       - .github/workflows/server-production-deployment.yml
       - .github/workflows/server-deployment.yml
       - server/pnpm-lock.yaml
