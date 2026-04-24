@@ -16,12 +16,14 @@ protocol SchemeDescriptorsGenerating {
     ///   - xcworkspacePath: Path to the workspace.
     ///   - generatedProjects: Generated Xcode projects.
     ///   - graphTraverser: Graph traverser.
+    /// - Returns: The generated scheme descriptors and any side effects (for example, generated
+    ///   `.xctestplan` files) that need to run alongside the workspace write.
     /// - Throws: A FatalError if the generation of the schemes fails.
     func generateWorkspaceSchemes(
         workspace: Workspace,
         generatedProjects: [AbsolutePath: GeneratedProject],
         graphTraverser: GraphTraversing
-    ) throws -> SchemeGenerationResult
+    ) throws -> ([SchemeDescriptor], [SideEffectDescriptor])
 
     /// Generates the schemes for the project targets.
     ///
@@ -30,24 +32,14 @@ protocol SchemeDescriptorsGenerating {
     ///   - xcprojectPath: Path to the Xcode project.
     ///   - generatedProject: Generated Xcode project.
     ///   - graphTraverser: Graph traverser.
+    /// - Returns: The generated scheme descriptors and any side effects that need to run
+    ///   alongside the project write.
     /// - Throws: A FatalError if the generation of the schemes fails.
     func generateProjectSchemes(
         project: Project,
         generatedProject: GeneratedProject,
         graphTraverser: GraphTraversing
-    ) throws -> SchemeGenerationResult
-}
-
-/// Output of scheme generation: the scheme descriptors plus any side effects (for example,
-/// generated `.xctestplan` files) that need to run alongside the project write.
-struct SchemeGenerationResult {
-    let schemes: [SchemeDescriptor]
-    let sideEffects: [SideEffectDescriptor]
-
-    init(schemes: [SchemeDescriptor], sideEffects: [SideEffectDescriptor] = []) {
-        self.schemes = schemes
-        self.sideEffects = sideEffects
-    }
+    ) throws -> ([SchemeDescriptor], [SideEffectDescriptor])
 }
 
 extension XCScheme {
@@ -90,50 +82,50 @@ struct SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         workspace: Workspace,
         generatedProjects: [AbsolutePath: GeneratedProject],
         graphTraverser: GraphTraversing
-    ) throws -> SchemeGenerationResult {
+    ) throws -> ([SchemeDescriptor], [SideEffectDescriptor]) {
         Logger.current.debug("SchemeDescriptorsGenerator: Generating \(workspace.schemes.count) workspace schemes")
         let rootPath = workspace.xcWorkspacePath.parentDirectory
         var schemes: [SchemeDescriptor] = []
         var sideEffects: [SideEffectDescriptor] = []
         for scheme in workspace.schemes {
             Logger.current.debug("SchemeDescriptorsGenerator: Generating workspace scheme \(scheme.name)")
-            let generated = try generateScheme(
+            let (descriptor, schemeSideEffects) = try generateScheme(
                 scheme: scheme,
                 path: rootPath,
                 graphTraverser: graphTraverser,
                 generatedProjects: generatedProjects,
                 lastUpgradeCheck: workspace.generationOptions.lastXcodeUpgradeCheck
             )
-            schemes.append(generated.scheme)
-            sideEffects.append(contentsOf: generated.sideEffects)
+            schemes.append(descriptor)
+            sideEffects.append(contentsOf: schemeSideEffects)
         }
         Logger.current.debug("SchemeDescriptorsGenerator: Finished generating workspace schemes")
-        return SchemeGenerationResult(schemes: schemes, sideEffects: sideEffects)
+        return (schemes, sideEffects)
     }
 
     func generateProjectSchemes(
         project: Project,
         generatedProject: GeneratedProject,
         graphTraverser: GraphTraversing
-    ) throws -> SchemeGenerationResult {
+    ) throws -> ([SchemeDescriptor], [SideEffectDescriptor]) {
         Logger.current
             .debug("SchemeDescriptorsGenerator: Generating \(project.schemes.count) project schemes for \(project.name)")
         var schemes: [SchemeDescriptor] = []
         var sideEffects: [SideEffectDescriptor] = []
         for scheme in project.schemes {
             Logger.current.debug("SchemeDescriptorsGenerator: Generating project scheme \(scheme.name)")
-            let generated = try generateScheme(
+            let (descriptor, schemeSideEffects) = try generateScheme(
                 scheme: scheme,
                 path: project.xcodeProjPath.parentDirectory,
                 graphTraverser: graphTraverser,
                 generatedProjects: [project.xcodeProjPath: generatedProject],
                 lastUpgradeCheck: project.lastUpgradeCheck
             )
-            schemes.append(generated.scheme)
-            sideEffects.append(contentsOf: generated.sideEffects)
+            schemes.append(descriptor)
+            sideEffects.append(contentsOf: schemeSideEffects)
         }
         Logger.current.debug("SchemeDescriptorsGenerator: Finished generating project schemes for \(project.name)")
-        return SchemeGenerationResult(schemes: schemes, sideEffects: sideEffects)
+        return (schemes, sideEffects)
     }
 
     // swiftlint:disable function_body_length
@@ -151,7 +143,7 @@ struct SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         graphTraverser: GraphTraversing,
         generatedProjects: [AbsolutePath: GeneratedProject],
         lastUpgradeCheck: XcodeGraph.Version?
-    ) throws -> (scheme: SchemeDescriptor, sideEffects: [SideEffectDescriptor]) {
+    ) throws -> (SchemeDescriptor, [SideEffectDescriptor]) {
         let generatedBuildAction = try schemeBuildAction(
             scheme: scheme,
             graphTraverser: graphTraverser,
@@ -218,8 +210,8 @@ struct SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         )
 
         return (
-            scheme: SchemeDescriptor(xcScheme: xcscheme, shared: scheme.shared, hidden: scheme.hidden),
-            sideEffects: testPlanSideEffects
+            SchemeDescriptor(xcScheme: xcscheme, shared: scheme.shared, hidden: scheme.hidden),
+            testPlanSideEffects
         )
     } // swiftlint:enable function_body_length
 

@@ -170,7 +170,7 @@ struct ProjectDescriptorGenerator: ProjectDescriptorGenerating {
         )
 
         Logger.current.debug("Generating project schemes for project \(project.name)")
-        let schemeGeneration = try schemeDescriptorsGenerator.generateProjectSchemes(
+        let (schemes, sideEffects) = try schemeDescriptorsGenerator.generateProjectSchemes(
             project: project,
             generatedProject: generatedProject,
             graphTraverser: graphTraverser
@@ -185,8 +185,8 @@ struct ProjectDescriptorGenerator: ProjectDescriptorGenerating {
             path: project.path,
             xcodeprojPath: project.xcodeProjPath,
             xcodeProj: xcodeProj,
-            schemeDescriptors: schemeGeneration.schemes,
-            sideEffectDescriptors: schemeGeneration.sideEffects
+            schemeDescriptors: schemes,
+            sideEffectDescriptors: sideEffects
         )
     }
 

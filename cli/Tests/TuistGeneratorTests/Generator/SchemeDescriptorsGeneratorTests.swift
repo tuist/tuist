@@ -316,11 +316,11 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let schemeDescriptors = try subject.generateProjectSchemes(
+        let (schemeDescriptors, _) = try subject.generateProjectSchemes(
             project: project,
             generatedProject: generatedProject,
             graphTraverser: graphTraverser
-        ).schemes
+        )
 
         // Then
         let buildActions = schemeDescriptors.compactMap(\.xcScheme.buildAction)
@@ -352,11 +352,11 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let schemeDescriptors = try subject.generateProjectSchemes(
+        let (schemeDescriptors, _) = try subject.generateProjectSchemes(
             project: project,
             generatedProject: generatedProject,
             graphTraverser: graphTraverser
-        ).schemes
+        )
 
         // Then
         // `runPostActionsOnFailure` is omitted when not enabled (Xcode automatically removes it)
@@ -898,7 +898,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let result = try subject.generateProjectSchemes(
+        let (_, sideEffects) = try subject.generateProjectSchemes(
             project: project,
             generatedProject: generatedProject(
                 targets: Array(project.targets.values),
@@ -908,7 +908,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         )
 
         // Then
-        let testPlanDescriptors = result.sideEffects.compactMap { sideEffect -> TestPlanDescriptor? in
+        let testPlanDescriptors = sideEffects.compactMap { sideEffect -> TestPlanDescriptor? in
             guard case let .testPlan(descriptor) = sideEffect else { return nil }
             return descriptor
         }
@@ -2305,11 +2305,11 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let result = try subject.generateProjectSchemes(
+        let (result, _) = try subject.generateProjectSchemes(
             project: project,
             generatedProject: generatedProject(targets: Array(project.targets.values)),
             graphTraverser: graphTraverser
-        ).schemes
+        )
 
         // Then
         let schemes = result.map(\.xcScheme.name)
@@ -2347,11 +2347,11 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let result = try subject.generateProjectSchemes(
+        let (result, _) = try subject.generateProjectSchemes(
             project: project,
             generatedProject: generatedProject(targets: Array(project.targets.values)),
             graphTraverser: graphTraverser
-        ).schemes
+        )
 
         // Then
         let schemeForExtension = result.map(\.xcScheme.wasCreatedForAppExtension)
@@ -2385,11 +2385,11 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         let generatedProject = generatedProject(targets: Array(project.targets.values))
 
         // When
-        let result = try subject.generateWorkspaceSchemes(
+        let (result, _) = try subject.generateWorkspaceSchemes(
             workspace: workspace,
             generatedProjects: [generatedProject.path: generatedProject],
             graphTraverser: graphTraverser
-        ).schemes
+        )
 
         XCTAssertEqual(
             result.first?.xcScheme.lastUpgradeVersion,
@@ -2414,11 +2414,11 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let result = try subject.generateProjectSchemes(
+        let (result, _) = try subject.generateProjectSchemes(
             project: project,
             generatedProject: generatedProject(targets: Array(project.targets.values)),
             graphTraverser: graphTraverser
-        ).schemes
+        )
 
         XCTAssertEqual(
             result.first?.xcScheme.lastUpgradeVersion,

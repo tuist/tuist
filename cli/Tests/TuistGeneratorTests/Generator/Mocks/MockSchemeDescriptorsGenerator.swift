@@ -9,15 +9,15 @@ final class MockSchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         project _: Project,
         generatedProject _: GeneratedProject,
         graphTraverser _: GraphTraversing
-    ) throws -> SchemeGenerationResult {
-        SchemeGenerationResult(schemes: [])
+    ) throws -> ([SchemeDescriptor], [SideEffectDescriptor]) {
+        ([], [])
     }
 
     func generateWorkspaceSchemes(
         workspace _: Workspace,
         generatedProjects _: [AbsolutePath: GeneratedProject],
         graphTraverser _: GraphTraversing
-    ) throws -> SchemeGenerationResult {
-        SchemeGenerationResult(schemes: [])
+    ) throws -> ([SchemeDescriptor], [SideEffectDescriptor]) {
+        ([], [])
     }
 }
