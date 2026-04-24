@@ -2,17 +2,18 @@ defmodule Tuist.Environment do
   @moduledoc false
 
   # Baked at compile time. Production images build with MIX_ENV=prod and
-  # then pick a runtime environment via TUIST_ENV (see env/0) so one image
-  # can serve canary, staging, or production. Test/dev builds ignore
-  # TUIST_ENV so tests can't accidentally flip into a prod-like mode.
+  # then pick a runtime deployment target via TUIST_DEPLOY_ENV (see env/0)
+  # so one image can serve canary, staging, or production. Test/dev
+  # builds ignore TUIST_DEPLOY_ENV so tests can't accidentally flip into
+  # a prod-like mode.
   @compile_env Mix.env()
 
   @runtime_envs ~w(prod can stag)
 
   def env do
     with :prod <- @compile_env,
-         tuist_env when tuist_env in @runtime_envs <- System.get_env("TUIST_ENV") do
-      String.to_existing_atom(tuist_env)
+         deploy_env when deploy_env in @runtime_envs <- System.get_env("TUIST_DEPLOY_ENV") do
+      String.to_existing_atom(deploy_env)
     else
       _ -> @compile_env
     end

@@ -11,7 +11,7 @@ name: Server Production Deployment
 #
 # Image architecture: the Docker image is env-agnostic (built once with
 # MIX_ENV=prod) so the same `sha-<SHA>` tag is promoted from canary to
-# production. The runtime picks its environment via TUIST_ENV (set by the
+# production. The runtime picks its environment via TUIST_DEPLOY_ENV (set by the
 # Helm overlay) + MASTER_KEY (ESO). This used to be two ~30-min builds
 # per push; it is now one.
 #
@@ -64,7 +64,7 @@ env:
 jobs:
   # --------------------------------------------------------------------------
   # Build once - the image is env-agnostic (MIX_ENV=prod, all env secrets
-  # baked in, TUIST_ENV picks the runtime behavior). Every downstream leg
+  # baked in, TUIST_DEPLOY_ENV picks the runtime behavior). Every downstream leg
   # deploys this exact tag.
   # --------------------------------------------------------------------------
   build:

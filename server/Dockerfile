@@ -101,8 +101,8 @@ RUN set -e; \
 
 # Config files must be present before compiling dependencies. All three
 # managed envs (prod/can/stag) ship in the image so the runtime can
-# select one via TUIST_ENV, but only ${MIX_ENV}.exs is actually imported
-# at compile time by config/config.exs.
+# select one via TUIST_DEPLOY_ENV, but only ${MIX_ENV}.exs is actually
+# imported at compile time by config/config.exs.
 COPY server/config/config.exs config/
 COPY server/config/prod.exs server/config/can.exs server/config/stag.exs config/
 

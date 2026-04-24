@@ -12,7 +12,7 @@ name: Server Deployment
 #
 # Image architecture: a single env-agnostic image is built per commit
 # (MIX_ENV=prod always). The runtime picks canary/staging/production
-# behavior via the TUIST_ENV env var set by the Helm overlay, and the
+# behavior via the TUIST_DEPLOY_ENV env var set by the Helm overlay, and the
 # MASTER_KEY ESO secret decrypts the matching priv/secrets/<env>.yml.enc
 # file baked into the image. This means the same `sha-<SHA>` image is
 # promoted across environments - one build, N deploys.

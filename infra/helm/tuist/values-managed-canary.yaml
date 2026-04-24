@@ -48,8 +48,8 @@ server:
   extraEnv:
     # Selects which priv/secrets/<env>.yml.enc file the app decrypts at
     # boot. Image is env-agnostic (built with MIX_ENV=prod); this flag
-    # plus the MASTER_KEY ESO secret pick the runtime environment.
-    - name: TUIST_ENV
+    # plus the MASTER_KEY ESO secret pick the runtime deployment target.
+    - name: TUIST_DEPLOY_ENV
       value: can
     - name: TUIST_DATABASE_POOL_SIZE
       value: "15"
