@@ -46,7 +46,7 @@ public struct TestPlanDescriptor: Equatable {
         let plan = XCTestPlanPayload(
             configurations: [
                 XCTestPlanPayload.Configuration(
-                    id: Self.configurationID(for: path),
+                    id: configurationID,
                     name: "Configuration 1",
                     options: [:]
                 ),
@@ -74,7 +74,7 @@ public struct TestPlanDescriptor: Equatable {
     ///
     /// Keeps the configuration ID stable across regenerations (no git churn when a plan is
     /// pinned to a checked-in location) while being unique per plan.
-    private static func configurationID(for path: AbsolutePath) -> UUID {
+    private var configurationID: UUID {
         let digest = Array(SHA256.hash(data: Data(path.pathString.utf8)).prefix(16))
         return UUID(uuid: (
             digest[0], digest[1], digest[2], digest[3],
