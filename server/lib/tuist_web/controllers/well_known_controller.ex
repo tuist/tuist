@@ -3,12 +3,23 @@ defmodule TuistWeb.WellKnownController do
 
   alias Tuist.Environment
   alias Tuist.Namespace.JWTToken
+  alias TuistWeb.AgentDiscovery
   alias TuistWeb.RequestOrigin
 
   @mcp_path "/mcp"
   @oauth_token_path "/oauth2/token"
   @oauth_authorize_path "/oauth2/authorize"
   @oauth_registration_path "/oauth2/register"
+
+  def api_catalog(conn, _params) do
+    origin = RequestOrigin.from_conn(conn)
+    catalog = AgentDiscovery.api_catalog(origin)
+
+    conn
+    |> put_resp_header("content-type", AgentDiscovery.api_catalog_content_type())
+    |> put_resp_header("link", AgentDiscovery.api_catalog_link_header_value())
+    |> send_resp(:ok, Jason.encode!(catalog))
+  end
 
   @doc """
   Returns the OpenID configuration for JWT verification.

@@ -28,7 +28,7 @@ use crate::{
 
 pub async fn run() -> Result<(), String> {
     let config = Config::from_env().map_err(|error| format!("invalid configuration: {error}"))?;
-    let tracer_provider = init_tracing(&config);
+    let telemetry = init_tracing(&config);
 
     config
         .ensure_directories()
@@ -46,7 +46,8 @@ pub async fn run() -> Result<(), String> {
         metrics.clone(),
         config.file_descriptor_pool_size,
         Duration::from_millis(config.file_descriptor_acquire_timeout_ms),
-    );
+        vec![config.tmp_dir.clone(), config.data_dir.clone()],
+    )?;
     let memory = MemoryController::new(
         metrics.clone(),
         config.memory_soft_limit_bytes,
@@ -168,11 +169,7 @@ pub async fn run() -> Result<(), String> {
         let _ = internal_handle.await;
     }
 
-    if let Some(provider) = tracer_provider
-        && let Err(error) = provider.shutdown()
-    {
-        eprintln!("failed to shutdown OTLP tracer provider: {error}");
-    }
+    telemetry.shutdown();
 
     Ok(())
 }
@@ -213,10 +210,10 @@ fn spawn_snapshot_task(state: Arc<AppState>) {
                     state
                         .metrics
                         .update_multipart_uploads(snapshot.multipart_uploads);
-                    for (kind, generation, count) in snapshot.segment_counts {
+                    for (generation, count) in snapshot.segment_counts {
                         state
                             .metrics
-                            .update_segment_generation_count(kind, generation, count);
+                            .update_segment_generation_count(generation, count);
                     }
                     state.metrics.update_rocksdb_memory(
                         snapshot.rocksdb_block_cache_usage_bytes,

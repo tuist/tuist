@@ -19,6 +19,7 @@ on:
       - Release
       - Secret Scanning
       - Server
+      - Server Deployment
       - Server Production Deployment
       - Xcode Processor
       - Xcode Processor Deploy

@@ -431,7 +431,7 @@ public protocol APIProtocol: Sendable {
     func getTestCase(_ input: Operations.getTestCase.Input) async throws -> Operations.getTestCase.Output
     /// Get cache endpoints.
     ///
-    /// Returns custom cache endpoints if configured for the account, otherwise returns default endpoints.
+    /// Returns cache endpoints for the requested account.
     ///
     /// - Remark: HTTP `GET /api/cache/endpoints`.
     /// - Remark: Generated from `#/paths//api/cache/endpoints/get(getCacheEndpoints)`.
@@ -1696,7 +1696,7 @@ extension APIProtocol {
     }
     /// Get cache endpoints.
     ///
-    /// Returns custom cache endpoints if configured for the account, otherwise returns default endpoints.
+    /// Returns cache endpoints for the requested account.
     ///
     /// - Remark: HTTP `GET /api/cache/endpoints`.
     /// - Remark: Generated from `#/paths//api/cache/endpoints/get(getCacheEndpoints)`.
@@ -15365,6 +15365,8 @@ public enum Operations {
                                 case first_run = "first_run"
                                 case marked_flaky = "marked_flaky"
                                 case unmarked_flaky = "unmarked_flaky"
+                                case muted = "muted"
+                                case unmuted = "unmuted"
                                 case quarantined = "quarantined"
                                 case unquarantined = "unquarantined"
                             }
@@ -16219,14 +16221,14 @@ public enum Operations {
             public var path: Operations.listBundles.Input.Path
             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query`.
             public struct Query: Sendable, Hashable {
-                /// Filter bundles by git branch.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/git_branch`.
-                public var git_branch: Swift.String?
                 /// Page number for pagination.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page`.
                 public var page: Swift.Int?
+                /// Filter bundles by git branch.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/git_branch`.
+                public var git_branch: Swift.String?
                 /// Number of items per page.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page_size`.
@@ -16234,16 +16236,16 @@ public enum Operations {
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
-                ///   - git_branch: Filter bundles by git branch.
                 ///   - page: Page number for pagination.
+                ///   - git_branch: Filter bundles by git branch.
                 ///   - page_size: Number of items per page.
                 public init(
-                    git_branch: Swift.String? = nil,
                     page: Swift.Int? = nil,
+                    git_branch: Swift.String? = nil,
                     page_size: Swift.Int? = nil
                 ) {
-                    self.git_branch = git_branch
                     self.page = page
+                    self.git_branch = git_branch
                     self.page_size = page_size
                 }
             }
@@ -35776,7 +35778,7 @@ public enum Operations {
     }
     /// Get cache endpoints.
     ///
-    /// Returns custom cache endpoints if configured for the account, otherwise returns default endpoints.
+    /// Returns cache endpoints for the requested account.
     ///
     /// - Remark: HTTP `GET /api/cache/endpoints`.
     /// - Remark: Generated from `#/paths//api/cache/endpoints/get(getCacheEndpoints)`.
@@ -35805,7 +35807,9 @@ public enum Operations {
                 ///
                 /// - Parameters:
                 ///   - accept:
-                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getCacheEndpoints.AcceptableContentType>] = .defaultValues()) {
+                public init(
+                    accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getCacheEndpoints.AcceptableContentType>] = .defaultValues()
+                ) {
                     self.accept = accept
                 }
             }

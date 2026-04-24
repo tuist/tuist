@@ -6,8 +6,8 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=n != 1;\n"
 
-#: lib/tuist_web/live/docs_live.ex:60
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:656
+#: lib/tuist_web/live/docs_live.ex:63
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:667
 #, elixir-autogen, elixir-format
 msgid "Page not found"
 msgstr "Página no encontrada"
@@ -15,9 +15,9 @@ msgstr "Página no encontrada"
 #: lib/tuist_web/controllers/build_controller.ex:33
 #, elixir-autogen, elixir-format
 msgid "Build not found"
-msgstr "Build no encontrado"
+msgstr "Compilación no encontrada"
 
 #: lib/tuist_web/controllers/build_controller.ex:29
 #, elixir-autogen, elixir-format
 msgid "You are not authorized to access this build"
-msgstr "No está autorizado para acceder a este build"
+msgstr "No está autorizado para acceder a esta compilación"

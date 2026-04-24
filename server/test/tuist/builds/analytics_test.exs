@@ -1,5 +1,5 @@
 defmodule Tuist.Builds.AnalyticsTest do
-  use TuistTestSupport.Cases.DataCase
+  use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
   alias Tuist.Builds.Analytics
@@ -2351,8 +2351,11 @@ defmodule Tuist.Builds.AnalyticsTest do
       end
 
       # When - get current (offset: 0) and previous (offset: 3)
-      current = Analytics.build_cache_hit_rate_metric_by_count(project.id, :average, limit: 3, offset: 0)
-      previous = Analytics.build_cache_hit_rate_metric_by_count(project.id, :average, limit: 3, offset: 3)
+      current =
+        Analytics.build_cache_hit_rate_metric_by_count(project.id, :average, limit: 3, offset: 0)
+
+      previous =
+        Analytics.build_cache_hit_rate_metric_by_count(project.id, :average, limit: 3, offset: 3)
 
       # Then (use assert_in_delta for floating point comparison)
       assert_in_delta current, 0.9, 0.001

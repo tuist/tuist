@@ -1,0 +1,93 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "alloy.fullname" . }}
+  labels:
+    {{- include "alloy.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "alloy.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "alloy.selectorLabels" . | nindent 8 }}
+      annotations:
+        # Roll the Deployment when the config changes.
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+    spec:
+      serviceAccountName: {{ include "alloy.serviceAccountName" . }}
+      containers:
+        - name: alloy
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - run
+            - /etc/alloy/config.alloy
+            - --storage.path=/var/lib/alloy/data
+            - --server.http.listen-addr=0.0.0.0:{{ .Values.ports.ui }}
+          ports:
+            - name: loki
+              containerPort: {{ .Values.ports.loki }}
+            - name: otlp
+              containerPort: {{ .Values.ports.otlp }}
+            - name: ui
+              containerPort: {{ .Values.ports.ui }}
+          env:
+            # URLs + usernames are non-secret (numeric instance IDs +
+            # public endpoints), injected directly from values.
+            - name: PROMETHEUS_URL
+              value: {{ .Values.grafanaCloud.prometheus.url | quote }}
+            - name: PROMETHEUS_USERNAME
+              value: {{ .Values.grafanaCloud.prometheus.username | quote }}
+            - name: LOKI_URL
+              value: {{ .Values.grafanaCloud.loki.url | quote }}
+            - name: LOKI_USERNAME
+              value: {{ .Values.grafanaCloud.loki.username | quote }}
+            - name: TEMPO_URL
+              value: {{ .Values.grafanaCloud.tempo.url | quote }}
+            - name: TEMPO_USERNAME
+              value: {{ .Values.grafanaCloud.tempo.username | quote }}
+            # Tokens come from 1Password via ESO.
+            - name: PROMETHEUS_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "alloy.secretName" . }}
+                  key: PROMETHEUS_TOKEN
+            - name: LOKI_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "alloy.secretName" . }}
+                  key: LOKI_TOKEN
+            - name: TEMPO_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "alloy.secretName" . }}
+                  key: TEMPO_TOKEN
+          volumeMounts:
+            - name: config
+              mountPath: /etc/alloy
+              readOnly: true
+            - name: data
+              mountPath: /var/lib/alloy/data
+          readinessProbe:
+            httpGet:
+              path: /-/ready
+              port: ui
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /-/ready
+              port: ui
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "alloy.configMapName" . }}
+        - name: data
+          emptyDir: {}

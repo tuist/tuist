@@ -226,7 +226,7 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
         )
 
         let packageInfoDictionaryById = Dictionary(uniqueKeysWithValues: packageInfos.map { ($0.id, $0.info) })
-        let enabledTraitsPerPackage = enabledTraits(
+        let enabledTraitsPerPackage = Self.enabledTraits(
             rootPackageInfo: rootPackage,
             packageInfos: packageInfoDictionaryById
         )
@@ -277,6 +277,95 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
         isLocalDependencyKind(kind) ? .local : .remote
     }
 
+    static func enabledTraits(
+        rootPackageInfo: PackageInfo,
+        packageInfos: [String: PackageInfo]
+    ) -> [String: Set<String>] {
+        var result: [String: Set<String>] = [:]
+
+        processTraits(
+            from: rootPackageInfo.dependencies,
+            enabledTraitsForCurrentPackage: [],
+            packageInfos: packageInfos,
+            result: &result
+        )
+
+        for (packageId, packageInfo) in packageInfos {
+            let enabledForThisPackage = result[packageId] ?? []
+            processTraits(
+                from: packageInfo.dependencies,
+                enabledTraitsForCurrentPackage: enabledForThisPackage,
+                packageInfos: packageInfos,
+                result: &result
+            )
+        }
+
+        return result
+    }
+
+    private static func processTraits(
+        from dependencies: [PackageDependency],
+        enabledTraitsForCurrentPackage: Set<String>,
+        packageInfos: [String: PackageInfo],
+        result: inout [String: Set<String>]
+    ) {
+        for dependency in dependencies {
+            let enabledTraits = dependency.traits.reduce(into: Set<String>()) { result, trait in
+                if let condition = trait.condition {
+                    if !condition.isDisjoint(with: enabledTraitsForCurrentPackage) {
+                        result.insert(trait.name)
+                    }
+                } else {
+                    result.insert(trait.name)
+                }
+            }
+
+            let resolvedTraits = resolvedEnabledTraits(
+                enabledTraits,
+                packageTraits: packageInfos[dependency.identity]?.traits ?? []
+            )
+
+            guard !resolvedTraits.isEmpty else { continue }
+            result[dependency.identity, default: []].formUnion(resolvedTraits)
+        }
+    }
+
+    private static func resolvedEnabledTraits(
+        _ traitNames: some Collection<String>,
+        packageTraits: [PackageTrait]
+    ) -> Set<String> {
+        var resolvedTraitNames = Set(traitNames)
+
+        resolveEnabledTraitNames(
+            resolvedTraitNames,
+            packageTraits: packageTraits,
+            into: &resolvedTraitNames
+        )
+
+        return resolvedTraitNames
+    }
+
+    private static func resolveEnabledTraitNames(
+        _ traitNames: some Collection<String>,
+        packageTraits: [PackageTrait],
+        into resolvedTraitNames: inout Set<String>
+    ) {
+        for traitName in traitNames {
+            guard let trait = packageTraits.first(where: { $0.name == traitName }) else {
+                continue
+            }
+
+            for enabledTrait in trait.enabledTraits {
+                guard resolvedTraitNames.insert(enabledTrait).inserted else { continue }
+                resolveEnabledTraitNames(
+                    [enabledTrait],
+                    packageTraits: packageTraits,
+                    into: &resolvedTraitNames
+                )
+            }
+        }
+    }
+
     private func validatePackageResolved(at path: AbsolutePath) async throws -> [LintingIssue] {
         let savedPackageResolvedPath = path.appending(components: [
             Constants.SwiftPackageManager.packageBuildDirectoryName,
@@ -325,55 +414,6 @@ extension ProjectDescription.Platform {
             return .watchOS
         case .visionOS:
             return .visionOS
-        }
-    }
-}
-
-// MARK: - Trait Processing
-
-/// Extracts the enabled traits for each package dependency from the root package and all packages in the dependency graph.
-/// - Parameters:
-///   - rootPackageInfo: The `PackageInfo` of the root package (the Tuist `Package.swift`)
-///   - packageInfos: All `PackageInfo`s in the dependency graph, keyed by package identity
-/// - Returns: A dictionary where keys are package identities and values are the set of enabled trait names
-func enabledTraits(
-    rootPackageInfo: PackageInfo,
-    packageInfos: [String: PackageInfo]
-) -> [String: Set<String>] {
-    var result: [String: Set<String>] = [:]
-
-    processTraits(
-        from: rootPackageInfo.dependencies,
-        enabledTraitsForCurrentPackage: [],
-        result: &result
-    )
-
-    for (packageId, packageInfo) in packageInfos {
-        let enabledForThisPackage = result[packageId] ?? []
-        processTraits(
-            from: packageInfo.dependencies,
-            enabledTraitsForCurrentPackage: enabledForThisPackage,
-            result: &result
-        )
-    }
-
-    return result
-}
-
-private func processTraits(
-    from dependencies: [PackageDependency],
-    enabledTraitsForCurrentPackage: Set<String>,
-    result: inout [String: Set<String>]
-) {
-    for dependency in dependencies {
-        for trait in dependency.traits {
-            if let condition = trait.condition {
-                if !condition.isDisjoint(with: enabledTraitsForCurrentPackage) {
-                    result[dependency.identity, default: []].insert(trait.name)
-                }
-            } else {
-                result[dependency.identity, default: []].insert(trait.name)
-            }
         }
     }
 }

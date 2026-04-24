@@ -129,6 +129,7 @@ extension Environmenting {
         let value = variables["TUIST_FILESYSTEM_BACKEND"]?
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
+        guard let value else { return true }
         return ["swift-file-system", "swift_file_system", "swiftfilesystem"].contains(value)
     }
 

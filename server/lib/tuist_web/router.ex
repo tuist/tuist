@@ -374,6 +374,12 @@ defmodule TuistWeb.Router do
   end
 
   scope "/.well-known", TuistWeb do
+    pipe_through [:open_api]
+
+    get "/api-catalog", WellKnownController, :api_catalog
+  end
+
+  scope "/.well-known", TuistWeb do
     pipe_through [:open_api, :non_authenticated_api]
 
     get "/openid-configuration", WellKnownController, :openid_configuration

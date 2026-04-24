@@ -64,6 +64,7 @@ where
         otlp_traces_endpoint: "http://127.0.0.1:4318/v1/traces".into(),
         otel_service_name: "kura-test".into(),
         otel_deployment_environment: "test".into(),
+        sentry_dsn: None,
     };
     override_config(&mut config);
     config
@@ -76,7 +77,9 @@ where
         metrics.clone(),
         config.file_descriptor_pool_size,
         Duration::from_millis(config.file_descriptor_acquire_timeout_ms),
-    );
+        vec![config.tmp_dir.clone(), config.data_dir.clone()],
+    )
+    .expect("failed to create test io controller");
     let memory = MemoryController::new(
         metrics.clone(),
         config.memory_soft_limit_bytes,

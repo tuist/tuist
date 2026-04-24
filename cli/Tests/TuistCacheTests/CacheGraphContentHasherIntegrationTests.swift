@@ -533,6 +533,7 @@ struct ContentHashingIntegrationTests {
     }
 
     private func makeFramework(
+        name: String = "Target",
         platform: Platform = .iOS,
         productName: String? = nil,
         sources: [SourceFile] = [],
@@ -541,6 +542,7 @@ struct ContentHashingIntegrationTests {
         targetScripts: [TargetScript] = []
     ) -> Target {
         .test(
+            name: name,
             platform: platform,
             product: .framework,
             productName: productName,

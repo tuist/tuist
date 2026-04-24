@@ -1,20 +1,19 @@
 {
-  "context_files": [
-    {
-      "hash": "d8ddb528531aa9d4820a4cd80a344266e13f3da9342ed7490baac74cfce73919",
-      "path": "server/L10N.md"
+  "hash": "1810ede8fd651bc5c7b9ddd2bd221970b170b4c6619e98b507ab26c1e187bb9e",
+  "hash_tree": {
+    "context": {
+      "child": {
+        "file": "server/L10N.md",
+        "hash": "0879bdf5dc534e1a0d665bfee7247bc56bdf5c07163f270a05bd2666a07536e6"
+      },
+      "file": "L10N.md",
+      "hash": "5d5910c58a27c289d172b18f0bca28176bf6b6a74bd894e27273f55199cd2816"
     },
-    {
-      "hash": "228bdeb0404f501a25aaf9fde3ec22f8c937b03edbeaf3ce3e35b274f07a140f",
-      "path": "L10N.md"
+    "source": {
+      "file": "server/priv/gettext/dashboard_gradle.pot",
+      "hash": "4830157411fe0ba195202cf14dbe72b13e65c66c97f979bf187ccdd13df8e6bf"
     }
-  ],
-  "hash": "4f0bea089668416a7af0350a0aa4dec3b7e7f56c3869dcb032515480c6316372",
-  "locale_override_files": [],
-  "model": "openai:gpt-4.1-mini",
-  "source": {
-    "file": "server/priv/gettext/dashboard_gradle.pot",
-    "hash": "7369118411bc35739269806e4e1d7c68c37bfd3c6fe728a030d62cd19fdfb537"
   },
-  "translated_at": "2026-04-01T07:28:33.605571Z"
+  "model": "openai:gpt-4.1-mini",
+  "translated_at": "2026-04-24T08:21:32.714034Z"
 }

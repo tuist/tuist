@@ -1,0 +1,16 @@
+# Alloy overlay for the staging workload cluster.
+# Install with:
+#   helm upgrade --install alloy infra/helm/alloy \
+#     -n observability --create-namespace \
+#     -f infra/helm/alloy/values-staging.yaml
+
+env: staging
+
+scrape:
+  targets:
+    - address: tuist-tuist-server.tuist-staging.svc.cluster.local:9091
+      instance: staging
+
+podDiscovery:
+  namespaces:
+    - tuist-staging

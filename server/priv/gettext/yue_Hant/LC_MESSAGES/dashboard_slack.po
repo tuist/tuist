@@ -11,7 +11,7 @@ msgstr ""
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:246
 #, elixir-autogen, elixir-format
 msgid "Account not found. Please try again."
-msgstr "未搵到帳戶。請再試一次。"
+msgstr "找唔到帳戶。請再試一次。"
 
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:148
 #, elixir-autogen, elixir-format
@@ -45,14 +45,14 @@ msgstr "儲存頻道選擇失敗。請再試一次。"
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:242
 #, elixir-autogen, elixir-format
 msgid "Project not found. Please try again."
-msgstr "未搵到專案。請再試一次。"
+msgstr "搵唔到項目。請再試一次。"
 
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:174
 #, elixir-autogen, elixir-format
 msgid "Alert rule not found. Please try again."
-msgstr "未搵到警示規則。請再試一次。"
+msgstr "搵唔到警報規則。請再試一次。"
 
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:89
 #, elixir-autogen, elixir-format
 msgid "Authorization request expired. Please start the Slack connection process again."
-msgstr "授權請求已過期。請重新開始 Slack 連接程序。"
+msgstr "授權請求已過期。請重新開始 Slack 連接流程。"
