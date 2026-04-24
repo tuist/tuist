@@ -2133,13 +2133,15 @@ jobs:
           needs.release-kura-docker.result == 'success'
         run: |
           TAG=${{ needs.check-releases.outputs.kura-next-version }}
+          SOURCE_SHA=${{ github.sha }}
 
           if git ls-remote --tags --exit-code origin "refs/tags/$TAG" >/dev/null 2>&1; then
             echo "Tag $TAG already exists on origin"
             exit 0
           fi
 
-          git tag "$TAG"
+          git rev-parse --verify "${SOURCE_SHA}^{commit}"
+          git tag "$TAG" "$SOURCE_SHA"
           git push origin "refs/tags/$TAG"
 
       - name: Create Kura GitHub Release
