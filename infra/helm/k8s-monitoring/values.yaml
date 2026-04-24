@@ -161,8 +161,9 @@ k8s-monitoring:
   # ───── Collectors (Alloy instances) ─────
   #
   # k8s-monitoring splits Alloy into four roles so each one can be scaled
-  # and scoped independently. An empty `alloy: {}` is enough to enable a
-  # collector; upstream defaults fill in the rest.
+  # and scoped independently. Controller type + replica count come from
+  # upstream presets — without them the Alloy subchart defaults to a
+  # DaemonSet, which is wrong for the singleton + receiver roles.
   collectors:
     # Clustering lets multiple alloy-metrics replicas hash-partition the
     # scrape targets, so adding replicas linearly scales capacity. Required
@@ -173,7 +174,12 @@ k8s-monitoring:
     # logs from disk (matches the podLogsViaLoki feature).
     alloy-logs:
       presets: [filesystem-log-reader]
+    # Kubernetes Events must come from exactly one replica — otherwise
+    # every pod watches the event stream and emits duplicate log lines.
     alloy-singleton:
-      alloy: {}
+      presets: [singleton]
+    # OTLP receiver is a plain service the server pushes spans to; one
+    # Deployment replica is plenty and avoids the per-node DaemonSet
+    # footprint of the upstream default.
     alloy-receiver:
-      alloy: {}
+      presets: [deployment]

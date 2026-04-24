@@ -159,13 +159,18 @@ jobs:
     # the server rollout so the Alloy OTLP receiver is ready before the
     # server starts pushing spans to it. Idempotent: on every run it's a
     # no-op if Chart.lock + values haven't changed.
+    #
+    # Shares the `server-deploy-<env>` concurrency lane with the deploy
+    # job on purpose: the server's OTLP endpoint and the chart that
+    # provides the receiver change in lockstep, so a newer chart install
+    # must never interleave with an older server rollout.
     name: Observability chart (${{ inputs.environment }})
     needs: plan
     runs-on: namespace-profile-default
     environment:
       name: server-k8s-${{ needs.plan.outputs.environment_key }}
     concurrency:
-      group: observability-deploy-${{ needs.plan.outputs.environment_key }}
+      group: server-deploy-${{ needs.plan.outputs.environment_key }}
       cancel-in-progress: false
     timeout-minutes: 15
     env:
@@ -242,3 +247,43 @@ jobs:
           kubectl -n "${{ needs.plan.outputs.namespace }}" rollout status deploy/tuist-tuist-server --timeout=10m
           kubectl -n "${{ needs.plan.outputs.namespace }}" run smoke-$RANDOM --rm -i --restart=Never --image=curlimages/curl \
             --command -- curl -fsS "http://tuist-tuist-server/ready"
+
+  observability-cleanup:
+    # One-shot migration step: removes the legacy `alloy` Helm release
+    # once the server is running against the new k8s-monitoring receiver.
+    # Kept in CI (rather than documented as a manual post-cutover task)
+    # because leaving the old chart running alongside the new one
+    # duplicates metrics + logs in Grafana Cloud until someone remembers
+    # to clean it up, which skews dashboards and inflates Loki volume.
+    #
+    # `--ignore-not-found` makes this a ~30 s no-op on every cluster once
+    # the one-time cutover has happened. Gated on a successful server
+    # deploy so a failed rollout can't leave the cluster with no
+    # receiver at all. After all three clusters have cut over, this job
+    # + infra/helm/alloy/ get deleted together in a follow-up PR.
+    name: Observability cleanup (${{ inputs.environment }})
+    needs: [plan, deploy]
+    runs-on: namespace-profile-default
+    environment:
+      name: server-k8s-${{ needs.plan.outputs.environment_key }}
+    concurrency:
+      group: server-deploy-${{ needs.plan.outputs.environment_key }}
+      cancel-in-progress: false
+    timeout-minutes: 5
+    env:
+      KUBECONFIG: ${{ github.workspace }}/.kube/config
+    steps:
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          install_args: "helm"
+          cache: "false"
+      - name: Load kubeconfig
+        run: |
+          mkdir -p "$(dirname "$KUBECONFIG")"
+          echo "${{ secrets.KUBECONFIG }}" | base64 -d > "$KUBECONFIG"
+          chmod 600 "$KUBECONFIG"
+      - name: Uninstall deprecated alloy release
+        run: |
+          helm uninstall alloy \
+            --namespace "$OBSERVABILITY_NAMESPACE" \
+            --ignore-not-found --wait

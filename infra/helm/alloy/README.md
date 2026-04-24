@@ -2,16 +2,13 @@
 
 **Superseded by [`infra/helm/k8s-monitoring/`](../k8s-monitoring/README.md).** The new chart covers the same telemetry paths (Grafana Cloud Prometheus / Loki / Tempo, same ESO token sync) plus cluster / pod / node metrics and events, so the Grafana Cloud Kubernetes app works out of the box.
 
-## Cutover / cleanup
+## Cutover
 
-Cleanup is deliberately manual — `helm uninstall` is destructive and the cutover per cluster is a one-time event, so it doesn't belong in the every-deploy CI workflow. Once the new receiver is live on a cluster and the server is pushing traces to it, drop the old release:
+Automated. The `observability-cleanup` job in `.github/workflows/server-deployment.yml` runs `helm uninstall alloy --ignore-not-found` after each successful server deploy. The first deploy to each cluster post-migration removes this release; subsequent deploys are ~30 s no-ops.
 
-```bash
-export KUBECONFIG=~/.kube/<env>.yaml
-helm uninstall alloy -n observability
-```
+Staging was hand-installed during PR validation and still has this release running — `helm uninstall alloy -n observability` against the staging kubeconfig closes the dup-telemetry window immediately, or just wait for the next server deploy to do it automatically.
 
-After all three clusters (staging, canary, production) have been cut over, delete this directory + any remaining references in a follow-up PR.
+After all three clusters (staging, canary, production) have been cut over, this directory and the `observability-cleanup` job both go away in a follow-up PR.
 
 ---
 
