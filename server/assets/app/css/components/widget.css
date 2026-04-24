@@ -78,6 +78,10 @@
         background-color: var(--noora-chart-secondary);
       }
 
+      &[data-color="tertiary"] {
+        background-color: var(--noora-chart-tertiary);
+      }
+
       &[data-color="destructive"] {
         background-color: var(--noora-chart-destructive);
       }

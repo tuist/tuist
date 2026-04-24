@@ -37,16 +37,7 @@ public final class TuistService: NSObject {
 
         let commandName = "tuist-\(arguments[0])"
 
-        let currentPath = try await Environment.current.pathRelativeToWorkingDirectory(nil)
-        let path: AbsolutePath
-        if let pathOptionIndex = arguments.firstIndex(of: "--path") ?? arguments.firstIndex(of: "--p") {
-            path = try AbsolutePath(
-                validating: arguments[pathOptionIndex + 1],
-                relativeTo: currentPath
-            )
-        } else {
-            path = currentPath
-        }
+        let path = try await CommandArguments.path(in: arguments)
 
         let config = try await configLoader.loadConfig(path: path)
 

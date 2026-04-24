@@ -1233,7 +1233,7 @@ struct GeneratediOSStaticLibraryWithStringResources {
 }
 
 struct GenerateAcceptanceTestiOSAppWithStaticFrameworkWithXcstrings {
-    @Test(.disabled(), .withFixture("generated_ios_app_with_static_framework_with_xcstrings"), .inTemporaryDirectory)
+    @Test(.withFixture("generated_ios_app_with_static_framework_with_xcstrings"), .inTemporaryDirectory)
     func ios_app_with_static_framework_with_xcstrings() async throws {
         let fixturePath = try fixtureDirectory()
         try await run(GenerateCommand.self)

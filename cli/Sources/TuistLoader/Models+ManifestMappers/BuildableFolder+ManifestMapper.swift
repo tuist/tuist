@@ -2,6 +2,7 @@ import FileSystem
 import Foundation
 import Path
 import ProjectDescription
+import TuistAlert
 import TuistEnvironment
 import TuistLogging
 import TuistSupport
@@ -25,11 +26,19 @@ extension XcodeGraph.BuildableFolder {
         manifest: ProjectDescription.BuildableFolder,
         generatorPaths: GeneratorPaths,
         targetName: String
-    ) async throws -> XcodeGraph.BuildableFolder {
+    ) async throws -> XcodeGraph.BuildableFolder? {
         let path = try generatorPaths.resolve(path: manifest.path)
         let fileSystem = FileSystem()
 
         if try await !fileSystem.exists(path) {
+            if manifest.optional {
+                AlertController.current.warning(
+                    .alert(
+                        "The target \(targetName) has an optional buildableFolder at \(path.pathString) that does not exist. It will be skipped."
+                    )
+                )
+                return nil
+            }
             throw BuildableFolderManifestMapperError.folderNotFound(targetName: targetName, path: path)
         }
 

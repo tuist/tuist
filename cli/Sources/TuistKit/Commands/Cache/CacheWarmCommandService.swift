@@ -9,6 +9,7 @@ import TuistConfigLoader
 import TuistCore
 import TuistEnvironment
 import TuistExtension
+import TuistHasher
 import TuistLoader
 import TuistPlugin
 import TuistServer
@@ -98,9 +99,10 @@ import XcodeGraph
             let path = try await Environment.current.pathRelativeToWorkingDirectory(directory)
             let config = try await configLoader.loadConfig(path: path)
             let cacheStorage = try await CacheStorageFactory().cacheStorage(config: config)
+            let requestedTargetsToBinaryCache = Set(targetsToBinaryCache.map { TargetQuery(stringLiteral: $0) })
             let generator = generatorFactory.binaryCacheWarmingPreload(
                 config: config,
-                targetsToBinaryCache: Set(targetsToBinaryCache.map { TargetQuery(stringLiteral: $0) })
+                targetsToBinaryCache: requestedTargetsToBinaryCache
             )
 
             // The loading of the graph triggers the fetching of remote binaries into the local cache to speed up warming.
@@ -146,6 +148,7 @@ import XcodeGraph
                 for: graph,
                 configuration: configuration,
                 config: config,
+                requestedTargetsToBinaryCache: requestedTargetsToBinaryCache,
                 cacheProfile: profile,
                 cacheStorage: cacheStorage
             )
@@ -866,6 +869,7 @@ import XcodeGraph
             for graph: Graph,
             configuration: String,
             config: Tuist,
+            requestedTargetsToBinaryCache: Set<TargetQuery>,
             cacheProfile: CacheProfile,
             cacheStorage: CacheStoring
         ) async throws -> [(GraphTarget, String)] {
@@ -889,22 +893,37 @@ import XcodeGraph
                 excludedTargets: excludedTargets,
                 destination: nil
             )
+            let selectedHashesByCacheableTarget: [GraphTarget: TargetContentHash]
+            switch CacheWarmTargetGraphSelector.selection(
+                graphTraverser: graphTraverser,
+                requestedTargets: requestedTargetsToBinaryCache
+            ) {
+            case .allReachable:
+                selectedHashesByCacheableTarget = hashesByCacheableTarget
+            case let .explicit(allowedTargets):
+                selectedHashesByCacheableTarget = Dictionary(
+                    uniqueKeysWithValues: hashesByCacheableTarget.filter { allowedTargets.contains($0.key) }
+                )
+            case .noNonTestRoots:
+                Logger.current.info("No non-test targets were selected for binary cache warming")
+                return []
+            }
 
             let sortedCacheableTargets = try graphTraverser.allTargetsTopologicalSorted()
 
             let cacheableTargets = sortedCacheableTargets.reduce(into: Set<CacheStorableTarget>()) { acc, next in
-                if let targetContentHash = hashesByCacheableTarget[next] {
+                if let targetContentHash = selectedHashesByCacheableTarget[next] {
                     acc.formUnion([CacheStorableTarget(target: next, hash: targetContentHash.hash)])
                 }
             }
 
             let cacheItems = try await cacheStorage.fetch(
-                Set(hashesByCacheableTarget.map { CacheStorableItem(name: $0.key.target.name, hash: $0.value.hash) }),
+                Set(selectedHashesByCacheableTarget.map { CacheStorableItem(name: $0.key.target.name, hash: $0.value.hash) }),
                 cacheCategory: .binaries
             )
 
             await RunMetadataStorage.current.update(
-                binaryCacheItems: hashesByCacheableTarget.reduce(into: [:]) { result, element in
+                binaryCacheItems: selectedHashesByCacheableTarget.reduce(into: [:]) { result, element in
                     let cacheItem = cacheItems.keys.first(where: { $0.hash == element.value.hash }) ?? CacheItem(
                         name: element.key.target.name,
                         hash: element.value.hash,
@@ -916,7 +935,7 @@ import XcodeGraph
             )
 
             await RunMetadataStorage.current.update(
-                targetContentHashSubhashes: hashesByCacheableTarget.reduce(into: [:]) { result, element in
+                targetContentHashSubhashes: selectedHashesByCacheableTarget.reduce(into: [:]) { result, element in
                     result[element.value.hash] = element.value.subhashes
                 }
             )

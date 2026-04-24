@@ -5,3 +5,18 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
+
+#: lib/tuist_web/components/chart_type_toggle.ex:39
+#, elixir-autogen, elixir-format
+msgid "Group by:"
+msgstr "分組依據："
+
+#: lib/tuist_web/components/chart_type_toggle.ex:53
+#, elixir-autogen, elixir-format
+msgid "Line"
+msgstr "折線圖"
+
+#: lib/tuist_web/components/chart_type_toggle.ex:59
+#, elixir-autogen, elixir-format
+msgid "Scatter plot"
+msgstr "散點圖"

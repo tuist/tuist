@@ -1,5 +1,5 @@
 defmodule Tuist.CommandEventsTest do
-  use TuistTestSupport.Cases.DataCase
+  use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
   alias Tuist.CommandEvents
@@ -1595,7 +1595,8 @@ defmodule Tuist.CommandEventsTest do
       )
 
       # When - skip the newest, get the next one
-      got = CommandEvents.cache_hit_rate_metric_by_count(project.id, :average, limit: 1, offset: 1)
+      got =
+        CommandEvents.cache_hit_rate_metric_by_count(project.id, :average, limit: 1, offset: 1)
 
       # Then - Should only include the 50% hit rate event
       assert got == 0.5
@@ -1651,9 +1652,21 @@ defmodule Tuist.CommandEventsTest do
       project3 = ProjectsFixtures.project_fixture()
 
       now = DateTime.utc_now()
-      CommandEventsFixtures.command_event_fixture(project_id: project1.id, ran_at: DateTime.add(now, -5, :day))
-      CommandEventsFixtures.command_event_fixture(project_id: project2.id, ran_at: DateTime.add(now, -3, :day))
-      CommandEventsFixtures.command_event_fixture(project_id: project3.id, ran_at: DateTime.add(now, -1, :day))
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project1.id,
+        ran_at: DateTime.add(now, -5, :day)
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project2.id,
+        ran_at: DateTime.add(now, -3, :day)
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project3.id,
+        ran_at: DateTime.add(now, -1, :day)
+      )
 
       result = CommandEvents.get_project_last_interaction_data([project1.id, project3.id])
 
@@ -1667,11 +1680,22 @@ defmodule Tuist.CommandEventsTest do
       project = ProjectsFixtures.project_fixture()
 
       now = DateTime.utc_now()
-      CommandEventsFixtures.command_event_fixture(project_id: project.id, ran_at: DateTime.add(now, -10, :day))
-      CommandEventsFixtures.command_event_fixture(project_id: project.id, ran_at: DateTime.add(now, -5, :day))
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        ran_at: DateTime.add(now, -10, :day)
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        ran_at: DateTime.add(now, -5, :day)
+      )
 
       most_recent =
-        CommandEventsFixtures.command_event_fixture(project_id: project.id, ran_at: DateTime.add(now, -1, :day))
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          ran_at: DateTime.add(now, -1, :day)
+        )
 
       result = CommandEvents.get_project_last_interaction_data([project.id])
 

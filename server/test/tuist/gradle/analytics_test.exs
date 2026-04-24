@@ -1,5 +1,5 @@
 defmodule Tuist.Gradle.AnalyticsTest do
-  use TuistTestSupport.Cases.DataCase, async: false
+  use TuistTestSupport.Cases.DataCase, async: true
 
   alias Tuist.Gradle.Analytics
   alias TuistTestSupport.Fixtures.GradleFixtures
@@ -48,7 +48,10 @@ defmodule Tuist.Gradle.AnalyticsTest do
       assert got == 50.0
     end
 
-    test "returns zero when no data exists", %{start_datetime: start_datetime, end_datetime: end_datetime} do
+    test "returns zero when no data exists", %{
+      start_datetime: start_datetime,
+      end_datetime: end_datetime
+    } do
       project = ProjectsFixtures.project_fixture()
 
       got = Analytics.cache_hit_rate(project.id, start_datetime, end_datetime)
@@ -372,7 +375,10 @@ defmodule Tuist.Gradle.AnalyticsTest do
         )
 
       assert Enum.sort_by(got, & &1.category) ==
-               Enum.sort_by([%{value: 1000.0, category: "8.5"}, %{value: 3000.0, category: "8.4"}], & &1.category)
+               Enum.sort_by(
+                 [%{value: 1000.0, category: "8.5"}, %{value: 3000.0, category: "8.4"}],
+                 & &1.category
+               )
     end
   end
 

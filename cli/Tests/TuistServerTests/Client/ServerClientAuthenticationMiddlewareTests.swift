@@ -25,8 +25,11 @@ struct ServerClientAuthenticationMiddlewareTests {
         let response = HTTPResponse(
             status: 200
         )
-        given(serverAuthenticationController).authenticationToken(serverURL: .value(url))
-            .willReturn(nil)
+        given(serverAuthenticationController).authenticationToken(
+            serverURL: .value(url),
+            refreshIfNeeded: .value(true)
+        )
+        .willReturn(nil)
 
         // When / Then
         await #expect(throws: ClientAuthenticationError.notAuthenticated, performing: {
@@ -52,8 +55,11 @@ struct ServerClientAuthenticationMiddlewareTests {
             accessToken: .test(token: "access-token"),
             refreshToken: .test(token: "refresh-token")
         )
-        given(serverAuthenticationController).authenticationToken(serverURL: .value(url))
-            .willReturn(token)
+        given(serverAuthenticationController).authenticationToken(
+            serverURL: .value(url),
+            refreshIfNeeded: .value(true)
+        )
+        .willReturn(token)
         var gotRequest: HTTPRequest!
 
         // When
@@ -95,8 +101,11 @@ struct ServerClientAuthenticationMiddlewareTests {
             authenticationURL: authenticationURL
         )
 
-        given(serverAuthenticationController).authenticationToken(serverURL: .value(authenticationURL))
-            .willReturn(token)
+        given(serverAuthenticationController).authenticationToken(
+            serverURL: .value(authenticationURL),
+            refreshIfNeeded: .value(true)
+        )
+        .willReturn(token)
         var gotRequest: HTTPRequest!
 
         // When
@@ -121,7 +130,10 @@ struct ServerClientAuthenticationMiddlewareTests {
 
         // Verify authentication was requested with the custom URL, not the baseURL
         verify(serverAuthenticationController)
-            .authenticationToken(serverURL: .value(authenticationURL))
+            .authenticationToken(
+                serverURL: .value(authenticationURL),
+                refreshIfNeeded: .value(true)
+            )
             .called(1)
     }
 
@@ -142,8 +154,11 @@ struct ServerClientAuthenticationMiddlewareTests {
             authenticationURL: nil
         )
 
-        given(serverAuthenticationController).authenticationToken(serverURL: .value(baseURL))
-            .willReturn(token)
+        given(serverAuthenticationController).authenticationToken(
+            serverURL: .value(baseURL),
+            refreshIfNeeded: .value(true)
+        )
+        .willReturn(token)
         var gotRequest: HTTPRequest!
 
         // When
@@ -168,7 +183,42 @@ struct ServerClientAuthenticationMiddlewareTests {
 
         // Verify authentication was requested with the baseURL
         verify(serverAuthenticationController)
-            .authenticationToken(serverURL: .value(baseURL))
+            .authenticationToken(
+                serverURL: .value(baseURL),
+                refreshIfNeeded: .value(true)
+            )
             .called(1)
+    }
+
+    @Test func allows_requests_without_a_token_when_optional_authentication_is_enabled() async throws {
+        // Given
+        let url = URL(string: "https://test.tuist.dev")!
+        let request = HTTPRequest(method: .get, scheme: nil, authority: nil, path: "/")
+        let response = HTTPResponse(status: 200)
+        given(serverAuthenticationController).authenticationToken(
+            serverURL: .value(url),
+            refreshIfNeeded: .value(false)
+        )
+        .willReturn(nil)
+        var gotRequest: HTTPRequest!
+
+        // When
+        let (gotResponse, _) = try await ServerAuthenticationConfig.$current.withValue(
+            .init(optionalAuthentication: true)
+        ) {
+            try await subject.intercept(
+                request,
+                body: nil,
+                baseURL: url,
+                operationID: "123"
+            ) { request, body, _ in
+                gotRequest = request
+                return (response, body)
+            }
+        }
+
+        // Then
+        #expect(gotResponse == response)
+        #expect(gotRequest.headerFields == request.headerFields)
     }
 }

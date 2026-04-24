@@ -1,3 +1,5 @@
+alias Ecto.Adapters.SQL.Sandbox
+
 Mimic.copy(Redix)
 Mimic.copy(Sentry)
 Mimic.copy(Sentry.Context)
@@ -113,4 +115,5 @@ Mimic.copy(XcodeProcessor.XCResultProcessor)
 Mimic.copy(Tuist.Tasks)
 
 ExUnit.start(exclude: [:skip])
-Ecto.Adapters.SQL.Sandbox.mode(Tuist.Repo, :manual)
+Sandbox.mode(Tuist.Repo, :manual)
+Sandbox.mode(Tuist.IngestRepo, :manual)

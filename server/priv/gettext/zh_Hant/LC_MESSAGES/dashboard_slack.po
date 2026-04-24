@@ -11,12 +11,12 @@ msgstr ""
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:246
 #, elixir-autogen, elixir-format
 msgid "Account not found. Please try again."
-msgstr "找不到帳號。請再試一次。"
+msgstr "找不到帳戶。請再試一次。"
 
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:148
 #, elixir-autogen, elixir-format
 msgid "Failed to save Slack installation. Please try again."
-msgstr "儲存 Slack 安裝失敗。請再試一次。"
+msgstr "無法儲存 Slack 安裝資料。請再試一次。"
 
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:47
 #, elixir-autogen, elixir-format
@@ -40,7 +40,7 @@ msgstr "Slack 授權失敗：%{reason}"
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:182
 #, elixir-autogen, elixir-format
 msgid "Failed to save channel selection. Please try again."
-msgstr "儲存頻道選擇失敗。請再試一次。"
+msgstr "無法儲存頻道選擇。請再試一次。"
 
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:242
 #, elixir-autogen, elixir-format
@@ -50,7 +50,7 @@ msgstr "找不到專案。請再試一次。"
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:174
 #, elixir-autogen, elixir-format
 msgid "Alert rule not found. Please try again."
-msgstr "找不到警示規則。請再試一次。"
+msgstr "找不到警報規則。請再試一次。"
 
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:89
 #, elixir-autogen, elixir-format

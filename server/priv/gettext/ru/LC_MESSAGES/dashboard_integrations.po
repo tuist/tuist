@@ -4,8 +4,8 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Plural-Forms: nplurals=3; plural=n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 "
-"&& (n%100<10 || n%100>=20) ? 1 : 2;\n"
+"Plural-Forms: nplurals=3; plural=n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && "
+"(n%100<10 || n%100>=20) ? 1 : 2;\n"
 
 #: lib/tuist_web/live/integrations_live.html.heex:50
 #, elixir-autogen, elixir-format
@@ -86,12 +86,12 @@ msgstr "Удалить подключение"
 #: lib/tuist_web/live/integrations_live.ex:16
 #, elixir-autogen, elixir-format
 msgid "You are not authorized to perform this action."
-msgstr "У вас нет прав для выполнения этого действия."
+msgstr "У вас нет разрешения на выполнение этого действия."
 
 #: lib/tuist_web/live/integrations_live.html.heex:38
 #, elixir-autogen, elixir-format
 msgid "Your access to repositories depends on your GitHub and Tuist integration setup."
-msgstr "Ваш доступ к репозиториям зависит от вашей настройки интеграции GitHub и Tuist."
+msgstr "Ваш доступ к репозиториям зависит от настроек интеграции GitHub и Tuist."
 
 #: lib/tuist_web/live/integrations_live.html.heex:190
 #, elixir-autogen, elixir-format
@@ -101,7 +101,7 @@ msgstr "Подключить Slack"
 #: lib/tuist_web/live/integrations_live.html.heex:180
 #, elixir-autogen, elixir-format
 msgid "Connect Slack to receive project analytics reports"
-msgstr "Подключите Slack для получения отчетов по аналитике проекта"
+msgstr "Подключите Slack для получения отчетов по аналитике проектов"
 
 #: lib/tuist_web/live/integrations_live.html.heex:197
 #, elixir-autogen, elixir-format

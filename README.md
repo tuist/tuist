@@ -67,6 +67,7 @@ This repository represents a monorepo with the following projects:
 | ------ | -------  |
 | [cli](/cli) | The command line interface for Tuist |
 | [app](/app) | The Swift-powered iOS and macOS app |
+| [kura](/kura) | The Rust cache mesh service for distributed cache traffic |
 | [docs](/docs) | The documentation for Tuist |
 | [handbook](/handbook) | The company's handbook |
 

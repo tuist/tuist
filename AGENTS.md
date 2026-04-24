@@ -6,6 +6,7 @@ This file provides guidance to AI agents when working with code in this reposito
 - `cli/` - Tuist CLI (Swift) - see `cli/AGENTS.md`
 - `server/` - Tuist Server (Elixir/Phoenix) - see `server/AGENTS.md`
 - `cache/` - Tuist cache service (Elixir/Phoenix) - see `cache/AGENTS.md`
+- `kura/` - Kura distributed cache mesh (Rust) - see `kura/AGENTS.md`
 - `tuist_common/` - Shared Elixir utilities used across services - see `tuist_common/AGENTS.md`
 - `app/` - Tuist iOS and macOS app - see `app/AGENTS.md`
 - `android/` - Tuist Android app (Kotlin/Compose) - see `android/AGENTS.md`
@@ -33,6 +34,7 @@ When creating commits and pull requests, use these conventional commit scopes:
 - `android` - Changes to the Tuist Android app
 - `server` - Changes to the Tuist server (Elixir/Phoenix)
 - `cache` - Changes to the Tuist cache service (Elixir/Phoenix)
+- `kura` - Changes to the Kura distributed cache mesh service
 - `cli` - Changes to the Tuist CLI (Swift)
 - `noora` - Changes to the Noora web component library
 - `skills` - Changes to the Agent Skills package
@@ -45,6 +47,7 @@ Examples:
 - `feat(server): add new telemetry sanitizer module`
 - `fix(cli): resolve cache artifact upload issue`
 - `feat(cache): add new S3 transfer worker`
+- `feat(kura): add peer discovery backoff handling`
 - `feat(skills): add new migration skill`
 - `docs(handbook): update project setup guide`
 
