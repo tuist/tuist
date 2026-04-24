@@ -1,9 +1,21 @@
 defmodule Tuist.Environment do
   @moduledoc false
-  @env Mix.env()
+
+  # Baked at compile time. Production images build with MIX_ENV=prod and
+  # then pick a runtime environment via TUIST_ENV (see env/0) so one image
+  # can serve canary, staging, or production. Test/dev builds ignore
+  # TUIST_ENV so tests can't accidentally flip into a prod-like mode.
+  @compile_env Mix.env()
+
+  @runtime_envs ~w(prod can stag)
 
   def env do
-    @env
+    with :prod <- @compile_env,
+         tuist_env when tuist_env in @runtime_envs <- System.get_env("TUIST_ENV") do
+      String.to_existing_atom(tuist_env)
+    else
+      _ -> @compile_env
+    end
   end
 
   def server_version_identifier do
@@ -22,23 +34,23 @@ defmodule Tuist.Environment do
   def all_envs, do: [:dev, :test, :can, :stag, :prod]
 
   def test? do
-    @env == :test
+    @compile_env == :test
   end
 
   def dev? do
-    @env == :dev
+    @compile_env == :dev
   end
 
   def stag? do
-    @env == :stag
+    env() == :stag
   end
 
   def can? do
-    @env == :can
+    env() == :can
   end
 
   def prod? do
-    @env == :prod
+    env() == :prod
   end
 
   def truthy?(value) do
@@ -858,7 +870,7 @@ defmodule Tuist.Environment do
   It decrypts the secrets and returns them.
   """
   def decrypt_secrets do
-    if @env == :test do
+    if @compile_env == :test do
       {:ok, secrets_map} =
         "priv/secrets/test.yml"
         |> File.read!()

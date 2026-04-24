@@ -99,8 +99,12 @@ RUN set -e; \
       sleep 5; \
     done
 
-# Config files must be present before compiling dependencies
-COPY server/config/config.exs server/config/${MIX_ENV}.exs config/
+# Config files must be present before compiling dependencies. All three
+# managed envs (prod/can/stag) ship in the image so the runtime can
+# select one via TUIST_ENV, but only ${MIX_ENV}.exs is actually imported
+# at compile time by config/config.exs.
+COPY server/config/config.exs config/
+COPY server/config/prod.exs server/config/can.exs server/config/stag.exs config/
 
 # Copy path dependency sources for compilation
 COPY processor/lib /processor/lib
