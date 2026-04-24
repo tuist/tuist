@@ -334,13 +334,13 @@ public struct TuistCommand: AsyncParsableCommand {
         let takeaways = AlertController.current.takeaways()
 
         if !warningAlerts.isEmpty {
-            print("\n")
+            print("")
             Noora.current.warning(warningAlerts)
         }
         let logsNextStep: TerminalText = "Check out the logs at \(logFilePath.pathString)"
 
         if let errorAlert {
-            print("\n")
+            print("")
             var errorAlertNextSteps = errorAlert.takeaways
             if shouldOutputLogFilePath {
                 errorAlertNextSteps.append(logsNextStep)
@@ -352,7 +352,7 @@ public struct TuistCommand: AsyncParsableCommand {
             if shouldOutputLogFilePath {
                 successAlertNextSteps.append(logsNextStep)
             }
-            print("\n")
+            print("")
             Noora.current.success(.alert(successAlert.message, takeaways: successAlertNextSteps))
         }
     }
