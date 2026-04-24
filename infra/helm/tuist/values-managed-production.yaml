@@ -84,6 +84,11 @@ objectStorage:
       registry: tuist-registry
 
 processor:
+  # database.host must be set — either here once we commit to a specific
+  # Supabase project URL, or via --set processor.database.host=... at
+  # deploy time. See infra/supabase/README.md.
+  database:
+    host: ""
   extraEnv:
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
       value: http://alloy-tuist-alloy.observability.svc.cluster.local:4317

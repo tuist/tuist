@@ -166,22 +166,37 @@ processor:
   resources: {}
   extraEnv: []
   # When true, the chart provisions an ExternalSecret that syncs the
-  # processor's DATABASE_URL override (carrying the least-privilege
-  # `tuist_processor` Postgres role) from the configured store (1Password
-  # by default). When false, the URL must be provided via `databaseUrl`
-  # below for self-hosted installs.
+  # `tuist_processor` role password from the configured store (1Password
+  # by default) and composes DATABASE_URL from it + the non-secret
+  # `database:` values below. When false, the full URL must be provided
+  # via `databaseUrl` for self-hosted installs.
   managedSecrets: false
-  # Static DATABASE_URL for self-hosted installs pointing at the Postgres
-  # role provisioned via infra/supabase/tuist-processor-role.sql. Ignored
-  # when managedSecrets is true.
+  # Full DATABASE_URL for self-hosted installs pointing at the Postgres role
+  # provisioned via infra/supabase/tuist-processor-role.sql. Used as-is when
+  # managedSecrets is false; ignored when managedSecrets is true (the URL is
+  # composed from `database:` + the ESO-synced password instead).
   databaseUrl: ""
+  # Non-secret connection parameters composed with the secret password into
+  # DATABASE_URL when `managedSecrets: true`. Kept out of 1P on purpose so
+  # rotation is a single-item update.
+  database:
+    # Supabase project pooler hostname — per-env, set in values-managed-<env>.yaml.
+    host: ""
+    # 6543 for Supavisor (transaction mode, recommended). 5432 for direct
+    # sessions (required if the worker uses SET / advisory locks).
+    port: 6543
+    name: postgres
+    username: tuist_processor
+    # Query params appended to the URL; sslmode=require + channel_binding
+    # matches Supabase defaults. No secrets here either.
+    params: "sslmode=require"
   externalSecrets:
     refreshInterval: "1h"
     storeRef:
       kind: ClusterSecretStore
       name: onepassword
-    databaseUrl:
-      item: PROCESSOR_DATABASE_URL
+    databasePassword:
+      item: PROCESSOR_DATABASE_PASSWORD
       field: password
   strategy:
     type: RollingUpdate

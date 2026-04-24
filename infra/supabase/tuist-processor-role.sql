@@ -19,14 +19,14 @@
 -- `processor.enabled: true` in the Helm chart):
 --
 --   export DIRECT_URL="$(op read 'op://tuist-k8s-<env>/SUPABASE_DIRECT_URL/password')"
---   export PW="$(op read 'op://tuist-k8s-<env>/PROCESSOR_DATABASE_URL/password')"
+--   export PW="$(op read 'op://tuist-k8s-<env>/PROCESSOR_DATABASE_PASSWORD/password')"
 --   psql "$DIRECT_URL" -v pw="$PW" \
 --     -f infra/supabase/tuist-processor-role.sql
 --
 -- Rotation (password only, no schema change):
 --
 --   export PW="$(openssl rand -base64 32 | tr -d '/+=')"
---   op item edit "op://tuist-k8s-<env>/PROCESSOR_DATABASE_URL" password="$PW"
+--   op item edit "op://tuist-k8s-<env>/PROCESSOR_DATABASE_PASSWORD" password="$PW"
 --   psql "$DIRECT_URL" -c "ALTER ROLE tuist_processor WITH PASSWORD '$PW';"
 --
 -- Run this as the `postgres` superuser (Supabase Dashboard → SQL Editor, or

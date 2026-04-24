@@ -31,15 +31,27 @@ Two paths:
 
 The file ends with a `SELECT … information_schema.role_table_grants …` sanity query, so a clean run prints the exact set of tables + privileges the role holds.
 
-## Populating `PROCESSOR_DATABASE_URL` in 1Password
+## Populating 1Password
 
-Construct the URL from the Supabase pooler (port 6543, transaction mode) plus the role's password:
+Only the **password** lives in 1P — the chart composes the full `DATABASE_URL` from it + the non-secret `processor.database.{host,port,username,name,params}` values. Rotation is then a single-item update plus one `ALTER ROLE`.
+
+Put the generated password in the `password` field of a `PROCESSOR_DATABASE_PASSWORD` item in the env's `tuist-k8s-<env>` vault. Set `processor.database.host` in the env's Helm values overlay (the Supabase pooler hostname from Dashboard → Settings → Database → Connection pooling → Host). ESO's `ExternalSecret` in the chart ([`infra/helm/tuist/templates/processor-external-secrets.yaml`](../helm/tuist/templates/processor-external-secrets.yaml)) picks up the password on each refresh and renders:
 
 ```
-postgres://tuist_processor:<PW>@<pooler-host>:6543/postgres?sslmode=require&channel_binding=require
+postgres://tuist_processor:<url-encoded-password>@<host>:6543/postgres?sslmode=require
 ```
 
-Put that full URL in the `password` field of a `PROCESSOR_DATABASE_URL` item in the env's `tuist-k8s-<env>` vault. ESO's `ExternalSecret` in the chart (see [`infra/helm/tuist/templates/processor-external-secrets.yaml`](../helm/tuist/templates/processor-external-secrets.yaml)) picks it up on the next refresh and feeds it to the processor pods as the `DATABASE_URL` env var.
+into the `DATABASE_URL` env var the processor pod reads at boot.
+
+### Rotation
+
+```bash
+export PW="$(openssl rand -base64 32 | tr -d '/+=')"
+op item edit "op://tuist-k8s-<env>/PROCESSOR_DATABASE_PASSWORD" password="$PW"
+psql "$DIRECT_URL" -c "ALTER ROLE tuist_processor WITH PASSWORD '$PW';"
+```
+
+ESO picks up the new password on its next refresh (1h default, `kubectl annotate externalsecret … force-sync=$(date +%s) --overwrite` to trigger sooner), then the processor Deployment rolls as pods re-read the Secret.
 
 ## Why not an Ecto migration
 
