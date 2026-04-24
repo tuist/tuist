@@ -14,6 +14,7 @@ This node covers the `kura/` workspace, a Rust service for low-latency cache mes
 ## Development
 - Install tools from `kura/mise.toml` with `mise install`
 - Run unit tests with `mise exec -- cargo test`
+- Consider Kura work incomplete until `mise exec -- cargo clippy --all-targets -- -D warnings` passes
 - Run the end-to-end suite with `docker compose build && mise exec -- shellspec`
 
 ## Maintenance Notes
