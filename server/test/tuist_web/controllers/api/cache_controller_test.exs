@@ -265,8 +265,7 @@ defmodule TuistWeb.API.CacheControllerTest do
 
       Repo.update!(
         Ecto.Changeset.change(account,
-          current_month_remote_cache_hits_count:
-            Tuist.Billing.get_payment_thresholds()[:remote_cache_hits] * 2
+          current_month_remote_cache_hits_count: Tuist.Billing.get_payment_thresholds()[:remote_cache_hits] * 2
         )
       )
 
@@ -403,8 +402,7 @@ defmodule TuistWeb.API.CacheControllerTest do
 
       Repo.update!(
         Ecto.Changeset.change(account,
-          current_month_remote_cache_hits_count:
-            Tuist.Billing.get_payment_thresholds()[:remote_cache_hits] * 2
+          current_month_remote_cache_hits_count: Tuist.Billing.get_payment_thresholds()[:remote_cache_hits] * 2
         )
       )
 
@@ -531,8 +529,7 @@ defmodule TuistWeb.API.CacheControllerTest do
 
       Repo.update!(
         Ecto.Changeset.change(account,
-          current_month_remote_cache_hits_count:
-            Tuist.Billing.get_payment_thresholds()[:remote_cache_hits] * 2
+          current_month_remote_cache_hits_count: Tuist.Billing.get_payment_thresholds()[:remote_cache_hits] * 2
         )
       )
 
@@ -611,8 +608,7 @@ defmodule TuistWeb.API.CacheControllerTest do
 
       Repo.update!(
         Ecto.Changeset.change(account,
-          current_month_remote_cache_hits_count:
-            Tuist.Billing.get_payment_thresholds()[:remote_cache_hits] * 2
+          current_month_remote_cache_hits_count: Tuist.Billing.get_payment_thresholds()[:remote_cache_hits] * 2
         )
       )
 
@@ -688,8 +684,7 @@ defmodule TuistWeb.API.CacheControllerTest do
 
       Repo.update!(
         Ecto.Changeset.change(account,
-          current_month_remote_cache_hits_count:
-            Tuist.Billing.get_payment_thresholds()[:remote_cache_hits] * 2
+          current_month_remote_cache_hits_count: Tuist.Billing.get_payment_thresholds()[:remote_cache_hits] * 2
         )
       )
 
@@ -861,8 +856,7 @@ defmodule TuistWeb.API.CacheControllerTest do
 
       Repo.update!(
         Ecto.Changeset.change(account,
-          current_month_remote_cache_hits_count:
-            Tuist.Billing.get_payment_thresholds()[:remote_cache_hits] * 2
+          current_month_remote_cache_hits_count: Tuist.Billing.get_payment_thresholds()[:remote_cache_hits] * 2
         )
       )
 
