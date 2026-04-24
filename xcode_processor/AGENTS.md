@@ -40,3 +40,7 @@ mix test
 ## Platform
 
 The `platform/` directory contains nix-darwin configuration for managing Scaleway Mac minis declaratively. Unlike the Linux processor which uses NixOS + Colmena, this uses nix-darwin and `darwin-rebuild switch` directly.
+
+## Dashboards
+
+The Grafana dashboard for this service is checked in at [`infra/grafana-dashboards/xcode-processor-service.json`](../infra/grafana-dashboards/xcode-processor-service.json) and kept in sync with Grafana Cloud via Git Sync. See `infra/AGENTS.md` for the editing workflow.

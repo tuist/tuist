@@ -1,17 +1,23 @@
 name: Server Production Deployment
 
-# Promotion cascade: canary → acceptance tests → production.
+# Promotion cascade: build → canary → acceptance tests → production.
 #
 # Triggers:
-#   push to main     — standard promotion. Commits whose subject contains
+#   push to main     - standard promotion. Commits whose subject contains
 #                      "(hotfix)" fast-path to production without waiting
 #                      for canary + tests.
-#   workflow_dispatch — run the cascade against a pinned SHA (useful to
+#   workflow_dispatch - run the cascade against a pinned SHA (useful to
 #                      re-promote a past commit).
 #
-# Each leg is delegated to server-deployment.yml via workflow_call so
-# plan/build/deploy logic stays in one place. This workflow only owns the
-# cascade shape + acceptance tests.
+# Image architecture: the Docker image is env-agnostic (built once with
+# MIX_ENV=prod) so the same `sha-<SHA>` tag is promoted from canary to
+# production. The runtime picks its environment via TUIST_DEPLOY_ENV (set by the
+# Helm overlay) + MASTER_KEY (ESO). This used to be two ~30-min builds
+# per push; it is now one.
+#
+# Each deploy leg is delegated to server-deployment.yml via workflow_call
+# so plan/deploy logic stays in one place. The first leg builds and
+# publishes the image; subsequent legs pass image_tag to skip rebuilding.
 #
 # Slack notifications:
 #   - Any failure on main → .github/workflows/notify-failure.yml picks up
@@ -24,7 +30,7 @@ name: Server Production Deployment
 #
 # Required per-env secrets (on server-k8s-canary / server-k8s-production
 # GitHub Environments):
-#   KUBECONFIG — base64-encoded kubeconfig for each cluster.
+#   KUBECONFIG - base64-encoded kubeconfig for each cluster.
 
 on:
   push:
@@ -51,17 +57,65 @@ permissions:
   packages: write
   id-token: write
 
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: tuist/tuist
+
 jobs:
   # --------------------------------------------------------------------------
-  # Canary leg — runs for every push (hotfix or not) and for manual dispatch.
-  # On hotfix pushes it still runs as a safety net; the hotfix fast-path below
-  # deploys production in parallel without waiting for tests.
+  # Build once - the image is env-agnostic (MIX_ENV=prod, all env secrets
+  # baked in, TUIST_DEPLOY_ENV picks the runtime behavior). Every downstream leg
+  # deploys this exact tag.
+  # --------------------------------------------------------------------------
+  build:
+    name: Build server image
+    runs-on: namespace-profile-default-with-volume
+    timeout-minutes: 40
+    outputs:
+      image_tag: ${{ steps.tag.outputs.image_tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.commit_sha || github.sha }}
+          submodules: false
+      - id: tag
+        env:
+          DEPLOY_SHA: ${{ inputs.commit_sha || github.sha }}
+        run: echo "image_tag=sha-${DEPLOY_SHA:0:12}" >> "$GITHUB_OUTPUT"
+      - uses: namespacelabs/nscloud-setup-buildx-action@v0
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./server/Dockerfile
+          target: runner
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
+          build-args: |
+            TUIST_HOSTED=1
+            MIX_ENV=prod
+            APT_CACHE_BUST=${{ inputs.commit_sha || github.sha }}
+          cache-from: type=gha,scope=server-cluster
+          cache-to: type=gha,mode=max,scope=server-cluster
+
+  # --------------------------------------------------------------------------
+  # Canary leg - deploys the pre-built image. Runs for every push (hotfix
+  # or not) and for manual dispatch. On hotfix pushes it still runs as a
+  # safety net; the hotfix fast-path below deploys production in parallel
+  # without waiting for tests.
   # --------------------------------------------------------------------------
   canary:
+    needs: build
     uses: ./.github/workflows/server-deployment.yml
     with:
       environment: canary
       commit_sha: ${{ inputs.commit_sha || github.sha }}
+      image_tag: ${{ needs.build.outputs.image_tag }}
     secrets: inherit
 
   acceptance-tests:
@@ -104,11 +158,12 @@ jobs:
         run: tuist test TuistCacheEEAcceptanceTests --no-selective-testing -- -retry-tests-on-failure -test-iterations 2
 
   # --------------------------------------------------------------------------
-  # Production leg — standard path: canary ready + tests green.
+  # Production leg - standard path: canary ready + tests green. Promotes
+  # the same image bytes tests ran against.
   # Skipped on hotfix pushes (the hotfix job below runs instead).
   # --------------------------------------------------------------------------
   production:
-    needs: acceptance-tests
+    needs: [build, acceptance-tests]
     if: >-
       (github.event_name == 'push' && !contains(github.event.head_commit.message, '(hotfix)')) ||
       github.event_name == 'workflow_dispatch'
@@ -116,6 +171,7 @@ jobs:
     with:
       environment: production
       commit_sha: ${{ inputs.commit_sha || github.sha }}
+      image_tag: ${{ needs.build.outputs.image_tag }}
     secrets: inherit
 
   # --------------------------------------------------------------------------
@@ -125,9 +181,11 @@ jobs:
   # urgent fix. Canary still runs above as a safety net.
   # --------------------------------------------------------------------------
   production-hotfix:
+    needs: build
     if: github.event_name == 'push' && contains(github.event.head_commit.message, '(hotfix)')
     uses: ./.github/workflows/server-deployment.yml
     with:
       environment: production
       commit_sha: ${{ github.sha }}
+      image_tag: ${{ needs.build.outputs.image_tag }}
     secrets: inherit

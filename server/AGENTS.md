@@ -124,3 +124,4 @@ Update `server/data-export.md` whenever you change stored customer data (schema,
 - Configuration: `server/config/AGENTS.md`
 - Migrations and seeds: `server/priv/AGENTS.md`
 - Test conventions: `server/test/AGENTS.md`
+- Grafana dashboards (Oban + others): [`infra/grafana-dashboards/`](../infra/grafana-dashboards/) (Git Sync'd with Grafana Cloud — see `infra/AGENTS.md`)
