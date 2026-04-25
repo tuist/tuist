@@ -18,7 +18,7 @@ defmodule TuistWeb.WellKnownController do
     conn
     |> put_resp_header("content-type", AgentDiscovery.api_catalog_content_type())
     |> put_resp_header("link", AgentDiscovery.api_catalog_link_header_value())
-    |> send_resp(:ok, Jason.encode!(catalog))
+    |> send_resp(:ok, JSON.encode!(catalog))
   end
 
   @doc """

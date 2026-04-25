@@ -22,7 +22,7 @@ defmodule TuistWeb.WellKnownControllerTest do
                ~s(</.well-known/api-catalog>; rel="api-catalog"; type="application/linkset+json"; profile="https://www.rfc-editor.org/info/rfc9727")
              ]
 
-      assert Jason.decode!(conn.resp_body) == %{
+      assert JSON.decode!(conn.resp_body) == %{
                "linkset" => [
                  %{
                    "anchor" => "http://www.example.com/api",
@@ -57,7 +57,7 @@ defmodule TuistWeb.WellKnownControllerTest do
                ~s(application/linkset+json; profile="https://www.rfc-editor.org/info/rfc9727")
              ]
 
-      assert Jason.decode!(conn.resp_body) == %{
+      assert JSON.decode!(conn.resp_body) == %{
                "linkset" => [
                  %{
                    "anchor" => "http://www.example.com/api",
