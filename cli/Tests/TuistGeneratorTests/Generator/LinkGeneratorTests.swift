@@ -396,7 +396,7 @@ final class LinkGeneratorTests: XCTestCase {
             .willReturn(dependencies)
 
         // When
-        try subject.generateLinks(
+        _ = try subject.generateLinks(
             target: target,
             pbxTarget: pbxTarget,
             pbxproj: pbxproj,
@@ -560,7 +560,7 @@ final class LinkGeneratorTests: XCTestCase {
             .searchablePathDependencies(path: .any, name: .any)
             .willReturn(Set(dependencies))
         // When
-        try subject.setupFrameworkSearchPath(
+        let sideEffects = try subject.setupFrameworkSearchPath(
             target: target,
             pbxTarget: xcodeprojElements.pbxTarget,
             sourceRootPath: sourceRootPath,
@@ -569,6 +569,7 @@ final class LinkGeneratorTests: XCTestCase {
         )
 
         // Then
+        XCTAssertTrue(sideEffects.isEmpty)
         let config = xcodeprojElements.config
         XCTAssertEqual(config.buildSettings["FRAMEWORK_SEARCH_PATHS"]?.arrayValue, [
             "$(inherited)",
@@ -578,6 +579,82 @@ final class LinkGeneratorTests: XCTestCase {
             "$(SRCROOT)/Dependencies/Libraries",
             "$(SRCROOT)/Dependencies/XCFrameworks",
         ])
+    }
+
+    func test_setupFrameworkSearchPath_consolidatesIntoResponseFile_whenManyPrecompiledPaths() throws {
+        // Given
+        var dependencies: [GraphDependencyReference] = []
+        for i in 0 ..< 25 {
+            dependencies.append(
+                GraphDependencyReference.testXCFramework(
+                    path: try AbsolutePath(validating: "/path/cache/hash\(i)/Module\(i).xcframework")
+                )
+            )
+        }
+        dependencies.append(
+            GraphDependencyReference.testSDK(path: "/XCTest.framework", source: .developer)
+        )
+
+        let sourceRootPath = try AbsolutePath(validating: "/path")
+        let xcodeprojElements = createXcodeprojElements()
+        let target = Target.test(name: "MyTarget")
+        let path = try AbsolutePath(validating: "/path/")
+        let graphTraverser = MockGraphTraversing()
+        given(graphTraverser)
+            .searchablePathDependencies(path: .any, name: .any)
+            .willReturn(Set(dependencies))
+
+        // When
+        let sideEffects = try subject.setupFrameworkSearchPath(
+            target: target,
+            pbxTarget: xcodeprojElements.pbxTarget,
+            sourceRootPath: sourceRootPath,
+            path: path,
+            graphTraverser: graphTraverser
+        )
+
+        // Then
+
+        // Should produce a response file side effect
+        XCTAssertEqual(sideEffects.count, 1)
+        guard case let .file(fileDescriptor) = sideEffects.first else {
+            XCTFail("Expected file side effect")
+            return
+        }
+        XCTAssertTrue(fileDescriptor.path.pathString.hasSuffix("Derived/FrameworkSearchPaths/MyTarget.resp"))
+
+        // Response file should contain -F flags with absolute paths
+        let responseContent = String(data: fileDescriptor.contents!, encoding: .utf8)!
+        for i in 0 ..< 25 {
+            XCTAssertTrue(
+                responseContent.contains("-F/path/cache/hash\(i)"),
+                "Response file should contain -F flag for hash\(i)"
+            )
+        }
+
+        // FRAMEWORK_SEARCH_PATHS should only contain SDK paths (no precompiled)
+        let config = xcodeprojElements.config
+        let frameworkSearchPaths = config.buildSettings["FRAMEWORK_SEARCH_PATHS"]?.arrayValue ?? []
+        XCTAssertTrue(frameworkSearchPaths.contains("$(inherited)"))
+        XCTAssertTrue(frameworkSearchPaths.contains("$(PLATFORM_DIR)/Developer/Library/Frameworks"))
+        for i in 0 ..< 25 {
+            XCTAssertFalse(
+                frameworkSearchPaths.contains { $0.contains("hash\(i)") },
+                "FRAMEWORK_SEARCH_PATHS should not contain precompiled path hash\(i)"
+            )
+        }
+
+        // OTHER_CFLAGS should reference the response file
+        let otherCFlags = config.buildSettings["OTHER_CFLAGS"]?.arrayValue ?? []
+        XCTAssertTrue(otherCFlags.contains { $0.contains("@$(SRCROOT)/Derived/FrameworkSearchPaths/MyTarget.resp") })
+
+        // OTHER_SWIFT_FLAGS should reference the response file
+        let otherSwiftFlags = config.buildSettings["OTHER_SWIFT_FLAGS"]?.arrayValue ?? []
+        XCTAssertTrue(otherSwiftFlags.contains { $0.contains("@$(SRCROOT)/Derived/FrameworkSearchPaths/MyTarget.resp") })
+
+        // OTHER_LDFLAGS should reference the response file
+        let otherLDFlags = config.buildSettings["OTHER_LDFLAGS"]?.arrayValue ?? []
+        XCTAssertTrue(otherLDFlags.contains { $0.contains("@$(SRCROOT)/Derived/FrameworkSearchPaths/MyTarget.resp") })
     }
 
     func test_setupHeadersSearchPath() throws {
