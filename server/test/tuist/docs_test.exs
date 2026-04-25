@@ -50,4 +50,18 @@ defmodule Tuist.DocsTest do
       assert migration_page.body =~ "localized_link"
     end
   end
+
+  describe "get_page/2" do
+    test "loads an English documentation page from locale and path segments" do
+      page = Docs.get_page("en", ["guides", "install-tuist"])
+
+      assert page.slug == "/en/guides/install-tuist"
+      assert page.title == "Install Tuist"
+      assert page.markdown =~ "# Install Tuist"
+    end
+
+    test "returns nil when the docs page does not exist" do
+      assert Docs.get_page("en", ["guides", "does-not-exist"]) == nil
+    end
+  end
 end
