@@ -37,10 +37,14 @@ server:
       load-balancer.hetzner.cloud/name: tuist-canary
 
   # Canary is always a single pod, so no anti-affinity here.
+  # Requests are sized so a rolling deploy's surge pod (maxSurge: 1) fits
+  # alongside the existing pod on the canary nodepool's two workers — at
+  # 1 GiB each they don't both fit. Limits stay generous so the live pod
+  # has headroom under load.
   resources:
     requests:
-      cpu: "500m"
-      memory: "1Gi"
+      cpu: "250m"
+      memory: "512Mi"
     limits:
       cpu: "2000m"
       memory: "2Gi"
