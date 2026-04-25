@@ -481,19 +481,21 @@ defmodule Tuist.Tests do
   end
 
   defp compute_final_shard_status(existing_test, current_shard_status) do
-    has_failed_shard =
-      ClickHouseRepo.one(
+    shard_statuses =
+      ClickHouseRepo.all(
         from(sr in ShardRun,
           where: sr.test_run_id == ^existing_test.id,
-          where: sr.status == "failure",
-          select: count(),
-          limit: 1
+          select: sr.status
         )
-      ) || 0
+      ) || []
+
+    shard_statuses = [current_shard_status | shard_statuses]
 
     cond do
-      current_shard_status == "failure" -> "failure"
-      has_failed_shard > 0 -> "failure"
+      Enum.any?(shard_statuses, &(&1 == "failure")) -> "failure"
+      Enum.any?(shard_statuses, &(&1 == "failed_processing")) -> "failed_processing"
+      Enum.any?(shard_statuses, &(&1 in ["processing", "in_progress"])) -> "processing"
+      Enum.all?(shard_statuses, &(&1 == "skipped")) -> "skipped"
       true -> "success"
     end
   end

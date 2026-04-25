@@ -44,6 +44,8 @@ public struct TuistAcceptanceTestFixtureTestingTrait: TestTrait, SuiteTrait, Tes
                         component: fixtureDirectory.basename
                     )
                     try await fileSystem.copy(fixtureDirectory, to: fixtureTemporaryDirectory)
+                    Environment.mocked?.currentWorkingDirectoryStub = fixtureTemporaryDirectory
+                    Environment.mocked?.variables.removeValue(forKey: EnvKey.testShardIndex.rawValue)
                     try await TuistTest.$fixtureDirectory.withValue(fixtureTemporaryDirectory) {
                         try await TuistTest.$fixtureAccountHandle.withValue(organizationHandle) {
                             try await TuistTest.$fixtureFullHandle.withValue(fullHandle) {

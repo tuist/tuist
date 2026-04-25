@@ -35,6 +35,7 @@ public final class MockEnvironment: Environmenting, @unchecked Sendable {
     public var isGitHubActions: Bool = false
     public var variables: [String: String] = [:]
     public var arguments: [String] = []
+    public var currentWorkingDirectoryStub: AbsolutePath?
     public var workspacePath: AbsolutePath?
     public var schemeName: String?
     public var currentExecutablePathStub: AbsolutePath?
@@ -55,7 +56,7 @@ public final class MockEnvironment: Environmenting, @unchecked Sendable {
     }
 
     public func currentWorkingDirectory() async throws -> AbsolutePath {
-        baseDirectory.appending(component: "current")
+        currentWorkingDirectoryStub ?? baseDirectory.appending(component: "current")
     }
 
     public var cacheDirectory: AbsolutePath

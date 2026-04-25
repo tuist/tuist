@@ -363,6 +363,24 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
                ProcessXcresultWorker.perform(oban_job(job_args(test_run_id, account.id, project.id)))
     end
 
+    test "marks parsed xcresult payloads without a status as failed_processing", %{
+      account: account,
+      project: project
+    } do
+      test_run_id = Ecto.UUID.generate()
+      body = Map.delete(parsed_data(), "status")
+
+      expect(Req, :post, fn _url, _opts -> {:ok, %{status: 200, body: body}} end)
+
+      expect(Tuist.Tests, :create_test, fn attrs ->
+        assert attrs.status == "failed_processing"
+        {:ok, %{id: test_run_id}}
+      end)
+
+      assert :ok ==
+               ProcessXcresultWorker.perform(oban_job(job_args(test_run_id, account.id, project.id)))
+    end
+
     test "signs webhook request with HMAC-SHA256", %{account: account, project: project} do
       test_run_id = Ecto.UUID.generate()
 

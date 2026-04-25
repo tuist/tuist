@@ -1755,6 +1755,125 @@ defmodule Tuist.TestsTest do
       assert test.shard_plan_id == plan.id
     end
 
+    test "skipped shards stay skipped after the final shard reports" do
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+
+      {:ok, _first_test} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 500,
+          status: "skipped",
+          model_identifier: "Mac15,6",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "main",
+          git_commit_sha: "abc123",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: 0,
+          test_modules: [
+            %{
+              name: "ModuleA",
+              status: "success",
+              duration: 500,
+              test_cases: [
+                %{name: "testA", status: "skipped", duration: 500}
+              ]
+            }
+          ]
+        })
+
+      {:ok, updated_test} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 800,
+          status: "skipped",
+          model_identifier: "Mac15,6",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "main",
+          git_commit_sha: "abc123",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: 1,
+          test_modules: [
+            %{
+              name: "ModuleB",
+              status: "success",
+              duration: 800,
+              test_cases: [
+                %{name: "testB", status: "skipped", duration: 800}
+              ]
+            }
+          ]
+        })
+
+      assert updated_test.status == "skipped"
+    end
+
+    test "failed_processing in a shard propagates to the final status" do
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+
+      {:ok, _first_test} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 500,
+          status: "success",
+          model_identifier: "Mac15,6",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "main",
+          git_commit_sha: "abc123",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: 0,
+          test_modules: [
+            %{
+              name: "ModuleA",
+              status: "success",
+              duration: 500,
+              test_cases: [
+                %{name: "testA", status: "success", duration: 500}
+              ]
+            }
+          ]
+        })
+
+      {:ok, updated_test} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 800,
+          status: "failed_processing",
+          model_identifier: "Mac15,6",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "main",
+          git_commit_sha: "abc123",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: 1,
+          test_modules: []
+        })
+
+      assert updated_test.status == "failed_processing"
+    end
+
     test "failure in first shard propagates to final status" do
       project = ProjectsFixtures.project_fixture()
       account = AccountsFixtures.user_fixture(preload: [:account]).account
