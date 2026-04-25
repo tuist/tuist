@@ -13,10 +13,13 @@ defmodule TuistWeb.RobotsTxtControllerTest do
       assert body =~ "Content-Usage: /en/docs train-ai=y, search=y"
       assert body =~ "Content-Usage: /en/docs-markdown train-ai=y, search=y"
       assert body =~ "Disallow: /api/"
+      assert body =~ "Disallow: /docs"
       assert body =~ "Disallow: /*/module-cache"
 
       refute body =~ "Content-Usage: /docs/login"
       refute body =~ "Content-Usage: /marketing"
+      refute body =~ "Disallow: /robots.txt"
+      refute body =~ "Disallow: /.well-known/api-catalog"
       refute body =~ "Disallow: /live/"
       refute body =~ "Disallow: /*/cache-runs"
 

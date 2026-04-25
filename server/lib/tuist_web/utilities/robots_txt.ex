@@ -2,8 +2,9 @@ defmodule TuistWeb.Utilities.RobotsTxt do
   @moduledoc """
   Builds the runtime robots.txt payload for Tuist's public site.
 
-  Both Content-Usage and Disallow entries are derived from Phoenix route
-  metadata so the declared crawler policy stays aligned with the router.
+  Public Content-Usage entries come from explicit Phoenix route metadata.
+  Routes without robots metadata default to Disallow entries derived from the
+  router so crawler policy stays aligned with the application.
   """
 
   alias TuistWeb.Marketing.Localization
@@ -50,21 +51,37 @@ defmodule TuistWeb.Utilities.RobotsTxt do
       Enum.any?(prefix_pattern_entries, fn prefix_entry ->
         prefix_entry != entry and
           prefix_entry.content_usage == entry.content_usage and
-          String.starts_with?(normalized_pattern, String.trim_trailing(prefix_entry.pattern, "$") <> "/")
+          String.starts_with?(
+            normalized_pattern,
+            String.trim_trailing(prefix_entry.pattern, "$") <> "/"
+          )
       end)
     end)
     |> Enum.sort_by(&sort_key(&1.pattern))
   end
 
   def disallow_patterns do
-    Router.__routes__()
-    |> Enum.flat_map(&route_disallow_patterns/1)
+    routes = Router.__routes__()
+    default_disallow_paths = Enum.map(default_disallow_routes(routes), & &1.path)
+    exempt_paths = Enum.map(exempt_routes(routes), & &1.path)
+
+    routes
+    |> Enum.flat_map(&route_disallow_patterns(&1, exempt_paths, default_disallow_paths))
     |> Enum.uniq()
+    |> remove_covered_patterns()
     |> Enum.sort_by(&disallow_sort_key/1)
   end
 
   defp content_usage_routes do
     Enum.filter(Router.__routes__(), &content_usage_route?/1)
+  end
+
+  defp default_disallow_routes(routes) do
+    Enum.filter(routes, &default_disallow_route?/1)
+  end
+
+  defp exempt_routes(routes) do
+    Enum.filter(routes, &exempt_route?/1)
   end
 
   defp content_usage_route?(%{verb: :get, metadata: metadata}) when is_map(metadata) do
@@ -73,30 +90,132 @@ defmodule TuistWeb.Utilities.RobotsTxt do
 
   defp content_usage_route?(_), do: false
 
-  defp route_disallow_patterns(%{metadata: metadata}) when is_map(metadata) do
-    metadata
-    |> robots_txt_options()
-    |> case do
-      %{disallow: disallow} -> disallow
-      _ -> []
+  defp default_disallow_route?(%{metadata: metadata}) when is_map(metadata) do
+    robots_txt_setting(metadata) == :default_disallow
+  end
+
+  defp default_disallow_route?(_), do: false
+
+  defp exempt_route?(%{metadata: metadata}) when is_map(metadata) do
+    case robots_txt_setting(metadata) do
+      :default_disallow -> false
+      _ -> true
     end
   end
 
-  defp route_disallow_patterns(_), do: []
+  defp exempt_route?(_), do: false
+
+  defp route_disallow_patterns(%{path: path, metadata: metadata}, exempt_paths, default_disallow_paths)
+       when is_map(metadata) do
+    case robots_txt_setting(metadata) do
+      :default_disallow ->
+        path
+        |> default_disallow_candidates()
+        |> Enum.find(&safe_disallow_pattern?(&1, exempt_paths))
+        |> case do
+          nil -> []
+          pattern -> [format_disallow_pattern(pattern, default_disallow_paths)]
+        end
+
+      _ ->
+        []
+    end
+  end
+
+  defp route_disallow_patterns(_route, _exempt_paths, _default_disallow_paths), do: []
+
+  defp safe_disallow_pattern?(pattern, exempt_paths) do
+    not Enum.any?(exempt_paths, &disallow_pattern_matches_path?(pattern, &1))
+  end
+
+  defp default_disallow_candidates(path) do
+    segments = String.split(path, "/", trim: true)
+
+    case Enum.find_index(segments, &(not dynamic_segment?(&1))) do
+      nil ->
+        []
+
+      0 ->
+        incremental_path_patterns(segments, "")
+
+      index ->
+        segments
+        |> Enum.drop(index)
+        |> incremental_path_patterns("/*")
+    end
+  end
+
+  defp incremental_path_patterns(segments, prefix) do
+    Enum.map(1..length(segments), fn count ->
+      pattern_tail =
+        segments
+        |> Enum.take(count)
+        |> Enum.map_join("/", &path_pattern_segment/1)
+
+      case prefix do
+        "" -> "/" <> pattern_tail
+        _ -> prefix <> "/" <> pattern_tail
+      end
+    end)
+  end
+
+  defp path_pattern_segment(segment) do
+    if dynamic_segment?(segment), do: "*", else: segment
+  end
+
+  defp format_disallow_pattern(pattern, default_disallow_paths) do
+    cond do
+      String.contains?(pattern, "*") ->
+        pattern
+
+      pattern in default_disallow_paths ->
+        pattern
+
+      Enum.any?(default_disallow_paths, &String.starts_with?(&1, pattern <> "/")) ->
+        pattern <> "/"
+
+      true ->
+        pattern
+    end
+  end
+
+  defp remove_covered_patterns(patterns) do
+    patterns
+    |> Enum.sort_by(&{String.length(&1), &1})
+    |> Enum.reduce([], fn pattern, acc ->
+      if Enum.any?(acc, &disallow_pattern_matches_path?(&1, pattern)) do
+        acc
+      else
+        acc ++ [pattern]
+      end
+    end)
+  end
+
+  defp disallow_pattern_matches_path?(pattern, path) do
+    pattern
+    |> Regex.escape()
+    |> String.replace("\\*", ".*")
+    |> then(&Regex.match?(~r/^#{&1}/, path))
+  end
 
   defp prefixes_by_route(routes) do
     Enum.reduce(routes, %{}, fn route, acc ->
       route
       |> route_prefixes()
       |> Enum.reduce(acc, fn {prefix, dynamic?, content_usage}, acc ->
-        Map.update(acc, prefix, %{dynamic?: dynamic?, content_usage: content_usage}, fn existing ->
-          if existing.content_usage != content_usage do
-            raise ArgumentError,
-                  "conflicting robots.txt content usage for #{prefix}: #{inspect(existing.content_usage)} vs #{inspect(content_usage)}"
-          end
+        Map.update(
+          acc,
+          prefix,
+          %{dynamic?: dynamic?, content_usage: content_usage},
+          fn existing ->
+            if existing.content_usage != content_usage do
+              raise ArgumentError,
+                    "conflicting robots.txt content usage for #{prefix}: #{inspect(existing.content_usage)} vs #{inspect(content_usage)}"
+            end
 
-          %{existing | dynamic?: existing.dynamic? or dynamic?}
-        end)
+            %{existing | dynamic?: existing.dynamic? or dynamic?}
+          end
+        )
       end)
     end)
   end
@@ -136,65 +255,25 @@ defmodule TuistWeb.Utilities.RobotsTxt do
     String.starts_with?(segment, ":") or String.starts_with?(segment, "*")
   end
 
-  defp robots_txt_options(metadata) do
-    metadata
-    |> Map.get(:robots_txt)
-    |> normalize_robots_txt_options()
-  end
-
-  defp normalize_robots_txt_options(nil), do: nil
-
-  defp normalize_robots_txt_options(robots_txt) when is_map(robots_txt) do
-    normalize_robots_txt_options(Map.to_list(robots_txt))
-  end
-
-  defp normalize_robots_txt_options(robots_txt) when is_list(robots_txt) do
-    content_usage =
-      robots_txt
-      |> content_usage_value()
-      |> normalize_content_usage_config()
-
-    disallow =
-      robots_txt
-      |> option_value(:disallow)
-      |> normalize_disallow_patterns()
-
-    if is_nil(content_usage) and disallow == [] do
-      nil
-    else
-      %{content_usage: content_usage, disallow: disallow}
+  defp robots_txt_setting(metadata) do
+    case Map.fetch(metadata, :robots_txt) do
+      :error -> :default_disallow
+      {:ok, false} -> :no_robots_txt
+      {:ok, nil} -> :no_robots_txt
+      {:ok, robots_txt} -> normalize_robots_txt_setting(robots_txt)
     end
   end
 
-  defp content_usage_value(robots_txt) do
-    direct_content_usage =
-      Enum.filter(robots_txt, fn {key, _value} ->
-        not is_nil(normalize_robots_txt_key(key))
-      end)
-
-    if direct_content_usage == [] do
-      option_value(robots_txt, :content_usage)
-    else
-      direct_content_usage
+  defp normalize_robots_txt_setting(robots_txt) do
+    case normalize_content_usage_config(robots_txt) do
+      nil -> :no_robots_txt
+      content_usage -> %{content_usage: content_usage}
     end
   end
-
-  defp option_value(options, expected_key) do
-    Enum.find_value(options, fn {key, value} ->
-      if normalize_robots_txt_option_key(key) == expected_key, do: value
-    end)
-  end
-
-  defp normalize_robots_txt_option_key(:content_usage), do: :content_usage
-  defp normalize_robots_txt_option_key("content_usage"), do: :content_usage
-  defp normalize_robots_txt_option_key("content-usage"), do: :content_usage
-  defp normalize_robots_txt_option_key(:disallow), do: :disallow
-  defp normalize_robots_txt_option_key("disallow"), do: :disallow
-  defp normalize_robots_txt_option_key(_), do: nil
 
   defp content_usage_config(metadata) do
     metadata
-    |> robots_txt_options()
+    |> robots_txt_setting()
     |> case do
       %{content_usage: content_usage} -> content_usage
       _ -> nil
@@ -215,15 +294,6 @@ defmodule TuistWeb.Utilities.RobotsTxt do
       pairs -> sort_robots_txt_pairs(pairs)
     end
   end
-
-  defp normalize_disallow_patterns(nil), do: []
-  defp normalize_disallow_patterns(pattern) when is_binary(pattern), do: [pattern]
-
-  defp normalize_disallow_patterns(patterns) when is_list(patterns) do
-    Enum.filter(patterns, &is_binary/1)
-  end
-
-  defp normalize_disallow_patterns(_), do: []
 
   defp sort_robots_txt_pairs(robots_txt_pairs) do
     Enum.sort_by(robots_txt_pairs, fn {key, _value} ->
@@ -313,6 +383,6 @@ defmodule TuistWeb.Utilities.RobotsTxt do
   end
 
   defp disallow_sort_key(pattern) do
-    {String.starts_with?(pattern, "/*/"), pattern}
+    {String.starts_with?(pattern, "/*"), pattern}
   end
 end
