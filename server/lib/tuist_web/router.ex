@@ -186,6 +186,10 @@ defmodule TuistWeb.Router do
     plug TuistWeb.AnalyticsPlug, :track_page_view
   end
 
+  scope "/", TuistWeb do
+    get "/robots.txt", RobotsTxtController, :show
+  end
+
   # Marketing
 
   scope "/" do

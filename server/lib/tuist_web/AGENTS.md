@@ -6,6 +6,10 @@ This directory contains the web interface: Phoenix controllers, LiveView, and AP
 - HTTP routing, controllers, and API surface.
 - LiveView components for the UI and marketing site.
 
+## Route Metadata
+- `server/lib/tuist_web/router.ex` route metadata for public `:marketing` and `:docs` GET endpoints feeds the runtime `robots.txt` Content-Usage allowlist.
+- When adding or changing public marketing/docs routes, keep `metadata: %{type: :marketing}` or `:docs` accurate and update the `TuistWeb.Utilities.RobotsTxt` exclusions only for non-content endpoints.
+
 ## Boundaries
 - Business logic should remain in `server/lib/tuist`.
 - Frontend assets (JS/CSS) are in `server/assets`.

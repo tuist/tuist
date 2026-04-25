@@ -5,6 +5,7 @@ This area owns web-layer utilities (query helpers, hashing).
 ## Responsibilities
 - Provide query string manipulation utilities.
 - Provide helpers like SHA and misc web utilities.
+- Generate runtime machine-readable responses such as `robots.txt` when they need to stay in sync with Phoenix routes.
 
 ## Boundaries
 - Domain logic belongs in `server/lib/tuist` contexts.
