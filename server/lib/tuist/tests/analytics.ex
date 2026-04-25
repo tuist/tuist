@@ -110,7 +110,11 @@ defmodule Tuist.Tests.Analytics do
   @doc """
   Returns analytics for quarantined tests count over time for a project.
   This computes the number of quarantined tests at each time bucket by
-  tracking quarantine/unquarantine events from the test_case_events table.
+  tracking mute/unmute events from the test_case_events table.
+
+  Honors both the current event names (`muted` / `unmuted`) and the legacy
+  names (`quarantined` / `unquarantined`) so historical events recorded
+  before the rename still contribute to the time series.
   """
   def quarantined_tests_analytics(project_id, opts \\ []) do
     start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
@@ -133,7 +137,7 @@ defmodule Tuist.Tests.Analytics do
       ClickHouseRepo.all(
         from(e in TestCaseEvent,
           where: e.test_case_id in subquery(project_test_case_ids_subquery),
-          where: e.event_type in ["quarantined", "unquarantined"],
+          where: e.event_type in ^Tests.mute_event_types(),
           where: e.inserted_at <= ^max_endpoint,
           select: %{test_case_id: e.test_case_id, event_type: e.event_type, inserted_at: e.inserted_at},
           order_by: [asc: e.inserted_at]
@@ -152,7 +156,7 @@ defmodule Tuist.Tests.Analytics do
             |> Enum.take_while(&(NaiveDateTime.compare(&1.inserted_at, endpoint_naive) != :gt))
             |> List.last()
 
-          last_event != nil and last_event.event_type == "quarantined"
+          last_event != nil and last_event.event_type in Tests.muted_event_types()
         end)
       end)
 

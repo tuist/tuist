@@ -1957,6 +1957,107 @@ defmodule Tuist.Tests.AnalyticsTest do
       assert Enum.all?(values_after_20, &(&1 == 1))
     end
 
+    test "counts muted events the same as legacy quarantined events" do
+      # `update_test_case` currently emits `muted` / `unmuted` events; older
+      # rows use `quarantined` / `unquarantined`. Both must contribute to the
+      # chart or recent mutes disappear from the time series.
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:00:00Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      legacy_test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          name: "legacy",
+          is_quarantined: true,
+          inserted_at: ~N[2024-04-01 00:00:00.000000]
+        )
+
+      current_test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          name: "current",
+          state: "muted",
+          inserted_at: ~N[2024-04-01 00:00:00.000000]
+        )
+
+      IngestRepo.insert_all(TestCase, [
+        legacy_test_case |> Map.from_struct() |> Map.delete(:__meta__),
+        current_test_case |> Map.from_struct() |> Map.delete(:__meta__)
+      ])
+
+      RunsFixtures.test_case_event_fixture(
+        test_case_id: legacy_test_case.id,
+        event_type: "quarantined",
+        inserted_at: ~N[2024-04-05 12:00:00.000000]
+      )
+
+      RunsFixtures.test_case_event_fixture(
+        test_case_id: current_test_case.id,
+        event_type: "muted",
+        inserted_at: ~N[2024-04-10 12:00:00.000000]
+      )
+
+      got =
+        Analytics.quarantined_tests_analytics(
+          project.id,
+          start_datetime: ~U[2024-04-01 00:00:00Z],
+          end_datetime: ~U[2024-04-30 23:59:59Z]
+        )
+
+      assert got.count == 2
+      assert Enum.max(got.values) == 2
+
+      april_10_index = Enum.find_index(got.dates, &(&1 == ~D[2024-04-10]))
+      assert april_10_index
+      values_after_10 = Enum.drop(got.values, april_10_index)
+      assert Enum.all?(values_after_10, &(&1 == 2))
+    end
+
+    test "unmuted event reverses a prior muted event" do
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:00:00Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          state: "enabled",
+          inserted_at: ~N[2024-04-01 00:00:00.000000]
+        )
+
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      RunsFixtures.test_case_event_fixture(
+        test_case_id: test_case.id,
+        event_type: "muted",
+        inserted_at: ~N[2024-04-10 12:00:00.000000]
+      )
+
+      RunsFixtures.test_case_event_fixture(
+        test_case_id: test_case.id,
+        event_type: "unmuted",
+        inserted_at: ~N[2024-04-20 12:00:00.000000]
+      )
+
+      got =
+        Analytics.quarantined_tests_analytics(
+          project.id,
+          start_datetime: ~U[2024-04-01 00:00:00Z],
+          end_datetime: ~U[2024-04-30 23:59:59Z]
+        )
+
+      april_10_index = Enum.find_index(got.dates, &(&1 == ~D[2024-04-10]))
+      april_20_index = Enum.find_index(got.dates, &(&1 == ~D[2024-04-20]))
+
+      assert april_10_index
+      assert april_20_index
+
+      values_between = Enum.slice(got.values, april_10_index..(april_20_index - 1))
+      assert Enum.all?(values_between, &(&1 == 1))
+
+      values_after_20 = Enum.drop(got.values, april_20_index)
+      assert Enum.all?(values_after_20, &(&1 == 0))
+    end
+
     test "chart values are not inflated by duplicate quarantine events" do
       # Simulates pre-fix behavior: ingestion silently resets is_quarantined
       # without creating "unquarantined" events, then auto-quarantine creates

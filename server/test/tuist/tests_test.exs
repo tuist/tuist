@@ -2497,6 +2497,52 @@ defmodule Tuist.TestsTest do
       assert Enum.at(test_cases_desc, 2).name == "fastTest"
     end
 
+    test "paginates deterministically when last_ran_at has ties" do
+      # An automation sweep typically mutes many test cases at the same
+      # ran_at timestamp. Without a stable secondary sort, ClickHouse can
+      # reshuffle tied rows between pages, causing the same test case to
+      # appear on multiple pages (and others to be dropped entirely).
+      project = ProjectsFixtures.project_fixture()
+      ran_at = NaiveDateTime.utc_now()
+
+      test_cases =
+        for i <- 1..10 do
+          RunsFixtures.test_case_fixture(
+            project_id: project.id,
+            name: "tiedTest_#{i}",
+            state: "muted",
+            last_ran_at: ran_at,
+            inserted_at: ran_at
+          )
+        end
+
+      IngestRepo.insert_all(
+        TestCase,
+        Enum.map(test_cases, &(&1 |> Map.from_struct() |> Map.delete(:__meta__)))
+      )
+
+      attrs_base = %{
+        filters: [%{field: :state, op: :==, value: "muted"}],
+        order_by: [:last_ran_at],
+        order_directions: [:desc],
+        page_size: 3
+      }
+
+      for_result =
+        for page <- 1..4 do
+          {rows, _meta} = Tests.list_test_cases(project.id, Map.put(attrs_base, :page, page))
+          Enum.map(rows, & &1.id)
+        end
+
+      collected = List.flatten(for_result)
+
+      assert length(collected) == 10
+      assert length(Enum.uniq(collected)) == 10
+
+      expected_ids = MapSet.new(test_cases, & &1.id)
+      assert MapSet.new(collected) == expected_ids
+    end
+
     test "preserves state when a new test run is ingested" do
       # Given
       project = ProjectsFixtures.project_fixture()
@@ -6732,6 +6778,37 @@ defmodule Tuist.TestsTest do
       assert hd(user1_results).name == "user1QuarantinedTest"
     end
 
+    test "resolves quarantine actor from a muted event (post-rename)" do
+      # update_test_case now emits `muted` events instead of the legacy
+      # `quarantined` name. The quarantine-actor lookup must recognize both
+      # or manually-muted tests lose their "Quarantined by" attribution.
+      project = ProjectsFixtures.project_fixture()
+      user = AccountsFixtures.user_fixture(preload: [:account])
+
+      test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          name: "mutedByUser",
+          state: "muted"
+        )
+
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      RunsFixtures.test_case_event_fixture(
+        test_case_id: test_case.id,
+        event_type: "muted",
+        actor_id: user.account.id
+      )
+
+      {results, _} =
+        Tests.list_quarantined_test_cases(project.id, %{
+          filters: [%{field: :quarantined_by, op: :==, value: user.account.id}]
+        })
+
+      assert length(results) == 1
+      assert hd(results).name == "mutedByUser"
+    end
+
     test "filters by module_name" do
       project = ProjectsFixtures.project_fixture()
 
@@ -7007,6 +7084,35 @@ defmodule Tuist.TestsTest do
 
       actors2 = Tests.get_quarantine_actors(project2.id)
       assert actors2 == []
+    end
+
+    test "returns actors whose attribution comes from a muted event" do
+      # Post-rename, `update_test_case` emits `muted` rather than
+      # `quarantined`. The actor lookup must include both or the
+      # "Quarantined by" filter dropdown loses every user who muted a test
+      # after the rename landed.
+      project = ProjectsFixtures.project_fixture()
+      user = AccountsFixtures.user_fixture(preload: [:account])
+
+      test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          name: "mutedByUser",
+          state: "muted"
+        )
+
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      RunsFixtures.test_case_event_fixture(
+        test_case_id: test_case.id,
+        event_type: "muted",
+        actor_id: user.account.id
+      )
+
+      actors = Tests.get_quarantine_actors(project.id)
+
+      assert length(actors) == 1
+      assert hd(actors).id == user.account.id
     end
   end
 

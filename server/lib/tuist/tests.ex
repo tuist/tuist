@@ -61,6 +61,31 @@ defmodule Tuist.Tests do
   """
   def active_window_days, do: @active_window_days
 
+  # The state-change events currently emitted by `update_test_case` use the
+  # `muted` / `unmuted` names. Prior to the rename in the automations engine
+  # PR, these were recorded as `quarantined` / `unquarantined`. Queries that
+  # reconstruct state from event history must include both so rows written
+  # before the rename continue to contribute.
+  @muted_event_types ~w(muted quarantined)
+  @unmuted_event_types ~w(unmuted unquarantined)
+  @mute_event_types @muted_event_types ++ @unmuted_event_types
+
+  @doc """
+  Event types that put a test case into the muted (a.k.a. quarantined) state.
+  """
+  def muted_event_types, do: @muted_event_types
+
+  @doc """
+  Event types that take a test case out of the muted state.
+  """
+  def unmuted_event_types, do: @unmuted_event_types
+
+  @doc """
+  All mute-related event type names, including both current (`muted` /
+  `unmuted`) and legacy (`quarantined` / `unquarantined`) forms.
+  """
+  def mute_event_types, do: @mute_event_types
+
   # Keys present on the `Test` struct that are NOT columns on the `test_runs`
   # ClickHouse table (Ecto metadata + association loaders). Used to scrub the
   # struct when re-inserting an updated row via `IngestRepo.insert_all/2`.
@@ -1474,7 +1499,25 @@ defmodule Tuist.Tests do
         where(base_query, [test_case], test_case.last_ran_at >= ^window_start)
       end
 
-    Tuist.ClickHouseFlop.validate_and_run!(base_query, attrs, for: TestCase)
+    Tuist.ClickHouseFlop.validate_and_run!(base_query, with_stable_order(attrs), for: TestCase)
+  end
+
+  # Appends `:id` as a tiebreaker so LIMIT/OFFSET pagination stays stable when
+  # the primary sort column has ties (e.g. many test cases sharing the same
+  # `last_ran_at` value because they were quarantined in the same sweep).
+  # Without a unique tiebreaker ClickHouse can reshuffle tied rows between
+  # pages, which surfaces as the same test case appearing on multiple pages.
+  defp with_stable_order(attrs) do
+    order_by = Map.get(attrs, :order_by, [:last_ran_at])
+    order_directions = Map.get(attrs, :order_directions, [:desc])
+
+    if :id in order_by do
+      attrs
+    else
+      attrs
+      |> Map.put(:order_by, order_by ++ [:id])
+      |> Map.put(:order_directions, order_directions ++ [:asc])
+    end
   end
 
   @doc """
@@ -1750,7 +1793,7 @@ defmodule Tuist.Tests do
       if quarantined_by_filter do
         quarantine_info_subquery =
           from(e in TestCaseEvent,
-            where: e.event_type == "quarantined",
+            where: e.event_type in @muted_event_types,
             group_by: e.test_case_id,
             select: %{
               test_case_id: e.test_case_id,
@@ -1794,7 +1837,7 @@ defmodule Tuist.Tests do
       if quarantined_by_filter do
         quarantine_info_subquery =
           from(e in TestCaseEvent,
-            where: e.event_type == "quarantined",
+            where: e.event_type in @muted_event_types,
             group_by: e.test_case_id,
             select: %{
               test_case_id: e.test_case_id,
@@ -1833,7 +1876,7 @@ defmodule Tuist.Tests do
     actor_ids =
       from(e in TestCaseEvent,
         where: e.test_case_id in subquery(quarantined_ids_subquery),
-        where: e.event_type == "quarantined",
+        where: e.event_type in @muted_event_types,
         group_by: e.test_case_id,
         having: fragment("argMax(?, ?) IS NOT NULL", e.actor_id, e.inserted_at),
         select: fragment("argMax(?, ?)", e.actor_id, e.inserted_at)
@@ -1854,7 +1897,7 @@ defmodule Tuist.Tests do
     query =
       from(e in TestCaseEvent,
         where: e.test_case_id in ^test_case_ids,
-        where: e.event_type == "quarantined",
+        where: e.event_type in @muted_event_types,
         group_by: e.test_case_id,
         select: %{
           test_case_id: e.test_case_id,
@@ -1890,17 +1933,24 @@ defmodule Tuist.Tests do
     end)
   end
 
+  # Secondary `id` keeps the sort deterministic when the primary column has
+  # ties. Without it ClickHouse is free to reshuffle tied rows between pages,
+  # which surfaces as "duplicates" across pagination because the same row can
+  # appear on two pages while another is skipped.
   defp apply_quarantined_order(query, :last_ran_at, :desc),
-    do: from([test_case: tc] in query, order_by: [desc: tc.last_ran_at])
+    do: from([test_case: tc] in query, order_by: [desc: tc.last_ran_at, asc: tc.id])
 
   defp apply_quarantined_order(query, :last_ran_at, :asc),
-    do: from([test_case: tc] in query, order_by: [asc: tc.last_ran_at])
+    do: from([test_case: tc] in query, order_by: [asc: tc.last_ran_at, asc: tc.id])
 
-  defp apply_quarantined_order(query, :name, :desc), do: from([test_case: tc] in query, order_by: [desc: tc.name])
+  defp apply_quarantined_order(query, :name, :desc),
+    do: from([test_case: tc] in query, order_by: [desc: tc.name, asc: tc.id])
 
-  defp apply_quarantined_order(query, :name, :asc), do: from([test_case: tc] in query, order_by: [asc: tc.name])
+  defp apply_quarantined_order(query, :name, :asc),
+    do: from([test_case: tc] in query, order_by: [asc: tc.name, asc: tc.id])
 
-  defp apply_quarantined_order(query, _, _), do: from([test_case: tc] in query, order_by: [desc: tc.last_ran_at])
+  defp apply_quarantined_order(query, _, _),
+    do: from([test_case: tc] in query, order_by: [desc: tc.last_ran_at, asc: tc.id])
 
   defp apply_quarantined_by_filter(query, nil), do: query
 
