@@ -60,4 +60,4 @@ server:
     - name: TUIST_PROCESSOR_URL
       value: http://processor-canary.tuist.dev:4002
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
-      value: http://alloy-tuist-alloy.observability.svc.cluster.local:4317
+      value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
