@@ -110,11 +110,7 @@ defmodule Tuist.Tests.Analytics do
   @doc """
   Returns analytics for quarantined tests count over time for a project.
   This computes the number of quarantined tests at each time bucket by
-  tracking mute/unmute events from the test_case_events table.
-
-  Honors both the current event names (`muted` / `unmuted`) and the legacy
-  names (`quarantined` / `unquarantined`) so historical events recorded
-  before the rename still contribute to the time series.
+  tracking `muted` / `unmuted` events from the test_case_events table.
   """
   def quarantined_tests_analytics(project_id, opts \\ []) do
     start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
@@ -156,7 +152,7 @@ defmodule Tuist.Tests.Analytics do
             |> Enum.take_while(&(NaiveDateTime.compare(&1.inserted_at, endpoint_naive) != :gt))
             |> List.last()
 
-          last_event != nil and last_event.event_type in Tests.muted_event_types()
+          last_event != nil and last_event.event_type == "muted"
         end)
       end)
 

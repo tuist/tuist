@@ -61,28 +61,14 @@ defmodule Tuist.Tests do
   """
   def active_window_days, do: @active_window_days
 
-  # The state-change events currently emitted by `update_test_case` use the
-  # `muted` / `unmuted` names. Prior to the rename in the automations engine
-  # PR, these were recorded as `quarantined` / `unquarantined`. Queries that
-  # reconstruct state from event history must include both so rows written
-  # before the rename continue to contribute.
-  @muted_event_types ~w(muted quarantined)
-  @unmuted_event_types ~w(unmuted unquarantined)
-  @mute_event_types @muted_event_types ++ @unmuted_event_types
+  # State-change events emitted by `update_test_case` use the `muted` /
+  # `unmuted` names. Pre-rename rows have already been backfilled to these
+  # names by `RenameLegacyQuarantineEvents`, so consumers can match on a
+  # single canonical value.
+  @mute_event_types ~w(muted unmuted)
 
   @doc """
-  Event types that put a test case into the muted (a.k.a. quarantined) state.
-  """
-  def muted_event_types, do: @muted_event_types
-
-  @doc """
-  Event types that take a test case out of the muted state.
-  """
-  def unmuted_event_types, do: @unmuted_event_types
-
-  @doc """
-  All mute-related event type names, including both current (`muted` /
-  `unmuted`) and legacy (`quarantined` / `unquarantined`) forms.
+  All mute-related event type names (`muted`, `unmuted`).
   """
   def mute_event_types, do: @mute_event_types
 
@@ -1793,7 +1779,7 @@ defmodule Tuist.Tests do
       if quarantined_by_filter do
         quarantine_info_subquery =
           from(e in TestCaseEvent,
-            where: e.event_type in @muted_event_types,
+            where: e.event_type == "muted",
             group_by: e.test_case_id,
             select: %{
               test_case_id: e.test_case_id,
@@ -1837,7 +1823,7 @@ defmodule Tuist.Tests do
       if quarantined_by_filter do
         quarantine_info_subquery =
           from(e in TestCaseEvent,
-            where: e.event_type in @muted_event_types,
+            where: e.event_type == "muted",
             group_by: e.test_case_id,
             select: %{
               test_case_id: e.test_case_id,
@@ -1876,7 +1862,7 @@ defmodule Tuist.Tests do
     actor_ids =
       from(e in TestCaseEvent,
         where: e.test_case_id in subquery(quarantined_ids_subquery),
-        where: e.event_type in @muted_event_types,
+        where: e.event_type == "muted",
         group_by: e.test_case_id,
         having: fragment("argMax(?, ?) IS NOT NULL", e.actor_id, e.inserted_at),
         select: fragment("argMax(?, ?)", e.actor_id, e.inserted_at)
@@ -1897,7 +1883,7 @@ defmodule Tuist.Tests do
     query =
       from(e in TestCaseEvent,
         where: e.test_case_id in ^test_case_ids,
-        where: e.event_type in @muted_event_types,
+        where: e.event_type == "muted",
         group_by: e.test_case_id,
         select: %{
           test_case_id: e.test_case_id,
