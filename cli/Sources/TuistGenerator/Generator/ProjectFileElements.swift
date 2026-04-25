@@ -442,7 +442,24 @@ class ProjectFileElements {
         }
 
         // If it matches the file that we are adding or it's not a group we can exit.
-        if (closestRelativeAbsolutePath == fileElement.path) || !(firstElement.element is PBXGroup) {
+        if closestRelativeAbsolutePath == fileElement.path {
+            return
+        }
+
+        if firstElement.element is PBXFileSystemSynchronizedRootGroup {
+            addFileElementRelativeToGroup(
+                from: sourceRootPath,
+                fileAbsolutePath: fileElement.path,
+                fileRelativePath: fileElementRelativeToSourceRoot,
+                name: fileElement.path.basename,
+                expectedSignature: expectedSignature,
+                toGroup: group,
+                pbxproj: pbxproj
+            )
+            return
+        }
+
+        if !(firstElement.element is PBXGroup) {
             return
         }
 

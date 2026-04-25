@@ -1262,6 +1262,11 @@ struct GenerateAcceptanceTestiOSAppWithStaticFrameworkWithXcstrings {
             destination: "Debug-iphonesimulator",
             resource: "Localizable.strings"
         )
+        try await XCTAssertProductWithDestinationDoesNotContainResource(
+            "StaticFramework.framework",
+            destination: "Debug-iphonesimulator",
+            resource: "Localizable.strings"
+        )
     }
 }
 
