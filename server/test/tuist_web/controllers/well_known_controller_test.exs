@@ -37,6 +37,46 @@ defmodule TuistWeb.WellKnownControllerTest do
                        "href" => "http://www.example.com/api/docs",
                        "type" => "text/html"
                      }
+                   ],
+                   "status" => [
+                     %{
+                       "href" => "http://www.example.com/ready"
+                     }
+                   ]
+                 }
+               ]
+             }
+    end
+
+    test "returns the API catalog without requiring an explicit linkset accept header", %{conn: conn} do
+      conn = get(conn, "/.well-known/api-catalog")
+
+      assert response(conn, 200)
+
+      assert get_resp_header(conn, "content-type") == [
+               ~s(application/linkset+json; profile="https://www.rfc-editor.org/info/rfc9727")
+             ]
+
+      assert Jason.decode!(conn.resp_body) == %{
+               "linkset" => [
+                 %{
+                   "anchor" => "http://www.example.com/api",
+                   "service-desc" => [
+                     %{
+                       "href" => "http://www.example.com/api/spec",
+                       "type" => "application/json"
+                     }
+                   ],
+                   "service-doc" => [
+                     %{
+                       "href" => "http://www.example.com/api/docs",
+                       "type" => "text/html"
+                     }
+                   ],
+                   "status" => [
+                     %{
+                       "href" => "http://www.example.com/ready"
+                     }
                    ]
                  }
                ]
