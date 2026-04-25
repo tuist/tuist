@@ -74,6 +74,7 @@ fn public_routes() -> Router<SharedState> {
     Router::new()
         .route("/up", get(up))
         .route("/ready", get(ready))
+        .route("/status/rollout", get(rollout_status))
         .route("/metrics", get(metrics_handler))
         .route("/v1/cache/{hash}", get(get_nx).put(put_nx))
         .route(
@@ -456,7 +457,7 @@ fn should_skip_extension_route(route: &str) -> bool {
 }
 
 fn is_probe_route(route: &str) -> bool {
-    route == "/up" || route == "/ready" || route == "/metrics"
+    route == "/up" || route == "/ready" || route == "/status/rollout" || route == "/metrics"
 }
 
 fn is_http1(version: Version) -> bool {
@@ -734,6 +735,26 @@ async fn ready(State(state): State<SharedState>) -> impl IntoResponse {
         })),
     )
         .into_response()
+}
+
+async fn rollout_status(State(state): State<SharedState>) -> impl IntoResponse {
+    let status = state.rollout_status_report().await;
+    Json(serde_json::json!({
+        "generation": status.generation,
+        "ready": status.ready,
+        "state": status.state.as_str(),
+        "ring_members": status.ring_members,
+        "initial_discovery_completed": status.initial_discovery_completed,
+        "writer_lock_owned": status.writer_lock_owned,
+        "bootstrap_known_peers": status.bootstrap_known_peers,
+        "bootstrap_completed_peers": status.bootstrap_completed_peers,
+        "bootstrap_inflight_peers": status.bootstrap_inflight_peers,
+        "http_inflight_requests": status.http_inflight,
+        "grpc_inflight_requests": status.grpc_inflight,
+        "outbox_messages": status.outbox_messages,
+        "memory_pressure_state": status.memory_pressure_state,
+        "fd_timeout_count": status.fd_timeout_count,
+    }))
 }
 
 async fn metrics_handler(State(state): State<SharedState>) -> impl IntoResponse {
@@ -1891,6 +1912,51 @@ mod tests {
         assert_eq!(body["state"], "draining");
         assert_eq!(body["draining"], true);
         assert!(body["reasons"].to_string().contains("draining"));
+    }
+
+    #[tokio::test]
+    async fn rollout_status_reports_rollout_summary_and_stays_available_while_draining() {
+        let context = test_context(|_| {}).await;
+        let peer = "http://peer.kura.internal:7443".to_string();
+        context
+            .state
+            .apply_membership_view(
+                std::collections::BTreeSet::from(["remote".to_string()]),
+                std::collections::BTreeMap::from([(peer.clone(), "remote".to_string())]),
+            )
+            .await;
+        context.state.note_bootstrap_succeeded(&peer).await;
+        context.state.expire_readiness_settle_window().await;
+        context.state.maybe_mark_serving().await;
+        context.state.metrics.update_outbox_messages(7);
+        context
+            .state
+            .metrics
+            .record_file_descriptor_wait("timeout", Duration::from_millis(5));
+        context.state.enter_draining();
+
+        let response = public_router(context.state.clone())
+            .oneshot(
+                Request::builder()
+                    .uri("/status/rollout")
+                    .body(Body::empty())
+                    .expect("failed to build request"),
+            )
+            .await
+            .expect("rollout status route should respond");
+        assert_eq!(response.status(), StatusCode::OK);
+        let body: Value = serde_json::from_str(&response_text(response).await)
+            .expect("rollout status response should be json");
+        assert_eq!(body["generation"], 1);
+        assert_eq!(body["state"], "draining");
+        assert_eq!(body["ready"], false);
+        assert_eq!(body["ring_members"], 2);
+        assert_eq!(body["bootstrap_known_peers"], 1);
+        assert_eq!(body["bootstrap_completed_peers"], 1);
+        assert_eq!(body["bootstrap_inflight_peers"], 0);
+        assert_eq!(body["outbox_messages"], 7);
+        assert_eq!(body["memory_pressure_state"], 0);
+        assert_eq!(body["fd_timeout_count"], 1);
     }
 
     #[tokio::test]

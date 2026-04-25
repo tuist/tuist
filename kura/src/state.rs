@@ -56,6 +56,24 @@ pub struct ReadinessReport {
 }
 
 #[derive(Debug, PartialEq, Eq)]
+pub struct RolloutStatusReport {
+    pub generation: u64,
+    pub ready: bool,
+    pub state: TrafficState,
+    pub ring_members: usize,
+    pub initial_discovery_completed: bool,
+    pub writer_lock_owned: bool,
+    pub bootstrap_known_peers: usize,
+    pub bootstrap_completed_peers: usize,
+    pub bootstrap_inflight_peers: usize,
+    pub http_inflight: usize,
+    pub grpc_inflight: usize,
+    pub outbox_messages: u64,
+    pub memory_pressure_state: i64,
+    pub fd_timeout_count: u64,
+}
+
+#[derive(Debug, PartialEq, Eq)]
 pub struct ClusterStatusReport {
     pub generation: u64,
     pub members: Vec<String>,
@@ -348,6 +366,33 @@ impl AppState {
             bootstrap_inflight_peers: snapshot.bootstrap_inflight_peers,
             http_inflight: self.runtime.http_inflight(),
             grpc_inflight: self.runtime.grpc_inflight(),
+        }
+    }
+
+    pub async fn rollout_status_report(&self) -> RolloutStatusReport {
+        self.maybe_mark_serving().await;
+
+        let snapshot = self.readiness_snapshot().await;
+        let draining = self.runtime.is_draining();
+        let writer_lock_owned = self.runtime.writer_lock_owned();
+        let ready = writer_lock_owned && !draining && self.runtime.is_serving();
+        let metrics = self.metrics.rollout_metrics_snapshot();
+
+        RolloutStatusReport {
+            generation: snapshot.generation,
+            ready,
+            state: self.runtime.traffic_state(),
+            ring_members: snapshot.known_peers.len() + 1,
+            initial_discovery_completed: snapshot.initial_discovery_completed,
+            writer_lock_owned,
+            bootstrap_known_peers: snapshot.known_peers.len(),
+            bootstrap_completed_peers: snapshot.bootstrapped_peers.len(),
+            bootstrap_inflight_peers: snapshot.bootstrap_inflight_peers.len(),
+            http_inflight: self.runtime.http_inflight(),
+            grpc_inflight: self.runtime.grpc_inflight(),
+            outbox_messages: metrics.outbox_messages,
+            memory_pressure_state: self.memory.pressure().as_i64(),
+            fd_timeout_count: metrics.fd_timeout_count,
         }
     }
 

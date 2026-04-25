@@ -8,6 +8,12 @@ spec:
   serviceName: {{ include "kura.headlessServiceName" . }}
   replicas: {{ .Values.replicaCount }}
   podManagementPolicy: Parallel
+  updateStrategy:
+    type: RollingUpdate
+    {{- if ne .Values.updateStrategy.rollingUpdatePartition nil }}
+    rollingUpdate:
+      partition: {{ int .Values.updateStrategy.rollingUpdatePartition }}
+    {{- end }}
   selector:
     matchLabels:
       {{- include "kura.selectorLabels" . | nindent 6 }}
@@ -24,7 +30,7 @@ spec:
       {{- end }}
     spec:
       serviceAccountName: {{ include "kura.serviceAccountName" . }}
-      terminationGracePeriodSeconds: 300
+      terminationGracePeriodSeconds: {{ add (add (div (add (int64 .Values.config.shutdown.drainCompletionTimeoutMs) 999) 1000) (int .Values.podLifecycle.preStopDelaySeconds)) (int .Values.podLifecycle.terminationGraceExtraSeconds) }}
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
@@ -90,6 +96,8 @@ spec:
               value: {{ printf "%d" (int .Values.config.fileDescriptors.poolSize) | quote }}
             - name: KURA_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS
               value: {{ printf "%d" (int64 .Values.config.fileDescriptors.acquireTimeoutMs) | quote }}
+            - name: KURA_DRAIN_COMPLETION_TIMEOUT_MS
+              value: {{ printf "%d" (int64 .Values.config.shutdown.drainCompletionTimeoutMs) | quote }}
             - name: KURA_SEGMENT_HANDLE_CACHE_SIZE
               value: {{ printf "%d" (int .Values.config.fileDescriptors.segmentHandleCacheSize) | quote }}
             - name: KURA_MEMORY_SOFT_LIMIT_BYTES
@@ -168,7 +176,7 @@ spec:
                 command:
                   - /bin/sh
                   - -c
-                  - KURA_PID="$(tr ' ' '\n' </proc/1/task/1/children | head -n1)" && if [ -n "$KURA_PID" ]; then kill -USR1 "$KURA_PID"; fi && sleep 20
+                  - KURA_PID="$(tr ' ' '\n' </proc/1/task/1/children | head -n1)" && if [ -n "$KURA_PID" ]; then kill -USR1 "$KURA_PID"; fi && sleep {{ int .Values.podLifecycle.preStopDelaySeconds }}
           {{- with .Values.resources }}
           resources:
             {{- toYaml . | nindent 12 }}

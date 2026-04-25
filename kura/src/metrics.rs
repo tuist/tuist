@@ -1,5 +1,8 @@
 use std::{
-    sync::{Arc, Mutex},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicU64, Ordering},
+    },
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
@@ -20,6 +23,7 @@ use crate::{artifact::producer::ArtifactProducer, utils::replication_target_labe
 #[derive(Clone)]
 pub struct Metrics {
     registry: Arc<Mutex<Registry>>,
+    rollout_snapshot: Arc<RolloutSnapshot>,
     http_requests: Family<HttpRequestLabels, Counter>,
     http_request_duration: Family<HttpRouteLabels, Histogram>,
     http_exceptions: Family<HttpExceptionLabels, Counter>,
@@ -99,9 +103,22 @@ pub struct Metrics {
     writer_lock_acquire_failures: Counter,
 }
 
+#[derive(Default)]
+struct RolloutSnapshot {
+    outbox_messages: AtomicU64,
+    fd_timeout_count: AtomicU64,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RolloutMetricsSnapshot {
+    pub outbox_messages: u64,
+    pub fd_timeout_count: u64,
+}
+
 impl Metrics {
     pub fn new(region: String, tenant_id: String) -> Self {
         let mut registry = Registry::default();
+        let rollout_snapshot = Arc::new(RolloutSnapshot::default());
 
         let http_requests = Family::<HttpRequestLabels, Counter>::default();
         let http_request_duration =
@@ -605,6 +622,7 @@ impl Metrics {
 
         let metrics = Self {
             registry: Arc::new(Mutex::new(registry)),
+            rollout_snapshot,
             http_requests,
             http_request_duration,
             http_exceptions,
@@ -835,6 +853,11 @@ impl Metrics {
                 result: result.to_owned(),
             })
             .observe(duration.as_secs_f64());
+        if result == "timeout" {
+            self.rollout_snapshot
+                .fd_timeout_count
+                .fetch_add(1, Ordering::Relaxed);
+        }
     }
 
     pub fn record_file_operation(
@@ -960,6 +983,9 @@ impl Metrics {
 
     pub fn update_outbox_messages(&self, count: usize) {
         self.outbox_messages.set(count as i64);
+        self.rollout_snapshot
+            .outbox_messages
+            .store(count as u64, Ordering::Relaxed);
     }
 
     pub fn update_multipart_uploads(&self, count: usize) {
@@ -1164,6 +1190,19 @@ impl Metrics {
 
     pub fn record_writer_lock_acquire_failure(&self) {
         self.writer_lock_acquire_failures.inc();
+    }
+
+    pub fn rollout_metrics_snapshot(&self) -> RolloutMetricsSnapshot {
+        RolloutMetricsSnapshot {
+            outbox_messages: self
+                .rollout_snapshot
+                .outbox_messages
+                .load(Ordering::Relaxed),
+            fd_timeout_count: self
+                .rollout_snapshot
+                .fd_timeout_count
+                .load(Ordering::Relaxed),
+        }
     }
 
     pub fn render(&self) -> String {

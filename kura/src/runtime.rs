@@ -11,6 +11,8 @@ use std::{
 #[cfg(test)]
 use std::path::PathBuf;
 
+use tokio::sync::{Notify, futures::Notified};
+
 use crate::metrics::Metrics;
 
 const DATA_DIR_LOCK_FILE: &str = ".kura.writer.lock";
@@ -46,6 +48,7 @@ pub struct RuntimeState {
     writer_lock_owned: AtomicBool,
     http_inflight: AtomicUsize,
     grpc_inflight: AtomicUsize,
+    inflight_changed: Notify,
 }
 
 impl RuntimeState {
@@ -56,6 +59,7 @@ impl RuntimeState {
             writer_lock_owned: AtomicBool::new(true),
             http_inflight: AtomicUsize::new(0),
             grpc_inflight: AtomicUsize::new(0),
+            inflight_changed: Notify::new(),
         })
     }
 
@@ -101,15 +105,25 @@ impl RuntimeState {
         self.grpc_inflight.load(Ordering::SeqCst)
     }
 
+    pub fn total_inflight(&self) -> usize {
+        self.http_inflight() + self.grpc_inflight()
+    }
+
+    pub fn inflight_changed(&self) -> Notified<'_> {
+        self.inflight_changed.notified()
+    }
+
     pub fn start_http_request(self: &Arc<Self>, metrics: &Metrics) -> InflightGuard {
         let count = self.http_inflight.fetch_add(1, Ordering::SeqCst) + 1;
         metrics.update_http_inflight(count);
+        self.inflight_changed.notify_waiters();
         InflightGuard::new(self.clone(), metrics.clone(), InflightKind::Http)
     }
 
     pub fn start_grpc_request(self: &Arc<Self>, metrics: &Metrics) -> InflightGuard {
         let count = self.grpc_inflight.fetch_add(1, Ordering::SeqCst) + 1;
         metrics.update_grpc_inflight(count);
+        self.inflight_changed.notify_waiters();
         InflightGuard::new(self.clone(), metrics.clone(), InflightKind::Grpc)
     }
 }
@@ -156,6 +170,7 @@ impl Drop for InflightGuard {
                     .update_grpc_inflight(previous.saturating_sub(1));
             }
         }
+        self.runtime.inflight_changed.notify_waiters();
     }
 }
 
@@ -236,7 +251,10 @@ fn try_lock_exclusive(_file: &File) -> Result<(), std::io::Error> {
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use tempfile::tempdir;
+    use tokio::time::timeout;
 
     use super::*;
 
@@ -250,5 +268,19 @@ mod tests {
             first.path(),
             temp_dir.path().join(DATA_DIR_LOCK_FILE).as_path()
         );
+    }
+
+    #[tokio::test]
+    async fn inflight_change_notification_resolves_on_request_completion() {
+        let runtime = RuntimeState::new();
+        let metrics = Metrics::new("region".into(), "tenant".into());
+        let guard = runtime.start_http_request(&metrics);
+
+        let notified = runtime.inflight_changed();
+        drop(guard);
+
+        timeout(Duration::from_secs(1), notified)
+            .await
+            .expect("request completion should wake inflight waiters");
     }
 }

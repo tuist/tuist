@@ -53,6 +53,7 @@ where
         peer_tls: None,
         file_descriptor_pool_size: 32,
         file_descriptor_acquire_timeout_ms: 5_000,
+        drain_completion_timeout_ms: 240_000,
         segment_handle_cache_size: 8,
         memory_soft_limit_bytes: 128 * 1024 * 1024,
         memory_hard_limit_bytes: 256 * 1024 * 1024,
