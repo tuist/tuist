@@ -13,9 +13,12 @@ defmodule TuistWeb.RobotsTxtControllerTest do
       assert body =~ "Content-Usage: /en/docs train-ai=y, search=y"
       assert body =~ "Content-Usage: /en/docs-markdown train-ai=y, search=y"
       assert body =~ "Disallow: /api/"
+      assert body =~ "Disallow: /*/module-cache"
 
       refute body =~ "Content-Usage: /docs/login"
       refute body =~ "Content-Usage: /marketing"
+      refute body =~ "Disallow: /live/"
+      refute body =~ "Disallow: /*/cache-runs"
 
       assert get_resp_header(conn, "content-type") == ["text/plain; charset=utf-8"]
     end

@@ -20,6 +20,28 @@ defmodule TuistWeb.Router do
   @public_robots_txt [train_ai: true, search: true]
   @marketing_route_metadata %{type: :marketing, robots_txt: @public_robots_txt}
   @docs_route_metadata %{type: :docs, robots_txt: @public_robots_txt}
+  @api_robots_txt [disallow: "/api/"]
+  @users_robots_txt [disallow: "/users/"]
+  @dashboard_robots_txt [disallow: "/dashboard"]
+  @auth_robots_txt [disallow: "/auth/"]
+  @oauth2_robots_txt [disallow: "/oauth2/"]
+  @organizations_robots_txt [disallow: "/organizations/"]
+  @projects_robots_txt [disallow: "/projects/"]
+  @ops_robots_txt [disallow: "/ops/"]
+  @download_robots_txt [disallow: "/download"]
+  @account_projects_robots_txt [disallow: "/*/projects"]
+  @account_members_robots_txt [disallow: "/*/members"]
+  @billing_robots_txt [disallow: "/*/billing"]
+  @settings_robots_txt [disallow: "/*/settings"]
+  @project_previews_robots_txt [disallow: "/*/previews"]
+  @project_tests_robots_txt [disallow: "/*/tests"]
+  @project_module_cache_robots_txt [disallow: "/*/module-cache"]
+  @project_binary_cache_robots_txt [disallow: "/*/binary-cache"]
+  @project_connect_robots_txt [disallow: "/*/connect"]
+  @project_analytics_robots_txt [disallow: "/*/analytics"]
+  @project_bundles_robots_txt [disallow: "/*/bundles"]
+  @project_builds_robots_txt [disallow: "/*/builds"]
+  @project_runs_robots_txt [disallow: "/*/runs"]
 
   pipeline :open_api do
     plug OpenApiSpex.Plug.PutApiSpec, module: TuistWeb.API.Spec
@@ -615,7 +637,7 @@ defmodule TuistWeb.Router do
   scope "/api" do
     pipe_through [:open_api, :non_authenticated_api]
 
-    get "/spec", OpenApiSpex.Plug.RenderSpec, []
+    get "/spec", OpenApiSpex.Plug.RenderSpec, [], metadata: %{robots_txt: @api_robots_txt}
   end
 
   scope "/api", TuistWeb.API do
@@ -633,7 +655,7 @@ defmodule TuistWeb.Router do
   scope "/oauth2", TuistWeb.Oauth do
     pipe_through [:browser_app, :fetch_current_user]
 
-    get "/authorize", AuthorizeController, :authorize
+    get "/authorize", AuthorizeController, :authorize, metadata: %{robots_txt: @oauth2_robots_txt}
     get "/github", AuthorizeController, :authorize_with_github
     get "/google", AuthorizeController, :authorize_with_google
     get "/apple", AuthorizeController, :authorize_with_apple
@@ -661,7 +683,7 @@ defmodule TuistWeb.Router do
   scope "/ops", TuistWeb do
     pipe_through [:browser_app, :ops]
 
-    get "/accounts/:id/stripe-customer", OpsController, :stripe_customer
+    get "/accounts/:id/stripe-customer", OpsController, :stripe_customer, metadata: %{robots_txt: @ops_robots_txt}
   end
 
   scope "/ops" do
@@ -715,7 +737,7 @@ defmodule TuistWeb.Router do
 
     live_session :redirect_if_user_is_authenticated,
       on_mount: [{TuistWeb.Authentication, :redirect_if_user_is_authenticated}] do
-      live "/users/register", UserRegistrationLive, :new
+      live "/users/register", UserRegistrationLive, :new, metadata: %{robots_txt: @users_robots_txt}
       live "/users/log_in", UserLoginLive, :new
       live "/users/log_in/sso", SSOLoginLive, :new
       live "/users/reset_password", UserForgotPasswordLive, :new
@@ -734,9 +756,9 @@ defmodule TuistWeb.Router do
         {TuistWeb.Authentication, :ensure_authenticated},
         {TuistWeb.Locale, :assign_locale}
       ] do
-      get "/dashboard", DashboardController, :dashboard
-      live "/organizations/new", CreateOrganizationLive, :new
-      live "/projects/new", CreateProjectLive, :new
+      get "/dashboard", DashboardController, :dashboard, metadata: %{robots_txt: @dashboard_robots_txt}
+      live "/organizations/new", CreateOrganizationLive, :new, metadata: %{robots_txt: @organizations_robots_txt}
+      live "/projects/new", CreateProjectLive, :new, metadata: %{robots_txt: @projects_robots_txt}
     end
   end
 
@@ -753,7 +775,7 @@ defmodule TuistWeb.Router do
 
   scope "/auth", TuistWeb do
     pipe_through [:browser_app]
-    get "/complete-signup", AuthController, :complete_signup
+    get "/complete-signup", AuthController, :complete_signup, metadata: %{robots_txt: @auth_robots_txt}
   end
 
   scope "/users/auth", TuistWeb do
@@ -798,7 +820,7 @@ defmodule TuistWeb.Router do
       :analytics
     ]
 
-    get "/latest", PreviewController, :latest
+    get "/latest", PreviewController, :latest, metadata: %{robots_txt: @project_previews_robots_txt}
   end
 
   scope "/:account_handle/:project_handle/previews", TuistWeb do
@@ -855,7 +877,7 @@ defmodule TuistWeb.Router do
     end
   end
 
-  get "/download", TuistWeb.DownloadController, :download
+  get "/download", TuistWeb.DownloadController, :download, metadata: %{robots_txt: @download_robots_txt}
 
   scope "/:account_handle", TuistWeb do
     pipe_through [
@@ -877,12 +899,12 @@ defmodule TuistWeb.Router do
         {TuistWeb.LayoutLive, :account}
       ] do
       live "/", ProjectsLive
-      live "/projects", ProjectsLive
-      live "/members", MembersLive
-      live "/billing", BillingLive
+      live "/projects", ProjectsLive, metadata: %{robots_txt: @account_projects_robots_txt}
+      live "/members", MembersLive, metadata: %{robots_txt: @account_members_robots_txt}
+      live "/billing", BillingLive, metadata: %{robots_txt: @billing_robots_txt}
       live "/integrations", IntegrationsLive
       live "/sso", SSOSettingsLive
-      live "/settings", AccountSettingsLive
+      live "/settings", AccountSettingsLive, metadata: %{robots_txt: @settings_robots_txt}
     end
   end
 
@@ -904,7 +926,7 @@ defmodule TuistWeb.Router do
         {TuistWeb.Locale, :assign_locale},
         {TuistWeb.LayoutLive, :project}
       ] do
-      live "/tests", TestsLive
+      live "/tests", TestsLive, metadata: %{robots_txt: @project_tests_robots_txt}
       live "/tests/test-runs", TestRunsLive
       live "/tests/test-runs/:test_run_id", TestRunLive
       live "/tests/test-cases", TestCasesLive
@@ -913,21 +935,21 @@ defmodule TuistWeb.Router do
       live "/tests/flaky-tests", FlakyTestsLive
       live "/tests/quarantined-tests", QuarantinedTestsLive
       live "/tests/shards", ShardsLive
-      live "/module-cache", ModuleCacheLive
+      live "/module-cache", ModuleCacheLive, metadata: %{robots_txt: @project_module_cache_robots_txt}
       live "/module-cache/cache-runs", CacheRunsLive
       live "/module-cache/generate-runs", GenerateRunsLive
       live "/xcode-cache", XcodeCacheLive
       live "/gradle-cache", GradleCacheLive
-      live "/connect", ConnectLive
+      live "/connect", ConnectLive, metadata: %{robots_txt: @project_connect_robots_txt}
       live "/", OverviewLive
-      live "/analytics", OverviewLive
-      live "/bundles", BundlesLive
+      live "/analytics", OverviewLive, metadata: %{robots_txt: @project_analytics_robots_txt}
+      live "/bundles", BundlesLive, metadata: %{robots_txt: @project_bundles_robots_txt}
       live "/bundles/:bundle_id", BundleLive
-      live "/builds", BuildsLive
+      live "/builds", BuildsLive, metadata: %{robots_txt: @project_builds_robots_txt}
       live "/builds/build-runs", BuildRunsLive
       live "/builds/build-runs/:build_run_id", BuildRunLive
       live "/previews", PreviewsLive
-      live "/runs/:run_id", RunDetailLive
+      live "/runs/:run_id", RunDetailLive, metadata: %{robots_txt: @project_runs_robots_txt}
       get "/runs/:run_id/download", RunsController, :download
       get "/runs/:run_id/download_session", RunsController, :download_session
       get "/builds/build-runs/:build_run_id/download", BuildController, :download
@@ -936,14 +958,17 @@ defmodule TuistWeb.Router do
           TestCaseRunAttachmentsController,
           :download
 
-      live "/settings", ProjectSettingsLive
+      live "/settings", ProjectSettingsLive, metadata: %{robots_txt: @settings_robots_txt}
       live "/settings/automations", ProjectAutomationsLive
       live "/settings/bundles", ProjectBundleSettingsLive
       live "/settings/notifications", ProjectNotificationsLive
     end
 
     # Redirects for renamed routes
-    get "/binary-cache/cache-runs", RedirectPlug, to: "/module-cache/cache-runs"
+    get "/binary-cache/cache-runs", RedirectPlug,
+      to: "/module-cache/cache-runs",
+      metadata: %{robots_txt: @project_binary_cache_robots_txt}
+
     get "/binary-cache/generate-runs", RedirectPlug, to: "/module-cache/generate-runs"
   end
 

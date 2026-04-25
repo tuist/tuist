@@ -2,61 +2,31 @@ defmodule TuistWeb.Utilities.RobotsTxt do
   @moduledoc """
   Builds the runtime robots.txt payload for Tuist's public site.
 
-  The Content-Usage allowlist is derived from the Phoenix router so public
-  marketing and docs routes do not drift from the declared policy.
+  Both Content-Usage and Disallow entries are derived from Phoenix route
+  metadata so the declared crawler policy stays aligned with the router.
   """
 
   alias TuistWeb.Marketing.Localization
   alias TuistWeb.Router
 
-  @disallow_sections [
-    {"# Block authentication and user pages",
-     [
-       "/dashboard",
-       "/users/",
-       "/auth/",
-       "/oauth2/",
-       "/organizations/",
-       "/projects/"
-     ]},
-    {"# Block admin/ops pages", ["/ops/", "/live/"]},
-    {"# Block API endpoints", ["/api/"]},
-    {"# Block download endpoints", ["/download"]},
-    {"# Block all account/project specific pages",
-     [
-       "/*/projects",
-       "/*/members",
-       "/*/billing",
-       "/*/settings",
-       "/*/previews",
-       "/*/tests",
-       "/*/binary-cache",
-       "/*/connect",
-       "/*/analytics",
-       "/*/bundles",
-       "/*/builds",
-       "/*/runs",
-       "/*/test-runs",
-       "/*/cache-runs",
-       "/*/generate-runs",
-       "/*/build-runs"
-     ]}
-  ]
-
   def render do
-    ([
-       "User-agent: *",
-       "Content-Signal: ai-train=no, search=no, ai-input=no",
-       "",
-       "# Keep the coarse site-wide signal restrictive, then opt public docs and",
-       "# marketing content back in with path-specific Content-Usage rules.",
-       "Content-Usage: train-ai=n, search=n"
-     ] ++
-       Enum.map(content_usage_entries(), &content_usage_line/1) ++
-       [""] ++
-       disallow_lines())
-    |> Enum.join("\n")
-    |> Kernel.<>("\n")
+    lines =
+      [
+        "User-agent: *",
+        "Content-Signal: ai-train=no, search=no, ai-input=no",
+        "",
+        "# Keep the coarse site-wide signal restrictive, then opt public docs and",
+        "# marketing content back in with path-specific Content-Usage rules.",
+        "Content-Usage: train-ai=n, search=n"
+      ] ++ Enum.map(content_usage_entries(), &content_usage_line/1)
+
+    lines =
+      case disallow_patterns() do
+        [] -> lines
+        patterns -> lines ++ [""] ++ Enum.map(patterns, &"Disallow: #{&1}")
+      end
+
+    Enum.join(lines, "\n") <> "\n"
   end
 
   def content_usage_entries do
@@ -67,7 +37,7 @@ defmodule TuistWeb.Utilities.RobotsTxt do
       Enum.map(prefixes, fn {prefix, route_group} ->
         %{
           pattern: pattern_for(prefix, route_group.dynamic?, prefix_keys),
-          robots_txt: route_group.robots_txt
+          content_usage: route_group.content_usage
         }
       end)
 
@@ -79,11 +49,18 @@ defmodule TuistWeb.Utilities.RobotsTxt do
 
       Enum.any?(prefix_pattern_entries, fn prefix_entry ->
         prefix_entry != entry and
-          prefix_entry.robots_txt == entry.robots_txt and
+          prefix_entry.content_usage == entry.content_usage and
           String.starts_with?(normalized_pattern, String.trim_trailing(prefix_entry.pattern, "$") <> "/")
       end)
     end)
     |> Enum.sort_by(&sort_key(&1.pattern))
+  end
+
+  def disallow_patterns do
+    Router.__routes__()
+    |> Enum.flat_map(&route_disallow_patterns/1)
+    |> Enum.uniq()
+    |> Enum.sort_by(&disallow_sort_key/1)
   end
 
   defp content_usage_routes do
@@ -91,20 +68,31 @@ defmodule TuistWeb.Utilities.RobotsTxt do
   end
 
   defp content_usage_route?(%{verb: :get, metadata: metadata}) when is_map(metadata) do
-    not is_nil(robots_txt_config(metadata))
+    not is_nil(content_usage_config(metadata))
   end
 
   defp content_usage_route?(_), do: false
+
+  defp route_disallow_patterns(%{metadata: metadata}) when is_map(metadata) do
+    metadata
+    |> robots_txt_options()
+    |> case do
+      %{disallow: disallow} -> disallow
+      _ -> []
+    end
+  end
+
+  defp route_disallow_patterns(_), do: []
 
   defp prefixes_by_route(routes) do
     Enum.reduce(routes, %{}, fn route, acc ->
       route
       |> route_prefixes()
-      |> Enum.reduce(acc, fn {prefix, dynamic?, robots_txt}, acc ->
-        Map.update(acc, prefix, %{dynamic?: dynamic?, robots_txt: robots_txt}, fn existing ->
-          if existing.robots_txt != robots_txt do
+      |> Enum.reduce(acc, fn {prefix, dynamic?, content_usage}, acc ->
+        Map.update(acc, prefix, %{dynamic?: dynamic?, content_usage: content_usage}, fn existing ->
+          if existing.content_usage != content_usage do
             raise ArgumentError,
-                  "conflicting robots.txt config for #{prefix}: #{inspect(existing.robots_txt)} vs #{inspect(robots_txt)}"
+                  "conflicting robots.txt content usage for #{prefix}: #{inspect(existing.content_usage)} vs #{inspect(content_usage)}"
           end
 
           %{existing | dynamic?: existing.dynamic? or dynamic?}
@@ -114,17 +102,17 @@ defmodule TuistWeb.Utilities.RobotsTxt do
   end
 
   defp route_prefixes(%{path: "/:locale/docs-markdown/*path", metadata: metadata}) do
-    robots_txt = robots_txt_config(metadata)
+    content_usage = content_usage_config(metadata)
 
-    Enum.map(Localization.all_locales(), &{"/#{&1}/docs-markdown", true, robots_txt})
+    Enum.map(Localization.all_locales(), &{"/#{&1}/docs-markdown", true, content_usage})
   end
 
   defp route_prefixes(%{path: path, metadata: metadata}) do
-    robots_txt = robots_txt_config(metadata)
+    content_usage = content_usage_config(metadata)
 
     case path_prefix(path) do
       nil -> []
-      prefix -> [{prefix, dynamic_route?(path), robots_txt}]
+      prefix -> [{prefix, dynamic_route?(path), content_usage}]
     end
   end
 
@@ -148,25 +136,94 @@ defmodule TuistWeb.Utilities.RobotsTxt do
     String.starts_with?(segment, ":") or String.starts_with?(segment, "*")
   end
 
-  defp robots_txt_config(metadata) do
+  defp robots_txt_options(metadata) do
     metadata
     |> Map.get(:robots_txt)
-    |> normalize_robots_txt_config()
+    |> normalize_robots_txt_options()
   end
 
-  defp normalize_robots_txt_config(nil), do: nil
+  defp normalize_robots_txt_options(nil), do: nil
 
-  defp normalize_robots_txt_config(robots_txt) when is_map(robots_txt) do
-    robots_txt
-    |> Map.to_list()
-    |> sort_robots_txt_pairs()
+  defp normalize_robots_txt_options(robots_txt) when is_map(robots_txt) do
+    normalize_robots_txt_options(Map.to_list(robots_txt))
   end
 
-  defp normalize_robots_txt_config(robots_txt) when is_list(robots_txt) do
-    robots_txt
-    |> Keyword.new()
-    |> sort_robots_txt_pairs()
+  defp normalize_robots_txt_options(robots_txt) when is_list(robots_txt) do
+    content_usage =
+      robots_txt
+      |> content_usage_value()
+      |> normalize_content_usage_config()
+
+    disallow =
+      robots_txt
+      |> option_value(:disallow)
+      |> normalize_disallow_patterns()
+
+    if is_nil(content_usage) and disallow == [] do
+      nil
+    else
+      %{content_usage: content_usage, disallow: disallow}
+    end
   end
+
+  defp content_usage_value(robots_txt) do
+    direct_content_usage =
+      Enum.filter(robots_txt, fn {key, _value} ->
+        not is_nil(normalize_robots_txt_key(key))
+      end)
+
+    if direct_content_usage == [] do
+      option_value(robots_txt, :content_usage)
+    else
+      direct_content_usage
+    end
+  end
+
+  defp option_value(options, expected_key) do
+    Enum.find_value(options, fn {key, value} ->
+      if normalize_robots_txt_option_key(key) == expected_key, do: value
+    end)
+  end
+
+  defp normalize_robots_txt_option_key(:content_usage), do: :content_usage
+  defp normalize_robots_txt_option_key("content_usage"), do: :content_usage
+  defp normalize_robots_txt_option_key("content-usage"), do: :content_usage
+  defp normalize_robots_txt_option_key(:disallow), do: :disallow
+  defp normalize_robots_txt_option_key("disallow"), do: :disallow
+  defp normalize_robots_txt_option_key(_), do: nil
+
+  defp content_usage_config(metadata) do
+    metadata
+    |> robots_txt_options()
+    |> case do
+      %{content_usage: content_usage} -> content_usage
+      _ -> nil
+    end
+  end
+
+  defp normalize_content_usage_config(nil), do: nil
+
+  defp normalize_content_usage_config(content_usage) when is_map(content_usage) do
+    normalize_content_usage_config(Map.to_list(content_usage))
+  end
+
+  defp normalize_content_usage_config(content_usage) when is_list(content_usage) do
+    content_usage
+    |> Enum.filter(fn {key, _value} -> not is_nil(normalize_robots_txt_key(key)) end)
+    |> case do
+      [] -> nil
+      pairs -> sort_robots_txt_pairs(pairs)
+    end
+  end
+
+  defp normalize_disallow_patterns(nil), do: []
+  defp normalize_disallow_patterns(pattern) when is_binary(pattern), do: [pattern]
+
+  defp normalize_disallow_patterns(patterns) when is_list(patterns) do
+    Enum.filter(patterns, &is_binary/1)
+  end
+
+  defp normalize_disallow_patterns(_), do: []
 
   defp sort_robots_txt_pairs(robots_txt_pairs) do
     Enum.sort_by(robots_txt_pairs, fn {key, _value} ->
@@ -193,9 +250,9 @@ defmodule TuistWeb.Utilities.RobotsTxt do
   defp normalize_robots_txt_key("ai-input"), do: :ai_input
   defp normalize_robots_txt_key(_), do: nil
 
-  defp content_usage_line(%{pattern: pattern, robots_txt: robots_txt}) do
+  defp content_usage_line(%{pattern: pattern, content_usage: content_usage}) do
     directives =
-      Enum.map_join(robots_txt, ", ", fn {key, value} ->
+      Enum.map_join(content_usage, ", ", fn {key, value} ->
         "#{robots_txt_key_name(key)}=#{robots_txt_value(value)}"
       end)
 
@@ -255,17 +312,7 @@ defmodule TuistWeb.Utilities.RobotsTxt do
     {1, String.trim_trailing(pattern, "$"), String.ends_with?(pattern, "$")}
   end
 
-  defp disallow_lines do
-    @disallow_sections
-    |> Enum.with_index()
-    |> Enum.flat_map(fn {{comment, paths}, index} ->
-      lines = [comment] ++ Enum.map(paths, &"Disallow: #{&1}")
-
-      if index == length(@disallow_sections) - 1 do
-        lines
-      else
-        lines ++ [""]
-      end
-    end)
+  defp disallow_sort_key(pattern) do
+    {String.starts_with?(pattern, "/*/"), pattern}
   end
 end
