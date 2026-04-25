@@ -98,13 +98,12 @@ struct ShardPlanServiceTests {
         try await fileSystem.makeDirectory(at: extractedPath)
         try await AppleArchiver().decompress(archive: archivePath, to: extractedPath)
 
-        let extractedBundle = extractedPath.appending(component: "MyApp.xctestproducts")
-        let payloadExists = try await fileSystem.exists(extractedBundle.appending(component: "file.txt"))
+        let payloadExists = try await fileSystem.exists(extractedPath.appending(component: "file.txt"))
         #expect(payloadExists)
-        let extractedContent = try await fileSystem.readTextFile(at: extractedBundle.appending(component: "file.txt"))
+        let extractedContent = try await fileSystem.readTextFile(at: extractedPath.appending(component: "file.txt"))
         #expect(extractedContent == "payload")
 
-        let dsymExists = try await fileSystem.exists(extractedBundle.appending(component: "MyApp.framework.dSYM"))
+        let dsymExists = try await fileSystem.exists(extractedPath.appending(component: "MyApp.framework.dSYM"))
         #expect(!dsymExists)
 
         verify(startShardUploadService)

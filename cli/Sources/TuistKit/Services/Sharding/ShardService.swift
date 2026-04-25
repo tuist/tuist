@@ -170,23 +170,10 @@ public struct ShardService: ShardServicing {
     }
 
     private func normalizeExtractedTestProductsPath(_ extractedPath: AbsolutePath) async throws -> AbsolutePath {
-        if extractedPath.basename.hasSuffix(".xctestproducts") {
+        guard !extractedPath.basename.hasSuffix(".xctestproducts") else {
             return extractedPath
         }
 
-        // Archives produced by AppleArchiver preserve the bundle basename, so
-        // the extracted directory typically holds a single `.xctestproducts`
-        // child. Prefer that when present.
-        let xctestproductsChild = try await fileSystem
-            .glob(directory: extractedPath, include: ["*.xctestproducts"])
-            .collect()
-            .first
-
-        if let xctestproductsChild {
-            return xctestproductsChild
-        }
-
-        // Fallback for legacy archives whose contents were extracted flat.
         let normalizedPath = extractedPath.parentDirectory
             .appending(component: "\(extractedPath.basename).xctestproducts")
         try await fileSystem.move(from: extractedPath, to: normalizedPath)
