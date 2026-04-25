@@ -26,7 +26,9 @@ struct AppleArchiverTests {
         try await fileSystem.makeDirectory(at: extractDir)
         try await subject.decompress(archive: archivePath, to: extractDir)
 
-        let content = try await fileSystem.readTextFile(at: extractDir.appending(component: "file.txt"))
+        let content = try await fileSystem.readTextFile(
+            at: extractDir.appending(components: ["source", "file.txt"])
+        )
         #expect(content == "hello world")
     }
 
@@ -49,10 +51,11 @@ struct AppleArchiverTests {
         try await fileSystem.makeDirectory(at: extractDir)
         try await subject.decompress(archive: archivePath, to: extractDir)
 
-        let resolvedLink = try await fileSystem.resolveSymbolicLink(extractDir.appending(component: "link"))
-        #expect(resolvedLink == extractDir.appending(component: "target.txt"))
+        let extractedSource = extractDir.appending(component: "source")
+        let resolvedLink = try await fileSystem.resolveSymbolicLink(extractedSource.appending(component: "link"))
+        #expect(resolvedLink == extractedSource.appending(component: "target.txt"))
 
-        let content = try await fileSystem.readTextFile(at: extractDir.appending(component: "link"))
+        let content = try await fileSystem.readTextFile(at: extractedSource.appending(component: "link"))
         #expect(content == "target content")
     }
 
@@ -73,11 +76,13 @@ struct AppleArchiverTests {
         try await fileSystem.makeDirectory(at: extractDir)
         try await subject.decompress(archive: archivePath, to: extractDir)
 
-        let rootContent = try await fileSystem.readTextFile(at: extractDir.appending(component: "root.txt"))
+        let rootContent = try await fileSystem.readTextFile(
+            at: extractDir.appending(components: ["source", "root.txt"])
+        )
         #expect(rootContent == "root")
 
         let deepContent = try await fileSystem.readTextFile(
-            at: extractDir.appending(components: ["a", "b", "c", "deep.txt"])
+            at: extractDir.appending(components: ["source", "a", "b", "c", "deep.txt"])
         )
         #expect(deepContent == "deep")
     }
@@ -107,11 +112,12 @@ struct AppleArchiverTests {
         try await fileSystem.makeDirectory(at: extractDir)
         try await subject.decompress(archive: archivePath, to: extractDir)
 
-        let fileExists = try await fileSystem.exists(extractDir.appending(component: "file.txt"))
+        let extractedSource = extractDir.appending(component: "source")
+        let fileExists = try await fileSystem.exists(extractedSource.appending(component: "file.txt"))
         #expect(fileExists)
-        let dsymExists = try await fileSystem.exists(extractDir.appending(component: "Module.framework.dSYM"))
+        let dsymExists = try await fileSystem.exists(extractedSource.appending(component: "Module.framework.dSYM"))
         #expect(!dsymExists)
-        let swiftmoduleExists = try await fileSystem.exists(extractDir.appending(component: "Module.swiftmodule"))
+        let swiftmoduleExists = try await fileSystem.exists(extractedSource.appending(component: "Module.swiftmodule"))
         #expect(!swiftmoduleExists)
     }
 
@@ -134,10 +140,11 @@ struct AppleArchiverTests {
         try await fileSystem.makeDirectory(at: extractDir)
         try await subject.decompress(archive: archivePath, to: extractDir)
 
-        let fileContent = try await fileSystem.readTextFile(at: extractDir.appending(component: "file.txt"))
+        let extractedSource = extractDir.appending(component: "source")
+        let fileContent = try await fileSystem.readTextFile(at: extractedSource.appending(component: "file.txt"))
         #expect(fileContent == "keep")
         let linkDest = try FileManager.default.destinationOfSymbolicLink(
-            atPath: extractDir.appending(component: "broken_link").pathString
+            atPath: extractedSource.appending(component: "broken_link").pathString
         )
         #expect(linkDest == "/nonexistent/target")
     }

@@ -37,8 +37,14 @@ public struct AppleArchiver: AppleArchiving {
         to archivePath: AbsolutePath,
         excludePatterns: [String] = []
     ) async throws {
-        let source = FilePath(directory.pathString)
+        // Archive from the parent so the bundle's basename is preserved in the
+        // archive entries. Extractors land at `destination/<bundleName>/…`, which
+        // is what Xcode and the server-side xcresult processor expect for
+        // `.xcresult` and `.xctestproducts` bundles.
+        let source = FilePath(directory.parentDirectory.pathString)
         let destination = FilePath(archivePath.pathString)
+        let bundleName = directory.basename
+        let bundleDirectoryPrefix = "\(bundleName)/"
 
         guard let writeStream = ArchiveByteStream.fileStream(
             path: destination,
@@ -71,7 +77,23 @@ public struct AppleArchiver: AppleArchiving {
         let seenPaths = Mutex(Set<String>())
         let filter: ArchiveHeader.EntryFilter = { _, path, _ in
             let pathString = path.string
-            if excludePatterns.contains(where: { pathString.contains($0) }) {
+            // Prune siblings of the target bundle so only the bundle subtree
+            // is archived. Returning `.skip` on a directory header also prunes
+            // its descendants, so this is cheap even if the parent directory
+            // holds unrelated content.
+            let relativePath: String
+            if pathString == bundleName {
+                relativePath = ""
+            } else if pathString.hasPrefix(bundleDirectoryPrefix) {
+                relativePath = String(pathString.dropFirst(bundleDirectoryPrefix.count))
+            } else {
+                return .skip
+            }
+            // Match exclude patterns against the path *within* the bundle so a
+            // caller-provided pattern can't accidentally match the bundle name.
+            if !relativePath.isEmpty,
+               excludePatterns.contains(where: { relativePath.contains($0) })
+            {
                 return .skip
             }
             let inserted = seenPaths.withLock { $0.insert(pathString).inserted }
