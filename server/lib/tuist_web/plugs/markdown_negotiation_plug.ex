@@ -133,8 +133,6 @@ defmodule TuistWeb.Plugs.MarkdownNegotiationPlug do
             %{markdown: markdown} when is_binary(markdown) and markdown != "" -> markdown
             _ -> nil
           end
-        else
-          nil
         end
 
       _ ->
