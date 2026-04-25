@@ -104,6 +104,20 @@ defmodule TuistWeb.WellKnownControllerTest do
     end
   end
 
+  describe "GET /.well-known/oauth-protected-resource" do
+    test "returns host-level protected resource metadata", %{conn: conn} do
+      conn = get(conn, "/.well-known/oauth-protected-resource")
+
+      response = json_response(conn, 200)
+
+      assert response["resource"] == "http://www.example.com"
+      assert response["authorization_servers"] == ["http://www.example.com"]
+      assert response["bearer_methods_supported"] == ["header"]
+      assert response["scopes_supported"] == ["mcp"]
+      refute Map.has_key?(response, "resource_documentation")
+    end
+  end
+
   describe "GET /.well-known/oauth-protected-resource/mcp" do
     test "returns MCP protected resource metadata", %{conn: conn} do
       conn = get(conn, "/.well-known/oauth-protected-resource/mcp")
@@ -128,6 +142,12 @@ defmodule TuistWeb.WellKnownControllerTest do
 
       assert response["resource"] == "http://custom.tuist.dev:8443/mcp"
       assert response["authorization_servers"] == ["http://custom.tuist.dev:8443"]
+    end
+
+    test "returns not found for unsupported protected resources", %{conn: conn} do
+      conn = get(conn, "/.well-known/oauth-protected-resource/api")
+
+      assert json_response(conn, 404) == %{"error" => "not_found"}
     end
   end
 
