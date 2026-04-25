@@ -82,14 +82,14 @@ import TuistServer
         var body: some View {
             content
                 .environmentObject(authenticationService)
-            .withErrorHandling()
-            .task {
-                TuistSDK(
-                    fullHandle: "tuist/tuist",
-                    apiKey: "tuist_019b26d5-fd7e-7b79-ae62-b5525b26ce38_OTSCoR3hGfPI20i1Hfnpl7HPSWI="
-                )
-                .monitorPreviewUpdates()
-            }
+                .withErrorHandling()
+                .task {
+                    TuistSDK(
+                        fullHandle: "tuist/tuist",
+                        apiKey: "tuist_019b26d5-fd7e-7b79-ae62-b5525b26ce38_OTSCoR3hGfPI20i1Hfnpl7HPSWI="
+                    )
+                    .monitorPreviewUpdates()
+                }
         }
 
         @ViewBuilder
