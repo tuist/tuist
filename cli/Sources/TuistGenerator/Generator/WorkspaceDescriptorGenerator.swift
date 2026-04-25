@@ -152,7 +152,7 @@ struct WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
 
         // Schemes
         Logger.current.debug("Generating workspace schemes")
-        let schemes = try schemeDescriptorsGenerator.generateWorkspaceSchemes(
+        let (schemes, sideEffects) = try schemeDescriptorsGenerator.generateWorkspaceSchemes(
             workspace: graphTraverser.workspace,
             generatedProjects: generatedProjects,
             graphTraverser: graphTraverser
@@ -165,7 +165,7 @@ struct WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
             xcworkspace: xcWorkspace,
             projectDescriptors: projects,
             schemeDescriptors: schemes,
-            sideEffectDescriptors: [],
+            sideEffectDescriptors: sideEffects,
             workspaceSettingsDescriptor: workspaceSettingsGenerator.generateWorkspaceSettings(workspace: graphTraverser.workspace)
         )
     }
