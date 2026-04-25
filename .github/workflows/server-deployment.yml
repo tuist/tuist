@@ -195,6 +195,52 @@ jobs:
             -f "$HELM_CHART_PATH/${{ needs.plan.outputs.values_overlay }}" \
             --set server.image.tag="${{ needs.plan.outputs.image_tag }}" \
             --atomic --timeout 15m --wait
+      - name: Diagnostics on failure
+        # `--atomic` rolls back the release on timeout, so `helm history` and
+        # most cluster state reflect the rolled-back revision rather than the
+        # failure. Migration-job pods linger long enough for logs to be useful;
+        # everything else is best-effort.
+        if: failure()
+        env:
+          NS: ${{ needs.plan.outputs.namespace }}
+        run: |
+          set +e
+          echo "::group::helm history"
+          helm history "$HELM_RELEASE_NAME" -n "$NS" --max 10 || true
+          echo "::endgroup::"
+          echo "::group::helm get manifest (last attempted revision)"
+          helm get manifest "$HELM_RELEASE_NAME" -n "$NS" 2>&1 | head -200 || true
+          echo "::endgroup::"
+          echo "::group::pods"
+          kubectl -n "$NS" get pods -o wide || true
+          echo "::endgroup::"
+          echo "::group::events (last 100, sorted)"
+          kubectl -n "$NS" get events --sort-by=.lastTimestamp 2>&1 | tail -100 || true
+          echo "::endgroup::"
+          echo "::group::migration job"
+          kubectl -n "$NS" get jobs -l app.kubernetes.io/component=server-migration -o wide || true
+          for job in $(kubectl -n "$NS" get jobs -l app.kubernetes.io/component=server-migration -o name 2>/dev/null); do
+            echo "--- describe $job ---"
+            kubectl -n "$NS" describe "$job" || true
+            echo "--- logs $job ---"
+            kubectl -n "$NS" logs "$job" --all-containers --tail=500 || true
+          done
+          echo "::endgroup::"
+          echo "::group::server deployment + pods"
+          kubectl -n "$NS" describe deploy/tuist-tuist-server || true
+          for pod in $(kubectl -n "$NS" get pods -l app.kubernetes.io/component=server -o name 2>/dev/null); do
+            echo "--- describe $pod ---"
+            kubectl -n "$NS" describe "$pod" || true
+            echo "--- logs $pod (current) ---"
+            kubectl -n "$NS" logs "$pod" --all-containers --tail=500 || true
+            echo "--- logs $pod (previous) ---"
+            kubectl -n "$NS" logs "$pod" --all-containers --previous --tail=500 || true
+          done
+          echo "::endgroup::"
+          echo "::group::external secrets"
+          kubectl -n "$NS" get externalsecret,secretstore 2>&1 || true
+          kubectl -n "$NS" describe externalsecret 2>&1 || true
+          echo "::endgroup::"
       - name: Post-deploy smoke test
         run: |
           kubectl -n "${{ needs.plan.outputs.namespace }}" rollout status deploy/tuist-tuist-server --timeout=10m
