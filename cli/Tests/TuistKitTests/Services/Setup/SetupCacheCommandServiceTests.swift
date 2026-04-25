@@ -4,6 +4,7 @@ import Foundation
 import Mockable
 import Path
 import Testing
+import TuistAlert
 import TuistConfig
 import TuistConfigLoader
 import TuistConstants
@@ -69,8 +70,12 @@ struct SetupCacheCommandServiceTests {
             .hasRootManifest(at: .any)
             .willReturn(true)
 
+        let alertController = AlertController()
+
         // When
-        try await subject.run(path: nil)
+        try await AlertController.$current.withValue(alertController) {
+            try await subject.run(path: nil)
+        }
 
         // Then
         verify(launchAgentService)
@@ -82,7 +87,9 @@ struct SetupCacheCommandServiceTests {
             )
             .called(1)
 
-        TuistTest.expectLogs("Xcode Cache has been enabled 🎉")
+        let success = try #require(alertController.success().last)
+        #expect(success.message.plain().contains("Xcode Cache has been enabled 🎉"))
+        #expect(success.takeaways.contains { $0.plain().contains("Xcode talks to the cache daemon over the socket at") })
     }
 
     @Test(
@@ -341,6 +348,7 @@ struct SetupCacheCommandServiceTests {
         TuistTest
             .expectLogs("To enable Xcode Cache for this project, set the enableCaching property in your Tuist.swift file to true:"
             )
+        TuistTest.expectLogs("Xcode talks to the cache daemon over the socket at: ")
     }
 
     @Test(
