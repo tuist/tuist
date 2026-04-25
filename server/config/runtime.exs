@@ -73,12 +73,17 @@ if Enum.member?([:prod, :stag, :can], env) do
       database_options
     end
 
-  dns_name = System.get_env("RENDER_DISCOVERY_SERVICE")
-  app_name = System.get_env("RENDER_SERVICE_NAME")
+  # Cluster formation via headless Service DNS. TUIST_CLUSTER_DNS_SERVICE
+  # must point at a headless Service whose endpoints resolve to the pod IPs;
+  # TUIST_CLUSTER_APP_NAME is the Erlang long-name prefix used for the node
+  # (e.g. "tuist"). Both are set by the Helm chart when
+  # `server.cluster.enabled=true`.
+  dns_name = System.get_env("TUIST_CLUSTER_DNS_SERVICE")
+  app_name = System.get_env("TUIST_CLUSTER_APP_NAME")
 
   config :libcluster,
     topologies: [
-      render: [
+      k8s: [
         strategy: Cluster.Strategy.Kubernetes.DNS,
         config: [
           service: dns_name,

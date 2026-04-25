@@ -1,0 +1,91 @@
+# Production overlay for the Tuist-managed deployment.
+# Layer on top of values-managed-common.yaml:
+#   helm upgrade --install tuist infra/helm/tuist \
+#     -n tuist --create-namespace \
+#     -f infra/helm/tuist/values-managed-common.yaml \
+#     -f infra/helm/tuist/values-managed-production.yaml \
+#     --set server.image.tag=$GIT_SHA
+
+server:
+  replicaCount: 2
+
+  appUrl: https://tuist.dev
+
+  # HA scale-out needs distributed Erlang so PubSub + the in-memory rate
+  # limiter work across pods. Emits a headless Service that libcluster's
+  # Kubernetes.DNS strategy uses to discover peers; the chart wires
+  # TUIST_CLUSTER_DNS_SERVICE / TUIST_CLUSTER_APP_NAME into each pod.
+  cluster:
+    enabled: true
+    applicationName: tuist
+
+  extraEnv:
+    # Selects which priv/secrets/<env>.yml.enc file the app decrypts at
+    # boot. Image is env-agnostic (built with MIX_ENV=prod); this flag
+    # plus the MASTER_KEY ESO secret pick the runtime deployment target.
+    - name: TUIST_DEPLOY_ENV
+      value: prod
+    - name: TUIST_DATABASE_POOL_SIZE
+      value: "15"
+    - name: TUIST_PROCESSOR_URL
+      value: http://processor.tuist.dev:4002
+    - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
+      value: http://alloy-tuist-alloy.observability.svc.cluster.local:4317
+
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+
+  # ingress-nginx fronts the server on port 443 with a Cloudflare Origin
+  # CA cert (synced into the tuist-tls-cloudflare-origin Secret out-of-
+  # band; 15-year validity). Cloudflare is set to Full (strict) SSL.
+  ingress:
+    enabled: true
+    className: nginx
+    host: tuist.dev
+    tlsSecretName: tuist-tls-cloudflare-origin
+
+  # Full prod resource envelope — sized against the ccx23 worker.
+  resources:
+    requests:
+      cpu: "1000m"
+      memory: "2Gi"
+    limits:
+      cpu: "3000m"
+      memory: "4Gi"
+
+  # Pod anti-affinity so the two replicas never land on the same worker.
+  # With 2 × ccx23 workers this gives us a replica per node.
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            labelSelector:
+              matchLabels:
+                app.kubernetes.io/component: server
+            topologyKey: kubernetes.io/hostname
+
+postgresql:
+  external:
+    host: db.tuist.dev  # Supabase pooler endpoint for production.
+
+clickhouse:
+  external:
+    url: ""  # Set via helm --set at deploy time; see runbook.
+
+objectStorage:
+  external:
+    endpoint: https://fly.storage.tigris.dev
+    buckets:
+      default: tuist
+      cache: tuist-cache
+      xcodeCache: tuist-xcode-cache
+      registry: tuist-registry

@@ -77,6 +77,10 @@ public final class MockEnvironment: Environmenting, @unchecked Sendable {
     public func cacheSocketPathString(for fullHandle: String) -> String {
         "$HOME/\(fullHandle).sock"
     }
+
+    public func cacheLaunchAgentLabel(for fullHandle: String) -> String {
+        "tuist.cache.\(fullHandle.replacingOccurrences(of: "/", with: "_"))"
+    }
 }
 
 extension Environment {

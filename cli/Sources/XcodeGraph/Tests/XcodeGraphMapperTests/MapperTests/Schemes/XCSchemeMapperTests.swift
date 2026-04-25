@@ -145,7 +145,6 @@ struct XCSchemeMapperTests: Sendable {
             let testPlan = XCTestPlan(
                 testTargets: [
                     XCTestPlan.TestTarget(
-                        parallelizable: nil,
                         target: XCTestPlan.TestTargetReference(
                             containerPath: "container:App.xcodeproj",
                             identifier: "AppTests",
@@ -153,12 +152,12 @@ struct XCSchemeMapperTests: Sendable {
                         )
                     ),
                     XCTestPlan.TestTarget(
-                        parallelizable: true,
                         target: XCTestPlan.TestTargetReference(
                             containerPath: "container:Library",
                             identifier: "LibraryTests",
                             name: "LibraryTests"
-                        )
+                        ),
+                        parallelizable: true
                     ),
                 ]
             )

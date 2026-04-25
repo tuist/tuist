@@ -368,6 +368,8 @@ struct XcodeBuildTestCommandService {
                 AlertController.current.success(
                     .alert("Result bundle uploaded for processing. View at \(test.url)")
                 )
+            case .off:
+                return
             }
         } catch {
             AlertController.current.warning(.alert("Failed to upload test results: \(error.localizedDescription)"))

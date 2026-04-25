@@ -12,6 +12,7 @@ defmodule TuistWeb.Router do
   alias TuistWeb.Marketing.MarketingController
   alias TuistWeb.Plugs.LegacyRedirectsPlug
   alias TuistWeb.Plugs.LocalePlug
+  alias TuistWeb.Plugs.MarkdownNegotiationPlug
   alias TuistWeb.Plugs.ObservabilityContextPlug
   alias TuistWeb.Plugs.SentryContextPlug
   alias TuistWeb.Plugs.UeberauthHostPlug
@@ -109,6 +110,7 @@ defmodule TuistWeb.Router do
   end
 
   pipeline :browser_marketing do
+    plug MarkdownNegotiationPlug
     plug :accepts, ["html"]
     plug :enable_robot_indexing
     plug LegacyRedirectsPlug
@@ -130,6 +132,7 @@ defmodule TuistWeb.Router do
   end
 
   pipeline :browser_docs do
+    plug MarkdownNegotiationPlug
     plug :accepts, ["html"]
     plug :enable_robot_indexing
     plug LegacyRedirectsPlug
@@ -371,6 +374,12 @@ defmodule TuistWeb.Router do
 
     get "/github/setup", GitHubAppSetupController, :setup
     get "/slack/callback", SlackOAuthController, :callback
+  end
+
+  scope "/.well-known", TuistWeb do
+    pipe_through [:open_api]
+
+    get "/api-catalog", WellKnownController, :api_catalog
   end
 
   scope "/.well-known", TuistWeb do

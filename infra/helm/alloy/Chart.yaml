@@ -1,0 +1,9 @@
+apiVersion: v2
+name: tuist-alloy
+description: >
+  Grafana Alloy collector for the Tuist-managed Kubernetes cluster. Scrapes
+  the Phoenix server's /metrics, receives OTLP traces from the app, tails
+  pod logs via the kubelet API, and forwards everything to Grafana Cloud.
+type: application
+version: 0.1.0
+appVersion: "1.11.0"

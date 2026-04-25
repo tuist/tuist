@@ -73,6 +73,7 @@ public struct TuistCommand: AsyncParsableCommand {
                         RunCommand.self,
                         ScaffoldCommand.self,
                         SetupCommand.self,
+                        TeardownCommand.self,
                         TestCommand.self,
                         InspectCommand.self,
                         XcodeBuildCommand.self,
@@ -148,14 +149,7 @@ public struct TuistCommand: AsyncParsableCommand {
         let processedArguments = Array(processArguments(arguments)?.dropFirst() ?? [])
 
         #if os(macOS)
-            let path: AbsolutePath
-            if let argumentIndex = CommandLine.arguments.firstIndex(of: "--path") {
-                path = try AbsolutePath(
-                    validating: CommandLine.arguments[argumentIndex + 1], relativeTo: .current
-                )
-            } else {
-                path = .current
-            }
+            let path = try await CommandArguments.path(in: processedArguments)
 
             try await CacheDirectoriesProvider.bootstrap()
 
@@ -188,23 +182,24 @@ public struct TuistCommand: AsyncParsableCommand {
                     let shouldTrackAnalytics = processedArguments.prefix(2) != ["inspect", "build"]
                         && processedArguments.prefix(2) != ["auth", "refresh-token"]
                         && processedArguments.first != "analytics-upload"
+                    let optionalAuthentication = config.project.optionalAuthentication
+                    let runTrackableCommand = {
+                        try await trackableCommand.run(
+                            fullHandle: config.fullHandle,
+                            serverURL: serverURL,
+                            shouldTrackAnalytics: shouldTrackAnalytics,
+                            optionalAuthentication: optionalAuthentication
+                        )
+                    }
                     if let nooraReadyCommand = command as? NooraReadyCommand {
                         let jsonThroughNoora = nooraReadyCommand.jsonThroughNoora
                         try await withLoggerForNoora(logFilePath: logFilePath) {
                             try await Noora.$current.withValue(initNoora(jsonThroughNoora: jsonThroughNoora)) {
-                                try await trackableCommand.run(
-                                    fullHandle: config.fullHandle,
-                                    serverURL: serverURL,
-                                    shouldTrackAnalytics: shouldTrackAnalytics
-                                )
+                                try await runTrackableCommand()
                             }
                         }
                     } else {
-                        try await trackableCommand.run(
-                            fullHandle: config.fullHandle,
-                            serverURL: serverURL,
-                            shouldTrackAnalytics: shouldTrackAnalytics
-                        )
+                        try await runTrackableCommand()
                     }
                 }
             } catch {
@@ -333,13 +328,11 @@ public struct TuistCommand: AsyncParsableCommand {
         let takeaways = AlertController.current.takeaways()
 
         if !warningAlerts.isEmpty {
-            print("\n")
             Noora.current.warning(warningAlerts)
         }
         let logsNextStep: TerminalText = "Check out the logs at \(logFilePath.pathString)"
 
         if let errorAlert {
-            print("\n")
             var errorAlertNextSteps = errorAlert.takeaways
             if shouldOutputLogFilePath {
                 errorAlertNextSteps.append(logsNextStep)
@@ -351,7 +344,6 @@ public struct TuistCommand: AsyncParsableCommand {
             if shouldOutputLogFilePath {
                 successAlertNextSteps.append(logsNextStep)
             }
-            print("\n")
             Noora.current.success(.alert(successAlert.message, takeaways: successAlertNextSteps))
         }
     }

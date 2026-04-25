@@ -4,6 +4,7 @@ import Foundation
 public enum TestProcessingMode: String, Sendable, CaseIterable, ExpressibleByArgument {
     case local
     case remote
+    case off
 
     /// Returns the default processing mode for the given Tuist server URL.
     ///

@@ -6,7 +6,7 @@ import TuistNoora
 
 public struct LogInView: View {
     @EnvironmentObject var errorHandler: ErrorHandling
-    @StateObject private var authenticationService = AuthenticationService()
+    @EnvironmentObject private var authenticationService: AuthenticationService
     @Environment(\.colorScheme) private var colorScheme
     @State private var appleSignInDelegate: AppleSignInDelegate?
 
@@ -112,4 +112,6 @@ public struct LogInView: View {
 
 #Preview {
     LogInView()
+        .environmentObject(AuthenticationService())
+        .withErrorHandling()
 }

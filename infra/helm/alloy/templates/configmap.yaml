@@ -1,0 +1,152 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "alloy.configMapName" . }}
+  labels:
+    {{- include "alloy.labels" . | nindent 4 }}
+data:
+  config.alloy: |
+    logging {
+      level  = "info"
+      format = "logfmt"
+    }
+
+    prometheus.scrape "tuist" {
+      targets = [
+        {{- range .Values.scrape.targets }}
+        {"__address__" = {{ .address | quote }}, "instance" = {{ .instance | quote }}},
+        {{- end }}
+      ]
+
+      metrics_path    = "/metrics"
+      scrape_interval = {{ .Values.scrape.interval | quote }}
+
+      forward_to = [prometheus.remote_write.grafanacloud.receiver]
+    }
+
+    prometheus.remote_write "grafanacloud" {
+      endpoint {
+        url = sys.env("PROMETHEUS_URL")
+        basic_auth {
+          username = sys.env("PROMETHEUS_USERNAME")
+          password = sys.env("PROMETHEUS_TOKEN")
+        }
+      }
+    }
+
+    otelcol.receiver.otlp "default" {
+      grpc {
+        endpoint = "0.0.0.0:{{ .Values.ports.otlp }}"
+      }
+
+      output {
+        traces = [otelcol.processor.batch.default.input]
+        logs   = [otelcol.processor.batch.default.input]
+      }
+    }
+
+    otelcol.auth.basic "grafanacloud_tempo" {
+      username = sys.env("TEMPO_USERNAME")
+      password = sys.env("TEMPO_TOKEN")
+    }
+
+    otelcol.exporter.otlp "grafanacloud_tempo" {
+      client {
+        endpoint = sys.env("TEMPO_URL")
+        auth     = otelcol.auth.basic.grafanacloud_tempo.handler
+      }
+    }
+
+    otelcol.exporter.loki "grafanacloud_loki" {
+      forward_to = [loki.write.grafanacloud.receiver]
+    }
+
+    loki.write "grafanacloud" {
+      endpoint {
+        url = sys.env("LOKI_URL")
+        basic_auth {
+          username = sys.env("LOKI_USERNAME")
+          password = sys.env("LOKI_TOKEN")
+        }
+      }
+    }
+
+    loki.source.api "default" {
+      http {
+        listen_address = "0.0.0.0"
+        listen_port    = {{ .Values.ports.loki }}
+      }
+      forward_to             = [loki.write.grafanacloud.receiver]
+      use_incoming_timestamp = true
+    }
+
+    // Discover pods matching the configured selector and tail their stdout
+    // via the kubelet log API. Apps log to stdout and the cluster-level
+    // agent forwards the logs — standard Kubernetes telemetry pattern.
+    discovery.kubernetes "pods" {
+      role = "pod"
+      {{- with .Values.podDiscovery.namespaces }}
+      namespaces {
+        names = [{{- range $i, $ns := . }}{{- if $i }}, {{ end }}{{ $ns | quote }}{{- end }}]
+      }
+      {{- end }}
+      {{- range .Values.podDiscovery.labelSelectors }}
+      selectors {
+        role  = "pod"
+        label = {{ .label | quote }}
+      }
+      {{- end }}
+    }
+
+    discovery.relabel "pods" {
+      targets = discovery.kubernetes.pods.targets
+
+      // Stable Grafana Cloud labels derived from k8s pod metadata.
+      rule {
+        source_labels = ["__meta_kubernetes_namespace"]
+        target_label  = "namespace"
+      }
+      rule {
+        source_labels = ["__meta_kubernetes_pod_name"]
+        target_label  = "pod"
+      }
+      rule {
+        source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_component"]
+        target_label  = "component"
+      }
+      rule {
+        source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_instance"]
+        target_label  = "instance"
+      }
+      rule {
+        source_labels = ["__meta_kubernetes_pod_container_name"]
+        target_label  = "container"
+      }
+      rule {
+        action        = "replace"
+        target_label  = "service_name"
+        replacement   = "tuist-server"
+      }
+      rule {
+        action        = "replace"
+        target_label  = "service_namespace"
+        replacement   = "tuist"
+      }
+      rule {
+        action        = "replace"
+        target_label  = "env"
+        replacement   = {{ required "Alloy requires `env` (e.g. staging / canary / production) to be set" .Values.env | quote }}
+      }
+    }
+
+    loki.source.kubernetes "pods" {
+      targets    = discovery.relabel.pods.output
+      forward_to = [loki.write.grafanacloud.receiver]
+    }
+
+    otelcol.processor.batch "default" {
+      output {
+        traces = [otelcol.exporter.otlp.grafanacloud_tempo.input]
+        logs   = [otelcol.exporter.loki.grafanacloud_loki.input]
+      }
+    }

@@ -49,13 +49,13 @@ msgstr "분석"
 #: lib/tuist_web/live/xcode_overview_live.html.heex:755
 #, elixir-autogen, elixir-format
 msgid "Any"
-msgstr "모두"
+msgstr "임의"
 
 #: lib/tuist_web/live/project_settings_live.html.heex:55
 #: lib/tuist_web/live/project_settings_live.html.heex:79
 #, elixir-autogen, elixir-format
 msgid "Anyone with the link"
-msgstr "링크를 가진 모든 사람"
+msgstr "링크를 가진 모든 사용자"
 
 #: lib/tuist_web/live/xcode_overview_live.html.heex:599
 #, elixir-autogen, elixir-format
@@ -65,7 +65,7 @@ msgstr "앱:"
 #: lib/tuist_web/live/project_settings_live.html.heex:176
 #, elixir-autogen, elixir-format
 msgid "Are you sure you want to delete this?"
-msgstr "이 항목을 삭제하시겠습니까?"
+msgstr "정말 삭제하시겠습니까?"
 
 #: lib/tuist_web/live/xcode_overview_live.html.heex:154
 #: lib/tuist_web/live/xcode_overview_live.html.heex:948
@@ -77,12 +77,12 @@ msgstr "평균 빌드 시간"
 #: lib/tuist_web/live/xcode_overview_live.html.heex:156
 #, elixir-autogen, elixir-format
 msgid "Average time it takes to build a project as reported from Xcode post actions."
-msgstr "Xcode 후속 작업에서 보고된 프로젝트 빌드 평균 시간입니다."
+msgstr "Xcode 후처리 작업에서 보고된 프로젝트 빌드의 평균 소요 시간입니다."
 
 #: lib/tuist_web/live/xcode_overview_live.html.heex:439
 #, elixir-autogen, elixir-format
 msgid "Binary cache and selective testing: no data yet"
-msgstr "바이너리 캐시 및 선택적 테스트: 아직 데이터가 없습니다"
+msgstr "바이너리 캐시 및 선택적 테스트: 데이터 없음"
 
 #: lib/tuist_web/live/xcode_overview_live.html.heex:383
 #, elixir-autogen, elixir-format
@@ -133,8 +133,9 @@ msgstr "캐시 효율"
 #: lib/tuist_web/live/xcode_overview_live.html.heex:94
 #, elixir-autogen, elixir-format
 msgid "Cache effectiveness represents the combined hit rate of both Module cache and Xcode cache, showing the percentage of cacheable items that were resolved from cache rather than being rebuilt."
-msgstr "캐시 효율은 모듈 캐시와 Xcode 캐시의 결합 히트율을 나타내며, 캐시 가능한 항목 중 다시 빌드되지 않고 캐시에서 해결된 비율을 백분율로 보여줍니다."
+msgstr "캐시 효율은 모듈 캐시와 Xcode 캐시의 결합 적중률을 나타내며, 다시 빌드되지 않고 캐시에서 해결된 캐시 가능 항목의 비율을 보여줍니다."
 
+#: lib/tuist_web/live/project_automations_live.html.heex:593
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:190
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:349
 #: lib/tuist_web/live/project_notifications_live.html.heex:168
@@ -157,12 +158,12 @@ msgstr "계속"
 #: lib/tuist_web/live/projects_live.ex:351
 #, elixir-autogen, elixir-format
 msgid "Create a new project"
-msgstr "새 프로젝트 만들기"
+msgstr "새 프로젝트 생성"
 
 #: lib/tuist_web/live/create_project_live.ex:57
 #, elixir-autogen, elixir-format
 msgid "Create a project"
-msgstr "프로젝트 만들기"
+msgstr "프로젝트 생성"
 
 #: lib/tuist_web/live/projects_live.ex:337
 #, elixir-autogen, elixir-format
@@ -174,7 +175,7 @@ msgstr "프로젝트 생성"
 #: lib/tuist_web/live/projects_live.ex:306
 #, elixir-autogen, elixir-format
 msgid "Created %{time}"
-msgstr "%{time}에 생성됨"
+msgstr "%{time} 생성됨"
 
 #: lib/tuist_web/live/project_settings_live.html.heex:220
 #, elixir-autogen, elixir-format
@@ -190,7 +191,7 @@ msgstr "프로젝트 삭제"
 #: lib/tuist_web/live/project_settings_live.html.heex:194
 #, elixir-autogen, elixir-format
 msgid "Deleting the project will permanently remove all of its data"
-msgstr "프로젝트를 삭제하면 모든 데이터가 영구적으로 제거됩니다"
+msgstr "프로젝트를 삭제하면 모든 데이터가 영구적으로 삭제됩니다"
 
 #: lib/tuist_web/live/project_settings_live.html.heex:201
 #, elixir-autogen, elixir-format
@@ -249,7 +250,7 @@ msgstr "최근 40회 실행"
 #: lib/tuist_web/live/projects_live.ex:301
 #, elixir-autogen, elixir-format
 msgid "Last interacted with %{time}"
-msgstr "%{time}에 마지막 상호작용"
+msgstr "%{time}에 마지막으로 상호작용함"
 
 #: lib/tuist_web/live/xcode_overview_live.html.heex:571
 #, elixir-autogen, elixir-format
@@ -265,6 +266,8 @@ msgid "Local"
 msgstr "로컬"
 
 #: lib/tuist_web/live/create_project_live.ex:86
+#: lib/tuist_web/live/project_automations_live.html.heex:73
+#: lib/tuist_web/live/project_automations_live.html.heex:630
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:107
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:171
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:216
@@ -303,13 +306,13 @@ msgstr "아직 미리보기가 없습니다"
 #: lib/tuist_web/live/xcode_overview_live.html.heex:912
 #, elixir-autogen, elixir-format
 msgid "No recent builds yet"
-msgstr "최근 빌드가 없습니다"
+msgstr "최근 빌드가 아직 없습니다"
 
 #: lib/tuist_web/live/project_settings_live.html.heex:53
 #: lib/tuist_web/live/project_settings_live.html.heex:67
 #, elixir-autogen, elixir-format
 msgid "Only organization members"
-msgstr "조직 구성원만"
+msgstr "조직 멤버만"
 
 #: lib/tuist_web/live/overview_live.ex:15
 #, elixir-autogen, elixir-format
@@ -319,12 +322,12 @@ msgstr "개요"
 #: lib/tuist_web/live/xcode_overview_live.html.heex:850
 #, elixir-autogen, elixir-format
 msgid "Passed builds"
-msgstr "성공 빌드"
+msgstr "성공한 빌드"
 
 #: lib/tuist_web/live/xcode_overview_live.html.heex:472
 #, elixir-autogen, elixir-format
 msgid "Passed runs"
-msgstr "성공 실행"
+msgstr "성공한 실행"
 
 #: lib/tuist_web/live/project_settings_live.html.heex:39
 #, elixir-autogen, elixir-format
@@ -372,7 +375,7 @@ msgstr "프로젝트 이름을 변경하시겠습니까?"
 #: lib/tuist_web/live/project_settings_live.html.heex:127
 #, elixir-autogen, elixir-format
 msgid "Renaming can have unexpected consequences"
-msgstr "이름 변경은 예상치 못한 영향을 줄 수 있습니다"
+msgstr "이름 변경은 예상치 못한 결과를 초래할 수 있습니다"
 
 #: lib/tuist_web/live/project_settings_live.html.heex:98
 #, elixir-autogen, elixir-format
@@ -382,7 +385,7 @@ msgstr "프로젝트 이름 변경은 의도하지 않은 부작용을 일으킬
 #: lib/tuist_web/live/xcode_overview_live.html.heex:535
 #, elixir-autogen, elixir-format
 msgid "Runs: no data yet"
-msgstr "실행: 아직 데이터가 없습니다"
+msgstr "실행: 아직 데이터 없음"
 
 #: lib/tuist_web/live/xcode_overview_live.html.heex:409
 #, elixir-autogen, elixir-format
@@ -404,12 +407,12 @@ msgstr "선택적 테스트 효율"
 #: lib/tuist_web/live/xcode_overview_live.html.heex:125
 #, elixir-autogen, elixir-format
 msgid "Selective test effectiveness represents the ratio of selective test hits compared to selective test misses."
-msgstr "선택적 테스트 효율은 선택적 테스트 성공 대비 실패 비율을 나타냅니다."
+msgstr "선택적 테스트 효율은 선택적 테스트 적중률과 부적중률의 비율을 나타냅니다."
 
 #: lib/tuist_web/live/project_settings_live.html.heex:42
 #, elixir-autogen, elixir-format
 msgid "Set your previews to be public or private by default."
-msgstr "미리보기를 기본적으로 공개 또는 비공개로 설정하세요."
+msgstr "미리보기의 기본 공개 여부를 설정하세요."
 
 #: lib/tuist_web/live/project_settings_live.ex:25
 #, elixir-autogen, elixir-format
@@ -429,12 +432,12 @@ msgstr "테스트"
 #: lib/tuist_web/live/projects_live.ex:24
 #, elixir-autogen, elixir-format
 msgid "The page you are looking for doesn't exist or has been moved."
-msgstr "찾으려는 페이지가 없거나 이동되었습니다."
+msgstr "찾으시는 페이지가 존재하지 않거나 이동되었습니다."
 
 #: lib/tuist_web/live/project_settings_live.html.heex:164
 #, elixir-autogen, elixir-format
 msgid "This action cannot be undone."
-msgstr "이 작업은 취소할 수 없습니다."
+msgstr "이 작업은 되돌릴 수 없습니다."
 
 #: lib/tuist_web/live/create_project_live.ex:49
 #, elixir-autogen, elixir-format
@@ -459,17 +462,17 @@ msgstr "이 작업을 수행할 권한이 없습니다."
 #: lib/tuist_web/live/xcode_overview_live.ex:220
 #, elixir-autogen, elixir-format
 msgid "since last month"
-msgstr "지난달 이후"
+msgstr "지난달부터"
 
 #: lib/tuist_web/live/xcode_overview_live.ex:217
 #, elixir-autogen, elixir-format
 msgid "since last week"
-msgstr "지난주 이후"
+msgstr "지난주부터"
 
 #: lib/tuist_web/live/xcode_overview_live.ex:218
 #, elixir-autogen, elixir-format
 msgid "since last year"
-msgstr "지난해 이후"
+msgstr "지난해부터"
 
 #: lib/tuist_web/live/xcode_overview_live.html.heex:80
 #: lib/tuist_web/live/xcode_overview_live.html.heex:648
@@ -483,44 +486,44 @@ msgstr "적용"
 #: lib/tuist_web/live/xcode_overview_live.html.heex:802
 #, elixir-autogen, elixir-format
 msgid "Custom"
-msgstr "사용자 정의"
+msgstr "사용자 지정"
 
 #: lib/tuist_web/live/xcode_overview_live.html.heex:59
 #: lib/tuist_web/live/xcode_overview_live.html.heex:627
 #: lib/tuist_web/live/xcode_overview_live.html.heex:799
 #, elixir-autogen, elixir-format
 msgid "Last 12 months"
-msgstr "최근 12개월"
+msgstr "지난 12개월"
 
 #: lib/tuist_web/live/xcode_overview_live.html.heex:44
 #: lib/tuist_web/live/xcode_overview_live.html.heex:784
 #, elixir-autogen, elixir-format
 msgid "Last 24 hours"
-msgstr "최근 24시간"
+msgstr "지난 24시간"
 
 #: lib/tuist_web/live/xcode_overview_live.html.heex:54
 #: lib/tuist_web/live/xcode_overview_live.html.heex:622
 #: lib/tuist_web/live/xcode_overview_live.html.heex:794
 #, elixir-autogen, elixir-format
 msgid "Last 30 days"
-msgstr "최근 30일"
+msgstr "지난 30일"
 
 #: lib/tuist_web/live/xcode_overview_live.html.heex:49
 #: lib/tuist_web/live/xcode_overview_live.html.heex:617
 #: lib/tuist_web/live/xcode_overview_live.html.heex:789
 #, elixir-autogen, elixir-format
 msgid "Last 7 days"
-msgstr "최근 7일"
+msgstr "지난 7일"
 
 #: lib/tuist_web/live/xcode_overview_live.ex:219
 #, elixir-autogen, elixir-format
 msgid "since last period"
-msgstr "지난 기간 이후"
+msgstr "지난 기간부터"
 
 #: lib/tuist_web/live/xcode_overview_live.ex:216
 #, elixir-autogen, elixir-format
 msgid "since yesterday"
-msgstr "어제 이후"
+msgstr "어제부터"
 
 #: lib/tuist_web/live/project_notifications_live.html.heex:573
 #, elixir-autogen, elixir-format
@@ -537,7 +540,7 @@ msgstr "구성"
 #: lib/tuist_web/live/project_notifications_live.html.heex:109
 #, elixir-autogen, elixir-format
 msgid "Daily"
-msgstr "일일"
+msgstr "일간"
 
 #: lib/tuist_web/live/project_notifications_live.html.heex:85
 #, elixir-autogen, elixir-format
@@ -548,8 +551,9 @@ msgstr "빈도"
 #: lib/tuist_web/live/project_notifications_live.html.heex:98
 #, elixir-autogen, elixir-format
 msgid "Never"
-msgstr "안함"
+msgstr "절대"
 
+#: lib/tuist_web/live/project_automations_live.html.heex:603
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:358
 #: lib/tuist_web/live/project_notifications_live.html.heex:176
 #, elixir-autogen, elixir-format
@@ -584,7 +588,7 @@ msgstr "평균"
 #: lib/tuist_web/live/project_notifications_live.ex:590
 #, elixir-autogen, elixir-format
 msgid "Build duration"
-msgstr "빌드 시간"
+msgstr "빌드 기간"
 
 #: lib/tuist_web/live/project_notifications_live.ex:592
 #, elixir-autogen, elixir-format
@@ -611,7 +615,7 @@ msgstr "지표가 악화될 때 알림 받기"
 #: lib/tuist_web/live/project_notifications_live.html.heex:689
 #, elixir-autogen, elixir-format
 msgid "Metric"
-msgstr "측정항목"
+msgstr "지표"
 
 #: lib/tuist_web/live/project_notifications_live.ex:591
 #, elixir-autogen, elixir-format
@@ -644,14 +648,15 @@ msgstr "알림 규칙"
 #: lib/tuist_web/live/project_notifications_live.html.heex:69
 #, elixir-autogen, elixir-format
 msgid "Configure schedule"
-msgstr "일정 구성"
+msgstr "일정 설정"
 
 #: lib/tuist_web/live/project_notifications_live.html.heex:42
 #, elixir-autogen, elixir-format
 msgid "Configure your report notifications"
-msgstr "보고서 알림 구성"
+msgstr "보고서 알림 설정"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:141
+#: lib/tuist_web/live/project_automations_live.html.heex:244
+#: lib/tuist_web/live/project_automations_live.html.heex:466
 #: lib/tuist_web/live/project_notifications_live.html.heex:206
 #: lib/tuist_web/live/project_notifications_live.html.heex:302
 #: lib/tuist_web/live/project_notifications_live.html.heex:631
@@ -695,8 +700,8 @@ msgstr "일정"
 msgid "Slack"
 msgstr "Slack"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:150
-#: lib/tuist_web/live/project_automations_live.html.heex:160
+#: lib/tuist_web/live/project_automations_live.html.heex:230
+#: lib/tuist_web/live/project_automations_live.html.heex:452
 #: lib/tuist_web/live/project_notifications_live.html.heex:215
 #: lib/tuist_web/live/project_notifications_live.html.heex:225
 #: lib/tuist_web/live/project_notifications_live.html.heex:506
@@ -706,7 +711,8 @@ msgstr "Slack"
 msgid "Select channel"
 msgstr "채널 선택"
 
-#: lib/tuist_web/live/project_automations_live.html.heex:159
+#: lib/tuist_web/live/project_automations_live.html.heex:229
+#: lib/tuist_web/live/project_automations_live.html.heex:451
 #: lib/tuist_web/live/project_notifications_live.html.heex:224
 #: lib/tuist_web/live/project_notifications_live.html.heex:505
 #: lib/tuist_web/live/project_notifications_live.html.heex:866
@@ -751,6 +757,7 @@ msgstr "테스트 시간"
 msgid "tests"
 msgstr "테스트"
 
+#: lib/tuist_web/live/project_automations_live.html.heex:604
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:198
 #: lib/tuist_web/live/project_notifications_live.html.heex:533
 #: lib/tuist_web/live/projects_live.ex:391
@@ -793,32 +800,17 @@ msgstr "알림 규칙 업데이트"
 #: lib/tuist_web/live/project_notifications_live.html.heex:254
 #, elixir-autogen, elixir-format
 msgid "Metrics"
-msgstr "지표"
+msgstr "메트릭"
 
 #: lib/tuist_web/live/project_notifications_live.html.heex:930
 #, elixir-autogen, elixir-format
 msgid "Create an alert rule to get notified when metrics regress"
-msgstr "지표가 악화될 때 알림을 받도록 알림 규칙을 생성하세요"
+msgstr "메트릭이 악화될 때 알림을 받는 알림 규칙을 생성하세요"
 
 #: lib/tuist_web/live/project_notifications_live.html.heex:928
 #, elixir-autogen, elixir-format
 msgid "No alert rules"
 msgstr "알림 규칙 없음"
-
-#: lib/tuist_web/live/project_automations_live.html.heex:59
-#, elixir-autogen, elixir-format
-msgid "Auto-mark tests as flaky"
-msgstr "테스트를 자동으로 불안정 표시"
-
-#: lib/tuist_web/live/project_automations_live.html.heex:198
-#, elixir-autogen, elixir-format
-msgid "Auto-quarantine flaky tests"
-msgstr "불안정 테스트 자동 격리"
-
-#: lib/tuist_web/live/project_automations_live.html.heex:181
-#, elixir-autogen, elixir-format
-msgid "Automatically quarantine tests when they are detected as flaky"
-msgstr "테스트가 불안정으로 감지되면 자동으로 격리합니다"
 
 #: lib/tuist_web/live/project_automations_live.ex:34
 #: lib/tuist_web/live/project_automations_live.html.heex:20
@@ -829,36 +821,6 @@ msgstr "테스트가 불안정으로 감지되면 자동으로 격리합니다"
 #, elixir-autogen, elixir-format
 msgid "Automations"
 msgstr "자동화"
-
-#: lib/tuist_web/live/project_automations_live.html.heex:39
-#, elixir-autogen, elixir-format
-msgid "Flaky test detection"
-msgstr "불안정 테스트 감지"
-
-#: lib/tuist_web/live/project_automations_live.html.heex:42
-#, elixir-autogen, elixir-format
-msgid "Get notified when tests are flagged as flaky"
-msgstr "테스트가 불안정으로 표시되면 알림 받기"
-
-#: lib/tuist_web/live/project_automations_live.html.heex:71
-#, elixir-autogen, elixir-format
-msgid "Minimum occurrences"
-msgstr "최소 발생 횟수"
-
-#: lib/tuist_web/live/project_automations_live.html.heex:130
-#, elixir-autogen, elixir-format
-msgid "Slack notifications"
-msgstr "Slack 알림"
-
-#: lib/tuist_web/live/project_automations_live.html.heex:178
-#, elixir-autogen, elixir-format
-msgid "Test quarantine"
-msgstr "테스트 격리"
-
-#: lib/tuist_web/live/project_automations_live.html.heex:63
-#, elixir-autogen, elixir-format
-msgid "Tests will be marked as flaky after the specified number of flaky occurrences within the last 30 days"
-msgstr "지난 30일 동안 지정된 횟수만큼 불안정이 발생하면 테스트가 불안정으로 표시됩니다"
 
 #: lib/tuist_web/live/create_project_live.ex:98
 #: lib/tuist_web/live/projects_live.ex:370
@@ -875,7 +837,7 @@ msgstr "빌드 시스템 선택"
 #: lib/tuist_web/live/project_notifications_live.ex:610
 #, elixir-autogen, elixir-format
 msgid "Alert when the <strong>%{size_label}</strong> of the latest bundle on branch <strong>%{git_branch}</strong> has increased by <strong>%{deviation}%</strong> compared to the previous bundle."
-msgstr "브랜치 <strong>%{git_branch}</strong>의 최신 번들에서 <strong>%{size_label}</strong>이 이전 번들에 비해 <strong>%{deviation}%</strong> 증가하면 알림이 발생합니다."
+msgstr "브랜치 <strong>%{git_branch}</strong>의 최신 번들에서 <strong>%{size_label}</strong>이 이전 번들 대비 <strong>%{deviation}%</strong> 이상 증가하면 알림을 보냅니다."
 
 #: lib/tuist_web/live/project_notifications_live.html.heex:399
 #: lib/tuist_web/live/project_notifications_live.html.heex:741
@@ -898,7 +860,7 @@ msgstr "다운로드 크기"
 #: lib/tuist_web/live/project_notifications_live.html.heex:715
 #, elixir-autogen, elixir-format
 msgid "Size metric"
-msgstr "크기 측정항목"
+msgstr "크기 지표"
 
 #: lib/tuist_web/live/project_notifications_live.html.heex:406
 #: lib/tuist_web/live/project_notifications_live.html.heex:748
@@ -914,17 +876,17 @@ msgstr "%{scheme} %{unit}"
 #: lib/tuist_web/live/project_notifications_live.ex:640
 #, elixir-autogen, elixir-format
 msgid "Alert when the <strong>%{metric_category}</strong> of the last <strong>%{rolling_window_size} %{current_unit}</strong> has decreased by <strong>%{deviation}%</strong> compared to the previous <strong>%{rolling_window_size} %{unit}</strong>."
-msgstr "최근 <strong>%{rolling_window_size} %{current_unit}</strong> 동안의 <strong>%{metric_category}</strong>가 이전 <strong>%{rolling_window_size} %{unit}</strong> 대비 <strong>%{deviation}%</strong> 감소하면 알림이 발생합니다."
+msgstr "최근 <strong>%{rolling_window_size} %{current_unit}</strong>의 <strong>%{metric_category}</strong>가 이전 <strong>%{rolling_window_size} %{unit}</strong> 대비 <strong>%{deviation}%</strong> 이상 감소하면 알림을 보냅니다."
 
 #: lib/tuist_web/live/project_notifications_live.ex:651
 #, elixir-autogen, elixir-format
 msgid "Alert when the <strong>%{metric_category}</strong> of the last <strong>%{rolling_window_size} %{current_unit}</strong> has increased by <strong>%{deviation}%</strong> compared to the previous <strong>%{rolling_window_size} %{unit}</strong>."
-msgstr "최근 <strong>%{rolling_window_size} %{current_unit}</strong> 동안의 <strong>%{metric_category}</strong>가 이전 <strong>%{rolling_window_size} %{unit}</strong> 대비 <strong>%{deviation}%</strong> 증가하면 알림이 발생합니다."
+msgstr "최근 <strong>%{rolling_window_size} %{current_unit}</strong>의 <strong>%{metric_category}</strong>가 이전 <strong>%{rolling_window_size} %{unit}</strong> 대비 <strong>%{deviation}%</strong> 이상 증가하면 알림을 보냅니다."
 
 #: lib/tuist_web/live/project_notifications_live.ex:618
 #, elixir-autogen, elixir-format
 msgid "Alert when the <strong>%{size_label}</strong> of the latest <strong>%{bundle_name}</strong> bundle on branch <strong>%{git_branch}</strong> has increased by <strong>%{deviation}%</strong> compared to the previous bundle."
-msgstr "브랜치 <strong>%{git_branch}</strong>의 최신 <strong>%{bundle_name}</strong> 번들에서 <strong>%{size_label}</strong>이 이전 번들에 비해 <strong>%{deviation}%</strong> 증가하면 알림이 발생합니다."
+msgstr "브랜치 <strong>%{git_branch}</strong>의 최신 <strong>%{bundle_name}</strong> 번들에서 <strong>%{size_label}</strong>이 이전 번들 대비 <strong>%{deviation}%</strong> 이상 증가하면 알림을 보냅니다."
 
 #: lib/tuist_web/live/project_notifications_live.html.heex:442
 #: lib/tuist_web/live/project_notifications_live.html.heex:795
@@ -982,7 +944,7 @@ msgstr "기준 브랜치"
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:42
 #, elixir-autogen, elixir-format
 msgid "Block PRs when bundle size exceeds a threshold compared to a baseline branch"
-msgstr "기준 브랜치 대비 번들 크기가 임계값을 초과하면 PR 차단"
+msgstr "기준 브랜치 대비 번들 크기가 임계값을 초과할 경우 PR을 차단"
 
 #: lib/tuist_web/live/project_bundle_settings_live.ex:221
 #, elixir-autogen, elixir-format
@@ -992,7 +954,7 @@ msgstr "<strong>%{baseline_branch}</strong>의 최신 번들 대비 <strong>%{si
 #: lib/tuist_web/live/project_bundle_settings_live.ex:229
 #, elixir-autogen, elixir-format
 msgid "Block PRs when the <strong>%{size_label}</strong> of <strong>%{bundle_name}</strong> increases by more than <strong>%{deviation}%</strong> compared to the latest bundle on <strong>%{baseline_branch}</strong>."
-msgstr "<strong>%{baseline_branch}</strong>의 최신 번들 대비 <strong>%{bundle_name}</strong>의 <strong>%{size_label}</strong>이 <strong>%{deviation}%</strong> 이상 증가하면 PR을 차단합니다."
+msgstr "<strong>%{baseline_branch}</strong>의 최신 번들 대비 <strong>%{bundle_name}</strong>의 <strong>%{size_label}</strong>가 <strong>%{deviation}%</strong> 이상 증가하면 PR을 차단합니다."
 
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:228
 #, elixir-autogen, elixir-format
@@ -1002,7 +964,7 @@ msgstr "번들 이름"
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:386
 #, elixir-autogen, elixir-format
 msgid "Create a threshold to block PRs when bundle size exceeds a limit"
-msgstr "번들 크기가 한도를 초과할 때 PR을 차단하는 임계값 생성"
+msgstr "번들 크기가 제한을 초과할 경우 PR을 차단하는 임계값을 생성합니다."
 
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:81
 #, elixir-autogen, elixir-format
@@ -1018,7 +980,7 @@ msgstr "편차 %"
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:384
 #, elixir-autogen, elixir-format
 msgid "No size thresholds"
-msgstr "임계 크기 없음"
+msgstr "크기 임계값 없음"
 
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:39
 #, elixir-autogen, elixir-format
@@ -1048,17 +1010,7 @@ msgstr "GitHub 연결"
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:57
 #, elixir-autogen, elixir-format
 msgid "Connect the Tuist GitHub App to enable bundle size check runs on PRs."
-msgstr "PR에서 번들 크기 검사 실행을 활성화하려면 Tuist GitHub 앱을 연결하세요."
-
-#: lib/tuist_web/live/project_automations_live.html.heex:92
-#, elixir-autogen, elixir-format
-msgid "Number of days without a flaky occurrence before the flaky flag is automatically cleared from a test case"
-msgstr "불안정 플래그가 테스트 케이스에서 자동으로 해제되기 전 불안정 현상이 없던 일수"
-
-#: lib/tuist_web/live/project_automations_live.html.heex:87
-#, elixir-autogen, elixir-format
-msgid "Cooldown period (days)"
-msgstr "재발 방지 기간(일)"
+msgstr "PR의 번들 크기 검사 실행을 활성화하려면 Tuist GitHub 앱을 연결하세요."
 
 #: lib/tuist_web/live/create_project_live.ex:59
 #, elixir-autogen, elixir-format
@@ -1074,3 +1026,266 @@ msgstr "조직"
 #, elixir-autogen, elixir-format
 msgid "Select organization"
 msgstr "조직 선택"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:167
+#, elixir-autogen, elixir-format
+msgid "Action"
+msgstr "동작"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:328
+#, elixir-autogen, elixir-format
+msgid "Add action"
+msgstr "동작 추가"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:60
+#, elixir-autogen, elixir-format
+msgid "Add automation"
+msgstr "자동화 추가"
+
+#: lib/tuist_web/live/project_automations_live.ex:427
+#, elixir-autogen, elixir-format
+msgid "Add label"
+msgstr "레이블 추가"
+
+#: lib/tuist_web/live/project_automations_live.ex:448
+#, elixir-autogen, elixir-format
+msgid "Add label: %{label}"
+msgstr "레이블 추가: %{label}"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:550
+#, elixir-autogen, elixir-format
+msgid "Add recovery action"
+msgstr "복구 동작 추가"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:294
+#: lib/tuist_web/live/project_automations_live.html.heex:516
+#, elixir-autogen, elixir-format
+msgid "Available variables:"
+msgstr "사용 가능한 변수:"
+
+#: lib/tuist_web/live/project_automations_live.ex:425
+#: lib/tuist_web/live/project_automations_live.html.heex:338
+#: lib/tuist_web/live/project_automations_live.html.heex:560
+#, elixir-autogen, elixir-format
+msgid "Change state"
+msgstr "상태 변경"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:186
+#: lib/tuist_web/live/project_automations_live.html.heex:408
+#, elixir-autogen, elixir-format
+msgid "Change state to"
+msgstr "상태를 다음으로 변경"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:91
+#, elixir-autogen, elixir-format
+msgid "Condition"
+msgstr "조건"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:42
+#, elixir-autogen, elixir-format
+msgid "Continuously monitor tests and respond with automated actions."
+msgstr "테스트를 지속적으로 모니터링하고 자동화된 동작으로 응답하세요."
+
+#: lib/tuist_web/live/project_automations_live.html.heex:53
+#, elixir-autogen, elixir-format
+msgid "Create automation"
+msgstr "자동화 생성"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:656
+#, elixir-autogen, elixir-format
+msgid "Delete this automation?"
+msgstr "이 자동화를 삭제하시겠습니까?"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:52
+#, elixir-autogen, elixir-format
+msgid "Edit automation"
+msgstr "자동화 편집"
+
+#: lib/tuist_web/live/project_automations_live.ex:418
+#, elixir-autogen, elixir-format
+msgid "Enable"
+msgstr "활성화"
+
+#: lib/tuist_web/live/project_automations_live.ex:422
+#: lib/tuist_web/live/project_automations_live.html.heex:204
+#: lib/tuist_web/live/project_automations_live.html.heex:417
+#, elixir-autogen, elixir-format
+msgid "Enabled"
+msgstr "활성화됨"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:286
+#: lib/tuist_web/live/project_automations_live.html.heex:508
+#, elixir-autogen, elixir-format
+msgid "Enter message template..."
+msgstr "메시지 템플릿 입력..."
+
+#: lib/tuist_web/live/project_automations_live.ex:413
+#: lib/tuist_web/live/project_automations_live.html.heex:111
+#, elixir-autogen, elixir-format
+msgid "Flakiness rate"
+msgstr "불안정률"
+
+#: lib/tuist_web/live/project_automations_live.ex:414
+#: lib/tuist_web/live/project_automations_live.html.heex:119
+#, elixir-autogen, elixir-format
+msgid "Flaky runs"
+msgstr "불안정 실행"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:130
+#, elixir-autogen, elixir-format
+msgid "Is greater than or equal to (%)"
+msgstr "(%) 이상"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:350
+#, elixir-autogen, elixir-format
+msgid "Mark as flaky"
+msgstr "불안정으로 표시"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:306
+#: lib/tuist_web/live/project_automations_live.html.heex:528
+#, elixir-autogen, elixir-format
+msgid "Mark test as flaky"
+msgstr "테스트를 불안정으로 표시"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:264
+#: lib/tuist_web/live/project_automations_live.html.heex:486
+#, elixir-autogen, elixir-format
+msgid "Message template"
+msgstr "메시지 템플릿"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:618
+#, elixir-autogen, elixir-format
+msgid "No automations yet. Add one to start automatically managing test case state based on conditions."
+msgstr "아직 자동화가 없습니다. 조건에 따라 테스트 케이스 상태를 자동으로 관리하려면 자동화를 추가하세요."
+
+#: lib/tuist_web/live/project_automations_live.html.heex:147
+#, elixir-autogen, elixir-format
+msgid "Over the last"
+msgstr "최근"
+
+#: lib/tuist_web/live/project_automations_live.ex:417
+#, elixir-autogen, elixir-format
+msgid "Quarantine"
+msgstr "격리"
+
+#: lib/tuist_web/live/project_automations_live.ex:421
+#: lib/tuist_web/live/project_automations_live.html.heex:195
+#: lib/tuist_web/live/project_automations_live.html.heex:426
+#, elixir-autogen, elixir-format
+msgid "Quarantined"
+msgstr "격리됨"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:132
+#, elixir-autogen, elixir-format
+msgid "Reach at least (count)"
+msgstr "최소 도달 횟수 (개)"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:374
+#, elixir-autogen, elixir-format
+msgid "Recovery"
+msgstr "복구"
+
+#: lib/tuist_web/live/project_automations_live.ex:428
+#, elixir-autogen, elixir-format
+msgid "Remove label"
+msgstr "레이블 제거"
+
+#: lib/tuist_web/live/project_automations_live.ex:451
+#, elixir-autogen, elixir-format
+msgid "Remove label: %{label}"
+msgstr "레이블 제거: %{label}"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:377
+#, elixir-autogen, elixir-format
+msgid "Run actions when the conditions no longer hold"
+msgstr "조건이 더 이상 충족되지 않을 때 동작 실행"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:170
+#, elixir-autogen, elixir-format
+msgid "Run these actions for each test case that meets the condition"
+msgstr "조건을 만족하는 각 테스트 케이스에 대해 이 동작을 실행하세요."
+
+#: lib/tuist_web/live/project_automations_live.ex:426
+#: lib/tuist_web/live/project_automations_live.html.heex:217
+#: lib/tuist_web/live/project_automations_live.html.heex:355
+#: lib/tuist_web/live/project_automations_live.html.heex:439
+#: lib/tuist_web/live/project_automations_live.html.heex:577
+#, elixir-autogen, elixir-format
+msgid "Send Slack notification"
+msgstr "Slack 알림 보내기"
+
+#: lib/tuist_web/live/project_automations_live.ex:445
+#, elixir-autogen, elixir-format
+msgid "Slack: not configured"
+msgstr "Slack: 구성되지 않음"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:267
+#: lib/tuist_web/live/project_automations_live.html.heex:489
+#, elixir-autogen, elixir-format
+msgid "Supports Slack"
+msgstr "Slack 지원"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:39
+#, elixir-autogen, elixir-format
+msgid "Test case automations"
+msgstr "테스트 케이스 자동화"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:633
+#, elixir-autogen, elixir-format
+msgid "Trigger"
+msgstr "트리거"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:94
+#, elixir-autogen, elixir-format
+msgid "Trigger the automation when this condition is met"
+msgstr "이 조건이 충족되면 자동화를 트리거하세요."
+
+#: lib/tuist_web/live/project_automations_live.ex:415
+#: lib/tuist_web/live/project_automations_live.ex:419
+#: lib/tuist_web/live/project_automations_live.ex:423
+#: lib/tuist_web/live/project_automations_live.ex:429
+#, elixir-autogen, elixir-format
+msgid "Unknown"
+msgstr "알 수 없음"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:572
+#, elixir-autogen, elixir-format
+msgid "Unmark as flaky"
+msgstr "불안정 표시 해제"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:310
+#: lib/tuist_web/live/project_automations_live.html.heex:532
+#, elixir-autogen, elixir-format
+msgid "Unmark test as flaky"
+msgstr "테스트 불안정 표시 해제"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:103
+#, elixir-autogen, elixir-format
+msgid "When"
+msgstr "조건"
+
+#: lib/tuist_web/live/project_automations_live.ex:459
+#, elixir-autogen, elixir-format
+msgid "When flakiness rate ≥ %{threshold}% over %{window}"
+msgstr "불안정률이 %{window} 기간 동안 %{threshold}% 이상일 때"
+
+#: lib/tuist_web/live/project_automations_live.ex:468
+#, elixir-autogen, elixir-format
+msgid "When flaky runs ≥ %{threshold} over %{window}"
+msgstr "불안정 실행이 %{window} 동안 %{threshold} 이상일 때"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:387
+#, elixir-autogen, elixir-format
+msgid "Without trigger for"
+msgstr "트리거 없는 기간"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:80
+#, elixir-autogen, elixir-format
+msgid "e.g. Auto-quarantine flaky tests"
+msgstr "예: 불안정 테스트 자동 격리"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:275
+#: lib/tuist_web/live/project_automations_live.html.heex:497
+#, elixir-autogen, elixir-format
+msgid "formatting."
+msgstr "포매팅."
