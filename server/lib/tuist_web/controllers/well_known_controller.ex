@@ -4,6 +4,7 @@ defmodule TuistWeb.WellKnownController do
   alias Tuist.Environment
   alias Tuist.Namespace.JWTToken
   alias TuistWeb.AgentDiscovery
+  alias TuistWeb.AgentSkillsDiscovery
   alias TuistWeb.RequestOrigin
 
   @mcp_path "/mcp"
@@ -19,6 +20,10 @@ defmodule TuistWeb.WellKnownController do
     |> put_resp_header("content-type", AgentDiscovery.api_catalog_content_type())
     |> put_resp_header("link", AgentDiscovery.api_catalog_link_header_value())
     |> send_resp(:ok, Jason.encode!(catalog))
+  end
+
+  def agent_skills_index(conn, _params) do
+    json(conn, AgentSkillsDiscovery.index())
   end
 
   @doc """
