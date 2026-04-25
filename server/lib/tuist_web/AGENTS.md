@@ -8,7 +8,9 @@ This directory contains the web interface: Phoenix controllers, LiveView, and AP
 
 ## Route Metadata
 - `server/lib/tuist_web/router.ex` route metadata for public `:marketing` and `:docs` GET endpoints feeds the runtime `robots.txt` Content-Usage allowlist.
-- When adding or changing public marketing/docs routes, keep `metadata: %{type: :marketing}` or `:docs` accurate and update the `TuistWeb.Utilities.RobotsTxt` exclusions only for non-content endpoints.
+- When adding or changing public marketing/docs routes, keep `metadata: %{type: :marketing}` or `:docs` accurate.
+- For public `GET` routes that should appear in `robots.txt` Content-Usage, define that configuration in the router with `metadata: %{robots_txt: [train_ai: true, search: true]}`.
+- If a route should not contribute any `robots.txt` Content-Usage entry, omit `:robots_txt` metadata instead of maintaining a separate allowlist or exclusion list elsewhere.
 
 ## Boundaries
 - Business logic should remain in `server/lib/tuist`.
