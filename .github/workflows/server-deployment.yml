@@ -212,7 +212,11 @@ jobs:
     concurrency:
       group: server-deploy-${{ needs.plan.outputs.environment_key }}
       cancel-in-progress: false
-    timeout-minutes: 30
+    # Headroom over `helm --timeout 45m` so the job doesn't pre-empt
+    # a still-running migration. Long-running ALTER TABLE rewrites
+    # (see WidenBundleSizeColumnsToBigint) can take 10s of minutes
+    # against the production artifacts table.
+    timeout-minutes: 60
     env:
       KUBECONFIG: ${{ github.workspace }}/.kube/config
     steps:
@@ -241,7 +245,7 @@ jobs:
             -f "$HELM_CHART_PATH/values-managed-common.yaml" \
             -f "$HELM_CHART_PATH/${{ needs.plan.outputs.values_overlay }}" \
             --set server.image.tag="${{ needs.plan.outputs.image_tag }}" \
-            --atomic --timeout 15m --wait
+            --atomic --timeout 45m --wait
       - name: Diagnostics on failure
         # `--atomic` rolls back the release on timeout, so `helm history` and
         # most cluster state reflect the rolled-back revision rather than the
