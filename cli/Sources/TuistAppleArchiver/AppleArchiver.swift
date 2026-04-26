@@ -24,20 +24,56 @@ public protocol AppleArchiving {
     func compress(
         directory: AbsolutePath,
         to archivePath: AbsolutePath,
-        excludePatterns: [String]
+        excludePatterns: [String],
+        preservesBaseDirectory: Bool
     ) async throws
     func decompress(archive: AbsolutePath, to directory: AbsolutePath) async throws
+}
+
+extension AppleArchiving {
+    public func compress(
+        directory: AbsolutePath,
+        to archivePath: AbsolutePath,
+        excludePatterns: [String]
+    ) async throws {
+        try await compress(
+            directory: directory,
+            to: archivePath,
+            excludePatterns: excludePatterns,
+            preservesBaseDirectory: false
+        )
+    }
 }
 
 public struct AppleArchiver: AppleArchiving {
     public init() {}
 
+    /// - Parameter preservesBaseDirectory: When `true`, archive entries are
+    ///   prefixed with `directory.basename`, so extractors land at
+    ///   `destination/<bundleName>/…`. This matters for `.xcresult` and
+    ///   `.xctestproducts` payloads consumed by Xcode or the server-side
+    ///   xcresult processor — the wrapping directory is part of the bundle's
+    ///   identity. Defaults to `false` to keep the lighter-weight behavior of
+    ///   archiving the directory's contents flat for callers that don't need
+    ///   the wrapper (sharding test products, etc.).
     public func compress(
         directory: AbsolutePath,
         to archivePath: AbsolutePath,
-        excludePatterns: [String] = []
+        excludePatterns: [String] = [],
+        preservesBaseDirectory: Bool = false
     ) async throws {
-        let source = FilePath(directory.pathString)
+        // When the bundle directory must be preserved, archive from the parent
+        // so the bundle's basename appears in entry paths, and prune siblings
+        // via the entry filter. Otherwise archive the contents directly.
+        let source: FilePath
+        let bundleScope: (name: String, prefix: String)?
+        if preservesBaseDirectory {
+            source = FilePath(directory.parentDirectory.pathString)
+            bundleScope = (name: directory.basename, prefix: "\(directory.basename)/")
+        } else {
+            source = FilePath(directory.pathString)
+            bundleScope = nil
+        }
         let destination = FilePath(archivePath.pathString)
 
         guard let writeStream = ArchiveByteStream.fileStream(
@@ -71,7 +107,27 @@ public struct AppleArchiver: AppleArchiving {
         let seenPaths = Mutex(Set<String>())
         let filter: ArchiveHeader.EntryFilter = { _, path, _ in
             let pathString = path.string
-            if excludePatterns.contains(where: { pathString.contains($0) }) {
+            // When preserving the base directory, prune siblings of the target
+            // bundle so only the bundle subtree is archived. Returning `.skip`
+            // on a directory header also prunes its descendants, so this is
+            // cheap even if the parent directory holds unrelated content.
+            let scopedRelativePath: String?
+            if let bundleScope {
+                if pathString == bundleScope.name {
+                    scopedRelativePath = ""
+                } else if pathString.hasPrefix(bundleScope.prefix) {
+                    scopedRelativePath = String(pathString.dropFirst(bundleScope.prefix.count))
+                } else {
+                    return .skip
+                }
+            } else {
+                scopedRelativePath = pathString
+            }
+            // Match exclude patterns against the path within the bundle so a
+            // caller-provided pattern can't match the bundle's own basename.
+            if let scopedRelativePath, !scopedRelativePath.isEmpty,
+               excludePatterns.contains(where: { scopedRelativePath.contains($0) })
+            {
                 return .skip
             }
             let inserted = seenPaths.withLock { $0.insert(pathString).inserted }
