@@ -22,4 +22,31 @@ final class CopyFileElementTests: XCTestCase {
         // Then
         XCTAssertCodable(subject)
     }
+
+    func test_codable_buildProduct() throws {
+        // Given
+        let subject = CopyFileElement.buildProduct(
+            name: "HelperApp",
+            condition: .when([.macos]),
+            codeSignOnCopy: true
+        )
+
+        // Then
+        XCTAssertCodable(subject)
+    }
+
+    func test_buildProduct_isNotReference() {
+        let subject = CopyFileElement.buildProduct(name: "HelperApp")
+        XCTAssertFalse(subject.isReference)
+    }
+
+    func test_buildProduct_condition() {
+        let subject = CopyFileElement.buildProduct(name: "HelperApp", condition: .when([.macos]))
+        XCTAssertEqual(subject.condition, .when([.macos]))
+    }
+
+    func test_buildProduct_codeSignOnCopy() {
+        let subject = CopyFileElement.buildProduct(name: "HelperApp", codeSignOnCopy: true)
+        XCTAssertTrue(subject.codeSignOnCopy)
+    }
 }

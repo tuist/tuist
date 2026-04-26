@@ -29,23 +29,43 @@ public struct CopyFilesContentHasher: CopyFilesContentHashing {
                 MerkleNode(hash: try contentHasher.hash(action.name), identifier: "name"),
                 MerkleNode(hash: try contentHasher.hash(action.destination.rawValue), identifier: "destination"),
             ]
-            let actionFiles = try await action.files.sorted(by: { $0.path < $1.path }).concurrentMap { file in
-                var fileChildren: [MerkleNode] = [
-                    MerkleNode(hash: try await contentHasher.hash(path: file.path), identifier: "content"),
-                    MerkleNode(hash: try contentHasher.hash(file.isReference), identifier: "isReference"),
-                    MerkleNode(hash: try contentHasher.hash(file.codeSignOnCopy), identifier: "codeSignOnCopy"),
-                ]
-                if let condition = file.condition {
-                    fileChildren.append(try platformConditionContentHasher.hash(
-                        identifier: "condition",
-                        platformCondition: condition
-                    ))
+            let actionFiles = try await action.files.concurrentMap { file -> MerkleNode in
+                switch file {
+                case .file, .folderReference:
+                    var fileChildren: [MerkleNode] = [
+                        MerkleNode(hash: try await contentHasher.hash(path: file.path), identifier: "content"),
+                        MerkleNode(hash: try contentHasher.hash(file.isReference), identifier: "isReference"),
+                        MerkleNode(hash: try contentHasher.hash(file.codeSignOnCopy), identifier: "codeSignOnCopy"),
+                    ]
+                    if let condition = file.condition {
+                        fileChildren.append(try platformConditionContentHasher.hash(
+                            identifier: "condition",
+                            platformCondition: condition
+                        ))
+                    }
+                    return MerkleNode(
+                        hash: try contentHasher.hash(fileChildren),
+                        identifier: file.path.pathString,
+                        children: fileChildren
+                    )
+                case let .buildProduct(name, condition, codeSignOnCopy):
+                    var fileChildren: [MerkleNode] = [
+                        MerkleNode(hash: try contentHasher.hash("buildProduct"), identifier: "type"),
+                        MerkleNode(hash: try contentHasher.hash(name), identifier: "productName"),
+                        MerkleNode(hash: try contentHasher.hash(codeSignOnCopy), identifier: "codeSignOnCopy"),
+                    ]
+                    if let condition {
+                        fileChildren.append(try platformConditionContentHasher.hash(
+                            identifier: "condition",
+                            platformCondition: condition
+                        ))
+                    }
+                    return MerkleNode(
+                        hash: try contentHasher.hash(fileChildren),
+                        identifier: "buildProduct:\(name)",
+                        children: fileChildren
+                    )
                 }
-                return MerkleNode(
-                    hash: try contentHasher.hash(fileChildren),
-                    identifier: file.path.pathString,
-                    children: fileChildren
-                )
             }.sorted(by: { $0.hash < $1.hash })
             actionChildren.append(MerkleNode(
                 hash: try contentHasher.hash(actionFiles),

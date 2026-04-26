@@ -1176,6 +1176,109 @@ struct BuildPhaseGeneratorTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
+    ) func test_generateCopyFilesBuildPhases_withBuildProduct() throws {
+        // Given
+        let files: [CopyFileElement] = [
+            .buildProduct(name: "LoginItemHelper", codeSignOnCopy: true),
+            .buildProduct(name: "AnotherHelper"),
+        ]
+
+        let pbxproj = PBXProj()
+        let nativeTarget = PBXNativeTarget(name: "App")
+        let fileElements = createProductFileElements(for: [
+            Target.test(name: "LoginItemHelper", product: .app),
+            Target.test(name: "AnotherHelper", product: .app),
+        ])
+
+        let target = Target.test(copyFiles: [
+            CopyFilesAction(
+                name: "Embed Login Items",
+                destination: .wrapper,
+                subpath: "Contents/Library/LoginItems",
+                files: files
+            ),
+        ])
+
+        // When
+        try subject.generateCopyFilesBuildPhases(
+            target: target,
+            pbxTarget: nativeTarget,
+            fileElements: fileElements,
+            pbxproj: pbxproj
+        )
+
+        // Then
+        let buildPhase = try #require(nativeTarget.buildPhases.first as? PBXCopyFilesBuildPhase)
+        #expect(buildPhase.name == "Embed Login Items")
+        #expect(buildPhase.dstSubfolderSpec == .wrapper)
+        #expect(buildPhase.dstPath == "Contents/Library/LoginItems")
+        #expect(buildPhase.files?.compactMap { $0.file?.nameOrPath } == [
+            "LoginItemHelper",
+            "AnotherHelper",
+        ])
+        #expect(buildPhase.files?.map(\.settings) == [
+            ["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]],
+            nil,
+        ])
+    }
+
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .withMockedXcodeController,
+        .inTemporaryDirectory
+    ) func test_generateCopyFilesBuildPhases_withMixedFilesAndBuildProducts() throws {
+        // Given
+        let pbxproj = PBXProj()
+        let nativeTarget = PBXNativeTarget(name: "App")
+
+        let fileElements = ProjectFileElements()
+        fileElements.elements = [
+            try AbsolutePath(validating: "/path/config.plist"):
+                PBXFileReference(sourceTree: .group, name: "config.plist"),
+        ]
+        fileElements.products = [
+            "LoginItemHelper": PBXFileReference(name: "LoginItemHelper"),
+        ]
+
+        let files: [CopyFileElement] = [
+            .file(path: try AbsolutePath(validating: "/path/config.plist")),
+            .buildProduct(name: "LoginItemHelper", codeSignOnCopy: true),
+        ]
+
+        let target = Target.test(copyFiles: [
+            CopyFilesAction(
+                name: "Embed Items",
+                destination: .wrapper,
+                subpath: "Contents/Library/LoginItems",
+                files: files
+            ),
+        ])
+
+        // When
+        try subject.generateCopyFilesBuildPhases(
+            target: target,
+            pbxTarget: nativeTarget,
+            fileElements: fileElements,
+            pbxproj: pbxproj
+        )
+
+        // Then
+        let buildPhase = try #require(nativeTarget.buildPhases.first as? PBXCopyFilesBuildPhase)
+        #expect(buildPhase.files?.count == 2)
+        #expect(buildPhase.files?.compactMap { $0.file?.nameOrPath } == [
+            "config.plist",
+            "LoginItemHelper",
+        ])
+        #expect(buildPhase.files?.map(\.settings) == [
+            nil,
+            ["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]],
+        ])
+    }
+
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .withMockedXcodeController,
+        .inTemporaryDirectory
     ) func test_generateAppExtensionsBuildPhase() throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)

@@ -117,4 +117,31 @@ final class CopyFileElementManifestMapperTests: TuistUnitTestCase {
         // Then
         XCTAssertEmpty(got)
     }
+
+    func test_from_buildProduct_maps_correctly() async throws {
+        // Given
+        let temporaryPath = try temporaryPath()
+        let rootDirectory = temporaryPath
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: rootDirectory
+        )
+        let manifest = ProjectDescription.CopyFileElement.buildProduct(
+            name: "HelperApp",
+            condition: .when([.macos]),
+            codeSignOnCopy: true
+        )
+
+        // When
+        let got = try await XcodeGraph.CopyFileElement.from(
+            manifest: manifest,
+            generatorPaths: generatorPaths,
+            fileSystem: fileSystem
+        )
+
+        // Then
+        XCTAssertEqual(got, [
+            .buildProduct(name: "HelperApp", condition: .when([.macos]), codeSignOnCopy: true),
+        ])
+    }
 }

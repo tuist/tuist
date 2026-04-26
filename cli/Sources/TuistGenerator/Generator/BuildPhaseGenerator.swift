@@ -443,28 +443,42 @@ struct BuildPhaseGenerator: BuildPhaseGenerating {
             pbxTarget.buildPhases.append(copyFilesPhase)
 
             var buildFilesCache = Set<AbsolutePath>()
-            let files = action.files.sorted(using: KeyPathComparator(\.path))
+            var buildProductCache = Set<String>()
 
             var pbxBuildFiles = [PBXBuildFile]()
-            for file in files {
-                let filePath = file.path
-                guard let fileReference = fileElements.file(path: filePath) else {
-                    throw BuildPhaseGenerationError.missingFileReference(filePath)
-                }
-
-                var settings: [String: BuildFileSetting]?
-
-                // File ATTRIBUTES
-                // example: `settings = {ATTRIBUTES = (Codesign, )}`
-                if file.codeSignOnCopy {
-                    settings = ["ATTRIBUTES": ["CodeSignOnCopy"]]
-                }
-
-                if buildFilesCache.contains(filePath) == false {
-                    let pbxBuildFile = PBXBuildFile(file: fileReference, settings: settings)
-                    pbxBuildFile.applyPlatformFilters(file.condition?.platformFilters)
-                    pbxBuildFiles.append(pbxBuildFile)
-                    buildFilesCache.insert(filePath)
+            for file in action.files {
+                switch file {
+                case .file, .folderReference:
+                    let filePath = file.path
+                    guard let fileReference = fileElements.file(path: filePath) else {
+                        throw BuildPhaseGenerationError.missingFileReference(filePath)
+                    }
+                    if buildFilesCache.contains(filePath) == false {
+                        var settings: [String: BuildFileSetting]?
+                        if file.codeSignOnCopy {
+                            settings = ["ATTRIBUTES": ["CodeSignOnCopy"]]
+                        }
+                        let pbxBuildFile = PBXBuildFile(file: fileReference, settings: settings)
+                        pbxBuildFile.applyPlatformFilters(file.condition?.platformFilters)
+                        pbxBuildFiles.append(pbxBuildFile)
+                        buildFilesCache.insert(filePath)
+                    }
+                case let .buildProduct(name, _, _):
+                    guard let productReference = fileElements.product(target: name) else {
+                        throw BuildPhaseGenerationError.missingFileReference(
+                            try AbsolutePath(validating: "/BUILT_PRODUCTS_DIR/\(name)")
+                        )
+                    }
+                    if !buildProductCache.contains(name) {
+                        var settings: [String: BuildFileSetting]?
+                        if file.codeSignOnCopy {
+                            settings = ["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]]
+                        }
+                        let pbxBuildFile = PBXBuildFile(file: productReference, settings: settings)
+                        pbxBuildFile.applyPlatformFilters(file.condition?.platformFilters)
+                        pbxBuildFiles.append(pbxBuildFile)
+                        buildProductCache.insert(name)
+                    }
                 }
             }
             pbxBuildFiles.forEach { pbxproj.add(object: $0) }
