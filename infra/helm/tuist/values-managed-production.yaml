@@ -89,3 +89,10 @@ objectStorage:
       cache: tuist-cache
       xcodeCache: tuist-xcode-cache
       registry: tuist-registry
+
+# In-cluster Valkey backs the auth rate limiter (Hammer.Redis). The
+# encrypted priv/secrets/prod.yml.enc still references the retired
+# Render Valkey hostname; the chart's TUIST_REDIS_URL env var overrides
+# it so the secret can keep its existing value.
+redis:
+  enabled: true

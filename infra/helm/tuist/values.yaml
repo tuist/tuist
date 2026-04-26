@@ -251,6 +251,23 @@ clickhouse:
       size: 50Gi
     resources: {}
 
+# Redis backs the persistent (cross-pod, cross-deploy) auth rate limiter.
+# When disabled the server transparently falls back to an in-memory bucket
+# (per-pod, lost on restart) — fine for dev / single-pod self-hosted.
+# Persistence is intentionally absent: the bucket data is ephemeral by
+# design, a pod restart resetting limits is acceptable.
+redis:
+  enabled: false
+  mode: embedded
+  external:
+    url: ""  # e.g. redis://my-redis:6379
+  embedded:
+    image:
+      repository: valkey/valkey
+      tag: "8-alpine"
+      pullPolicy: IfNotPresent
+    resources: {}
+
 objectStorage:
   mode: embedded
   external:
