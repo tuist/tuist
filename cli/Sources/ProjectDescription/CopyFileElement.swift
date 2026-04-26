@@ -1,4 +1,5 @@
-/// A file element from a glob pattern, a folder reference, or a build product which is conditionally applied to specific platforms
+/// A file element from a glob pattern, a folder reference, or a build product which is conditionally applied to specific
+/// platforms
 /// with an optional "Code Sign On Copy" flag.
 public enum CopyFileElement: Codable, Equatable, Sendable, ExpressibleByStringInterpolation {
     /// A file path (or glob pattern) to include with an optional PlatformCondition to control which platforms it applies.

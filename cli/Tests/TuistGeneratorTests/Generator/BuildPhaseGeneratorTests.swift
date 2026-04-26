@@ -1176,7 +1176,7 @@ struct BuildPhaseGeneratorTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func test_generateCopyFilesBuildPhases_withBuildProduct() throws {
+    ) func generateCopyFilesBuildPhases_withBuildProduct() throws {
         // Given
         let files: [CopyFileElement] = [
             .buildProduct(name: "LoginItemHelper", codeSignOnCopy: true),
@@ -1226,7 +1226,7 @@ struct BuildPhaseGeneratorTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func test_generateCopyFilesBuildPhases_withMixedFilesAndBuildProducts() throws {
+    ) func generateCopyFilesBuildPhases_withMixedFilesAndBuildProducts() throws {
         // Given
         let pbxproj = PBXProj()
         let nativeTarget = PBXNativeTarget(name: "App")
