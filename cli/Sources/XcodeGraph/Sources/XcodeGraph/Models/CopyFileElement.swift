@@ -13,7 +13,7 @@ public enum CopyFileElement: Equatable, Hashable, Codable, Sendable {
         case let .folderReference(path, _, _):
             return path
         case .buildProduct:
-            return try! AbsolutePath(validating: "/")
+            return .root
         }
     }
 
