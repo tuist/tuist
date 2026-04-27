@@ -162,6 +162,30 @@ func schemes() -> [Scheme] {
             runAction: nil
         ),
     ]
+    schemes.append(.scheme(
+        name: "TuistCanaryAcceptanceTests",
+        buildAction: .buildAction(
+            targets: [.target("TuistCanaryAcceptanceTests")],
+            postActions: [
+                inspectBuildPostAction(target: "TuistCanaryAcceptanceTests"),
+            ],
+            runPostActionsOnFailure: true
+        ),
+        testAction: .targets(
+            [.testableTarget(target: .target("TuistCanaryAcceptanceTests"))],
+            postActions: [
+                inspectTestPostAction(target: "TuistCanaryAcceptanceTests"),
+            ],
+            options: .options(
+                language: "en"
+            )
+        ),
+        runAction: .runAction(
+            arguments: .arguments(
+                environmentVariables: acceptanceTestsEnvironmentVariables()
+            )
+        )
+    ))
     if Module.includeEE() {
         schemes.append(.scheme(
             name: "TuistCacheEEAcceptanceTests",
@@ -242,7 +266,9 @@ func schemes() -> [Scheme] {
 
     schemes.append(
         contentsOf: (Module.allCases
-            .compactMap(\.acceptanceTestsTargetName) + (Module.includeEE() ? ["TuistCacheEEAcceptanceTests"] : [])
+            .compactMap(\.acceptanceTestsTargetName)
+            + ["TuistCanaryAcceptanceTests"]
+            + (Module.includeEE() ? ["TuistCacheEEAcceptanceTests"] : [])
         ).map {
             .scheme(
                 name: $0,
