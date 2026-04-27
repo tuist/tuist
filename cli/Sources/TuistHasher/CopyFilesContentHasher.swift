@@ -31,13 +31,14 @@ public struct CopyFilesContentHasher: CopyFilesContentHashing {
             ]
             let actionFiles = try await action.files.concurrentMap { file -> MerkleNode in
                 switch file {
-                case .file, .folderReference:
+                case let .file(path, condition, codeSignOnCopy),
+                     let .folderReference(path, condition, codeSignOnCopy):
                     var fileChildren: [MerkleNode] = [
-                        MerkleNode(hash: try await contentHasher.hash(path: file.path), identifier: "content"),
+                        MerkleNode(hash: try await contentHasher.hash(path: path), identifier: "content"),
                         MerkleNode(hash: try contentHasher.hash(file.isReference), identifier: "isReference"),
-                        MerkleNode(hash: try contentHasher.hash(file.codeSignOnCopy), identifier: "codeSignOnCopy"),
+                        MerkleNode(hash: try contentHasher.hash(codeSignOnCopy), identifier: "codeSignOnCopy"),
                     ]
-                    if let condition = file.condition {
+                    if let condition {
                         fileChildren.append(try platformConditionContentHasher.hash(
                             identifier: "condition",
                             platformCondition: condition
@@ -45,7 +46,7 @@ public struct CopyFilesContentHasher: CopyFilesContentHashing {
                     }
                     return MerkleNode(
                         hash: try contentHasher.hash(fileChildren),
-                        identifier: file.path.pathString,
+                        identifier: path.pathString,
                         children: fileChildren
                     )
                 case let .buildProduct(name, condition, codeSignOnCopy):

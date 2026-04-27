@@ -6,14 +6,14 @@ public enum CopyFileElement: Equatable, Hashable, Codable, Sendable {
     case folderReference(path: AbsolutePath, condition: PlatformCondition? = nil, codeSignOnCopy: Bool = false)
     case buildProduct(name: String, condition: PlatformCondition? = nil, codeSignOnCopy: Bool = false)
 
-    public var path: AbsolutePath {
+    public var path: AbsolutePath? {
         switch self {
         case let .file(path, _, _):
             return path
         case let .folderReference(path, _, _):
             return path
         case .buildProduct:
-            return .root
+            return nil
         }
     }
 

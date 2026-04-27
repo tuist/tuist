@@ -1,6 +1,5 @@
-/// A file element from a glob pattern, a folder reference, or a build product which is conditionally applied to specific
-/// platforms
-/// with an optional "Code Sign On Copy" flag.
+/// A file element from a glob pattern, a folder reference, or a build product which is conditionally
+/// applied to specific platforms with an optional "Code Sign On Copy" flag.
 public enum CopyFileElement: Codable, Equatable, Sendable, ExpressibleByStringInterpolation {
     /// A file path (or glob pattern) to include with an optional PlatformCondition to control which platforms it applies.
     /// "Code Sign on Copy" can be optionally enabled for the glob.
@@ -14,7 +13,7 @@ public enum CopyFileElement: Codable, Equatable, Sendable, ExpressibleByStringIn
     /// The product is resolved from `BUILT_PRODUCTS_DIR` during the build, not from the filesystem at generation time.
     case buildProduct(name: String, condition: PlatformCondition? = nil, codeSignOnCopy: Bool = false)
 
-    private enum TypeName: String, Codable, Sendable {
+    private enum TypeName: String, Codable {
         case glob
         case folderReference
         case buildProduct

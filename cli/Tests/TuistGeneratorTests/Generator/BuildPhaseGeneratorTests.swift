@@ -17,8 +17,8 @@ struct BuildPhaseGenerationErrorTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func description_when_missingFileReference() {
-        let path = try! AbsolutePath(validating: "/test")
+    ) func description_when_missingFileReference() throws {
+        let path = try AbsolutePath(validating: "/test")
         let expected = "Trying to add a file at path \(path.pathString) to a build phase that hasn't been added to the project."
         #expect(BuildPhaseGenerationError.missingFileReference(path).description == expected)
     }
@@ -27,13 +27,12 @@ struct BuildPhaseGenerationErrorTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func type_when_missingFileReference() {
-        let path = try! AbsolutePath(validating: "/test")
+    ) func type_when_missingFileReference() throws {
+        let path = try AbsolutePath(validating: "/test")
         #expect(BuildPhaseGenerationError.missingFileReference(path).type == .bug)
     }
 }
 
-@Suite
 struct BuildPhaseGeneratorTests {
     var subject: BuildPhaseGenerator!
 
@@ -364,7 +363,7 @@ struct BuildPhaseGeneratorTests {
         .withMockedXcodeController,
         .inTemporaryDirectory
     ) func generateSourcesBuildPhase_throws_when_theFileReferenceIsMissing() async throws {
-        let path = try! AbsolutePath(validating: "/test/file.swift")
+        let path = try AbsolutePath(validating: "/test/file.swift")
         let pbxTarget = PBXNativeTarget(name: "Test")
         let pbxproj = PBXProj()
         pbxproj.add(object: pbxTarget)
@@ -466,7 +465,7 @@ struct BuildPhaseGeneratorTests {
         .withMockedXcodeController,
         .inTemporaryDirectory
     ) func generateSourcesBuildPhase_throws_whenLocalizedFileAndFileReferenceIsMissing() async throws {
-        let path = try! AbsolutePath(validating: "/test/Base.lproj/file.intentdefinition")
+        let path = try AbsolutePath(validating: "/test/Base.lproj/file.intentdefinition")
         let pbxTarget = PBXNativeTarget(name: "Test")
         let pbxproj = PBXProj()
         pbxproj.add(object: pbxTarget)
@@ -1118,7 +1117,7 @@ struct BuildPhaseGeneratorTests {
 
         let pbxproj = PBXProj()
         let nativeTarget = PBXNativeTarget(name: "Test")
-        let fileElements = createFileElements(for: (fonts + templates).map(\.path))
+        let fileElements = createFileElements(for: (fonts + templates).compactMap(\.path))
 
         let target = Target.test(copyFiles: [
             CopyFilesAction(name: "Copy Fonts", destination: .resources, subpath: "Fonts", files: fonts),
@@ -1213,13 +1212,45 @@ struct BuildPhaseGeneratorTests {
         #expect(buildPhase.dstSubfolderSpec == .wrapper)
         #expect(buildPhase.dstPath == "Contents/Library/LoginItems")
         #expect(buildPhase.files?.compactMap { $0.file?.nameOrPath } == [
-            "LoginItemHelper",
             "AnotherHelper",
+            "LoginItemHelper",
         ])
         #expect(buildPhase.files?.map(\.settings) == [
-            ["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]],
             nil,
+            ["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]],
         ])
+    }
+
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .withMockedXcodeController,
+        .inTemporaryDirectory
+    ) func generateCopyFilesBuildPhases_withBuildProduct_throwsWhenProductIsMissing() throws {
+        // Given
+        let pbxproj = PBXProj()
+        let nativeTarget = PBXNativeTarget(name: "App")
+        let fileElements = ProjectFileElements()
+
+        let target = Target.test(copyFiles: [
+            CopyFilesAction(
+                name: "Embed Login Items",
+                destination: .wrapper,
+                subpath: "Contents/Library/LoginItems",
+                files: [.buildProduct(name: "MissingHelper")]
+            ),
+        ])
+
+        // When / Then
+        #expect {
+            try subject.generateCopyFilesBuildPhases(
+                target: target,
+                pbxTarget: nativeTarget,
+                fileElements: fileElements,
+                pbxproj: pbxproj
+            )
+        } throws: { error in
+            error as? BuildPhaseGenerationError == .missingProductReference(targetName: "MissingHelper")
+        }
     }
 
     @Test(
@@ -1231,17 +1262,14 @@ struct BuildPhaseGeneratorTests {
         let pbxproj = PBXProj()
         let nativeTarget = PBXNativeTarget(name: "App")
 
-        let fileElements = ProjectFileElements()
-        fileElements.elements = [
-            try AbsolutePath(validating: "/path/config.plist"):
-                PBXFileReference(sourceTree: .group, name: "config.plist"),
-        ]
-        fileElements.products = [
-            "LoginItemHelper": PBXFileReference(name: "LoginItemHelper"),
-        ]
+        let configPath = try AbsolutePath(validating: "/path/config.plist")
+        let fileElements = createFileElements(for: [configPath])
+        fileElements.products = createProductFileElements(
+            for: [Target.test(name: "LoginItemHelper", product: .app)]
+        ).products
 
         let files: [CopyFileElement] = [
-            .file(path: try AbsolutePath(validating: "/path/config.plist")),
+            .file(path: configPath),
             .buildProduct(name: "LoginItemHelper", codeSignOnCopy: true),
         ]
 
@@ -1304,7 +1332,7 @@ struct BuildPhaseGeneratorTests {
             ]),
         ]
         let dependencyConditions: [GraphEdge: PlatformCondition] = [
-            .init(from: appGraphDependency, to: stickerPackGraphDependency): .when([.ios])!,
+            .init(from: appGraphDependency, to: stickerPackGraphDependency): try #require(.when([.ios])),
         ]
 
         let graph = Graph.test(
@@ -1443,7 +1471,7 @@ struct BuildPhaseGeneratorTests {
             appGraphDependency: Set([watchAppGraphDependency]),
         ]
         let dependencyConditions: [GraphEdge: PlatformCondition] = [
-            .init(from: appGraphDependency, to: watchAppGraphDependency): .when([.ios])!,
+            .init(from: appGraphDependency, to: watchAppGraphDependency): try #require(.when([.ios])),
         ]
         let graph = Graph.test(
             path: project.path,
@@ -1495,7 +1523,7 @@ struct BuildPhaseGeneratorTests {
         ]
 
         let dependencyConditions: [GraphEdge: PlatformCondition] = [
-            .init(from: appGraphDependency, to: watchAppGraphDependency): .when([.ios])!,
+            .init(from: appGraphDependency, to: watchAppGraphDependency): try #require(.when([.ios])),
         ]
 
         let graph = Graph.test(
@@ -2000,7 +2028,7 @@ struct BuildPhaseGeneratorTests {
         ]
 
         let dependencyConditions: [GraphEdge: PlatformCondition] = [
-            .init(from: appGraphDependency, to: appClipGraphDependency): .when([.ios])!,
+            .init(from: appGraphDependency, to: appClipGraphDependency): try #require(.when([.ios])),
         ]
 
         let graph = Graph.test(
