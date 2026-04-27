@@ -1474,9 +1474,14 @@ public struct TestService { // swiftlint:disable:this type_body_length
             )
         }
 
+        let passthroughDerivedDataPath = try? await xcodeBuildAgumentParser
+            .parse(passthroughXcodeBuildArguments)
+            .derivedDataPath
         let projectDerivedDataDirectory: AbsolutePath?
         if let derivedDataPath {
             projectDerivedDataDirectory = derivedDataPath
+        } else if let passthroughDerivedDataPath {
+            projectDerivedDataDirectory = passthroughDerivedDataPath
         } else {
             projectDerivedDataDirectory = try? await derivedDataLocator.locate(
                 for: graphTraverser.workspace.xcWorkspacePath
