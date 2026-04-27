@@ -8,5 +8,4 @@ max_concurrency = 2
 
 [[skills]]
 name = "elixir-code-review"
-source = "openclaw/skills"
-subpath = "skills/anderskev/elixir-code-review"
+source = "./.blick/skills/elixir-code-review"
