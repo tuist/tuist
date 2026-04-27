@@ -62,7 +62,6 @@ jobs:
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
-          cache: "false"
       - name: Install helm
         run: mise use -g "helm@${HELM_VERSION}"
       - name: helm dependency update
@@ -96,21 +95,24 @@ jobs:
           - name: tuist (production)
             chart: infra/helm/tuist
             release: tuist
-            values: values-managed-common.yaml values-managed-production.yaml
+            values:
+              - values-managed-common.yaml
+              - values-managed-production.yaml
           - name: k8s-monitoring (production)
             chart: infra/helm/k8s-monitoring
             release: k8s-monitoring
-            values: values-production.yaml
+            values:
+              - values-production.yaml
           - name: platform (hetzner)
             chart: infra/helm/platform
             release: platform
-            values: values-hetzner.yaml
+            values:
+              - values-hetzner.yaml
     steps:
       - uses: actions/checkout@v4
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
-          cache: "false"
       - name: Install helm + kubeconform
         run: mise use -g "helm@${HELM_VERSION}" "kubeconform@${KUBECONFORM_VERSION}"
       - name: helm dependency update
@@ -121,17 +123,20 @@ jobs:
             helm dependency update "$CHART"
           fi
       - name: helm template
+        # `matrix.values` is a YAML list, exposed via toJSON so filenames
+        # with spaces or shell metacharacters survive. jq then emits one
+        # filename per line for the array build below.
         env:
           CHART: ${{ matrix.chart }}
           RELEASE: ${{ matrix.release }}
-          VALUES: ${{ matrix.values }}
+          VALUES_JSON: ${{ toJSON(matrix.values) }}
         run: |
           args=()
-          for v in $VALUES; do
+          while IFS= read -r v; do
             args+=("-f" "$CHART/$v")
-          done
+          done < <(jq -r '.[]' <<< "$VALUES_JSON")
           helm template "$RELEASE" "$CHART" "${args[@]}" > rendered.yaml
-          echo "Rendered $(grep -cE '^kind:' rendered.yaml) resources, $(wc -l <rendered.yaml) lines."
+          echo "Rendered $(wc -l <rendered.yaml) lines of manifests."
       - name: kubeconform
         # `-strict` rejects unknown fields so typo'd keys in resource specs
         # fail the build. Built-in resources validate against the upstream
