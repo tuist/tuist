@@ -356,7 +356,14 @@ public struct TestService { // swiftlint:disable:this type_body_length
         } else {
             async let mutedTask = testCaseListService.listTestCases(config: config, state: .muted)
             async let skippedTask = testCaseListService.listTestCases(config: config, state: .skipped)
-            (mutedQuarantinedTests, skippedQuarantinedTests) = await (mutedTask, skippedTask)
+            do {
+                (mutedQuarantinedTests, skippedQuarantinedTests) = try await (mutedTask, skippedTask)
+            } catch {
+                AlertController.current.warning(
+                    .alert("Failed to fetch quarantined tests: \(error.localizedDescription). Running all tests.")
+                )
+                (mutedQuarantinedTests, skippedQuarantinedTests) = ([], [])
+            }
             let totalQuarantined = mutedQuarantinedTests.count + skippedQuarantinedTests.count
             if totalQuarantined > 0 {
                 Logger.current.notice(

@@ -1,7 +1,6 @@
 import Foundation
 import Mockable
 import Testing
-import TuistAlert
 import TuistConfig
 import TuistCore
 import TuistServer
@@ -26,12 +25,12 @@ struct TestCaseListServiceTests {
     @Test(.withMockedDependencies())
     func listTestCases_returnsEmpty_whenFullHandleIsNil() async throws {
         let config = Tuist.test(fullHandle: nil)
-        let result = await subject.listTestCases(config: config, state: .muted)
+        let result = try await subject.listTestCases(config: config, state: .muted)
         #expect(result.isEmpty)
     }
 
     @Test(.withMockedDependencies())
-    func listTestCases_returnsEmpty_whenFetchFails() async throws {
+    func listTestCases_propagatesFetchErrors() async throws {
         let config = Tuist.test(fullHandle: "org/project")
         let serverURL = URL(string: "https://tuist.dev")!
 
@@ -39,22 +38,17 @@ struct TestCaseListServiceTests {
             .url(configServerURL: .any)
             .willReturn(serverURL)
 
+        let underlying = NSError(domain: "test", code: 500)
         given(listTestCasesService)
             .listTestCases(
                 fullHandle: .any, serverURL: .any, flaky: .any,
                 quarantined: .any, state: .any, page: .any, pageSize: .any
             )
-            .willThrow(NSError(domain: "test", code: 500))
+            .willThrow(underlying)
 
-        let alertController = AlertController()
-        let result = await AlertController.$current.withValue(alertController) {
-            await subject.listTestCases(config: config, state: .muted)
+        await #expect(throws: NSError.self) {
+            _ = try await subject.listTestCases(config: config, state: .muted)
         }
-
-        #expect(result.isEmpty)
-        let warnings = alertController.warnings()
-        #expect(warnings.count == 1)
-        #expect(warnings.first?.message.plain().contains("Failed to fetch muted test cases") == true)
     }
 
     @Test(.withMockedDependencies())
@@ -95,7 +89,7 @@ struct TestCaseListServiceTests {
             )
             .willReturn(mutedResponse)
 
-        let result = await subject.listTestCases(config: config, state: .muted)
+        let result = try await subject.listTestCases(config: config, state: .muted)
 
         #expect(result == [
             try TestIdentifier(target: "AppTests", class: "FooSuite", method: "testFoo()"),

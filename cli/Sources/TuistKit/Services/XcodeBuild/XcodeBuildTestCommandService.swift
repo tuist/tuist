@@ -142,7 +142,14 @@ struct XcodeBuildTestCommandService {
         } else {
             async let mutedTask = testCaseListService.listTestCases(config: config, state: .muted)
             async let skippedTask = testCaseListService.listTestCases(config: config, state: .skipped)
-            (mutedTests, skippedTests) = await (mutedTask, skippedTask)
+            do {
+                (mutedTests, skippedTests) = try await (mutedTask, skippedTask)
+            } catch {
+                AlertController.current.warning(
+                    .alert("Failed to fetch quarantined tests: \(error.localizedDescription). Running all tests.")
+                )
+                (mutedTests, skippedTests) = ([], [])
+            }
             let totalQuarantined = mutedTests.count + skippedTests.count
             if totalQuarantined > 0 {
                 Logger.current.notice(
