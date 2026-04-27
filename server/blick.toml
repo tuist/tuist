@@ -1,0 +1,4 @@
+[[reviews]]
+name = "elixir"
+skills = ["elixir-code-review"]
+prompt_file = "../.blick/prompts/elixir.md"

@@ -1,0 +1,12 @@
+[agent]
+kind = "opencode"
+model = "fireworks-ai/accounts/fireworks/models/kimi-k2p5"
+
+[defaults]
+base = "origin/main"
+max_concurrency = 2
+
+[[skills]]
+name = "elixir-code-review"
+source = "openclaw/skills"
+subpath = "skills/anderskev/elixir-code-review"
