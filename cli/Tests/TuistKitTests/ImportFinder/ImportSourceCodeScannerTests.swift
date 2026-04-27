@@ -296,8 +296,9 @@ final class ImportSourceCodeScannerTests: TuistUnitTestCase {
     // MARK: - canImport guards
 
     func test_canImportGuard_isSkippedWhenModuleNotReachable() throws {
-        // Mirrors Tarek's FirebaseAppDistributionAdapter.swift on the variants that
-        // don't link Firebase: the import is dead code, not implicit.
+        // When the gated module isn't in the target's reachable set, the entire
+        // `#if canImport(X)` branch is dead code at compile time — its imports
+        // must not be reported as implicit.
         let code = """
         import Foundation
 
