@@ -1,7 +1,6 @@
 import Foundation
 import Mockable
 import Testing
-import TuistConfig
 import TuistCore
 import TuistServer
 import TuistSupport
@@ -12,32 +11,16 @@ import TuistTesting
 @Suite
 struct TestCaseListServiceTests {
     private let listTestCasesService = MockListTestCasesServicing()
-    private let serverEnvironmentService = MockServerEnvironmentServicing()
     private let subject: TestCaseListService
+    private let fullHandle = "org/project"
+    private let serverURL = URL(string: "https://tuist.dev")!
 
     init() {
-        subject = TestCaseListService(
-            listTestCasesService: listTestCasesService,
-            serverEnvironmentService: serverEnvironmentService
-        )
-    }
-
-    @Test(.withMockedDependencies())
-    func listTestCases_returnsEmpty_whenFullHandleIsNil() async throws {
-        let config = Tuist.test(fullHandle: nil)
-        let result = try await subject.listTestCases(config: config, state: .muted)
-        #expect(result.isEmpty)
+        subject = TestCaseListService(listTestCasesService: listTestCasesService)
     }
 
     @Test(.withMockedDependencies())
     func listTestCases_propagatesFetchErrors() async throws {
-        let config = Tuist.test(fullHandle: "org/project")
-        let serverURL = URL(string: "https://tuist.dev")!
-
-        given(serverEnvironmentService)
-            .url(configServerURL: .any)
-            .willReturn(serverURL)
-
         let underlying = NSError(domain: "test", code: 500)
         given(listTestCasesService)
             .listTestCases(
@@ -47,19 +30,14 @@ struct TestCaseListServiceTests {
             .willThrow(underlying)
 
         await #expect(throws: NSError.self) {
-            _ = try await subject.listTestCases(config: config, state: .muted)
+            _ = try await subject.listTestCases(
+                fullHandle: fullHandle, serverURL: serverURL, state: .muted
+            )
         }
     }
 
     @Test(.withMockedDependencies())
     func listTestCases_passesStateFilterThrough_andMapsToIdentifiers() async throws {
-        let config = Tuist.test(fullHandle: "org/project")
-        let serverURL = URL(string: "https://tuist.dev")!
-
-        given(serverEnvironmentService)
-            .url(configServerURL: .any)
-            .willReturn(serverURL)
-
         let mutedResponse = Operations.listTestCases.Output.Ok.Body.jsonPayload(
             pagination_metadata: .init(
                 current_page: 1, has_next_page: false, has_previous_page: false,
@@ -79,7 +57,7 @@ struct TestCaseListServiceTests {
 
         given(listTestCasesService)
             .listTestCases(
-                fullHandle: .value("org/project"),
+                fullHandle: .value(fullHandle),
                 serverURL: .value(serverURL),
                 flaky: .value(nil),
                 quarantined: .value(nil),
@@ -89,7 +67,9 @@ struct TestCaseListServiceTests {
             )
             .willReturn(mutedResponse)
 
-        let result = try await subject.listTestCases(config: config, state: .muted)
+        let result = try await subject.listTestCases(
+            fullHandle: fullHandle, serverURL: serverURL, state: .muted
+        )
 
         #expect(result == [
             try TestIdentifier(target: "AppTests", class: "FooSuite", method: "testFoo()"),

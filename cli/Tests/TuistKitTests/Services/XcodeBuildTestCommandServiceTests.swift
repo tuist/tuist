@@ -44,7 +44,7 @@ struct XcodeBuildTestCommandServiceTests {
 
     init() {
         given(testCaseListService)
-            .listTestCases(config: .any, state: .any)
+            .listTestCases(fullHandle: .any, serverURL: .any, state: .any)
             .willReturn([])
         given(testQuarantineService)
             .markQuarantinedTests(testSummary: .any, quarantinedTests: .any)
@@ -52,6 +52,9 @@ struct XcodeBuildTestCommandServiceTests {
         given(testQuarantineService)
             .onlyQuarantinedTestsFailed(testSummary: .any)
             .willReturn(false)
+        given(serverEnvironmentService)
+            .url(configServerURL: .any)
+            .willReturn(URL(string: "https://tuist.dev")!)
         given(xcResultService)
             .parse(path: .any, rootDirectory: .any)
             .willReturn(nil)

@@ -351,11 +351,14 @@ public struct TestService { // swiftlint:disable:this type_body_length
         }
 
         let (mutedQuarantinedTests, skippedQuarantinedTests): ([TestIdentifier], [TestIdentifier])
-        if skipQuarantine {
-            (mutedQuarantinedTests, skippedQuarantinedTests) = ([], [])
-        } else {
-            async let mutedTask = testCaseListService.listTestCases(config: config, state: .muted)
-            async let skippedTask = testCaseListService.listTestCases(config: config, state: .skipped)
+        if !skipQuarantine, let fullHandle = config.fullHandle {
+            let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
+            async let mutedTask = testCaseListService.listTestCases(
+                fullHandle: fullHandle, serverURL: serverURL, state: .muted
+            )
+            async let skippedTask = testCaseListService.listTestCases(
+                fullHandle: fullHandle, serverURL: serverURL, state: .skipped
+            )
             do {
                 (mutedQuarantinedTests, skippedQuarantinedTests) = try await (mutedTask, skippedTask)
             } catch {
@@ -371,6 +374,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
                     metadata: .subsection
                 )
             }
+        } else {
+            (mutedQuarantinedTests, skippedQuarantinedTests) = ([], [])
         }
         let skipTestTargets = skipTestTargets + skippedQuarantinedTests
 

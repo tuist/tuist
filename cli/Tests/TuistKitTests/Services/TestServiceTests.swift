@@ -143,7 +143,7 @@ final class TestServiceTests: TuistUnitTestCase {
             .willReturn(URL(string: "https://tuist.dev")!)
 
         given(testCaseListService)
-            .listTestCases(config: .any, state: .any)
+            .listTestCases(fullHandle: .any, serverURL: .any, state: .any)
             .willReturn([])
         given(testQuarantineService)
             .markQuarantinedTests(testSummary: .any, quarantinedTests: .any)
@@ -3293,13 +3293,13 @@ final class TestServiceTests: TuistUnitTestCase {
 
         testCaseListService.reset()
         given(testCaseListService)
-            .listTestCases(config: .any, state: .value(.muted))
+            .listTestCases(fullHandle: .any, serverURL: .any, state: .value(.muted))
             .willReturn([
                 try TestIdentifier(target: "AppTests", class: "QuarantinedSuite", method: "testQuarantined()"),
                 try TestIdentifier(target: "CoreTests", class: nil, method: "testAnotherQuarantined()"),
             ])
         given(testCaseListService)
-            .listTestCases(config: .any, state: .value(.skipped))
+            .listTestCases(fullHandle: .any, serverURL: .any, state: .value(.skipped))
             .willReturn([])
         testQuarantineService.reset()
         given(testQuarantineService)
@@ -3396,12 +3396,12 @@ final class TestServiceTests: TuistUnitTestCase {
 
         testCaseListService.reset()
         given(testCaseListService)
-            .listTestCases(config: .any, state: .value(.muted))
+            .listTestCases(fullHandle: .any, serverURL: .any, state: .value(.muted))
             .willReturn([
                 try TestIdentifier(target: "AppTests", class: "FlakySuite", method: "testFlaky()"),
             ])
         given(testCaseListService)
-            .listTestCases(config: .any, state: .value(.skipped))
+            .listTestCases(fullHandle: .any, serverURL: .any, state: .value(.skipped))
             .willReturn([skippedIdentifier])
         testQuarantineService.reset()
         given(testQuarantineService)
@@ -3539,7 +3539,7 @@ final class TestServiceTests: TuistUnitTestCase {
 
         // Then — `--skip-quarantine` short-circuits the fetch entirely.
         verify(testCaseListService)
-            .listTestCases(config: .any, state: .any)
+            .listTestCases(fullHandle: .any, serverURL: .any, state: .any)
             .called(0)
         verify(xcodebuildController)
             .test(
@@ -3618,13 +3618,10 @@ final class TestServiceTests: TuistUnitTestCase {
         // When
         try await testRun(path: path)
 
-        // Then
+        // Then — fullHandle is nil so the fetch is skipped entirely.
         verify(testCaseListService)
-            .listTestCases(config: .any, state: .value(.muted))
-            .called(1)
-        verify(testCaseListService)
-            .listTestCases(config: .any, state: .value(.skipped))
-            .called(1)
+            .listTestCases(fullHandle: .any, serverURL: .any, state: .any)
+            .called(0)
         verify(xcodebuildController)
             .test(
                 .any,
@@ -3658,7 +3655,7 @@ final class TestServiceTests: TuistUnitTestCase {
 
         testCaseListService.reset()
         given(testCaseListService)
-            .listTestCases(config: .any, state: .any)
+            .listTestCases(fullHandle: .any, serverURL: .any, state: .any)
             .willReturn([])
         testQuarantineService.reset()
         given(testQuarantineService)

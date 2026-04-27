@@ -137,11 +137,14 @@ struct XcodeBuildTestCommandService {
         let resultBundlePath: AbsolutePath? = resolvedResultBundlePath
         let mutedTests: [TestIdentifier]
         let skippedTests: [TestIdentifier]
-        if skipQuarantine {
-            (mutedTests, skippedTests) = ([], [])
-        } else {
-            async let mutedTask = testCaseListService.listTestCases(config: config, state: .muted)
-            async let skippedTask = testCaseListService.listTestCases(config: config, state: .skipped)
+        if !skipQuarantine, let fullHandle = config.fullHandle {
+            let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
+            async let mutedTask = testCaseListService.listTestCases(
+                fullHandle: fullHandle, serverURL: serverURL, state: .muted
+            )
+            async let skippedTask = testCaseListService.listTestCases(
+                fullHandle: fullHandle, serverURL: serverURL, state: .skipped
+            )
             do {
                 (mutedTests, skippedTests) = try await (mutedTask, skippedTask)
             } catch {
@@ -157,6 +160,8 @@ struct XcodeBuildTestCommandService {
                     metadata: .subsection
                 )
             }
+        } else {
+            (mutedTests, skippedTests) = ([], [])
         }
         let allQuarantinedTests = mutedTests + skippedTests
         let xcodeBuildArgumentsWithSkip = passthroughXcodebuildArguments + skippedTests.flatMap { skipped in
