@@ -28,6 +28,12 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: server-k8s-preview
+    # Shares the cluster-scale lane with preview-deploy.yml's scale-up job
+    # so the sweep can never patch the management Cluster CR while a deploy
+    # is mid-scale. Uses the same group name across both workflows.
+    concurrency:
+      group: preview-cluster-scale
+      cancel-in-progress: false
     timeout-minutes: 15
     env:
       KUBECONFIG: ${{ github.workspace }}/.kube/config

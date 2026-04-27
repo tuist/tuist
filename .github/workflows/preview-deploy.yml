@@ -76,6 +76,15 @@ jobs:
             exit 1
           fi
 
+          if [ -n "$PR" ] && ! [[ "$PR" =~ ^[0-9]+$ ]]; then
+            echo "::error::pr_number must be a positive integer."
+            exit 1
+          fi
+          if [ -n "$SHA" ] && ! [[ "$SHA" =~ ^[0-9a-f]{7,40}$ ]]; then
+            echo "::error::commit_sha must be 7–40 lowercase hex chars."
+            exit 1
+          fi
+
           # Clamp TTL to [1, 168].
           if ! [[ "$TTL_HOURS" =~ ^[0-9]+$ ]] || [ "$TTL_HOURS" -lt 1 ] || [ "$TTL_HOURS" -gt 168 ]; then
             echo "::error::ttl_hours must be an integer between 1 and 168."
@@ -149,33 +158,29 @@ jobs:
           cache-from: type=gha,scope=server-cluster
           cache-to: type=gha,mode=max,scope=server-cluster
 
-  deploy:
-    name: Deploy ${{ needs.resolve.outputs.release }}
+  scale-up:
+    # Scaling the management cluster's `tuist-preview` Cluster CR is the only
+    # write the deploy workflow shares with the sweep workflow. Splitting it
+    # into its own job lets us put a workflow-spanning concurrency group
+    # (`preview-cluster-scale`) on just this step — two PRs deploying at the
+    # same time still helm-install in parallel, but only one of them (and
+    # never the sweep) is mid-patch on the Cluster CR.
+    name: Scale preview worker pool up
     needs: [resolve, build]
     runs-on: namespace-profile-default
     environment:
       name: server-k8s-preview
-      url: https://${{ needs.resolve.outputs.host }}
-    # Serialize per-release so two runs against the same PR don't race.
     concurrency:
-      group: preview-deploy-${{ needs.resolve.outputs.release }}
+      group: preview-cluster-scale
       cancel-in-progress: false
-    timeout-minutes: 30
+    timeout-minutes: 15
     env:
       KUBECONFIG: ${{ github.workspace }}/.kube/config
       KUBECONFIG_MGMT: ${{ github.workspace }}/.kube/mgmt
-      RELEASE: ${{ needs.resolve.outputs.release }}
-      NAMESPACE: ${{ needs.resolve.outputs.namespace }}
-      HOST: ${{ needs.resolve.outputs.host }}
-      IMAGE_TAG: ${{ needs.build.outputs.image_tag }}
-      EXPIRES_AT: ${{ needs.resolve.outputs.expires_at }}
     steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ needs.resolve.outputs.ref }}
       - uses: jdx/mise-action@v3.2.0
         with:
-          install_args: "helm kubectl"
+          install_args: "kubectl"
           cache: "false"
       - name: Load kubeconfigs
         run: |
@@ -184,10 +189,7 @@ jobs:
           chmod 600 "$KUBECONFIG"
           echo "${{ secrets.KUBECONFIG_MGMT }}" | base64 -d > "$KUBECONFIG_MGMT"
           chmod 600 "$KUBECONFIG_MGMT"
-
-      - name: Scale preview worker pool up
-        # Patches the management Cluster CR to ensure md-0 has at least 1
-        # replica. Idempotent: a no-op when a worker is already up.
+      - name: Patch Cluster CR to ensure md-0 has ≥1 replica
         run: |
           set -euo pipefail
           ORG_NS=$(KUBECONFIG="$KUBECONFIG_MGMT" kubectl config view --minify -o jsonpath='{.contexts[0].context.namespace}')
@@ -200,11 +202,10 @@ jobs:
               --type=json \
               -p='[{"op":"replace","path":"/spec/topology/workers/machineDeployments/0/replicas","value":1}]'
           fi
-
       - name: Wait for worker node Ready
-        # Cold-boot a Hetzner cpx31 + kubelet/CNI takes ~3–5 min. Tolerate
-        # the upper bound; the helm install that follows already has its
-        # own --wait so we don't need a tight bound here.
+        # Cold-boot a Hetzner cpx31 + kubelet/CNI takes ~3–5 min. Done in
+        # this job (not the deploy job) so the Cluster CR concurrency lock
+        # is held until the new node is actually usable.
         run: |
           echo "Waiting for at least one worker node to be Ready..."
           for i in $(seq 1 60); do
@@ -221,6 +222,40 @@ jobs:
           echo "::error::No worker became Ready within 10 minutes."
           kubectl get nodes -o wide
           exit 1
+
+  deploy:
+    name: Deploy ${{ needs.resolve.outputs.release }}
+    needs: [resolve, build, scale-up]
+    runs-on: namespace-profile-default
+    environment:
+      name: server-k8s-preview
+      url: https://${{ needs.resolve.outputs.host }}
+    # Per-release lane so two runs against the same PR don't race on the
+    # Helm release. Different PRs deploy in parallel.
+    concurrency:
+      group: preview-deploy-${{ needs.resolve.outputs.release }}
+      cancel-in-progress: false
+    timeout-minutes: 25
+    env:
+      KUBECONFIG: ${{ github.workspace }}/.kube/config
+      RELEASE: ${{ needs.resolve.outputs.release }}
+      NAMESPACE: ${{ needs.resolve.outputs.namespace }}
+      HOST: ${{ needs.resolve.outputs.host }}
+      IMAGE_TAG: ${{ needs.build.outputs.image_tag }}
+      EXPIRES_AT: ${{ needs.resolve.outputs.expires_at }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve.outputs.ref }}
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          install_args: "helm kubectl"
+          cache: "false"
+      - name: Load kubeconfig
+        run: |
+          mkdir -p "$(dirname "$KUBECONFIG")"
+          echo "${{ secrets.KUBECONFIG }}" | base64 -d > "$KUBECONFIG"
+          chmod 600 "$KUBECONFIG"
 
       - name: Re-apply role=preview label/taint on workers
         # CAPI/Syself doesn't surface node labels via topology variables, so
@@ -253,27 +288,60 @@ jobs:
             --overwrite
 
       - name: Smoke test
+        # `helm install --wait` + the rollout status check below cover server
+        # readiness internally (the pod's own /ready probe must pass for the
+        # rollout to complete). An in-cluster `kubectl run` curl was tempting
+        # but would inherit no tolerations and so couldn't schedule onto the
+        # tainted preview worker. The external curl below also exercises
+        # ingress + wildcard cert + DNS — the user-facing path.
         run: |
           kubectl -n "$NAMESPACE" rollout status deploy/${RELEASE}-tuist-server --timeout=10m
-          kubectl -n "$NAMESPACE" run smoke-$RANDOM --rm -i --restart=Never \
-            --image=curlimages/curl --command -- \
-            curl -fsS "http://${RELEASE}-tuist-server/ready"
+          # Hit /ready through the public host. Retries cover DNS / cert
+          # propagation lag on a brand-new preview cluster.
+          for i in $(seq 1 20); do
+            if curl -fsSL --max-time 5 "https://${HOST}/ready" >/dev/null; then
+              echo "OK — https://${HOST}/ready returned 200"
+              exit 0
+            fi
+            echo "Attempt $i: https://${HOST}/ready not yet reachable; retrying in 10s..."
+            sleep 10
+          done
+          echo "::error::https://${HOST}/ready never returned 200 after ~3 min."
+          exit 1
 
       - name: Comment on PR
+        # Edits the existing bot comment if one exists (matched by a hidden
+        # HTML marker keyed on release name) so re-deploys don't spam the
+        # PR with new comments. Falls back to creating a fresh one.
         if: ${{ inputs.pr_number != '' }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh pr comment "${{ inputs.pr_number }}" --repo "${{ github.repository }}" --body "$(cat <<EOF
+          MARKER="<!-- preview-deploy:${RELEASE} -->"
+          BODY=$(cat <<EOF
+          $MARKER
           🟢 Preview deployed: **https://$HOST**
 
           - Release: \`$RELEASE\`
           - Image: \`$IMAGE_TAG\`
+          - Last updated: $(date -u '+%Y-%m-%d %H:%M UTC')
           - Expires: $(date -u -d "@$EXPIRES_AT" '+%Y-%m-%d %H:%M UTC')
 
-          Re-run this workflow against the same PR to update; the sweep workflow tears it down at expiry.
+          Re-run the workflow against the same PR to update; the sweep workflow tears it down at expiry.
           EOF
-          )"
+          )
+          EXISTING=$(gh api "repos/${{ github.repository }}/issues/${{ inputs.pr_number }}/comments" \
+            --paginate --jq ".[] | select(.body | startswith(\"$MARKER\")) | .id" \
+            | head -1)
+          if [ -n "$EXISTING" ]; then
+            echo "Editing comment $EXISTING"
+            gh api -X PATCH "repos/${{ github.repository }}/issues/comments/$EXISTING" \
+              -f body="$BODY" >/dev/null
+          else
+            echo "Creating new PR comment"
+            gh pr comment "${{ inputs.pr_number }}" \
+              --repo "${{ github.repository }}" --body "$BODY"
+          fi
 
       - name: Diagnostics on failure
         if: failure()

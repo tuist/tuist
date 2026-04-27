@@ -209,6 +209,9 @@ License env vars. Resolves to (in order):
 {{- $appSecret := include "tuist.componentName" (dict "root" . "component" "app-secrets") -}}
 {{- $esoSecret := include "tuist.componentName" (dict "root" . "component" "server-external-secrets") -}}
 {{- $useEso := ne (.Values.server.externalSecrets.license.item | default "") "" -}}
+{{- if and $useEso .Values.server.license.key -}}
+{{- fail "server.externalSecrets.license.item and server.license.key are mutually exclusive — pick one license source." -}}
+{{- end -}}
 {{- if or $useEso .Values.server.license.key }}
 - name: TUIST_LICENSE_KEY
   valueFrom:
