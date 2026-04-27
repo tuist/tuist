@@ -78,9 +78,9 @@
      tables. We strip the wrapper background and replace the header treatment
      with a tighter header row + a clean bottom border below the header. */
   & .noora-table {
+    border-radius: 0;
     background: transparent;
     padding: 0;
-    border-radius: 0;
 
     & table:has(td):after {
       content: none;
@@ -88,10 +88,9 @@
   }
 
   & .noora-table th {
+    box-shadow: 0 1px 0 0 light-dark(var(--noora-neutral-light-400), oklch(0% 0 0 / 80%));
     background-color: var(--noora-surface-background-primary);
     padding: var(--noora-spacing-4) var(--noora-spacing-7);
-    box-shadow: 0 1px 0 0
-      light-dark(var(--noora-neutral-light-400), oklch(0% 0 0 / 80%));
     color: var(--noora-surface-label-primary);
     font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
     text-align: left;
