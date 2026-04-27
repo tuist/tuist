@@ -532,12 +532,7 @@ mod tests {
         let now = Instant::now();
         let mut readiness = ReadinessState::new(now);
 
-        let unobserved = readiness.apply_membership(
-            BTreeSet::new(),
-            BTreeSet::new(),
-            false,
-            now,
-        );
+        let unobserved = readiness.apply_membership(BTreeSet::new(), BTreeSet::new(), false, now);
         assert!(!unobserved.initial_discovery_completed);
         assert!(!unobserved.generation_changed);
         assert_eq!(readiness.generation, 0);
