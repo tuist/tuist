@@ -62,7 +62,12 @@
             let allTargetNames = Set(allTargets.map(\.target.productName))
 
             for target in allInternalTargets {
-                let sourceDependencies = Set(try await targetScanner.imports(for: target.target))
+                let context = compilationConditionContext(
+                    for: target,
+                    graphTraverser: graphTraverser,
+                    allTargetNames: allTargetNames
+                )
+                let sourceDependencies = Set(try await targetScanner.imports(for: target.target, context: context))
 
                 let explicitTargetDependencies = explicitTargetDependencies(
                     graphTraverser: graphTraverser,
@@ -156,6 +161,88 @@
                 .flatMap { $0 }
                 .map(\.target.productName)
             return Set(explicitTargetDependencies)
+        }
+
+        private func compilationConditionContext(
+            for target: GraphTarget,
+            graphTraverser: GraphTraverser,
+            allTargetNames: Set<String>
+        ) -> CompilationConditionContext {
+            let flagSets = activeCompilationConditionSets(for: target)
+            let platforms = Set(target.target.destinations.map(\.platform).map(platformIdentifier))
+            let environments = targetEnvironments(for: target.target)
+
+            // Reachable modules drive `canImport(...)`. We use the transitive declared
+            // dependency closure mapped to product names. Crucially we only count
+            // modules that exist as targets in this graph — that matches Swift's
+            // compile-time view, where `canImport(X)` is true iff X is in the
+            // module search path the build is being constructed with.
+            let transitive = graphTraverser.allTargetDependencies(
+                path: target.path,
+                name: target.target.name
+            )
+            let reachable = Set(transitive.map(\.target.productName))
+                .intersection(allTargetNames)
+
+            return CompilationConditionContext(
+                flagSetsPerConfiguration: flagSets,
+                platforms: platforms,
+                architectures: [],
+                targetEnvironments: environments,
+                reachableModules: reachable
+            )
+        }
+
+        private func activeCompilationConditionSets(for target: GraphTarget) -> [Set<String>] {
+            var sets: [Set<String>] = []
+            let baseFlags = compilationConditions(in: target.target.settings?.base ?? [:])
+            let configurations = target.target.settings?.configurations ?? [:]
+            if configurations.isEmpty {
+                sets.append(baseFlags)
+            } else {
+                for (_, configuration) in configurations {
+                    let configFlags = compilationConditions(in: configuration?.settings ?? [:])
+                    sets.append(baseFlags.union(configFlags))
+                }
+            }
+            return sets.isEmpty ? [[]] : sets
+        }
+
+        private func compilationConditions(in settings: SettingsDictionary) -> Set<String> {
+            guard let value = settings["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] else { return [] }
+            switch value {
+            case let .string(string):
+                return Set(string.split(separator: " ").map(String.init).filter { $0 != "$(inherited)" })
+            case let .array(values):
+                return Set(values.filter { $0 != "$(inherited)" })
+            }
+        }
+
+        private func platformIdentifier(_ platform: Platform) -> String {
+            // Swift's `os(...)` directive uses these identifiers. Mapping is exhaustive
+            // for platforms Tuist supports.
+            switch platform {
+            case .iOS: return "iOS"
+            case .macOS: return "macOS"
+            case .tvOS: return "tvOS"
+            case .watchOS: return "watchOS"
+            case .visionOS: return "visionOS"
+            }
+        }
+
+        private func targetEnvironments(for target: Target) -> Set<String> {
+            var environments: Set<String> = []
+            if target.destinations.contains(.macCatalyst) {
+                environments.insert("macCatalyst")
+            }
+            // Simulator destinations cover the simulator environment for non-Mac platforms.
+            // We treat the presence of any non-Mac destination as "may run on simulator"
+            // since Tuist destinations don't model simulator vs device explicitly.
+            let simulatorPlatforms: Set<Platform> = [.iOS, .tvOS, .watchOS, .visionOS]
+            if target.destinations.map(\.platform).contains(where: { simulatorPlatforms.contains($0) }) {
+                environments.insert("simulator")
+            }
+            return environments
         }
     }
 #endif

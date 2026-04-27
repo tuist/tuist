@@ -6,7 +6,17 @@
 
     @Mockable
     protocol TargetImportsScanning {
-        func imports(for target: XcodeGraph.Target) async throws -> Set<String>
+        func imports(
+            for target: XcodeGraph.Target,
+            context: CompilationConditionContext?
+        ) async throws -> Set<String>
+    }
+
+    extension TargetImportsScanning {
+        /// Convenience that scans without conditional-compilation awareness.
+        func imports(for target: XcodeGraph.Target) async throws -> Set<String> {
+            try await imports(for: target, context: nil)
+        }
     }
 
     struct TargetImportsScanner: TargetImportsScanning {
@@ -21,7 +31,10 @@
             self.fileSystem = fileSystem
         }
 
-        func imports(for target: XcodeGraph.Target) async throws -> Set<String> {
+        func imports(
+            for target: XcodeGraph.Target,
+            context: CompilationConditionContext?
+        ) async throws -> Set<String> {
             var filesToScan = target.sources.map(\.path) + target.buildableFolders.flatMap(\.resolvedFiles).map(\.path)
                 .filter { Target.validSourceExtensions.contains($0.extension ?? "") }
             if let headers = target.headers {
@@ -31,7 +44,7 @@
             }
             var imports = Set(
                 try await filesToScan.concurrentMap { file in
-                    try await matchPattern(at: file)
+                    try await matchPattern(at: file, context: context)
                 }
                 .flatMap { $0 }
             )
@@ -39,7 +52,10 @@
             return imports
         }
 
-        private func matchPattern(at path: AbsolutePath) async throws -> Set<String> {
+        private func matchPattern(
+            at path: AbsolutePath,
+            context: CompilationConditionContext?
+        ) async throws -> Set<String> {
             let language: ProgrammingLanguage
             switch path.extension {
             case "swift":
@@ -54,7 +70,8 @@
                 let sourceCode = try await fileSystem.readTextFile(at: path)
                 return try importSourceCodeScanner.extractImports(
                     from: sourceCode,
-                    language: language
+                    language: language,
+                    context: context
                 )
             } else {
                 return Set()
