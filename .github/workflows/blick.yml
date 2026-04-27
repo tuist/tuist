@@ -39,12 +39,7 @@ jobs:
       - name: Run blick review
         env:
           FIREWORKS_API_KEY: ${{ secrets.FIREWORKS_API_KEY }}
-        run: |
-          if [ -z "${FIREWORKS_API_KEY:-}" ]; then
-            echo "FIREWORKS_API_KEY is not set; add it to repo secrets so opencode can authenticate against Fireworks." >&2
-            exit 1
-          fi
-          blick review --base "origin/${{ github.event.pull_request.base.ref }}" --json --stream
+        run: blick review --base "origin/${{ github.event.pull_request.base.ref }}" --json --stream
 
       - name: Publish review
         if: always()
