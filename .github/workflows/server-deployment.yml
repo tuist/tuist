@@ -109,11 +109,6 @@ jobs:
             TUIST_HOSTED=1
             MIX_ENV=prod
             APT_CACHE_BUST=${{ env.DEPLOY_SHA }}
-          # One cache scope across all environments: the image is
-          # env-agnostic, so canary/staging/production builds all share
-          # layers.
-          cache-from: type=gha,scope=server-cluster
-          cache-to: type=gha,mode=max,scope=server-cluster
 
   observability-install:
     # Installs / upgrades the grafana/k8s-monitoring wrapper chart ahead of

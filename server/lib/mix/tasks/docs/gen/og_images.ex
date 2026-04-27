@@ -8,6 +8,7 @@ defmodule Mix.Tasks.Docs.Gen.OgImages do
   alias Tuist.Docs
   alias Tuist.Docs.OgImage
   alias Tuist.Docs.Sidebar
+  alias Tuist.Marketing.OgImageCache
 
   @pool Tuist.Docs.OgImagePool
 
@@ -30,6 +31,15 @@ defmodule Mix.Tasks.Docs.Gen.OgImages do
     {:ok, _} = Browse.start_link(@pool, implementation: BrowseChrome.Browser, pool_size: pool_size)
 
     category_map = build_category_map()
+
+    # Hash assets shared across all docs OG renders once. Per-image cache keys
+    # mix this in so a font / logo swap correctly invalidates everything.
+    asset_hash =
+      OgImageCache.key([
+        "docs-asset-bundle:v1",
+        {:dir, fonts_dir},
+        {:file, logo_path}
+      ])
 
     pages = Docs.pages()
     IO.puts("Generating OG images for #{length(pages)} docs pages (pool_size: #{pool_size})...")
@@ -56,13 +66,28 @@ defmodule Mix.Tasks.Docs.Gen.OgImages do
 
         File.mkdir_p!(Path.dirname(image_path))
 
-        case Carta.render(@pool, html, width: 1920, height: 1080, quality: 95) do
-          {:ok, jpeg_binary} ->
-            File.write!(image_path, jpeg_binary)
-            IO.puts("  [#{locale}] Generated: #{Path.relative_to(image_path, File.cwd!())}")
+        key =
+          OgImageCache.key([
+            "docs-page:v1",
+            slug,
+            page.title || "",
+            page.description || "",
+            category,
+            asset_hash
+          ])
 
-          {:error, reason} ->
-            IO.warn("Failed to generate OG image for #{slug}: #{inspect(reason)}")
+        if OgImageCache.hit?(image_path, key) do
+          IO.puts("  [#{locale}] Cached: #{Path.relative_to(image_path, File.cwd!())}")
+        else
+          case Carta.render(@pool, html, width: 1920, height: 1080, quality: 95) do
+            {:ok, jpeg_binary} ->
+              File.write!(image_path, jpeg_binary)
+              OgImageCache.put(image_path, key)
+              IO.puts("  [#{locale}] Generated: #{Path.relative_to(image_path, File.cwd!())}")
+
+            {:error, reason} ->
+              IO.warn("Failed to generate OG image for #{slug}: #{inspect(reason)}")
+          end
         end
       end,
       max_concurrency: pool_size,
