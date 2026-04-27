@@ -133,6 +133,8 @@ defmodule TuistWeb.FlakyTestsLive do
         Query.put(socket.assigns.uri.query, "analytics-date-range", preset)
       end
 
+    query_params = Query.drop(query_params, "page")
+
     {:noreply,
      push_patch(socket, to: "/#{selected_account.name}/#{selected_project.name}/tests/flaky-tests?#{query_params}")}
   end

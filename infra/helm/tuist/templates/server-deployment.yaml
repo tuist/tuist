@@ -85,20 +85,7 @@ spec:
               value: {{ .Values.server.skipEmailConfirmation | ternary "1" "0" | quote }}
             - name: TUIST_SELF_HOSTING_DEVELOPMENT_MODE
               value: {{ .Values.server.license.selfHostingDevelopmentMode | ternary "1" "0" | quote }}
-            {{- if .Values.server.license.key }}
-            - name: TUIST_LICENSE_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: {{ $secretName }}
-                  key: server-license-key
-            {{- end }}
-            {{- if .Values.server.license.certificateBase64 }}
-            - name: TUIST_LICENSE_CERTIFICATE_BASE64
-              valueFrom:
-                secretKeyRef:
-                  name: {{ $secretName }}
-                  key: server-license-certificate-base64
-            {{- end }}
+            {{- include "tuist.licenseEnv" . | nindent 12 }}
             {{- if or .Values.server.masterKey .Values.server.managedSecrets }}
             - name: MASTER_KEY
               valueFrom:
@@ -149,6 +136,11 @@ spec:
             {{- if .Values.cache.enabled }}
             - name: TUIST_CACHE_ENDPOINTS
               value: {{ .Values.server.cacheEndpointUrl | default (printf "http://%s:%v" (include "tuist.componentName" (dict "root" . "component" "cache")) .Values.cache.service.port) | quote }}
+            {{- end }}
+            {{- $redisUrl := include "tuist.redisUrl" . }}
+            {{- if and .Values.redis.enabled $redisUrl }}
+            - name: TUIST_REDIS_URL
+              value: {{ $redisUrl | quote }}
             {{- end }}
             {{- if and .Values.observability.enabled (include "tuist.observabilityOtlpEndpoint" .) }}
             - name: OTEL_EXPORTER_OTLP_ENDPOINT

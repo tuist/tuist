@@ -17,6 +17,7 @@ const KURA_INTERNAL_TLS_CERT_PATH: &str = "KURA_INTERNAL_TLS_CERT_PATH";
 const KURA_INTERNAL_TLS_KEY_PATH: &str = "KURA_INTERNAL_TLS_KEY_PATH";
 const KURA_FILE_DESCRIPTOR_POOL_SIZE: &str = "KURA_FILE_DESCRIPTOR_POOL_SIZE";
 const KURA_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS: &str = "KURA_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS";
+const KURA_DRAIN_COMPLETION_TIMEOUT_MS: &str = "KURA_DRAIN_COMPLETION_TIMEOUT_MS";
 const KURA_SEGMENT_HANDLE_CACHE_SIZE: &str = "KURA_SEGMENT_HANDLE_CACHE_SIZE";
 const KURA_MEMORY_SOFT_LIMIT_BYTES: &str = "KURA_MEMORY_SOFT_LIMIT_BYTES";
 const KURA_MEMORY_HARD_LIMIT_BYTES: &str = "KURA_MEMORY_HARD_LIMIT_BYTES";
@@ -45,6 +46,7 @@ const KURA_SENTRY_DSN: &str = "KURA_SENTRY_DSN";
 
 const BYTES_PER_MIB: u64 = 1024 * 1024;
 const DEFAULT_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS: u64 = 5_000;
+const DEFAULT_DRAIN_COMPLETION_TIMEOUT_MS: u64 = 240_000;
 const DEFAULT_MAX_KEYVALUE_BYTES: usize = 1024 * 1024;
 const FALLBACK_HOST_FD_LIMIT: usize = 4096;
 const FALLBACK_HOST_MEMORY_LIMIT_BYTES: u64 = 1024 * BYTES_PER_MIB;
@@ -65,6 +67,7 @@ pub struct Config {
     pub peer_tls: Option<PeerTlsConfig>,
     pub file_descriptor_pool_size: usize,
     pub file_descriptor_acquire_timeout_ms: u64,
+    pub drain_completion_timeout_ms: u64,
     pub segment_handle_cache_size: usize,
     pub memory_soft_limit_bytes: u64,
     pub memory_hard_limit_bytes: u64,
@@ -113,6 +116,7 @@ pub(crate) struct HostResources {
 struct DerivedRuntimeDefaults {
     file_descriptor_pool_size: usize,
     file_descriptor_acquire_timeout_ms: u64,
+    drain_completion_timeout_ms: u64,
     segment_handle_cache_size: usize,
     memory_soft_limit_bytes: u64,
     memory_hard_limit_bytes: u64,
@@ -189,6 +193,7 @@ impl DerivedRuntimeDefaults {
         Self {
             file_descriptor_pool_size,
             file_descriptor_acquire_timeout_ms: DEFAULT_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS,
+            drain_completion_timeout_ms: DEFAULT_DRAIN_COMPLETION_TIMEOUT_MS,
             segment_handle_cache_size,
             memory_soft_limit_bytes,
             memory_hard_limit_bytes,
@@ -326,6 +331,22 @@ impl Config {
         if file_descriptor_acquire_timeout_ms == 0 {
             invalid.push(format!(
                 "{KURA_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS} must be greater than 0"
+            ));
+        }
+        let drain_completion_timeout_ms = optional_parsed_value(
+            &mut lookup,
+            KURA_DRAIN_COMPLETION_TIMEOUT_MS,
+            &mut invalid,
+            |value| {
+                value
+                    .parse::<u64>()
+                    .map_err(|_| format!("{KURA_DRAIN_COMPLETION_TIMEOUT_MS} must be a valid u64"))
+            },
+        )
+        .unwrap_or(derived_defaults.drain_completion_timeout_ms);
+        if drain_completion_timeout_ms == 0 {
+            invalid.push(format!(
+                "{KURA_DRAIN_COMPLETION_TIMEOUT_MS} must be greater than 0"
             ));
         }
         let segment_handle_cache_size = optional_parsed_value(
@@ -751,6 +772,7 @@ impl Config {
             peer_tls,
             file_descriptor_pool_size,
             file_descriptor_acquire_timeout_ms,
+            drain_completion_timeout_ms,
             segment_handle_cache_size,
             memory_soft_limit_bytes,
             memory_hard_limit_bytes,
@@ -993,6 +1015,7 @@ mod tests {
         );
         assert_eq!(config.file_descriptor_pool_size, 256);
         assert_eq!(config.file_descriptor_acquire_timeout_ms, 5_000);
+        assert_eq!(config.drain_completion_timeout_ms, 240_000);
         assert_eq!(config.segment_handle_cache_size, 64);
         assert_eq!(config.memory_soft_limit_bytes, 716 * BYTES_PER_MIB);
         assert_eq!(config.memory_hard_limit_bytes, 870 * BYTES_PER_MIB);
@@ -1035,6 +1058,7 @@ mod tests {
             ),
             (KURA_FILE_DESCRIPTOR_POOL_SIZE, "64"),
             (KURA_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS, "5000"),
+            (KURA_DRAIN_COMPLETION_TIMEOUT_MS, "120000"),
             (KURA_SEGMENT_HANDLE_CACHE_SIZE, "16"),
             (KURA_MEMORY_SOFT_LIMIT_BYTES, "268435456"),
             (KURA_MEMORY_HARD_LIMIT_BYTES, "536870912"),
@@ -1070,6 +1094,7 @@ mod tests {
         assert_eq!(config.peer_tls, None);
         assert_eq!(config.file_descriptor_pool_size, 64);
         assert_eq!(config.file_descriptor_acquire_timeout_ms, 5000);
+        assert_eq!(config.drain_completion_timeout_ms, 120000);
         assert_eq!(config.segment_handle_cache_size, 16);
         assert_eq!(config.memory_soft_limit_bytes, 268_435_456);
         assert_eq!(config.memory_hard_limit_bytes, 536_870_912);
@@ -1104,6 +1129,7 @@ mod tests {
             (KURA_PEERS, "http://kura-a.example.com:7443"),
             (KURA_FILE_DESCRIPTOR_POOL_SIZE, "invalid"),
             (KURA_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS, "invalid"),
+            (KURA_DRAIN_COMPLETION_TIMEOUT_MS, "invalid"),
             (KURA_SEGMENT_HANDLE_CACHE_SIZE, "invalid"),
             (KURA_MEMORY_SOFT_LIMIT_BYTES, "invalid"),
             (KURA_MEMORY_HARD_LIMIT_BYTES, "invalid"),
@@ -1129,6 +1155,7 @@ mod tests {
         assert!(error.contains("valid u16"));
         assert!(error.contains(KURA_FILE_DESCRIPTOR_POOL_SIZE));
         assert!(error.contains(KURA_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS));
+        assert!(error.contains(KURA_DRAIN_COMPLETION_TIMEOUT_MS));
         assert!(error.contains(KURA_SEGMENT_HANDLE_CACHE_SIZE));
         assert!(error.contains(KURA_MEMORY_SOFT_LIMIT_BYTES));
         assert!(error.contains(KURA_MEMORY_HARD_LIMIT_BYTES));

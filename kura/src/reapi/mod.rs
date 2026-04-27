@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, future::Future, pin::Pin};
+use std::{collections::BTreeMap, future::Future, pin::Pin, time::Duration};
 
 use bazel_remote_apis::{
     build::bazel::{
@@ -66,6 +66,8 @@ where
     let byte_stream = ByteStreamServer::new(service).max_decoding_message_size(64 << 20);
 
     Server::builder()
+        .max_connection_age(Duration::from_secs(300))
+        .max_connection_age_grace(Duration::from_secs(300))
         .add_service(capabilities)
         .add_service(action_cache)
         .add_service(cas)
@@ -81,6 +83,9 @@ impl ReapiService {
         request: &Request<T>,
         spec: GrpcExtensionSpec<'_>,
     ) -> Result<Option<Principal>, Status> {
+        if self.state.runtime.is_draining() {
+            return Err(Status::unavailable("server is draining"));
+        }
         let Some(extension) = self.state.extension.as_ref() else {
             return Ok(None);
         };
@@ -121,6 +126,7 @@ impl Capabilities for ReapiService {
         &self,
         request: Request<reapi::GetCapabilitiesRequest>,
     ) -> Result<Response<reapi::ServerCapabilities>, Status> {
+        let _request_guard = self.state.start_grpc_request();
         let extension = GrpcExtensionSpec {
             route: "reapi.capabilities.get",
             operation: "capabilities.read",
@@ -174,6 +180,7 @@ impl ActionCache for ReapiService {
         &self,
         request: Request<reapi::GetActionResultRequest>,
     ) -> Result<Response<reapi::ActionResult>, Status> {
+        let _request_guard = self.state.start_grpc_request();
         require_sha256(request.get_ref().digest_function)?;
         let namespace_id = namespace_from_instance(&request.get_ref().instance_name);
         let digest = request
@@ -251,6 +258,7 @@ impl ActionCache for ReapiService {
         &self,
         request: Request<reapi::UpdateActionResultRequest>,
     ) -> Result<Response<reapi::ActionResult>, Status> {
+        let _request_guard = self.state.start_grpc_request();
         require_sha256(request.get_ref().digest_function)?;
         let namespace_id = namespace_from_instance(&request.get_ref().instance_name);
         let digest = request
@@ -308,6 +316,7 @@ impl ContentAddressableStorage for ReapiService {
         &self,
         request: Request<reapi::FindMissingBlobsRequest>,
     ) -> Result<Response<reapi::FindMissingBlobsResponse>, Status> {
+        let _request_guard = self.state.start_grpc_request();
         require_sha256(request.get_ref().digest_function)?;
         let namespace_id = namespace_from_instance(&request.get_ref().instance_name);
         let extension = GrpcExtensionSpec {
@@ -347,6 +356,7 @@ impl ContentAddressableStorage for ReapiService {
         &self,
         request: Request<reapi::BatchUpdateBlobsRequest>,
     ) -> Result<Response<reapi::BatchUpdateBlobsResponse>, Status> {
+        let _request_guard = self.state.start_grpc_request();
         require_sha256(request.get_ref().digest_function)?;
         let namespace_id = namespace_from_instance(&request.get_ref().instance_name);
         let extension = GrpcExtensionSpec {
@@ -400,6 +410,7 @@ impl ContentAddressableStorage for ReapiService {
         &self,
         request: Request<reapi::BatchReadBlobsRequest>,
     ) -> Result<Response<reapi::BatchReadBlobsResponse>, Status> {
+        let _request_guard = self.state.start_grpc_request();
         require_sha256(request.get_ref().digest_function)?;
         let namespace_id = namespace_from_instance(&request.get_ref().instance_name);
         let extension = GrpcExtensionSpec {
@@ -474,6 +485,7 @@ impl ByteStream for ReapiService {
         &self,
         request: Request<bytestream::ReadRequest>,
     ) -> Result<Response<Self::ReadStream>, Status> {
+        let request_guard = self.state.start_grpc_request();
         let resource = parse_read_resource_name(&request.get_ref().resource_name)?;
         let extension = GrpcExtensionSpec {
             route: "reapi.bytestream.read",
@@ -542,13 +554,16 @@ impl ByteStream for ReapiService {
         self.state
             .metrics
             .record_artifact_read(ArtifactProducer::Reapi, "ok", bytes_to_read);
-        let stream = ReaderStream::new(reader).map(|result| match result {
-            Ok(bytes) => Ok(bytestream::ReadResponse {
-                data: bytes.to_vec(),
-            }),
-            Err(error) => Err(Status::internal(format!(
-                "failed to stream blob chunk: {error}"
-            ))),
+        let stream = ReaderStream::new(reader).map(move |result| {
+            let _keep_guard_alive = &request_guard;
+            match result {
+                Ok(bytes) => Ok(bytestream::ReadResponse {
+                    data: bytes.to_vec(),
+                }),
+                Err(error) => Err(Status::internal(format!(
+                    "failed to stream blob chunk: {error}"
+                ))),
+            }
         });
 
         let mut response = Response::new(Box::pin(stream) as Self::ReadStream);
@@ -561,6 +576,7 @@ impl ByteStream for ReapiService {
         &self,
         request: Request<tonic::Streaming<bytestream::WriteRequest>>,
     ) -> Result<Response<bytestream::WriteResponse>, Status> {
+        let _request_guard = self.state.start_grpc_request();
         let extension = GrpcExtensionSpec {
             route: "reapi.bytestream.write",
             operation: "artifact.write",
@@ -699,6 +715,7 @@ impl ByteStream for ReapiService {
         &self,
         request: Request<bytestream::QueryWriteStatusRequest>,
     ) -> Result<Response<bytestream::QueryWriteStatusResponse>, Status> {
+        let _request_guard = self.state.start_grpc_request();
         let resource = parse_write_resource_name(&request.get_ref().resource_name)?;
         let extension = GrpcExtensionSpec {
             route: "reapi.bytestream.query_write_status",
@@ -1149,5 +1166,22 @@ mod tests {
         assert!(rendered.contains("kura_artifact_reads_total"));
         assert!(rendered.contains("producer=\"reapi\""));
         assert!(rendered.contains("result=\"ok\""));
+    }
+
+    #[tokio::test]
+    async fn draining_rejects_new_grpc_requests() {
+        let context = test_context(|_| {}).await;
+        let service = ReapiService {
+            state: context.state.clone(),
+        };
+        context.state.enter_draining();
+
+        let error = service
+            .get_capabilities(Request::new(reapi::GetCapabilitiesRequest::default()))
+            .await
+            .expect_err("draining nodes should reject new gRPC requests");
+
+        assert_eq!(error.code(), tonic::Code::Unavailable);
+        assert!(error.message().contains("draining"));
     }
 }

@@ -35,6 +35,7 @@ struct XcodeBuildTestCommandService {
     private let testCaseListService: TestCaseListServicing
     private let shardService: ShardServicing
     private let serverEnvironmentService: ServerEnvironmentServicing
+    private let uploadBuildRunService: UploadBuildRunServicing?
 
     init(
         fileSystem: FileSysteming = FileSystem(),
@@ -51,7 +52,8 @@ struct XcodeBuildTestCommandService {
         testQuarantineService: TestQuarantineServicing = TestQuarantineService(),
         testCaseListService: TestCaseListServicing = TestCaseListService(),
         shardService: ShardServicing = ShardService(),
-        serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService()
+        serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
+        uploadBuildRunService: UploadBuildRunServicing? = UploadBuildRunService()
     ) {
         self.fileSystem = fileSystem
         self.xcodeBuildController = xcodeBuildController
@@ -68,6 +70,7 @@ struct XcodeBuildTestCommandService {
         self.testCaseListService = testCaseListService
         self.shardService = shardService
         self.serverEnvironmentService = serverEnvironmentService
+        self.uploadBuildRunService = uploadBuildRunService
     }
 
     func run(
@@ -145,7 +148,12 @@ struct XcodeBuildTestCommandService {
             try await xcodeBuildController.run(arguments: xcodeBuildArgumentsWithSkip)
         } catch {
             if let derivedDataPath {
-                await updateBuildRunId(projectDerivedDataDirectory: derivedDataPath)
+                await processBuildRun(
+                    projectDerivedDataDirectory: derivedDataPath,
+                    projectPath: path,
+                    config: config,
+                    passthroughXcodebuildArguments: passthroughXcodebuildArguments
+                )
             }
 
             var testSummary: TestSummary?
@@ -198,7 +206,12 @@ struct XcodeBuildTestCommandService {
         }
 
         if let derivedDataPath {
-            await updateBuildRunId(projectDerivedDataDirectory: derivedDataPath)
+            await processBuildRun(
+                projectDerivedDataDirectory: derivedDataPath,
+                projectPath: path,
+                config: config,
+                passthroughXcodebuildArguments: passthroughXcodebuildArguments
+            )
         }
 
         var testSummary: TestSummary?
@@ -238,13 +251,31 @@ struct XcodeBuildTestCommandService {
         }
     }
 
-    private func updateBuildRunId(projectDerivedDataDirectory: AbsolutePath) async {
+    private func processBuildRun(
+        projectDerivedDataDirectory: AbsolutePath,
+        projectPath: AbsolutePath,
+        config: Tuist,
+        passthroughXcodebuildArguments: [String]
+    ) async {
         guard let mostRecentActivityLogPath = try? await xcActivityLogController.mostRecentActivityLogFile(
             projectDerivedDataDirectory: projectDerivedDataDirectory
         )
         else { return }
 
         await RunMetadataStorage.current.update(buildRunId: mostRecentActivityLogPath.path.basenameWithoutExt)
+
+        guard let uploadBuildRunService, config.fullHandle != nil else { return }
+        do {
+            try await uploadBuildRunService.uploadBuildRun(
+                activityLogPath: mostRecentActivityLogPath.path,
+                projectPath: projectPath,
+                config: config,
+                scheme: passedValue(for: "-scheme", arguments: passthroughXcodebuildArguments),
+                configuration: passedValue(for: "-configuration", arguments: passthroughXcodebuildArguments)
+            )
+        } catch {
+            AlertController.current.warning(.alert("Failed to upload build: \(error.localizedDescription)"))
+        }
     }
 
     private func projectPath(xcodeBuildArguments: XcodeBuildArguments) async throws -> AbsolutePath? {

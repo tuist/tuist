@@ -33,57 +33,62 @@ public struct SourceFilesContentHasher: SourceFilesContentHashing {
     /// their compiler flags
     public func hash(identifier: String, sources: [SourceFile]) async throws -> MerkleNode {
         var children: [MerkleNode] = []
-
         for source in sources.sorted(by: { $0.path < $1.path }) {
-            if let hash = source.contentHash {
-                children.append(MerkleNode(
-                    hash: hash,
-                    identifier: source.path.pathString,
-                    children: []
-                ))
-            } else {
-                var sourceChildren: [MerkleNode] = []
+            children.append(try await hash(source: source))
+        }
+        return MerkleNode(
+            hash: try contentHasher.hash(children.map(\.hash)),
+            identifier: identifier,
+            children: children
+        )
+    }
+
+    private func hash(source: SourceFile) async throws -> MerkleNode {
+        var sourceChildren: [MerkleNode] = [
+            MerkleNode(
+                hash: try contentHasher.hash(source.path.basename),
+                identifier: "name",
+                children: []
+            ),
+        ]
+
+        if let hash = source.contentHash {
+            sourceChildren.append(MerkleNode(hash: hash, identifier: "content", children: []))
+        } else {
+            sourceChildren.append(MerkleNode(
+                hash: try await contentHasher.hash(path: source.path),
+                identifier: "content",
+                children: []
+            ))
+
+            if let compilerFlags = source.compilerFlags {
                 sourceChildren.append(MerkleNode(
-                    hash: try await contentHasher.hash(path: source.path),
-                    identifier: "content",
+                    hash: try contentHasher.hash(compilerFlags),
+                    identifier: "compilerFlags",
                     children: []
                 ))
+            }
 
-                if let compilerFlags = source.compilerFlags {
-                    sourceChildren.append(MerkleNode(
-                        hash: try contentHasher.hash(compilerFlags),
-                        identifier: "compilerFlags",
-                        children: []
-                    ))
-                }
+            if let codeGen = source.codeGen {
+                sourceChildren.append(MerkleNode(
+                    hash: try contentHasher.hash(codeGen.rawValue),
+                    identifier: "codeGen",
+                    children: []
+                ))
+            }
 
-                if let codeGen = source.codeGen {
-                    sourceChildren.append(MerkleNode(
-                        hash: try contentHasher.hash(codeGen.rawValue),
-                        identifier: "codeGen",
-                        children: []
-                    ))
-                }
-
-                if let compilationCondition = source.compilationCondition {
-                    sourceChildren.append(try platformConditionContentHasher.hash(
-                        identifier: "compilationCondition",
-                        platformCondition: compilationCondition
-                    ))
-                }
-
-                children.append(MerkleNode(
-                    hash: try contentHasher.hash(sourceChildren.map(\.hash)),
-                    identifier: source.path.pathString,
-                    children: sourceChildren
+            if let compilationCondition = source.compilationCondition {
+                sourceChildren.append(try platformConditionContentHasher.hash(
+                    identifier: "compilationCondition",
+                    platformCondition: compilationCondition
                 ))
             }
         }
 
         return MerkleNode(
-            hash: try contentHasher.hash(children.map(\.hash)),
-            identifier: identifier,
-            children: children
+            hash: try contentHasher.hash(sourceChildren.map(\.hash)),
+            identifier: source.path.pathString,
+            children: sourceChildren
         )
     }
 }

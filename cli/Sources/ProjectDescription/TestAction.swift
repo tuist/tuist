@@ -131,4 +131,27 @@ public struct TestAction: Equatable, Codable, Sendable {
             skippedTests: nil
         )
     }
+
+    /// Returns a test action from a list of test plan paths.
+    @_disfavoredOverload
+    @available(
+        *,
+        deprecated,
+        message: "Pass [TestPlan] instead — wrap each path with `.path(...)` or use a string literal."
+    )
+    public static func testPlans(
+        _ testPlans: [Path],
+        configuration: ConfigurationName = .debug,
+        attachDebugger: Bool = true,
+        preActions: [ExecutionAction] = [],
+        postActions: [ExecutionAction] = []
+    ) -> Self {
+        Self.testPlans(
+            testPlans.map(TestPlan.path),
+            configuration: configuration,
+            attachDebugger: attachDebugger,
+            preActions: preActions,
+            postActions: postActions
+        )
+    }
 }

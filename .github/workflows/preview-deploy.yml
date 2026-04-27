@@ -1,0 +1,569 @@
+name: Preview Deploy
+
+# Deploy / refresh / tear down an ephemeral preview environment for a PR or a
+# specific commit.
+#
+# Triggers:
+#
+#   pull_request: [labeled, synchronize, unlabeled, closed]
+#     Auto-deploys when the `preview` label is added to a PR; re-deploys on
+#     every push thereafter; tears down when the label is removed or the PR
+#     is closed. Internal PRs only — fork PRs are filtered out at the
+#     `resolve` job because they can't access the deploy secrets.
+#
+#   workflow_dispatch:
+#     Manual run for one-off commits or for re-deploying a closed PR. Provide
+#     EITHER pr_number OR commit_sha plus ttl_hours.
+#
+# Convention:
+#   pr_number=1234   → release pr-1234,    namespace preview-pr-1234,
+#                      host pr-1234.preview.tuist.dev
+#   commit_sha=abc…  → release sha-abc1234, namespace preview-sha-abc1234,
+#                      host sha-abc1234.preview.tuist.dev (7-char short SHA)
+#
+# Each PR-driven preview also gets a per-PR GitHub Deployment so the PR
+# timeline shows a "Preview – PR #1234" card (active during the deploy, set
+# inactive on teardown).
+#
+# Required GitHub Environment secrets (environment: server-k8s-preview):
+#   KUBECONFIG       - base64 kubeconfig for the preview WORKLOAD cluster's
+#                      CI ServiceAccount (cluster-admin in preview-system).
+#   KUBECONFIG_MGMT  - base64 kubeconfig for the SYSELF MANAGEMENT cluster's
+#                      `preview-scaler` SA (narrow Role: get/patch on
+#                      Cluster/tuist-preview, read on MachineDeployments).
+#
+# Both are minted at cluster bootstrap; see infra/k8s/syself-onboarding.md §9.
+
+on:
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: PR number to deploy (omit if using commit_sha)
+        required: false
+      commit_sha:
+        description: Commit SHA to deploy (omit if using pr_number)
+        required: false
+      ttl_hours:
+        description: Auto-delete after N hours (max 168 = 7 days)
+        required: true
+        default: "24"
+  pull_request:
+    types: [labeled, synchronize, unlabeled, closed]
+
+permissions:
+  contents: read
+  packages: write
+  pull-requests: write
+  id-token: write
+  deployments: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: tuist/tuist
+  HELM_CHART_PATH: infra/helm/tuist
+  PREVIEW_BASE_DOMAIN: preview.tuist.dev
+
+jobs:
+  resolve:
+    name: Resolve inputs
+    runs-on: ubuntu-latest
+    # Skip pull_request events that aren't a preview-label action and aren't
+    # a synchronize/close on an already-labeled PR. Also skip fork PRs:
+    # secrets don't propagate to fork-based runs and a deploy attempt would
+    # fail at the kubeconfig load anyway.
+    if: |
+      github.event_name == 'workflow_dispatch' || (
+        github.event_name == 'pull_request'
+        && github.event.pull_request.head.repo.full_name == github.repository
+        && (
+          (github.event.action == 'labeled'   && github.event.label.name == 'preview') ||
+          (github.event.action == 'unlabeled' && github.event.label.name == 'preview') ||
+          (github.event.action == 'synchronize' && contains(github.event.pull_request.labels.*.name, 'preview')) ||
+          (github.event.action == 'closed'      && contains(github.event.pull_request.labels.*.name, 'preview'))
+        )
+      )
+    outputs:
+      action: ${{ steps.r.outputs.action }}
+      release: ${{ steps.r.outputs.release }}
+      namespace: ${{ steps.r.outputs.namespace }}
+      host: ${{ steps.r.outputs.host }}
+      ref: ${{ steps.r.outputs.ref }}
+      short_sha: ${{ steps.r.outputs.short_sha }}
+      expires_at: ${{ steps.r.outputs.expires_at }}
+      pr_number: ${{ steps.r.outputs.pr_number }}
+    steps:
+      - id: r
+        env:
+          PR: ${{ inputs.pr_number }}
+          SHA: ${{ inputs.commit_sha }}
+          TTL_HOURS: ${{ inputs.ttl_hours }}
+          EVENT: ${{ github.event_name }}
+          ACTION: ${{ github.event.action }}
+          EVENT_PR: ${{ github.event.pull_request.number }}
+          EVENT_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+
+          # Branch on event type. workflow_dispatch keeps the existing pr/sha
+          # input shape; pull_request derives everything from the PR context
+          # and picks deploy vs. teardown from the action.
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            ACTION_OUT=deploy
+            if [ -n "$PR" ] && [ -n "$SHA" ]; then
+              echo "::error::Provide pr_number OR commit_sha, not both."; exit 1
+            fi
+            if [ -z "$PR" ] && [ -z "$SHA" ]; then
+              echo "::error::Provide either pr_number or commit_sha."; exit 1
+            fi
+            if [ -n "$PR" ] && ! [[ "$PR" =~ ^[0-9]+$ ]]; then
+              echo "::error::pr_number must be a positive integer."; exit 1
+            fi
+            if [ -n "$SHA" ] && ! [[ "$SHA" =~ ^[0-9a-f]{7,40}$ ]]; then
+              echo "::error::commit_sha must be 7–40 lowercase hex chars."; exit 1
+            fi
+            if ! [[ "$TTL_HOURS" =~ ^[0-9]+$ ]] || [ "$TTL_HOURS" -lt 1 ] || [ "$TTL_HOURS" -gt 168 ]; then
+              echo "::error::ttl_hours must be an integer between 1 and 168."; exit 1
+            fi
+            if [ -n "$PR" ]; then
+              REF=$(gh pr view "$PR" --repo "${{ github.repository }}" --json headRefOid -q .headRefOid)
+              RELEASE="pr-${PR}"
+              PR_OUT="$PR"
+            else
+              REF="$SHA"
+              RELEASE="sha-${SHA:0:7}"
+              PR_OUT=""
+            fi
+          else
+            # pull_request — auto-deploy on label/sync, auto-teardown on
+            # unlabel/close. TTL defaults to a long horizon (the sweep is a
+            # backstop; teardown is normally label/close-driven now).
+            case "$ACTION" in
+              labeled|synchronize) ACTION_OUT=deploy ;;
+              unlabeled|closed)    ACTION_OUT=teardown ;;
+              *) echo "::error::unhandled action $ACTION"; exit 1 ;;
+            esac
+            TTL_HOURS=168
+            REF="$EVENT_HEAD_SHA"
+            RELEASE="pr-${EVENT_PR}"
+            PR_OUT="$EVENT_PR"
+          fi
+
+          EXPIRES_AT=$(( $(date +%s) + TTL_HOURS * 3600 ))
+          SHORT_SHA="${REF:0:12}"
+          NAMESPACE="preview-${RELEASE}"
+          HOST="${RELEASE}.${PREVIEW_BASE_DOMAIN}"
+
+          {
+            echo "action=$ACTION_OUT"
+            echo "release=$RELEASE"
+            echo "namespace=$NAMESPACE"
+            echo "host=$HOST"
+            echo "ref=$REF"
+            echo "short_sha=$SHORT_SHA"
+            echo "expires_at=$EXPIRES_AT"
+            echo "pr_number=$PR_OUT"
+          } >> "$GITHUB_OUTPUT"
+
+          {
+            echo "## Preview $ACTION_OUT"
+            echo "- Release: \`$RELEASE\`"
+            echo "- Namespace: \`$NAMESPACE\`"
+            echo "- Host: https://$HOST"
+            if [ "$ACTION_OUT" = "deploy" ]; then
+              echo "- Image tag: \`sha-$SHORT_SHA\`"
+              echo "- Expires: $(date -u -d "@$EXPIRES_AT" '+%Y-%m-%d %H:%M UTC')"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+  start-deployment:
+    # Per-PR GitHub Deployment so the PR timeline shows a "Preview – PR #N"
+    # card. One Deployment row per PR (we transition existing deployments
+    # rather than creating duplicates on each push).
+    name: Start GitHub Deployment
+    needs: resolve
+    if: needs.resolve.outputs.action == 'deploy' && needs.resolve.outputs.pr_number != ''
+    runs-on: ubuntu-latest
+    outputs:
+      deployment_id: ${{ steps.create.outputs.deployment_id }}
+    steps:
+      - id: create
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REF: ${{ needs.resolve.outputs.ref }}
+          RELEASE: ${{ needs.resolve.outputs.release }}
+          PR: ${{ needs.resolve.outputs.pr_number }}
+        run: |
+          set -euo pipefail
+          # transient_environment + auto_inactive let GitHub mark the prior
+          # deployment row inactive automatically when this one goes active.
+          DEPLOYMENT_ID=$(gh api "repos/${{ github.repository }}/deployments" \
+            --method POST \
+            -f ref="$REF" \
+            -f environment="preview-$RELEASE" \
+            -F transient_environment=true \
+            -F production_environment=false \
+            -F auto_merge=false \
+            -F required_contexts:='[]' \
+            -f description="Preview for PR #$PR" \
+            --jq .id)
+          echo "deployment_id=$DEPLOYMENT_ID" >> "$GITHUB_OUTPUT"
+          gh api "repos/${{ github.repository }}/deployments/$DEPLOYMENT_ID/statuses" \
+            --method POST \
+            -f state=in_progress \
+            -f description="Building + deploying" \
+            -f log_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" >/dev/null
+
+  build:
+    name: Build + push
+    needs: resolve
+    if: needs.resolve.outputs.action == 'deploy'
+    runs-on: namespace-profile-default-with-volume
+    timeout-minutes: 40
+    outputs:
+      image_tag: ${{ steps.tag.outputs.image_tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve.outputs.ref }}
+          submodules: false
+      - id: tag
+        run: echo "image_tag=sha-${{ needs.resolve.outputs.short_sha }}" >> "$GITHUB_OUTPUT"
+      - uses: namespacelabs/nscloud-setup-buildx-action@v0
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./server/Dockerfile
+          target: runner
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
+          build-args: |
+            TUIST_HOSTED=1
+            MIX_ENV=prod
+            APT_CACHE_BUST=${{ needs.resolve.outputs.ref }}
+          # Share the same cache scope as the managed-env builds — same image,
+          # same Dockerfile, layers are interchangeable.
+          cache-from: type=gha,scope=server-cluster
+          cache-to: type=gha,mode=max,scope=server-cluster
+
+  scale-up:
+    # Scaling the management cluster's `tuist-preview` Cluster CR is the only
+    # write the deploy workflow shares with the sweep workflow. Splitting it
+    # into its own job lets us put a workflow-spanning concurrency group
+    # (`preview-cluster-scale`) on just this step — two PRs deploying at the
+    # same time still helm-install in parallel, but only one of them (and
+    # never the sweep) is mid-patch on the Cluster CR.
+    name: Scale preview worker pool up
+    needs: [resolve, build]
+    if: needs.resolve.outputs.action == 'deploy'
+    runs-on: namespace-profile-default
+    environment:
+      name: server-k8s-preview
+    concurrency:
+      group: preview-cluster-scale
+      cancel-in-progress: false
+    timeout-minutes: 15
+    env:
+      KUBECONFIG: ${{ github.workspace }}/.kube/config
+      KUBECONFIG_MGMT: ${{ github.workspace }}/.kube/mgmt
+    steps:
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          install_args: "kubectl"
+          cache: "false"
+      - name: Load kubeconfigs
+        run: |
+          mkdir -p "$(dirname "$KUBECONFIG")"
+          echo "${{ secrets.KUBECONFIG }}" | base64 -d > "$KUBECONFIG"
+          chmod 600 "$KUBECONFIG"
+          echo "${{ secrets.KUBECONFIG_MGMT }}" | base64 -d > "$KUBECONFIG_MGMT"
+          chmod 600 "$KUBECONFIG_MGMT"
+      - name: Patch Cluster CR to ensure md-0 has ≥1 replica
+        run: |
+          set -euo pipefail
+          ORG_NS=$(KUBECONFIG="$KUBECONFIG_MGMT" kubectl config view --minify -o jsonpath='{.contexts[0].context.namespace}')
+          CURRENT=$(KUBECONFIG="$KUBECONFIG_MGMT" kubectl -n "$ORG_NS" get cluster tuist-preview \
+            -o jsonpath='{.spec.topology.workers.machineDeployments[?(@.name=="md-0")].replicas}')
+          echo "md-0 replicas currently: $CURRENT"
+          if [ "${CURRENT:-0}" -lt 1 ]; then
+            echo "==> Scaling md-0 to 1..."
+            KUBECONFIG="$KUBECONFIG_MGMT" kubectl -n "$ORG_NS" patch cluster tuist-preview \
+              --type=json \
+              -p='[{"op":"replace","path":"/spec/topology/workers/machineDeployments/0/replicas","value":1}]'
+          fi
+      - name: Wait for worker node Ready
+        # Cold-boot a Hetzner cpx31 + kubelet/CNI takes ~3–5 min. Done in
+        # this job (not the deploy job) so the Cluster CR concurrency lock
+        # is held until the new node is actually usable.
+        run: |
+          echo "Waiting for at least one worker node to be Ready..."
+          for i in $(seq 1 60); do
+            COUNT=$(kubectl get nodes -l '!node-role.kubernetes.io/control-plane' \
+              -o jsonpath='{range .items[*]}{.status.conditions[?(@.type=="Ready")].status}{"\n"}{end}' \
+              | grep -c "^True$" || true)
+            if [ "$COUNT" -ge 1 ]; then
+              echo "Worker(s) Ready: $COUNT"
+              kubectl get nodes
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::error::No worker became Ready within 10 minutes."
+          kubectl get nodes -o wide
+          exit 1
+
+  deploy:
+    name: Deploy ${{ needs.resolve.outputs.release }}
+    needs: [resolve, build, scale-up, start-deployment]
+    if: |
+      always()
+      && needs.resolve.outputs.action == 'deploy'
+      && needs.build.result == 'success'
+      && needs.scale-up.result == 'success'
+      && (needs.start-deployment.result == 'success' || needs.start-deployment.result == 'skipped')
+    runs-on: namespace-profile-default
+    environment:
+      name: server-k8s-preview
+      url: https://${{ needs.resolve.outputs.host }}
+    # Per-release lane so two runs against the same PR don't race on the
+    # Helm release. Different PRs deploy in parallel.
+    concurrency:
+      group: preview-deploy-${{ needs.resolve.outputs.release }}
+      cancel-in-progress: false
+    timeout-minutes: 25
+    env:
+      KUBECONFIG: ${{ github.workspace }}/.kube/config
+      RELEASE: ${{ needs.resolve.outputs.release }}
+      NAMESPACE: ${{ needs.resolve.outputs.namespace }}
+      HOST: ${{ needs.resolve.outputs.host }}
+      IMAGE_TAG: ${{ needs.build.outputs.image_tag }}
+      EXPIRES_AT: ${{ needs.resolve.outputs.expires_at }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve.outputs.ref }}
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          install_args: "helm kubectl"
+          cache: "false"
+      - name: Load kubeconfig
+        run: |
+          mkdir -p "$(dirname "$KUBECONFIG")"
+          echo "${{ secrets.KUBECONFIG }}" | base64 -d > "$KUBECONFIG"
+          chmod 600 "$KUBECONFIG"
+
+      - name: Re-apply role=preview label/taint on workers
+        # CAPI/Syself doesn't surface node labels via topology variables, so
+        # workers come up un-labeled. Re-applying every deploy makes the
+        # workflow idempotent and survives MachineDeployment scale events
+        # that bring up fresh nodes.
+        run: |
+          kubectl label nodes -l '!node-role.kubernetes.io/control-plane' role=preview --overwrite
+          kubectl taint nodes -l '!node-role.kubernetes.io/control-plane' role=preview:NoSchedule --overwrite
+
+      - name: helm upgrade --install
+        run: |
+          helm upgrade --install "$RELEASE" "$HELM_CHART_PATH" \
+            --namespace "$NAMESPACE" --create-namespace \
+            -f "$HELM_CHART_PATH/values-preview.yaml" \
+            --set server.image.tag="$IMAGE_TAG" \
+            --set server.ingress.enabled=true \
+            --set server.ingress.host="$HOST" \
+            --set "server.appUrl=https://$HOST" \
+            --atomic --timeout 15m --wait
+
+      - name: Annotate namespace with TTL
+        # The sweep workflow reads this label to decide what to delete.
+        # Set after helm install so a failed deploy doesn't leave a "valid"
+        # expiry on a broken namespace the sweeper might still wait on.
+        run: |
+          kubectl label namespace "$NAMESPACE" \
+            "tuist.dev/expires-at=$EXPIRES_AT" \
+            "tuist.dev/preview=true" \
+            --overwrite
+
+      - name: Smoke test
+        # `helm install --wait` + the rollout status check below cover server
+        # readiness internally (the pod's own /ready probe must pass for the
+        # rollout to complete). An in-cluster `kubectl run` curl was tempting
+        # but would inherit no tolerations and so couldn't schedule onto the
+        # tainted preview worker. The external curl below also exercises
+        # ingress + wildcard cert + DNS — the user-facing path.
+        run: |
+          kubectl -n "$NAMESPACE" rollout status deploy/${RELEASE}-tuist-server --timeout=10m
+          # Hit /ready through the public host. Retries cover DNS / cert
+          # propagation lag on a brand-new preview cluster.
+          for i in $(seq 1 20); do
+            if curl -fsSL --max-time 5 "https://${HOST}/ready" >/dev/null; then
+              echo "OK — https://${HOST}/ready returned 200"
+              exit 0
+            fi
+            echo "Attempt $i: https://${HOST}/ready not yet reachable; retrying in 10s..."
+            sleep 10
+          done
+          echo "::error::https://${HOST}/ready never returned 200 after ~3 min."
+          exit 1
+
+      - name: Mark GitHub Deployment success
+        # Source-of-truth for the PR-timeline "Preview" card. Setting
+        # auto_inactive=true here flips any prior active deployment for the
+        # same environment into inactive so the timeline only ever shows the
+        # latest live preview.
+        if: needs.start-deployment.outputs.deployment_id != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/${{ github.repository }}/deployments/${{ needs.start-deployment.outputs.deployment_id }}/statuses" \
+            --method POST \
+            -f state=success \
+            -f environment_url="https://$HOST" \
+            -f log_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            -F auto_inactive=true \
+            -f description="Preview live at https://$HOST" >/dev/null
+
+      - name: Comment on PR
+        # Edits the existing bot comment if one exists (matched by a hidden
+        # HTML marker keyed on release name) so re-deploys don't spam the
+        # PR with new comments. Falls back to creating a fresh one. The
+        # GitHub Deployment timeline card carries most of the signal now;
+        # the comment is here for the URL + expiry copy.
+        if: needs.resolve.outputs.pr_number != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ needs.resolve.outputs.pr_number }}
+        run: |
+          MARKER="<!-- preview-deploy:${RELEASE} -->"
+          BODY=$(cat <<EOF
+          $MARKER
+          🟢 Preview deployed: **https://$HOST**
+
+          - Release: \`$RELEASE\`
+          - Image: \`$IMAGE_TAG\`
+          - Last updated: $(date -u '+%Y-%m-%d %H:%M UTC')
+          - Expires: $(date -u -d "@$EXPIRES_AT" '+%Y-%m-%d %H:%M UTC')
+
+          Push to this PR to update the preview; remove the \`preview\` label or close the PR to tear it down.
+          EOF
+          )
+          EXISTING=$(gh api "repos/${{ github.repository }}/issues/$PR_NUMBER/comments" \
+            --paginate --jq ".[] | select(.body | startswith(\"$MARKER\")) | .id" \
+            | head -1)
+          if [ -n "$EXISTING" ]; then
+            echo "Editing comment $EXISTING"
+            gh api -X PATCH "repos/${{ github.repository }}/issues/comments/$EXISTING" \
+              -f body="$BODY" >/dev/null
+          else
+            echo "Creating new PR comment"
+            gh pr comment "$PR_NUMBER" \
+              --repo "${{ github.repository }}" --body "$BODY"
+          fi
+
+      - name: Mark GitHub Deployment failure
+        if: failure() && needs.start-deployment.outputs.deployment_id != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/${{ github.repository }}/deployments/${{ needs.start-deployment.outputs.deployment_id }}/statuses" \
+            --method POST \
+            -f state=failure \
+            -f log_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            -f description="Preview deploy failed" >/dev/null
+
+      - name: Diagnostics on failure
+        if: failure()
+        run: |
+          set +e
+          echo "::group::pods"
+          kubectl -n "$NAMESPACE" get pods -o wide || true
+          echo "::endgroup::"
+          echo "::group::events"
+          kubectl -n "$NAMESPACE" get events --sort-by=.lastTimestamp | tail -50 || true
+          echo "::endgroup::"
+          echo "::group::external secret"
+          kubectl -n "$NAMESPACE" describe externalsecret 2>&1 || true
+          echo "::endgroup::"
+          for pod in $(kubectl -n "$NAMESPACE" get pods -l app.kubernetes.io/component=server -o name 2>/dev/null); do
+            echo "::group::$pod logs"
+            kubectl -n "$NAMESPACE" logs "$pod" --all-containers --tail=200 || true
+            echo "::endgroup::"
+          done
+
+  teardown:
+    # Triggered when the `preview` label is removed from a PR or the PR is
+    # closed. Mirrors what preview-sweep.yml does on TTL expiry: helm
+    # uninstall + namespace delete + flip the GitHub Deployment to inactive.
+    name: Teardown ${{ needs.resolve.outputs.release }}
+    needs: resolve
+    if: needs.resolve.outputs.action == 'teardown'
+    runs-on: ubuntu-latest
+    environment:
+      name: server-k8s-preview
+    concurrency:
+      group: preview-deploy-${{ needs.resolve.outputs.release }}
+      cancel-in-progress: false
+    timeout-minutes: 15
+    env:
+      KUBECONFIG: ${{ github.workspace }}/.kube/config
+      RELEASE: ${{ needs.resolve.outputs.release }}
+      NAMESPACE: ${{ needs.resolve.outputs.namespace }}
+    steps:
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          install_args: "helm kubectl"
+          cache: "false"
+      - name: Load kubeconfig
+        run: |
+          mkdir -p "$(dirname "$KUBECONFIG")"
+          echo "${{ secrets.KUBECONFIG }}" | base64 -d > "$KUBECONFIG"
+          chmod 600 "$KUBECONFIG"
+      - name: helm uninstall + delete namespace
+        run: |
+          set -euo pipefail
+          if helm status "$RELEASE" --namespace "$NAMESPACE" >/dev/null 2>&1; then
+            helm uninstall "$RELEASE" --namespace "$NAMESPACE" --wait --timeout 5m || true
+          else
+            echo "No helm release '$RELEASE' in $NAMESPACE — skipping uninstall."
+          fi
+          if kubectl get namespace "$NAMESPACE" >/dev/null 2>&1; then
+            kubectl delete namespace "$NAMESPACE" --wait=true --timeout 5m || true
+          fi
+      - name: Mark GitHub Deployment inactive
+        # Find the most recent active deployment for this PR's environment
+        # and set it inactive. Cheap idempotent best-effort: if there's no
+        # active deployment (e.g. unlabel before first deploy completed),
+        # the loop simply finds nothing.
+        if: needs.resolve.outputs.pr_number != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          ENV="preview-${RELEASE}"
+          IDS=$(gh api "repos/${{ github.repository }}/deployments?environment=$ENV&per_page=20" \
+            --jq '.[].id')
+          for ID in $IDS; do
+            gh api "repos/${{ github.repository }}/deployments/$ID/statuses" \
+              --method POST \
+              -f state=inactive \
+              -f description="Preview torn down" >/dev/null || true
+          done
+      - name: Update PR comment
+        if: needs.resolve.outputs.pr_number != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ needs.resolve.outputs.pr_number }}
+        run: |
+          MARKER="<!-- preview-deploy:${RELEASE} -->"
+          BODY="$MARKER"$'\n'"⚪ Preview torn down ($(date -u '+%Y-%m-%d %H:%M UTC')). Re-add the \`preview\` label to bring it back."
+          EXISTING=$(gh api "repos/${{ github.repository }}/issues/$PR_NUMBER/comments" \
+            --paginate --jq ".[] | select(.body | startswith(\"$MARKER\")) | .id" \
+            | head -1)
+          if [ -n "$EXISTING" ]; then
+            gh api -X PATCH "repos/${{ github.repository }}/issues/comments/$EXISTING" \
+              -f body="$BODY" >/dev/null
+          fi

@@ -765,6 +765,111 @@ final class TestServiceTests: TuistUnitTestCase {
             .called(0)
     }
 
+    func test_run_uploads_build_run_using_passthrough_derived_data_path() async throws {
+        // Given
+        givenGenerator()
+        let path = try temporaryPath()
+        let projectPath = path.appending(component: "Project")
+        let passthroughDerivedDataPath = path.appending(component: "passthrough-derived-data")
+        let activityLogPath = passthroughDerivedDataPath.appending(
+            components: "Logs", "Build", "activity.xcactivitylog"
+        )
+        let scheme = Scheme.test(
+            name: "AppTests",
+            testAction: .test(
+                targets: [
+                    .test(target: TargetReference(projectPath: projectPath, name: "AppTests")),
+                ]
+            )
+        )
+
+        given(buildGraphInspector)
+            .workspaceSchemes(graphTraverser: .any)
+            .willReturn([scheme])
+        given(buildGraphInspector)
+            .testableTarget(
+                scheme: .any, testPlan: .any, testTargets: .any, skipTestTargets: .any,
+                graphTraverser: .any,
+                action: .any
+            )
+            .willReturn(.test(target: .test(name: "AppTests")))
+
+        given(generator)
+            .generateWithGraph(path: .any, options: .any)
+            .willProduce { path, _ in
+                (
+                    path,
+                    .test(
+                        workspace: .test(schemes: [scheme]),
+                        projects: [
+                            projectPath: .test(
+                                path: projectPath,
+                                targets: [.test(name: "AppTests")],
+                                schemes: [scheme]
+                            ),
+                        ]
+                    ),
+                    MapperEnvironment()
+                )
+            }
+
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(
+                .test(
+                    project: .testGeneratedProject(),
+                    fullHandle: "tuist/tuist",
+                    url: URL(string: "https://example.com")!
+                )
+            )
+
+        xcodeBuildArgumentParser.reset()
+        given(xcodeBuildArgumentParser)
+            .parse(.any)
+            .willReturn(.test(derivedDataPath: passthroughDerivedDataPath))
+
+        var mostRecentActivityLogProjectDirectory: AbsolutePath?
+        xcActivityLogController.reset()
+        given(xcActivityLogController)
+            .mostRecentActivityLogFile(projectDerivedDataDirectory: .any, filter: .any)
+            .willProduce { directory, _ in
+                mostRecentActivityLogProjectDirectory = directory
+                return .test(path: activityLogPath)
+            }
+
+        given(uploadBuildRunService)
+            .uploadBuildRun(
+                activityLogPath: .any,
+                projectPath: .any,
+                config: .any,
+                scheme: .any,
+                configuration: .any
+            )
+            .willReturn(URL(string: "https://tuist.dev/test")!)
+
+        // When
+        try await testRun(
+            path: path,
+            passthroughXcodeBuildArguments: ["-derivedDataPath", passthroughDerivedDataPath.pathString]
+        )
+
+        // Then — derivedDataLocator must NOT have been used; the passthrough path is honored.
+        XCTAssertEqual(mostRecentActivityLogProjectDirectory, passthroughDerivedDataPath)
+        verify(derivedDataLocator)
+            .locate(for: .any)
+            .called(0)
+
+        verify(uploadBuildRunService)
+            .uploadBuildRun(
+                activityLogPath: .value(activityLogPath),
+                projectPath: .any,
+                config: .any,
+                scheme: .any,
+                configuration: .any
+            )
+            .called(1)
+    }
+
     func test_run_tests_individual_scheme() async throws {
         // Given
         givenGenerator()

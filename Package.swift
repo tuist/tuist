@@ -1713,10 +1713,9 @@ let package = Package(
         ),
         .package(id: "tuist.Path", .upToNextMajor(from: "0.3.8")),
         .package(id: "p-x9.MachOKit", .upToNextMajor(from: "0.46.1")),
-        .package(id: "tuist.FileSystem", .upToNextMajor(from: "0.16.2")),
+        .package(id: "tuist.FileSystem", .upToNextMajor(from: "0.17.0")),
         .package(id: "tuist.Command", .upToNextMajor(from: "0.14.0")),
         .package(id: "apple.swift-crypto", from: "3.0.0"),
-        .package(id: "apple.swift-nio", from: "2.70.0"),
         .package(id: "crspybits.swift-log-file", .upToNextMajor(from: "0.1.0")),
         .package(id: "tuist.Noora", from: "0.55.0"),
         .package(
