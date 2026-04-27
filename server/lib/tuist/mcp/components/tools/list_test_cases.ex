@@ -25,7 +25,7 @@ defmodule Tuist.MCP.Components.Tools.ListTestCases do
           "type" => "string",
           "enum" => ["enabled", "muted", "skipped"],
           "description" =>
-            ~s{Filter by test case state. "muted" tests still run but their failures don't fail the build; "skipped" tests are excluded from execution entirely. Both replace the legacy "quarantined" concept.}
+            ~s{Filter by test case state. "muted" tests still run but their failures don't fail the build; "skipped" tests are excluded from execution entirely.}
         },
         "module_name" => %{
           "type" => "string",
