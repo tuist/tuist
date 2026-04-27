@@ -35,10 +35,14 @@ description: Reviews Elixir code for idiomatic patterns, OTP basics, and documen
 - [ ] Proper use of call vs cast (sync vs async)
 
 ### Documentation
-- [ ] All public functions have @doc and @spec
-- [ ] Modules have @moduledoc describing purpose
+- [ ] Public-API modules (controllers, contexts, public boundaries) have @moduledoc describing purpose
+- [ ] Public-API functions have @doc
 - [ ] Doctests for pure functions where appropriate
 - [ ] No @doc false on genuinely public functions
+
+This repository intentionally does **not** use typespecs. Do **not** flag
+missing `@spec`, `@type`, or `@typep` anywhere. Do not flag missing
+`@doc`/`@moduledoc` on internal helper modules.
 
 ### Security
 - [ ] No `String.to_atom/1` on user input (use `to_existing_atom/1`)
@@ -50,14 +54,14 @@ description: Reviews Elixir code for idiomatic patterns, OTP basics, and documen
 - **Empty function clause for pattern match** - `def foo(nil), do: nil` is valid guard
 - **Using `|>` with single transformation** - Readability choice, not wrong
 - **`@doc false` on callback implementations** - Callbacks documented at behaviour level
-- **Private functions without @spec** - @spec optional for internals
+- **Any function without `@spec`** - this repo intentionally avoids typespecs
+- **Pure formatting / style nits** - `mix format` and `mix credo` cover those in CI
 - **Using `Kernel.apply/3`** - Valid for dynamic dispatch with known module/function
 
 ## Context-Sensitive Rules
 
 | Issue | Flag ONLY IF |
 |-------|--------------|
-| Missing @spec | Function is public AND exported |
 | Generic rescue | Specific exception types available |
 | Nested case/cond | More than 2 levels deep |
 
