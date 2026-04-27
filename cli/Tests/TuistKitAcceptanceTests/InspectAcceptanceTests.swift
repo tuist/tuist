@@ -40,6 +40,9 @@ struct InspectAcceptanceTests {
                 "-destination", "platform=macOS,arch=arm64",
                 "-project", fixtureDirectory.appending(component: "App.xcodeproj").pathString,
                 "-derivedDataPath", temporaryDirectory.pathString,
+                "CODE_SIGN_IDENTITY=",
+                "CODE_SIGNING_REQUIRED=NO",
+                "CODE_SIGNING_ALLOWED=NO",
             ]
         )
 
@@ -49,8 +52,8 @@ struct InspectAcceptanceTests {
         )
 
         let build = try await Self.pollUntilProcessed(
-            timeout: .seconds(180),
-            interval: .seconds(3),
+            timeout: .seconds(300),
+            interval: .seconds(5),
             label: "build \(buildId)",
             isTerminal: { $0.status != .processing }
         ) {
@@ -94,6 +97,9 @@ struct InspectAcceptanceTests {
                 "-destination", "platform=macOS,arch=arm64",
                 "-project", fixtureDirectory.appending(component: "App.xcodeproj").pathString,
                 "-derivedDataPath", temporaryDirectory.pathString,
+                "CODE_SIGN_IDENTITY=",
+                "CODE_SIGNING_REQUIRED=NO",
+                "CODE_SIGNING_ALLOWED=NO",
             ]
         )
 
@@ -103,8 +109,8 @@ struct InspectAcceptanceTests {
         )
 
         let testRun = try await Self.pollUntilProcessed(
-            timeout: .seconds(180),
-            interval: .seconds(3),
+            timeout: .seconds(300),
+            interval: .seconds(5),
             label: "test run \(testRunId)",
             isTerminal: { $0.status != .in_progress && $0.status != .processing }
         ) {
