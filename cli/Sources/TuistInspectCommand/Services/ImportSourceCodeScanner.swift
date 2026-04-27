@@ -13,24 +13,27 @@
 
     struct ImportSourceCodeScanner {
         func extractImports(from sourceCode: String, language: ProgrammingLanguage) throws -> Set<String> {
-            try extractImports(from: sourceCode, language: language, context: nil)
+            try extractImports(from: sourceCode, language: language, reachableModules: nil)
         }
 
         /// Extract imports from a source file.
         ///
-        /// When `context` is non-nil and the language is Swift, `#if` / `#elseif` / `#else` /
-        /// `#endif` blocks are walked and `import` lines whose enclosing condition would not
-        /// fire under the target's compilation context are skipped. This stops conditionally
-        /// linked dependencies from being misreported as implicit imports for variants that
-        /// don't declare them.
+        /// When `reachableModules` is non-nil and the language is Swift, `import` lines
+        /// inside `#if canImport(X)` are skipped when `X` is not in the set. This stops
+        /// conditionally linked dependencies from being misreported as implicit imports
+        /// for variants that don't declare them — `canImport` is the exact same check
+        /// the compiler runs at build time.
+        ///
+        /// Other `#if` shapes (custom flags, compound expressions, etc.) are treated as
+        /// active, preserving current scanner behaviour for everything else.
         func extractImports(
             from sourceCode: String,
             language: ProgrammingLanguage,
-            context: CompilationConditionContext?
+            reachableModules: Set<String>?
         ) throws -> Set<String> {
             switch language {
             case .swift:
-                return try extractSwiftImports(from: sourceCode, context: context)
+                return try extractSwiftImports(from: sourceCode, reachableModules: reachableModules)
             case .objc:
                 return try extract(from: sourceCode, language: .objc)
             }
@@ -38,48 +41,39 @@
 
         private func extractSwiftImports(
             from sourceCode: String,
-            context: CompilationConditionContext?
+            reachableModules: Set<String>?
         ) throws -> Set<String> {
             let codeWithoutComments = try removeComments(from: sourceCode)
             let pattern = #"import\s+(?:struct\s+|enum\s+|class\s+|protocol\s+|func\s+|var\s+|let\s+|typealias\s+)?([\w]+)"#
             let regex = try NSRegularExpression(pattern: pattern, options: [])
 
-            // Walk lines top-to-bottom, maintaining a stack of conditional-compilation
-            // frames. `import` lines are only collected when every enclosing frame is active.
-            var stack: [ConditionalFrame] = []
+            // Walk lines top-to-bottom, maintaining a stack of `#if` frames. A frame is
+            // "skipping" only when its enclosing `#if canImport(X)` references a module
+            // not in `reachableModules`. Every other directive shape leaves the frame
+            // active, which matches the legacy behaviour for those cases.
+            var stack: [Frame] = []
             var imports: Set<String> = []
-            let parser = CompilationConditionParser()
 
             for rawLine in codeWithoutComments.components(separatedBy: .newlines) {
                 let line = rawLine.trimmingCharacters(in: .whitespaces)
 
                 if line.hasPrefix("#if ") || line == "#if" {
-                    let expression = String(line.dropFirst(3)).trimmingCharacters(in: .whitespaces)
-                    let active = evaluate(expression, parser: parser, context: context)
-                    let parentActive = stack.allSatisfy(\.active)
-                    stack.append(ConditionalFrame(active: parentActive && active, anyBranchActive: active))
+                    let condition = String(line.dropFirst(3)).trimmingCharacters(in: .whitespaces)
+                    let parentSkipping = stack.last?.skipping ?? false
+                    let skipping = parentSkipping || isDeadCanImport(condition, reachableModules: reachableModules)
+                    stack.append(Frame(skipping: skipping))
                     continue
                 }
 
-                if line.hasPrefix("#elseif ") {
-                    guard !stack.isEmpty else { continue }
-                    let expression = String(line.dropFirst(8)).trimmingCharacters(in: .whitespaces)
-                    var frame = stack.removeLast()
-                    let raw = evaluate(expression, parser: parser, context: context)
-                    let active = !frame.anyBranchActive && raw
-                    frame.active = (stack.allSatisfy(\.active)) && active
-                    frame.anyBranchActive = frame.anyBranchActive || raw
-                    stack.append(frame)
-                    continue
-                }
-
-                if line == "#else" {
-                    guard !stack.isEmpty else { continue }
-                    var frame = stack.removeLast()
-                    let active = !frame.anyBranchActive
-                    frame.active = (stack.allSatisfy(\.active)) && active
-                    frame.anyBranchActive = true
-                    stack.append(frame)
+                // For #elseif and #else we don't try to be clever — once we leave the
+                // canImport branch we drop back to "active" and let the rest of the
+                // block be scanned normally.
+                if line.hasPrefix("#elseif ") || line == "#else" {
+                    if !stack.isEmpty {
+                        stack.removeLast()
+                        let parentSkipping = stack.last?.skipping ?? false
+                        stack.append(Frame(skipping: parentSkipping))
+                    }
                     continue
                 }
 
@@ -88,7 +82,7 @@
                     continue
                 }
 
-                guard stack.allSatisfy(\.active) else { continue }
+                if stack.last?.skipping == true { continue }
 
                 let range = NSRange(location: 0, length: line.utf16.count)
                 let matches = regex.matches(in: line, options: [], range: range)
@@ -101,26 +95,26 @@
             return imports
         }
 
-        private func evaluate(
-            _ expression: String,
-            parser: CompilationConditionParser,
-            context: CompilationConditionContext?
-        ) -> Bool {
-            // No context = caller wants every branch counted (legacy behaviour).
-            guard let context else { return true }
-            do {
-                let parsed = try parser.parse(expression)
-                return CompilationConditionEvaluator.evaluate(parsed, in: context)
-            } catch {
-                // If we can't parse the expression, be conservative and treat it as
-                // active so we don't silently drop a branch we don't understand.
-                return true
-            }
+        /// True when the condition is exactly `canImport(X)` and `X` is not reachable
+        /// from the current target. Anything else (compound expressions, negation,
+        /// custom flags) returns `false` so the branch stays active.
+        private func isDeadCanImport(_ condition: String, reachableModules: Set<String>?) -> Bool {
+            guard let reachableModules else { return false }
+            let pattern = #"^canImport\s*\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*\)$"#
+            guard let regex = try? NSRegularExpression(pattern: pattern, options: []),
+                  let match = regex.firstMatch(
+                      in: condition,
+                      options: [],
+                      range: NSRange(location: 0, length: condition.utf16.count)
+                  ),
+                  let moduleRange = Range(match.range(at: 1), in: condition)
+            else { return false }
+            let module = String(condition[moduleRange])
+            return !reachableModules.contains(module)
         }
 
-        private struct ConditionalFrame {
-            var active: Bool
-            var anyBranchActive: Bool
+        private struct Frame {
+            var skipping: Bool
         }
 
         private func extract(from code: String, language: ProgrammingLanguage) throws -> Set<String> {

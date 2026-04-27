@@ -8,14 +8,14 @@
     protocol TargetImportsScanning {
         func imports(
             for target: XcodeGraph.Target,
-            context: CompilationConditionContext?
+            reachableModules: Set<String>?
         ) async throws -> Set<String>
     }
 
     extension TargetImportsScanning {
-        /// Convenience that scans without conditional-compilation awareness.
+        /// Convenience that scans without `canImport` awareness.
         func imports(for target: XcodeGraph.Target) async throws -> Set<String> {
-            try await imports(for: target, context: nil)
+            try await imports(for: target, reachableModules: nil)
         }
     }
 
@@ -33,7 +33,7 @@
 
         func imports(
             for target: XcodeGraph.Target,
-            context: CompilationConditionContext?
+            reachableModules: Set<String>?
         ) async throws -> Set<String> {
             var filesToScan = target.sources.map(\.path) + target.buildableFolders.flatMap(\.resolvedFiles).map(\.path)
                 .filter { Target.validSourceExtensions.contains($0.extension ?? "") }
@@ -44,7 +44,7 @@
             }
             var imports = Set(
                 try await filesToScan.concurrentMap { file in
-                    try await matchPattern(at: file, context: context)
+                    try await matchPattern(at: file, reachableModules: reachableModules)
                 }
                 .flatMap { $0 }
             )
@@ -54,7 +54,7 @@
 
         private func matchPattern(
             at path: AbsolutePath,
-            context: CompilationConditionContext?
+            reachableModules: Set<String>?
         ) async throws -> Set<String> {
             let language: ProgrammingLanguage
             switch path.extension {
@@ -71,7 +71,7 @@
                 return try importSourceCodeScanner.extractImports(
                     from: sourceCode,
                     language: language,
-                    context: context
+                    reachableModules: reachableModules
                 )
             } else {
                 return Set()
