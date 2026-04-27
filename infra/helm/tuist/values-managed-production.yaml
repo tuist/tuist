@@ -89,11 +89,12 @@ objectStorage:
       registry: tuist-registry
 
 processor:
-  # database.host must be set — either here once we commit to a specific
-  # Supabase project URL, or via --set processor.database.host=... at
-  # deploy time. See infra/supabase/README.md.
+  # Supabase production project (yltsvvtmlktxdgpcbylg) — dedicated pooler on
+  # port 6543 (transaction mode). Same hostname as the direct Postgres
+  # endpoint, just a different port. Pooler creds are the `tuist_processor`
+  # role provisioned via infra/supabase/tuist-processor-role.sql.
   database:
-    host: ""
+    host: db.yltsvvtmlktxdgpcbylg.supabase.co
   extraEnv:
     # Must match the server's TUIST_DEPLOY_ENV above so the processor pod
     # decrypts the same priv/secrets/<env>.yml.enc file the web tier does.
