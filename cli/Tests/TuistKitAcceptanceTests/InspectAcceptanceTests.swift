@@ -17,7 +17,8 @@ struct InspectAcceptanceTests {
     /// Runs `tuist xcodebuild build` against canary and polls the server until the resulting
     /// build run reaches a terminal status. `xcodebuild build` already exercises the same
     /// upload path that `tuist inspect build` uses (via `UploadBuildRunService`), so this
-    /// test catches regressions in either entry point.
+    /// test catches regressions in either entry point. Targets macOS so the build doesn't
+    /// pay the iOS Simulator startup tax.
     @Test(
         .inTemporaryDirectory,
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
@@ -37,7 +38,7 @@ struct InspectAcceptanceTests {
             XcodeBuildBuildCommand.self,
             [
                 "-scheme", "App",
-                "-destination", "generic/platform=iOS Simulator",
+                "-destination", "platform=macOS,arch=arm64",
                 "-project", fixtureDirectory.appending(component: "App.xcodeproj").pathString,
                 "-derivedDataPath", temporaryDirectory.pathString,
             ]
@@ -61,18 +62,18 @@ struct InspectAcceptanceTests {
             )
         }
 
-        // The fixture builds successfully — anything else (notably `failed_processing`,
-        // the symptom of #10460) means the upload → processing pipeline is broken.
+        // The fixture builds successfully — `failed_processing` would mean the upload
+        // made it to the server but the worker couldn't parse the activity log, which is
+        // the regression shape we want this test to catch.
         #expect(build.status == .success)
     }
 
     /// Runs `tuist xcodebuild test` against canary and polls the server until the resulting
     /// test run reaches a terminal status. `xcodebuild test` already exercises the same
     /// xcresult upload path that `tuist inspect test` uses (via
-    /// `AnalyticsArtifactUploadService.uploadResultBundle`) — that's the path broken by
-    /// https://github.com/tuist/tuist/pull/10460, where the AppleArchive payload was missing
-    /// the `.xcresult` wrapper and the server's `find_xcresult` could never locate the
-    /// bundle.
+    /// `AnalyticsArtifactUploadService.uploadResultBundle`), so this test catches
+    /// regressions in either entry point. Targets macOS so the run doesn't pay the iOS
+    /// Simulator startup tax.
     @Test(
         .inTemporaryDirectory,
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
@@ -92,7 +93,7 @@ struct InspectAcceptanceTests {
             XcodeBuildTestCommand.self,
             [
                 "-scheme", "App",
-                "-destination", "platform=iOS Simulator,name=iPhone 17",
+                "-destination", "platform=macOS,arch=arm64",
                 "-project", fixtureDirectory.appending(component: "App.xcodeproj").pathString,
                 "-derivedDataPath", temporaryDirectory.pathString,
             ]
@@ -116,8 +117,9 @@ struct InspectAcceptanceTests {
             )
         }
 
-        // The fixture's tests pass — anything else (notably `failed_processing`, the
-        // symptom of #10460) means the upload → processing pipeline is broken.
+        // The fixture's tests pass — `failed_processing` would mean the upload made it to
+        // the server but the worker couldn't parse the xcresult, which is the regression
+        // shape we want this test to catch.
         #expect(testRun.status == .success)
     }
 
