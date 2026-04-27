@@ -439,8 +439,6 @@ defmodule TuistWeb.TestCaseLive do
   defp event_icon("first_run"), do: "info_circle"
   defp event_icon("marked_flaky"), do: "alert_triangle"
   defp event_icon("unmarked_flaky"), do: "circle_check"
-  defp event_icon("quarantined"), do: "lock"
-  defp event_icon("unquarantined"), do: "lock_open_2"
   defp event_icon("muted"), do: "volume_3"
   defp event_icon("unmuted"), do: "player_play"
   defp event_icon("skipped"), do: "player_track_next"
@@ -450,8 +448,6 @@ defmodule TuistWeb.TestCaseLive do
   defp event_color("first_run"), do: "primary"
   defp event_color("marked_flaky"), do: "warning"
   defp event_color("unmarked_flaky"), do: "success"
-  defp event_color("quarantined"), do: "destructive"
-  defp event_color("unquarantined"), do: "information"
   defp event_color("muted"), do: "destructive"
   defp event_color("unmuted"), do: "information"
   defp event_color("skipped"), do: "destructive"
@@ -461,8 +457,6 @@ defmodule TuistWeb.TestCaseLive do
   defp event_title("first_run"), do: dgettext("dashboard_tests", "First run of this test")
   defp event_title("marked_flaky"), do: dgettext("dashboard_tests", "Marked as flaky")
   defp event_title("unmarked_flaky"), do: dgettext("dashboard_tests", "Unmarked as flaky")
-  defp event_title("quarantined"), do: dgettext("dashboard_tests", "Marked as quarantined")
-  defp event_title("unquarantined"), do: dgettext("dashboard_tests", "Marked as unquarantined")
   defp event_title("muted"), do: dgettext("dashboard_tests", "Muted")
   defp event_title("unmuted"), do: dgettext("dashboard_tests", "Enabled")
   defp event_title("skipped"), do: dgettext("dashboard_tests", "Skipped")

@@ -1928,10 +1928,10 @@ end
 
 IO.puts("Generating test case events for quarantine history...")
 
-# Generate events for quarantined test cases (odd number of events, ending with "quarantined")
+# Generate events for quarantined test cases (odd number of events, ending with "muted")
 quarantined_events =
   Enum.flat_map(quarantined_ids, fn test_case_id ->
-    # Odd number of events so it ends with "quarantined"
+    # Odd number of events so it ends with "muted"
     num_events = Enum.random([1, 3, 5, 7])
     base_date = DateTime.utc_now()
 
@@ -1946,7 +1946,7 @@ quarantined_events =
     event_timestamps
     |> Enum.with_index()
     |> Enum.map(fn {inserted_at, index} ->
-      event_type = if rem(index, 2) == 0, do: "quarantined", else: "unquarantined"
+      event_type = if rem(index, 2) == 0, do: "muted", else: "unmuted"
       actor_id = if Enum.random(1..10) <= 7, do: nil, else: user_account_id
 
       %{
@@ -1959,10 +1959,10 @@ quarantined_events =
     end)
   end)
 
-# Generate events for unquarantined test cases (even number of events, ending with "unquarantined")
+# Generate events for unquarantined test cases (even number of events, ending with "unmuted")
 unquarantined_events =
   Enum.flat_map(unquarantined_ids, fn test_case_id ->
-    # Even number of events so it ends with "unquarantined"
+    # Even number of events so it ends with "unmuted"
     num_events = Enum.random([2, 4, 6])
     base_date = DateTime.utc_now()
 
@@ -1977,7 +1977,7 @@ unquarantined_events =
     event_timestamps
     |> Enum.with_index()
     |> Enum.map(fn {inserted_at, index} ->
-      event_type = if rem(index, 2) == 0, do: "quarantined", else: "unquarantined"
+      event_type = if rem(index, 2) == 0, do: "muted", else: "unmuted"
       actor_id = if Enum.random(1..10) <= 7, do: nil, else: user_account_id
 
       %{

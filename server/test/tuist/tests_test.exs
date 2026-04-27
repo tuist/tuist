@@ -2497,6 +2497,52 @@ defmodule Tuist.TestsTest do
       assert Enum.at(test_cases_desc, 2).name == "fastTest"
     end
 
+    test "paginates deterministically when callers append `:id` as a tiebreaker" do
+      # An automation sweep typically mutes many test cases at the same
+      # ran_at timestamp. Callers must pass `:id` as a secondary sort key
+      # so ClickHouse can't reshuffle tied rows between LIMIT/OFFSET pages.
+      # This test pins down the contract for them.
+      project = ProjectsFixtures.project_fixture()
+      ran_at = NaiveDateTime.utc_now()
+
+      test_cases =
+        for i <- 1..10 do
+          RunsFixtures.test_case_fixture(
+            project_id: project.id,
+            name: "tiedTest_#{i}",
+            state: "muted",
+            last_ran_at: ran_at,
+            inserted_at: ran_at
+          )
+        end
+
+      IngestRepo.insert_all(
+        TestCase,
+        Enum.map(test_cases, &(&1 |> Map.from_struct() |> Map.delete(:__meta__)))
+      )
+
+      attrs_base = %{
+        filters: [%{field: :state, op: :==, value: "muted"}],
+        order_by: [:last_ran_at, :id],
+        order_directions: [:desc, :asc],
+        page_size: 3
+      }
+
+      for_result =
+        for page <- 1..4 do
+          {rows, _meta} = Tests.list_test_cases(project.id, Map.put(attrs_base, :page, page))
+          Enum.map(rows, & &1.id)
+        end
+
+      collected = List.flatten(for_result)
+
+      assert length(collected) == 10
+      assert length(Enum.uniq(collected)) == 10
+
+      expected_ids = MapSet.new(test_cases, & &1.id)
+      assert MapSet.new(collected) == expected_ids
+    end
+
     test "preserves state when a new test run is ingested" do
       # Given
       project = ProjectsFixtures.project_fixture()
@@ -6343,7 +6389,7 @@ defmodule Tuist.TestsTest do
         %{
           id: event2_id,
           test_case_id: test_case_id,
-          event_type: "quarantined",
+          event_type: "muted",
           actor_id: nil,
           inserted_at: now
         }
@@ -6559,7 +6605,7 @@ defmodule Tuist.TestsTest do
 
       RunsFixtures.test_case_event_fixture(
         test_case_id: test_case.id,
-        event_type: "quarantined"
+        event_type: "muted"
       )
 
       {quarantined_tests, meta} = Tests.list_quarantined_test_cases(project.id, %{})
@@ -6658,7 +6704,7 @@ defmodule Tuist.TestsTest do
 
       RunsFixtures.test_case_event_fixture(
         test_case_id: test_case.id,
-        event_type: "quarantined",
+        event_type: "muted",
         inserted_at: now
       )
 
@@ -6696,7 +6742,7 @@ defmodule Tuist.TestsTest do
 
         RunsFixtures.test_case_event_fixture(
           test_case_id: test_case.id,
-          event_type: "quarantined"
+          event_type: "muted"
         )
       end
 
@@ -6726,7 +6772,7 @@ defmodule Tuist.TestsTest do
 
         RunsFixtures.test_case_event_fixture(
           test_case_id: test_case.id,
-          event_type: "quarantined"
+          event_type: "muted"
         )
       end
 
@@ -6757,7 +6803,7 @@ defmodule Tuist.TestsTest do
 
         RunsFixtures.test_case_event_fixture(
           test_case_id: test_case.id,
-          event_type: "quarantined"
+          event_type: "muted"
         )
       end
 
@@ -6787,7 +6833,7 @@ defmodule Tuist.TestsTest do
 
       RunsFixtures.test_case_event_fixture(
         test_case_id: test_case.id,
-        event_type: "quarantined"
+        event_type: "muted"
       )
 
       {project1_results, _} = Tests.list_quarantined_test_cases(project1.id, %{})
@@ -6813,7 +6859,7 @@ defmodule Tuist.TestsTest do
 
       RunsFixtures.test_case_event_fixture(
         test_case_id: tuist_test_case.id,
-        event_type: "quarantined",
+        event_type: "muted",
         actor_id: nil
       )
 
@@ -6829,7 +6875,7 @@ defmodule Tuist.TestsTest do
 
       RunsFixtures.test_case_event_fixture(
         test_case_id: user_test_case.id,
-        event_type: "quarantined",
+        event_type: "muted",
         actor_id: user.account.id
       )
 
@@ -6860,7 +6906,7 @@ defmodule Tuist.TestsTest do
 
       RunsFixtures.test_case_event_fixture(
         test_case_id: user1_test_case.id,
-        event_type: "quarantined",
+        event_type: "muted",
         actor_id: user1.account.id
       )
 
@@ -6876,7 +6922,7 @@ defmodule Tuist.TestsTest do
 
       RunsFixtures.test_case_event_fixture(
         test_case_id: user2_test_case.id,
-        event_type: "quarantined",
+        event_type: "muted",
         actor_id: user2.account.id
       )
 
@@ -6910,7 +6956,7 @@ defmodule Tuist.TestsTest do
 
         RunsFixtures.test_case_event_fixture(
           test_case_id: test_case.id,
-          event_type: "quarantined"
+          event_type: "muted"
         )
       end
 
@@ -6947,7 +6993,7 @@ defmodule Tuist.TestsTest do
 
         RunsFixtures.test_case_event_fixture(
           test_case_id: test_case.id,
-          event_type: "quarantined"
+          event_type: "muted"
         )
       end
 
@@ -6994,13 +7040,13 @@ defmodule Tuist.TestsTest do
 
       RunsFixtures.test_case_event_fixture(
         test_case_id: test_case_id,
-        event_type: "quarantined",
+        event_type: "muted",
         inserted_at: ~N[2024-01-01 00:00:00.000000]
       )
 
       RunsFixtures.test_case_event_fixture(
         test_case_id: test_case_id,
-        event_type: "unquarantined",
+        event_type: "unmuted",
         inserted_at: ~N[2024-01-02 00:00:00.000000]
       )
 
@@ -7034,7 +7080,7 @@ defmodule Tuist.TestsTest do
 
       RunsFixtures.test_case_event_fixture(
         test_case_id: test_case.id,
-        event_type: "quarantined",
+        event_type: "muted",
         actor_id: nil
       )
 
@@ -7058,7 +7104,7 @@ defmodule Tuist.TestsTest do
 
       RunsFixtures.test_case_event_fixture(
         test_case_id: test_case.id,
-        event_type: "quarantined",
+        event_type: "muted",
         actor_id: user.account.id
       )
 
@@ -7084,7 +7130,7 @@ defmodule Tuist.TestsTest do
 
         RunsFixtures.test_case_event_fixture(
           test_case_id: test_case.id,
-          event_type: "quarantined",
+          event_type: "muted",
           actor_id: user.account.id
         )
       end
@@ -7112,7 +7158,7 @@ defmodule Tuist.TestsTest do
 
       RunsFixtures.test_case_event_fixture(
         test_case_id: test_case1.id,
-        event_type: "quarantined",
+        event_type: "muted",
         actor_id: user1.account.id
       )
 
@@ -7128,7 +7174,7 @@ defmodule Tuist.TestsTest do
 
       RunsFixtures.test_case_event_fixture(
         test_case_id: test_case2.id,
-        event_type: "quarantined",
+        event_type: "muted",
         actor_id: user2.account.id
       )
 
@@ -7156,7 +7202,7 @@ defmodule Tuist.TestsTest do
 
       RunsFixtures.test_case_event_fixture(
         test_case_id: test_case.id,
-        event_type: "quarantined",
+        event_type: "muted",
         actor_id: user.account.id
       )
 

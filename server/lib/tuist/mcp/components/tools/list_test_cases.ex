@@ -65,11 +65,13 @@ defmodule Tuist.MCP.Components.Tools.ListTestCases do
     page_size = MCPTool.page_size(args)
     filters = build_filters(args)
 
+    # `:id` tiebreaker keeps paginated results stable when many test cases
+    # share the same `:last_ran_at`.
     {test_cases, meta} =
       Tests.list_test_cases(project.id, %{
         filters: filters,
-        order_by: [:last_ran_at],
-        order_directions: [:desc],
+        order_by: [:last_ran_at, :id],
+        order_directions: [:desc, :asc],
         page: page,
         page_size: page_size
       })

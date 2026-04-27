@@ -3,6 +3,15 @@
     <channel>
         <title>Tuist</title>
         <item>
+            <title>0.25.3</title>
+            <pubDate>Mon, 27 Apr 2026 08:11:23 +0000</pubDate>
+            <link>https://github.com/tuist/tuist/releases</link>
+            <sparkle:version>14606</sparkle:version>
+            <sparkle:shortVersionString>0.25.3</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.0.0</sparkle:minimumSystemVersion>
+            <enclosure url="https://github.com/tuist/tuist/releases/download/app@0.25.3/Tuist.dmg" length="29336693" type="application/octet-stream" sparkle:edSignature="/j7raRWITFg98YRskF+vrSodJvTUXAJ1v6ubn3FX8pAxVKkg3yhQwfvpWksqj/mWMcKGKjojnhgClB5jOWP1Bw=="/>
+        </item>
+        <item>
             <title>0.25.2</title>
             <pubDate>Fri, 17 Apr 2026 16:50:33 +0000</pubDate>
             <link>https://github.com/tuist/tuist/releases</link>
@@ -28,15 +37,6 @@
             <sparkle:shortVersionString>0.25.0</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>15.0.0</sparkle:minimumSystemVersion>
             <enclosure url="https://github.com/tuist/tuist/releases/download/app@0.25.0/Tuist.dmg" length="27745759" type="application/octet-stream" sparkle:edSignature="mq6G/HktIVb7oZfuWWojydeFsxIphKpsIZrLIr1i7A4xaxRzA08EGFjUJYSNnemfOhXPxkZ7ikPDAbkSYsf/Bg=="/>
-        </item>
-        <item>
-            <title>0.24.3</title>
-            <pubDate>Tue, 24 Feb 2026 10:20:32 +0000</pubDate>
-            <link>https://github.com/tuist/tuist/releases</link>
-            <sparkle:version>13754</sparkle:version>
-            <sparkle:shortVersionString>0.24.3</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>15.0.0</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/tuist/tuist/releases/download/app@0.24.3/Tuist.dmg" length="27655346" type="application/octet-stream" sparkle:edSignature="TdyEZ16ZGLjLdGlzvpHIi4ZrGchLpmL+3YXSubv9Wx+vpacKmfPPwxE9tHj/Gn+bYaTS9d4OSzwbe4/afQMPAw=="/>
         </item>
         <item>
             <title>0.20.2</title>

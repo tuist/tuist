@@ -403,8 +403,10 @@ defmodule TuistWeb.TestCasesLive do
 
     flop_filters = build_flop_filters(filters, search)
 
-    order_by = [String.to_existing_atom(sort_by)]
-    order_directions = [String.to_existing_atom(sort_order)]
+    # Append `:id` as the unique tiebreaker so LIMIT/OFFSET pagination stays
+    # deterministic when the primary sort column has ties.
+    order_by = [String.to_existing_atom(sort_by), :id]
+    order_directions = [String.to_existing_atom(sort_order), :asc]
 
     options = %{
       filters: flop_filters,
