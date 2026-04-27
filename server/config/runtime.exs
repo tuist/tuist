@@ -44,6 +44,22 @@ if Enum.member?([:prod, :stag, :can], env) do
       do: [:inet6, {:keepalive, true}],
       else: [{:keepalive, true}]
 
+  # Supavisor (Supabase's transaction-mode pooler) listens on 6543 and (a)
+  # rejects any non-standard startup parameters and (b) doesn't allow named
+  # prepared statements because each transaction may land on a different
+  # backend connection. Direct Postgres on 5432 accepts both, so use the URL
+  # port as the trigger.
+  pooled? = (parsed_url.port || 5432) == 6543
+
+  postgres_parameters =
+    if pooled?,
+      do: [],
+      else: [
+        tcp_keepalives_idle: "60",
+        tcp_keepalives_interval: "30",
+        tcp_keepalives_count: "3"
+      ]
+
   database_options = [
     pool_size: Tuist.Environment.database_pool_size(secrets),
     queue_target: Tuist.Environment.database_queue_target(secrets),
@@ -54,11 +70,8 @@ if Enum.member?([:prod, :stag, :can], env) do
     hostname: parsed_url.host,
     port: parsed_url.port || 5432,
     socket_options: socket_opts,
-    parameters: [
-      tcp_keepalives_idle: "60",
-      tcp_keepalives_interval: "30",
-      tcp_keepalives_count: "3"
-    ]
+    parameters: postgres_parameters,
+    prepare: if(pooled?, do: :unnamed, else: :named)
   ]
 
   database_options =
