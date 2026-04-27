@@ -1,0 +1,110 @@
+name: Preview Sweep
+
+# Hourly cleanup pass over the preview cluster. Two responsibilities:
+#
+#   1. Delete preview namespaces whose `tuist.dev/expires-at` label is in
+#      the past (uninstalls the release + drops the namespace).
+#   2. Scale the preview MachineDeployment back to 0 when no preview
+#      namespaces remain. Combined with the always-on single control plane,
+#      this gets idle cost down to ~€5/mo.
+#
+# Also exposed as workflow_dispatch for force-runs (e.g. after manually
+# uninstalling something out-of-band).
+#
+# Requires the same two GitHub Environment secrets (server-k8s-preview) as
+# preview-deploy.yml: KUBECONFIG (workload) + KUBECONFIG_MGMT (management).
+
+on:
+  schedule:
+    - cron: "0 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sweep:
+    name: Sweep + scale to zero
+    runs-on: ubuntu-latest
+    environment:
+      name: server-k8s-preview
+    # Shares the cluster-scale lane with preview-deploy.yml's scale-up job
+    # so the sweep can never patch the management Cluster CR while a deploy
+    # is mid-scale. Uses the same group name across both workflows.
+    concurrency:
+      group: preview-cluster-scale
+      cancel-in-progress: false
+    timeout-minutes: 15
+    env:
+      KUBECONFIG: ${{ github.workspace }}/.kube/config
+      KUBECONFIG_MGMT: ${{ github.workspace }}/.kube/mgmt
+    steps:
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          install_args: "helm kubectl"
+          cache: "false"
+      - name: Load kubeconfigs
+        run: |
+          mkdir -p "$(dirname "$KUBECONFIG")"
+          echo "${{ secrets.KUBECONFIG }}" | base64 -d > "$KUBECONFIG"
+          chmod 600 "$KUBECONFIG"
+          echo "${{ secrets.KUBECONFIG_MGMT }}" | base64 -d > "$KUBECONFIG_MGMT"
+          chmod 600 "$KUBECONFIG_MGMT"
+
+      - name: Delete expired preview namespaces
+        # We helm-uninstall first so chart hooks (PVC retention etc.) get a
+        # chance to run, then drop the namespace. `kubectl delete namespace`
+        # is itself a backstop — if helm uninstall fails, the namespace
+        # delete cascades through anyway.
+        run: |
+          set -euo pipefail
+          NOW=$(date +%s)
+          MAPPING=$(kubectl get namespaces -l tuist.dev/preview=true \
+            -o jsonpath='{range .items[*]}{.metadata.name}={.metadata.labels.tuist\.dev/expires-at}{"\n"}{end}')
+          if [ -z "$MAPPING" ]; then
+            echo "No preview namespaces found."
+            exit 0
+          fi
+          echo "Found preview namespaces:"
+          echo "$MAPPING"
+
+          while IFS='=' read -r NS EXP; do
+            [ -z "$NS" ] && continue
+            if [ -z "$EXP" ] || ! [[ "$EXP" =~ ^[0-9]+$ ]]; then
+              echo "::warning::namespace $NS has missing/invalid expires-at label; skipping"
+              continue
+            fi
+            if [ "$EXP" -le "$NOW" ]; then
+              echo "==> Expired: $NS (expired $((NOW - EXP))s ago) — uninstalling"
+              # Strip the `preview-` prefix to get the helm release name.
+              RELEASE="${NS#preview-}"
+              helm uninstall "$RELEASE" --namespace "$NS" --wait --timeout 5m || true
+              kubectl delete namespace "$NS" --wait=true --timeout 5m || true
+            else
+              echo "    Live: $NS (expires in $((EXP - NOW))s)"
+            fi
+          done <<< "$MAPPING"
+
+      - name: Scale worker pool to zero if idle
+        # If no `tuist.dev/preview=true` namespaces remain, the worker pool
+        # has nothing to host. Scale md-0 back to 0 to drop cost to control
+        # plane only.
+        run: |
+          set -euo pipefail
+          REMAINING=$(kubectl get namespaces -l tuist.dev/preview=true -o name | wc -l | tr -d '[:space:]')
+          echo "Remaining preview namespaces: $REMAINING"
+          if [ "$REMAINING" -gt 0 ]; then
+            echo "Previews still live — leaving worker pool alone."
+            exit 0
+          fi
+
+          ORG_NS=$(KUBECONFIG="$KUBECONFIG_MGMT" kubectl config view --minify -o jsonpath='{.contexts[0].context.namespace}')
+          CURRENT=$(KUBECONFIG="$KUBECONFIG_MGMT" kubectl -n "$ORG_NS" get cluster tuist-preview \
+            -o jsonpath='{.spec.topology.workers.machineDeployments[?(@.name=="md-0")].replicas}')
+          echo "md-0 replicas currently: $CURRENT"
+          if [ "${CURRENT:-0}" -gt 0 ]; then
+            echo "==> Scaling md-0 to 0..."
+            KUBECONFIG="$KUBECONFIG_MGMT" kubectl -n "$ORG_NS" patch cluster tuist-preview \
+              --type=json \
+              -p='[{"op":"replace","path":"/spec/topology/workers/machineDeployments/0/replicas","value":0}]'
+          fi

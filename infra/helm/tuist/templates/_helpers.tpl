@@ -198,6 +198,36 @@ http://{{ include "tuist.componentName" (dict "root" . "component" "otel-collect
 {{- end -}}
 {{- end -}}
 
+{{/*
+License env vars. Resolves to (in order):
+  1. ESO-managed Secret (server.externalSecrets.license.item set) — preview /
+     managed envs that sync the license from 1Password. Mirrors the MASTER_KEY
+     flow in templates/external-secrets.yaml.
+  2. Chart-managed app-secrets Secret — when server.license.key is inlined.
+*/}}
+{{- define "tuist.licenseEnv" -}}
+{{- $appSecret := include "tuist.componentName" (dict "root" . "component" "app-secrets") -}}
+{{- $esoSecret := include "tuist.componentName" (dict "root" . "component" "server-external-secrets") -}}
+{{- $useEso := ne (.Values.server.externalSecrets.license.item | default "") "" -}}
+{{- if and $useEso .Values.server.license.key -}}
+{{- fail "server.externalSecrets.license.item and server.license.key are mutually exclusive — pick one license source." -}}
+{{- end -}}
+{{- if or $useEso .Values.server.license.key }}
+- name: TUIST_LICENSE_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ ternary $esoSecret $appSecret $useEso | quote }}
+      key: server-license-key
+{{- end }}
+{{- if .Values.server.license.certificateBase64 }}
+- name: TUIST_LICENSE_CERTIFICATE_BASE64
+  valueFrom:
+    secretKeyRef:
+      name: {{ $appSecret | quote }}
+      key: server-license-certificate-base64
+{{- end }}
+{{- end -}}
+
 {{- define "tuist.serverHeadlessServiceName" -}}
 {{- include "tuist.componentName" (dict "root" . "component" "server-headless") -}}
 {{- end -}}

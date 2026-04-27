@@ -59,6 +59,12 @@ server:
       # Field within the item. 1P "Password" category items expose their
       # value under `password`; custom items can use any label.
       field: password
+    # Sync the Tuist license key from the external store. Independent of
+    # managedSecrets — preview environments use this without the encrypted
+    # priv/secrets blob. Leave `item` empty to skip license sync.
+    license:
+      item: ""
+      field: password
   license:
     key: ""
     certificateBase64: ""

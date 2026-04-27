@@ -279,7 +279,233 @@ helm upgrade --install k8s-monitoring infra/helm/k8s-monitoring \
 
 After the chart is live, check **Observability → Kubernetes** in Grafana Cloud for the cluster named `tuist-staging` / `tuist-canary` / `tuist-production`. Full verification steps live in [`infra/helm/k8s-monitoring/README.md`](../helm/k8s-monitoring/README.md).
 
-## 9. Teardown
+## 9. Preview environments (ephemeral PR / commit deploys)
+
+Preview environments live on a dedicated workload cluster (`tuist-preview`) that runs everything embedded — Postgres, ClickHouse, MinIO — alongside the server. Each preview is its own Helm release in its own namespace, with auto-deletion driven by a TTL label and an hourly sweep workflow. The worker pool scales to 0 when no previews are live.
+
+This section is the one-time bootstrap. Once it's done, deploys are purely a GitHub Actions affair — `Actions → Preview Deploy → Run workflow`.
+
+### 9.1 Prerequisites
+
+- The `tuist-k8s-preview` 1Password vault, with item `TUIST_LICENSE_KEY` (Login or Password category, value in the `password` field).
+- A 1Password Service Account scoped to that vault. Stash its token in `Founders` as `1Password SA — tuist-k8s-preview`.
+- A Cloudflare API token scoped to `Zone.DNS:Edit` on `tuist.dev` (you already have one for the other clusters — reuse).
+
+### 9.2 Provision the cluster
+
+```bash
+export KUBECONFIG=~/.kube/tuist-syself-mgmt.yaml
+ORG_NS="$(kubectl config view --minify -o jsonpath='{.contexts[0].context.namespace}')"
+
+kubectl apply -f infra/k8s/syself/workload-cluster-preview.yaml
+kubectl -n "$ORG_NS" get cluster tuist-preview -w
+# Ready=True once control plane is up. Note: workers default to replicas: 0,
+# so initially you'll see 1 control-plane and 0 workers — that's expected.
+```
+
+Fetch the workload kubeconfig the same way as staging:
+
+```bash
+kubectl -n "$ORG_NS" get secret tuist-preview-kubeconfig -o jsonpath='{.data.value}' \
+  | base64 -d > ~/.kube/tuist-preview.yaml
+chmod 600 ~/.kube/tuist-preview.yaml
+```
+
+### 9.3 ESO + 1Password store
+
+```bash
+export KUBECONFIG=~/.kube/tuist-preview.yaml
+
+helm upgrade --install external-secrets external-secrets/external-secrets \
+  -n external-secrets --create-namespace \
+  --set installCRDs=true
+
+kubectl create namespace onepassword --dry-run=client -o yaml | kubectl apply -f -
+kubectl -n onepassword create secret generic onepassword-sa-token \
+  --from-literal=token="$(op read 'op://Founders/1Password SA — tuist-k8s-preview/password')" \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+cat <<'YAML' | kubectl apply -f -
+apiVersion: external-secrets.io/v1
+kind: ClusterSecretStore
+metadata:
+  name: onepassword
+spec:
+  provider:
+    onepasswordSDK:
+      vault: tuist-k8s-preview
+      auth:
+        serviceAccountSecretRef:
+          name: onepassword-sa-token
+          namespace: onepassword
+          key: token
+YAML
+
+kubectl get clustersecretstore onepassword
+# Expect READY=True.
+```
+
+### 9.4 Wildcard DNS + cert
+
+In Cloudflare's `tuist.dev` zone, create a single A record:
+
+```
+*.preview.tuist.dev   A   <preview cluster ingress IP>
+```
+
+The ingress IP is the LB Hetzner provisions when ingress-nginx is installed (next step). Bring up ingress-nginx first, grab the LB IP from `kubectl get svc -n ingress-nginx ingress-nginx-controller`, then create the record.
+
+```bash
+helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
+  -n ingress-nginx --create-namespace \
+  -f infra/k8s/syself/ingress-nginx-values.yaml \
+  --set controller.extraArgs.default-ssl-certificate=ingress-nginx/preview-tuist-dev-wildcard-tls
+kubectl -n ingress-nginx get svc ingress-nginx-controller -w
+# Wait for EXTERNAL-IP, then create the *.preview.tuist.dev A record.
+```
+
+Issue the wildcard cert via cert-manager DNS-01 (re-uses the same Cloudflare token pattern as the other clusters):
+
+```bash
+helm repo add jetstack https://charts.jetstack.io
+helm upgrade --install cert-manager jetstack/cert-manager \
+  -n cert-manager --create-namespace \
+  --set installCRDs=true
+
+# Cloudflare token Secret (same item the other clusters reuse).
+kubectl -n cert-manager create secret generic cloudflare-api-token \
+  --from-literal=api-token="$(op read 'op://Founders/cloudflare-tuist-dev-dns/credential')"
+
+cat <<'YAML' | kubectl apply -f -
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-cloudflare
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: ops@tuist.dev
+    privateKeySecretRef:
+      name: letsencrypt-cloudflare-account
+    solvers:
+      - dns01:
+          cloudflare:
+            apiTokenSecretRef:
+              name: cloudflare-api-token
+              namespace: cert-manager
+              key: api-token
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: preview-tuist-dev-wildcard
+  namespace: ingress-nginx
+spec:
+  secretName: preview-tuist-dev-wildcard-tls
+  issuerRef:
+    name: letsencrypt-cloudflare
+    kind: ClusterIssuer
+  commonName: "*.preview.tuist.dev"
+  dnsNames:
+    - "*.preview.tuist.dev"
+    - "preview.tuist.dev"
+YAML
+
+# Wait for issuance (DNS-01 is ~1–3 min).
+kubectl -n ingress-nginx get certificate preview-tuist-dev-wildcard -w
+```
+
+The `--default-ssl-certificate=ingress-nginx/preview-tuist-dev-wildcard-tls` flag we passed to ingress-nginx makes this single Secret cover every preview Ingress automatically — no per-namespace TLS plumbing.
+
+### 9.5 CI ServiceAccount (workload cluster)
+
+```bash
+export KUBECONFIG=~/.kube/tuist-preview.yaml
+sed 's/__NAMESPACE__/preview-system/g' infra/k8s/syself/ci-service-account.yaml \
+  | kubectl apply -f -
+
+SERVER=$(kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}')
+CA=$(kubectl -n preview-system get secret github-actions-deployer-token -o jsonpath='{.data.ca\.crt}')
+TOKEN=$(kubectl -n preview-system get secret github-actions-deployer-token -o jsonpath='{.data.token}' | base64 -d)
+
+cat > /tmp/preview-kubeconfig.yaml <<EOF
+apiVersion: v1
+kind: Config
+clusters:
+  - name: tuist-preview
+    cluster:
+      server: $SERVER
+      certificate-authority-data: $CA
+contexts:
+  - name: ci
+    context: { cluster: tuist-preview, user: github-actions-deployer }
+users:
+  - name: github-actions-deployer
+    user: { token: $TOKEN }
+current-context: ci
+EOF
+
+base64 < /tmp/preview-kubeconfig.yaml | gh secret set KUBECONFIG \
+  --env server-k8s-preview --repo tuist/tuist
+shred -u /tmp/preview-kubeconfig.yaml
+```
+
+### 9.6 Scaler ServiceAccount (management cluster)
+
+The deploy + sweep workflows scale the worker MachineDeployment up and down. The Cluster CR for that lives in the **management** cluster, so we mint a separate, narrowly-scoped SA there.
+
+```bash
+export KUBECONFIG=~/.kube/tuist-syself-mgmt.yaml
+ORG_NS="$(kubectl config view --minify -o jsonpath='{.contexts[0].context.namespace}')"
+
+sed "s/__ORG_NS__/$ORG_NS/g" infra/k8s/syself/preview-mgmt-rbac.yaml | kubectl apply -f -
+
+SERVER=$(kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}')
+CA=$(kubectl -n "$ORG_NS" get secret preview-scaler-token -o jsonpath='{.data.ca\.crt}')
+TOKEN=$(kubectl -n "$ORG_NS" get secret preview-scaler-token -o jsonpath='{.data.token}' | base64 -d)
+
+cat > /tmp/preview-mgmt-kubeconfig.yaml <<EOF
+apiVersion: v1
+kind: Config
+clusters:
+  - name: syself-mgmt
+    cluster:
+      server: $SERVER
+      certificate-authority-data: $CA
+contexts:
+  - name: ci
+    context: { cluster: syself-mgmt, namespace: $ORG_NS, user: preview-scaler }
+users:
+  - name: preview-scaler
+    user: { token: $TOKEN }
+current-context: ci
+EOF
+
+base64 < /tmp/preview-mgmt-kubeconfig.yaml | gh secret set KUBECONFIG_MGMT \
+  --env server-k8s-preview --repo tuist/tuist
+shred -u /tmp/preview-mgmt-kubeconfig.yaml
+```
+
+### 9.7 First preview
+
+```bash
+gh workflow run preview-deploy.yml \
+  -f pr_number=1234 \
+  -f ttl_hours=24
+```
+
+Or for a one-off commit:
+
+```bash
+gh workflow run preview-deploy.yml \
+  -f commit_sha=abc1234567890... \
+  -f ttl_hours=4
+```
+
+The workflow scales the worker pool up if needed (~3–5 min cold start), labels/taints the new node, runs `helm upgrade --install`, and posts the URL back to the PR. The hourly `preview-sweep.yml` workflow handles deletion + scale-down.
+
+## 10. Teardown
 
 Workload cluster:
 
