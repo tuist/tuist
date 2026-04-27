@@ -10,13 +10,8 @@
 > [!WARNING]
 > **Requirements**
 >
-> - An Xcode project (`.xcodeproj` / `.xcworkspace`)
 > - <.localized_link href="/guides/features/test-insights">Test Insights</.localized_link> must be configured
 
-> [!NOTE]
-> If you use Tuist's project generation, see the
-> <.localized_link href="/guides/features/test-insights/flaky-tests/generated-projects">Generated projects flaky tests</.localized_link>
-> page instead — `tuist test` is the canonical entry point there.
 
 Flaky tests are tests that produce different results (pass or fail) when run multiple times with the same code. They erode trust in your test suite and waste developer time investigating false failures. Tuist automatically detects flaky tests and helps you track them over time.
 
