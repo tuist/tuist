@@ -6,17 +6,21 @@ defmodule TuistWeb.Helpers.VCSLinks do
   use Phoenix.Component
   use Noora
 
+  alias Tuist.VCS.GitHubAppInstallation
+
   attr :project, :map, required: true
   attr :commit_sha, :string, required: true
   attr :fallback, :string, default: nil
   attr :rest, :global
 
   def commit_link(assigns) do
+    assigns = assign(assigns, :github_base_url, github_base_url(assigns.project))
+
     ~H"""
     <%= if @commit_sha not in [nil, ""] do %>
       <%= if has_github_vcs?(@project) do %>
         <a
-          href={"https://github.com/#{@project.vcs_connection.repository_full_handle}/commit/#{@commit_sha}"}
+          href={"#{@github_base_url}/#{@project.vcs_connection.repository_full_handle}/commit/#{@commit_sha}"}
           target="_blank"
           {@rest}
         >
@@ -38,11 +42,13 @@ defmodule TuistWeb.Helpers.VCSLinks do
   attr :rest, :global
 
   def branch_link(assigns) do
+    assigns = assign(assigns, :github_base_url, github_base_url(assigns.project))
+
     ~H"""
     <%= if @branch not in [nil, ""] do %>
       <%= if has_github_vcs?(@project) do %>
         <a
-          href={"https://github.com/#{@project.vcs_connection.repository_full_handle}/tree/#{@branch}"}
+          href={"#{@github_base_url}/#{@project.vcs_connection.repository_full_handle}/tree/#{@branch}"}
           target="_blank"
           {@rest}
         >
@@ -63,5 +69,16 @@ defmodule TuistWeb.Helpers.VCSLinks do
 
   defp has_github_vcs?(project) do
     project.vcs_connection && project.vcs_connection.provider == :github
+  end
+
+  defp github_base_url(project) do
+    case project do
+      %{vcs_connection: %{github_app_installation: %{client_url: client_url}}}
+      when is_binary(client_url) and client_url != "" ->
+        client_url
+
+      _ ->
+        GitHubAppInstallation.default_client_url()
+    end
   end
 end

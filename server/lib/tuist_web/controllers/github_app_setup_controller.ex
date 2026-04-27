@@ -11,14 +11,19 @@ defmodule TuistWeb.GitHubAppSetupController do
 
   alias Tuist.Accounts
   alias Tuist.VCS
+  alias Tuist.VCS.GitHubAppInstallation
   alias TuistWeb.Errors.BadRequestError
 
   def setup(conn, params) do
     with {:ok, installation_id} <- extract_installation_id(params),
-         {:ok, account_id} <- extract_account_id(params),
+         {:ok, %{account_id: account_id, client_url: client_url}} <- extract_state(params),
          {:ok, account} <- Accounts.get_account_by_id(account_id),
          {:ok, _github_app_installation} <-
-           VCS.create_github_app_installation(%{account_id: account.id, installation_id: installation_id}) do
+           VCS.create_github_app_installation(%{
+             account_id: account.id,
+             installation_id: installation_id,
+             client_url: client_url || GitHubAppInstallation.default_client_url()
+           }) do
       redirect(conn, to: ~p"/#{account.name}/integrations")
     else
       {:error, :missing_installation_id} ->
@@ -40,14 +45,14 @@ defmodule TuistWeb.GitHubAppSetupController do
     {:error, :missing_installation_id}
   end
 
-  defp extract_account_id(%{"state" => state_token}) when is_binary(state_token) do
+  defp extract_state(%{"state" => state_token}) when is_binary(state_token) do
     case VCS.verify_github_state_token(state_token) do
-      {:ok, account_id} -> {:ok, account_id}
+      {:ok, %{account_id: _, client_url: _} = payload} -> {:ok, payload}
       {:error, _reason} -> {:error, :invalid_state_token}
     end
   end
 
-  defp extract_account_id(_params) do
+  defp extract_state(_params) do
     {:error, :missing_account_id}
   end
 end

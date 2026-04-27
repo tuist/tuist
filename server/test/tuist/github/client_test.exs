@@ -20,7 +20,7 @@ defmodule Tuist.GitHub.ClientTest do
   ]
 
   setup do
-    stub(App, :get_installation_token, fn _installation_id ->
+    stub(App, :get_installation_token, fn _installation_id, _opts ->
       {:ok, %{token: "github_token", expires_at: ~U[2024-04-30 10:30:31Z]}}
     end)
 
@@ -79,8 +79,8 @@ defmodule Tuist.GitHub.ClientTest do
         end
       end)
 
-      stub(App, :get_installation_token, fn _installation_id ->
-        stub(App, :get_installation_token, fn _installation_id ->
+      stub(App, :get_installation_token, fn _installation_id, _opts ->
+        stub(App, :get_installation_token, fn _installation_id, _opts ->
           {:ok, %{token: "new_token", expires_at: ~U[2024-04-30 10:30:31Z]}}
         end)
 
@@ -139,7 +139,7 @@ defmodule Tuist.GitHub.ClientTest do
 
     test "returns error when getting token fails" do
       # Given
-      stub(App, :get_installation_token, fn _installation_id ->
+      stub(App, :get_installation_token, fn _installation_id, _opts ->
         {:error, "Failed to get token."}
       end)
 
@@ -176,6 +176,32 @@ defmodule Tuist.GitHub.ClientTest do
           issue_id: 1,
           body: "comment",
           installation_id: "installation-id"
+        })
+
+      # Then
+      assert response == :ok
+    end
+
+    test "routes to a GitHub Enterprise Server API URL when api_url is provided" do
+      # Given
+      ghes_api_url = "https://github.example.com/api/v3"
+
+      expect(Req, :post, fn opts ->
+        assert opts[:url] == "#{ghes_api_url}/repos/tuist/tuist/issues/1/comments"
+        # api_url should be stripped before reaching Req
+        refute Keyword.has_key?(opts, :api_url)
+        refute Keyword.has_key?(opts, :installation_id)
+        {:ok, %Req.Response{status: 201}}
+      end)
+
+      # When
+      response =
+        Client.create_comment(%{
+          repository_full_handle: "tuist/tuist",
+          issue_id: 1,
+          body: "comment",
+          installation_id: "installation-id",
+          api_url: ghes_api_url
         })
 
       # Then
@@ -376,7 +402,7 @@ defmodule Tuist.GitHub.ClientTest do
   describe "list_installation_repositories/2" do
     test "returns repositories for a given installation without pagination" do
       # Given
-      stub(App, :get_installation_token, fn "123" ->
+      stub(App, :get_installation_token, fn "123", _opts ->
         {:ok, %{token: "github_token"}}
       end)
 
@@ -439,7 +465,7 @@ defmodule Tuist.GitHub.ClientTest do
 
     test "returns repositories with pagination link" do
       # Given
-      stub(App, :get_installation_token, fn "123" ->
+      stub(App, :get_installation_token, fn "123", _opts ->
         {:ok, %{token: "github_token"}}
       end)
 
@@ -494,7 +520,7 @@ defmodule Tuist.GitHub.ClientTest do
 
     test "returns error when API returns non-200 status" do
       # Given
-      stub(App, :get_installation_token, fn "123" ->
+      stub(App, :get_installation_token, fn "123", _opts ->
         {:ok, %{token: "github_token"}}
       end)
 
@@ -519,7 +545,7 @@ defmodule Tuist.GitHub.ClientTest do
 
     test "handles empty repositories list" do
       # Given
-      stub(App, :get_installation_token, fn "123" ->
+      stub(App, :get_installation_token, fn "123", _opts ->
         {:ok, %{token: "github_token"}}
       end)
 
@@ -547,7 +573,7 @@ defmodule Tuist.GitHub.ClientTest do
 
     test "returns error when getting installation token fails" do
       # Given
-      stub(App, :get_installation_token, fn "123" ->
+      stub(App, :get_installation_token, fn "123", _opts ->
         {:error, "Failed to get token"}
       end)
 

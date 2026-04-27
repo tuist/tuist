@@ -8,6 +8,7 @@ defmodule TuistWeb.IntegrationsLive do
   alias Tuist.Slack
   alias Tuist.Utilities.DateFormatter
   alias Tuist.VCS
+  alias Tuist.VCS.GitHubAppInstallation
 
   @impl true
   def mount(_params, _uri, %{assigns: %{selected_account: selected_account, current_user: current_user}} = socket) do
@@ -30,6 +31,8 @@ defmodule TuistWeb.IntegrationsLive do
       |> assign(vcs_connections: vcs_connections)
       |> assign(selected_project_id: nil)
       |> assign(selected_repository_full_handle: nil)
+      |> assign(github_client_url: GitHubAppInstallation.default_client_url())
+      |> assign(github_client_url_error: nil)
       |> assign(:head_title, "#{dgettext("dashboard_integrations", "Integrations")} · #{selected_account.name} · Tuist")
       |> then(fn socket ->
         if github_installation do
@@ -48,6 +51,18 @@ defmodule TuistWeb.IntegrationsLive do
   @impl true
   def handle_event("close-add-connection-modal", _params, socket) do
     socket = push_event(socket, "close-modal", %{id: "add-connection-modal"})
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("update-github-client-url", %{"github_client_url" => raw_url}, socket) do
+    {url, error} = validate_github_client_url(raw_url)
+
+    socket =
+      socket
+      |> assign(github_client_url: url)
+      |> assign(github_client_url_error: error)
 
     {:noreply, socket}
   end
@@ -166,6 +181,34 @@ defmodule TuistWeb.IntegrationsLive do
         time_ago: time_ago,
         name: vcs_connection.created_by.account.name
       )
+    end
+  end
+
+  defp validate_github_client_url(raw_url) do
+    trimmed = raw_url |> to_string() |> String.trim()
+    default = GitHubAppInstallation.default_client_url()
+
+    cond do
+      trimmed in ["", default] ->
+        {default, nil}
+
+      Regex.match?(~r{^https?://[^/\s]+$}, String.trim_trailing(trimmed, "/")) ->
+        {String.trim_trailing(trimmed, "/"), nil}
+
+      true ->
+        {trimmed,
+         dgettext(
+           "dashboard_integrations",
+           "Enter a valid GitHub URL such as https://github.example.com"
+         )}
+    end
+  end
+
+  defp install_button_label(client_url) do
+    if client_url == GitHubAppInstallation.default_client_url() do
+      dgettext("dashboard_integrations", "Install GitHub App")
+    else
+      dgettext("dashboard_integrations", "Install on GitHub Enterprise Server")
     end
   end
 

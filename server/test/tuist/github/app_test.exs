@@ -98,5 +98,33 @@ defmodule Tuist.GitHub.AppTest do
       assert error_message =~ "Unexpected error getting installation token"
       assert error_message =~ "timeout"
     end
+
+    test "uses the GitHub Enterprise Server API URL when api_url is provided" do
+      # Given
+      installation_id = "12345"
+      ghes_api_url = "https://github.example.com/api/v3"
+      token = "ghs_ghes_token"
+      expires_at = "2024-04-30T11:20:30Z"
+
+      stub(Req, :post, fn opts ->
+        assert Keyword.get(opts, :url) ==
+                 "#{ghes_api_url}/app/installations/#{installation_id}/access_tokens"
+
+        {:ok,
+         %Req.Response{
+           status: 201,
+           body: %{
+             "token" => token,
+             "expires_at" => expires_at
+           }
+         }}
+      end)
+
+      # When
+      result = App.get_installation_token(installation_id, api_url: ghes_api_url)
+
+      # Then
+      assert {:ok, %{token: ^token}} = result
+    end
   end
 end

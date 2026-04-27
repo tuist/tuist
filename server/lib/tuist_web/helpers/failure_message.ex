@@ -8,6 +8,8 @@ defmodule TuistWeb.Helpers.FailureMessage do
 
   import Phoenix.HTML, only: [raw: 1]
 
+  alias Tuist.VCS.GitHubAppInstallation
+
   @doc """
   Formats a failure message with optional linking to source code in GitHub.
   """
@@ -80,9 +82,10 @@ defmodule TuistWeb.Helpers.FailureMessage do
   defp linkify_failure_location(message, path, failure, run) do
     if not is_nil(path) and has_github_vcs?(run) do
       location_text = "#{path}:#{failure.line_number}"
+      base_url = github_base_url(run)
 
       location_link =
-        ~s(<a href="https://github.com/#{run.project.vcs_connection.repository_full_handle}/blob/#{run.git_commit_sha}/#{path}#L#{failure.line_number}" target="_blank">#{location_text}</a>)
+        ~s(<a href="#{base_url}/#{run.project.vcs_connection.repository_full_handle}/blob/#{run.git_commit_sha}/#{path}#L#{failure.line_number}" target="_blank">#{location_text}</a>)
 
       message
       |> String.replace(location_text, location_link)
@@ -99,6 +102,17 @@ defmodule TuistWeb.Helpers.FailureMessage do
 
       _ ->
         false
+    end
+  end
+
+  defp github_base_url(run) do
+    case run do
+      %{project: %{vcs_connection: %{github_app_installation: %{client_url: client_url}}}}
+      when is_binary(client_url) and client_url != "" ->
+        client_url
+
+      _ ->
+        GitHubAppInstallation.default_client_url()
     end
   end
 end

@@ -2,6 +2,7 @@ defmodule TuistWeb.Webhooks.GitHubController do
   use TuistWeb, :controller
 
   alias Tuist.VCS
+  alias Tuist.VCS.GitHubAppInstallation
 
   require Logger
 
@@ -72,11 +73,12 @@ defmodule TuistWeb.Webhooks.GitHubController do
        }) do
     installation_id = to_string(installation_id)
 
-    with {:ok, _installation} <- VCS.get_github_app_installation_by_installation_id(installation_id) do
+    with {:ok, installation} <- VCS.get_github_app_installation_by_installation_id(installation_id) do
       VCS.update_check_run(%{
         repository_full_handle: repository_full_name,
         check_run_id: check_run_id,
         installation_id: installation_id,
+        api_url: GitHubAppInstallation.installation_api_url(installation),
         conclusion: "success",
         output: %{
           title: "Bundle size increase accepted",

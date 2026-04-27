@@ -13,12 +13,35 @@
       </span>
     </div>
     <div data-part="content">
+      <div :if={is_nil(@github_app_installation)} data-part="github-host-form">
+        <form phx-change="update-github-client-url">
+          <.text_input
+            id="github-client-url"
+            name="github_client_url"
+            type="basic"
+            value={@github_client_url}
+            label={dgettext("dashboard_integrations", "GitHub URL")}
+            sublabel={
+              dgettext(
+                "dashboard_integrations",
+                "Use https://github.com or your GitHub Enterprise Server URL"
+              )
+            }
+            placeholder="https://github.com"
+            error={@github_client_url_error}
+            phx-debounce="300"
+          />
+        </form>
+      </div>
       <div data-part="actions">
         <.button
           :if={is_nil(@github_app_installation)}
-          label={dgettext("dashboard_integrations", "Install GitHub App")}
+          label={install_button_label(@github_client_url)}
           variant="primary"
-          href={VCS.get_github_app_installation_url(@selected_account)}
+          href={
+            VCS.get_github_app_installation_url(@selected_account, client_url: @github_client_url)
+          }
+          disabled={not is_nil(@github_client_url_error)}
         />
         <.button
           :if={

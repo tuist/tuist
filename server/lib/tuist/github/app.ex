@@ -6,18 +6,20 @@ defmodule Tuist.GitHub.App do
   alias Tuist.Environment
   alias Tuist.GitHub.Retry
   alias Tuist.KeyValueStore
+  alias Tuist.VCS.GitHubAppInstallation
 
   def get_installation_token(installation_id, opts \\ []) do
     ttl = to_timeout(minute: 10)
+    api_url = Keyword.get(opts, :api_url, GitHubAppInstallation.api_url())
 
     case KeyValueStore.get_or_update(
-           [__MODULE__, "installation_token", installation_id],
+           [__MODULE__, "installation_token", api_url, installation_id],
            [
              cache: get_cache(opts),
              ttl: Keyword.get(opts, :ttl, ttl)
            ],
            fn ->
-             refresh_installation_token(installation_id, expires_in: ttl)
+             refresh_installation_token(installation_id, api_url: api_url, expires_in: ttl)
            end
          ) do
       {:ok, token} ->
@@ -61,6 +63,7 @@ defmodule Tuist.GitHub.App do
 
   defp refresh_installation_token(installation_id, opts) do
     jwt = generate_app_jwt(opts)
+    api_url = Keyword.get(opts, :api_url, GitHubAppInstallation.api_url())
 
     headers = [
       {"Accept", "application/vnd.github+json"},
@@ -70,7 +73,7 @@ defmodule Tuist.GitHub.App do
 
     req_opts =
       [
-        url: "https://api.github.com/app/installations/#{installation_id}/access_tokens",
+        url: "#{api_url}/app/installations/#{installation_id}/access_tokens",
         headers: headers,
         finch: Tuist.Finch
       ] ++ Retry.retry_options()

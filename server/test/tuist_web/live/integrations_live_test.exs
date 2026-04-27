@@ -46,13 +46,53 @@ defmodule TuistWeb.IntegrationsLiveTest do
     organization: organization,
     account: _account
   } do
-    stub(VCS, :get_github_app_installation_url, fn _account ->
+    stub(VCS, :get_github_app_installation_url, fn _account, _opts ->
       "https://github.com/apps/test-app/installations/new"
     end)
 
     {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/integrations")
 
     assert has_element?(lv, "a", "Install GitHub App")
+  end
+
+  test "switches the install button label when a GitHub Enterprise URL is entered", %{
+    conn: conn,
+    organization: organization
+  } do
+    stub(VCS, :get_github_app_installation_url, fn _account, _opts ->
+      "https://github.example.com/apps/test-app/installations/new"
+    end)
+
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/integrations")
+
+    html =
+      lv
+      |> form("form[phx-change=update-github-client-url]", %{
+        "github_client_url" => "https://github.example.com"
+      })
+      |> render_change()
+
+    assert html =~ "Install on GitHub Enterprise Server"
+  end
+
+  test "shows a validation error and disables the install button for malformed URLs", %{
+    conn: conn,
+    organization: organization
+  } do
+    stub(VCS, :get_github_app_installation_url, fn _account, _opts ->
+      "https://github.com/apps/test-app/installations/new"
+    end)
+
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/integrations")
+
+    html =
+      lv
+      |> form("form[phx-change=update-github-client-url]", %{
+        "github_client_url" => "not-a-url"
+      })
+      |> render_change()
+
+    assert html =~ "Enter a valid GitHub URL"
   end
 
   describe "delete-connection" do

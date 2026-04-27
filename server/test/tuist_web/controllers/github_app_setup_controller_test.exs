@@ -15,12 +15,44 @@ defmodule TuistWeb.GitHubAppSetupControllerTest do
       state_token = "valid_token"
 
       expect(VCS, :verify_github_state_token, fn ^state_token ->
-        {:ok, account.id}
+        {:ok, %{account_id: account.id, client_url: "https://github.com"}}
       end)
 
       expect(Accounts, :get_account_by_id, fn account_id ->
         assert account_id == account.id
         {:ok, account}
+      end)
+
+      conn =
+        get(conn, ~p"/integrations/github/setup", %{
+          "installation_id" => installation_id,
+          "state" => state_token
+        })
+
+      assert redirected_to(conn) == "/#{account.name}/integrations"
+    end
+
+    test "stores the GitHub Enterprise client_url from the state token", %{conn: conn} do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      account = user.account
+      installation_id = "67890"
+      state_token = "ghes_token"
+      ghes_url = "https://github.example.com"
+
+      expect(VCS, :verify_github_state_token, fn ^state_token ->
+        {:ok, %{account_id: account.id, client_url: ghes_url}}
+      end)
+
+      expect(Accounts, :get_account_by_id, fn account_id ->
+        assert account_id == account.id
+        {:ok, account}
+      end)
+
+      expect(VCS, :create_github_app_installation, fn attrs ->
+        assert attrs.account_id == account.id
+        assert attrs.installation_id == installation_id
+        assert attrs.client_url == ghes_url
+        {:ok, %Tuist.VCS.GitHubAppInstallation{}}
       end)
 
       conn =
