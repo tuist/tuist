@@ -521,6 +521,19 @@ defmodule TuistWeb.API.TestsController do
 
     case get_or_create_test(run_params) do
       {:ok, test_run} ->
+        vcs_comment_params = %{
+          git_commit_sha: Map.get(body_params, :git_commit_sha),
+          git_ref: Map.get(body_params, :git_ref),
+          git_remote_url_origin: Map.get(body_params, :git_remote_url_origin),
+          project_id: selected_project.id,
+          preview_url_template: "#{url(~p"/")}:account_name/:project_name/previews/:preview_id",
+          preview_qr_code_url_template: "#{url(~p"/")}:account_name/:project_name/previews/:preview_id/qr-code.png",
+          command_run_url_template: "#{url(~p"/")}:account_name/:project_name/runs/:command_event_id",
+          test_run_url_template: "#{url(~p"/")}:account_name/:project_name/tests/test-runs/:test_run_id",
+          bundle_url_template: "#{url(~p"/")}:account_name/:project_name/bundles/:bundle_id",
+          build_url_template: "#{url(~p"/")}:account_name/:project_name/builds/build-runs/:build_id"
+        }
+
         if test_run.status == "processing" do
           storage_key =
             "#{selected_project.account.name}/#{selected_project.name}/runs/#{test_run.id}/result_bundle.zip"
@@ -546,24 +559,14 @@ defmodule TuistWeb.API.TestsController do
             ci_provider: test_run.ci_provider,
             build_run_id: test_run.build_run_id,
             shard_plan_id: test_run.shard_plan_id,
-            shard_index: Map.get(body_params, :shard_index)
+            shard_index: Map.get(body_params, :shard_index),
+            vcs_comment_params: vcs_comment_params
           }
           |> Tuist.Tests.Workers.ProcessXcresultWorker.new()
           |> Oban.insert()
           |> then(fn {:ok, _job} -> :ok end)
         else
-          Tuist.VCS.enqueue_vcs_pull_request_comment(%{
-            git_commit_sha: Map.get(body_params, :git_commit_sha),
-            git_ref: Map.get(body_params, :git_ref),
-            git_remote_url_origin: Map.get(body_params, :git_remote_url_origin),
-            project_id: selected_project.id,
-            preview_url_template: "#{url(~p"/")}:account_name/:project_name/previews/:preview_id",
-            preview_qr_code_url_template: "#{url(~p"/")}:account_name/:project_name/previews/:preview_id/qr-code.png",
-            command_run_url_template: "#{url(~p"/")}:account_name/:project_name/runs/:command_event_id",
-            test_run_url_template: "#{url(~p"/")}:account_name/:project_name/tests/test-runs/:test_run_id",
-            bundle_url_template: "#{url(~p"/")}:account_name/:project_name/bundles/:bundle_id",
-            build_url_template: "#{url(~p"/")}:account_name/:project_name/builds/build-runs/:build_id"
-          })
+          Tuist.VCS.enqueue_vcs_pull_request_comment(vcs_comment_params)
         end
 
         conn

@@ -553,4 +553,92 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
       assert {:error, _} = ProcessXcresultWorker.perform(oban_job(args, 3, 3))
     end
   end
+
+  describe "perform/1 VCS comment refresh" do
+    setup do
+      stub(Tuist.Environment, :xcode_processor_url, fn -> "http://localhost:4003" end)
+      stub(Tuist.Environment, :xcode_processor_webhook_secret, fn -> "test-secret" end)
+      :ok
+    end
+
+    test "enqueues VCS comment after successful processing when vcs_comment_params present", %{
+      account: account,
+      project: project
+    } do
+      test_run_id = Ecto.UUID.generate()
+
+      expect(Req, :post, fn _url, _opts ->
+        {:ok, %{status: 200, body: parsed_data()}}
+      end)
+
+      expect(Tuist.Tests, :create_test, fn _attrs -> {:ok, %{id: test_run_id}} end)
+
+      vcs_params = %{
+        "git_commit_sha" => "abc123",
+        "git_ref" => "refs/pull/1/merge",
+        "git_remote_url_origin" => "https://github.com/tuist/tuist",
+        "project_id" => project.id,
+        "test_run_url_template" => "http://localhost/tests/test-runs/:test_run_id"
+      }
+
+      expect(Tuist.VCS, :enqueue_vcs_pull_request_comment, fn params ->
+        assert params["git_commit_sha"] == "abc123"
+        assert params["git_ref"] == "refs/pull/1/merge"
+        assert params["git_remote_url_origin"] == "https://github.com/tuist/tuist"
+        assert params["project_id"] == project.id
+        {:ok, %{}}
+      end)
+
+      args =
+        test_run_id
+        |> job_args(account.id, project.id)
+        |> Map.put("vcs_comment_params", vcs_params)
+
+      assert :ok == ProcessXcresultWorker.perform(oban_job(args))
+    end
+
+    test "does not enqueue VCS comment when vcs_comment_params not present", %{
+      account: account,
+      project: project
+    } do
+      test_run_id = Ecto.UUID.generate()
+
+      expect(Req, :post, fn _url, _opts ->
+        {:ok, %{status: 200, body: parsed_data()}}
+      end)
+
+      expect(Tuist.Tests, :create_test, fn _attrs -> {:ok, %{id: test_run_id}} end)
+      reject(&Tuist.VCS.enqueue_vcs_pull_request_comment/1)
+
+      assert :ok ==
+               ProcessXcresultWorker.perform(oban_job(job_args(test_run_id, account.id, project.id)))
+    end
+
+    test "does not enqueue VCS comment on failed processing", %{
+      account: account,
+      project: project
+    } do
+      test_run_id = Ecto.UUID.generate()
+
+      expect(Req, :post, fn _url, _opts ->
+        {:ok, %{status: 500, body: %{"error" => "internal error"}}}
+      end)
+
+      expect(Tuist.Tests, :create_test, fn _attrs -> {:ok, %{id: test_run_id}} end)
+      reject(&Tuist.VCS.enqueue_vcs_pull_request_comment/1)
+
+      vcs_params = %{
+        "git_commit_sha" => "abc123",
+        "git_ref" => "refs/pull/1/merge",
+        "project_id" => project.id
+      }
+
+      args =
+        test_run_id
+        |> job_args(account.id, project.id)
+        |> Map.put("vcs_comment_params", vcs_params)
+
+      assert {:error, _} = ProcessXcresultWorker.perform(oban_job(args, 3, 3))
+    end
+  end
 end
