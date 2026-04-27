@@ -16,9 +16,6 @@ Wraps the upstream `grafana/k8s-monitoring` chart and adds the 1Password-via-ESO
 
 README: [`helm/k8s-monitoring/README.md`](helm/k8s-monitoring/README.md).
 
-### `helm/alloy/` — deprecated
-Predecessor to `helm/k8s-monitoring/`. Same Grafana Cloud destinations, narrower signal coverage (app metrics / server traces / pod logs only, no cluster/node metrics or events). Retained in-tree during the migration; delete once the new chart is verified in production.
-
 ### `helm/platform/` — platform bootstrap chart
 cert-manager + ingress-nginx + external-dns + ESO controllers, installed once per workload cluster. Provider-specific LB annotations live in per-provider overlays (e.g., `values-hetzner.yaml`).
 
