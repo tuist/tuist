@@ -52,8 +52,8 @@ struct InspectAcceptanceTests {
         )
 
         let build = try await Self.pollUntilProcessed(
-            timeout: .seconds(600),
-            interval: .seconds(5),
+            timeout: .seconds(30),
+            interval: .seconds(2),
             label: "build \(buildId)",
             isTerminal: { $0.status != .processing }
         ) {
@@ -109,8 +109,8 @@ struct InspectAcceptanceTests {
         )
 
         let testRun = try await Self.pollUntilProcessed(
-            timeout: .seconds(600),
-            interval: .seconds(5),
+            timeout: .seconds(30),
+            interval: .seconds(2),
             label: "test run \(testRunId)",
             isTerminal: { $0.status != .in_progress && $0.status != .processing }
         ) {
