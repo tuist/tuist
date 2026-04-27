@@ -30,11 +30,13 @@ defmodule Tuist.Repo.Migrations.WidenBundleSizeColumnsToBigint do
   @disable_ddl_transaction true
   @disable_migration_lock true
 
-  # Tuned for ~75–90 minutes of total wall-clock on 225M rows under
-  # Supabase's pooler. A larger batch reduces total time but lengthens each
-  # row-lock window; the throttle gives MVCC vacuum room to keep up.
-  @batch_size 10_000
-  @throttle_ms 25
+  # Tuned for ~25-35 minutes of total wall-clock on 225M rows under
+  # Supabase's pooler. Each batch holds row locks for ~200-400ms, fine for
+  # bundle uploads that retry on lock contention. No throttle: backfill is
+  # the only writer that touches the shadow column, and concurrent old-code
+  # writes go through the trigger which is cheap.
+  @batch_size 50_000
+  @throttle_ms 0
 
   def up do
     if column_is_bigint?("artifacts", "size") do
