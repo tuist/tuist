@@ -17,8 +17,7 @@ struct InspectAcceptanceTests {
     /// Runs `tuist xcodebuild build` against canary and polls the server until the resulting
     /// build run reaches a terminal status. `xcodebuild build` already exercises the same
     /// upload path that `tuist inspect build` uses (via `UploadBuildRunService`), so this
-    /// test catches regressions in either entry point. Targets macOS so the build doesn't
-    /// pay the iOS Simulator startup tax.
+    /// test catches regressions in either entry point.
     @Test(
         .inTemporaryDirectory,
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
@@ -72,8 +71,7 @@ struct InspectAcceptanceTests {
     /// test run reaches a terminal status. `xcodebuild test` already exercises the same
     /// xcresult upload path that `tuist inspect test` uses (via
     /// `AnalyticsArtifactUploadService.uploadResultBundle`), so this test catches
-    /// regressions in either entry point. Targets macOS so the run doesn't pay the iOS
-    /// Simulator startup tax.
+    /// regressions in either entry point.
     @Test(
         .inTemporaryDirectory,
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
