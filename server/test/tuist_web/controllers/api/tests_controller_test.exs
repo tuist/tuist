@@ -599,6 +599,74 @@ defmodule TuistWeb.API.TestsControllerTest do
       assert args.git_remote_url_origin == "https://github.com/tuist/tuist.git"
       assert args.project_id == project.id
     end
+
+    test "embeds vcs_comment_params in ProcessXcresultWorker args when status is processing", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      expect(Tests, :get_test, fn _id, _opts -> {:error, :not_found} end)
+
+      expect(Tests, :create_test, fn attrs ->
+        {:ok,
+         %Test{
+           id: attrs.id,
+           duration: attrs.duration,
+           project_id: project.id,
+           account_id: attrs.account_id,
+           is_ci: true,
+           git_branch: attrs.git_branch,
+           git_commit_sha: attrs.git_commit_sha,
+           git_ref: attrs.git_ref,
+           macos_version: attrs.macos_version,
+           xcode_version: attrs.xcode_version,
+           model_identifier: attrs.model_identifier,
+           scheme: attrs.scheme,
+           ci_run_id: attrs.ci_run_id,
+           ci_project_handle: attrs.ci_project_handle,
+           ci_host: attrs.ci_host,
+           ci_provider: attrs.ci_provider,
+           build_run_id: attrs.build_run_id,
+           shard_plan_id: attrs.shard_plan_id,
+           build_system: "xcode",
+           status: "processing",
+           test_case_runs: []
+         }}
+      end)
+
+      reject(&Tuist.VCS.enqueue_vcs_pull_request_comment/1)
+
+      conn
+      |> put_req_header("content-type", "application/json")
+      |> post(
+        "/api/projects/#{user.account.name}/#{project.name}/tests",
+        %{
+          duration: 0,
+          macos_version: "15.0",
+          xcode_version: "16.0",
+          is_ci: true,
+          status: "processing",
+          scheme: "TuistAcceptanceTests",
+          git_commit_sha: "abc123",
+          git_ref: "refs/pull/42/merge",
+          git_remote_url_origin: "https://github.com/tuist/tuist.git",
+          shard_index: 1,
+          test_modules: []
+        }
+      )
+
+      assert_enqueued(
+        worker: Tuist.Tests.Workers.ProcessXcresultWorker,
+        args: %{
+          "vcs_comment_params" => %{
+            "git_commit_sha" => "abc123",
+            "git_ref" => "refs/pull/42/merge",
+            "git_remote_url_origin" => "https://github.com/tuist/tuist.git",
+            "project_id" => project.id
+          }
+        }
+      )
+    end
   end
 
   describe "GET /api/projects/:account_handle/:project_handle/tests/:test_run_id" do
