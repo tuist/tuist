@@ -56,21 +56,21 @@ You can also manually mark or unmark tests as flaky from the test case detail pa
 
 ## Quarantining flaky tests {#quarantining}
 
-Quarantining isolates a flaky test so it doesn't block CI while you fix it. A quarantined test is in one of two modes — **Muted** or **Skipped** — that differ in whether the test runs at all and whether you still get signal from it:
+Quarantining isolates a flaky test so it doesn't block CI while you fix it. A quarantined test is in one of two modes (**Muted** or **Skipped**) that differ in whether the test runs at all and whether you still get signal from it:
 
-|                              | **Muted**                                            | **Skipped**                                |
-| ---------------------------- | ---------------------------------------------------- | ------------------------------------------ |
-| Does the test run?           | Yes                                                  | No — passed to xcodebuild as `-skip-testing` |
-| Does a failure fail CI?      | No — `tuist test` masks the failure                  | N/A, the test never runs                   |
-| Does it still count as flaky? | Yes — failures still feed the flaky-tests detector  | No — there are no new results              |
-| Test duration on CI          | Same as before                                       | Zero (the test is skipped at scheduling)   |
+|                               | **Muted**                                          | **Skipped**                                  |
+| ----------------------------- | -------------------------------------------------- | -------------------------------------------- |
+| Does the test run?            | Yes                                                | No, passed to xcodebuild as `-skip-testing`  |
+| Does a failure fail CI?       | No, `tuist test` masks the failure                 | N/A, the test never runs                     |
+| Does it still count as flaky? | Yes; failures still feed the flaky-tests detector  | No (the test produces no new results)        |
+| Test duration on CI           | Same as before                                     | Zero (the test is skipped at scheduling)     |
 
-**Pick Muted when** you want to keep an eye on the test — see if it stabilizes, see when it stops being flaky, see how often it actually fails — without that failure breaking the build. Muted is the right default for a test you're actively investigating.
+**Pick Muted when** you want to keep an eye on the test (see if it stabilizes, when it stops being flaky, how often it actually fails) without that failure breaking the build. Muted is the right default for a test you're actively investigating.
 
 **Pick Skipped when** the test is broken, slow, or so persistently flaky that running it is just wasted CI minutes and noise. Skipped tests don't produce results, so they drop off your flaky-tests dashboard until you re-enable them.
 
 > [!IMPORTANT]
-> Outside `tuist test` / `tuist xcodebuild test`, neither mode is applied automatically. Failure masking for Muted only happens when you go through those commands, and `-skip-testing` for Skipped has to be wired up explicitly when invoking xcodebuild directly — see [With xcodebuild directly](#with-xcodebuild-directly) below.
+> Outside `tuist test` / `tuist xcodebuild test`, neither mode is applied automatically. Failure masking for Muted only happens when you go through those commands, and `-skip-testing` for Skipped has to be wired up explicitly when invoking xcodebuild directly. See [With xcodebuild directly](#with-xcodebuild-directly) below.
 
 ### Setting the mode {#setting-the-mode}
 
@@ -78,7 +78,7 @@ Open a test case from the Test Cases page and use the **State** dropdown to flip
 
 ### Automating it {#automating}
 
-Automations can move tests between states for you — for example, when a test crosses a flakiness threshold, set it to Muted (or straight to Skipped) and post a message to the right Slack channel. Configure them under your project's **Automations** tab.
+Automations can move tests between states for you. For example, when a test crosses a flakiness threshold, set it to Muted (or straight to Skipped) and post a message to the right Slack channel. Configure them under your project's **Automations** tab.
 
 ### Running tests {#running-tests}
 

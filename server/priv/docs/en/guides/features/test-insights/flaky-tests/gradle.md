@@ -65,22 +65,22 @@ You can also manually mark or unmark tests as flaky from the test case detail pa
 
 ## Quarantining flaky tests {#quarantining}
 
-Quarantining isolates a flaky test so it doesn't block CI while you fix it. A quarantined test is in one of two modes — **Muted** or **Skipped** — that differ in whether the test runs at all and whether you still get signal from it:
+Quarantining isolates a flaky test so it doesn't block CI while you fix it. A quarantined test is in one of two modes (**Muted** or **Skipped**) that differ in whether the test runs at all and whether you still get signal from it:
 
-|                                | **Muted**                                                                                   | **Skipped**                                        |
-| ------------------------------ | ------------------------------------------------------------------------------------------- | -------------------------------------------------- |
-| Does the test run?             | Yes                                                                                         | No — excluded via Gradle's `excludeTestsMatching`  |
-| Does a failure fail the build? | No — the plugin sets `ignoreFailures = true` and only re-fails on non-quarantined failures | N/A, the test never runs                           |
-| Does it still count as flaky?  | Yes — failures still feed the flaky-tests detector                                          | No — there are no new results                      |
-| Test duration on CI            | Same as before                                                                              | Zero (the test is filtered out)                    |
+|                                | **Muted**                                                                                  | **Skipped**                                       |
+| ------------------------------ | ------------------------------------------------------------------------------------------ | ------------------------------------------------- |
+| Does the test run?             | Yes                                                                                        | No, excluded via Gradle's `excludeTestsMatching`  |
+| Does a failure fail the build? | No; the plugin sets `ignoreFailures = true` and only re-fails on non-quarantined failures  | N/A, the test never runs                          |
+| Does it still count as flaky?  | Yes; failures still feed the flaky-tests detector                                          | No (the test produces no new results)             |
+| Test duration on CI            | Same as before                                                                             | Zero (the test is filtered out)                   |
 
-**Pick Muted when** you want to keep watching the test — see if it stabilizes, see when it stops being flaky, see how often it actually fails — without that failure breaking the build.
+**Pick Muted when** you want to keep watching the test (see if it stabilizes, when it stops being flaky, how often it actually fails) without that failure breaking the build.
 
 **Pick Skipped when** the test is broken, slow, or so persistently flaky that running it is just wasted CI minutes and noise. Skipped tests don't produce results, so they drop off your flaky-tests dashboard until you re-enable them.
 
 ### Setting the mode {#setting-the-mode}
 
-Open a test case from the Test Cases page and use the **State** dropdown to flip between **Enabled**, **Muted**, and **Skipped**. The Quarantined Tests page lists every quarantined test alongside its mode, with a Mode filter to narrow down to one or the other. Automations can drive the same transitions — for example, auto-Mute a test once it crosses a flakiness threshold and post a message to Slack.
+Open a test case from the Test Cases page and use the **State** dropdown to flip between **Enabled**, **Muted**, and **Skipped**. The Quarantined Tests page lists every quarantined test alongside its mode, with a Mode filter to narrow down to one or the other. Automations can drive the same transitions. For example, auto-Mute a test once it crosses a flakiness threshold and post a message to Slack.
 
 ### Enabling quarantine {#enabling-quarantine}
 
