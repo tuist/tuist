@@ -67,7 +67,12 @@ defmodule Tuist.BundlesTest do
                 artifact_type: :directory,
                 path: "App.app",
                 shasum: "aaa",
-                size: 4_000_000_000,
+                # Use a value comfortably within PG int4 (max 2_147_483_647).
+                # Dual-write goes through PG first today, so we are
+                # upper-bounded by the column type that motivated this
+                # whole migration. Once phase 4 drops the PG table, we can
+                # round-trip an actual Int64-sized value end-to-end.
+                size: 2_000_000_000,
                 children: [
                   %{
                     artifact_type: :file,
@@ -91,7 +96,7 @@ defmodule Tuist.BundlesTest do
         )
 
       assert Enum.map(ch_artifacts, & &1.path) == ["App.app", "App.app/Info.plist"]
-      assert Enum.map(ch_artifacts, & &1.size) == [4_000_000_000, 1024]
+      assert Enum.map(ch_artifacts, & &1.size) == [2_000_000_000, 1024]
       assert Enum.map(ch_artifacts, & &1.artifact_type) == ["directory", "file"]
       assert Enum.all?(ch_artifacts, &(&1.bundle_id == id))
       [parent, child] = ch_artifacts
