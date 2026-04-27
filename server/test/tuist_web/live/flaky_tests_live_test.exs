@@ -160,9 +160,21 @@ defmodule TuistWeb.FlakyTestsLiveTest do
 
     IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
 
+    # The flaky-tests page derives "currently flaky" from `marked_flaky` events
+    # (see Tuist.Tests.currently_flaky_test_case_ids_subquery/2). Anchor the
+    # event timestamp to the run's ran_at so it falls inside the page's
+    # second-truncated date window.
+    ran_at = Keyword.get(opts, :ran_at, NaiveDateTime.add(NaiveDateTime.utc_now(), -60))
+
+    RunsFixtures.test_case_event_fixture(
+      test_case_id: test_case.id,
+      event_type: "marked_flaky",
+      inserted_at: ran_at
+    )
+
     RunsFixtures.test_case_run_fixture(
       Keyword.merge(
-        [project_id: project.id, test_case_id: test_case.id, is_flaky: true],
+        [project_id: project.id, test_case_id: test_case.id, is_flaky: true, ran_at: ran_at],
         opts
       )
     )

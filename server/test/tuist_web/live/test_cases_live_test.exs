@@ -7,6 +7,7 @@ defmodule TuistWeb.TestCasesLiveTest do
   import Phoenix.LiveViewTest
 
   alias Tuist.Tests.Analytics
+  alias TuistTestSupport.Fixtures.RunsFixtures
 
   describe "test cases page" do
     setup do
@@ -56,11 +57,25 @@ defmodule TuistWeb.TestCasesLiveTest do
       organization: organization,
       project: project
     } do
-      # Given - create test run with test modules/cases using the proper flow
-      {:ok, _test_run} = create_test_run_with_cases(project, organization.account)
-
-      # Wait for ClickHouse to process
-      Process.sleep(100)
+      # Given - create test run with test modules/cases via the fixture
+      # so all ClickHouse buffers are flushed synchronously. Backdate ran_at
+      # so it falls inside the page's second-truncated date window.
+      {:ok, _test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: organization.account.id,
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -60),
+          test_modules: [
+            %{
+              name: "MyTests",
+              status: "success",
+              duration: 100,
+              test_cases: [
+                %{name: "testExample", test_suite_name: "TestSuite", status: "success", duration: 100}
+              ]
+            }
+          ]
+        )
 
       # When
       {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-cases")
@@ -145,33 +160,4 @@ defmodule TuistWeb.TestCasesLiveTest do
     end
   end
 
-  defp create_test_run_with_cases(project, account) do
-    Tuist.Tests.create_test(%{
-      id: UUIDv7.generate(),
-      project_id: project.id,
-      account_id: account.id,
-      git_ref: "refs/heads/main",
-      git_commit_sha: "abc123",
-      status: "success",
-      scheme: "TestScheme",
-      duration: 1000,
-      macos_version: "14.0",
-      xcode_version: "15.0",
-      is_ci: true,
-      ran_at: NaiveDateTime.utc_now(),
-      test_modules: [
-        %{
-          name: "MyTests",
-          status: "success",
-          duration: 100,
-          test_suites: [
-            %{name: "TestSuite", status: "success", duration: 100}
-          ],
-          test_cases: [
-            %{name: "testExample", test_suite_name: "TestSuite", status: "success", duration: 100}
-          ]
-        }
-      ]
-    })
-  end
 end
