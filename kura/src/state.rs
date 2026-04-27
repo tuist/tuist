@@ -128,6 +128,7 @@ impl ReadinessState {
         &mut self,
         members: BTreeSet<String>,
         known_peers: BTreeSet<String>,
+        discovery_observed: bool,
         now: Instant,
     ) -> MembershipUpdate {
         let discovered_peers = known_peers
@@ -142,10 +143,14 @@ impl ReadinessState {
         let topology_changed = !discovered_peers.is_empty() || !lost_peers.is_empty();
         let generation_changed;
         if !self.initial_discovery_completed {
-            self.initial_discovery_completed = true;
-            self.generation += 1;
-            self.settle_until = now + READINESS_SETTLE_WINDOW;
-            generation_changed = true;
+            if discovery_observed {
+                self.initial_discovery_completed = true;
+                self.generation += 1;
+                self.settle_until = now + READINESS_SETTLE_WINDOW;
+                generation_changed = true;
+            } else {
+                generation_changed = false;
+            }
         } else if topology_changed {
             self.generation += 1;
             self.settle_until = now + READINESS_SETTLE_WINDOW;
@@ -192,6 +197,17 @@ impl ReadinessState {
         self.bootstrap_inflight_peers.remove(peer);
     }
 
+    fn peers_needing_bootstrap(&self) -> Vec<String> {
+        self.known_peers
+            .iter()
+            .filter(|peer| {
+                !self.bootstrapped_peers.contains(*peer)
+                    && !self.bootstrap_inflight_peers.contains(*peer)
+            })
+            .cloned()
+            .collect()
+    }
+
     fn snapshot(&self, now: Instant) -> ReadinessSnapshot {
         ReadinessSnapshot {
             generation: self.generation,
@@ -227,18 +243,27 @@ impl AppState {
         &self,
         members: BTreeSet<String>,
         peer_nodes: BTreeMap<String, String>,
+        discovery_observed: bool,
     ) -> MembershipUpdate {
         let known_peers = peer_nodes.keys().cloned().collect::<BTreeSet<_>>();
 
         {
             let mut readiness = self.readiness.lock().await;
-            let membership_update =
-                readiness.apply_membership(members, known_peers, Instant::now());
+            let membership_update = readiness.apply_membership(
+                members,
+                known_peers,
+                discovery_observed,
+                Instant::now(),
+            );
             if membership_update.generation_changed {
                 self.runtime.clear_serving();
             }
             membership_update
         }
+    }
+
+    pub async fn peers_needing_bootstrap(&self) -> Vec<String> {
+        self.readiness.lock().await.peers_needing_bootstrap()
     }
 
     pub async fn note_bootstrap_started(&self, peer: &str) -> bool {
@@ -432,6 +457,7 @@ mod tests {
                 "http://peer-a.kura.internal:7443".to_string(),
                 "http://peer-b.kura.internal:7443".to_string(),
             ]),
+            true,
             now,
         );
         assert_eq!(readiness.generation, 1);
@@ -460,6 +486,7 @@ mod tests {
                 "http://peer-a.kura.internal:7443".to_string(),
                 "http://peer-c.kura.internal:7443".to_string(),
             ]),
+            true,
             now + Duration::from_secs(1),
         );
         assert_eq!(readiness.generation, 2);
@@ -490,6 +517,7 @@ mod tests {
         readiness.apply_membership(
             BTreeSet::from(["remote".to_string()]),
             BTreeSet::from(["http://peer.kura.internal:7443".to_string()]),
+            true,
             now,
         );
 
@@ -497,6 +525,58 @@ mod tests {
         assert!(!readiness.note_bootstrap_started("http://peer.kura.internal:7443"));
         readiness.note_bootstrap_failed("http://peer.kura.internal:7443");
         assert!(readiness.note_bootstrap_started("http://peer.kura.internal:7443"));
+    }
+
+    #[test]
+    fn readiness_state_keeps_joining_until_discovery_succeeds() {
+        let now = Instant::now();
+        let mut readiness = ReadinessState::new(now);
+
+        let unobserved = readiness.apply_membership(
+            BTreeSet::new(),
+            BTreeSet::new(),
+            false,
+            now,
+        );
+        assert!(!unobserved.initial_discovery_completed);
+        assert!(!unobserved.generation_changed);
+        assert_eq!(readiness.generation, 0);
+
+        let observed = readiness.apply_membership(
+            BTreeSet::new(),
+            BTreeSet::new(),
+            true,
+            now + Duration::from_secs(1),
+        );
+        assert!(observed.initial_discovery_completed);
+        assert!(observed.generation_changed);
+        assert_eq!(readiness.generation, 1);
+    }
+
+    #[test]
+    fn peers_needing_bootstrap_excludes_completed_and_inflight_entries() {
+        let now = Instant::now();
+        let mut readiness = ReadinessState::new(now);
+        let peer_a = "http://peer-a.kura.internal:7443".to_string();
+        let peer_b = "http://peer-b.kura.internal:7443".to_string();
+        let peer_c = "http://peer-c.kura.internal:7443".to_string();
+        readiness.apply_membership(
+            BTreeSet::from(["a".to_string(), "b".to_string(), "c".to_string()]),
+            BTreeSet::from([peer_a.clone(), peer_b.clone(), peer_c.clone()]),
+            true,
+            now,
+        );
+
+        readiness.note_bootstrap_succeeded(&peer_a);
+        assert!(readiness.note_bootstrap_started(&peer_b));
+
+        let pending = readiness.peers_needing_bootstrap();
+        assert_eq!(pending, vec![peer_c.clone()]);
+
+        readiness.note_bootstrap_failed(&peer_b);
+        let mut after_failure = readiness.peers_needing_bootstrap();
+        after_failure.sort();
+        assert_eq!(after_failure, vec![peer_b, peer_c]);
     }
 
     #[tokio::test]
@@ -508,6 +588,7 @@ mod tests {
             .apply_membership_view(
                 BTreeSet::from(["remote".to_string()]),
                 BTreeMap::from([(peer.clone(), "remote".to_string())]),
+                true,
             )
             .await;
 
@@ -548,6 +629,7 @@ mod tests {
             .apply_membership_view(
                 BTreeSet::from(["remote-a".to_string()]),
                 BTreeMap::from([(peer_a.clone(), "remote-a".to_string())]),
+                true,
             )
             .await;
         context.state.note_bootstrap_succeeded(&peer_a).await;
@@ -566,6 +648,7 @@ mod tests {
                     (peer_a.clone(), "remote-a".to_string()),
                     (peer_b.clone(), "remote-b".to_string()),
                 ]),
+                true,
             )
             .await;
 

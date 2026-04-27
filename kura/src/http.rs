@@ -1743,6 +1743,7 @@ mod tests {
                     "http://peer.kura.internal:4000".to_string(),
                     "eu-west".to_string(),
                 )]),
+                true,
             )
             .await;
 
@@ -1779,6 +1780,7 @@ mod tests {
             .apply_membership_view(
                 std::collections::BTreeSet::from(["remote".to_string()]),
                 std::collections::BTreeMap::from([(peer.clone(), "remote".to_string())]),
+                true,
             )
             .await;
         assert!(context.state.note_bootstrap_started(&peer).await);
@@ -1850,6 +1852,7 @@ mod tests {
             .apply_membership_view(
                 std::collections::BTreeSet::from(["remote".to_string()]),
                 std::collections::BTreeMap::from([(peer.clone(), "remote".to_string())]),
+                true,
             )
             .await;
         context.state.note_bootstrap_succeeded(&peer).await;
@@ -1891,6 +1894,7 @@ mod tests {
             .apply_membership_view(
                 std::collections::BTreeSet::new(),
                 std::collections::BTreeMap::new(),
+                true,
             )
             .await;
         context.state.expire_readiness_settle_window().await;
@@ -1923,6 +1927,7 @@ mod tests {
             .apply_membership_view(
                 std::collections::BTreeSet::from(["remote".to_string()]),
                 std::collections::BTreeMap::from([(peer.clone(), "remote".to_string())]),
+                true,
             )
             .await;
         context.state.note_bootstrap_succeeded(&peer).await;
@@ -1967,6 +1972,7 @@ mod tests {
             .apply_membership_view(
                 std::collections::BTreeSet::new(),
                 std::collections::BTreeMap::new(),
+                true,
             )
             .await;
         context.state.expire_readiness_settle_window().await;

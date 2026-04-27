@@ -63,7 +63,9 @@ pub fn spawn_membership_task(state: SharedState) {
         loop {
             let mut members = BTreeSet::new();
             let mut peer_nodes = BTreeMap::new();
-            for peer in discovery_targets(&state.config).await {
+            let targets = discovery_targets(&state.config).await;
+            let mut peer_status_successes = 0_usize;
+            for peer in &targets {
                 match state
                     .client
                     .get(format!("{peer}/_internal/status"))
@@ -75,6 +77,7 @@ pub fn spawn_membership_task(state: SharedState) {
                         .await
                     {
                         Ok(payload) => {
+                            peer_status_successes += 1;
                             if payload.tenant_id != state.config.tenant_id
                                 || payload.node_url == state.config.node_url
                             {
@@ -92,11 +95,14 @@ pub fn spawn_membership_task(state: SharedState) {
                 }
             }
 
-            let membership_update = state.apply_membership_view(members, peer_nodes).await;
+            let discovery_observed = targets.is_empty() || peer_status_successes > 0;
+            let membership_update = state
+                .apply_membership_view(members, peer_nodes, discovery_observed)
+                .await;
             state
                 .metrics
                 .update_discovered_peer_nodes(membership_update.known_peer_count);
-            for peer in membership_update.discovered_peers {
+            for peer in state.peers_needing_bootstrap().await {
                 maybe_spawn_bootstrap_task(state.clone(), peer).await;
             }
             state.maybe_mark_serving().await;
