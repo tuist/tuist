@@ -1,5 +1,5 @@
 ---
-name: migrating-to-tuist-generated-projects
+name: migrate
 description: Migrates existing Xcode projects to Tuist generated workspaces with build and run validation, external dependency mapping, and migration checklists. Use when adopting Tuist for an existing app or converting a hand-edited Xcode project to generated projects.
 ---
 
