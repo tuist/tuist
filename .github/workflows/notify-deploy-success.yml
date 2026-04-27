@@ -29,9 +29,11 @@ jobs:
         env:
           COMMIT_MESSAGE: ${{ github.event.workflow_run.head_commit.message }}
           SHA: ${{ github.event.workflow_run.head_sha }}
+          REPO_URL: ${{ github.server_url }}/${{ github.repository }}
         run: |
           SHORT_SHA="${SHA:0:7}"
-          TEXT=$(printf ':white_check_mark: New deploy for tuist%s: %s\n\nhttps://tuist.dev' "$SHORT_SHA" "$COMMIT_MESSAGE")
+          COMMIT_URL="${REPO_URL}/commit/${SHA}"
+          TEXT=$(printf ':white_check_mark: New deploy for <%s|tuist%s>: %s\n\nhttps://tuist.dev' "$COMMIT_URL" "$SHORT_SHA" "$COMMIT_MESSAGE")
           jq -n --arg text "$TEXT" '{text: $text}' > "$RUNNER_TEMP/slack-payload.json"
       - uses: slackapi/slack-github-action@v2
         with:
