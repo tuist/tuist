@@ -18,8 +18,13 @@ public struct QuarantinedTests: Sendable, Hashable {
 
     public static let empty = QuarantinedTests()
 
-    public var all: [TestIdentifier] { muted + skipped }
-    public var isEmpty: Bool { muted.isEmpty && skipped.isEmpty }
+    public var all: [TestIdentifier] {
+        muted + skipped
+    }
+
+    public var isEmpty: Bool {
+        muted.isEmpty && skipped.isEmpty
+    }
 }
 
 @Mockable
