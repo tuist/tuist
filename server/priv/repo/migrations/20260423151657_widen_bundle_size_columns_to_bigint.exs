@@ -80,9 +80,11 @@ defmodule Tuist.Repo.Migrations.WidenBundleSizeColumnsToBigint do
 
       rows ->
         ids = Enum.map(rows, fn [id] -> id end)
+
         repo().query!("UPDATE #{table} SET #{shadow} = #{col} WHERE id = ANY($1)", [ids],
           timeout: :infinity
         )
+
         if @throttle_ms > 0, do: Process.sleep(@throttle_ms)
         backfill(table, col, shadow, List.last(ids))
     end
