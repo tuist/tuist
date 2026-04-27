@@ -3977,11 +3977,12 @@ defmodule Tuist.AccountsTest do
       assert endpoints == default_endpoints
     end
 
-    test "returns Kura endpoints when account has them configured" do
+    test "returns Kura endpoints when account has them configured and the flag is enabled" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
+      FunWithFlags.enable(:kura, for_actor: account)
 
       {:ok, _} =
         Accounts.create_account_cache_endpoint(account, %{
@@ -4003,10 +4004,29 @@ defmodule Tuist.AccountsTest do
                Enum.sort(["https://kura-cache-1.example.com", "https://kura-cache-2.example.com"])
     end
 
+    test "returns no Kura endpoints when the kura flag is disabled for the account" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      {:ok, _} =
+        Accounts.create_account_cache_endpoint(account, %{
+          url: "https://kura-cache-1.example.com",
+          technology: :kura
+        })
+
+      # When
+      endpoints = Accounts.get_cache_endpoints_for_handle(account.name, :kura)
+
+      # Then
+      assert endpoints == []
+    end
+
     test "returns no Kura endpoints when account has none configured" do
       # Given
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
+      FunWithFlags.enable(:kura, for_actor: account)
 
       # When
       endpoints = Accounts.get_cache_endpoints_for_handle(account.name, :kura)

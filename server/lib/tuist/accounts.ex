@@ -1828,7 +1828,14 @@ defmodule Tuist.Accounts do
 
   defp custom_cache_endpoints(_), do: []
 
-  defp kura_cache_endpoints(%Account{} = account), do: list_account_cache_endpoints(account, :kura)
+  defp kura_cache_endpoints(%Account{} = account) do
+    if FunWithFlags.enabled?(:kura, for: account) do
+      list_account_cache_endpoints(account, :kura)
+    else
+      []
+    end
+  end
+
   defp kura_cache_endpoints(_), do: []
 
   @doc """
