@@ -103,6 +103,22 @@ defmodule TuistWeb.WellKnownControllerTest do
     end
   end
 
+  describe "GET /.well-known/mcp/server-card.json" do
+    test "returns the MCP server card", %{conn: conn} do
+      conn = get(conn, "/.well-known/mcp/server-card.json")
+
+      response = json_response(conn, 200)
+      server = Tuist.MCP.Server.server()
+
+      assert get_resp_header(conn, "content-type") == ["application/json; charset=utf-8"]
+      assert response["serverInfo"]["name"] == server.name
+      assert response["serverInfo"]["version"] == server.version
+      assert response["transport"]["endpoint"] == "/mcp"
+      assert "tools" in response["capabilities"]
+      assert "prompts" in response["capabilities"]
+    end
+  end
+
   describe "GET /.well-known/openid_configuration" do
     test "returns the OpenID configuration", %{conn: conn} do
       issuer = "https://test.example.com"
