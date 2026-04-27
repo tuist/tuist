@@ -78,7 +78,7 @@ defmodule TuistWeb.API.Schemas.TestCase do
         type: :string,
         enum: ["enabled", "muted", "skipped"],
         description:
-          "Lifecycle state of the test case. `enabled` means it runs as part of the suite and contributes to pass/fail counts. `muted` (mute-mode quarantine) means it still runs so we keep collecting flakiness signal, but failures no longer fail the build. `skipped` (skip-mode quarantine) means it is excluded from execution entirely — no `.xcresult` entry is produced."
+          "Lifecycle state of the test case. `enabled` means it runs as part of the suite and contributes to pass/fail counts. `muted` (mute-mode quarantine) means it still runs so we keep collecting flakiness signal, but failures no longer fail the build. `skipped` (skip-mode quarantine) means it is excluded from execution entirely."
       },
       url: %Schema{
         type: :string,

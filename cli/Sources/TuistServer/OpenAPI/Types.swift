@@ -4728,7 +4728,7 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/TestCase/name`.
             public var name: Swift.String
-            /// Lifecycle state of the test case. `enabled` means it runs as part of the suite and contributes to pass/fail counts. `muted` (mute-mode quarantine) means it still runs so we keep collecting flakiness signal, but failures no longer fail the build. `skipped` (skip-mode quarantine) means it is excluded from execution entirely — no `.xcresult` entry is produced.
+            /// Lifecycle state of the test case. `enabled` means it runs as part of the suite and contributes to pass/fail counts. `muted` (mute-mode quarantine) means it still runs so we keep collecting flakiness signal, but failures no longer fail the build. `skipped` (skip-mode quarantine) means it is excluded from execution entirely.
             ///
             /// - Remark: Generated from `#/components/schemas/TestCase/state`.
             @frozen public enum statePayload: String, Codable, Hashable, Sendable, CaseIterable {
@@ -4736,7 +4736,7 @@ public enum Components {
                 case muted = "muted"
                 case skipped = "skipped"
             }
-            /// Lifecycle state of the test case. `enabled` means it runs as part of the suite and contributes to pass/fail counts. `muted` (mute-mode quarantine) means it still runs so we keep collecting flakiness signal, but failures no longer fail the build. `skipped` (skip-mode quarantine) means it is excluded from execution entirely — no `.xcresult` entry is produced.
+            /// Lifecycle state of the test case. `enabled` means it runs as part of the suite and contributes to pass/fail counts. `muted` (mute-mode quarantine) means it still runs so we keep collecting flakiness signal, but failures no longer fail the build. `skipped` (skip-mode quarantine) means it is excluded from execution entirely.
             ///
             /// - Remark: Generated from `#/components/schemas/TestCase/state`.
             public var state: Components.Schemas.TestCase.statePayload
@@ -4786,7 +4786,7 @@ public enum Components {
             ///   - is_quarantined: Whether the test case is quarantined (either `muted` or `skipped`). Deprecated: use `state` instead.
             ///   - module: The module containing the test case
             ///   - name: Name of the test case
-            ///   - state: Lifecycle state of the test case. `enabled` means it runs as part of the suite and contributes to pass/fail counts. `muted` (mute-mode quarantine) means it still runs so we keep collecting flakiness signal, but failures no longer fail the build. `skipped` (skip-mode quarantine) means it is excluded from execution entirely — no `.xcresult` entry is produced.
+            ///   - state: Lifecycle state of the test case. `enabled` means it runs as part of the suite and contributes to pass/fail counts. `muted` (mute-mode quarantine) means it still runs so we keep collecting flakiness signal, but failures no longer fail the build. `skipped` (skip-mode quarantine) means it is excluded from execution entirely.
             ///   - suite: The test suite containing the test case (optional)
             ///   - url: URL to the test case detail page
             public init(
