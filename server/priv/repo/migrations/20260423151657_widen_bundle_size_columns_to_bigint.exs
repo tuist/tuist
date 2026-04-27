@@ -28,17 +28,35 @@ defmodule Tuist.Repo.Migrations.WidenBundleSizeColumnsToBigint do
   def down, do: :ok
 
   defp widen(table, col) do
-    shadow = "#{col}_bigint"
+    if column_type(table, col) == "bigint" do
+      :ok
+    else
+      shadow = "#{col}_bigint"
 
-    execute "ALTER TABLE #{table} ADD COLUMN IF NOT EXISTS #{shadow} bigint"
+      execute "ALTER TABLE #{table} ADD COLUMN IF NOT EXISTS #{shadow} bigint"
 
-    backfill(table, col, shadow)
+      backfill(table, col, shadow)
 
-    # Single transaction so concurrent readers never see the column missing.
-    repo().transaction(fn ->
-      repo().query!("ALTER TABLE #{table} DROP COLUMN #{col}")
-      repo().query!("ALTER TABLE #{table} RENAME COLUMN #{shadow} TO #{col}")
-    end)
+      # PostgreSQL has no single-statement column swap; DROP + RENAME inside
+      # a transaction is the canonical pattern. The transaction keeps the
+      # change atomic from a reader's perspective — they see either the old
+      # int column or the new bigint column, never neither.
+      repo().transaction(fn ->
+        repo().query!("ALTER TABLE #{table} DROP COLUMN #{col}")
+        repo().query!("ALTER TABLE #{table} RENAME COLUMN #{shadow} TO #{col}")
+      end)
+    end
+  end
+
+  defp column_type(table, col) do
+    case repo().query!(
+           "SELECT data_type FROM information_schema.columns " <>
+             "WHERE table_name = $1 AND column_name = $2",
+           [table, col]
+         ) do
+      %{rows: [[type]]} -> type
+      _ -> nil
+    end
   end
 
   # UUIDv7 sentinel: lexicographically less than any real id.
