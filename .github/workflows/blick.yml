@@ -35,7 +35,6 @@ jobs:
         run: |
           mise use -g github:tuist/blick
           mise use -g npm:opencode-ai
-          mise install
 
       - name: Run blick review
         env:
