@@ -84,9 +84,10 @@ defmodule Tuist.BundlesTest do
       # Then
       ch_artifacts =
         ClickHouseRepo.all(
-          from a in ArtifactIngest,
+          from(a in ArtifactIngest,
             where: a.bundle_id == type(^id, Ecto.UUID),
             order_by: [asc: a.path]
+          )
         )
 
       assert Enum.map(ch_artifacts, & &1.path) == ["App.app", "App.app/Info.plist"]
@@ -96,6 +97,10 @@ defmodule Tuist.BundlesTest do
       [parent, child] = ch_artifacts
       assert parent.artifact_id == nil
       assert child.artifact_id == parent.id
+      # The CH `DateTime64(6)` column round-trips the second-precision PG
+      # `:utc_datetime` value without losing the wall-clock time.
+      assert NaiveDateTime.compare(parent.inserted_at, ~N[2024-08-10 02:00:00]) == :eq
+      assert NaiveDateTime.compare(parent.updated_at, ~N[2024-08-10 02:00:00]) == :eq
     end
 
     test "does not fail bundle creation when ClickHouse is unavailable" do
@@ -338,7 +343,9 @@ defmodule Tuist.BundlesTest do
 
       # When
       got =
-        project |> Bundles.last_project_bundle(bundle: bundle) |> Repo.preload(:uploaded_by_account)
+        project
+        |> Bundles.last_project_bundle(bundle: bundle)
+        |> Repo.preload(:uploaded_by_account)
 
       # Then
       assert got == last_bundle
@@ -1214,7 +1221,8 @@ defmodule Tuist.BundlesTest do
       project = ProjectsFixtures.project_fixture()
       threshold = BundlesFixtures.bundle_threshold_fixture(project: project)
 
-      {:ok, updated} = Bundles.update_bundle_threshold(threshold, %{name: "Updated", deviation_percentage: 15.0})
+      {:ok, updated} =
+        Bundles.update_bundle_threshold(threshold, %{name: "Updated", deviation_percentage: 15.0})
 
       assert updated.name == "Updated"
       assert updated.deviation_percentage == 15.0

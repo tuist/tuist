@@ -18,10 +18,7 @@ defmodule Tuist.Bundles.ArtifactIngest do
   @primary_key {:id, Ch, type: "UUID", autogenerate: false}
   schema "artifacts" do
     field :bundle_id, Ch, type: "UUID"
-
-    field :artifact_type, Ch,
-      type: "Enum8('directory' = 0, 'file' = 1, 'font' = 2, 'binary' = 3, 'localization' = 4, 'asset' = 5, 'unknown' = 6)"
-
+    field :artifact_type, Ch, type: "LowCardinality(String)"
     field :path, Ch, type: "String"
     field :size, Ch, type: "Int64"
     field :shasum, Ch, type: "String"
@@ -44,19 +41,30 @@ defmodule Tuist.Bundles.ArtifactIngest do
       size: Map.fetch!(artifact, :size),
       shasum: Map.fetch!(artifact, :shasum),
       artifact_id: Map.get(artifact, :artifact_id),
-      inserted_at: to_naive_us(Map.fetch!(artifact, :inserted_at)),
-      updated_at: to_naive_us(Map.fetch!(artifact, :updated_at))
+      inserted_at: to_naive_usec(Map.fetch!(artifact, :inserted_at)),
+      updated_at: to_naive_usec(Map.fetch!(artifact, :updated_at))
     }
   end
 
   defp artifact_type_to_string(value) when is_atom(value), do: Atom.to_string(value)
   defp artifact_type_to_string(value) when is_binary(value), do: value
 
-  defp to_naive_us(%DateTime{} = dt) do
-    dt |> DateTime.to_naive() |> Map.update!(:microsecond, fn {value, _} -> {value, 6} end)
+  # PG `:utc_datetime` returns `%DateTime{microsecond: {0, 0}}`. The Ch
+  # adapter maps `DateTime64(6)` to Ecto's `:naive_datetime_usec`, which
+  # imposes two requirements that the PG value violates:
+  #
+  #   1. it rejects `DateTime` outright — must be `NaiveDateTime`
+  #   2. it requires the microsecond precision element to be 6, not 0,
+  #      via `Ecto.Type.check_usec!/2`
+  #
+  # So we strip the timezone (PG always stores UTC) and bump the precision.
+  defp to_naive_usec(%DateTime{} = dt) do
+    dt |> DateTime.to_naive() |> bump_usec_precision()
   end
 
-  defp to_naive_us(%NaiveDateTime{} = ndt) do
-    Map.update!(ndt, :microsecond, fn {value, _} -> {value, 6} end)
+  defp to_naive_usec(%NaiveDateTime{} = ndt), do: bump_usec_precision(ndt)
+
+  defp bump_usec_precision(%NaiveDateTime{microsecond: {value, _}} = ndt) do
+    %{ndt | microsecond: {value, 6}}
   end
 end

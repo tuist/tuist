@@ -10,11 +10,7 @@ defmodule Tuist.IngestRepo.Migrations.CreateArtifactsTable do
            ) do
       add :id, :uuid, null: false
       add :bundle_id, :uuid, null: false
-
-      add :artifact_type,
-          :"Enum8('directory' = 0, 'file' = 1, 'font' = 2, 'binary' = 3, 'localization' = 4, 'asset' = 5, 'unknown' = 6)",
-          null: false
-
+      add :artifact_type, :"LowCardinality(String)", null: false
       add :path, :string, null: false
       add :size, :Int64, null: false
       add :shasum, :string, null: false
