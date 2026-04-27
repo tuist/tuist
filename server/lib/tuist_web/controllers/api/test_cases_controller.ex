@@ -214,8 +214,8 @@ defmodule TuistWeb.API.TestCasesController do
              },
              state: %Schema{
                type: :string,
-               enum: ["enabled", "muted", "skipped"],
-               description: "The state of the test case."
+               description:
+                 "The state of the test case. Currently one of `enabled`, `muted`, or `skipped`; the field is left as an open string so adding new states in the future doesn't break clients pinned to the older spec."
              },
              last_status: %Schema{
                type: :string,

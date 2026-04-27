@@ -48,10 +48,10 @@ struct TestCaseListServiceTests {
                     id: "1",
                     module: .test(name: "AppTests"),
                     name: "testFoo()",
-                    state: .muted,
+                    state: "muted",
                     suite: .test(name: "FooSuite")
                 ),
-                .test(id: "2", module: .test(name: "CoreTests"), name: "testBar()", state: .muted),
+                .test(id: "2", module: .test(name: "CoreTests"), name: "testBar()", state: "muted"),
             ]
         )
 

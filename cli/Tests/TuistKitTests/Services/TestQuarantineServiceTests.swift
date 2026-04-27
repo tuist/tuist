@@ -311,7 +311,7 @@ extension Components.Schemas.TestCase {
         isQuarantined: Bool = true,
         module: Components.Schemas.TestCase.modulePayload = .test(),
         name: String = "testExample()",
-        state: Components.Schemas.TestCase.statePayload = .muted,
+        state: String = "muted",
         suite: Components.Schemas.TestCase.suitePayload? = nil
     ) -> Self {
         .init(

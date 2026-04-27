@@ -536,7 +536,7 @@ extension Components.Schemas.TestCase {
         avgDuration: Int = 100,
         isFlaky: Bool = false,
         isQuarantined: Bool = false,
-        state: Components.Schemas.TestCase.statePayload = .enabled
+        state: String = "enabled"
     ) -> Self {
         .init(
             avg_duration: avgDuration,

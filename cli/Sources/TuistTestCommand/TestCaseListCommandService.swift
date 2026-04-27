@@ -120,7 +120,7 @@ struct TestCaseListCommandService: TestCaseListCommandServicing {
                 testCase.module.name,
                 testCase.suite?.name ?? "-",
                 testCase.is_flaky ? "Yes" : "No",
-                testCase.state.rawValue,
+                testCase.state,
                 Formatters.formatDuration(testCase.avg_duration),
             ]
         }
@@ -151,7 +151,7 @@ struct TestCaseListCommandService: TestCaseListCommandServicing {
                         testCase.module.name,
                         testCase.suite?.name ?? "-",
                         testCase.is_flaky ? "Yes" : "No",
-                        testCase.state.rawValue,
+                        testCase.state,
                         Formatters.formatDuration(testCase.avg_duration),
                     ]
                 }
