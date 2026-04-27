@@ -212,10 +212,6 @@ jobs:
     concurrency:
       group: server-deploy-${{ needs.plan.outputs.environment_key }}
       cancel-in-progress: false
-    # Headroom over `helm --timeout 60m` so the job doesn't pre-empt
-    # a still-running migration. The online widen of the artifacts
-    # bigint columns (see WidenBundleSizeColumnsToBigint) backfills
-    # 225M rows in 50K batches and finishes in ~25-35 min in production.
     timeout-minutes: 75
     env:
       KUBECONFIG: ${{ github.workspace }}/.kube/config
