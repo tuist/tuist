@@ -135,34 +135,7 @@ struct XcodeBuildTestCommandService {
         }
 
         let resultBundlePath: AbsolutePath? = resolvedResultBundlePath
-        let mutedTests: [TestIdentifier]
-        let skippedTests: [TestIdentifier]
-        if !skipQuarantine, let fullHandle = config.fullHandle {
-            let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
-            async let mutedTask = testCaseListService.listTestCases(
-                fullHandle: fullHandle, serverURL: serverURL, state: .muted
-            )
-            async let skippedTask = testCaseListService.listTestCases(
-                fullHandle: fullHandle, serverURL: serverURL, state: .skipped
-            )
-            do {
-                (mutedTests, skippedTests) = try await (mutedTask, skippedTask)
-            } catch {
-                AlertController.current.warning(
-                    .alert("Failed to fetch quarantined tests: \(error.localizedDescription). Running all tests.")
-                )
-                (mutedTests, skippedTests) = ([], [])
-            }
-            let totalQuarantined = mutedTests.count + skippedTests.count
-            if totalQuarantined > 0 {
-                Logger.current.notice(
-                    "Found \(totalQuarantined) quarantined test(s): \(mutedTests.count) muted, \(skippedTests.count) skipped",
-                    metadata: .subsection
-                )
-            }
-        } else {
-            (mutedTests, skippedTests) = ([], [])
-        }
+        let (mutedTests, skippedTests) = try await loadQuarantinedTests(config: config, skipQuarantine: skipQuarantine)
         let allQuarantinedTests = mutedTests + skippedTests
         let xcodeBuildArgumentsWithSkip = passthroughXcodebuildArguments + skippedTests.flatMap { skipped in
             ["-skip-testing", skipped.description]
@@ -403,6 +376,40 @@ struct XcodeBuildTestCommandService {
             }
         } catch {
             AlertController.current.warning(.alert("Failed to upload test results: \(error.localizedDescription)"))
+        }
+    }
+}
+
+extension XcodeBuildTestCommandService {
+    private func loadQuarantinedTests(
+        config: Tuist,
+        skipQuarantine: Bool
+    ) async throws -> (muted: [TestIdentifier], skipped: [TestIdentifier]) {
+        guard !skipQuarantine, let fullHandle = config.fullHandle else {
+            return ([], [])
+        }
+        let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
+        async let mutedTask = testCaseListService.listTestCases(
+            fullHandle: fullHandle, serverURL: serverURL, state: .muted
+        )
+        async let skippedTask = testCaseListService.listTestCases(
+            fullHandle: fullHandle, serverURL: serverURL, state: .skipped
+        )
+        do {
+            let (muted, skipped) = try await (mutedTask, skippedTask)
+            let total = muted.count + skipped.count
+            if total > 0 {
+                Logger.current.notice(
+                    "Found \(total) quarantined test(s): \(muted.count) muted, \(skipped.count) skipped",
+                    metadata: .subsection
+                )
+            }
+            return (muted, skipped)
+        } catch {
+            AlertController.current.warning(
+                .alert("Failed to fetch quarantined tests: \(error.localizedDescription). Running all tests.")
+            )
+            return ([], [])
         }
     }
 }
