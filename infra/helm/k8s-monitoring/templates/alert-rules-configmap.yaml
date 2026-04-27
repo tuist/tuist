@@ -1,0 +1,24 @@
+{{- if .Values.alertRules.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-alert-rules
+  namespace: {{ .Release.Namespace }}
+  # Re-render and re-sync on every upgrade by hashing the bundled rule
+  # files into the ConfigMap name? — no: keeping a stable name means
+  # `mimirtool rules sync` sees the diff and reconciles. The hook Job
+  # itself runs on every upgrade, so the ConfigMap content changing is
+  # what drives the sync.
+  annotations:
+    # Tie the ConfigMap to the same hook lifecycle as the Job that reads
+    # it. Without this, the Job's pre-create hook-delete would tear down
+    # the Job before the ConfigMap is mounted.
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": before-hook-creation
+data:
+  {{- range $path, $_ := .Files.Glob "alerts/*.yaml" }}
+  {{ base $path }}: |-
+    {{- $.Files.Get $path | nindent 4 }}
+  {{- end }}
+{{- end }}

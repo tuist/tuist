@@ -1,0 +1,90 @@
+# Prometheus rule group for the tuist-server Ingress, evaluated by
+# Grafana Cloud Mimir. Synced from this file by the `alert-rules-sync`
+# Job in this chart on every install/upgrade.
+#
+# Why this exists: ingress-nginx returns 4xx/5xx itself (413, 429, 499,
+# 502, 504) before the request ever reaches Phoenix, so Sentry — which
+# only sees what the app receives — cannot catch these. Without a
+# proxy-layer alert the next regression in this category gets reported
+# to us by a customer in Slack, the way `tuist inspect bundle` was
+# (PR #10492 raised proxy-body-size from 1m to 50m).
+#
+# Aggregation is `by (env, cluster)` so each environment fires its own
+# alert independently — same rule definition, three evaluation contexts.
+# Filtering only on `ingress` (not `namespace`) sidesteps the
+# `namespace` vs `exported_namespace` ambiguity that depends on the
+# scrape's `honor_labels` setting; the Ingress name is unique across
+# the stack.
+#
+# `mimirtool rules sync` picks up the namespace from this top-level
+# field, so the entire rule set under `tuist-server-ingress` can be
+# rolled back atomically with `mimirtool rules delete-namespace
+# tuist-server-ingress`.
+namespace: tuist-server-ingress
+groups:
+  - name: tuist-server-ingress-availability
+    interval: 30s
+    rules:
+      - alert: TuistServerIngress5xx
+        expr: |
+          sum by (env, cluster, ingress) (
+            rate(nginx_ingress_controller_requests{ingress="tuist-tuist-server", status=~"5.."}[5m])
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+          service: tuist-server
+          component: ingress-nginx
+        annotations:
+          summary: "tuist-server ingress is returning 5xx ({{ $labels.env }})"
+          description: |-
+            ingress-nginx is returning 5xx for the tuist-server Ingress
+            in env={{ $labels.env }} cluster={{ $labels.cluster }} at
+            {{ printf "%.2f" $value }} req/s sustained over 5m.
+
+            5xx at the ingress layer means nginx itself returned the
+            error before Phoenix saw the request — Sentry will not have
+            caught it. Common causes: 502 (upstream pod
+            unreachable/crashing), 503 (upstream not ready), 504
+            (upstream timeout).
+
+            Triage:
+              - kubectl -n {{ if eq $labels.env "production" }}tuist{{ else }}tuist-{{ $labels.env }}{{ end }} get pods,events --sort-by=.lastTimestamp
+              - Grafana Cloud → Logs → ingress-nginx controller pod logs
+                in the `platform` namespace
+              - Grafana Cloud → Logs → tuist-server pod logs for the
+                same time window
+          runbook_url: "https://github.com/tuist/tuist/pull/10492"
+
+      - alert: TuistServerIngressBlocking4xx
+        expr: |
+          sum by (env, cluster, ingress, status) (
+            rate(nginx_ingress_controller_requests{ingress="tuist-tuist-server", status=~"413|429|499"}[5m])
+          ) > 0.1
+        for: 10m
+        labels:
+          severity: warning
+          service: tuist-server
+          component: ingress-nginx
+        annotations:
+          summary: "tuist-server ingress blocking requests at the proxy ({{ $labels.status }} in {{ $labels.env }})"
+          description: |-
+            ingress-nginx is returning HTTP {{ $labels.status }} for the
+            tuist-server Ingress in env={{ $labels.env }} cluster={{ $labels.cluster }}
+            at {{ printf "%.2f" $value }} req/s sustained over 10m.
+
+            These status codes indicate the proxy layer is rejecting or
+            terminating requests before Phoenix can see them, so Sentry
+            cannot catch them:
+              - 413 Payload Too Large — body exceeded proxy-body-size
+                (the regression PR #10492 fixed: 1 MB default rejected
+                bundle metadata for large iOS apps after the Render →
+                Syself cutover in 1.173.0)
+              - 429 Too Many Requests — rate limit hit at the proxy
+              - 499 Client Closed Request — nginx-specific code that
+                usually means upstream slowness caused the client to
+                give up
+
+            General 401/404 are intentionally excluded — they're noisy
+            and rarely indicate a regression in this category.
+          runbook_url: "https://github.com/tuist/tuist/pull/10492"

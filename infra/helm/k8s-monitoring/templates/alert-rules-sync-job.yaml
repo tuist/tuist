@@ -1,0 +1,71 @@
+{{- if .Values.alertRules.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Release.Name }}-alert-rules-sync
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    # Run after the ConfigMap and the Grafana Cloud Secret are in place
+    # but before the chart is considered "ready" — failures here should
+    # surface as a failed `helm upgrade` rather than silently leaving
+    # alerts stale.
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "10"
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  # Three retries handle transient Grafana Cloud blips (502s from the
+  # ruler API are not unheard of); beyond that we want the helm release
+  # to fail loudly so the deploy workflow surfaces it.
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 300
+  template:
+    metadata:
+      name: {{ .Release.Name }}-alert-rules-sync
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: mimirtool
+          image: "{{ .Values.alertRules.image.repository }}:{{ .Values.alertRules.image.tag }}"
+          imagePullPolicy: {{ .Values.alertRules.image.pullPolicy }}
+          # `mimirtool rules sync` reads the namespace from the top-level
+          # `namespace:` field in each YAML file under /alerts and
+          # reconciles Mimir's ruler state to match — creating, updating
+          # or deleting rule groups as needed. The endpoint is the same
+          # base URL the metrics push to.
+          command:
+            - sh
+            - -c
+            - |
+              set -eu
+              for f in /alerts/*.yaml; do
+                echo "Syncing $f"
+                mimirtool rules sync \
+                  --address="$MIMIR_ADDRESS" \
+                  --id="$MIMIR_TENANT_ID" \
+                  --key="$MIMIR_API_KEY" \
+                  "$f"
+              done
+          env:
+            - name: MIMIR_ADDRESS
+              value: {{ .Values.grafanaCloud.prometheus.url | quote }}
+            - name: MIMIR_TENANT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.grafanaCloud.secretName }}
+                  key: prometheus-username
+            - name: MIMIR_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.grafanaCloud.secretName }}
+                  key: prometheus-password
+          volumeMounts:
+            - name: alert-rules
+              mountPath: /alerts
+              readOnly: true
+          resources:
+            {{- toYaml .Values.alertRules.resources | nindent 12 }}
+      volumes:
+        - name: alert-rules
+          configMap:
+            name: {{ .Release.Name }}-alert-rules
+{{- end }}

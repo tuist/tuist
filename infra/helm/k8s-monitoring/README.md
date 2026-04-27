@@ -11,6 +11,7 @@ Wraps [`grafana/k8s-monitoring`](https://github.com/grafana/k8s-monitoring-helm)
 | node-exporter | Deployed as DaemonSet (node CPU / mem / disk / net) |
 | kubelet + cAdvisor | Scraped (container resource usage) |
 | Kubernetes Events | Streamed to Loki as structured logs |
+| Alert rules | YAML under [`alerts/`](./alerts) synced to Grafana Cloud Mimir on every `helm upgrade` (see [Alerting](#alerting)) |
 
 With these in place the Grafana Cloud **Observability → Kubernetes** app populates automatically (Cluster / Namespace / Workload / Pod / Node views) without importing dashboards by hand.
 
@@ -96,6 +97,23 @@ curl -s http://localhost:12345/metrics | grep 'prometheus_remote_storage_samples
 ```
 
 In Grafana Cloud: **Observability → Kubernetes → Cluster navigation** and pick the cluster by name (`tuist-staging` / `tuist-canary` / `tuist-production`).
+
+## Alerting
+
+Grafana Cloud Mimir evaluates alert rules server-side, so there is no in-cluster Prometheus or Alertmanager to configure. Rule groups live as YAML files under [`alerts/`](./alerts) in this chart and are pushed to Mimir on every `helm upgrade` by a Job that runs `mimirtool rules sync` against the same Grafana Cloud stack metrics flow into. The Job authenticates with the existing `prometheus-username` / `prometheus-password` keys from the ESO-managed Grafana Cloud Secret — no extra credentials.
+
+Each YAML file under `alerts/` is a self-contained Mimir rule namespace (`namespace:` at the top, `groups:` below). `mimirtool rules sync` is declarative: rules in the file get created or updated, rules in Mimir not present in the file get deleted, so the file is the source of truth for that namespace. Rolling back a whole rule namespace is `mimirtool rules delete-namespace <name>` against the same endpoint.
+
+The sync runs from every environment install. Mimir's ruler API doesn't shard by tenant on push (single Grafana Cloud stack across staging / canary / production), so the redundant runs converge on the same target state and self-heal if Mimir's view ever drifts. If you want to disable the sync for a specific environment, set `alertRules.enabled: false` in that overlay.
+
+To add a new rule:
+
+1. Drop a `<name>.yaml` file under `alerts/` with the rule namespace and groups.
+2. `helm template ...` to confirm it renders into the ConfigMap (see [Local validation](#local-validation)).
+3. `mimirtool rules check alerts/<name>.yaml` to lint the PromQL.
+4. Open a PR — the next deploy syncs it.
+
+`alerts/ingress-nginx.yaml` covers the `tuist-tuist-server` Ingress and is intentionally scoped — see the file header for the rationale and aggregation choices.
 
 ## Label conventions (for dashboards / queries)
 

@@ -23,6 +23,10 @@ grafanaCloud:
   secretName: k8s-monitoring-grafana-cloud
   prometheus:
     username: "1774467"
+    # Base URL of the Grafana Cloud Mimir stack — used by the alert-rules
+    # sync Job below as `mimirtool --address`. The remote_write URL under
+    # `destinations.grafana-cloud-metrics.url` is this base + /api/prom/push.
+    url: https://prometheus-prod-24-prod-eu-west-2.grafana.net
     token:
       item: PROMETHEUS_TOKEN
       field: password
@@ -36,6 +40,36 @@ grafanaCloud:
     token:
       item: TEMPO_TOKEN
       field: password
+
+# Alert rules synced to Grafana Cloud Mimir's ruler API.
+#
+# Mimir evaluates rules server-side, so there's no in-cluster Prometheus
+# / Alertmanager. We ship rule groups as static YAML files under
+# `alerts/` in this chart, render them into a ConfigMap, and run a
+# `grafana/mimirtool rules sync` Job as a Helm post-install/post-upgrade
+# hook against the same Grafana Cloud stack the metrics flow into. The
+# Job uses the existing `prometheus-username` / `prometheus-password`
+# keys from the grafanaCloud Secret — no extra credentials needed.
+#
+# Sync runs on every `helm upgrade`, from every environment. Mimir rule
+# group sync is idempotent, so the redundant runs from staging / canary
+# / production all converge on the same target state and self-heal if
+# the cluster's view ever drifts.
+alertRules:
+  enabled: true
+  # Image used by the post-install/post-upgrade hook Job.
+  image:
+    repository: grafana/mimirtool
+    tag: 2.16.0
+    pullPolicy: IfNotPresent
+  # Resource floor for the short-lived sync Job. mimirtool spends most
+  # of its time blocked on the Mimir ruler API, so this is generous.
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      memory: 256Mi
 
 # Upstream grafana/k8s-monitoring chart values. Everything under this key
 # is passed verbatim to the subchart — see
