@@ -399,6 +399,7 @@ extension Components.Schemas.TestCase {
         isQuarantined: Bool = true,
         module: Components.Schemas.TestCase.modulePayload = .test(),
         name: String = "testExample()",
+        state: Components.Schemas.TestCase.statePayload = .enabled,
         suite: Components.Schemas.TestCase.suitePayload? = nil
     ) -> Self {
         .init(
@@ -408,6 +409,7 @@ extension Components.Schemas.TestCase {
             is_quarantined: isQuarantined,
             module: module,
             name: name,
+            state: state,
             suite: suite,
             url: "https://tuist.dev/test-cases/\(id)"
         )
