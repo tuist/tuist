@@ -1,13 +1,8 @@
-import Foundation
-import Testing
+import XCTest
 @testable import App
 
-struct AppTests {
-    @Test func example() async throws {
-        #expect(true == true)
+final class AppTests: XCTestCase {
+    func test_example() {
+        XCTAssertTrue(true)
     }
-}
-
-@Test func topLevelTest() async throws {
-    #expect(true == true)
 }
