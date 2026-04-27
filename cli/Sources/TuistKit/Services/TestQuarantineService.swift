@@ -65,33 +65,31 @@ struct TestQuarantineService: TestQuarantineServicing {
         }
         do {
             let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
-            let response = try await listTestCasesService.listTestCases(
+            // Two filtered calls (one per state) instead of one `quarantined=true`
+            // call + client-side partition: keeps the wire format aligned with
+            // how the dashboard reasons about modes, and means each request
+            // only ships the rows for the mode we're about to act on.
+            async let mutedPage = listTestCasesService.listTestCases(
                 fullHandle: fullHandle,
                 serverURL: serverURL,
                 flaky: nil,
-                quarantined: true,
+                quarantined: nil,
+                state: .muted,
                 page: 1,
                 pageSize: 500
             )
-            var muted: [TestIdentifier] = []
-            var skipped: [TestIdentifier] = []
-            for testCase in response.test_cases {
-                let identifier = try TestIdentifier(
-                    target: testCase.module.name,
-                    class: testCase.suite?.name,
-                    method: testCase.name
-                )
-                switch testCase.state {
-                case .muted:
-                    muted.append(identifier)
-                case .skipped:
-                    skipped.append(identifier)
-                case .enabled:
-                    // `quarantined=true` should only return muted/skipped; ignore if the server
-                    // returns anything else to avoid silently running a non-quarantined test.
-                    continue
-                }
-            }
+            async let skippedPage = listTestCasesService.listTestCases(
+                fullHandle: fullHandle,
+                serverURL: serverURL,
+                flaky: nil,
+                quarantined: nil,
+                state: .skipped,
+                page: 1,
+                pageSize: 500
+            )
+            let (mutedResponse, skippedResponse) = try await (mutedPage, skippedPage)
+            let muted = try mutedResponse.test_cases.map(toIdentifier)
+            let skipped = try skippedResponse.test_cases.map(toIdentifier)
             let total = muted.count + skipped.count
             if total > 0 {
                 Logger.current.notice(
@@ -106,6 +104,16 @@ struct TestQuarantineService: TestQuarantineServicing {
             )
             return .empty
         }
+    }
+
+    private func toIdentifier(
+        _ testCase: Components.Schemas.TestCase
+    ) throws -> TestIdentifier {
+        try TestIdentifier(
+            target: testCase.module.name,
+            class: testCase.suite?.name,
+            method: testCase.name
+        )
     }
 
     func markQuarantinedTests(

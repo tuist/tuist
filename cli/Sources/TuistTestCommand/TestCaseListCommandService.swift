@@ -72,6 +72,7 @@ struct TestCaseListCommandService: TestCaseListCommandServicing {
             serverURL: serverURL,
             flaky: flaky ? true : nil,
             quarantined: quarantined ? true : nil,
+            state: nil,
             page: startPage + 1, // API uses 1-indexed pages
             pageSize: pageSize
         )
@@ -139,6 +140,7 @@ struct TestCaseListCommandService: TestCaseListCommandServicing {
                     serverURL: serverURL,
                     flaky: flaky ? true : nil,
                     quarantined: quarantined ? true : nil,
+                    state: nil,
                     page: pageIndex + 1, // API uses 1-indexed pages
                     pageSize: pageSize
                 )

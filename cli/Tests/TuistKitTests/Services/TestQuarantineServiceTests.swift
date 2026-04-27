@@ -53,7 +53,7 @@ struct TestQuarantineServiceTests {
         given(listTestCasesService)
             .listTestCases(
                 fullHandle: .any, serverURL: .any, flaky: .any,
-                quarantined: .any, page: .any, pageSize: .any
+                quarantined: .any, state: .any, page: .any, pageSize: .any
             )
             .willThrow(NSError(domain: "test", code: 500))
 
@@ -69,7 +69,7 @@ struct TestQuarantineServiceTests {
     }
 
     @Test(.withMockedDependencies())
-    func quarantinedTests_returnsMutedIdentifiers() async throws {
+    func quarantinedTests_filtersByStateOnTheServer() async throws {
         let config = Tuist.test(fullHandle: "org/project")
         let serverURL = URL(string: "https://tuist.dev")!
 
@@ -77,7 +77,7 @@ struct TestQuarantineServiceTests {
             .url(configServerURL: .any)
             .willReturn(serverURL)
 
-        let response = Operations.listTestCases.Output.Ok.Body.jsonPayload(
+        let mutedResponse = Operations.listTestCases.Output.Ok.Body.jsonPayload(
             pagination_metadata: .init(
                 current_page: 1, has_next_page: false, has_previous_page: false,
                 page_size: 500, total_count: 2, total_pages: 1
@@ -94,54 +94,49 @@ struct TestQuarantineServiceTests {
             ]
         )
 
-        given(listTestCasesService)
-            .listTestCases(
-                fullHandle: .value("org/project"), serverURL: .value(serverURL), flaky: .value(nil),
-                quarantined: .value(true), page: .value(1), pageSize: .value(500)
-            )
-            .willReturn(response)
-
-        let result = await subject.quarantinedTests(config: config, skipQuarantine: false)
-
-        let expectedMuted = [
-            try TestIdentifier(target: "AppTests", class: "FooSuite", method: "testFoo()"),
-            try TestIdentifier(target: "CoreTests", class: nil, method: "testBar()"),
-        ]
-        #expect(result.muted == expectedMuted)
-        #expect(result.skipped.isEmpty)
-    }
-
-    @Test(.withMockedDependencies())
-    func quarantinedTests_separatesSkippedFromMuted() async throws {
-        let config = Tuist.test(fullHandle: "org/project")
-        let serverURL = URL(string: "https://tuist.dev")!
-
-        given(serverEnvironmentService)
-            .url(configServerURL: .any)
-            .willReturn(serverURL)
-
-        let response = Operations.listTestCases.Output.Ok.Body.jsonPayload(
+        let skippedResponse = Operations.listTestCases.Output.Ok.Body.jsonPayload(
             pagination_metadata: .init(
                 current_page: 1, has_next_page: false, has_previous_page: false,
-                page_size: 500, total_count: 2, total_pages: 1
+                page_size: 500, total_count: 1, total_pages: 1
             ),
             test_cases: [
-                .test(id: "1", module: .test(name: "AppTests"), name: "testMuted()", state: .muted),
-                .test(id: "2", module: .test(name: "CoreTests"), name: "testSkipped()", state: .skipped),
+                .test(id: "3", module: .test(name: "CoreTests"), name: "testBaz()", state: .skipped),
             ]
         )
 
         given(listTestCasesService)
             .listTestCases(
-                fullHandle: .any, serverURL: .any, flaky: .any,
-                quarantined: .any, page: .any, pageSize: .any
+                fullHandle: .value("org/project"),
+                serverURL: .value(serverURL),
+                flaky: .value(nil),
+                quarantined: .value(nil),
+                state: .value(.muted),
+                page: .value(1),
+                pageSize: .value(500)
             )
-            .willReturn(response)
+            .willReturn(mutedResponse)
+
+        given(listTestCasesService)
+            .listTestCases(
+                fullHandle: .value("org/project"),
+                serverURL: .value(serverURL),
+                flaky: .value(nil),
+                quarantined: .value(nil),
+                state: .value(.skipped),
+                page: .value(1),
+                pageSize: .value(500)
+            )
+            .willReturn(skippedResponse)
 
         let result = await subject.quarantinedTests(config: config, skipQuarantine: false)
 
-        #expect(result.muted == [try TestIdentifier(target: "AppTests", class: nil, method: "testMuted()")])
-        #expect(result.skipped == [try TestIdentifier(target: "CoreTests", class: nil, method: "testSkipped()")])
+        #expect(result.muted == [
+            try TestIdentifier(target: "AppTests", class: "FooSuite", method: "testFoo()"),
+            try TestIdentifier(target: "CoreTests", class: nil, method: "testBar()"),
+        ])
+        #expect(result.skipped == [
+            try TestIdentifier(target: "CoreTests", class: nil, method: "testBaz()"),
+        ])
     }
 
     // MARK: - markQuarantinedTests
