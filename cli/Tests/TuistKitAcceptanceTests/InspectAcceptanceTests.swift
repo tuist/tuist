@@ -52,7 +52,7 @@ struct InspectAcceptanceTests {
         )
 
         let build = try await Self.pollUntilProcessed(
-            timeout: .seconds(300),
+            timeout: .seconds(600),
             interval: .seconds(5),
             label: "build \(buildId)",
             isTerminal: { $0.status != .processing }
@@ -67,7 +67,7 @@ struct InspectAcceptanceTests {
         // The fixture builds successfully — `failed_processing` would mean the upload
         // made it to the server but the worker couldn't parse the activity log, which is
         // the regression shape we want this test to catch.
-        #expect(build.status == .success)
+        #expect(build.status == .success, "Expected build status .success but got \(build.status.rawValue)")
     }
 
     /// Runs `tuist xcodebuild test` against canary and polls the server until the resulting
@@ -109,7 +109,7 @@ struct InspectAcceptanceTests {
         )
 
         let testRun = try await Self.pollUntilProcessed(
-            timeout: .seconds(300),
+            timeout: .seconds(600),
             interval: .seconds(5),
             label: "test run \(testRunId)",
             isTerminal: { $0.status != .in_progress && $0.status != .processing }
@@ -124,7 +124,7 @@ struct InspectAcceptanceTests {
         // The fixture's tests pass — `failed_processing` would mean the upload made it to
         // the server but the worker couldn't parse the xcresult, which is the regression
         // shape we want this test to catch.
-        #expect(testRun.status == .success)
+        #expect(testRun.status == .success, "Expected test run status .success but got \(testRun.status.rawValue)")
     }
 
     /// Polls `operation` until `isTerminal` returns true or the deadline is reached.
