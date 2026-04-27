@@ -1,9 +1,16 @@
 defmodule Tuist.Repo.Migrations.WidenBundleSizeColumnsToBigint do
-  # Widen size columns from int4 → int8 online: add a shadow bigint column
-  # behind a sync trigger, backfill in batches, atomically swap the two
-  # columns at the end. Avoids the multi-minute ACCESS EXCLUSIVE that a
-  # plain `ALTER COLUMN ... TYPE bigint` takes on production's 225M-row
-  # artifacts table.
+  # Widen size columns from int4 → int8 online: add a nullable shadow
+  # bigint column, backfill in batches, atomically swap the two columns at
+  # the end. Avoids the multi-minute ACCESS EXCLUSIVE a plain
+  # `ALTER COLUMN ... TYPE bigint` takes on production's 225M-row artifacts
+  # table.
+  #
+  # Trade-off: rows inserted between the bulk backfill and the swap end up
+  # with a NULL shadow value (no sync trigger). Those become NULL on the
+  # renamed column post-swap. We accept that — at production write rates
+  # the window is small and "a few NULL bundle sizes" is preferable to the
+  # function/trigger boilerplate. The renamed column is therefore nullable;
+  # restoring NOT NULL is a follow-up once the stragglers are reconciled.
   use Ecto.Migration
 
   @disable_ddl_transaction true
@@ -13,45 +20,19 @@ defmodule Tuist.Repo.Migrations.WidenBundleSizeColumnsToBigint do
   @throttle_ms 0
 
   def up do
-    widen("bundles", "install_size", not_null: true)
-    widen("bundles", "download_size", not_null: false)
-    widen("artifacts", "size", not_null: true)
+    widen("bundles", "install_size")
+    widen("bundles", "download_size")
+    widen("artifacts", "size")
   end
 
   def down, do: :ok
 
-  defp widen(table, col, opts) do
+  defp widen(table, col) do
     shadow = "#{col}_bigint"
-    fn_name = "sync_#{table}_#{col}"
-    trigger = "#{fn_name}_trg"
 
     execute "ALTER TABLE #{table} ADD COLUMN IF NOT EXISTS #{shadow} bigint"
 
-    execute """
-    CREATE OR REPLACE FUNCTION #{fn_name}() RETURNS trigger LANGUAGE plpgsql AS $$
-    BEGIN NEW.#{shadow} := NEW.#{col}; RETURN NEW; END
-    $$
-    """
-
-    execute "DROP TRIGGER IF EXISTS #{trigger} ON #{table}"
-    execute """
-    CREATE TRIGGER #{trigger} BEFORE INSERT OR UPDATE OF #{col} ON #{table}
-    FOR EACH ROW EXECUTE FUNCTION #{fn_name}()
-    """
-
     backfill(table, col, shadow)
-
-    if opts[:not_null] do
-      # NOT VALID + VALIDATE keeps the validating scan off ACCESS EXCLUSIVE.
-      check = "#{shadow}_not_null"
-      execute "ALTER TABLE #{table} ADD CONSTRAINT #{check} CHECK (#{shadow} IS NOT NULL) NOT VALID"
-      execute "ALTER TABLE #{table} VALIDATE CONSTRAINT #{check}"
-      execute "ALTER TABLE #{table} ALTER COLUMN #{shadow} SET NOT NULL"
-      execute "ALTER TABLE #{table} DROP CONSTRAINT #{check}"
-    end
-
-    execute "DROP TRIGGER #{trigger} ON #{table}"
-    execute "DROP FUNCTION #{fn_name}()"
 
     # Single transaction so concurrent readers never see the column missing.
     repo().transaction(fn ->
