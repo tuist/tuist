@@ -2,7 +2,10 @@ defmodule XcodeProcessor.Environment do
   @moduledoc false
 
   def webhook_secret do
-    Application.get_env(:xcode_processor, :webhook_secret)
+    case Application.get_env(:xcode_processor, :webhook_secret) do
+      nil -> nil
+      value when is_binary(value) -> String.trim(value)
+    end
   end
 
   def s3_bucket do

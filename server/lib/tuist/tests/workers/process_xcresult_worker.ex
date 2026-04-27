@@ -100,7 +100,20 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
           {:ok, parsed_data}
 
         {:ok, %{status: status, body: body}} ->
-          Logger.error("Xcode processor returned #{status} for test run #{test_run_id}: #{inspect(body)}")
+          extra =
+            if status == 403 do
+              fingerprint =
+                :sha256
+                |> :crypto.hash(webhook_secret)
+                |> Base.encode16(case: :lower)
+                |> binary_part(0, 8)
+
+              " body_size=#{byte_size(json_body)} secret_fingerprint=#{fingerprint}"
+            else
+              ""
+            end
+
+          Logger.error("Xcode processor returned #{status} for test run #{test_run_id}: #{inspect(body)}#{extra}")
 
           {:error, "xcode_processor_error_#{status}: #{inspect(body)}"}
 

@@ -572,7 +572,7 @@ defmodule Tuist.Environment do
   end
 
   def processor_webhook_secret(secrets \\ secrets()) do
-    get([:processor, :webhook_secret], secrets)
+    [:processor, :webhook_secret] |> get(secrets) |> trim_secret()
   end
 
   def xcode_processor_url(secrets \\ secrets()) do
@@ -580,8 +580,16 @@ defmodule Tuist.Environment do
   end
 
   def xcode_processor_webhook_secret(secrets \\ secrets()) do
-    get([:xcode_processor, :webhook_secret], secrets)
+    [:xcode_processor, :webhook_secret] |> get(secrets) |> trim_secret()
   end
+
+  # Webhook secrets shared with the (xcode_)processor services arrive via
+  # encrypted YAML or env vars; copy/paste from a password manager often
+  # carries a stray newline. HMAC compares byte-for-byte, so a single
+  # rogue \n flips every request to 403. Same trim is applied on the
+  # processor side so both ends agree.
+  defp trim_secret(nil), do: nil
+  defp trim_secret(value) when is_binary(value), do: String.trim(value)
 
   def clickhouse_flush_interval_ms(secrets \\ secrets()) do
     case get([:clickhouse, :flush_interval_ms], secrets) do

@@ -107,7 +107,20 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
           {:ok, parsed_data}
 
         {:ok, %{status: status, body: body}} ->
-          Logger.error("Processor returned #{status} for build #{build_id}: #{inspect(body)}")
+          extra =
+            if status == 403 do
+              fingerprint =
+                :sha256
+                |> :crypto.hash(webhook_secret)
+                |> Base.encode16(case: :lower)
+                |> binary_part(0, 8)
+
+              " body_size=#{byte_size(json_body)} secret_fingerprint=#{fingerprint}"
+            else
+              ""
+            end
+
+          Logger.error("Processor returned #{status} for build #{build_id}: #{inspect(body)}#{extra}")
           {:error, "processor_error_#{status}: #{inspect(body)}"}
 
         {:error, reason} ->

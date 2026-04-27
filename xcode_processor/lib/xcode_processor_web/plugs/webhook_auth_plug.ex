@@ -3,6 +3,8 @@ defmodule XcodeProcessorWeb.Plugs.WebhookAuthPlug do
 
   import Plug.Conn
 
+  require Logger
+
   def init(opts), do: opts
 
   def call(conn, _opts) do
@@ -37,11 +39,22 @@ defmodule XcodeProcessorWeb.Plugs.WebhookAuthPlug do
       if Plug.Crypto.secure_compare(signature, expected) do
         conn
       else
+        # Body lengths and a hash of the secret help diagnose drift between
+        # the server and xcode_processor secret stores without leaking either.
+        Logger.warning(fn ->
+          "Webhook signature mismatch: body_size=#{byte_size(raw_body)} " <>
+            "secret_fingerprint=#{secret_fingerprint(secret)}"
+        end)
+
         conn
         |> json_error(403, "Invalid signature")
         |> halt()
       end
     end
+  end
+
+  defp secret_fingerprint(secret) do
+    :crypto.hash(:sha256, secret) |> Base.encode16(case: :lower) |> binary_part(0, 8)
   end
 
   defp json_error(conn, status, message) do
