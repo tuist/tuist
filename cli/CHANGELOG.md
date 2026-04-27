@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
+* add CopyFileElement.buildProduct for embedding target products in Copy Files phases by [@freak4pc](https://github.com/freak4pc) in [#10467](https://github.com/tuist/tuist/pull/10467)
 * generate .xctestplan files from ProjectDescription by [@fortmarek](https://github.com/fortmarek) in [#10426](https://github.com/tuist/tuist/pull/10426)
 * add 'tuist teardown cache' command by [@fortmarek](https://github.com/fortmarek) in [#10421](https://github.com/tuist/tuist/pull/10421)
 * add --inspect-mode off to skip result bundle upload by [@fortmarek](https://github.com/fortmarek) in [#10447](https://github.com/tuist/tuist/pull/10447)
