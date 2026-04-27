@@ -138,8 +138,26 @@ COPY server/lib lib
 
 RUN mix compile
 
-RUN mix docs.gen.og_images
-RUN mix marketing.gen.og_images
+# Persist generated OG images (and their .cachekey sidecars) across builds in
+# BuildKit caches. The mix tasks skip per-image rendering when the input hash
+# matches the existing sidecar, so when the layer above is invalidated by an
+# unrelated lib change we still get a fast no-op pass for unchanged images.
+RUN --mount=type=cache,id=og-marketing,target=/og-cache/marketing,sharing=locked \
+    --mount=type=cache,id=og-docs,target=/og-cache/docs,sharing=locked \
+    set -e; \
+    OUT_M=/app/_build/${MIX_ENV}/lib/tuist/priv/static/marketing/images/og/generated; \
+    OUT_D=/app/_build/${MIX_ENV}/lib/tuist/priv/docs/images/og/generated; \
+    mkdir -p "$OUT_M" "$OUT_D"; \
+    if [ -d /og-cache/marketing ] && [ -n "$(ls -A /og-cache/marketing 2>/dev/null)" ]; then \
+      cp -a /og-cache/marketing/. "$OUT_M/"; \
+    fi; \
+    if [ -d /og-cache/docs ] && [ -n "$(ls -A /og-cache/docs 2>/dev/null)" ]; then \
+      cp -a /og-cache/docs/. "$OUT_D/"; \
+    fi; \
+    mix docs.gen.og_images; \
+    mix marketing.gen.og_images; \
+    cp -a "$OUT_M/." /og-cache/marketing/; \
+    cp -a "$OUT_D/." /og-cache/docs/
 
 # ========================================
 # Stage 3: Main application builder
