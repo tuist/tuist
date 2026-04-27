@@ -61,8 +61,6 @@ Quarantining isolates a flaky test so it doesn't block CI while you fix it. A qu
 - **Muted**: the test still runs, but `tuist xcodebuild test` masks the failure. Failures still feed the flaky-tests detector, so you can keep watching the test without breaking the build. Pick this for a test you're actively investigating.
 - **Skipped**: xcodebuild receives `-skip-testing <identifier>`, so the test never starts. It produces no new results and drops off the flaky-tests dashboard until you re-enable it. Pick this when the test is broken, slow, or so persistently flaky that running it is just wasted CI minutes.
 
-Open a test case from the Test Cases page and use the **State** dropdown to flip between **Enabled**, **Muted**, and **Skipped**. The Quarantined Tests page lists every quarantined test alongside its mode, with a Mode filter to narrow down to one or the other. Automations can move tests between states for you too. For example, when a test crosses a flakiness threshold, set it to Muted (or straight to Skipped) and post a message to the right Slack channel. Configure them under your project's **Automations** tab.
-
 ### Running tests {#running-tests}
 
 `tuist xcodebuild test` is a passthrough wrapper that honours both modes automatically. Use it the same way you'd call xcodebuild:
