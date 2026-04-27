@@ -315,7 +315,7 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
     test_case_event = %{
       id: Keyword.get_lazy(attrs, :id, fn -> UUIDv7.generate() end),
       test_case_id: Keyword.fetch!(attrs, :test_case_id),
-      event_type: Keyword.get(attrs, :event_type, "quarantined"),
+      event_type: Keyword.get(attrs, :event_type, "muted"),
       actor_id: Keyword.get(attrs, :actor_id, nil),
       inserted_at: Keyword.get(attrs, :inserted_at, NaiveDateTime.utc_now())
     }

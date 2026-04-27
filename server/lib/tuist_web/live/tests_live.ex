@@ -379,12 +379,14 @@ defmodule TuistWeb.TestsLive do
 
   defp assign_slowest_test_cases(%{assigns: %{selected_project: project}} = socket) do
     assign_async(socket, :slowest_test_cases, fn ->
+      # `:id` tiebreaker keeps the top-5 order deterministic when several
+      # test cases share the same avg_duration.
       {slowest_test_cases, _meta} =
         Tests.list_test_cases(project.id, %{
           page: 1,
           page_size: 5,
-          order_by: [:avg_duration],
-          order_directions: [:desc]
+          order_by: [:avg_duration, :id],
+          order_directions: [:desc, :asc]
         })
 
       {:ok, %{slowest_test_cases: slowest_test_cases}}
