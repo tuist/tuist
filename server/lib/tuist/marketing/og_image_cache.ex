@@ -44,10 +44,6 @@ defmodule Tuist.Marketing.OgImageCache do
     File.write!(image_path <> @suffix, key)
   end
 
-  defp encode_part(part) when is_binary(part) do
-    <<byte_size(part)::32, part::binary>>
-  end
-
   defp encode_part({:file, path}) do
     digest = file_digest(path)
     <<byte_size(digest)::32, digest::binary>>
@@ -56,6 +52,18 @@ defmodule Tuist.Marketing.OgImageCache do
   defp encode_part({:dir, path}) do
     digest = dir_digest(path)
     <<byte_size(digest)::32, digest::binary>>
+  end
+
+  defp encode_part(part) when is_binary(part) do
+    <<byte_size(part)::32, part::binary>>
+  end
+
+  # Fallback for atoms / integers / nil / etc. so callers can drop fields like
+  # `entry.pull_request` (integer) or `entry.description` (nil) into a key list
+  # without manual coercion. nil → "" via String.Chars, integers / atoms get
+  # their canonical string form.
+  defp encode_part(part) do
+    encode_part(to_string(part))
   end
 
   defp file_digest(path) do
