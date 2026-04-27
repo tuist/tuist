@@ -131,15 +131,6 @@ COPY server/lib lib
 
 RUN mix compile --warnings-as-errors
 
-# Install Chromium for OG image generation (headless, no GPU)
-RUN apt-get update -y && \
-  apt-get install -y --no-install-recommends chromium fonts-noto-cjk fonts-noto-core && \
-  apt-get clean && rm -rf /var/lib/apt/lists/*
-
-# Generate OG images using headless Chromium
-RUN mix docs.gen.og_images
-RUN mix marketing.gen.og_images
-
 COPY server/config/runtime.exs config/
 COPY server/rel rel
 
@@ -147,7 +138,39 @@ COPY --from=npm-deps /app/node_modules /app/node_modules
 COPY --from=npm-deps /noora/priv/static /noora/priv/static
 RUN mix assets.deploy
 
+# Pull pre-generated OG images from the parallel og-images stage. Splitting
+# the Chromium pipeline into its own stage lets it run concurrently with mix
+# compile + assets.deploy + release here instead of stacking on top.
+COPY --from=og-images /app/_build/${MIX_ENV}/lib/tuist/priv/static/marketing/images/og/generated /app/_build/${MIX_ENV}/lib/tuist/priv/static/marketing/images/og/generated
+COPY --from=og-images /app/_build/${MIX_ENV}/lib/tuist/priv/docs/images/og/generated /app/_build/${MIX_ENV}/lib/tuist/priv/docs/images/og/generated
+
 RUN mix release
+
+# ========================================
+# Stage: OG image generator
+# Renders marketing/docs Open Graph images via headless Chromium. Built in
+# parallel with the main builder (both branch from deps-builder) so its long
+# Chromium-driven runtime overlaps with mix compile + release rather than
+# stacking on top of them.
+# ========================================
+FROM deps-builder AS og-images
+
+# Chromium and font packages only this stage needs. Sits before the source
+# COPY so the apt layer stays cached as long as deps-builder is cached, even
+# when server/lib changes.
+RUN apt-get update -y && \
+  apt-get install -y --no-install-recommends chromium fonts-noto-cjk fonts-noto-core && \
+  apt-get clean && rm -rf /var/lib/apt/lists/*
+
+COPY server/priv priv
+COPY skills/skills priv/static/skills
+COPY examples/xcode /examples/xcode
+COPY server/lib lib
+
+RUN mix compile
+
+RUN mix docs.gen.og_images
+RUN mix marketing.gen.og_images
 
 # ========================================
 # Stage: NIF bridge builder (for selfhosted)
