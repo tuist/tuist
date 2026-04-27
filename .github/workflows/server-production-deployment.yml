@@ -16,7 +16,7 @@ name: Server Production Deployment
 # per push; it is now one.
 #
 # Each deploy leg is delegated to server-deployment.yml via workflow_call
-# so plan/deploy logic stays in one place. The first leg builds and
+# so the helm logic stays in one place. The first leg builds and
 # publishes the image; subsequent legs pass image_tag to skip rebuilding.
 #
 # Slack notifications:
