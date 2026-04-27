@@ -1,0 +1,163 @@
+name: Helm
+
+# Validate Helm charts under `infra/helm/` and `kura/ops/helm/` at the PR
+# stage so chart bugs are caught before a deploy workflow tries to apply
+# them to a real cluster. Three layers of checks, each progressively
+# stricter:
+#
+#   1. `helm lint` — Chart.yaml well-formedness, template parse, value
+#      reference sanity.
+#   2. `helm template` — full render with every committed values overlay.
+#      Catches missing required values, bad Sprig pipelines, and dependency
+#      resolution failures the way the actual deploy would hit them.
+#   3. `kubeconform` — schema-validates the rendered manifests against the
+#      built-in Kubernetes API and the datreeio CRDs catalog. Catches
+#      typo'd field names and wrong apiVersion/kind combinations that
+#      `helm template` happily emits but the API server would reject.
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - infra/helm/**
+      - kura/ops/helm/**
+      - .github/workflows/helm.yml
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - infra/helm/**
+      - kura/ops/helm/**
+      - .github/workflows/helm.yml
+  merge_group: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: helm-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+env:
+  MISE_VERSION: "2026.4.18"
+  MISE_GITHUB_TOKEN: ${{ github.token }}
+
+jobs:
+  lint:
+    name: Lint (${{ matrix.chart }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    strategy:
+      fail-fast: false
+      matrix:
+        chart:
+          - infra/helm/tuist
+          - infra/helm/k8s-monitoring
+          - infra/helm/platform
+          - kura/ops/helm/kura
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: helm
+          cache: "false"
+      - name: helm dependency update
+        # Pulls subchart tarballs into charts/ so `helm lint` can resolve
+        # them. No-op for charts without a `dependencies:` block.
+        env:
+          CHART: ${{ matrix.chart }}
+        run: |
+          if grep -q "^dependencies:" "$CHART/Chart.yaml"; then
+            helm dependency update "$CHART"
+          fi
+      - name: helm lint
+        env:
+          CHART: ${{ matrix.chart }}
+        run: helm lint "$CHART"
+
+  render:
+    name: Render (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Tuist umbrella: every deploy passes values-managed-common.yaml
+          # plus the per-env overlay, so render the same way here.
+          - name: tuist (staging)
+            chart: infra/helm/tuist
+            release: tuist
+            values: values-managed-common.yaml values-managed-staging.yaml
+          - name: tuist (canary)
+            chart: infra/helm/tuist
+            release: tuist
+            values: values-managed-common.yaml values-managed-canary.yaml
+          - name: tuist (production)
+            chart: infra/helm/tuist
+            release: tuist
+            values: values-managed-common.yaml values-managed-production.yaml
+          - name: k8s-monitoring (staging)
+            chart: infra/helm/k8s-monitoring
+            release: k8s-monitoring
+            values: values-staging.yaml
+          - name: k8s-monitoring (canary)
+            chart: infra/helm/k8s-monitoring
+            release: k8s-monitoring
+            values: values-canary.yaml
+          - name: k8s-monitoring (production)
+            chart: infra/helm/k8s-monitoring
+            release: k8s-monitoring
+            values: values-production.yaml
+          - name: platform (hetzner)
+            chart: infra/helm/platform
+            release: platform
+            values: values-hetzner.yaml
+          - name: kura (scaleway)
+            chart: kura/ops/helm/kura
+            release: kura
+            values: values-scaleway.yaml
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: helm kubeconform
+          cache: "false"
+      - name: helm dependency update
+        env:
+          CHART: ${{ matrix.chart }}
+        run: |
+          if grep -q "^dependencies:" "$CHART/Chart.yaml"; then
+            helm dependency update "$CHART"
+          fi
+      - name: helm template
+        env:
+          CHART: ${{ matrix.chart }}
+          RELEASE: ${{ matrix.release }}
+          VALUES: ${{ matrix.values }}
+        run: |
+          args=()
+          for v in $VALUES; do
+            args+=("-f" "$CHART/$v")
+          done
+          helm template "$RELEASE" "$CHART" "${args[@]}" > rendered.yaml
+          echo "Rendered $(grep -cE '^kind:' rendered.yaml) resources, $(wc -l <rendered.yaml) lines."
+      - name: kubeconform
+        # `-strict` rejects unknown fields so typo'd keys in resource specs
+        # fail the build. Built-in resources validate against the upstream
+        # Kubernetes JSON schemas; CRDs (ExternalSecret, etc.) use the
+        # datreeio catalog. Anything still unrecognized is skipped via
+        # `-ignore-missing-schemas` rather than failing — better than
+        # vendoring schemas for every operator we run.
+        run: |
+          kubeconform \
+            -strict \
+            -ignore-missing-schemas \
+            -summary \
+            -schema-location default \
+            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+            rendered.yaml
