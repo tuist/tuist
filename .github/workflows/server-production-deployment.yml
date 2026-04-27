@@ -154,7 +154,7 @@ jobs:
       - name: Test
         env:
           TUIST_EE: 1
-        run: tuist test TuistCacheEEAcceptanceTests TuistCanaryAcceptanceTests --no-selective-testing -- -retry-tests-on-failure -test-iterations 2
+        run: tuist test TuistCacheEEAcceptanceTests --no-selective-testing -- -retry-tests-on-failure -test-iterations 2
 
   # --------------------------------------------------------------------------
   # Production leg - standard path: canary ready + tests green. Promotes

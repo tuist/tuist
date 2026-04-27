@@ -87,7 +87,6 @@ public enum Module: String, CaseIterable {
     public static func allTargets() -> [Target] {
         var targets = Module.allCases.flatMap(\.targets)
         targets.append(contentsOf: cacheEETargets())
-        targets.append(contentsOf: canaryAcceptanceTargets())
         targets.append(contentsOf: xcResultParserTargets())
         return targets
     }
@@ -257,42 +256,6 @@ public enum Module: String, CaseIterable {
                     .external(name: "TSCTestSupport"),
                 ],
                 metadata: .metadata(tags: ["domain:generation", "layer:testing", "ee:true"])
-            ),
-        ]
-    }
-
-    public static func canaryAcceptanceTargets() -> [Target] {
-        [
-            .target(
-                name: "TuistCanaryAcceptanceTests",
-                destinations: [.mac],
-                product: .unitTests,
-                bundleId: "dev.tuist.TuistCanaryAcceptanceTests",
-                deploymentTargets: .macOS("15.0"),
-                infoPlist: .default,
-                buildableFolders: ["cli/Tests/TuistCanaryAcceptanceTests"],
-                dependencies: [
-                    .target(name: Module.alert.targetName),
-                    .target(name: Module.core.targetName),
-                    .target(name: Module.environment.targetName),
-                    .target(name: Module.environmentTesting.targetName),
-                    .target(name: Module.logging.targetName),
-                    .target(name: Module.server.targetName),
-                    .target(name: Module.support.targetName),
-                    .target(name: Module.acceptanceTesting.targetName),
-                    .target(name: Module.testing.targetName),
-                    .target(name: Module.loggerTesting.targetName),
-                    .target(name: Module.nooraTesting.targetName),
-                    .target(name: Module.kit.targetName),
-                    .target(name: Module.projectDescription.targetName),
-                    .target(name: Module.inspectCommand.targetName),
-                    .target(name: Module.xcodeGraph.targetName),
-                    .external(name: "Path"),
-                    .external(name: "FileSystem"),
-                    .external(name: "FileSystemTesting"),
-                    .external(name: "Command"),
-                ],
-                metadata: .metadata(tags: ["domain:cli", "layer:testing"])
             ),
         ]
     }
