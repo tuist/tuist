@@ -6,12 +6,20 @@
         case objc
     }
 
-    private struct Match {
-        let module: String
-        let range: Range<String.Index>
-    }
-
     struct ImportSourceCodeScanner {
+        /// Compiled once at static-init time — Swift `Regex` literals build the
+        /// automaton up front, so we cache them here rather than per-line.
+        private static let swiftImportRegex =
+            #/import\s+(?:struct\s+|enum\s+|class\s+|protocol\s+|func\s+|var\s+|let\s+|typealias\s+)?([\w]+)/#
+        private static let objcImportRegex =
+            #/@import\s+([A-Za-z_0-9]+)|#(?:import|include)\s+<([A-Za-z_0-9-]+)\//#
+        private static let canImportConditionRegex =
+            #/^canImport\s*\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*\)$/#
+        private static let commentRegex =
+            #/\/\/.*?$|\/\*[\s\S]*?\*\//#.anchorsMatchLineEndings()
+        private static let blankLineRegex =
+            #/^\s*\n/#.anchorsMatchLineEndings()
+
         func extractImports(from sourceCode: String, language: ProgrammingLanguage) throws -> Set<String> {
             try extractImports(from: sourceCode, language: language, reachableModules: nil)
         }
@@ -33,19 +41,17 @@
         ) throws -> Set<String> {
             switch language {
             case .swift:
-                return try extractSwiftImports(from: sourceCode, reachableModules: reachableModules)
+                return extractSwiftImports(from: sourceCode, reachableModules: reachableModules)
             case .objc:
-                return try extract(from: sourceCode, language: .objc)
+                return extractObjcImports(from: sourceCode)
             }
         }
 
         private func extractSwiftImports(
             from sourceCode: String,
             reachableModules: Set<String>?
-        ) throws -> Set<String> {
-            let codeWithoutComments = try removeComments(from: sourceCode)
-            let pattern = #"import\s+(?:struct\s+|enum\s+|class\s+|protocol\s+|func\s+|var\s+|let\s+|typealias\s+)?([\w]+)"#
-            let regex = try NSRegularExpression(pattern: pattern, options: [])
+        ) -> Set<String> {
+            let codeWithoutComments = removeComments(from: sourceCode)
 
             // Walk lines top-to-bottom, maintaining a stack of `#if` frames. A frame is
             // "skipping" only when its enclosing `#if canImport(X)` references a module
@@ -84,11 +90,23 @@
 
                 if stack.last?.skipping == true { continue }
 
-                let range = NSRange(location: 0, length: line.utf16.count)
-                let matches = regex.matches(in: line, options: [], range: range)
-                for match in matches {
-                    if let found = processMatchSwift(match: match, line: line) {
-                        imports.insert(found.module)
+                for match in line.matches(of: Self.swiftImportRegex) {
+                    let module = match.output.1.split(separator: ".").first.map(String.init) ?? String(match.output.1)
+                    imports.insert(module)
+                }
+            }
+            return imports
+        }
+
+        private func extractObjcImports(from sourceCode: String) -> Set<String> {
+            let codeWithoutComments = removeComments(from: sourceCode)
+            var imports: Set<String> = []
+            for line in codeWithoutComments.components(separatedBy: .newlines) {
+                for match in line.matches(of: Self.objcImportRegex) {
+                    if let semantic = match.output.1 {
+                        imports.insert(String(semantic))
+                    } else if let header = match.output.2 {
+                        imports.insert(String(header))
                     }
                 }
             }
@@ -99,89 +117,19 @@
         /// from the current target. Anything else (compound expressions, negation,
         /// custom flags) returns `false` so the branch stays active.
         private func isDeadCanImport(_ condition: String, reachableModules: Set<String>?) -> Bool {
-            guard let reachableModules else { return false }
-            let pattern = #"^canImport\s*\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*\)$"#
-            guard let regex = try? NSRegularExpression(pattern: pattern, options: []),
-                  let match = regex.firstMatch(
-                      in: condition,
-                      options: [],
-                      range: NSRange(location: 0, length: condition.utf16.count)
-                  ),
-                  let moduleRange = Range(match.range(at: 1), in: condition)
+            guard let reachableModules,
+                  let match = try? Self.canImportConditionRegex.wholeMatch(in: condition)
             else { return false }
-            let module = String(condition[moduleRange])
-            return !reachableModules.contains(module)
+            return !reachableModules.contains(String(match.output.1))
         }
 
         private struct Frame {
             var skipping: Bool
         }
 
-        private func extract(from code: String, language: ProgrammingLanguage) throws -> Set<String> {
-            let pattern = switch language {
-            case .swift:
-                #"import\s+(?:struct\s+|enum\s+|class\s+|protocol\s+|func\s+|var\s+|let\s+|typealias\s+)?([\w]+)"#
-            case .objc:
-                "@import\\s+([A-Za-z_0-9]+)|#(?:import|include)\\s+<([A-Za-z_0-9-]+)/"
-            }
-
-            let codeWithoutComments = try removeComments(from: code)
-
-            let regex = try NSRegularExpression(pattern: pattern, options: [])
-
-            return Set(
-                codeWithoutComments
-                    .components(separatedBy: .newlines)
-                    .compactMap { line in
-                        let range = NSRange(location: 0, length: line.utf16.count)
-                        let matches = regex.matches(in: line, options: [], range: range)
-                        return matches.compactMap { match in
-                            let foundMatch = switch language {
-                            case .swift:
-                                processMatchSwift(match: match, line: line)
-                            case .objc:
-                                processMatchObjc(match: match, line: line)
-                            }
-
-                            return foundMatch?.module
-                        }
-                    }
-                    .flatMap { $0 }
-            )
-        }
-
-        private func processMatchSwift(match: NSTextCheckingResult, line: String) -> Match? {
-            guard let moduleRange = Range(match.range(at: 1), in: line),
-                  let foundModule = String(line[moduleRange]).split(separator: ".").first.map(String.init) else { return nil }
-            return Match(
-                module: foundModule,
-                range: moduleRange
-            )
-        }
-
-        private func processMatchObjc(match: NSTextCheckingResult, line: String) -> Match? {
-            if let range = Range(match.range(at: 1), in: line) {
-                return Match(
-                    module: String(line[range]),
-                    range: range
-                )
-            } else if let range = Range(match.range(at: 2), in: line) {
-                return Match(
-                    module: String(line[range]),
-                    range: range
-                )
-            }
-            return nil
-        }
-
-        private func removeComments(from code: String) throws -> String {
-            let regexPattern = #"//.*?$|/\*[\s\S]*?\*/"#
-            let regex = try NSRegularExpression(pattern: regexPattern, options: [.anchorsMatchLines])
-            let range = NSRange(location: 0, length: code.count)
-
-            return regex
-                .stringByReplacingMatches(in: code, options: [], range: range, withTemplate: "")
-                .replacingOccurrences(of: #"(?m)^\s*\n"#, with: "", options: .regularExpression)
+        private func removeComments(from code: String) -> String {
+            code.replacing(Self.commentRegex, with: "")
+                .replacing(Self.blankLineRegex, with: "")
         }
     }
 #endif
