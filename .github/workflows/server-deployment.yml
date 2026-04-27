@@ -235,13 +235,52 @@ jobs:
         # baked into the image and pulls MASTER_KEY from 1Password via an
         # in-cluster ExternalSecret. Passing secrets through --set would
         # leak them into `helm get manifest`.
+        env:
+          NS: ${{ needs.plan.outputs.namespace }}
         run: |
+          set +e
           helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
-            --namespace "${{ needs.plan.outputs.namespace }}" --create-namespace \
+            --namespace "$NS" --create-namespace \
             -f "$HELM_CHART_PATH/values-managed-common.yaml" \
             -f "$HELM_CHART_PATH/${{ needs.plan.outputs.values_overlay }}" \
             --set server.image.tag="${{ needs.plan.outputs.image_tag }}" \
-            --atomic --timeout 60m --wait
+            --atomic --timeout 60m --wait 2>&1 | tee /tmp/helm.out
+          rc=${PIPESTATUS[0]}
+          [ "$rc" -eq 0 ] && exit 0
+
+          # Helm's own message ("BackoffLimitExceeded", "context deadline
+          # exceeded", "release tuist failed") names the symptom but not the
+          # cause. Pull the most-likely root-cause logs into THIS step so the
+          # failed-step view shows them without scrolling to "Diagnostics on
+          # failure", and surface a one-line summary via ::error:: so it
+          # lands at the top of the GitHub Actions run UI.
+          summary=""
+          if grep -q "pre-upgrade hooks failed" /tmp/helm.out; then
+            echo "::group::root cause — most-recent migration job logs"
+            job=$(kubectl -n "$NS" get jobs -l app.kubernetes.io/component=server-migration \
+              --sort-by=.metadata.creationTimestamp -o name 2>/dev/null | tail -1)
+            if [ -n "$job" ]; then
+              echo "Job: $job"
+              kubectl -n "$NS" logs "$job" --all-containers --tail=300 2>&1 | tee /tmp/migrate.out
+              # First Elixir crash header or Postgres error code line.
+              err=$(grep -E '^\*\* \(.+\) |ERROR [0-9]+ \(' /tmp/migrate.out | head -1 | tr -d '\r')
+              [ -n "$err" ] && summary="Migration failed: $err"
+              [ -z "$summary" ] && summary="Migration job ${job#*/} failed (BackoffLimitExceeded). See logs above."
+            else
+              summary="Pre-upgrade migration hook failed but no migration job found in $NS."
+            fi
+            echo "::endgroup::"
+          elif grep -qE "context deadline exceeded|timed out waiting" /tmp/helm.out; then
+            summary="helm upgrade timed out (--timeout 60m). Release rolled back; see Diagnostics on failure → pods/events for stuck workload."
+          elif grep -qE "ImagePullBackOff|ErrImagePull" /tmp/helm.out; then
+            summary="Pod image pull failed. Check Diagnostics on failure → pods for details."
+          else
+            first_err=$(grep -iE 'error|failed' /tmp/helm.out | head -1 | tr -d '\r')
+            summary="helm upgrade failed: ${first_err:-see helm output above}"
+          fi
+
+          echo "::error::$summary"
+          exit "$rc"
       - name: Diagnostics on failure
         # `--atomic` rolls back the release on timeout, so `helm history` and
         # most cluster state reflect the rolled-back revision rather than the
