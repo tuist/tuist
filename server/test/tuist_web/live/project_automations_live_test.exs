@@ -100,6 +100,41 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
 
       assert Automations.list_alerts(project.id) == []
     end
+
+    test "creates a manually_marked_flaky automation with empty trigger_config and strips the default add_label action",
+         %{conn: conn, organization: organization, project: project} do
+      {:ok, lv, _html} = open(conn, organization, project)
+
+      render_hook(lv, "open_create_automation_modal", %{})
+      render_hook(lv, "update_create_automation_form_name", %{"value" => "Quarantine on manual mark"})
+      render_hook(lv, "update_create_automation_form_type", %{"data" => "manually_marked_flaky"})
+      # The default add_label action makes no sense once the user just marked
+      # the test as flaky, so the type switch should drop it. We then layer on
+      # an explicit change_state action.
+      render_hook(lv, "add_create_automation_form_trigger_action", %{"data" => "change_state"})
+      render_hook(lv, "save_automation", %{})
+
+      assert [automation] = Automations.list_alerts(project.id)
+      assert automation.monitor_type == "manually_marked_flaky"
+      assert automation.trigger_config == %{}
+      assert [%{"type" => "change_state", "state" => "muted"}] = automation.trigger_actions
+    end
+
+    test "hides threshold/window/recovery-window inputs for manually_marked_flaky", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      {:ok, lv, _html} = open(conn, organization, project)
+
+      render_hook(lv, "open_create_automation_modal", %{})
+      render_hook(lv, "toggle_create_automation_form_recovery", %{})
+      html = render_hook(lv, "update_create_automation_form_type", %{"data" => "manually_marked_flaky"})
+
+      refute html =~ "create-automation-threshold"
+      refute html =~ "create-automation-window"
+      refute html =~ "create-automation-recovery-days"
+    end
   end
 
   describe "editing an automation" do

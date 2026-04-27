@@ -122,9 +122,20 @@
                       >
                         <:right_icon><.check /></:right_icon>
                       </.dropdown_item>
+                      <.dropdown_item
+                        value="manually_marked_flaky"
+                        label={dgettext("dashboard_projects", "Test marked as flaky")}
+                        on_click="update_create_automation_form_type"
+                        data-selected={@create_automation_form_type == "manually_marked_flaky"}
+                      >
+                        <:right_icon><.check /></:right_icon>
+                      </.dropdown_item>
                     </.dropdown>
                   </div>
-                  <div data-part="form-row">
+                  <div
+                    :if={@create_automation_form_type != "manually_marked_flaky"}
+                    data-part="form-row"
+                  >
                     <label data-part="label">
                       <%= if @create_automation_form_type == "flakiness_rate" do %>
                         {dgettext("dashboard_projects", "Is greater than or equal to (%)")}
@@ -142,7 +153,10 @@
                       phx-debounce="300"
                     />
                   </div>
-                  <div data-part="form-row">
+                  <div
+                    :if={@create_automation_form_type != "manually_marked_flaky"}
+                    data-part="form-row"
+                  >
                     <label data-part="label">
                       {dgettext("dashboard_projects", "Over the last")}
                     </label>
@@ -340,11 +354,12 @@
                       />
                       <.dropdown_item
                         :if={
-                          not has_label_action?(
-                            @create_automation_form_trigger_actions,
-                            "add_label",
-                            "flaky"
-                          )
+                          @create_automation_form_type != "manually_marked_flaky" and
+                            not has_label_action?(
+                              @create_automation_form_trigger_actions,
+                              "add_label",
+                              "flaky"
+                            )
                         }
                         value="add_label_flaky"
                         label={dgettext("dashboard_projects", "Mark as flaky")}
@@ -382,7 +397,10 @@
                   </div>
                 </div>
                 <div :if={@create_automation_form_recovery_enabled} data-part="form-section-body">
-                  <div data-part="form-row">
+                  <div
+                    :if={@create_automation_form_type != "manually_marked_flaky"}
+                    data-part="form-row"
+                  >
                     <label data-part="label">
                       {dgettext("dashboard_projects", "Without trigger for")}
                     </label>
@@ -562,11 +580,12 @@
                       />
                       <.dropdown_item
                         :if={
-                          not has_label_action?(
-                            @create_automation_form_recovery_actions,
-                            "remove_label",
-                            "flaky"
-                          )
+                          @create_automation_form_type != "manually_marked_flaky" and
+                            not has_label_action?(
+                              @create_automation_form_recovery_actions,
+                              "remove_label",
+                              "flaky"
+                            )
                         }
                         value="remove_label_flaky"
                         label={dgettext("dashboard_projects", "Unmark as flaky")}

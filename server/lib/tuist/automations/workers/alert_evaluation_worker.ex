@@ -116,6 +116,13 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
     FlakyTestsMonitor.evaluate_by_run_count(alert)
   end
 
+  # Event-driven monitors are dispatched directly from the originating event
+  # (see `Tuist.Automations.dispatch_test_case_event/2`), so the scheduled
+  # evaluator has nothing to do for them.
+  defp evaluate_monitor(%{monitor_type: "manually_marked_flaky"}) do
+    %{triggered: [], all: []}
+  end
+
   defp evaluate_monitor(alert) do
     Logger.warning("Unknown monitor type: #{alert.monitor_type}")
     %{triggered: [], all: []}

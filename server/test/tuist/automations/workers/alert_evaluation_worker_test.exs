@@ -142,4 +142,21 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
 
     assert :ok = run(automation.id)
   end
+
+  test "no-ops for event-driven manually_marked_flaky alerts without invoking the monitor" do
+    automation =
+      AutomationsFixtures.automation_alert_fixture(
+        monitor_type: "manually_marked_flaky",
+        trigger_config: %{}
+      )
+
+    reject(&FlakyTestsMonitor.evaluate/1)
+    reject(&FlakyTestsMonitor.evaluate_by_run_count/1)
+    reject(&ActionExecutor.execute_actions/3)
+    reject(&Automations.create_alert_event/1)
+
+    expect(Automations, :list_active_alert_events, fn _id -> [] end)
+
+    assert :ok = run(automation.id)
+  end
 end

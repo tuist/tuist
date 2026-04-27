@@ -6,7 +6,7 @@ defmodule Tuist.Automations.Alerts.Alert do
 
   alias Tuist.Projects.Project
 
-  @monitor_types ~w(flakiness_rate flaky_run_count)
+  @monitor_types ~w(flakiness_rate flaky_run_count manually_marked_flaky)
   @valid_states ~w(enabled muted)
 
   @primary_key {:id, UUIDv7, autogenerate: true}
@@ -116,6 +116,9 @@ defmodule Tuist.Automations.Alerts.Alert do
 
       "flaky_run_count" ->
         validate_flaky_run_count_config(changeset, trigger_config)
+
+      "manually_marked_flaky" ->
+        changeset
 
       _ ->
         changeset
