@@ -63,11 +63,7 @@ Quarantining isolates a flaky test so it doesn't block CI while you fix it. A qu
 
 ### Setting the mode {#setting-the-mode}
 
-Open a test case from the Test Cases page and use the **State** dropdown to flip between **Enabled**, **Muted**, and **Skipped**. The Quarantined Tests page lists every quarantined test alongside its mode, with a Mode filter to narrow down to one or the other.
-
-### Automating it {#automating}
-
-Automations can move tests between states for you. For example, when a test crosses a flakiness threshold, set it to Muted (or straight to Skipped) and post a message to the right Slack channel. Configure them under your project's **Automations** tab.
+Open a test case from the Test Cases page and use the **State** dropdown to flip between **Enabled**, **Muted**, and **Skipped**. The Quarantined Tests page lists every quarantined test alongside its mode, with a Mode filter to narrow down to one or the other. Automations can move tests between states for you too. For example, when a test crosses a flakiness threshold, set it to Muted (or straight to Skipped) and post a message to the right Slack channel. Configure them under your project's **Automations** tab.
 
 ### Running tests {#running-tests}
 
