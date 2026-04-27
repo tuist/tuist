@@ -17,6 +17,10 @@ defmodule TuistWeb.Router do
   alias TuistWeb.Plugs.SentryContextPlug
   alias TuistWeb.Plugs.UeberauthHostPlug
 
+  @public_robots_txt [train_ai: true, search: true]
+  @marketing_route_metadata %{type: :marketing, robots_txt: @public_robots_txt}
+  @docs_route_metadata %{type: :docs, robots_txt: @public_robots_txt}
+
   pipeline :open_api do
     plug OpenApiSpex.Plug.PutApiSpec, module: TuistWeb.API.Spec
   end
@@ -189,6 +193,10 @@ defmodule TuistWeb.Router do
     plug TuistWeb.AnalyticsPlug, :track_page_view
   end
 
+  scope "/", TuistWeb do
+    get "/robots.txt", RobotsTxtController, :show, metadata: %{robots_txt: false}
+  end
+
   # Marketing
 
   scope "/" do
@@ -198,15 +206,15 @@ defmodule TuistWeb.Router do
     redirect("/case-studies", "/customers", :permanent, preserve_query_string: true)
     redirect("/case-studies/:slug", "/customers/:slug", :permanent, preserve_query_string: true)
 
-    get "/blog/rss.xml", MarketingController, :blog_rss, metadata: %{type: :marketing}
+    get "/blog/rss.xml", MarketingController, :blog_rss, metadata: @marketing_route_metadata
 
-    get "/blog/atom.xml", MarketingController, :blog_atom, metadata: %{type: :marketing}
+    get "/blog/atom.xml", MarketingController, :blog_atom, metadata: @marketing_route_metadata
 
-    get "/changelog/rss.xml", MarketingController, :changelog_rss, metadata: %{type: :marketing}
+    get "/changelog/rss.xml", MarketingController, :changelog_rss, metadata: @marketing_route_metadata
 
-    get "/changelog/atom.xml", MarketingController, :changelog_atom, metadata: %{type: :marketing}
+    get "/changelog/atom.xml", MarketingController, :changelog_atom, metadata: @marketing_route_metadata
 
-    get "/sitemap.xml", MarketingController, :sitemap, metadata: %{type: :marketing}
+    get "/sitemap.xml", MarketingController, :sitemap, metadata: @marketing_route_metadata
   end
 
   scope "/" do
@@ -224,102 +232,102 @@ defmodule TuistWeb.Router do
       live_session String.to_atom("marketing_#{locale}"),
         on_mount: Localization do
         live Path.join(locale_path_prefix, "/blog"), TuistWeb.Marketing.MarketingBlogLive,
-          metadata: %{type: :marketing},
+          metadata: @marketing_route_metadata,
           private: private
 
         live Path.join(locale_path_prefix, "/changelog"),
              TuistWeb.Marketing.MarketingChangelogLive,
-             metadata: %{type: :marketing},
+             metadata: @marketing_route_metadata,
              private: private
 
         live Path.join(locale_path_prefix, "/changelog/:id"),
              TuistWeb.Marketing.MarketingChangelogEntryLive,
-             metadata: %{type: :marketing},
+             metadata: @marketing_route_metadata,
              private: private
 
         live Path.join(locale_path_prefix, "/customers"),
              TuistWeb.Marketing.MarketingCustomersLive,
-             metadata: %{type: :marketing},
+             metadata: @marketing_route_metadata,
              private: private
 
         live Path.join(locale_path_prefix, "/cache"),
              TuistWeb.Marketing.MarketingCacheLive,
-             metadata: %{type: :marketing},
+             metadata: @marketing_route_metadata,
              private: private
 
         live Path.join(locale_path_prefix, "/build-insights"),
              TuistWeb.Marketing.MarketingBuildInsightsLive,
-             metadata: %{type: :marketing},
+             metadata: @marketing_route_metadata,
              private: private
 
         live Path.join(locale_path_prefix, "/selective-testing"),
              TuistWeb.Marketing.MarketingSelectiveTestingLive,
-             metadata: %{type: :marketing},
+             metadata: @marketing_route_metadata,
              private: private
 
         live Path.join(locale_path_prefix, "/flaky-tests"),
              TuistWeb.Marketing.MarketingFlakyTestsLive,
-             metadata: %{type: :marketing},
+             metadata: @marketing_route_metadata,
              private: private
 
         live Path.join(locale_path_prefix, "/test-insights"),
              TuistWeb.Marketing.MarketingTestInsightsLive,
-             metadata: %{type: :marketing},
+             metadata: @marketing_route_metadata,
              private: private
 
         live Path.join(locale_path_prefix, "/previews"),
              TuistWeb.Marketing.MarketingPreviewsLive,
-             metadata: %{type: :marketing},
+             metadata: @marketing_route_metadata,
              private: private
 
         live Path.join(locale_path_prefix, "/blog/:year/:month/:day/:slug"),
              TuistWeb.Marketing.MarketingBlogPostLive,
-             metadata: %{type: :marketing},
+             metadata: @marketing_route_metadata,
              private: private
       end
 
       get locale_path_prefix, MarketingController, :home,
-        metadata: %{type: :marketing},
+        metadata: @marketing_route_metadata,
         private: private
 
       get Path.join(locale_path_prefix, "/pricing"),
           MarketingController,
           :pricing,
-          metadata: %{type: :marketing},
+          metadata: @marketing_route_metadata,
           private: private
 
       get Path.join(locale_path_prefix, "/blog/:year/:month/:day/:slug/iframe.html"),
           TuistWeb.Marketing.MarketingBlogIframeController,
           :show,
-          metadata: %{type: :marketing},
+          metadata: @marketing_route_metadata,
           private: private
 
       get Path.join(locale_path_prefix, "/customers/:slug"),
           MarketingController,
           :case_study,
-          metadata: %{type: :marketing},
+          metadata: @marketing_route_metadata,
           private: private
 
       for %{slug: page_slug} <- Tuist.Marketing.Pages.get_pages() do
         get Path.join(locale_path_prefix, page_slug),
             MarketingController,
             :page,
-            metadata: %{type: :marketing},
+            metadata: @marketing_route_metadata,
             private: private
       end
 
       get Path.join(locale_path_prefix, "/about"), MarketingController, :about,
-        metadata: %{type: :marketing},
+        metadata: @marketing_route_metadata,
         private: private
 
       get Path.join(locale_path_prefix, "/support"), MarketingController, :support,
-        metadata: %{type: :marketing},
+        metadata: @marketing_route_metadata,
         private: private
 
       get Path.join(locale_path_prefix, "/newsletter"),
           MarketingController,
           :newsletter,
-          metadata: %{type: :marketing},
+          metadata: @marketing_route_metadata,
           private: private
 
       post Path.join(locale_path_prefix, "/newsletter"),
@@ -331,13 +339,13 @@ defmodule TuistWeb.Router do
       get Path.join(locale_path_prefix, "/newsletter/verify"),
           MarketingController,
           :newsletter_verify,
-          metadata: %{type: :marketing},
+          metadata: @marketing_route_metadata,
           private: private
 
       get Path.join(locale_path_prefix, "/newsletter/issues/:issue_number"),
           MarketingController,
           :newsletter_issue,
-          metadata: %{type: :marketing},
+          metadata: @marketing_route_metadata,
           private: private
     end
   end
@@ -349,15 +357,15 @@ defmodule TuistWeb.Router do
     get "/docs/login", UserSessionController, :new, metadata: %{type: :docs}
     get "/docs/:locale", DocsRedirectController, :show, metadata: %{type: :docs}
     get "/docs/:locale/*path", DocsRedirectController, :show, metadata: %{type: :docs}
-    get "/:locale/docs-markdown/*path", DocsMarkdownController, :show, metadata: %{type: :docs}
+    get "/:locale/docs-markdown/*path", DocsMarkdownController, :show, metadata: @docs_route_metadata
 
     for locale <- ["en"] ++ Localization.additional_locales() do
       private = %{locale: locale}
 
       live_session String.to_atom("docs_#{locale}"),
         on_mount: [{TuistWeb.Authentication, :mount_current_user}, Localization] do
-        live "/#{locale}/docs", DocsLive, :overview, metadata: %{type: :docs}, private: private
-        live "/#{locale}/docs/*path", DocsLive, :show, metadata: %{type: :docs}, private: private
+        live "/#{locale}/docs", DocsLive, :overview, metadata: @docs_route_metadata, private: private
+        live "/#{locale}/docs/*path", DocsLive, :show, metadata: @docs_route_metadata, private: private
       end
     end
   end
@@ -379,8 +387,8 @@ defmodule TuistWeb.Router do
   scope "/.well-known", TuistWeb do
     pipe_through [:open_api]
 
-    get "/api-catalog", WellKnownController, :api_catalog
-    get "/agent-skills/index.json", WellKnownController, :agent_skills_index
+    get "/api-catalog", WellKnownController, :api_catalog, metadata: %{robots_txt: false}
+    get "/agent-skills/index.json", WellKnownController, :agent_skills_index, metadata: %{robots_txt: false}
   end
 
   scope "/.well-known", TuistWeb do
@@ -937,6 +945,7 @@ defmodule TuistWeb.Router do
 
     # Redirects for renamed routes
     get "/binary-cache/cache-runs", RedirectPlug, to: "/module-cache/cache-runs"
+
     get "/binary-cache/generate-runs", RedirectPlug, to: "/module-cache/generate-runs"
   end
 

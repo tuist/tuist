@@ -115,6 +115,79 @@ struct AppleArchiverTests {
         #expect(!swiftmoduleExists)
     }
 
+    @Test(.inTemporaryDirectory) func compress_preservesBaseDirectory_wrapsContentsInBundleName() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let fileSystem = FileSystem()
+
+        let bundleDir = temporaryDirectory.appending(component: "result.xcresult")
+        try await fileSystem.makeDirectory(at: bundleDir)
+        try await fileSystem.writeText("plist", at: bundleDir.appending(component: "Info.plist"))
+        try await fileSystem.writeText("db", at: bundleDir.appending(component: "database.sqlite3"))
+
+        // A sibling that shares no prefix with the bundle should be pruned.
+        let sibling = temporaryDirectory.appending(component: "unrelated")
+        try await fileSystem.makeDirectory(at: sibling)
+        try await fileSystem.writeText("nope", at: sibling.appending(component: "leak.txt"))
+
+        let archivePath = temporaryDirectory.appending(component: "archive.aar")
+        try await subject.compress(
+            directory: bundleDir,
+            to: archivePath,
+            excludePatterns: [],
+            preservesBaseDirectory: true
+        )
+
+        let extractDir = temporaryDirectory.appending(component: "extracted")
+        try await fileSystem.makeDirectory(at: extractDir)
+        try await subject.decompress(archive: archivePath, to: extractDir)
+
+        // Bundle is wrapped in its basename so extractors land at
+        // `extractDir/result.xcresult/…` — what Xcode and the server-side
+        // xcresult processor expect.
+        let extractedBundle = extractDir.appending(component: "result.xcresult")
+        let plistExists = try await fileSystem.exists(extractedBundle.appending(component: "Info.plist"))
+        #expect(plistExists)
+        let dbExists = try await fileSystem.exists(extractedBundle.appending(component: "database.sqlite3"))
+        #expect(dbExists)
+
+        let leakedSibling = try await fileSystem.exists(extractDir.appending(component: "unrelated"))
+        #expect(!leakedSibling)
+    }
+
+    @Test(.inTemporaryDirectory)
+    func compress_preservesBaseDirectory_excludePatternsMatchPathsWithinBundle() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let fileSystem = FileSystem()
+
+        // The bundle's own basename contains ".dSYM" — exclude patterns must
+        // match against entries *inside* the bundle, not the wrapper itself,
+        // otherwise the whole bundle would be skipped.
+        let bundleDir = temporaryDirectory.appending(component: "Module.framework.dSYM")
+        try await fileSystem.makeDirectory(at: bundleDir)
+        try await fileSystem.writeText("keep", at: bundleDir.appending(component: "Info.plist"))
+        let nestedDsym = bundleDir.appending(components: ["Resources", "DWARF.dSYM"])
+        try await fileSystem.makeDirectory(at: nestedDsym)
+        try await fileSystem.writeText("strip", at: nestedDsym.appending(component: "binary"))
+
+        let archivePath = temporaryDirectory.appending(component: "archive.aar")
+        try await subject.compress(
+            directory: bundleDir,
+            to: archivePath,
+            excludePatterns: [".dSYM"],
+            preservesBaseDirectory: true
+        )
+
+        let extractDir = temporaryDirectory.appending(component: "extracted")
+        try await fileSystem.makeDirectory(at: extractDir)
+        try await subject.decompress(archive: archivePath, to: extractDir)
+
+        let extractedBundle = extractDir.appending(component: "Module.framework.dSYM")
+        let plistExists = try await fileSystem.exists(extractedBundle.appending(component: "Info.plist"))
+        #expect(plistExists)
+        let nestedExists = try await fileSystem.exists(extractedBundle.appending(component: "Resources"))
+        #expect(!nestedExists)
+    }
+
     @Test(.inTemporaryDirectory) func compress_handles_broken_symlinks() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let fileSystem = FileSystem()

@@ -20,6 +20,12 @@ public enum SideEffectDescriptor: Equatable, CustomStringConvertible {
     /// Perform a command
     case command(CommandDescriptor)
 
+    /// Generate a `.xctestplan` file from a `TestPlanDescriptor`.
+    ///
+    /// Content is produced at execution time because the PBX blueprint identifiers embedded in
+    /// the plan only become stable after the owning `.xcodeproj` is written.
+    case testPlan(TestPlanDescriptor)
+
     public var description: String {
         switch self {
         case let .file(fileDescriptor):
@@ -28,6 +34,8 @@ public enum SideEffectDescriptor: Equatable, CustomStringConvertible {
             return directoryDescriptor.description
         case let .command(commandDescriptor):
             return commandDescriptor.description
+        case let .testPlan(descriptor):
+            return "generate test plan \(descriptor.path.pathString)"
         }
     }
 }

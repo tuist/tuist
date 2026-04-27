@@ -115,10 +115,13 @@ defmodule TuistWeb.API.TestCasesController do
       ) do
     filters = build_filters(params)
 
+    # `:id` is the unique tiebreaker for `:last_ran_at` so LIMIT/OFFSET pages
+    # don't reshuffle tied rows between requests (which surfaces as duplicate
+    # test cases across pages — see `tuist test case list --quarantined`).
     options = %{
       filters: filters,
-      order_by: [:last_ran_at],
-      order_directions: [:desc],
+      order_by: [:last_ran_at, :id],
+      order_directions: [:desc, :asc],
       page: page,
       page_size: page_size
     }

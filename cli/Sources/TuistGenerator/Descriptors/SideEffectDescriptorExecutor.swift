@@ -30,6 +30,8 @@ public struct SideEffectDescriptorExecutor: SideEffectDescriptorExecuting {
                 try await process(file: fileDescriptor)
             case let .directory(directoryDescriptor):
                 try await process(directory: directoryDescriptor)
+            case let .testPlan(testPlanDescriptor):
+                try await process(testPlan: testPlanDescriptor)
             }
         }
     }
@@ -65,6 +67,15 @@ public struct SideEffectDescriptorExecutor: SideEffectDescriptorExecuting {
 
     private func perform(command: CommandDescriptor) throws {
         try System.shared.run(command.command)
+    }
+
+    private func process(testPlan: TestPlanDescriptor) async throws {
+        let parent = testPlan.path.parentDirectory
+        if try await !fileSystem.exists(parent) {
+            try await fileSystem.makeDirectory(at: parent)
+        }
+        let data = try testPlan.encode()
+        try data.write(to: testPlan.path.url)
     }
 }
 

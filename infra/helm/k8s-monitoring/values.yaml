@@ -1,0 +1,185 @@
+# Common values for the Tuist Grafana Kubernetes Monitoring wrapper chart.
+# Per-env overlays set `cluster.name`, the `env` label, and the pod-logs
+# namespace filter. Secrets (Grafana Cloud tokens) are synced by ESO — see
+# `templates/externalsecret.yaml`. URLs and numeric usernames below are
+# public per Grafana Cloud stack so they live in values, not in 1Password.
+
+# ExternalSecret wiring. Assumes a ClusterSecretStore named `onepassword`
+# has already been installed on the cluster — the Tuist chart's bootstrap
+# (see k8s/syself-onboarding.md §5) puts that in place before this chart
+# is ever installed.
+externalSecrets:
+  enabled: true
+  refreshInterval: "1h"
+  storeRef:
+    kind: ClusterSecretStore
+    name: onepassword
+
+# Grafana Cloud destinations. The ExternalSecret template produces one
+# Kubernetes Secret named `grafanaCloud.secretName` with six keys
+# (prometheus|loki|tempo × username|password); the k8s-monitoring
+# destination blocks below point at it via `secret.create: false`.
+grafanaCloud:
+  secretName: k8s-monitoring-grafana-cloud
+  prometheus:
+    username: "1774467"
+    token:
+      item: PROMETHEUS_TOKEN
+      field: password
+  loki:
+    username: "986520"
+    token:
+      item: LOKI_TOKEN
+      field: password
+  tempo:
+    username: "980835"
+    token:
+      item: TEMPO_TOKEN
+      field: password
+
+# Upstream grafana/k8s-monitoring chart values. Everything under this key
+# is passed verbatim to the subchart — see
+# https://github.com/grafana/k8s-monitoring-helm/tree/main/charts/k8s-monitoring
+# for the full surface area.
+k8s-monitoring:
+  # Set by per-env overlays: tuist-staging / tuist-canary / tuist-production.
+  # Drives the `cluster` / `k8s.cluster.name` label on everything.
+  cluster:
+    name: ""
+
+  global:
+    scrapeInterval: 30s
+
+  # v4 schema: destinations is a map keyed by destination name. Per-env
+  # overlays merge into these entries (e.g. adding `extraLabels.env`) so
+  # existing Grafana Cloud dashboards that filter on env=… keep working
+  # after the chart swap.
+  destinations:
+    grafana-cloud-metrics:
+      type: prometheus
+      url: https://prometheus-prod-24-prod-eu-west-2.grafana.net/api/prom/push
+      auth:
+        type: basic
+        usernameKey: prometheus-username
+        passwordKey: prometheus-password
+      secret:
+        create: false
+        name: k8s-monitoring-grafana-cloud
+        namespace: observability
+      extraLabels: {}
+
+    grafana-cloud-logs:
+      type: loki
+      url: https://logs-prod-012.grafana.net/loki/api/v1/push
+      auth:
+        type: basic
+        usernameKey: loki-username
+        passwordKey: loki-password
+      secret:
+        create: false
+        name: k8s-monitoring-grafana-cloud
+        namespace: observability
+      extraLabels: {}
+
+    # Tempo uses OTLP gRPC and only accepts traces — metrics/logs go to
+    # their respective destinations above.
+    grafana-cloud-traces:
+      type: otlp
+      url: tempo-prod-10-prod-eu-west-2.grafana.net:443
+      protocol: grpc
+      metrics:
+        enabled: false
+      logs:
+        enabled: false
+      traces:
+        enabled: true
+      auth:
+        type: basic
+        usernameKey: tempo-username
+        passwordKey: tempo-password
+      secret:
+        create: false
+        name: k8s-monitoring-grafana-cloud
+        namespace: observability
+      extraLabels: {}
+
+  # ───── Features ─────
+
+  # Enables kube-state-metrics + kubelet + cAdvisor scraping. Pairs with
+  # `telemetryServices.kube-state-metrics.deploy: true` below.
+  clusterMetrics:
+    enabled: true
+    collector: alloy-metrics
+
+  # Streams Kubernetes Events to Loki as structured logs. Cheap and
+  # extremely useful for post-mortem ("what got evicted, when, why").
+  # Events are singleton-scoped — running on >1 replica would duplicate.
+  clusterEvents:
+    enabled: true
+    collector: alloy-singleton
+
+  # Node Exporter for node-level CPU / memory / disk / network metrics.
+  hostMetrics:
+    enabled: true
+    collector: alloy-metrics
+
+  # DaemonSet-based pod log tailing via /var/log/pods hostPath. A
+  # compromised Alloy pod can only read logs from the single node it
+  # runs on.
+  podLogsViaLoki:
+    enabled: true
+    collector: alloy-logs
+
+  # Picks up any Pod/Service annotated with prometheus.io/scrape=true.
+  # The Tuist server Deployment already sets these (prometheus.io/scrape,
+  # prometheus.io/port=9091), so server app metrics flow through without
+  # any static scrape-target config in this chart.
+  annotationAutodiscovery:
+    enabled: true
+    collector: alloy-metrics
+
+  # OTLP gRPC receiver on :4317 for the managed Tuist server's span
+  # exports. Preserves the contract the server expects today (only the
+  # Service name changes — see README for the endpoint update).
+  applicationObservability:
+    enabled: true
+    collector: alloy-receiver
+    receivers:
+      otlp:
+        grpc:
+          enabled: true
+          port: 4317
+
+  # ───── Telemetry services (deployed alongside the collectors) ─────
+
+  telemetryServices:
+    kube-state-metrics:
+      deploy: true
+    node-exporter:
+      deploy: true
+
+  # ───── Collectors (Alloy instances) ─────
+  #
+  # k8s-monitoring splits Alloy into four roles so each one can be scaled
+  # and scoped independently. Controller type + replica count come from
+  # upstream presets — without them the Alloy subchart defaults to a
+  # DaemonSet, which is wrong for the singleton + receiver roles.
+  collectors:
+    # Clustering lets multiple alloy-metrics replicas hash-partition the
+    # scrape targets, so adding replicas linearly scales capacity. Required
+    # by the clusterMetrics / hostMetrics / annotationAutodiscovery features.
+    alloy-metrics:
+      presets: [clustered]
+    # filesystem-log-reader mounts /var/log so the DaemonSet can tail pod
+    # logs from disk (matches the podLogsViaLoki feature).
+    alloy-logs:
+      presets: [filesystem-log-reader]
+    # Kubernetes Events must come from exactly one replica — otherwise
+    # every pod watches the event stream and emits duplicate log lines.
+    alloy-singleton:
+      presets: [singleton]
+    # OTLP receiver is a plain service the server pushes spans to; one
+    # Deployment replica is plenty and avoids the per-node DaemonSet
+    # footprint of the upstream default.
+    alloy-receiver:
+      presets: [deployment]

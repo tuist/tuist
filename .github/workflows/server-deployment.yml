@@ -70,6 +70,9 @@ env:
   IMAGE_NAME: tuist/tuist
   HELM_CHART_PATH: infra/helm/tuist
   HELM_RELEASE_NAME: tuist
+  OBSERVABILITY_CHART_PATH: infra/helm/k8s-monitoring
+  OBSERVABILITY_RELEASE_NAME: k8s-monitoring
+  OBSERVABILITY_NAMESPACE: observability
   DEPLOY_SHA: ${{ inputs.commit_sha || github.sha }}
 
 jobs:
@@ -151,11 +154,55 @@ jobs:
           cache-from: type=gha,scope=server-cluster
           cache-to: type=gha,mode=max,scope=server-cluster
 
+  observability-install:
+    # Installs / upgrades the grafana/k8s-monitoring wrapper chart ahead of
+    # the server rollout so the Alloy OTLP receiver is ready before the
+    # server starts pushing spans to it. Idempotent: on every run it's a
+    # no-op if Chart.lock + values haven't changed.
+    #
+    # Shares the `server-deploy-<env>` concurrency lane with the deploy
+    # job on purpose: the server's OTLP endpoint and the chart that
+    # provides the receiver change in lockstep, so a newer chart install
+    # must never interleave with an older server rollout.
+    name: Observability chart (${{ inputs.environment }})
+    needs: plan
+    runs-on: namespace-profile-default
+    environment:
+      name: server-k8s-${{ needs.plan.outputs.environment_key }}
+    concurrency:
+      group: server-deploy-${{ needs.plan.outputs.environment_key }}
+      cancel-in-progress: false
+    timeout-minutes: 15
+    env:
+      KUBECONFIG: ${{ github.workspace }}/.kube/config
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          install_args: "helm kubectl"
+          cache: "false"
+      - name: Load kubeconfig
+        run: |
+          mkdir -p "$(dirname "$KUBECONFIG")"
+          echo "${{ secrets.KUBECONFIG }}" | base64 -d > "$KUBECONFIG"
+          chmod 600 "$KUBECONFIG"
+      - name: helm dependency update
+        run: helm dependency update "$OBSERVABILITY_CHART_PATH"
+      - name: helm upgrade --install k8s-monitoring
+        run: |
+          helm upgrade --install "$OBSERVABILITY_RELEASE_NAME" "$OBSERVABILITY_CHART_PATH" \
+            --namespace "$OBSERVABILITY_NAMESPACE" --create-namespace \
+            -f "$OBSERVABILITY_CHART_PATH/values-${{ needs.plan.outputs.environment_key }}.yaml" \
+            --timeout 10m --wait
+
   deploy:
     name: Deploy to ${{ needs.plan.outputs.namespace }}
-    needs: [plan, build]
+    needs: [plan, build, observability-install]
     # `build` may be skipped when image_tag is passed in - keep running.
-    if: always() && needs.plan.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped')
+    # `observability-install` always runs, so it must be a plain success.
+    if: always() && needs.plan.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped') && needs.observability-install.result == 'success'
     runs-on: namespace-profile-default
     environment:
       name: server-k8s-${{ needs.plan.outputs.environment_key }}
@@ -165,7 +212,7 @@ jobs:
     concurrency:
       group: server-deploy-${{ needs.plan.outputs.environment_key }}
       cancel-in-progress: false
-    timeout-minutes: 30
+    timeout-minutes: 75
     env:
       KUBECONFIG: ${{ github.workspace }}/.kube/config
     steps:
@@ -194,7 +241,7 @@ jobs:
             -f "$HELM_CHART_PATH/values-managed-common.yaml" \
             -f "$HELM_CHART_PATH/${{ needs.plan.outputs.values_overlay }}" \
             --set server.image.tag="${{ needs.plan.outputs.image_tag }}" \
-            --atomic --timeout 15m --wait
+            --atomic --timeout 60m --wait
       - name: Diagnostics on failure
         # `--atomic` rolls back the release on timeout, so `helm history` and
         # most cluster state reflect the rolled-back revision rather than the
@@ -246,3 +293,43 @@ jobs:
           kubectl -n "${{ needs.plan.outputs.namespace }}" rollout status deploy/tuist-tuist-server --timeout=10m
           kubectl -n "${{ needs.plan.outputs.namespace }}" run smoke-$RANDOM --rm -i --restart=Never --image=curlimages/curl \
             --command -- curl -fsS "http://tuist-tuist-server/ready"
+
+  observability-cleanup:
+    # One-shot migration step: removes the legacy `alloy` Helm release
+    # once the server is running against the new k8s-monitoring receiver.
+    # Kept in CI (rather than documented as a manual post-cutover task)
+    # because leaving the old chart running alongside the new one
+    # duplicates metrics + logs in Grafana Cloud until someone remembers
+    # to clean it up, which skews dashboards and inflates Loki volume.
+    #
+    # `--ignore-not-found` makes this a ~30 s no-op on every cluster once
+    # the one-time cutover has happened. Gated on a successful server
+    # deploy so a failed rollout can't leave the cluster with no
+    # receiver at all. After all three clusters have cut over, this job
+    # + infra/helm/alloy/ get deleted together in a follow-up PR.
+    name: Observability cleanup (${{ inputs.environment }})
+    needs: [plan, deploy]
+    runs-on: namespace-profile-default
+    environment:
+      name: server-k8s-${{ needs.plan.outputs.environment_key }}
+    concurrency:
+      group: server-deploy-${{ needs.plan.outputs.environment_key }}
+      cancel-in-progress: false
+    timeout-minutes: 5
+    env:
+      KUBECONFIG: ${{ github.workspace }}/.kube/config
+    steps:
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          install_args: "helm"
+          cache: "false"
+      - name: Load kubeconfig
+        run: |
+          mkdir -p "$(dirname "$KUBECONFIG")"
+          echo "${{ secrets.KUBECONFIG }}" | base64 -d > "$KUBECONFIG"
+          chmod 600 "$KUBECONFIG"
+      - name: Uninstall deprecated alloy release
+        run: |
+          helm uninstall alloy \
+            --namespace "$OBSERVABILITY_NAMESPACE" \
+            --ignore-not-found --wait

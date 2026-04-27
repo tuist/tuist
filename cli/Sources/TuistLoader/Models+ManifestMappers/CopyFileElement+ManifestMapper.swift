@@ -82,6 +82,12 @@ extension XcodeGraph.CopyFileElement {
                 condition: condition?.asGraphCondition,
                 codeSignOnCopy: codeSign
             ) }
+        case let .buildProduct(name: name, condition: condition, codeSignOnCopy: codeSign):
+            return [.buildProduct(
+                name: name,
+                condition: condition?.asGraphCondition,
+                codeSignOnCopy: codeSign
+            )]
         }
     }
 }

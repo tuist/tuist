@@ -184,6 +184,14 @@ http://{{ include "tuist.componentName" (dict "root" . "component" "clickhouse")
 {{- end -}}
 {{- end -}}
 
+{{- define "tuist.redisUrl" -}}
+{{- if eq .Values.redis.mode "embedded" -}}
+redis://{{ include "tuist.componentName" (dict "root" . "component" "redis") }}:6379
+{{- else -}}
+{{- .Values.redis.external.url -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "tuist.observabilityOtlpEndpoint" -}}
 {{- if .Values.observability.enabled -}}
 http://{{ include "tuist.componentName" (dict "root" . "component" "otel-collector") }}:4317

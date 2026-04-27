@@ -288,6 +288,108 @@ struct LaunchAgentServiceTests {
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func teardownLaunchAgent_bootsOutAndRemovesPlistWhenLoaded() async throws {
+        let homeDirectory = Environment.current.homeDirectory
+        let plistPath = homeDirectory.appending(
+            components: "Library", "LaunchAgents", "tuist.test.plist"
+        )
+        try await fileSystem.makeDirectory(at: plistPath.parentDirectory)
+        try await fileSystem.writeText("existing plist", at: plistPath)
+
+        given(launchctlController)
+            .isLoaded(label: .value("tuist.test"))
+            .willReturn(true)
+
+        given(launchctlController)
+            .bootout(label: .value("tuist.test"))
+            .willReturn()
+
+        try await subject.teardownLaunchAgent(
+            label: "tuist.test",
+            plistFileName: "tuist.test.plist"
+        )
+
+        verify(launchctlController)
+            .bootout(label: .value("tuist.test"))
+            .called(1)
+        #expect(try await fileSystem.exists(plistPath) == false)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func teardownLaunchAgent_skipsBootoutWhenNotLoaded() async throws {
+        let homeDirectory = Environment.current.homeDirectory
+        let plistPath = homeDirectory.appending(
+            components: "Library", "LaunchAgents", "tuist.test.plist"
+        )
+        try await fileSystem.makeDirectory(at: plistPath.parentDirectory)
+        try await fileSystem.writeText("existing plist", at: plistPath)
+
+        given(launchctlController)
+            .isLoaded(label: .value("tuist.test"))
+            .willReturn(false)
+
+        try await subject.teardownLaunchAgent(
+            label: "tuist.test",
+            plistFileName: "tuist.test.plist"
+        )
+
+        verify(launchctlController)
+            .bootout(label: .any)
+            .called(0)
+        #expect(try await fileSystem.exists(plistPath) == false)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func teardownLaunchAgent_propagatesBootoutErrors() async throws {
+        let homeDirectory = Environment.current.homeDirectory
+        let plistPath = homeDirectory.appending(
+            components: "Library", "LaunchAgents", "tuist.test.plist"
+        )
+        try await fileSystem.makeDirectory(at: plistPath.parentDirectory)
+        try await fileSystem.writeText("existing plist", at: plistPath)
+
+        let bootoutError = CommandError.terminated(
+            9216,
+            stderr: "Boot-out failed",
+            command: ["/bin/launchctl", "bootout", "gui/501/tuist.test"]
+        )
+
+        given(launchctlController)
+            .isLoaded(label: .value("tuist.test"))
+            .willReturn(true)
+
+        given(launchctlController)
+            .bootout(label: .value("tuist.test"))
+            .willThrow(bootoutError)
+
+        await #expect(throws: CommandError.self) {
+            try await subject.teardownLaunchAgent(
+                label: "tuist.test",
+                plistFileName: "tuist.test.plist"
+            )
+        }
+
+        // Plist is left untouched so the user can retry without re-running setup.
+        #expect(try await fileSystem.exists(plistPath) == true)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func teardownLaunchAgent_succeedsWhenPlistIsMissing() async throws {
+        given(launchctlController)
+            .isLoaded(label: .value("tuist.test"))
+            .willReturn(false)
+
+        try await subject.teardownLaunchAgent(
+            label: "tuist.test",
+            plistFileName: "tuist.test.plist"
+        )
+
+        verify(launchctlController)
+            .bootout(label: .any)
+            .called(0)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func setupLaunchAgent_fallsBackToCurrentPathWhenMiseLatestNotFound() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let environment = try #require(Environment.mocked)
