@@ -150,13 +150,10 @@ spec:
             - name: TUIST_CACHE_ENDPOINTS
               value: {{ .Values.server.cacheEndpointUrl | default (printf "http://%s:%v" (include "tuist.componentName" (dict "root" . "component" "cache")) .Values.cache.service.port) | quote }}
             {{- end }}
-            {{- if .Values.redis.enabled }}
-            # Override priv/secrets/<env>.yml.enc → redis_url. Env vars
-            # take precedence in Tuist.Environment.get/3, so the
-            # encrypted secret can keep stale Render hostnames without
-            # affecting the live cluster.
+            {{- $redisUrl := include "tuist.redisUrl" . }}
+            {{- if and .Values.redis.enabled $redisUrl }}
             - name: TUIST_REDIS_URL
-              value: {{ include "tuist.redisUrl" . | quote }}
+              value: {{ $redisUrl | quote }}
             {{- end }}
             {{- if and .Values.observability.enabled (include "tuist.observabilityOtlpEndpoint" .) }}
             - name: OTEL_EXPORTER_OTLP_ENDPOINT

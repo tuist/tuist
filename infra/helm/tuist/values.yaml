@@ -264,9 +264,18 @@ redis:
   embedded:
     image:
       repository: valkey/valkey
-      tag: "8-alpine"
+      tag: "8.1-alpine"
       pullPolicy: IfNotPresent
-    resources: {}
+    resources:
+      requests:
+        cpu: 25m
+        memory: 32Mi
+      limits:
+        memory: 128Mi
+    # Restrict ingress on the embedded Valkey Service to server pods.
+    # Requires a CNI that enforces NetworkPolicy (Cilium, Calico, etc.).
+    networkPolicy:
+      enabled: true
 
 objectStorage:
   mode: embedded

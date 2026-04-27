@@ -64,4 +64,28 @@ spec:
             periodSeconds: 20
           resources:
             {{- toYaml .Values.redis.embedded.resources | nindent 12 }}
+{{- if .Values.redis.embedded.networkPolicy.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "redis") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: redis
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "tuist.componentLabels" (dict "root" . "component" "redis") | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "tuist.componentLabels" (dict "root" . "component" "server") | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: 6379
+{{- end }}
 {{- end }}

@@ -91,8 +91,7 @@ objectStorage:
       registry: tuist-registry
 
 # In-cluster Valkey backs the auth rate limiter (Hammer.Redis). The
-# encrypted priv/secrets/prod.yml.enc still references the retired
-# Render Valkey hostname; the chart's TUIST_REDIS_URL env var overrides
-# it so the secret can keep its existing value.
+# chart wires TUIST_REDIS_URL to the embedded Service; without it the
+# rate limiter falls back to the per-pod InMemory bucket.
 redis:
   enabled: true
