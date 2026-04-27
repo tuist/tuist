@@ -57,11 +57,15 @@ server:
       maxSurge: 0
       maxUnavailable: 1
 
-  # Staging uses smaller resources than prod.
+  # Staging is squeezed onto 2 cpx22 workers (~2.5Gi allocatable each, ~1.5Gi
+  # eaten by system DaemonSets). Requests are sized for *scheduling*, not for
+  # actual runtime memory usage — the BEAM regularly uses 700-900MiB. Limits
+  # carry the real headroom; the burstable QoS class is intentional given how
+  # idle staging stays.
   resources:
     requests:
       cpu: "250m"
-      memory: "768Mi"
+      memory: "384Mi"
     limits:
       cpu: "1000m"
       memory: "1536Mi"
@@ -96,14 +100,14 @@ processor:
       value: http://alloy-tuist-alloy.observability.svc.cluster.local:4317
   # The processor runs the full Tuist BEAM release (Repos, Vault, Cachex,
   # ingestion buffers, Oban, etc.) — TUIST_PROCESSOR_MODE=true only skips the
-  # Phoenix endpoint binding and narrows the Oban queue set. Even with that,
-  # boot memory sits around 600-800MiB. Allow up to 1.5Gi headroom for the
-  # NIF + xcactivitylog parse buffers; can trim once we cull the supervision
-  # tree of the bits not needed for queue work.
+  # Phoenix endpoint binding and narrows the Oban queue set. Boot memory sits
+  # around 600-800MiB. Same burstable shape as the server above: low request
+  # so it schedules next to the server on the cramped staging cluster, high
+  # limit so runtime isn't constrained.
   resources:
     requests:
       cpu: "100m"
-      memory: "768Mi"
+      memory: "384Mi"
     limits:
       cpu: "500m"
       memory: "1536Mi"
