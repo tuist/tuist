@@ -32,6 +32,7 @@ struct XcodeBuildTestCommandService {
     private let xcResultService: XCResultServicing
     private let rootDirectoryLocator: RootDirectoryLocating
     private let testQuarantineService: TestQuarantineServicing
+    private let testCaseListService: TestCaseListServicing
     private let shardService: ShardServicing
     private let serverEnvironmentService: ServerEnvironmentServicing
 
@@ -48,6 +49,7 @@ struct XcodeBuildTestCommandService {
         xcResultService: XCResultServicing = XCResultService(),
         rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator(),
         testQuarantineService: TestQuarantineServicing = TestQuarantineService(),
+        testCaseListService: TestCaseListServicing = TestCaseListService(),
         shardService: ShardServicing = ShardService(),
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService()
     ) {
@@ -63,6 +65,7 @@ struct XcodeBuildTestCommandService {
         self.xcResultService = xcResultService
         self.rootDirectoryLocator = rootDirectoryLocator
         self.testQuarantineService = testQuarantineService
+        self.testCaseListService = testCaseListService
         self.shardService = shardService
         self.serverEnvironmentService = serverEnvironmentService
     }
@@ -132,9 +135,27 @@ struct XcodeBuildTestCommandService {
         }
 
         let resultBundlePath: AbsolutePath? = resolvedResultBundlePath
-        let quarantinedTests = await testQuarantineService.quarantinedTests(config: config, skipQuarantine: skipQuarantine)
-        let mutedTests = quarantinedTests.muted
-        let xcodeBuildArgumentsWithSkip = passthroughXcodebuildArguments + quarantinedTests.skipped.flatMap { skipped in
+        async let mutedTask = testCaseListService.listTestCases(
+            config: config,
+            state: .muted,
+            skipQuarantine: skipQuarantine
+        )
+        async let skippedTask = testCaseListService.listTestCases(
+            config: config,
+            state: .skipped,
+            skipQuarantine: skipQuarantine
+        )
+        let mutedTests = await mutedTask
+        let skippedTests = await skippedTask
+        let totalQuarantined = mutedTests.count + skippedTests.count
+        if totalQuarantined > 0 {
+            Logger.current.notice(
+                "Found \(totalQuarantined) quarantined test(s): \(mutedTests.count) muted, \(skippedTests.count) skipped",
+                metadata: .subsection
+            )
+        }
+        let allQuarantinedTests = mutedTests + skippedTests
+        let xcodeBuildArgumentsWithSkip = passthroughXcodebuildArguments + skippedTests.flatMap { skipped in
             ["-skip-testing", skipped.description]
         }
 
@@ -161,7 +182,7 @@ struct XcodeBuildTestCommandService {
                 resultBundlePath: resultBundlePath,
                 projectDerivedDataDirectory: derivedDataPath,
                 config: config,
-                quarantinedTests: quarantinedTests.all,
+                quarantinedTests: allQuarantinedTests,
                 shardPlanId: shardPlanId,
                 shardIndex: shardIndex,
                 mode: mode
@@ -213,7 +234,7 @@ struct XcodeBuildTestCommandService {
             resultBundlePath: resultBundlePath,
             projectDerivedDataDirectory: derivedDataPath,
             config: config,
-            quarantinedTests: quarantinedTests.all,
+            quarantinedTests: allQuarantinedTests,
             shardPlanId: shardPlanId,
             shardIndex: shardIndex,
             mode: mode

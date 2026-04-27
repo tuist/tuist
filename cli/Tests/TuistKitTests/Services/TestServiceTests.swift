@@ -47,6 +47,7 @@ final class TestServiceTests: TuistUnitTestCase {
     private var gitController: MockGitControlling!
     private var ciController: MockCIControlling!
     private var testQuarantineService: MockTestQuarantineServicing!
+    private var testCaseListService: MockTestCaseListServicing!
     private var serverEnvironmentService: MockServerEnvironmentServicing!
     private var shardPlanService: MockShardPlanServicing!
     private var shardMatrixOutputService: MockShardMatrixOutputServicing!
@@ -73,6 +74,7 @@ final class TestServiceTests: TuistUnitTestCase {
         gitController = .init()
         ciController = .init()
         testQuarantineService = .init()
+        testCaseListService = .init()
         serverEnvironmentService = .init()
         shardPlanService = .init()
         shardMatrixOutputService = .init()
@@ -140,9 +142,9 @@ final class TestServiceTests: TuistUnitTestCase {
             .url(configServerURL: .any)
             .willReturn(URL(string: "https://tuist.dev")!)
 
-        given(testQuarantineService)
-            .quarantinedTests(config: .any, skipQuarantine: .any)
-            .willReturn(.empty)
+        given(testCaseListService)
+            .listTestCases(config: .any, state: .any, skipQuarantine: .any)
+            .willReturn([])
         given(testQuarantineService)
             .markQuarantinedTests(testSummary: .any, quarantinedTests: .any)
             .willProduce { summary, _ in summary }
@@ -198,6 +200,7 @@ final class TestServiceTests: TuistUnitTestCase {
             serverEnvironmentService: serverEnvironmentService,
             ciController: ciController,
             testQuarantineService: testQuarantineService,
+            testCaseListService: testCaseListService,
             shardPlanService: shardPlanService,
             shardMatrixOutputService: shardMatrixOutputService,
             shardService: shardService,
@@ -3288,17 +3291,17 @@ final class TestServiceTests: TuistUnitTestCase {
             .loadConfig(path: .any)
             .willReturn(.test(project: .testGeneratedProject(), fullHandle: fullHandle))
 
+        testCaseListService.reset()
+        given(testCaseListService)
+            .listTestCases(config: .any, state: .value(.muted), skipQuarantine: .any)
+            .willReturn([
+                try TestIdentifier(target: "AppTests", class: "QuarantinedSuite", method: "testQuarantined()"),
+                try TestIdentifier(target: "CoreTests", class: nil, method: "testAnotherQuarantined()"),
+            ])
+        given(testCaseListService)
+            .listTestCases(config: .any, state: .value(.skipped), skipQuarantine: .any)
+            .willReturn([])
         testQuarantineService.reset()
-        given(testQuarantineService)
-            .quarantinedTests(config: .any, skipQuarantine: .any)
-            .willReturn(
-                QuarantinedTests(
-                    muted: [
-                        try TestIdentifier(target: "AppTests", class: "QuarantinedSuite", method: "testQuarantined()"),
-                        try TestIdentifier(target: "CoreTests", class: nil, method: "testAnotherQuarantined()"),
-                    ]
-                )
-            )
         given(testQuarantineService)
             .markQuarantinedTests(testSummary: .any, quarantinedTests: .any)
             .willProduce { summary, _ in summary }
@@ -3391,17 +3394,16 @@ final class TestServiceTests: TuistUnitTestCase {
             method: "testSuperSlow()"
         )
 
+        testCaseListService.reset()
+        given(testCaseListService)
+            .listTestCases(config: .any, state: .value(.muted), skipQuarantine: .any)
+            .willReturn([
+                try TestIdentifier(target: "AppTests", class: "FlakySuite", method: "testFlaky()"),
+            ])
+        given(testCaseListService)
+            .listTestCases(config: .any, state: .value(.skipped), skipQuarantine: .any)
+            .willReturn([skippedIdentifier])
         testQuarantineService.reset()
-        given(testQuarantineService)
-            .quarantinedTests(config: .any, skipQuarantine: .any)
-            .willReturn(
-                QuarantinedTests(
-                    muted: [
-                        try TestIdentifier(target: "AppTests", class: "FlakySuite", method: "testFlaky()"),
-                    ],
-                    skipped: [skippedIdentifier]
-                )
-            )
         given(testQuarantineService)
             .markQuarantinedTests(testSummary: .any, quarantinedTests: .any)
             .willProduce { summary, _ in summary }
@@ -3536,8 +3538,11 @@ final class TestServiceTests: TuistUnitTestCase {
         try await testRun(path: path, skipQuarantine: true)
 
         // Then
-        verify(testQuarantineService)
-            .quarantinedTests(config: .any, skipQuarantine: .value(true))
+        verify(testCaseListService)
+            .listTestCases(config: .any, state: .value(.muted), skipQuarantine: .value(true))
+            .called(1)
+        verify(testCaseListService)
+            .listTestCases(config: .any, state: .value(.skipped), skipQuarantine: .value(true))
             .called(1)
         verify(xcodebuildController)
             .test(
@@ -3617,8 +3622,11 @@ final class TestServiceTests: TuistUnitTestCase {
         try await testRun(path: path)
 
         // Then
-        verify(testQuarantineService)
-            .quarantinedTests(config: .any, skipQuarantine: .any)
+        verify(testCaseListService)
+            .listTestCases(config: .any, state: .value(.muted), skipQuarantine: .any)
+            .called(1)
+        verify(testCaseListService)
+            .listTestCases(config: .any, state: .value(.skipped), skipQuarantine: .any)
             .called(1)
         verify(xcodebuildController)
             .test(
@@ -3651,10 +3659,11 @@ final class TestServiceTests: TuistUnitTestCase {
             .loadConfig(path: .any)
             .willReturn(.test(project: .testGeneratedProject(), fullHandle: fullHandle))
 
+        testCaseListService.reset()
+        given(testCaseListService)
+            .listTestCases(config: .any, state: .any, skipQuarantine: .any)
+            .willReturn([])
         testQuarantineService.reset()
-        given(testQuarantineService)
-            .quarantinedTests(config: .any, skipQuarantine: .any)
-            .willReturn(.empty)
         given(testQuarantineService)
             .markQuarantinedTests(testSummary: .any, quarantinedTests: .any)
             .willProduce { summary, _ in summary }

@@ -121,6 +121,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
     private let ciController: CIControlling
     private let clock: Clock
     private let testQuarantineService: TestQuarantineServicing
+    private let testCaseListService: TestCaseListServicing
     private let shardPlanService: ShardPlanServicing
     private let shardMatrixOutputService: ShardMatrixOutputServicing
     private let shardService: ShardServicing
@@ -161,6 +162,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         ciController: CIControlling = CIController(),
         clock: Clock = WallClock(),
         testQuarantineService: TestQuarantineServicing = TestQuarantineService(),
+        testCaseListService: TestCaseListServicing = TestCaseListService(),
         shardPlanService: ShardPlanServicing = ShardPlanService(),
         shardMatrixOutputService: ShardMatrixOutputServicing = ShardMatrixOutputService(),
         shardService: ShardServicing = ShardService(),
@@ -187,6 +189,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         self.ciController = ciController
         self.clock = clock
         self.testQuarantineService = testQuarantineService
+        self.testCaseListService = testCaseListService
         self.shardPlanService = shardPlanService
         self.shardMatrixOutputService = shardMatrixOutputService
         self.shardService = shardService
@@ -347,11 +350,26 @@ public struct TestService { // swiftlint:disable:this type_body_length
             return
         }
 
-        let quarantinedTests = await testQuarantineService.quarantinedTests(
+        async let mutedQuarantinedTestsTask = testCaseListService.listTestCases(
             config: config,
+            state: .muted,
             skipQuarantine: skipQuarantine
         )
-        let skipTestTargets = skipTestTargets + quarantinedTests.skipped
+        async let skippedQuarantinedTestsTask = testCaseListService.listTestCases(
+            config: config,
+            state: .skipped,
+            skipQuarantine: skipQuarantine
+        )
+        let mutedQuarantinedTests = await mutedQuarantinedTestsTask
+        let skippedQuarantinedTests = await skippedQuarantinedTestsTask
+        let totalQuarantined = mutedQuarantinedTests.count + skippedQuarantinedTests.count
+        if totalQuarantined > 0 {
+            Logger.current.notice(
+                "Found \(totalQuarantined) quarantined test(s): \(mutedQuarantinedTests.count) muted, \(skippedQuarantinedTests.count) skipped",
+                metadata: .subsection
+            )
+        }
+        let skipTestTargets = skipTestTargets + skippedQuarantinedTests
 
         let graphTraverser = GraphTraverser(graph: graph)
         let version = osVersion?.version()
@@ -510,7 +528,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 testPlanConfiguration: testPlanConfiguration,
                 passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
                 config: config,
-                quarantinedTests: quarantinedTests.muted,
+                quarantinedTests: mutedQuarantinedTests,
                 mode: mode
             )
         } catch {

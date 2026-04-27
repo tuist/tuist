@@ -37,14 +37,15 @@ struct XcodeBuildTestCommandServiceTests {
     private let xcResultService = MockXCResultServicing()
     private let rootDirectoryLocator = MockRootDirectoryLocating()
     private let testQuarantineService = MockTestQuarantineServicing()
+    private let testCaseListService = MockTestCaseListServicing()
     private let shardService = MockShardServicing()
     private let serverEnvironmentService = MockServerEnvironmentServicing()
     private let subject: XcodeBuildTestCommandService
 
     init() {
-        given(testQuarantineService)
-            .quarantinedTests(config: .any, skipQuarantine: .any)
-            .willReturn(.empty)
+        given(testCaseListService)
+            .listTestCases(config: .any, state: .any, skipQuarantine: .any)
+            .willReturn([])
         given(testQuarantineService)
             .markQuarantinedTests(testSummary: .any, quarantinedTests: .any)
             .willProduce { summary, _ in summary }
@@ -71,6 +72,7 @@ struct XcodeBuildTestCommandServiceTests {
             xcResultService: xcResultService,
             rootDirectoryLocator: rootDirectoryLocator,
             testQuarantineService: testQuarantineService,
+            testCaseListService: testCaseListService,
             shardService: shardService,
             serverEnvironmentService: serverEnvironmentService
         )
