@@ -7,6 +7,7 @@
             isQuarantined: Bool = false,
             module: Components.Schemas.TestCase.modulePayload = .test(),
             name: String = "testExample",
+            state: Components.Schemas.TestCase.statePayload = .enabled,
             suite: Components.Schemas.TestCase.suitePayload? = nil,
             url: String = "https://tuist.dev/test-case"
         ) -> Self {
@@ -17,6 +18,7 @@
                 is_quarantined: isQuarantined,
                 module: module,
                 name: name,
+                state: state,
                 suite: suite,
                 url: url
             )

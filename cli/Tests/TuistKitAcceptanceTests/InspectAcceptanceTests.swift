@@ -48,10 +48,11 @@ struct InspectAcceptanceTests {
             "XcodeBuildBuildCommand did not record a buildRunId"
         )
 
-        let build = try await Self.pollUntilDecodable(
+        let build = try await Self.pollUntilProcessed(
             timeout: .seconds(180),
             interval: .seconds(3),
-            label: "build \(buildId)"
+            label: "build \(buildId)",
+            isTerminal: { $0.status != .processing }
         ) {
             try await GetBuildService().getBuild(
                 fullHandle: fullHandle,
@@ -60,6 +61,8 @@ struct InspectAcceptanceTests {
             )
         }
 
+        // The fixture builds successfully — anything else (notably `failed_processing`,
+        // the symptom of #10460) means the upload → processing pipeline is broken.
         #expect(build.status == .success)
     }
 
@@ -100,10 +103,11 @@ struct InspectAcceptanceTests {
             "XcodeBuildTestCommand did not record a testRunId"
         )
 
-        let testRun = try await Self.pollUntilDecodable(
+        let testRun = try await Self.pollUntilProcessed(
             timeout: .seconds(180),
             interval: .seconds(3),
-            label: "test run \(testRunId)"
+            label: "test run \(testRunId)",
+            isTerminal: { $0.status != .in_progress && $0.status != .processing }
         ) {
             try await GetTestRunService().getTestRun(
                 fullHandle: fullHandle,
@@ -112,30 +116,25 @@ struct InspectAcceptanceTests {
             )
         }
 
-        // The fixture's tests pass — anything other than `.success` means processing either
-        // bailed out (`failed_processing`, which the OpenAPI client can't decode and would
-        // have looped until timeout) or the parser flagged failures.
+        // The fixture's tests pass — anything else (notably `failed_processing`, the
+        // symptom of #10460) means the upload → processing pipeline is broken.
         #expect(testRun.status == .success)
     }
 
-    /// Polls `operation` until it returns successfully or the deadline is reached.
-    ///
-    /// The server reports `processing` / `failed_processing` for builds and test runs that
-    /// haven't been parsed yet, but the OpenAPI schemas for `getTestRun` and `getBuild` only
-    /// declare the terminal statuses. Decoding therefore throws while the run is still
-    /// processing, which is exactly the signal we want — once decoding succeeds the run has
-    /// reached a terminal state. Any other error (network blip, transient 5xx) is also
-    /// treated as "not yet ready" so the test stays robust on the canary deploy gate.
-    private static func pollUntilDecodable<Value>(
+    /// Polls `operation` until `isTerminal` returns true or the deadline is reached.
+    /// Transient errors (network blips, 5xx) are treated as "not yet ready" so the test
+    /// stays robust on the canary deploy gate.
+    private static func pollUntilProcessed<Value>(
         timeout: Duration,
         interval: Duration,
         label: String,
+        isTerminal: @Sendable (Value) -> Bool,
         operation: @Sendable () async throws -> Value
     ) async throws -> Value {
         let clock = ContinuousClock()
         let deadline = clock.now.advanced(by: timeout)
         while clock.now < deadline {
-            if let value = try? await operation() {
+            if let value = try? await operation(), isTerminal(value) {
                 return value
             }
             try await Task.sleep(for: interval)
