@@ -77,31 +77,27 @@ defmodule TuistWeb.WellKnownController do
   end
 
   @doc """
-  Returns OAuth Protected Resource metadata for the MCP endpoint.
+  Returns OAuth Protected Resource metadata.
   """
-  def oauth_protected_resource(conn, %{"resource_path" => ["mcp"]}) do
+  def oauth_protected_resource(conn, params) do
     app_url = RequestOrigin.from_conn(conn)
 
-    metadata = %{
-      resource: "#{app_url}#{@mcp_path}",
-      authorization_servers: [app_url],
-      bearer_methods_supported: ["header"],
-      scopes_supported: ["mcp"]
-    }
+    case Map.get(params, "resource_path", []) do
+      [] ->
+        conn
+        |> put_resp_content_type("application/json")
+        |> json(oauth_protected_resource_metadata(app_url))
 
-    conn
-    |> put_resp_content_type("application/json")
-    |> json(metadata)
-  end
+      ["mcp"] ->
+        conn
+        |> put_resp_content_type("application/json")
+        |> json(oauth_protected_resource_metadata(app_url, @mcp_path))
 
-  def oauth_protected_resource(conn, %{"resource_path" => []}) do
-    oauth_protected_resource(conn, %{"resource_path" => ["mcp"]})
-  end
-
-  def oauth_protected_resource(conn, _params) do
-    conn
-    |> put_status(:not_found)
-    |> json(%{error: "not_found"})
+      _ ->
+        conn
+        |> put_status(:not_found)
+        |> json(%{error: "not_found"})
+    end
   end
 
   @doc """
@@ -178,5 +174,14 @@ defmodule TuistWeb.WellKnownController do
       end
 
     "#{team_id}.#{bundle_id}"
+  end
+
+  defp oauth_protected_resource_metadata(resource_identifier, resource_path \\ "") do
+    %{
+      resource: "#{resource_identifier}#{resource_path}",
+      authorization_servers: [resource_identifier],
+      bearer_methods_supported: ["header"],
+      scopes_supported: ["mcp"]
+    }
   end
 end
