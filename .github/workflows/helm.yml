@@ -6,13 +6,20 @@ name: Helm
 #
 #   1. `helm lint` — Chart.yaml well-formedness, template parse, value
 #      reference sanity.
-#   2. `helm template` — full render with every committed values overlay.
-#      Catches missing required values, bad Sprig pipelines, and dependency
-#      resolution failures the way the actual deploy would hit them.
-#   3. `kubeconform` — schema-validates the rendered manifests against the
-#      built-in Kubernetes API and the datreeio CRDs catalog. Catches
-#      typo'd field names and wrong apiVersion/kind combinations that
-#      `helm template` happily emits but the API server would reject.
+#   2. `helm template` — full render with the production overlay.
+#      Catches missing required values, bad Sprig pipelines, and
+#      dependency resolution failures the way the actual deploy would
+#      hit them.
+#   3. `kubeconform` — schema-validates the rendered manifests against
+#      the built-in Kubernetes API and the datreeio CRDs catalog.
+#      Catches typo'd field names and wrong apiVersion/kind combinations
+#      that `helm template` happily emits but the API server would
+#      reject.
+#
+# All charts run sequentially inside two jobs (lint, render) instead of
+# a per-chart matrix. Each per-chart pass takes seconds, so spinning up
+# a runner per chart was mostly setup overhead. Per-chart `::group::`
+# sections keep the GitHub Actions UI navigable.
 
 on:
   push:
@@ -46,17 +53,10 @@ env:
 
 jobs:
   lint:
-    name: Lint (${{ matrix.chart }})
+    name: Lint
     runs-on: ubuntu-latest
     timeout-minutes: 10
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
-    strategy:
-      fail-fast: false
-      matrix:
-        chart:
-          - infra/helm/tuist
-          - infra/helm/k8s-monitoring
-          - infra/helm/platform
     steps:
       - uses: actions/checkout@v4
       - uses: jdx/mise-action@v4.0.1
@@ -64,50 +64,37 @@ jobs:
           version: ${{ env.MISE_VERSION }}
       - name: Install helm
         run: mise use -g "helm@${HELM_VERSION}"
-      - name: helm dependency update
-        # Pulls subchart tarballs into charts/ so `helm lint` can resolve
-        # them. No-op for charts without a `dependencies:` block.
-        env:
-          CHART: ${{ matrix.chart }}
-        run: |
-          if grep -q "^dependencies:" "$CHART/Chart.yaml"; then
-            helm dependency update "$CHART"
-          fi
       - name: helm lint
-        env:
-          CHART: ${{ matrix.chart }}
-        run: helm lint "$CHART"
+        run: |
+          set -uo pipefail
+          charts=(
+            infra/helm/tuist
+            infra/helm/k8s-monitoring
+            infra/helm/platform
+          )
+          failed=()
+          for chart in "${charts[@]}"; do
+            echo "::group::$chart"
+            # `helm lint` needs subchart tarballs in charts/ to resolve
+            # references. No-op for charts without `dependencies:`.
+            if grep -q "^dependencies:" "$chart/Chart.yaml"; then
+              helm dependency update "$chart"
+            fi
+            if ! helm lint "$chart"; then
+              failed+=("$chart")
+            fi
+            echo "::endgroup::"
+          done
+          if [ ${#failed[@]} -gt 0 ]; then
+            echo "::error::helm lint failed for: ${failed[*]}"
+            exit 1
+          fi
 
   render:
-    name: Render (${{ matrix.name }})
+    name: Render
     runs-on: ubuntu-latest
     timeout-minutes: 15
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          # Only production overlays are checked. Production is the
-          # load-bearing overlay (HPA, PDB, NetworkPolicy, second
-          # deployment) so it exercises the templates the most. Canary
-          # and staging diverge minimally from it and would just
-          # duplicate signal.
-          - name: tuist (production)
-            chart: infra/helm/tuist
-            release: tuist
-            values:
-              - values-managed-common.yaml
-              - values-managed-production.yaml
-          - name: k8s-monitoring (production)
-            chart: infra/helm/k8s-monitoring
-            release: k8s-monitoring
-            values:
-              - values-production.yaml
-          - name: platform (hetzner)
-            chart: infra/helm/platform
-            release: platform
-            values:
-              - values-hetzner.yaml
     steps:
       - uses: actions/checkout@v4
       - uses: jdx/mise-action@v4.0.1
@@ -115,40 +102,57 @@ jobs:
           version: ${{ env.MISE_VERSION }}
       - name: Install helm + kubeconform
         run: mise use -g "helm@${HELM_VERSION}" "kubeconform@${KUBECONFORM_VERSION}"
-      - name: helm dependency update
-        env:
-          CHART: ${{ matrix.chart }}
+      - name: helm template + kubeconform
+        # Each entry: name|chart|release|values (values is space-separated;
+        # the tuist umbrella layers values-managed-common.yaml under the
+        # per-env overlay, matching what server-deployment.yml does on a
+        # real cluster). Only production overlays are checked: production
+        # is the load-bearing overlay (HPA, PDB, NetworkPolicy, second
+        # deployment), and canary/staging diverge minimally from it so
+        # they would just duplicate signal.
         run: |
-          if grep -q "^dependencies:" "$CHART/Chart.yaml"; then
-            helm dependency update "$CHART"
+          set -uo pipefail
+          configs=(
+            "tuist (production)|infra/helm/tuist|tuist|values-managed-common.yaml values-managed-production.yaml"
+            "k8s-monitoring (production)|infra/helm/k8s-monitoring|k8s-monitoring|values-production.yaml"
+            "platform (hetzner)|infra/helm/platform|platform|values-hetzner.yaml"
+          )
+          failed=()
+          for entry in "${configs[@]}"; do
+            IFS='|' read -r name chart release values <<< "$entry"
+            echo "::group::$name"
+            if grep -q "^dependencies:" "$chart/Chart.yaml"; then
+              helm dependency update "$chart"
+            fi
+            args=()
+            for v in $values; do
+              args+=("-f" "$chart/$v")
+            done
+            if ! helm template "$release" "$chart" "${args[@]}" > rendered.yaml; then
+              failed+=("$name (template)")
+              echo "::endgroup::"
+              continue
+            fi
+            echo "Rendered $(wc -l <rendered.yaml) lines of manifests."
+            # `-strict` rejects unknown fields so typo'd keys in resource
+            # specs fail the build. Built-in resources validate against
+            # the upstream Kubernetes JSON schemas; CRDs (ExternalSecret,
+            # etc.) use the datreeio catalog. Anything still unrecognized
+            # is skipped via `-ignore-missing-schemas` rather than
+            # failing — better than vendoring schemas for every operator
+            # we run.
+            if ! kubeconform \
+              -strict \
+              -ignore-missing-schemas \
+              -summary \
+              -schema-location default \
+              -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+              rendered.yaml; then
+              failed+=("$name (kubeconform)")
+            fi
+            echo "::endgroup::"
+          done
+          if [ ${#failed[@]} -gt 0 ]; then
+            echo "::error::render/validation failed for: ${failed[*]}"
+            exit 1
           fi
-      - name: helm template
-        # `matrix.values` is a YAML list, exposed via toJSON so filenames
-        # with spaces or shell metacharacters survive. jq then emits one
-        # filename per line for the array build below.
-        env:
-          CHART: ${{ matrix.chart }}
-          RELEASE: ${{ matrix.release }}
-          VALUES_JSON: ${{ toJSON(matrix.values) }}
-        run: |
-          args=()
-          while IFS= read -r v; do
-            args+=("-f" "$CHART/$v")
-          done < <(jq -r '.[]' <<< "$VALUES_JSON")
-          helm template "$RELEASE" "$CHART" "${args[@]}" > rendered.yaml
-          echo "Rendered $(wc -l <rendered.yaml) lines of manifests."
-      - name: kubeconform
-        # `-strict` rejects unknown fields so typo'd keys in resource specs
-        # fail the build. Built-in resources validate against the upstream
-        # Kubernetes JSON schemas; CRDs (ExternalSecret, etc.) use the
-        # datreeio catalog. Anything still unrecognized is skipped via
-        # `-ignore-missing-schemas` rather than failing — better than
-        # vendoring schemas for every operator we run.
-        run: |
-          kubeconform \
-            -strict \
-            -ignore-missing-schemas \
-            -summary \
-            -schema-location default \
-            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
-            rendered.yaml
