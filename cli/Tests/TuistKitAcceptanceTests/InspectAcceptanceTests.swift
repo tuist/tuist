@@ -1,4 +1,3 @@
-import Command
 import FileSystem
 import FileSystemTesting
 import Foundation
@@ -15,10 +14,10 @@ import TuistTesting
 @testable import TuistKit
 
 struct InspectAcceptanceTests {
-    /// Uploads an activity log via `tuist inspect build` against canary and polls the server
-    /// until processing finishes. Catches regressions in the upload → server processing path
-    /// — for example, https://github.com/tuist/tuist/pull/10460 broke that path for `inspect
-    /// test` by stripping the `.xcresult` wrapper from the AppleArchive payload.
+    /// Runs `tuist xcodebuild build` against canary and polls the server until the resulting
+    /// build run reaches a terminal status. `xcodebuild build` already exercises the same
+    /// upload path that `tuist inspect build` uses (via `UploadBuildRunService`), so this
+    /// test catches regressions in either entry point.
     @Test(
         .inTemporaryDirectory,
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
@@ -34,28 +33,19 @@ struct InspectAcceptanceTests {
             URL(string: Environment.current.variables["TUIST_URL"] ?? "https://canary.tuist.dev")
         )
 
-        let commandRunner = CommandRunner()
-        try await commandRunner.run(
-            arguments: [
-                "/usr/bin/xcrun",
-                "xcodebuild",
-                "clean",
-                "build",
+        try await TuistTest.run(
+            XcodeBuildBuildCommand.self,
+            [
                 "-scheme", "App",
                 "-destination", "generic/platform=iOS Simulator",
                 "-project", fixtureDirectory.appending(component: "App.xcodeproj").pathString,
                 "-derivedDataPath", temporaryDirectory.pathString,
             ]
-        ).pipedStream().awaitCompletion()
-
-        try await TuistTest.run(
-            InspectBuildCommand.self,
-            ["--path", fixtureDirectory.pathString, "--derived-data-path", temporaryDirectory.pathString]
         )
 
         let buildId = try #require(
-            Self.firstMatch(in: ui(), pattern: #"/builds/build-runs/([0-9a-zA-Z\-]+)"#),
-            "Could not extract a build id from the inspect output"
+            await RunMetadataStorage.current.buildRunId,
+            "XcodeBuildBuildCommand did not record a buildRunId"
         )
 
         let build = try await Self.pollUntilDecodable(
@@ -73,9 +63,13 @@ struct InspectAcceptanceTests {
         #expect(build.status == .success)
     }
 
-    /// Uploads an xcresult via `tuist inspect test` against canary and polls the server until
-    /// processing finishes. Same regression coverage as `build()` but for the test-run path,
-    /// which is the one actually broken by https://github.com/tuist/tuist/pull/10460.
+    /// Runs `tuist xcodebuild test` against canary and polls the server until the resulting
+    /// test run reaches a terminal status. `xcodebuild test` already exercises the same
+    /// xcresult upload path that `tuist inspect test` uses (via
+    /// `AnalyticsArtifactUploadService.uploadResultBundle`) — that's the path broken by
+    /// https://github.com/tuist/tuist/pull/10460, where the AppleArchive payload was missing
+    /// the `.xcresult` wrapper and the server's `find_xcresult` could never locate the
+    /// bundle.
     @Test(
         .inTemporaryDirectory,
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
@@ -91,28 +85,19 @@ struct InspectAcceptanceTests {
             URL(string: Environment.current.variables["TUIST_URL"] ?? "https://canary.tuist.dev")
         )
 
-        let commandRunner = CommandRunner()
-        try await commandRunner.run(
-            arguments: [
-                "/usr/bin/xcrun",
-                "xcodebuild",
-                "clean",
-                "test",
+        try await TuistTest.run(
+            XcodeBuildTestCommand.self,
+            [
                 "-scheme", "App",
                 "-destination", "platform=iOS Simulator,name=iPhone 17",
                 "-project", fixtureDirectory.appending(component: "App.xcodeproj").pathString,
                 "-derivedDataPath", temporaryDirectory.pathString,
             ]
-        ).pipedStream().awaitCompletion()
-
-        try await TuistTest.run(
-            InspectTestCommand.self,
-            ["--path", fixtureDirectory.pathString, "--derived-data-path", temporaryDirectory.pathString]
         )
 
         let testRunId = try #require(
-            Self.firstMatch(in: ui(), pattern: #"/tests/test-runs/([0-9a-fA-F-]+)"#),
-            "Could not extract a test run id from the inspect output"
+            await RunMetadataStorage.current.testRunId,
+            "XcodeBuildTestCommand did not record a testRunId"
         )
 
         let testRun = try await Self.pollUntilDecodable(
@@ -127,9 +112,9 @@ struct InspectAcceptanceTests {
             )
         }
 
-        // The fixture's tests pass — anything other than `.success` means processing
-        // either bailed out (`failed_processing`, which the OpenAPI client can't decode
-        // and would have looped until timeout) or the parser flagged failures.
+        // The fixture's tests pass — anything other than `.success` means processing either
+        // bailed out (`failed_processing`, which the OpenAPI client can't decode and would
+        // have looped until timeout) or the parser flagged failures.
         #expect(testRun.status == .success)
     }
 
@@ -157,16 +142,6 @@ struct InspectAcceptanceTests {
         }
         Issue.record("Timed out after \(timeout) waiting for \(label) to be processed")
         return try await operation()
-    }
-
-    private static func firstMatch(in input: String, pattern: String) -> String? {
-        guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
-        let range = NSRange(input.startIndex ..< input.endIndex, in: input)
-        guard let match = regex.firstMatch(in: input, range: range),
-              match.numberOfRanges > 1,
-              let captureRange = Range(match.range(at: 1), in: input)
-        else { return nil }
-        return String(input[captureRange])
     }
 
     @Test(
