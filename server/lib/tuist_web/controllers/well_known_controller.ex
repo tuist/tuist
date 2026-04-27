@@ -27,6 +27,37 @@ defmodule TuistWeb.WellKnownController do
   end
 
   @doc """
+  Returns the MCP Server Card for agent discovery (SEP-1649).
+  """
+  def mcp_server_card(conn, _params) do
+    server = Tuist.MCP.Server.server()
+
+    capabilities =
+      [
+        {map_size(server.tools) > 0, "tools"},
+        {map_size(server.resources) > 0, "resources"},
+        {map_size(server.prompts) > 0, "prompts"}
+      ]
+      |> Enum.filter(fn {present, _} -> present end)
+      |> Enum.map(fn {_, name} -> name end)
+
+    card = %{
+      serverInfo: %{
+        name: server.name,
+        version: server.version
+      },
+      transport: %{
+        endpoint: @mcp_path
+      },
+      capabilities: capabilities
+    }
+
+    conn
+    |> put_resp_content_type("application/json")
+    |> json(card)
+  end
+
+  @doc """
   Returns the OpenID configuration for JWT verification.
   """
   def openid_configuration(conn, _params) do
