@@ -56,37 +56,35 @@ You can also manually mark or unmark tests as flaky from the test case detail pa
 
 ## Quarantining flaky tests {#quarantining}
 
-Quarantining allows you to isolate flaky tests so they don't block your CI pipeline while you work on fixing them. Quarantined tests can be skipped during test runs, preventing false failures from disrupting your team's workflow.
+Quarantining isolates a flaky test so it doesn't block CI while you fix it. A quarantined test is in one of two modes:
+
+- **Muted** — the test still runs, but its failure is masked. Use this when you want to keep watching the test (results stay in the run, attached to the flaky-tests dashboard) without breaking the build.
+- **Skipped** — the test is excluded from execution entirely via xcodebuild's `-skip-testing` flag. Use this when the test is broken, slow, or persistently flaky and you don't want it to run at all.
 
 > [!IMPORTANT]
-> Unless you're using `tuist test`, quarantining a test does not automatically skip it. You must explicitly pass the list of quarantined tests to xcodebuild using the `-skip-testing` flag.
+> Unless you're using `tuist test`, neither mode is applied automatically: you have to wire up `-skip-testing` for skipped tests yourself when calling xcodebuild directly. Muted tests rely on `tuist test`'s post-run masking, so they only behave as "muted" under `tuist test` or `tuist xcodebuild test`.
 
-### Automatic quarantine
+### Setting the mode {#setting-the-mode}
 
-When enabled in your project's Automations settings, tests are automatically quarantined when they're marked as flaky. This ensures that newly detected flaky tests are immediately isolated without manual intervention.
+Open a test case from the Test Cases page and use the **State** dropdown to flip between **Enabled**, **Muted**, and **Skipped**. The Quarantined Tests page lists every quarantined test alongside its mode, with a Mode filter to narrow down to one or the other.
 
-To enable automatic quarantine:
-1. Go to your project settings
-2. Navigate to the **Automations** tab
-3. Enable **Auto-quarantine flaky tests**
+### Automating it {#automating}
 
-### Manual quarantine
+Automations can move tests between states for you — for example, when a test crosses a flakiness threshold, set it to Muted (or straight to Skipped) and post a message to the right Slack channel. Configure them under your project's **Automations** tab.
 
-You can also manually quarantine or unquarantine tests from the test case detail page using the **Quarantine** and **Unquarantine** buttons. This is useful when:
-- You want to quarantine a test before it's automatically detected as flaky
-- You want to unquarantine a test after fixing the underlying issue
-
-### Skipping quarantined tests {#skipping-quarantined-tests}
+### Running tests {#running-tests}
 
 #### With tuist test
 
-When you run `tuist test`, quarantined tests are automatically skipped. Tuist fetches the list of quarantined tests from the server and passes them to xcodebuild using the `-skip-testing` flag.
+`tuist test` honours both modes automatically:
 
 ```bash
 tuist test
 ```
 
-If you want to run all tests including quarantined ones, use the `--skip-quarantine` flag:
+Skipped tests are passed to xcodebuild as `-skip-testing` and never start. Muted tests run normally; if they fail, the failure is masked in the resulting build status.
+
+To bypass quarantine entirely and run everything, including muted and skipped tests:
 
 ```bash
 tuist test --skip-quarantine
@@ -94,13 +92,15 @@ tuist test --skip-quarantine
 
 #### With xcodebuild directly
 
-If you're using xcodebuild directly instead of `tuist test`, use the `tuist test case list` command with the `--skip-testing` flag to get quarantined test identifiers formatted for xcodebuild:
+When invoking xcodebuild yourself, use `tuist test case list --quarantined --skip-testing` to expand every quarantined test (muted and skipped) into `-skip-testing` arguments:
 
 ```bash
 xcodebuild test \
   -scheme MyScheme \
-  $(tuist test case list --skip-testing)
+  $(tuist test case list --quarantined --skip-testing)
 ```
+
+This is the safe default outside `tuist test` / `tuist xcodebuild test`: failure masking for muted tests only happens through those commands, so skipping both modes avoids spurious CI failures. If you need finer control, go through `tuist test` instead.
 
 ## Slack notifications {#slack-notifications}
 

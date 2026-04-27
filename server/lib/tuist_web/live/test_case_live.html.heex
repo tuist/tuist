@@ -32,27 +32,6 @@
         <h1 data-part="label">
           {@test_case_detail.name}
         </h1>
-        <.badge
-          :if={@test_case_detail.is_flaky}
-          label={dgettext("dashboard_tests", "Flaky")}
-          color="attention"
-          style="light-fill"
-          size="large"
-        />
-        <.badge
-          :if={(@test_case_detail.state || "enabled") == "muted"}
-          label={dgettext("dashboard_tests", "Muted")}
-          color="destructive"
-          style="light-fill"
-          size="large"
-        />
-        <.badge
-          :if={(@test_case_detail.state || "enabled") == "skipped"}
-          label={dgettext("dashboard_tests", "Skipped")}
-          color="destructive"
-          style="light-fill"
-          size="large"
-        />
       </div>
       <div
         :if={@test_case_detail.module_name != "" or @test_case_detail.suite_name != ""}
