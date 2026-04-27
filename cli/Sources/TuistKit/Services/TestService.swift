@@ -350,24 +350,20 @@ public struct TestService { // swiftlint:disable:this type_body_length
             return
         }
 
-        async let mutedQuarantinedTestsTask = testCaseListService.listTestCases(
-            config: config,
-            state: .muted,
-            skipQuarantine: skipQuarantine
-        )
-        async let skippedQuarantinedTestsTask = testCaseListService.listTestCases(
-            config: config,
-            state: .skipped,
-            skipQuarantine: skipQuarantine
-        )
-        let mutedQuarantinedTests = await mutedQuarantinedTestsTask
-        let skippedQuarantinedTests = await skippedQuarantinedTestsTask
-        let totalQuarantined = mutedQuarantinedTests.count + skippedQuarantinedTests.count
-        if totalQuarantined > 0 {
-            Logger.current.notice(
-                "Found \(totalQuarantined) quarantined test(s): \(mutedQuarantinedTests.count) muted, \(skippedQuarantinedTests.count) skipped",
-                metadata: .subsection
-            )
+        let (mutedQuarantinedTests, skippedQuarantinedTests): ([TestIdentifier], [TestIdentifier])
+        if skipQuarantine {
+            (mutedQuarantinedTests, skippedQuarantinedTests) = ([], [])
+        } else {
+            async let mutedTask = testCaseListService.listTestCases(config: config, state: .muted)
+            async let skippedTask = testCaseListService.listTestCases(config: config, state: .skipped)
+            (mutedQuarantinedTests, skippedQuarantinedTests) = await (mutedTask, skippedTask)
+            let totalQuarantined = mutedQuarantinedTests.count + skippedQuarantinedTests.count
+            if totalQuarantined > 0 {
+                Logger.current.notice(
+                    "Found \(totalQuarantined) quarantined test(s): \(mutedQuarantinedTests.count) muted, \(skippedQuarantinedTests.count) skipped",
+                    metadata: .subsection
+                )
+            }
         }
         let skipTestTargets = skipTestTargets + skippedQuarantinedTests
 

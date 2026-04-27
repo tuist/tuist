@@ -24,16 +24,9 @@ struct TestCaseListServiceTests {
     }
 
     @Test(.withMockedDependencies())
-    func listTestCases_returnsEmpty_whenSkipQuarantineIsTrue() async throws {
-        let config = Tuist.test(fullHandle: "org/project")
-        let result = await subject.listTestCases(config: config, state: .muted, skipQuarantine: true)
-        #expect(result.isEmpty)
-    }
-
-    @Test(.withMockedDependencies())
     func listTestCases_returnsEmpty_whenFullHandleIsNil() async throws {
         let config = Tuist.test(fullHandle: nil)
-        let result = await subject.listTestCases(config: config, state: .muted, skipQuarantine: false)
+        let result = await subject.listTestCases(config: config, state: .muted)
         #expect(result.isEmpty)
     }
 
@@ -55,7 +48,7 @@ struct TestCaseListServiceTests {
 
         let alertController = AlertController()
         let result = await AlertController.$current.withValue(alertController) {
-            await subject.listTestCases(config: config, state: .muted, skipQuarantine: false)
+            await subject.listTestCases(config: config, state: .muted)
         }
 
         #expect(result.isEmpty)
@@ -102,7 +95,7 @@ struct TestCaseListServiceTests {
             )
             .willReturn(mutedResponse)
 
-        let result = await subject.listTestCases(config: config, state: .muted, skipQuarantine: false)
+        let result = await subject.listTestCases(config: config, state: .muted)
 
         #expect(result == [
             try TestIdentifier(target: "AppTests", class: "FooSuite", method: "testFoo()"),

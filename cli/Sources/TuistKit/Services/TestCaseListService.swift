@@ -12,13 +12,11 @@ protocol TestCaseListServicing {
     /// (e.g. `.muted` / `.skipped`) and return them as `TestIdentifier`s.
     ///
     /// Returns an empty array when:
-    /// - `skipQuarantine` is `true`,
     /// - `config.fullHandle` is `nil`, or
     /// - the request fails (a warning is surfaced via `AlertController`).
     func listTestCases(
         config: Tuist,
-        state: Operations.listTestCases.Input.Query.statePayload,
-        skipQuarantine: Bool
+        state: Operations.listTestCases.Input.Query.statePayload
     ) async -> [TestIdentifier]
 }
 
@@ -36,10 +34,9 @@ struct TestCaseListService: TestCaseListServicing {
 
     func listTestCases(
         config: Tuist,
-        state: Operations.listTestCases.Input.Query.statePayload,
-        skipQuarantine: Bool
+        state: Operations.listTestCases.Input.Query.statePayload
     ) async -> [TestIdentifier] {
-        guard !skipQuarantine, let fullHandle = config.fullHandle else {
+        guard let fullHandle = config.fullHandle else {
             return []
         }
         do {
