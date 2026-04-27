@@ -50,6 +50,9 @@ public struct DefaultSettingsProvider: DefaultSettingsProviding {
     private static let essentialTargetSettings: Set<String> = [
         "SDKROOT",
         "CODE_SIGN_IDENTITY",
+        "CODE_SIGNING_REQUIRED",
+        "CODE_SIGNING_ALLOWED",
+        "PROVISIONING_PROFILE",
         "LD_RUNPATH_SEARCH_PATHS",
         "SWIFT_OPTIMIZATION_LEVEL",
         "SWIFT_ACTIVE_COMPILATION_CONDITIONS",
@@ -288,6 +291,10 @@ public struct DefaultSettingsProvider: DefaultSettingsProviding {
         } else if target.product == .macro {
             return [
                 "SKIP_INSTALL": "YES",
+                "CODE_SIGN_IDENTITY": "",
+                "PROVISIONING_PROFILE": "",
+                "CODE_SIGNING_REQUIRED": "NO",
+                "CODE_SIGNING_ALLOWED": "NO",
             ]
         } else {
             return [:]

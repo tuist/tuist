@@ -1136,6 +1136,9 @@ struct DefaultSettingsProvider_MacosTests {
         "SWIFT_VERSION": "5",
         "SDKROOT": "macosx",
         "CODE_SIGN_IDENTITY": "-",
+        "CODE_SIGNING_REQUIRED": "NO",
+        "CODE_SIGNING_ALLOWED": "NO",
+        "PROVISIONING_PROFILE": "",
     ]
 
     private let macroTargetEssentialReleaseSettings: [String: SettingValue] = [
@@ -1144,6 +1147,34 @@ struct DefaultSettingsProvider_MacosTests {
         "SWIFT_VERSION": "5",
         "SDKROOT": "macosx",
         "CODE_SIGN_IDENTITY": "-",
+        "CODE_SIGNING_REQUIRED": "NO",
+        "CODE_SIGNING_ALLOWED": "NO",
+        "PROVISIONING_PROFILE": "",
+    ]
+
+    private let macroTargetRecommendDebugSettings: [String: SettingValue] = [
+        "SWIFT_ACTIVE_COMPILATION_CONDITIONS": .array(["$(inherited)", "DEBUG"]),
+        "SKIP_INSTALL": "YES",
+        "SWIFT_OPTIMIZATION_LEVEL": "-Onone",
+        "SWIFT_VERSION": "5.0",
+        "SWIFT_COMPILATION_MODE": "singlefile",
+        "SDKROOT": "macosx",
+        "CODE_SIGN_IDENTITY": "-",
+        "CODE_SIGNING_REQUIRED": "NO",
+        "CODE_SIGNING_ALLOWED": "NO",
+        "PROVISIONING_PROFILE": "",
+    ]
+
+    private let macroTargetRecommendReleaseSettings: [String: SettingValue] = [
+        "SKIP_INSTALL": "YES",
+        "SWIFT_OPTIMIZATION_LEVEL": "-O",
+        "SWIFT_VERSION": "5.0",
+        "SWIFT_COMPILATION_MODE": "wholemodule",
+        "SDKROOT": "macosx",
+        "CODE_SIGN_IDENTITY": "-",
+        "CODE_SIGNING_REQUIRED": "NO",
+        "CODE_SIGNING_ALLOWED": "NO",
+        "PROVISIONING_PROFILE": "",
     ]
 
     init() {
@@ -1204,6 +1235,72 @@ struct DefaultSettingsProvider_MacosTests {
 
         // Then
         #expect(got == macroTargetEssentialReleaseSettings)
+    }
+
+    @Test(.withMockedXcodeController) func targetSettings_whenRecommendedDebug_Macro() async throws {
+        // Given
+        let buildConfiguration: BuildConfiguration = .debug
+        let settings = Settings(
+            base: [:],
+            configurations: [buildConfiguration: nil],
+            defaultSettings: .recommended
+        )
+        let project = Project.test()
+        let target = Target.test(
+            destinations: [.mac],
+            product: .macro,
+            settings: settings
+        )
+        let graph = Graph.test(path: project.path)
+
+        let xcodeControllerMock = try #require(XcodeController.mocked)
+        given(xcodeControllerMock)
+            .selectedVersion()
+            .willReturn(Version(15, 0, 0))
+
+        // When
+        let got = try await subject.targetSettings(
+            target: target,
+            project: project,
+            buildConfiguration: buildConfiguration,
+            graphTraverser: GraphTraverser(graph: graph)
+        )
+
+        // Then
+        #expect(got == macroTargetRecommendDebugSettings)
+    }
+
+    @Test(.withMockedXcodeController) func targetSettings_whenRecommendedRelease_Macro() async throws {
+        // Given
+        let buildConfiguration: BuildConfiguration = .release
+        let settings = Settings(
+            base: [:],
+            configurations: [buildConfiguration: nil],
+            defaultSettings: .recommended
+        )
+        let project = Project.test()
+        let target = Target.test(
+            destinations: [.mac],
+            product: .macro,
+            settings: settings
+        )
+        let graph = Graph.test(path: project.path)
+
+        let xcodeControllerMock = try #require(XcodeController.mocked)
+        given(xcodeControllerMock)
+            .selectedVersion()
+            .willReturn(Version(15, 0, 0))
+
+        // When
+        let got = try await subject.targetSettings(
+            target: target,
+            project: project,
+            buildConfiguration: buildConfiguration,
+            graphTraverser: GraphTraverser(graph: graph)
+        )
+
+        // Then
+        #expect(got == macroTargetRecommendReleaseSettings)
     }
 }
 
