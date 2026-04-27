@@ -2,7 +2,6 @@ import FileSystem
 import Foundation
 import ProjectDescription
 import TuistCore
-import TuistEnvironment
 import XcodeGraph
 
 extension XcodeGraph.Project {
@@ -38,8 +37,7 @@ extension XcodeGraph.Project {
         case .external: .remote
         }
 
-        let maxConcurrentTasks = Environment.current.isSwiftFileSystemBackendEnabled ? Int.max : 20
-        let targets = try await manifest.targets.concurrentMap(maxConcurrentTasks: maxConcurrentTasks) {
+        let targets = try await manifest.targets.concurrentMap {
             try await XcodeGraph.Target.from(
                 manifest: $0,
                 generatorPaths: generatorPaths,

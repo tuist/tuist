@@ -2,7 +2,6 @@ import CryptoKit
 import FileSystem
 import Foundation
 import Path
-import TuistEnvironment
 
 /// `ContentHasher`
 /// is the single source of truth for hashing content.
@@ -56,11 +55,10 @@ public struct ContentHasher: ContentHashing {
 
     public func hash(path filePath: AbsolutePath) async throws -> String {
         if try await fileSystem.exists(filePath, isDirectory: true) {
-            let maxConcurrentTasks = Environment.current.isSwiftFileSystemBackendEnabled ? Int.max : 100
             return try await fileSystem.glob(directory: filePath, include: ["*"])
                 .collect()
                 .filter { filesFilter($0) }
-                .concurrentMap(maxConcurrentTasks: maxConcurrentTasks) { filePath -> String? in
+                .concurrentMap { filePath -> String? in
                     guard try await fileSystem.exists(filePath) else { return nil }
                     let filePath = try await fileSystem.resolveSymbolicLink(filePath)
                     return try await hash(path: filePath)
