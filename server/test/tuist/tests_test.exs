@@ -2497,11 +2497,11 @@ defmodule Tuist.TestsTest do
       assert Enum.at(test_cases_desc, 2).name == "fastTest"
     end
 
-    test "paginates deterministically when last_ran_at has ties" do
+    test "paginates deterministically when callers append `:id` as a tiebreaker" do
       # An automation sweep typically mutes many test cases at the same
-      # ran_at timestamp. Without a stable secondary sort, ClickHouse can
-      # reshuffle tied rows between pages, causing the same test case to
-      # appear on multiple pages (and others to be dropped entirely).
+      # ran_at timestamp. Callers must pass `:id` as a secondary sort key
+      # so ClickHouse can't reshuffle tied rows between LIMIT/OFFSET pages.
+      # This test pins down the contract for them.
       project = ProjectsFixtures.project_fixture()
       ran_at = NaiveDateTime.utc_now()
 
@@ -2523,8 +2523,8 @@ defmodule Tuist.TestsTest do
 
       attrs_base = %{
         filters: [%{field: :state, op: :==, value: "muted"}],
-        order_by: [:last_ran_at],
-        order_directions: [:desc],
+        order_by: [:last_ran_at, :id],
+        order_directions: [:desc, :asc],
         page_size: 3
       }
 

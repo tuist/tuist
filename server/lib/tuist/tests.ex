@@ -1485,25 +1485,7 @@ defmodule Tuist.Tests do
         where(base_query, [test_case], test_case.last_ran_at >= ^window_start)
       end
 
-    Tuist.ClickHouseFlop.validate_and_run!(base_query, with_stable_order(attrs), for: TestCase)
-  end
-
-  # Appends `:id` as a tiebreaker so LIMIT/OFFSET pagination stays stable when
-  # the primary sort column has ties (e.g. many test cases sharing the same
-  # `last_ran_at` value because they were quarantined in the same sweep).
-  # Without a unique tiebreaker ClickHouse can reshuffle tied rows between
-  # pages, which surfaces as the same test case appearing on multiple pages.
-  defp with_stable_order(attrs) do
-    order_by = Map.get(attrs, :order_by, [:last_ran_at])
-    order_directions = Map.get(attrs, :order_directions, [:desc])
-
-    if :id in order_by do
-      attrs
-    else
-      attrs
-      |> Map.put(:order_by, order_by ++ [:id])
-      |> Map.put(:order_directions, order_directions ++ [:asc])
-    end
+    Tuist.ClickHouseFlop.validate_and_run!(base_query, attrs, for: TestCase)
   end
 
   @doc """
