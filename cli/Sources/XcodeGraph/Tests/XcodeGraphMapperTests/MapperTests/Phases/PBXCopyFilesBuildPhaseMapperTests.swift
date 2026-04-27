@@ -3,7 +3,6 @@ import XcodeGraph
 import XcodeProj
 @testable import XcodeGraphMapper
 
-@Suite
 struct PBXCopyFilesBuildPhaseMapperTests {
     @Test("Maps copy files actions, verifying code-sign-on-copy attributes")
     func mapCopyFiles() async throws {
@@ -60,7 +59,7 @@ struct PBXCopyFilesBuildPhaseMapperTests {
 
         let fileAction = try #require(action.files.first)
         #expect(fileAction.codeSignOnCopy == true)
-        #expect(fileAction.path.basename == "MyLibrary.dylib")
+        #expect(fileAction.path?.basename == "MyLibrary.dylib")
     }
 
     @Test("Maps copy files actions with a synchronized group")

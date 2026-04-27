@@ -148,4 +148,29 @@ final class CopyFilesContentHasherTests: TuistUnitTestCase {
             ]
         ))
     }
+
+    func test_hash_buildProduct_isDeterministicAcrossRuns() async throws {
+        // Given
+        let copyFilesAction = CopyFilesAction(
+            name: "Embed Login Items",
+            destination: .wrapper,
+            subpath: "Contents/Library/LoginItems",
+            files: [
+                CopyFileElement.buildProduct(
+                    name: "LoginItemHelper",
+                    condition: .when(Set([.macos])),
+                    codeSignOnCopy: true
+                ),
+            ]
+        )
+        var results: Set<String> = Set()
+
+        // When
+        for _ in 0 ... 100 {
+            results.insert(try await subject.hash(identifier: "copyFilesActions", copyFiles: [copyFilesAction]).hash)
+        }
+
+        // Then
+        XCTAssertEqual(results.count, 1)
+    }
 }
