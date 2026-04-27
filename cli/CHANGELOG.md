@@ -1,7 +1,18 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.187.0<!-- RELEASE NOTES START -->
+## What's Changed in 4.188.3<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* restore [Path] overload of TestAction.testPlans as deprecated by [@fortmarek](https://github.com/fortmarek) in [#10488](https://github.com/tuist/tuist/pull/10488)
+* sanitize target name in generated Obj-C bundle accessor identifiers by [@pepicrft](https://github.com/pepicrft) in [#10482](https://github.com/tuist/tuist/pull/10482)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.188.2...4.188.3
+
+## What's Changed in 4.188.2<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
 
@@ -11,13 +22,14 @@ All notable changes to this project will be documented in this file.
 * add --inspect-mode off to skip result bundle upload by [@fortmarek](https://github.com/fortmarek) in [#10447](https://github.com/tuist/tuist/pull/10447)
 ### 🐛 Bug Fixes
 
+* upload build run when -derivedDataPath is passed via passthrough by [@fortmarek](https://github.com/fortmarek) in [#10478](https://github.com/tuist/tuist/pull/10478)
 * include source filename in selective testing hash by [@fortmarek](https://github.com/fortmarek) in [#10475](https://github.com/tuist/tuist/pull/10475)
 * preserve bundle directory in AppleArchive uploads by [@fortmarek](https://github.com/fortmarek) in [#10460](https://github.com/tuist/tuist/pull/10460)
 * handle buildable-folder xcstrings stale analysis by [@pepicrft](https://github.com/pepicrft) in [#10445](https://github.com/tuist/tuist/pull/10445)
 
 
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.186.2...4.187.0
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.186.2...4.188.2
 
 ## What's Changed in 4.186.2<!-- RELEASE NOTES START -->
 
