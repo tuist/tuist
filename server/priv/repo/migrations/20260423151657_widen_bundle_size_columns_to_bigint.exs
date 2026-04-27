@@ -33,7 +33,11 @@ defmodule Tuist.Repo.Migrations.WidenBundleSizeColumnsToBigint do
     else
       shadow = "#{col}_bigint"
 
-      execute "ALTER TABLE #{table} ADD COLUMN IF NOT EXISTS #{shadow} bigint"
+      # `execute` queues DDL through the migration runner; we mix raw
+      # `repo().query!` calls in the backfill, so go direct here too —
+      # otherwise the ADD COLUMN hasn't actually run when backfill looks
+      # for the shadow column.
+      repo().query!("ALTER TABLE #{table} ADD COLUMN IF NOT EXISTS #{shadow} bigint")
 
       backfill(table, col, shadow)
 
@@ -59,8 +63,9 @@ defmodule Tuist.Repo.Migrations.WidenBundleSizeColumnsToBigint do
     end
   end
 
-  # UUIDv7 sentinel: lexicographically less than any real id.
-  @uuid_zero "00000000-0000-0000-0000-000000000000"
+  # 16 zero bytes: lexicographically less than any real UUID. Postgrex's
+  # uuid type wants the raw binary, not the hyphenated string form.
+  @uuid_zero <<0::128>>
 
   defp backfill(table, col, shadow, last_id \\ @uuid_zero) do
     page = """
