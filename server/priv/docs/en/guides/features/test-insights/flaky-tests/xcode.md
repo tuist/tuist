@@ -56,13 +56,21 @@ You can also manually mark or unmark tests as flaky from the test case detail pa
 
 ## Quarantining flaky tests {#quarantining}
 
-Quarantining isolates a flaky test so it doesn't block CI while you fix it. A quarantined test is in one of two modes:
+Quarantining isolates a flaky test so it doesn't block CI while you fix it. A quarantined test is in one of two modes — **Muted** or **Skipped** — that differ in whether the test runs at all and whether you still get signal from it:
 
-- **Muted** — the test still runs, but its failure is masked. Use this when you want to keep watching the test (results stay in the run, attached to the flaky-tests dashboard) without breaking the build.
-- **Skipped** — the test is excluded from execution entirely via xcodebuild's `-skip-testing` flag. Use this when the test is broken, slow, or persistently flaky and you don't want it to run at all.
+|                              | **Muted**                                            | **Skipped**                                |
+| ---------------------------- | ---------------------------------------------------- | ------------------------------------------ |
+| Does the test run?           | Yes                                                  | No — passed to xcodebuild as `-skip-testing` |
+| Does a failure fail CI?      | No — `tuist test` masks the failure                  | N/A, the test never runs                   |
+| Does it still count as flaky? | Yes — failures still feed the flaky-tests detector  | No — there are no new results              |
+| Test duration on CI          | Same as before                                       | Zero (the test is skipped at scheduling)   |
+
+**Pick Muted when** you want to keep an eye on the test — see if it stabilizes, see when it stops being flaky, see how often it actually fails — without that failure breaking the build. Muted is the right default for a test you're actively investigating.
+
+**Pick Skipped when** the test is broken, slow, or so persistently flaky that running it is just wasted CI minutes and noise. Skipped tests don't produce results, so they drop off your flaky-tests dashboard until you re-enable them.
 
 > [!IMPORTANT]
-> Unless you're using `tuist test`, neither mode is applied automatically: you have to wire up `-skip-testing` for skipped tests yourself when calling xcodebuild directly. Muted tests rely on `tuist test`'s post-run masking, so they only behave as "muted" under `tuist test` or `tuist xcodebuild test`.
+> Outside `tuist test` / `tuist xcodebuild test`, neither mode is applied automatically. Failure masking for Muted only happens when you go through those commands, and `-skip-testing` for Skipped has to be wired up explicitly when invoking xcodebuild directly — see [With xcodebuild directly](#with-xcodebuild-directly) below.
 
 ### Setting the mode {#setting-the-mode}
 

@@ -65,28 +65,28 @@ You can also manually mark or unmark tests as flaky from the test case detail pa
 
 ## Quarantining flaky tests {#quarantining}
 
-Quarantining allows you to isolate flaky tests so they don't block your CI pipeline while you work on fixing them. When quarantine is enabled, the Tuist Gradle plugin automatically fetches quarantined tests from the server before each test task and excludes them using Gradle's `excludeTestsMatching` filter.
+Quarantining isolates a flaky test so it doesn't block CI while you fix it. A quarantined test is in one of two modes — **Muted** or **Skipped** — that differ in whether the test runs at all and whether you still get signal from it:
 
-### Automatic quarantine
+|                                | **Muted**                                                                                   | **Skipped**                                        |
+| ------------------------------ | ------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| Does the test run?             | Yes                                                                                         | No — excluded via Gradle's `excludeTestsMatching`  |
+| Does a failure fail the build? | No — the plugin sets `ignoreFailures = true` and only re-fails on non-quarantined failures | N/A, the test never runs                           |
+| Does it still count as flaky?  | Yes — failures still feed the flaky-tests detector                                          | No — there are no new results                      |
+| Test duration on CI            | Same as before                                                                              | Zero (the test is filtered out)                    |
 
-When enabled in your project's Automations settings, tests are automatically quarantined when they're marked as flaky. This ensures that newly detected flaky tests are immediately isolated without manual intervention.
+**Pick Muted when** you want to keep watching the test — see if it stabilizes, see when it stops being flaky, see how often it actually fails — without that failure breaking the build.
 
-To enable automatic quarantine:
-1. Go to your project settings
-2. Navigate to the **Automations** tab
-3. Enable **Auto-quarantine flaky tests**
+**Pick Skipped when** the test is broken, slow, or so persistently flaky that running it is just wasted CI minutes and noise. Skipped tests don't produce results, so they drop off your flaky-tests dashboard until you re-enable them.
 
-### Manual quarantine
+### Setting the mode {#setting-the-mode}
 
-You can also manually quarantine or unquarantine tests from the test case detail page using the **Quarantine** and **Unquarantine** buttons. This is useful when:
-- You want to quarantine a test before it's automatically detected as flaky
-- You want to unquarantine a test after fixing the underlying issue
+Open a test case from the Test Cases page and use the **State** dropdown to flip between **Enabled**, **Muted**, and **Skipped**. The Quarantined Tests page lists every quarantined test alongside its mode, with a Mode filter to narrow down to one or the other. Automations can drive the same transitions — for example, auto-Mute a test once it crosses a flakiness threshold and post a message to Slack.
 
-### Skipping quarantined tests {#skipping-quarantined-tests}
+### Enabling quarantine {#enabling-quarantine}
 
-Quarantine is **automatically enabled on CI** (when the `CI` environment variable is set) and disabled for local builds. The plugin fetches the list of quarantined tests from the Tuist server and excludes them before tests run.
+Quarantine is **automatically enabled on CI** (when the `CI` environment variable is set) and disabled for local builds. The plugin fetches the list of quarantined tests from the Tuist server before each test task; muted tests run normally and have their failures masked, skipped tests are filtered out.
 
-You can explicitly control this behavior in your `settings.gradle.kts`:
+You can explicitly control this in your `settings.gradle.kts`:
 
 ```kotlin
 tuist {
