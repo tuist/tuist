@@ -163,6 +163,10 @@ defmodule TuistWeb.Router do
     plug TuistWeb.WarningsHeaderPlug
   end
 
+  pipeline :api_catalog do
+    plug :accepts, ["linkset"]
+  end
+
   pipeline :mcp do
     plug TuistWeb.AuthenticationPlug, :load_authenticated_subject
     plug TuistWeb.AuthenticationPlug, {:require_authentication, response_type: :mcp}
@@ -385,7 +389,7 @@ defmodule TuistWeb.Router do
   end
 
   scope "/.well-known", TuistWeb do
-    pipe_through [:open_api]
+    pipe_through [:open_api, :api_catalog]
 
     get "/api-catalog", WellKnownController, :api_catalog, metadata: %{robots_txt: false}
     get "/agent-skills/index.json", WellKnownController, :agent_skills_index, metadata: %{robots_txt: false}
