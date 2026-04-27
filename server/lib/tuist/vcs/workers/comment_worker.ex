@@ -7,19 +7,15 @@ defmodule Tuist.VCS.Workers.CommentWorker do
   """
   use Oban.Worker
 
+  use Phoenix.VerifiedRoutes,
+    endpoint: TuistWeb.Endpoint,
+    router: TuistWeb.Router
+
   import Ecto.Query
 
-  alias Tuist.Environment
   alias Tuist.Projects
   alias Tuist.Repo
   alias Tuist.VCS
-
-  @preview_url_path "/:account_name/:project_name/previews/:preview_id"
-  @preview_qr_code_url_path "/:account_name/:project_name/previews/:preview_id/qr-code.png"
-  @command_run_url_path "/:account_name/:project_name/runs/:command_event_id"
-  @test_run_url_path "/:account_name/:project_name/tests/test-runs/:test_run_id"
-  @bundle_url_path "/:account_name/:project_name/bundles/:bundle_id"
-  @build_url_path "/:account_name/:project_name/builds/build-runs/:build_id"
 
   @impl Oban.Worker
   def perform(%Oban.Job{
@@ -38,22 +34,45 @@ defmodule Tuist.VCS.Workers.CommentWorker do
     cancel_competing_jobs(job_id, project_id, git_ref)
 
     project = Projects.get_project_by_id(project_id)
-    base_url = Environment.app_url()
 
     VCS.post_vcs_pull_request_comment(%{
       git_commit_sha: git_commit_sha,
       git_ref: git_ref,
       git_remote_url_origin: git_remote_url_origin,
       project: project,
-      preview_url: &build_url(base_url <> @preview_url_path, &1),
-      preview_qr_code_url: &build_url(base_url <> @preview_qr_code_url_path, &1),
-      command_run_url: &build_url(base_url <> @command_run_url_path, &1),
-      test_run_url: &build_url(base_url <> @test_run_url_path, &1),
-      bundle_url: &build_url(base_url <> @bundle_url_path, &1),
-      build_url: &build_url(base_url <> @build_url_path, &1)
+      preview_url: &preview_url/1,
+      preview_qr_code_url: &preview_qr_code_url/1,
+      command_run_url: &command_run_url/1,
+      test_run_url: &test_run_url/1,
+      bundle_url: &bundle_url/1,
+      build_url: &build_url/1
     })
 
     :ok
+  end
+
+  defp preview_url(%{project: %{account: account} = project, preview: preview}) do
+    url(~p"/#{account.name}/#{project.name}/previews/#{preview.id}")
+  end
+
+  defp preview_qr_code_url(%{project: %{account: account} = project, preview: preview}) do
+    url(~p"/#{account.name}/#{project.name}/previews/#{preview.id}/qr-code.png")
+  end
+
+  defp command_run_url(%{project: %{account: account} = project, command_event: command_event}) do
+    url(~p"/#{account.name}/#{project.name}/runs/#{command_event.id}")
+  end
+
+  defp test_run_url(%{project: %{account: account} = project, test_run: test_run}) do
+    url(~p"/#{account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
+  end
+
+  defp bundle_url(%{project: %{account: account} = project, bundle: bundle}) do
+    url(~p"/#{account.name}/#{project.name}/bundles/#{bundle.id}")
+  end
+
+  defp build_url(%{project: %{account: account} = project, build: build}) do
+    url(~p"/#{account.name}/#{project.name}/builds/build-runs/#{build.id}")
   end
 
   defp cancel_competing_jobs(current_job_id, project_id, git_ref) do
@@ -72,23 +91,5 @@ defmodule Tuist.VCS.Workers.CommentWorker do
     Enum.each(competing_jobs, fn job ->
       Oban.cancel_job(job.id)
     end)
-  end
-
-  defp build_url(template, data) do
-    template
-    |> String.replace(":account_name", data.project.account.name)
-    |> String.replace(":project_name", data.project.name)
-    |> replace_if_present(data, :preview, ":preview_id")
-    |> replace_if_present(data, :command_event, ":command_event_id")
-    |> replace_if_present(data, :test_run, ":test_run_id")
-    |> replace_if_present(data, :bundle, ":bundle_id")
-    |> replace_if_present(data, :build, ":build_id")
-  end
-
-  defp replace_if_present(template, data, key, placeholder) do
-    case Map.get(data, key) do
-      nil -> String.replace(template, placeholder, "")
-      value -> String.replace(template, placeholder, to_string(Map.get(value, :id)))
-    end
   end
 end
