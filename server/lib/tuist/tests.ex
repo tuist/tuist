@@ -1577,52 +1577,44 @@ defmodule Tuist.Tests do
   end
 
   defp build_flaky_test_cases_query(project_id, search_term, opts) do
-    currently_flaky_subquery = currently_flaky_test_case_ids_subquery(project_id, opts)
-    stats_subquery = build_flaky_stats_subquery(project_id, opts)
-
     base_query =
-      if stats_filter?(opts) do
-        from(test_case in TestCase,
-          hints: ["FINAL"],
-          inner_join: flaky in subquery(currently_flaky_subquery),
-          on: test_case.id == flaky.test_case_id,
-          inner_join: stats in subquery(stats_subquery),
-          on: test_case.id == stats.test_case_id,
-          where: test_case.project_id == ^project_id,
-          select: %{
-            id: test_case.id,
-            name: test_case.name,
-            module_name: test_case.module_name,
-            suite_name: test_case.suite_name,
-            flaky_runs_count: stats.flaky_runs_count,
-            last_flaky_at: stats.last_flaky_at,
-            last_flaky_run_id: stats.last_flaky_run_id
-          }
-        )
-      else
-        from(test_case in TestCase,
-          hints: ["FINAL"],
-          inner_join: flaky in subquery(currently_flaky_subquery),
-          on: test_case.id == flaky.test_case_id,
-          left_join: stats in subquery(stats_subquery),
-          on: test_case.id == stats.test_case_id,
-          where: test_case.project_id == ^project_id,
-          select: %{
-            id: test_case.id,
-            name: test_case.name,
-            module_name: test_case.module_name,
-            suite_name: test_case.suite_name,
-            flaky_runs_count: coalesce(stats.flaky_runs_count, 0),
-            last_flaky_at: stats.last_flaky_at,
-            last_flaky_run_id: stats.last_flaky_run_id
-          }
-        )
-      end
+      from(test_case in TestCase,
+        hints: ["FINAL"],
+        inner_join: flaky in subquery(currently_flaky_test_case_ids_subquery(project_id, opts)),
+        on: test_case.id == flaky.test_case_id,
+        inner_join: stats in subquery(flaky_stats_subquery(project_id, opts)),
+        on: test_case.id == stats.test_case_id,
+        where: test_case.project_id == ^project_id,
+        select: %{
+          id: test_case.id,
+          name: test_case.name,
+          module_name: test_case.module_name,
+          suite_name: test_case.suite_name,
+          flaky_runs_count: stats.flaky_runs_count,
+          last_flaky_at: stats.last_flaky_at,
+          last_flaky_run_id: stats.last_flaky_run_id
+        }
+      )
 
     apply_name_search(base_query, search_term)
   end
 
-  defp build_flaky_stats_subquery(project_id, opts) do
+  defp build_flaky_test_cases_count_query(project_id, search_term, opts) do
+    base_query =
+      from(test_case in TestCase,
+        hints: ["FINAL"],
+        inner_join: flaky in subquery(currently_flaky_test_case_ids_subquery(project_id, opts)),
+        on: test_case.id == flaky.test_case_id,
+        inner_join: stats in subquery(flaky_stats_subquery(project_id, opts)),
+        on: test_case.id == stats.test_case_id,
+        where: test_case.project_id == ^project_id,
+        select: count(test_case.id)
+      )
+
+    apply_name_search(base_query, search_term)
+  end
+
+  defp flaky_stats_subquery(project_id, opts) do
     from(flaky_run in FlakyTestCaseRun,
       where: flaky_run.project_id == ^project_id,
       group_by: flaky_run.test_case_id,
@@ -1635,48 +1627,6 @@ defmodule Tuist.Tests do
     )
     |> apply_flaky_time_filter(opts)
     |> apply_flaky_environment_filter(opts)
-  end
-
-  defp build_flaky_test_cases_count_query(project_id, search_term, opts) do
-    currently_flaky_subquery = currently_flaky_test_case_ids_subquery(project_id, opts)
-
-    base_query =
-      if stats_filter?(opts) do
-        stats_id_subquery =
-          from(flaky_run in FlakyTestCaseRun,
-            where: flaky_run.project_id == ^project_id,
-            group_by: flaky_run.test_case_id,
-            select: %{test_case_id: flaky_run.test_case_id}
-          )
-          |> apply_flaky_time_filter(opts)
-          |> apply_flaky_environment_filter(opts)
-
-        from(test_case in TestCase,
-          hints: ["FINAL"],
-          inner_join: flaky in subquery(currently_flaky_subquery),
-          on: test_case.id == flaky.test_case_id,
-          inner_join: stats in subquery(stats_id_subquery),
-          on: test_case.id == stats.test_case_id,
-          where: test_case.project_id == ^project_id,
-          select: count(test_case.id)
-        )
-      else
-        from(test_case in TestCase,
-          hints: ["FINAL"],
-          inner_join: flaky in subquery(currently_flaky_subquery),
-          on: test_case.id == flaky.test_case_id,
-          where: test_case.project_id == ^project_id,
-          select: count(test_case.id)
-        )
-      end
-
-    apply_name_search(base_query, search_term)
-  end
-
-  defp stats_filter?(opts) do
-    not is_nil(Keyword.get(opts, :start_datetime)) or
-      not is_nil(Keyword.get(opts, :end_datetime)) or
-      not is_nil(Keyword.get(opts, :is_ci))
   end
 
   defp currently_flaky_test_case_ids_subquery(project_id, opts) do

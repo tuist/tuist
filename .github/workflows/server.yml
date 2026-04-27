@@ -187,11 +187,6 @@ jobs:
           install_args: "erlang elixir github:ClickHouse/ClickHouse"
           cache: "false"
           working_directory: server
-      # Cache key is bumped (mix-test-v2) to force a one-time refresh.
-      # `actions/cache@v4` only saves on cache miss, so a previously-saved
-      # cache that lacked `_build/test` would keep being restored forever
-      # and recompile every run. The MIX_ENV-scoped key prevents a dev-env
-      # cache from contaminating the test job.
       - name: Restore Mix Cache
         uses: actions/cache@v4
         with:
@@ -203,8 +198,6 @@ jobs:
             mix-test-v2-
       - name: Install dependencies
         run: mix deps.get
-      # Compile in its own step so its time is visible in the job timeline
-      # and so `mix ecto.create` / `mix test` don't trigger a fresh compile.
       - name: Compile
         run: mix compile --warnings-as-errors
       - name: Start ClickHouse

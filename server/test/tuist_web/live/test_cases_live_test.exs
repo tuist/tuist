@@ -45,7 +45,10 @@ defmodule TuistWeb.TestCasesLiveTest do
       project: project
     } do
       # When
-      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-cases")
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-cases")
+
+      render_async(lv)
 
       # Then
       assert has_element?(lv, "[data-part='test-cases']")
@@ -57,9 +60,6 @@ defmodule TuistWeb.TestCasesLiveTest do
       organization: organization,
       project: project
     } do
-      # Given - create test run with test modules/cases via the fixture
-      # so all ClickHouse buffers are flushed synchronously. Backdate ran_at
-      # so it falls inside the page's second-truncated date window.
       {:ok, _test_run} =
         RunsFixtures.test_fixture(
           project_id: project.id,
@@ -71,14 +71,21 @@ defmodule TuistWeb.TestCasesLiveTest do
               status: "success",
               duration: 100,
               test_cases: [
-                %{name: "testExample", test_suite_name: "TestSuite", status: "success", duration: 100}
+                %{
+                  name: "testExample",
+                  test_suite_name: "TestSuite",
+                  status: "success",
+                  duration: 100
+                }
               ]
             }
           ]
         )
 
       # When
-      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-cases")
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-cases")
+
       render_async(lv)
 
       # Then
@@ -91,7 +98,8 @@ defmodule TuistWeb.TestCasesLiveTest do
       project: project
     } do
       # When
-      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-cases")
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-cases")
 
       # Then
       assert has_element?(lv, "[data-part='analytics']")
@@ -126,7 +134,10 @@ defmodule TuistWeb.TestCasesLiveTest do
     } do
       # When - navigate directly with date range param
       {:ok, lv, _html} =
-        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-cases?analytics_date_range=last_30_days")
+        live(
+          conn,
+          ~p"/#{organization.account.name}/#{project.name}/tests/test-cases?analytics_date_range=last_30_days"
+        )
 
       # Then - verify the page loads with the date range param
       assert has_element?(lv, "[data-part='analytics']")
@@ -139,7 +150,10 @@ defmodule TuistWeb.TestCasesLiveTest do
     } do
       # When - navigate with an invalid sort_by parameter (ran_at instead of last_ran_at)
       {:ok, lv, _html} =
-        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-cases?sort_by=ran_at")
+        live(
+          conn,
+          ~p"/#{organization.account.name}/#{project.name}/tests/test-cases?sort_by=ran_at"
+        )
 
       # Then - page should load successfully with default sort
       assert has_element?(lv, "[data-part='test-cases']")
@@ -159,5 +173,4 @@ defmodule TuistWeb.TestCasesLiveTest do
       assert has_element?(lv, "#widget-test-cases-count")
     end
   end
-
 end

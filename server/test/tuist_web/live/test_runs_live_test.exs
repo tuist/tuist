@@ -29,10 +29,6 @@ defmodule TuistWeb.TestRunsLiveTest do
       organization: organization,
       project: project
     } do
-      # Given - backdate ran_at so the runs land safely inside the page's
-      # second-truncated date window (the page's end_datetime is floored to
-      # the second by DatePicker, so a freshly-stamped ran_at can fall just
-      # past it under fast scheduling).
       ran_at = NaiveDateTime.add(NaiveDateTime.utc_now(), -60)
 
       {:ok, _test_run1} =
@@ -52,7 +48,8 @@ defmodule TuistWeb.TestRunsLiveTest do
         )
 
       # When
-      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs")
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs")
 
       # Then
       assert has_element?(lv, "[data-part='test-runs-table']")
