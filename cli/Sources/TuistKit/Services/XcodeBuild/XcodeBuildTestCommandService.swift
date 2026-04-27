@@ -332,7 +332,9 @@ struct XcodeBuildTestCommandService {
         }
         return try? await rootDirectoryLocator.locate(from: workingDirectory)
     }
+}
 
+extension XcodeBuildTestCommandService {
     private func uploadResultBundleIfNeeded(
         testSummary: TestSummary?,
         resultBundlePath: AbsolutePath?,
@@ -378,9 +380,7 @@ struct XcodeBuildTestCommandService {
             AlertController.current.warning(.alert("Failed to upload test results: \(error.localizedDescription)"))
         }
     }
-}
 
-extension XcodeBuildTestCommandService {
     private func loadQuarantinedTests(
         config: Tuist,
         skipQuarantine: Bool
