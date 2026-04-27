@@ -19,7 +19,12 @@ struct InspectAcceptanceTests {
     /// build run reaches a terminal status. `xcodebuild build` already exercises the same
     /// upload path that `tuist inspect build` uses (via `UploadBuildRunService`), so this
     /// test catches regressions in either entry point.
+    ///
+    /// Disabled for now: processing on canary takes >30s in CI, which we don't want to
+    /// paper over with longer timeouts. Re-enable once canary's build processor returns
+    /// terminal status quickly enough that the polling window can stay tight.
     @Test(
+        .disabled("Canary build processor latency exceeds the polling window — see PR #10472."),
         .inTemporaryDirectory,
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
         .withMockedNoora,
@@ -77,7 +82,12 @@ struct InspectAcceptanceTests {
     /// xcresult upload path that `tuist inspect test` uses (via
     /// `AnalyticsArtifactUploadService.uploadResultBundle`), so this test catches
     /// regressions in either entry point.
+    ///
+    /// Disabled for now: processing on canary takes >30s in CI, which we don't want to
+    /// paper over with longer timeouts. Re-enable once canary's xcresult processor returns
+    /// terminal status quickly enough that the polling window can stay tight.
     @Test(
+        .disabled("Canary xcresult processor latency exceeds the polling window — see PR #10472."),
         .inTemporaryDirectory,
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
         .withMockedNoora,
