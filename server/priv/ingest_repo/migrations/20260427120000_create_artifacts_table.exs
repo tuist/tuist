@@ -5,8 +5,7 @@ defmodule Tuist.IngestRepo.Migrations.CreateArtifactsTable do
     create table(:artifacts,
              primary_key: false,
              engine: "MergeTree",
-             options:
-               "PARTITION BY toYYYYMM(inserted_at) ORDER BY (bundle_id, path, id)"
+             options: "PARTITION BY toYYYYMM(inserted_at) ORDER BY (bundle_id, path, id)"
            ) do
       add :id, :uuid, null: false
       add :bundle_id, :uuid, null: false
