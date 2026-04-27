@@ -116,6 +116,32 @@ COPY xcode_processor/lib /xcode_processor/lib
 RUN mix deps.compile
 
 # ========================================
+# Stage: OG image generator
+# Renders marketing/docs Open Graph images via headless Chromium. Built in
+# parallel with the main builder (both branch from deps-builder) so its long
+# Chromium-driven runtime overlaps with mix compile + release rather than
+# stacking on top of them.
+# ========================================
+FROM deps-builder AS og-images
+
+# Chromium and font packages only this stage needs. Sits before the source
+# COPY so the apt layer stays cached as long as deps-builder is cached, even
+# when server/lib changes.
+RUN apt-get update -y && \
+  apt-get install -y --no-install-recommends chromium fonts-noto-cjk fonts-noto-core && \
+  apt-get clean && rm -rf /var/lib/apt/lists/*
+
+COPY server/priv priv
+COPY skills/skills priv/static/skills
+COPY examples/xcode /examples/xcode
+COPY server/lib lib
+
+RUN mix compile
+
+RUN mix docs.gen.og_images
+RUN mix marketing.gen.og_images
+
+# ========================================
 # Stage 3: Main application builder
 # ========================================
 FROM deps-builder AS builder
@@ -145,32 +171,6 @@ COPY --from=og-images /app/_build/${MIX_ENV}/lib/tuist/priv/static/marketing/ima
 COPY --from=og-images /app/_build/${MIX_ENV}/lib/tuist/priv/docs/images/og/generated /app/_build/${MIX_ENV}/lib/tuist/priv/docs/images/og/generated
 
 RUN mix release
-
-# ========================================
-# Stage: OG image generator
-# Renders marketing/docs Open Graph images via headless Chromium. Built in
-# parallel with the main builder (both branch from deps-builder) so its long
-# Chromium-driven runtime overlaps with mix compile + release rather than
-# stacking on top of them.
-# ========================================
-FROM deps-builder AS og-images
-
-# Chromium and font packages only this stage needs. Sits before the source
-# COPY so the apt layer stays cached as long as deps-builder is cached, even
-# when server/lib changes.
-RUN apt-get update -y && \
-  apt-get install -y --no-install-recommends chromium fonts-noto-cjk fonts-noto-core && \
-  apt-get clean && rm -rf /var/lib/apt/lists/*
-
-COPY server/priv priv
-COPY skills/skills priv/static/skills
-COPY examples/xcode /examples/xcode
-COPY server/lib lib
-
-RUN mix compile
-
-RUN mix docs.gen.og_images
-RUN mix marketing.gen.og_images
 
 # ========================================
 # Stage: NIF bridge builder (for selfhosted)
