@@ -315,19 +315,6 @@ defmodule Tuist.Tests.Analytics do
     DateTime.add(datetime, 3599, :second)
   end
 
-  defp quarantined_count_at(project_id, datetime) do
-    inner =
-      from(tc in TestCase,
-        where: tc.project_id == ^project_id,
-        where: tc.inserted_at <= ^datetime,
-        group_by: tc.id,
-        having: fragment("argMax(?, ?) = 'muted'", tc.state, tc.inserted_at),
-        select: tc.id
-      )
-
-    ClickHouseRepo.one(from(tc in subquery(inner), select: count())) || 0
-  end
-
   @scatter_data_limit 10_000
 
   def test_run_duration_scatter_data(project_id, opts \\ []) do
