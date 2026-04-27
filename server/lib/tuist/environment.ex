@@ -571,6 +571,10 @@ defmodule Tuist.Environment do
     truthy?(System.get_env("TUIST_PROCESSOR_MODE", "0"))
   end
 
+  def delegate_process_build? do
+    truthy?(System.get_env("TUIST_DELEGATE_PROCESS_BUILD", "0"))
+  end
+
   def process_build_queue_concurrency do
     case System.get_env("TUIST_PROCESS_BUILD_QUEUE_CONCURRENCY") do
       value when is_binary(value) and value != "" -> String.to_integer(value)

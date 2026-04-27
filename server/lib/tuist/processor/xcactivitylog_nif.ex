@@ -15,9 +15,19 @@ defmodule Tuist.Processor.XCActivityLogNIF do
     nif_path = ~c"#{:code.priv_dir(:tuist)}/native/xcactivitylog_nif"
 
     case :erlang.load_nif(nif_path, 0) do
-      :ok -> :ok
-      {:error, {:reload, _}} -> :ok
-      {:error, _reason} -> :ok
+      :ok ->
+        :ok
+
+      {:error, {:reload, _}} ->
+        :ok
+
+      {:error, reason} ->
+        # Log but don't raise: self-hosted images that intentionally ship
+        # without the Swift NIF would otherwise refuse to start. Calls into
+        # `parse/4` on those images crash with `:nif_not_loaded` at runtime,
+        # which is a clearer failure mode than a boot loop.
+        :logger.error("Failed to load xcactivitylog_nif: #{inspect(reason)} (looked at: #{nif_path})")
+        :ok
     end
   end
 

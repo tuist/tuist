@@ -396,19 +396,25 @@ otel_endpoint = Tuist.Environment.get([:otel, :exporter, :otlp, :endpoint])
 # Oban.
 #
 # Processor pods (TUIST_PROCESSOR_MODE=true) only consume :process_build so
-# the CPU-heavy xcactivitylog parse is isolated from the hot web path. Every
-# other pod runs the full queue set but enqueues :process_build jobs for the
-# processor fleet to claim via SKIP LOCKED — a busy processor doesn't pull
-# more work, so jobs flow to whichever replica has headroom.
+# the CPU-heavy xcactivitylog parse is isolated from the hot web path. The
+# server pod runs every other queue and — when TUIST_DELEGATE_PROCESS_BUILD
+# is set — skips :process_build entirely so jobs land exclusively on the
+# processor fleet. Self-hosted installs without a dedicated processor leave
+# that flag unset; the server runs all queues including :process_build.
 oban_queues =
-  if Tuist.Environment.processor_mode?() do
-    [process_build: Tuist.Environment.process_build_queue_concurrency()]
-  else
-    [
-      default: 10,
-      process_build: Tuist.Environment.process_build_queue_concurrency(),
-      process_xcresult: 2
-    ]
+  cond do
+    Tuist.Environment.processor_mode?() ->
+      [process_build: Tuist.Environment.process_build_queue_concurrency()]
+
+    Tuist.Environment.delegate_process_build?() ->
+      [default: 10, process_xcresult: 2]
+
+    true ->
+      [
+        default: 10,
+        process_build: Tuist.Environment.process_build_queue_concurrency(),
+        process_xcresult: 2
+      ]
   end
 
 config :tuist, Oban,

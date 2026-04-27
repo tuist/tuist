@@ -85,6 +85,15 @@ spec:
               value: {{ .Values.server.skipEmailConfirmation | ternary "1" "0" | quote }}
             - name: TUIST_SELF_HOSTING_DEVELOPMENT_MODE
               value: {{ .Values.server.license.selfHostingDevelopmentMode | ternary "1" "0" | quote }}
+            {{- if .Values.processor.enabled }}
+            # Hand off the :process_build queue entirely to processor pods —
+            # without this the server's local Oban worker (default concurrency
+            # 2) races the dedicated processor and steals jobs the processor
+            # was meant to do, defeating the whole point of a separate parse
+            # fleet.
+            - name: TUIST_DELEGATE_PROCESS_BUILD
+              value: "1"
+            {{- end }}
             {{- if .Values.server.license.key }}
             - name: TUIST_LICENSE_KEY
               valueFrom:
