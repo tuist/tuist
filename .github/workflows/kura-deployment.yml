@@ -1,0 +1,187 @@
+name: Kura Deployment
+
+# Manual rollout of a per-(account, cluster) Kura mesh into the
+# corresponding backing Kubernetes cluster. Wraps
+# `kura/ops/helm/kura/rollout.sh`, which performs a partition-staged
+# warm rollout and gates promotion on each pod's `/status/rollout`
+# (see PR #10446).
+#
+# A "cluster" here is one backing Kubernetes cluster — opaque ID like
+# `eu-1`, `us-east-1`. Multiple clusters can live in the same public
+# region (potentially on different providers) and coexist as
+# independent Kura meshes; accounts get one URL per cluster they want
+# to use.
+#
+# The mapping from cluster ID to its provider/location is in
+# `kura/ops/helm/kura/clusters.yaml`.
+#
+#   release    = kura-<account>-<cluster>
+#   namespace  = kura
+#   host       = <account>-<cluster>.kura.tuist.dev
+#   image      = ghcr.io/tuist/kura:<image_tag>
+#
+# Required GitHub Environment secrets (per cluster):
+#   KUBECONFIG - base64-encoded kubeconfig for that cluster.
+
+on:
+  workflow_dispatch:
+    inputs:
+      account:
+        description: Tuist account handle that owns the mesh
+        required: true
+        default: tuist
+        type: choice
+        options:
+          - tuist
+      cluster:
+        description: Backing cluster ID (resolved via kura/ops/helm/kura/clusters.yaml)
+        required: true
+        default: eu-1
+        type: choice
+        options:
+          - eu-1
+      image_tag:
+        description: Kura image tag to deploy (e.g. 0.5.2). Required.
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  CHART_PATH: kura/ops/helm/kura
+  ROLLOUT_SCRIPT: kura/ops/helm/kura/rollout.sh
+  CLUSTERS_FILE: kura/ops/helm/kura/clusters.yaml
+
+jobs:
+  deploy:
+    name: Roll out kura-${{ inputs.account }}-${{ inputs.cluster }}
+    runs-on: namespace-profile-default
+    environment:
+      name: kura-k8s-${{ inputs.cluster }}
+    concurrency:
+      group: kura-deploy-${{ inputs.account }}-${{ inputs.cluster }}
+      cancel-in-progress: false
+    timeout-minutes: 60
+    env:
+      KUBECONFIG: ${{ github.workspace }}/.kube/config
+      NAMESPACE: kura
+      RELEASE_NAME: kura-${{ inputs.account }}-${{ inputs.cluster }}
+      HOST: ${{ inputs.account }}-${{ inputs.cluster }}.kura.tuist.dev
+      VALUES_BASE: kura/ops/helm/kura/values-managed.yaml
+      VALUES_ACCOUNT: kura/ops/helm/kura/values-managed-account-${{ inputs.account }}.yaml
+      INSTANCE_VALUES: ${{ github.workspace }}/.kura-instance.yaml
+      IMAGE_TAG: ${{ inputs.image_tag }}
+      CLUSTER: ${{ inputs.cluster }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          install_args: "helm kubectl yq"
+          cache: "false"
+      - name: Resolve cluster metadata
+        id: cluster
+        # Reads provider/region for the chosen cluster from clusters.yaml.
+        # Failing here means the cluster ID is in the workflow's choice
+        # list but missing from clusters.yaml — a config bug.
+        run: |
+          provider="$(yq -r ".clusters.${CLUSTER}.provider" "$CLUSTERS_FILE")"
+          region="$(yq -r ".clusters.${CLUSTER}.region" "$CLUSTERS_FILE")"
+          if [[ -z "${provider}" || "${provider}" == "null" ]]; then
+            echo "Cluster '${CLUSTER}' is not registered in ${CLUSTERS_FILE}" >&2
+            exit 1
+          fi
+          if [[ -z "${region}" || "${region}" == "null" ]]; then
+            echo "Cluster '${CLUSTER}' has no region in ${CLUSTERS_FILE}" >&2
+            exit 1
+          fi
+          echo "provider=${provider}" >> "$GITHUB_OUTPUT"
+          echo "region=${region}" >> "$GITHUB_OUTPUT"
+          echo "values_provider=kura/ops/helm/kura/values-managed-provider-${provider}.yaml" >> "$GITHUB_OUTPUT"
+      - name: Verify overlays exist
+        env:
+          VALUES_PROVIDER: ${{ steps.cluster.outputs.values_provider }}
+        run: |
+          test -f "$VALUES_BASE"
+          test -f "$VALUES_PROVIDER"
+          test -f "$VALUES_ACCOUNT"
+      - name: Load kubeconfig
+        run: |
+          mkdir -p "$(dirname "$KUBECONFIG")"
+          echo "${{ secrets.KUBECONFIG }}" | base64 -d > "$KUBECONFIG"
+          chmod 600 "$KUBECONFIG"
+      - name: Generate per-instance values
+        # `config.region` is the public region from clusters.yaml so the
+        # node tags itself with the user-visible region in metrics and
+        # logs. fullnameOverride pins resource names to the release
+        # name; the topology selector matches the specific release so
+        # spread is enforced per-instance.
+        env:
+          REGION: ${{ steps.cluster.outputs.region }}
+        run: |
+          cat > "$INSTANCE_VALUES" <<EOF
+          fullnameOverride: ${RELEASE_NAME}
+          image:
+            tag: "${IMAGE_TAG}"
+          config:
+            region: "${REGION}"
+          ingress:
+            hosts:
+              - host: ${HOST}
+                paths:
+                  - path: /
+                    pathType: Prefix
+            tls:
+              - secretName: tuist-tls-cloudflare-origin-kura
+                hosts:
+                  - ${HOST}
+          topologySpreadConstraints:
+            - maxSkew: 1
+              topologyKey: kubernetes.io/hostname
+              whenUnsatisfiable: DoNotSchedule
+              labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: kura
+                  app.kubernetes.io/instance: ${RELEASE_NAME}
+          EOF
+          cat "$INSTANCE_VALUES"
+      - name: Ensure namespace
+        run: kubectl create namespace "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
+      - name: Warm rollout
+        # On first install the StatefulSet doesn't exist yet, so the
+        # partition loop in rollout.sh is a no-op and the initial
+        # `helm upgrade --install` brings up all replicas; the gate then
+        # confirms cluster-wide readiness. Subsequent runs perform the
+        # partition-staged warm rollout from PR #10446.
+        env:
+          VALUES_PROVIDER: ${{ steps.cluster.outputs.values_provider }}
+        run: |
+          chmod +x "$ROLLOUT_SCRIPT"
+          "$ROLLOUT_SCRIPT" "$RELEASE_NAME" "$NAMESPACE" \
+            -f "$VALUES_BASE" \
+            -f "$VALUES_PROVIDER" \
+            -f "$VALUES_ACCOUNT" \
+            -f "$INSTANCE_VALUES"
+      - name: Diagnostics on failure
+        if: failure()
+        run: |
+          set +e
+          echo "::group::helm history"
+          helm history "$RELEASE_NAME" -n "$NAMESPACE" --max 10 || true
+          echo "::endgroup::"
+          echo "::group::statefulset"
+          kubectl -n "$NAMESPACE" get statefulset "$RELEASE_NAME" -o yaml || true
+          echo "::endgroup::"
+          echo "::group::pods"
+          kubectl -n "$NAMESPACE" get pods -l app.kubernetes.io/instance="$RELEASE_NAME" -o wide || true
+          echo "::endgroup::"
+          echo "::group::events (last 100, sorted)"
+          kubectl -n "$NAMESPACE" get events --sort-by=.lastTimestamp 2>&1 | tail -100 || true
+          echo "::endgroup::"
+          echo "::group::rollout status (per pod)"
+          for pod in $(kubectl -n "$NAMESPACE" get pods -l app.kubernetes.io/instance="$RELEASE_NAME" -o name); do
+            echo "--- $pod ---"
+            kubectl -n "$NAMESPACE" exec "$pod" -c kura -- \
+              curl -fsS http://127.0.0.1:4000/status/rollout 2>&1 || true
+          done
+          echo "::endgroup::"

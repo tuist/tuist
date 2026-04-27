@@ -1,0 +1,5 @@
+# Account overlay: Tuist (the `tuist` account itself, our first Kura
+# tenant). Layered after the region overlay.
+
+config:
+  tenantId: tuist

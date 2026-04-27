@@ -1,0 +1,30 @@
+# Catalog of backing Kubernetes clusters that host Kura meshes.
+#
+# Each cluster has a stable opaque identifier that follows the
+# convention `<region>-<n>`. The region prefix communicates *where* the
+# cluster sits at the granularity accounts care about; the suffix is
+# our internal index, allowing multiple clusters per region (potentially
+# on different providers) to coexist behind separate public URLs.
+#
+# Region is the only field exposed to accounts (in URLs, metrics tags,
+# and `account_cache_endpoints` rows). Provider and location are
+# internal and may change if we move a cluster to a different provider —
+# the cluster ID and the public URL stay the same across that move.
+#
+# Adding a new cluster:
+# 1. Add an entry here with its region, provider, and location.
+# 2. Create `values-managed-provider-<provider>.yaml` if the provider is
+#    new.
+# 3. Add the cluster ID to the `cluster` choice list in
+#    `.github/workflows/kura-deployment.yml`.
+# 4. Provision the cluster and create the `kura-k8s-<cluster>` GitHub
+#    Environment with its KUBECONFIG secret.
+# 5. Provision DNS for `*.kura.tuist.dev` to that cluster's
+#    ingress-nginx public hostname (or pick a more specific wildcard if
+#    multiple clusters share the zone).
+
+clusters:
+  eu-1:
+    region: eu
+    provider: hetzner
+    location: fsn1
