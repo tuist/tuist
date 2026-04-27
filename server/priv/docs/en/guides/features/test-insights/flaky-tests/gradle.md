@@ -70,8 +70,6 @@ Quarantining isolates a flaky test so it doesn't block CI while you fix it. A qu
 - **Muted**: the test still runs, but the plugin sets `ignoreFailures = true` and only re-fails the build on non-quarantined failures. Failures still feed the flaky-tests detector, so you can keep watching the test without breaking the build. Pick this for a test you're actively investigating.
 - **Skipped**: the plugin filters the test out via Gradle's `excludeTestsMatching`, so it never starts. It produces no new results and drops off the flaky-tests dashboard until you re-enable it. Pick this when the test is broken, slow, or so persistently flaky that running it is just wasted CI minutes.
 
-### Setting the mode {#setting-the-mode}
-
 Open a test case from the Test Cases page and use the **State** dropdown to flip between **Enabled**, **Muted**, and **Skipped**. The Quarantined Tests page lists every quarantined test alongside its mode, with a Mode filter to narrow down to one or the other. Automations can drive the same transitions. For example, auto-Mute a test once it crosses a flakiness threshold and post a message to Slack.
 
 ### Enabling quarantine {#enabling-quarantine}
