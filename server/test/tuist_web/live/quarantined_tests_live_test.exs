@@ -94,7 +94,7 @@ defmodule TuistWeb.QuarantinedTestsLiveTest do
 
       RunsFixtures.test_case_event_fixture(
         test_case_id: tuist_test_case.id,
-        event_type: "quarantined",
+        event_type: "muted",
         actor_id: nil
       )
 

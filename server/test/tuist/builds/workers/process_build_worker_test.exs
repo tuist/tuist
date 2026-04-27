@@ -221,8 +221,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
         "git_commit_sha" => "abc123",
         "git_ref" => "refs/pull/1/merge",
         "git_remote_url_origin" => "https://github.com/tuist/tuist",
-        "project_id" => project.id,
-        "build_url_template" => "http://localhost/builds/:build_id"
+        "project_id" => project.id
       }
 
       expect(Tuist.VCS, :enqueue_vcs_pull_request_comment, fn params ->

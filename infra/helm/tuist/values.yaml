@@ -59,6 +59,12 @@ server:
       # Field within the item. 1P "Password" category items expose their
       # value under `password`; custom items can use any label.
       field: password
+    # Sync the Tuist license key from the external store. Independent of
+    # managedSecrets — preview environments use this without the encrypted
+    # priv/secrets blob. Leave `item` empty to skip license sync.
+    license:
+      item: ""
+      field: password
   license:
     key: ""
     certificateBase64: ""
@@ -329,6 +335,32 @@ clickhouse:
         - ReadWriteOnce
       size: 50Gi
     resources: {}
+
+# Redis backs the persistent (cross-pod, cross-deploy) auth rate limiter.
+# When disabled the server transparently falls back to an in-memory bucket
+# (per-pod, lost on restart) — fine for dev / single-pod self-hosted.
+# Persistence is intentionally absent: the bucket data is ephemeral by
+# design, a pod restart resetting limits is acceptable.
+redis:
+  enabled: false
+  mode: embedded
+  external:
+    url: ""  # e.g. redis://my-redis:6379
+  embedded:
+    image:
+      repository: valkey/valkey
+      tag: "8.1-alpine"
+      pullPolicy: IfNotPresent
+    resources:
+      requests:
+        cpu: 25m
+        memory: 32Mi
+      limits:
+        memory: 128Mi
+    # Restrict ingress on the embedded Valkey Service to server pods.
+    # Requires a CNI that enforces NetworkPolicy (Cilium, Calico, etc.).
+    networkPolicy:
+      enabled: true
 
 objectStorage:
   mode: embedded

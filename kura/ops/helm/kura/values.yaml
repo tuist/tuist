@@ -52,8 +52,10 @@ ingress:
 
 persistence:
   enabled: true
+  # Prefer ReadWriteOncePod to enforce one Kura writer per PVC.
+  # Override to ReadWriteOnce only when the CSI driver does not support it.
   accessModes:
-    - ReadWriteOnce
+    - ReadWriteOncePod
   size: 20Gi
   storageClass: ""
   annotations: {}
@@ -67,6 +69,15 @@ nodeSelector: {}
 tolerations: []
 affinity: {}
 topologySpreadConstraints: []
+
+updateStrategy:
+  rollingUpdatePartition: null
+
+podLifecycle:
+  # Allow endpoint propagation to remove the pod from public traffic before SIGTERM.
+  preStopDelaySeconds: 20
+  # Leave a small platform buffer after Kura's own drain deadline for process exit.
+  terminationGraceExtraSeconds: 15
 
 pdb:
   enabled: true
@@ -84,6 +95,8 @@ config:
     hardLimitBytes: 805306368
     manifestCacheMaxBytes: 67108864
     maxKeyvalueBytes: 1048576
+  shutdown:
+    drainCompletionTimeoutMs: 240000
   metadataStore:
     maxOpenFiles: 1024
     maxBackgroundJobs: 4

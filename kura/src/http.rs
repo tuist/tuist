@@ -4,7 +4,7 @@ use axum::{
     Json, Router,
     body::{Body, to_bytes},
     extract::{MatchedPath, Path as AxumPath, Query, Request, State},
-    http::{HeaderValue, StatusCode},
+    http::{HeaderValue, StatusCode, Version},
     middleware::{self, Next},
     response::{IntoResponse, Response},
     routing::{delete, get, head, post, put},
@@ -29,6 +29,10 @@ pub fn public_router(state: SharedState) -> Router {
         .layer(middleware::from_fn_with_state(
             state.clone(),
             apply_extensions,
+        ))
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            reject_draining_public_requests,
         ))
         .layer(middleware::from_fn_with_state(
             state.clone(),
@@ -69,6 +73,8 @@ pub(crate) fn router(state: SharedState) -> Router {
 fn public_routes() -> Router<SharedState> {
     Router::new()
         .route("/up", get(up))
+        .route("/ready", get(ready))
+        .route("/status/rollout", get(rollout_status))
         .route("/metrics", get(metrics_handler))
         .route("/v1/cache/{hash}", get(get_nx).put(put_nx))
         .route(
@@ -322,6 +328,7 @@ async fn track_http_metrics(
     req: Request,
     next: Next,
 ) -> Response {
+    let _request_guard = state.start_http_request();
     let start = std::time::Instant::now();
     let route = req
         .extensions()
@@ -353,6 +360,32 @@ async fn track_http_metrics(
         .metrics
         .record_http(route, method, response.status(), start.elapsed());
 
+    response
+}
+
+async fn reject_draining_public_requests(
+    State(state): State<SharedState>,
+    req: Request,
+    next: Next,
+) -> Response {
+    let route = req
+        .extensions()
+        .get::<MatchedPath>()
+        .map(|path| path.as_str().to_owned())
+        .unwrap_or_else(|| req.uri().path().to_owned());
+    let version = req.version();
+
+    if !is_probe_route(&route) && state.runtime.is_draining() {
+        return draining_response(version);
+    }
+
+    let mut response = next.run(req).await;
+    if state.runtime.is_draining() && is_http1(version) {
+        response.headers_mut().insert(
+            axum::http::header::CONNECTION,
+            HeaderValue::from_static("close"),
+        );
+    }
     response
 }
 
@@ -420,7 +453,15 @@ async fn apply_extensions(State(state): State<SharedState>, req: Request, next: 
 }
 
 fn should_skip_extension_route(route: &str) -> bool {
-    route == "/up" || route == "/metrics" || route.starts_with("/_internal/")
+    is_probe_route(route) || route.starts_with("/_internal/")
+}
+
+fn is_probe_route(route: &str) -> bool {
+    route == "/up" || route == "/ready" || route == "/status/rollout" || route == "/metrics"
+}
+
+fn is_http1(version: Version) -> bool {
+    matches!(version, Version::HTTP_10 | Version::HTTP_11)
 }
 
 async fn extension_context_from_http(
@@ -645,24 +686,74 @@ fn status_from_u16(status: u16) -> StatusCode {
 }
 
 async fn up(State(state): State<SharedState>) -> impl IntoResponse {
-    let members = state.members.read().await.clone();
-    let peer_nodes = state.peer_nodes.read().await.clone();
-    let mut all_members = members;
-    all_members.insert(state.config.region.clone());
-    let mut nodes = peer_nodes.keys().cloned().collect::<Vec<_>>();
+    let cluster = state.cluster_status_report().await;
+    let mut all_members = cluster.members;
+    all_members.push(state.config.region.clone());
+    all_members.sort();
+    let mut nodes = cluster.connected_nodes.clone();
     nodes.push(state.config.node_url.clone());
     nodes.sort();
 
     Json(serde_json::json!({
         "status": "ok",
+        "generation": cluster.generation,
         "tenant_id": state.config.tenant_id.clone(),
         "region": state.config.region.clone(),
         "node": state.config.region.clone(),
         "node_url": state.config.node_url.clone(),
-        "connected_nodes": peer_nodes.keys().cloned().collect::<Vec<_>>(),
-        "ring_members": peer_nodes.len() + 1,
+        "connected_nodes": cluster.connected_nodes,
+        "ring_members": nodes.len(),
         "members": all_members.into_iter().collect::<Vec<_>>(),
         "nodes": nodes,
+    }))
+}
+
+async fn ready(State(state): State<SharedState>) -> impl IntoResponse {
+    let readiness = state.readiness_report().await;
+    let status = if readiness.ready {
+        StatusCode::OK
+    } else {
+        StatusCode::SERVICE_UNAVAILABLE
+    };
+
+    (
+        status,
+        Json(serde_json::json!({
+            "status": if readiness.ready { "ok" } else { "not_ready" },
+            "generation": readiness.generation,
+            "state": readiness.state.as_str(),
+            "ready": readiness.ready,
+            "draining": readiness.draining,
+            "writer_lock_owned": readiness.writer_lock_owned,
+            "initial_discovery_completed": readiness.initial_discovery_completed,
+            "known_peers": readiness.known_peers,
+            "bootstrapped_peers": readiness.bootstrapped_peers,
+            "bootstrap_inflight_peers": readiness.bootstrap_inflight_peers,
+            "http_inflight_requests": readiness.http_inflight,
+            "grpc_inflight_requests": readiness.grpc_inflight,
+            "reasons": readiness.reasons,
+        })),
+    )
+        .into_response()
+}
+
+async fn rollout_status(State(state): State<SharedState>) -> impl IntoResponse {
+    let status = state.rollout_status_report().await;
+    Json(serde_json::json!({
+        "generation": status.generation,
+        "ready": status.ready,
+        "state": status.state.as_str(),
+        "ring_members": status.ring_members,
+        "initial_discovery_completed": status.initial_discovery_completed,
+        "writer_lock_owned": status.writer_lock_owned,
+        "bootstrap_known_peers": status.bootstrap_known_peers,
+        "bootstrap_completed_peers": status.bootstrap_completed_peers,
+        "bootstrap_inflight_peers": status.bootstrap_inflight_peers,
+        "http_inflight_requests": status.http_inflight,
+        "grpc_inflight_requests": status.grpc_inflight,
+        "outbox_messages": status.outbox_messages,
+        "memory_pressure_state": status.memory_pressure_state,
+        "fd_timeout_count": status.fd_timeout_count,
     }))
 }
 
@@ -1604,6 +1695,17 @@ async fn serve_file(
     }
 }
 
+fn draining_response(version: Version) -> Response {
+    let mut response = error_response(StatusCode::SERVICE_UNAVAILABLE, "server is draining");
+    if is_http1(version) {
+        response.headers_mut().insert(
+            axum::http::header::CONNECTION,
+            HeaderValue::from_static("close"),
+        );
+    }
+    response
+}
+
 fn error_response(status: StatusCode, message: impl Into<String>) -> Response {
     let body = Json(serde_json::json!({ "message": message.into() }));
     (status, body).into_response()
@@ -1633,13 +1735,17 @@ mod tests {
             config.region = "us-east".into();
         })
         .await;
-        context.state.members.write().await.insert("eu-west".into());
         context
             .state
-            .peer_nodes
-            .write()
-            .await
-            .insert("http://peer.kura.internal:4000".into(), "eu-west".into());
+            .apply_membership_view(
+                std::collections::BTreeSet::from(["eu-west".to_string()]),
+                std::collections::BTreeMap::from([(
+                    "http://peer.kura.internal:4000".to_string(),
+                    "eu-west".to_string(),
+                )]),
+                true,
+            )
+            .await;
 
         let response = router(context.state.clone())
             .oneshot(
@@ -1655,12 +1761,239 @@ mod tests {
         let body: Value = serde_json::from_str(&response_text(response).await)
             .expect("failed to decode up response");
         assert_eq!(body["ring_members"], 2);
+        assert_eq!(body["generation"], 1);
         assert_eq!(body["region"], "us-east");
         assert!(body["members"].to_string().contains("eu-west"));
         assert!(
             body["connected_nodes"]
                 .to_string()
                 .contains("http://peer.kura.internal:4000")
+        );
+    }
+
+    #[tokio::test]
+    async fn ready_stays_unavailable_until_bootstrap_gate_completes() {
+        let context = test_context(|_| {}).await;
+        let peer = "http://peer.kura.internal:7443".to_string();
+        context
+            .state
+            .apply_membership_view(
+                std::collections::BTreeSet::from(["remote".to_string()]),
+                std::collections::BTreeMap::from([(peer.clone(), "remote".to_string())]),
+                true,
+            )
+            .await;
+        assert!(context.state.note_bootstrap_started(&peer).await);
+
+        let response = public_router(context.state.clone())
+            .oneshot(
+                Request::builder()
+                    .uri("/ready")
+                    .body(Body::empty())
+                    .expect("failed to build request"),
+            )
+            .await
+            .expect("ready route should respond");
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        let body: Value = serde_json::from_str(&response_text(response).await)
+            .expect("ready response should be json");
+        assert_eq!(body["state"], "joining");
+        assert_eq!(body["ready"], false);
+        assert!(
+            body["reasons"]
+                .to_string()
+                .contains("bootstrap in progress")
+        );
+
+        context.state.note_bootstrap_succeeded(&peer).await;
+        context.state.maybe_mark_serving().await;
+
+        let response = public_router(context.state.clone())
+            .oneshot(
+                Request::builder()
+                    .uri("/ready")
+                    .body(Body::empty())
+                    .expect("failed to build request"),
+            )
+            .await
+            .expect("ready route should respond");
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        let body: Value = serde_json::from_str(&response_text(response).await)
+            .expect("ready response should be json");
+        assert_eq!(body["state"], "joining");
+        assert_eq!(body["ready"], false);
+        assert!(body["reasons"].to_string().contains("discovery settling"));
+
+        context.state.expire_readiness_settle_window().await;
+        context.state.maybe_mark_serving().await;
+
+        let response = public_router(context.state.clone())
+            .oneshot(
+                Request::builder()
+                    .uri("/ready")
+                    .body(Body::empty())
+                    .expect("failed to build request"),
+            )
+            .await
+            .expect("ready route should respond");
+        assert_eq!(response.status(), StatusCode::OK);
+        let body: Value = serde_json::from_str(&response_text(response).await)
+            .expect("ready response should be json");
+        assert_eq!(body["state"], "serving");
+        assert_eq!(body["ready"], true);
+    }
+
+    #[tokio::test]
+    async fn up_and_ready_share_the_same_membership_generation() {
+        let context = test_context(|_| {}).await;
+        let peer = "http://peer.kura.internal:7443".to_string();
+        context
+            .state
+            .apply_membership_view(
+                std::collections::BTreeSet::from(["remote".to_string()]),
+                std::collections::BTreeMap::from([(peer.clone(), "remote".to_string())]),
+                true,
+            )
+            .await;
+        context.state.note_bootstrap_succeeded(&peer).await;
+        context.state.expire_readiness_settle_window().await;
+        context.state.maybe_mark_serving().await;
+
+        let up_response = public_router(context.state.clone())
+            .oneshot(
+                Request::builder()
+                    .uri("/up")
+                    .body(Body::empty())
+                    .expect("failed to build up request"),
+            )
+            .await
+            .expect("up route should respond");
+        let up_body: Value =
+            serde_json::from_str(&response_text(up_response).await).expect("up response json");
+
+        let ready_response = public_router(context.state.clone())
+            .oneshot(
+                Request::builder()
+                    .uri("/ready")
+                    .body(Body::empty())
+                    .expect("failed to build ready request"),
+            )
+            .await
+            .expect("ready route should respond");
+        let ready_body: Value = serde_json::from_str(&response_text(ready_response).await)
+            .expect("ready response json");
+
+        assert_eq!(up_body["generation"], ready_body["generation"]);
+    }
+
+    #[tokio::test]
+    async fn ready_reports_draining_state() {
+        let context = test_context(|_| {}).await;
+        context
+            .state
+            .apply_membership_view(
+                std::collections::BTreeSet::new(),
+                std::collections::BTreeMap::new(),
+                true,
+            )
+            .await;
+        context.state.expire_readiness_settle_window().await;
+        context.state.maybe_mark_serving().await;
+        context.state.enter_draining();
+
+        let response = public_router(context.state.clone())
+            .oneshot(
+                Request::builder()
+                    .uri("/ready")
+                    .body(Body::empty())
+                    .expect("failed to build request"),
+            )
+            .await
+            .expect("ready route should respond");
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        let body: Value = serde_json::from_str(&response_text(response).await)
+            .expect("ready response should be json");
+        assert_eq!(body["state"], "draining");
+        assert_eq!(body["draining"], true);
+        assert!(body["reasons"].to_string().contains("draining"));
+    }
+
+    #[tokio::test]
+    async fn rollout_status_reports_rollout_summary_and_stays_available_while_draining() {
+        let context = test_context(|_| {}).await;
+        let peer = "http://peer.kura.internal:7443".to_string();
+        context
+            .state
+            .apply_membership_view(
+                std::collections::BTreeSet::from(["remote".to_string()]),
+                std::collections::BTreeMap::from([(peer.clone(), "remote".to_string())]),
+                true,
+            )
+            .await;
+        context.state.note_bootstrap_succeeded(&peer).await;
+        context.state.expire_readiness_settle_window().await;
+        context.state.maybe_mark_serving().await;
+        context.state.metrics.update_outbox_messages(7);
+        context
+            .state
+            .metrics
+            .record_file_descriptor_wait("timeout", Duration::from_millis(5));
+        context.state.enter_draining();
+
+        let response = public_router(context.state.clone())
+            .oneshot(
+                Request::builder()
+                    .uri("/status/rollout")
+                    .body(Body::empty())
+                    .expect("failed to build request"),
+            )
+            .await
+            .expect("rollout status route should respond");
+        assert_eq!(response.status(), StatusCode::OK);
+        let body: Value = serde_json::from_str(&response_text(response).await)
+            .expect("rollout status response should be json");
+        assert_eq!(body["generation"], 1);
+        assert_eq!(body["state"], "draining");
+        assert_eq!(body["ready"], false);
+        assert_eq!(body["ring_members"], 2);
+        assert_eq!(body["bootstrap_known_peers"], 1);
+        assert_eq!(body["bootstrap_completed_peers"], 1);
+        assert_eq!(body["bootstrap_inflight_peers"], 0);
+        assert_eq!(body["outbox_messages"], 7);
+        assert_eq!(body["memory_pressure_state"], 0);
+        assert_eq!(body["fd_timeout_count"], 1);
+    }
+
+    #[tokio::test]
+    async fn draining_public_requests_return_service_unavailable_and_close_http1_connections() {
+        let context = test_context(|_| {}).await;
+        context
+            .state
+            .apply_membership_view(
+                std::collections::BTreeSet::new(),
+                std::collections::BTreeMap::new(),
+                true,
+            )
+            .await;
+        context.state.expire_readiness_settle_window().await;
+        context.state.maybe_mark_serving().await;
+        context.state.enter_draining();
+
+        let response = public_router(context.state.clone())
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/v1/cache/some-hash")
+                    .version(Version::HTTP_11)
+                    .body(Body::empty())
+                    .expect("failed to build request"),
+            )
+            .await
+            .expect("public route should respond");
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        assert_eq!(
+            response.headers().get(axum::http::header::CONNECTION),
+            Some(&HeaderValue::from_static("close"))
         );
     }
 

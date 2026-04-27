@@ -3,7 +3,6 @@ import Foundation
 import Path
 import ProjectDescription
 import TuistAlert
-import TuistEnvironment
 import TuistLogging
 import TuistSupport
 import XcodeGraph
@@ -53,9 +52,8 @@ extension XcodeGraph.BuildableFolder {
         let allPaths = try await fileSystem
             .glob(directory: path, include: ["**/*"]).collect()
             .filter { !exclusions.contains($0) }
-        let maxConcurrentTasks = Environment.current.isSwiftFileSystemBackendEnabled ? Int.max : 100
         let resolvedFiles = try await allPaths
-            .concurrentCompactMap(maxConcurrentTasks: maxConcurrentTasks) { filePath -> BuildableFolderFile? in
+            .concurrentCompactMap { filePath -> BuildableFolderFile? in
                 if filePath.isInOpaqueDirectory { return nil }
                 if filePath.isOpaqueDirectory {
                     return BuildableFolderFile(

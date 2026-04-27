@@ -1,84 +1,84 @@
 <div id="test-runs">
+  <div data-part="filters">
+    <.dropdown
+      id="test-runs-analytics-environment-dropdown"
+      label={@analytics_environment_label}
+      secondary_text={dgettext("dashboard_tests", "Environment:")}
+    >
+      <.dropdown_item
+        value="any"
+        label="Any"
+        patch={"?#{@uri.query |> Query.put("analytics-environment", "any") |> Query.drop("before") |> Query.drop("after")}"}
+        data-selected={@analytics_environment == "any"}
+      >
+        <:right_icon :if={@analytics_environment == "any"}><.check /></:right_icon>
+      </.dropdown_item>
+      <.dropdown_item
+        value="local"
+        label="Local"
+        patch={"?#{@uri.query |> Query.put("analytics-environment", "local") |> Query.drop("before") |> Query.drop("after")}"}
+        data-selected={@analytics_environment == "local"}
+      >
+        <:right_icon :if={@analytics_environment == "local"}><.check /></:right_icon>
+      </.dropdown_item>
+      <.dropdown_item
+        value="ci"
+        label="CI"
+        patch={"?#{@uri.query |> Query.put("analytics-environment", "ci") |> Query.drop("before") |> Query.drop("after")}"}
+        data-selected={@analytics_environment == "ci"}
+      >
+        <:right_icon :if={@analytics_environment == "ci"}><.check /></:right_icon>
+      </.dropdown_item>
+    </.dropdown>
+    <.date_picker
+      id="test-runs-date-range-picker"
+      name="analytics-date-range"
+      presets={[
+        %{
+          id: "last-24-hours",
+          label: dgettext("dashboard_tests", "Last 24 hours"),
+          period: {24, :hour}
+        },
+        %{
+          id: "last-7-days",
+          label: dgettext("dashboard_tests", "Last 7 days"),
+          period: {7, :day}
+        },
+        %{
+          id: "last-30-days",
+          label: dgettext("dashboard_tests", "Last 30 days"),
+          period: {30, :day}
+        },
+        %{
+          id: "last-12-months",
+          label: dgettext("dashboard_tests", "Last 12 months"),
+          period: {12, :month}
+        },
+        %{id: "custom", label: dgettext("dashboard_tests", "Custom")}
+      ]}
+      selected_preset={@analytics_preset}
+      period={@analytics_period}
+      on_period_change="analytics_period_changed"
+      max={Date.utc_today()}
+    >
+      <:actions>
+        <.button
+          label={dgettext("dashboard_tests", "Cancel")}
+          variant="secondary"
+          phx-click={
+            JS.dispatch("phx:date-picker-cancel", detail: %{id: "test-runs-date-range-picker"})
+          }
+        />
+        <.button
+          label={dgettext("dashboard_tests", "Apply")}
+          phx-click={
+            JS.dispatch("phx:date-picker-apply", detail: %{id: "test-runs-date-range-picker"})
+          }
+        />
+      </:actions>
+    </.date_picker>
+  </div>
   <.card title={dgettext("dashboard_tests", "Analytics")} icon="chart_arcs" data-part="analytics">
-    <:actions>
-      <.dropdown
-        id="test-runs-analytics-environment-dropdown"
-        label={@analytics_environment_label}
-        secondary_text={dgettext("dashboard_tests", "Environment:")}
-      >
-        <.dropdown_item
-          value="any"
-          label="Any"
-          patch={"?#{Query.put(@uri.query, "analytics-environment", "any")}"}
-          data-selected={@analytics_environment == "any"}
-        >
-          <:right_icon><.check /></:right_icon>
-        </.dropdown_item>
-        <.dropdown_item
-          value="local"
-          label="Local"
-          patch={"?#{Query.put(@uri.query, "analytics-environment", "local")}"}
-          data-selected={@analytics_environment == "local"}
-        >
-          <:right_icon><.check /></:right_icon>
-        </.dropdown_item>
-        <.dropdown_item
-          value="ci"
-          label="CI"
-          patch={"?#{Query.put(@uri.query, "analytics-environment", "ci")}"}
-          data-selected={@analytics_environment == "ci"}
-        >
-          <:right_icon><.check /></:right_icon>
-        </.dropdown_item>
-      </.dropdown>
-      <.date_picker
-        id="test-runs-date-range-picker"
-        name="analytics-date-range"
-        presets={[
-          %{
-            id: "last-24-hours",
-            label: dgettext("dashboard_tests", "Last 24 hours"),
-            period: {24, :hour}
-          },
-          %{
-            id: "last-7-days",
-            label: dgettext("dashboard_tests", "Last 7 days"),
-            period: {7, :day}
-          },
-          %{
-            id: "last-30-days",
-            label: dgettext("dashboard_tests", "Last 30 days"),
-            period: {30, :day}
-          },
-          %{
-            id: "last-12-months",
-            label: dgettext("dashboard_tests", "Last 12 months"),
-            period: {12, :month}
-          },
-          %{id: "custom", label: dgettext("dashboard_tests", "Custom")}
-        ]}
-        selected_preset={@analytics_preset}
-        period={@analytics_period}
-        on_period_change="analytics_period_changed"
-        max={Date.utc_today()}
-      >
-        <:actions>
-          <.button
-            label={dgettext("dashboard_tests", "Cancel")}
-            variant="secondary"
-            phx-click={
-              JS.dispatch("phx:date-picker-cancel", detail: %{id: "test-runs-date-range-picker"})
-            }
-          />
-          <.button
-            label={dgettext("dashboard_tests", "Apply")}
-            phx-click={
-              JS.dispatch("phx:date-picker-apply", detail: %{id: "test-runs-date-range-picker"})
-            }
-          />
-        </:actions>
-      </.date_picker>
-    </:actions>
     <div data-part="analytics-content">
       <div data-part="widgets">
         <.widget

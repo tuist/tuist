@@ -110,7 +110,7 @@ defmodule Tuist.Tests.Analytics do
   @doc """
   Returns analytics for quarantined tests count over time for a project.
   This computes the number of quarantined tests at each time bucket by
-  tracking quarantine/unquarantine events from the test_case_events table.
+  tracking `muted` / `unmuted` events from the test_case_events table.
   """
   def quarantined_tests_analytics(project_id, opts \\ []) do
     start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
@@ -133,7 +133,7 @@ defmodule Tuist.Tests.Analytics do
       ClickHouseRepo.all(
         from(e in TestCaseEvent,
           where: e.test_case_id in subquery(project_test_case_ids_subquery),
-          where: e.event_type in ["quarantined", "unquarantined"],
+          where: e.event_type in ^Tests.mute_event_types(),
           where: e.inserted_at <= ^max_endpoint,
           select: %{test_case_id: e.test_case_id, event_type: e.event_type, inserted_at: e.inserted_at},
           order_by: [asc: e.inserted_at]
@@ -152,14 +152,14 @@ defmodule Tuist.Tests.Analytics do
             |> Enum.take_while(&(NaiveDateTime.compare(&1.inserted_at, endpoint_naive) != :gt))
             |> List.last()
 
-          last_event != nil and last_event.event_type == "quarantined"
+          last_event != nil and last_event.event_type == "muted"
         end)
       end)
 
-    current_count = quarantined_count_at(project_id, end_datetime)
+    count = List.last(values) || 0
 
     %{
-      count: current_count,
+      count: count,
       values: values,
       dates: dates
     }
@@ -313,19 +313,6 @@ defmodule Tuist.Tests.Analytics do
 
   defp date_to_end_of_bucket(%DateTime{} = datetime, :hour) do
     DateTime.add(datetime, 3599, :second)
-  end
-
-  defp quarantined_count_at(project_id, datetime) do
-    inner =
-      from(tc in TestCase,
-        where: tc.project_id == ^project_id,
-        where: tc.inserted_at <= ^datetime,
-        group_by: tc.id,
-        having: fragment("argMax(?, ?) = 'muted'", tc.state, tc.inserted_at),
-        select: tc.id
-      )
-
-    ClickHouseRepo.one(from(tc in subquery(inner), select: count())) || 0
   end
 
   @scatter_data_limit 10_000

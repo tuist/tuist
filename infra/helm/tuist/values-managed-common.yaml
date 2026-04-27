@@ -28,6 +28,15 @@ server:
     port: 80
     targetPort: 8080
 
+  # ingress-nginx defaults `proxy-body-size` to 1m, which rejects large
+  # `createBundle` requests (the JSON manifest carries one entry per
+  # artifact and grows past 1 MB on big iOS apps). Match the Phoenix
+  # Plug.Parsers limit at lib/tuist_web/endpoint.ex so the two stay in
+  # lockstep — bump both when bumping either.
+  ingress:
+    annotations:
+      nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+
   # All runtime secrets (DATABASE_URL, CLICKHOUSE_URL, S3 creds, Sentry, Stripe,
   # OAuth, Mailgun, etc.) live in priv/secrets/<env>.yml.enc baked into the
   # image. The app decrypts them at boot when MASTER_KEY is present in the
@@ -125,8 +134,8 @@ processor:
     storeRef:
       kind: ClusterSecretStore
       name: onepassword
-    databaseUrl:
-      item: PROCESSOR_DATABASE_URL
+    databasePassword:
+      item: PROCESSOR_DATABASE_PASSWORD
       field: password
   podDisruptionBudget:
     enabled: true

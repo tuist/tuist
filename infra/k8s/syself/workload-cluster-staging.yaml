@@ -1,9 +1,11 @@
 # Staging workload Cluster for Tuist on Syself Apalla (Hetzner).
 #
-# Shape: 3 × cpx22 cloud control plane + 2 × cpx22 workers in fsn1.
-# ~€45/mo. Two-worker minimum because the baseline system pods
-# (cilium-operator, hubble, CSI controllers, metrics-server, ESO, Alloy)
-# saturate a single cpx22 before the Phoenix server can schedule.
+# Shape: 3 × cpx22 cloud control plane + 2 × cpx31 workers in fsn1.
+# ~€65/mo. Workers bumped from cpx22 (4 GB) to cpx31 (8 GB) so the
+# grafana/k8s-monitoring DaemonSets (alloy-metrics/logs/receiver/singleton
+# × 2 nodes + kube-state-metrics + node-exporter) fit alongside the
+# Phoenix server during rolling updates — cpx22 left no memory headroom
+# for a new server pod to schedule while the old one drained.
 
 apiVersion: cluster.x-k8s.io/v1beta1
 kind: Cluster
@@ -38,7 +40,7 @@ spec:
       - name: controlPlaneMachineArchHcloud
         value: amd64
       - name: workerMachineTypeHcloud
-        value: cpx22
+        value: cpx31
       - name: SSHKeyNameHcloud
         value:
           - name: tuist-syself

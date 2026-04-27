@@ -7,6 +7,7 @@ defmodule Mix.Tasks.Marketing.Gen.OgImages do
   use Gettext, backend: TuistWeb.Gettext
 
   alias Tuist.Marketing.Changelog.OgImage, as: ChangelogOgImage
+  alias Tuist.Marketing.OgImageCache
   alias Tuist.Marketing.OgImages
   alias Tuist.Marketing.OpenGraph
 
@@ -44,21 +45,49 @@ defmodule Mix.Tasks.Marketing.Gen.OgImages do
     og_images_directory =
       :tuist |> Application.app_dir("priv") |> Path.join("static/marketing/images/og/generated")
 
+    # Hash all assets shared across renders once. Per-image cache keys mix this
+    # in so a logo / font / template swap correctly invalidates everything.
+    asset_hash = compute_asset_hash()
+    libvips_asset_hash = compute_libvips_asset_hash()
+
     # Newsletter issues and blog posts are English-only
-    generate_newsletter_og_images(og_images_directory)
-    generate_posts_og_images(og_images_directory)
+    generate_newsletter_og_images(og_images_directory, libvips_asset_hash)
+    generate_posts_og_images(og_images_directory, libvips_asset_hash)
 
     # Changelog entries use their own Carta template (English-only)
-    generate_changelog_og_images(og_images_directory)
+    generate_changelog_og_images(og_images_directory, asset_hash)
 
     # Dynamic pages from markdown (terms, privacy, cookies, etc.)
-    generate_dynamic_pages_og_images(og_images_directory)
+    generate_dynamic_pages_og_images(og_images_directory, asset_hash)
 
     # Carta-based OG images for all static marketing pages, localized
-    generate_marketing_page_og_images(og_images_directory)
+    generate_marketing_page_og_images(og_images_directory, asset_hash)
 
     # Home page uses a special layout with phone mockup
-    generate_home_og_images(og_images_directory)
+    generate_home_og_images(og_images_directory, asset_hash)
+  end
+
+  defp compute_asset_hash do
+    priv_dir = Application.app_dir(:tuist, "priv")
+
+    OgImageCache.key([
+      "marketing-asset-bundle:v1",
+      {:dir, Path.join(priv_dir, "static/fonts")},
+      {:file, Path.join(priv_dir, "docs/images/logo.webp")},
+      {:file, Path.join(priv_dir, "static/marketing/images/background.webp")},
+      {:file, Path.join(priv_dir, "static/marketing/images/og/phone.png")},
+      {:file, Path.join(priv_dir, "static/marketing/images/og/changelog-timeline.svg")}
+    ])
+  end
+
+  defp compute_libvips_asset_hash do
+    priv_dir = Application.app_dir(:tuist, "priv")
+
+    OgImageCache.key([
+      "marketing-libvips-asset-bundle:v1",
+      {:file, Path.join(priv_dir, "static/images/og_template.png")},
+      {:dir, Path.join(priv_dir, "static/fonts")}
+    ])
   end
 
   defp ensure_dependencies_started do
@@ -66,16 +95,16 @@ defmodule Mix.Tasks.Marketing.Gen.OgImages do
     Application.ensure_all_started(:briefly)
   end
 
-  defp generate_newsletter_og_images(og_images_directory) do
+  defp generate_newsletter_og_images(og_images_directory, asset_hash) do
     Enum.each(Tuist.Marketing.Newsletter.issues(), fn issue ->
-      OpenGraph.generate_og_image(
-        issue.full_title,
-        Path.join(og_images_directory, "newsletter/issues/#{issue.number}.jpg")
-      )
+      image_path = Path.join(og_images_directory, "newsletter/issues/#{issue.number}.jpg")
+      key = OgImageCache.key(["newsletter:v1", issue.full_title, asset_hash])
+
+      generate_with_libvips(issue.full_title, image_path, key)
     end)
   end
 
-  defp generate_dynamic_pages_og_images(og_images_directory) do
+  defp generate_dynamic_pages_og_images(og_images_directory, asset_hash) do
     dynamic_pages = Tuist.Marketing.Pages.get_pages()
 
     for locale <- @locales do
@@ -89,13 +118,15 @@ defmodule Mix.Tasks.Marketing.Gen.OgImages do
           filename,
           page.title,
           locale,
-          nil
+          nil,
+          :default,
+          asset_hash
         )
       end)
     end
   end
 
-  defp generate_marketing_page_og_images(og_images_directory) do
+  defp generate_marketing_page_og_images(og_images_directory, asset_hash) do
     priv_dir = Application.app_dir(:tuist, "priv")
 
     IO.puts("Generating Carta-based OG images for #{length(@carta_pages)} pages x #{length(@locales)} locales...")
@@ -118,13 +149,14 @@ defmodule Mix.Tasks.Marketing.Gen.OgImages do
           Gettext.dgettext(TuistWeb.Gettext, "marketing", title_msgid),
           locale,
           icon_path,
-          template
+          template,
+          asset_hash
         )
       end)
     end
   end
 
-  defp render_carta_page(og_images_directory, filename, title, locale, icon_path, template \\ :default) do
+  defp render_carta_page(og_images_directory, filename, title, locale, icon_path, template, asset_hash) do
     priv_dir = Application.app_dir(:tuist, "priv")
     fonts_dir = Path.join(priv_dir, "static/fonts")
     logo_path = Path.join(priv_dir, "docs/images/logo.webp")
@@ -150,14 +182,23 @@ defmodule Mix.Tasks.Marketing.Gen.OgImages do
 
     html = render_template_html(template, html_opts, priv_dir)
 
-    case Carta.render(@pool, html, width: 1920, height: 1080, quality: 95) do
-      {:ok, jpeg_binary} ->
-        File.write!(image_path, jpeg_binary)
-        IO.puts("  Generated: #{Path.relative_to(image_path, File.cwd!())}")
+    icon_key_part =
+      case icon_path do
+        nil -> "no-icon"
+        path -> {:file, path}
+      end
 
-      {:error, reason} ->
-        IO.warn("Failed to generate OG image for #{filename} (#{locale}): #{inspect(reason)}")
-    end
+    key =
+      OgImageCache.key([
+        "marketing-page:v1",
+        Atom.to_string(template),
+        locale,
+        title,
+        icon_key_part,
+        asset_hash
+      ])
+
+    render_with_carta(html, image_path, key, "#{filename} (#{locale})")
   end
 
   defp render_template_html(:blog, html_opts, _priv_dir), do: OgImages.render_blog_html(html_opts)
@@ -173,7 +214,7 @@ defmodule Mix.Tasks.Marketing.Gen.OgImages do
 
   defp render_template_html(_default, html_opts, _priv_dir), do: OgImages.render_html(html_opts)
 
-  defp generate_home_og_images(og_images_directory) do
+  defp generate_home_og_images(og_images_directory, asset_hash) do
     priv_dir = Application.app_dir(:tuist, "priv")
     fonts_dir = Path.join(priv_dir, "static/fonts")
     logo_path = Path.join(priv_dir, "docs/images/logo.webp")
@@ -205,18 +246,13 @@ defmodule Mix.Tasks.Marketing.Gen.OgImages do
           phone_path: phone_path
         )
 
-      case Carta.render(@pool, html, width: 1920, height: 1080, quality: 95) do
-        {:ok, jpeg_binary} ->
-          File.write!(image_path, jpeg_binary)
-          IO.puts("  Generated: #{Path.relative_to(image_path, File.cwd!())}")
+      key = OgImageCache.key(["home:v1", locale, title, asset_hash])
 
-        {:error, reason} ->
-          IO.warn("Failed to generate Home OG image for #{locale}: #{inspect(reason)}")
-      end
+      render_with_carta(html, image_path, key, "home (#{locale})")
     end
   end
 
-  defp generate_changelog_og_images(og_images_directory) do
+  defp generate_changelog_og_images(og_images_directory, asset_hash) do
     entries = Tuist.Marketing.Changelog.get_entries()
     pool_size = max(System.schedulers_online(), 4)
 
@@ -243,14 +279,18 @@ defmodule Mix.Tasks.Marketing.Gen.OgImages do
             logo_path: logo_path
           )
 
-        case Carta.render(@pool, html, width: 1920, height: 1080, quality: 95) do
-          {:ok, jpeg_binary} ->
-            File.write!(image_path, jpeg_binary)
-            IO.puts("  Generated: #{Path.relative_to(image_path, File.cwd!())}")
+        key =
+          OgImageCache.key([
+            "changelog-entry:v1",
+            entry.id,
+            entry.title,
+            entry.description || "",
+            date,
+            entry.pull_request || "",
+            asset_hash
+          ])
 
-          {:error, reason} ->
-            IO.warn("Failed to generate OG image for #{entry.id}: #{inspect(reason)}")
-        end
+        render_with_carta(html, image_path, key, "changelog #{entry.id}")
       end,
       max_concurrency: pool_size,
       timeout: 30_000
@@ -258,18 +298,44 @@ defmodule Mix.Tasks.Marketing.Gen.OgImages do
     |> Stream.run()
   end
 
-  defp generate_posts_og_images(og_images_directory) do
+  defp generate_posts_og_images(og_images_directory, asset_hash) do
     Enum.each(Tuist.Marketing.Blog.get_posts(), fn post ->
       image_path = Path.join(og_images_directory, "#{post.slug}.jpg")
-
-      IO.puts("Generating OG image for '#{post.title}' at #{Path.relative_to(image_path, File.cwd!())}")
-
       File.mkdir_p!(Path.dirname(image_path))
 
-      OpenGraph.generate_og_image(
-        post.title,
-        image_path
-      )
+      key = OgImageCache.key(["blog-post:v1", post.slug, post.title, asset_hash])
+
+      generate_with_libvips(post.title, image_path, key)
     end)
+  end
+
+  # Render with Carta (headless Chromium) unless an existing cache key sidecar
+  # matches. Cache hits skip the multi-second screenshot entirely.
+  defp render_with_carta(html, image_path, key, label) do
+    if OgImageCache.hit?(image_path, key) do
+      IO.puts("  Cached: #{Path.relative_to(image_path, File.cwd!())}")
+    else
+      case Carta.render(@pool, html, width: 1920, height: 1080, quality: 95) do
+        {:ok, jpeg_binary} ->
+          File.write!(image_path, jpeg_binary)
+          OgImageCache.put(image_path, key)
+          IO.puts("  Generated: #{Path.relative_to(image_path, File.cwd!())}")
+
+        {:error, reason} ->
+          IO.warn("Failed to generate OG image for #{label}: #{inspect(reason)}")
+      end
+    end
+  end
+
+  # libvips-backed renders (newsletter / blog posts). Cheaper per call than
+  # Carta but still worth caching since we run them many times.
+  defp generate_with_libvips(title, image_path, key) do
+    if OgImageCache.hit?(image_path, key) do
+      IO.puts("  Cached: #{Path.relative_to(image_path, File.cwd!())}")
+    else
+      OpenGraph.generate_og_image(title, image_path)
+      OgImageCache.put(image_path, key)
+      IO.puts("  Generated: #{Path.relative_to(image_path, File.cwd!())}")
+    end
   end
 end

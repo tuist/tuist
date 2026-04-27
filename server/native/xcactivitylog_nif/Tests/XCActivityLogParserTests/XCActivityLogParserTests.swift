@@ -48,6 +48,7 @@ struct XCActivityLogParserTests {
             #expect(!target.name.isEmpty)
             #expect(!target.project.isEmpty)
             #expect(target.build_duration >= 0)
+            #expect(target.compilation_duration >= 0)
             #expect(target.status == "success")
         }
     }

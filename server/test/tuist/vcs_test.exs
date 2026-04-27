@@ -2807,12 +2807,7 @@ defmodule Tuist.VCSTest do
         git_commit_sha: "abc123",
         git_ref: "refs/pull/123/head",
         git_remote_url_origin: "https://github.com/tuist/tuist",
-        project_id: project.id,
-        preview_url_template: "/{{account_name}}/{{project_name}}/previews/{{preview_id}}",
-        preview_qr_code_url_template: "/{{account_name}}/{{project_name}}/previews/{{preview_id}}/qr-code.png",
-        command_run_url_template: "/{{account_name}}/{{project_name}}/runs/{{command_event_id}}",
-        bundle_url_template: "/{{account_name}}/{{project_name}}/bundles/{{bundle_id}}",
-        build_url_template: "/{{account_name}}/{{project_name}}/builds/build-runs/{{build_id}}"
+        project_id: project.id
       }
 
       # When / Then
@@ -2844,13 +2839,7 @@ defmodule Tuist.VCSTest do
         git_commit_sha: "abc123",
         git_ref: "refs/pull/123/head",
         git_remote_url_origin: "https://github.com/tuist/tuist",
-        project_id: project.id,
-        preview_url_template: "url",
-        preview_qr_code_url_template: "url",
-        command_run_url_template: "url",
-        test_run_url_template: "url",
-        bundle_url_template: "url",
-        build_url_template: "url"
+        project_id: project.id
       }
 
       # When

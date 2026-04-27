@@ -80,6 +80,11 @@ public protocol Environmenting: Sendable {
     /// A cache socket path string for a given full handle with $HOME prefix to be environment-independent
     func cacheSocketPathString(for fullHandle: String) -> String
 
+    /// Returns the LaunchAgent label for the Xcode cache daemon of the given full handle.
+    /// This label is shared between `tuist setup cache` (which registers the LaunchAgent)
+    /// and `tuist teardown cache` (which boots it out).
+    func cacheLaunchAgentLabel(for fullHandle: String) -> String
+
     /// Returns the current architecture of the machine
     func architecture() async throws -> MacArchitecture
 
@@ -118,14 +123,6 @@ extension Environmenting {
 
     public var isLegacyModuleCacheEnabled: Bool {
         isVariableTruthy("TUIST_LEGACY_MODULE_CACHE")
-    }
-
-    public var isSwiftFileSystemBackendEnabled: Bool {
-        let value = variables["TUIST_FILESYSTEM_BACKEND"]?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-        guard let value else { return true }
-        return ["swift-file-system", "swift_file_system", "swiftfilesystem"].contains(value)
     }
 
     public func pathRelativeToWorkingDirectory(_ path: String?) async throws -> AbsolutePath {
@@ -356,6 +353,10 @@ public struct Environment: Environmenting {
         } else {
             return socketPathString
         }
+    }
+
+    public func cacheLaunchAgentLabel(for fullHandle: String) -> String {
+        "tuist.cache.\(fullHandle.replacingOccurrences(of: "/", with: "_"))"
     }
 
     #if os(macOS)

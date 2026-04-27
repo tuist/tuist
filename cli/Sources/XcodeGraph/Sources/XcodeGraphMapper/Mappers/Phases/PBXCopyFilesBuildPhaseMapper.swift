@@ -52,19 +52,23 @@ struct PBXCopyFilesBuildPhaseMapper: PBXCopyFilesBuildPhaseMapping {
     ) throws -> CopyFilesAction? {
         let files = try (phase.files ?? [])
             .compactMap { buildFile -> CopyFileElement? in
-                guard let fileRef = buildFile.file,
-                      let pathString = try fileRef.fullPath(sourceRoot: xcodeProj.srcPathString)
-                else {
+                guard let fileRef = buildFile.file else { return nil }
+
+                let attributes = buildFile.attributes
+                let codeSignOnCopy = attributes?.contains(BuildFileAttribute.codeSignOnCopy.rawValue) ?? false
+
+                if fileRef.sourceTree == .buildProductsDir, let name = fileRef.path ?? fileRef.name {
+                    return .buildProduct(name: name, condition: nil, codeSignOnCopy: codeSignOnCopy)
+                }
+
+                guard let pathString = try fileRef.fullPath(sourceRoot: xcodeProj.srcPathString) else {
                     return nil
                 }
 
                 let absolutePath = try AbsolutePath(validating: pathString)
-                let attributes = buildFile.attributes
-                let codeSignOnCopy = attributes?.contains(BuildFileAttribute.codeSignOnCopy.rawValue) ?? false
-
                 return .file(path: absolutePath, condition: nil, codeSignOnCopy: codeSignOnCopy)
             }
-            .sorted { $0.path < $1.path }
+            .sorted { copyFileElementSortKey($0) < copyFileElementSortKey($1) }
         let groupsFiles = try fileSystemSynchronizedGroupsFiles(
             phase,
             fileSystemSynchronizedGroups: fileSystemSynchronizedGroups,
@@ -104,6 +108,17 @@ struct PBXCopyFilesBuildPhaseMapper: PBXCopyFilesBuildPhaseMapping {
             }
         }
         return files
+    }
+
+    private func copyFileElementSortKey(_ element: CopyFileElement) -> String {
+        switch element {
+        case let .file(path, _, _):
+            return "0:\(path.pathString)"
+        case let .folderReference(path, _, _):
+            return "1:\(path.pathString)"
+        case let .buildProduct(name, _, _):
+            return "2:\(name)"
+        }
     }
 
     /// Maps a `PBXCopyFilesBuildPhase.SubFolder` to a `CopyFilesAction.Destination`.

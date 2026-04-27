@@ -266,6 +266,10 @@
                     // AppleArchive (LZFSE) is substantially faster than deflate for xcresult
                     // bundles and skips the pre-copy the zip path needs. The server-side
                     // `xcode_processor` sniffs magic bytes to decide between zip and aar.
+                    // `preservesBaseDirectory: true` keeps the `.xcresult` wrapper in the
+                    // archive so extractors (Xcode, the server NIF) land at
+                    // `<destination>/<bundle>.xcresult/…` — without it, `find_xcresult`
+                    // can't locate the bundle and processing fails with `:xcresult_not_found`.
                     let archiveDirectory = try await fileSystem.makeTemporaryDirectory(prefix: "tuist-analytics-archive")
                     let archivePath = archiveDirectory.appending(
                         component: "\(passedArtifactPath.basenameWithoutExt).aar"
@@ -273,7 +277,8 @@
                     try await appleArchiver.compress(
                         directory: passedArtifactPath,
                         to: archivePath,
-                        excludePatterns: []
+                        excludePatterns: [],
+                        preservesBaseDirectory: true
                     )
                     artifactPath = archivePath
                 #else

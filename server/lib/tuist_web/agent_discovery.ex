@@ -6,6 +6,7 @@ defmodule TuistWeb.AgentDiscovery do
   @api_catalog_profile_uri "https://www.rfc-editor.org/info/rfc9727"
   @service_desc_path "/api/spec"
   @service_doc_path "/api/docs"
+  @status_path "/ready"
 
   def homepage_link_header_value do
     Enum.join(
@@ -44,6 +45,11 @@ defmodule TuistWeb.AgentDiscovery do
             %{
               "href" => origin <> @service_doc_path,
               "type" => "text/html"
+            }
+          ],
+          "status" => [
+            %{
+              "href" => origin <> @status_path
             }
           ]
         }

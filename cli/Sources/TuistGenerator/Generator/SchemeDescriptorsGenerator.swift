@@ -16,12 +16,14 @@ protocol SchemeDescriptorsGenerating {
     ///   - xcworkspacePath: Path to the workspace.
     ///   - generatedProjects: Generated Xcode projects.
     ///   - graphTraverser: Graph traverser.
+    /// - Returns: The generated scheme descriptors and any side effects (for example, generated
+    ///   `.xctestplan` files) that need to run alongside the workspace write.
     /// - Throws: A FatalError if the generation of the schemes fails.
     func generateWorkspaceSchemes(
         workspace: Workspace,
         generatedProjects: [AbsolutePath: GeneratedProject],
         graphTraverser: GraphTraversing
-    ) throws -> [SchemeDescriptor]
+    ) throws -> ([SchemeDescriptor], [SideEffectDescriptor])
 
     /// Generates the schemes for the project targets.
     ///
@@ -30,12 +32,14 @@ protocol SchemeDescriptorsGenerating {
     ///   - xcprojectPath: Path to the Xcode project.
     ///   - generatedProject: Generated Xcode project.
     ///   - graphTraverser: Graph traverser.
+    /// - Returns: The generated scheme descriptors and any side effects that need to run
+    ///   alongside the project write.
     /// - Throws: A FatalError if the generation of the schemes fails.
     func generateProjectSchemes(
         project: Project,
         generatedProject: GeneratedProject,
         graphTraverser: GraphTraversing
-    ) throws -> [SchemeDescriptor]
+    ) throws -> ([SchemeDescriptor], [SideEffectDescriptor])
 }
 
 extension XCScheme {
@@ -78,41 +82,63 @@ struct SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         workspace: Workspace,
         generatedProjects: [AbsolutePath: GeneratedProject],
         graphTraverser: GraphTraversing
-    ) throws -> [SchemeDescriptor] {
+    ) throws -> ([SchemeDescriptor], [SideEffectDescriptor]) {
         Logger.current.debug("SchemeDescriptorsGenerator: Generating \(workspace.schemes.count) workspace schemes")
-        let schemes = try workspace.schemes.map { scheme in
+        let rootPath = workspace.xcWorkspacePath.parentDirectory
+        var schemes: [SchemeDescriptor] = []
+        var sideEffects: [SideEffectDescriptor] = []
+        for scheme in workspace.schemes {
             Logger.current.debug("SchemeDescriptorsGenerator: Generating workspace scheme \(scheme.name)")
-            return try generateScheme(
+            let (descriptor, schemeSideEffects) = try generateScheme(
                 scheme: scheme,
-                path: workspace.xcWorkspacePath.parentDirectory,
+                path: rootPath,
                 graphTraverser: graphTraverser,
                 generatedProjects: generatedProjects,
                 lastUpgradeCheck: workspace.generationOptions.lastXcodeUpgradeCheck
             )
+            schemes.append(descriptor)
+            sideEffects.append(contentsOf: schemeSideEffects)
         }
+        try validateNoDuplicateTestPlanPaths(in: sideEffects)
         Logger.current.debug("SchemeDescriptorsGenerator: Finished generating workspace schemes")
-        return schemes
+        return (schemes, sideEffects)
     }
 
     func generateProjectSchemes(
         project: Project,
         generatedProject: GeneratedProject,
         graphTraverser: GraphTraversing
-    ) throws -> [SchemeDescriptor] {
+    ) throws -> ([SchemeDescriptor], [SideEffectDescriptor]) {
         Logger.current
             .debug("SchemeDescriptorsGenerator: Generating \(project.schemes.count) project schemes for \(project.name)")
-        let result = try project.schemes.map { scheme in
+        var schemes: [SchemeDescriptor] = []
+        var sideEffects: [SideEffectDescriptor] = []
+        for scheme in project.schemes {
             Logger.current.debug("SchemeDescriptorsGenerator: Generating project scheme \(scheme.name)")
-            return try generateScheme(
+            let (descriptor, schemeSideEffects) = try generateScheme(
                 scheme: scheme,
                 path: project.xcodeProjPath.parentDirectory,
                 graphTraverser: graphTraverser,
                 generatedProjects: [project.xcodeProjPath: generatedProject],
                 lastUpgradeCheck: project.lastUpgradeCheck
             )
+            schemes.append(descriptor)
+            sideEffects.append(contentsOf: schemeSideEffects)
         }
+        try validateNoDuplicateTestPlanPaths(in: sideEffects)
         Logger.current.debug("SchemeDescriptorsGenerator: Finished generating project schemes for \(project.name)")
-        return result
+        return (schemes, sideEffects)
+    }
+
+    /// Two schemes targeting the same generated `.xctestplan` path would silently overwrite each
+    /// other at side-effect execution time. Fail fast with a clear error instead.
+    private func validateNoDuplicateTestPlanPaths(in sideEffects: [SideEffectDescriptor]) throws {
+        var seen: Set<AbsolutePath> = []
+        for case let .testPlan(descriptor) in sideEffects {
+            guard seen.insert(descriptor.path).inserted else {
+                throw SchemeDescriptorsGeneratorError.duplicateGeneratedTestPlanPath(descriptor.path)
+            }
+        }
     }
 
     // swiftlint:disable function_body_length
@@ -130,7 +156,7 @@ struct SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         graphTraverser: GraphTraversing,
         generatedProjects: [AbsolutePath: GeneratedProject],
         lastUpgradeCheck: XcodeGraph.Version?
-    ) throws -> SchemeDescriptor {
+    ) throws -> (SchemeDescriptor, [SideEffectDescriptor]) {
         let generatedBuildAction = try schemeBuildAction(
             scheme: scheme,
             graphTraverser: graphTraverser,
@@ -143,6 +169,14 @@ struct SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             rootPath: path,
             generatedProjects: generatedProjects
         )
+        let testPlanSideEffects: [SideEffectDescriptor] = scheme.testAction?.testPlans?.compactMap { plan in
+            TestPlanDescriptor.from(
+                testPlan: plan,
+                graphTraverser: graphTraverser,
+                generatedProjects: generatedProjects,
+                rootPath: path
+            ).map(SideEffectDescriptor.testPlan)
+        } ?? []
         let generatedLaunchAction = try schemeLaunchAction(
             scheme: scheme,
             graphTraverser: graphTraverser,
@@ -188,7 +222,10 @@ struct SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             wasCreatedForAppExtension: wasCreatedForAppExtension
         )
 
-        return SchemeDescriptor(xcScheme: xcscheme, shared: scheme.shared, hidden: scheme.hidden)
+        return (
+            SchemeDescriptor(xcScheme: xcscheme, shared: scheme.shared, hidden: scheme.hidden),
+            testPlanSideEffects
+        )
     } // swiftlint:enable function_body_length
 
     /// Generates the scheme build action.
@@ -1116,5 +1153,21 @@ extension TestAction {
             preferredScreenCaptureFormat: nil,
             testPlans: nil
         )
+    }
+}
+
+enum SchemeDescriptorsGeneratorError: FatalError, Equatable {
+    case duplicateGeneratedTestPlanPath(AbsolutePath)
+
+    var type: ErrorType { .abort }
+
+    var description: String {
+        switch self {
+        case let .duplicateGeneratedTestPlanPath(path):
+            """
+            Multiple generated test plans resolve to the same path \(path.pathString). \
+            Give each plan a distinct name or pin one of them to an explicit path.
+            """
+        }
     }
 }

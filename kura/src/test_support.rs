@@ -1,18 +1,22 @@
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    sync::Arc,
-    time::Duration,
-};
+use std::{sync::Arc, time::Duration};
 
 use axum::response::Response;
 use http_body_util::BodyExt;
 use reqwest::Client;
 use tempfile::TempDir;
-use tokio::sync::{Notify, RwLock};
+use tokio::sync::Notify;
+use tokio::time::Instant;
 
 use crate::{
-    analytics::Analytics, config::Config, extension::SharedExtension, io::IoController,
-    memory::MemoryController, metrics::Metrics, state::AppState, store::Store,
+    analytics::Analytics,
+    config::Config,
+    extension::SharedExtension,
+    io::IoController,
+    memory::MemoryController,
+    metrics::Metrics,
+    runtime::{DataDirLock, RuntimeState},
+    state::{AppState, ReadinessState},
+    store::Store,
 };
 
 pub(crate) struct TestContext {
@@ -49,6 +53,7 @@ where
         peer_tls: None,
         file_descriptor_pool_size: 32,
         file_descriptor_acquire_timeout_ms: 5_000,
+        drain_completion_timeout_ms: 240_000,
         segment_handle_cache_size: 8,
         memory_soft_limit_bytes: 128 * 1024 * 1024,
         memory_hard_limit_bytes: 256 * 1024 * 1024,
@@ -85,6 +90,8 @@ where
         config.memory_soft_limit_bytes,
         config.memory_hard_limit_bytes,
     );
+    let data_dir_lock =
+        DataDirLock::acquire(&config.data_dir).expect("failed to acquire test writer lock");
     let store =
         Store::open(&config, io.clone(), memory.clone()).expect("failed to open test store");
     let analytics =
@@ -96,18 +103,19 @@ where
         .expect("failed to build test client");
     let state = Arc::new(AppState {
         config,
+        _data_dir_lock: data_dir_lock,
         store,
         io,
         memory,
         metrics,
+        runtime: RuntimeState::new(),
         extension,
         analytics,
         client,
         notify: Notify::new(),
-        members: RwLock::new(BTreeSet::new()),
-        peer_nodes: RwLock::new(BTreeMap::new()),
-        bootstrapped_peers: tokio::sync::Mutex::new(BTreeSet::new()),
+        readiness: tokio::sync::Mutex::new(ReadinessState::new(Instant::now())),
     });
+    state.sync_runtime_metrics().await;
 
     TestContext {
         _temp_dir: temp_dir,

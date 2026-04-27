@@ -1474,9 +1474,14 @@ public struct TestService { // swiftlint:disable:this type_body_length
             )
         }
 
+        let passthroughDerivedDataPath = try? await xcodeBuildAgumentParser
+            .parse(passthroughXcodeBuildArguments)
+            .derivedDataPath
         let projectDerivedDataDirectory: AbsolutePath?
         if let derivedDataPath {
             projectDerivedDataDirectory = derivedDataPath
+        } else if let passthroughDerivedDataPath {
+            projectDerivedDataDirectory = passthroughDerivedDataPath
         } else {
             projectDerivedDataDirectory = try? await derivedDataLocator.locate(
                 for: graphTraverser.workspace.xcWorkspacePath
@@ -1630,6 +1635,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 AlertController.current.success(
                     .alert("Result bundle uploaded for processing. View at \(test.url)")
                 )
+            case .off:
+                return
             }
         } catch {
             AlertController.current.warning(.alert("Failed to upload test results: \(error.localizedDescription)"))

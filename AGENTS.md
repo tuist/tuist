@@ -95,7 +95,7 @@ Examples:
 Tuist Server is an Elixir/Phoenix web application that extends the functionality of the Tuist CLI for iOS/macOS development. It provides binary caching, app preview deployment, build analytics, and Swift package registry services.
 
 **Key Technologies:**
-- **Backend**: Elixir 1.18.3 with Phoenix 1.7.12 framework
+- **Backend**: Elixir 1.19.5 with Phoenix 1.7.12 framework
 - **Databases**: 
   - PostgreSQL (primary database)
   - ClickHouse (analytics database, write-only through IngestRepo)

@@ -36,9 +36,10 @@ BEGIN;
 
 -- psql's `:'pw'` substitution only reaches top-level SQL, not the body of a
 -- `DO $$ ... $$` block (which is shipped verbatim to the server). Bounce the
--- password through a server-side session setting so the DO block can read it
--- via `current_setting/1`.
-SELECT set_config('tuist.processor_password', :'pw', false);
+-- password through a transaction-scoped GUC so the DO block can read it via
+-- `current_setting/1` and the value clears at COMMIT instead of lingering on
+-- the connecting session.
+SELECT set_config('tuist.processor_password', :'pw', true);
 
 -- Create the role (idempotent on re-run).
 DO $$

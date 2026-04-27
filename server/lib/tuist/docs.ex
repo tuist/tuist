@@ -6,6 +6,7 @@ defmodule Tuist.Docs do
 
   alias Tuist.Docs.CLI
   alias Tuist.Docs.Loader
+  alias Tuist.Docs.Paths
 
   {pages, source_paths} = Loader.load_pages!()
 
@@ -33,6 +34,12 @@ defmodule Tuist.Docs do
       page ->
         page
     end
+  end
+
+  def get_page(locale, path_segments) when is_binary(locale) and is_list(path_segments) do
+    locale
+    |> Paths.slug(path_segments)
+    |> get_page()
   end
 
   defp cli_pages, do: CLI.get_pages()
