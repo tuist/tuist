@@ -88,24 +88,15 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Tuist umbrella: every deploy passes values-managed-common.yaml
-          # plus the per-env overlay, so render the same way here. Only
-          # canary and production are checked: production is the
+          # Only production overlays are checked. Production is the
           # load-bearing overlay (HPA, PDB, NetworkPolicy, second
-          # deployment) and canary is the rollout gate. Staging diverges
-          # minimally from canary and would just duplicate signal.
-          - name: tuist (canary)
-            chart: infra/helm/tuist
-            release: tuist
-            values: values-managed-common.yaml values-managed-canary.yaml
+          # deployment) so it exercises the templates the most. Canary
+          # and staging diverge minimally from it and would just
+          # duplicate signal.
           - name: tuist (production)
             chart: infra/helm/tuist
             release: tuist
             values: values-managed-common.yaml values-managed-production.yaml
-          - name: k8s-monitoring (canary)
-            chart: infra/helm/k8s-monitoring
-            release: k8s-monitoring
-            values: values-canary.yaml
           - name: k8s-monitoring (production)
             chart: infra/helm/k8s-monitoring
             release: k8s-monitoring
