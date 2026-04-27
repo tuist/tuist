@@ -1,0 +1,21 @@
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: tuist-preview
+# Three-node layout that mirrors how preview environments will run on the
+# managed Syself cluster: a control plane, a "general" worker for shared
+# workloads, and a dedicated worker labeled `role=preview` and tainted so
+# only ephemeral preview releases land on it. Used by `mise run helm:preview-up`.
+nodes:
+  - role: control-plane
+  - role: worker
+    labels:
+      role: general
+  - role: worker
+    labels:
+      role: preview
+    kubeadmConfigPatches:
+      - |
+        kind: JoinConfiguration
+        nodeRegistration:
+          kubeletExtraArgs:
+            register-with-taints: "role=preview:NoSchedule"
