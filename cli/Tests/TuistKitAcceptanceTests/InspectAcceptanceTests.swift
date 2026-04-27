@@ -11,7 +11,6 @@ import TuistNooraTesting
 import TuistServer
 import TuistSupport
 import TuistTesting
-
 @testable import TuistInspectCommand
 @testable import TuistKit
 
@@ -163,10 +162,9 @@ struct InspectAcceptanceTests {
     private static func firstMatch(in input: String, pattern: String) -> String? {
         guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
         let range = NSRange(input.startIndex ..< input.endIndex, in: input)
-        guard
-            let match = regex.firstMatch(in: input, range: range),
-            match.numberOfRanges > 1,
-            let captureRange = Range(match.range(at: 1), in: input)
+        guard let match = regex.firstMatch(in: input, range: range),
+              match.numberOfRanges > 1,
+              let captureRange = Range(match.range(at: 1), in: input)
         else { return nil }
         return String(input[captureRange])
     }
@@ -230,7 +228,7 @@ struct LintAcceptanceTests {
     @Test(.disabled(), .withFixture("generated_ios_app_with_implicit_dependencies"), .withMockedDependencies())
     func ios_app_with_implicit_dependencies() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
-        let appDependencies: Set<String> = [
+        let appDependencies: Set = [
             "ClassModule",
             "EnumModule",
             "FuncModule",
