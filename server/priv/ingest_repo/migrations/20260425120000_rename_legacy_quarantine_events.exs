@@ -56,9 +56,14 @@ defmodule Tuist.IngestRepo.Migrations.RenameLegacyQuarantineEvents do
   @lock_id 20_260_425_120_000
 
   def up do
-    # Tuist.Repo (Postgres) is not started by `Ecto.Migrator.with_repo` when
-    # running IngestRepo migrations; same bootstrap pattern as the
-    # `BackfillTestRunsFromCommandEvents` migration.
+    # The data lives in ClickHouse — every rewrite below is an IngestRepo
+    # query. Postgres is only borrowed as a lock store: ClickHouse exposes
+    # no user-level advisory lock, so we open a Postgres transaction, take
+    # `pg_advisory_xact_lock`, do the ClickHouse work, and let the transaction
+    # commit release the lock. `Ecto.Migrator.with_repo` only starts the
+    # IngestRepo when running IngestRepo migrations, so we have to bootstrap
+    # `Tuist.Repo` ourselves — same pattern as
+    # `BackfillTestRunsFromCommandEvents`.
     case Repo.start_link() do
       {:ok, _} -> :ok
       {:error, {:already_started, _}} -> :ok
