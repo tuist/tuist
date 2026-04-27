@@ -2,12 +2,14 @@ defmodule Tuist.VCS.Workers.CommentWorkerTest do
   use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
+  alias Tuist.Environment
   alias Tuist.VCS
   alias Tuist.VCS.Workers.CommentWorker
   alias TuistTestSupport.Fixtures.AppBuildsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   setup do
+    stub(Environment, :app_url, fn -> "" end)
     project = ProjectsFixtures.project_fixture()
     %{project: project}
   end
@@ -35,13 +37,7 @@ defmodule Tuist.VCS.Workers.CommentWorkerTest do
         "git_commit_sha" => "abc123",
         "git_ref" => "refs/pull/123/head",
         "git_remote_url_origin" => "https://github.com/tuist/tuist",
-        "project_id" => project.id,
-        "preview_url_template" => "/:account_name/:project_name/previews/:preview_id",
-        "preview_qr_code_url_template" => "/:account_name/:project_name/previews/:preview_id/qr-code.png",
-        "command_run_url_template" => "/:account_name/:project_name/runs/:command_event_id",
-        "test_run_url_template" => "/:account_name/:project_name/tests/test-runs/:test_run_id",
-        "bundle_url_template" => "/:account_name/:project_name/bundles/:bundle_id",
-        "build_url_template" => "/:account_name/:project_name/builds/build-runs/:build_id"
+        "project_id" => project.id
       }
 
       # When
@@ -51,10 +47,11 @@ defmodule Tuist.VCS.Workers.CommentWorkerTest do
       assert result == :ok
     end
 
-    test "URL template functions work correctly", %{project: project} do
+    test "URL template functions prefix the configured app_url and substitute placeholders", %{project: project} do
       # Given
+      stub(Environment, :app_url, fn -> "https://tuist.example" end)
+
       expect(VCS, :post_vcs_pull_request_comment, fn args ->
-        # Test the URL functions with mock data
         mock_data = %{
           project: %{account: %{name: "test-account"}, name: "test-project"},
           preview: %{id: 456},
@@ -64,23 +61,23 @@ defmodule Tuist.VCS.Workers.CommentWorkerTest do
           build: %{id: 202}
         }
 
-        preview_url = args.preview_url.(mock_data)
-        assert preview_url == "/test-account/test-project/previews/456"
+        assert args.preview_url.(mock_data) ==
+                 "https://tuist.example/test-account/test-project/previews/456"
 
-        qr_code_url = args.preview_qr_code_url.(mock_data)
-        assert qr_code_url == "/test-account/test-project/previews/456/qr-code.png"
+        assert args.preview_qr_code_url.(mock_data) ==
+                 "https://tuist.example/test-account/test-project/previews/456/qr-code.png"
 
-        command_url = args.command_run_url.(mock_data)
-        assert command_url == "/test-account/test-project/runs/789"
+        assert args.command_run_url.(mock_data) ==
+                 "https://tuist.example/test-account/test-project/runs/789"
 
-        test_run_url = args.test_run_url.(mock_data)
-        assert test_run_url == "/test-account/test-project/tests/test-runs/303"
+        assert args.test_run_url.(mock_data) ==
+                 "https://tuist.example/test-account/test-project/tests/test-runs/303"
 
-        bundle_url = args.bundle_url.(mock_data)
-        assert bundle_url == "/test-account/test-project/bundles/101"
+        assert args.bundle_url.(mock_data) ==
+                 "https://tuist.example/test-account/test-project/bundles/101"
 
-        build_url = args.build_url.(mock_data)
-        assert build_url == "/test-account/test-project/builds/build-runs/202"
+        assert args.build_url.(mock_data) ==
+                 "https://tuist.example/test-account/test-project/builds/build-runs/202"
 
         :ok
       end)
@@ -89,13 +86,7 @@ defmodule Tuist.VCS.Workers.CommentWorkerTest do
         "git_commit_sha" => "abc123",
         "git_ref" => "refs/pull/123/head",
         "git_remote_url_origin" => "https://github.com/tuist/tuist",
-        "project_id" => project.id,
-        "preview_url_template" => "/:account_name/:project_name/previews/:preview_id",
-        "preview_qr_code_url_template" => "/:account_name/:project_name/previews/:preview_id/qr-code.png",
-        "command_run_url_template" => "/:account_name/:project_name/runs/:command_event_id",
-        "test_run_url_template" => "/:account_name/:project_name/tests/test-runs/:test_run_id",
-        "bundle_url_template" => "/:account_name/:project_name/bundles/:bundle_id",
-        "build_url_template" => "/:account_name/:project_name/builds/build-runs/:build_id"
+        "project_id" => project.id
       }
 
       # When
@@ -128,13 +119,7 @@ defmodule Tuist.VCS.Workers.CommentWorkerTest do
         "git_commit_sha" => "abc123",
         "git_ref" => "refs/pull/123/head",
         "git_remote_url_origin" => "https://github.com/tuist/tuist",
-        "project_id" => project.id,
-        "preview_url_template" => "/:account_name/:project_name/previews/:preview_id",
-        "preview_qr_code_url_template" => "/:account_name/:project_name/previews/:preview_id/qr-code.png",
-        "command_run_url_template" => "/:account_name/:project_name/runs/:command_event_id",
-        "test_run_url_template" => "/:account_name/:project_name/tests/test-runs/:test_run_id",
-        "bundle_url_template" => "/:account_name/:project_name/bundles/:bundle_id",
-        "build_url_template" => "/:account_name/:project_name/builds/build-runs/:build_id"
+        "project_id" => project.id
       }
 
       # When / Then - This should work without raising an error
@@ -152,13 +137,7 @@ defmodule Tuist.VCS.Workers.CommentWorkerTest do
         "git_commit_sha" => "abc123",
         "git_ref" => "refs/pull/123/head",
         "git_remote_url_origin" => "https://github.com/tuist/tuist",
-        "project_id" => project.id,
-        "preview_url_template" => "/:account_name/:project_name/previews/:preview_id",
-        "preview_qr_code_url_template" => "/:account_name/:project_name/previews/:preview_id/qr-code.png",
-        "command_run_url_template" => "/:account_name/:project_name/runs/:command_event_id",
-        "test_run_url_template" => "/:account_name/:project_name/tests/test-runs/:test_run_id",
-        "bundle_url_template" => "/:account_name/:project_name/bundles/:bundle_id",
-        "build_url_template" => "/:account_name/:project_name/builds/build-runs/:build_id"
+        "project_id" => project.id
       }
 
       # Insert a competing job and set it to "executing" state
@@ -183,13 +162,7 @@ defmodule Tuist.VCS.Workers.CommentWorkerTest do
         "git_commit_sha" => "abc123",
         "git_ref" => "refs/pull/123/head",
         "git_remote_url_origin" => "https://github.com/tuist/tuist",
-        "project_id" => project.id,
-        "preview_url_template" => "/:account_name/:project_name/previews/:preview_id",
-        "preview_qr_code_url_template" => "/:account_name/:project_name/previews/:preview_id/qr-code.png",
-        "command_run_url_template" => "/:account_name/:project_name/runs/:command_event_id",
-        "test_run_url_template" => "/:account_name/:project_name/tests/test-runs/:test_run_id",
-        "bundle_url_template" => "/:account_name/:project_name/bundles/:bundle_id",
-        "build_url_template" => "/:account_name/:project_name/builds/build-runs/:build_id"
+        "project_id" => project.id
       }
 
       # When

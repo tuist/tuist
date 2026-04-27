@@ -9,9 +9,17 @@ defmodule Tuist.VCS.Workers.CommentWorker do
 
   import Ecto.Query
 
+  alias Tuist.Environment
   alias Tuist.Projects
   alias Tuist.Repo
   alias Tuist.VCS
+
+  @preview_url_path "/:account_name/:project_name/previews/:preview_id"
+  @preview_qr_code_url_path "/:account_name/:project_name/previews/:preview_id/qr-code.png"
+  @command_run_url_path "/:account_name/:project_name/runs/:command_event_id"
+  @test_run_url_path "/:account_name/:project_name/tests/test-runs/:test_run_id"
+  @bundle_url_path "/:account_name/:project_name/bundles/:bundle_id"
+  @build_url_path "/:account_name/:project_name/builds/build-runs/:build_id"
 
   @impl Oban.Worker
   def perform(%Oban.Job{
@@ -20,13 +28,7 @@ defmodule Tuist.VCS.Workers.CommentWorker do
           "git_commit_sha" => git_commit_sha,
           "git_ref" => git_ref,
           "git_remote_url_origin" => git_remote_url_origin,
-          "project_id" => project_id,
-          "preview_url_template" => preview_url_template,
-          "preview_qr_code_url_template" => preview_qr_code_url_template,
-          "command_run_url_template" => command_run_url_template,
-          "test_run_url_template" => test_run_url_template,
-          "bundle_url_template" => bundle_url_template,
-          "build_url_template" => build_url_template
+          "project_id" => project_id
         }
       }) do
     # Cancel any other running jobs targeting the same PR to implement debouncing.
@@ -36,18 +38,19 @@ defmodule Tuist.VCS.Workers.CommentWorker do
     cancel_competing_jobs(job_id, project_id, git_ref)
 
     project = Projects.get_project_by_id(project_id)
+    base_url = Environment.app_url()
 
     VCS.post_vcs_pull_request_comment(%{
       git_commit_sha: git_commit_sha,
       git_ref: git_ref,
       git_remote_url_origin: git_remote_url_origin,
       project: project,
-      preview_url: &build_url(preview_url_template, &1),
-      preview_qr_code_url: &build_url(preview_qr_code_url_template, &1),
-      command_run_url: &build_url(command_run_url_template, &1),
-      test_run_url: &build_url(test_run_url_template, &1),
-      bundle_url: &build_url(bundle_url_template, &1),
-      build_url: &build_url(build_url_template, &1)
+      preview_url: &build_url(base_url <> @preview_url_path, &1),
+      preview_qr_code_url: &build_url(base_url <> @preview_qr_code_url_path, &1),
+      command_run_url: &build_url(base_url <> @command_run_url_path, &1),
+      test_run_url: &build_url(base_url <> @test_run_url_path, &1),
+      bundle_url: &build_url(base_url <> @bundle_url_path, &1),
+      build_url: &build_url(base_url <> @build_url_path, &1)
     })
 
     :ok

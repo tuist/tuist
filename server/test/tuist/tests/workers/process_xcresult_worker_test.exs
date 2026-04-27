@@ -577,8 +577,7 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
         "git_commit_sha" => "abc123",
         "git_ref" => "refs/pull/1/merge",
         "git_remote_url_origin" => "https://github.com/tuist/tuist",
-        "project_id" => project.id,
-        "test_run_url_template" => "http://localhost/tests/test-runs/:test_run_id"
+        "project_id" => project.id
       }
 
       expect(Tuist.VCS, :enqueue_vcs_pull_request_comment, fn params ->
