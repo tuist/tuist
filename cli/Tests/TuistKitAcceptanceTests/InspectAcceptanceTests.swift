@@ -6,6 +6,7 @@ import TuistAcceptanceTesting
 import TuistCore
 import TuistEnvironment
 import TuistLoggerTesting
+import TuistLogging
 import TuistNooraTesting
 import TuistServer
 import TuistSupport
@@ -50,6 +51,7 @@ struct InspectAcceptanceTests {
             await RunMetadataStorage.current.buildRunId,
             "XcodeBuildBuildCommand did not record a buildRunId"
         )
+        Logger.current.warning("Polling build \(buildId) on \(serverURL.absoluteString) for \(fullHandle)")
 
         let build = try await Self.pollUntilProcessed(
             timeout: .seconds(30),
@@ -107,6 +109,7 @@ struct InspectAcceptanceTests {
             await RunMetadataStorage.current.testRunId,
             "XcodeBuildTestCommand did not record a testRunId"
         )
+        Logger.current.warning("Polling test run \(testRunId) on \(serverURL.absoluteString) for \(fullHandle)")
 
         let testRun = try await Self.pollUntilProcessed(
             timeout: .seconds(30),
@@ -139,13 +142,24 @@ struct InspectAcceptanceTests {
     ) async throws -> Value {
         let clock = ContinuousClock()
         let deadline = clock.now.advanced(by: timeout)
+        var lastError: (any Error)?
         while clock.now < deadline {
-            if let value = try? await operation(), isTerminal(value) {
-                return value
+            do {
+                let value = try await operation()
+                if isTerminal(value) {
+                    return value
+                }
+            } catch {
+                lastError = error
+                Logger.current.warning("Polling \(label): \(error.localizedDescription)")
             }
             try await Task.sleep(for: interval)
         }
-        Issue.record("Timed out after \(timeout) waiting for \(label) to be processed")
+        if let lastError {
+            Issue.record("Timed out after \(timeout) waiting for \(label) to be processed; last error: \(lastError)")
+        } else {
+            Issue.record("Timed out after \(timeout) waiting for \(label) to be processed")
+        }
         return try await operation()
     }
 
