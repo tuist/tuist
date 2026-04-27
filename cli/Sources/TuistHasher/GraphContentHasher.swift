@@ -80,38 +80,14 @@ public struct GraphContentHasher: GraphContentHashing {
             )
         }
 
-        let hashes: [TargetContentHash]
-        if Environment.current.isSwiftFileSystemBackendEnabled {
-            hashes = try await concurrentContentHashes(
-                hashableTargets: hashableTargets,
-                graphTraverser: graphTraverser,
-                hashedTargets: hashedTargets,
-                hashedPaths: hashedPaths,
-                destination: destination,
-                additionalStrings: additionalStrings
-            )
-        } else {
-            hashes = try await hashableTargets
-                .serialMap { (target: GraphTarget) async throws -> TargetContentHash in
-                    let hash = try await targetContentHasher.contentHash(
-                        for: target,
-                        hashedTargets: hashedTargets.value,
-                        hashedPaths: hashedPaths.value,
-                        destination: destination,
-                        additionalStrings: additionalStrings
-                    )
-                    hashedPaths.mutate { $0 = hash.hashedPaths }
-                    hashedTargets.mutate {
-                        $0[
-                            GraphHashedTarget(
-                                projectPath: target.path,
-                                targetName: target.target.name
-                            )
-                        ] = hash.hash
-                    }
-                    return hash
-                }
-        }
+        let hashes = try await concurrentContentHashes(
+            hashableTargets: hashableTargets,
+            graphTraverser: graphTraverser,
+            hashedTargets: hashedTargets,
+            hashedPaths: hashedPaths,
+            destination: destination,
+            additionalStrings: additionalStrings
+        )
         return Dictionary(uniqueKeysWithValues: zip(hashableTargets, hashes))
     }
 

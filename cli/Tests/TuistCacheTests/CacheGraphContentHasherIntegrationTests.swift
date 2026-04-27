@@ -184,7 +184,14 @@ struct ContentHashingIntegrationTests {
         )
 
         // When
-        let contentHash = try await subject.contentHashes(
+        let firstRun = try await subject.contentHashes(
+            for: graph,
+            configuration: "Debug",
+            defaultConfiguration: nil,
+            excludedTargets: [],
+            destination: nil
+        )
+        let secondRun = try await subject.contentHashes(
             for: graph,
             configuration: "Debug",
             defaultConfiguration: nil,
@@ -193,8 +200,11 @@ struct ContentHashingIntegrationTests {
         )
 
         // Then
-        #expect(contentHash[framework1]?.hash == "8b1e07766ad11b9259918e394b28d822")
-        #expect(contentHash[framework2]?.hash == "20e62eee53ed5cc190e72e2be2d018ed")
+        #expect(firstRun[framework1]?.hash == "44ed803cd024f35c2ca112a1eaedb41a")
+        #expect(firstRun[framework2]?.hash == "f6d100abb55f897858cf39069cd7d06d")
+        #expect(firstRun[framework1]?.hash == secondRun[framework1]?.hash)
+        #expect(firstRun[framework2]?.hash == secondRun[framework2]?.hash)
+        #expect(firstRun[framework1]?.hash != firstRun[framework2]?.hash)
     }
 
     // MARK: - Resources
@@ -533,6 +543,7 @@ struct ContentHashingIntegrationTests {
     }
 
     private func makeFramework(
+        name: String = "Target",
         platform: Platform = .iOS,
         productName: String? = nil,
         sources: [SourceFile] = [],
@@ -541,6 +552,7 @@ struct ContentHashingIntegrationTests {
         targetScripts: [TargetScript] = []
     ) -> Target {
         .test(
+            name: name,
             platform: platform,
             product: .framework,
             productName: productName,

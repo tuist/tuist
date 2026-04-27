@@ -3,6 +3,7 @@
 This node covers the `kura/` workspace, a Rust service for low-latency cache meshes that replicate artifacts and metadata across peer nodes.
 
 ## Key Boundaries
+- High-level architecture overview: `docs/architecture.md` — start here when onboarding or reasoning about how subsystems interact
 - Entry points: `src/main.rs`, `src/app.rs`
 - Public HTTP and gRPC surfaces: `src/http.rs`
 - Storage, metadata, and replication state: `src/store.rs`, `src/state.rs`
@@ -10,13 +11,16 @@ This node covers the `kura/` workspace, a Rust service for low-latency cache mes
 - Observability and analytics: `src/metrics.rs`, `src/telemetry.rs`, `src/analytics.rs`
 - Peer TLS support: `src/peer_tls.rs`
 - Operational assets: `docker-compose.yml`, `ops/`, `test/e2e/`, `spec/e2e/`
+  - See `ops/AGENTS.md` for Helm, rollout helpers, and observability config boundaries
 
 ## Development
 - Install tools from `kura/mise.toml` with `mise install`
 - Run unit tests with `mise exec -- cargo test`
+- Consider Kura work incomplete until `mise exec -- cargo clippy --all-targets -- -D warnings` passes
 - Run the end-to-end suite with `docker compose build && mise exec -- shellspec`
 
 ## Maintenance Notes
 - Keep `README.md` aligned with any protocol, configuration, or deployment changes
+- Keep `docs/architecture.md` in sync when changing how subsystems fit together (storage planes, replication model, traffic lifecycle, rollouts, observability surface)
 - When changing cache protocol behavior, update the relevant shellspec coverage under `spec/e2e/`
 - Keep Helm and local observability assets in `ops/` in sync with runtime configuration changes

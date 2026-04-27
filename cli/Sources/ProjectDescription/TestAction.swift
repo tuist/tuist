@@ -3,8 +3,8 @@
 /// You can create a test action with either a set of test targets or test plans using the `.targets` or `.testPlans` static
 /// methods respectively.
 public struct TestAction: Equatable, Codable, Sendable {
-    /// List of test plans. The first in the list will be the default plan.
-    public var testPlans: [Path]?
+    /// Test plans attached to the action. The first plan in the list is the default.
+    public var testPlans: [TestPlan]?
 
     /// A list of testable targets, that are targets which are defined in the project with testable information.
     public var targets: [TestableTarget]
@@ -37,7 +37,7 @@ public struct TestAction: Equatable, Codable, Sendable {
     public var skippedTests: [String]?
 
     private init(
-        testPlans: [Path]?,
+        testPlans: [TestPlan]?,
         targets: [TestableTarget],
         arguments: Arguments?,
         configuration: ConfigurationName,
@@ -111,7 +111,7 @@ public struct TestAction: Equatable, Codable, Sendable {
     ///   - postActions: Actions to execute after running the tests.
     /// - Returns: A test action.
     public static func testPlans(
-        _ testPlans: [Path],
+        _ testPlans: [TestPlan],
         configuration: ConfigurationName = .debug,
         attachDebugger: Bool = true,
         preActions: [ExecutionAction] = [],

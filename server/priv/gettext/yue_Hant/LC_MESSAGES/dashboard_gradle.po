@@ -7,8 +7,8 @@ msgstr ""
 "Plural-Forms: nplurals=1; plural=0;\n"
 
 #: lib/tuist_web/live/gradle_build_runs_live.html.heex:130
-#: lib/tuist_web/live/gradle_builds_live.html.heex:739
-#: lib/tuist_web/live/gradle_cache_live.html.heex:599
+#: lib/tuist_web/live/gradle_builds_live.html.heex:692
+#: lib/tuist_web/live/gradle_cache_live.html.heex:633
 #: lib/tuist_web/live/gradle_overview_live.html.heex:131
 #: lib/tuist_web/live/gradle_overview_live.html.heex:161
 #: lib/tuist_web/live/gradle_overview_live.html.heex:576
@@ -23,8 +23,8 @@ msgstr "%{duration}秒"
 #: lib/tuist_web/live/gradle_cache_live.html.heex:176
 #: lib/tuist_web/live/gradle_cache_live.html.heex:183
 #: lib/tuist_web/live/gradle_cache_live.html.heex:190
-#: lib/tuist_web/live/gradle_cache_live.html.heex:509
-#: lib/tuist_web/live/gradle_cache_live.html.heex:585
+#: lib/tuist_web/live/gradle_cache_live.html.heex:543
+#: lib/tuist_web/live/gradle_cache_live.html.heex:619
 #: lib/tuist_web/live/gradle_overview_live.html.heex:100
 #: lib/tuist_web/live/gradle_overview_live.html.heex:202
 #, elixir-autogen, elixir-format
@@ -37,8 +37,7 @@ msgstr "%{hit_rate}%"
 msgid "Analytics"
 msgstr "分析"
 
-#: lib/tuist_web/live/gradle_builds_live.html.heex:80
-#: lib/tuist_web/live/gradle_builds_live.html.heex:527
+#: lib/tuist_web/live/gradle_builds_live.html.heex:75
 #: lib/tuist_web/live/gradle_cache_live.html.heex:108
 #: lib/tuist_web/live/gradle_overview_live.html.heex:78
 #: lib/tuist_web/live/gradle_overview_live.html.heex:462
@@ -47,7 +46,7 @@ msgid "Apply"
 msgstr "套用"
 
 #: lib/tuist_web/live/gradle_builds_live.html.heex:311
-#: lib/tuist_web/live/gradle_cache_live.html.heex:352
+#: lib/tuist_web/live/gradle_cache_live.html.heex:373
 #, elixir-autogen, elixir-format
 msgid "Average"
 msgstr "平均"
@@ -67,48 +66,49 @@ msgstr "分支"
 #: lib/tuist_web/live/gradle_build_live.html.heex:75
 #, elixir-autogen, elixir-format
 msgid "Build Details"
-msgstr "編譯詳情"
+msgstr "構建詳情"
 
 #: lib/tuist_web/live/gradle_build_live.ex:31
 #: lib/tuist_web/live/gradle_build_live.ex:35
 #, elixir-autogen, elixir-format
 msgid "Build not found."
-msgstr "未找到編譯。"
+msgstr "未找到構建。"
 
 #: lib/tuist_web/live/gradle_build_runs_live.ex:248
 #: lib/tuist_web/live/gradle_builds_live.ex:177
-#: lib/tuist_web/live/gradle_builds_live.html.heex:31
-#: lib/tuist_web/live/gradle_cache_live.ex:198
+#: lib/tuist_web/live/gradle_builds_live.html.heex:26
+#: lib/tuist_web/live/gradle_cache_live.ex:204
+#: lib/tuist_web/live/gradle_cache_live.ex:205
 #: lib/tuist_web/live/gradle_cache_live.html.heex:59
-#: lib/tuist_web/live/gradle_overview_live.ex:158
-#: lib/tuist_web/live/gradle_overview_live.ex:162
-#: lib/tuist_web/live/gradle_overview_live.html.heex:31
-#: lib/tuist_web/live/gradle_overview_live.html.heex:415
+#: lib/tuist_web/live/gradle_overview_live.ex:168
+#: lib/tuist_web/live/gradle_overview_live.ex:172
+#: lib/tuist_web/live/gradle_overview_live.html.heex:23
+#: lib/tuist_web/live/gradle_overview_live.html.heex:407
 #, elixir-autogen, elixir-format
 msgid "CI"
 msgstr "CI"
 
 #: lib/tuist_web/live/gradle_build_runs_live.html.heex:140
-#: lib/tuist_web/live/gradle_cache_live.html.heex:557
+#: lib/tuist_web/live/gradle_cache_live.html.heex:591
 #, elixir-autogen, elixir-format
 msgid "Cache Hit Rate"
 msgstr "快取命中率"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:341
-#: lib/tuist_web/live/gradle_cache_live.ex:182
+#: lib/tuist_web/live/gradle_cache_live.ex:188
 #: lib/tuist_web/live/gradle_cache_live.html.heex:220
 #, elixir-autogen, elixir-format
 msgid "Cache downloads"
-msgstr "快取下載"
+msgstr "快取下載量"
 
 #: lib/tuist_web/live/gradle_cache_live.html.heex:223
 #, elixir-autogen, elixir-format
 msgid "Cache downloads represents the total size of cache artifacts downloaded from remote storage during the given period."
-msgstr "快取下載代表喺指定期間由遠端儲存下載嘅快取檔案總大小。"
+msgstr "快取下載量表示指定期間由遠端儲存下載的快取產物總大小。"
 
-#: lib/tuist_web/live/gradle_cache_live.ex:191
+#: lib/tuist_web/live/gradle_cache_live.ex:197
 #: lib/tuist_web/live/gradle_cache_live.html.heex:131
-#: lib/tuist_web/live/gradle_cache_live.html.heex:507
+#: lib/tuist_web/live/gradle_cache_live.html.heex:541
 #: lib/tuist_web/live/gradle_overview_live.html.heex:90
 #: lib/tuist_web/live/gradle_overview_live.html.heex:200
 #: lib/tuist_web/live/gradle_overview_live.html.heex:266
@@ -120,19 +120,19 @@ msgstr "快取命中率"
 #: lib/tuist_web/live/gradle_overview_live.html.heex:92
 #, elixir-autogen, elixir-format
 msgid "Cache hit rate represents the percentage of cacheable tasks that were resolved from cache rather than being executed."
-msgstr "快取命中率代表由快取解決而非執行嘅可快取任務百分比。"
+msgstr "快取命中率代表從快取中解決而非執行的可快取任務比例。"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:352
-#: lib/tuist_web/live/gradle_cache_live.ex:173
+#: lib/tuist_web/live/gradle_cache_live.ex:179
 #: lib/tuist_web/live/gradle_cache_live.html.heex:243
 #, elixir-autogen, elixir-format
 msgid "Cache uploads"
-msgstr "快取上傳"
+msgstr "快取上傳量"
 
 #: lib/tuist_web/live/gradle_cache_live.html.heex:246
 #, elixir-autogen, elixir-format
 msgid "Cache uploads represents the total size of cache artifacts uploaded to remote storage during the given period."
-msgstr "快取上傳代表喺指定期間上傳到遠端儲存嘅快取檔案總大小。"
+msgstr "快取上傳量表示指定期間上傳到遠端儲存的快取產物總大小。"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:424
 #, elixir-autogen, elixir-format
@@ -144,8 +144,7 @@ msgstr "可快取任務"
 msgid "Cacheable tasks:"
 msgstr "可快取任務："
 
-#: lib/tuist_web/live/gradle_builds_live.html.heex:71
-#: lib/tuist_web/live/gradle_builds_live.html.heex:518
+#: lib/tuist_web/live/gradle_builds_live.html.heex:66
 #: lib/tuist_web/live/gradle_cache_live.html.heex:99
 #: lib/tuist_web/live/gradle_overview_live.html.heex:71
 #: lib/tuist_web/live/gradle_overview_live.html.heex:455
@@ -156,7 +155,7 @@ msgstr "取消"
 #: lib/tuist_web/live/gradle_build_live.html.heex:100
 #: lib/tuist_web/live/gradle_build_runs_live.ex:220
 #: lib/tuist_web/live/gradle_build_runs_live.html.heex:85
-#: lib/tuist_web/live/gradle_builds_live.html.heex:729
+#: lib/tuist_web/live/gradle_builds_live.html.heex:682
 #, elixir-autogen, elixir-format
 msgid "Cancelled"
 msgstr "已取消"
@@ -166,8 +165,7 @@ msgstr "已取消"
 msgid "Commit"
 msgstr "提交"
 
-#: lib/tuist_web/live/gradle_builds_live.html.heex:62
-#: lib/tuist_web/live/gradle_builds_live.html.heex:509
+#: lib/tuist_web/live/gradle_builds_live.html.heex:57
 #: lib/tuist_web/live/gradle_cache_live.html.heex:90
 #: lib/tuist_web/live/gradle_overview_live.html.heex:62
 #: lib/tuist_web/live/gradle_overview_live.html.heex:446
@@ -185,8 +183,8 @@ msgstr "自訂"
 #: lib/tuist_web/live/gradle_build_runs_live.html.heex:24
 #: lib/tuist_web/live/gradle_build_runs_live.html.heex:32
 #: lib/tuist_web/live/gradle_build_runs_live.html.heex:118
-#: lib/tuist_web/live/gradle_builds_live.html.heex:736
-#: lib/tuist_web/live/gradle_cache_live.html.heex:596
+#: lib/tuist_web/live/gradle_builds_live.html.heex:689
+#: lib/tuist_web/live/gradle_cache_live.html.heex:630
 #, elixir-autogen, elixir-format
 msgid "Duration"
 msgstr "持續時間"
@@ -201,7 +199,7 @@ msgstr "已執行"
 #: lib/tuist_web/live/gradle_build_live.ex:332
 #: lib/tuist_web/live/gradle_build_runs_live.ex:219
 #: lib/tuist_web/live/gradle_build_runs_live.html.heex:80
-#: lib/tuist_web/live/gradle_builds_live.html.heex:724
+#: lib/tuist_web/live/gradle_builds_live.html.heex:677
 #, elixir-autogen, elixir-format
 msgid "Failed"
 msgstr "失敗"
@@ -214,10 +212,10 @@ msgstr "失敗"
 #: lib/tuist_web/live/gradle_build_live.ex:68
 #, elixir-autogen, elixir-format
 msgid "Gradle Build"
-msgstr "Gradle 編譯"
+msgstr "Gradle 構建"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:62
-#: lib/tuist_web/live/gradle_cache_live.ex:27
+#: lib/tuist_web/live/gradle_cache_live.ex:30
 #, elixir-autogen, elixir-format
 msgid "Gradle Cache"
 msgstr "Gradle 快取"
@@ -228,7 +226,7 @@ msgstr "Gradle 快取"
 msgid "Gradle Version"
 msgstr "Gradle 版本"
 
-#: lib/tuist_web/live/gradle_cache_live.html.heex:583
+#: lib/tuist_web/live/gradle_cache_live.html.heex:617
 #, elixir-autogen, elixir-format
 msgid "Hit Rate"
 msgstr "命中率"
@@ -238,8 +236,7 @@ msgstr "命中率"
 msgid "Java Version"
 msgstr "Java 版本"
 
-#: lib/tuist_web/live/gradle_builds_live.html.heex:59
-#: lib/tuist_web/live/gradle_builds_live.html.heex:506
+#: lib/tuist_web/live/gradle_builds_live.html.heex:54
 #: lib/tuist_web/live/gradle_cache_live.html.heex:87
 #: lib/tuist_web/live/gradle_overview_live.html.heex:59
 #: lib/tuist_web/live/gradle_overview_live.html.heex:443
@@ -247,8 +244,7 @@ msgstr "Java 版本"
 msgid "Last 12 months"
 msgstr "過去12個月"
 
-#: lib/tuist_web/live/gradle_builds_live.html.heex:44
-#: lib/tuist_web/live/gradle_builds_live.html.heex:491
+#: lib/tuist_web/live/gradle_builds_live.html.heex:39
 #: lib/tuist_web/live/gradle_cache_live.html.heex:72
 #: lib/tuist_web/live/gradle_overview_live.html.heex:44
 #: lib/tuist_web/live/gradle_overview_live.html.heex:428
@@ -256,8 +252,7 @@ msgstr "過去12個月"
 msgid "Last 24 hours"
 msgstr "過去24小時"
 
-#: lib/tuist_web/live/gradle_builds_live.html.heex:54
-#: lib/tuist_web/live/gradle_builds_live.html.heex:501
+#: lib/tuist_web/live/gradle_builds_live.html.heex:49
 #: lib/tuist_web/live/gradle_cache_live.html.heex:82
 #: lib/tuist_web/live/gradle_overview_live.html.heex:54
 #: lib/tuist_web/live/gradle_overview_live.html.heex:438
@@ -265,8 +260,7 @@ msgstr "過去24小時"
 msgid "Last 30 days"
 msgstr "過去30日"
 
-#: lib/tuist_web/live/gradle_builds_live.html.heex:49
-#: lib/tuist_web/live/gradle_builds_live.html.heex:496
+#: lib/tuist_web/live/gradle_builds_live.html.heex:44
 #: lib/tuist_web/live/gradle_cache_live.html.heex:77
 #: lib/tuist_web/live/gradle_overview_live.html.heex:49
 #: lib/tuist_web/live/gradle_overview_live.html.heex:433
@@ -289,14 +283,14 @@ msgstr "未命中"
 
 #: lib/tuist_web/live/gradle_build_runs_live.html.heex:192
 #: lib/tuist_web/live/gradle_builds_live.html.heex:447
-#: lib/tuist_web/live/gradle_builds_live.html.heex:616
-#: lib/tuist_web/live/gradle_builds_live.html.heex:756
-#: lib/tuist_web/live/gradle_cache_live.html.heex:481
-#: lib/tuist_web/live/gradle_cache_live.html.heex:617
+#: lib/tuist_web/live/gradle_builds_live.html.heex:569
+#: lib/tuist_web/live/gradle_builds_live.html.heex:709
+#: lib/tuist_web/live/gradle_cache_live.html.heex:515
+#: lib/tuist_web/live/gradle_cache_live.html.heex:651
 #: lib/tuist_web/live/gradle_overview_live.html.heex:281
 #, elixir-autogen, elixir-format
 msgid "No data yet"
-msgstr "暫無數據"
+msgstr "尚無數據"
 
 #: lib/tuist_web/live/gradle_build_live.ex:248
 #: lib/tuist_web/live/gradle_build_live.ex:334
@@ -316,26 +310,28 @@ msgid "Outcome"
 msgstr "結果"
 
 #: lib/tuist_web/live/gradle_build_runs_live.html.heex:69
-#: lib/tuist_web/live/gradle_builds_live.html.heex:713
-#: lib/tuist_web/live/gradle_cache_live.html.heex:580
+#: lib/tuist_web/live/gradle_builds_live.html.heex:666
+#: lib/tuist_web/live/gradle_cache_live.ex:229
+#: lib/tuist_web/live/gradle_cache_live.html.heex:287
+#: lib/tuist_web/live/gradle_cache_live.html.heex:614
 #, elixir-autogen, elixir-format
 msgid "Project"
-msgstr "項目"
+msgstr "專案"
 
 #: lib/tuist_web/live/gradle_build_runs_live.html.heex:25
 #: lib/tuist_web/live/gradle_build_runs_live.html.heex:40
 #: lib/tuist_web/live/gradle_build_runs_live.html.heex:166
-#: lib/tuist_web/live/gradle_builds_live.html.heex:749
-#: lib/tuist_web/live/gradle_cache_live.html.heex:609
+#: lib/tuist_web/live/gradle_builds_live.html.heex:702
+#: lib/tuist_web/live/gradle_cache_live.html.heex:643
 #, elixir-autogen, elixir-format
 msgid "Ran at"
-msgstr "執行於"
+msgstr "執行時間"
 
-#: lib/tuist_web/live/gradle_builds_live.html.heex:626
-#: lib/tuist_web/live/gradle_cache_live.html.heex:490
+#: lib/tuist_web/live/gradle_builds_live.html.heex:579
+#: lib/tuist_web/live/gradle_cache_live.html.heex:524
 #, elixir-autogen, elixir-format
 msgid "Recent Builds"
-msgstr "最近編譯"
+msgstr "最近構建"
 
 #: lib/tuist_web/live/gradle_build_live.ex:243
 #: lib/tuist_web/live/gradle_build_live.ex:329
@@ -346,13 +342,13 @@ msgstr "遠端命中"
 #: lib/tuist_web/live/gradle_cache_live.html.heex:5
 #, elixir-autogen, elixir-format
 msgid "Set up Gradle cache for your project"
-msgstr "為你的項目設定 Gradle 快取"
+msgstr "為您的專案設置 Gradle 快取"
 
 #: lib/tuist_web/live/gradle_build_live.ex:247
 #: lib/tuist_web/live/gradle_build_live.ex:333
 #, elixir-autogen, elixir-format
 msgid "Skipped"
-msgstr "已跳過"
+msgstr "跳過"
 
 #: lib/tuist_web/live/gradle_build_live.ex:282
 #: lib/tuist_web/live/gradle_build_live.html.heex:83
@@ -376,7 +372,7 @@ msgstr "任務"
 #: lib/tuist_web/live/gradle_build_live.html.heex:281
 #, elixir-autogen, elixir-format
 msgid "This build has no task data."
-msgstr "此編譯無任務數據。"
+msgstr "此構建無任務數據。"
 
 #: lib/tuist_web/live/gradle_cache_live.html.heex:21
 #, elixir-autogen, elixir-format
@@ -387,10 +383,10 @@ msgstr "Tuist 文件"
 #: lib/tuist_web/live/gradle_build_live.ex:330
 #, elixir-autogen, elixir-format
 msgid "Up-to-date"
-msgstr "最新"
+msgstr "最新狀態"
 
 #: lib/tuist_web/live/gradle_builds_live.html.heex:353
-#: lib/tuist_web/live/gradle_cache_live.html.heex:391
+#: lib/tuist_web/live/gradle_cache_live.html.heex:412
 #, elixir-autogen, elixir-format
 msgid "p50"
 msgstr "p50"
@@ -401,7 +397,7 @@ msgid "p50 cache hit rate"
 msgstr "p50 快取命中率"
 
 #: lib/tuist_web/live/gradle_builds_live.html.heex:339
-#: lib/tuist_web/live/gradle_cache_live.html.heex:378
+#: lib/tuist_web/live/gradle_cache_live.html.heex:399
 #, elixir-autogen, elixir-format
 msgid "p90"
 msgstr "p90"
@@ -412,7 +408,7 @@ msgid "p90 cache hit rate"
 msgstr "p90 快取命中率"
 
 #: lib/tuist_web/live/gradle_builds_live.html.heex:325
-#: lib/tuist_web/live/gradle_cache_live.html.heex:365
+#: lib/tuist_web/live/gradle_cache_live.html.heex:386
 #, elixir-autogen, elixir-format
 msgid "p99"
 msgstr "p99"
@@ -423,36 +419,36 @@ msgid "p99 cache hit rate"
 msgstr "p99 快取命中率"
 
 #: lib/tuist_web/live/gradle_builds_live.ex:183
-#: lib/tuist_web/live/gradle_cache_live.ex:204
-#: lib/tuist_web/live/gradle_overview_live.ex:154
+#: lib/tuist_web/live/gradle_cache_live.ex:241
+#: lib/tuist_web/live/gradle_overview_live.ex:164
 #, elixir-autogen, elixir-format
 msgid "since last month"
 msgstr "自上個月起"
 
 #: lib/tuist_web/live/gradle_builds_live.ex:182
-#: lib/tuist_web/live/gradle_cache_live.ex:203
-#: lib/tuist_web/live/gradle_overview_live.ex:153
+#: lib/tuist_web/live/gradle_cache_live.ex:240
+#: lib/tuist_web/live/gradle_overview_live.ex:163
 #, elixir-autogen, elixir-format
 msgid "since last period"
-msgstr "自上期起"
+msgstr "自上一期起"
 
 #: lib/tuist_web/live/gradle_builds_live.ex:180
-#: lib/tuist_web/live/gradle_cache_live.ex:201
-#: lib/tuist_web/live/gradle_overview_live.ex:151
+#: lib/tuist_web/live/gradle_cache_live.ex:238
+#: lib/tuist_web/live/gradle_overview_live.ex:161
 #, elixir-autogen, elixir-format
 msgid "since last week"
 msgstr "自上星期起"
 
 #: lib/tuist_web/live/gradle_builds_live.ex:181
-#: lib/tuist_web/live/gradle_cache_live.ex:202
-#: lib/tuist_web/live/gradle_overview_live.ex:152
+#: lib/tuist_web/live/gradle_cache_live.ex:239
+#: lib/tuist_web/live/gradle_overview_live.ex:162
 #, elixir-autogen, elixir-format
 msgid "since last year"
 msgstr "自去年起"
 
 #: lib/tuist_web/live/gradle_builds_live.ex:179
-#: lib/tuist_web/live/gradle_cache_live.ex:200
-#: lib/tuist_web/live/gradle_overview_live.ex:150
+#: lib/tuist_web/live/gradle_cache_live.ex:237
+#: lib/tuist_web/live/gradle_overview_live.ex:160
 #, elixir-autogen, elixir-format
 msgid "since yesterday"
 msgstr "自昨日起"
@@ -462,33 +458,34 @@ msgstr "自昨日起"
 #: lib/tuist_web/live/gradle_overview_live.html.heex:646
 #, elixir-autogen, elixir-format
 msgid "Average build time"
-msgstr "平均編譯時間"
+msgstr "平均構建時間"
 
 #: lib/tuist_web/live/gradle_overview_live.html.heex:123
 #, elixir-autogen, elixir-format
 msgid "Average time it takes to complete a Gradle build during the selected period."
-msgstr "所選期間內完成 Gradle 編譯嘅平均時間。"
+msgstr "選定期間內完成 Gradle 構建的平均時間。"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:120
 #: lib/tuist_web/live/gradle_build_runs_live.html.heex:113
-#: lib/tuist_web/live/gradle_builds_live.html.heex:733
-#: lib/tuist_web/live/gradle_cache_live.html.heex:593
+#: lib/tuist_web/live/gradle_builds_live.html.heex:686
+#: lib/tuist_web/live/gradle_cache_live.html.heex:627
 #, elixir-autogen, elixir-format
 msgid "Built by"
-msgstr "編譯由"
+msgstr "構建者"
 
 #: lib/tuist_web/live/gradle_build_live.ex:286
 #: lib/tuist_web/live/gradle_build_live.html.heex:439
 #: lib/tuist_web/live/gradle_build_live.html.heex:596
 #: lib/tuist_web/live/gradle_build_runs_live.ex:249
 #: lib/tuist_web/live/gradle_builds_live.ex:176
-#: lib/tuist_web/live/gradle_builds_live.html.heex:23
-#: lib/tuist_web/live/gradle_cache_live.ex:197
+#: lib/tuist_web/live/gradle_builds_live.html.heex:18
+#: lib/tuist_web/live/gradle_cache_live.ex:203
+#: lib/tuist_web/live/gradle_cache_live.ex:206
 #: lib/tuist_web/live/gradle_cache_live.html.heex:51
-#: lib/tuist_web/live/gradle_overview_live.ex:157
-#: lib/tuist_web/live/gradle_overview_live.ex:161
-#: lib/tuist_web/live/gradle_overview_live.html.heex:23
-#: lib/tuist_web/live/gradle_overview_live.html.heex:407
+#: lib/tuist_web/live/gradle_overview_live.ex:167
+#: lib/tuist_web/live/gradle_overview_live.ex:171
+#: lib/tuist_web/live/gradle_overview_live.html.heex:31
+#: lib/tuist_web/live/gradle_overview_live.html.heex:415
 #, elixir-autogen, elixir-format
 msgid "Local"
 msgstr "本地"
@@ -501,18 +498,18 @@ msgid "Remote"
 msgstr "遠端"
 
 #: lib/tuist_web/live/gradle_builds_live.ex:175
-#: lib/tuist_web/live/gradle_builds_live.html.heex:15
-#: lib/tuist_web/live/gradle_cache_live.ex:196
+#: lib/tuist_web/live/gradle_builds_live.html.heex:10
+#: lib/tuist_web/live/gradle_cache_live.ex:202
 #: lib/tuist_web/live/gradle_cache_live.html.heex:43
-#: lib/tuist_web/live/gradle_overview_live.ex:156
-#: lib/tuist_web/live/gradle_overview_live.ex:160
+#: lib/tuist_web/live/gradle_overview_live.ex:166
+#: lib/tuist_web/live/gradle_overview_live.ex:170
 #: lib/tuist_web/live/gradle_overview_live.html.heex:15
 #: lib/tuist_web/live/gradle_overview_live.html.heex:399
 #, elixir-autogen, elixir-format
 msgid "Any"
 msgstr "任何"
 
-#: lib/tuist_web/live/gradle_builds_live.html.heex:11
+#: lib/tuist_web/live/gradle_builds_live.html.heex:6
 #: lib/tuist_web/live/gradle_cache_live.html.heex:39
 #: lib/tuist_web/live/gradle_overview_live.html.heex:11
 #: lib/tuist_web/live/gradle_overview_live.html.heex:395
@@ -533,12 +530,12 @@ msgstr "可快取任務"
 #: lib/tuist_web/live/gradle_build_live.html.heex:323
 #, elixir-autogen, elixir-format
 msgid "Cacheable tasks that were not found in cache."
-msgstr "喺快取中未找到嘅可快取任務。"
+msgstr "未在快取中找到的可快取任務。"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:312
 #, elixir-autogen, elixir-format
 msgid "Cacheable tasks that were retrieved from cache (local + remote)."
-msgstr "由快取（本地 + 遠端）取回嘅可快取任務。"
+msgstr "已從快取（本地 + 遠端）檢索到的可快取任務。"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:329
 #, elixir-autogen, elixir-format
@@ -568,32 +565,32 @@ msgstr "任務未命中"
 #: lib/tuist_web/live/gradle_build_live.html.heex:331
 #, elixir-autogen, elixir-format
 msgid "The percentage of cacheable tasks that were cache hits (local + remote)."
-msgstr "被快取命中嘅可快取任務百分比（本地 + 遠端）。"
+msgstr "可快取任務中從快取（本地 + 遠端）命中的百分比。"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:652
 #, elixir-autogen, elixir-format
 msgid "This build has no cacheable task data."
-msgstr "此編譯無可快取任務數據。"
+msgstr "此構建沒有可快取任務數據。"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:343
 #, elixir-autogen, elixir-format
 msgid "Total size of cache artifacts downloaded from remote cache."
-msgstr "從遠端快取下載嘅快取檔案總大小。"
+msgstr "從遠端快取下載的快取產物總大小。"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:354
 #, elixir-autogen, elixir-format
 msgid "Total size of cache artifacts uploaded to remote cache."
-msgstr "上傳到遠端快取嘅快取檔案總大小。"
+msgstr "上傳到遠端快取的快取產物總大小。"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:503
 #, elixir-autogen, elixir-format
 msgid "Average download throughput in megabits per second."
-msgstr "平均下載吞吐量，單位為每秒兆位元組。"
+msgstr "每秒兆位元的平均下載吞吐量。"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:516
 #, elixir-autogen, elixir-format
 msgid "Average upload throughput in megabits per second."
-msgstr "平均上傳吞吐量，單位為每秒兆位元組。"
+msgstr "每秒兆位元的平均上傳吞吐量。"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:501
 #, elixir-autogen, elixir-format
@@ -663,7 +660,7 @@ msgstr "任務"
 #: lib/tuist_web/live/gradle_build_live.html.heex:114
 #, elixir-autogen, elixir-format
 msgid "Built at"
-msgstr "編譯於"
+msgstr "構建時間"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:645
 #, elixir-autogen, elixir-format
@@ -673,7 +670,7 @@ msgstr "快取鍵"
 #: lib/tuist_web/live/gradle_cache_live.html.heex:7
 #, elixir-autogen, elixir-format
 msgid "You can set up the Gradle cache for your project by running:"
-msgstr "你可以透過執行以下指令為你的項目設定 Gradle 快取："
+msgstr "您可以透過執行以下命令為專案設置 Gradle 快取："
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:39
 #, elixir-autogen, elixir-format
@@ -683,6 +680,7 @@ msgstr "測試：%{scheme}"
 #: lib/tuist_web/live/gradle_build_live.html.heex:42
 #: lib/tuist_web/live/gradle_build_runs_live.html.heex:102
 #: lib/tuist_web/live/gradle_build_runs_live.html.heex:159
+#: lib/tuist_web/live/gradle_cache_live.ex:234
 #, elixir-autogen, elixir-format
 msgid "Unknown"
 msgstr "未知"
@@ -695,37 +693,37 @@ msgstr "%{percentage}%"
 #: lib/tuist_web/live/gradle_builds_live.html.heex:151
 #, elixir-autogen, elixir-format
 msgid "Avg. build duration"
-msgstr "平均編譯時長"
+msgstr "平均構建時間"
 
-#: lib/tuist_web/live/gradle_builds_live.html.heex:692
+#: lib/tuist_web/live/gradle_builds_live.html.heex:645
 #, elixir-autogen, elixir-format
 msgid "Build"
-msgstr "編譯"
+msgstr "構建"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:3
 #: lib/tuist_web/live/gradle_build_runs_live.html.heex:3
 #, elixir-autogen, elixir-format
 msgid "Build Runs"
-msgstr "編譯執行"
+msgstr "構建執行"
 
-#: lib/tuist_web/live/gradle_builds_live.html.heex:550
-#: lib/tuist_web/live/gradle_builds_live.html.heex:600
+#: lib/tuist_web/live/gradle_builds_live.html.heex:503
+#: lib/tuist_web/live/gradle_builds_live.html.heex:553
 #, elixir-autogen, elixir-format
 msgid "Build duration"
-msgstr "編譯時長"
+msgstr "構建持續時間"
 
 #: lib/tuist_web/live/gradle_builds_live.ex:170
 #: lib/tuist_web/live/gradle_builds_live.html.heex:108
 #, elixir-autogen, elixir-format
 msgid "Build success rate"
-msgstr "編譯成功率"
+msgstr "構建成功率"
 
 #: lib/tuist_web/live/gradle_builds_live.ex:142
-#: lib/tuist_web/live/gradle_builds_live.html.heex:3
+#: lib/tuist_web/live/gradle_builds_live.html.heex:86
 #: lib/tuist_web/live/gradle_overview_live.html.heex:387
 #, elixir-autogen, elixir-format
 msgid "Builds"
-msgstr "編譯"
+msgstr "構建"
 
 #: lib/tuist_web/live/gradle_build_runs_live.html.heex:95
 #, elixir-autogen, elixir-format
@@ -735,31 +733,33 @@ msgstr "提交 SHA"
 #: lib/tuist_web/live/gradle_builds_live.html.heex:456
 #, elixir-autogen, elixir-format
 msgid "Configuration Insights"
-msgstr "設定洞察"
+msgstr "配置洞察"
 
 #: lib/tuist_web/live/gradle_build_runs_live.ex:244
+#: lib/tuist_web/live/gradle_cache_live.ex:230
+#: lib/tuist_web/live/gradle_cache_live.html.heex:288
 #, elixir-autogen, elixir-format
 msgid "Environment"
 msgstr "環境"
 
 #: lib/tuist_web/live/gradle_builds_live.ex:156
 #: lib/tuist_web/live/gradle_builds_live.html.heex:130
-#: lib/tuist_web/live/gradle_builds_live.html.heex:648
+#: lib/tuist_web/live/gradle_builds_live.html.heex:601
 #: lib/tuist_web/live/gradle_overview_live.html.heex:489
 #, elixir-autogen, elixir-format
 msgid "Failed builds"
-msgstr "失敗編譯"
+msgstr "失敗構建"
 
 #: lib/tuist_web/live/gradle_build_runs_live.ex:257
-#: lib/tuist_web/live/gradle_builds_live.ex:239
+#: lib/tuist_web/live/gradle_builds_live.ex:241
 #: lib/tuist_web/live/gradle_builds_live.html.heex:470
 #, elixir-autogen, elixir-format
 msgid "Gradle version"
 msgstr "Gradle 版本"
 
 #: lib/tuist_web/live/gradle_build_runs_live.ex:265
-#: lib/tuist_web/live/gradle_builds_live.ex:238
-#: lib/tuist_web/live/gradle_builds_live.html.heex:478
+#: lib/tuist_web/live/gradle_builds_live.ex:240
+#: lib/tuist_web/live/gradle_builds_live.html.heex:480
 #, elixir-autogen, elixir-format
 msgid "Java version"
 msgstr "Java 版本"
@@ -777,16 +777,16 @@ msgstr "不適用"
 #: lib/tuist_web/live/gradle_overview_live.html.heex:661
 #, elixir-autogen, elixir-format
 msgid "No builds yet"
-msgstr "尚無編譯"
+msgstr "尚無構建"
 
 #: lib/tuist_web/live/gradle_overview_live.html.heex:546
 #, elixir-autogen, elixir-format
 msgid "No recent builds yet"
-msgstr "尚無最近編譯"
+msgstr "尚無最近構建"
 
 #: lib/tuist_web/live/gradle_build_runs_live.ex:218
 #: lib/tuist_web/live/gradle_build_runs_live.html.heex:75
-#: lib/tuist_web/live/gradle_builds_live.html.heex:719
+#: lib/tuist_web/live/gradle_builds_live.html.heex:672
 #, elixir-autogen, elixir-format
 msgid "Passed"
 msgstr "通過"
@@ -794,50 +794,50 @@ msgstr "通過"
 #: lib/tuist_web/live/gradle_overview_live.html.heex:484
 #, elixir-autogen, elixir-format
 msgid "Passed builds"
-msgstr "通過編譯"
+msgstr "通過構建"
 
 #: lib/tuist_web/live/gradle_build_runs_live.html.heex:14
 #, elixir-autogen, elixir-format
 msgid "Search project..."
-msgstr "搜尋項目..."
+msgstr "搜尋專案..."
 
-#: lib/tuist_web/live/gradle_builds_live.html.heex:643
+#: lib/tuist_web/live/gradle_builds_live.html.heex:596
 #, elixir-autogen, elixir-format
 msgid "Successful builds"
-msgstr "成功編譯"
+msgstr "成功構建"
 
 #: lib/tuist_web/live/gradle_builds_live.html.heex:163
 #, elixir-autogen, elixir-format
 msgid "The average build duration with individual percentile intervals."
-msgstr "單獨百分位區間嘅平均編譯時長。"
+msgstr "含個別百分位區間的平均構建時間。"
 
 #: lib/tuist_web/live/gradle_builds_live.html.heex:132
 #, elixir-autogen, elixir-format
 msgid "The number of builds that failed."
-msgstr "失敗編譯嘅數量。"
+msgstr "失敗構建的數量。"
 
 #: lib/tuist_web/live/gradle_builds_live.html.heex:110
 #, elixir-autogen, elixir-format
 msgid "The percentage of builds that succeeded."
-msgstr "成功編譯嘅百分比。"
+msgstr "成功構建的百分比。"
 
 #: lib/tuist_web/live/gradle_builds_live.html.heex:95
 #, elixir-autogen, elixir-format
 msgid "The total number of Gradle builds."
-msgstr "Gradle 編譯嘅總數。"
+msgstr "Gradle 構建的總數。"
 
 #: lib/tuist_web/live/gradle_builds_live.html.heex:93
 #, elixir-autogen, elixir-format
 msgid "Total builds"
-msgstr "總編譯次數"
+msgstr "構建總數"
 
 #: lib/tuist_web/live/gradle_builds_live.html.heex:466
 #, elixir-autogen, elixir-format
 msgid "Type:"
 msgstr "類型："
 
-#: lib/tuist_web/live/gradle_builds_live.html.heex:633
-#: lib/tuist_web/live/gradle_cache_live.html.heex:497
+#: lib/tuist_web/live/gradle_builds_live.html.heex:586
+#: lib/tuist_web/live/gradle_cache_live.html.heex:531
 #: lib/tuist_web/live/gradle_overview_live.html.heex:295
 #: lib/tuist_web/live/gradle_overview_live.html.heex:565
 #, elixir-autogen, elixir-format
@@ -847,17 +847,17 @@ msgstr "查看更多"
 #: lib/tuist_web/live/gradle_builds_live.html.heex:150
 #, elixir-autogen, elixir-format
 msgid "p50 build duration"
-msgstr "p50 編譯時長"
+msgstr "p50 構建時間"
 
 #: lib/tuist_web/live/gradle_builds_live.html.heex:149
 #, elixir-autogen, elixir-format
 msgid "p90 build duration"
-msgstr "p90 編譯時長"
+msgstr "p90 構建時間"
 
 #: lib/tuist_web/live/gradle_builds_live.html.heex:148
 #, elixir-autogen, elixir-format
 msgid "p99 build duration"
-msgstr "p99 編譯時長"
+msgstr "p99 構建時間"
 
 #: lib/tuist_web/live/gradle_overview_live.html.heex:151
 #, elixir-autogen, elixir-format
@@ -867,7 +867,7 @@ msgstr "平均測試時間"
 #: lib/tuist_web/live/gradle_overview_live.html.heex:153
 #, elixir-autogen, elixir-format
 msgid "Average time it takes to run tests during the selected period."
-msgstr "所選期間內執行測試嘅平均時間。"
+msgstr "選定期間內執行測試的平均時間。"
 
 #: lib/tuist_web/live/gradle_overview_live.html.heex:319
 #, elixir-autogen, elixir-format
@@ -887,7 +887,7 @@ msgstr "通過執行"
 #: lib/tuist_web/live/gradle_overview_live.html.heex:377
 #, elixir-autogen, elixir-format
 msgid "Runs: no data yet"
-msgstr "執行：暫無數據"
+msgstr "執行：尚無數據"
 
 #: lib/tuist_web/live/gradle_overview_live.html.heex:291
 #, elixir-autogen, elixir-format
@@ -899,7 +899,7 @@ msgstr "測試"
 #: lib/tuist_web/live/gradle_build_runs_live.html.heex:98
 #, elixir-autogen, elixir-format
 msgid "Requested tasks"
-msgstr "請求嘅任務"
+msgstr "請求任務"
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:68
 #, elixir-autogen, elixir-format
@@ -910,3 +910,8 @@ msgstr "機器指標"
 #, elixir-autogen, elixir-format
 msgid "Ran by"
 msgstr "執行者"
+
+#: lib/tuist_web/live/gradle_cache_live.html.heex:428
+#, elixir-autogen, elixir-format
+msgid "The 10,000 entry limit has been reached, data is only included up to %{date}. Try filtering to narrow down the dataset."
+msgstr "已達到10,000條目限制，數據僅包含至 %{date}。請嘗試篩選以縮小數據範圍。"

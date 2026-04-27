@@ -13,7 +13,7 @@ defmodule CacheWeb.RegistryController do
   alias Cache.S3Transfers
   alias CacheWeb.API.Schemas.SafePathComponent
 
-  plug :ensure_registry_enabled
+  plug(:ensure_registry_enabled)
 
   defp ensure_registry_enabled(conn, _opts) do
     if Config.registry_enabled?() do
@@ -524,7 +524,8 @@ defmodule CacheWeb.RegistryController do
   defp normalize_registry_version(version) do
     normalized_version = KeyNormalizer.normalize_version(version)
 
-    if SafePathComponent.valid?(normalized_version) do
+    if SafePathComponent.valid?(normalized_version) and
+         KeyNormalizer.valid_storage_version?(normalized_version) do
       {:ok, normalized_version}
     else
       {:error, :invalid_path_params}

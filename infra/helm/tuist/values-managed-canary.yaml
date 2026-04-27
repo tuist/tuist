@@ -1,0 +1,62 @@
+# Canary overlay for the Tuist-managed deployment.
+# Between staging and production in terms of traffic + footprint; surfaces
+# post-merge regressions against a small slice of real traffic before
+# production cuts over. Layer on top of values-managed-common.yaml:
+#
+#   helm upgrade --install tuist infra/helm/tuist \
+#     -n tuist-canary --create-namespace \
+#     -f infra/helm/tuist/values-managed-common.yaml \
+#     -f infra/helm/tuist/values-managed-canary.yaml \
+#     --set server.image.tag=$GIT_SHA
+
+server:
+  replicaCount: 1
+
+  appUrl: https://canary.tuist.dev
+
+  autoscaling:
+    enabled: false
+
+  podDisruptionBudget:
+    enabled: false
+
+  # ingress-nginx fronts the server on port 443 with a Cloudflare Origin
+  # CA cert (synced into the tuist-tls-cloudflare-origin Secret out-of-
+  # band; 15-year validity). Cloudflare is set to Full (strict) SSL.
+  ingress:
+    enabled: true
+    className: nginx
+    host: canary.tuist.dev
+    tlsSecretName: tuist-tls-cloudflare-origin
+
+  # Canary is always a single pod, so no anti-affinity here.
+  # Requests are sized so a rolling deploy's surge pod (maxSurge: 1) fits
+  # alongside the existing pod on the canary nodepool's two workers — at
+  # 1 GiB each they don't both fit. Limits stay generous so the live pod
+  # has headroom under load.
+  resources:
+    requests:
+      cpu: "250m"
+      memory: "512Mi"
+    limits:
+      cpu: "2000m"
+      memory: "2Gi"
+
+  extraEnv:
+    # Selects which priv/secrets/<env>.yml.enc file the app decrypts at
+    # boot. Image is env-agnostic (built with MIX_ENV=prod); this flag
+    # plus the MASTER_KEY ESO secret pick the runtime deployment target.
+    - name: TUIST_DEPLOY_ENV
+      value: can
+    - name: TUIST_DATABASE_POOL_SIZE
+      value: "15"
+    - name: TUIST_PROCESSOR_URL
+      value: http://processor-canary.tuist.dev:4002
+    - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
+      value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
+
+# In-cluster Valkey backs the auth rate limiter (Hammer.Redis). The
+# chart wires TUIST_REDIS_URL to the embedded Service; without it the
+# rate limiter falls back to the per-pod InMemory bucket.
+redis:
+  enabled: true

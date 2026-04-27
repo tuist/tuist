@@ -56,7 +56,11 @@ public struct ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this
         var modifiedTarget = target
 
         if !target.supportsResources || target.product == .staticFramework {
-            let (resourceBuildableFolders, remainingBuildableFolders) = partitionBuildableFoldersForResources(
+            let (
+                resourceBuildableFolders,
+                remainingBuildableFolders,
+                originalTargetExplicitResources
+            ) = partitionBuildableFoldersForResources(
                 target.buildableFolders
             )
             var synthesizedMetadata = target.metadata
@@ -82,9 +86,7 @@ public struct ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this
                     configurations: [:]
                 ),
                 sources: target.sources.filter { $0.path.extension == "metal" },
-                resources: ResourceFileElements(
-                    target.resources.resources.filter { $0.path.extension != "xcstrings" }
-                ),
+                resources: target.resources,
                 copyFiles: target.copyFiles,
                 coreDataModels: target.coreDataModels,
                 filesGroup: target.filesGroup,
@@ -92,30 +94,22 @@ public struct ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this
                 buildableFolders: resourceBuildableFolders
             )
             modifiedTarget.sources = target.sources.filter { $0.path.extension != "metal" }
-            // Asset catalogs are added to the main target's Sources build phase so Xcode
-            // generates typed asset symbols. This mirrors SwiftPM's PIF builder:
+            // Asset catalogs and string catalogs are added to the main target's Sources build
+            // phase so Xcode generates typed symbols. This mirrors SwiftPM's PIF builder:
             //   - https://github.com/swiftlang/swift-package-manager/blob/main/Sources/XCBuildSupport/PIFBuilder.swift#L944-L952
-            // They are also compiled into the companion resource bundle via its Resources phase.
-            //
-            // String catalogs (.xcstrings) are kept in the main target's Resources build phase
-            // (NOT Sources) so Xcode correctly runs string extraction in the context of this
-            // target's Swift sources. They are excluded from the companion bundle to prevent
-            // duplicate compilation — the companion bundle has no Swift sources, so extraction
-            // there would incorrectly mark all strings as stale.
-            //
-            // IMPORTANT: PACKAGE_RESOURCE_BUNDLE_NAME is NOT set on the main target because
-            // swift-build's XCStringsCompiler.shouldCompileCatalog() skips xcstrings compilation
-            // when that setting is present, which breaks stale-string detection entirely.
-            // See: https://github.com/swiftlang/swift-build/blob/main/Sources/SWBApplePlatform/XCStringsCompiler.swift
-            let codeGeneratingResourceExtensions: Set<String> = ["xcassets"]
+            //   - https://github.com/swiftlang/swift-package-manager/blob/main/Sources/SwiftBuildSupport/PackagePIFProjectBuilder.swift#L345-L360
+            // Both are also compiled into the companion resource bundle via its Resources phase.
+            // The companion bundle declares PACKAGE_RESOURCE_TARGET_KIND = "resource" (above)
+            // so Xcode treats it as a pure resource container and skips string extraction.
+            // The main target carries PACKAGE_RESOURCE_TARGET_KIND = "regular" (below) so Xcode
+            // runs extraction here where the Swift source references live.
+            let codeGeneratingResourceExtensions: Set<String> = ["xcassets", "xcstrings"]
             for resource in target.resources.resources {
                 if let ext = resource.path.extension, codeGeneratingResourceExtensions.contains(ext) {
                     modifiedTarget.sources.append(SourceFile(path: resource.path))
                 }
             }
-            modifiedTarget.resources.resources = target.resources.resources.filter {
-                $0.path.extension == "xcstrings"
-            }
+            modifiedTarget.resources.resources = originalTargetExplicitResources
             modifiedTarget.copyFiles = []
             modifiedTarget.buildableFolders = remainingBuildableFolders
             modifiedTarget.dependencies.append(.target(
@@ -123,6 +117,22 @@ public struct ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this
                 status: .required,
                 condition: .when(target.dependencyPlatformFilters)
             ))
+            // PACKAGE_RESOURCE_BUNDLE_NAME tells Xcode that a companion bundle target owns the
+            // compiled asset catalogs, which suppresses LinkAssetCatalog on this target while
+            // preserving GenerateAssetSymbols for typed resource accessors. Without this,
+            // xcodebuild archive fails for static targets because LinkAssetCatalog references
+            // an UninstalledProducts path that doesn't exist during archiving.
+            //
+            // PACKAGE_RESOURCE_TARGET_KIND = "regular" tells Xcode this is a normal compilation
+            // target (not a resource bundle) so string extraction runs here where the Swift
+            // source references live. This mirrors SwiftPM's PIF builder:
+            //   - https://github.com/swiftlang/swift-package-manager/blob/main/Sources/XCBuildSupport/PIFBuilder.swift#L642
+            //   - https://github.com/swiftlang/swift-package-manager/blob/main/Sources/SwiftBuildSupport/PackagePIFProjectBuilder%2BModules.swift#L524
+            var base = modifiedTarget.settings?.base ?? SettingsDictionary()
+            base["PACKAGE_RESOURCE_BUNDLE_NAME"] = .string(bundleName)
+            base["PACKAGE_RESOURCE_TARGET_KIND"] = .string("regular")
+            modifiedTarget.settings = modifiedTarget.settings?.with(base: base)
+                ?? Settings(base: base, configurations: [:])
             additionalTargets.append(resourcesTarget)
         }
 
@@ -227,16 +237,26 @@ public struct ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this
         return project.derivedDirectoryPath(for: target).appending(components: Constants.DerivedDirectory.sources, filename)
     }
 
-    /// Splits the incoming buildable folders into two sets:
-    ///  - folders that should stay on the original target (sources, xcstrings, or mixed folders after excluding bundle-only
-    /// resources)
+    /// Splits the incoming buildable folders into:
+    ///  - folders that should stay on the original target (source-only, or mixed folders after excluding bundle-owned files)
     ///  - folders that should move to the generated bundle (pure resources, or the resource portion of mixed folders)
-    /// Mixed folders are duplicated with exclusion rules so the static target keeps sources and xcstrings while the bundle owns
-    /// other resources.
+    ///  - explicit resource files that should be added to the original target outside the synchronized group
+    /// Mixed folders are duplicated with exclusion rules so the static target keeps sources in the synchronized group, while the
+    /// bundle owns the resource view and the original target can still explicitly reference files like `.xcstrings`.
     private func partitionBuildableFoldersForResources(
         _ folders: [BuildableFolder]
-    ) -> (resourceFolders: [BuildableFolder], remainingFolders: [BuildableFolder]) {
-        folders.reduce(into: (resourceFolders: [BuildableFolder](), remainingFolders: [BuildableFolder]())) { result, folder in
+    ) -> (
+        resourceFolders: [BuildableFolder],
+        remainingFolders: [BuildableFolder],
+        originalTargetExplicitResources: [ResourceFileElement]
+    ) {
+        folders.reduce(
+            into: (
+                resourceFolders: [BuildableFolder](),
+                remainingFolders: [BuildableFolder](),
+                originalTargetExplicitResources: [ResourceFileElement]()
+            )
+        ) { result, folder in
             guard let partition = folder.partitionedForResources() else {
                 result.remainingFolders.append(folder)
                 return
@@ -249,6 +269,8 @@ public struct ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this
             if let resourcesFolder = partition.resourcesFolder {
                 result.resourceFolders.append(resourcesFolder)
             }
+
+            result.originalTargetExplicitResources.append(contentsOf: partition.originalTargetExplicitResources)
         }
     }
 
@@ -299,6 +321,7 @@ public struct ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this
     static func objcHeaderFileContent(
         targetName: String
     ) -> String {
+        let identifier = targetName.toValidSwiftIdentifier()
         return """
         #import <Foundation/Foundation.h>
 
@@ -306,9 +329,9 @@ public struct ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this
         extern "C" {
         #endif
 
-        NSBundle* \(targetName)_SWIFTPM_MODULE_BUNDLE(void) NS_SWIFT_NONISOLATED;
+        NSBundle* \(identifier)_SWIFTPM_MODULE_BUNDLE(void) NS_SWIFT_NONISOLATED;
 
-        #define SWIFTPM_MODULE_BUNDLE \(targetName)_SWIFTPM_MODULE_BUNDLE()
+        #define SWIFTPM_MODULE_BUNDLE \(identifier)_SWIFTPM_MODULE_BUNDLE()
 
         #if __cplusplus
         }
@@ -320,20 +343,21 @@ public struct ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this
         targetName: String,
         bundleName: String
     ) -> String {
+        let identifier = targetName.toValidSwiftIdentifier()
         return """
         #import <Foundation/Foundation.h>
         #import "TuistBundle+\(targetName).h"
 
-        @interface \(targetName)BundleFinder : NSObject
+        @interface \(identifier)BundleFinder : NSObject
         @end
 
-        @implementation \(targetName)BundleFinder
+        @implementation \(identifier)BundleFinder
         @end
 
-        NSBundle* \(targetName)_SWIFTPM_MODULE_BUNDLE(void) {
+        NSBundle* \(identifier)_SWIFTPM_MODULE_BUNDLE(void) {
             NSString *bundleName = @"\(bundleName)";
 
-            NSURL *bundleURL = [[NSBundle bundleForClass:\(targetName)BundleFinder.self] resourceURL];
+            NSURL *bundleURL = [[NSBundle bundleForClass:\(identifier)BundleFinder.self] resourceURL];
             NSMutableArray *candidates = [NSMutableArray arrayWithObjects:
                                           [[NSBundle mainBundle] resourceURL],
                                           bundleURL,
@@ -454,12 +478,14 @@ public struct ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this
 
 /// Represents the result of splitting a buildable folder into source and resource subsets.
 private struct BuildableFolderPartition {
-    /// The view of the folder that should stay on the original target (sources and xcstrings, or mixed minus bundle-only
-    /// resources).
+    /// The view of the folder that should stay on the original target.
     let originalTargetFolder: BuildableFolder?
 
     /// The view of the folder that should move to the generated bundle target (resources only).
     let resourcesFolder: BuildableFolder?
+
+    /// Files that should be added explicitly to the original target outside the synchronized group.
+    let originalTargetExplicitResources: [ResourceFileElement]
 }
 
 extension BuildableFolder {
@@ -471,7 +497,10 @@ extension BuildableFolder {
             return directAssignment
         }
 
-        let (originalTargetEntries, resourceEntries) = splitFilesByKind()
+        let (originalOnlyEntries, sharedEntries, resourceOnlyEntries) = splitFilesByKind()
+        let originalTargetEntries = originalOnlyEntries
+        let resourceEntries = resourceOnlyEntries + sharedEntries
+        let originalTargetExplicitResources = sharedEntries.map { ResourceFileElement.file(path: $0.path) }
 
         if resourceEntries.isEmpty {
             return handleOriginalTargetOnlyFolder()
@@ -480,13 +509,18 @@ extension BuildableFolder {
         if originalTargetEntries.isEmpty {
             return BuildableFolderPartition(
                 originalTargetFolder: nil,
-                resourcesFolder: self
+                resourcesFolder: self,
+                originalTargetExplicitResources: originalTargetExplicitResources
             )
         }
 
         return duplicateFolderWithExclusions(
+            originalOnlyEntries: originalOnlyEntries,
+            sharedEntries: sharedEntries,
+            resourceOnlyEntries: resourceOnlyEntries,
             originalTargetEntries: originalTargetEntries,
-            resourceEntries: resourceEntries
+            resourceEntries: resourceEntries,
+            originalTargetExplicitResources: originalTargetExplicitResources
         )
     }
 
@@ -495,16 +529,29 @@ extension BuildableFolder {
         // Xcode treats buildable folders as a single synchronized group. To attach the same folder to
         // multiple targets we duplicate the reference and add complementary exclusion rules to each copy.
         if path.isResourceLike, !path.isSourceLike, resolvedFiles.isEmpty {
-            return BuildableFolderPartition(originalTargetFolder: nil, resourcesFolder: self)
+            return BuildableFolderPartition(
+                originalTargetFolder: nil,
+                resourcesFolder: self,
+                originalTargetExplicitResources: []
+            )
         }
         return nil
     }
 
-    /// Splits the folder contents into files that must stay on the original target and files that should move to the bundle.
-    private func splitFilesByKind() -> (originalTargetEntries: [BuildableFolderFile], resources: [BuildableFolderFile]) {
-        let originalTargetEntries = resolvedFiles.filter(\.path.shouldStayOnOriginalTargetWhenSplittingResources)
-        let resources = resolvedFiles.filter { !$0.path.shouldStayOnOriginalTargetWhenSplittingResources }
-        return (originalTargetEntries, resources)
+    /// Splits the folder contents into files that belong only on the original target, files that should stay in the bundle but
+    /// also be promoted as explicit resources on the original target, and files that belong only in the bundle.
+    private func splitFilesByKind() -> (
+        originalOnlyEntries: [BuildableFolderFile],
+        sharedEntries: [BuildableFolderFile],
+        resourceOnlyEntries: [BuildableFolderFile]
+    ) {
+        let originalOnlyEntries = resolvedFiles.filter(\.path.shouldStayOnlyOnOriginalTargetWhenSplittingResources)
+        let sharedEntries = resolvedFiles.filter(\.path.shouldBeSharedAcrossTargetsWhenSplittingResources)
+        let resourceOnlyEntries = resolvedFiles.filter {
+            !$0.path.shouldStayOnlyOnOriginalTargetWhenSplittingResources
+                && !$0.path.shouldBeSharedAcrossTargetsWhenSplittingResources
+        }
+        return (originalOnlyEntries, sharedEntries, resourceOnlyEntries)
     }
 
     /// Retains the folder on the original target when no bundle-only resources were found, duplicating it only when both
@@ -517,7 +564,8 @@ extension BuildableFolder {
                     exceptions: exceptions,
                     resolvedFiles: resolvedFiles
                 ),
-                resourcesFolder: nil
+                resourcesFolder: nil,
+                originalTargetExplicitResources: []
             )
         }
         return nil
@@ -525,11 +573,15 @@ extension BuildableFolder {
 
     /// Duplicates the folder reference and adds complementary exclusions to the source and resource views.
     private func duplicateFolderWithExclusions(
+        originalOnlyEntries: [BuildableFolderFile],
+        sharedEntries: [BuildableFolderFile],
+        resourceOnlyEntries: [BuildableFolderFile],
         originalTargetEntries: [BuildableFolderFile],
-        resourceEntries: [BuildableFolderFile]
+        resourceEntries: [BuildableFolderFile],
+        originalTargetExplicitResources: [ResourceFileElement]
     ) -> BuildableFolderPartition {
-        let sourceExcludedPaths = resourceEntries.map(\.path)
-        let resourceExcludedPaths = originalTargetEntries.map(\.path)
+        let sourceExcludedPaths = (resourceOnlyEntries + sharedEntries).map(\.path)
+        let resourceExcludedPaths = originalOnlyEntries.map(\.path)
 
         let originalTargetFolder = BuildableFolder(
             path: path,
@@ -545,7 +597,8 @@ extension BuildableFolder {
 
         return BuildableFolderPartition(
             originalTargetFolder: originalTargetFolder,
-            resourcesFolder: resourcesFolder
+            resourcesFolder: resourcesFolder,
+            originalTargetExplicitResources: originalTargetExplicitResources
         )
     }
 }
@@ -569,8 +622,12 @@ extension AbsolutePath {
         return matchesExtension(in: validExtensions)
     }
 
-    fileprivate var shouldStayOnOriginalTargetWhenSplittingResources: Bool {
-        isSourceLike || matchesExtension(in: ["xcstrings"])
+    fileprivate var shouldStayOnlyOnOriginalTargetWhenSplittingResources: Bool {
+        isSourceLike && !shouldBeSharedAcrossTargetsWhenSplittingResources
+    }
+
+    fileprivate var shouldBeSharedAcrossTargetsWhenSplittingResources: Bool {
+        matchesExtension(in: ["xcstrings"])
     }
 }
 

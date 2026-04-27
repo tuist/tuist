@@ -21,11 +21,44 @@ server:
     targetPort: 8080
   resources: {}
   extraEnv: []
+  # Additional env from Secrets or ConfigMaps. List of objects with
+  # secretRef.name or configMapRef.name. Useful for bringing in
+  # managed-deployment secrets (Mailgun, OAuth tokens, etc.) without listing
+  # each one in values.yaml.
+  extraEnvFrom: []
   appUrl: http://tuist.local
   logLevel: info
   hosted: false
   skipEmailConfirmation: true
   secretKeyBase: ""
+  # MASTER_KEY for decrypting priv/secrets/<env>.yml.enc at runtime. Required
+  # for hosted deployments that rely on encrypted secrets baked into the image.
+  # Leave empty to skip wiring the env var (self-hosted installs don't need it).
+  masterKey: ""
+  # When true, the chart skips emitting DATABASE_URL / TUIST_CLICKHOUSE_URL /
+  # TUIST_SECRET_KEY_BASE / TUIST_S3_* env vars and lets the Elixir release
+  # read those values from the encrypted priv/secrets/<env>.yml.enc file that
+  # MASTER_KEY unlocks. Pair with `masterKey: <...>` or externalSecrets below.
+  # Intended for the managed-cloud shape where secrets ship inside the image.
+  # Self-hosted installs leave this false so values.yaml drives all runtime config.
+  managedSecrets: false
+  # Sync secrets from an external store via external-secrets-operator. Only
+  # consulted when managedSecrets is true and masterKey is empty. The store
+  # must already exist (ClusterSecretStore/SecretStore) and be configured
+  # elsewhere (see infra/k8s/syself-onboarding.md for the 1Password flow).
+  externalSecrets:
+    refreshInterval: "1h"
+    storeRef:
+      kind: ClusterSecretStore
+      name: onepassword
+    masterKey:
+      # 1Password item name in the vault referenced by the SecretStore.
+      # For the 1P SDK provider the item + field are joined as "<item>/<field>"
+      # and the vault is set on the ClusterSecretStore, not here.
+      item: MASTER_KEY
+      # Field within the item. 1P "Password" category items expose their
+      # value under `password`; custom items can use any label.
+      field: password
   license:
     key: ""
     certificateBase64: ""
@@ -38,16 +71,81 @@ server:
     bucketAsHost: false
     bucketName: tuist
   cacheEndpointUrl: ""
-  migrationJob:
-    enabled: true
-    backoffLimit: 6
-    resources: {}
+  # Erlang distribution / libcluster configuration. Emits a headless Service
+  # and wires TUIST_CLUSTER_DNS_SERVICE + TUIST_CLUSTER_APP_NAME into the pod.
+  cluster:
+    enabled: false
+    applicationName: tuist
   serviceAccount:
     # Workload identity / Kubernetes API identity for server pods and the migration job.
     # Set annotations when integrating with a cloud IAM system or custom RBAC.
     create: false
     name: ""
     annotations: {}
+  ingress:
+    enabled: false
+    className: ""
+    host: ""
+    # TLS is configured when tlsSecretName is set. Typically paired with
+    # cert-manager annotations on the Ingress.
+    tlsSecretName: ""
+    annotations: {}
+    # extraPaths is merged before the default "/" path so cert-manager
+    # HTTP01 solvers (and similar) can inject their own route.
+    extraPaths: []
+  autoscaling:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+  podDisruptionBudget:
+    enabled: false
+    minAvailable: 1
+  podAnnotations: {}
+  podLabels: {}
+  affinity: {}
+  terminationGracePeriodSeconds: 60
+  # Preferred HTTP probes. All three hit the Phoenix /ready endpoint.
+  #
+  # startupProbe gives the release up to ~5 minutes to come up under load
+  # (failureThreshold * periodSeconds = 60 * 5s = 300s). Kubernetes
+  # disables both readinessProbe and livenessProbe while startupProbe is
+  # still failing, so the `liveness.initialDelaySeconds: 30` below only
+  # starts counting AFTER startupProbe succeeds — the small delay cannot
+  # race with a slow boot.
+  probes:
+    readiness:
+      path: /ready
+      initialDelaySeconds: 5
+      periodSeconds: 10
+      timeoutSeconds: 3
+      failureThreshold: 3
+    liveness:
+      path: /ready
+      initialDelaySeconds: 30
+      periodSeconds: 20
+      timeoutSeconds: 3
+      failureThreshold: 3
+    startup:
+      path: /ready
+      initialDelaySeconds: 0
+      periodSeconds: 5
+      timeoutSeconds: 3
+      failureThreshold: 60
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  migrationJob:
+    enabled: true
+    backoffLimit: 6
+    resources: {}
+    # When true, the Job runs as a Helm pre-install/pre-upgrade hook so that
+    # migrations complete before new pods roll out. Disable for self-hosted
+    # topologies that prefer a post-install Job instead.
+    asHook: false
 
 cache:
   enabled: true
@@ -152,6 +250,32 @@ clickhouse:
         - ReadWriteOnce
       size: 50Gi
     resources: {}
+
+# Redis backs the persistent (cross-pod, cross-deploy) auth rate limiter.
+# When disabled the server transparently falls back to an in-memory bucket
+# (per-pod, lost on restart) — fine for dev / single-pod self-hosted.
+# Persistence is intentionally absent: the bucket data is ephemeral by
+# design, a pod restart resetting limits is acceptable.
+redis:
+  enabled: false
+  mode: embedded
+  external:
+    url: ""  # e.g. redis://my-redis:6379
+  embedded:
+    image:
+      repository: valkey/valkey
+      tag: "8.1-alpine"
+      pullPolicy: IfNotPresent
+    resources:
+      requests:
+        cpu: 25m
+        memory: 32Mi
+      limits:
+        memory: 128Mi
+    # Restrict ingress on the embedded Valkey Service to server pods.
+    # Requires a CNI that enforces NetworkPolicy (Cilium, Calico, etc.).
+    networkPolicy:
+      enabled: true
 
 objectStorage:
   mode: embedded

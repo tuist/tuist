@@ -1,5 +1,8 @@
 use std::{
-    sync::{Arc, Mutex},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicU64, Ordering},
+    },
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
@@ -15,11 +18,12 @@ use prometheus_client::{
     registry::Registry,
 };
 
-use crate::{artifact::kind::ArtifactKind, utils::replication_target_label};
+use crate::{artifact::producer::ArtifactProducer, utils::replication_target_label};
 
 #[derive(Clone)]
 pub struct Metrics {
     registry: Arc<Mutex<Registry>>,
+    rollout_snapshot: Arc<RolloutSnapshot>,
     http_requests: Family<HttpRequestLabels, Counter>,
     http_request_duration: Family<HttpRouteLabels, Histogram>,
     http_exceptions: Family<HttpExceptionLabels, Counter>,
@@ -44,6 +48,8 @@ pub struct Metrics {
     file_descriptor_available: Gauge,
     file_descriptor_waiting: Gauge,
     file_descriptor_capacity: Gauge,
+    http_inflight_requests: Gauge,
+    grpc_inflight_requests: Gauge,
     segment_handles_cached: Gauge,
     segment_handle_cache_capacity: Gauge,
     segment_handle_cache_lookups: Family<SegmentHandleCacheLookupLabels, Counter>,
@@ -59,6 +65,9 @@ pub struct Metrics {
     outbox_messages: Gauge,
     multipart_uploads: Gauge,
     discovered_peer_nodes: Gauge,
+    bootstrap_known_peers: Gauge,
+    bootstrap_completed_peers: Gauge,
+    bootstrap_inflight_peers: Gauge,
     bootstrap_runs: Family<BootstrapResultLabels, Counter>,
     bootstrap_duration: Histogram,
     bootstrap_applied_items: Family<BootstrapItemLabels, Counter>,
@@ -86,11 +95,30 @@ pub struct Metrics {
     memory_pressure_transitions: Family<MemoryPressureTransitionLabels, Counter>,
     background_work_paused: Family<BackgroundWorkerLabels, Gauge>,
     memory_actions: Family<MemoryActionLabels, Counter>,
+    traffic_state: Gauge,
+    ready_state: Gauge,
+    drain_state: Gauge,
+    initial_discovery_completed: Gauge,
+    writer_lock_owned: Gauge,
+    writer_lock_acquire_failures: Counter,
+}
+
+#[derive(Default)]
+struct RolloutSnapshot {
+    outbox_messages: AtomicU64,
+    fd_timeout_count: AtomicU64,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RolloutMetricsSnapshot {
+    pub outbox_messages: u64,
+    pub fd_timeout_count: u64,
 }
 
 impl Metrics {
     pub fn new(region: String, tenant_id: String) -> Self {
         let mut registry = Registry::default();
+        let rollout_snapshot = Arc::new(RolloutSnapshot::default());
 
         let http_requests = Family::<HttpRequestLabels, Counter>::default();
         let http_request_duration =
@@ -131,6 +159,8 @@ impl Metrics {
         let file_descriptor_available = Gauge::default();
         let file_descriptor_waiting = Gauge::default();
         let file_descriptor_capacity = Gauge::default();
+        let http_inflight_requests = Gauge::default();
+        let grpc_inflight_requests = Gauge::default();
         let segment_handles_cached = Gauge::default();
         let segment_handle_cache_capacity = Gauge::default();
         let segment_handle_cache_lookups =
@@ -147,6 +177,9 @@ impl Metrics {
         let outbox_messages = Gauge::default();
         let multipart_uploads = Gauge::default();
         let discovered_peer_nodes = Gauge::default();
+        let bootstrap_known_peers = Gauge::default();
+        let bootstrap_completed_peers = Gauge::default();
+        let bootstrap_inflight_peers = Gauge::default();
         let bootstrap_runs = Family::<BootstrapResultLabels, Counter>::default();
         let bootstrap_duration = Histogram::new(exponential_buckets(0.001, 2.0, 16));
         let bootstrap_applied_items = Family::<BootstrapItemLabels, Counter>::default();
@@ -182,6 +215,12 @@ impl Metrics {
             Family::<MemoryPressureTransitionLabels, Counter>::default();
         let background_work_paused = Family::<BackgroundWorkerLabels, Gauge>::default();
         let memory_actions = Family::<MemoryActionLabels, Counter>::default();
+        let traffic_state = Gauge::default();
+        let ready_state = Gauge::default();
+        let drain_state = Gauge::default();
+        let initial_discovery_completed = Gauge::default();
+        let writer_lock_owned = Gauge::default();
+        let writer_lock_acquire_failures = Counter::default();
         let process_start_time_seconds = Gauge::<i64>::default();
         process_start_time_seconds.set(
             SystemTime::now()
@@ -207,27 +246,27 @@ impl Metrics {
         );
         registry.register(
             "kura_artifact_reads_total",
-            "Artifact reads by kind and result",
+            "Artifact reads by producer and result",
             artifact_reads.clone(),
         );
         registry.register(
             "kura_artifact_writes_total",
-            "Artifact writes by kind and result",
+            "Artifact writes by producer and result",
             artifact_writes.clone(),
         );
         registry.register(
             "kura_artifact_read_bytes_total",
-            "Artifact read throughput by kind and result",
+            "Artifact read throughput by producer and result",
             artifact_read_bytes.clone(),
         );
         registry.register(
             "kura_artifact_write_bytes_total",
-            "Artifact write throughput by kind and result",
+            "Artifact write throughput by producer and result",
             artifact_write_bytes.clone(),
         );
         registry.register(
             "kura_segment_refreshes_total",
-            "Segment refreshes by kind and result",
+            "Segment refreshes by producer and result",
             segment_refreshes.clone(),
         );
         registry.register(
@@ -311,6 +350,16 @@ impl Metrics {
             file_descriptor_capacity.clone(),
         );
         registry.register(
+            "kura_http_inflight_requests",
+            "HTTP requests currently in flight across public and internal listeners",
+            http_inflight_requests.clone(),
+        );
+        registry.register(
+            "kura_grpc_inflight_requests",
+            "gRPC requests currently in flight",
+            grpc_inflight_requests.clone(),
+        );
+        registry.register(
             "kura_segment_handles_cached",
             "Long-lived segment file handles cached for offset-based reads",
             segment_handles_cached.clone(),
@@ -386,6 +435,21 @@ impl Metrics {
             discovered_peer_nodes.clone(),
         );
         registry.register(
+            "kura_bootstrap_known_peers",
+            "Peers currently considered part of the bootstrap readiness set",
+            bootstrap_known_peers.clone(),
+        );
+        registry.register(
+            "kura_bootstrap_completed_peers",
+            "Peers that finished bootstrap for this node",
+            bootstrap_completed_peers.clone(),
+        );
+        registry.register(
+            "kura_bootstrap_inflight_peers",
+            "Peers currently being bootstrapped",
+            bootstrap_inflight_peers.clone(),
+        );
+        registry.register(
             "kura_bootstrap_runs_total",
             "Bootstrap runs from newly discovered peers by result",
             bootstrap_runs.clone(),
@@ -437,7 +501,7 @@ impl Metrics {
         );
         registry.register(
             "kura_segment_generation_count",
-            "Segments currently tracked by generation and artifact kind",
+            "Segments currently tracked by generation",
             segment_generation_counts.clone(),
         );
         registry.register(
@@ -521,6 +585,36 @@ impl Metrics {
             memory_actions.clone(),
         );
         registry.register(
+            "kura_traffic_state",
+            "Current traffic state for this node: 0=joining, 1=serving, 2=draining",
+            traffic_state.clone(),
+        );
+        registry.register(
+            "kura_ready_state",
+            "Current readiness state for this node: 1=ready, 0=not ready",
+            ready_state.clone(),
+        );
+        registry.register(
+            "kura_drain_state",
+            "Current drain state for this node: 1=draining, 0=not draining",
+            drain_state.clone(),
+        );
+        registry.register(
+            "kura_initial_discovery_completed",
+            "Whether the first membership discovery pass has completed",
+            initial_discovery_completed.clone(),
+        );
+        registry.register(
+            "kura_writer_lock_owned",
+            "Whether this process currently owns the single-writer data-dir lock",
+            writer_lock_owned.clone(),
+        );
+        registry.register(
+            "kura_writer_lock_acquire_failures_total",
+            "Number of writer-lock acquisition failures detected during startup or tests",
+            writer_lock_acquire_failures.clone(),
+        );
+        registry.register(
             "kura_process_start_time_seconds",
             "Unix timestamp when the current Kura process started",
             process_start_time_seconds.clone(),
@@ -528,6 +622,7 @@ impl Metrics {
 
         let metrics = Self {
             registry: Arc::new(Mutex::new(registry)),
+            rollout_snapshot,
             http_requests,
             http_request_duration,
             http_exceptions,
@@ -552,6 +647,8 @@ impl Metrics {
             file_descriptor_available,
             file_descriptor_waiting,
             file_descriptor_capacity,
+            http_inflight_requests,
+            grpc_inflight_requests,
             segment_handles_cached,
             segment_handle_cache_capacity,
             segment_handle_cache_lookups,
@@ -567,6 +664,9 @@ impl Metrics {
             outbox_messages,
             multipart_uploads,
             discovered_peer_nodes,
+            bootstrap_known_peers,
+            bootstrap_completed_peers,
+            bootstrap_inflight_peers,
             bootstrap_runs,
             bootstrap_duration,
             bootstrap_applied_items,
@@ -594,6 +694,12 @@ impl Metrics {
             memory_pressure_transitions,
             background_work_paused,
             memory_actions,
+            traffic_state,
+            ready_state,
+            drain_state,
+            initial_discovery_completed,
+            writer_lock_owned,
+            writer_lock_acquire_failures,
         };
 
         metrics
@@ -634,11 +740,9 @@ impl Metrics {
         }
     }
 
-    pub fn record_artifact_read(&self, kind: ArtifactKind, result: &str, bytes: u64) {
+    pub fn record_artifact_read(&self, producer: ArtifactProducer, result: &str, bytes: u64) {
         let labels = ArtifactOpLabels {
-            kind: kind.as_str().to_owned(),
-            client: kind.client().as_str().to_owned(),
-            artifact_class: kind.artifact_class().as_str().to_owned(),
+            producer: producer.as_str().to_owned(),
             result: result.to_owned(),
         };
         self.artifact_reads.get_or_create(&labels).inc();
@@ -649,11 +753,9 @@ impl Metrics {
         }
     }
 
-    pub fn record_artifact_write(&self, kind: ArtifactKind, result: &str, bytes: u64) {
+    pub fn record_artifact_write(&self, producer: ArtifactProducer, result: &str, bytes: u64) {
         let labels = ArtifactOpLabels {
-            kind: kind.as_str().to_owned(),
-            client: kind.client().as_str().to_owned(),
-            artifact_class: kind.artifact_class().as_str().to_owned(),
+            producer: producer.as_str().to_owned(),
             result: result.to_owned(),
         };
         self.artifact_writes.get_or_create(&labels).inc();
@@ -666,15 +768,13 @@ impl Metrics {
 
     pub fn record_segment_refresh(
         &self,
-        kind: ArtifactKind,
+        producer: ArtifactProducer,
         result: &str,
         bytes: u64,
         duration: Duration,
     ) {
         let labels = ArtifactOpLabels {
-            kind: kind.as_str().to_owned(),
-            client: kind.client().as_str().to_owned(),
-            artifact_class: kind.artifact_class().as_str().to_owned(),
+            producer: producer.as_str().to_owned(),
             result: result.to_owned(),
         };
         self.segment_refreshes.get_or_create(&labels).inc();
@@ -685,22 +785,23 @@ impl Metrics {
         }
         self.segment_refresh_duration
             .get_or_create(&ArtifactRouteLabels {
-                kind: kind.as_str().to_owned(),
-                client: kind.client().as_str().to_owned(),
-                artifact_class: kind.artifact_class().as_str().to_owned(),
+                producer: producer.as_str().to_owned(),
             })
             .observe(duration.as_secs_f64());
     }
 
-    pub fn record_segment_eviction(&self, kind: ArtifactKind, result: &str, artifacts: u64) {
+    pub fn record_segment_eviction(
+        &self,
+        producer: ArtifactProducer,
+        result: &str,
+        artifacts: u64,
+    ) {
         if artifacts == 0 {
             return;
         }
         self.segment_evicted_artifacts
             .get_or_create(&ArtifactOpLabels {
-                kind: kind.as_str().to_owned(),
-                client: kind.client().as_str().to_owned(),
-                artifact_class: kind.artifact_class().as_str().to_owned(),
+                producer: producer.as_str().to_owned(),
                 result: result.to_owned(),
             })
             .inc_by(artifacts);
@@ -752,6 +853,11 @@ impl Metrics {
                 result: result.to_owned(),
             })
             .observe(duration.as_secs_f64());
+        if result == "timeout" {
+            self.rollout_snapshot
+                .fd_timeout_count
+                .fetch_add(1, Ordering::Relaxed);
+        }
     }
 
     pub fn record_file_operation(
@@ -789,6 +895,14 @@ impl Metrics {
         self.file_descriptor_in_use.set(in_use as i64);
         self.file_descriptor_available.set(available as i64);
         self.file_descriptor_waiting.set(waiting as i64);
+    }
+
+    pub fn update_http_inflight(&self, count: usize) {
+        self.http_inflight_requests.set(count as i64);
+    }
+
+    pub fn update_grpc_inflight(&self, count: usize) {
+        self.grpc_inflight_requests.set(count as i64);
     }
 
     pub fn update_segment_handles_cached(&self, cached: usize) {
@@ -869,6 +983,9 @@ impl Metrics {
 
     pub fn update_outbox_messages(&self, count: usize) {
         self.outbox_messages.set(count as i64);
+        self.rollout_snapshot
+            .outbox_messages
+            .store(count as u64, Ordering::Relaxed);
     }
 
     pub fn update_multipart_uploads(&self, count: usize) {
@@ -877,6 +994,12 @@ impl Metrics {
 
     pub fn update_discovered_peer_nodes(&self, count: usize) {
         self.discovered_peer_nodes.set(count as i64);
+    }
+
+    pub fn update_bootstrap_peers(&self, known: usize, completed: usize, inflight: usize) {
+        self.bootstrap_known_peers.set(known as i64);
+        self.bootstrap_completed_peers.set(completed as i64);
+        self.bootstrap_inflight_peers.set(inflight as i64);
     }
 
     pub fn record_bootstrap_run(
@@ -957,15 +1080,9 @@ impl Metrics {
             .inc();
     }
 
-    pub fn update_segment_generation_count(
-        &self,
-        kind: ArtifactKind,
-        generation: &str,
-        count: usize,
-    ) {
+    pub fn update_segment_generation_count(&self, generation: &str, count: usize) {
         self.segment_generation_counts
             .get_or_create(&SegmentGenerationLabels {
-                kind: kind.as_str().to_owned(),
                 generation: generation.to_owned(),
             })
             .set(count as i64);
@@ -1054,6 +1171,40 @@ impl Metrics {
             .inc();
     }
 
+    pub fn update_runtime_state(
+        &self,
+        traffic_state: i64,
+        ready: bool,
+        draining: bool,
+        initial_discovery_completed: bool,
+        writer_lock_owned: bool,
+    ) {
+        self.traffic_state.set(traffic_state);
+        self.ready_state.set(if ready { 1 } else { 0 });
+        self.drain_state.set(if draining { 1 } else { 0 });
+        self.initial_discovery_completed
+            .set(if initial_discovery_completed { 1 } else { 0 });
+        self.writer_lock_owned
+            .set(if writer_lock_owned { 1 } else { 0 });
+    }
+
+    pub fn record_writer_lock_acquire_failure(&self) {
+        self.writer_lock_acquire_failures.inc();
+    }
+
+    pub fn rollout_metrics_snapshot(&self) -> RolloutMetricsSnapshot {
+        RolloutMetricsSnapshot {
+            outbox_messages: self
+                .rollout_snapshot
+                .outbox_messages
+                .load(Ordering::Relaxed),
+            fd_timeout_count: self
+                .rollout_snapshot
+                .fd_timeout_count
+                .load(Ordering::Relaxed),
+        }
+    }
+
     pub fn render(&self) -> String {
         let mut encoded = String::new();
         let registry = self.registry.lock().expect("metrics registry poisoned");
@@ -1082,17 +1233,13 @@ struct HttpExceptionLabels {
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
 struct ArtifactOpLabels {
-    kind: String,
-    client: String,
-    artifact_class: String,
+    producer: String,
     result: String,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
 struct ArtifactRouteLabels {
-    kind: String,
-    client: String,
-    artifact_class: String,
+    producer: String,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
@@ -1174,7 +1321,6 @@ struct SegmentHandleEvictionLabels {
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
 struct SegmentGenerationLabels {
-    kind: String,
     generation: String,
 }
 
@@ -1258,10 +1404,10 @@ mod tests {
             StatusCode::INTERNAL_SERVER_ERROR,
             Duration::from_millis(20),
         );
-        metrics.record_artifact_read(ArtifactKind::Xcode, "ok", 5);
-        metrics.record_artifact_write(ArtifactKind::Module, "ok", 10);
-        metrics.record_segment_refresh(ArtifactKind::Xcode, "ok", 5, Duration::from_millis(4));
-        metrics.record_segment_eviction(ArtifactKind::Xcode, "ok", 2);
+        metrics.record_artifact_read(ArtifactProducer::Xcode, "ok", 5);
+        metrics.record_artifact_write(ArtifactProducer::Module, "ok", 10);
+        metrics.record_segment_refresh(ArtifactProducer::Xcode, "ok", 5, Duration::from_millis(4));
+        metrics.record_segment_eviction(ArtifactProducer::Xcode, "ok", 2);
         metrics.record_replication(
             "https://kura.example.com/internal",
             "upsert_artifact",
@@ -1274,6 +1420,8 @@ mod tests {
         metrics.record_file_descriptor_wait("ok", Duration::from_millis(1));
         metrics.record_file_operation("open_read", "ok", Duration::from_millis(2), 42);
         metrics.update_file_descriptor_pool(64, 3, 61, 1);
+        metrics.update_http_inflight(2);
+        metrics.update_grpc_inflight(1);
         metrics.update_segment_handles_cached(2);
         metrics.update_segment_handle_cache_capacity(8);
         metrics.record_segment_handle_cache_lookup("hit");
@@ -1289,13 +1437,14 @@ mod tests {
         metrics.update_outbox_messages(4);
         metrics.update_multipart_uploads(2);
         metrics.update_discovered_peer_nodes(3);
+        metrics.update_bootstrap_peers(3, 2, 1);
         metrics.record_bootstrap_run("ok", Duration::from_millis(6), 2, 5);
         metrics.update_analytics_queue(1000, 2);
         metrics.record_analytics_event("xcode", "sent", 2);
         metrics.record_analytics_batch("xcode", "ok", Duration::from_millis(7));
         metrics.update_analytics_circuit_state("xcode", 1);
         metrics.record_analytics_circuit_transition("xcode", "closed", "open");
-        metrics.update_segment_generation_count(ArtifactKind::Xcode, "old", 1);
+        metrics.update_segment_generation_count("old", 1);
         metrics.update_process_memory(1024, 2048);
         metrics.update_rocksdb_memory(256, 64, 4096, 512, 2048);
         metrics.update_memory_limits(4_096, 8_192);
@@ -1303,6 +1452,8 @@ mod tests {
         metrics.record_memory_pressure_transition("normal", "constrained");
         metrics.update_background_work_paused("outbox", true);
         metrics.record_memory_action("manifest_cache_trim");
+        metrics.update_runtime_state(1, true, false, true, true);
+        metrics.record_writer_lock_acquire_failure();
 
         let rendered = metrics.render();
 
@@ -1325,6 +1476,8 @@ mod tests {
         assert!(rendered.contains("kura_file_descriptor_wait_seconds"));
         assert!(rendered.contains("kura_file_operations_total"));
         assert!(rendered.contains("kura_file_descriptor_in_use"));
+        assert!(rendered.contains("kura_http_inflight_requests"));
+        assert!(rendered.contains("kura_grpc_inflight_requests"));
         assert!(rendered.contains("kura_segment_handles_cached"));
         assert!(rendered.contains("kura_segment_handle_cache_capacity"));
         assert!(rendered.contains("kura_segment_handle_cache_lookups_total"));
@@ -1339,6 +1492,9 @@ mod tests {
         assert!(rendered.contains("kura_outbox_messages"));
         assert!(rendered.contains("kura_multipart_uploads"));
         assert!(rendered.contains("kura_discovered_peer_nodes"));
+        assert!(rendered.contains("kura_bootstrap_known_peers"));
+        assert!(rendered.contains("kura_bootstrap_completed_peers"));
+        assert!(rendered.contains("kura_bootstrap_inflight_peers"));
         assert!(rendered.contains("kura_bootstrap_runs_total"));
         assert!(rendered.contains("kura_bootstrap_duration_seconds"));
         assert!(rendered.contains("kura_bootstrap_applied_items_total"));
@@ -1360,6 +1516,12 @@ mod tests {
         assert!(rendered.contains("kura_memory_pressure_transitions_total"));
         assert!(rendered.contains("kura_background_work_paused"));
         assert!(rendered.contains("kura_memory_actions_total"));
+        assert!(rendered.contains("kura_traffic_state"));
+        assert!(rendered.contains("kura_ready_state"));
+        assert!(rendered.contains("kura_drain_state"));
+        assert!(rendered.contains("kura_initial_discovery_completed"));
+        assert!(rendered.contains("kura_writer_lock_owned"));
+        assert!(rendered.contains("kura_writer_lock_acquire_failures_total"));
         assert!(rendered.contains("kura_process_start_time_seconds"));
         assert!(rendered.contains("region=\"eu-west\""));
         assert!(rendered.contains("tenant_id=\"acme\""));

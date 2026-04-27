@@ -1,5 +1,5 @@
 defmodule Tuist.Tests.AnalyticsTest do
-  use TuistTestSupport.Cases.DataCase
+  use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
   alias Tuist.IngestRepo
@@ -1682,7 +1682,7 @@ defmodule Tuist.Tests.AnalyticsTest do
 
       RunsFixtures.test_case_event_fixture(
         test_case_id: test_case.id,
-        event_type: "quarantined",
+        event_type: "muted",
         inserted_at: ~N[2024-04-15 12:00:00.000000]
       )
 
@@ -1723,14 +1723,14 @@ defmodule Tuist.Tests.AnalyticsTest do
       # Quarantine on April 10
       RunsFixtures.test_case_event_fixture(
         test_case_id: test_case.id,
-        event_type: "quarantined",
+        event_type: "muted",
         inserted_at: ~N[2024-04-10 12:00:00.000000]
       )
 
       # Unquarantine on April 20
       RunsFixtures.test_case_event_fixture(
         test_case_id: test_case.id,
-        event_type: "unquarantined",
+        event_type: "unmuted",
         inserted_at: ~N[2024-04-20 12:00:00.000000]
       )
 
@@ -1786,21 +1786,21 @@ defmodule Tuist.Tests.AnalyticsTest do
       # First quarantine on April 5
       RunsFixtures.test_case_event_fixture(
         test_case_id: test_case.id,
-        event_type: "quarantined",
+        event_type: "muted",
         inserted_at: ~N[2024-04-05 12:00:00.000000]
       )
 
       # First unquarantine on April 10
       RunsFixtures.test_case_event_fixture(
         test_case_id: test_case.id,
-        event_type: "unquarantined",
+        event_type: "unmuted",
         inserted_at: ~N[2024-04-10 12:00:00.000000]
       )
 
       # Second quarantine on April 20
       RunsFixtures.test_case_event_fixture(
         test_case_id: test_case.id,
-        event_type: "quarantined",
+        event_type: "muted",
         inserted_at: ~N[2024-04-20 12:00:00.000000]
       )
 
@@ -1857,7 +1857,7 @@ defmodule Tuist.Tests.AnalyticsTest do
       # Quarantine BEFORE the period (March 15)
       RunsFixtures.test_case_event_fixture(
         test_case_id: test_case.id,
-        event_type: "quarantined",
+        event_type: "muted",
         inserted_at: ~N[2024-03-15 12:00:00.000000]
       )
 
@@ -1903,21 +1903,21 @@ defmodule Tuist.Tests.AnalyticsTest do
       # Quarantine test 1 on April 10
       RunsFixtures.test_case_event_fixture(
         test_case_id: test_case_1.id,
-        event_type: "quarantined",
+        event_type: "muted",
         inserted_at: ~N[2024-04-10 12:00:00.000000]
       )
 
       # Quarantine test 2 on April 15
       RunsFixtures.test_case_event_fixture(
         test_case_id: test_case_2.id,
-        event_type: "quarantined",
+        event_type: "muted",
         inserted_at: ~N[2024-04-15 12:00:00.000000]
       )
 
       # Unquarantine test 1 on April 20
       RunsFixtures.test_case_event_fixture(
         test_case_id: test_case_1.id,
-        event_type: "unquarantined",
+        event_type: "unmuted",
         inserted_at: ~N[2024-04-20 12:00:00.000000]
       )
 
@@ -1976,20 +1976,20 @@ defmodule Tuist.Tests.AnalyticsTest do
       # First quarantine event
       RunsFixtures.test_case_event_fixture(
         test_case_id: test_case.id,
-        event_type: "quarantined",
+        event_type: "muted",
         inserted_at: ~N[2024-04-05 12:00:00.000000]
       )
 
       # Duplicate quarantine events (no matching unquarantine events)
       RunsFixtures.test_case_event_fixture(
         test_case_id: test_case.id,
-        event_type: "quarantined",
+        event_type: "muted",
         inserted_at: ~N[2024-04-10 12:00:00.000000]
       )
 
       RunsFixtures.test_case_event_fixture(
         test_case_id: test_case.id,
-        event_type: "quarantined",
+        event_type: "muted",
         inserted_at: ~N[2024-04-15 12:00:00.000000]
       )
 

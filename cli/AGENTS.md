@@ -39,6 +39,18 @@ This node covers the Tuist CLI workspace under `cli/`. Follow downlinks for subs
   }
   ```
 
+### Running tests
+- Prefer `tuist generate` + `xcodebuild`/`xcsiftbuild test` over `swift test`. `swift test` is significantly slower because it rebuilds the full SPM dependency graph, and some test targets (e.g. `TuistGeneratorTests`, `TuistLoaderTests`) aren't even registered in `Package.swift` — they only exist in the Tuist-generated workspace.
+- Fast iteration loop for a specific test suite:
+  ```bash
+  tuist generate tuist TuistGenerator TuistGeneratorTests ProjectDescription --no-open
+  xcsiftbuild test -workspace Tuist.xcworkspace -scheme Tuist-Workspace \
+      -only-testing TuistGeneratorTests/SomeSuite \
+      CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+      COMPILATION_CACHE_ENABLE_CACHING=NO
+  ```
+- Swift Testing filters use the pattern `ModuleTests/SuiteName` (the type name without the `struct` keyword). For a single `@Test` function: `ModuleTests/SuiteName/function_name`.
+
 ## Linting
 - Before committing changes, run `mise run cli:lint --fix` to ensure code is properly formatted.
 

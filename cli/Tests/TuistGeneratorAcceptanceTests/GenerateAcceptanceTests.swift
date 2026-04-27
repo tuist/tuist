@@ -91,6 +91,48 @@ struct GeneratorAcceptanceTests {
     }
 }
 
+struct GenerateAcceptanceTestAppWithGeneratedTestPlan {
+    @Test(.withFixture("generated_app_with_generated_test_plan"), .inTemporaryDirectory)
+    func app_with_generated_test_plan() async throws {
+        // Given
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let fileSystem = FileSystem()
+
+        // When
+        try await TuistTest.run(GenerateCommand.self, ["--path", fixtureDirectory.pathString, "--no-open"])
+
+        // Then: Tuist writes each plan to Derived/TestPlans/<name>.xctestplan
+        let derivedPlans = fixtureDirectory.appending(components: "Derived", "TestPlans")
+        let unitPlanPath = derivedPlans.appending(component: "UnitTests.xctestplan")
+        let snapshotPlanPath = derivedPlans.appending(component: "SnapshotTests.xctestplan")
+        #expect(try await fileSystem.exists(unitPlanPath))
+        #expect(try await fileSystem.exists(snapshotPlanPath))
+
+        // And: the scheme references both plans, first one is the default
+        let xcodeproj = try XcodeProj(
+            pathString: fixtureDirectory.appending(component: "App.xcodeproj").pathString
+        )
+        let scheme = try #require(
+            xcodeproj.sharedData?.schemes.first { $0.name == "App" }
+        )
+        let planReferences = try #require(scheme.testAction?.testPlans)
+        #expect(planReferences.map(\.reference) == [
+            "container:Derived/TestPlans/UnitTests.xctestplan",
+            "container:Derived/TestPlans/SnapshotTests.xctestplan",
+        ])
+        #expect(planReferences.first?.default == true)
+        #expect(planReferences.last?.default == false)
+
+        // And: the generated JSON references the expected test targets
+        let unitPlanData = try Data(contentsOf: unitPlanPath.url)
+        let unitPlanJSON = try #require(
+            try JSONSerialization.jsonObject(with: unitPlanData) as? [String: Any]
+        )
+        let unitTargets = try #require(unitPlanJSON["testTargets"] as? [[String: Any]])
+        #expect(unitTargets.compactMap { ($0["target"] as? [String: Any])?["name"] as? String } == ["AppTests"])
+    }
+}
+
 struct GenerateAcceptanceTestiOSAppWithTests {
     @Test(.withFixture("generated_ios_app_with_tests"), .inTemporaryDirectory)
     func ios_app_with_tests() async throws {
@@ -905,6 +947,22 @@ struct GenerateAcceptanceTestmacOSAppWithCopyFiles {
         XCTAssertTrue(
             buildPhases.contains(where: { $0.name() == "Copy Templates" })
         )
+
+        let embedLoginItemsPhase = try #require(
+            buildPhases
+                .compactMap { $0 as? PBXCopyFilesBuildPhase }
+                .first(where: { $0.name == "Embed Login Items" })
+        )
+        #expect(embedLoginItemsPhase.dstSubfolderSpec == .wrapper)
+        #expect(embedLoginItemsPhase.dstPath == "Contents/Library/LoginItems")
+
+        let buildFile = try #require(embedLoginItemsPhase.files?.first)
+        let fileRef = try #require(buildFile.file as? PBXFileReference)
+        #expect(fileRef.path == "LoginItemHelper.app")
+        #expect(fileRef.sourceTree == .buildProductsDir)
+        let attributes = buildFile.settings?["ATTRIBUTES"] as? [String]
+        #expect(attributes?.contains("CodeSignOnCopy") == true)
+        #expect(attributes?.contains("RemoveHeadersOnCopy") == true)
     }
 }
 
@@ -1233,7 +1291,7 @@ struct GeneratediOSStaticLibraryWithStringResources {
 }
 
 struct GenerateAcceptanceTestiOSAppWithStaticFrameworkWithXcstrings {
-    @Test(.disabled(), .withFixture("generated_ios_app_with_static_framework_with_xcstrings"), .inTemporaryDirectory)
+    @Test(.withFixture("generated_ios_app_with_static_framework_with_xcstrings"), .inTemporaryDirectory)
     func ios_app_with_static_framework_with_xcstrings() async throws {
         let fixturePath = try fixtureDirectory()
         try await run(GenerateCommand.self)
@@ -1259,6 +1317,11 @@ struct GenerateAcceptanceTestiOSAppWithStaticFrameworkWithXcstrings {
         )
         try await XCTAssertProductWithDestinationContainsResource(
             "StaticFramework_StaticFramework.bundle",
+            destination: "Debug-iphonesimulator",
+            resource: "Localizable.strings"
+        )
+        try await XCTAssertProductWithDestinationDoesNotContainResource(
+            "StaticFramework.framework",
             destination: "Debug-iphonesimulator",
             resource: "Localizable.strings"
         )

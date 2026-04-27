@@ -21,8 +21,8 @@ use uuid::Uuid;
 
 use crate::{
     artifact::{
-        kind::ArtifactKind,
         manifest::{ArtifactManifest, PersistedManifestRecord},
+        producer::ArtifactProducer,
         segment_location_record::SegmentLocationRecord,
     },
     config::Config,
@@ -43,7 +43,7 @@ use crate::{
         state::SegmentState,
     },
     utils::{
-        artifact_storage_id, blob_path, module_key, namespace_artifact_index_key, now_ms,
+        artifact_storage_id, module_key, namespace_artifact_index_key, now_ms,
         segment_artifact_index_key, segment_artifact_index_prefix, segment_path, temp_file_path,
     },
 };
@@ -68,7 +68,7 @@ pub struct Store {
 pub struct StoreSnapshot {
     pub outbox_messages: usize,
     pub multipart_uploads: usize,
-    pub segment_counts: Vec<(ArtifactKind, &'static str, usize)>,
+    pub segment_counts: Vec<(&'static str, usize)>,
     pub rocksdb_block_cache_usage_bytes: u64,
     pub rocksdb_block_cache_pinned_usage_bytes: u64,
     pub rocksdb_block_cache_capacity_bytes: u64,
@@ -96,7 +96,7 @@ pub struct NamespaceTombstonePage {
 
 #[derive(Clone, Copy)]
 struct PersistArtifactSpec<'a> {
-    kind: ArtifactKind,
+    producer: ArtifactProducer,
     namespace_id: &'a str,
     key: &'a str,
     content_type: &'a str,
@@ -291,11 +291,11 @@ impl Store {
 
     pub async fn artifact_exists(
         &self,
-        kind: ArtifactKind,
+        producer: ArtifactProducer,
         namespace_id: &str,
         key: &str,
     ) -> Result<bool, String> {
-        let artifact_id = artifact_storage_id(kind, &self.tenant_id, namespace_id, key);
+        let artifact_id = artifact_storage_id(producer, &self.tenant_id, namespace_id, key);
         match self.manifest(&artifact_id)? {
             Some(manifest) => self.storage_exists(&manifest).await,
             None => Ok(false),
@@ -318,11 +318,11 @@ impl Store {
 
     pub async fn fetch_artifact(
         &self,
-        kind: ArtifactKind,
+        producer: ArtifactProducer,
         namespace_id: &str,
         key: &str,
     ) -> Result<Option<ArtifactManifest>, String> {
-        let artifact_id = artifact_storage_id(kind, &self.tenant_id, namespace_id, key);
+        let artifact_id = artifact_storage_id(producer, &self.tenant_id, namespace_id, key);
         match self.manifest(&artifact_id)? {
             Some(manifest) if self.storage_exists(&manifest).await? => {
                 self.maybe_refresh_manifest(manifest).await
@@ -334,7 +334,7 @@ impl Store {
 
     pub async fn persist_artifact_from_path_and_enqueue(
         &self,
-        kind: ArtifactKind,
+        producer: ArtifactProducer,
         namespace_id: &str,
         key: &str,
         content_type: &str,
@@ -342,7 +342,7 @@ impl Store {
         replication_targets: &[String],
     ) -> Result<ArtifactManifest, String> {
         let spec = PersistArtifactSpec {
-            kind,
+            producer,
             namespace_id,
             key,
             content_type,
@@ -356,14 +356,14 @@ impl Store {
             PersistArtifactOutcome::Applied(manifest)
             | PersistArtifactOutcome::IgnoredStale(manifest) => Ok(manifest),
             PersistArtifactOutcome::IgnoredTombstone => Err(format!(
-                "artifact write for {kind:?}/{namespace_id}/{key} was rejected by a newer tombstone"
+                "artifact write for {producer:?}/{namespace_id}/{key} was rejected by a newer tombstone"
             )),
         }
     }
 
     pub async fn apply_replicated_artifact_from_path(
         &self,
-        kind: ArtifactKind,
+        producer: ArtifactProducer,
         namespace_id: &str,
         key: &str,
         content_type: &str,
@@ -371,7 +371,7 @@ impl Store {
         version_ms: u64,
     ) -> Result<ArtifactApplyOutcome, String> {
         let spec = PersistArtifactSpec {
-            kind,
+            producer,
             namespace_id,
             key,
             content_type,
@@ -389,23 +389,8 @@ impl Store {
         spec: PersistArtifactSpec<'_>,
         source_path: &Path,
     ) -> Result<PersistArtifactOutcome, String> {
-        if spec.kind == ArtifactKind::KeyValue {
-            let bytes = self.io.read(source_path).await?;
-            self.io.remove_file_if_exists(source_path).await;
-            return self
-                .persist_keyvalue_artifact_with_version(
-                    spec.namespace_id,
-                    spec.key,
-                    spec.content_type,
-                    &bytes,
-                    spec.version_ms,
-                    spec.replication_targets,
-                )
-                .await;
-        }
-
         let artifact_id =
-            artifact_storage_id(spec.kind, &self.tenant_id, spec.namespace_id, spec.key);
+            artifact_storage_id(spec.producer, &self.tenant_id, spec.namespace_id, spec.key);
         let size = self.io.metadata_len(source_path).await?;
 
         let existing = self.manifest_from_db(&artifact_id)?;
@@ -422,59 +407,21 @@ impl Store {
         }
 
         let persisted_version_ms = persisted_version_ms(spec.version_ms);
-        let (blob_path, segment_id, segment_offset, evicted_segments) = if spec
-            .kind
-            .uses_segment_storage()
-        {
-            let (location, evicted_segments) =
-                self.append_to_segment(spec.kind, source_path, size).await?;
-            (
-                None,
-                Some(location.segment_id),
-                Some(location.offset),
-                evicted_segments,
-            )
-        } else {
-            let destination = blob_path(&self.data_dir, spec.kind, &artifact_id);
-            let parent = destination
-                .parent()
-                .ok_or_else(|| "missing blob parent directory".to_string())?;
-            self.io.create_dir_all(parent).await?;
-
-            if self.io.path_exists(&destination).await? {
-                self.io.remove_file_if_exists(source_path).await;
-            } else if let Err(rename_error) = self.io.rename(source_path, &destination).await {
-                self.io
-                    .copy(source_path, &destination)
-                    .await
-                    .map_err(|error| {
-                        format!("failed to copy blob after rename error ({rename_error}): {error}")
-                    })?;
-                self.io.remove_file_if_exists(source_path).await;
-            }
-
-            (
-                Some(destination.to_string_lossy().into_owned()),
-                None,
-                None,
-                Vec::new(),
-            )
-        };
+        let (location, evicted_segments) = self.append_to_segment(source_path, size).await?;
 
         self.hit_failpoint(FailpointName::AfterArtifactBytesDurableBeforeMetadata)
             .await?;
 
         let manifest = ArtifactManifest {
             artifact_id: artifact_id.clone(),
-            kind: spec.kind,
-            client: spec.kind.client(),
-            artifact_class: spec.kind.artifact_class(),
+            producer: spec.producer,
             namespace_id: spec.namespace_id.to_owned(),
             key: spec.key.to_owned(),
             content_type: spec.content_type.to_owned(),
-            blob_path,
-            segment_id,
-            segment_offset,
+            inline: false,
+            blob_path: None,
+            segment_id: Some(location.segment_id.clone()),
+            segment_offset: Some(location.offset),
             size,
             version_ms: persisted_version_ms,
             created_at_ms: persisted_version_ms,
@@ -499,13 +446,13 @@ impl Store {
         {
             batch.delete_cf(
                 self.cf(ROCKSDB_CF_SEGMENT_ARTIFACTS),
-                segment_artifact_index_key(spec.kind, previous_segment_id, &artifact_id).as_bytes(),
+                segment_artifact_index_key(previous_segment_id, &artifact_id).as_bytes(),
             );
         }
         if let Some(segment_id) = &manifest.segment_id {
             batch.put_cf(
                 self.cf(ROCKSDB_CF_SEGMENT_ARTIFACTS),
-                segment_artifact_index_key(spec.kind, segment_id, &artifact_id).as_bytes(),
+                segment_artifact_index_key(segment_id, &artifact_id).as_bytes(),
                 [],
             );
         }
@@ -516,7 +463,7 @@ impl Store {
             .await?;
         self.maybe_cache_manifest(manifest.clone());
 
-        self.evict_segments(spec.kind, evicted_segments).await?;
+        self.evict_segments(evicted_segments).await?;
 
         Ok(PersistArtifactOutcome::Applied(manifest))
     }
@@ -562,8 +509,8 @@ impl Store {
         let readable_bytes = manifest.size.saturating_sub(read_offset);
         let limit = read_limit.unwrap_or(readable_bytes).min(readable_bytes);
 
-        if manifest.kind == ArtifactKind::KeyValue
-            && let Some(bytes) = self.keyvalue_bytes(&manifest.artifact_id)?
+        if manifest.inline
+            && let Some(bytes) = self.inline_bytes(&manifest.artifact_id)?
         {
             let start = read_offset as usize;
             let end = start.saturating_add(limit as usize).min(bytes.len());
@@ -576,7 +523,7 @@ impl Store {
             let offset = manifest
                 .segment_offset
                 .ok_or_else(|| "segment-backed manifest is missing segment offset".to_string())?;
-            let handle = self.segment_handle(manifest.kind, segment_id).await?;
+            let handle = self.segment_handle(segment_id).await?;
             return Ok(Box::pin(SegmentReader::new(
                 handle,
                 offset + read_offset,
@@ -612,7 +559,7 @@ impl Store {
         let Some(segment_id) = manifest.segment_id.as_deref() else {
             return Ok(Some(manifest));
         };
-        if self.segment_generation(manifest.kind, segment_id)? != Some(SegmentGeneration::Old) {
+        if self.segment_generation(segment_id)? != Some(SegmentGeneration::Old) {
             return Ok(Some(manifest));
         }
 
@@ -624,9 +571,7 @@ impl Store {
         let Some(current_segment_id) = current.segment_id.as_deref() else {
             return Ok(Some(current));
         };
-        if self.segment_generation(current.kind, current_segment_id)?
-            != Some(SegmentGeneration::Old)
-        {
+        if self.segment_generation(current_segment_id)? != Some(SegmentGeneration::Old) {
             return Ok(Some(current));
         }
         if !self.storage_exists(&current).await? {
@@ -635,10 +580,11 @@ impl Store {
 
         let mut reader = self.open_manifest_reader(&current).await?;
         let (location, evicted_segments) = self
-            .append_reader_to_segment(current.kind, &mut reader, current.size)
+            .append_reader_to_segment(&mut reader, current.size)
             .await?;
         let mut refreshed = current.clone();
         let previous_segment_id = current_segment_id.to_owned();
+        refreshed.inline = false;
         refreshed.blob_path = None;
         refreshed.segment_id = Some(location.segment_id.clone());
         refreshed.segment_offset = Some(location.offset);
@@ -652,33 +598,29 @@ impl Store {
         );
         batch.delete_cf(
             self.cf(ROCKSDB_CF_SEGMENT_ARTIFACTS),
-            segment_artifact_index_key(current.kind, &previous_segment_id, &current.artifact_id)
-                .as_bytes(),
+            segment_artifact_index_key(&previous_segment_id, &current.artifact_id).as_bytes(),
         );
         batch.put_cf(
             self.cf(ROCKSDB_CF_SEGMENT_ARTIFACTS),
-            segment_artifact_index_key(current.kind, &location.segment_id, &current.artifact_id)
-                .as_bytes(),
+            segment_artifact_index_key(&location.segment_id, &current.artifact_id).as_bytes(),
             [],
         );
         self.write_batch_sync(batch, "refreshed manifest")?;
         self.maybe_cache_manifest(refreshed.clone());
 
         self.io.metrics().record_segment_refresh(
-            current.kind,
+            current.producer,
             "ok",
             current.size,
             refresh_started.elapsed(),
         );
-        self.evict_segments(current.kind, evicted_segments).await?;
+        self.evict_segments(evicted_segments).await?;
 
         Ok(Some(refreshed))
     }
 
     async fn storage_exists(&self, manifest: &ArtifactManifest) -> Result<bool, String> {
-        if manifest.kind == ArtifactKind::KeyValue
-            && self.keyvalue_bytes(&manifest.artifact_id)?.is_some()
-        {
+        if manifest.inline && self.inline_bytes(&manifest.artifact_id)?.is_some() {
             return Ok(true);
         }
         if manifest.is_segment_backed() {
@@ -686,10 +628,7 @@ impl Store {
                 .segment_id
                 .as_ref()
                 .expect("segment-backed manifest should have a segment id");
-            return self
-                .io
-                .path_exists(&self.segment_path(manifest.kind, segment_id))
-                .await;
+            return self.io.path_exists(&self.segment_path(segment_id)).await;
         }
         if let Some(blob_path) = &manifest.blob_path {
             return self.io.path_exists(Path::new(blob_path)).await;
@@ -697,41 +636,35 @@ impl Store {
         Ok(false)
     }
 
-    async fn persist_keyvalue_artifact_with_version(
+    async fn persist_inline_artifact_with_version(
         &self,
-        namespace_id: &str,
-        key: &str,
-        content_type: &str,
+        spec: PersistArtifactSpec<'_>,
         bytes: &[u8],
-        version_ms: u64,
-        replication_targets: &[String],
     ) -> Result<PersistArtifactOutcome, String> {
         let artifact_id =
-            artifact_storage_id(ArtifactKind::KeyValue, &self.tenant_id, namespace_id, key);
+            artifact_storage_id(spec.producer, &self.tenant_id, spec.namespace_id, spec.key);
 
         let existing = self.manifest_from_db(&artifact_id)?;
         if let Some(existing) = &existing
-            && existing.kind == ArtifactKind::KeyValue
-            && self.keyvalue_bytes(&artifact_id)?.is_some()
-            && existing.blob_path.is_none()
-            && (manifest_version_ms(existing) >= version_ms || version_ms == 0)
+            && existing.inline
+            && self.inline_bytes(&artifact_id)?.is_some()
+            && (manifest_version_ms(existing) >= spec.version_ms || spec.version_ms == 0)
         {
             return Ok(PersistArtifactOutcome::IgnoredStale(existing.clone()));
         }
-        if self.namespace_tombstone_blocks(namespace_id, version_ms)? {
+        if self.namespace_tombstone_blocks(spec.namespace_id, spec.version_ms)? {
             return Ok(PersistArtifactOutcome::IgnoredTombstone);
         }
 
-        let persisted_version_ms = persisted_version_ms(version_ms);
+        let persisted_version_ms = persisted_version_ms(spec.version_ms);
 
         let manifest = ArtifactManifest {
             artifact_id: artifact_id.clone(),
-            kind: ArtifactKind::KeyValue,
-            client: ArtifactKind::KeyValue.client(),
-            artifact_class: ArtifactKind::KeyValue.artifact_class(),
-            namespace_id: namespace_id.to_owned(),
-            key: key.to_owned(),
-            content_type: content_type.to_owned(),
+            producer: spec.producer,
+            namespace_id: spec.namespace_id.to_owned(),
+            key: spec.key.to_owned(),
+            content_type: spec.content_type.to_owned(),
+            inline: true,
             blob_path: None,
             segment_id: None,
             segment_offset: None,
@@ -754,7 +687,7 @@ impl Store {
             namespace_artifact_index_key(&metadata.namespace_id, &artifact_id).as_bytes(),
             [],
         );
-        self.append_artifact_replication_messages(&mut batch, &manifest, replication_targets)?;
+        self.append_artifact_replication_messages(&mut batch, &manifest, spec.replication_targets)?;
 
         self.write_batch_sync(batch, "keyvalue batch")?;
         self.maybe_cache_manifest(manifest.clone());
@@ -765,27 +698,25 @@ impl Store {
         Ok(PersistArtifactOutcome::Applied(manifest))
     }
 
-    fn keyvalue_bytes(&self, artifact_id: &str) -> Result<Option<Vec<u8>>, String> {
+    fn inline_bytes(&self, artifact_id: &str) -> Result<Option<Vec<u8>>, String> {
         self.db
             .get_cf(self.cf(ROCKSDB_CF_KEY_VALUE), artifact_id.as_bytes())
-            .map_err(|error| format!("failed to read keyvalue bytes: {error}"))
+            .map_err(|error| format!("failed to read inline artifact bytes: {error}"))
     }
 
     async fn append_to_segment(
         &self,
-        kind: ArtifactKind,
         source_path: &Path,
         size: u64,
     ) -> Result<(SegmentLocation, Vec<SegmentReference>), String> {
         let mut source = self.io.open_file(source_path).await?;
-        let result = self.append_reader_to_segment(kind, &mut source, size).await;
+        let result = self.append_reader_to_segment(&mut source, size).await;
         self.io.remove_file_if_exists(source_path).await;
         result
     }
 
     async fn append_reader_to_segment<R>(
         &self,
-        kind: ArtifactKind,
         source: &mut R,
         size: u64,
     ) -> Result<(SegmentLocation, Vec<SegmentReference>), String>
@@ -793,8 +724,8 @@ impl Store {
         R: AsyncRead + Unpin,
     {
         let _guard = self.segment_write_lock.lock().await;
-        let (segment, evicted_segments) = self.active_segment(kind, size).await?;
-        let segment_path = self.segment_path(kind, &segment.segment_id);
+        let (segment, evicted_segments) = self.active_segment(size).await?;
+        let segment_path = self.segment_path(&segment.segment_id);
         let segment_dir = segment_path
             .parent()
             .ok_or_else(|| "missing segment parent directory".to_string())?;
@@ -847,13 +778,12 @@ impl Store {
 
     async fn active_segment(
         &self,
-        kind: ArtifactKind,
         incoming_size: u64,
     ) -> Result<(SegmentReference, Vec<SegmentReference>), String> {
-        let mut state = self.load_segment_state(kind)?;
+        let mut state = self.load_segment_state()?;
         let needs_new_segment = match state.active() {
             Some(segment) => {
-                let path = self.segment_path(kind, &segment.segment_id);
+                let path = self.segment_path(&segment.segment_id);
                 let current_size = if self.io.path_exists(&path).await? {
                     self.io.metadata_len(&path).await?
                 } else {
@@ -872,7 +802,7 @@ impl Store {
                 DESIRED_CURRENT_SEGMENTS,
                 DESIRED_NEW_SEGMENTS,
             );
-            self.save_segment_state(kind, &state)?;
+            self.save_segment_state(&state)?;
             Ok((segment, evicted_segments))
         } else {
             Ok((
@@ -885,8 +815,8 @@ impl Store {
         }
     }
 
-    fn load_segment_state(&self, kind: ArtifactKind) -> Result<SegmentState, String> {
-        let key = kind.as_str().as_bytes();
+    fn load_segment_state(&self) -> Result<SegmentState, String> {
+        let key = b"shared";
         let Some(bytes) = self
             .db
             .get_cf(self.cf(ROCKSDB_CF_SEGMENT_STATE), key)
@@ -899,42 +829,30 @@ impl Store {
             .map_err(|error| format!("failed to decode segment state: {error}"))
     }
 
-    fn save_segment_state(&self, kind: ArtifactKind, state: &SegmentState) -> Result<(), String> {
+    fn save_segment_state(&self, state: &SegmentState) -> Result<(), String> {
         let bytes = serde_json::to_vec(state)
             .map_err(|error| format!("failed to encode segment state: {error}"))?;
         self.db
-            .put_cf(
-                self.cf(ROCKSDB_CF_SEGMENT_STATE),
-                kind.as_str().as_bytes(),
-                bytes,
-            )
+            .put_cf(self.cf(ROCKSDB_CF_SEGMENT_STATE), b"shared", bytes)
             .map_err(|error| format!("failed to persist segment state: {error}"))
     }
 
-    fn segment_generation(
-        &self,
-        kind: ArtifactKind,
-        segment_id: &str,
-    ) -> Result<Option<SegmentGeneration>, String> {
-        Ok(self.load_segment_state(kind)?.generation_of(segment_id))
+    fn segment_generation(&self, segment_id: &str) -> Result<Option<SegmentGeneration>, String> {
+        Ok(self.load_segment_state()?.generation_of(segment_id))
     }
 
-    async fn evict_segments(
-        &self,
-        kind: ArtifactKind,
-        evicted_segments: Vec<SegmentReference>,
-    ) -> Result<(), String> {
+    async fn evict_segments(&self, evicted_segments: Vec<SegmentReference>) -> Result<(), String> {
         for segment in evicted_segments {
-            self.evict_segment(kind, &segment.segment_id).await?;
+            self.evict_segment(&segment.segment_id).await?;
         }
         Ok(())
     }
 
-    async fn evict_segment(&self, kind: ArtifactKind, segment_id: &str) -> Result<(), String> {
-        let prefix = segment_artifact_index_prefix(kind, segment_id);
+    async fn evict_segment(&self, segment_id: &str) -> Result<(), String> {
+        let prefix = segment_artifact_index_prefix(segment_id);
         let mut batch = WriteBatch::default();
         let mut saw_entries = false;
-        let mut removed_artifacts = 0_u64;
+        let mut removed_artifacts = BTreeMap::<ArtifactProducer, u64>::new();
         let mut removed_artifact_ids = Vec::new();
         let iter = self.db.iterator_cf(
             self.cf(ROCKSDB_CF_SEGMENT_ARTIFACTS),
@@ -961,7 +879,7 @@ impl Store {
                             .as_bytes(),
                     );
                     batch.delete_cf(self.cf(ROCKSDB_CF_SEGMENT_ARTIFACTS), &index_key);
-                    removed_artifacts += 1;
+                    *removed_artifacts.entry(manifest.producer).or_default() += 1;
                     removed_artifact_ids.push(artifact_id);
                 }
                 Some(_) | None => {
@@ -976,31 +894,29 @@ impl Store {
                 .map_err(|error| format!("failed to evict segment metadata: {error}"))?;
             self.remove_manifest_cache_keys(&removed_artifact_ids);
         }
-        self.remove_segment_handle(kind, segment_id).await;
+        self.remove_segment_handle(segment_id).await;
         self.io
-            .remove_file_if_exists(&self.segment_path(kind, segment_id))
+            .remove_file_if_exists(&self.segment_path(segment_id))
             .await;
-        let mut state = self.load_segment_state(kind)?;
+        let mut state = self.load_segment_state()?;
         if state.remove_segment(segment_id) {
-            self.save_segment_state(kind, &state)?;
+            self.save_segment_state(&state)?;
         }
-        self.io
-            .metrics()
-            .record_segment_eviction(kind, "ok", removed_artifacts);
+        for (producer, artifacts) in removed_artifacts {
+            self.io
+                .metrics()
+                .record_segment_eviction(producer, "ok", artifacts);
+        }
 
         Ok(())
     }
 
-    fn segment_path(&self, kind: ArtifactKind, segment_id: &str) -> PathBuf {
-        segment_path(&self.data_dir, kind, segment_id)
+    fn segment_path(&self, segment_id: &str) -> PathBuf {
+        segment_path(&self.data_dir, segment_id)
     }
 
-    async fn segment_handle(
-        &self,
-        kind: ArtifactKind,
-        segment_id: &str,
-    ) -> Result<Arc<PersistentFile>, String> {
-        let cache_key = segment_handle_cache_key(kind, segment_id);
+    async fn segment_handle(&self, segment_id: &str) -> Result<Arc<PersistentFile>, String> {
+        let cache_key = segment_handle_cache_key(segment_id);
         if let Some(handle) = self.segment_handle_cache_get(&cache_key).await {
             self.io.metrics().record_segment_handle_cache_lookup("hit");
             return Ok(handle);
@@ -1009,7 +925,7 @@ impl Store {
 
         let handle = Arc::new(
             self.io
-                .open_persistent_read_file(&self.segment_path(kind, segment_id))
+                .open_persistent_read_file(&self.segment_path(segment_id))
                 .await?,
         );
         let mut cache = self.segment_handles.lock().await;
@@ -1026,9 +942,9 @@ impl Store {
         Ok(handle)
     }
 
-    async fn remove_segment_handle(&self, kind: ArtifactKind, segment_id: &str) {
+    async fn remove_segment_handle(&self, segment_id: &str) {
         let mut cache = self.segment_handles.lock().await;
-        let removed = cache.remove(&segment_handle_cache_key(kind, segment_id));
+        let removed = cache.remove(&segment_handle_cache_key(segment_id));
         let cached = cache.len();
         drop(cache);
         self.io.metrics().update_segment_handles_cached(cached);
@@ -1047,14 +963,14 @@ impl Store {
     #[cfg(test)]
     pub async fn persist_artifact_from_bytes(
         &self,
-        kind: ArtifactKind,
+        producer: ArtifactProducer,
         namespace_id: &str,
         key: &str,
         content_type: &str,
         bytes: &[u8],
     ) -> Result<ArtifactManifest, String> {
         let spec = PersistArtifactSpec {
-            kind,
+            producer,
             namespace_id,
             key,
             content_type,
@@ -1068,14 +984,14 @@ impl Store {
             PersistArtifactOutcome::Applied(manifest)
             | PersistArtifactOutcome::IgnoredStale(manifest) => Ok(manifest),
             PersistArtifactOutcome::IgnoredTombstone => Err(format!(
-                "artifact write for {kind:?}/{namespace_id}/{key} was rejected by a newer tombstone"
+                "artifact write for {producer:?}/{namespace_id}/{key} was rejected by a newer tombstone"
             )),
         }
     }
 
     pub async fn persist_artifact_from_bytes_and_enqueue(
         &self,
-        kind: ArtifactKind,
+        producer: ArtifactProducer,
         namespace_id: &str,
         key: &str,
         content_type: &str,
@@ -1083,7 +999,7 @@ impl Store {
         replication_targets: &[String],
     ) -> Result<ArtifactManifest, String> {
         let spec = PersistArtifactSpec {
-            kind,
+            producer,
             namespace_id,
             key,
             content_type,
@@ -1097,14 +1013,73 @@ impl Store {
             PersistArtifactOutcome::Applied(manifest)
             | PersistArtifactOutcome::IgnoredStale(manifest) => Ok(manifest),
             PersistArtifactOutcome::IgnoredTombstone => Err(format!(
-                "artifact write for {kind:?}/{namespace_id}/{key} was rejected by a newer tombstone"
+                "artifact write for {producer:?}/{namespace_id}/{key} was rejected by a newer tombstone"
             )),
         }
     }
 
+    #[cfg(test)]
+    pub async fn persist_inline_artifact_from_bytes(
+        &self,
+        producer: ArtifactProducer,
+        namespace_id: &str,
+        key: &str,
+        content_type: &str,
+        bytes: &[u8],
+    ) -> Result<ArtifactManifest, String> {
+        let spec = PersistArtifactSpec {
+            producer,
+            namespace_id,
+            key,
+            content_type,
+            version_ms: now_ms(),
+            replication_targets: &[],
+        };
+        match self
+            .persist_inline_artifact_with_version(spec, bytes)
+            .await?
+        {
+            PersistArtifactOutcome::Applied(manifest)
+            | PersistArtifactOutcome::IgnoredStale(manifest) => Ok(manifest),
+            PersistArtifactOutcome::IgnoredTombstone => Err(format!(
+                "artifact write for {producer:?}/{namespace_id}/{key} was rejected by a newer tombstone"
+            )),
+        }
+    }
+
+    pub async fn persist_inline_artifact_from_bytes_and_enqueue(
+        &self,
+        producer: ArtifactProducer,
+        namespace_id: &str,
+        key: &str,
+        content_type: &str,
+        bytes: &[u8],
+        replication_targets: &[String],
+    ) -> Result<ArtifactManifest, String> {
+        let spec = PersistArtifactSpec {
+            producer,
+            namespace_id,
+            key,
+            content_type,
+            version_ms: now_ms(),
+            replication_targets,
+        };
+        match self
+            .persist_inline_artifact_with_version(spec, bytes)
+            .await?
+        {
+            PersistArtifactOutcome::Applied(manifest)
+            | PersistArtifactOutcome::IgnoredStale(manifest) => Ok(manifest),
+            PersistArtifactOutcome::IgnoredTombstone => Err(format!(
+                "artifact write for {producer:?}/{namespace_id}/{key} was rejected by a newer tombstone"
+            )),
+        }
+    }
+
+    #[cfg(test)]
     pub async fn apply_replicated_artifact_from_bytes(
         &self,
-        kind: ArtifactKind,
+        producer: ArtifactProducer,
         namespace_id: &str,
         key: &str,
         content_type: &str,
@@ -1112,7 +1087,7 @@ impl Store {
         version_ms: u64,
     ) -> Result<ArtifactApplyOutcome, String> {
         let spec = PersistArtifactSpec {
-            kind,
+            producer,
             namespace_id,
             key,
             content_type,
@@ -1125,24 +1100,34 @@ impl Store {
             .apply_outcome())
     }
 
+    pub async fn apply_replicated_inline_artifact_from_bytes(
+        &self,
+        producer: ArtifactProducer,
+        namespace_id: &str,
+        key: &str,
+        content_type: &str,
+        bytes: &[u8],
+        version_ms: u64,
+    ) -> Result<ArtifactApplyOutcome, String> {
+        let spec = PersistArtifactSpec {
+            producer,
+            namespace_id,
+            key,
+            content_type,
+            version_ms,
+            replication_targets: &[],
+        };
+        Ok(self
+            .persist_inline_artifact_with_version(spec, bytes)
+            .await?
+            .apply_outcome())
+    }
+
     async fn persist_artifact_from_bytes_with_version(
         &self,
         spec: PersistArtifactSpec<'_>,
         bytes: &[u8],
     ) -> Result<PersistArtifactOutcome, String> {
-        if spec.kind == ArtifactKind::KeyValue {
-            return self
-                .persist_keyvalue_artifact_with_version(
-                    spec.namespace_id,
-                    spec.key,
-                    spec.content_type,
-                    bytes,
-                    spec.version_ms,
-                    spec.replication_targets,
-                )
-                .await;
-        }
-
         let temp_path = temp_file_path(&self.tmp_dir.join("uploads"), "replication");
         self.io.write(&temp_path, bytes).await?;
         self.persist_artifact_from_path_with_version(spec, &temp_path)
@@ -1225,7 +1210,7 @@ impl Store {
                 if !delete_everything && manifest_version_ms(&manifest) > version_ms {
                     continue;
                 }
-                if manifest.kind == ArtifactKind::KeyValue {
+                if manifest.inline {
                     batch.delete_cf(self.cf(ROCKSDB_CF_KEY_VALUE), artifact_id.as_bytes());
                 }
                 if let Some(blob_path) = manifest.blob_path {
@@ -1234,8 +1219,7 @@ impl Store {
                 if let Some(segment_id) = manifest.segment_id {
                     batch.delete_cf(
                         self.cf(ROCKSDB_CF_SEGMENT_ARTIFACTS),
-                        segment_artifact_index_key(manifest.kind, &segment_id, &artifact_id)
-                            .as_bytes(),
+                        segment_artifact_index_key(&segment_id, &artifact_id).as_bytes(),
                     );
                 }
             }
@@ -1421,7 +1405,7 @@ impl Store {
         let key = module_key(&upload.category, &upload.hash, &upload.name);
         let manifest = self
             .persist_artifact_from_path_and_enqueue(
-                ArtifactKind::Module,
+                ArtifactProducer::Module,
                 &upload.namespace_id,
                 &key,
                 "application/octet-stream",
@@ -1510,13 +1494,12 @@ impl Store {
     pub fn snapshot(&self) -> Result<StoreSnapshot, String> {
         let outbox_messages = self.outbox_message_count()?;
         let multipart_uploads = self.count_cf_entries(ROCKSDB_CF_MULTIPART_UPLOADS)?;
-        let mut segment_counts = Vec::new();
-        for kind in ArtifactKind::all() {
-            let state = self.load_segment_state(kind)?;
-            segment_counts.push((kind, "old", state.old.len()));
-            segment_counts.push((kind, "current", state.current.len()));
-            segment_counts.push((kind, "new", state.new.len()));
-        }
+        let state = self.load_segment_state()?;
+        let segment_counts = vec![
+            ("old", state.old.len()),
+            ("current", state.current.len()),
+            ("new", state.new.len()),
+        ];
         Ok(StoreSnapshot {
             outbox_messages,
             multipart_uploads,
@@ -1623,25 +1606,25 @@ impl Store {
     #[cfg(test)]
     pub fn artifact_version_is_current(
         &self,
-        kind: ArtifactKind,
+        producer: ArtifactProducer,
         namespace_id: &str,
         key: &str,
         version_ms: u64,
     ) -> Result<bool, String> {
         Ok(
-            self.artifact_apply_outcome(kind, namespace_id, key, version_ms)?
+            self.artifact_apply_outcome(producer, namespace_id, key, version_ms)?
                 == ArtifactApplyOutcome::Applied,
         )
     }
 
     pub fn artifact_apply_outcome(
         &self,
-        kind: ArtifactKind,
+        producer: ArtifactProducer,
         namespace_id: &str,
         key: &str,
         version_ms: u64,
     ) -> Result<ArtifactApplyOutcome, String> {
-        let artifact_id = artifact_storage_id(kind, &self.tenant_id, namespace_id, key);
+        let artifact_id = artifact_storage_id(producer, &self.tenant_id, namespace_id, key);
         if self.namespace_tombstone_blocks(namespace_id, version_ms)? {
             return Ok(ArtifactApplyOutcome::IgnoredTombstone);
         }
@@ -1685,11 +1668,12 @@ impl Store {
                 OutboxMessage {
                     target: target.clone(),
                     operation: ReplicationOperation::UpsertArtifact {
-                        kind: manifest.kind,
+                        producer: manifest.producer,
                         namespace_id: manifest.namespace_id.clone(),
                         key: manifest.key.clone(),
                         content_type: manifest.content_type.clone(),
                         artifact_id: manifest.artifact_id.clone(),
+                        inline: manifest.inline,
                         version_ms: manifest.version_ms,
                     },
                 },
@@ -2119,8 +2103,8 @@ impl SegmentHandleCache {
     }
 }
 
-fn segment_handle_cache_key(kind: ArtifactKind, segment_id: &str) -> String {
-    format!("{}\0{segment_id}", kind.as_str())
+fn segment_handle_cache_key(segment_id: &str) -> String {
+    segment_id.to_owned()
 }
 
 fn manifest_version_ms(manifest: &ArtifactManifest) -> u64 {
@@ -2197,6 +2181,7 @@ mod tests {
             peer_tls: None,
             file_descriptor_pool_size: 32,
             file_descriptor_acquire_timeout_ms: 5_000,
+            drain_completion_timeout_ms: 240_000,
             segment_handle_cache_size: 8,
             memory_soft_limit_bytes: 128 * 1024 * 1024,
             memory_hard_limit_bytes: 256 * 1024 * 1024,
@@ -2212,6 +2197,7 @@ mod tests {
             otlp_traces_endpoint: "http://127.0.0.1:4318/v1/traces".into(),
             otel_service_name: "kura-test".into(),
             otel_deployment_environment: "test".into(),
+            sentry_dsn: None,
         };
         override_config(&mut config);
         std::fs::create_dir_all(config.tmp_dir.join("uploads"))
@@ -2227,7 +2213,9 @@ mod tests {
             Metrics::new(config.region.clone(), config.tenant_id.clone()),
             config.file_descriptor_pool_size,
             std::time::Duration::from_millis(config.file_descriptor_acquire_timeout_ms),
-        );
+            vec![config.tmp_dir.clone(), config.data_dir.clone()],
+        )
+        .expect("failed to create io controller");
         let memory = MemoryController::new(
             io.metrics(),
             config.memory_soft_limit_bytes,
@@ -2256,7 +2244,7 @@ mod tests {
 
         let manifest = store
             .persist_artifact_from_bytes(
-                ArtifactKind::Xcode,
+                ArtifactProducer::Xcode,
                 "ios",
                 "artifact-1",
                 "application/octet-stream",
@@ -2267,13 +2255,13 @@ mod tests {
 
         assert!(
             store
-                .artifact_exists(ArtifactKind::Xcode, "ios", "artifact-1")
+                .artifact_exists(ArtifactProducer::Xcode, "ios", "artifact-1")
                 .await
                 .expect("failed to check artifact existence")
         );
 
         let fetched = store
-            .fetch_artifact(ArtifactKind::Xcode, "ios", "artifact-1")
+            .fetch_artifact(ArtifactProducer::Xcode, "ios", "artifact-1")
             .await
             .expect("failed to fetch artifact")
             .expect("artifact should exist");
@@ -2291,7 +2279,7 @@ mod tests {
             .expect("failed to read raw manifest bytes")
             .expect("manifest bytes should exist");
         assert_eq!(
-            raw[0], 1,
+            raw[0], 2,
             "segment-backed manifest should use compact record"
         );
     }
@@ -2301,8 +2289,8 @@ mod tests {
         let (_temp_dir, _config, store) = temp_store();
 
         let manifest = store
-            .persist_artifact_from_bytes(
-                ArtifactKind::KeyValue,
+            .persist_inline_artifact_from_bytes(
+                ArtifactProducer::Xcode,
                 "ios",
                 "artifact-1",
                 "application/json",
@@ -2316,9 +2304,9 @@ mod tests {
         assert!(manifest.segment_id.is_none());
         assert_eq!(
             store
-                .keyvalue_bytes(&manifest.artifact_id)
-                .expect("failed to read keyvalue bytes")
-                .expect("keyvalue bytes should exist"),
+                .inline_bytes(&manifest.artifact_id)
+                .expect("failed to read inline bytes")
+                .expect("inline bytes should exist"),
             br#"{"hello":"world"}"#
         );
         assert_eq!(
@@ -2344,7 +2332,7 @@ mod tests {
         let (_temp_dir, config, store) = temp_store();
         let manifest = store
             .persist_artifact_from_bytes(
-                ArtifactKind::Module,
+                ArtifactProducer::Module,
                 "ios",
                 "builds/hash-1/Module.framework",
                 "application/octet-stream",
@@ -2360,7 +2348,9 @@ mod tests {
             reopened_metrics,
             config.file_descriptor_pool_size,
             std::time::Duration::from_millis(config.file_descriptor_acquire_timeout_ms),
-        );
+            vec![config.tmp_dir.clone(), config.data_dir.clone()],
+        )
+        .expect("failed to create reopened io controller");
         let reopened_memory = MemoryController::new(
             reopened_io.metrics(),
             config.memory_soft_limit_bytes,
@@ -2385,8 +2375,8 @@ mod tests {
         let (_temp_dir, _config, store) = temp_store();
 
         let first = store
-            .persist_artifact_from_bytes(
-                ArtifactKind::KeyValue,
+            .persist_inline_artifact_from_bytes(
+                ArtifactProducer::Xcode,
                 "ios",
                 "action-a",
                 "application/json",
@@ -2396,7 +2386,7 @@ mod tests {
             .expect("failed to persist first artifact");
         let second = store
             .persist_artifact_from_bytes(
-                ArtifactKind::Gradle,
+                ArtifactProducer::Gradle,
                 "ios",
                 "artifact-b",
                 "application/octet-stream",
@@ -2464,7 +2454,7 @@ mod tests {
 
         let first = store
             .persist_artifact_from_bytes(
-                ArtifactKind::Gradle,
+                ArtifactProducer::Gradle,
                 "ios",
                 "artifact-1",
                 "application/octet-stream",
@@ -2474,7 +2464,7 @@ mod tests {
             .expect("failed to persist first artifact");
         let second = store
             .persist_artifact_from_bytes(
-                ArtifactKind::Gradle,
+                ArtifactProducer::Gradle,
                 "ios",
                 "artifact-2",
                 "application/octet-stream",
@@ -2519,7 +2509,7 @@ mod tests {
 
         let xcode = store
             .persist_artifact_from_bytes(
-                ArtifactKind::Xcode,
+                ArtifactProducer::Xcode,
                 "ios",
                 "artifact-1",
                 "application/octet-stream",
@@ -2529,7 +2519,7 @@ mod tests {
             .expect("failed to persist xcode artifact");
         let gradle = store
             .persist_artifact_from_bytes(
-                ArtifactKind::Gradle,
+                ArtifactProducer::Gradle,
                 "android",
                 "artifact-2",
                 "application/octet-stream",
@@ -2544,7 +2534,6 @@ mod tests {
             assert_eq!(cache.len(), 1);
             assert!(
                 cache.entries.contains_key(&segment_handle_cache_key(
-                    ArtifactKind::Xcode,
                     xcode
                         .segment_id
                         .as_deref()
@@ -2558,23 +2547,23 @@ mod tests {
             let cache = store.segment_handles.lock().await;
             assert_eq!(cache.len(), 1);
             assert!(
-                !cache.entries.contains_key(&segment_handle_cache_key(
-                    ArtifactKind::Xcode,
-                    xcode
-                        .segment_id
-                        .as_deref()
-                        .expect("xcode manifest should have a segment id")
-                ))
-            );
-            assert!(
                 cache.entries.contains_key(&segment_handle_cache_key(
-                    ArtifactKind::Gradle,
                     gradle
                         .segment_id
                         .as_deref()
                         .expect("gradle manifest should have a segment id")
                 ))
             );
+            if xcode.segment_id != gradle.segment_id {
+                assert!(
+                    !cache.entries.contains_key(&segment_handle_cache_key(
+                        xcode
+                            .segment_id
+                            .as_deref()
+                            .expect("xcode manifest should have a segment id")
+                    ))
+                );
+            }
         }
     }
 
@@ -2584,7 +2573,7 @@ mod tests {
 
         let manifest = store
             .persist_artifact_from_bytes(
-                ArtifactKind::Xcode,
+                ArtifactProducer::Xcode,
                 "ios",
                 "artifact-1",
                 "application/octet-stream",
@@ -2597,18 +2586,15 @@ mod tests {
             .clone()
             .expect("segment-backed artifact should have a segment id");
         store
-            .save_segment_state(
-                ArtifactKind::Xcode,
-                &SegmentState {
-                    old: vec![SegmentReference::new(original_segment_id.clone(), 1)],
-                    current: Vec::new(),
-                    new: vec![SegmentReference::new("fresh-segment".into(), 2)],
-                },
-            )
+            .save_segment_state(&SegmentState {
+                old: vec![SegmentReference::new(original_segment_id.clone(), 1)],
+                current: Vec::new(),
+                new: vec![SegmentReference::new("fresh-segment".into(), 2)],
+            })
             .expect("failed to seed segment state");
 
         let fetched = store
-            .fetch_artifact(ArtifactKind::Xcode, "ios", "artifact-1")
+            .fetch_artifact(ArtifactProducer::Xcode, "ios", "artifact-1")
             .await
             .expect("failed to fetch artifact")
             .expect("artifact should still exist");
@@ -2631,7 +2617,7 @@ mod tests {
 
         let manifest = store
             .persist_artifact_from_bytes(
-                ArtifactKind::Gradle,
+                ArtifactProducer::Gradle,
                 "android",
                 "artifact-1",
                 "application/octet-stream",
@@ -2643,16 +2629,16 @@ mod tests {
             .segment_id
             .clone()
             .expect("segment-backed artifact should have a segment id");
-        let segment_path = store.segment_path(ArtifactKind::Gradle, &segment_id);
+        let segment_path = store.segment_path(&segment_id);
 
         store
-            .evict_segment(ArtifactKind::Gradle, &segment_id)
+            .evict_segment(&segment_id)
             .await
             .expect("failed to evict segment");
 
         assert!(
             store
-                .fetch_artifact(ArtifactKind::Gradle, "android", "artifact-1")
+                .fetch_artifact(ArtifactProducer::Gradle, "android", "artifact-1")
                 .await
                 .expect("failed to fetch artifact")
                 .is_none()
@@ -2672,8 +2658,8 @@ mod tests {
         let (_temp_dir, _config, store) = temp_store();
 
         let manifest = store
-            .persist_artifact_from_bytes(
-                ArtifactKind::KeyValue,
+            .persist_inline_artifact_from_bytes(
+                ArtifactProducer::Xcode,
                 "android",
                 "gradle-1",
                 "application/json",
@@ -2689,15 +2675,15 @@ mod tests {
 
         assert!(
             store
-                .fetch_artifact(ArtifactKind::KeyValue, "android", "gradle-1")
+                .fetch_artifact(ArtifactProducer::Xcode, "android", "gradle-1")
                 .await
                 .expect("failed to fetch artifact")
                 .is_none()
         );
         assert!(
             store
-                .keyvalue_bytes(&manifest.artifact_id)
-                .expect("failed to read keyvalue bytes")
+                .inline_bytes(&manifest.artifact_id)
+                .expect("failed to read inline bytes")
                 .is_none()
         );
     }
@@ -2717,7 +2703,7 @@ mod tests {
         assert_eq!(
             store
                 .apply_replicated_artifact_from_bytes(
-                    ArtifactKind::Gradle,
+                    ArtifactProducer::Gradle,
                     "ios",
                     "artifact-1",
                     "application/octet-stream",
@@ -2730,12 +2716,12 @@ mod tests {
         );
         assert!(
             !store
-                .artifact_version_is_current(ArtifactKind::Gradle, "ios", "artifact-1", 100)
+                .artifact_version_is_current(ArtifactProducer::Gradle, "ios", "artifact-1", 100)
                 .expect("version check should succeed")
         );
         assert!(
             store
-                .fetch_artifact(ArtifactKind::Gradle, "ios", "artifact-1")
+                .fetch_artifact(ArtifactProducer::Gradle, "ios", "artifact-1")
                 .await
                 .expect("artifact fetch should succeed")
                 .is_none()
@@ -2749,7 +2735,7 @@ mod tests {
         assert!(
             store
                 .apply_replicated_artifact_from_bytes(
-                    ArtifactKind::Gradle,
+                    ArtifactProducer::Gradle,
                     "ios",
                     "artifact-old",
                     "application/octet-stream",
@@ -2763,7 +2749,7 @@ mod tests {
         assert!(
             store
                 .apply_replicated_artifact_from_bytes(
-                    ArtifactKind::Gradle,
+                    ArtifactProducer::Gradle,
                     "ios",
                     "artifact-new",
                     "application/octet-stream",
@@ -2785,13 +2771,13 @@ mod tests {
 
         assert!(
             store
-                .fetch_artifact(ArtifactKind::Gradle, "ios", "artifact-old")
+                .fetch_artifact(ArtifactProducer::Gradle, "ios", "artifact-old")
                 .await
                 .expect("old artifact fetch should succeed")
                 .is_none()
         );
         let remaining = store
-            .fetch_artifact(ArtifactKind::Gradle, "ios", "artifact-new")
+            .fetch_artifact(ArtifactProducer::Gradle, "ios", "artifact-new")
             .await
             .expect("new artifact fetch should succeed")
             .expect("newer artifact should remain");
@@ -2806,7 +2792,7 @@ mod tests {
         assert!(
             store
                 .apply_replicated_artifact_from_bytes(
-                    ArtifactKind::Xcode,
+                    ArtifactProducer::Xcode,
                     "ios",
                     "artifact",
                     "application/octet-stream",
@@ -2820,7 +2806,7 @@ mod tests {
         assert!(
             store
                 .apply_replicated_artifact_from_bytes(
-                    ArtifactKind::Xcode,
+                    ArtifactProducer::Xcode,
                     "ios",
                     "artifact",
                     "application/octet-stream",
@@ -2834,7 +2820,7 @@ mod tests {
         assert_eq!(
             store
                 .apply_replicated_artifact_from_bytes(
-                    ArtifactKind::Xcode,
+                    ArtifactProducer::Xcode,
                     "ios",
                     "artifact",
                     "application/octet-stream",
@@ -2847,7 +2833,7 @@ mod tests {
         );
 
         let manifest = store
-            .fetch_artifact(ArtifactKind::Xcode, "ios", "artifact")
+            .fetch_artifact(ArtifactProducer::Xcode, "ios", "artifact")
             .await
             .expect("artifact fetch should succeed")
             .expect("artifact should remain");
@@ -3009,8 +2995,8 @@ mod tests {
         let targets = vec!["http://peer-a".to_string(), "http://peer-b".to_string()];
 
         let manifest = store
-            .persist_artifact_from_bytes_and_enqueue(
-                ArtifactKind::KeyValue,
+            .persist_inline_artifact_from_bytes_and_enqueue(
+                ArtifactProducer::Xcode,
                 "ios",
                 "cas-1",
                 "application/json",
@@ -3034,12 +3020,13 @@ mod tests {
             assert_eq!(
                 message.operation,
                 ReplicationOperation::UpsertArtifact {
-                    kind: ArtifactKind::KeyValue,
+                    producer: ArtifactProducer::Xcode,
                     namespace_id: "ios".into(),
                     key: "cas-1".into(),
                     content_type: "application/json".into(),
                     artifact_id: manifest.artifact_id.clone(),
                     version_ms: manifest.version_ms,
+                    inline: true,
                 }
             );
         }
@@ -3051,8 +3038,8 @@ mod tests {
         let targets = vec!["http://peer-a".to_string(), "http://peer-b".to_string()];
 
         store
-            .persist_artifact_from_bytes(
-                ArtifactKind::KeyValue,
+            .persist_inline_artifact_from_bytes(
+                ArtifactProducer::Xcode,
                 "ios",
                 "cas-1",
                 "application/json",
@@ -3095,7 +3082,7 @@ mod tests {
 
         let error = store
             .persist_artifact_from_bytes_and_enqueue(
-                ArtifactKind::Xcode,
+                ArtifactProducer::Xcode,
                 "ios",
                 "artifact",
                 "application/octet-stream",
@@ -3113,7 +3100,9 @@ mod tests {
             reopened_metrics,
             config.file_descriptor_pool_size,
             std::time::Duration::from_millis(config.file_descriptor_acquire_timeout_ms),
-        );
+            vec![config.tmp_dir.clone(), config.data_dir.clone()],
+        )
+        .expect("failed to create reopened io controller");
         let reopened_memory = MemoryController::new(
             reopened_io.metrics(),
             config.memory_soft_limit_bytes,
@@ -3123,7 +3112,7 @@ mod tests {
             Store::open(&config, reopened_io, reopened_memory).expect("failed to reopen store");
 
         let manifest = reopened
-            .fetch_artifact(ArtifactKind::Xcode, "ios", "artifact")
+            .fetch_artifact(ArtifactProducer::Xcode, "ios", "artifact")
             .await
             .expect("artifact fetch should succeed")
             .expect("artifact should remain visible after restart");
@@ -3148,8 +3137,8 @@ mod tests {
         );
 
         let error = store
-            .persist_artifact_from_bytes_and_enqueue(
-                ArtifactKind::KeyValue,
+            .persist_inline_artifact_from_bytes_and_enqueue(
+                ArtifactProducer::Xcode,
                 "ios",
                 "cas-1",
                 "application/json",
@@ -3167,7 +3156,9 @@ mod tests {
             reopened_metrics,
             config.file_descriptor_pool_size,
             std::time::Duration::from_millis(config.file_descriptor_acquire_timeout_ms),
-        );
+            vec![config.tmp_dir.clone(), config.data_dir.clone()],
+        )
+        .expect("failed to create reopened io controller");
         let reopened_memory = MemoryController::new(
             reopened_io.metrics(),
             config.memory_soft_limit_bytes,
@@ -3177,7 +3168,7 @@ mod tests {
             Store::open(&config, reopened_io, reopened_memory).expect("failed to reopen store");
 
         let manifest = reopened
-            .fetch_artifact(ArtifactKind::KeyValue, "ios", "cas-1")
+            .fetch_artifact(ArtifactProducer::Xcode, "ios", "cas-1")
             .await
             .expect("artifact fetch should succeed")
             .expect("keyvalue should remain visible after restart");
@@ -3200,7 +3191,7 @@ mod tests {
         assert_eq!(
             store
                 .apply_replicated_artifact_from_bytes(
-                    ArtifactKind::Gradle,
+                    ArtifactProducer::Gradle,
                     "ios",
                     "artifact",
                     "application/octet-stream",
@@ -3214,7 +3205,7 @@ mod tests {
         assert_eq!(
             store
                 .apply_replicated_artifact_from_bytes(
-                    ArtifactKind::Gradle,
+                    ArtifactProducer::Gradle,
                     "ios",
                     "artifact",
                     "application/octet-stream",
@@ -3241,7 +3232,7 @@ mod tests {
         );
         assert!(
             store
-                .fetch_artifact(ArtifactKind::Gradle, "ios", "artifact")
+                .fetch_artifact(ArtifactProducer::Gradle, "ios", "artifact")
                 .await
                 .expect("artifact fetch should succeed")
                 .is_none()
@@ -3255,7 +3246,7 @@ mod tests {
 
         first
             .apply_replicated_artifact_from_bytes(
-                ArtifactKind::Xcode,
+                ArtifactProducer::Xcode,
                 "ios",
                 "artifact",
                 "application/octet-stream",
@@ -3270,7 +3261,7 @@ mod tests {
             .expect("delete should succeed");
         first
             .apply_replicated_artifact_from_bytes(
-                ArtifactKind::Xcode,
+                ArtifactProducer::Xcode,
                 "ios",
                 "artifact",
                 "application/octet-stream",
@@ -3281,7 +3272,7 @@ mod tests {
             .expect("duplicate stale write should succeed");
         first
             .apply_replicated_artifact_from_bytes(
-                ArtifactKind::Xcode,
+                ArtifactProducer::Xcode,
                 "ios",
                 "artifact",
                 "application/octet-stream",
@@ -3293,7 +3284,7 @@ mod tests {
 
         second
             .apply_replicated_artifact_from_bytes(
-                ArtifactKind::Xcode,
+                ArtifactProducer::Xcode,
                 "ios",
                 "artifact",
                 "application/octet-stream",
@@ -3304,7 +3295,7 @@ mod tests {
             .expect("newer write should succeed");
         second
             .apply_replicated_artifact_from_bytes(
-                ArtifactKind::Xcode,
+                ArtifactProducer::Xcode,
                 "ios",
                 "artifact",
                 "application/octet-stream",
@@ -3319,7 +3310,7 @@ mod tests {
             .expect("delete should succeed");
         second
             .apply_replicated_artifact_from_bytes(
-                ArtifactKind::Xcode,
+                ArtifactProducer::Xcode,
                 "ios",
                 "artifact",
                 "application/octet-stream",
@@ -3330,12 +3321,12 @@ mod tests {
             .expect("older duplicate write should succeed");
 
         let first_manifest = first
-            .fetch_artifact(ArtifactKind::Xcode, "ios", "artifact")
+            .fetch_artifact(ArtifactProducer::Xcode, "ios", "artifact")
             .await
             .expect("first fetch should succeed")
             .expect("artifact should remain");
         let second_manifest = second
-            .fetch_artifact(ArtifactKind::Xcode, "ios", "artifact")
+            .fetch_artifact(ArtifactProducer::Xcode, "ios", "artifact")
             .await
             .expect("second fetch should succeed")
             .expect("artifact should remain");

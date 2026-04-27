@@ -13,6 +13,7 @@ mod multipart;
 mod peer_tls;
 mod reapi;
 mod replication;
+mod runtime;
 mod segment;
 mod state;
 mod store;

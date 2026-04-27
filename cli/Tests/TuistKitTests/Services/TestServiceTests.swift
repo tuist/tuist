@@ -762,6 +762,111 @@ final class TestServiceTests: TuistUnitTestCase {
             .called(0)
     }
 
+    func test_run_uploads_build_run_using_passthrough_derived_data_path() async throws {
+        // Given
+        givenGenerator()
+        let path = try temporaryPath()
+        let projectPath = path.appending(component: "Project")
+        let passthroughDerivedDataPath = path.appending(component: "passthrough-derived-data")
+        let activityLogPath = passthroughDerivedDataPath.appending(
+            components: "Logs", "Build", "activity.xcactivitylog"
+        )
+        let scheme = Scheme.test(
+            name: "AppTests",
+            testAction: .test(
+                targets: [
+                    .test(target: TargetReference(projectPath: projectPath, name: "AppTests")),
+                ]
+            )
+        )
+
+        given(buildGraphInspector)
+            .workspaceSchemes(graphTraverser: .any)
+            .willReturn([scheme])
+        given(buildGraphInspector)
+            .testableTarget(
+                scheme: .any, testPlan: .any, testTargets: .any, skipTestTargets: .any,
+                graphTraverser: .any,
+                action: .any
+            )
+            .willReturn(.test(target: .test(name: "AppTests")))
+
+        given(generator)
+            .generateWithGraph(path: .any, options: .any)
+            .willProduce { path, _ in
+                (
+                    path,
+                    .test(
+                        workspace: .test(schemes: [scheme]),
+                        projects: [
+                            projectPath: .test(
+                                path: projectPath,
+                                targets: [.test(name: "AppTests")],
+                                schemes: [scheme]
+                            ),
+                        ]
+                    ),
+                    MapperEnvironment()
+                )
+            }
+
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(
+                .test(
+                    project: .testGeneratedProject(),
+                    fullHandle: "tuist/tuist",
+                    url: URL(string: "https://example.com")!
+                )
+            )
+
+        xcodeBuildArgumentParser.reset()
+        given(xcodeBuildArgumentParser)
+            .parse(.any)
+            .willReturn(.test(derivedDataPath: passthroughDerivedDataPath))
+
+        var mostRecentActivityLogProjectDirectory: AbsolutePath?
+        xcActivityLogController.reset()
+        given(xcActivityLogController)
+            .mostRecentActivityLogFile(projectDerivedDataDirectory: .any, filter: .any)
+            .willProduce { directory, _ in
+                mostRecentActivityLogProjectDirectory = directory
+                return .test(path: activityLogPath)
+            }
+
+        given(uploadBuildRunService)
+            .uploadBuildRun(
+                activityLogPath: .any,
+                projectPath: .any,
+                config: .any,
+                scheme: .any,
+                configuration: .any
+            )
+            .willReturn(URL(string: "https://tuist.dev/test")!)
+
+        // When
+        try await testRun(
+            path: path,
+            passthroughXcodeBuildArguments: ["-derivedDataPath", passthroughDerivedDataPath.pathString]
+        )
+
+        // Then — derivedDataLocator must NOT have been used; the passthrough path is honored.
+        XCTAssertEqual(mostRecentActivityLogProjectDirectory, passthroughDerivedDataPath)
+        verify(derivedDataLocator)
+            .locate(for: .any)
+            .called(0)
+
+        verify(uploadBuildRunService)
+            .uploadBuildRun(
+                activityLogPath: .value(activityLogPath),
+                projectPath: .any,
+                config: .any,
+                scheme: .any,
+                configuration: .any
+            )
+            .called(1)
+    }
+
     func test_run_tests_individual_scheme() async throws {
         // Given
         givenGenerator()
@@ -2045,6 +2150,206 @@ final class TestServiceTests: TuistUnitTestCase {
         // Then — only TargetA should be passed to xcodebuild, PrunedTarget should be filtered out
         XCTAssertEqual(testedSchemes, ["App-Workspace"])
         XCTAssertEqual(capturedTestTargets, [try TestIdentifier(target: "TargetA", class: nil)])
+    }
+
+    func test_run_skips_xcodebuild_when_passthrough_skip_testing_removes_all_selective_targets() async throws {
+        // Given — selective testing has filtered the graph so that only "SkippedTarget"
+        // remains in the scheme. The user also passes `-skip-testing:SkippedTarget` as a
+        // passthrough xcodebuild argument, which would leave xcodebuild with nothing to
+        // test (exit code 2). tuist should short-circuit and NOT invoke xcodebuild.
+        let projectPath = try temporaryPath().appending(component: "Project")
+        let filteredScheme = Scheme.test(
+            name: "App-Workspace",
+            testAction: .test(
+                targets: [
+                    .test(target: TargetReference(projectPath: projectPath, name: "SkippedTarget")),
+                ]
+            )
+        )
+        let initialScheme = Scheme.test(
+            name: "App-Workspace",
+            testAction: .test(
+                targets: [
+                    .test(target: TargetReference(projectPath: projectPath, name: "CleanTarget")),
+                    .test(target: TargetReference(projectPath: projectPath, name: "SkippedTarget")),
+                ]
+            )
+        )
+
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject()))
+        given(generatorFactory)
+            .testing(
+                config: .any,
+                testPlan: .any,
+                includedTargets: .any,
+                excludedTargets: .any,
+                skipUITests: .any,
+                skipUnitTests: .any,
+                configuration: .any,
+                ignoreBinaryCache: .any,
+                ignoreSelectiveTesting: .any,
+                cacheStorage: .any,
+                destination: .any,
+                schemeName: .any
+            )
+            .willReturn(generator)
+
+        var environment = MapperEnvironment()
+        environment.initialGraph = .test(
+            projects: [
+                projectPath: .test(
+                    path: projectPath,
+                    targets: [
+                        .test(name: "CleanTarget", product: .unitTests, bundleId: "dev.tuist.Clean"),
+                        .test(name: "SkippedTarget", product: .unitTests, bundleId: "dev.tuist.Skipped"),
+                    ],
+                    schemes: [initialScheme]
+                ),
+            ]
+        )
+
+        given(generator)
+            .generateWithGraph(path: .any, options: .any)
+            .willProduce { path, _ in
+                (
+                    path,
+                    .test(
+                        projects: [
+                            projectPath: .test(
+                                path: projectPath,
+                                targets: [
+                                    .test(name: "SkippedTarget", product: .unitTests, bundleId: "dev.tuist.Skipped"),
+                                ],
+                                schemes: [filteredScheme]
+                            ),
+                        ]
+                    ),
+                    environment
+                )
+            }
+        given(buildGraphInspector)
+            .testableSchemes(graphTraverser: .any)
+            .willReturn([])
+        given(buildGraphInspector)
+            .workspaceSchemes(graphTraverser: .any)
+            .willReturn([filteredScheme])
+        given(buildGraphInspector)
+            .testableTarget(
+                scheme: .any,
+                testPlan: .any,
+                testTargets: .any,
+                skipTestTargets: .any,
+                graphTraverser: .any,
+                action: .any
+            )
+            .willReturn(.test())
+
+        xcodebuildController.reset()
+        given(xcodebuildController)
+            .test(
+                .any,
+                scheme: .any,
+                clean: .any,
+                destination: .any,
+                action: .any,
+                rosetta: .any,
+                derivedDataPath: .any,
+                resultBundlePath: .any,
+                arguments: .any,
+                retryCount: .any,
+                testTargets: .any,
+                skipTestTargets: .any,
+                testPlanConfiguration: .any,
+                passthroughXcodeBuildArguments: .any
+            )
+            .willProduce { _, scheme, _, _, _, _, _, _, _, _, _, _, _, _ in
+                self.testedSchemes.append(scheme)
+            }
+
+        // When
+        try await testRun(
+            path: try temporaryPath(),
+            passthroughXcodeBuildArguments: ["-skip-testing:SkippedTarget"]
+        )
+
+        // Then — xcodebuild should NOT have been invoked (would otherwise exit 2).
+        XCTAssertEmpty(testedSchemes)
+    }
+
+    func test_run_invokes_xcodebuild_when_passthrough_skip_testing_targets_a_class_within_remaining_target() async throws {
+        // Given — selective testing has filtered the graph so only "TargetA" remains,
+        // and the user passes `-skip-testing:TargetA/SomeClass` (a scoped skip). The
+        // target still has tests to run, so xcodebuild should still be invoked.
+        let projectPath = try temporaryPath().appending(component: "Project")
+        let scheme = Scheme.test(
+            name: "App-Workspace",
+            testAction: .test(
+                targets: [
+                    .test(target: TargetReference(projectPath: projectPath, name: "TargetA")),
+                ]
+            )
+        )
+
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject()))
+        given(generatorFactory)
+            .testing(
+                config: .any,
+                testPlan: .any,
+                includedTargets: .any,
+                excludedTargets: .any,
+                skipUITests: .any,
+                skipUnitTests: .any,
+                configuration: .any,
+                ignoreBinaryCache: .any,
+                ignoreSelectiveTesting: .any,
+                cacheStorage: .any,
+                destination: .any,
+                schemeName: .any
+            )
+            .willReturn(generator)
+        given(generator)
+            .generateWithGraph(path: .any, options: .any)
+            .willProduce { path, _ in
+                (
+                    path,
+                    .test(
+                        projects: [
+                            projectPath: .test(
+                                path: projectPath,
+                                targets: [.test(name: "TargetA", product: .unitTests)],
+                                schemes: [scheme]
+                            ),
+                        ]
+                    ),
+                    MapperEnvironment()
+                )
+            }
+        given(buildGraphInspector)
+            .workspaceSchemes(graphTraverser: .any)
+            .willReturn([scheme])
+        given(buildGraphInspector)
+            .testableTarget(
+                scheme: .any,
+                testPlan: .any,
+                testTargets: .any,
+                skipTestTargets: .any,
+                graphTraverser: .any,
+                action: .any
+            )
+            .willReturn(.test())
+
+        // When
+        try await testRun(
+            path: try temporaryPath(),
+            passthroughXcodeBuildArguments: ["-skip-testing:TargetA/SomeClass"]
+        )
+
+        // Then — xcodebuild SHOULD be invoked; a scoped skip does not remove the whole target.
+        XCTAssertEqual(testedSchemes, ["App-Workspace"])
     }
 
     func test_run_tests_all_project_schemes_when_fails() async throws {

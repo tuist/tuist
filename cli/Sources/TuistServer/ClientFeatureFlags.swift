@@ -18,6 +18,10 @@ public enum ClientFeatureFlags {
         request.setValue(headerValue, forHTTPHeaderField: headerName)
     }
 
+    public static func contains(_ featureName: String, environment: Environmenting = Environment.current) -> Bool {
+        featureFlags(environment: environment).contains { $0.caseInsensitiveCompare(featureName) == .orderedSame }
+    }
+
     static func featureFlags(environment: Environmenting = Environment.current) -> [String] {
         Array(
             Set(

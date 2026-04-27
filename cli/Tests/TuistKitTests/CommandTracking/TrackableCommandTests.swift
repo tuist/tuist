@@ -42,6 +42,7 @@ final class TrackableCommandTests: TuistTestCase {
     }
 
     private func makeSubject(
+        command: ParsableCommand? = nil,
         flag: Bool = true,
         shouldFail: Bool = false,
         analyticsRequired: Bool = false,
@@ -49,7 +50,7 @@ final class TrackableCommandTests: TuistTestCase {
     ) throws {
         let temporaryPath = try temporaryPath()
         subject = TrackableCommand(
-            command: TestCommand(
+            command: command ?? TestCommand(
                 flag: flag,
                 shouldFail: shouldFail,
                 analyticsRequired: analyticsRequired
@@ -137,6 +138,67 @@ final class TrackableCommandTests: TuistTestCase {
             .gitInfo(workingDirectory: .any)
             .called(1)
     }
+
+    func test_whenOptionalAuthenticationIsEnabled_forTrackedCommands_wraps_command_execution() async throws {
+        // Given
+        let recorder = AuthenticationConfigRecorder()
+        ConfigObservingCommandState.recorder = recorder
+        ConfigObservingCommandState.analyticsRequired = true
+        let command = ConfigObservingCommand()
+        try makeSubject(command: command)
+
+        // When
+        try await subject.run(
+            fullHandle: nil,
+            serverURL: nil,
+            shouldTrackAnalytics: false,
+            optionalAuthentication: true
+        )
+
+        // Then
+        let recordedValues = await recorder.values()
+        XCTAssertEqual(recordedValues, [true])
+    }
+
+    func test_whenOptionalAuthenticationIsEnabled_background_upload_does_not_add_a_flag() async throws {
+        // Given
+        try makeSubject(analyticsRequired: false)
+
+        // When
+        try await subject.run(
+            fullHandle: "tuist/tuist",
+            serverURL: .test(),
+            shouldTrackAnalytics: true,
+            optionalAuthentication: true
+        )
+
+        // Then
+        verify(backgroundProcessRunner)
+            .runInBackground(
+                .matching { arguments in
+                    !arguments.contains("--optional-authentication")
+                },
+                environment: .any
+            )
+            .called(1)
+    }
+}
+
+private actor AuthenticationConfigRecorder {
+    private var recordedValues: [Bool] = []
+
+    func record(_ value: Bool) {
+        recordedValues.append(value)
+    }
+
+    func values() -> [Bool] {
+        recordedValues
+    }
+}
+
+private enum ConfigObservingCommandState {
+    static var recorder = AuthenticationConfigRecorder()
+    static var analyticsRequired = false
 }
 
 private struct TestCommand: TrackableParsableCommand, ParsableCommand {
@@ -167,5 +229,19 @@ private struct TestCommand: TrackableParsableCommand, ParsableCommand {
         if shouldFail {
             throw TestError.commandFailed
         }
+    }
+}
+
+private struct ConfigObservingCommand: TrackableParsableCommand, AsyncParsableCommand {
+    static var configuration: CommandConfiguration {
+        CommandConfiguration(commandName: "observe")
+    }
+
+    var analyticsRequired: Bool {
+        ConfigObservingCommandState.analyticsRequired
+    }
+
+    func run() async throws {
+        await ConfigObservingCommandState.recorder.record(ServerAuthenticationConfig.current.optionalAuthentication)
     }
 }

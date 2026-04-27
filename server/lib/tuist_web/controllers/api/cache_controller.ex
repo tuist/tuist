@@ -13,6 +13,7 @@ defmodule TuistWeb.API.CacheController do
   alias TuistWeb.API.Schemas.CacheArtifactDownloadURL
   alias TuistWeb.API.Schemas.CacheCategory
   alias TuistWeb.API.Schemas.Error
+  alias TuistWeb.Headers
 
   plug(
     TuistWeb.Plugs.CastAndValidate,
@@ -38,15 +39,16 @@ defmodule TuistWeb.API.CacheController do
 
   operation(:endpoints,
     summary: "Get cache endpoints.",
-    description: "Returns custom cache endpoints if configured for the account, otherwise returns default endpoints.",
+    description: "Returns cache endpoints for the requested account.",
     operation_id: "getCacheEndpoints",
     parameters: [
-      account_handle: [
-        in: :query,
-        type: :string,
-        required: false,
-        description: "The name of the account to get custom cache endpoints for."
-      ]
+      {:account_handle,
+       [
+         in: :query,
+         type: :string,
+         required: false,
+         description: "The name of the account to get custom cache endpoints for."
+       ]}
     ],
     responses: %{
       ok:
@@ -67,8 +69,18 @@ defmodule TuistWeb.API.CacheController do
   )
 
   def endpoints(conn, params) do
-    endpoints = Accounts.get_cache_endpoints_for_handle(params[:account_handle])
+    endpoints =
+      Accounts.get_cache_endpoints_for_handle(params[:account_handle], technology(conn))
+
     json(conn, %{endpoints: endpoints})
+  end
+
+  defp technology(conn) do
+    if Headers.get_client_feature_flag(conn, "kura") do
+      :kura
+    else
+      :default
+    end
   end
 
   operation(:get_cache_action_item,

@@ -1,25 +1,23 @@
 {
-  "context_files": [
-    {
-      "hash": "d8ddb528531aa9d4820a4cd80a344266e13f3da9342ed7490baac74cfce73919",
-      "path": "server/L10N.md"
+  "hash": "c64a9dfd86de8b9c47777c8dd2e46728f8db75e38c3d8454a437e71b472cffe0",
+  "hash_tree": {
+    "context": {
+      "child": {
+        "file": "server/L10N.md",
+        "hash": "0879bdf5dc534e1a0d665bfee7247bc56bdf5c07163f270a05bd2666a07536e6",
+        "locale_override": {
+          "file": "server/L10N/es.md",
+          "hash": "0fddcd4efd657f1b06dcfd0915245d2f172199275328cfa77c8f000c711a0361"
+        }
+      },
+      "file": "L10N.md",
+      "hash": "5d5910c58a27c289d172b18f0bca28176bf6b6a74bd894e27273f55199cd2816"
     },
-    {
-      "hash": "228bdeb0404f501a25aaf9fde3ec22f8c937b03edbeaf3ce3e35b274f07a140f",
-      "path": "L10N.md"
+    "source": {
+      "file": "server/priv/gettext/dashboard_projects.pot",
+      "hash": "233915925704b6d44f16cafa99ff60c7b087a17878ae860ba99152b19c3dfde3"
     }
-  ],
-  "hash": "c4353c93b31976de01c10c5b33661af66b84e999419936bbafabd941ec5c587f",
-  "locale_override_files": [
-    {
-      "hash": "0fddcd4efd657f1b06dcfd0915245d2f172199275328cfa77c8f000c711a0361",
-      "path": "server/L10N/es.md"
-    }
-  ],
-  "model": "openai:gpt-4.1-mini",
-  "source": {
-    "file": "server/priv/gettext/dashboard_projects.pot",
-    "hash": "0aba6c4e214a0a6e4ef74a2f402077a3de884d43d2abc3afb1d110ac9ba9a7ab"
   },
-  "translated_at": "2026-04-01T08:19:07.887666Z"
+  "model": "openai:gpt-4.1-mini",
+  "translated_at": "2026-04-24T17:17:05.224517Z"
 }

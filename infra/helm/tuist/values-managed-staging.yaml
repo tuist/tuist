@@ -1,0 +1,58 @@
+# Staging overlay for the Tuist-managed deployment.
+# Layer on top of values-managed-common.yaml. Secrets come from 1Password via
+# ESO (configured in common); at deploy time we only pass the image tag.
+#
+#   helm upgrade --install tuist infra/helm/tuist \
+#     -n tuist-staging --create-namespace \
+#     -f infra/helm/tuist/values-managed-common.yaml \
+#     -f infra/helm/tuist/values-managed-staging.yaml \
+#     --set server.image.tag=$GIT_SHA
+
+server:
+  replicaCount: 1
+
+  # Non-secret runtime config. Traces go to the in-cluster Alloy receiver
+  # (deployed by infra/helm/k8s-monitoring) via OTLP gRPC; Alloy forwards
+  # them to Grafana Cloud Tempo. Logs follow a different path — the server
+  # writes to stdout and a per-node Alloy DaemonSet tails /var/log/pods —
+  # so TUIST_LOKI_URL stays unset (the in-app LokiLoggerHandler only
+  # attaches when TUIST_LOKI_INPROC=1).
+  extraEnv:
+    # Selects which priv/secrets/<env>.yml.enc file the app decrypts at
+    # boot. Image is env-agnostic (built with MIX_ENV=prod); this flag
+    # plus the MASTER_KEY ESO secret pick the runtime deployment target.
+    - name: TUIST_DEPLOY_ENV
+      value: stag
+    - name: TUIST_DATABASE_POOL_SIZE
+      value: "15"
+    - name: TUIST_PROCESSOR_URL
+      value: http://processor-staging.tuist.dev:4002
+    - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
+      value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
+
+  appUrl: https://staging.tuist.dev
+
+  # ingress-nginx fronts the server on port 443 with a Cloudflare Origin CA
+  # cert (synced into the tuist-tls-cloudflare-origin Secret out-of-band;
+  # 15-year validity, renewal is a future-us problem). Cloudflare is set
+  # to Full (strict) SSL — edge ↔ origin now runs HTTPS.
+  ingress:
+    enabled: true
+    className: nginx
+    host: staging.tuist.dev
+    tlsSecretName: tuist-tls-cloudflare-origin
+
+  autoscaling:
+    enabled: false
+
+  podDisruptionBudget:
+    enabled: false
+
+  # Staging uses smaller resources than prod.
+  resources:
+    requests:
+      cpu: "250m"
+      memory: "768Mi"
+    limits:
+      cpu: "1000m"
+      memory: "1536Mi"

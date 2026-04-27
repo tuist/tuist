@@ -38,10 +38,15 @@ struct ServerClientAuthenticationMiddleware: ClientMiddleware {
         var request = request
 
         let urlForAuthentication = authenticationURL ?? baseURL
+        let config = ServerAuthenticationConfig.current
         guard let token = try await serverAuthenticationController.authenticationToken(
-            serverURL: urlForAuthentication
+            serverURL: urlForAuthentication,
+            refreshIfNeeded: !config.optionalAuthentication
         )
         else {
+            if config.optionalAuthentication {
+                return try await next(request, body, baseURL)
+            }
             throw ClientAuthenticationError.notAuthenticated
         }
         request.headerFields.append(

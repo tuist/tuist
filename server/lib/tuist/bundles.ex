@@ -243,6 +243,14 @@ defmodule Tuist.Bundles do
         where(query, [b], b.inserted_at < ^inserted_before)
       end
 
+    period = Keyword.get(opts, :period)
+
+    query =
+      case period do
+        {from, to} -> where(query, [b], b.inserted_at >= ^from and b.inserted_at <= ^to)
+        _ -> query
+      end
+
     git_branch = Keyword.get(opts, :git_branch)
     type = Keyword.get(opts, :type)
 
@@ -373,13 +381,16 @@ defmodule Tuist.Bundles do
     end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
     git_branch = Keyword.get(opts, :git_branch)
     type = Keyword.get(opts, :type)
+    name = Keyword.get(opts, :name)
     date_period = date_period(start_datetime: start_datetime, end_datetime: end_datetime)
 
     query =
       from(b in Bundle)
       |> where([b], b.project_id == ^project.id)
+      |> where([b], b.inserted_at >= ^start_datetime and b.inserted_at <= ^end_datetime)
       |> then(&if(is_nil(git_branch), do: &1, else: where(&1, [b], b.git_branch == ^git_branch)))
       |> then(&if(is_nil(type), do: &1, else: where(&1, [b], b.type == ^type)))
+      |> then(&if(is_nil(name), do: &1, else: where(&1, [b], b.name == ^name)))
       |> select([b], %{
         id: b.id,
         inserted_at: b.inserted_at,
@@ -457,10 +468,13 @@ defmodule Tuist.Bundles do
     end
   end
 
-  def has_bundles_in_project_default_branch?(%Project{} = project) do
+  def has_bundles_in_project_default_branch?(%Project{} = project, opts \\ []) do
+    name = Keyword.get(opts, :name)
+
     from(b in Bundle)
     |> where([b], b.project_id == ^project.id)
     |> where([b], b.git_branch == ^project.default_branch)
+    |> then(&if(is_nil(name), do: &1, else: where(&1, [b], b.name == ^name)))
     |> limit(1)
     |> Repo.exists?()
   end

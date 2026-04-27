@@ -1,8 +1,14 @@
 ARG ELIXIR_VERSION=1.19.5
 ARG OTP_VERSION=28.4.3
-ARG DEBIAN_VERSION=bookworm-20260406-slim
-ARG BUILDER_IMAGE="hexpm/elixir:${ELIXIR_VERSION}-erlang-${OTP_VERSION}-debian-${DEBIAN_VERSION}"
-ARG RUNNER_IMAGE="debian:${DEBIAN_VERSION}"
+# hexpm/elixir uses date-pinned tags; their specific bookworm tag has both
+# linux/amd64 and linux/arm64/v8 manifests so the builder stage is multi-arch.
+ARG DEBIAN_BUILDER_VERSION=bookworm-20260406-slim
+# The plain debian:bookworm-20260406-slim tag is amd64-only. Use the unpinned
+# bookworm-slim tag for the runner base so the final image supports both
+# amd64 and arm64. Trading a small amount of reproducibility for multi-arch.
+ARG DEBIAN_RUNNER_VERSION=bookworm-slim
+ARG BUILDER_IMAGE="hexpm/elixir:${ELIXIR_VERSION}-erlang-${OTP_VERSION}-debian-${DEBIAN_BUILDER_VERSION}"
+ARG RUNNER_IMAGE="debian:${DEBIAN_RUNNER_VERSION}"
 
 # ========================================
 # Stage: Swift NIF builder
@@ -64,6 +70,10 @@ ENV MIX_ENV=$MIX_ENV
 ARG TUIST_HOSTED=1
 ENV TUIST_HOSTED=$TUIST_HOSTED
 
+# Longer per-request hex.pm timeout to absorb transient network hiccups
+# during the first resolver fetch. No measurable effect on fast networks.
+ENV HEX_HTTP_TIMEOUT=120
+
 COPY server/mix.exs server/mix.lock ./
 RUN mkdir config
 
@@ -74,10 +84,30 @@ COPY processor/mix.exs processor/mix.lock /processor/
 COPY xcode_processor/mix.exs xcode_processor/mix.lock /xcode_processor/
 COPY xcode_processor/config /xcode_processor/config
 
-RUN mix deps.get --only $MIX_ENV
+# Retry deps.get up to 3 times — hex.pm resolver can fall through to an empty
+# local cache on network flakes, producing "Unknown package in lockfile"
+# errors on packages that clearly exist in mix.lock. Exit non-zero if every
+# attempt fails (the naive `|| sleep && break` form was masking failures).
+# Cache mounts for hex/rebar stores speed up redownloads when mix.lock changes.
+RUN --mount=type=cache,id=mix-hex,target=/root/.hex \
+    --mount=type=cache,id=mix-rebar3,target=/root/.cache/rebar3 \
+    set -e; \
+    attempts=0; \
+    until mix deps.get --only $MIX_ENV; do \
+      attempts=$((attempts + 1)); \
+      if [ $attempts -ge 3 ]; then \
+        echo "mix deps.get failed after $attempts attempts" >&2; \
+        exit 1; \
+      fi; \
+      sleep 5; \
+    done
 
-# Config files must be present before compiling dependencies
-COPY server/config/config.exs server/config/${MIX_ENV}.exs config/
+# Config files must be present before compiling dependencies. All three
+# managed envs (prod/can/stag) ship in the image so the runtime can
+# select one via TUIST_DEPLOY_ENV, but only ${MIX_ENV}.exs is actually
+# imported at compile time by config/config.exs.
+COPY server/config/config.exs config/
+COPY server/config/prod.exs server/config/can.exs server/config/stag.exs config/
 
 # Copy path dependency sources for compilation
 COPY processor/lib /processor/lib
@@ -151,7 +181,7 @@ ARG APT_CACHE_BUST=0
 RUN : "APT_CACHE_BUST=${APT_CACHE_BUST}" \
   && apt-get update -y && \
   apt-get upgrade -y && \
-  apt-get install -y curl build-essential gcc wget libvips libstdc++6 openssl libncurses5 locales ca-certificates postgresql-client zip unzip git \
+  apt-get install -y curl build-essential gcc wget libvips libstdc++6 openssl libncurses5 locales ca-certificates postgresql-client zip unzip git tini \
   && apt-get clean && rm -f /var/lib/apt/lists/*_*
 
 RUN sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && locale-gen
@@ -218,6 +248,10 @@ COPY --from=nif-bridge-builder /app/_build/prod/rel/tuist/lib/processor-0.1.0/pr
 
 USER nobody
 
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+  CMD curl -fsS http://127.0.0.1:8080/ready || exit 1
+
+ENTRYPOINT ["/usr/bin/tini", "--"]
 CMD ["sh", "-c", "/app/bin/start"]
 
 # ========================================
@@ -229,4 +263,8 @@ FROM runner-base AS runner
 
 USER nobody
 
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+  CMD curl -fsS http://127.0.0.1:8080/ready || exit 1
+
+ENTRYPOINT ["/usr/bin/tini", "--"]
 CMD ["sh", "-c", "/app/bin/start"]

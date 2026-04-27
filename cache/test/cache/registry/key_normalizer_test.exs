@@ -96,6 +96,35 @@ defmodule Cache.Registry.KeyNormalizerTest do
     end
   end
 
+  describe "valid_source_tag?/1" do
+    test "accepts supported source tag formats" do
+      assert KeyNormalizer.valid_source_tag?("v1.2.3")
+      assert KeyNormalizer.valid_source_tag?("1.2")
+      assert KeyNormalizer.valid_source_tag?("1.0.0-alpha.1")
+      assert KeyNormalizer.valid_source_tag?("1.0.0-alpha.1.2")
+    end
+
+    test "rejects invalid source tag formats" do
+      refute KeyNormalizer.valid_source_tag?("0.0.24b")
+      refute KeyNormalizer.valid_source_tag?("3.2.0.1")
+      refute KeyNormalizer.valid_source_tag?("1.0.0-alpha+1+2")
+    end
+  end
+
+  describe "valid_storage_version?/1" do
+    test "accepts normalized storage version formats" do
+      assert KeyNormalizer.valid_storage_version?("1.2.3")
+      assert KeyNormalizer.valid_storage_version?("1.2.0")
+      assert KeyNormalizer.valid_storage_version?("1.0.0-alpha+1+2")
+    end
+
+    test "rejects invalid storage version formats" do
+      refute KeyNormalizer.valid_storage_version?("v1.2.3")
+      refute KeyNormalizer.valid_storage_version?("1.0.0-alpha.1.2")
+      refute KeyNormalizer.valid_storage_version?("0.0.24b")
+    end
+  end
+
   describe "package_object_key/2" do
     test "constructs full key with version and path" do
       result =

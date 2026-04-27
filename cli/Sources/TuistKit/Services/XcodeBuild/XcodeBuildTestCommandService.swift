@@ -34,6 +34,7 @@ struct XcodeBuildTestCommandService {
     private let testQuarantineService: TestQuarantineServicing
     private let shardService: ShardServicing
     private let serverEnvironmentService: ServerEnvironmentServicing
+    private let uploadBuildRunService: UploadBuildRunServicing?
 
     init(
         fileSystem: FileSysteming = FileSystem(),
@@ -49,7 +50,8 @@ struct XcodeBuildTestCommandService {
         rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator(),
         testQuarantineService: TestQuarantineServicing = TestQuarantineService(),
         shardService: ShardServicing = ShardService(),
-        serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService()
+        serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
+        uploadBuildRunService: UploadBuildRunServicing? = UploadBuildRunService()
     ) {
         self.fileSystem = fileSystem
         self.xcodeBuildController = xcodeBuildController
@@ -65,6 +67,7 @@ struct XcodeBuildTestCommandService {
         self.testQuarantineService = testQuarantineService
         self.shardService = shardService
         self.serverEnvironmentService = serverEnvironmentService
+        self.uploadBuildRunService = uploadBuildRunService
     }
 
     func run(
@@ -75,9 +78,11 @@ struct XcodeBuildTestCommandService {
         mode: TestProcessingMode? = nil
     ) async throws {
         var passthroughXcodebuildArguments = passthroughXcodebuildArguments
-        try await passthroughXcodebuildArguments.append(
-            contentsOf: resultBundlePathArguments(passthroughXcodebuildArguments: passthroughXcodebuildArguments)
-        )
+        let (
+            resultBundlePathArgs,
+            resolvedResultBundlePath
+        ) = try await resolveResultBundlePath(passthroughXcodebuildArguments: passthroughXcodebuildArguments)
+        passthroughXcodebuildArguments.append(contentsOf: resultBundlePathArgs)
 
         let path = try await path(passthroughXcodebuildArguments: passthroughXcodebuildArguments)
         let config = try await configLoader.loadConfig(path: path)
@@ -129,18 +134,19 @@ struct XcodeBuildTestCommandService {
             }
         }
 
-        let resultBundlePath = await RunMetadataStorage.current.resultBundlePath
-        if mode == .local {
-            await RunMetadataStorage.current.update(resultBundlePath: nil)
-        }
-
+        let resultBundlePath: AbsolutePath? = resolvedResultBundlePath
         let quarantinedTests = await testQuarantineService.quarantinedTests(config: config, skipQuarantine: skipQuarantine)
 
         do {
             try await xcodeBuildController.run(arguments: passthroughXcodebuildArguments)
         } catch {
             if let derivedDataPath {
-                await updateBuildRunId(projectDerivedDataDirectory: derivedDataPath)
+                await processBuildRun(
+                    projectDerivedDataDirectory: derivedDataPath,
+                    projectPath: path,
+                    config: config,
+                    passthroughXcodebuildArguments: passthroughXcodebuildArguments
+                )
             }
 
             var testSummary: TestSummary?
@@ -193,7 +199,12 @@ struct XcodeBuildTestCommandService {
         }
 
         if let derivedDataPath {
-            await updateBuildRunId(projectDerivedDataDirectory: derivedDataPath)
+            await processBuildRun(
+                projectDerivedDataDirectory: derivedDataPath,
+                projectPath: path,
+                config: config,
+                passthroughXcodebuildArguments: passthroughXcodebuildArguments
+            )
         }
 
         var testSummary: TestSummary?
@@ -230,13 +241,31 @@ struct XcodeBuildTestCommandService {
         }
     }
 
-    private func updateBuildRunId(projectDerivedDataDirectory: AbsolutePath) async {
+    private func processBuildRun(
+        projectDerivedDataDirectory: AbsolutePath,
+        projectPath: AbsolutePath,
+        config: Tuist,
+        passthroughXcodebuildArguments: [String]
+    ) async {
         guard let mostRecentActivityLogPath = try? await xcActivityLogController.mostRecentActivityLogFile(
             projectDerivedDataDirectory: projectDerivedDataDirectory
         )
         else { return }
 
         await RunMetadataStorage.current.update(buildRunId: mostRecentActivityLogPath.path.basenameWithoutExt)
+
+        guard let uploadBuildRunService, config.fullHandle != nil else { return }
+        do {
+            try await uploadBuildRunService.uploadBuildRun(
+                activityLogPath: mostRecentActivityLogPath.path,
+                projectPath: projectPath,
+                config: config,
+                scheme: passedValue(for: "-scheme", arguments: passthroughXcodebuildArguments),
+                configuration: passedValue(for: "-configuration", arguments: passthroughXcodebuildArguments)
+            )
+        } catch {
+            AlertController.current.warning(.alert("Failed to upload build: \(error.localizedDescription)"))
+        }
     }
 
     private func projectPath(xcodeBuildArguments: XcodeBuildArguments) async throws -> AbsolutePath? {
@@ -264,27 +293,24 @@ struct XcodeBuildTestCommandService {
         }
     }
 
-    private func resultBundlePathArguments(
+    private func resolveResultBundlePath(
         passthroughXcodebuildArguments: [String]
-    ) async throws -> [String] {
+    ) async throws -> (additionalArguments: [String], resultBundlePath: AbsolutePath) {
         if let resultBundlePathString = passedValue(
             for: "-resultBundlePath",
             arguments: passthroughXcodebuildArguments
         ) {
             let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
             let resultBundlePath = try AbsolutePath(validating: resultBundlePathString, relativeTo: currentWorkingDirectory)
-            await RunMetadataStorage.current.update(
-                resultBundlePath: resultBundlePath
-            )
-            return []
+            return (additionalArguments: [], resultBundlePath: resultBundlePath)
         } else {
             let resultBundlePath = try cacheDirectoriesProvider
                 .cacheDirectory(for: .runs)
                 .appending(components: uniqueIDGenerator.uniqueID())
-            await RunMetadataStorage.current.update(
+            return (
+                additionalArguments: ["-resultBundlePath", resultBundlePath.pathString],
                 resultBundlePath: resultBundlePath
             )
-            return ["-resultBundlePath", resultBundlePath.pathString]
         }
     }
 
@@ -366,6 +392,8 @@ struct XcodeBuildTestCommandService {
                 AlertController.current.success(
                     .alert("Result bundle uploaded for processing. View at \(test.url)")
                 )
+            case .off:
+                return
             }
         } catch {
             AlertController.current.warning(.alert("Failed to upload test results: \(error.localizedDescription)"))

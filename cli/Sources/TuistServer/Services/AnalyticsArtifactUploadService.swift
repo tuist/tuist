@@ -5,7 +5,11 @@
     import Path
     import TuistCore
     import TuistHTTP
+    import TuistLogging
     import TuistSupport
+    #if canImport(TuistAppleArchiver)
+        import TuistAppleArchiver
+    #endif
 
     @Mockable
     public protocol AnalyticsArtifactUploadServicing {
@@ -44,6 +48,9 @@
         private let multipartUploadArtifactService: MultipartUploadArtifactServicing
         private let multipartUploadCompleteAnalyticsService: MultipartUploadCompleteAnalyticsServicing
         private let completeAnalyticsArtifactsUploadsService: CompleteAnalyticsArtifactsUploadsServicing
+        #if canImport(TuistAppleArchiver)
+            private let appleArchiver: AppleArchiving
+        #endif
 
         public init() {
             self.init(
@@ -81,7 +88,36 @@
             self.multipartUploadArtifactService = multipartUploadArtifactService
             self.multipartUploadCompleteAnalyticsService = multipartUploadCompleteAnalyticsService
             self.completeAnalyticsArtifactsUploadsService = completeAnalyticsArtifactsUploadsService
+            #if canImport(TuistAppleArchiver)
+                appleArchiver = AppleArchiver()
+            #endif
         }
+
+        #if canImport(TuistAppleArchiver)
+            init(
+                fileSystem: FileSysteming,
+                xcresultToolController: XCResultToolControlling,
+                fileArchiver: FileArchivingFactorying,
+                fullHandleService: FullHandleServicing,
+                multipartUploadStartAnalyticsService: MultipartUploadStartAnalyticsServicing,
+                multipartUploadGenerateURLAnalyticsService: MultipartUploadGenerateURLAnalyticsServicing,
+                multipartUploadArtifactService: MultipartUploadArtifactServicing,
+                multipartUploadCompleteAnalyticsService: MultipartUploadCompleteAnalyticsServicing,
+                completeAnalyticsArtifactsUploadsService: CompleteAnalyticsArtifactsUploadsServicing,
+                appleArchiver: AppleArchiving
+            ) {
+                self.fileSystem = fileSystem
+                self.xcresultToolController = xcresultToolController
+                self.fileArchiver = fileArchiver
+                self.fullHandleService = fullHandleService
+                self.multipartUploadStartAnalyticsService = multipartUploadStartAnalyticsService
+                self.multipartUploadGenerateURLAnalyticsService = multipartUploadGenerateURLAnalyticsService
+                self.multipartUploadArtifactService = multipartUploadArtifactService
+                self.multipartUploadCompleteAnalyticsService = multipartUploadCompleteAnalyticsService
+                self.completeAnalyticsArtifactsUploadsService = completeAnalyticsArtifactsUploadsService
+                self.appleArchiver = appleArchiver
+            }
+        #endif
 
         public func uploadAndAnalyzeResultBundle(
             _ resultBundle: AbsolutePath,
@@ -90,6 +126,9 @@
             commandEventId: String,
             serverURL: URL
         ) async throws {
+            Logger.current.debug("Starting result bundle upload and analyze for \(resultBundle.pathString)")
+            let totalStart = Date()
+
             try await uploadAnalyticsArtifact(
                 ServerCommandEvent.Artifact(
                     type: .resultBundle
@@ -102,6 +141,7 @@
             )
 
             try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryPath in
+                let parseStart = Date()
                 let invocationRecordString = try await xcresultToolController.resultBundleObject(
                     resultBundle
                 )
@@ -112,10 +152,15 @@
                 let invocationRecord = try decoder.decode(
                     InvocationRecord.self, from: invocationRecordString.data(using: .utf8)!
                 )
+                Logger.current.debug(
+                    "Parsed invocation record in \(String(format: "%.2fs", Date().timeIntervalSince(parseStart)))"
+                )
+
                 for testActionRecord in invocationRecord.actions._values
                     .filter({ $0.schemeCommandName._value == "Test" })
                 {
                     guard let id = testActionRecord.actionResult.testsRef?.id._value else { continue }
+                    let actionParseStart = Date()
                     let resultBundleObjectString = try await xcresultToolController.resultBundleObject(
                         resultBundle,
                         id: id
@@ -123,6 +168,9 @@
                     let filename = "\(id).json"
                     let resultBundleObjectPath = temporaryPath.appending(component: filename)
                     try await fileSystem.writeText(resultBundleObjectString, at: resultBundleObjectPath)
+                    Logger.current.debug(
+                        "Parsed result bundle object \(id) in \(String(format: "%.2fs", Date().timeIntervalSince(actionParseStart)))"
+                    )
                     try await uploadAnalyticsArtifact(
                         ServerCommandEvent.Artifact(
                             type: .resultBundleObject,
@@ -154,6 +202,10 @@
                     serverURL: serverURL
                 )
             }
+
+            Logger.current.debug(
+                "Result bundle upload and analyze finished in \(String(format: "%.2fs", Date().timeIntervalSince(totalStart)))"
+            )
         }
 
         public func uploadResultBundle(
@@ -205,18 +257,48 @@
         ) async throws {
             let passedArtifactPath = artifactPath
             let artifactPath: AbsolutePath
+            let artifactLabel = "\(artifact.type)\(artifact.name.map { " (\($0))" } ?? "")"
 
+            let archiveStart = Date()
             switch artifact.type {
             case .resultBundle:
-                artifactPath = try await fileArchiver.makeFileArchiver(for: [passedArtifactPath])
-                    .zip(name: passedArtifactPath.basenameWithoutExt)
+                #if canImport(TuistAppleArchiver)
+                    // AppleArchive (LZFSE) is substantially faster than deflate for xcresult
+                    // bundles and skips the pre-copy the zip path needs. The server-side
+                    // `xcode_processor` sniffs magic bytes to decide between zip and aar.
+                    // `preservesBaseDirectory: true` keeps the `.xcresult` wrapper in the
+                    // archive so extractors (Xcode, the server NIF) land at
+                    // `<destination>/<bundle>.xcresult/…` — without it, `find_xcresult`
+                    // can't locate the bundle and processing fails with `:xcresult_not_found`.
+                    let archiveDirectory = try await fileSystem.makeTemporaryDirectory(prefix: "tuist-analytics-archive")
+                    let archivePath = archiveDirectory.appending(
+                        component: "\(passedArtifactPath.basenameWithoutExt).aar"
+                    )
+                    try await appleArchiver.compress(
+                        directory: passedArtifactPath,
+                        to: archivePath,
+                        excludePatterns: [],
+                        preservesBaseDirectory: true
+                    )
+                    artifactPath = archivePath
+                #else
+                    artifactPath = try await fileArchiver.makeFileArchiver(for: [passedArtifactPath])
+                        .zip(name: passedArtifactPath.basenameWithoutExt)
+                #endif
             case .session:
                 artifactPath = try await fileArchiver.makeFileArchiver(for: [passedArtifactPath])
                     .zip(name: "session")
             case .invocationRecord, .resultBundleObject:
                 artifactPath = passedArtifactPath
             }
+            if artifact.type == .resultBundle || artifact.type == .session {
+                let archiveElapsed = Date().timeIntervalSince(archiveStart)
+                Logger.current.debug(
+                    "Archived \(artifactLabel) in \(String(format: "%.2fs", archiveElapsed))"
+                )
+            }
 
+            let uploadStart = Date()
             let uploadId = try await multipartUploadStartAnalyticsService.uploadAnalyticsArtifact(
                 artifact,
                 accountHandle: accountHandle,
@@ -250,6 +332,10 @@
                 uploadId: uploadId,
                 parts: parts,
                 serverURL: serverURL
+            )
+            let uploadElapsed = Date().timeIntervalSince(uploadStart)
+            Logger.current.debug(
+                "Uploaded \(artifactLabel) in \(String(format: "%.2fs", uploadElapsed)) (\(parts.count) parts)"
             )
         }
     }

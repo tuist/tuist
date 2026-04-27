@@ -375,6 +375,7 @@ tuistServerDependencies.append(contentsOf: [
     "TuistCore", "TuistProcess", "TuistCI",
     "TuistAutomation", "TuistXCActivityLog",
     "TuistXCResultService",
+    .target(name: "TuistAppleArchiver", condition: .when(platforms: [.macOS])),
     xcodeGraphDependency,
 ])
 tuistHTTPDependencies.append(contentsOf: ["TuistSupport", "TuistHAR"])
@@ -1712,10 +1713,9 @@ let package = Package(
         ),
         .package(id: "tuist.Path", .upToNextMajor(from: "0.3.8")),
         .package(id: "p-x9.MachOKit", .upToNextMajor(from: "0.46.1")),
-        .package(id: "tuist.FileSystem", .upToNextMajor(from: "0.16.2")),
+        .package(id: "tuist.FileSystem", .upToNextMajor(from: "0.17.0")),
         .package(id: "tuist.Command", .upToNextMajor(from: "0.14.0")),
         .package(id: "apple.swift-crypto", from: "3.0.0"),
-        .package(id: "apple.swift-nio", from: "2.70.0"),
         .package(id: "crspybits.swift-log-file", .upToNextMajor(from: "0.1.0")),
         .package(id: "tuist.Noora", from: "0.55.0"),
         .package(
@@ -1727,7 +1727,7 @@ let package = Package(
         .package(id: "grpc.grpc-swift-nio-transport", from: "2.0.0"),
         .package(id: "facebook.zstd", from: "1.5.0"),
         .package(id: "chrisaljoudi.swift-log-oslog", .upToNextMajor(from: "0.2.2")),
-        .package(id: "MobileNativeFoundation.XCLogParser", .upToNextMajor(from: "0.2.46")),
+        .package(id: "MobileNativeFoundation.XCLogParser", .upToNextMajor(from: "0.2.47")),
         .package(path: "processor/native/xcactivitylog_nif"),
         .package(id: "swiftyJSON.SwiftyJSON", .upToNextMajor(from: "5.0.2")),
         .package(id: "tuist.Rosalind", .upToNextMajor(from: "0.7.22")),

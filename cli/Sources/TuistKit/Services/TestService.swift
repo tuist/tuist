@@ -266,12 +266,6 @@ public struct TestService { // swiftlint:disable:this type_body_length
             )
 
         let mode = mode ?? TestProcessingMode.default(for: config.url)
-        if mode == .remote {
-            let runBundlePath = try cacheDirectoriesProvider
-                .cacheDirectory(for: .runs)
-                .appending(components: runId, "\(Constants.resultBundleName).xcresult")
-            await RunMetadataStorage.current.update(resultBundlePath: runBundlePath)
-        }
 
         if let shardIndex, action == .testWithoutBuilding {
             try await runShard(
@@ -291,7 +285,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 testPlanConfiguration: testPlanConfiguration,
                 passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
                 runId: runId,
-                shardArchivePath: shardArchivePath
+                shardArchivePath: shardArchivePath,
+                mode: mode
             )
             return
         }
@@ -313,7 +308,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 skipTestTargets: skipTestTargets,
                 testPlanConfiguration: testPlanConfiguration,
                 passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
-                runId: runId
+                runId: runId,
+                mode: mode
             )
             return
         }
@@ -464,7 +460,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
             testPlanConfiguration: testPlanConfiguration,
             mapperEnvironment: mapperEnvironment,
             graph: graph,
-            action: action
+            action: action,
+            passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
         ), action == .build {
             try await outputEmptyShardMatrixIfNeeded(isSharding: isSharding, action: action)
             return
@@ -594,7 +591,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
         testPlanConfiguration: TestPlanConfiguration?,
         passthroughXcodeBuildArguments: [String],
         runId: String,
-        shardArchivePath: AbsolutePath?
+        shardArchivePath: AbsolutePath?,
+        mode: TestProcessingMode
     ) async throws {
         guard let fullHandle = config.fullHandle else {
             throw TestServiceError.actionInvalid
@@ -659,7 +657,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
             testError = error
         }
 
-        let summary = await testSummary(resultBundlePath: resultBundlePath, quarantinedTests: [])
+        let summary = mode == .local
+            ? await testSummary(resultBundlePath: resultBundlePath, quarantinedTests: [])
+            : nil
         await uploadResultBundleIfNeeded(
             testSummary: summary,
             resultBundlePath: resultBundlePath,
@@ -667,7 +667,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
             config: config,
             action: .testWithoutBuilding,
             shardPlanId: shard.shardPlanId,
-            shardIndex: shardIndex
+            shardIndex: shardIndex,
+            mode: mode
         )
 
         if let selectiveTestingGraph = shard.selectiveTestingGraph {
@@ -711,7 +712,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
         skipTestTargets: [TestIdentifier],
         testPlanConfiguration: TestPlanConfiguration?,
         passthroughXcodeBuildArguments: [String],
-        runId: String
+        runId: String,
+        mode: TestProcessingMode
     ) async throws {
         Logger.current.notice(
             "Skipping project generation, using selective testing graph from .xctestproducts bundle...",
@@ -766,13 +768,16 @@ public struct TestService { // swiftlint:disable:this type_body_length
             testError = error
         }
 
-        let summary = await testSummary(resultBundlePath: resultBundlePath, quarantinedTests: [])
+        let summary = mode == .local
+            ? await testSummary(resultBundlePath: resultBundlePath, quarantinedTests: [])
+            : nil
         await uploadResultBundleIfNeeded(
             testSummary: summary,
             resultBundlePath: resultBundlePath,
             projectDerivedDataDirectory: derivedDataPath,
             config: config,
-            action: .testWithoutBuilding
+            action: .testWithoutBuilding,
+            mode: mode
         )
 
         try await storeSuccessfulTestHashesFromGraph(
@@ -1014,7 +1019,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
             testPlanConfiguration: testPlanConfiguration,
             mapperEnvironment: mapperEnvironment,
             graph: graph,
-            action: action
+            action: action,
+            passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
         ) {
             if action != .build {
                 try await uploadSkippedTestSummary(
@@ -1178,7 +1184,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
         testPlanConfiguration: TestPlanConfiguration?,
         mapperEnvironment: MapperEnvironment,
         graph: Graph,
-        action: XcodeBuildTestAction
+        action: XcodeBuildTestAction,
+        passthroughXcodeBuildArguments: [String] = []
     ) -> Bool {
         let testActionTargets = testActionTargets(
             for: schemes,
@@ -1220,7 +1227,19 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 )
         }
 
-        let testedTargetNames = testActionTargets.map(\.name).sorted()
+        let passthroughSkippedTargetNames = passthroughSkippedTestTargetNames(passthroughXcodeBuildArguments)
+        let targetsAfterPassthroughSkip = testActionTargets
+            .filter { !passthroughSkippedTargetNames.contains($0.name) }
+
+        if targetsAfterPassthroughSkip.isEmpty, !testActionTargets.isEmpty {
+            Logger.current
+                .notice(
+                    "All test targets selected by selective testing are excluded by -skip-testing in the xcodebuild passthrough arguments, finishing early"
+                )
+            return false
+        }
+
+        let testedTargetNames = targetsAfterPassthroughSkip.map(\.name).sorted()
         if !testedTargetNames.isEmpty {
             Logger.current
                 .notice(
@@ -1229,6 +1248,27 @@ public struct TestService { // swiftlint:disable:this type_body_length
         }
 
         return true
+    }
+
+    private func passthroughSkippedTestTargetNames(_ arguments: [String]) -> Set<String> {
+        passthroughSkipTestingValues(arguments)
+            .compactMap { try? TestIdentifier(string: $0) }
+            // Only whole-target skips (no `/Class` or `/Class/Method`) remove a target entirely.
+            .filter { $0.class == nil && $0.method == nil }
+            .reduce(into: Set<String>()) { $0.insert($1.target) }
+    }
+
+    private func passthroughSkipTestingValues(_ arguments: [String]) -> [String] {
+        var values: [String] = []
+        var iterator = arguments.makeIterator()
+        while let argument = iterator.next() {
+            if argument == "-skip-testing", let value = iterator.next() {
+                values.append(value)
+            } else if argument.hasPrefix("-skip-testing:") {
+                values.append(String(argument.dropFirst("-skip-testing:".count)))
+            }
+        }
+        return values
     }
 
     private func initialTestTargets(
@@ -1434,9 +1474,14 @@ public struct TestService { // swiftlint:disable:this type_body_length
             )
         }
 
+        let passthroughDerivedDataPath = try? await xcodeBuildAgumentParser
+            .parse(passthroughXcodeBuildArguments)
+            .derivedDataPath
         let projectDerivedDataDirectory: AbsolutePath?
         if let derivedDataPath {
             projectDerivedDataDirectory = derivedDataPath
+        } else if let passthroughDerivedDataPath {
+            projectDerivedDataDirectory = passthroughDerivedDataPath
         } else {
             projectDerivedDataDirectory = try? await derivedDataLocator.locate(
                 for: graphTraverser.workspace.xcWorkspacePath
@@ -1590,6 +1635,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 AlertController.current.success(
                     .alert("Result bundle uploaded for processing. View at \(test.url)")
                 )
+            case .off:
+                return
             }
         } catch {
             AlertController.current.warning(.alert("Failed to upload test results: \(error.localizedDescription)"))

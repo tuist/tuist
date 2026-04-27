@@ -4,6 +4,104 @@ defmodule TuistWeb.WellKnownControllerTest do
 
   alias Tuist.Environment
   alias Tuist.Namespace.JWTToken
+  alias TuistWeb.AgentSkillsDiscovery
+
+  describe "GET /.well-known/api-catalog" do
+    test "returns a linkset API catalog", %{conn: conn} do
+      conn =
+        conn
+        |> put_req_header("accept", "application/linkset+json")
+        |> get("/.well-known/api-catalog")
+
+      assert response(conn, 200)
+
+      assert get_resp_header(conn, "content-type") == [
+               ~s(application/linkset+json; profile="https://www.rfc-editor.org/info/rfc9727")
+             ]
+
+      assert get_resp_header(conn, "link") == [
+               ~s(</.well-known/api-catalog>; rel="api-catalog"; type="application/linkset+json"; profile="https://www.rfc-editor.org/info/rfc9727")
+             ]
+
+      assert JSON.decode!(conn.resp_body) == %{
+               "linkset" => [
+                 %{
+                   "anchor" => "http://www.example.com/api",
+                   "service-desc" => [
+                     %{
+                       "href" => "http://www.example.com/api/spec",
+                       "type" => "application/json"
+                     }
+                   ],
+                   "service-doc" => [
+                     %{
+                       "href" => "http://www.example.com/api/docs",
+                       "type" => "text/html"
+                     }
+                   ],
+                   "status" => [
+                     %{
+                       "href" => "http://www.example.com/ready"
+                     }
+                   ]
+                 }
+               ]
+             }
+    end
+
+    test "returns the API catalog without requiring an explicit linkset accept header", %{conn: conn} do
+      conn = get(conn, "/.well-known/api-catalog")
+
+      assert response(conn, 200)
+
+      assert get_resp_header(conn, "content-type") == [
+               ~s(application/linkset+json; profile="https://www.rfc-editor.org/info/rfc9727")
+             ]
+
+      assert JSON.decode!(conn.resp_body) == %{
+               "linkset" => [
+                 %{
+                   "anchor" => "http://www.example.com/api",
+                   "service-desc" => [
+                     %{
+                       "href" => "http://www.example.com/api/spec",
+                       "type" => "application/json"
+                     }
+                   ],
+                   "service-doc" => [
+                     %{
+                       "href" => "http://www.example.com/api/docs",
+                       "type" => "text/html"
+                     }
+                   ],
+                   "status" => [
+                     %{
+                       "href" => "http://www.example.com/ready"
+                     }
+                   ]
+                 }
+               ]
+             }
+    end
+
+    test "includes an api-catalog link header on HEAD requests", %{conn: conn} do
+      conn = head(conn, "/.well-known/api-catalog")
+
+      assert response(conn, 200) == ""
+
+      assert get_resp_header(conn, "link") == [
+               ~s(</.well-known/api-catalog>; rel="api-catalog"; type="application/linkset+json"; profile="https://www.rfc-editor.org/info/rfc9727")
+             ]
+    end
+  end
+
+  describe "GET /.well-known/agent-skills/index.json" do
+    test "returns the agent skills discovery index", %{conn: conn} do
+      conn = get(conn, "/.well-known/agent-skills/index.json")
+
+      assert json_response(conn, 200) == AgentSkillsDiscovery.index()
+    end
+  end
 
   describe "GET /.well-known/openid_configuration" do
     test "returns the OpenID configuration", %{conn: conn} do
@@ -55,6 +153,20 @@ defmodule TuistWeb.WellKnownControllerTest do
     end
   end
 
+  describe "GET /.well-known/oauth-protected-resource" do
+    test "returns host-level protected resource metadata", %{conn: conn} do
+      conn = get(conn, "/.well-known/oauth-protected-resource")
+
+      response = json_response(conn, 200)
+
+      assert response["resource"] == "http://www.example.com"
+      assert response["authorization_servers"] == ["http://www.example.com"]
+      assert response["bearer_methods_supported"] == ["header"]
+      assert response["scopes_supported"] == ["mcp"]
+      refute Map.has_key?(response, "resource_documentation")
+    end
+  end
+
   describe "GET /.well-known/oauth-protected-resource/mcp" do
     test "returns MCP protected resource metadata", %{conn: conn} do
       conn = get(conn, "/.well-known/oauth-protected-resource/mcp")
@@ -79,6 +191,12 @@ defmodule TuistWeb.WellKnownControllerTest do
 
       assert response["resource"] == "http://custom.tuist.dev:8443/mcp"
       assert response["authorization_servers"] == ["http://custom.tuist.dev:8443"]
+    end
+
+    test "returns not found for unsupported protected resources", %{conn: conn} do
+      conn = get(conn, "/.well-known/oauth-protected-resource/api")
+
+      assert json_response(conn, 404) == %{"error" => "not_found"}
     end
   end
 

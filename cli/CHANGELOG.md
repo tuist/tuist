@@ -1,7 +1,44 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.185.0<!-- RELEASE NOTES START -->
+## What's Changed in 4.187.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add CopyFileElement.buildProduct for embedding target products in Copy Files phases by [@freak4pc](https://github.com/freak4pc) in [#10467](https://github.com/tuist/tuist/pull/10467)
+* generate .xctestplan files from ProjectDescription by [@fortmarek](https://github.com/fortmarek) in [#10426](https://github.com/tuist/tuist/pull/10426)
+* add 'tuist teardown cache' command by [@fortmarek](https://github.com/fortmarek) in [#10421](https://github.com/tuist/tuist/pull/10421)
+* add --inspect-mode off to skip result bundle upload by [@fortmarek](https://github.com/fortmarek) in [#10447](https://github.com/tuist/tuist/pull/10447)
+### 🐛 Bug Fixes
+
+* include source filename in selective testing hash by [@fortmarek](https://github.com/fortmarek) in [#10475](https://github.com/tuist/tuist/pull/10475)
+* preserve bundle directory in AppleArchive uploads by [@fortmarek](https://github.com/fortmarek) in [#10460](https://github.com/tuist/tuist/pull/10460)
+* handle buildable-folder xcstrings stale analysis by [@pepicrft](https://github.com/pepicrft) in [#10445](https://github.com/tuist/tuist/pull/10445)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.186.2...4.187.0
+
+## What's Changed in 4.186.2<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* AppleArchive for xcresult upload + respect --inspect-mode remote by [@fortmarek](https://github.com/fortmarek) in [#10416](https://github.com/tuist/tuist/pull/10416)
+### 🐛 Bug Fixes
+
+* skip xcodebuild when -skip-testing clears selective tests by [@fortmarek](https://github.com/fortmarek) in [#10433](https://github.com/tuist/tuist/pull/10433)
+* respect repo optional auth in command tracking by [@pepicrft](https://github.com/pepicrft) in [#10387](https://github.com/tuist/tuist/pull/10387)
+* scope cache warm target selection to non-test roots by [@pepicrft](https://github.com/pepicrft) in [#10398](https://github.com/tuist/tuist/pull/10398)
+* make swift-file-system the default filesystem backend by [@pepicrft](https://github.com/pepicrft) in [#10418](https://github.com/tuist/tuist/pull/10418)
+* restore static framework .xcstrings localization by [@pepicrft](https://github.com/pepicrft) in [#10423](https://github.com/tuist/tuist/pull/10423)
+* propagate default-enabled Swift package traits by [@pepicrft](https://github.com/pepicrft) in [#10403](https://github.com/tuist/tuist/pull/10403)
+* add muted/unmuted test case event types by [@justine-acorns](https://github.com/justine-acorns) in [#10417](https://github.com/tuist/tuist/pull/10417)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.185.1...4.186.2
+
+## What's Changed in 4.185.1<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
 
@@ -12,7 +49,7 @@ All notable changes to this project will be documented in this file.
 
 
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.184.2...4.185.0
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.184.2...4.185.1
 
 ## What's Changed in 4.184.2<!-- RELEASE NOTES START -->
 
@@ -400,7 +437,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* add retries for OIDC token failures by [@cschmatzler](https://github.com/cschmatzler) in [#10085](https://github.com/tuist/tuist/pull/10085)
+* add retries for OIDC token failures in [#10085](https://github.com/tuist/tuist/pull/10085)
 
 
 
@@ -1142,7 +1179,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* avoid stale auth token cache during long uploads by [@cschmatzler](https://github.com/cschmatzler) in [#9314](https://github.com/tuist/tuist/pull/9314)
+* avoid stale auth token cache during long uploads in [#9314](https://github.com/tuist/tuist/pull/9314)
 
 
 
@@ -1236,7 +1273,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* add authentication failure error for cache by [@cschmatzler](https://github.com/cschmatzler) in [#9280](https://github.com/tuist/tuist/pull/9280)
+* add authentication failure error for cache in [#9280](https://github.com/tuist/tuist/pull/9280)
 * update FileSystem to fix intermittent crash on startup by [@pepicrft](https://github.com/pepicrft) in [#9276](https://github.com/tuist/tuist/pull/9276)
 
 
@@ -1356,7 +1393,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* fix acceptance tests by [@cschmatzler](https://github.com/cschmatzler) in [#9150](https://github.com/tuist/tuist/pull/9150)
+* fix acceptance tests in [#9150](https://github.com/tuist/tuist/pull/9150)
 * External resources failing at runtime unable to find their associated bundle by [@pepicrft](https://github.com/pepicrft) in [#9148](https://github.com/tuist/tuist/pull/9148)
 * only emit a public import when public symbols are present by [@JimRoepcke](https://github.com/JimRoepcke) in [#9129](https://github.com/tuist/tuist/pull/9129)
 
@@ -1368,9 +1405,9 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* make new module cache default by [@cschmatzler](https://github.com/cschmatzler) in [#9094](https://github.com/tuist/tuist/pull/9094)
+* make new module cache default in [#9094](https://github.com/tuist/tuist/pull/9094)
 * add support for flaky tests detection by [@fortmarek](https://github.com/fortmarek) in [#9098](https://github.com/tuist/tuist/pull/9098)
-* implement remote cache cleaning by [@cschmatzler](https://github.com/cschmatzler) in [#9124](https://github.com/tuist/tuist/pull/9124)
+* implement remote cache cleaning in [#9124](https://github.com/tuist/tuist/pull/9124)
 ### 🐛 Bug Fixes
 
 * Compilation errors when a static framework contains resources by [@pepicrft](https://github.com/pepicrft) in [#9141](https://github.com/tuist/tuist/pull/9141)
@@ -1421,7 +1458,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* show deprecation notice for CLI < 4.56.1 by [@cschmatzler](https://github.com/cschmatzler) in [#9110](https://github.com/tuist/tuist/pull/9110)
+* show deprecation notice for CLI < 4.56.1 in [#9110](https://github.com/tuist/tuist/pull/9110)
 
 
 
@@ -1497,7 +1534,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* custom cache endpoints by [@cschmatzler](https://github.com/cschmatzler) in [#8980](https://github.com/tuist/tuist/pull/8980)
+* custom cache endpoints in [#8980](https://github.com/tuist/tuist/pull/8980)
 ### 🐛 Bug Fixes
 
 * Generate TuistBundle if buildableFolders contains synthesized file by [@denisgaskov](https://github.com/denisgaskov) in [#8998](https://github.com/tuist/tuist/pull/8998)
@@ -1514,10 +1551,10 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* module cache by [@cschmatzler](https://github.com/cschmatzler) in [#8931](https://github.com/tuist/tuist/pull/8931)
+* module cache in [#8931](https://github.com/tuist/tuist/pull/8931)
 ### 🐛 Bug Fixes
 
-* fix selective testing when experimental cache enabled by [@cschmatzler](https://github.com/cschmatzler) in [#8981](https://github.com/tuist/tuist/pull/8981)
+* fix selective testing when experimental cache enabled in [#8981](https://github.com/tuist/tuist/pull/8981)
 
 
 

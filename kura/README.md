@@ -45,8 +45,14 @@ docker compose up --build -d
 Useful endpoints:
 
 - `http://localhost:4101/up`
+- `http://localhost:4101/ready`
+- `http://localhost:4101/status/rollout`
 - `http://localhost:4102/up`
+- `http://localhost:4102/ready`
+- `http://localhost:4102/status/rollout`
 - `http://localhost:4103/up`
+- `http://localhost:4103/ready`
+- `http://localhost:4103/status/rollout`
 - `grpc://localhost:5101` for Bazel/Buck2 REAPI against `kura-us`
 - `grpc://localhost:5102` for Bazel/Buck2 REAPI against `kura-eu`
 - `grpc://localhost:5103` for Bazel/Buck2 REAPI against `kura-ap`
@@ -188,6 +194,7 @@ When `Optional` is `Yes`, the `Default` column shows what Kura uses today. `auto
 | `KURA_DISCOVERY_DNS_NAME` | DNS name to probe for automatic peer discovery. | Yes | disabled |
 | `KURA_FILE_DESCRIPTOR_POOL_SIZE` | App-managed file-descriptor budget for request and background I/O. | Yes | auto |
 | `KURA_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS` | How long a request waits before FD backpressure fails the checkout. | Yes | `5000` |
+| `KURA_DRAIN_COMPLETION_TIMEOUT_MS` | Maximum grace window Kura gives in-flight HTTP and gRPC work to finish during shutdown before forcing exit progression. | Yes | `240000` |
 | `KURA_SEGMENT_HANDLE_CACHE_SIZE` | Maximum number of pinned segment read handles; must stay below the FD pool size. | Yes | auto |
 | `KURA_MEMORY_SOFT_LIMIT_BYTES` | Soft watermark where Kura starts shedding optional memory use. | Yes | auto |
 | `KURA_MEMORY_HARD_LIMIT_BYTES` | Hard watermark where Kura pauses replication work and trims hot caches aggressively. | Yes | auto |
@@ -216,7 +223,7 @@ Auto-derived defaults currently follow these rules:
 - `KURA_METADATA_STORE_WRITE_BUFFER_POOL_BYTES` follows the same `memory_limit_bytes / 32` rule as the metadata-store read cache.
 - `KURA_METADATA_STORE_WRITE_BUFFER_BYTES` is `KURA_METADATA_STORE_WRITE_BUFFER_POOL_BYTES / 4`, rounded down to MiB boundaries and clamped to `[4 MiB, 32 MiB]`.
 - `KURA_METADATA_STORE_MAX_WRITE_BUFFERS` is `KURA_METADATA_STORE_WRITE_BUFFER_POOL_BYTES / KURA_METADATA_STORE_WRITE_BUFFER_BYTES`, clamped to `[2, 8]`.
-- `KURA_MAX_KEYVALUE_BYTES` defaults to `1048576`, and `KURA_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS` defaults to `5000`.
+- `KURA_MAX_KEYVALUE_BYTES` defaults to `1048576`, `KURA_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS` defaults to `5000`, and `KURA_DRAIN_COMPLETION_TIMEOUT_MS` defaults to `240000`.
 
 A minimal direct-binary deployment still looks like:
 
@@ -235,6 +242,8 @@ KURA_OTEL_DEPLOYMENT_ENVIRONMENT=production \
 ./target/release/kura
 ```
 
+Set `KURA_SENTRY_DSN` to also forward panics and `tracing::error!` events to Sentry. In Helm deployments, inject it via `extraEnv` or `extraEnvFrom`.
+
 ## 📊 Observability
 
 Kura ships with a fairly complete local observability story:
@@ -243,6 +252,7 @@ Kura ships with a fairly complete local observability story:
 - 📉 Grafana dashboards
 - 🪵 Loki and Promtail logs
 - 🧭 Tempo traces
+- 🚨 Optional Sentry error reporting for panics and error-level tracing events
 
 Prometheus exposes live metadata-store memory gauges:
 
@@ -296,11 +306,14 @@ It also exposes analytics-specific runtime metrics for:
 The repository includes a Helm chart at `ops/helm/kura` that deploys Kura as a `StatefulSet` with:
 
 - 💾 one PVC per pod for metadata-state and segment storage
+- 🔒 single-writer fencing through a process-held data-dir lock plus `ReadWriteOncePod` by default
 - 🧭 a headless service for stable pod DNS and peer discovery
 - 🌐 a regular service exposing both HTTP and gRPC
 - 🚪 optional ingress for the HTTP API
 - 🧩 optional inline extension script mounting through a `ConfigMap`
 - 🔐 optional peer mTLS for `/_internal/*` traffic via a mounted Kubernetes `Secret`
+- 🚦 `/ready` for public readiness and `/up` for liveness, with a `preStop` `SIGUSR1` drain hook that removes pods from traffic before `SIGTERM`
+- ⏱️ a pod grace period derived from Kura's own drain timeout plus small lifecycle buffers so Kubernetes does not cut shutdown short
 
 Lint and render the chart:
 
@@ -321,11 +334,33 @@ helm upgrade --install kura ./ops/helm/kura \
   --set config.telemetry.otlpTracesEndpoint=http://otel-collector.monitoring.svc.cluster.local:4318/v1/traces
 ```
 
+The chart defaults persistence to `ReadWriteOncePod` so one Kura process owns each PVC. If your CSI driver does not support it, override `persistence.accessModes[0]=ReadWriteOnce`; Kura will still fence the volume with its app-level writer lock.
+
+The chart computes `terminationGracePeriodSeconds` from `config.shutdown.drainCompletionTimeoutMs`, `podLifecycle.preStopDelaySeconds`, and `podLifecycle.terminationGraceExtraSeconds`. That keeps the platform budget aligned with the application's shared shutdown deadline instead of relying on a separate hard-coded Kubernetes timeout.
+
 For a local kind smoke test, the repo includes:
 
 ```bash
 ./test/e2e/kura_helm_kind.sh
 ```
+
+For a gated in-place StatefulSet rollout, the repo also includes:
+
+```bash
+./ops/helm/kura/rollout.sh kura kura --set image.tag=<new-tag>
+```
+
+That script is the Kubernetes adapter. The rollout gate itself lives in `ops/rollout/gate.sh` and only assumes it can fetch Kura's rollout status endpoint once per node per poll. The Helm adapter stages the new revision behind a StatefulSet partition, rolls the highest ordinal first, and only advances after every node reports the same membership generation, all nodes are back in `serving`, the updated pod stays ready, ring membership is restored cluster-wide, outbox depth stays near baseline, no node is under critical memory pressure, and the cluster is not introducing new file-descriptor timeout activity.
+
+If the Kura container listens on a non-default HTTP port, set `KURA_HTTP_PORT=<port>` when invoking the rollout helper so the adapter samples the correct loopback endpoint inside each pod.
+
+For adjacent-version mixed rollout and rollback validation on the same persistent Docker volumes, use:
+
+```bash
+PREVIOUS_REF=origin/main ./test/e2e/kura_compatibility_rollout.sh
+```
+
+That harness proves `PREVIOUS_REF -> HEAD -> PREVIOUS_REF` across a mixed-version window, but it validates protocol and on-disk compatibility only. It does not try to model Kubernetes PVC reattachment behavior.
 
 To enable peer mTLS in Kubernetes, set:
 
