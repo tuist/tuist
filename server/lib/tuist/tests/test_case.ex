@@ -18,7 +18,8 @@ defmodule Tuist.Tests.TestCase do
       :suite_name,
       :last_status,
       :is_flaky,
-      :state
+      :state,
+      :last_ran_at
     ],
     sortable: [:name, :last_duration, :avg_duration, :last_ran_at, :id],
     default_order: %{order_by: [:last_ran_at, :id], order_directions: [:desc, :asc]}

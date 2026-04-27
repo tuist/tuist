@@ -156,10 +156,10 @@ defmodule Tuist.Tests.Analytics do
         end)
       end)
 
-    current_count = quarantined_count_at(project_id, end_datetime)
+    count = List.last(values) || 0
 
     %{
-      count: current_count,
+      count: count,
       values: values,
       dates: dates
     }

@@ -1,54 +1,54 @@
 <div id="shards">
+  <div data-part="filters">
+    <.date_picker
+      id="shards-date-range-picker"
+      name="analytics-date-range"
+      presets={[
+        %{
+          id: "last-24-hours",
+          label: dgettext("dashboard_tests", "Last 24 hours"),
+          period: {24, :hour}
+        },
+        %{
+          id: "last-7-days",
+          label: dgettext("dashboard_tests", "Last 7 days"),
+          period: {7, :day}
+        },
+        %{
+          id: "last-30-days",
+          label: dgettext("dashboard_tests", "Last 30 days"),
+          period: {30, :day}
+        },
+        %{
+          id: "last-12-months",
+          label: dgettext("dashboard_tests", "Last 12 months"),
+          period: {12, :month}
+        },
+        %{id: "custom", label: dgettext("dashboard_tests", "Custom")}
+      ]}
+      selected_preset={@analytics_preset}
+      period={@analytics_period}
+      on_period_change="analytics_period_changed"
+      max={Date.utc_today()}
+    >
+      <:actions>
+        <.button
+          label={dgettext("dashboard_tests", "Cancel")}
+          variant="secondary"
+          phx-click={
+            JS.dispatch("phx:date-picker-cancel", detail: %{id: "shards-date-range-picker"})
+          }
+        />
+        <.button
+          label={dgettext("dashboard_tests", "Apply")}
+          phx-click={
+            JS.dispatch("phx:date-picker-apply", detail: %{id: "shards-date-range-picker"})
+          }
+        />
+      </:actions>
+    </.date_picker>
+  </div>
   <.card title={dgettext("dashboard_tests", "Shards")} icon="stack_2" data-part="overview">
-    <:actions>
-      <.date_picker
-        id="shards-date-range-picker"
-        name="analytics-date-range"
-        presets={[
-          %{
-            id: "last-24-hours",
-            label: dgettext("dashboard_tests", "Last 24 hours"),
-            period: {24, :hour}
-          },
-          %{
-            id: "last-7-days",
-            label: dgettext("dashboard_tests", "Last 7 days"),
-            period: {7, :day}
-          },
-          %{
-            id: "last-30-days",
-            label: dgettext("dashboard_tests", "Last 30 days"),
-            period: {30, :day}
-          },
-          %{
-            id: "last-12-months",
-            label: dgettext("dashboard_tests", "Last 12 months"),
-            period: {12, :month}
-          },
-          %{id: "custom", label: dgettext("dashboard_tests", "Custom")}
-        ]}
-        selected_preset={@analytics_preset}
-        period={@analytics_period}
-        on_period_change="analytics_period_changed"
-        max={Date.utc_today()}
-      >
-        <:actions>
-          <.button
-            label={dgettext("dashboard_tests", "Cancel")}
-            variant="secondary"
-            phx-click={
-              JS.dispatch("phx:date-picker-cancel", detail: %{id: "shards-date-range-picker"})
-            }
-          />
-          <.button
-            label={dgettext("dashboard_tests", "Apply")}
-            phx-click={
-              JS.dispatch("phx:date-picker-apply", detail: %{id: "shards-date-range-picker"})
-            }
-          />
-        </:actions>
-      </.date_picker>
-    </:actions>
     <div data-part="analytics-content">
       <div data-part="widgets">
         <.widget

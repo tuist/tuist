@@ -210,6 +210,11 @@ defmodule TuistWeb.TestRunsLive do
         Query.put(socket.assigns.uri.query, "analytics-date-range", preset)
       end
 
+    query_params =
+      query_params
+      |> Query.drop("before")
+      |> Query.drop("after")
+
     {:noreply,
      push_patch(socket, to: "/#{selected_account.name}/#{selected_project.name}/tests/test-runs?#{query_params}")}
   end
@@ -366,11 +371,15 @@ defmodule TuistWeb.TestRunsLive do
 
     search = params["search"] || ""
 
-    flop_filters = [
-      %{field: :project_id, op: :==, value: project.id},
-      %{field: :status, op: :!=, value: "in_progress"}
-      | build_flop_filters(filters, search)
-    ]
+    {start_datetime, end_datetime} = socket.assigns.analytics_period
+
+    flop_filters =
+      [
+        %{field: :project_id, op: :==, value: project.id},
+        %{field: :status, op: :!=, value: "in_progress"},
+        %{field: :ran_at, op: :>=, value: start_datetime},
+        %{field: :ran_at, op: :<=, value: end_datetime}
+      ] ++ build_flop_filters(filters, search) ++ page_level_environment_filters(socket.assigns)
 
     options = %{
       filters: flop_filters,
@@ -428,4 +437,8 @@ defmodule TuistWeb.TestRunsLive do
 
     flop_filters ++ ran_by_flop_filters ++ search_filters
   end
+
+  defp page_level_environment_filters(%{analytics_environment: "ci"}), do: [%{field: :is_ci, op: :==, value: true}]
+  defp page_level_environment_filters(%{analytics_environment: "local"}), do: [%{field: :is_ci, op: :==, value: false}]
+  defp page_level_environment_filters(_), do: []
 end
