@@ -10,7 +10,7 @@ Target here is **staging**. Production follows the same shape with HA tuning bum
 
 ## Prerequisites
 
-- Access to the Syself Apalla management cluster (you should have a kubeconfig template from Syself onboarding).
+- Access to the Syself Apalla management cluster. Grab the kubeconfig template from [Syself's docs](https://syself.com/docs/hetzner/apalla/getting-started/accessing-the-management-cluster) — it's the same file for every Apalla customer; auth is gated per-person via SSO at first `kubectl` call.
 - A Hetzner Cloud project with API access enabled.
 - A Cloudflare account with an API token scoped to `Zone.DNS:Edit` on `tuist.dev`.
 - CLI tools installed via mise:
@@ -25,11 +25,11 @@ Target here is **staging**. Production follows the same shape with HA tuning bum
 
 ## 1. Access the management cluster
 
-Syself hands you a kubeconfig template. It uses `kubectl oidc-login` as the auth plugin — the first `kubectl` invocation opens a browser, you SSO in, and a short-lived token is cached in `~/.kube/cache/oidc-login/`.
+Download the kubeconfig template from <https://syself.com/docs/hetzner/apalla/getting-started/accessing-the-management-cluster>. It uses `kubectl oidc-login` as the auth plugin — the first `kubectl` invocation opens a browser, you SSO in, and a short-lived token is cached in `~/.kube/cache/oidc-login/`.
 
 ```bash
-# Save the kubeconfig Syself provided. The `namespace:` field in the
-# context must be your org's namespace (they will have told you what).
+# Save the kubeconfig you downloaded. The `namespace:` field in the
+# context must be set to `org-tuist` (our Syself-managed org namespace).
 mkdir -p ~/.kube
 cp /path/to/syself-mgmt-kubeconfig.yaml ~/.kube/tuist-syself-mgmt.yaml
 chmod 600 ~/.kube/tuist-syself-mgmt.yaml
@@ -65,7 +65,7 @@ Syself provisions into **your** Hetzner Cloud account. We currently use cloud VM
 
 ## 3. Create the Hetzner Secret in the management cluster
 
-Syself's `caph` provider reads this Secret when it provisions nodes. It lives in the management cluster's namespace for your org (`org-<yourorg>`). One Secret, shared across all workload clusters — see the Cluster CR file for context on why.
+Syself's `caph` provider reads this Secret when it provisions nodes. It lives in our org namespace on the management cluster (`org-tuist`). One Secret, shared across all workload clusters — see the Cluster CR file for context on why.
 
 ```bash
 export KUBECONFIG=~/.kube/tuist-syself-mgmt.yaml
@@ -521,7 +521,7 @@ Syself will drain + delete the nodes and release the Hetzner resources. The Hetz
 ## Troubleshooting crib
 
 **`kubectl get clusters` opens the browser but fails afterwards**
-Check the `namespace:` in the kubeconfig context — Syself's template ships with a placeholder that must be overwritten with your org namespace.
+Check the `namespace:` in the kubeconfig context — Syself's template ships with a placeholder that must be overwritten with `org-tuist`.
 
 **`Cluster` stuck in `InfrastructureReady: false`**
 ```bash
