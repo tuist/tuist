@@ -94,10 +94,16 @@ processor:
       value: stag
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
       value: http://alloy-tuist-alloy.observability.svc.cluster.local:4317
+  # The processor runs the full Tuist BEAM release (Repos, Vault, Cachex,
+  # ingestion buffers, Oban, etc.) — TUIST_PROCESSOR_MODE=true only skips the
+  # Phoenix endpoint binding and narrows the Oban queue set. Even with that,
+  # boot memory sits around 600-800MiB. Allow up to 1.5Gi headroom for the
+  # NIF + xcactivitylog parse buffers; can trim once we cull the supervision
+  # tree of the bits not needed for queue work.
   resources:
     requests:
       cpu: "100m"
-      memory: "256Mi"
+      memory: "768Mi"
     limits:
       cpu: "500m"
-      memory: "512Mi"
+      memory: "1536Mi"
