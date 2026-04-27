@@ -1,22 +1,18 @@
 ---
 {
-  "title": "Xcode Flaky Tests",
+  "title": "Generated Projects Flaky Tests",
   "titleTemplate": ":title · Flaky Tests · Test Insights · Features · Guides · Tuist",
-  "description": "Detect, manage, and quarantine flaky tests in Xcode projects with Tuist."
+  "description": "Detect, manage, and quarantine flaky tests in Tuist generated projects."
 }
 ---
-# Xcode flaky tests {#xcode-flaky-tests}
+# Generated projects flaky tests {#generated-projects-flaky-tests}
 
 > [!WARNING]
 > **Requirements**
 >
-> - An Xcode project (`.xcodeproj` / `.xcworkspace`)
+> - A <.localized_link href="/guides/features/projects">Tuist generated project</.localized_link>
 > - <.localized_link href="/guides/features/test-insights">Test Insights</.localized_link> must be configured
 
-> [!NOTE]
-> If you use Tuist's project generation, see the
-> <.localized_link href="/guides/features/test-insights/flaky-tests/generated-projects">Generated projects flaky tests</.localized_link>
-> page instead — `tuist test` is the canonical entry point there.
 
 Flaky tests are tests that produce different results (pass or fail) when run multiple times with the same code. They erode trust in your test suite and waste developer time investigating false failures. Tuist automatically detects flaky tests and helps you track them over time.
 
@@ -30,13 +26,10 @@ Tuist detects flaky tests in two ways:
 
 When you run tests with retry functionality, Tuist analyzes the results of each attempt. If a test fails on some attempts but passes on others, it's marked as flaky.
 
-Pass `-retry-tests-on-failure` or `-test-iterations` through `tuist xcodebuild test`:
+Pass `-retry-tests-on-failure` or `-test-iterations` through `tuist test`:
 
 ```sh
-tuist xcodebuild test \
-  -scheme MyScheme \
-  -retry-tests-on-failure \
-  -test-iterations 3
+tuist test --scheme MyScheme -- -retry-tests-on-failure -test-iterations 3
 ```
 
 ![Flaky test case detail](/images/guides/features/test-insights/flaky-test-case-detail.png)
@@ -63,7 +56,7 @@ You can also manually mark or unmark tests as flaky from the test case detail pa
 
 Quarantining isolates a flaky test so it doesn't block CI while you fix it. A quarantined test is in one of two modes:
 
-- **Muted**: the test still runs, but `tuist xcodebuild test` masks the failure. Failures still feed the flaky-tests detector, so you can keep watching the test without breaking the build. Pick this for a test you're actively investigating.
+- **Muted**: the test still runs, but `tuist test` masks the failure. Failures still feed the flaky-tests detector, so you can keep watching the test without breaking the build. Pick this for a test you're actively investigating.
 - **Skipped**: xcodebuild receives `-skip-testing <identifier>`, so the test never starts. It produces no new results and drops off the flaky-tests dashboard until you re-enable it. Pick this when the test is broken, slow, or so persistently flaky that running it is just wasted CI minutes.
 
 ### Setting the mode {#setting-the-mode}
@@ -76,33 +69,19 @@ Automations can move tests between states for you. For example, when a test cros
 
 ### Running tests {#running-tests}
 
-`tuist xcodebuild test` is a passthrough wrapper that honours both modes automatically. Use it the same way you'd call xcodebuild:
+`tuist test` honours both modes automatically:
 
 ```sh
-tuist xcodebuild test -scheme MyScheme
+tuist test
 ```
 
-Skipped tests are appended to your xcodebuild invocation as `-skip-testing <identifier>` and never start. Muted tests run normally; if they fail, the failure is masked in the resulting build status.
+Skipped tests are passed to xcodebuild as `-skip-testing` and never start. Muted tests run normally; if they fail, the failure is masked in the resulting build status.
 
-#### Bypassing quarantine
-
-`tuist xcodebuild test` accepts `--skip-quarantine` to run everything, including muted and skipped tests:
+To bypass quarantine entirely and run everything, including muted and skipped tests:
 
 ```sh
-tuist xcodebuild test --skip-quarantine -scheme MyScheme
+tuist test --skip-quarantine
 ```
-
-#### Calling xcodebuild directly
-
-If you can't go through `tuist xcodebuild test`, expand the quarantined tests into `-skip-testing` arguments yourself with `tuist test case list`:
-
-```sh
-xcodebuild test \
-  -scheme MyScheme \
-  $(tuist test case list --quarantined --skip-testing)
-```
-
-This is the safe default outside `tuist xcodebuild test`: failure masking for muted tests only happens when you go through that command, so skipping both modes avoids spurious CI failures. If you need finer control, go through `tuist xcodebuild test` instead.
 
 ## Slack notifications {#slack-notifications}
 
