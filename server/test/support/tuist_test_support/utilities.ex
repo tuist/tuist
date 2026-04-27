@@ -18,6 +18,7 @@ defmodule TuistTestSupport.Utilities do
     Tuist.Xcode.XcodeProject.Buffer.flush()
     Tuist.Xcode.XcodeTarget.Buffer.flush()
     Tuist.Builds.Build.Buffer.flush()
+    Tuist.Bundles.ArtifactIngest.Buffer.flush()
     result
   end
 end

@@ -6,10 +6,13 @@ defmodule Tuist.Bundles do
   import Ecto.Query
 
   alias Tuist.Bundles.Artifact
+  alias Tuist.Bundles.ArtifactIngest
   alias Tuist.Bundles.Bundle
   alias Tuist.Bundles.BundleThreshold
   alias Tuist.Projects.Project
   alias Tuist.Repo
+
+  require Logger
 
   @doc """
   Creates a bundle with associated artifacts.
@@ -38,9 +41,39 @@ defmodule Tuist.Bundles do
     preload = Keyword.get(opts, :preload, [])
 
     case Repo.transaction(multi) do
-      {:ok, %{bundle: bundle}} -> {:ok, Repo.preload(bundle, preload)}
-      {:error, _operation, changeset, _changes} -> {:error, changeset}
+      {:ok, %{bundle: bundle, artifacts: artifacts}} ->
+        shadow_write_artifacts_to_clickhouse(artifacts)
+        {:ok, Repo.preload(bundle, preload)}
+
+      {:error, _operation, changeset, _changes} ->
+        {:error, changeset}
     end
+  end
+
+  # Mirrors the artifacts that were just persisted to PG into ClickHouse via
+  # the bufferable schema. PG remains the source of truth for reads until the
+  # backfill completes and reads are cut over (see the PG → CH artifacts
+  # migration in `priv/ingest_repo/migrations/`).
+  #
+  # Failures must never propagate: bundle creation has already committed in
+  # PG, and a transient CH outage would otherwise surface as a 5xx to the CLI
+  # for a write that actually succeeded. The backfill migration is
+  # idempotent (ReplacingMergeTree on `(bundle_id, id)`), so any rows lost
+  # here are picked up on the next deploy's backfill re-run.
+  defp shadow_write_artifacts_to_clickhouse([]), do: :ok
+
+  defp shadow_write_artifacts_to_clickhouse(artifacts) do
+    rows = Enum.map(artifacts, &ArtifactIngest.from_pg/1)
+    ArtifactIngest.Buffer.insert_all(rows)
+    :ok
+  rescue
+    e ->
+      Logger.error(
+        "Failed to shadow-write artifacts to ClickHouse: #{Exception.message(e)}\n" <>
+          Exception.format_stacktrace(__STACKTRACE__)
+      )
+
+      :ok
   end
 
   defp insert_artifacts_in_batches(repo, artifacts, bundle_id) do

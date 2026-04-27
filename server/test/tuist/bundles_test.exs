@@ -2,7 +2,11 @@ defmodule Tuist.BundlesTest do
   use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
+  import Ecto.Query
+
   alias Tuist.Bundles
+  alias Tuist.Bundles.ArtifactIngest
+  alias Tuist.ClickHouseRepo
   alias TuistTestSupport.Fixtures.BundlesFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
@@ -33,6 +37,97 @@ defmodule Tuist.BundlesTest do
           git_branch: "main",
           type: :app,
           project_id: project_id
+        })
+
+      # Then
+      assert bundle.id == id
+    end
+
+    test "shadow-writes the bundle's artifacts to ClickHouse" do
+      # Given
+      project_id = ProjectsFixtures.project_fixture().id
+      id = UUIDv7.generate()
+
+      # When
+      {:ok, _bundle} =
+        with_flushed_ingestion_buffers(fn ->
+          Bundles.create_bundle(%{
+            id: id,
+            name: "App",
+            app_bundle_id: "dev.tuist.app",
+            install_size: 1024,
+            download_size: 1024,
+            supported_platforms: [:ios],
+            version: "1.0.0",
+            git_branch: "main",
+            type: :app,
+            project_id: project_id,
+            artifacts: [
+              %{
+                artifact_type: :directory,
+                path: "App.app",
+                shasum: "aaa",
+                size: 4_000_000_000,
+                children: [
+                  %{
+                    artifact_type: :file,
+                    path: "App.app/Info.plist",
+                    shasum: "bbb",
+                    size: 1024
+                  }
+                ]
+              }
+            ]
+          })
+        end)
+
+      # Then
+      ch_artifacts =
+        ClickHouseRepo.all(
+          from a in ArtifactIngest,
+            where: a.bundle_id == type(^id, Ecto.UUID),
+            order_by: [asc: a.path]
+        )
+
+      assert Enum.map(ch_artifacts, & &1.path) == ["App.app", "App.app/Info.plist"]
+      assert Enum.map(ch_artifacts, & &1.size) == [4_000_000_000, 1024]
+      assert Enum.map(ch_artifacts, & &1.artifact_type) == ["directory", "file"]
+      assert Enum.all?(ch_artifacts, &(&1.bundle_id == id))
+      [parent, child] = ch_artifacts
+      assert parent.artifact_id == nil
+      assert child.artifact_id == parent.id
+    end
+
+    test "does not fail bundle creation when ClickHouse is unavailable" do
+      # Given
+      project_id = ProjectsFixtures.project_fixture().id
+      id = UUIDv7.generate()
+
+      stub(Tuist.IngestRepo, :insert_all, fn _, _ ->
+        raise DBConnection.ConnectionError, "ClickHouse is down"
+      end)
+
+      # When
+      {:ok, bundle} =
+        Bundles.create_bundle(%{
+          id: id,
+          name: "App",
+          app_bundle_id: "dev.tuist.app",
+          install_size: 1024,
+          download_size: 1024,
+          supported_platforms: [:ios],
+          version: "1.0.0",
+          git_branch: "main",
+          type: :app,
+          project_id: project_id,
+          artifacts: [
+            %{
+              artifact_type: :file,
+              path: "App.app/Info.plist",
+              shasum: "bbb",
+              size: 1024
+            }
+          ]
         })
 
       # Then
