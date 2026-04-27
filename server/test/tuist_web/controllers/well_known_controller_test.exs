@@ -4,6 +4,7 @@ defmodule TuistWeb.WellKnownControllerTest do
 
   alias Tuist.Environment
   alias Tuist.Namespace.JWTToken
+  alias TuistWeb.AgentSkillsDiscovery
 
   describe "GET /.well-known/api-catalog" do
     test "returns a linkset API catalog", %{conn: conn} do
@@ -51,6 +52,14 @@ defmodule TuistWeb.WellKnownControllerTest do
       assert get_resp_header(conn, "link") == [
                ~s(</.well-known/api-catalog>; rel="api-catalog"; type="application/linkset+json"; profile="https://www.rfc-editor.org/info/rfc9727")
              ]
+    end
+  end
+
+  describe "GET /.well-known/agent-skills/index.json" do
+    test "returns the agent skills discovery index", %{conn: conn} do
+      conn = get(conn, "/.well-known/agent-skills/index.json")
+
+      assert json_response(conn, 200) == AgentSkillsDiscovery.index()
     end
   end
 

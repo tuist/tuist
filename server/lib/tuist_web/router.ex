@@ -388,6 +388,7 @@ defmodule TuistWeb.Router do
     pipe_through [:open_api]
 
     get "/api-catalog", WellKnownController, :api_catalog, metadata: %{robots_txt: false}
+    get "/agent-skills/index.json", WellKnownController, :agent_skills_index, metadata: %{robots_txt: false}
   end
 
   scope "/.well-known", TuistWeb do
