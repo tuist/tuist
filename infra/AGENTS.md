@@ -11,10 +11,10 @@ Umbrella chart for the server, cache, processor, and optional embedded infrastru
 
 When editing this chart, anything gated behind `managedSecrets` must stay gated so self-hosters aren't forced into the ESO dependency.
 
-### `helm/alloy/` — in-cluster Grafana Alloy (managed only)
-Ships telemetry (metrics / traces / logs) from the managed workload clusters to Grafana Cloud. Self-hosters get embedded Grafana / Prometheus / Loki / Tempo via the main chart's `observability.enabled` block instead; they never touch this chart.
+### `helm/k8s-monitoring/` — in-cluster Grafana Kubernetes Monitoring (managed only)
+Wraps the upstream `grafana/k8s-monitoring` chart and adds the 1Password-via-ESO token sync. Ships the full Kubernetes telemetry picture (cluster / pod / node metrics + events + pod logs + OTLP receiver for server traces) to Grafana Cloud, so the Grafana Cloud Kubernetes app lights up without dashboard imports. Self-hosters get embedded Grafana / Prometheus / Loki / Tempo via the main chart's `observability.enabled` block instead; they never touch this chart.
 
-README: [`helm/alloy/README.md`](helm/alloy/README.md).
+README: [`helm/k8s-monitoring/README.md`](helm/k8s-monitoring/README.md).
 
 ### `helm/platform/` — platform bootstrap chart
 cert-manager + ingress-nginx + external-dns + ESO controllers, installed once per workload cluster. Provider-specific LB annotations live in per-provider overlays (e.g., `values-hetzner.yaml`).
@@ -30,6 +30,17 @@ Cluster API CRs and cluster-scoped manifests that stand up our managed Kubernete
 ### `registry-router/` — Cloudflare Worker for `registry.tuist.dev`
 Geo-routes cache registry requests to the nearest healthy cache origin based on the requester's continent. Unrelated to the Kubernetes migration.
 
+### `grafana-dashboards/` — Grafana Cloud dashboards (managed only)
+Dashboard definitions synced with Grafana Cloud via [Git Sync](https://grafana.com/docs/grafana-cloud/as-code/observability-as-code/git-sync/). The `Tuist Dashboards` folder in Grafana Cloud is bound to this directory; changes propagate in both directions.
+
+Each file is a `dashboard.grafana.app/v1` resource. The raw dashboard JSON lives under `spec`; the wrapper (`apiVersion`, `kind`, `metadata.name`) is what Grafana Git Sync expects. `metadata.name` must match the dashboard UID.
+
+**Editing workflow:**
+- Prefer editing dashboards in the Grafana UI. On save, Grafana opens a pull request against `tuist/tuist` with the updated file. Direct commits to `main` from Grafana are disabled, so every UI save goes through PR review.
+- Editing files directly in the repo is also supported: after merge, Grafana pulls on its sync interval (60s) or via webhook.
+- **Adding a new dashboard:** create it in the `Tuist Dashboards` folder in Grafana Cloud (or move an existing unmanaged dashboard into it). The save dialog opens a PR with the wrapped file; merging it provisions the dashboard back.
+- **Self-host use:** self-hosters who just want to import one of these into their own Grafana should extract the `spec` first (e.g. `jq '.spec' cache-service.json > dashboard.json`), since the Grafana Import UI expects raw dashboard JSON rather than the resource wrapper.
+
 ## Deployment
 
 - **Tuist server** (managed) is deployed to our Syself Kubernetes clusters via the CI workflows:
@@ -41,5 +52,5 @@ Geo-routes cache registry requests to the nearest healthy cache origin based on 
 ## Conventions
 
 - Keep the main Tuist chart (`helm/tuist/`) provider-agnostic. Managed-cluster-specific behavior hides behind feature flags (`managedSecrets`, `externalSecrets`) that default to self-host-safe values.
-- Don't let `helm/alloy/` grow dependencies on things the self-host chart needs — the two are consumed by different users.
+- Don't let `helm/k8s-monitoring/` grow dependencies on things the self-host chart needs — the two are consumed by different users.
 - When a new managed-cluster operational step becomes reproducible, document it in `k8s/syself-onboarding.md` rather than in this AGENTS.md. This file maps the territory; the runbook walks you through it.

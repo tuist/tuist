@@ -88,7 +88,10 @@ COPY xcode_processor/config /xcode_processor/config
 # local cache on network flakes, producing "Unknown package in lockfile"
 # errors on packages that clearly exist in mix.lock. Exit non-zero if every
 # attempt fails (the naive `|| sleep && break` form was masking failures).
-RUN set -e; \
+# Cache mounts for hex/rebar stores speed up redownloads when mix.lock changes.
+RUN --mount=type=cache,id=mix-hex,target=/root/.hex \
+    --mount=type=cache,id=mix-rebar3,target=/root/.cache/rebar3 \
+    set -e; \
     attempts=0; \
     until mix deps.get --only $MIX_ENV; do \
       attempts=$((attempts + 1)); \
@@ -99,8 +102,12 @@ RUN set -e; \
       sleep 5; \
     done
 
-# Config files must be present before compiling dependencies
-COPY server/config/config.exs server/config/${MIX_ENV}.exs config/
+# Config files must be present before compiling dependencies. All three
+# managed envs (prod/can/stag) ship in the image so the runtime can
+# select one via TUIST_DEPLOY_ENV, but only ${MIX_ENV}.exs is actually
+# imported at compile time by config/config.exs.
+COPY server/config/config.exs config/
+COPY server/config/prod.exs server/config/can.exs server/config/stag.exs config/
 
 # Copy path dependency sources for compilation
 COPY processor/lib /processor/lib

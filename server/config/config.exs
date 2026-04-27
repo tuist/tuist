@@ -121,6 +121,10 @@ config :logger, :console,
     :selected_project_handle
   ]
 
+config :mime, :types, %{
+  "application/linkset+json" => ["linkset"]
+}
+
 # Money
 config :money,
   default_currency: :USD

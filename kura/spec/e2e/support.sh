@@ -54,6 +54,26 @@ wait_for_http() {
   return 1
 }
 
+wait_for_status() {
+  local url="$1"
+  local expected_status="$2"
+  local attempts="${3:-45}"
+  local sleep_seconds="${4:-2}"
+  local actual_status
+
+  for _ in $(seq 1 "$attempts"); do
+    actual_status="$(status_only "$url" 2>/dev/null || true)"
+    if [ "$actual_status" = "$expected_status" ]; then
+      printf '%s' "$actual_status"
+      return 0
+    fi
+    sleep "$sleep_seconds"
+  done
+
+  printf 'Timed out waiting for %s to return %s (last status %s)\n' "$url" "$expected_status" "${actual_status:-unknown}" >&2
+  return 1
+}
+
 wait_for_contains() {
   local url="$1"
   local needle="$2"

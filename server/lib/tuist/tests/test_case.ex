@@ -21,8 +21,8 @@ defmodule Tuist.Tests.TestCase do
       :state,
       :last_ran_at
     ],
-    sortable: [:name, :last_duration, :avg_duration, :last_ran_at],
-    default_order: %{order_by: [:last_ran_at], order_directions: [:desc]}
+    sortable: [:name, :last_duration, :avg_duration, :last_ran_at, :id],
+    default_order: %{order_by: [:last_ran_at, :id], order_directions: [:desc, :asc]}
   }
 
   @primary_key {:id, Ecto.UUID, autogenerate: false}

@@ -97,18 +97,20 @@ extension [XcodeGraph.CopyFileElement] {
     ///
     /// - Returns: List of clean `AbsolutePath`s
     public func cleanPackages() -> [Self.Element] {
-        compactMap {
-            var filePath = $0.path
+        compactMap { element in
+            guard var filePath = element.path else {
+                return element
+            }
             while !filePath.isRoot {
                 if filePath.parentDirectory.isPackage {
                     return nil
                 } else if filePath.isPackage {
-                    return $0
+                    return element
                 } else {
                     filePath = filePath.parentDirectory
                 }
             }
-            return $0
+            return element
         }
     }
 }

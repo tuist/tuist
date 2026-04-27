@@ -11,18 +11,24 @@
 server:
   replicaCount: 1
 
-  # Non-secret runtime config. Traces go to the in-cluster Alloy collector
-  # via OTLP gRPC; Alloy forwards them to Grafana Cloud Tempo. Logs follow
-  # a different path — the server writes to stdout and Alloy tails pod logs
-  # via the Kubernetes API — so TUIST_LOKI_URL stays unset (the in-app
-  # LokiLoggerHandler only attaches when TUIST_LOKI_INPROC=1).
+  # Non-secret runtime config. Traces go to the in-cluster Alloy receiver
+  # (deployed by infra/helm/k8s-monitoring) via OTLP gRPC; Alloy forwards
+  # them to Grafana Cloud Tempo. Logs follow a different path — the server
+  # writes to stdout and a per-node Alloy DaemonSet tails /var/log/pods —
+  # so TUIST_LOKI_URL stays unset (the in-app LokiLoggerHandler only
+  # attaches when TUIST_LOKI_INPROC=1).
   extraEnv:
+    # Selects which priv/secrets/<env>.yml.enc file the app decrypts at
+    # boot. Image is env-agnostic (built with MIX_ENV=prod); this flag
+    # plus the MASTER_KEY ESO secret pick the runtime deployment target.
+    - name: TUIST_DEPLOY_ENV
+      value: stag
     - name: TUIST_DATABASE_POOL_SIZE
       value: "15"
     - name: TUIST_PROCESSOR_URL
       value: http://processor-staging.tuist.dev:4002
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
-      value: http://alloy-tuist-alloy.observability.svc.cluster.local:4317
+      value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
 
   appUrl: https://staging.tuist.dev
 

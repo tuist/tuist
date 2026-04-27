@@ -6,7 +6,7 @@ This node covers the Tuist Server application under `server/`. Follow downlinks 
 Tuist Server is an Elixir/Phoenix web application that extends the Tuist CLI. It provides binary caching, app preview deployment, and build analytics services.
 
 **Key Technologies**
-- Backend: Elixir 1.18.3 with Phoenix 1.7.12
+- Backend: Elixir 1.19.5 with Phoenix 1.7.12
 - Databases: PostgreSQL (primary), ClickHouse (analytics; write via IngestRepo, read via ClickHouseRepo)
 - Frontend: Phoenix LiveView with JavaScript/TypeScript and esbuild
 - Package management: pnpm for JavaScript dependencies
@@ -124,3 +124,4 @@ Update `server/data-export.md` whenever you change stored customer data (schema,
 - Configuration: `server/config/AGENTS.md`
 - Migrations and seeds: `server/priv/AGENTS.md`
 - Test conventions: `server/test/AGENTS.md`
+- Grafana dashboards (Oban + others): [`infra/grafana-dashboards/`](../infra/grafana-dashboards/) (Git Sync'd with Grafana Cloud — see `infra/AGENTS.md`)

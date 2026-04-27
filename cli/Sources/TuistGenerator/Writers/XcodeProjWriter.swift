@@ -96,6 +96,9 @@ public struct XcodeProjWriter: XcodeProjWriting {
             schemesOrderHint: schemesOrderHint
         )
 
+        // Side effects run last so that anything depending on a written `.xcodeproj` — including
+        // `.xctestplan` files that reference now-stable PBX blueprint identifiers — runs against
+        // finalized state.
         try await sideEffectDescriptorExecutor.execute(sideEffects: project.sideEffectDescriptors)
     }
 

@@ -1,0 +1,28 @@
+# Overlay for the production workload cluster.
+# Install with:
+#   helm dependency update infra/helm/k8s-monitoring
+#   helm upgrade --install k8s-monitoring infra/helm/k8s-monitoring \
+#     -n observability --create-namespace \
+#     -f infra/helm/k8s-monitoring/values-production.yaml
+
+k8s-monitoring:
+  cluster:
+    name: tuist-production
+
+  destinations:
+    grafana-cloud-metrics:
+      extraLabels:
+        env: production
+    grafana-cloud-logs:
+      extraLabels:
+        env: production
+    # OTLP destinations don't take extraLabels; traces are identified by
+    # `cluster = tuist-production` (auto-set from k8s-monitoring.cluster.name)
+    # plus the `deployment.environment` resource attribute below.
+    grafana-cloud-traces:
+      processors:
+        attributes:
+          actions:
+            - action: insert
+              key: deployment.environment
+              value: production

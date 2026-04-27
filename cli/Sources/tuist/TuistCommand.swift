@@ -73,6 +73,7 @@ public struct TuistCommand: AsyncParsableCommand {
                         RunCommand.self,
                         ScaffoldCommand.self,
                         SetupCommand.self,
+                        TeardownCommand.self,
                         TestCommand.self,
                         InspectCommand.self,
                         XcodeBuildCommand.self,
@@ -327,13 +328,11 @@ public struct TuistCommand: AsyncParsableCommand {
         let takeaways = AlertController.current.takeaways()
 
         if !warningAlerts.isEmpty {
-            print("\n")
             Noora.current.warning(warningAlerts)
         }
         let logsNextStep: TerminalText = "Check out the logs at \(logFilePath.pathString)"
 
         if let errorAlert {
-            print("\n")
             var errorAlertNextSteps = errorAlert.takeaways
             if shouldOutputLogFilePath {
                 errorAlertNextSteps.append(logsNextStep)
@@ -345,7 +344,6 @@ public struct TuistCommand: AsyncParsableCommand {
             if shouldOutputLogFilePath {
                 successAlertNextSteps.append(logsNextStep)
             }
-            print("\n")
             Noora.current.success(.alert(successAlert.message, takeaways: successAlertNextSteps))
         }
     }

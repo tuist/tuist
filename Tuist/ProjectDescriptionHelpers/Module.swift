@@ -1714,6 +1714,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.xcodeMetadata.targetName),
                     .external(name: "SwiftToolsSupport"),
                     .external(name: "Command"),
+                    .external(name: "XcodeProj"),
                 ]
             case .generator:
                 [

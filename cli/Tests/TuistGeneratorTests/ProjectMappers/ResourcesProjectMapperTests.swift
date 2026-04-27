@@ -400,7 +400,7 @@ struct ResourcesProjectMapperTests {
     }
 
     @Test
-    func mapWhenStaticTargetBuildableFolderContainsOnlyXcstringsSharesThemAcrossTargets() async throws {
+    func mapWhenStaticTargetBuildableFolderContainsOnlyXcstringsAddsExplicitResourcesOnOriginalTarget() async throws {
         // Given
         let sourcesFolderPath = try AbsolutePath(validating: "/Sources")
         let resourcesFolderPath = try AbsolutePath(validating: "/Resources")
@@ -439,7 +439,8 @@ struct ResourcesProjectMapperTests {
 
         // Then
         let gotTarget = try #require(gotProject.targets.values.sorted().last)
-        #expect(gotTarget.buildableFolders == buildableFolders)
+        #expect(gotTarget.buildableFolders == [buildableFolders[0]])
+        #expect(gotTarget.resources.resources == [.file(path: xcstringsPath)])
 
         let resourcesTarget = try #require(gotProject.targets.values.sorted().first)
         #expect(resourcesTarget.product == .bundle)
@@ -447,7 +448,7 @@ struct ResourcesProjectMapperTests {
     }
 
     @Test
-    func mapWhenStaticTargetBuildableFolderContainsSourcesAndXcstringsSharesCatalogsAcrossTargets() async throws {
+    func mapWhenStaticTargetBuildableFolderContainsSourcesAndXcstringsPromotesCatalogToExplicitResource() async throws {
         // Given
         let buildableFolderPath = try AbsolutePath(validating: "/FeatureModule")
         let swiftFilePath = try AbsolutePath(validating: "/FeatureModule/FeatureView.swift")
@@ -477,7 +478,25 @@ struct ResourcesProjectMapperTests {
 
         // Then
         let gotTarget = try #require(gotProject.targets.values.sorted().last)
-        #expect(gotTarget.buildableFolders == [buildableFolder])
+        #expect(gotTarget.buildableFolders == [
+            BuildableFolder(
+                path: buildableFolderPath,
+                exceptions: BuildableFolderExceptions(
+                    exceptions: [
+                        BuildableFolderException(
+                            excluded: [xcstringsPath],
+                            compilerFlags: [:],
+                            publicHeaders: [],
+                            privateHeaders: []
+                        ),
+                    ]
+                ),
+                resolvedFiles: [
+                    BuildableFolderFile(path: swiftFilePath, compilerFlags: nil),
+                ]
+            ),
+        ])
+        #expect(gotTarget.resources.resources == [.file(path: xcstringsPath)])
 
         let resourcesTarget = try #require(gotProject.targets.values.sorted().first)
         #expect(resourcesTarget.product == .bundle)
@@ -1136,6 +1155,37 @@ struct ResourcesProjectMapperTests {
         #expect(bundleNameSetting == .string("\(project.name)_\(target.name)"))
         let targetKindSetting = gotTarget.settings?.base["PACKAGE_RESOURCE_TARGET_KIND"]
         #expect(targetKindSetting == .string("regular"))
+    }
+
+    @Test
+    func objcImplementationFileContentSanitizesTargetNameWithHyphens() {
+        // Given
+        let targetName = "YoutubePlayer-in-WKWebView"
+
+        // When
+        let got = ResourcesProjectMapper.objcImplementationFileContent(
+            targetName: targetName,
+            bundleName: "MyProject_YoutubePlayer-in-WKWebView"
+        )
+
+        // Then
+        #expect(!got.contains("YoutubePlayer-in-WKWebViewBundleFinder"))
+        #expect(got.contains("YoutubePlayerInWKWebViewBundleFinder"))
+        #expect(got.contains("YoutubePlayerInWKWebView_SWIFTPM_MODULE_BUNDLE"))
+        #expect(!got.contains("YoutubePlayer-in-WKWebView_SWIFTPM_MODULE_BUNDLE"))
+    }
+
+    @Test
+    func objcHeaderFileContentSanitizesTargetNameWithHyphens() {
+        // Given
+        let targetName = "YoutubePlayer-in-WKWebView"
+
+        // When
+        let got = ResourcesProjectMapper.objcHeaderFileContent(targetName: targetName)
+
+        // Then
+        #expect(got.contains("YoutubePlayerInWKWebView_SWIFTPM_MODULE_BUNDLE"))
+        #expect(!got.contains("YoutubePlayer-in-WKWebView_SWIFTPM_MODULE_BUNDLE"))
     }
 
     // MARK: - Helpers

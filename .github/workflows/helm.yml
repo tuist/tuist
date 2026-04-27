@@ -1,0 +1,158 @@
+name: Helm
+
+# Validate Helm charts under `infra/helm/` at the PR stage so chart bugs
+# are caught before a deploy workflow tries to apply them to a real
+# cluster. Three layers of checks, each progressively stricter:
+#
+#   1. `helm lint` — Chart.yaml well-formedness, template parse, value
+#      reference sanity.
+#   2. `helm template` — full render with the production overlay.
+#      Catches missing required values, bad Sprig pipelines, and
+#      dependency resolution failures the way the actual deploy would
+#      hit them.
+#   3. `kubeconform` — schema-validates the rendered manifests against
+#      the built-in Kubernetes API and the datreeio CRDs catalog.
+#      Catches typo'd field names and wrong apiVersion/kind combinations
+#      that `helm template` happily emits but the API server would
+#      reject.
+#
+# All charts run sequentially inside two jobs (lint, render) instead of
+# a per-chart matrix. Each per-chart pass takes seconds, so spinning up
+# a runner per chart was mostly setup overhead. Per-chart `::group::`
+# sections keep the GitHub Actions UI navigable.
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - infra/helm/**
+      - .github/workflows/helm.yml
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - infra/helm/**
+      - .github/workflows/helm.yml
+  merge_group: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: helm-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+env:
+  MISE_VERSION: "2026.4.18"
+  MISE_GITHUB_TOKEN: ${{ github.token }}
+  # Pinned in this workflow rather than `.mise.toml` to avoid pulling
+  # cluster tooling into the default dev shell. `mise use -g` activates
+  # them globally for the runner so the shims resolve.
+  HELM_VERSION: "4.1.4"
+  KUBECONFORM_VERSION: "0.7.0"
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+      - name: Install helm
+        run: mise use -g "helm@${HELM_VERSION}"
+      - name: helm lint
+        run: |
+          set -uo pipefail
+          charts=(
+            infra/helm/tuist
+            infra/helm/k8s-monitoring
+            infra/helm/platform
+          )
+          failed=()
+          for chart in "${charts[@]}"; do
+            echo "::group::$chart"
+            # `helm lint` needs subchart tarballs in charts/ to resolve
+            # references. No-op for charts without `dependencies:`.
+            if grep -q "^dependencies:" "$chart/Chart.yaml"; then
+              helm dependency update "$chart"
+            fi
+            if ! helm lint "$chart"; then
+              failed+=("$chart")
+            fi
+            echo "::endgroup::"
+          done
+          if [ ${#failed[@]} -gt 0 ]; then
+            echo "::error::helm lint failed for: ${failed[*]}"
+            exit 1
+          fi
+
+  render:
+    name: Render
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+      - name: Install helm + kubeconform
+        run: mise use -g "helm@${HELM_VERSION}" "kubeconform@${KUBECONFORM_VERSION}"
+      - name: helm template + kubeconform
+        # Each entry: name|chart|release|values (values is space-separated;
+        # the tuist umbrella layers values-managed-common.yaml under the
+        # per-env overlay, matching what server-deployment.yml does on a
+        # real cluster). Only production overlays are checked: production
+        # is the load-bearing overlay (HPA, PDB, NetworkPolicy, second
+        # deployment), and canary/staging diverge minimally from it so
+        # they would just duplicate signal.
+        run: |
+          set -uo pipefail
+          configs=(
+            "tuist (production)|infra/helm/tuist|tuist|values-managed-common.yaml values-managed-production.yaml"
+            "k8s-monitoring (production)|infra/helm/k8s-monitoring|k8s-monitoring|values-production.yaml"
+            "platform (hetzner)|infra/helm/platform|platform|values-hetzner.yaml"
+          )
+          failed=()
+          for entry in "${configs[@]}"; do
+            IFS='|' read -r name chart release values <<< "$entry"
+            echo "::group::$name"
+            if grep -q "^dependencies:" "$chart/Chart.yaml"; then
+              helm dependency update "$chart"
+            fi
+            args=()
+            for v in $values; do
+              args+=("-f" "$chart/$v")
+            done
+            if ! helm template "$release" "$chart" "${args[@]}" > rendered.yaml; then
+              failed+=("$name (template)")
+              echo "::endgroup::"
+              continue
+            fi
+            echo "Rendered $(wc -l <rendered.yaml) lines of manifests."
+            # `-strict` rejects unknown fields so typo'd keys in resource
+            # specs fail the build. Built-in resources validate against
+            # the upstream Kubernetes JSON schemas; CRDs (ExternalSecret,
+            # etc.) use the datreeio catalog. Anything still unrecognized
+            # is skipped via `-ignore-missing-schemas` rather than
+            # failing — better than vendoring schemas for every operator
+            # we run.
+            if ! kubeconform \
+              -strict \
+              -ignore-missing-schemas \
+              -summary \
+              -schema-location default \
+              -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+              rendered.yaml; then
+              failed+=("$name (kubeconform)")
+            fi
+            echo "::endgroup::"
+          done
+          if [ ${#failed[@]} -gt 0 ]; then
+            echo "::error::render/validation failed for: ${failed[*]}"
+            exit 1
+          fi

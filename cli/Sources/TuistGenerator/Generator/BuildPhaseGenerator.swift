@@ -8,17 +8,20 @@ import XcodeProj
 
 enum BuildPhaseGenerationError: FatalError, Equatable {
     case missingFileReference(AbsolutePath)
+    case missingProductReference(targetName: String)
 
     var description: String {
         switch self {
         case let .missingFileReference(path):
             return "Trying to add a file at path \(path.pathString) to a build phase that hasn't been added to the project."
+        case let .missingProductReference(targetName):
+            return "Trying to embed the product of target '\(targetName)' in a Copy Files phase, but no product reference was found. Make sure '\(targetName)' is declared as a dependency of this target."
         }
     }
 
     var type: ErrorType {
         switch self {
-        case .missingFileReference:
+        case .missingFileReference, .missingProductReference:
             return .bug
         }
     }
@@ -443,32 +446,59 @@ struct BuildPhaseGenerator: BuildPhaseGenerating {
             pbxTarget.buildPhases.append(copyFilesPhase)
 
             var buildFilesCache = Set<AbsolutePath>()
-            let files = action.files.sorted(using: KeyPathComparator(\.path))
+            var buildProductCache = Set<String>()
+
+            let files = action.files.sorted(by: { copyFileElementSortKey($0) < copyFileElementSortKey($1) })
 
             var pbxBuildFiles = [PBXBuildFile]()
             for file in files {
-                let filePath = file.path
-                guard let fileReference = fileElements.file(path: filePath) else {
-                    throw BuildPhaseGenerationError.missingFileReference(filePath)
-                }
-
-                var settings: [String: BuildFileSetting]?
-
-                // File ATTRIBUTES
-                // example: `settings = {ATTRIBUTES = (Codesign, )}`
-                if file.codeSignOnCopy {
-                    settings = ["ATTRIBUTES": ["CodeSignOnCopy"]]
-                }
-
-                if buildFilesCache.contains(filePath) == false {
-                    let pbxBuildFile = PBXBuildFile(file: fileReference, settings: settings)
-                    pbxBuildFile.applyPlatformFilters(file.condition?.platformFilters)
-                    pbxBuildFiles.append(pbxBuildFile)
-                    buildFilesCache.insert(filePath)
+                switch file {
+                case let .file(filePath, _, _), let .folderReference(filePath, _, _):
+                    guard let fileReference = fileElements.file(path: filePath) else {
+                        throw BuildPhaseGenerationError.missingFileReference(filePath)
+                    }
+                    if buildFilesCache.contains(filePath) == false {
+                        var settings: [String: BuildFileSetting]?
+                        if file.codeSignOnCopy {
+                            settings = ["ATTRIBUTES": ["CodeSignOnCopy"]]
+                        }
+                        let pbxBuildFile = PBXBuildFile(file: fileReference, settings: settings)
+                        pbxBuildFile.applyPlatformFilters(file.condition?.platformFilters)
+                        pbxBuildFiles.append(pbxBuildFile)
+                        buildFilesCache.insert(filePath)
+                    }
+                case let .buildProduct(name, _, _):
+                    guard let productReference = fileElements.product(target: name) else {
+                        throw BuildPhaseGenerationError.missingProductReference(targetName: name)
+                    }
+                    if !buildProductCache.contains(name) {
+                        var settings: [String: BuildFileSetting]?
+                        if file.codeSignOnCopy {
+                            // `RemoveHeadersOnCopy` mirrors the attributes Xcode emits for the standard
+                            // "Embed App Extensions" / "Embed Frameworks" build phases, stripping public
+                            // headers from the embedded product so they don't ship in the bundle.
+                            settings = ["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]]
+                        }
+                        let pbxBuildFile = PBXBuildFile(file: productReference, settings: settings)
+                        pbxBuildFile.applyPlatformFilters(file.condition?.platformFilters)
+                        pbxBuildFiles.append(pbxBuildFile)
+                        buildProductCache.insert(name)
+                    }
                 }
             }
             pbxBuildFiles.forEach { pbxproj.add(object: $0) }
             copyFilesPhase.files = pbxBuildFiles
+        }
+    }
+
+    private func copyFileElementSortKey(_ element: CopyFileElement) -> String {
+        switch element {
+        case let .file(path, _, _):
+            return "0:\(path.pathString)"
+        case let .folderReference(path, _, _):
+            return "1:\(path.pathString)"
+        case let .buildProduct(name, _, _):
+            return "2:\(name)"
         }
     }
 
@@ -602,8 +632,7 @@ struct BuildPhaseGenerator: BuildPhaseGenerating {
         let currentVersionReference = fileElements.file(path: currentVersionPath)!
         modelReference.currentVersion = currentVersionReference
 
-        let pbxBuildFile = PBXBuildFile(file: modelReference)
-        return pbxBuildFile
+        return PBXBuildFile(file: modelReference)
     }
 
     private func generateResourceBundle(
@@ -615,7 +644,7 @@ struct BuildPhaseGenerator: BuildPhaseGenerating {
         let bundles = graphTraverser
             .resourceBundleDependencies(path: path, name: target.name)
             .sorted()
-        let buildFiles = bundles.compactMap { dependency -> PBXBuildFile? in
+        return bundles.compactMap { dependency -> PBXBuildFile? in
             switch dependency {
             case let .bundle(path: path, condition: condition):
                 let buildFile = PBXBuildFile(file: fileElements.file(path: path))
@@ -629,8 +658,6 @@ struct BuildPhaseGenerator: BuildPhaseGenerating {
                 return nil
             }
         }
-
-        return buildFiles
     }
 
     func generateAppExtensionsBuildPhase(

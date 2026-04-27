@@ -40,6 +40,7 @@ defmodule Tuist.Tests do
   alias Tuist.Tests.TestCaseRun
   alias Tuist.Tests.TestCaseRunArgument
   alias Tuist.Tests.TestCaseRunAttachment
+  alias Tuist.Tests.TestCaseRunByCommit
   alias Tuist.Tests.TestCaseRunByShardId
   alias Tuist.Tests.TestCaseRunByTestRun
   alias Tuist.Tests.TestCaseRunDashboardCount
@@ -60,6 +61,17 @@ defmodule Tuist.Tests do
   is still considered part of the suite.
   """
   def active_window_days, do: @active_window_days
+
+  # State-change events emitted by `update_test_case` use the `muted` /
+  # `unmuted` names. Pre-rename rows have already been backfilled to these
+  # names by `RenameLegacyQuarantineEvents`, so consumers can match on a
+  # single canonical value.
+  @mute_event_types ~w(muted unmuted)
+
+  @doc """
+  All mute-related event type names (`muted`, `unmuted`).
+  """
+  def mute_event_types, do: @mute_event_types
 
   # Keys present on the `Test` struct that are NOT columns on the `test_runs`
   # ClickHouse table (Ecto metadata + association loaders). Used to scrub the
@@ -1083,11 +1095,12 @@ defmodule Tuist.Tests do
     test_case_id_set = MapSet.new(test_case_ids)
 
     query =
-      from(tcr in TestCaseRun,
+      from(tcr in TestCaseRunByCommit,
         where: tcr.project_id == ^project_id,
         where: tcr.git_commit_sha == ^git_commit_sha,
         where: tcr.is_ci == true,
-        where: tcr.status in ["success", "failure"]
+        where: tcr.status in ["success", "failure"],
+        select: %{id: tcr.id, test_case_id: tcr.test_case_id, status: tcr.status}
       )
 
     query
@@ -1806,7 +1819,7 @@ defmodule Tuist.Tests do
       if quarantined_by_filter do
         quarantine_info_subquery =
           from(e in TestCaseEvent,
-            where: e.event_type == "quarantined",
+            where: e.event_type == "muted",
             group_by: e.test_case_id,
             select: %{
               test_case_id: e.test_case_id,
@@ -1850,7 +1863,7 @@ defmodule Tuist.Tests do
       if quarantined_by_filter do
         quarantine_info_subquery =
           from(e in TestCaseEvent,
-            where: e.event_type == "quarantined",
+            where: e.event_type == "muted",
             group_by: e.test_case_id,
             select: %{
               test_case_id: e.test_case_id,
@@ -1889,7 +1902,7 @@ defmodule Tuist.Tests do
     actor_ids =
       from(e in TestCaseEvent,
         where: e.test_case_id in subquery(quarantined_ids_subquery),
-        where: e.event_type == "quarantined",
+        where: e.event_type == "muted",
         group_by: e.test_case_id,
         having: fragment("argMax(?, ?) IS NOT NULL", e.actor_id, e.inserted_at),
         select: fragment("argMax(?, ?)", e.actor_id, e.inserted_at)
@@ -1910,7 +1923,7 @@ defmodule Tuist.Tests do
     query =
       from(e in TestCaseEvent,
         where: e.test_case_id in ^test_case_ids,
-        where: e.event_type == "quarantined",
+        where: e.event_type == "muted",
         group_by: e.test_case_id,
         select: %{
           test_case_id: e.test_case_id,
@@ -1946,17 +1959,24 @@ defmodule Tuist.Tests do
     end)
   end
 
+  # Secondary `id` keeps the sort deterministic when the primary column has
+  # ties. Without it ClickHouse is free to reshuffle tied rows between pages,
+  # which surfaces as "duplicates" across pagination because the same row can
+  # appear on two pages while another is skipped.
   defp apply_quarantined_order(query, :last_ran_at, :desc),
-    do: from([test_case: tc] in query, order_by: [desc: tc.last_ran_at])
+    do: from([test_case: tc] in query, order_by: [desc: tc.last_ran_at, asc: tc.id])
 
   defp apply_quarantined_order(query, :last_ran_at, :asc),
-    do: from([test_case: tc] in query, order_by: [asc: tc.last_ran_at])
+    do: from([test_case: tc] in query, order_by: [asc: tc.last_ran_at, asc: tc.id])
 
-  defp apply_quarantined_order(query, :name, :desc), do: from([test_case: tc] in query, order_by: [desc: tc.name])
+  defp apply_quarantined_order(query, :name, :desc),
+    do: from([test_case: tc] in query, order_by: [desc: tc.name, asc: tc.id])
 
-  defp apply_quarantined_order(query, :name, :asc), do: from([test_case: tc] in query, order_by: [asc: tc.name])
+  defp apply_quarantined_order(query, :name, :asc),
+    do: from([test_case: tc] in query, order_by: [asc: tc.name, asc: tc.id])
 
-  defp apply_quarantined_order(query, _, _), do: from([test_case: tc] in query, order_by: [desc: tc.last_ran_at])
+  defp apply_quarantined_order(query, _, _),
+    do: from([test_case: tc] in query, order_by: [desc: tc.last_ran_at, asc: tc.id])
 
   defp apply_quarantined_by_filter(query, nil), do: query
 
@@ -2000,10 +2020,17 @@ defmodule Tuist.Tests do
   defp mark_test_case_runs_as_flaky([]), do: :ok
 
   defp mark_test_case_runs_as_flaky(runs) when is_list(runs) do
+    ids = runs |> Enum.map(& &1.id) |> Enum.uniq()
+
+    # FINAL is required because `test_case_runs` is a ReplacingMergeTree:
+    # without it, a run that has already been re-inserted (e.g. previously
+    # marked flaky) can return multiple versions for the same id until the
+    # merge collapses them, and we'd re-insert every version.
+    full_runs =
+      ClickHouseRepo.all(from(tcr in TestCaseRun, hints: ["FINAL"], where: tcr.id in ^ids))
+
     updated_runs =
-      runs
-      |> Enum.uniq_by(& &1.id)
-      |> Enum.map(fn run ->
+      Enum.map(full_runs, fn run ->
         run
         |> Map.from_struct()
         |> Map.drop([

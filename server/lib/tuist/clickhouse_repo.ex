@@ -7,8 +7,5 @@ defmodule Tuist.ClickHouseRepo do
     otp_app: :tuist,
     adapter: Ecto.Adapters.ClickHouse,
     read_only: true,
-    default_dynamic_repo:
-      :tuist
-      |> Application.compile_env(__MODULE__, [])
-      |> Keyword.get(:default_dynamic_repo, __MODULE__)
+    default_dynamic_repo: Application.compile_env(:tuist, [__MODULE__, :default_dynamic_repo], __MODULE__)
 end
