@@ -89,7 +89,8 @@ defmodule Tuist.Marketing.OgImageCache do
       |> Enum.filter(&File.regular?/1)
       |> Enum.sort()
 
-    Enum.reduce(files, :crypto.hash_init(:sha256), fn file, acc ->
+    files
+    |> Enum.reduce(:crypto.hash_init(:sha256), fn file, acc ->
       acc
       |> :crypto.hash_update(file)
       |> :crypto.hash_update(file_digest(file))
