@@ -20,27 +20,24 @@ server:
   podDisruptionBudget:
     enabled: false
 
-  # LoadBalancer service with Hetzner Cloud Controller Manager annotations.
-  # Cloudflare terminates TLS at the edge and proxies to the Hetzner LB
-  # over HTTP — no cert-manager / ingress-nginx / external-dns required
-  # inside the cluster. End-to-end TLS (Ingress + cert-manager + external-
-  # dns) is a planned follow-up.
+  # ingress-nginx fronts the server on port 443 with a Cloudflare Origin
+  # CA cert (synced into the tuist-tls-cloudflare-origin Secret out-of-
+  # band; 15-year validity). Cloudflare is set to Full (strict) SSL.
   ingress:
-    enabled: false
-  service:
-    type: LoadBalancer
-    port: 80
-    targetPort: 8080
-    annotations:
-      load-balancer.hetzner.cloud/location: fsn1
-      load-balancer.hetzner.cloud/type: lb11
-      load-balancer.hetzner.cloud/name: tuist-canary
+    enabled: true
+    className: nginx
+    host: canary.tuist.dev
+    tlsSecretName: tuist-tls-cloudflare-origin
 
   # Canary is always a single pod, so no anti-affinity here.
+  # Requests are sized so a rolling deploy's surge pod (maxSurge: 1) fits
+  # alongside the existing pod on the canary nodepool's two workers — at
+  # 1 GiB each they don't both fit. Limits stay generous so the live pod
+  # has headroom under load.
   resources:
     requests:
-      cpu: "500m"
-      memory: "1Gi"
+      cpu: "250m"
+      memory: "512Mi"
     limits:
       cpu: "2000m"
       memory: "2Gi"
@@ -56,4 +53,4 @@ server:
     - name: TUIST_PROCESSOR_URL
       value: http://processor-canary.tuist.dev:4002
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
-      value: http://alloy-tuist-alloy.observability.svc.cluster.local:4317
+      value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317

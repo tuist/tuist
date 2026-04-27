@@ -26,10 +26,11 @@ public enum GroupFileElement: Hashable {
         }
     }
 
-    init(_ copyFileElement: CopyFileElement, group: ProjectGroup) {
+    init?(_ copyFileElement: CopyFileElement, group: ProjectGroup) {
         switch copyFileElement {
         case let .file(path, _, _): self = .file(path: path, group: group)
         case let .folderReference(path, _, _): self = .folder(path: path, group: group)
+        case .buildProduct: return nil
         }
     }
 
@@ -232,7 +233,7 @@ class ProjectFileElements {
 
         for copyFile in target.copyFiles {
             elements.formUnion(
-                copyFile.files.map {
+                copyFile.files.compactMap {
                     GroupFileElement(
                         $0,
                         group: target.filesGroup
@@ -442,7 +443,24 @@ class ProjectFileElements {
         }
 
         // If it matches the file that we are adding or it's not a group we can exit.
-        if (closestRelativeAbsolutePath == fileElement.path) || !(firstElement.element is PBXGroup) {
+        if closestRelativeAbsolutePath == fileElement.path {
+            return
+        }
+
+        if firstElement.element is PBXFileSystemSynchronizedRootGroup {
+            addFileElementRelativeToGroup(
+                from: sourceRootPath,
+                fileAbsolutePath: fileElement.path,
+                fileRelativePath: fileElementRelativeToSourceRoot,
+                name: fileElement.path.basename,
+                expectedSignature: expectedSignature,
+                toGroup: group,
+                pbxproj: pbxproj
+            )
+            return
+        }
+
+        if !(firstElement.element is PBXGroup) {
             return
         }
 

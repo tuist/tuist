@@ -111,6 +111,12 @@
                     resolvedResultBundlePath: resolvedResultBundlePath,
                     config: config
                 )
+            case .off:
+                AlertController.current.warning(
+                    .alert(
+                        "'tuist inspect test' cannot run with mode 'off' — 'off' skips test analysis entirely, leaving nothing for this command to do."
+                    )
+                )
             }
         }
 

@@ -96,8 +96,13 @@ final class AnalyticsArtifactUploadServiceTests: TuistTestCase {
             // `FileArchiver`. Stub compress to write an .aar file so the downstream
             // multipart pipeline has a real file to work with.
             given(appleArchiver)
-                .compress(directory: .value(resultBundle), to: .any, excludePatterns: .value([]))
-                .willProduce { _, archivePath, _ in
+                .compress(
+                    directory: .value(resultBundle),
+                    to: .any,
+                    excludePatterns: .value([]),
+                    preservesBaseDirectory: .value(true)
+                )
+                .willProduce { _, archivePath, _, _ in
                     try Data("fake-aar".utf8).write(to: archivePath.url)
                 }
         #else

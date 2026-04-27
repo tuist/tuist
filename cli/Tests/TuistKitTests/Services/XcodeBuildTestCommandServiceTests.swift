@@ -246,6 +246,61 @@ struct XcodeBuildTestCommandServiceTests {
     }
 
     @Test(.inTemporaryDirectory, .withMockedDependencies())
+    func skipsResultBundleUploadWhenInspectModeIsOff() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        // Given
+        let resultBundlePath = temporaryDirectory.appending(component: "test.xcresult")
+        try await fileSystem.makeDirectory(at: resultBundlePath)
+        let arguments = ["test", "-scheme", "MyAppTests", "-resultBundlePath", resultBundlePath.pathString]
+        let derivedDataPath = temporaryDirectory.appending(component: "DerivedData")
+        let activityLogPath = derivedDataPath.appending(components: "Logs", "Build", "activity.xcactivitylog")
+        let activityLogFile: XCActivityLogFile = .test(path: activityLogPath)
+
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(fullHandle: "tuist/tuist", url: URL(string: "https://tuist.dev")!))
+
+        given(xcodeBuildArgumentParser)
+            .parse(.any)
+            .willReturn(.test(derivedDataPath: derivedDataPath))
+
+        given(xcActivityLogController)
+            .mostRecentActivityLogFile(projectDerivedDataDirectory: .value(derivedDataPath), filter: .any)
+            .willReturn(activityLogFile)
+
+        given(xcodeBuildController)
+            .run(arguments: .any)
+            .willReturn()
+
+        // When
+        try await subject.run(
+            passthroughXcodebuildArguments: arguments,
+            mode: .off
+        )
+
+        // Then
+        verify(uploadResultBundleService)
+            .uploadResultBundle(
+                resultBundlePath: .any,
+                config: .any,
+                quarantinedTests: .any,
+                buildRunId: .any,
+                shardPlanId: .any,
+                shardIndex: .any
+            )
+            .called(0)
+        verify(uploadResultBundleService)
+            .uploadTestSummary(
+                testSummary: .any,
+                projectDerivedDataDirectory: .any,
+                config: .any,
+                shardPlanId: .any,
+                shardIndex: .any
+            )
+            .called(0)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedDependencies())
     func passesShardArchivePathToShardService() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let shardArchivePath = temporaryDirectory.appending(component: "bundle.aar")

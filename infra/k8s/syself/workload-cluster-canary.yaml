@@ -1,8 +1,10 @@
 # Canary workload Cluster for Tuist on Syself Apalla (Hetzner).
 #
-# Shape: 3 × cpx22 cloud control plane + 2 × cpx22 workers in fsn1.
+# Shape: 3 × cpx22 cloud control plane + 2 × cpx31 workers in fsn1.
 # Mirrors staging — canary doesn't serve real traffic, it's a pre-prod
-# gate. ~€45/mo.
+# gate. ~€65/mo. Workers are cpx31 (8 GB) rather than cpx22 (4 GB) so
+# the grafana/k8s-monitoring DaemonSets fit alongside the Phoenix server
+# during rolling updates.
 #
 # All three managed clusters share a single Hetzner Cloud project because
 # Syself's ClusterClass hard-codes the `hetzner` Secret name and they all
@@ -41,7 +43,7 @@ spec:
       - name: controlPlaneMachineArchHcloud
         value: amd64
       - name: workerMachineTypeHcloud
-        value: cpx22
+        value: cpx31
       - name: SSHKeyNameHcloud
         value:
           - name: tuist-syself
