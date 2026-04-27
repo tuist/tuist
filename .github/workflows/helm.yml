@@ -1,9 +1,8 @@
 name: Helm
 
-# Validate Helm charts under `infra/helm/` and `kura/ops/helm/` at the PR
-# stage so chart bugs are caught before a deploy workflow tries to apply
-# them to a real cluster. Three layers of checks, each progressively
-# stricter:
+# Validate Helm charts under `infra/helm/` at the PR stage so chart bugs
+# are caught before a deploy workflow tries to apply them to a real
+# cluster. Three layers of checks, each progressively stricter:
 #
 #   1. `helm lint` — Chart.yaml well-formedness, template parse, value
 #      reference sanity.
@@ -21,13 +20,11 @@ on:
       - main
     paths:
       - infra/helm/**
-      - kura/ops/helm/**
       - .github/workflows/helm.yml
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - infra/helm/**
-      - kura/ops/helm/**
       - .github/workflows/helm.yml
   merge_group: {}
 
@@ -55,7 +52,6 @@ jobs:
           - infra/helm/tuist
           - infra/helm/k8s-monitoring
           - infra/helm/platform
-          - kura/ops/helm/kura
     steps:
       - uses: actions/checkout@v4
       - uses: jdx/mise-action@v4.0.1
@@ -87,11 +83,11 @@ jobs:
       matrix:
         include:
           # Tuist umbrella: every deploy passes values-managed-common.yaml
-          # plus the per-env overlay, so render the same way here.
-          - name: tuist (staging)
-            chart: infra/helm/tuist
-            release: tuist
-            values: values-managed-common.yaml values-managed-staging.yaml
+          # plus the per-env overlay, so render the same way here. Only
+          # canary and production are checked: production is the
+          # load-bearing overlay (HPA, PDB, NetworkPolicy, second
+          # deployment) and canary is the rollout gate. Staging diverges
+          # minimally from canary and would just duplicate signal.
           - name: tuist (canary)
             chart: infra/helm/tuist
             release: tuist
@@ -100,10 +96,6 @@ jobs:
             chart: infra/helm/tuist
             release: tuist
             values: values-managed-common.yaml values-managed-production.yaml
-          - name: k8s-monitoring (staging)
-            chart: infra/helm/k8s-monitoring
-            release: k8s-monitoring
-            values: values-staging.yaml
           - name: k8s-monitoring (canary)
             chart: infra/helm/k8s-monitoring
             release: k8s-monitoring
@@ -116,10 +108,6 @@ jobs:
             chart: infra/helm/platform
             release: platform
             values: values-hetzner.yaml
-          - name: kura (scaleway)
-            chart: kura/ops/helm/kura
-            release: kura
-            values: values-scaleway.yaml
     steps:
       - uses: actions/checkout@v4
       - uses: jdx/mise-action@v4.0.1
