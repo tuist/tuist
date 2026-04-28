@@ -271,7 +271,11 @@ jobs:
 
   cli-acceptance-tests:
     name: Acceptance Tests
-    runs-on: namespace-profile-default-macos-with-volume
+    # GitHub-hosted macos-latest: real Apple Silicon, supports nested virt
+    # (lima/colima/qemu actually start a Linux VM). Namespace's macOS profiles
+    # either panic in lima 2.0.3's qemu driver (`default-macos`) or sit queued
+    # for hours without allocating (`-with-volume`).
+    runs-on: macos-latest
     timeout-minutes: 60
     needs: cli-acceptance-tests-build
     if: toJSON(fromJSON(needs.cli-acceptance-tests-build.outputs.matrix).shard) != '[]'
@@ -299,7 +303,10 @@ jobs:
         run: bash mise/tasks/cli/ee.sh
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
-      - uses: namespacelabs/nscloud-cache-action@v1
+      # nscloud-cache-action requires a Namespace cache volume; skip on
+      # GitHub-hosted runners where mise just downloads fresh.
+      - if: startsWith(runner.name, 'namespace-')
+        uses: namespacelabs/nscloud-cache-action@v1
         with:
           cache: mise
       - uses: actions/cache/restore@v4
