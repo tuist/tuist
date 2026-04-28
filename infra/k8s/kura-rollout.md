@@ -187,11 +187,11 @@ side.
 
 1. Create
    [`kura/ops/helm/kura/values-managed-account-<account>.yaml`](../../kura/ops/helm/kura/)
-   (`config.tenantId`, resource sizing).
-2. Add `<account>` to the `account` choice list in
-   [`.github/workflows/kura-deployment.yml`](../../.github/workflows/kura-deployment.yml).
-3. Run the deploy workflow.
-4. Enable the `:kura` flag and insert the row, as in steps 4–5 above.
+   (`config.tenantId`, resource sizing). The workflow's `account` input
+   is free-form — the existence of this overlay file is the gate, so no
+   workflow edit is needed.
+2. Run the deploy workflow with the account handle as the `account` input.
+3. Enable the `:kura` flag and insert the row, as in steps 4–5 above.
 
 ## Rollback
 
