@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
+* re-add config-driven network proxy opt-out by [@pepicrft](https://github.com/pepicrft) in [#10513](https://github.com/tuist/tuist/pull/10513)
 * add "Skip" quarantine mode for test cases by [@fortmarek](https://github.com/fortmarek) in [#10429](https://github.com/tuist/tuist/pull/10429)
 
 
