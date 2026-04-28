@@ -252,6 +252,22 @@
               }
             />
           </:col>
+          <:col :let={test_case} label={dgettext("dashboard_tests", "Mode")}>
+            <.badge
+              :if={test_case.state == "muted"}
+              label={dgettext("dashboard_tests", "Muted")}
+              color="attention"
+              style="light-fill"
+              size="large"
+            />
+            <.badge
+              :if={test_case.state == "skipped"}
+              label={dgettext("dashboard_tests", "Skipped")}
+              color="destructive"
+              style="light-fill"
+              size="large"
+            />
+          </:col>
           <:col :let={test_case} label={dgettext("dashboard_tests", "Quarantined by")}>
             <%= if is_nil(test_case.quarantined_by_account_id) do %>
               <.badge

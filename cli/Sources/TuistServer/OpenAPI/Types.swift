@@ -4686,7 +4686,7 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/TestCase/is_flaky`.
             public var is_flaky: Swift.Bool
-            /// Whether the test case is quarantined. Deprecated: use `state` instead.
+            /// Whether the test case is quarantined (either `muted` or `skipped`). Deprecated: use `state` instead.
             ///
             /// - Remark: Generated from `#/components/schemas/TestCase/is_quarantined`.
             @available(*, deprecated)
@@ -4728,17 +4728,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/TestCase/name`.
             public var name: Swift.String
-            /// Lifecycle state of the test case. `enabled` means it runs as part of the suite and contributes to pass/fail counts. `muted` (what used to be called "quarantined") means it still runs so we keep collecting flakiness signal, but failures no longer fail the build.
+            /// Lifecycle state of the test case. Currently one of `enabled`, `muted`, or `skipped`; the field is left as an open string so adding new states in the future doesn't break clients pinned to the older spec. `enabled` means it runs as part of the suite and contributes to pass/fail counts. `muted` (mute-mode quarantine) means it still runs so we keep collecting flakiness signal, but failures no longer fail the build. `skipped` (skip-mode quarantine) means it is excluded from execution entirely.
             ///
             /// - Remark: Generated from `#/components/schemas/TestCase/state`.
-            @frozen public enum statePayload: String, Codable, Hashable, Sendable, CaseIterable {
-                case enabled = "enabled"
-                case muted = "muted"
-            }
-            /// Lifecycle state of the test case. `enabled` means it runs as part of the suite and contributes to pass/fail counts. `muted` (what used to be called "quarantined") means it still runs so we keep collecting flakiness signal, but failures no longer fail the build.
-            ///
-            /// - Remark: Generated from `#/components/schemas/TestCase/state`.
-            public var state: Components.Schemas.TestCase.statePayload
+            public var state: Swift.String
             /// The test suite containing the test case (optional)
             ///
             /// - Remark: Generated from `#/components/schemas/TestCase/suite`.
@@ -4782,10 +4775,10 @@ public enum Components {
             ///   - avg_duration: Average duration of recent runs in milliseconds
             ///   - id: ID of the test case
             ///   - is_flaky: Whether the test case is marked as flaky
-            ///   - is_quarantined: Whether the test case is quarantined. Deprecated: use `state` instead.
+            ///   - is_quarantined: Whether the test case is quarantined (either `muted` or `skipped`). Deprecated: use `state` instead.
             ///   - module: The module containing the test case
             ///   - name: Name of the test case
-            ///   - state: Lifecycle state of the test case. `enabled` means it runs as part of the suite and contributes to pass/fail counts. `muted` (what used to be called "quarantined") means it still runs so we keep collecting flakiness signal, but failures no longer fail the build.
+            ///   - state: Lifecycle state of the test case. Currently one of `enabled`, `muted`, or `skipped`; the field is left as an open string so adding new states in the future doesn't break clients pinned to the older spec. `enabled` means it runs as part of the suite and contributes to pass/fail counts. `muted` (mute-mode quarantine) means it still runs so we keep collecting flakiness signal, but failures no longer fail the build. `skipped` (skip-mode quarantine) means it is excluded from execution entirely.
             ///   - suite: The test suite containing the test case (optional)
             ///   - url: URL to the test case detail page
             public init(
@@ -4795,7 +4788,7 @@ public enum Components {
                 is_quarantined: Swift.Bool,
                 module: Components.Schemas.TestCase.modulePayload,
                 name: Swift.String,
-                state: Components.Schemas.TestCase.statePayload,
+                state: Swift.String,
                 suite: Components.Schemas.TestCase.suitePayload? = nil,
                 url: Swift.String
             ) {
@@ -7455,6 +7448,7 @@ public enum Components {
         @frozen public enum TestCasesIndexState: String, Codable, Hashable, Sendable, CaseIterable {
             case enabled = "enabled"
             case muted = "muted"
+            case skipped = "skipped"
         }
         /// The URL to upload an artifact.
         ///
@@ -15645,10 +15639,12 @@ public enum Operations {
                                 case first_run = "first_run"
                                 case marked_flaky = "marked_flaky"
                                 case unmarked_flaky = "unmarked_flaky"
-                                case muted = "muted"
-                                case unmuted = "unmuted"
                                 case quarantined = "quarantined"
                                 case unquarantined = "unquarantined"
+                                case muted = "muted"
+                                case unmuted = "unmuted"
+                                case skipped = "skipped"
+                                case unskipped = "unskipped"
                             }
                             /// The type of event.
                             ///
@@ -34168,6 +34164,7 @@ public enum Operations {
                 @frozen public enum statePayload: String, Codable, Hashable, Sendable, CaseIterable {
                     case enabled = "enabled"
                     case muted = "muted"
+                    case skipped = "skipped"
                 }
                 /// Filter by test case state.
                 ///
@@ -36242,7 +36239,7 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/GET/responses/200/content/json/is_flaky`.
                         public var is_flaky: Swift.Bool
-                        /// Whether the test case is quarantined. Deprecated: use `state` instead.
+                        /// Whether the test case is quarantined (either `muted` or `skipped`). Deprecated: use `state` instead.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/GET/responses/200/content/json/is_quarantined`.
                         @available(*, deprecated)
@@ -36304,17 +36301,10 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/GET/responses/200/content/json/reliability_rate`.
                         public var reliability_rate: Swift.Double?
-                        /// The state of the test case.
+                        /// The state of the test case. Currently one of `enabled`, `muted`, or `skipped`; the field is left as an open string so adding new states in the future doesn't break clients pinned to the older spec.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/GET/responses/200/content/json/state`.
-                        @frozen public enum statePayload: String, Codable, Hashable, Sendable, CaseIterable {
-                            case enabled = "enabled"
-                            case muted = "muted"
-                        }
-                        /// The state of the test case.
-                        ///
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/GET/responses/200/content/json/state`.
-                        public var state: Operations.getTestCase.Output.Ok.Body.jsonPayload.statePayload
+                        public var state: Swift.String
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/GET/responses/200/content/json/suite`.
                         public struct suitePayload: Codable, Hashable, Sendable {
                             /// ID of the suite.
@@ -36360,14 +36350,14 @@ public enum Operations {
                         ///   - flakiness_rate: Flakiness rate percentage (0-100) over last 30 days.
                         ///   - id: The test case ID.
                         ///   - is_flaky: Whether the test case is marked as flaky.
-                        ///   - is_quarantined: Whether the test case is quarantined. Deprecated: use `state` instead.
+                        ///   - is_quarantined: Whether the test case is quarantined (either `muted` or `skipped`). Deprecated: use `state` instead.
                         ///   - last_duration: Duration of the last run in milliseconds.
                         ///   - last_ran_at: Unix timestamp of when the test case last ran.
                         ///   - last_status: Status of the last run.
                         ///   - module:
                         ///   - name: Name of the test case.
                         ///   - reliability_rate: Success rate percentage (0-100).
-                        ///   - state: The state of the test case.
+                        ///   - state: The state of the test case. Currently one of `enabled`, `muted`, or `skipped`; the field is left as an open string so adding new states in the future doesn't break clients pinned to the older spec.
                         ///   - suite:
                         ///   - total_runs: Total number of runs.
                         ///   - url: URL to view the test case in the dashboard.
@@ -36384,7 +36374,7 @@ public enum Operations {
                             module: Operations.getTestCase.Output.Ok.Body.jsonPayload.modulePayload,
                             name: Swift.String,
                             reliability_rate: Swift.Double? = nil,
-                            state: Operations.getTestCase.Output.Ok.Body.jsonPayload.statePayload,
+                            state: Swift.String,
                             suite: Operations.getTestCase.Output.Ok.Body.jsonPayload.suitePayload? = nil,
                             total_runs: Swift.Int,
                             url: Swift.String

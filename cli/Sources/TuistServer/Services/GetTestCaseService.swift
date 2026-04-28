@@ -150,7 +150,7 @@ public struct GetTestCaseService: GetTestCaseServicing {
             module: Operations.getTestCase.Output.Ok.Body.jsonPayload.modulePayload = .test(),
             name: String = "testExample",
             reliabilityRate: Double? = 95.0,
-            state: Operations.getTestCase.Output.Ok.Body.jsonPayload.statePayload = .enabled,
+            state: String = "enabled",
             suite: Operations.getTestCase.Output.Ok.Body.jsonPayload.suitePayload? = nil,
             totalRuns: Int = 50,
             url: String = "https://tuist.dev/test-case"

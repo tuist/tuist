@@ -69,10 +69,11 @@ defmodule TuistWeb.TestCasesLive do
         field: :test_case_trait,
         display_name: dgettext("dashboard_tests", "Test case"),
         type: :option,
-        options: [:flaky, :quarantined],
+        options: [:flaky, :muted, :skipped],
         options_display_names: %{
           flaky: dgettext("dashboard_tests", "Flaky"),
-          quarantined: dgettext("dashboard_tests", "Quarantined")
+          muted: dgettext("dashboard_tests", "Muted"),
+          skipped: dgettext("dashboard_tests", "Skipped")
         },
         operator: :==,
         value: nil
@@ -469,8 +470,12 @@ defmodule TuistWeb.TestCasesLive do
     %{filter | field: :is_flaky, value: true}
   end
 
-  defp convert_trait_filter(%{field: :test_case_trait, value: :quarantined} = filter) do
+  defp convert_trait_filter(%{field: :test_case_trait, value: :muted} = filter) do
     %{filter | field: :state, value: "muted"}
+  end
+
+  defp convert_trait_filter(%{field: :test_case_trait, value: :skipped} = filter) do
+    %{filter | field: :state, value: "skipped"}
   end
 
   defp convert_trait_filter(filter), do: filter

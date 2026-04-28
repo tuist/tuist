@@ -5,9 +5,13 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
+* update xcactivitylog_nif package path after processor consolidation by [@fortmarek](https://github.com/fortmarek) in [#10507](https://github.com/tuist/tuist/pull/10507)
 * honor #if guards in inspect dependencies --only implicit by [@fortmarek](https://github.com/fortmarek) in [#10474](https://github.com/tuist/tuist/pull/10474)
 * restore [Path] overload of TestAction.testPlans as deprecated by [@fortmarek](https://github.com/fortmarek) in [#10488](https://github.com/tuist/tuist/pull/10488)
 * sanitize target name in generated Obj-C bundle accessor identifiers by [@pepicrft](https://github.com/pepicrft) in [#10482](https://github.com/tuist/tuist/pull/10482)
+### ⚡ Performance
+
+* lower URLSession resource timeout from 300s to 90s by [@fortmarek](https://github.com/fortmarek) in [#10503](https://github.com/tuist/tuist/pull/10503)
 
 
 

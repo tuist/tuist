@@ -95,7 +95,7 @@ struct TestCaseShowCommandService: TestCaseShowCommandServicing {
         }
 
         info.append("Flaky: \(testCase.is_flaky ? "Yes" : "No")")
-        info.append("Quarantined: \(testCase.is_quarantined ? "Yes" : "No")")
+        info.append("State: \(testCase.state)")
 
         info.append("")
         info.append("Metrics".bold())
