@@ -56,22 +56,34 @@ echo "==> License source: ${LICENSE_MODE}"
 # k8s tooling — installed via mise (platform-agnostic, no VM dependencies).
 mise install kind@latest helm@latest kubectl@latest >/dev/null
 
-# macOS VM stack — installed via brew (the only place qemu's available, and
-# brew ships colima/lima/qemu as a tested-together combination). Locally we
-# assume the dev already has Docker reachable; only run the install + colima
-# start in CI / when the daemon isn't already up.
+# macOS VM stack. Brew ships colima + qemu, but lima needs to be pinned to v1.x:
+# lima v2.0.3 / v2.1.1 (whatever brew currently has) consistently panic with
+# `panic: send on closed channel` in pkg/driver/qemu/qemu_driver.go:382 the
+# moment the qemu hostagent waits on the SSH requirement. v1 doesn't have the
+# v2 rewrite of that driver and works.
 if [[ "$(uname -s)" == "Darwin" ]] && ! docker info >/dev/null 2>&1; then
-  for pkg in docker docker-compose colima lima qemu; do
+  for pkg in docker docker-compose colima qemu; do
     if ! brew list --formula "$pkg" >/dev/null 2>&1; then
       brew install "$pkg"
     fi
   done
 
+  if ! command -v limactl >/dev/null 2>&1 || ! limactl --version | grep -q "limactl version 1\."; then
+    echo "==> Installing pinned lima v1.2.1 (avoids the v2 qemu_driver panic)…"
+    LIMA_VERSION="1.2.1"
+    LIMA_ARCH=$(uname -m | sed 's/x86_64/x86_64/;s/arm64/arm64/')
+    curl -fsSL -o /tmp/lima.tar.gz \
+      "https://github.com/lima-vm/lima/releases/download/v${LIMA_VERSION}/lima-${LIMA_VERSION}-Darwin-${LIMA_ARCH}.tar.gz"
+    sudo mkdir -p /opt/lima
+    sudo tar -xzf /tmp/lima.tar.gz -C /opt/lima
+    rm /tmp/lima.tar.gz
+    PATH="/opt/lima/bin:$PATH"
+    export PATH
+  fi
+
   echo "==> Starting colima…"
-  # Try Apple Virtualization.framework first (this profile is Apple Silicon —
-  # M2/M4 Pro per the namespace docs — so vz is the supported path and avoids
-  # lima v2.0.3's `panic: send on closed channel` in the qemu driver). Fall
-  # back to qemu only if vz refuses to start.
+  # Try vz first, fall back to qemu. With lima v1 even the qemu fallback is
+  # safe (no panic).
   if ! colima start --vm-type vz --cpu 4 --memory 8 --disk 30; then
     echo "==> vz failed, retrying with qemu…"
     colima delete -f >/dev/null 2>&1 || true
