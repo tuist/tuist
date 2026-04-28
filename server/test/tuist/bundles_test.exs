@@ -86,7 +86,10 @@ defmodule Tuist.BundlesTest do
           ]
         })
 
-      # Then
+      # Then — read back via the read-only `ClickHouseRepo` (the counterpart
+      # of the write-centric `IngestRepo`) so the test verifies that the
+      # synchronous replication actually landed rows in ClickHouse, not just
+      # that the call returned `:ok`.
       ch_artifacts =
         ClickHouseRepo.all(
           from(a in ArtifactIngest,
