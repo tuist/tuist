@@ -66,7 +66,7 @@ defmodule TuistWeb.IntegrationsLiveTest do
     assert html =~ "Use GitHub Enterprise Server"
   end
 
-  test "reveals the URL input when the user opts into GitHub Enterprise Server", %{
+  test "reveals the URL input when the user toggles GitHub Enterprise Server on", %{
     conn: conn,
     organization: organization
   } do
@@ -76,9 +76,8 @@ defmodule TuistWeb.IntegrationsLiveTest do
 
     {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/integrations")
 
-    html = render_click(lv, "show-github-enterprise-input")
+    html = render_click(lv, "toggle-github-enterprise-input")
     assert html =~ "GitHub Enterprise Server URL"
-    assert html =~ "Use github.com instead"
   end
 
   test "switches the install button label when a GitHub Enterprise URL is entered", %{
@@ -91,7 +90,7 @@ defmodule TuistWeb.IntegrationsLiveTest do
 
     {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/integrations")
 
-    render_click(lv, "show-github-enterprise-input")
+    render_click(lv, "toggle-github-enterprise-input")
 
     html =
       lv
@@ -113,7 +112,7 @@ defmodule TuistWeb.IntegrationsLiveTest do
 
     {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/integrations")
 
-    render_click(lv, "show-github-enterprise-input")
+    render_click(lv, "toggle-github-enterprise-input")
 
     html =
       lv
@@ -125,7 +124,7 @@ defmodule TuistWeb.IntegrationsLiveTest do
     assert html =~ "Enter a valid GitHub URL"
   end
 
-  test "reverting to github.com hides the input and clears the URL", %{
+  test "toggling off hides the input and clears the URL", %{
     conn: conn,
     organization: organization
   } do
@@ -135,7 +134,7 @@ defmodule TuistWeb.IntegrationsLiveTest do
 
     {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/integrations")
 
-    render_click(lv, "show-github-enterprise-input")
+    render_click(lv, "toggle-github-enterprise-input")
 
     lv
     |> form("form[phx-change=update-github-client-url]", %{
@@ -143,7 +142,7 @@ defmodule TuistWeb.IntegrationsLiveTest do
     })
     |> render_change()
 
-    html = render_click(lv, "hide-github-enterprise-input")
+    html = render_click(lv, "toggle-github-enterprise-input")
 
     refute html =~ "GitHub Enterprise Server URL"
     assert html =~ "Install GitHub App"

@@ -13,6 +13,20 @@
       </span>
     </div>
     <div data-part="content">
+      <div :if={is_nil(@github_app_installation)} data-part="github-host-toggle">
+        <.toggle
+          id="github-enterprise-toggle"
+          checked={@show_github_enterprise_input}
+          phx-click="toggle-github-enterprise-input"
+          label={dgettext("dashboard_integrations", "Use GitHub Enterprise Server")}
+          description={
+            dgettext(
+              "dashboard_integrations",
+              "Install the Tuist app on a self-hosted GitHub Enterprise Server instance"
+            )
+          }
+        />
+      </div>
       <div
         :if={is_nil(@github_app_installation) and @show_github_enterprise_input}
         data-part="github-host-form"
@@ -45,18 +59,6 @@
             VCS.get_github_app_installation_url(@selected_account, client_url: @github_client_url)
           }
           disabled={not is_nil(@github_client_url_error)}
-        />
-        <.button
-          :if={is_nil(@github_app_installation) and not @show_github_enterprise_input}
-          label={dgettext("dashboard_integrations", "Use GitHub Enterprise Server")}
-          variant="secondary"
-          phx-click="show-github-enterprise-input"
-        />
-        <.button
-          :if={is_nil(@github_app_installation) and @show_github_enterprise_input}
-          label={dgettext("dashboard_integrations", "Use github.com instead")}
-          variant="secondary"
-          phx-click="hide-github-enterprise-input"
         />
         <.button
           :if={

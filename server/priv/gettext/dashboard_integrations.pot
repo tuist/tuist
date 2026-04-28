@@ -11,27 +11,27 @@
 msgid ""
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:88
+#: lib/tuist_web/live/integrations_live.html.heex:90
 #, elixir-autogen, elixir-format
 msgid "Add new project connection"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:151
+#: lib/tuist_web/live/integrations_live.html.heex:153
 #, elixir-autogen, elixir-format
 msgid "Cancel"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:103
+#: lib/tuist_web/live/integrations_live.html.heex:105
 #, elixir-autogen, elixir-format
 msgid "Choose Tuist project"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:130
+#: lib/tuist_web/live/integrations_live.html.heex:132
 #, elixir-autogen, elixir-format
 msgid "Choose a repository"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:81
+#: lib/tuist_web/live/integrations_live.html.heex:83
 #, elixir-autogen, elixir-format
 msgid "Choose repository to connect to"
 msgstr ""
@@ -41,17 +41,17 @@ msgstr ""
 msgid "Connect any of your GitHub repositories to a project"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.ex:195
+#: lib/tuist_web/live/integrations_live.ex:192
 #, elixir-autogen, elixir-format
 msgid "Connected %{time_ago}"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.ex:197
+#: lib/tuist_web/live/integrations_live.ex:194
 #, elixir-autogen, elixir-format
 msgid "Connected %{time_ago} by %{name}"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:158
+#: lib/tuist_web/live/integrations_live.html.heex:160
 #, elixir-autogen, elixir-format
 msgid "Create Connection"
 msgstr ""
@@ -61,7 +61,7 @@ msgstr ""
 msgid "GitHub"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.ex:226
+#: lib/tuist_web/live/integrations_live.ex:223
 #, elixir-autogen, elixir-format
 msgid "Install GitHub App"
 msgstr ""
@@ -72,17 +72,17 @@ msgstr ""
 msgid "Integrations"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:197
+#: lib/tuist_web/live/integrations_live.html.heex:199
 #, elixir-autogen, elixir-format
 msgid "Manage"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:65
+#: lib/tuist_web/live/integrations_live.html.heex:67
 #, elixir-autogen, elixir-format
 msgid "Manage integration"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:200
+#: lib/tuist_web/live/integrations_live.html.heex:202
 #, elixir-autogen, elixir-format
 msgid "Remove connection"
 msgstr ""
@@ -92,57 +92,57 @@ msgstr ""
 msgid "You are not authorized to perform this action."
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:76
+#: lib/tuist_web/live/integrations_live.html.heex:78
 #, elixir-autogen, elixir-format
 msgid "Your access to repositories depends on your GitHub and Tuist integration setup."
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:228
+#: lib/tuist_web/live/integrations_live.html.heex:230
 #, elixir-autogen, elixir-format
 msgid "Connect Slack"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:218
+#: lib/tuist_web/live/integrations_live.html.heex:220
 #, elixir-autogen, elixir-format
 msgid "Connect Slack to receive project analytics reports"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:235
+#: lib/tuist_web/live/integrations_live.html.heex:237
 #, elixir-autogen, elixir-format
 msgid "Disconnect from %{team_name}"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:215
+#: lib/tuist_web/live/integrations_live.html.heex:217
 #, elixir-autogen, elixir-format
 msgid "Slack"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.ex:217
+#: lib/tuist_web/live/integrations_live.ex:214
 #, elixir-autogen, elixir-format
 msgid "Enter a valid GitHub URL such as https://github.example.com"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.ex:228
+#: lib/tuist_web/live/integrations_live.ex:225
 #, elixir-autogen, elixir-format
 msgid "Install on GitHub Enterprise Server"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:26
+#: lib/tuist_web/live/integrations_live.html.heex:40
 #, elixir-autogen, elixir-format
 msgid "GitHub Enterprise Server URL"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:28
+#: lib/tuist_web/live/integrations_live.html.heex:42
 #, elixir-autogen, elixir-format
 msgid "The base URL of your self-hosted GitHub Enterprise Server"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:51
+#: lib/tuist_web/live/integrations_live.html.heex:21
 #, elixir-autogen, elixir-format
 msgid "Use GitHub Enterprise Server"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:57
+#: lib/tuist_web/live/integrations_live.html.heex:23
 #, elixir-autogen, elixir-format
-msgid "Use github.com instead"
+msgid "Install the Tuist app on a self-hosted GitHub Enterprise Server instance"
 msgstr ""
