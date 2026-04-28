@@ -5,7 +5,6 @@
 # Mirrors `mise run helm:preview-up`'s kind + helm flow but trimmed for ephemeral CI:
 #   * single-node kind cluster, no node pinning
 #   * cache + redis disabled, observability off, ingress off
-#   * license sourced inline from $TUIST_LICENSE_KEY (no ESO bootstrap)
 #   * port-forward backgrounded so the next workflow step can hit
 #     http://localhost:${TUIST_CLUSTER_HOST_PORT} without a teardown step
 #
@@ -14,10 +13,20 @@
 #   * cluster name        → tuist-acceptance-${shard}
 #   * TUIST_CLUSTER_HOST_PORT → 8080 + shard * 10
 #
-# Required env:
-#   TUIST_IMAGE_TAG        — image tag under ghcr.io/tuist/tuist (default: latest)
-#   TUIST_LICENSE_KEY      — license key for the server pod (required)
+# License source — picked by which env var is exported (matches preview-up.sh):
+#   $OP_SERVICE_ACCOUNT_TOKEN  → install External Secrets Operator + a 1Password
+#                                ClusterSecretStore in the kind cluster. The
+#                                chart's ExternalSecret pulls the license from
+#                                item TUIST_LICENSE_KEY. CI uses this path —
+#                                same shape Pedro's preview deploys use.
+#   $TUIST_LICENSE_KEY         → local fallback. Skips ESO and inlines the key.
+#                                Only for local development.
 #
+# Required env (one of):
+#   OP_SERVICE_ACCOUNT_TOKEN  — 1Password service account token (CI path)
+#   TUIST_LICENSE_KEY         — license key (local fallback)
+# Required env (always):
+#   TUIST_IMAGE_TAG           — image tag under ghcr.io/tuist/tuist (default: latest)
 # Optional env (CI uses these to log in to GHCR before pulling):
 #   GITHUB_ACTOR / GITHUB_TOKEN
 
@@ -34,13 +43,18 @@ HOST_PORT="$((8080 + SHARD * 10))"
 IMAGE_TAG="${TUIST_IMAGE_TAG:-latest}"
 IMAGE_REF="ghcr.io/tuist/tuist:${IMAGE_TAG}"
 
-if [[ -z "${TUIST_LICENSE_KEY:-}" ]]; then
-  echo "ERROR: TUIST_LICENSE_KEY must be set so the helm release can boot the server." >&2
+if [[ -n "${OP_SERVICE_ACCOUNT_TOKEN:-}" ]]; then
+  LICENSE_MODE="eso"
+elif [[ -n "${TUIST_LICENSE_KEY:-}" ]]; then
+  LICENSE_MODE="inline"
+else
+  echo "ERROR: set either OP_SERVICE_ACCOUNT_TOKEN (preferred, ESO path) or TUIST_LICENSE_KEY (local fallback)." >&2
   exit 1
 fi
+echo "==> License source: ${LICENSE_MODE}"
 
 # Tools — installed on demand so a fresh runner doesn't need a separate
-# `brew install` step. Skipped for tools the OS already provides.
+# `brew install` step.
 mise install kind@latest helm@latest kubectl@latest \
   colima@latest docker-cli@latest >/dev/null
 
@@ -68,6 +82,53 @@ fi
 echo "==> Loading ${IMAGE_REF} into the kind cluster…"
 mise x kind@latest -- kind load docker-image "$IMAGE_REF" --name "$CLUSTER_NAME"
 
+HELM_LICENSE_ARGS=()
+if [[ "$LICENSE_MODE" = "eso" ]]; then
+  echo "==> Installing External Secrets Operator…"
+  mise x helm@latest -- helm repo add external-secrets https://charts.external-secrets.io >/dev/null 2>&1 || true
+  mise x helm@latest -- helm repo update external-secrets >/dev/null
+  mise x helm@latest -- helm upgrade --install external-secrets external-secrets/external-secrets \
+    -n external-secrets --create-namespace \
+    --set installCRDs=true \
+    --wait --timeout 3m
+
+  echo "==> Configuring 1Password ClusterSecretStore…"
+  mise x kubectl@latest -- kubectl create namespace onepassword --dry-run=client -o yaml \
+    | mise x kubectl@latest -- kubectl apply -f -
+  mise x kubectl@latest -- kubectl -n onepassword delete secret onepassword-sa-token --ignore-not-found
+  mise x kubectl@latest -- kubectl -n onepassword create secret generic onepassword-sa-token \
+    --from-literal=token="$OP_SERVICE_ACCOUNT_TOKEN"
+
+  cat <<'EOF' | mise x kubectl@latest -- kubectl apply -f -
+apiVersion: external-secrets.io/v1
+kind: ClusterSecretStore
+metadata:
+  name: onepassword
+spec:
+  provider:
+    onepasswordSDK:
+      vault: tuist-k8s-preview
+      auth:
+        serviceAccountSecretRef:
+          name: onepassword-sa-token
+          namespace: onepassword
+          key: token
+EOF
+
+  echo "==> Waiting for ClusterSecretStore to go Ready…"
+  mise x kubectl@latest -- kubectl wait --for=condition=Ready clustersecretstore/onepassword --timeout=60s
+
+  # values-acceptance.yaml already sets server.externalSecrets.license.item.
+  # The ExternalSecret materialises a Secret the chart's app-secrets reads,
+  # and helm --wait blocks on the migration job which transitively waits for it.
+else
+  echo "==> Local fallback: license will be inlined (no ESO)."
+  HELM_LICENSE_ARGS=(
+    --set "server.externalSecrets.license.item="
+    --set "server.license.key=${TUIST_LICENSE_KEY}"
+  )
+fi
+
 echo "==> Installing helm release '${RELEASE_NAME}' in namespace '${NAMESPACE}'…"
 mise x kubectl@latest -- kubectl create namespace "$NAMESPACE" --dry-run=client -o yaml \
   | mise x kubectl@latest -- kubectl apply -f -
@@ -81,8 +142,8 @@ mise x helm@latest -- helm upgrade --install "$RELEASE_NAME" "$HELM_CHART_DIR" \
   --set "processor.image.repository=ghcr.io/tuist/tuist" \
   --set "processor.image.tag=${IMAGE_TAG}" \
   --set "processor.image.pullPolicy=Never" \
-  --set "server.license.key=${TUIST_LICENSE_KEY}" \
   --set "server.appUrl=http://localhost:${HOST_PORT}" \
+  "${HELM_LICENSE_ARGS[@]}" \
   --wait --timeout 5m
 
 echo "==> Seeding the test user (tuistrocks@tuist.dev)…"

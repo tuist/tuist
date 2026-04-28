@@ -345,7 +345,11 @@ jobs:
         env:
           GITHUB_ACTOR: ${{ github.actor }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TUIST_LICENSE_KEY: ${{ secrets.TUIST_LICENSE_KEY }}
+          # 1Password service account token. The mise task uses this to install ESO +
+          # a `onepassword` ClusterSecretStore in the kind cluster, which the chart's
+          # ExternalSecret then resolves to fetch `TUIST_LICENSE_KEY` from the
+          # `tuist-k8s-preview` 1P vault — same path Pedro's preview-up.sh wires.
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
         run: mise run cli:acceptance-cluster:up ${{ matrix.shard }}
       - name: Run shard ${{ matrix.shard }}
         run: tuist test --without-building --platform macOS TuistAcceptanceTests -- -retry-tests-on-failure -test-iterations 2

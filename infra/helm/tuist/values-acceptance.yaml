@@ -29,6 +29,14 @@ server:
       memory: 256Mi
     limits:
       memory: 1Gi
+  # License is synced from 1Password via ESO. The mise task
+  # `cli:acceptance-cluster:up` installs External Secrets Operator + a 1Password
+  # `onepassword` ClusterSecretStore in the kind cluster before `helm install` so
+  # this ExternalSecret can resolve. Same item Pedro's preview-up.sh uses.
+  externalSecrets:
+    license:
+      item: TUIST_LICENSE_KEY
+      field: password
 
 cache:
   enabled: false
