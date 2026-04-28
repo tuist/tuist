@@ -357,6 +357,11 @@ jobs:
           # Swift-only runner anyway. Same `MISE_TASK_RUN_AUTO_INSTALL=0` knob
           # server.yml already uses for the same reason.
           MISE_TASK_RUN_AUTO_INSTALL: "0"
+          # Override the workflow-level MISE_LOCKED=1: the cluster brings in
+          # kind/helm/kubectl/colima/docker-cli at `@latest` (so they always
+          # match what the chart expects), and those `@latest` resolutions
+          # don't have lockfile URLs to pin against.
+          MISE_LOCKED: "0"
           GITHUB_ACTOR: ${{ github.actor }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # 1Password service account token. The task uses this to install ESO +
