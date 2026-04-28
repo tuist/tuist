@@ -62,14 +62,17 @@ runs:
       run: |
         set -eu
         deadline=$(( $(date +%s) + WAIT_TIMEOUT_MIN * 60 ))
-        encoded_check=$(printf '%s' "$WAIT_CHECK" | sed 's/ /%20/g')
         echo "Waiting up to ${WAIT_TIMEOUT_MIN}m for '${WAIT_CHECK}' on ${WAIT_SHA}…"
         while true; do
-          # Filter to the named check; when there are multiple runs (re-runs) the
-          # most recent is at index 0.
+          # Filter via jq, not the API's `?check_name=` query param: query strings
+          # interpret `+` as a literal space, so a check whose name contains `+`
+          # (e.g. "Build + scan / Build") never matches when passed inline.
+          # `--paginate` walks every page so we don't miss the check on commits
+          # with >30 default check runs.
           conclusion=$(
-            gh api "/repos/${WAIT_REPO}/commits/${WAIT_SHA}/check-runs?check_name=${encoded_check}" \
-              --jq '.check_runs[0].conclusion // ""' 2>/dev/null || echo ""
+            gh api --paginate "/repos/${WAIT_REPO}/commits/${WAIT_SHA}/check-runs?per_page=100" \
+              --jq ".check_runs[] | select(.name == \"${WAIT_CHECK}\") | .conclusion // \"\"" 2>/dev/null \
+            | head -1
           )
           case "$conclusion" in
             success)
