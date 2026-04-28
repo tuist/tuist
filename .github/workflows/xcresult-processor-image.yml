@@ -97,6 +97,21 @@ jobs:
       - name: Drop cached ghcr.io credentials
         run: tart logout ghcr.io || true
 
+      # Reclaim disk before the Cirrus pull. macos-tahoe-xcode:26.4 is
+      # ~70GB on disk; the bare-metal Mac mini accumulates older Tart
+      # VMs + image layers across runs and fills up. Stop+delete any
+      # leftover xcresult VM, then prune unused image layers.
+      - name: Reclaim Tart disk
+        run: |
+          set -uo pipefail
+          tart list --format json || true
+          df -h /
+          tart stop tuist-xcresult-processor 2>/dev/null || true
+          tart delete tuist-xcresult-processor 2>/dev/null || true
+          tart prune --entries caches --older-than 0
+          tart prune --entries vms --older-than 1
+          df -h /
+
       - name: Build image
         working-directory: infra/xcresult-processor-image
         run: |
