@@ -13,6 +13,7 @@ defmodule Tuist.Processor.XCActivityLogNIF do
 
   def load_nif do
     nif_path = ~c"#{:code.priv_dir(:tuist)}/native/xcactivitylog_nif"
+    nif_so = "#{nif_path}.so"
 
     case :erlang.load_nif(nif_path, 0) do
       :ok ->
@@ -22,12 +23,22 @@ defmodule Tuist.Processor.XCActivityLogNIF do
         :ok
 
       {:error, reason} ->
-        # Log but don't raise: self-hosted images that intentionally ship
-        # without the Swift NIF would otherwise refuse to start. Calls into
-        # `parse/4` on those images crash with `:nif_not_loaded` at runtime,
-        # which is a clearer failure mode than a boot loop.
-        :logger.error("Failed to load xcactivitylog_nif: #{inspect(reason)} (looked at: #{nif_path})")
-        :ok
+        # All shipped Docker images include the NIF (the Dockerfile builds
+        # it as part of every release). If the .so file is present but the
+        # load failed, that's a real packaging/ABI bug — refuse to start so
+        # the failure is loud (CrashLoopBackOff) instead of silently
+        # 5xx-ing every parse job. If the file is missing, we're in a dev
+        # checkout where `cd server/native/xcactivitylog_nif && ./build.sh`
+        # hasn't been run; let the BEAM boot so the rest of the app stays
+        # usable, and fail at parse time with `:nif_not_loaded`.
+        message = "Failed to load xcactivitylog_nif: #{inspect(reason)} (looked at: #{nif_path})"
+
+        if File.exists?(nif_so) do
+          {:error, message}
+        else
+          :logger.warning(message <> " — file missing, skipping (dev/test only)")
+          :ok
+        end
     end
   end
 
