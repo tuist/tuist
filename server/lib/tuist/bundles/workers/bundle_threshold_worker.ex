@@ -11,7 +11,6 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorker do
   alias Tuist.Projects
   alias Tuist.Repo
   alias Tuist.Utilities.ByteFormatter
-  alias Tuist.VCS
 
   @check_name "tuist/bundle-size"
 
@@ -49,15 +48,12 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorker do
   end
 
   defp resolve_head_sha(project, bundle, fallback_sha) do
-    installation = project.vcs_connection.github_app_installation
-
     with "refs/pull/" <> rest <- bundle.git_ref,
          {pr_number, _} <- Integer.parse(rest),
          {:ok, %{"head" => %{"sha" => head_sha}}} <-
            Client.get_pull_request(%{
              repository_full_handle: project.vcs_connection.repository_full_handle,
-             installation_id: installation.installation_id,
-             api_url: VCS.installation_api_url(installation),
+             installation: project.vcs_connection.github_app_installation,
              pr_number: pr_number
            }) do
       head_sha
@@ -68,10 +64,7 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorker do
 
   defp post_check_run(
          %{
-           vcs_connection: %{
-             github_app_installation: %{installation_id: installation_id} = installation,
-             repository_full_handle: repo_handle
-           },
+           vcs_connection: %{github_app_installation: installation, repository_full_handle: repo_handle},
            account: %{name: account_name},
            name: project_name
          },
@@ -86,8 +79,7 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorker do
 
     params = %{
       repository_full_handle: repo_handle,
-      installation_id: installation_id,
-      api_url: VCS.installation_api_url(installation),
+      installation: installation,
       name: @check_name,
       head_sha: git_commit_sha,
       status: "completed",

@@ -76,8 +76,7 @@ defmodule TuistWeb.Webhooks.GitHubController do
       VCS.update_check_run(%{
         repository_full_handle: repository_full_name,
         check_run_id: check_run_id,
-        installation_id: installation_id,
-        api_url: VCS.installation_api_url(installation),
+        installation: installation,
         conclusion: "success",
         output: %{
           title: "Bundle size increase accepted",

@@ -232,8 +232,7 @@ defmodule Tuist.VCS do
         repository_full_handle: repository_full_handle,
         issue_id: issue_id,
         body: body,
-        installation_id: installation.installation_id,
-        api_url: installation_api_url(installation)
+        installation: installation
       })
     else
       false -> {:error, :not_pull_request}
@@ -261,8 +260,7 @@ defmodule Tuist.VCS do
           repository_full_handle: repository_full_handle,
           comment_id: comment_id,
           body: body,
-          installation_id: installation.installation_id,
-          api_url: installation_api_url(installation)
+          installation: installation
         })
 
       {:error, :not_found} ->
@@ -299,8 +297,6 @@ defmodule Tuist.VCS do
            }) do
       client = get_client_for_provider(:github)
       issue_id = get_issue_id_from_git_ref(git_ref)
-      installation_id = installation.installation_id
-      api_url = installation_api_url(installation)
 
       vcs_comment_body =
         get_vcs_comment_body(%{
@@ -319,8 +315,7 @@ defmodule Tuist.VCS do
           client: client,
           repository: repository_full_handle,
           issue_id: issue_id,
-          installation_id: installation_id,
-          api_url: api_url
+          installation: installation
         })
 
       update_or_create_vcs_comment(%{
@@ -329,8 +324,7 @@ defmodule Tuist.VCS do
         issue_id: issue_id,
         existing_comment: existing_comment,
         client: client,
-        installation_id: installation_id,
-        api_url: api_url
+        installation: installation
       })
     else
       # No GitHub app installation, skip posting comment
@@ -342,14 +336,12 @@ defmodule Tuist.VCS do
          client: client,
          repository: repository,
          issue_id: issue_id,
-         installation_id: installation_id,
-         api_url: api_url
+         installation: installation
        }) do
     comments_params = %{
       repository_full_handle: repository,
       issue_id: issue_id,
-      installation_id: installation_id,
-      api_url: api_url
+      installation: installation
     }
 
     case client.get_comments(comments_params) do
@@ -370,8 +362,7 @@ defmodule Tuist.VCS do
          issue_id: issue_id,
          existing_comment: existing_comment,
          client: client,
-         installation_id: installation_id,
-         api_url: api_url
+         installation: installation
        }) do
     cond do
       is_nil(vcs_comment_body) ->
@@ -382,8 +373,7 @@ defmodule Tuist.VCS do
           repository_full_handle: repository,
           issue_id: issue_id,
           body: vcs_comment_body,
-          installation_id: installation_id,
-          api_url: api_url
+          installation: installation
         })
 
       true ->
@@ -391,8 +381,7 @@ defmodule Tuist.VCS do
           repository_full_handle: repository,
           comment_id: existing_comment.id,
           body: vcs_comment_body,
-          installation_id: installation_id,
-          api_url: api_url
+          installation: installation
         })
     end
   end
@@ -1157,24 +1146,21 @@ defmodule Tuist.VCS do
   Gets repositories for a GitHub app installation.
   """
   def get_github_app_installation_repositories(%GitHubAppInstallation{} = installation) do
-    api_url = installation_api_url(installation)
-    installation_id = installation.installation_id
-
     KeyValueStore.get_or_update(
-      [__MODULE__, "repositories", api_url, installation_id],
+      [__MODULE__, "repositories", installation_api_url(installation), installation.installation_id],
       [ttl: to_timeout(minute: 15)],
       fn ->
         # This can take long for organizations with a lot of repositories.
         # Ideally, we would only fetch this information once, store it in the database,
         # and then sync the repositories via webhooks.
         # For now, we're sticking to this simple version.
-        get_all_repositories_recursively(installation_id, api_url: api_url)
+        get_all_repositories_recursively(installation, [])
       end
     )
   end
 
-  defp get_all_repositories_recursively(installation_id, opts, accumulated_repos \\ []) do
-    case Client.list_installation_repositories(installation_id, opts) do
+  defp get_all_repositories_recursively(installation, opts, accumulated_repos \\ []) do
+    case Client.list_installation_repositories(installation, opts) do
       {:ok, %{meta: %{next_url: next_url}, repositories: repositories}} ->
         all_repos = accumulated_repos ++ repositories
 
@@ -1184,7 +1170,7 @@ defmodule Tuist.VCS do
 
           next_url ->
             get_all_repositories_recursively(
-              installation_id,
+              installation,
               Keyword.put(opts, :next_url, next_url),
               all_repos
             )

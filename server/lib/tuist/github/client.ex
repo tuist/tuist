@@ -1,6 +1,11 @@
 defmodule Tuist.GitHub.Client do
   @moduledoc """
   A module to interact with the GitHub API authenticated as the Tuist GitHub app.
+
+  Functions that target a specific installation accept an `:installation`
+  field — any struct or map carrying `:installation_id` and `:client_url`.
+  The host of the GitHub instance (github.com or a self-hosted GitHub
+  Enterprise Server) is derived from `:client_url`.
   """
 
   alias Tuist.GitHub.App
@@ -14,8 +19,8 @@ defmodule Tuist.GitHub.Client do
   Lists repositories for a GitHub app installation with pagination support.
   Returns {:ok, %{meta: %{next_url: ...}, repositories: [...]}} format similar to Flop.
   """
-  def list_installation_repositories(installation_id, opts \\ []) do
-    api_url = Keyword.get(opts, :api_url, VCS.api_url(:github, nil))
+  def list_installation_repositories(installation, opts \\ []) do
+    {installation_id, api_url} = resolve_installation(installation)
 
     url =
       Keyword.get(
@@ -81,8 +86,8 @@ defmodule Tuist.GitHub.Client do
     end
   end
 
-  def get_user_by_id(%{id: github_id, installation_id: installation_id} = params) do
-    api_url = api_url(params)
+  def get_user_by_id(%{id: github_id, installation: installation}) do
+    {installation_id, api_url} = resolve_installation(installation)
     url = "#{api_url}/user/#{github_id}"
 
     case github_request(&Req.get/1, url: url, installation_id: installation_id, api_url: api_url) do
@@ -94,10 +99,8 @@ defmodule Tuist.GitHub.Client do
     end
   end
 
-  def get_comments(
-        %{repository_full_handle: repository_full_handle, issue_id: issue_id, installation_id: installation_id} = params
-      ) do
-    api_url = api_url(params)
+  def get_comments(%{repository_full_handle: repository_full_handle, issue_id: issue_id, installation: installation}) do
+    {installation_id, api_url} = resolve_installation(installation)
     url = "#{api_url}/repos/#{repository_full_handle}/issues/#{issue_id}/comments"
 
     case github_request(&Req.get/1, url: url, installation_id: installation_id, api_url: api_url) do
@@ -119,15 +122,13 @@ defmodule Tuist.GitHub.Client do
     end
   end
 
-  def create_comment(
-        %{
-          repository_full_handle: repository_full_handle,
-          issue_id: issue_id,
-          body: body,
-          installation_id: installation_id
-        } = params
-      ) do
-    api_url = api_url(params)
+  def create_comment(%{
+        repository_full_handle: repository_full_handle,
+        issue_id: issue_id,
+        body: body,
+        installation: installation
+      }) do
+    {installation_id, api_url} = resolve_installation(installation)
     url = "#{api_url}/repos/#{repository_full_handle}/issues/#{issue_id}/comments"
 
     github_request(&Req.post/1,
@@ -138,15 +139,13 @@ defmodule Tuist.GitHub.Client do
     )
   end
 
-  def update_comment(
-        %{
-          repository_full_handle: repository_full_handle,
-          comment_id: comment_id,
-          body: body,
-          installation_id: installation_id
-        } = params
-      ) do
-    api_url = api_url(params)
+  def update_comment(%{
+        repository_full_handle: repository_full_handle,
+        comment_id: comment_id,
+        body: body,
+        installation: installation
+      }) do
+    {installation_id, api_url} = resolve_installation(installation)
     url = "#{api_url}/repos/#{repository_full_handle}/issues/comments/#{comment_id}"
 
     github_request(&Req.patch/1,
@@ -264,10 +263,12 @@ defmodule Tuist.GitHub.Client do
     {:error, "Request failed: #{inspect(reason)}"}
   end
 
-  def get_pull_request(
-        %{repository_full_handle: repository_full_handle, installation_id: installation_id, pr_number: pr_number} = params
-      ) do
-    api_url = api_url(params)
+  def get_pull_request(%{
+        repository_full_handle: repository_full_handle,
+        installation: installation,
+        pr_number: pr_number
+      }) do
+    {installation_id, api_url} = resolve_installation(installation)
     url = "#{api_url}/repos/#{repository_full_handle}/pulls/#{pr_number}"
 
     github_request(&Req.get/1,
@@ -277,8 +278,8 @@ defmodule Tuist.GitHub.Client do
     )
   end
 
-  def create_check_run(%{repository_full_handle: repository_full_handle, installation_id: installation_id} = params) do
-    api_url = api_url(params)
+  def create_check_run(%{repository_full_handle: repository_full_handle, installation: installation} = params) do
+    {installation_id, api_url} = resolve_installation(installation)
     url = "#{api_url}/repos/#{repository_full_handle}/check-runs"
 
     json =
@@ -296,10 +297,9 @@ defmodule Tuist.GitHub.Client do
   end
 
   def update_check_run(
-        %{repository_full_handle: repository_full_handle, check_run_id: check_run_id, installation_id: installation_id} =
-          params
+        %{repository_full_handle: repository_full_handle, check_run_id: check_run_id, installation: installation} = params
       ) do
-    api_url = api_url(params)
+    {installation_id, api_url} = resolve_installation(installation)
     url = "#{api_url}/repos/#{repository_full_handle}/check-runs/#{check_run_id}"
 
     json =
@@ -337,6 +337,7 @@ defmodule Tuist.GitHub.Client do
     ]
   end
 
-  defp api_url(%{api_url: api_url}) when is_binary(api_url), do: api_url
-  defp api_url(_params), do: VCS.api_url(:github, nil)
+  defp resolve_installation(%{installation_id: id, client_url: client_url}), do: {id, VCS.api_url(:github, client_url)}
+
+  defp resolve_installation(%{installation_id: id}), do: {id, VCS.api_url(:github, nil)}
 end

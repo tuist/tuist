@@ -3045,7 +3045,7 @@ defmodule Tuist.VCSTest do
         fun.()
       end)
 
-      expect(Client, :list_installation_repositories, fn ^installation_id, [api_url: "https://api.github.com"] ->
+      expect(Client, :list_installation_repositories, fn %GitHubAppInstallation{installation_id: ^installation_id}, [] ->
         {:ok, %{meta: %{next_url: nil}, repositories: expected_repositories}}
       end)
 
@@ -3084,15 +3084,15 @@ defmodule Tuist.VCSTest do
       end)
 
       expect(Client, :list_installation_repositories, 2, fn
-        ^installation_id, [api_url: "https://api.github.com"] ->
+        %GitHubAppInstallation{installation_id: ^installation_id}, [] ->
           {:ok,
            %{
              meta: %{next_url: "https://api.github.com/installation/repositories?page=2"},
              repositories: page1_repos
            }}
 
-        ^installation_id,
-        [next_url: "https://api.github.com/installation/repositories?page=2", api_url: "https://api.github.com"] ->
+        %GitHubAppInstallation{installation_id: ^installation_id},
+        [next_url: "https://api.github.com/installation/repositories?page=2"] ->
           {:ok, %{meta: %{next_url: nil}, repositories: page2_repos}}
       end)
 
@@ -3124,7 +3124,7 @@ defmodule Tuist.VCSTest do
         fun.()
       end)
 
-      expect(Client, :list_installation_repositories, fn ^installation_id, [api_url: "https://api.github.com"] ->
+      expect(Client, :list_installation_repositories, fn %GitHubAppInstallation{installation_id: ^installation_id}, [] ->
         {:error, error_message}
       end)
 

@@ -53,7 +53,7 @@ defmodule Tuist.GitHub.ClientTest do
         Client.get_comments(%{
           repository_full_handle: "tuist/tuist",
           issue_id: 1,
-          installation_id: "installation-id"
+          installation: %{installation_id: "installation-id"}
         })
 
       # Then
@@ -94,7 +94,7 @@ defmodule Tuist.GitHub.ClientTest do
         Client.get_comments(%{
           repository_full_handle: "tuist/tuist",
           issue_id: 1,
-          installation_id: "installation-id"
+          installation: %{installation_id: "installation-id"}
         })
 
       # Then
@@ -112,7 +112,7 @@ defmodule Tuist.GitHub.ClientTest do
         Client.get_comments(%{
           repository_full_handle: "tuist/tuist",
           issue_id: 1,
-          installation_id: "installation-id"
+          installation: %{installation_id: "installation-id"}
         })
 
       # Then
@@ -130,7 +130,7 @@ defmodule Tuist.GitHub.ClientTest do
         Client.get_comments(%{
           repository_full_handle: "tuist/tuist",
           issue_id: 1,
-          installation_id: "installation-id"
+          installation: %{installation_id: "installation-id"}
         })
 
       # Then
@@ -148,7 +148,7 @@ defmodule Tuist.GitHub.ClientTest do
         Client.get_comments(%{
           repository_full_handle: "tuist/tuist",
           issue_id: 1,
-          installation_id: "installation-id"
+          installation: %{installation_id: "installation-id"}
         })
 
       # Then
@@ -175,22 +175,23 @@ defmodule Tuist.GitHub.ClientTest do
           repository_full_handle: "tuist/tuist",
           issue_id: 1,
           body: "comment",
-          installation_id: "installation-id"
+          installation: %{installation_id: "installation-id"}
         })
 
       # Then
       assert response == :ok
     end
 
-    test "routes to a GitHub Enterprise Server API URL when api_url is provided" do
+    test "routes to a GitHub Enterprise Server API URL based on the installation's client_url" do
       # Given
       ghes_api_url = "https://github.example.com/api/v3"
 
       expect(Req, :post, fn opts ->
         assert opts[:url] == "#{ghes_api_url}/repos/tuist/tuist/issues/1/comments"
-        # api_url should be stripped before reaching Req
+        # api_url and installation should be stripped before reaching Req
         refute Keyword.has_key?(opts, :api_url)
         refute Keyword.has_key?(opts, :installation_id)
+        refute Keyword.has_key?(opts, :installation)
         {:ok, %Req.Response{status: 201}}
       end)
 
@@ -200,8 +201,7 @@ defmodule Tuist.GitHub.ClientTest do
           repository_full_handle: "tuist/tuist",
           issue_id: 1,
           body: "comment",
-          installation_id: "installation-id",
-          api_url: ghes_api_url
+          installation: %{installation_id: "installation-id", client_url: "https://github.example.com"}
         })
 
       # Then
@@ -227,7 +227,7 @@ defmodule Tuist.GitHub.ClientTest do
           repository_full_handle: "tuist/tuist",
           comment_id: 1,
           body: "comment",
-          installation_id: "installation-id"
+          installation: %{installation_id: "installation-id"}
         })
 
       # Then
@@ -247,7 +247,7 @@ defmodule Tuist.GitHub.ClientTest do
       end)
 
       # When
-      user = Client.get_user_by_id(%{id: "123", installation_id: "installation-id"})
+      user = Client.get_user_by_id(%{id: "123", installation: %{installation_id: "installation-id"}})
 
       # Then
       assert user == {:ok, %VCS.User{username: "tuist"}}
@@ -264,7 +264,7 @@ defmodule Tuist.GitHub.ClientTest do
       end)
 
       # When
-      user = Client.get_user_by_id(%{id: "123", installation_id: "installation-id"})
+      user = Client.get_user_by_id(%{id: "123", installation: %{installation_id: "installation-id"}})
 
       # Then
       assert user == {:error, "Unexpected status code: 404. Body: \"Not found\""}
@@ -437,7 +437,7 @@ defmodule Tuist.GitHub.ClientTest do
       end)
 
       # When
-      result = Client.list_installation_repositories("123")
+      result = Client.list_installation_repositories(%{installation_id: "123"})
 
       # Then
       assert result ==
@@ -497,7 +497,7 @@ defmodule Tuist.GitHub.ClientTest do
       end)
 
       # When
-      result = Client.list_installation_repositories("123")
+      result = Client.list_installation_repositories(%{installation_id: "123"})
 
       # Then
       assert result ==
@@ -537,7 +537,7 @@ defmodule Tuist.GitHub.ClientTest do
       end)
 
       # When
-      result = Client.list_installation_repositories("123")
+      result = Client.list_installation_repositories(%{installation_id: "123"})
 
       # Then
       assert result == {:error, "Failed to fetch repositories"}
@@ -565,7 +565,7 @@ defmodule Tuist.GitHub.ClientTest do
       end)
 
       # When
-      result = Client.list_installation_repositories("123")
+      result = Client.list_installation_repositories(%{installation_id: "123"})
 
       # Then
       assert result == {:ok, %{meta: %{next_url: nil}, repositories: []}}
@@ -578,7 +578,7 @@ defmodule Tuist.GitHub.ClientTest do
       end)
 
       # When
-      result = Client.list_installation_repositories("123")
+      result = Client.list_installation_repositories(%{installation_id: "123"})
 
       # Then
       assert result == {:error, "Failed to get token"}
