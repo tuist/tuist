@@ -1540,8 +1540,12 @@ defmodule Tuist.Tests do
 
   defp quarantine_filter?(filters) do
     Enum.any?(filters, fn
-      %{field: :state, value: value} when value in ["muted", "skipped"] -> true
-      %{field: "state", value: value} when value in ["muted", "skipped"] -> true
+      %{field: :state, value: value} when value in ["muted", "skipped"] ->
+        true
+
+      %{field: "state", value: value} when value in ["muted", "skipped"] ->
+        true
+
       %{field: :state, op: :in, value: values} when is_list(values) ->
         Enum.any?(values, &(&1 in ["muted", "skipped"]))
 
