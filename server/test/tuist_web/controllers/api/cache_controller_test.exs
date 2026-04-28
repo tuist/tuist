@@ -162,7 +162,6 @@ defmodule TuistWeb.API.CacheControllerTest do
       # Given
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
-      FunWithFlags.enable(:kura, for_actor: account)
 
       {:ok, _} =
         Accounts.create_account_cache_endpoint(account, %{

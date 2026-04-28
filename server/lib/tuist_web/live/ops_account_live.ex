@@ -47,7 +47,6 @@ defmodule TuistWeb.OpsAccountLive do
     bound_cluster_ids = Enum.map(bound, &cluster_id_from_url/1) |> Enum.reject(&is_nil/1)
 
     socket
-    |> assign(:kura_flag_enabled?, FunWithFlags.enabled?(:kura, for: account))
     |> assign(:kura_bound, bound)
     |> assign(:kura_bound_cluster_ids, bound_cluster_ids)
     |> assign(:kura_clusters, Clusters.all())
@@ -77,19 +76,6 @@ defmodule TuistWeb.OpsAccountLive do
       _ ->
         nil
     end
-  end
-
-  @impl true
-  def handle_event("toggle_kura_flag", _params, socket) do
-    account = socket.assigns.account
-
-    if socket.assigns.kura_flag_enabled? do
-      {:ok, _} = FunWithFlags.disable(:kura, for_actor: account)
-    else
-      {:ok, _} = FunWithFlags.enable(:kura, for_actor: account)
-    end
-
-    {:noreply, load_kura_state(socket)}
   end
 
   @impl true
