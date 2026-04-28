@@ -1538,6 +1538,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.config.targetName),
                     .target(name: Module.rootDirectoryLocator.targetName),
                     .target(name: Module.constants.targetName),
+                    .target(name: Module.http.targetName),
                     .target(name: Module.loader.targetName),
                     .target(name: Module.testing.targetName),
                     .target(name: Module.support.targetName),
@@ -1955,6 +1956,8 @@ public enum Module: String, CaseIterable {
                 [
                     .target(name: Module.testing.targetName),
                     .target(name: Module.support.targetName),
+                    .target(name: Module.environment.targetName),
+                    .target(name: Module.environmentTesting.targetName),
                     .external(name: "OpenAPIRuntime"),
                     .external(name: "HTTPTypes"),
                 ]

@@ -195,6 +195,9 @@ final class DumpServiceTests: TuistTestCase {
                   ]
                 }
               },
+              "network": {
+                "proxy": true
+              },
               "project": {
                 "tuist": {
                   "cacheOptions": {

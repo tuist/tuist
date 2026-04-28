@@ -2,6 +2,7 @@ package dev.tuist.gradle
 
 import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
+import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.logging.Logging
 import org.gradle.api.provider.Property
 import org.gradle.api.services.BuildService
@@ -172,7 +173,8 @@ abstract class TuistTestQuarantineBuildService :
     interface Params : BuildServiceParameters {
         val serverUrl: Property<String>
         val tuistProject: Property<String>
-        val projectDir: Property<String>
+        val useEnvironmentProxy: Property<Boolean>
+        val projectDir: DirectoryProperty
     }
 
     @Volatile
@@ -190,11 +192,11 @@ abstract class TuistTestQuarantineBuildService :
 
     private fun createDelegate(): TuistTestQuarantineService {
         val serverUrl = parameters.serverUrl.get()
-        val httpClients = TuistHttpClients()
+        val httpClients = TuistHttpClients(useEnvironmentProxy = parameters.useEnvironmentProxy.get())
         val configProvider = DefaultConfigurationProvider(
             project = parameters.tuistProject.orNull,
             serverUrl = serverUrl,
-            projectDir = java.io.File(parameters.projectDir.get()),
+            projectDir = parameters.projectDir.asFile.get(),
             httpClients = httpClients
         )
         val httpClient = TuistHttpClient(

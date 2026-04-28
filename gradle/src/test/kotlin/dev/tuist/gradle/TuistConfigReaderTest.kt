@@ -17,12 +17,16 @@ class TomlParserTest {
         toml.writeText("""
             project = "my-org/my-project"
             url = "https://custom.server.dev"
+
+            [network]
+            proxy = false
         """.trimIndent())
 
         val config = TomlParser.parse(toml)
 
         assertEquals("my-org/my-project", config?.project)
         assertEquals("https://custom.server.dev", config?.url)
+        assertEquals(false, config?.network?.proxy)
     }
 
     @Test
@@ -65,6 +69,19 @@ class TomlParserTest {
 
         val config = TomlParser.parse(toml)
         assertEquals("spaced/project", config?.project)
+    }
+
+    @Test
+    fun `parse handles network proxy only`() {
+        val toml = File(tempDir, "tuist.toml")
+        toml.writeText("""
+            [network]
+            proxy = false
+        """.trimIndent())
+
+        val config = TomlParser.parse(toml)
+
+        assertEquals(false, config?.network?.proxy)
     }
 
 }
@@ -141,5 +158,42 @@ class ServerUrlResolverFindTomlTest {
         nested.mkdirs()
 
         assertNull(ServerUrlResolver.findTomlFile(nested))
+    }
+}
+
+class EnvironmentProxyResolverTest {
+
+    @TempDir
+    lateinit var tempDir: File
+
+    @Test
+    fun `resolve returns extension value when set`() {
+        File(tempDir, "tuist.toml").writeText("""
+            [network]
+            proxy = false
+        """.trimIndent())
+
+        val result = EnvironmentProxyResolver.resolve(extensionProxy = true, projectDir = tempDir)
+
+        assertEquals(true, result)
+    }
+
+    @Test
+    fun `resolve reads from tuist toml when extension value is not set`() {
+        File(tempDir, "tuist.toml").writeText("""
+            [network]
+            proxy = false
+        """.trimIndent())
+
+        val result = EnvironmentProxyResolver.resolve(extensionProxy = null, projectDir = tempDir)
+
+        assertEquals(false, result)
+    }
+
+    @Test
+    fun `resolve defaults to true when nothing is configured`() {
+        val result = EnvironmentProxyResolver.resolve(extensionProxy = null, projectDir = tempDir)
+
+        assertEquals(true, result)
     }
 }

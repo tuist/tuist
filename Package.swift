@@ -301,6 +301,7 @@ var tuistConfigLoaderTestDependencies: [Target.Dependency] = [
     "TuistConfigLoader",
     "TuistConfig",
     "TuistConstants",
+    "TuistHTTP",
     "TuistRootDirectoryLocator",
     pathDependency,
     fileSystemDependency,
@@ -382,6 +383,7 @@ tuistHTTPDependencies.append(contentsOf: ["TuistSupport", "TuistHAR"])
 tuistCASDependencies.append(contentsOf: ["TuistCache", "TuistCASAnalytics"])
 tuistConfigLoaderDependencies.append(contentsOf: [
     "TuistLoader", "TuistCore", "TuistAlert", "TuistSupport",
+    "TuistHTTP",
     "ProjectDescription",
 ])
 tuistConfigLoaderTestDependencies.append(contentsOf: [
@@ -909,6 +911,8 @@ var targets: [Target] = [
         name: "TuistHTTPTests",
         dependencies: [
             "TuistHTTP",
+            "TuistEnvironment",
+            "TuistEnvironmentTesting",
             mockableDependency,
         ],
         path: "cli/Tests/TuistHTTPTests"
