@@ -328,26 +328,24 @@ jobs:
           security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
           security default-keychain -s $KEYCHAIN_PATH
           security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
-      - name: Install Docker
-        run: |
-          brew install docker docker-compose colima
-          colima start --cpu 4 --memory 8 --disk 30
-      - name: Log in to GHCR
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       - name: Wait for server image
         # Polls the `Server image / Build + scan` check run on this SHA via the
         # GitHub check API; fast-fails if the image build itself fails. Same
         # composite action that any future workflow consuming this image can drop in.
         uses: ./.github/actions/wait-for-server-image
       - name: Bring up acceptance cluster (shard ${{ matrix.shard }})
-        run: bash mise/tasks/cli/acceptance-cluster/up.sh ${{ matrix.shard }}
+        # The mise task installs colima/docker/docker-compose on demand, starts colima
+        # if needed, logs in to GHCR with the workflow token, and waits for the cluster
+        # to be healthy. No teardown step — each shard runs on a fresh ephemeral
+        # macOS runner that's destroyed when the job ends.
+        env:
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: mise run cli:acceptance-cluster:up ${{ matrix.shard }}
       - name: Run shard ${{ matrix.shard }}
         run: tuist test --without-building --platform macOS TuistAcceptanceTests -- -retry-tests-on-failure -test-iterations 2
         env:
           TUIST_SHARD_INDEX: ${{ matrix.shard }}
-      - name: Tear down acceptance cluster
-        if: always()
-        run: bash mise/tasks/cli/acceptance-cluster/down.sh ${{ matrix.shard }}
 
   cli-acceptance-tests-fork:
     name: Acceptance Tests (Fork)
