@@ -56,31 +56,13 @@ echo "==> License source: ${LICENSE_MODE}"
 # k8s tooling — installed via mise (platform-agnostic, no VM dependencies).
 mise install kind@latest helm@latest kubectl@latest >/dev/null
 
-# macOS VM stack — installed via brew. The mise/aqua versions of colima + lima
-# at @latest hit a "panic: send on closed channel" inside lima v2's qemu driver
-# (`pkg/driver/qemu/qemu_driver.go:382`); brew ships a tested-together
-# combination of colima + lima + qemu + docker. qemu has to come from somewhere
-# other than mise anyway (no GitHub release / aqua entry), so we just use brew
-# for the whole VM stack.
-if [[ "$(uname -s)" == "Darwin" ]]; then
-  for pkg in docker docker-compose colima lima qemu; do
-    if ! brew list --formula "$pkg" >/dev/null 2>&1; then
-      brew install "$pkg"
-    fi
-  done
-
-  if ! colima status >/dev/null 2>&1; then
-    echo "==> Starting colima…"
-    # Try Apple Virtualization.framework first — it's the default on Apple
-    # Silicon and avoids lima v2.0.3's "send on closed channel" panic in the
-    # qemu driver. If vz isn't available (Namespace's macOS runners are
-    # themselves VMs and may not expose nested VZ), fall back to qemu.
-    if ! colima start --vm-type vz --cpu 4 --memory 8 --disk 30; then
-      echo "==> vz unavailable; retrying with qemu…"
-      colima delete -f >/dev/null 2>&1 || true
-      colima start --vm-type qemu --cpu 4 --memory 8 --disk 30
-    fi
-  fi
+# Docker daemon is expected to already be running. In CI that's the
+# `docker/setup-docker-action` step in cli.yml; locally that's whatever the
+# dev set up (Docker Desktop, colima, OrbStack, …). We just check it's
+# reachable and bail with a useful message if not.
+if ! docker info >/dev/null 2>&1; then
+  echo "ERROR: Docker daemon is not reachable. Start Docker Desktop / colima / OrbStack and retry." >&2
+  exit 1
 fi
 
 if [[ -n "${GITHUB_ACTOR:-}" && -n "${GITHUB_TOKEN:-}" ]]; then

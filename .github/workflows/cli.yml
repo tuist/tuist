@@ -335,16 +335,23 @@ jobs:
           security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
           security default-keychain -s $KEYCHAIN_PATH
           security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
+      - name: Set up Docker on macOS
+        # Battle-tested action that handles the colima/lima/qemu mess for us
+        # (pinning a version combination that doesn't hit lima v2.0.3's
+        # `panic: send on closed channel` in the qemu driver). After this step
+        # `docker` and the daemon are reachable on the runner.
+        uses: crazy-max/ghaction-setup-docker@v4
+        with:
+          version: type=image,tag=latest
       - name: Wait for server image
         # Polls the `Server image / Build + scan` check run on this SHA via the
         # GitHub check API; fast-fails if the image build itself fails. Same
         # composite action that any future workflow consuming this image can drop in.
         uses: ./.github/actions/wait-for-server-image
       - name: Bring up acceptance cluster (shard ${{ matrix.shard }})
-        # The task installs kind/helm/kubectl/colima/docker on demand via
-        # `mise install <tool>@latest`, creates a per-shard kind cluster, loads the
-        # prebuilt server image, and runs `helm upgrade --install` against the same
-        # chart we deploy to canary + production (overlay:
+        # The task creates a per-shard kind cluster, loads the prebuilt server
+        # image, and runs `helm upgrade --install` against the same chart we
+        # deploy to canary + production (overlay:
         # infra/helm/tuist/values-acceptance.yaml). The chart spins up the embedded
         # postgres / clickhouse / minio + the server + processor pods, and then we
         # kubectl-exec a one-shot seed of `tuistrocks@tuist.dev`. No teardown step —
