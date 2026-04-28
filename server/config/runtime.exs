@@ -410,13 +410,16 @@ otel_endpoint = Tuist.Environment.get([:otel, :exporter, :otlp, :endpoint])
 #   * Xcresult processor (TUIST_MODE=xcresult_processor): only
 #     :process_xcresult. Runs on macOS (Scaleway Mac mini) inside a
 #     Tart VM because xcresulttool is Xcode-only.
+#   * Kura rollout queue stays on the server tier for now because the
+#     server owns Kura product state, cache endpoint mirroring, and
+#     rollout log persistence.
 #   * Server pods with TUIST_DELEGATE_PROCESS_BUILD=1 /
 #     TUIST_DELEGATE_PROCESS_XCRESULT=1 skip the matching queue so
 #     jobs land exclusively on the dedicated fleet — without those
 #     flags the server would race the processors on SKIP LOCKED, and
 #     on Linux the xcresult parse would crash because the macOS-only
 #     NIF isn't loaded.
-base_queues = [default: 10]
+base_queues = [default: 10, kura_rollout: 1]
 process_build_queue = {:process_build, Tuist.Environment.process_build_queue_concurrency()}
 process_xcresult_queue = {:process_xcresult, Tuist.Environment.process_xcresult_queue_concurrency()}
 
@@ -465,7 +468,8 @@ config :tuist, Oban,
            {"@daily", Tuist.Billing.Workers.SyncStripeMetersWorker},
            {"@daily", Tuist.Accounts.Workers.UpdateAllAccountsUsageWorker},
            {"@hourly", Tuist.Tests.Workers.ExpireStaleTestRunsWorker},
-           {"* * * * *", Tuist.Automations.Workers.AutomationScheduler}
+           {"* * * * *", Tuist.Automations.Workers.AutomationScheduler},
+           {"@hourly", Tuist.Kura.Workers.PollVersionsWorker}
          ],
          else: []
        )}
@@ -474,6 +478,24 @@ config :tuist, Oban,
 if Tuist.Environment.processor_mode?() do
   config :tuist, Oban, peer: false
 end
+
+# Path to the Kura Helm chart used by Tuist.Kura.Workers.RolloutWorker.
+# Production builds bake the chart into priv/kura_chart at image build
+# time (see server/Dockerfile); dev/test default to the in-tree path so
+# the local rollout-against-kind workflow works out of the box.
+kura_chart_path =
+  System.get_env("TUIST_KURA_CHART_PATH") ||
+    case env do
+      :prod ->
+        Application.app_dir(:tuist, "priv/kura_chart")
+
+      _ ->
+        # runtime.exs runs from the server/ directory; the kura monorepo
+        # path sits one level up.
+        Path.expand("../kura/ops/helm/kura", File.cwd!())
+    end
+
+config :tuist, :kura_chart_path, kura_chart_path
 
 # Guardian
 config :tuist, Tuist.Guardian,

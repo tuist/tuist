@@ -1,0 +1,38 @@
+<div id="ops-kura-deployment">
+  <div data-part="header">
+    <h1 data-part="title">
+      Kura deployment · {@deployment.cluster_id} · {@deployment.image_tag}
+    </h1>
+    <p data-part="subtitle">
+      <.link navigate={~p"/ops/accounts/#{@account.id}"}>← {@account.name}</.link>
+    </p>
+  </div>
+
+  <.card title="Status" icon="info">
+    <.card_section>
+      <dl>
+        <dt>Status</dt>
+        <dd>{status_label(@deployment.status)}</dd>
+        <dt>Started</dt>
+        <dd>{(@deployment.started_at && Calendar.strftime(@deployment.started_at, "%Y-%m-%d %H:%M:%S UTC")) || "—"}</dd>
+        <dt>Finished</dt>
+        <dd>{(@deployment.finished_at && Calendar.strftime(@deployment.finished_at, "%Y-%m-%d %H:%M:%S UTC")) || "—"}</dd>
+        <%= if @deployment.error_message do %>
+          <dt>Error</dt>
+          <dd><pre>{@deployment.error_message}</pre></dd>
+        <% end %>
+      </dl>
+    </.card_section>
+  </.card>
+
+  <.card title="Logs" icon="terminal">
+    <.card_section>
+      <%= if @log_lines == [] do %>
+        <p>No log output yet. Polling every two seconds while the deployment is pending or running.</p>
+      <% else %>
+        <pre id="kura-log-tail" phx-update="ignore" style="max-height: 60vh; overflow: auto;"><%= for line <- @log_lines do %><%= line.line %>
+<% end %></pre>
+      <% end %>
+    </.card_section>
+  </.card>
+</div>

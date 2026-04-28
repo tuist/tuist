@@ -1,0 +1,162 @@
+<div id="ops-account">
+  <div data-part="header">
+    <h1 data-part="title">{@account.name}</h1>
+    <p data-part="subtitle">Account ID {@account.id}</p>
+  </div>
+
+  <.card title="Kura" icon="server">
+    <.card_section>
+      <div data-part="row">
+        <div>
+          <strong>:kura feature flag</strong>
+          <p>
+            <%= if @kura_flag_enabled? do %>
+              Enabled — the CLI receives this account's Kura endpoints when it sends the <code>kura</code> client feature header.
+            <% else %>
+              Disabled — even with bound clusters, the <code>:kura</code> resolution path returns <code>[]</code>.
+            <% end %>
+          </p>
+        </div>
+        <.button
+          variant={if @kura_flag_enabled?, do: "secondary", else: "primary"}
+          label={if @kura_flag_enabled?, do: "Disable", else: "Enable"}
+          phx-click="toggle_kura_flag"
+        />
+      </div>
+    </.card_section>
+  </.card>
+
+  <.card title="Bound Kura clusters" icon="link">
+    <.card_section>
+      <.table id="kura-bindings-table" rows={@kura_bound}>
+        <:col :let={endpoint} label="Cluster">
+          <.text_cell label={cluster_id_from_url_helper(endpoint) || "—"} />
+        </:col>
+        <:col :let={endpoint} label="URL">
+          <.text_cell label={endpoint.url} />
+        </:col>
+        <:col :let={endpoint} label="Actions">
+          <.button
+            variant="secondary"
+            label="Unbind"
+            phx-click="unbind"
+            phx-value-id={endpoint.id}
+            data-confirm="Remove this binding? The mesh keeps running; the CLI will stop receiving its URL."
+          />
+        </:col>
+        <:empty_state>
+          <.table_empty_state
+            icon="link"
+            title="No clusters bound"
+            subtitle="Bind a cluster from the catalog below."
+          />
+        </:empty_state>
+      </.table>
+    </.card_section>
+  </.card>
+
+  <.card title="Cluster catalog" icon="layers">
+    <.card_section>
+      <.table id="kura-catalog-table" rows={@kura_clusters}>
+        <:col :let={cluster} label="Cluster">
+          <.text_cell label={cluster.id} />
+        </:col>
+        <:col :let={cluster} label="Region">
+          <.text_cell label={cluster.region} />
+        </:col>
+        <:col :let={cluster} label="Kubeconfig">
+          <.text_cell label={
+            case cluster_kubeconfig_status(cluster) do
+              :configured -> "configured"
+              :missing -> "missing"
+            end
+          } />
+        </:col>
+        <:col :let={cluster} label="Actions">
+          <%= if cluster.id in @kura_bound_cluster_ids do %>
+            <span>Bound</span>
+          <% else %>
+            <.button
+              variant="secondary"
+              label="Bind to account"
+              phx-click="bind_cluster"
+              phx-value-cluster_id={cluster.id}
+            />
+          <% end %>
+        </:col>
+      </.table>
+    </.card_section>
+  </.card>
+
+  <.card title="Deployments" icon="rocket">
+    <.card_section>
+      <div data-part="row">
+        <p>
+          <%= if @kura_versions == [] do %>
+            No Kura versions discovered yet. The hourly poller hasn't seen any <code>kura@*</code> tags.
+          <% else %>
+            Latest version: <strong>{hd(@kura_versions).version}</strong>
+            (released {Calendar.strftime(hd(@kura_versions).released_at, "%Y-%m-%d %H:%M UTC")})
+          <% end %>
+        </p>
+        <.button
+          variant="secondary"
+          label="Poll versions now"
+          phx-click="poll_versions_now"
+        />
+      </div>
+    </.card_section>
+
+    <.card_section>
+      <h3>Trigger deployment</h3>
+      <form phx-submit="deploy" data-part="deploy-form">
+        <label>
+          Cluster
+          <select name="cluster_id" required>
+            <%= for cluster <- @kura_clusters do %>
+              <option value={cluster.id}>{cluster.id} ({cluster.region})</option>
+            <% end %>
+          </select>
+        </label>
+        <label>
+          Version
+          <select name="image_tag" required>
+            <%= for version <- @kura_versions do %>
+              <option value={version.version}>{version.version}</option>
+            <% end %>
+          </select>
+        </label>
+        <.button variant="primary" label="Deploy" type="submit" />
+      </form>
+    </.card_section>
+
+    <.card_section>
+      <.table id="kura-deployments-table" rows={@kura_deployments}>
+        <:col :let={d} label="When">
+          <.text_cell label={Calendar.strftime(d.inserted_at, "%Y-%m-%d %H:%M UTC")} />
+        </:col>
+        <:col :let={d} label="Cluster">
+          <.text_cell label={d.cluster_id} />
+        </:col>
+        <:col :let={d} label="Version">
+          <.text_cell label={d.image_tag} />
+        </:col>
+        <:col :let={d} label="Status">
+          <.text_cell label={status_label(d.status)} />
+        </:col>
+        <:col :let={d} label="Actions">
+          <.link navigate={~p"/ops/accounts/#{@account.id}/kura/deployments/#{d.id}"}>
+            View logs
+          </.link>
+        </:col>
+        <:empty_state>
+          <.table_empty_state
+            icon="rocket"
+            title="No deployments yet"
+            subtitle="Use the form above to trigger one."
+          />
+        </:empty_state>
+      </.table>
+    </.card_section>
+  </.card>
+</div>
