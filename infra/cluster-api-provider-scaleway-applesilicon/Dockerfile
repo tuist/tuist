@@ -8,7 +8,7 @@
 #   3. The tart-cni binary (Go), same as above.
 
 ARG GO_VERSION=1.25
-ARG ALPINE_VERSION=3.20
+ARG ALPINE_VERSION=3.22
 
 FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-alpine${ALPINE_VERSION} AS tart-cri-builder
 
