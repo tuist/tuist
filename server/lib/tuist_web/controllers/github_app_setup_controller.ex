@@ -29,7 +29,7 @@ defmodule TuistWeb.GitHubAppSetupController do
       {:error, :missing_installation_id} ->
         raise BadRequestError, dgettext("dashboard", "Invalid GitHub app installation. Please try again.")
 
-      {:error, :missing_account_id} ->
+      {:error, :missing_state} ->
         raise BadRequestError, dgettext("dashboard", "Invalid GitHub app installation. Please try again.")
 
       {:error, :invalid_state_token} ->
@@ -53,6 +53,6 @@ defmodule TuistWeb.GitHubAppSetupController do
   end
 
   defp extract_state(_params) do
-    {:error, :missing_account_id}
+    {:error, :missing_state}
   end
 end

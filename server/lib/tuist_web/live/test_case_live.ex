@@ -23,7 +23,7 @@ defmodule TuistWeb.TestCaseLive do
         _session,
         %{assigns: %{selected_project: project, selected_account: account}} = socket
       ) do
-    project = Tuist.Repo.preload(project, :vcs_connection)
+    project = Tuist.Repo.preload(project, vcs_connection: :github_app_installation)
 
     test_case_detail =
       case Tests.get_test_case_by_id(test_case_id) do

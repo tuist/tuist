@@ -116,6 +116,12 @@ defmodule Tuist.VCS do
     })
   end
 
+  # NOTE: this only recognises github.com because the few callers that use it
+  # (mainly Swift package registry resolution from raw repo URLs) target the
+  # public Tuist instance. GitHub Enterprise Server flows reach the GitHub
+  # provider through a stored `GitHubAppInstallation` instead, so they don't
+  # depend on this function. If a GHES-aware caller appears, broaden this to
+  # accept hosts that match a known installation's `client_url`.
   def get_provider_from_repository_url(repository_url) do
     vcs_uri = URI.parse(repository_url)
     host = Map.get(vcs_uri, :host)

@@ -29,9 +29,7 @@ defmodule Tuist.VCS.GitHubAppInstallation do
     |> cast(attrs, [:account_id, :installation_id, :html_url, :client_url])
     |> normalize_client_url()
     |> validate_required([:account_id, :installation_id, :client_url])
-    |> validate_format(:client_url, ~r{^https?://[^/\s]+$},
-      message: "must be a valid URL like https://github.example.com"
-    )
+    |> validate_format(:client_url, ~r{^https?://[^\s]+$}, message: "must be a valid URL like https://github.example.com")
     |> unique_constraint([:account_id])
     |> unique_constraint([:installation_id])
     |> foreign_key_constraint(:account_id)

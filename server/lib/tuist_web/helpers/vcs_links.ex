@@ -72,13 +72,26 @@ defmodule TuistWeb.Helpers.VCSLinks do
   end
 
   defp github_base_url(project) do
-    case project do
-      %{vcs_connection: %{github_app_installation: %{client_url: client_url}}}
-      when is_binary(client_url) and client_url != "" ->
-        client_url
-
-      _ ->
-        GitHubAppInstallation.default_client_url()
+    project
+    |> resolve_github_app_installation()
+    |> case do
+      %{client_url: client_url} when is_binary(client_url) and client_url != "" -> client_url
+      _ -> GitHubAppInstallation.default_client_url()
     end
   end
+
+  # The github_app_installation must be preloaded for GHES URLs to render correctly.
+  # Forcing a Repo.preload here as a safety net so callers that forgot to preload
+  # don't silently render github.com links for GHES customers.
+  defp resolve_github_app_installation(%{vcs_connection: %{github_app_installation: %{client_url: _} = installation}}),
+    do: installation
+
+  defp resolve_github_app_installation(%{vcs_connection: %Tuist.Projects.VCSConnection{} = vcs_connection}) do
+    %{github_app_installation: installation} =
+      Tuist.Repo.preload(vcs_connection, :github_app_installation)
+
+    installation
+  end
+
+  defp resolve_github_app_installation(_), do: nil
 end

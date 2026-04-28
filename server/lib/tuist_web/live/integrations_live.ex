@@ -215,7 +215,7 @@ defmodule TuistWeb.IntegrationsLive do
       trimmed in ["", default] ->
         {default, nil}
 
-      Regex.match?(~r{^https?://[^/\s]+$}, String.trim_trailing(trimmed, "/")) ->
+      Regex.match?(~r{^https?://[^\s]+$}, String.trim_trailing(trimmed, "/")) ->
         {String.trim_trailing(trimmed, "/"), nil}
 
       true ->

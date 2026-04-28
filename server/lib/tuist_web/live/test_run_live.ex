@@ -45,7 +45,7 @@ defmodule TuistWeb.TestRunLive do
 
     slug = Projects.get_project_slug_from_id(project.id)
 
-    project = Tuist.Repo.preload(project, :vcs_connection)
+    project = Tuist.Repo.preload(project, vcs_connection: :github_app_installation)
 
     run = Map.put(run, :project, project)
 
