@@ -50,7 +50,7 @@ The following data is stored in ClickHouse for analytics purposes:
 - **Shard plan test suites** (`shard_plan_test_suites` table): Per-shard test suite assignments with estimated durations
 - **Shard runs** (`shard_runs` table): Per-shard execution results with status and duration
 - **Test runs** (`test_runs` table): Includes `shard_plan_id` linking test results to their shard plan
-- **Bundle artifacts** (`artifacts` table): App bundle artifact tree (paths, sizes, SHA hashes, parent/child hierarchy) per uploaded bundle. Currently mirrored from the PostgreSQL `artifacts` table via synchronous dual-write during the PG → ClickHouse migration; ClickHouse becomes the source of truth in a later phase.
+- **Bundle artifacts** (`artifacts` table): App bundle artifact tree (paths, sizes, SHA hashes, parent/child hierarchy) per uploaded bundle. Populated by the synchronous dual-write in `Tuist.Bundles.create_bundle/2` for new bundles plus a one-time backfill migration that drains pre-dual-write history from PostgreSQL. PostgreSQL remains the read source of truth until the cutover phase, but the ClickHouse copy already contains the full history and is available for export.
 - Build performance metrics
 
 ### Non-Exportable Data
