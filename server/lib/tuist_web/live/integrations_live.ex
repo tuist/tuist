@@ -33,6 +33,7 @@ defmodule TuistWeb.IntegrationsLive do
       |> assign(selected_repository_full_handle: nil)
       |> assign(github_client_url: GitHubAppInstallation.default_client_url())
       |> assign(github_client_url_error: nil)
+      |> assign(show_github_enterprise_input: false)
       |> assign(:head_title, "#{dgettext("dashboard_integrations", "Integrations")} · #{selected_account.name} · Tuist")
       |> then(fn socket ->
         if github_installation do
@@ -63,6 +64,22 @@ defmodule TuistWeb.IntegrationsLive do
       socket
       |> assign(github_client_url: url)
       |> assign(github_client_url_error: error)
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("show-github-enterprise-input", _params, socket) do
+    {:noreply, assign(socket, show_github_enterprise_input: true)}
+  end
+
+  @impl true
+  def handle_event("hide-github-enterprise-input", _params, socket) do
+    socket =
+      socket
+      |> assign(show_github_enterprise_input: false)
+      |> assign(github_client_url: GitHubAppInstallation.default_client_url())
+      |> assign(github_client_url_error: nil)
 
     {:noreply, socket}
   end

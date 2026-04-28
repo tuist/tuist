@@ -13,21 +13,24 @@
       </span>
     </div>
     <div data-part="content">
-      <div :if={is_nil(@github_app_installation)} data-part="github-host-form">
+      <div
+        :if={is_nil(@github_app_installation) and @show_github_enterprise_input}
+        data-part="github-host-form"
+      >
         <form phx-change="update-github-client-url">
           <.text_input
             id="github-client-url"
             name="github_client_url"
             type="basic"
             value={@github_client_url}
-            label={dgettext("dashboard_integrations", "GitHub URL")}
+            label={dgettext("dashboard_integrations", "GitHub Enterprise Server URL")}
             sublabel={
               dgettext(
                 "dashboard_integrations",
-                "Use https://github.com or your GitHub Enterprise Server URL"
+                "The base URL of your self-hosted GitHub Enterprise Server"
               )
             }
-            placeholder="https://github.com"
+            placeholder="https://github.example.com"
             error={@github_client_url_error}
             phx-debounce="300"
           />
@@ -42,6 +45,18 @@
             VCS.get_github_app_installation_url(@selected_account, client_url: @github_client_url)
           }
           disabled={not is_nil(@github_client_url_error)}
+        />
+        <.button
+          :if={is_nil(@github_app_installation) and not @show_github_enterprise_input}
+          label={dgettext("dashboard_integrations", "Use GitHub Enterprise Server")}
+          variant="secondary"
+          phx-click="show-github-enterprise-input"
+        />
+        <.button
+          :if={is_nil(@github_app_installation) and @show_github_enterprise_input}
+          label={dgettext("dashboard_integrations", "Use github.com instead")}
+          variant="secondary"
+          phx-click="hide-github-enterprise-input"
         />
         <.button
           :if={

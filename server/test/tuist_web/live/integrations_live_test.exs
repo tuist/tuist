@@ -55,6 +55,32 @@ defmodule TuistWeb.IntegrationsLiveTest do
     assert has_element?(lv, "a", "Install GitHub App")
   end
 
+  test "hides the GitHub Enterprise URL input by default", %{conn: conn, organization: organization} do
+    stub(VCS, :get_github_app_installation_url, fn _account, _opts ->
+      "https://github.com/apps/test-app/installations/new"
+    end)
+
+    {:ok, _lv, html} = live(conn, ~p"/#{organization.account.name}/integrations")
+
+    refute html =~ "GitHub Enterprise Server URL"
+    assert html =~ "Use GitHub Enterprise Server"
+  end
+
+  test "reveals the URL input when the user opts into GitHub Enterprise Server", %{
+    conn: conn,
+    organization: organization
+  } do
+    stub(VCS, :get_github_app_installation_url, fn _account, _opts ->
+      "https://github.example.com/apps/test-app/installations/new"
+    end)
+
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/integrations")
+
+    html = render_click(lv, "show-github-enterprise-input")
+    assert html =~ "GitHub Enterprise Server URL"
+    assert html =~ "Use github.com instead"
+  end
+
   test "switches the install button label when a GitHub Enterprise URL is entered", %{
     conn: conn,
     organization: organization
@@ -64,6 +90,8 @@ defmodule TuistWeb.IntegrationsLiveTest do
     end)
 
     {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/integrations")
+
+    render_click(lv, "show-github-enterprise-input")
 
     html =
       lv
@@ -85,6 +113,8 @@ defmodule TuistWeb.IntegrationsLiveTest do
 
     {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/integrations")
 
+    render_click(lv, "show-github-enterprise-input")
+
     html =
       lv
       |> form("form[phx-change=update-github-client-url]", %{
@@ -93,6 +123,31 @@ defmodule TuistWeb.IntegrationsLiveTest do
       |> render_change()
 
     assert html =~ "Enter a valid GitHub URL"
+  end
+
+  test "reverting to github.com hides the input and clears the URL", %{
+    conn: conn,
+    organization: organization
+  } do
+    stub(VCS, :get_github_app_installation_url, fn _account, _opts ->
+      "https://github.com/apps/test-app/installations/new"
+    end)
+
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/integrations")
+
+    render_click(lv, "show-github-enterprise-input")
+
+    lv
+    |> form("form[phx-change=update-github-client-url]", %{
+      "github_client_url" => "https://github.example.com"
+    })
+    |> render_change()
+
+    html = render_click(lv, "hide-github-enterprise-input")
+
+    refute html =~ "GitHub Enterprise Server URL"
+    assert html =~ "Install GitHub App"
+    assert html =~ "Use GitHub Enterprise Server"
   end
 
   describe "delete-connection" do
