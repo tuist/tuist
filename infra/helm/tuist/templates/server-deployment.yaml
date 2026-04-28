@@ -60,8 +60,9 @@ spec:
               containerPort: 4369
             {{- end }}
           env:
-            - name: TUIST_WEB
-              value: "true"
+            # TUIST_MODE defaults to :web in Tuist.Environment.mode/0 — no
+            # need to set it explicitly here. The processor Deployment sets
+            # TUIST_MODE=processor; everything else is :web.
             {{- if not .Values.server.managedSecrets }}
             - name: DATABASE_URL
               value: {{ include "tuist.databaseUrl" . | quote }}

@@ -100,7 +100,7 @@ processor:
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
       value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
   # The processor runs the full Tuist BEAM release (Repos, Vault, Cachex,
-  # ingestion buffers, Oban, etc.) — TUIST_PROCESSOR_MODE=true only skips the
+  # ingestion buffers, Oban, etc.) — TUIST_MODE=processor only skips the
   # Phoenix endpoint binding and narrows the Oban queue set. Boot memory sits
   # around 600-800MiB. Same burstable shape as the server above: low request
   # so it schedules next to the server on the cramped staging cluster, high

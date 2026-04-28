@@ -7,15 +7,16 @@ import Config
 # any compile-time configuration in here, as it won't be applied.
 # The block below contains prod specific runtime configuration.
 
-# ## Using releases
+# ## Pod role
 #
-# If you use `mix release`, you need to explicitly enable the server
-# by passing the TUIST_WEB=true when you start it:
+# The release boots into one of two modes selected by `TUIST_MODE`:
 #
-#     TUIST_WEB=true bin/tuist start
+#   * unset / `TUIST_MODE=web` — Phoenix endpoint binds, every Oban queue
+#     and ingestion buffer runs. Default for `bin/tuist start`.
+#   * `TUIST_MODE=processor` — no Phoenix listener; Oban runs only the
+#     `:process_build` queue.
 #
-# Alternatively, you can use `mix phx.gen.release` to generate a `bin/server`
-# script that automatically sets the env var above.
+# See `Tuist.Environment.mode/0` for the full list.
 if Tuist.Environment.web?() do
   config :tuist, TuistWeb.Endpoint, server: true
 end
@@ -397,28 +398,32 @@ otel_endpoint = Tuist.Environment.get([:otel, :exporter, :otlp, :endpoint])
 
 # Oban.
 #
-# Processor pods (TUIST_PROCESSOR_MODE=true) only consume :process_build so
-# the CPU-heavy xcactivitylog parse is isolated from the hot web path. The
-# server pod runs every other queue and — when TUIST_DELEGATE_PROCESS_BUILD
-# is set — skips :process_build entirely so jobs land exclusively on the
-# processor fleet. Self-hosted installs without a dedicated processor leave
-# that flag unset; the server runs all queues including :process_build.
+# Three queue-list shapes derived from the same base. New queues go into
+# `base_queues` and are picked up by both the default and delegate paths.
+#
+#   * Processor pods (TUIST_MODE=processor) only consume :process_build
+#     so the CPU-heavy xcactivitylog parse is isolated from the hot web path.
+#   * Server pods with TUIST_DELEGATE_PROCESS_BUILD=1 skip :process_build
+#     entirely so jobs land exclusively on the processor fleet.
+#   * Self-hosted installs without a dedicated processor leave both flags
+#     unset and run every queue locally.
+base_queues = [default: 10, process_xcresult: 2]
+process_build_queue = {:process_build, Tuist.Environment.process_build_queue_concurrency()}
+
 oban_queues =
   cond do
-    Tuist.Environment.processor_mode?() ->
-      [process_build: Tuist.Environment.process_build_queue_concurrency()]
-
-    Tuist.Environment.delegate_process_build?() ->
-      [default: 10, process_xcresult: 2]
-
-    true ->
-      [
-        default: 10,
-        process_build: Tuist.Environment.process_build_queue_concurrency(),
-        process_xcresult: 2
-      ]
+    Tuist.Environment.processor_mode?() -> [process_build_queue]
+    Tuist.Environment.delegate_process_build?() -> base_queues
+    true -> base_queues ++ [process_build_queue]
   end
 
+# Cron is leader-only: whichever Oban node wins the leader election runs the
+# crontab. With multiple pod roles in the same Oban cluster (server + processor)
+# the leader can land on either. Configure the same crontab everywhere so
+# scheduled jobs fire regardless of which pod is currently leader; the *jobs*
+# are then claimed by whichever pod runs the matching queue. Pruner + Lifeline
+# are also leader-only; both work fine on either pod since the tuist_processor
+# DB role has the necessary INSERT/UPDATE/DELETE on oban_jobs.
 config :tuist, Oban,
   queues: oban_queues,
   plugins: [
@@ -426,9 +431,7 @@ config :tuist, Oban,
     {Oban.Plugins.Lifeline, rescue_after: to_timeout(minute: 30)},
     {Oban.Plugins.Cron,
      crontab:
-       if(
-         not Tuist.Environment.processor_mode?() and Tuist.Environment.tuist_hosted?() and
-           env in [:prod, :stag, :can],
+       if(Tuist.Environment.tuist_hosted?() and env in [:prod, :stag, :can],
          do: [
            {"0 10 * * 1-5", Tuist.Ops.DailySlackReportWorker},
            {"0 * * * 1-5", Tuist.Ops.HourlySlackReportWorker},

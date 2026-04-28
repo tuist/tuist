@@ -58,9 +58,27 @@ defmodule Tuist.Environment do
     Enum.member?(["1", "true", "TRUE", "yes", "YES"], value)
   end
 
-  def web? do
-    "TUIST_WEB" |> System.get_env("1") |> truthy?()
+  @doc """
+  Pod role. Controls which subsystems the BEAM brings up at boot:
+
+    * `:web` (default) — full Phoenix endpoint, every Oban queue, every
+      ingestion buffer. What the existing server pods run.
+    * `:processor` — no Phoenix listener, narrowed Oban queue set to
+      `:process_build`. Booted by processor-deployment.yaml.
+
+  Read once from `TUIST_MODE`. Add new modes here when the supervision tree
+  needs another shape (e.g. a future `:scheduler` or `:ingest`).
+  """
+  def mode do
+    case System.get_env("TUIST_MODE") do
+      "processor" -> :processor
+      _ -> :web
+    end
   end
+
+  def web?, do: mode() == :web
+
+  def processor_mode?, do: mode() == :processor
 
   def database_url(secrets \\ secrets()) do
     System.get_env("DATABASE_URL") || get([:database_url], secrets)
@@ -565,10 +583,6 @@ defmodule Tuist.Environment do
 
   def cache_api_key(secrets \\ secrets()) do
     get([:cache_api_key], secrets)
-  end
-
-  def processor_mode? do
-    truthy?(System.get_env("TUIST_PROCESSOR_MODE", "0"))
   end
 
   def delegate_process_build? do

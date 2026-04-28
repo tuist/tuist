@@ -155,7 +155,7 @@ server:
 
 processor:
   # Oban-backed xcactivitylog processor. Runs the same Docker image as the
-  # server with TUIST_PROCESSOR_MODE=true, which (a) disables the Phoenix
+  # server with TUIST_MODE=processor, which (a) disables the Phoenix
   # web endpoint and (b) narrows the Oban queue set to :process_build only.
   # Jobs flow from any `ProcessBuildWorker.new()` enqueue (server side) to
   # these pods via SELECT … FOR UPDATE SKIP LOCKED; a saturated pod doesn't
