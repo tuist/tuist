@@ -216,6 +216,45 @@ jobs:
       - name: Run tests
         run: tuist test TuistUnitTests -- -retry-tests-on-failure -test-iterations 4
 
+  # Build the Tuist server image once; each acceptance-test shard pulls it down and
+  # boots its own cluster against it. The same image runs as both web server and Oban
+  # processor (TUIST_PROCESSOR_MODE flips the role at runtime, see #10428), so a
+  # single-container deploy covers the build inspection path end-to-end.
+  cli-acceptance-tests-server-image:
+    name: Build Acceptance Cluster Image
+    runs-on: namespace-profile-default-with-volume
+    timeout-minutes: 40
+    if: (github.event.pull_request.draft == false || github.event_name != 'pull_request') && github.event.pull_request.head.repo.fork != true
+    outputs:
+      image_tag: ${{ steps.tag.outputs.image_tag }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+      - id: tag
+        run: echo "image_tag=acceptance-${GITHUB_SHA:0:12}" >> "$GITHUB_OUTPUT"
+      - uses: namespacelabs/nscloud-setup-buildx-action@v0
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./server/Dockerfile
+          target: runner
+          push: true
+          tags: |
+            ghcr.io/tuist/tuist:${{ steps.tag.outputs.image_tag }}
+          build-args: |
+            TUIST_HOSTED=0
+            MIX_ENV=prod
+            APT_CACHE_BUST=${{ github.sha }}
+
   cli-acceptance-tests-build:
     name: Build Acceptance Tests
     runs-on: namespace-profile-default-macos
@@ -269,11 +308,19 @@ jobs:
     name: Acceptance Tests
     runs-on: namespace-profile-default-macos
     timeout-minutes: 60
-    needs: cli-acceptance-tests-build
+    needs: [cli-acceptance-tests-build, cli-acceptance-tests-server-image]
     if: toJSON(fromJSON(needs.cli-acceptance-tests-build.outputs.matrix).shard) != '[]'
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.cli-acceptance-tests-build.outputs.matrix) }}
+    env:
+      # Each shard runs on its own macOS runner, so a single fixed port is fine — but we
+      # still namespace COMPOSE_PROJECT_NAME on the shard index so concurrent runs on the
+      # same Docker daemon (locally / re-runs) don't collide on volumes/networks.
+      TUIST_IMAGE_TAG: ${{ needs.cli-acceptance-tests-server-image.outputs.image_tag }}
+      TUIST_URL: http://localhost:8080
+      TUIST_AUTH_EMAIL: tuistrocks@tuist.dev
+      TUIST_AUTH_PASSWORD: tuistrocks
     steps:
       - uses: actions/checkout@v4
         with:
@@ -319,10 +366,21 @@ jobs:
           security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
           security default-keychain -s $KEYCHAIN_PATH
           security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
+      - name: Install Docker
+        run: |
+          brew install docker docker-compose colima
+          colima start --cpu 4 --memory 8 --disk 30
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+      - name: Bring up acceptance cluster (shard ${{ matrix.shard }})
+        run: bash mise/tasks/cli/acceptance-cluster/up.sh ${{ matrix.shard }}
       - name: Run shard ${{ matrix.shard }}
         run: tuist test --without-building --platform macOS TuistAcceptanceTests -- -retry-tests-on-failure -test-iterations 2
         env:
           TUIST_SHARD_INDEX: ${{ matrix.shard }}
+      - name: Tear down acceptance cluster
+        if: always()
+        run: bash mise/tasks/cli/acceptance-cluster/down.sh ${{ matrix.shard }}
 
   cli-acceptance-tests-fork:
     name: Acceptance Tests (Fork)
