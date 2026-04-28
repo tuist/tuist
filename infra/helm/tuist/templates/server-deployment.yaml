@@ -60,8 +60,9 @@ spec:
               containerPort: 4369
             {{- end }}
           env:
-            - name: TUIST_WEB
-              value: "true"
+            # TUIST_MODE defaults to :web in Tuist.Environment.mode/0 — no
+            # need to set it explicitly here. The processor Deployment sets
+            # TUIST_MODE=processor; everything else is :web.
             {{- if not .Values.server.managedSecrets }}
             - name: DATABASE_URL
               value: {{ include "tuist.databaseUrl" . | quote }}
@@ -85,6 +86,15 @@ spec:
               value: {{ .Values.server.skipEmailConfirmation | ternary "1" "0" | quote }}
             - name: TUIST_SELF_HOSTING_DEVELOPMENT_MODE
               value: {{ .Values.server.license.selfHostingDevelopmentMode | ternary "1" "0" | quote }}
+            {{- if .Values.processor.enabled }}
+            # Hand off the :process_build queue entirely to processor pods —
+            # without this the server's local Oban worker (default concurrency
+            # 2) races the dedicated processor and steals jobs the processor
+            # was meant to do, defeating the whole point of a separate parse
+            # fleet.
+            - name: TUIST_DELEGATE_PROCESS_BUILD
+              value: "1"
+            {{- end }}
             {{- include "tuist.licenseEnv" . | nindent 12 }}
             {{- if or .Values.server.masterKey .Values.server.managedSecrets }}
             - name: MASTER_KEY

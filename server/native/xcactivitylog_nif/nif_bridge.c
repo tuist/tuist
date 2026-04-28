@@ -101,4 +101,4 @@ static ErlNifFunc nif_funcs[] = {
     {"parse_nif", 4, parse_nif, ERL_NIF_DIRTY_JOB_CPU_BOUND}
 };
 
-ERL_NIF_INIT(Elixir.Processor.XCActivityLogNIF, nif_funcs, NULL, NULL, NULL, NULL)
+ERL_NIF_INIT(Elixir.Tuist.Processor.XCActivityLogNIF, nif_funcs, NULL, NULL, NULL, NULL)
