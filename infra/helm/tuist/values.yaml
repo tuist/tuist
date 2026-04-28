@@ -322,6 +322,9 @@ macosFleet:
     port: 6443
   image:
     repository: ghcr.io/tuist/capi-provider-scaleway-applesilicon
+    # Falls back to "latest" when unset. The build workflow pushes both
+    # `:<sha>` and `:latest` so this default resolves to the most recent
+    # green build. Pin per-env in `values-managed-<env>.yaml` for prod.
     tag: ""
     pullPolicy: IfNotPresent
   scaleway:

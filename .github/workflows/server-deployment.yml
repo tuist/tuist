@@ -205,7 +205,14 @@ jobs:
         # capi-system) + RBAC. Apply is idempotent; pinned to the
         # version our infra provider compiles against
         # (sigs.k8s.io/cluster-api v1.9.4).
-        run: kubectl apply -f https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.9.4/cluster-api-components.yaml
+        run: |
+          kubectl apply -f https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.9.4/cluster-api-components.yaml
+          # Wait for the controller pods to be Available before helm
+          # creates Cluster/MachineDeployment resources — the validating
+          # webhooks are served from these pods, and helm hits 'no
+          # endpoints available' if it races them.
+          kubectl wait --for=condition=Available --timeout=300s \
+            -n capi-system deployment/capi-controller-manager
 
       - name: helm upgrade --install
         # App secrets never pass through --set: the chart runs in

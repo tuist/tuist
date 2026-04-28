@@ -94,7 +94,7 @@ spec:
       serviceAccountName: {{ $name }}
       containers:
         - name: manager
-          image: "{{ .Values.macosFleet.image.repository }}:{{ .Values.macosFleet.image.tag | default .Chart.AppVersion }}"
+          image: "{{ .Values.macosFleet.image.repository }}:{{ .Values.macosFleet.image.tag | default "latest" }}"
           imagePullPolicy: {{ .Values.macosFleet.image.pullPolicy }}
           args:
             - --leader-elect=true
