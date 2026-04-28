@@ -19,7 +19,7 @@ Two paths:
 1. **Supabase Dashboard → SQL Editor**, paste the file contents, replace `:'pw'` with a quoted password literal, click Run. Fine for one-off bootstrap.
 2. **Direct psql** (reproducible, scriptable — recommended). The two passwords come from 1Password:
    - `PROCESSOR_DATABASE_PASSWORD` (the role password) lives at `op://tuist-k8s-<env>/PROCESSOR_DATABASE_PASSWORD/password`. Same value the chart composes into the processor's `DATABASE_URL` via ESO.
-   - The `postgres` superuser password (the credential that runs `CREATE ROLE`) lives at `op://Development/Tuist <Env> Database (Supabase)/password` — one item per env (`Tuist Staging Database (Supabase)`, `Tuist Canary Database (Supabase)`, `Tuist Production Database (Supabase)`).
+   - The `postgres` superuser password (the credential that runs `CREATE ROLE`) lives in the `Development` 1P vault, in items titled `Tuist <Env> Database (Supabase)` — read via `op item get` because the parens in the title break `op://` references.
 
    Run from the repo root with the right env substituted in:
 
@@ -33,7 +33,7 @@ Two paths:
    esac
 
    PW="$(op read "op://tuist-k8s-$ENV/PROCESSOR_DATABASE_PASSWORD/password")"
-   SUPABASE_PG_PW="$(op read "op://Development/$OP_DB_ITEM/password")"
+   SUPABASE_PG_PW="$(op item get "$OP_DB_ITEM" --vault Development --fields password --reveal)"
 
    # Direct connection (port 5432, not the pooler) — role provisioning needs a session.
    psql "postgresql://postgres:$SUPABASE_PG_PW@db.$SUPABASE_REF.supabase.co:5432/postgres?sslmode=require" \
@@ -77,7 +77,7 @@ case $ENV in
 esac
 
 NEW_PW="$(openssl rand -base64 32 | tr -d '/+=')"
-SUPABASE_PG_PW="$(op read "op://Development/$OP_DB_ITEM/password")"
+SUPABASE_PG_PW="$(op item get "$OP_DB_ITEM" --vault Development --fields password --reveal)"
 
 op item edit "op://tuist-k8s-$ENV/PROCESSOR_DATABASE_PASSWORD" password="$NEW_PW"
 
