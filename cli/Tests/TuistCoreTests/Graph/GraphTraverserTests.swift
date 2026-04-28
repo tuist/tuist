@@ -1724,7 +1724,8 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
     func test_embeddableFrameworks_whenHostedTestTarget_withDirectFrameworkNotInHost() throws {
         // Given: Unit test depends on a host app AND a framework that the host does NOT depend on.
-        // The framework should NOT be embedded in the .xctest bundle.
+        // The framework MUST be embedded in the .xctest bundle — otherwise dyld finds the
+        // unsigned framework in BUILT_PRODUCTS_DIR and a hardened host rejects it at launch.
         let featureFramework = Target.test(name: "FeatureA", product: .framework)
         let app = Target.test(name: "SharedTestHost", product: .app)
         let tests = Target.test(name: "FeatureATests", product: .unitTests)
@@ -1749,7 +1750,12 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.embeddableFrameworks(path: featureProject.path, name: tests.name).sorted()
 
         // Then
-        XCTAssertTrue(got.isEmpty)
+        XCTAssertEqual(got, [
+            GraphDependencyReference.product(
+                target: featureFramework.name,
+                productName: featureFramework.productNameWithExtension
+            ),
+        ])
     }
 
     func test_embeddableFrameworks_whenUITest_andAppPrecompiledDependencies() throws {

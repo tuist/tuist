@@ -494,10 +494,20 @@ public class GraphTraverser: GraphTraversing {
             }
         )
 
-        // Unit tests never embed frameworks — they either run inside a host app
-        // (which embeds the frameworks) or standalone (where DYLD paths are used instead).
+        // For hosted unit tests, subtract frameworks already embedded in the host app
+        // to avoid duplicate embedding (and the runtime issues that follow). Frameworks
+        // the test depends on but the host doesn't must still be embedded in the .xctest
+        // bundle — otherwise dyld finds them in BUILT_PRODUCTS_DIR unsigned and a hardened
+        // host process rejects them with a Team ID / signature mismatch at launch.
+        // For standalone unit tests there is no host to load into, so embed nothing.
         if target.target.product == .unitTests {
-            references = Set()
+            if let hostApp = unitTestHost(path: path, name: name) {
+                references.subtract(
+                    embeddableFrameworks(path: hostApp.path, name: hostApp.target.name)
+                )
+            } else {
+                references = Set()
+            }
         }
 
         return references
