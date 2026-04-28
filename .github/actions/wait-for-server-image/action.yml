@@ -1,0 +1,89 @@
+name: Wait for server image
+description: |
+  Waits for the `Server image / Build + scan` check run to reach a terminal state on
+  the current SHA, then exits success/failure to match the build's conclusion.
+
+  The image itself is built once per SHA by `server-image.yml` (which calls
+  `server-image-build.yml` and pushes `ghcr.io/tuist/tuist:image-<sha>`). Consumer
+  workflows — the CLI acceptance tests, future mobile-app acceptance tests, server
+  e2e suites, … — `uses: ./.github/actions/wait-for-server-image` and then pull the
+  predictable tag.
+
+  Why a composite action vs. polling the registry: this polls the GitHub *check*
+  API, which means we
+    * fast-fail when the image build itself fails (registry polling can't tell the
+      difference between "not yet pushed" and "build crashed")
+    * use the same primitive every consumer can copy-paste into their workflow
+    * surface the wait as a regular composite-action step instead of an inline
+      multi-line bash blob
+
+inputs:
+  github-token:
+    description: Token used to read check runs. Defaults to the workflow's GITHUB_TOKEN.
+    required: false
+    default: ${{ github.token }}
+  sha:
+    description: Commit SHA to look up the check on. Defaults to the workflow's SHA.
+    required: false
+    default: ${{ github.sha }}
+  check-name:
+    description: |
+      Name of the check run to wait for. Matches `<workflow name> / <job name>` as
+      shown on the PR's checks page.
+    required: false
+    default: "Server image / Build + scan"
+  timeout-minutes:
+    description: Maximum time to wait before failing.
+    required: false
+    default: "30"
+  poll-interval-seconds:
+    description: How often to poll the check API.
+    required: false
+    default: "15"
+
+runs:
+  using: composite
+  steps:
+    - name: Wait for ${{ inputs.check-name }}
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        WAIT_REPO: ${{ github.repository }}
+        WAIT_SHA: ${{ inputs.sha }}
+        WAIT_CHECK: ${{ inputs.check-name }}
+        WAIT_TIMEOUT_MIN: ${{ inputs.timeout-minutes }}
+        WAIT_INTERVAL_SEC: ${{ inputs.poll-interval-seconds }}
+      run: |
+        set -eu
+        deadline=$(( $(date +%s) + WAIT_TIMEOUT_MIN * 60 ))
+        encoded_check=$(printf '%s' "$WAIT_CHECK" | sed 's/ /%20/g')
+        echo "Waiting up to ${WAIT_TIMEOUT_MIN}m for '${WAIT_CHECK}' on ${WAIT_SHA}…"
+        while true; do
+          # Filter to the named check; when there are multiple runs (re-runs) the
+          # most recent is at index 0.
+          conclusion=$(
+            gh api "/repos/${WAIT_REPO}/commits/${WAIT_SHA}/check-runs?check_name=${encoded_check}" \
+              --jq '.check_runs[0].conclusion // ""' 2>/dev/null || echo ""
+          )
+          case "$conclusion" in
+            success)
+              echo "✓ '${WAIT_CHECK}' succeeded"
+              exit 0
+              ;;
+            failure | cancelled | timed_out | action_required | startup_failure)
+              echo "✗ '${WAIT_CHECK}' finished with conclusion: ${conclusion}"
+              exit 1
+              ;;
+            "" | neutral | skipped | stale)
+              # Still running or not yet started — keep polling.
+              ;;
+            *)
+              echo "Unknown conclusion '${conclusion}', treating as still pending."
+              ;;
+          esac
+          if [ "$(date +%s)" -ge "$deadline" ]; then
+            echo "Timed out after ${WAIT_TIMEOUT_MIN}m waiting for '${WAIT_CHECK}'." >&2
+            exit 1
+          fi
+          sleep "$WAIT_INTERVAL_SEC"
+        done

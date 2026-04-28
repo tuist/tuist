@@ -335,22 +335,10 @@ jobs:
       - name: Log in to GHCR
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       - name: Wait for server image
-        # The `server-image.yml` workflow builds + Trivy-scans + pushes
-        # `ghcr.io/tuist/tuist:image-<sha>` on the same SHA. It runs in parallel with
-        # this workflow, so poll the registry until the manifest exists. Cap at 30 min
-        # to match the image build's worst-case wall time.
-        run: |
-          set -eu
-          deadline=$(( $(date +%s) + 1800 ))
-          until docker manifest inspect "ghcr.io/tuist/tuist:${TUIST_IMAGE_TAG}" >/dev/null 2>&1; do
-            if [ "$(date +%s)" -ge "$deadline" ]; then
-              echo "Timed out waiting for ghcr.io/tuist/tuist:${TUIST_IMAGE_TAG}" >&2
-              exit 1
-            fi
-            echo "Image not yet available, retrying in 15s…"
-            sleep 15
-          done
-          echo "Image ghcr.io/tuist/tuist:${TUIST_IMAGE_TAG} is available."
+        # Polls the `Server image / Build + scan` check run on this SHA via the
+        # GitHub check API; fast-fails if the image build itself fails. Same
+        # composite action that any future workflow consuming this image can drop in.
+        uses: ./.github/actions/wait-for-server-image
       - name: Bring up acceptance cluster (shard ${{ matrix.shard }})
         run: bash mise/tasks/cli/acceptance-cluster/up.sh ${{ matrix.shard }}
       - name: Run shard ${{ matrix.shard }}
