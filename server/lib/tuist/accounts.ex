@@ -1159,6 +1159,18 @@ defmodule Tuist.Accounts do
     end
   end
 
+  def get_invitation_by_token(token) do
+    invitation =
+      Invitation
+      |> Repo.get_by(token: token)
+      |> Repo.preload(inviter: :account)
+
+    case invitation do
+      nil -> {:error, :not_found}
+      invitation -> {:ok, invitation}
+    end
+  end
+
   def belongs_to_organization?(%User{} = user, %Organization{} = organization) do
     organization_user?(user, organization) or organization_admin?(user, organization)
   end

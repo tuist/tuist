@@ -6,10 +6,14 @@ defmodule Tuist.Bundles do
   import Ecto.Query
 
   alias Tuist.Bundles.Artifact
+  alias Tuist.Bundles.ArtifactIngest
   alias Tuist.Bundles.Bundle
   alias Tuist.Bundles.BundleThreshold
+  alias Tuist.IngestRepo
   alias Tuist.Projects.Project
   alias Tuist.Repo
+
+  require Logger
 
   @doc """
   Creates a bundle with associated artifacts.
@@ -38,9 +42,52 @@ defmodule Tuist.Bundles do
     preload = Keyword.get(opts, :preload, [])
 
     case Repo.transaction(multi) do
-      {:ok, %{bundle: bundle}} -> {:ok, Repo.preload(bundle, preload)}
-      {:error, _operation, changeset, _changes} -> {:error, changeset}
+      {:ok, %{bundle: bundle, artifacts: artifacts}} ->
+        bundle = replicate_artifacts_to_clickhouse(bundle, artifacts)
+        {:ok, Repo.preload(bundle, preload)}
+
+      {:error, _operation, changeset, _changes} ->
+        {:error, changeset}
     end
+  end
+
+  # Mirrors the just-persisted artifacts into ClickHouse synchronously and,
+  # on success, marks the bundle as replicated. PG remains the source of
+  # truth for reads until the backfill completes and reads are cut over.
+  #
+  # The write is intentionally synchronous (not via `Tuist.Ingestion.Buffer`):
+  # a buffered async flush that crashes on a transient CH outage would drop
+  # rows after the PG transaction has already committed, with no durable
+  # signal for recovery. With the synchronous path, `IngestRepo.with_retry`
+  # absorbs brief blips, and longer outages surface here as exceptions —
+  # rescued so bundle creation does not 5xx, but with the bundle's
+  # `artifacts_replicated_to_ch` flag left unset so the follow-up backfill
+  # paginating `WHERE artifacts_replicated_to_ch = false` recovers it.
+  defp replicate_artifacts_to_clickhouse(bundle, []) do
+    mark_replicated!(bundle)
+  end
+
+  defp replicate_artifacts_to_clickhouse(bundle, artifacts) do
+    rows = Enum.map(artifacts, &ArtifactIngest.from_pg/1)
+    IngestRepo.insert_all(ArtifactIngest, rows)
+    mark_replicated!(bundle)
+  rescue
+    e ->
+      Logger.error(
+        "Failed to replicate artifacts to ClickHouse for bundle #{bundle.id}: " <>
+          Exception.message(e) <> "\n" <> Exception.format_stacktrace(__STACKTRACE__)
+      )
+
+      bundle
+  end
+
+  defp mark_replicated!(%Bundle{id: id} = bundle) do
+    Repo.update_all(
+      from(b in Bundle, where: b.id == ^id),
+      set: [artifacts_replicated_to_ch: true]
+    )
+
+    %{bundle | artifacts_replicated_to_ch: true}
   end
 
   defp insert_artifacts_in_batches(repo, artifacts, bundle_id) do

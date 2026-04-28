@@ -293,6 +293,99 @@ final class ImportSourceCodeScannerTests: TuistUnitTestCase {
         XCTAssertEqual(imports, ["ProjectDescription", "ProjectDescriptionHelpers"])
     }
 
+    // MARK: - canImport guards
+
+    func test_canImportGuard_isSkippedWhenModuleNotReachable() throws {
+        // When the gated module isn't in the target's reachable set, the entire
+        // `#if canImport(X)` branch is dead code at compile time — its imports
+        // must not be reported as implicit.
+        let code = """
+        import Foundation
+
+        #if canImport(FirebaseAppDistribution)
+        import FirebaseAppDistribution
+
+        final class Adapter {}
+        #endif
+        """
+
+        let imports = try subject.extractImports(from: code, language: .swift, reachableModules: [])
+        XCTAssertEqual(imports, ["Foundation"])
+    }
+
+    func test_canImportGuard_isCountedWhenModuleReachable() throws {
+        let code = """
+        import Foundation
+
+        #if canImport(FirebaseAppDistribution)
+        import FirebaseAppDistribution
+        #endif
+        """
+
+        let imports = try subject.extractImports(
+            from: code,
+            language: .swift,
+            reachableModules: ["FirebaseAppDistribution"]
+        )
+        XCTAssertEqual(imports, ["Foundation", "FirebaseAppDistribution"])
+    }
+
+    func test_nonCanImportConditionStaysActive() throws {
+        // Anything that isn't a bare `canImport(X)` is treated as active so we keep
+        // the legacy permissive behaviour for compound expressions and custom flags.
+        let code = """
+        #if DEBUG
+        import DebugOnly
+        #endif
+
+        #if Debug || (Live && canImport(FirebaseAppDistribution))
+        import FirebaseAppDistribution
+        #endif
+        """
+
+        XCTAssertEqual(
+            try subject.extractImports(from: code, language: .swift, reachableModules: []),
+            ["DebugOnly", "FirebaseAppDistribution"]
+        )
+    }
+
+    func test_bareImportWithoutGuardIsAlwaysCounted() throws {
+        // Imports outside any #if must keep being flagged — the whole point of the
+        // implicit-deps check is to catch this case.
+        let code = """
+        import FirebaseAppDistribution
+        """
+        XCTAssertEqual(
+            try subject.extractImports(from: code, language: .swift, reachableModules: []),
+            ["FirebaseAppDistribution"]
+        )
+    }
+
+    func test_nestedCanImportInsideOtherConditionStillEvaluated() throws {
+        // The outer #if BETA is unrecognised → active. The inner canImport is the
+        // one we actually filter on.
+        let code = """
+        #if BETA
+        #if canImport(FirebaseAppDistribution)
+        import FirebaseAppDistribution
+        #endif
+        #endif
+        """
+
+        XCTAssertEqual(
+            try subject.extractImports(from: code, language: .swift, reachableModules: []),
+            []
+        )
+        XCTAssertEqual(
+            try subject.extractImports(
+                from: code,
+                language: .swift,
+                reachableModules: ["FirebaseAppDistribution"]
+            ),
+            ["FirebaseAppDistribution"]
+        )
+    }
+
     func test_whenSwiftWithTestableImport() throws {
         // Given
         let code = """

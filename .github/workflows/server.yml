@@ -193,11 +193,13 @@ jobs:
           path: |
             server/deps
             server/_build
-          key: mix-${{ hashFiles('server/mix.lock') }}
+          key: mix-test-v2-${{ hashFiles('server/mix.lock') }}
           restore-keys: |
-            mix-
+            mix-test-v2-
       - name: Install dependencies
         run: mix deps.get
+      - name: Compile
+        run: mix compile --warnings-as-errors
       - name: Start ClickHouse
         run: mise run --no-deps clickhouse:start
       - name: Setup database
