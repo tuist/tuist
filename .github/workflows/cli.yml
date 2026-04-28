@@ -280,13 +280,16 @@ jobs:
       matrix: ${{ fromJson(needs.cli-acceptance-tests-build.outputs.matrix) }}
     env:
       # The server image is built once by the `Server image` workflow (server-image.yml)
-      # under `image-<sha>`. Each shard pulls that same tag, then namespaces its compose
-      # project on the shard index so concurrent runs on the same Docker daemon don't
-      # collide on volumes/networks.
+      # under `image-<sha>`. Each shard pulls that same tag and runs against it via
+      # the per-shard kind cluster spun up below.
+      #
+      # `TUIST_URL` is intentionally **not** set at job level — `tuist auth login`
+      # (used by the early `Authenticate with Tuist` step to reach prod tuist.dev's
+      # binary cache) reads it from the env, and pointing it at `localhost:8080`
+      # before the cluster is up would make that step fail. The env vars the
+      # acceptance test itself needs (`TUIST_URL`, `TUIST_AUTH_*`) are scoped to
+      # the `Run shard` step further down.
       TUIST_IMAGE_TAG: image-${{ github.sha }}
-      TUIST_URL: http://localhost:8080
-      TUIST_AUTH_EMAIL: tuistrocks@tuist.dev
-      TUIST_AUTH_PASSWORD: tuistrocks
     steps:
       - uses: actions/checkout@v4
         with:
@@ -359,6 +362,13 @@ jobs:
         run: tuist test --without-building --platform macOS TuistAcceptanceTests -- -retry-tests-on-failure -test-iterations 2
         env:
           TUIST_SHARD_INDEX: ${{ matrix.shard }}
+          # Scoped to this step so the earlier `tuist auth login` (which uses
+          # TUIST_URL to pick a server) doesn't get redirected at our local
+          # cluster. The acceptance test trait reads these from the inherited
+          # process env.
+          TUIST_URL: http://localhost:8080
+          TUIST_AUTH_EMAIL: tuistrocks@tuist.dev
+          TUIST_AUTH_PASSWORD: tuistrocks
 
   cli-acceptance-tests-fork:
     name: Acceptance Tests (Fork)

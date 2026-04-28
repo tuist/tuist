@@ -17,7 +17,7 @@ import TuistTesting
 struct InspectAcceptanceTests {
     @Test(
         .inTemporaryDirectory,
-        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedEnvironment(inheritingVariables: ["PATH", "TUIST_URL"]),
         .withMockedNoora,
         .withMockedLogger(forwardLogs: true),
         .withFixtureConnectedToCanary("xcode_project_with_inspect_build")
