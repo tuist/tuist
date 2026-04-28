@@ -30,6 +30,25 @@ spec:
     host: {{ required "macosFleet.controlPlane.host is required" .Values.macosFleet.controlPlane.host | quote }}
     port: {{ .Values.macosFleet.controlPlane.port | default 6443 }}
 ---
+# Placeholder bootstrap data Secret. CAPI core's Machine controller
+# requires `bootstrap.dataSecretName` to resolve to an existing Secret
+# before it marks a Machine as bootstrapped — even when a real
+# bootstrap provider isn't in play. Our operator does the actual
+# kubelet bootstrap inline via SSH, so the contents here are unused;
+# only the Secret's existence matters.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ printf "%s-bootstrap-noop" $fleetName | quote }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: macos-fleet
+type: cluster.x-k8s.io/secret
+stringData:
+  value: ""
+  format: cloud-config
+---
 apiVersion: cluster.x-k8s.io/v1beta1
 kind: Cluster
 metadata:
