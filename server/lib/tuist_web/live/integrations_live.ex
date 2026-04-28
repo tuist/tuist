@@ -69,12 +69,21 @@ defmodule TuistWeb.IntegrationsLive do
   end
 
   @impl true
-  def handle_event("toggle-github-enterprise-input", _params, socket) do
-    show? = not socket.assigns.show_github_enterprise_input
-
+  def handle_event("select-github-com", _params, socket) do
     socket =
       socket
-      |> assign(show_github_enterprise_input: show?)
+      |> assign(show_github_enterprise_input: false)
+      |> assign(github_client_url: GitHubAppInstallation.default_client_url())
+      |> assign(github_client_url_error: nil)
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("select-github-enterprise", _params, socket) do
+    socket =
+      socket
+      |> assign(show_github_enterprise_input: true)
       |> assign(github_client_url: GitHubAppInstallation.default_client_url())
       |> assign(github_client_url_error: nil)
 

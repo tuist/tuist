@@ -11,27 +11,27 @@
 msgid ""
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:78
+#: lib/tuist_web/live/integrations_live.html.heex:88
 #, elixir-autogen, elixir-format
 msgid "Add new project connection"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:141
+#: lib/tuist_web/live/integrations_live.html.heex:151
 #, elixir-autogen, elixir-format
 msgid "Cancel"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:93
+#: lib/tuist_web/live/integrations_live.html.heex:103
 #, elixir-autogen, elixir-format
 msgid "Choose Tuist project"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:120
+#: lib/tuist_web/live/integrations_live.html.heex:130
 #, elixir-autogen, elixir-format
 msgid "Choose a repository"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:71
+#: lib/tuist_web/live/integrations_live.html.heex:81
 #, elixir-autogen, elixir-format
 msgid "Choose repository to connect to"
 msgstr ""
@@ -41,17 +41,17 @@ msgstr ""
 msgid "Connect any of your GitHub repositories to a project"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.ex:192
+#: lib/tuist_web/live/integrations_live.ex:201
 #, elixir-autogen, elixir-format
 msgid "Connected %{time_ago}"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.ex:194
+#: lib/tuist_web/live/integrations_live.ex:203
 #, elixir-autogen, elixir-format
 msgid "Connected %{time_ago} by %{name}"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:148
+#: lib/tuist_web/live/integrations_live.html.heex:158
 #, elixir-autogen, elixir-format
 msgid "Create Connection"
 msgstr ""
@@ -61,7 +61,7 @@ msgstr ""
 msgid "GitHub"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:44
+#: lib/tuist_web/live/integrations_live.html.heex:54
 #, elixir-autogen, elixir-format
 msgid "Install GitHub App"
 msgstr ""
@@ -72,17 +72,17 @@ msgstr ""
 msgid "Integrations"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:187
+#: lib/tuist_web/live/integrations_live.html.heex:197
 #, elixir-autogen, elixir-format
 msgid "Manage"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:55
+#: lib/tuist_web/live/integrations_live.html.heex:65
 #, elixir-autogen, elixir-format
 msgid "Manage integration"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:190
+#: lib/tuist_web/live/integrations_live.html.heex:200
 #, elixir-autogen, elixir-format
 msgid "Remove connection"
 msgstr ""
@@ -92,42 +92,42 @@ msgstr ""
 msgid "You are not authorized to perform this action."
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:66
+#: lib/tuist_web/live/integrations_live.html.heex:76
 #, elixir-autogen, elixir-format
 msgid "Your access to repositories depends on your GitHub and Tuist integration setup."
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:218
+#: lib/tuist_web/live/integrations_live.html.heex:228
 #, elixir-autogen, elixir-format
 msgid "Connect Slack"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:208
+#: lib/tuist_web/live/integrations_live.html.heex:218
 #, elixir-autogen, elixir-format
 msgid "Connect Slack to receive project analytics reports"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:225
+#: lib/tuist_web/live/integrations_live.html.heex:235
 #, elixir-autogen, elixir-format
 msgid "Disconnect from %{team_name}"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:205
+#: lib/tuist_web/live/integrations_live.html.heex:215
 #, elixir-autogen, elixir-format
 msgid "Slack"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:21
-#, elixir-autogen, elixir-format
-msgid "GitHub Enterprise Server"
-msgstr ""
-
-#: lib/tuist_web/live/integrations_live.ex:213
+#: lib/tuist_web/live/integrations_live.ex:222
 #, elixir-autogen, elixir-format
 msgid "Invalid URL"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:34
+#: lib/tuist_web/live/integrations_live.html.heex:44
 #, elixir-autogen, elixir-format
 msgid "Server URL"
+msgstr ""
+
+#: lib/tuist_web/live/integrations_live.html.heex:28
+#, elixir-autogen, elixir-format
+msgid "Enterprise Server"
 msgstr ""

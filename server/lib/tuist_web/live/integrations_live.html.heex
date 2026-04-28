@@ -15,15 +15,21 @@
     <div data-part="content">
       <div
         :if={is_nil(@github_app_installation)}
-        data-part="github-host-toggle"
+        data-part="github-host-tabs"
         style="display: flex; justify-content: flex-end;"
       >
-        <.toggle
-          id="github-enterprise-toggle"
-          checked={@show_github_enterprise_input}
-          phx-click="toggle-github-enterprise-input"
-          label={dgettext("dashboard_integrations", "GitHub Enterprise Server")}
-        />
+        <.button_group size="small">
+          <.button_group_item
+            label="github.com"
+            phx-click="select-github-com"
+            data-selected={not @show_github_enterprise_input}
+          />
+          <.button_group_item
+            label={dgettext("dashboard_integrations", "Enterprise Server")}
+            phx-click="select-github-enterprise"
+            data-selected={@show_github_enterprise_input}
+          />
+        </.button_group>
       </div>
       <div
         :if={is_nil(@github_app_installation) and @show_github_enterprise_input}
