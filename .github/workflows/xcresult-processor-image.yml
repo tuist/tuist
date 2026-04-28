@@ -1,0 +1,107 @@
+name: Xcresult Processor Image
+
+# Builds the Tart VM image that hosts the Tuist xcresult processor on macOS.
+# Pushes to ghcr.io/tuist/tuist-xcresult-processor:<git-sha> + :latest.
+#
+# Two stages on the same self-hosted bare-metal Mac mini (the same
+# vm-image-builder host #10264 introduces — Tart needs a live GUI session
+# for Virtualization.framework, so this can't run on hosted GitHub runners):
+#
+#   1. Build the Erlang release with the xcresult NIF, package as a tarball.
+#   2. Bake the tarball into a Tart image via Packer + push to GHCR.
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - server/lib/**
+      - server/native/xcresult_nif/**
+      - server/mix.exs
+      - server/mix.lock
+      - infra/xcresult-processor-image/**
+      - .github/workflows/xcresult-processor-image.yml
+  workflow_dispatch:
+    inputs:
+      base_image:
+        description: "Base Tart image"
+        required: false
+        default: "ghcr.io/cirruslabs/macos-tahoe-xcode:26.0"
+
+concurrency:
+  group: xcresult-processor-image
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    runs-on: [self-hosted, macos, bare-metal, vm-image-builder]
+    timeout-minutes: 60
+    env:
+      PATH: /opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
+      MISE_VERSION: "2026.4.18"
+      MISE_GITHUB_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: "erlang elixir"
+          working_directory: server
+
+      # 1. Build the macOS Erlang release. Includes the xcresult NIF
+      # (built via server/native/xcresult_nif/build.sh as a Mix release
+      # step) and the macOS-only priv/native/xcresult_nif.so.
+      - name: Build server release for macOS
+        working-directory: server
+        run: |
+          set -euo pipefail
+          MIX_ENV=prod mix deps.get --only prod
+          # Build the xcresult NIF first — `mix release` doesn't know to
+          # invoke the build.sh; we run it explicitly so .so + .dylib land
+          # in priv/native before the release tarball is assembled.
+          ./native/xcresult_nif/build.sh
+          MIX_ENV=prod mix compile --warnings-as-errors
+          MIX_ENV=prod mix release tuist --overwrite
+
+      - name: Package release tarball
+        working-directory: server
+        run: |
+          set -euo pipefail
+          tar -czf /tmp/release.tar.gz -C _build/prod/rel/tuist .
+          ls -lh /tmp/release.tar.gz
+
+      # 2. Bake the tarball into a Tart image.
+      - name: Initialize Packer
+        working-directory: infra/xcresult-processor-image
+        run: packer init xcresult-processor.pkr.hcl
+
+      - name: Build image
+        working-directory: infra/xcresult-processor-image
+        run: |
+          packer build \
+            -var "base_image=${{ inputs.base_image || 'ghcr.io/cirruslabs/macos-tahoe-xcode:26.0' }}" \
+            -var "output_image=tuist-xcresult-processor" \
+            -var "release_tarball=/tmp/release.tar.gz" \
+            xcresult-processor.pkr.hcl
+
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | tart login ghcr.io --username tuist-bot --password-stdin
+
+      - name: Push image to GHCR
+        run: |
+          set -euo pipefail
+          GIT_SHA="${GITHUB_SHA::8}"
+          tart push tuist-xcresult-processor "ghcr.io/tuist/tuist-xcresult-processor:${GIT_SHA}"
+          tart push tuist-xcresult-processor "ghcr.io/tuist/tuist-xcresult-processor:latest"
+          echo "Pushed ghcr.io/tuist/tuist-xcresult-processor:${GIT_SHA}"
+
+      - name: Cleanup
+        if: always()
+        run: |
+          rm -f /tmp/release.tar.gz
+          tart delete tuist-xcresult-processor 2>/dev/null || true
