@@ -84,10 +84,10 @@ if [[ "$(uname -s)" == "Darwin" ]] && ! docker info >/dev/null 2>&1; then
   echo "==> Starting colima…"
   # Try vz first, fall back to qemu. With lima v1 even the qemu fallback is
   # safe (no panic).
-  if ! colima start --vm-type vz --cpu 4 --memory 8 --disk 30; then
+  if ! colima start --vm-type vz --cpu 2 --memory 4 --disk 20; then
     echo "==> vz failed, retrying with qemu…"
     colima delete -f >/dev/null 2>&1 || true
-    colima start --vm-type qemu --cpu 4 --memory 8 --disk 30
+    colima start --vm-type qemu --cpu 2 --memory 4 --disk 20
   fi
 fi
 
