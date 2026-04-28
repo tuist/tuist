@@ -20,12 +20,6 @@ server:
   podDisruptionBudget:
     enabled: false
 
-  # Terminate-first on canary: the 2-worker canary nodepool can't fit a
-  # surge pod alongside the existing server + processor + Valkey + system
-  # DaemonSets, so a maxSurge: 1 rollout strands the surge pod in
-  # FailedScheduling: Insufficient memory until helm --wait times out at
-  # 60m. Production keeps the surge strategy (larger nodes have headroom).
-  # Mirrors the processor's strategy on canary for the same reason.
   strategy:
     type: RollingUpdate
     rollingUpdate:
