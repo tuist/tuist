@@ -4,29 +4,7 @@
     <p data-part="subtitle">Account ID {@account.id}</p>
   </div>
 
-  <.card title="Kura" icon="server">
-    <.card_section>
-      <div data-part="row">
-        <div>
-          <strong>:kura feature flag</strong>
-          <p>
-            <%= if @kura_flag_enabled? do %>
-              Enabled — the CLI receives this account's Kura endpoints when it sends the <code>kura</code> client feature header.
-            <% else %>
-              Disabled — even with bound clusters, the <code>:kura</code> resolution path returns <code>[]</code>.
-            <% end %>
-          </p>
-        </div>
-        <.button
-          variant={if @kura_flag_enabled?, do: "secondary", else: "primary"}
-          label={if @kura_flag_enabled?, do: "Disable", else: "Enable"}
-          phx-click="toggle_kura_flag"
-        />
-      </div>
-    </.card_section>
-  </.card>
-
-  <.card title="Bound Kura clusters" icon="link">
+  <.card title="Bound Kura clusters" icon="link_icon">
     <.card_section>
       <.table id="kura-bindings-table" rows={@kura_bound}>
         <:col :let={endpoint} label="Cluster">
@@ -46,7 +24,7 @@
         </:col>
         <:empty_state>
           <.table_empty_state
-            icon="link"
+            icon="link_icon"
             title="No clusters bound"
             subtitle="Bind a cluster from the catalog below."
           />
@@ -55,7 +33,7 @@
     </.card_section>
   </.card>
 
-  <.card title="Cluster catalog" icon="layers">
+  <.card title="Cluster catalog" icon="stack_2">
     <.card_section>
       <.table id="kura-catalog-table" rows={@kura_clusters}>
         <:col :let={cluster} label="Cluster">
@@ -88,7 +66,7 @@
     </.card_section>
   </.card>
 
-  <.card title="Deployments" icon="rocket">
+  <.card title="Deployments" icon="player_play">
     <.card_section>
       <div data-part="row">
         <p>
@@ -151,7 +129,7 @@
         </:col>
         <:empty_state>
           <.table_empty_state
-            icon="rocket"
+            icon="player_play"
             title="No deployments yet"
             subtitle="Use the form above to trigger one."
           />
