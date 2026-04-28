@@ -47,21 +47,19 @@ The local build:
 
 ## Env injection at runtime
 
-Orchard creates the VM with a JSON custom-data payload:
+Orchard creates the VM with a JSON custom-data payload of the shape
+`{"env": {"<NAME>": "<value>", ...}}`. The keys the launchd unit
+expects:
 
-```json
-{
-  "env": {
-    "MASTER_KEY": "...",
-    "DATABASE_URL": "postgres://tuist_processor:...@db.<env>.supabase.co:6543/postgres?sslmode=require",
-    "TUIST_DEPLOY_ENV": "prod",
-    "TUIST_XCRESULT_PROCESSOR_MODE": "1",
-    "TUIST_WEB": "0",
-    "TUIST_DATABASE_POOLED": "1",
-    "TUIST_PROCESS_XCRESULT_QUEUE_CONCURRENCY": "4"
-  }
-}
-```
+| Env var | Source | Notes |
+|---|---|---|
+| `MASTER_KEY` | k8s Secret (`server-master-key`) | Unlocks the encrypted `priv/secrets/<env>.yml.enc` baked into the release |
+| `DATABASE_URL` | k8s Secret (`processor-database-url`) | The `tuist_processor` Postgres role URL — same role the in-cluster build processor uses |
+| `TUIST_DEPLOY_ENV` | Pod env (chart) | `prod` / `can` / `stag` — picks which encrypted bundle to decrypt |
+| `TUIST_XCRESULT_PROCESSOR_MODE` | Pod env (chart) | `1` — narrows Oban to `:process_xcresult` only |
+| `TUIST_WEB` | Pod env (chart) | `0` — skips Phoenix endpoint |
+| `TUIST_DATABASE_POOLED` | Pod env (chart) | `1` — Supavisor transaction-mode pooler compatibility |
+| `TUIST_PROCESS_XCRESULT_QUEUE_CONCURRENCY` | Pod env (chart) | per-pod Oban concurrency |
 
 `inject-env.sh` materialises that as `/etc/tuist.env` on first boot; the
 launchd unit sources it before exec'ing `tuist start`. This means the
