@@ -41,6 +41,11 @@ defmodule Tuist.IngestRepo.Migrations.BackfillArtifactsFromPostgres do
   @disable_migration_lock true
 
   @bundle_batch_size 100
+  # Matches the throttle other long-running CH backfills use
+  # (`BackfillTestRunsFromCommandEvents`, `BackfillFirstRunEvents`):
+  # gives live PG/CH traffic breathing room and lets CH merges keep up
+  # so we don't trip `parts_to_throw_insert` over the ~30-min run.
+  @throttle_ms 500
 
   @ch_types %{
     id: :uuid,
@@ -83,6 +88,7 @@ defmodule Tuist.IngestRepo.Migrations.BackfillArtifactsFromPostgres do
             "(running total: #{new_bundle_total} bundles / #{new_artifact_total} artifacts)"
         )
 
+        Process.sleep(@throttle_ms)
         drain(new_bundle_total, new_artifact_total)
     end
   end
@@ -94,7 +100,15 @@ defmodule Tuist.IngestRepo.Migrations.BackfillArtifactsFromPostgres do
 
       bundle_ids ->
         artifacts = fetch_artifacts(bundle_ids)
-        if artifacts != [], do: IngestRepo.insert_all("artifacts", artifacts, types: @ch_types)
+
+        if artifacts != [] do
+          IngestRepo.insert_all("artifacts", artifacts,
+            types: @ch_types,
+            timeout: :infinity,
+            log: false
+          )
+        end
+
         mark_replicated(bundle_ids)
         {length(bundle_ids), length(artifacts)}
     end
@@ -125,14 +139,16 @@ defmodule Tuist.IngestRepo.Migrations.BackfillArtifactsFromPostgres do
         updated_at: a.updated_at
       }
     )
-    |> Repo.all(timeout: :infinity)
+    |> Repo.all(timeout: :infinity, log: false)
     |> Enum.map(&encode_for_ch/1)
   end
 
   defp mark_replicated(bundle_ids) do
     Repo.update_all(
       from(b in "bundles", where: b.id in ^bundle_ids),
-      set: [artifacts_replicated_to_ch: true]
+      [set: [artifacts_replicated_to_ch: true]],
+      timeout: :infinity,
+      log: false
     )
   end
 
