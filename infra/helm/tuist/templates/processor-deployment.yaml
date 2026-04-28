@@ -25,6 +25,12 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
       annotations:
+        # PromEx in the release binds /metrics on :9091 even with TUIST_WEB=0
+        # (it's a separate HTTP server, not the Phoenix endpoint). The Alloy
+        # scraper finds the endpoint via these annotations and forwards to
+        # Grafana Cloud Prometheus — same path as the server pod.
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9091"
         {{- with .Values.processor.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -60,6 +66,12 @@ spec:
           command:
             - /app/bin/tuist
             - start
+          ports:
+            # PromEx /metrics — declared so the Alloy scraper can discover it
+            # via the prometheus.io/port pod annotation above. Not exposed
+            # via a Service; scraping happens directly against the pod IP.
+            - name: metrics
+              containerPort: 9091
           env:
             # Gate the BEAM into processor mode: skip the Phoenix web endpoint
             # (TUIST_WEB=0) and narrow the Oban queue set to :process_build in
