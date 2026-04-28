@@ -44,23 +44,28 @@ if Enum.member?([:prod, :stag, :can], env) do
       do: [:inet6, {:keepalive, true}],
       else: [{:keepalive, true}]
 
-  # Connection options sized for transaction-mode poolers (Supabase Supavisor
-  # on port 6543, PgBouncer, etc.):
+  # Supavisor (Supabase's transaction-mode pooler) listens on 6543 and (a)
+  # rejects non-standard startup parameters with `protocol_violation` and
+  # (b) doesn't allow named prepared statements because each transaction
+  # may land on a different backend connection. Direct Postgres on 5432
+  # accepts both and benefits from Postgrex's prepared-statement caching,
+  # so the URL port picks the connection shape per pod:
   #
-  #   * No `parameters: [tcp_keepalives_*]` — Supavisor refuses non-standard
-  #     startup parameters with `protocol_violation`. The OS-level TCP
-  #     keepalive set via `socket_options` above already detects dead
-  #     connections from the client side; the server-side knobs were a
-  #     micro-optimization on direct Postgres.
-  #   * `prepare: :unnamed` — transaction-mode poolers reuse backend
-  #     connections across clients, so a named prepared statement created
-  #     in one transaction isn't visible to the next. Named prepares would
-  #     blow up with `prepared statement "..." does not exist`.
-  #
-  # These also work fine over a direct port-5432 connection — the trade-off
-  # is that the server loses Postgrex's prepared-statement caching on its
-  # direct connection. Acceptable for our query mix; revisit if profiling
-  # ever points at parse/plan overhead.
+  #   * server pod (DATABASE_URL from priv/secrets, port 5432) → :named
+  #     prepares + tcp_keepalives_* startup parameters as before.
+  #   * processor pod (DATABASE_URL composed by the chart with port 6543)
+  #     → :unnamed prepares, no startup parameters.
+  pooled? = (parsed_url.port || 5432) == 6543
+
+  postgres_parameters =
+    if pooled?,
+      do: [],
+      else: [
+        tcp_keepalives_idle: "60",
+        tcp_keepalives_interval: "30",
+        tcp_keepalives_count: "3"
+      ]
+
   database_options = [
     pool_size: Tuist.Environment.database_pool_size(secrets),
     queue_target: Tuist.Environment.database_queue_target(secrets),
@@ -71,7 +76,8 @@ if Enum.member?([:prod, :stag, :can], env) do
     hostname: parsed_url.host,
     port: parsed_url.port || 5432,
     socket_options: socket_opts,
-    prepare: :unnamed
+    parameters: postgres_parameters,
+    prepare: if(pooled?, do: :unnamed, else: :named)
   ]
 
   database_options =
