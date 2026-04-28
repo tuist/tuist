@@ -93,22 +93,41 @@ operator-managed:
 
 Day-1 operator runbook:
 
-```yaml
-# In Helm values (managed cloud — defaults shown):
-macosFleet:
-  enabled: true
-  controlPlane:
-    host: api.tuist.dev
-  machine:
-    podCIDR: 10.44.1.0/24
-  scaleway:
-    externalSecrets:
-      item: SCALEWAY_API   # 1Password item with access-key/secret-key/project-id
-```
+1. **Drop Scaleway IAM creds in 1Password.** One item per env in the
+   matching `tuist-k8s-<env>` vault — same convention as
+   `MASTER_KEY`, `PROCESSOR_DATABASE_PASSWORD`, and
+   `KUBEADM_BOOTSTRAP_TOKEN`:
 
-```bash
-helm upgrade tuist infra/helm/tuist -f ...
-```
+   - `op://tuist-k8s-staging/SCALEWAY_API/{access-key,secret-key,project-id}`
+   - `op://tuist-k8s-canary/SCALEWAY_API/{access-key,secret-key,project-id}`
+   - `op://tuist-k8s-production/SCALEWAY_API/{access-key,secret-key,project-id}`
+
+   Each env gets its own Scaleway IAM principal scoped to that
+   cluster's needs (Apple Silicon CRUD + IAM SSH key registration);
+   a leaked staging key rotates without disrupting production. Each
+   cluster's pre-configured `ClusterSecretStore "onepassword"` is
+   already scoped to the right vault, so the chart references the
+   bare item name and ESO picks the correct vault automatically.
+
+2. **Set the chart values** (managed cloud — defaults shown):
+
+   ```yaml
+   macosFleet:
+     enabled: true
+     controlPlane:
+       host: api.tuist.dev
+     machine:
+       podCIDR: 10.44.1.0/24
+     scaleway:
+       externalSecrets:
+         item: SCALEWAY_API   # bare item name; vault from ClusterSecretStore
+   ```
+
+3. **Deploy.**
+
+   ```bash
+   helm upgrade tuist infra/helm/tuist -f ...
+   ```
 
 That's it. The MachineDeployment's `replicas` field controls the
 fleet size from there. No `kubectl create secret` calls.

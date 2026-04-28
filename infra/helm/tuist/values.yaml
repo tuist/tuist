@@ -333,8 +333,13 @@ macosFleet:
       storeRef:
         kind: ClusterSecretStore
         name: onepassword
-      # 1Password item path for the Scaleway credentials. The item
-      # must have three fields named per the `fields` mapping below.
+      # Bare 1Password item name. The cluster's `ClusterSecretStore
+      # "onepassword"` is pre-configured per env to look in the
+      # matching `tuist-k8s-<env>` vault, so this name is the same
+      # across staging / canary / production. Convention: each env
+      # has its own SCALEWAY_API item with a per-env Scaleway IAM
+      # principal — leaked staging key rotates without touching
+      # production.
       item: SCALEWAY_API
       fields:
         accessKey: access-key
