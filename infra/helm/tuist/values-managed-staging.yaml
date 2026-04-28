@@ -112,3 +112,24 @@ processor:
     limits:
       cpu: "500m"
       memory: "1536Mi"
+
+xcresultProcessor:
+  # Single VM in staging — same shape as the server replicaCount=1
+  # constraint on the cramped 2-cpx22 cluster. Acceptable gap during
+  # rolling deploy: jobs queue in oban_jobs, resume once the new VM
+  # registers with Orchard.
+  replicaCount: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  extraEnv:
+    - name: TUIST_DEPLOY_ENV
+      value: stag
+    - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
+      value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
+
+vkOrchard:
+  orchard:
+    url: https://orchard-staging.tuist.dev

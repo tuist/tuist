@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Boots the Tuist server release in xcresult-processor mode. Sourced env
+  comes from /etc/tuist.env, populated by /opt/tuist/inject-env.sh at
+  first boot from Orchard's custom-data payload.
+
+  We exec a wrapper shell rather than calling /opt/tuist/release/bin/tuist
+  directly so we can source the env file before launching. launchd's
+  EnvironmentVariables key can't reference a file at load time.
+
+  KeepAlive=true so the BEAM gets restarted on unexpected exit. Liveness
+  is the launchd job staying up + Oban heartbeats into oban_peers — the
+  Virtual Kubelet provider polls Orchard for VM state, not an HTTP probe
+  (the release runs with TUIST_WEB=0).
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>dev.tuist.xcresult-processor</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>-c</string>
+        <string>/opt/tuist/inject-env.sh &amp;&amp; source /etc/tuist.env &amp;&amp; exec /opt/tuist/release/bin/tuist start</string>
+    </array>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>WorkingDirectory</key>
+    <string>/opt/tuist/release</string>
+
+    <key>StandardOutPath</key>
+    <string>/var/log/xcresult-processor/stdout.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/var/log/xcresult-processor/stderr.log</string>
+
+    <key>ProcessType</key>
+    <string>Background</string>
+</dict>
+</plist>

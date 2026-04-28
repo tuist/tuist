@@ -110,6 +110,19 @@ processor:
       cpu: "2000m"
       memory: "2Gi"
 
+# Same priv/secrets selection as the build processor; the Tart image
+# embeds the encrypted bundle and decrypts it via MASTER_KEY.
+xcresultProcessor:
+  extraEnv:
+    - name: TUIST_DEPLOY_ENV
+      value: prod
+    - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
+      value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
+
+vkOrchard:
+  orchard:
+    url: https://orchard.tuist.dev
+
 # In-cluster Valkey backs the auth rate limiter (Hammer.Redis). The
 # chart wires TUIST_REDIS_URL to the embedded Service; without it the
 # rate limiter falls back to the per-pod InMemory bucket.

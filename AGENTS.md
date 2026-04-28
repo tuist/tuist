@@ -15,8 +15,9 @@ This file provides guidance to AI agents when working with code in this reposito
 - `mise/tasks/registry/` - Operational scripts for Swift package registry management (purge, sync)
 - `skills/` - Agent Skills (published to [tuist/agent-skills](https://github.com/tuist/agent-skills))
 - `server/native/xcactivitylog_nif/` - Swift NIF linked into the server release for xcactivitylog parsing. The build processor is no longer a standalone Elixir app; it's the same `ghcr.io/tuist/tuist` image booted with `TUIST_PROCESSOR_MODE=true` to run the `:process_build` Oban queue consumer.
-- `server/native/xcresult_nif/` - Swift NIF linked into the server release for xcresult parsing (macOS-only — uses `xcresulttool`). Built only on the macOS release deployed to Scaleway Mac minis that boot the same image with `TUIST_XCRESULT_PROCESSOR_MODE=true` to run the `:process_xcresult` Oban consumer.
-- `xcode_processor/` - Deploy infrastructure (nix-darwin, mise tasks) for the macOS Scaleway Mac minis that run the server release as the dedicated xcresult processor — see `xcode_processor/AGENTS.md`
+- `server/native/xcresult_nif/` - Swift NIF for xcresult parsing (macOS-only — uses `xcresulttool`). Baked into a Tart VM image (`infra/xcresult-processor-image/`) that runs as a k8s `Deployment` on a virtual node fronted by `vk-orchard`.
+- `infra/xcresult-processor-image/` - Packer template + launchd plist that produces the macOS Tart image hosting the Tuist server release in xcresult-processor mode. See `infra/xcresult-processor-image/AGENTS.md`.
+- `infra/vk-orchard/` - Virtual Kubelet provider that exposes the Tuist Orchard fleet (Scaleway Mac minis hosting Tart VMs) as a virtual k8s Node. Workloads schedule onto it via standard `Deployment` / `Job` with `nodeSelector: kubernetes.io/os=darwin` + a `tuist.dev/macos` toleration. See `infra/vk-orchard/AGENTS.md`.
 - `search/` - Search infrastructure (TypeSense) - see `search/AGENTS.md`
 - `infra/` - Infrastructure and deployment assets - see `infra/AGENTS.md`
 

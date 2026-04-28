@@ -1,0 +1,112 @@
+{{- if .Values.vkOrchard.enabled }}
+{{- $vkSecretName := include "tuist.componentName" (dict "root" . "component" "vk-orchard") }}
+---
+# ServiceAccount the VK provider pod uses to talk to the k8s API.
+# Permissions: read Pods (scheduled to the virtual node), patch Pod
+# status, watch ConfigMaps/Secrets/Services for env resolution, write
+# Events, manage the virtual Node + its Lease.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $vkSecretName }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: vk-orchard
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ $vkSecretName }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: vk-orchard
+rules:
+  - apiGroups: [""]
+    resources: ["nodes", "nodes/status"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["pods", "pods/status"]
+    verbs: ["get", "list", "watch", "update", "patch"]
+  - apiGroups: [""]
+    resources: ["configmaps", "secrets", "services"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "patch"]
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ $vkSecretName }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: vk-orchard
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ $vkSecretName }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $vkSecretName }}
+    namespace: {{ .Release.Namespace }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $vkSecretName }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: vk-orchard
+spec:
+  # Single replica for now. The VK provider is the workload-management
+  # SPOF for the macOS fleet — if it dies, in-flight VMs keep running
+  # but new rollouts stall until it's back. Multi-replica HA via
+  # Lease-based leader election is a follow-up; not blocking for the
+  # xcresult-processor cutover.
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "tuist.componentLabels" (dict "root" . "component" "vk-orchard") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "tuist.componentLabels" (dict "root" . "component" "vk-orchard") | nindent 8 }}
+      annotations:
+        {{- with .Values.vkOrchard.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ $vkSecretName }}
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: vk-orchard
+          image: "{{ .Values.vkOrchard.image.repository }}:{{ .Values.vkOrchard.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.vkOrchard.image.pullPolicy }}
+          ports:
+            - name: kubelet-api
+              containerPort: 10250
+          env:
+            - name: VK_NODE_NAME
+              value: {{ .Values.vkOrchard.nodeName | quote }}
+            - name: VK_LISTEN_ADDR
+              value: ":10250"
+            - name: ORCHARD_URL
+              value: {{ required "vkOrchard.orchard.url is required" .Values.vkOrchard.orchard.url | quote }}
+            - name: ORCHARD_SERVICE_ACCOUNT_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ default $vkSecretName .Values.vkOrchard.orchard.secretName }}
+                  key: service-account-name
+            - name: ORCHARD_SERVICE_ACCOUNT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ default $vkSecretName .Values.vkOrchard.orchard.secretName }}
+                  key: service-account-token
+          resources:
+            {{- toYaml .Values.vkOrchard.resources | nindent 12 }}
+{{- end }}

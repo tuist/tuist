@@ -1,4 +1,0 @@
-[tools]
-elixir = "1.19.5"
-erlang = "28.4.3"
-scaleway-cli = "latest"

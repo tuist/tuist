@@ -95,11 +95,12 @@ spec:
               value: "1"
             {{- end }}
             {{- if .Values.xcresultProcessor.enabled }}
-            # Hand off the :process_xcresult queue entirely to the external
-            # macOS xcresult-processor pods (Scaleway Mac minis). Linux pods
-            # don't ship the macOS-only xcresult NIF, so without this flag
-            # the server's local Oban worker would claim jobs and crash on
-            # `:nif_not_loaded` for every test-result archive.
+            # Hand off the :process_xcresult queue to the macOS xcresult-
+            # processor Pods scheduled onto vk-orchard's virtual node.
+            # Linux pods don't ship the macOS-only xcresult NIF, so
+            # without this flag the server's local Oban worker would
+            # claim jobs and crash on `:nif_not_loaded` for every
+            # test-result archive.
             - name: TUIST_DELEGATE_PROCESS_XCRESULT
               value: "1"
             {{- end }}

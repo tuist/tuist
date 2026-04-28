@@ -1,0 +1,78 @@
+name: vk-orchard Image
+
+# Builds and pushes the Virtual Kubelet provider image to GHCR. Multi-arch
+# (linux/amd64, linux/arm64) so the image runs on whichever Linux node
+# pool the cluster has — the VK pod runs in-cluster, not on the macOS
+# fleet it's exposing.
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - infra/vk-orchard/**
+      - .github/workflows/vk-orchard-image.yml
+  pull_request:
+    paths:
+      - infra/vk-orchard/**
+      - .github/workflows/vk-orchard-image.yml
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: tuist/vk-orchard
+
+jobs:
+  test:
+    runs-on: namespace-profile-default
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: infra/vk-orchard/go.mod
+          cache-dependency-path: infra/vk-orchard/go.sum
+      - name: Test
+        working-directory: infra/vk-orchard
+        run: go test ./...
+      - name: Vet
+        working-directory: infra/vk-orchard
+        run: go vet ./...
+
+  build:
+    needs: test
+    if: github.event_name != 'pull_request'
+    runs-on: namespace-profile-default
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute tags
+        id: tags
+        run: |
+          GIT_SHA="${GITHUB_SHA::8}"
+          echo "git_sha=${GIT_SHA}" >> "$GITHUB_OUTPUT"
+          echo "tags=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${GIT_SHA},${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest" >> "$GITHUB_OUTPUT"
+
+      - name: Build & push
+        uses: docker/build-push-action@v6
+        with:
+          context: infra/vk-orchard
+          file: infra/vk-orchard/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.tags.outputs.tags }}
+          cache-from: type=gha,scope=vk-orchard
+          cache-to: type=gha,mode=max,scope=vk-orchard

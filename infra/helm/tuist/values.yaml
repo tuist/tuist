@@ -233,23 +233,83 @@ processor:
   tmpSizeLimit: 10Gi
 
 xcresultProcessor:
-  # Whether dedicated *external* macOS workers consume the :process_xcresult
-  # queue. The xcresult parse path leans on `xcresulttool` from Xcode, which
-  # has no Linux equivalent — Hetzner-backed k8s nodes therefore can't run
-  # this workload. The Tuist managed cloud runs the same Tuist server release
-  # on Scaleway Mac minis (provisioned out of cluster via nix-darwin; see
-  # `xcode_processor/`), points it at the same Postgres, and lets it consume
-  # `:process_xcresult` only via TUIST_XCRESULT_PROCESSOR_MODE.
+  # Dedicated macOS workers that consume `:process_xcresult`. The parse
+  # path leans on `xcresulttool` from Xcode (no Linux equivalent), so
+  # these Pods land on a virtual node fronted by `vk-orchard` (which
+  # translates Pods → Tart VMs on Scaleway Mac minis via Orchard).
   #
-  # Enabling this flag flips a single env var on the in-cluster server
-  # Deployment (TUIST_DELEGATE_PROCESS_XCRESULT=1) so the Linux pods drop
-  # `:process_xcresult` from their Oban queue list — without it the Linux
-  # workers would race the macOS fleet on SKIP LOCKED and crash on
-  # `:nif_not_loaded` for every claimed job.
+  # When enabled the chart emits two things:
+  #   1. The Deployment template here (xcresult-processor-deployment.yaml).
+  #   2. TUIST_DELEGATE_PROCESS_XCRESULT=1 on the in-cluster Linux server
+  #      pods — they drop `:process_xcresult` from their Oban queue list
+  #      so jobs land exclusively on the macOS fleet, avoiding both
+  #      SKIP-LOCKED races and `:nif_not_loaded` crashes (the macOS-only
+  #      NIF isn't loaded on Linux pods).
   #
-  # No k8s Deployment ships from this chart; the macOS hosts are managed
-  # entirely by `xcode_processor/platform/`.
+  # Requires `vkOrchard.enabled: true` to actually schedule. Self-hosters
+  # without an Orchard fleet should leave this off and run a macOS host
+  # manually with `TUIST_XCRESULT_PROCESSOR_MODE=1` against the same DB.
   enabled: false
+  replicaCount: 2
+  # Per-pod Oban concurrency. Total parallelism = replicaCount * concurrency.
+  queueConcurrency: 4
+  image:
+    # Built by .github/workflows/xcresult-processor-image.yml — Tart
+    # VM image with the Tuist server release and the macOS-only
+    # xcresult NIF baked in.
+    repository: ghcr.io/tuist/tuist-xcresult-processor
+    tag: ""  # Set by CI to the commit SHA.
+    pullPolicy: IfNotPresent
+  # When the chart's `processor.managedSecrets` is true (managed cloud)
+  # the build processor's ExternalSecret already syncs the
+  # tuist_processor role's DATABASE_URL into a Secret — we reuse that
+  # same Secret here so xcresult and build processors share one
+  # credential rotation surface. Override these for self-hosted setups
+  # that point at a different Secret.
+  databaseUrlSecretName: ""  # default: processor-external-secrets
+  databaseUrlSecretKey: "processor-database-url"
+  extraEnv: []
+  resources:
+    requests:
+      cpu: "1000m"
+      memory: "2Gi"
+    limits:
+      cpu: "3000m"
+      memory: "4Gi"
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      # Surge by 1 so a new VM comes up before the old one drains; keeps
+      # at least 1 VM consuming the queue across deploys.
+      maxSurge: 1
+      maxUnavailable: 0
+
+# Virtual Kubelet provider that exposes the Tuist Orchard fleet (Scaleway
+# Mac minis hosting Tart VMs) as a virtual k8s Node. See
+# infra/vk-orchard/AGENTS.md for the full design. Required to schedule
+# any macOS workload via this chart.
+vkOrchard:
+  enabled: false
+  nodeName: tuist-orchard
+  image:
+    repository: ghcr.io/tuist/vk-orchard
+    tag: ""
+    pullPolicy: IfNotPresent
+  orchard:
+    # URL of the Orchard control plane the provider talks to.
+    url: ""
+    # Secret holding `service-account-name` and `service-account-token`
+    # keys. If empty, defaults to the chart's own component secret name —
+    # set externally (ESO, manual create, etc.).
+    secretName: ""
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+  podAnnotations: {}
 
 cache:
   enabled: true

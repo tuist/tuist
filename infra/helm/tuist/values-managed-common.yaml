@@ -148,14 +148,33 @@ processor:
       cpu: "1000m"
       memory: "1Gi"
 
-# Xcresult processing runs on Scaleway Mac minis outside the k8s cluster
-# (Hetzner has no macOS workers; xcresulttool is Xcode-only). Flipping this
-# on tells the in-cluster Linux server pods to drop `:process_xcresult` from
-# their Oban queue list — TUIST_DELEGATE_PROCESS_XCRESULT=1 in the chart —
-# so test-result jobs land exclusively on the macOS fleet. The Mac minis
-# themselves are deployed via `xcode_processor/platform/`.
+# Xcresult processing runs as a standard k8s Deployment on a virtual
+# node fronted by vk-orchard, which translates Pods to Tart VMs on
+# Scaleway Mac minis via Orchard. xcresulttool is Xcode-only, so the
+# work has to land on macOS hosts; the cluster orchestrates them like
+# any other workload. Flipping this on also adds
+# TUIST_DELEGATE_PROCESS_XCRESULT=1 to the Linux server pods so they
+# drop `:process_xcresult` and the macOS Pods own the queue.
 xcresultProcessor:
   enabled: true
+  replicaCount: 2
+  queueConcurrency: 4
+  image:
+    repository: ghcr.io/tuist/tuist-xcresult-processor
+    tag: ""  # Set by CI to the commit SHA on each deploy.
+
+# Virtual Kubelet provider for the Orchard fleet. Co-deployed with
+# xcresultProcessor since the Pods can't schedule without it. Orchard
+# URL + service-account credentials come from 1Password via ESO; the
+# Secret it materializes (`tuist-vk-orchard`) is referenced here.
+vkOrchard:
+  enabled: true
+  nodeName: tuist-orchard
+  image:
+    repository: ghcr.io/tuist/vk-orchard
+    tag: ""
+  orchard:
+    url: ""  # set per-env in values-managed-<env>.yaml
 
 # Everything below = external. The managed deployment never runs embedded
 # Postgres / ClickHouse / object storage / observability stacks.

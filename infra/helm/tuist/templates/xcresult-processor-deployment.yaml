@@ -1,0 +1,86 @@
+{{- if .Values.xcresultProcessor.enabled }}
+{{- $secretName := include "tuist.componentName" (dict "root" . "component" "xcresult-processor") }}
+{{- $masterKeySecretName := ternary (include "tuist.componentName" (dict "root" . "component" "server-external-secrets")) (include "tuist.componentName" (dict "root" . "component" "app-secrets")) .Values.server.managedSecrets }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "xcresult-processor") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: xcresult-processor
+spec:
+  replicas: {{ .Values.xcresultProcessor.replicaCount }}
+  strategy:
+    {{- toYaml .Values.xcresultProcessor.strategy | nindent 4 }}
+  selector:
+    matchLabels:
+      {{- include "tuist.componentLabels" (dict "root" . "component" "xcresult-processor") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "tuist.componentLabels" (dict "root" . "component" "xcresult-processor") | nindent 8 }}
+        {{- with .Values.global.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      # Schedule onto the virtual node fronted by vk-orchard. The taint
+      # on that node (tuist.dev/macos=true:NoSchedule + the VK
+      # provider's own taint) keeps stray Linux Pods from landing here.
+      nodeSelector:
+        kubernetes.io/os: darwin
+        tuist.dev/orchard-fleet: "true"
+      tolerations:
+        - key: tuist.dev/macos
+          operator: Exists
+          effect: NoSchedule
+        - key: virtual-kubelet.io/provider
+          operator: Exists
+          effect: NoSchedule
+      # No init containers, no sidecars — vk-orchard rejects them at
+      # admission. The first (and only) container's image is the Tart
+      # VM image; env flows through to /etc/tuist.env inside the VM
+      # via the user-data injection in launchd.plist.
+      containers:
+        - name: xcresult-processor
+          image: "{{ .Values.xcresultProcessor.image.repository }}:{{ .Values.xcresultProcessor.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.xcresultProcessor.image.pullPolicy }}
+          env:
+            # Boot mode: queue-only consumer for :process_xcresult. Same
+            # set of vars the nix-darwin host used to set in launchd
+            # (now retired); the chart owns them centrally so all three
+            # envs decrypt the right priv/secrets/<env>.yml.enc.
+            - name: TUIST_XCRESULT_PROCESSOR_MODE
+              value: "1"
+            - name: TUIST_WEB
+              value: "0"
+            - name: TUIST_HOSTED
+              value: {{ .Values.server.hosted | ternary "1" "0" | quote }}
+            - name: TUIST_LOG_LEVEL
+              value: {{ .Values.server.logLevel | quote }}
+            - name: TUIST_PROCESS_XCRESULT_QUEUE_CONCURRENCY
+              value: {{ .Values.xcresultProcessor.queueConcurrency | quote }}
+            # Supabase Supavisor (transaction mode) for Postgres. Same
+            # tuist_processor role + same connection params the build
+            # processor uses — provisioned via
+            # infra/supabase/tuist-processor-role.sql.
+            - name: TUIST_DATABASE_POOLED
+              value: "1"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ default (include "tuist.componentName" (dict "root" . "component" "processor-external-secrets")) .Values.xcresultProcessor.databaseUrlSecretName }}
+                  key: {{ .Values.xcresultProcessor.databaseUrlSecretKey | default "processor-database-url" }}
+            {{- if or .Values.server.masterKey .Values.server.managedSecrets }}
+            - name: MASTER_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $masterKeySecretName }}
+                  key: server-master-key
+            {{- end }}
+            {{- with .Values.xcresultProcessor.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          resources:
+            {{- toYaml .Values.xcresultProcessor.resources | nindent 12 }}
+{{- end }}
