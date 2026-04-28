@@ -75,6 +75,10 @@ server:
       memory: 1Gi
 
 cache:
+  # Cache is enabled by default for previews. DATABASE_URL is composed by
+  # the chart's tuist.cacheDatabaseUrl helper to point at a dedicated
+  # `tuist_cache` database in the embedded Postgres (auto-created on first
+  # boot via templates/postgresql-init.yaml).
   enabled: true
   replicaCount: 1
   storage:

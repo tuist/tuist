@@ -263,6 +263,24 @@ cache:
   apiKey: ""
   secretKeyBase: ""
   guardianSecretKey: ""
+  # DATABASE_URL for the cache Phoenix app's own Postgres. Two paths:
+  #
+  #   - Self-hosted with an external Postgres: set explicitly here, like
+  #     ecto://user:pass@host:5432/db.
+  #   - Embedded mode (postgresql.mode=embedded): leave empty. The chart
+  #     composes a URL pointing at the embedded Postgres + a dedicated
+  #     `cache.embedded.database` (auto-created at first Postgres boot via
+  #     templates/postgresql-init.yaml so the cache app's migrations don't
+  #     collide with the server's).
+  #
+  # Managed-cloud envs (managedSecrets: true) bypass this entirely — the
+  # cache app reads its own DATABASE_URL from priv/secrets/<env>.yml.enc
+  # baked into the image.
+  databaseUrl: ""
+  embedded:
+    # Database name created in the embedded Postgres for the cache app.
+    # Only meaningful when postgresql.mode=embedded; ignored otherwise.
+    database: tuist_cache
   storage:
     pvc:
       create: true
