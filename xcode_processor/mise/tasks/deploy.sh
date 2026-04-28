@@ -1,17 +1,19 @@
 #!/usr/bin/env bash
-#MISE description "Deploy xcode_processor to a Scaleway Mac mini"
+#MISE description "Deploy the Tuist server release to a Scaleway Mac mini in xcresult-processor mode"
 #MISE raw=true
 #USAGE arg "<host>" help="Target host (IP or hostname)"
 #USAGE arg "<environment>" help="Target environment" {
-#USAGE   choices "staging" "production"
+#USAGE   choices "staging" "canary" "production"
 #USAGE }
 set -euo pipefail
 
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+
 release_dir() {
     if [ -n "${TUIST_MIX_BUILD_ROOT:-}" ]; then
-        printf '%s\n' "${TUIST_MIX_BUILD_ROOT}/xcode_processor/prod/rel/xcode_processor"
+        printf '%s\n' "${TUIST_MIX_BUILD_ROOT}/server/prod/rel/tuist"
     else
-        printf '%s\n' "_build/prod/rel/xcode_processor"
+        printf '%s\n' "${REPO_ROOT}/server/_build/prod/rel/tuist"
     fi
 }
 
@@ -34,7 +36,7 @@ echo "==> Building release..."
 mise run build-release
 
 RELEASE_DIR="$(release_dir)"
-TARBALL="xcode_processor-${SHORT_SHA}.tar.gz"
+TARBALL="tuist-xcresult-processor-${SHORT_SHA}.tar.gz"
 
 echo "==> Packaging release..."
 tar -czf "$TARBALL" -C "$RELEASE_DIR" .
@@ -74,13 +76,19 @@ echo "${GIT_SHA}" > "\${CURRENT_LINK}/.git_sha"
 sudo launchctl bootstrap system /Library/LaunchDaemons/org.nixos.dev.tuist.xcode-processor.plist
 echo "==> Started"
 
-echo "==> Waiting for health check..."
+echo "==> Waiting for processor to claim the Oban heartbeat..."
+# The release binds no HTTP port (TUIST_WEB=0). Liveness is proved by Oban
+# updating its row in oban_peers within the first few seconds of boot. The
+# launchd KeepAlive flag will kick a hung BEAM, so the practical health
+# check here is "the launchd job is still running 30s after start".
 HEALTHY=false
 for i in \$(seq 1 30); do
-    if curl -sf http://localhost:4003/health > /dev/null 2>&1; then
-        echo "==> Health check passed!"
-        HEALTHY=true
-        break
+    if sudo launchctl print system/org.nixos.dev.tuist.xcode-processor 2>/dev/null | grep -q "state = running"; then
+        if [ \$i -ge 6 ]; then
+            echo "==> Launchd job stable for \$((i * 2))s"
+            HEALTHY=true
+            break
+        fi
     fi
     sleep 2
 done
@@ -89,7 +97,7 @@ if [ "\${HEALTHY}" = "true" ]; then
     exit 0
 fi
 
-echo "ERROR: Health check failed after 60s"
+echo "ERROR: Launchd job not running after 60s"
 
 # Rollback to previous release if available
 if [ -n "\${PREVIOUS_RELEASE}" ] && [ -d "\${PREVIOUS_RELEASE}" ]; then
@@ -99,10 +107,10 @@ if [ -n "\${PREVIOUS_RELEASE}" ] && [ -d "\${PREVIOUS_RELEASE}" ]; then
     ln -sfn "\${PREVIOUS_RELEASE}" "\${CURRENT_LINK}"
     sudo launchctl bootstrap system /Library/LaunchDaemons/org.nixos.dev.tuist.xcode-processor.plist
 
-    echo "==> Waiting for rollback health check..."
+    echo "==> Waiting for rollback launchd stability..."
     for i in \$(seq 1 15); do
-        if curl -sf http://localhost:4003/health > /dev/null 2>&1; then
-            echo "==> Rollback health check passed"
+        if sudo launchctl print system/org.nixos.dev.tuist.xcode-processor 2>/dev/null | grep -q "state = running"; then
+            echo "==> Rollback stable"
             break
         fi
         sleep 2
@@ -124,8 +132,8 @@ if [ -n "${SLACK_WEBHOOK_URL:-}" ]; then
         -d "{
             \"attachments\": [{
                 \"color\": \"good\",
-                \"text\": \"Deployed *${SHORT_SHA}* to *xcode-processor ${ENVIRONMENT}*\",
-                \"footer\": \"Xcode Processor Service\"
+                \"text\": \"Deployed *${SHORT_SHA}* to *xcresult-processor ${ENVIRONMENT}*\",
+                \"footer\": \"Xcresult Processor Service\"
             }]
         }" > /dev/null
 fi

@@ -1,10 +1,17 @@
-defmodule XcodeProcessor.XCResultProcessorTest do
+defmodule Tuist.Processor.XCResultProcessorTest do
   use ExUnit.Case, async: true
   use Mimic
 
-  alias XcodeProcessor.XCResultProcessor
+  alias ExAws.S3.Upload
+  alias Tuist.Processor.XCResultNIF
+  alias Tuist.Processor.XCResultProcessor
 
   setup :verify_on_exit!
+
+  setup do
+    stub(Tuist.Environment, :s3_bucket_name, fn -> "tuist" end)
+    :ok
+  end
 
   defp create_xcresult_zip do
     temp_dir =
@@ -26,55 +33,30 @@ defmodule XcodeProcessor.XCResultProcessorTest do
     {temp_dir, zip_path}
   end
 
-  describe "process/1" do
+  describe "process_local/2" do
     test "returns parsed data on successful processing" do
       {fixture_dir, fixture_zip} = create_xcresult_zip()
       on_exit(fn -> File.rm_rf(fixture_dir) end)
 
       parsed_data = %{"tests" => [%{"name" => "testExample", "status" => "passed"}]}
 
-      stub(ExAws.S3, :download_file, fn _bucket, _key, dest_path ->
-        File.cp!(fixture_zip, dest_path)
-        %ExAws.Operation.S3{http_method: :get, bucket: "tuist", path: "key"}
-      end)
-
-      expect(ExAws, :request, fn _ -> {:ok, :done} end)
-
-      expect(XcodeProcessor.XCResultNIF, :parse, fn xcresult_path, _root_dir ->
+      expect(XCResultNIF, :parse, fn xcresult_path, _root_dir ->
         assert String.ends_with?(xcresult_path, "Test.xcresult")
         {:ok, parsed_data}
       end)
 
-      assert {:ok, ^parsed_data} = XCResultProcessor.process("some/key.zip")
-    end
-
-    test "returns error when S3 download fails" do
-      stub(ExAws.S3, :download_file, fn _bucket, _key, _dest_path ->
-        %ExAws.Operation.S3{http_method: :get, bucket: "tuist", path: "key"}
-      end)
-
-      expect(ExAws, :request, fn _ -> {:error, {:http_error, 404, "not found"}} end)
-
-      assert {:error, {:http_error, 404, "not found"}} =
-               XCResultProcessor.process("some/key.zip")
+      assert {:ok, ^parsed_data} = XCResultProcessor.process_local(fixture_zip)
     end
 
     test "returns error when NIF parse fails" do
       {fixture_dir, fixture_zip} = create_xcresult_zip()
       on_exit(fn -> File.rm_rf(fixture_dir) end)
 
-      stub(ExAws.S3, :download_file, fn _bucket, _key, dest_path ->
-        File.cp!(fixture_zip, dest_path)
-        %ExAws.Operation.S3{http_method: :get, bucket: "tuist", path: "key"}
-      end)
-
-      expect(ExAws, :request, fn _ -> {:ok, :done} end)
-
-      expect(XcodeProcessor.XCResultNIF, :parse, fn _xcresult_path, _root_dir ->
+      expect(XCResultNIF, :parse, fn _xcresult_path, _root_dir ->
         {:error, "parse failed"}
       end)
 
-      assert {:error, "parse failed"} = XCResultProcessor.process("some/key.zip")
+      assert {:error, "parse failed"} = XCResultProcessor.process_local(fixture_zip)
     end
 
     @tag :tmp_dir
@@ -106,18 +88,11 @@ defmodule XcodeProcessor.XCResultProcessorTest do
         ]
       }
 
-      stub(ExAws.S3, :download_file, fn _bucket, _key, dest_path ->
-        File.cp!(to_string(fixture_zip), dest_path)
-        %ExAws.Operation.S3{http_method: :get, bucket: "tuist", path: "key"}
-      end)
-
-      expect(ExAws, :request, fn _ -> {:ok, :done} end)
-
-      expect(XcodeProcessor.XCResultNIF, :parse, fn _path, _root ->
+      expect(XCResultNIF, :parse, fn _path, _root ->
         {:ok, parsed_data}
       end)
 
-      {:ok, result} = XCResultProcessor.process("some/key.zip")
+      {:ok, result} = XCResultProcessor.process_local(to_string(fixture_zip))
       [module] = result["test_modules"]
       [case_a, case_b] = module["test_cases"]
 
@@ -140,18 +115,11 @@ defmodule XcodeProcessor.XCResultProcessorTest do
         ]
       }
 
-      stub(ExAws.S3, :download_file, fn _bucket, _key, dest_path ->
-        File.cp!(fixture_zip, dest_path)
-        %ExAws.Operation.S3{http_method: :get, bucket: "tuist", path: "key"}
-      end)
-
-      expect(ExAws, :request, fn _ -> {:ok, :done} end)
-
-      expect(XcodeProcessor.XCResultNIF, :parse, fn _path, _root ->
+      expect(XCResultNIF, :parse, fn _path, _root ->
         {:ok, parsed_data}
       end)
 
-      {:ok, result} = XCResultProcessor.process("some/key.zip")
+      {:ok, result} = XCResultProcessor.process_local(fixture_zip)
       [module] = result["test_modules"]
       [case_a] = module["test_cases"]
 
@@ -185,26 +153,18 @@ defmodule XcodeProcessor.XCResultProcessorTest do
         ]
       }
 
-      # Download call
-      expect(ExAws, :request, fn %ExAws.Operation.S3{http_method: :get} -> {:ok, :done} end)
-
       # Upload call for the attachment (streaming multipart upload)
-      expect(ExAws, :request, fn %ExAws.S3.Upload{bucket: _bucket, path: path} ->
+      expect(ExAws, :request, fn %Upload{bucket: _bucket, path: path} ->
         assert String.contains?(path, "tests/runs/run-123/attachments/")
         assert String.ends_with?(path, "/screenshot.png")
         {:ok, %{status_code: 200}}
       end)
 
-      stub(ExAws.S3, :download_file, fn _bucket, _key, dest_path ->
-        File.cp!(fixture_zip, dest_path)
-        %ExAws.Operation.S3{http_method: :get, bucket: "tuist", path: "key"}
-      end)
-
       stub(ExAws.S3, :upload, fn stream, _bucket, key ->
-        %ExAws.S3.Upload{bucket: "tuist", path: key, src: stream}
+        %Upload{bucket: "tuist", path: key, src: stream}
       end)
 
-      expect(XcodeProcessor.XCResultNIF, :parse, fn _path, _root ->
+      expect(XCResultNIF, :parse, fn _path, _root ->
         {:ok, parsed_data}
       end)
 
@@ -214,7 +174,7 @@ defmodule XcodeProcessor.XCResultProcessorTest do
         project_handle: "MyProject"
       ]
 
-      assert {:ok, result} = XCResultProcessor.process("some/key.zip", opts)
+      assert {:ok, result} = XCResultProcessor.process_local(fixture_zip, opts)
 
       [module] = result["test_modules"]
       [test_case] = module["test_cases"]
@@ -240,25 +200,18 @@ defmodule XcodeProcessor.XCResultProcessorTest do
 
       parsed_data = %{"tests" => [%{"name" => "testAar", "status" => "passed"}]}
 
-      stub(ExAws.S3, :download_file, fn _bucket, _key, dest_path ->
-        File.cp!(fixture_path, dest_path)
-        %ExAws.Operation.S3{http_method: :get, bucket: "tuist", path: "key"}
-      end)
-
-      expect(ExAws, :request, fn _ -> {:ok, :done} end)
-
-      expect(XcodeProcessor.XCResultNIF, :decompress_archive, fn _archive_path, temp_dir ->
+      expect(XCResultNIF, :decompress_archive, fn _archive_path, temp_dir ->
         File.mkdir_p!(Path.join(temp_dir, "Test.xcresult"))
         File.write!(Path.join([temp_dir, "Test.xcresult", "Info.plist"]), "fake-plist")
         :ok
       end)
 
-      expect(XcodeProcessor.XCResultNIF, :parse, fn xcresult_path, _root ->
+      expect(XCResultNIF, :parse, fn xcresult_path, _root ->
         assert String.ends_with?(xcresult_path, "Test.xcresult")
         {:ok, parsed_data}
       end)
 
-      assert {:ok, ^parsed_data} = XCResultProcessor.process("some/key.aar")
+      assert {:ok, ^parsed_data} = XCResultProcessor.process_local(fixture_path)
     end
 
     test "surfaces NIF decompression failures for AppleArchive payloads" do
@@ -273,36 +226,26 @@ defmodule XcodeProcessor.XCResultProcessorTest do
       File.write!(fixture_path, <<0x62, 0x76, 0x78, 0x32, "fake-aar-body">>)
       on_exit(fn -> File.rm_rf(fixture_dir) end)
 
-      stub(ExAws.S3, :download_file, fn _bucket, _key, dest_path ->
-        File.cp!(fixture_path, dest_path)
-        %ExAws.Operation.S3{http_method: :get, bucket: "tuist", path: "key"}
-      end)
-
-      expect(ExAws, :request, fn _ -> {:ok, :done} end)
-
-      expect(XcodeProcessor.XCResultNIF, :decompress_archive, fn _archive_path, _temp_dir ->
+      expect(XCResultNIF, :decompress_archive, fn _archive_path, _temp_dir ->
         {:error, "decompression failed"}
       end)
 
-      assert {:error, "decompression failed"} = XCResultProcessor.process("some/key.aar")
+      assert {:error, "decompression failed"} = XCResultProcessor.process_local(fixture_path)
     end
 
     test "cleans up temp directory even when processing fails" do
-      stub(ExAws.S3, :download_file, fn _bucket, _key, _dest_path ->
-        %ExAws.Operation.S3{http_method: :get, bucket: "tuist", path: "key"}
-      end)
-
-      expect(ExAws, :request, fn _ -> {:error, {:http_error, 500, "server error"}} end)
+      missing_path = Path.join(System.tmp_dir!(), "definitely-not-an-archive-#{:erlang.unique_integer([:positive])}")
 
       temp_dirs_before =
-        Path.join(System.tmp_dir!(), "xcode_processor_*")
+        System.tmp_dir!()
+        |> Path.join("tuist_xcresult_processor_*")
         |> Path.wildcard()
 
-      assert {:error, {:http_error, 500, "server error"}} =
-               XCResultProcessor.process("some/key.zip")
+      assert {:error, _} = XCResultProcessor.process_local(missing_path)
 
       temp_dirs_after =
-        Path.join(System.tmp_dir!(), "xcode_processor_*")
+        System.tmp_dir!()
+        |> Path.join("tuist_xcresult_processor_*")
         |> Path.wildcard()
 
       new_dirs = temp_dirs_after -- temp_dirs_before

@@ -232,6 +232,25 @@ processor:
   # largest archive plus headroom for CAS metadata.
   tmpSizeLimit: 10Gi
 
+xcresultProcessor:
+  # Whether dedicated *external* macOS workers consume the :process_xcresult
+  # queue. The xcresult parse path leans on `xcresulttool` from Xcode, which
+  # has no Linux equivalent — Hetzner-backed k8s nodes therefore can't run
+  # this workload. The Tuist managed cloud runs the same Tuist server release
+  # on Scaleway Mac minis (provisioned out of cluster via nix-darwin; see
+  # `xcode_processor/`), points it at the same Postgres, and lets it consume
+  # `:process_xcresult` only via TUIST_XCRESULT_PROCESSOR_MODE.
+  #
+  # Enabling this flag flips a single env var on the in-cluster server
+  # Deployment (TUIST_DELEGATE_PROCESS_XCRESULT=1) so the Linux pods drop
+  # `:process_xcresult` from their Oban queue list — without it the Linux
+  # workers would race the macOS fleet on SKIP LOCKED and crash on
+  # `:nif_not_loaded` for every claimed job.
+  #
+  # No k8s Deployment ships from this chart; the macOS hosts are managed
+  # entirely by `xcode_processor/platform/`.
+  enabled: false
+
 cache:
   enabled: true
   replicaCount: 1

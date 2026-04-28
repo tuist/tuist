@@ -1,10 +1,28 @@
-defmodule XcodeProcessor.XCResultProcessor do
-  @moduledoc false
+defmodule Tuist.Processor.XCResultProcessor do
+  @moduledoc """
+  Parses xcresult test archives.
+
+  The server's `ProcessXcresultWorker` Oban job is the only caller: it
+  downloads the archive from S3 into a temp file, hands the path to
+  `process_local/2`, and the parsed structure flows through to ClickHouse
+  via `Tuist.Tests.create_test/1`.
+
+  On xcresult-processor-mode pods (`TUIST_XCRESULT_PROCESSOR_MODE=true`)
+  this runs as the Oban worker body. Those pods are macOS hosts (Scaleway
+  Mac minis, external to the k8s cluster) because the parse path leans on
+  `xcresulttool` which only ships with Xcode. Linux pods (web server,
+  build-processor) drop the `:process_xcresult` queue from their Oban
+  config when `TUIST_DELEGATE_PROCESS_XCRESULT=1` is set so jobs land
+  exclusively on the macOS fleet. Self-hosted installs running on macOS
+  consume the queue in-process like every other queue.
+  """
+
+  alias Tuist.Processor.XCResultNIF
 
   require Logger
 
   def process_local(archive_path, opts \\ []) do
-    bucket = Keyword.get(opts, :s3_bucket) || XcodeProcessor.Environment.s3_bucket()
+    bucket = Keyword.get(opts, :s3_bucket) || Tuist.Environment.s3_bucket_name()
     temp_dir = make_temp_dir()
 
     try do
@@ -13,46 +31,6 @@ defmodule XcodeProcessor.XCResultProcessor do
       with {:ok, parsed_data} <- result do
         upload_attachments(parsed_data, bucket, opts)
       end
-    after
-      cleanup_temp(temp_dir)
-    end
-  end
-
-  def process(storage_key, opts \\ []) do
-    bucket = XcodeProcessor.Environment.s3_bucket()
-    temp_dir = make_temp_dir()
-    archive_path = Path.join(temp_dir, "xcresult-archive")
-
-    try do
-      :telemetry.span([:xcode_processor, :xcresult], %{}, fn ->
-        download_result =
-          :telemetry.span([:xcode_processor, :s3, :download], %{}, fn ->
-            case ExAws.S3.download_file(bucket, storage_key, archive_path) |> ExAws.request() do
-              {:ok, _} ->
-                file_size = File.stat!(archive_path).size
-                {:ok, %{file_size: file_size}}
-
-              {:error, reason} ->
-                {{:error, reason}, %{}}
-            end
-          end)
-
-        result =
-          case download_result do
-            {:error, _} = error ->
-              error
-
-            _ ->
-              result = process_archive(archive_path, temp_dir)
-
-              with {:ok, parsed_data} <- result do
-                upload_attachments(parsed_data, bucket, opts)
-              end
-          end
-
-        status = if match?({:ok, _}, result), do: :ok, else: :error
-        {result, %{status: status}}
-      end)
     after
       cleanup_temp(temp_dir)
     end
@@ -88,7 +66,7 @@ defmodule XcodeProcessor.XCResultProcessor do
         end
 
       {:ok, _} ->
-        XcodeProcessor.XCResultNIF.decompress_archive(archive_path, temp_dir)
+        XCResultNIF.decompress_archive(archive_path, temp_dir)
 
       {:error, reason} ->
         {:error, {:archive_read_failed, reason}}
@@ -96,8 +74,8 @@ defmodule XcodeProcessor.XCResultProcessor do
   end
 
   defp parse_xcresult(xcresult_path, root_dir) do
-    :telemetry.span([:xcode_processor, :xcresult, :parse], %{}, fn ->
-      result = XcodeProcessor.XCResultNIF.parse(xcresult_path, root_dir)
+    :telemetry.span([:tuist, :processor, :xcresult, :parse], %{}, fn ->
+      result = XCResultNIF.parse(xcresult_path, root_dir)
       status = if match?({:ok, _}, result), do: :ok, else: :error
       {result, %{status: status}}
     end)
@@ -116,11 +94,9 @@ defmodule XcodeProcessor.XCResultProcessor do
 
   defp apply_quarantine(parsed_data, quarantined_tests) do
     test_modules =
-      (parsed_data["test_modules"] || [])
-      |> Enum.map(fn module ->
+      Enum.map(parsed_data["test_modules"] || [], fn module ->
         test_cases =
-          (module["test_cases"] || [])
-          |> Enum.map(fn test_case ->
+          Enum.map(module["test_cases"] || [], fn test_case ->
             is_quarantined =
               Enum.any?(quarantined_tests, fn q ->
                 matches_quarantine?(test_case, module["name"], q)
@@ -149,7 +125,6 @@ defmodule XcodeProcessor.XCResultProcessor do
     if is_nil(account_handle) or is_nil(project_handle) or is_nil(test_run_id) do
       {:ok, parsed_data}
     else
-      # Collect all attachments, upload in parallel, build a lookup by file_path
       all_attachments =
         parsed_data
         |> Map.get("test_modules", [])
@@ -174,14 +149,11 @@ defmodule XcodeProcessor.XCResultProcessor do
             acc
 
           {{:exit, reason}, original}, acc ->
-            Logger.error(
-              "Attachment upload task crashed for #{original["file_name"]}: #{inspect(reason)}"
-            )
+            Logger.error("Attachment upload task crashed for #{original["file_name"]}: #{inspect(reason)}")
 
             acc
         end)
 
-      # Replace attachments in-place using the lookup
       test_modules =
         parsed_data
         |> Map.get("test_modules", [])
@@ -240,7 +212,7 @@ defmodule XcodeProcessor.XCResultProcessor do
 
   defp make_temp_dir do
     temp_dir =
-      Path.join(System.tmp_dir!(), "xcode_processor_#{:erlang.unique_integer([:positive])}")
+      Path.join(System.tmp_dir!(), "tuist_xcresult_processor_#{:erlang.unique_integer([:positive])}")
 
     File.mkdir_p!(temp_dir)
     temp_dir

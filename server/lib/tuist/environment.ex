@@ -576,6 +576,34 @@ defmodule Tuist.Environment do
   end
 
   @doc """
+  Whether this BEAM is running as a dedicated xcresult-processor pod —
+  the macOS Scaleway Mac mini that consumes `:process_xcresult` via Oban.
+
+  When true the Oban config in `runtime.exs` narrows to that one queue and
+  skips the rest (web requests, build processing, crons). Linux pods leave
+  this unset; the queue is dropped from their config via
+  `delegate_process_xcresult?/0` so jobs land exclusively on the macOS
+  fleet.
+  """
+  def xcresult_processor_mode? do
+    truthy?(System.get_env("TUIST_XCRESULT_PROCESSOR_MODE", "0"))
+  end
+
+  @doc """
+  Whether the in-cluster Linux server pod should drop `:process_xcresult`
+  from its Oban queue list because dedicated macOS xcresult-processor pods
+  are running.
+
+  The chart sets this whenever `xcresultProcessor.enabled: true`. Without
+  it, the server's local Oban worker would race the dedicated processors
+  on SKIP LOCKED — and crash on `xcresulttool` not being available since
+  Linux pods don't ship the macOS-only NIF.
+  """
+  def delegate_process_xcresult? do
+    truthy?(System.get_env("TUIST_DELEGATE_PROCESS_XCRESULT", "0"))
+  end
+
+  @doc """
   Whether the configured DATABASE_URL points at a transaction-mode pooler
   (Supabase Supavisor, PgBouncer, etc.) rather than a direct Postgres
   endpoint. Toggles `prepare: :unnamed` and drops `tcp_keepalives_*`
@@ -593,12 +621,11 @@ defmodule Tuist.Environment do
     end
   end
 
-  def xcode_processor_url(secrets \\ secrets()) do
-    get([:xcode_processor, :url], secrets)
-  end
-
-  def xcode_processor_webhook_secret(secrets \\ secrets()) do
-    get([:xcode_processor, :webhook_secret], secrets)
+  def process_xcresult_queue_concurrency do
+    case System.get_env("TUIST_PROCESS_XCRESULT_QUEUE_CONCURRENCY") do
+      value when is_binary(value) and value != "" -> String.to_integer(value)
+      _ -> if xcresult_processor_mode?(), do: 4, else: 2
+    end
   end
 
   def clickhouse_flush_interval_ms(secrets \\ secrets()) do

@@ -397,26 +397,43 @@ otel_endpoint = Tuist.Environment.get([:otel, :exporter, :otlp, :endpoint])
 
 # Oban.
 #
-# Processor pods (TUIST_PROCESSOR_MODE=true) only consume :process_build so
-# the CPU-heavy xcactivitylog parse is isolated from the hot web path. The
-# server pod runs every other queue and — when TUIST_DELEGATE_PROCESS_BUILD
-# is set — skips :process_build entirely so jobs land exclusively on the
-# processor fleet. Self-hosted installs without a dedicated processor leave
-# that flag unset; the server runs all queues including :process_build.
+# Three pod roles share this codebase:
+#   * Web/server (default): runs every queue. Self-hosted installs without
+#     dedicated processors stay on this shape.
+#   * Build processor (TUIST_PROCESSOR_MODE=1): only :process_build. CPU-
+#     heavy xcactivitylog parse, runs in-cluster on Linux.
+#   * Xcresult processor (TUIST_XCRESULT_PROCESSOR_MODE=1): only
+#     :process_xcresult. Runs on macOS (Scaleway Mac mini) outside the
+#     Hetzner k8s cluster because xcresulttool is Xcode-only.
+#
+# When dedicated processors are running the server pod drops the matching
+# queue via TUIST_DELEGATE_PROCESS_BUILD / TUIST_DELEGATE_PROCESS_XCRESULT
+# so jobs land exclusively on the dedicated fleet — without those flags the
+# server would race the processors on SKIP LOCKED, and on Linux the
+# xcresult parse would crash because the macOS-only NIF isn't loaded.
 oban_queues =
   cond do
     Tuist.Environment.processor_mode?() ->
       [process_build: Tuist.Environment.process_build_queue_concurrency()]
 
-    Tuist.Environment.delegate_process_build?() ->
-      [default: 10, process_xcresult: 2]
+    Tuist.Environment.xcresult_processor_mode?() ->
+      [process_xcresult: Tuist.Environment.process_xcresult_queue_concurrency()]
 
     true ->
-      [
-        default: 10,
-        process_build: Tuist.Environment.process_build_queue_concurrency(),
-        process_xcresult: 2
-      ]
+      base = [default: 10]
+
+      base =
+        if Tuist.Environment.delegate_process_build?() do
+          base
+        else
+          base ++ [process_build: Tuist.Environment.process_build_queue_concurrency()]
+        end
+
+      if Tuist.Environment.delegate_process_xcresult?() do
+        base
+      else
+        base ++ [process_xcresult: Tuist.Environment.process_xcresult_queue_concurrency()]
+      end
   end
 
 config :tuist, Oban,
@@ -427,8 +444,8 @@ config :tuist, Oban,
     {Oban.Plugins.Cron,
      crontab:
        if(
-         not Tuist.Environment.processor_mode?() and Tuist.Environment.tuist_hosted?() and
-           env in [:prod, :stag, :can],
+         not Tuist.Environment.processor_mode?() and not Tuist.Environment.xcresult_processor_mode?() and
+           Tuist.Environment.tuist_hosted?() and env in [:prod, :stag, :can],
          do: [
            {"0 10 * * 1-5", Tuist.Ops.DailySlackReportWorker},
            {"0 * * * 1-5", Tuist.Ops.HourlySlackReportWorker},

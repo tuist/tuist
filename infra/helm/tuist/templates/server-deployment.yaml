@@ -94,6 +94,15 @@ spec:
             - name: TUIST_DELEGATE_PROCESS_BUILD
               value: "1"
             {{- end }}
+            {{- if .Values.xcresultProcessor.enabled }}
+            # Hand off the :process_xcresult queue entirely to the external
+            # macOS xcresult-processor pods (Scaleway Mac minis). Linux pods
+            # don't ship the macOS-only xcresult NIF, so without this flag
+            # the server's local Oban worker would claim jobs and crash on
+            # `:nif_not_loaded` for every test-result archive.
+            - name: TUIST_DELEGATE_PROCESS_XCRESULT
+              value: "1"
+            {{- end }}
             {{- include "tuist.licenseEnv" . | nindent 12 }}
             {{- if or .Values.server.masterKey .Values.server.managedSecrets }}
             - name: MASTER_KEY

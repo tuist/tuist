@@ -1,9 +1,10 @@
-name: Xcode Processor Deploy
+name: Xcresult Processor Deploy
 
-# NOTE: Auto-deploy on push to main is disabled pending migration to
-# Kubernetes — auto-deploys to the Scaleway Mac mini have been unreliable.
-# Manual deploys via `workflow_dispatch` are still supported so we can roll
-# out coordinated changes (e.g. a new NIF contract before a CLI release).
+# Builds the *server* Elixir release on macOS (with the Xcode-only xcresult
+# Swift NIF) and ships it to a Scaleway Mac mini that boots it in
+# xcresult-processor mode. Manual-only — coordinated rollouts (new NIF
+# contract before a CLI release, etc.) need to land on the macOS fleet
+# explicitly, separately from the in-cluster Linux deploys.
 
 on:
   workflow_dispatch:
@@ -11,27 +12,32 @@ on:
       commit_sha:
         description: Commit SHA to deploy (defaults to the workflow's ref).
         required: false
+      environment:
+        description: Target environment
+        required: true
+        default: production
+        type: choice
+        options:
+          - staging
+          - canary
+          - production
 
 concurrency:
-  group: xcode-processor-deploy
+  group: xcresult-processor-deploy-${{ github.event.inputs.environment }}
   cancel-in-progress: false
 
 permissions:
   contents: read
-
-defaults:
-  run:
-    working-directory: xcode_processor
 
 env:
   MISE_VERSION: "2026.4.18"
   MISE_GITHUB_TOKEN: ${{ github.token }}
 
 jobs:
-  deploy-production:
+  deploy:
     runs-on: namespace-profile-default-macos
     timeout-minutes: 45
-    environment: xcode-processor-production
+    environment: xcresult-processor-${{ github.event.inputs.environment }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -47,17 +53,19 @@ jobs:
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.CACHE_OP_SERVICE_ACCOUNT_TOKEN }}
         run: |
+          ENV_UPPER=$(echo "${{ github.event.inputs.environment }}" | tr '[:lower:]' '[:upper:]')
           echo "XCODE_PROCESSOR_SSH_PRIVATE_KEY<<EOF" >> $GITHUB_ENV
           op read "op://cache/XCODE_PROCESSOR_SSH_PRIVATE_KEY/notesPlain" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
-          echo "XCODE_PROCESSOR_HOST=$(op read 'op://cache/XCODE_PROCESSOR_HOST_PRODUCTION/notesPlain')" >> $GITHUB_ENV
+          echo "XCODE_PROCESSOR_HOST=$(op read "op://cache/XCODE_PROCESSOR_HOST_${ENV_UPPER}/notesPlain")" >> $GITHUB_ENV
           echo "SLACK_WEBHOOK_URL=$(op read 'op://cache/SLACK_WEBHOOK_URL/password')" >> $GITHUB_ENV
       - name: Setup SSH
         uses: webfactory/ssh-agent@v0.9.1
         with:
           ssh-private-key: ${{ env.XCODE_PROCESSOR_SSH_PRIVATE_KEY }}
       - name: Deploy
+        working-directory: xcode_processor
         env:
           SLACK_WEBHOOK_URL: ${{ env.SLACK_WEBHOOK_URL }}
         run: |
-          mise run deploy ${{ env.XCODE_PROCESSOR_HOST }} production
+          mise run deploy ${{ env.XCODE_PROCESSOR_HOST }} ${{ github.event.inputs.environment }}

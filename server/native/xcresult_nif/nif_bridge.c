@@ -139,4 +139,4 @@ static ErlNifFunc nif_funcs[] = {
     {"decompress_archive_nif", 2, decompress_archive_nif, ERL_NIF_DIRTY_JOB_IO_BOUND}
 };
 
-ERL_NIF_INIT(Elixir.XcodeProcessor.XCResultNIF, nif_funcs, NULL, NULL, NULL, NULL)
+ERL_NIF_INIT(Elixir.Tuist.Processor.XCResultNIF, nif_funcs, NULL, NULL, NULL, NULL)

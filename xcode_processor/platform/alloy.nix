@@ -11,9 +11,11 @@ let
       scrape_interval = "60s"
     }
 
-    prometheus.scrape "xcode_processor" {
+    # PromEx mounts /metrics on :9091 in the Tuist server release —
+    # see config :tuist, Tuist.PromEx in server/config/runtime.exs.
+    prometheus.scrape "xcresult_processor" {
       targets = [
-        {"__address__" = "127.0.0.1:4003", "job" = "xcode-processor"},
+        {"__address__" = "127.0.0.1:9091", "job" = "xcresult-processor"},
       ]
       forward_to = [prometheus.remote_write.grafana_cloud.receiver]
       metrics_path = "/metrics"
@@ -23,7 +25,7 @@ let
     prometheus.remote_write "grafana_cloud" {
       external_labels = {
         "hostname" = "${config.networking.hostName}",
-        "service"  = "xcode-processor",
+        "service"  = "xcresult-processor",
       }
 
       endpoint {

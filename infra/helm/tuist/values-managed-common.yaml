@@ -148,6 +148,15 @@ processor:
       cpu: "1000m"
       memory: "1Gi"
 
+# Xcresult processing runs on Scaleway Mac minis outside the k8s cluster
+# (Hetzner has no macOS workers; xcresulttool is Xcode-only). Flipping this
+# on tells the in-cluster Linux server pods to drop `:process_xcresult` from
+# their Oban queue list — TUIST_DELEGATE_PROCESS_XCRESULT=1 in the chart —
+# so test-result jobs land exclusively on the macOS fleet. The Mac minis
+# themselves are deployed via `xcode_processor/platform/`.
+xcresultProcessor:
+  enabled: true
+
 # Everything below = external. The managed deployment never runs embedded
 # Postgres / ClickHouse / object storage / observability stacks.
 cache:

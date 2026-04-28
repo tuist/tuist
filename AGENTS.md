@@ -14,8 +14,9 @@ This file provides guidance to AI agents when working with code in this reposito
 - `noora/` - Noora design system (Elixir/Phoenix web components) - see `noora/AGENTS.md`
 - `mise/tasks/registry/` - Operational scripts for Swift package registry management (purge, sync)
 - `skills/` - Agent Skills (published to [tuist/agent-skills](https://github.com/tuist/agent-skills))
-- `server/native/xcactivitylog_nif/` - Swift NIF linked into the server release for xcactivitylog parsing. The processor is no longer a standalone Elixir app; it's the same `ghcr.io/tuist/tuist` image booted with `TUIST_PROCESSOR_MODE=true` to run the `:process_build` Oban queue consumer.
-- `xcode_processor/` - Xcode processor service for xcresult processing (Elixir/Phoenix + Swift NIF, macOS) - see `xcode_processor/AGENTS.md`
+- `server/native/xcactivitylog_nif/` - Swift NIF linked into the server release for xcactivitylog parsing. The build processor is no longer a standalone Elixir app; it's the same `ghcr.io/tuist/tuist` image booted with `TUIST_PROCESSOR_MODE=true` to run the `:process_build` Oban queue consumer.
+- `server/native/xcresult_nif/` - Swift NIF linked into the server release for xcresult parsing (macOS-only — uses `xcresulttool`). Built only on the macOS release deployed to Scaleway Mac minis that boot the same image with `TUIST_XCRESULT_PROCESSOR_MODE=true` to run the `:process_xcresult` Oban consumer.
+- `xcode_processor/` - Deploy infrastructure (nix-darwin, mise tasks) for the macOS Scaleway Mac minis that run the server release as the dedicated xcresult processor — see `xcode_processor/AGENTS.md`
 - `search/` - Search infrastructure (TypeSense) - see `search/AGENTS.md`
 - `infra/` - Infrastructure and deployment assets - see `infra/AGENTS.md`
 
