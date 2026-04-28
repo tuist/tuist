@@ -24,20 +24,26 @@ defmodule Tuist.Processor.XCActivityLogNIF do
 
       {:error, reason} ->
         # All shipped Docker images include the NIF (the Dockerfile builds
-        # it as part of every release). If the .so file is present but the
-        # load failed, that's a real packaging/ABI bug — refuse to start so
-        # the failure is loud (CrashLoopBackOff) instead of silently
-        # 5xx-ing every parse job. If the file is missing, we're in a dev
-        # checkout where `cd server/native/xcactivitylog_nif && ./build.sh`
-        # hasn't been run; let the BEAM boot so the rest of the app stays
-        # usable, and fail at parse time with `:nif_not_loaded`.
+        # it as part of every release), so any load failure in a prod-like
+        # env is a real packaging/ABI bug. Refuse the module load so the
+        # failure is loud — first parse call raises UndefinedFunctionError
+        # with the reason instead of silently 5xx-ing every Oban job.
+        #
+        # In dev/test the NIF often isn't compiled locally; let the BEAM
+        # boot so the rest of the app stays usable, and fail at parse time
+        # with `:nif_not_loaded` if someone actually exercises the worker.
         message = "Failed to load xcactivitylog_nif: #{inspect(reason)} (looked at: #{nif_path})"
 
-        if File.exists?(nif_so) do
-          {:error, message}
-        else
-          :logger.warning(message <> " — file missing, skipping (dev/test only)")
-          :ok
+        cond do
+          File.exists?(nif_so) ->
+            {:error, message}
+
+          Tuist.Environment.env() in [:dev, :test] ->
+            :logger.warning(message <> " — .so missing, skipping (dev/test only)")
+            :ok
+
+          true ->
+            {:error, message <> " — .so file missing in a prod build, this is a packaging bug"}
         end
     end
   end
