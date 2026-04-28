@@ -271,7 +271,7 @@ jobs:
 
   cli-acceptance-tests:
     name: Acceptance Tests
-    runs-on: namespace-profile-default-macos-with-volume
+    runs-on: namespace-profile-default-macos
     timeout-minutes: 60
     needs: cli-acceptance-tests-build
     if: toJSON(fromJSON(needs.cli-acceptance-tests-build.outputs.matrix).shard) != '[]'
@@ -335,14 +335,6 @@ jobs:
           security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
           security default-keychain -s $KEYCHAIN_PATH
           security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
-      - name: Set up Docker on macOS
-        # Battle-tested action that handles the colima/lima/qemu mess for us
-        # (pinning a version combination that doesn't hit lima v2.0.3's
-        # `panic: send on closed channel` in the qemu driver). After this step
-        # `docker` and the daemon are reachable on the runner.
-        uses: crazy-max/ghaction-setup-docker@v4
-        with:
-          version: type=image,tag=latest
       - name: Wait for server image
         # Polls the `Server image / Build + scan` check run on this SHA via the
         # GitHub check API; fast-fails if the image build itself fails. Same

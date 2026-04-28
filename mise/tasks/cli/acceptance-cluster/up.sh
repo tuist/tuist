@@ -56,12 +56,31 @@ echo "==> License source: ${LICENSE_MODE}"
 # k8s tooling — installed via mise (platform-agnostic, no VM dependencies).
 mise install kind@latest helm@latest kubectl@latest >/dev/null
 
-# Docker daemon is expected to already be running. In CI that's the
-# `docker/setup-docker-action` step in cli.yml; locally that's whatever the
-# dev set up (Docker Desktop, colima, OrbStack, …). We just check it's
-# reachable and bail with a useful message if not.
+# macOS VM stack — installed via brew (the only place qemu's available, and
+# brew ships colima/lima/qemu as a tested-together combination). Locally we
+# assume the dev already has Docker reachable; only run the install + colima
+# start in CI / when the daemon isn't already up.
+if [[ "$(uname -s)" == "Darwin" ]] && ! docker info >/dev/null 2>&1; then
+  for pkg in docker docker-compose colima lima qemu; do
+    if ! brew list --formula "$pkg" >/dev/null 2>&1; then
+      brew install "$pkg"
+    fi
+  done
+
+  echo "==> Starting colima…"
+  # Try Apple Virtualization.framework first (this profile is Apple Silicon —
+  # M2/M4 Pro per the namespace docs — so vz is the supported path and avoids
+  # lima v2.0.3's `panic: send on closed channel` in the qemu driver). Fall
+  # back to qemu only if vz refuses to start.
+  if ! colima start --vm-type vz --cpu 4 --memory 8 --disk 30; then
+    echo "==> vz failed, retrying with qemu…"
+    colima delete -f >/dev/null 2>&1 || true
+    colima start --vm-type qemu --cpu 4 --memory 8 --disk 30
+  fi
+fi
+
 if ! docker info >/dev/null 2>&1; then
-  echo "ERROR: Docker daemon is not reachable. Start Docker Desktop / colima / OrbStack and retry." >&2
+  echo "ERROR: Docker daemon is not reachable after install + colima start." >&2
   exit 1
 fi
 
