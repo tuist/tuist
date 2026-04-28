@@ -370,6 +370,9 @@ jobs:
           # match what the chart expects), and those `@latest` resolutions
           # don't have lockfile URLs to pin against.
           MISE_LOCKED: "0"
+          # mise hits GitHub releases for the @latest installs; without an
+          # auth token it gets rate-limited (403) on shared CI runners.
+          MISE_GITHUB_TOKEN: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
           GITHUB_ACTOR: ${{ github.actor }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # 1Password service account token. The task uses this to install ESO +
