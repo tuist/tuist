@@ -27,7 +27,7 @@ packer {
 variable "base_image" {
   type        = string
   description = "Base Tart image. Defaults to Cirrus Labs' macOS+Xcode image so xcresulttool is preinstalled."
-  default     = "ghcr.io/cirruslabs/macos-tahoe-xcode:26.0"
+  default     = "ghcr.io/cirruslabs/macos-tahoe-xcode:26.4"
 }
 
 variable "output_image" {
