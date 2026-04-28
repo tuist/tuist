@@ -27,12 +27,13 @@ on:
   workflow_dispatch:
     inputs:
       account:
-        description: Tuist account handle that owns the mesh
+        description: >-
+          Tuist account handle that owns the mesh. Must have a matching
+          kura/ops/helm/kura/values-managed-account-<handle>.yaml file
+          checked in.
         required: true
         default: tuist
-        type: choice
-        options:
-          - tuist
+        type: string
       cluster:
         description: Backing cluster ID (resolved via kura/ops/helm/kura/clusters.yaml)
         required: true
@@ -79,6 +80,17 @@ jobs:
         with:
           install_args: "helm kubectl yq"
           cache: "false"
+      - name: Validate account handle
+        # Account is a free-form input because the catalog lives in the
+        # server DB, not in CI. Constrain the shape so the value is safe
+        # to interpolate into release names, DNS hosts, and shell heredocs.
+        env:
+          ACCOUNT: ${{ inputs.account }}
+        run: |
+          if ! [[ "$ACCOUNT" =~ ^[a-z0-9]([a-z0-9-]{0,38}[a-z0-9])?$ ]]; then
+            echo "Account handle '$ACCOUNT' is not a valid DNS-safe slug" >&2
+            exit 1
+          fi
       - name: Resolve cluster metadata
         id: cluster
         # Reads provider/region for the chosen cluster from clusters.yaml.
