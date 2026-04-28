@@ -42,11 +42,6 @@ spec:
               value: {{ .Values.cache.publicHost | quote }}
             - name: PORT
               value: "4000"
-            {{- $cacheDbUrl := include "tuist.cacheDatabaseUrl" . }}
-            {{- if $cacheDbUrl }}
-            - name: DATABASE_URL
-              value: {{ $cacheDbUrl | quote }}
-            {{- end }}
             - name: SECRET_KEY_BASE
               valueFrom:
                 secretKeyRef:

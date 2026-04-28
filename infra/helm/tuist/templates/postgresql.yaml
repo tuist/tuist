@@ -56,13 +56,6 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /var/lib/postgresql/data
-            {{- if and .Values.cache.enabled (eq .Values.postgresql.mode "embedded") }}
-            # Postgres runs the SQL files in this dir once, on first init,
-            # to bootstrap the cache app's database. See postgresql-init.yaml.
-            - name: init-scripts
-              mountPath: /docker-entrypoint-initdb.d
-              readOnly: true
-            {{- end }}
           readinessProbe:
             exec:
               command: ["pg_isready", "-U", "{{ .Values.postgresql.embedded.username }}"]
@@ -70,12 +63,6 @@ spec:
             periodSeconds: 10
           resources:
             {{- toYaml .Values.postgresql.embedded.resources | nindent 12 }}
-      {{- if and .Values.cache.enabled (eq .Values.postgresql.mode "embedded") }}
-      volumes:
-        - name: init-scripts
-          configMap:
-            name: {{ include "tuist.componentName" (dict "root" . "component" "postgresql-init") }}
-      {{- end }}
   volumeClaimTemplates:
     - metadata:
         name: data
