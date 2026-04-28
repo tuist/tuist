@@ -92,7 +92,7 @@ struct SchemeLinter: SchemeLinting {
     }
 
     private func lintExpandVariableTarget(schemes: [Scheme], targets: [Target]) -> [LintingIssue] {
-        let targetNames = targets.map(\.name)
+        let targetNames = Set(targets.map(\.name))
         var issues: [LintingIssue] = []
 
         for scheme in schemes {
@@ -123,7 +123,7 @@ struct SchemeLinter: SchemeLinting {
     }
 
     private func lintCodeCoverageTargets(schemes: [Scheme], targets: [Target]) -> [LintingIssue] {
-        let targetNames = targets.map(\.name)
+        let targetNames = Set(targets.map(\.name))
         var issues: [LintingIssue] = []
 
         for scheme in schemes {
