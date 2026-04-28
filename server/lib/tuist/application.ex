@@ -299,13 +299,6 @@ defmodule Tuist.Application do
         TuistWeb.Telemetry,
         TuistWeb.Endpoint
       ]
-      # Embedded Orchard control plane scheduler: assigns pending VMs
-      # to online workers. Cheap GenServer that wakes on demand +
-      # every 10s. Skipped in :test because the periodic DB poll
-      # fights Ecto.Sandbox's manual-checkout model; tests that
-      # exercise the scheduler call `Tuist.Orchard.Scheduler.reconcile/0`
-      # directly.
-      |> Kernel.++(if Tuist.Environment.test?(), do: [], else: [Tuist.Orchard.Scheduler])
 
     children
     |> Kernel.++(

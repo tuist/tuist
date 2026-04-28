@@ -1,0 +1,57 @@
+# kubelet config for a Mac mini joining a Tuist k8s cluster as a
+# tart-cri-backed node. Drop at /etc/kubernetes/kubelet-config.yaml
+# and reference from kubelet's --config flag.
+#
+# Notes specific to macOS:
+#   - cgroupsPerQOS = false: macOS has no cgroups; tart-cri enforces
+#     CPU/memory limits via Tart itself (--cpu / --memory).
+#   - failSwapOn = false: macOS swap layout differs; we don't gate on it.
+#   - kubeletCgroups + runtimeCgroups left unset for the same reason.
+#   - resolverConfig pointed at /etc/resolv.conf — macOS populates it
+#     for ethernet + wifi.
+apiVersion: kubelet.config.k8s.io/v1beta1
+kind: KubeletConfiguration
+
+# CRI runtime — tart-cri serves on this socket.
+containerRuntimeEndpoint: unix:///var/run/tart-cri/tart-cri.sock
+
+# Disable cgroup-based enforcement; the runtime handles it.
+cgroupsPerQOS: false
+enforceNodeAllocatable: []
+
+failSwapOn: false
+
+# Skip the OS-image probe — macOS doesn't expose an /etc/os-release
+# in a kubelet-friendly format.
+nodeStatusReportFrequency: 30s
+nodeStatusUpdateFrequency: 10s
+
+# Apple licensing limits Tart to 2 macOS VMs per host. Advertise this
+# as an extended resource so the scheduler honors it natively.
+nodeStatusMaxImages: 50
+
+# Image GC thresholds — Tart images are GBs each, so be aggressive.
+imageMinimumGCAge: 24h
+imageGCHighThresholdPercent: 80
+imageGCLowThresholdPercent: 60
+
+# Logs go to /var/log/pods/<pod>/<container>/N.log; tart-cri writes
+# the per-container log file there. kubelet tails it for `kubectl logs`.
+podLogsDir: /var/log/pods
+
+# Authn/authz: cluster-bootstrap-tokens at join time, then x509
+# certificates rotated automatically.
+authentication:
+  x509:
+    clientCAFile: /etc/kubernetes/pki/ca.crt
+  webhook:
+    enabled: true
+authorization:
+  mode: Webhook
+
+# Resolver — macOS standard.
+resolvConf: /etc/resolv.conf
+
+# Health server for kubeadm/cluster API liveness probes.
+healthzBindAddress: 127.0.0.1
+healthzPort: 10248

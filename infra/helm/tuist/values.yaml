@@ -235,8 +235,11 @@ processor:
 xcresultProcessor:
   # Dedicated macOS workers that consume `:process_xcresult`. The parse
   # path leans on `xcresulttool` from Xcode (no Linux equivalent), so
-  # these Pods land on a virtual node fronted by `vk-orchard` (which
-  # translates Pods → Tart VMs on Scaleway Mac minis via Orchard).
+  # these Pods schedule onto Mac mini nodes running kubelet backed by
+  # tart-cri (see infra/tart-cri/) — the macOS hosts join the cluster as
+  # real nodes with `kubernetes.io/os=darwin` + `tuist.dev/runtime=tart`
+  # and a `tuist.dev/macos:NoSchedule` taint that this Deployment
+  # tolerates.
   #
   # When enabled the chart emits two things:
   #   1. The Deployment template here (xcresult-processor-deployment.yaml).
@@ -246,9 +249,11 @@ xcresultProcessor:
   #      SKIP-LOCKED races and `:nif_not_loaded` crashes (the macOS-only
   #      NIF isn't loaded on Linux pods).
   #
-  # Requires `vkOrchard.enabled: true` to actually schedule. Self-hosters
-  # without an Orchard fleet should leave this off and run a macOS host
-  # manually with `TUIST_XCRESULT_PROCESSOR_MODE=1` against the same DB.
+  # Requires at least one Mac mini joined to the cluster (provisioned
+  # via `infra/tart-cri/platform/provision.sh`). Self-hosters without a
+  # macOS fleet should leave this off; xcresult ingestion silently no-ops
+  # for them (acceptable — Linux-only deployments don't have xcresult
+  # uploads to ingest in the first place).
   enabled: false
   replicaCount: 2
   # Per-pod Oban concurrency. Total parallelism = replicaCount * concurrency.
@@ -283,41 +288,6 @@ xcresultProcessor:
       # at least 1 VM consuming the queue across deploys.
       maxSurge: 1
       maxUnavailable: 0
-
-# Virtual Kubelet provider that exposes the Tuist Orchard fleet (Scaleway
-# Mac minis hosting Tart VMs) as a virtual k8s Node. See
-# infra/vk-orchard/AGENTS.md for the full design.
-#
-# `orchard.url` defaults to the *embedded* Orchard control plane that
-# runs as part of the Tuist server (`/api/orchard/v1` mounted in
-# server/lib/tuist_web/router.ex). Self-hosters wanting to use Cirrus's
-# upstream Orchard binary instead can override this to point at it; the
-# wire protocol is identical.
-vkOrchard:
-  enabled: false
-  nodeName: tuist-orchard
-  image:
-    repository: ghcr.io/tuist/vk-orchard
-    tag: ""
-    pullPolicy: IfNotPresent
-  orchard:
-    # URL of the Orchard control plane. Empty defaults to the in-cluster
-    # Tuist server (`http://<server-svc>/api/orchard/v1`); the chart
-    # template fills it in. Override for an external Orchard controller.
-    url: ""
-    # Secret holding `service-account-name` and `service-account-token`
-    # keys. The default Helm install does NOT create this — operators
-    # must seed it via `kubectl create secret` (or ESO sync from 1P)
-    # using a service account provisioned via /ops/orchard.
-    secretName: ""
-  resources:
-    requests:
-      cpu: "100m"
-      memory: "128Mi"
-    limits:
-      cpu: "500m"
-      memory: "512Mi"
-  podAnnotations: {}
 
 cache:
   enabled: true

@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Boots tart-cri on the Mac mini. Kubelet (separate launchd job)
+  connects to /var/run/tart-cri/tart-cri.sock once this is up.
+
+  KeepAlive=true so the BEAM-equivalent (the Go binary) gets restarted
+  on unexpected exit. Logs written to /var/log/tart-cri/* for
+  operational visibility.
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>dev.tuist.tart-cri</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/local/bin/tart-cri</string>
+        <string>--socket</string>
+        <string>/var/run/tart-cri/tart-cri.sock</string>
+        <string>--state</string>
+        <string>/var/lib/tart-cri/state.json</string>
+        <string>--log-dir</string>
+        <string>/var/log/pods</string>
+    </array>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>/var/log/tart-cri/stdout.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/var/log/tart-cri/stderr.log</string>
+
+    <key>ProcessType</key>
+    <string>Background</string>
+</dict>
+</plist>

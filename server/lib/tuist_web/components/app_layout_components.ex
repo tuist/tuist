@@ -401,12 +401,6 @@ defmodule TuistWeb.AppLayoutComponents do
         selected={String.starts_with?(@current_path, "/ops/flags")}
       />
       <.sidebar_item
-        label={dgettext("dashboard", "Orchard")}
-        icon="device_desktop"
-        navigate={~p"/ops/orchard"}
-        selected={String.starts_with?(@current_path, "/ops/orchard")}
-      />
-      <.sidebar_item
         :if={Tuist.Environment.dev?()}
         label={dgettext("dashboard", "Emails")}
         icon="mail"

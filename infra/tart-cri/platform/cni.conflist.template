@@ -1,0 +1,23 @@
+{
+  "_comment": [
+    "CNI configuration for a Mac mini joining a Tuist k8s cluster.",
+    "",
+    "Drop at /etc/cni/net.d/10-tart.conflist with podCIDR replaced by",
+    "the per-host CIDR slice this Mac mini owns. Cluster operators",
+    "carve the cluster CIDR (e.g. 10.42.0.0/16) into per-host /24",
+    "slices and assign them at node-bootstrap time.",
+    "",
+    "The single-plugin chain handles host-local IPAM only. Cross-host",
+    "pod-to-pod routing is a follow-up: a WireGuard plugin would be",
+    "added to the chain after tart-cni when the runner workload",
+    "lands and starts requiring it."
+  ],
+  "cniVersion": "1.0.0",
+  "name": "tart",
+  "plugins": [
+    {
+      "type": "tart-cni",
+      "podCIDR": "REPLACE_ME"
+    }
+  ]
+}

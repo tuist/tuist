@@ -24,17 +24,16 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
     spec:
-      # Schedule onto the virtual node fronted by vk-orchard. The taint
-      # on that node (tuist.dev/macos=true:NoSchedule + the VK
-      # provider's own taint) keeps stray Linux Pods from landing here.
+      # Schedule onto a real macOS node — a Mac mini running kubelet
+      # backed by tart-cri. The taint `tuist.dev/macos=true:NoSchedule`
+      # is set by kubelet at registration (see
+      # infra/tart-cri/platform/dev.tuist.kubelet.plist) so stray Linux
+      # Pods don't land here.
       nodeSelector:
         kubernetes.io/os: darwin
-        tuist.dev/orchard-fleet: "true"
+        tuist.dev/runtime: tart
       tolerations:
         - key: tuist.dev/macos
-          operator: Exists
-          effect: NoSchedule
-        - key: virtual-kubelet.io/provider
           operator: Exists
           effect: NoSchedule
       # No init containers, no sidecars — vk-orchard rejects them at

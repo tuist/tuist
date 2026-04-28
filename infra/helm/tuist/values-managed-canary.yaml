@@ -82,9 +82,8 @@ xcresultProcessor:
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
       value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
 
-# Orchard control plane is embedded in the Tuist server (see
-# server/lib/tuist/orchard.ex). vkOrchard.orchard.url defaults to the
-# in-cluster server endpoint; no per-env override needed.
+# Mac mini nodes (provisioned via infra/tart-cri/platform/provision.sh)
+# join the cluster as real k8s nodes; no per-env override here.
 
 # In-cluster Valkey backs the auth rate limiter (Hammer.Redis). The
 # chart wires TUIST_REDIS_URL to the embedded Service; without it the
