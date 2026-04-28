@@ -63,6 +63,35 @@ defmodule TuistWeb.AcceptInvitationLiveTest do
       assert {:error, :not_found} = Accounts.get_invitation_by_token(invitation.token)
     end
 
+    test "redirects to post_invitation_return_to after Accept when set", %{conn: conn} do
+      # When SSO bounced the user here it stashed the original return target
+      # (e.g. the device-code URL) under :post_invitation_return_to so we
+      # can resume that flow once they accept.
+      inviter = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: inviter)
+      invitee = AccountsFixtures.user_fixture(email: "resume-invitee@example.com")
+
+      {:ok, invitation} =
+        Accounts.invite_user_to_organization(
+          invitee.email,
+          %{inviter: inviter, to: organization, url: fn token -> "/auth/invitations/#{token}" end}
+        )
+
+      device_code_url = "/auth/device_codes/AOKJ-1234?type=cli"
+
+      conn =
+        conn
+        |> log_in_user(invitee)
+        |> Plug.Test.init_test_session(%{post_invitation_return_to: device_code_url})
+
+      {:ok, lv, _html} = live(conn, ~p"/auth/invitations/#{invitation.token}")
+
+      assert {:error, {:redirect, %{to: ^device_code_url}}} =
+               lv |> element("button", "Accept invitation") |> render_click()
+
+      assert Accounts.organization_user?(invitee, organization)
+    end
+
     test "declines the invitation when the user clicks Decline", %{conn: conn} do
       inviter = AccountsFixtures.user_fixture()
       organization = AccountsFixtures.organization_fixture(creator: inviter)

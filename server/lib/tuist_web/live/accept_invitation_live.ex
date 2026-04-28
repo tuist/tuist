@@ -8,7 +8,7 @@ defmodule TuistWeb.AcceptInvitationLive do
   alias Tuist.Accounts
   alias TuistWeb.Authentication
 
-  def mount(%{"token" => token}, _session, socket) do
+  def mount(%{"token" => token}, session, socket) do
     user = Authentication.current_user(socket)
 
     socket =
@@ -18,7 +18,8 @@ defmodule TuistWeb.AcceptInvitationLive do
         invitation: nil,
         organization: nil,
         organization_name: nil,
-        invitee_state: resolve(token, user)
+        invitee_state: resolve(token, user),
+        post_accept_return_to: session["post_invitation_return_to"]
       )
 
     {:ok, hydrate_invitation(socket, token)}
@@ -228,7 +229,17 @@ defmodule TuistWeb.AcceptInvitationLive do
       organization: socket.assigns.organization
     })
 
-    {:noreply, assign(socket, accepted: true)}
+    case socket.assigns.post_accept_return_to do
+      nil ->
+        {:noreply, assign(socket, accepted: true)}
+
+      path when is_binary(path) ->
+        # Resume whatever flow brought the user here — e.g. the device-code
+        # URL from `tuist auth login`. The session key
+        # `:post_invitation_return_to` is only read here; subsequent SSO
+        # redirects overwrite it, so leaving it behind is harmless.
+        {:noreply, redirect(socket, to: path)}
+    end
   end
 
   def handle_event("decline_invitation", _params, socket) do

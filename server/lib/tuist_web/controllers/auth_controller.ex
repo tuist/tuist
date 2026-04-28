@@ -221,7 +221,18 @@ defmodule TuistWeb.AuthController do
         # however, an admin has issued them an invitation. Send them to the
         # accept page so they can review and explicitly accept; we don't
         # want to silently flip membership during a login redirect.
+        #
+        # The accept page is behind `:require_authenticated_user`, which
+        # will overwrite `:user_return_to` with the invitation URL when it
+        # bounces the visitor to /users/log_in. Stash whatever return
+        # target was pending before that overwrite (e.g. the device-code
+        # URL for `tuist auth login`) under a separate key so the LiveView
+        # can resume the original flow after the user clicks Accept.
+        prior_return_to =
+          oauth_return_url || get_session(conn, :user_return_to)
+
         conn
+        |> maybe_put_post_invitation_return_to(prior_return_to)
         |> redirect(to: ~p"/auth/invitations/#{invitation.token}")
         |> halt()
 
@@ -252,6 +263,12 @@ defmodule TuistWeb.AuthController do
 
   defp pending_invitation_for(%{email: email}, %Organization{} = organization) do
     Accounts.get_invitation_by_invitee_email_and_organization(email, organization)
+  end
+
+  defp maybe_put_post_invitation_return_to(conn, nil), do: conn
+
+  defp maybe_put_post_invitation_return_to(conn, return_to) do
+    put_session(conn, :post_invitation_return_to, return_to)
   end
 
   def authenticate_cli_deprecated(conn, params) do
