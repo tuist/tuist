@@ -451,41 +451,11 @@ base64 < /tmp/preview-kubeconfig.yaml | gh secret set KUBECONFIG \
 shred -u /tmp/preview-kubeconfig.yaml
 ```
 
-### 9.6 Scaler ServiceAccount (management cluster)
+### 9.6 Scaler ServiceAccount (management cluster) — skipped
 
-The deploy + sweep workflows scale the worker MachineDeployment up and down. The Cluster CR for that lives in the **management** cluster, so we mint a separate, narrowly-scoped SA there.
+The original design had CI scale the preview MachineDeployment to/from 0 via a narrow SA on the management cluster. That requires `create serviceaccounts,roles,rolebindings` in your `org-tuist` namespace, which Syself's OIDC users don't have by default. Until Syself grants those (open a support ticket if you want to revisit), the preview cluster keeps a fixed `replicas: 1` worker pool. See the "Why pinned `replicas: 1`" comment at the top of [`infra/k8s/syself/workload-cluster-preview.yaml`](syself/workload-cluster-preview.yaml).
 
-```bash
-export KUBECONFIG=~/.kube/tuist-syself-mgmt.yaml
-ORG_NS="$(kubectl config view --minify -o jsonpath='{.contexts[0].context.namespace}')"
-
-sed "s/__ORG_NS__/$ORG_NS/g" infra/k8s/syself/preview-mgmt-rbac.yaml | kubectl apply -f -
-
-SERVER=$(kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}')
-CA=$(kubectl -n "$ORG_NS" get secret preview-scaler-token -o jsonpath='{.data.ca\.crt}')
-TOKEN=$(kubectl -n "$ORG_NS" get secret preview-scaler-token -o jsonpath='{.data.token}' | base64 -d)
-
-cat > /tmp/preview-mgmt-kubeconfig.yaml <<EOF
-apiVersion: v1
-kind: Config
-clusters:
-  - name: syself-mgmt
-    cluster:
-      server: $SERVER
-      certificate-authority-data: $CA
-contexts:
-  - name: ci
-    context: { cluster: syself-mgmt, namespace: $ORG_NS, user: preview-scaler }
-users:
-  - name: preview-scaler
-    user: { token: $TOKEN }
-current-context: ci
-EOF
-
-base64 < /tmp/preview-mgmt-kubeconfig.yaml | gh secret set KUBECONFIG_MGMT \
-  --env server-k8s-preview --repo tuist/tuist
-shred -u /tmp/preview-mgmt-kubeconfig.yaml
-```
+The unused [`preview-mgmt-rbac.yaml`](syself/preview-mgmt-rbac.yaml) manifest stays checked in — once the perms are granted, applying it + setting `KUBECONFIG_MGMT` is enough to re-enable elastic scaling.
 
 ### 9.7 First preview
 

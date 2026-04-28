@@ -1,24 +1,27 @@
 # Preview workload Cluster for ephemeral PR / commit environments.
 #
-# Shape: 1 × cpx22 control plane + 0 × cpx32 workers (scale-to-zero) in fsn1.
-# Single control-plane is acceptable — the cluster is not user-facing and
-# short downtime during upgrades is fine.
+# Shape: 1 × cpx22 control plane + 1 × cpx42 worker in fsn1. ~€18/mo.
+# Both single-instance — the cluster is not user-facing, short downtime
+# during upgrades is fine, and the worker is sized large enough (8 vCPU /
+# 16 GB) to fit ~8–12 concurrent previews at typical resource profiles
+# (server + postgres + clickhouse + minio + cache ≈ 1 GB request each).
 #
-# Idle cost: ~€5/mo (control plane only). Workers spin up on demand:
-#   - preview-deploy.yml scales md-0 to 1 before the first helm install
-#     and waits for the new node to go Ready (~3–5 min from cold).
-#   - preview-sweep.yml runs hourly, deletes expired namespaces, and scales
-#     md-0 back to 0 when no preview releases remain.
-#
-# Both workflows talk to the SYSELF MANAGEMENT CLUSTER to scale (the Cluster
-# CR lives there, not in the workload cluster). The narrow RBAC for that
-# lives in preview-mgmt-rbac.yaml.
+# Why pinned `replicas: 1` and not scale-to-zero:
+# Scaling the worker pool from CI requires write access to the SYSELF
+# MANAGEMENT cluster (the `Cluster` CR for tuist-preview lives there, not
+# in this workload cluster). Syself's OIDC users cannot create the
+# ServiceAccount we'd need for that, so the original scale-to-zero design
+# was blocked on Syself support. Pinning to a fixed replica trades ~€13/mo
+# of idle cost for sidestepping that dependency entirely. Side benefit:
+# avoids the konnectivity-agent-on-empty-worker-pool footgun (the agent
+# only runs on workers, so workers=0 breaks every webhook on the cluster).
 #
 # Worker labeling/tainting:
-# CAPI/Syself doesn't surface node labels via topology variables, so workers
-# come up un-labeled. The `role=preview` label and `role=preview:NoSchedule`
-# taint are applied by the deploy workflow on every run (idempotent), so
-# fresh nodes from scale-up events get the right scheduling immediately.
+# CAPI/Syself doesn't surface node labels via topology variables, so
+# workers come up un-labeled. The `role=preview` label and
+# `role=preview:NoSchedule` taint are applied by the deploy workflow on
+# every run (idempotent), so any fresh nodes from MachineDeployment
+# replacement events get the right scheduling immediately.
 
 apiVersion: cluster.x-k8s.io/v1beta1
 kind: Cluster
@@ -43,9 +46,7 @@ spec:
       machineDeployments:
         - class: workeramd64hcloud
           name: md-0
-          # Scale-to-zero default. CI scales up before deploy and back down
-          # in the hourly sweep when no previews remain.
-          replicas: 0
+          replicas: 1
           failureDomain: fsn1
     variables:
       - name: region
@@ -55,13 +56,14 @@ spec:
       - name: controlPlaneMachineArchHcloud
         value: amd64
       - name: workerMachineTypeHcloud
-        # cpx32 (4 vCPU / 8 GB AMD, new-gen series). The old-gen cpx*1
+        # cpx42 (8 vCPU / 16 GB AMD, new-gen series). The old-gen cpx*1
         # series (cpx21, cpx31, cpx41) is currently out of stock in fsn1 —
-        # same issue affecting staging/canary md-0 scale-ups. The cpx*2
-        # series is the in-stock new-gen replacement and is what the
-        # control plane (cpx22) is already on, so Syself's ClusterClass
-        # accepts the SKU.
-        value: cpx32
+        # the cpx*2 series is the in-stock replacement and what the control
+        # plane (cpx22) is already on, so Syself's ClusterClass accepts it.
+        # One cpx42 fits ~8–12 concurrent previews at typical resource
+        # requests (server + postgres + clickhouse + minio + cache ≈ 1 GB
+        # request per preview).
+        value: cpx42
       - name: SSHKeyNameHcloud
         value:
           - name: tuist-syself
