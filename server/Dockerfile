@@ -303,8 +303,3 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
 
 ENTRYPOINT ["/usr/bin/tini", "--"]
 CMD ["sh", "-c", "/app/bin/start"]
-
-# Kept for backwards compatibility with older CI workflows that reference the
-# `runner-selfhosted` target by name; identical to `runner` now that the NIF
-# ships in every image.
-FROM runner AS runner-selfhosted
