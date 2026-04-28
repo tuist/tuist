@@ -9,23 +9,49 @@ defmodule TuistWeb.AcceptInvitationLive do
   alias TuistWeb.Authentication
 
   def mount(%{"token" => token}, _session, socket) do
-    session_user = Authentication.current_user(socket)
+    user = Authentication.current_user(socket)
 
+    socket =
+      assign(socket,
+        accepted: false,
+        declined: false,
+        invitation: nil,
+        organization: nil,
+        organization_name: nil,
+        invitee_state: resolve(token, user)
+      )
+
+    {:ok, hydrate_invitation(socket, token)}
+  end
+
+  defp resolve(token, user) do
     case Accounts.get_invitation_by_token(token) do
+      {:ok, invitation} ->
+        if user.email == invitation.invitee_email do
+          {:ok, invitation}
+        else
+          {:mismatched, invitation.invitee_email}
+        end
+
+      {:error, :not_found} ->
+        :not_found
+    end
+  end
+
+  defp hydrate_invitation(socket, _token) do
+    case socket.assigns.invitee_state do
       {:ok, invitation} ->
         {:ok, organization} = Accounts.get_organization_by_id(invitation.organization_id)
         account = Accounts.get_account_from_organization(organization)
 
-        {:ok,
-         assign(socket,
-           token: token,
-           invitation: invitation,
-           organization_name: account.name,
-           invitee_state: resolve_invitee(session_user, invitation)
-         )}
+        assign(socket,
+          invitation: invitation,
+          organization: organization,
+          organization_name: account.name
+        )
 
-      {:error, :not_found} ->
-        {:ok, assign(socket, token: token, invitation: nil, invitee_state: :not_found)}
+      _ ->
+        socket
     end
   end
 
@@ -50,8 +76,98 @@ defmodule TuistWeb.AcceptInvitationLive do
               <.dots_light />
               <.dots_dark />
             </div>
-            <%= case @invitee_state do %>
-              <% :not_found -> %>
+            <%= cond do %>
+              <% @accepted -> %>
+                <div data-part="header">
+                  <h1 data-part="title">
+                    {dgettext("dashboard_account", "Invitation accepted!")}
+                  </h1>
+                  <span data-part="subtitle">
+                    {dgettext(
+                      "dashboard_account",
+                      "You have accepted the invite to join the organization"
+                    )}
+                  </span>
+                </div>
+                <.alert
+                  id="invitation-accepted"
+                  type="secondary"
+                  status="success"
+                  size="small"
+                  title={
+                    dgettext(
+                      "dashboard_account",
+                      "You are now a part of %{organization} organization",
+                      organization: @organization_name
+                    )
+                  }
+                />
+              <% @declined -> %>
+                <div data-part="header">
+                  <h1 data-part="title">
+                    {dgettext("dashboard_account", "Invitation rejected")}
+                  </h1>
+                  <span data-part="subtitle">
+                    {dgettext(
+                      "dashboard_account",
+                      "You have rejected the invite to join the organization"
+                    )}
+                  </span>
+                </div>
+                <.alert
+                  id="invitation-declined"
+                  type="secondary"
+                  status="error"
+                  size="small"
+                  title={
+                    dgettext(
+                      "dashboard_account",
+                      "You won’t be able to access this organization unless invited again."
+                    )
+                  }
+                />
+              <% match?({:ok, _}, @invitee_state) -> %>
+                <div data-part="header">
+                  <h1 data-part="title">
+                    {dgettext("dashboard_account", "You have been invited")}
+                  </h1>
+                  <span data-part="subtitle">
+                    {dgettext(
+                      "dashboard_account",
+                      "%{inviter} has invited you to join the %{organization} organization",
+                      inviter: @invitation.inviter.account.name,
+                      organization: @organization_name
+                    )}
+                  </span>
+                </div>
+                <div data-part="actions">
+                  <.button
+                    variant="primary"
+                    size="large"
+                    label={dgettext("dashboard_account", "Accept invitation")}
+                    phx-click="accept_invitation"
+                  />
+                  <.button
+                    variant="secondary"
+                    size="large"
+                    label={dgettext("dashboard_account", "Decline")}
+                    phx-click="decline_invitation"
+                  />
+                </div>
+              <% match?({:mismatched, _}, @invitee_state) -> %>
+                <div data-part="header">
+                  <h1 data-part="title">
+                    {dgettext("dashboard_account", "Wrong account")}
+                  </h1>
+                  <span data-part="subtitle">
+                    {dgettext(
+                      "dashboard_account",
+                      "This invitation is addressed to %{email}. Log out and sign in with that account to accept it.",
+                      email: elem(@invitee_state, 1)
+                    )}
+                  </span>
+                </div>
+              <% true -> %>
                 <div data-part="header">
                   <h1 data-part="title">
                     {dgettext("dashboard_account", "Invitation not found")}
@@ -69,98 +185,24 @@ defmodule TuistWeb.AcceptInvitationLive do
                     )
                   }
                 />
-              <% :mismatched -> %>
-                <div data-part="header">
-                  <h1 data-part="title">
-                    {dgettext("dashboard_account", "Wrong account")}
-                  </h1>
-                  <span data-part="subtitle">
-                    {dgettext(
-                      "dashboard_account",
-                      "This invitation is addressed to %{email}. Log out and sign in with that account to accept it.",
-                      email: @invitation.invitee_email
-                    )}
-                  </span>
-                </div>
-              <% :no_user -> %>
-                <div data-part="header">
-                  <h1 data-part="title">
-                    {dgettext("dashboard_account", "You have been invited")}
-                  </h1>
-                  <span data-part="subtitle">
-                    {dgettext(
-                      "dashboard_account",
-                      "%{inviter} has invited %{email} to join the %{organization} organization. Create a Tuist account with that email to accept.",
-                      inviter: @invitation.inviter.account.name,
-                      email: @invitation.invitee_email,
-                      organization: @organization_name
-                    )}
-                  </span>
-                </div>
-                <div data-part="actions">
-                  <.link_button
-                    navigate={~p"/users/register"}
-                    variant="primary"
-                    size="large"
-                    label={dgettext("dashboard_account", "Create an account")}
-                  />
-                </div>
-              <% {:ok, _invitee} -> %>
-                <div data-part="header">
-                  <h1 data-part="title">
-                    {dgettext("dashboard_account", "You have been invited")}
-                  </h1>
-                  <span data-part="subtitle">
-                    {dgettext(
-                      "dashboard_account",
-                      "%{inviter} has invited you to join the %{organization} organization",
-                      inviter: @invitation.inviter.account.name,
-                      organization: @organization_name
-                    )}
-                  </span>
-                </div>
-                <div data-part="actions">
-                  <form
-                    action={~p"/auth/invitations/#{@token}/accept"}
-                    method="post"
-                    style="display: contents;"
-                  >
-                    <input
-                      type="hidden"
-                      name="_csrf_token"
-                      value={Phoenix.Controller.get_csrf_token()}
-                    />
-                    <.button
-                      variant="primary"
-                      size="large"
-                      label={dgettext("dashboard_account", "Accept invitation")}
-                    />
-                  </form>
-                  <form
-                    action={~p"/auth/invitations/#{@token}/decline"}
-                    method="post"
-                    style="display: contents;"
-                  >
-                    <input
-                      type="hidden"
-                      name="_csrf_token"
-                      value={Phoenix.Controller.get_csrf_token()}
-                    />
-                    <.button
-                      variant="secondary"
-                      size="large"
-                      label={dgettext("dashboard_account", "Decline")}
-                    />
-                  </form>
-                </div>
             <% end %>
 
-            <div :if={@invitee_state in [:not_found, :mismatched]} data-part="actions">
-              <.link_button
-                navigate={~p"/users/log_in"}
+            <div
+              :if={
+                @invitee_state == :not_found or match?({:mismatched, _}, @invitee_state) or @accepted or
+                  @declined
+              }
+              data-part="actions"
+            >
+              <.button
                 variant="primary"
                 size="large"
-                label={dgettext("dashboard_account", "Back to login")}
+                label={dgettext("dashboard_account", "Dashboard")}
+                href={
+                  TuistWeb.Authentication.signed_in_path(
+                    TuistWeb.Authentication.current_user(assigns)
+                  )
+                }
               />
             </div>
           </div>
@@ -177,14 +219,20 @@ defmodule TuistWeb.AcceptInvitationLive do
     """
   end
 
-  defp resolve_invitee(%{email: email} = user, %{invitee_email: email}), do: {:ok, user}
+  def handle_event("accept_invitation", _params, socket) do
+    user = Authentication.current_user(socket)
 
-  defp resolve_invitee(nil, invitation) do
-    case Accounts.get_user_by_email(invitation.invitee_email) do
-      {:ok, user} -> {:ok, user}
-      {:error, :not_found} -> :no_user
-    end
+    Accounts.accept_invitation(%{
+      invitation: socket.assigns.invitation,
+      invitee: user,
+      organization: socket.assigns.organization
+    })
+
+    {:noreply, assign(socket, accepted: true)}
   end
 
-  defp resolve_invitee(_session_user, _invitation), do: :mismatched
+  def handle_event("decline_invitation", _params, socket) do
+    Accounts.delete_invitation(%{invitation: socket.assigns.invitation})
+    {:noreply, assign(socket, declined: true)}
+  end
 end

@@ -764,23 +764,12 @@ defmodule TuistWeb.Router do
     live_session :auth,
       on_mount: [{TuistWeb.Authentication, :ensure_authenticated}] do
       live "/device_codes/:device_code/success", DeviceCodesSuccessLive, :new
+      live "/invitations/:token", AcceptInvitationLive, :new
     end
 
     # This route is deprecated and will be removed in future versions.
     get "/cli/:device_code", AuthController, :authenticate_cli_deprecated
     get "/device_codes/:device_code", AuthController, :authenticate_device_code
-  end
-
-  scope "/auth", TuistWeb do
-    pipe_through :browser_app
-
-    live_session :invitations,
-      on_mount: [{TuistWeb.Authentication, :mount_current_user}] do
-      live "/invitations/:token", AcceptInvitationLive, :new
-    end
-
-    post "/invitations/:token/accept", InvitationController, :accept
-    post "/invitations/:token/decline", InvitationController, :decline
   end
 
   # Dashboard
