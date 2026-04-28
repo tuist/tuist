@@ -306,6 +306,12 @@ config :tuist, :urls,
 
 config :tuist_common, finch_name: Tuist.Finch
 
+# Tower captures unhandled exceptions, exits, throws and Logger errors from
+# Plug, Phoenix, Bandit, Oban, LiveView and the Erlang :logger, then dispatches
+# them to the configured reporters. We forward captured events to OpenTelemetry
+# alongside the existing Sentry integration.
+config :tower, reporters: [TowerOpentelemetry]
+
 config :ueberauth, Ueberauth,
   base_path: "/users/auth",
   providers: [
