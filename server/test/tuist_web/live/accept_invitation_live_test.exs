@@ -141,5 +141,41 @@ defmodule TuistWeb.AcceptInvitationLiveTest do
 
       assert html =~ "Invitation not found"
     end
+
+    test "ignores accept_invitation pushed from a not-found state", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+      conn = log_in_user(conn, user)
+
+      {:ok, lv, _html} = live(conn, ~p"/auth/invitations/invalid-token")
+
+      # Buttons aren't rendered in the not-found state, but a crafted client
+      # could still push the event. The handler must reject it server-side
+      # rather than crash on `nil` assigns.
+      assert render_hook(lv, "accept_invitation", %{}) =~ "Invitation not found"
+      assert render_hook(lv, "decline_invitation", %{}) =~ "Invitation not found"
+    end
+
+    test "ignores accept_invitation pushed from the wrong-account state", %{conn: conn} do
+      inviter = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: inviter)
+      _invitee = AccountsFixtures.user_fixture(email: "real-invitee@example.com")
+      other_user = AccountsFixtures.user_fixture(email: "other@example.com")
+
+      {:ok, invitation} =
+        Accounts.invite_user_to_organization(
+          "real-invitee@example.com",
+          %{inviter: inviter, to: organization, url: fn token -> "/auth/invitations/#{token}" end}
+        )
+
+      conn = log_in_user(conn, other_user)
+      {:ok, lv, _html} = live(conn, ~p"/auth/invitations/#{invitation.token}")
+
+      assert render_hook(lv, "accept_invitation", %{}) =~ "Wrong account"
+      assert render_hook(lv, "decline_invitation", %{}) =~ "Wrong account"
+
+      # Neither user has been added to the org, and the invitation survives.
+      refute Accounts.organization_user?(other_user, organization)
+      assert {:ok, _} = Accounts.get_invitation_by_token(invitation.token)
+    end
   end
 end

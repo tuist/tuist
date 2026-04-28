@@ -220,7 +220,13 @@ defmodule TuistWeb.AcceptInvitationLive do
     """
   end
 
-  def handle_event("accept_invitation", _params, socket) do
+  # Both event handlers re-check `@invitee_state` on the server before
+  # mutating. The Accept/Decline buttons are only rendered in the
+  # `{:ok, invitation}` state, but a crafted client could still push the
+  # event from the not-found / mismatched / declined / accepted states.
+  # In those cases `@invitation` and `@organization` are nil and the
+  # `Accounts.*` functions would crash on a pattern-match guard.
+  def handle_event("accept_invitation", _params, %{assigns: %{invitee_state: {:ok, _}}} = socket) do
     user = Authentication.current_user(socket)
 
     Accounts.accept_invitation(%{
@@ -242,8 +248,12 @@ defmodule TuistWeb.AcceptInvitationLive do
     end
   end
 
-  def handle_event("decline_invitation", _params, socket) do
+  def handle_event("accept_invitation", _params, socket), do: {:noreply, socket}
+
+  def handle_event("decline_invitation", _params, %{assigns: %{invitee_state: {:ok, _}}} = socket) do
     Accounts.delete_invitation(%{invitation: socket.assigns.invitation})
     {:noreply, assign(socket, declined: true)}
   end
+
+  def handle_event("decline_invitation", _params, socket), do: {:noreply, socket}
 end
