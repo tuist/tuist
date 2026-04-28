@@ -188,6 +188,25 @@ jobs:
           mkdir -p "$(dirname "$KUBECONFIG")"
           echo "${{ secrets.KUBECONFIG }}" | base64 -d > "$KUBECONFIG"
           chmod 600 "$KUBECONFIG"
+      - name: kubectl apply CRDs
+        # Helm 3 installs `crds/*.yaml` only on first `helm install` and
+        # ignores them on every `helm upgrade` (intentional: Helm
+        # refuses to manage CRD lifecycle to avoid data loss). Re-apply
+        # them imperatively each deploy so schema additions ship without
+        # a manual step. `kubectl apply` is idempotent — no-op when
+        # nothing changed.
+        run: kubectl apply -f "$HELM_CHART_PATH/crds/"
+
+      - name: Ensure Cluster API core stack
+        # Our chart references `cluster.x-k8s.io/v1beta1` types
+        # (Cluster, MachineDeployment) that require the upstream CAPI
+        # core controllers to reconcile. `cluster-api-components.yaml`
+        # ships CRDs + webhooks + capi-controller-manager (in
+        # capi-system) + RBAC. Apply is idempotent; pinned to the
+        # version our infra provider compiles against
+        # (sigs.k8s.io/cluster-api v1.9.4).
+        run: kubectl apply -f https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.9.4/cluster-api-components.yaml
+
       - name: helm upgrade --install
         # App secrets never pass through --set: the chart runs in
         # `server.managedSecrets: true` mode, which reads DATABASE_URL /

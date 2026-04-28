@@ -72,11 +72,16 @@ infra/cluster-api-provider-scaleway-applesilicon/
 │   └── bootstrap/  # SSH-driven kubelet/tart-cri install
 ├── cmd/manager/    # controller-manager entry point
 ├── config/
-│   ├── crd/        # CRD manifests
 │   └── rbac/       # ClusterRole for the manager
 ├── Dockerfile
 └── AGENTS.md (this file)
 ```
+
+CRDs live in [`infra/helm/tuist/crds/`](../helm/tuist/crds/) so Helm
+installs them automatically on first `helm install` (Helm 3 ignores
+the `crds/` directory on upgrades, which is what we want — CRD
+schema changes go through a deliberate `kubectl apply` rather than
+piggybacking on routine deploys).
 
 ## Operator UX: one Secret in 1Password
 

@@ -136,6 +136,7 @@ xcresultProcessor:
 # below tells it to keep 1 Mac mini in fr-par-3 with this pod CIDR
 # slice carved out of the staging cluster CIDR.
 macosFleet:
+  enabled: true
   replicas: 1
   controlPlane:
     host: api-staging.tuist.dev
