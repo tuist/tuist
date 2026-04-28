@@ -6,8 +6,9 @@ defmodule TuistWeb.Marketing.MarketingCustomersLive do
   import TuistWeb.Marketing.StructuredMarkup
 
   alias Tuist.Marketing.Customers
+  alias TuistWeb.Marketing.Localization
 
-  on_mount {TuistWeb.Authentication, :mount_current_user}
+  on_mount({TuistWeb.Authentication, :mount_current_user})
 
   @cases_per_page 9
 
@@ -28,7 +29,8 @@ defmodule TuistWeb.Marketing.MarketingCustomersLive do
   end
 
   def handle_params(params, _url, socket) do
-    all_cases = Customers.get_case_studies()
+    locale = Gettext.get_locale(TuistWeb.Gettext)
+    all_cases = Customers.get_case_studies(locale)
     search_query = Map.get(params, "search", "")
     page = params |> Map.get("page", "1") |> String.to_integer()
 
@@ -69,7 +71,7 @@ defmodule TuistWeb.Marketing.MarketingCustomersLive do
       |> assign(:head_title, dgettext("marketing", "Customers"))
       |> assign(:head_include_case_studies_rss_and_atom, true)
       |> assign(:head_twitter_card, "summary_large_image")
-      |> assign_structured_data(get_case_studies_structured_data(all_cases))
+      |> assign_structured_data(get_case_studies_structured_data(all_cases, locale))
       |> assign(
         :head_description,
         dgettext("marketing", "Learn how teams use Tuist to scale their iOS development.")
@@ -86,7 +88,7 @@ defmodule TuistWeb.Marketing.MarketingCustomersLive do
   end
 
   def handle_event("search", %{"search" => search_query}, socket) do
-    {:noreply, push_patch(socket, to: ~p"/customers?search=#{search_query}")}
+    {:noreply, push_patch(socket, to: "#{customers_path()}?search=#{URI.encode_www_form(search_query)}")}
   end
 
   def handle_event("page_change", %{"page" => page}, socket) do
@@ -100,6 +102,10 @@ defmodule TuistWeb.Marketing.MarketingCustomersLive do
     params = ["page=#{page}" | params]
     query_string = "?#{Enum.join(params, "&")}"
 
-    {:noreply, push_patch(socket, to: "/customers#{query_string}")}
+    {:noreply, push_patch(socket, to: "#{customers_path()}#{query_string}")}
+  end
+
+  defp customers_path do
+    Localization.localized_href("/customers", Gettext.get_locale(TuistWeb.Gettext))
   end
 end
