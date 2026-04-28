@@ -71,11 +71,15 @@ if [[ "$(uname -s)" == "Darwin" ]]; then
 
   if ! colima status >/dev/null 2>&1; then
     echo "==> Starting colima…"
-    # `--vm-type qemu` so we don't depend on nested Apple Virtualization.framework
-    # support — Namespace's macOS runners are themselves VMs and the default `vz`
-    # driver fails with `error starting vm: error at 'creating and starting': exit
-    # status 1` when there's no underlying VZ to nest into.
-    colima start --vm-type qemu --cpu 4 --memory 8 --disk 30
+    # Try Apple Virtualization.framework first — it's the default on Apple
+    # Silicon and avoids lima v2.0.3's "send on closed channel" panic in the
+    # qemu driver. If vz isn't available (Namespace's macOS runners are
+    # themselves VMs and may not expose nested VZ), fall back to qemu.
+    if ! colima start --vm-type vz --cpu 4 --memory 8 --disk 30; then
+      echo "==> vz unavailable; retrying with qemu…"
+      colima delete -f >/dev/null 2>&1 || true
+      colima start --vm-type qemu --cpu 4 --memory 8 --disk 30
+    fi
   fi
 fi
 
