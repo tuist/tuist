@@ -82,7 +82,7 @@ clickhouse:
 objectStorage:
   external:
     buckets:
-      default: tuist
+      default: tuist-prod-storage
 
 processor:
   # Supabase production project (yltsvvtmlktxdgpcbylg) — dedicated pooler on
