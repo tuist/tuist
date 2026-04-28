@@ -1,6 +1,6 @@
 # Preview workload Cluster for ephemeral PR / commit environments.
 #
-# Shape: 1 × cpx22 control plane + 0 × cpx31 workers (scale-to-zero) in fsn1.
+# Shape: 1 × cpx22 control plane + 0 × cpx32 workers (scale-to-zero) in fsn1.
 # Single control-plane is acceptable — the cluster is not user-facing and
 # short downtime during upgrades is fine.
 #
@@ -55,7 +55,13 @@ spec:
       - name: controlPlaneMachineArchHcloud
         value: amd64
       - name: workerMachineTypeHcloud
-        value: cpx31
+        # cpx32 (4 vCPU / 8 GB AMD, new-gen series). The old-gen cpx*1
+        # series (cpx21, cpx31, cpx41) is currently out of stock in fsn1 —
+        # same issue affecting staging/canary md-0 scale-ups. The cpx*2
+        # series is the in-stock new-gen replacement and is what the
+        # control plane (cpx22) is already on, so Syself's ClusterClass
+        # accepts the SKU.
+        value: cpx32
       - name: SSHKeyNameHcloud
         value:
           - name: tuist-syself
