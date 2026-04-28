@@ -101,6 +101,7 @@ jobs:
           ACTION: ${{ github.event.action }}
           EVENT_PR: ${{ github.event.pull_request.number }}
           EVENT_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
 
@@ -174,8 +175,6 @@ jobs:
               echo "- Expires: $(date -u -d "@$EXPIRES_AT" '+%Y-%m-%d %H:%M UTC')"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
-        env:
-          GH_TOKEN: ${{ github.token }}
 
   start-deployment:
     # Per-PR GitHub Deployment so the PR timeline shows a "Preview – PR #N"
