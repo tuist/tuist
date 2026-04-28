@@ -40,11 +40,17 @@ defmodule Tuist.IngestRepo.Migrations.BackfillArtifactsFromPostgres do
   @disable_ddl_transaction true
   @disable_migration_lock true
 
-  @bundle_batch_size 100
+  # Sized so each batch lands ~100K-200K artifacts in CH (the band
+  # CH ingests most happily) while keeping BEAM memory under ~200MB
+  # even on a tail bundle with hundreds of artifacts. With ~225M
+  # artifacts on production this works out to a few hundred batches,
+  # so the inter-batch throttle below stays a small slice of total
+  # runtime instead of dominating it.
+  @bundle_batch_size 1_000
   # Matches the throttle other long-running CH backfills use
   # (`BackfillTestRunsFromCommandEvents`, `BackfillFirstRunEvents`):
   # gives live PG/CH traffic breathing room and lets CH merges keep up
-  # so we don't trip `parts_to_throw_insert` over the ~30-min run.
+  # so we don't trip `parts_to_throw_insert`.
   @throttle_ms 500
 
   @ch_types %{
