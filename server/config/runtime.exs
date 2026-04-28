@@ -44,22 +44,23 @@ if Enum.member?([:prod, :stag, :can], env) do
       do: [:inet6, {:keepalive, true}],
       else: [{:keepalive, true}]
 
-  # Supavisor (Supabase's transaction-mode pooler) listens on 6543 and (a)
-  # rejects any non-standard startup parameters and (b) doesn't allow named
-  # prepared statements because each transaction may land on a different
-  # backend connection. Direct Postgres on 5432 accepts both, so use the URL
-  # port as the trigger.
-  pooled? = (parsed_url.port || 5432) == 6543
-
-  postgres_parameters =
-    if pooled?,
-      do: [],
-      else: [
-        tcp_keepalives_idle: "60",
-        tcp_keepalives_interval: "30",
-        tcp_keepalives_count: "3"
-      ]
-
+  # Connection options sized for transaction-mode poolers (Supabase Supavisor
+  # on port 6543, PgBouncer, etc.):
+  #
+  #   * No `parameters: [tcp_keepalives_*]` — Supavisor refuses non-standard
+  #     startup parameters with `protocol_violation`. The OS-level TCP
+  #     keepalive set via `socket_options` above already detects dead
+  #     connections from the client side; the server-side knobs were a
+  #     micro-optimization on direct Postgres.
+  #   * `prepare: :unnamed` — transaction-mode poolers reuse backend
+  #     connections across clients, so a named prepared statement created
+  #     in one transaction isn't visible to the next. Named prepares would
+  #     blow up with `prepared statement "..." does not exist`.
+  #
+  # These also work fine over a direct port-5432 connection — the trade-off
+  # is that the server loses Postgrex's prepared-statement caching on its
+  # direct connection. Acceptable for our query mix; revisit if profiling
+  # ever points at parse/plan overhead.
   database_options = [
     pool_size: Tuist.Environment.database_pool_size(secrets),
     queue_target: Tuist.Environment.database_queue_target(secrets),
@@ -70,8 +71,7 @@ if Enum.member?([:prod, :stag, :can], env) do
     hostname: parsed_url.host,
     port: parsed_url.port || 5432,
     socket_options: socket_opts,
-    parameters: postgres_parameters,
-    prepare: if(pooled?, do: :unnamed, else: :named)
+    prepare: :unnamed
   ]
 
   database_options =
@@ -424,7 +424,9 @@ config :tuist, Oban,
     {Oban.Plugins.Lifeline, rescue_after: to_timeout(minute: 30)},
     {Oban.Plugins.Cron,
      crontab:
-       if(not Tuist.Environment.processor_mode?() and Tuist.Environment.tuist_hosted?() and env in [:prod, :stag, :can],
+       if(
+         not Tuist.Environment.processor_mode?() and Tuist.Environment.tuist_hosted?() and
+           env in [:prod, :stag, :can],
          do: [
            {"0 10 * * 1-5", Tuist.Ops.DailySlackReportWorker},
            {"0 * * * 1-5", Tuist.Ops.HourlySlackReportWorker},
