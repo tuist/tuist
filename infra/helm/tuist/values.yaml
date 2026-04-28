@@ -249,11 +249,13 @@ xcresultProcessor:
   #      SKIP-LOCKED races and `:nif_not_loaded` crashes (the macOS-only
   #      NIF isn't loaded on Linux pods).
   #
-  # Requires at least one Mac mini joined to the cluster (provisioned
-  # via `infra/tart-cri/platform/provision.sh`). Self-hosters without a
-  # macOS fleet should leave this off; xcresult ingestion silently no-ops
-  # for them (acceptable — Linux-only deployments don't have xcresult
-  # uploads to ingest in the first place).
+  # Requires at least one Mac mini joined to the cluster. Tuist-managed
+  # deployments declare the fleet via `macosFleet.enabled=true` (see
+  # below) and the cluster-api-provider-scaleway-applesilicon operator
+  # provisions hosts from Scaleway and bootstraps kubelet + tart-cri
+  # over SSH. Self-hosters without a macOS fleet should leave this off;
+  # xcresult ingestion silently no-ops for them (acceptable — Linux-only
+  # deployments don't have xcresult uploads to ingest in the first place).
   enabled: false
   replicaCount: 2
   # Per-pod Oban concurrency. Total parallelism = replicaCount * concurrency.

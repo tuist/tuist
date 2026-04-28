@@ -26,9 +26,9 @@ spec:
     spec:
       # Schedule onto a real macOS node — a Mac mini running kubelet
       # backed by tart-cri. The taint `tuist.dev/macos=true:NoSchedule`
-      # is set by kubelet at registration (see
-      # infra/tart-cri/platform/dev.tuist.kubelet.plist) so stray Linux
-      # Pods don't land here.
+      # is set by kubelet at registration (the operator's
+      # internal/bootstrap kubeletConfig() lays it down) so stray
+      # Linux Pods don't land here.
       nodeSelector:
         kubernetes.io/os: darwin
         tuist.dev/runtime: tart
@@ -36,10 +36,11 @@ spec:
         - key: tuist.dev/macos
           operator: Exists
           effect: NoSchedule
-      # No init containers, no sidecars — vk-orchard rejects them at
-      # admission. The first (and only) container's image is the Tart
-      # VM image; env flows through to /etc/tuist.env inside the VM
-      # via the user-data injection in launchd.plist.
+      # No init containers, no sidecars — tart-cri maps Pod ↔ Tart VM
+      # 1:1 and rejects multi-container Pods at admission. The first
+      # (and only) container's image is the Tart VM image; env flows
+      # through to /etc/tuist.env inside the VM via the user-data
+      # injection in launchd.plist.
       containers:
         - name: xcresult-processor
           image: "{{ .Values.xcresultProcessor.image.repository }}:{{ .Values.xcresultProcessor.image.tag | default .Chart.AppVersion }}"
