@@ -119,6 +119,7 @@ xcresultProcessor:
   # rolling deploys get the same maxSurge=0/maxUnavailable=1 treatment
   # as the server, with jobs queuing in oban_jobs while the pod
   # restarts.
+  enabled: true
   replicaCount: 1
   strategy:
     type: RollingUpdate
