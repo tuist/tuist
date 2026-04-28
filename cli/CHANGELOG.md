@@ -1,7 +1,17 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.188.3<!-- RELEASE NOTES START -->
+## What's Changed in 4.189.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add "Skip" quarantine mode for test cases by [@fortmarek](https://github.com/fortmarek) in [#10429](https://github.com/tuist/tuist/pull/10429)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.188.5...4.189.0
+
+## What's Changed in 4.188.5<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
 
@@ -15,7 +25,7 @@ All notable changes to this project will be documented in this file.
 
 
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.188.2...4.188.3
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.188.2...4.188.5
 
 ## What's Changed in 4.188.2<!-- RELEASE NOTES START -->
 
