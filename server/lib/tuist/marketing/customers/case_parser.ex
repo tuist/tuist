@@ -12,7 +12,7 @@ defmodule Tuist.Marketing.Customers.CaseParser do
     translations =
       frontmatter
       |> Map.get("translations", %{})
-      |> Enum.into(%{}, fn {locale, translation} ->
+      |> Map.new(fn {locale, translation} ->
         {locale, compile_translation_body(translation, path, locale)}
       end)
 

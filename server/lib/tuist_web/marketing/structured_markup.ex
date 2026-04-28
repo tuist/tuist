@@ -110,8 +110,7 @@ defmodule TuistWeb.Marketing.StructuredMarkup do
             "name" => "Tuist #{plan.name}",
             "url" => Tuist.Environment.app_url(path: ~p"/pricing"),
             "priceCurrency" => "USD",
-            "price" =>
-              if(plan.price == "Free", do: "0.00", else: String.trim_leading(plan.price, "$")),
+            "price" => if(plan.price == "Free", do: "0.00", else: String.trim_leading(plan.price, "$")),
             "description" => plan.description,
             "availability" => "https://schema.org/InStock",
             "priceValidUntil" => "2025-12-31",
@@ -218,8 +217,7 @@ defmodule TuistWeb.Marketing.StructuredMarkup do
       "@context" => "https://schema.org",
       "@type" => "ItemList",
       "name" => dgettext("marketing", "Changelog"),
-      "description" =>
-        dgettext("marketing", "Stay updated with the latest changes and improvements in Tuist."),
+      "description" => dgettext("marketing", "Stay updated with the latest changes and improvements in Tuist."),
       "publisher" => StructuredMarkup.get_organization_structured_data(),
       "itemListElement" =>
         entries
@@ -299,8 +297,7 @@ defmodule TuistWeb.Marketing.StructuredMarkup do
           end)
       },
       "name" => dgettext("marketing", "Tuist Customers"),
-      "description" =>
-        dgettext("marketing", "Learn how teams use Tuist to scale their iOS development."),
+      "description" => dgettext("marketing", "Learn how teams use Tuist to scale their iOS development."),
       "publisher" => StructuredMarkup.get_organization_structured_data()
     }
   end

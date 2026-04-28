@@ -3,8 +3,6 @@ defmodule Tuist.Marketing.Customers do
   This module loads the case studies to be used in the case studies section of the marketing website.
   The content is included in the compiled Erlang binary.
   """
-  alias Tuist.Marketing.Customers.CaseStudy
-
   use NimblePublisher,
     build: Tuist.Marketing.Customers.CaseStudy,
     from: Application.app_dir(:tuist, "priv/marketing/case_studies/*.md"),
@@ -12,6 +10,8 @@ defmodule Tuist.Marketing.Customers do
     parser: Tuist.Marketing.Customers.CaseParser,
     highlighters: [],
     html_converter: Tuist.Marketing.MDExConverter
+
+  alias Tuist.Marketing.Customers.CaseStudy
 
   @case_studies Enum.sort_by(@case_studies, & &1.date, {:desc, Date})
 

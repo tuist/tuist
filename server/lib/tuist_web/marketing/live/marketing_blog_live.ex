@@ -103,10 +103,7 @@ defmodule TuistWeb.Marketing.MarketingBlogLive do
       |> assign(
         :head_image,
         Tuist.Environment.app_url(
-          path:
-            TuistWeb.Helpers.OpenGraph.marketing_og_image_path(
-              "/marketing/images/og/generated/blog.jpg"
-            )
+          path: TuistWeb.Helpers.OpenGraph.marketing_og_image_path("/marketing/images/og/generated/blog.jpg")
         )
       )
       |> assign(:head_title, "The Tuist Blog")
@@ -132,8 +129,7 @@ defmodule TuistWeb.Marketing.MarketingBlogLive do
 
   def handle_event("search", %{"search" => search_query}, socket) do
     # Reset pagination and category when searching
-    {:noreply,
-     push_patch(socket, to: "#{blog_path()}?search=#{URI.encode_www_form(search_query)}")}
+    {:noreply, push_patch(socket, to: "#{blog_path()}?search=#{URI.encode_www_form(search_query)}")}
   end
 
   def handle_event("select_category", %{"category" => category}, socket) do

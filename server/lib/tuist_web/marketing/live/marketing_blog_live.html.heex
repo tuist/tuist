@@ -52,7 +52,11 @@
         </.link>
         <.link
           :for={category <- Enum.reject(@categories, &is_nil/1)}
-          patch={TuistWeb.Marketing.MarketingHTML.localized_href("/blog?category=#{to_string(category)}")}
+          patch={
+            TuistWeb.Marketing.MarketingHTML.localized_href(
+              "/blog?category=#{to_string(category)}"
+            )
+          }
           data-selected={@selected_category == to_string(category)}
           data-part="category"
         >

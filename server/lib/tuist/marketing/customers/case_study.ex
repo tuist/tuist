@@ -83,7 +83,7 @@ defmodule Tuist.Marketing.Customers.CaseStudy do
   end
 
   defp normalize_translations(translations) do
-    Enum.into(translations, %{}, fn {locale, translation} ->
+    Map.new(translations, fn {locale, translation} ->
       normalized_translation =
         case Map.get(translation, "title") do
           nil -> translation
@@ -121,7 +121,8 @@ defmodule Tuist.Marketing.Customers.CaseStudy do
   end
 
   defp static_asset_exists?(path) do
-    Application.app_dir(:tuist, "priv/static#{path}")
+    :tuist
+    |> Application.app_dir("priv/static#{path}")
     |> File.exists?()
   end
 end

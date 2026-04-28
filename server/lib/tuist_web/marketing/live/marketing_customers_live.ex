@@ -65,10 +65,7 @@ defmodule TuistWeb.Marketing.MarketingCustomersLive do
       |> assign(
         :head_image,
         Tuist.Environment.app_url(
-          path:
-            TuistWeb.Helpers.OpenGraph.marketing_og_image_path(
-              "/marketing/images/og/generated/customers.jpg"
-            )
+          path: TuistWeb.Helpers.OpenGraph.marketing_og_image_path("/marketing/images/og/generated/customers.jpg")
         )
       )
       |> assign(:head_title, dgettext("marketing", "Customers"))
@@ -91,8 +88,7 @@ defmodule TuistWeb.Marketing.MarketingCustomersLive do
   end
 
   def handle_event("search", %{"search" => search_query}, socket) do
-    {:noreply,
-     push_patch(socket, to: "#{customers_path()}?search=#{URI.encode_www_form(search_query)}")}
+    {:noreply, push_patch(socket, to: "#{customers_path()}?search=#{URI.encode_www_form(search_query)}")}
   end
 
   def handle_event("page_change", %{"page" => page}, socket) do
