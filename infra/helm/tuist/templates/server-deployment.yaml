@@ -117,31 +117,44 @@ spec:
             - name: RELEASE_NODE
               value: "$(TUIST_CLUSTER_APP_NAME)@$(POD_IP)"
             {{- end }}
-            {{- if not .Values.server.managedSecrets }}
+            # S3 config is emitted in both managed and self-hosted modes.
+            # Tuist.Environment.s3_* checks TUIST_S3_* env vars before falling
+            # back to the :s3 block in priv/secrets/<env>.yml.enc, so setting
+            # these here makes the chart the source of truth and lets us keep
+            # bucket/region/endpoint visible in values overlays instead of
+            # buried in the encrypted secrets blob.
             - name: TUIST_S3_BUCKET_NAME
-              value: {{ .Values.server.s3.bucketName | quote }}
+              value: {{ include "tuist.objectStorageBucketDefault" . | quote }}
             - name: TUIST_S3_ENDPOINT
               value: {{ include "tuist.objectStorageEndpoint" . | quote }}
             - name: TUIST_S3_REGION
-              value: {{ .Values.server.s3.region | quote }}
-            {{- if $objectStorageAccessKey }}
+              value: {{ include "tuist.objectStorageRegion" . | quote }}
+            - name: TUIST_S3_VIRTUAL_HOST
+              value: {{ .Values.server.s3.virtualHost | ternary "1" "0" | quote }}
+            - name: TUIST_S3_BUCKET_AS_HOST
+              value: {{ .Values.server.s3.bucketAsHost | ternary "1" "0" | quote }}
+            {{- if and (eq .Values.objectStorage.mode "external") .Values.objectStorage.external.managedSecrets }}
+            - name: TUIST_S3_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tuist.componentName" (dict "root" . "component" "object-storage-external-secrets") }}
+                  key: object-storage-access-key
+            - name: TUIST_S3_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tuist.componentName" (dict "root" . "component" "object-storage-external-secrets") }}
+                  key: object-storage-secret-key
+            {{- else if and $objectStorageAccessKey $objectStorageSecretKey }}
             - name: TUIST_S3_ACCESS_KEY_ID
               valueFrom:
                 secretKeyRef:
                   name: {{ $secretName }}
                   key: object-storage-access-key
-            {{- end }}
-            {{- if $objectStorageSecretKey }}
             - name: TUIST_S3_SECRET_ACCESS_KEY
               valueFrom:
                 secretKeyRef:
                   name: {{ $secretName }}
                   key: object-storage-secret-key
-            {{- end }}
-            - name: TUIST_S3_VIRTUAL_HOST
-              value: {{ .Values.server.s3.virtualHost | ternary "1" "0" | quote }}
-            - name: TUIST_S3_BUCKET_AS_HOST
-              value: {{ .Values.server.s3.bucketAsHost | ternary "1" "0" | quote }}
             {{- end }}
             {{- if .Values.cache.enabled }}
             - name: TUIST_CACHE_ENDPOINTS

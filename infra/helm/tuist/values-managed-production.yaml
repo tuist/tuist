@@ -81,12 +81,8 @@ clickhouse:
 
 objectStorage:
   external:
-    endpoint: https://fly.storage.tigris.dev
     buckets:
       default: tuist
-      cache: tuist-cache
-      xcodeCache: tuist-xcode-cache
-      registry: tuist-registry
 
 processor:
   # Supabase production project (yltsvvtmlktxdgpcbylg) — dedicated pooler on

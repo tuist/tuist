@@ -53,6 +53,11 @@ server:
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
       value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
 
+objectStorage:
+  external:
+    buckets:
+      default: tuist-can-storage
+
 processor:
   # Supabase canary project (thapckmapmffdgaiarvu) — dedicated pooler on
   # port 6543 (transaction mode). Same hostname as the direct Postgres
