@@ -24,7 +24,7 @@ private func environmentProxyURL() -> URL? {
 public func tuistURLSessionConfiguration() -> URLSessionConfiguration {
     let configuration: URLSessionConfiguration = .ephemeral
     configuration.timeoutIntervalForRequest = 120
-    configuration.timeoutIntervalForResource = 300
+    configuration.timeoutIntervalForResource = 90
     configuration.httpMaximumConnectionsPerHost = 20
     #if os(macOS) || os(iOS) || os(tvOS) || os(watchOS)
         configuration.allowsCellularAccess = true
