@@ -74,25 +74,32 @@ go build ./...
 Two binaries are produced: `tart-cri` (the runtime) and `tart-cni`
 (the CNI plugin).
 
-## Bootstrap on a Mac mini
+## How a Mac mini joins the cluster
 
-1. **Install Tart** (`brew install cirruslabs/cli/tart`) and ensure
-   the host has a live GUI session (Virtualization.framework requirement).
-2. **Install kubelet** for darwin/arm64. The upstream binary builds
-   for macOS; pull from `dl.k8s.io/release/v1.32.x/bin/darwin/arm64/kubelet`.
-3. **Drop tart-cri + tart-cni** binaries to `/usr/local/bin`.
-4. **Generate kubeconfig** via the cluster's bootstrap token (same
-   pattern as joining a Linux node — kubeadm-style or via Cluster
-   API).
-5. **Write the kubelet config** at `/etc/kubernetes/kubelet-config.yaml`
-   pointing `containerRuntimeEndpoint` at `unix:///var/run/tart-cri/tart-cri.sock`.
-6. **Configure the CNI** at `/etc/cni/net.d/10-tart.conflist` with
-   the per-host pod CIDR sliced from the cluster CIDR.
-7. **Boot tart-cri + kubelet under launchd** — see `platform/`
-   templates for the plists.
+Fully declarative through Cluster API — no shell scripts. The
+[cluster-api-provider-scaleway-applesilicon](../cluster-api-provider-scaleway-applesilicon)
+operator runs in-cluster, watches `ScalewayAppleSiliconMachine` CRs,
+and reconciles them by:
 
-After step 7, `kubectl get nodes` on the cluster should show the Mac
-mini as `Ready` after ~30 seconds.
+1. Calling Scaleway's API to order the host (`scw apple-silicon
+   server create` equivalent over the SDK).
+2. SSHing in once the OS is up to install Tart + kubelet + tart-cri
+   + tart-cni, configure GUI auto-login (Tart's
+   Virtualization.framework requirement), and lay down the kubelet
+   config + CNI conflist.
+3. Booting `tart-cri` + `kubelet` under launchd. Kubelet
+   self-registers with the cluster's API server via a one-time
+   bootstrap token; subsequent comms use a node-specific cert
+   rotated automatically.
+
+Operator-facing UX: scale the fleet via `kubectl scale
+machinedeployment <name> --replicas=N`. Replace a wedged host with
+`kubectl delete machine <name>`. List the fleet with `kubectl get
+machines -A`.
+
+The Helm chart's `macosFleet.*` values declare the desired-state
+shape per environment; see `infra/cluster-api-provider-scaleway-applesilicon/AGENTS.md`
+for the full bootstrap protocol the operator implements.
 
 ## Networking
 

@@ -1,0 +1,141 @@
+{{- if .Values.macosFleet.enabled }}
+{{- $name := include "tuist.componentName" (dict "root" . "component" "capi-scaleway-applesilicon") }}
+---
+# Cluster API infrastructure provider for Scaleway Apple Silicon Mac
+# minis. Watches ScalewayAppleSiliconMachine CRs and reconciles them
+# against Scaleway's API: orders the host, SSHes in, installs Tart +
+# kubelet + tart-cri, then waits for the kubelet to register and
+# Node.Ready to flip true.
+#
+# CRDs and `MachineDeployment` samples live alongside this template
+# (capi-scaleway-applesilicon-{crds,machinedeployment}.yaml).
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: capi-scaleway-applesilicon
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: capi-scaleway-applesilicon
+rules:
+  - apiGroups: ["infrastructure.cluster.x-k8s.io"]
+    resources:
+      - scalewayapplesiliconmachines
+      - scalewayapplesiliconmachinetemplates
+      - scalewayapplesiliconclusters
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: ["infrastructure.cluster.x-k8s.io"]
+    resources:
+      - scalewayapplesiliconmachines/status
+      - scalewayapplesiliconmachines/finalizers
+      - scalewayapplesiliconclusters/status
+    verbs: [get, update, patch]
+  - apiGroups: ["cluster.x-k8s.io"]
+    resources: [machines, machinesets, machinedeployments, clusters]
+    verbs: [get, list, watch]
+  - apiGroups: [""]
+    resources: [secrets, nodes]
+    verbs: [get, list, watch]
+  - apiGroups: ["coordination.k8s.io"]
+    resources: [leases]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [""]
+    resources: [events]
+    verbs: [create, patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: capi-scaleway-applesilicon
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ $name }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $name }}
+    namespace: {{ .Release.Namespace }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: capi-scaleway-applesilicon
+spec:
+  # 2 replicas for HA via leader election (controller-runtime's
+  # built-in Lease-based mechanism — only one replica reconciles at
+  # a time, the other waits for failover).
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      {{- include "tuist.componentLabels" (dict "root" . "component" "capi-scaleway-applesilicon") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "tuist.componentLabels" (dict "root" . "component" "capi-scaleway-applesilicon") | nindent 8 }}
+    spec:
+      serviceAccountName: {{ $name }}
+      containers:
+        - name: manager
+          image: "{{ .Values.macosFleet.image.repository }}:{{ .Values.macosFleet.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.macosFleet.image.pullPolicy }}
+          args:
+            - --leader-elect=true
+            - --metrics-bind-address=:8080
+            - --health-probe-bind-address=:8081
+          env:
+            # Scaleway credentials. The Secret is created out-of-band
+            # (1Password → ESO, or kubectl create secret).
+            - name: SCW_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.macosFleet.scaleway.secretName | default $name }}
+                  key: access-key
+            - name: SCW_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.macosFleet.scaleway.secretName | default $name }}
+                  key: secret-key
+            - name: SCW_DEFAULT_PROJECT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.macosFleet.scaleway.secretName | default $name }}
+                  key: project-id
+          ports:
+            - name: metrics
+              containerPort: 8080
+            - name: probe
+              containerPort: 8081
+          livenessProbe:
+            httpGet: { path: /healthz, port: probe }
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet: { path: /readyz, port: probe }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+{{- end }}

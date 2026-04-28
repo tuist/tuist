@@ -130,5 +130,13 @@ xcresultProcessor:
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
       value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
 
-# Mac mini nodes (provisioned via infra/tart-cri/platform/provision.sh)
-# join the cluster as real k8s nodes; no per-env override here.
+# Mac mini fleet — declarative via CAPI. The CAPI provider operator
+# deploys alongside the server; the MachineDeployment desired-state
+# below tells it to keep 1 Mac mini in fr-par-3 with this pod CIDR
+# slice carved out of the staging cluster CIDR.
+macosFleet:
+  replicas: 1
+  controlPlane:
+    host: api-staging.tuist.dev
+  machine:
+    podCIDR: 10.42.1.0/24

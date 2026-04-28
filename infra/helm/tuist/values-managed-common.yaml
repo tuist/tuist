@@ -162,6 +162,16 @@ xcresultProcessor:
     repository: ghcr.io/tuist/tuist-xcresult-processor
     tag: ""  # Set by CI to the commit SHA on each deploy.
 
+# Mac mini fleet provisioned declaratively via the Cluster API
+# Scaleway-Apple-Silicon provider. Scaling is `kubectl scale
+# machinedeployment <name> --replicas=N`. Per-env overlay sets the
+# control-plane URL + the per-host pod CIDR.
+macosFleet:
+  enabled: true
+  image:
+    repository: ghcr.io/tuist/capi-provider-scaleway-applesilicon
+    tag: ""
+
 # Everything below = external. The managed deployment never runs embedded
 # Postgres / ClickHouse / object storage / observability stacks.
 cache:

@@ -1,0 +1,92 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: scalewayapplesiliconmachines.infrastructure.cluster.x-k8s.io
+  labels:
+    cluster.x-k8s.io/v1beta1: v1alpha1
+spec:
+  group: infrastructure.cluster.x-k8s.io
+  names:
+    kind: ScalewayAppleSiliconMachine
+    listKind: ScalewayAppleSiliconMachineList
+    plural: scalewayapplesiliconmachines
+    singular: scalewayapplesiliconmachine
+    shortNames: [samm]
+    categories: [cluster-api]
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Phase
+          type: string
+          jsonPath: .status.phase
+        - name: ProviderID
+          type: string
+          jsonPath: .spec.providerID
+        - name: Ready
+          type: boolean
+          jsonPath: .status.ready
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              required: [podCIDR, sshKeySecretRef, bootstrapSecretRef]
+              properties:
+                providerID:
+                  type: string
+                type:
+                  type: string
+                  default: M2-M
+                zone:
+                  type: string
+                  default: fr-par-3
+                os:
+                  type: string
+                  default: macos-tahoe-26.0
+                podCIDR:
+                  type: string
+                sshKeySecretRef:
+                  type: object
+                  required: [name]
+                  properties:
+                    name: { type: string }
+                bootstrapSecretRef:
+                  type: object
+                  required: [name]
+                  properties:
+                    name: { type: string }
+            status:
+              type: object
+              properties:
+                ready: { type: boolean }
+                serverID: { type: string }
+                phase: { type: string }
+                failureReason: { type: string }
+                failureMessage: { type: string }
+                addresses:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      type: { type: string }
+                      address: { type: string }
+                conditions:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      type: { type: string }
+                      status: { type: string }
+                      severity: { type: string }
+                      lastTransitionTime: { type: string, format: date-time }
+                      reason: { type: string }
+                      message: { type: string }

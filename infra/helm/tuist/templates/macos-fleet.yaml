@@ -1,0 +1,100 @@
+{{- if .Values.macosFleet.enabled }}
+{{- $fleetName := .Values.macosFleet.name | default (include "tuist.componentName" (dict "root" . "component" "macos-fleet")) }}
+---
+# CAPI plumbing for the macOS Mac mini fleet. Three resources:
+#
+#   1. ScalewayAppleSiliconCluster — cluster-level stub; CAPI core
+#      requires it for the Cluster object to validate. We provide it
+#      pointing at the existing Tuist control plane.
+#   2. Cluster — the parent CAPI Cluster object that ties the
+#      infra-cluster to the (Hetzner-backed) control plane.
+#   3. ScalewayAppleSiliconMachineTemplate + MachineDeployment —
+#      the desired-state declaration for "we want N Mac minis of
+#      this shape". Scaling is `kubectl scale machinedeployment
+#      <name> --replicas=N`.
+#
+# Mac mini provisioning is fully declarative from this template down.
+# The CAPI provider Deployment (capi-scaleway-applesilicon.yaml) does
+# the imperative work of calling Scaleway's API + SSHing in to bootstrap
+# kubelet, but operators only ever see the declarative side.
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+kind: ScalewayAppleSiliconCluster
+metadata:
+  name: {{ $fleetName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: macos-fleet
+spec:
+  controlPlaneEndpoint:
+    host: {{ required "macosFleet.controlPlane.host is required" .Values.macosFleet.controlPlane.host | quote }}
+    port: {{ .Values.macosFleet.controlPlane.port | default 6443 }}
+---
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: Cluster
+metadata:
+  name: {{ $fleetName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: macos-fleet
+spec:
+  infrastructureRef:
+    apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+    kind: ScalewayAppleSiliconCluster
+    name: {{ $fleetName }}
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+kind: ScalewayAppleSiliconMachineTemplate
+metadata:
+  name: {{ $fleetName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: macos-fleet
+spec:
+  template:
+    spec:
+      type: {{ .Values.macosFleet.machine.type | default "M2-M" | quote }}
+      zone: {{ .Values.macosFleet.machine.zone | default "fr-par-3" | quote }}
+      os: {{ .Values.macosFleet.machine.os | default "macos-tahoe-26.0" | quote }}
+      podCIDR: {{ required "macosFleet.machine.podCIDR is required" .Values.macosFleet.machine.podCIDR | quote }}
+      sshKeySecretRef:
+        name: {{ .Values.macosFleet.machine.sshKeySecretName | default (printf "%s-ssh" $fleetName) | quote }}
+      bootstrapSecretRef:
+        name: {{ .Values.macosFleet.machine.bootstrapSecretName | default (printf "%s-bootstrap" $fleetName) | quote }}
+---
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: MachineDeployment
+metadata:
+  name: {{ $fleetName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: macos-fleet
+    cluster.x-k8s.io/cluster-name: {{ $fleetName }}
+spec:
+  clusterName: {{ $fleetName }}
+  replicas: {{ .Values.macosFleet.replicas | default 1 }}
+  selector:
+    matchLabels:
+      cluster.x-k8s.io/cluster-name: {{ $fleetName }}
+  template:
+    metadata:
+      labels:
+        cluster.x-k8s.io/cluster-name: {{ $fleetName }}
+    spec:
+      clusterName: {{ $fleetName }}
+      version: {{ .Values.macosFleet.kubeletVersion | default "v1.32.1" | quote }}
+      bootstrap:
+        # The bootstrap data the *kubelet* reads (kubeadm join-style)
+        # is in the Secret referenced by macosFleet.machine.bootstrapSecretName,
+        # which the CAPI provider's Reconciler reads + materializes
+        # on the host. From CAPI core's perspective we mark bootstrap
+        # as "provided externally" by setting dataSecretName directly.
+        dataSecretName: {{ .Values.macosFleet.machine.bootstrapSecretName | default (printf "%s-bootstrap" $fleetName) | quote }}
+      infrastructureRef:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+        kind: ScalewayAppleSiliconMachineTemplate
+        name: {{ $fleetName }}
+{{- end }}
