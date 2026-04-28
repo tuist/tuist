@@ -5,6 +5,7 @@ defmodule Tuist.GitHub.AppTest do
 
   alias Tuist.GitHub.App
   alias Tuist.KeyValueStore
+  alias Tuist.OAuth2.SSRFGuard
 
   setup do
     stub(JOSE.JWK, :from_pem, fn _ -> "pem" end)
@@ -107,12 +108,12 @@ defmodule Tuist.GitHub.AppTest do
       token = "ghs_ghes_token"
       expires_at = "2024-04-30T11:20:30Z"
 
-      stub(Tuist.OAuth2.SSRFGuard, :pin, fn url ->
+      stub(SSRFGuard, :pin, fn url ->
         assert url == "#{ghes_api_url}/app/installations/#{installation_id}/access_tokens"
         {:ok, pinned_url, "github.example.com"}
       end)
 
-      stub(Tuist.OAuth2.SSRFGuard, :connect_options, fn "github.example.com" -> [hostname: "github.example.com"] end)
+      stub(SSRFGuard, :connect_options, fn "github.example.com" -> [hostname: "github.example.com"] end)
 
       stub(Req, :post, fn opts ->
         # The Req call uses the IP-pinned URL with TLS hostname preserved
@@ -140,7 +141,7 @@ defmodule Tuist.GitHub.AppTest do
       installation_id = "12345"
       ghes_api_url = "https://internal.example.com/api/v3"
 
-      stub(Tuist.OAuth2.SSRFGuard, :pin, fn _url -> {:error, :private_ip_resolved} end)
+      stub(SSRFGuard, :pin, fn _url -> {:error, :private_ip_resolved} end)
 
       result = App.get_installation_token(installation_id, api_url: ghes_api_url)
 

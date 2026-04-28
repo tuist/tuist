@@ -4,6 +4,7 @@ defmodule Tuist.GitHub.ClientTest do
 
   alias Tuist.GitHub.App
   alias Tuist.GitHub.Client
+  alias Tuist.OAuth2.SSRFGuard
   alias Tuist.VCS
   alias Tuist.VCS.Comment
   alias Tuist.VCS.Repositories.Content
@@ -187,12 +188,12 @@ defmodule Tuist.GitHub.ClientTest do
       ghes_api_url = "https://github.example.com/api/v3"
       pinned_url = "https://198.51.100.10/api/v3/repos/tuist/tuist/issues/1/comments"
 
-      stub(Tuist.OAuth2.SSRFGuard, :pin, fn url ->
+      stub(SSRFGuard, :pin, fn url ->
         assert url == "#{ghes_api_url}/repos/tuist/tuist/issues/1/comments"
         {:ok, pinned_url, "github.example.com"}
       end)
 
-      stub(Tuist.OAuth2.SSRFGuard, :connect_options, fn "github.example.com" -> [hostname: "github.example.com"] end)
+      stub(SSRFGuard, :connect_options, fn "github.example.com" -> [hostname: "github.example.com"] end)
 
       expect(Req, :post, fn opts ->
         # SSRF-pinned URL is passed to Req, with TLS hostname preserved
