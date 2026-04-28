@@ -271,7 +271,11 @@ jobs:
 
   cli-acceptance-tests:
     name: Acceptance Tests
-    runs-on: namespace-profile-default-macos
+    # GitHub-hosted macOS runners run on real Apple Silicon hosts that expose
+    # Apple Virtualization properly to nested guests, so colima/lima/qemu can
+    # actually start a Linux VM. Namespace's macOS profile is itself a VM and
+    # the lima 2.0.3 qemu driver panics with `send on closed channel` there.
+    runs-on: macos-latest
     timeout-minutes: 60
     needs: cli-acceptance-tests-build
     if: toJSON(fromJSON(needs.cli-acceptance-tests-build.outputs.matrix).shard) != '[]'
