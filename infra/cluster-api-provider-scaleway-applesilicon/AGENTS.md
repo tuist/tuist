@@ -10,7 +10,7 @@ Machine/MachineDeployment shape.
 
 | Kind | Purpose |
 |---|---|
-| `ScalewayAppleSiliconMachine` | One Mac mini. Has the Scaleway server type, zone, OS, per-host pod CIDR, and Secret refs for SSH key + cluster bootstrap material. |
+| `ScalewayAppleSiliconMachine` | One Mac mini. Has the Scaleway server type, zone, OS, per-host pod CIDR, fleet name (ties Machines on the same fleet to one shared SSH key), and kubelet version. SSH and bootstrap material are operator-managed — no Secret refs in the spec. |
 | `ScalewayAppleSiliconMachineTemplate` | Template MachineDeployments / MachineSets clone from. |
 | `ScalewayAppleSiliconCluster` | Cluster-level stub (CAPI core requires it for the parent Cluster to validate). Sets `Status.Ready=true` once it exists. |
 

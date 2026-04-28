@@ -114,10 +114,11 @@ processor:
       memory: "1536Mi"
 
 xcresultProcessor:
-  # Single VM in staging — same shape as the server replicaCount=1
-  # constraint on the cramped 2-cpx22 cluster. Acceptable gap during
-  # rolling deploy: jobs queue in oban_jobs, resume once the new VM
-  # registers with Orchard.
+  # Single replica in staging. The xcresult processor is a regular k8s
+  # Deployment scheduled onto the Mac mini macOS node via Tart-CRI;
+  # rolling deploys get the same maxSurge=0/maxUnavailable=1 treatment
+  # as the server, with jobs queuing in oban_jobs while the pod
+  # restarts.
   replicaCount: 1
   strategy:
     type: RollingUpdate
