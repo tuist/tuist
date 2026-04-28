@@ -340,7 +340,10 @@ defmodule Tuist.Environment do
 
   def s3_virtual_host(secrets \\ secrets()) do
     if dev_use_remote_storage?() do
-      [:s3, :virtual_host] |> get(secrets) |> truthy?()
+      case System.get_env("TUIST_S3_VIRTUAL_HOST") do
+        nil -> [:s3, :virtual_host] |> get(secrets) |> truthy?()
+        value -> truthy?(value)
+      end
     else
       false
     end
@@ -348,7 +351,10 @@ defmodule Tuist.Environment do
 
   def s3_bucket_as_host(secrets \\ secrets()) do
     if dev_use_remote_storage?() do
-      [:s3, :bucket_as_host] |> get(secrets) |> truthy?()
+      case System.get_env("TUIST_S3_BUCKET_AS_HOST") do
+        nil -> [:s3, :bucket_as_host] |> get(secrets) |> truthy?()
+        value -> truthy?(value)
+      end
     else
       false
     end
