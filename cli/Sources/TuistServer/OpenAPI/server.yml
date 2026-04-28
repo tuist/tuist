@@ -193,6 +193,73 @@ components:
       type: integer
       x-struct:
       x-validate:
+    AutomationAlert:
+      description: An automation alert — a rule that evaluates a monitor condition and runs trigger/recovery actions.
+      properties:
+        cadence:
+          description: Evaluation cadence (e.g. "5m").
+          type: string
+          x-struct:
+          x-validate:
+        enabled:
+          type: boolean
+          x-struct:
+          x-validate:
+        id:
+          format: uuid
+          type: string
+          x-struct:
+          x-validate:
+        monitor_type:
+          description: The monitor type that evaluates the condition.
+          enum:
+            - flakiness_rate
+            - flaky_run_count
+          type: string
+          x-struct:
+          x-validate:
+        name:
+          type: string
+          x-struct:
+          x-validate:
+        recovery_actions:
+          items:
+            $ref: '#/components/schemas/AutomationAlertAction'
+          type: array
+          x-struct:
+          x-validate:
+        recovery_config:
+          description: Recovery parameters (e.g. window).
+          type: object
+          x-struct:
+          x-validate:
+        recovery_enabled:
+          type: boolean
+          x-struct:
+          x-validate:
+        trigger_actions:
+          items:
+            $ref: '#/components/schemas/AutomationAlertAction'
+          type: array
+          x-struct:
+          x-validate:
+        trigger_config:
+          description: Monitor-specific trigger parameters (e.g. threshold, window).
+          type: object
+          x-struct:
+          x-validate:
+      required:
+        - id
+        - name
+        - enabled
+        - monitor_type
+        - trigger_config
+        - cadence
+        - trigger_actions
+      title: AutomationAlert
+      type: object
+      x-struct: Elixir.TuistWeb.API.Schemas.AutomationAlert
+      x-validate:
     ArtifactUploadID:
       description: The upload has been initiated and a ID is returned to upload the various parts using multi-part uploads
       properties:
@@ -1675,7 +1742,8 @@ components:
           x-struct:
           x-validate:
         is_quarantined:
-          description: Whether the test case is quarantined
+          deprecated: true
+          description: 'Whether the test case is quarantined (either `muted` or `skipped`). Deprecated: use `state` instead.'
           type: boolean
           x-struct:
           x-validate:
@@ -1700,6 +1768,11 @@ components:
           x-validate:
         name:
           description: Name of the test case
+          type: string
+          x-struct:
+          x-validate:
+        state:
+          description: Lifecycle state of the test case. Currently one of `enabled`, `muted`, or `skipped`; the field is left as an open string so adding new states in the future doesn't break clients pinned to the older spec. `enabled` means it runs as part of the suite and contributes to pass/fail counts. `muted` (mute-mode quarantine) means it still runs so we keep collecting flakiness signal, but failures no longer fail the build. `skipped` (skip-mode quarantine) means it is excluded from execution entirely.
           type: string
           x-struct:
           x-validate:
@@ -1735,6 +1808,7 @@ components:
         - avg_duration
         - is_flaky
         - is_quarantined
+        - state
         - url
       title: TestCase
       type: object
@@ -3496,6 +3570,15 @@ components:
       type: string
       x-struct:
       x-validate:
+    TestCasesIndexState:
+      enum:
+        - enabled
+        - muted
+        - skipped
+      title: TestCasesIndexState
+      type: string
+      x-struct:
+      x-validate:
     ArtifactUploadURL:
       description: The URL to upload an artifact.
       properties:
@@ -4576,6 +4659,52 @@ components:
       title: GenerationsIndexPageSize
       type: integer
       x-struct:
+      x-validate:
+    AutomationAlertAction:
+      description: An action run when an automation alert triggers or recovers.
+      properties:
+        channel:
+          description: Slack channel ID. Required for send_slack actions.
+          type: string
+          x-struct:
+          x-validate:
+        channel_name:
+          description: Slack channel name for display.
+          type: string
+          x-struct:
+          x-validate:
+        label:
+          description: Label name. Required for add_label and remove_label actions.
+          type: string
+          x-struct:
+          x-validate:
+        message:
+          description: Message template. Required for send_slack actions. Supports {{variable}} interpolation.
+          type: string
+          x-struct:
+          x-validate:
+        state:
+          description: Required for change_state actions.
+          enum:
+            - enabled
+            - muted
+          type: string
+          x-struct:
+          x-validate:
+        type:
+          enum:
+            - change_state
+            - send_slack
+            - add_label
+            - remove_label
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - type
+      title: AutomationAlertAction
+      type: object
+      x-struct: Elixir.TuistWeb.API.Schemas.AutomationAlertAction
       x-validate:
     BundleSupportedPlatform:
       description: A platform that a bundle can support (e.g. iOS)
@@ -7456,10 +7585,12 @@ paths:
                             - first_run
                             - marked_flaky
                             - unmarked_flaky
-                            - muted
-                            - unmuted
                             - quarantined
                             - unquarantined
+                            - muted
+                            - unmuted
+                            - skipped
+                            - unskipped
                           type: string
                           x-struct:
                           x-validate:
@@ -7796,6 +7927,14 @@ paths:
             type: integer
             x-struct:
             x-validate:
+        - description: Number of items per page.
+          in: query
+          name: page_size
+          required: false
+          schema:
+            type: integer
+            x-struct:
+            x-validate:
         - description: Filter bundles by git branch.
           in: query
           name: git_branch
@@ -7810,14 +7949,6 @@ paths:
           required: true
           schema:
             type: string
-            x-struct:
-            x-validate:
-        - description: Number of items per page.
-          in: query
-          name: page_size
-          required: false
-          schema:
-            type: integer
             x-struct:
             x-validate:
         - description: The handle of the project.
@@ -11476,6 +11607,149 @@ paths:
       summary: Complete a multipart upload for a build archive.
       tags:
         - Builds
+  /api/projects/{account_handle}/{project_handle}/automations/alerts:
+    get:
+      callbacks: {}
+      operationId: listAutomationAlerts
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  alerts:
+                    items:
+                      $ref: '#/components/schemas/AutomationAlert'
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - alerts
+                type: object
+                x-struct:
+                x-validate:
+          description: List of automation alerts
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+      summary: List automation alerts for a project.
+      tags:
+        - Automation Alerts
+    post:
+      callbacks: {}
+      operationId: createAutomationAlert
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                cadence:
+                  type: string
+                  x-struct:
+                  x-validate:
+                monitor_type:
+                  enum:
+                    - flakiness_rate
+                    - flaky_run_count
+                  type: string
+                  x-struct:
+                  x-validate:
+                name:
+                  type: string
+                  x-struct:
+                  x-validate:
+                recovery_actions:
+                  items:
+                    $ref: '#/components/schemas/AutomationAlertAction'
+                  type: array
+                  x-struct:
+                  x-validate:
+                recovery_config:
+                  type: object
+                  x-struct:
+                  x-validate:
+                recovery_enabled:
+                  type: boolean
+                  x-struct:
+                  x-validate:
+                trigger_actions:
+                  items:
+                    $ref: '#/components/schemas/AutomationAlertAction'
+                  type: array
+                  x-struct:
+                  x-validate:
+                trigger_config:
+                  type: object
+                  x-struct:
+                  x-validate:
+              required:
+                - name
+                - monitor_type
+                - trigger_actions
+              type: object
+              x-struct:
+              x-validate:
+        description: Automation alert
+        required: false
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AutomationAlert'
+          description: Created alert
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Validation error
+      summary: Create an automation alert.
+      tags:
+        - Automation Alerts
   /api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}:
     get:
       callbacks: {}
@@ -12869,6 +13143,19 @@ paths:
             type: string
             x-struct:
             x-validate:
+        - description: Filter by test case state.
+          in: query
+          name: state
+          required: false
+          schema:
+            enum:
+              - enabled
+              - muted
+              - skipped
+            title: TestCasesIndexState
+            type: string
+            x-struct:
+            x-validate:
         - description: ''
           in: query
           name: page_size
@@ -13607,7 +13894,8 @@ paths:
                     x-struct:
                     x-validate:
                   is_quarantined:
-                    description: Whether the test case is quarantined.
+                    deprecated: true
+                    description: 'Whether the test case is quarantined (either `muted` or `skipped`). Deprecated: use `state` instead.'
                     type: boolean
                     x-struct:
                     x-validate:
@@ -13659,6 +13947,11 @@ paths:
                     type: number
                     x-struct:
                     x-validate:
+                  state:
+                    description: The state of the test case. Currently one of `enabled`, `muted`, or `skipped`; the field is left as an open string so adding new states in the future doesn't break clients pinned to the older spec.
+                    type: string
+                    x-struct:
+                    x-validate:
                   suite:
                     nullable: true
                     properties:
@@ -13694,6 +13987,7 @@ paths:
                   - module
                   - is_flaky
                   - is_quarantined
+                  - state
                   - last_status
                   - last_duration
                   - last_ran_at
@@ -19213,6 +19507,210 @@ paths:
       summary: 'List test case runs for a test run. Deprecated: use listTestCaseRuns with test_run_id query param instead.'
       tags:
         - Test Case Runs
+  /api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}:
+    delete:
+      callbacks: {}
+      operationId: deleteAutomationAlert
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The ID of the alert.
+          in: path
+          name: alert_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '204':
+          content:
+            application/json: {}
+          description: Deleted
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found
+      summary: Delete an automation alert.
+      tags:
+        - Automation Alerts
+    get:
+      callbacks: {}
+      operationId: getAutomationAlert
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The ID of the alert.
+          in: path
+          name: alert_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AutomationAlert'
+          description: Alert details
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found
+      summary: Get an automation alert by ID.
+      tags:
+        - Automation Alerts
+    put:
+      callbacks: {}
+      operationId: updateAutomationAlert
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The ID of the alert.
+          in: path
+          name: alert_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                cadence:
+                  type: string
+                  x-struct:
+                  x-validate:
+                enabled:
+                  type: boolean
+                  x-struct:
+                  x-validate:
+                name:
+                  type: string
+                  x-struct:
+                  x-validate:
+                recovery_actions:
+                  items:
+                    $ref: '#/components/schemas/AutomationAlertAction'
+                  type: array
+                  x-struct:
+                  x-validate:
+                recovery_config:
+                  type: object
+                  x-struct:
+                  x-validate:
+                recovery_enabled:
+                  type: boolean
+                  x-struct:
+                  x-validate:
+                trigger_actions:
+                  items:
+                    $ref: '#/components/schemas/AutomationAlertAction'
+                  type: array
+                  x-struct:
+                  x-validate:
+                trigger_config:
+                  type: object
+                  x-struct:
+                  x-validate:
+              type: object
+              x-struct:
+              x-validate:
+        description: Automation alert update
+        required: false
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AutomationAlert'
+          description: Updated alert
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Validation error
+      summary: Update an automation alert.
+      tags:
+        - Automation Alerts
 security:
   - authorization: []
   - cookie: []

@@ -55,10 +55,30 @@ defmodule TuistWeb.TestCaseLiveTest do
 
       html = render_hook(lv, "set-state", %{"data" => "muted"})
 
-      assert html =~ "Quarantined"
+      assert html =~ "Muted"
 
       {:ok, fetched} = Tuist.Tests.get_test_case_by_id(test_case_run.test_case_id)
       assert fetched.state == "muted"
+    end
+
+    test "skipping a test case via set-state", %{
+      conn: conn,
+      account: account,
+      project: project
+    } do
+      {:ok, test_run} = RunsFixtures.test_fixture(project_id: project.id, account_id: account.id)
+      test_run = Tuist.ClickHouseRepo.preload(test_run, :test_case_runs)
+      [test_case_run | _] = test_run.test_case_runs
+
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_run.test_case_id}")
+
+      html = render_hook(lv, "set-state", %{"data" => "skipped"})
+
+      assert html =~ "Skipped"
+
+      {:ok, fetched} = Tuist.Tests.get_test_case_by_id(test_case_run.test_case_id)
+      assert fetched.state == "skipped"
     end
 
     test "mark as flaky button marks a test case as flaky", %{

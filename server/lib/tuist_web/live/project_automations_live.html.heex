@@ -192,10 +192,19 @@
                         >
                           <.dropdown_item
                             value="muted"
-                            label={dgettext("dashboard_projects", "Quarantined")}
+                            label={dgettext("dashboard_projects", "Muted")}
                             on_click="update_create_automation_form_trigger_action_state"
                             phx-value-index={index}
                             data-selected={action["state"] == "muted"}
+                          >
+                            <:right_icon><.check /></:right_icon>
+                          </.dropdown_item>
+                          <.dropdown_item
+                            value="skipped"
+                            label={dgettext("dashboard_projects", "Skipped")}
+                            on_click="update_create_automation_form_trigger_action_state"
+                            phx-value-index={index}
+                            data-selected={action["state"] == "skipped"}
                           >
                             <:right_icon><.check /></:right_icon>
                           </.dropdown_item>
@@ -423,10 +432,19 @@
                           </.dropdown_item>
                           <.dropdown_item
                             value="muted"
-                            label={dgettext("dashboard_projects", "Quarantined")}
+                            label={dgettext("dashboard_projects", "Muted")}
                             on_click="update_create_automation_form_recovery_action_state"
                             phx-value-index={index}
                             data-selected={action["state"] == "muted"}
+                          >
+                            <:right_icon><.check /></:right_icon>
+                          </.dropdown_item>
+                          <.dropdown_item
+                            value="skipped"
+                            label={dgettext("dashboard_projects", "Skipped")}
+                            on_click="update_create_automation_form_recovery_action_state"
+                            phx-value-index={index}
+                            data-selected={action["state"] == "skipped"}
                           >
                             <:right_icon><.check /></:right_icon>
                           </.dropdown_item>

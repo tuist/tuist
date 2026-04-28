@@ -37,14 +37,15 @@ struct XcodeBuildTestCommandServiceTests {
     private let xcResultService = MockXCResultServicing()
     private let rootDirectoryLocator = MockRootDirectoryLocating()
     private let testQuarantineService = MockTestQuarantineServicing()
+    private let testCaseListService = MockTestCaseListServicing()
     private let shardService = MockShardServicing()
     private let serverEnvironmentService = MockServerEnvironmentServicing()
     private let uploadBuildRunService = MockUploadBuildRunServicing()
     private let subject: XcodeBuildTestCommandService
 
     init() {
-        given(testQuarantineService)
-            .quarantinedTests(config: .any, skipQuarantine: .any)
+        given(testCaseListService)
+            .listTestCases(fullHandle: .any, serverURL: .any, state: .any)
             .willReturn([])
         given(testQuarantineService)
             .markQuarantinedTests(testSummary: .any, quarantinedTests: .any)
@@ -52,6 +53,9 @@ struct XcodeBuildTestCommandServiceTests {
         given(testQuarantineService)
             .onlyQuarantinedTestsFailed(testSummary: .any)
             .willReturn(false)
+        given(serverEnvironmentService)
+            .url(configServerURL: .any)
+            .willReturn(URL(string: "https://tuist.dev")!)
         given(xcResultService)
             .parse(path: .any, rootDirectory: .any)
             .willReturn(nil)
@@ -75,6 +79,7 @@ struct XcodeBuildTestCommandServiceTests {
             xcResultService: xcResultService,
             rootDirectoryLocator: rootDirectoryLocator,
             testQuarantineService: testQuarantineService,
+            testCaseListService: testCaseListService,
             shardService: shardService,
             serverEnvironmentService: serverEnvironmentService,
             uploadBuildRunService: uploadBuildRunService

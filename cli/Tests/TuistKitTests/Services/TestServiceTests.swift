@@ -47,6 +47,7 @@ final class TestServiceTests: TuistUnitTestCase {
     private var gitController: MockGitControlling!
     private var ciController: MockCIControlling!
     private var testQuarantineService: MockTestQuarantineServicing!
+    private var testCaseListService: MockTestCaseListServicing!
     private var serverEnvironmentService: MockServerEnvironmentServicing!
     private var shardPlanService: MockShardPlanServicing!
     private var shardMatrixOutputService: MockShardMatrixOutputServicing!
@@ -73,6 +74,7 @@ final class TestServiceTests: TuistUnitTestCase {
         gitController = .init()
         ciController = .init()
         testQuarantineService = .init()
+        testCaseListService = .init()
         serverEnvironmentService = .init()
         shardPlanService = .init()
         shardMatrixOutputService = .init()
@@ -140,8 +142,8 @@ final class TestServiceTests: TuistUnitTestCase {
             .url(configServerURL: .any)
             .willReturn(URL(string: "https://tuist.dev")!)
 
-        given(testQuarantineService)
-            .quarantinedTests(config: .any, skipQuarantine: .any)
+        given(testCaseListService)
+            .listTestCases(fullHandle: .any, serverURL: .any, state: .any)
             .willReturn([])
         given(testQuarantineService)
             .markQuarantinedTests(testSummary: .any, quarantinedTests: .any)
@@ -198,6 +200,7 @@ final class TestServiceTests: TuistUnitTestCase {
             serverEnvironmentService: serverEnvironmentService,
             ciController: ciController,
             testQuarantineService: testQuarantineService,
+            testCaseListService: testCaseListService,
             shardPlanService: shardPlanService,
             shardMatrixOutputService: shardMatrixOutputService,
             shardService: shardService,
@@ -3393,13 +3396,17 @@ final class TestServiceTests: TuistUnitTestCase {
             .loadConfig(path: .any)
             .willReturn(.test(project: .testGeneratedProject(), fullHandle: fullHandle))
 
-        testQuarantineService.reset()
-        given(testQuarantineService)
-            .quarantinedTests(config: .any, skipQuarantine: .any)
+        testCaseListService.reset()
+        given(testCaseListService)
+            .listTestCases(fullHandle: .any, serverURL: .any, state: .value(.muted))
             .willReturn([
                 try TestIdentifier(target: "AppTests", class: "QuarantinedSuite", method: "testQuarantined()"),
                 try TestIdentifier(target: "CoreTests", class: nil, method: "testAnotherQuarantined()"),
             ])
+        given(testCaseListService)
+            .listTestCases(fullHandle: .any, serverURL: .any, state: .value(.skipped))
+            .willReturn([])
+        testQuarantineService.reset()
         given(testQuarantineService)
             .markQuarantinedTests(testSummary: .any, quarantinedTests: .any)
             .willProduce { summary, _ in summary }
@@ -3475,6 +3482,108 @@ final class TestServiceTests: TuistUnitTestCase {
             .called(1)
     }
 
+    func test_run_passes_skipped_quarantined_tests_as_skip_testing() async throws {
+        // Given
+        givenGenerator()
+        let path = try temporaryPath()
+        let fullHandle = "organization/project"
+
+        configLoader.reset()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject(), fullHandle: fullHandle))
+
+        let skippedIdentifier = try TestIdentifier(
+            target: "CoreTests",
+            class: "SlowSuite",
+            method: "testSuperSlow()"
+        )
+
+        testCaseListService.reset()
+        given(testCaseListService)
+            .listTestCases(fullHandle: .any, serverURL: .any, state: .value(.muted))
+            .willReturn([
+                try TestIdentifier(target: "AppTests", class: "FlakySuite", method: "testFlaky()"),
+            ])
+        given(testCaseListService)
+            .listTestCases(fullHandle: .any, serverURL: .any, state: .value(.skipped))
+            .willReturn([skippedIdentifier])
+        testQuarantineService.reset()
+        given(testQuarantineService)
+            .markQuarantinedTests(testSummary: .any, quarantinedTests: .any)
+            .willProduce { summary, _ in summary }
+        given(testQuarantineService)
+            .onlyQuarantinedTestsFailed(testSummary: .any)
+            .willReturn(false)
+
+        buildGraphInspector.reset()
+        given(buildGraphInspector)
+            .testableSchemes(graphTraverser: .any)
+            .willReturn([Scheme.test(name: "ProjectScheme")])
+        given(buildGraphInspector)
+            .workspaceSchemes(graphTraverser: .any)
+            .willReturn([Scheme.test(name: "ProjectScheme")])
+        given(buildGraphInspector)
+            .buildArguments(project: .any, target: .any, configuration: .any, skipSigning: .any)
+            .willReturn([])
+        given(buildGraphInspector)
+            .testableTarget(
+                scheme: .any, testPlan: .any, testTargets: .any, skipTestTargets: .any,
+                graphTraverser: .any,
+                action: .any
+            )
+            .willReturn(.test())
+
+        given(generator)
+            .generateWithGraph(path: .value(path), options: .any)
+            .willProduce { path, _ in
+                (path, .test(workspace: .test(schemes: [.test(name: "ProjectScheme")])), MapperEnvironment())
+            }
+
+        xcodebuildController.reset()
+        given(xcodebuildController)
+            .test(
+                .any,
+                scheme: .any,
+                clean: .any,
+                destination: .any,
+                action: .any,
+                rosetta: .any,
+                derivedDataPath: .any,
+                resultBundlePath: .any,
+                arguments: .any,
+                retryCount: .any,
+                testTargets: .any,
+                skipTestTargets: .any,
+                testPlanConfiguration: .any,
+                passthroughXcodeBuildArguments: .any
+            )
+            .willReturn(())
+
+        // When
+        try await testRun(path: path)
+
+        // Then — skipped quarantined tests land in skipTestTargets; muted ones don't.
+        verify(xcodebuildController)
+            .test(
+                .any,
+                scheme: .any,
+                clean: .any,
+                destination: .any,
+                action: .any,
+                rosetta: .any,
+                derivedDataPath: .any,
+                resultBundlePath: .any,
+                arguments: .any,
+                retryCount: .any,
+                testTargets: .any,
+                skipTestTargets: .value([skippedIdentifier]),
+                testPlanConfiguration: .any,
+                passthroughXcodeBuildArguments: .any
+            )
+            .called(1)
+    }
+
     func test_run_does_not_fetch_quarantined_tests_when_skipQuarantine_is_true() async throws {
         // Given
         givenGenerator()
@@ -3533,10 +3642,10 @@ final class TestServiceTests: TuistUnitTestCase {
         // When
         try await testRun(path: path, skipQuarantine: true)
 
-        // Then
-        verify(testQuarantineService)
-            .quarantinedTests(config: .any, skipQuarantine: .value(true))
-            .called(1)
+        // Then — `--skip-quarantine` short-circuits the fetch entirely.
+        verify(testCaseListService)
+            .listTestCases(fullHandle: .any, serverURL: .any, state: .any)
+            .called(0)
         verify(xcodebuildController)
             .test(
                 .any,
@@ -3614,10 +3723,10 @@ final class TestServiceTests: TuistUnitTestCase {
         // When
         try await testRun(path: path)
 
-        // Then
-        verify(testQuarantineService)
-            .quarantinedTests(config: .any, skipQuarantine: .any)
-            .called(1)
+        // Then — fullHandle is nil so the fetch is skipped entirely.
+        verify(testCaseListService)
+            .listTestCases(fullHandle: .any, serverURL: .any, state: .any)
+            .called(0)
         verify(xcodebuildController)
             .test(
                 .any,
@@ -3649,10 +3758,11 @@ final class TestServiceTests: TuistUnitTestCase {
             .loadConfig(path: .any)
             .willReturn(.test(project: .testGeneratedProject(), fullHandle: fullHandle))
 
-        testQuarantineService.reset()
-        given(testQuarantineService)
-            .quarantinedTests(config: .any, skipQuarantine: .any)
+        testCaseListService.reset()
+        given(testCaseListService)
+            .listTestCases(fullHandle: .any, serverURL: .any, state: .any)
             .willReturn([])
+        testQuarantineService.reset()
         given(testQuarantineService)
             .markQuarantinedTests(testSummary: .any, quarantinedTests: .any)
             .willProduce { summary, _ in summary }

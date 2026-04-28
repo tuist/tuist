@@ -1,16 +1,17 @@
 ---
 {
-  "title": "Gradle Flaky Tests",
+  "title": "Generated Projects Flaky Tests",
   "titleTemplate": ":title · Flaky Tests · Test Insights · Features · Guides · Tuist",
-  "description": "Detect, manage, and quarantine flaky tests in Gradle projects with Tuist."
+  "description": "Detect, manage, and quarantine flaky tests in Tuist generated projects."
 }
 ---
-# Gradle flaky tests {#gradle-flaky-tests}
+# Generated projects flaky tests {#generated-projects-flaky-tests}
 
 > [!WARNING]
 > **Requirements**
 >
-> - The <.localized_link href="/guides/install-gradle-plugin">Tuist Gradle plugin</.localized_link> installed and configured
+> - A <.localized_link href="/guides/features/projects">Tuist generated project</.localized_link>
+> - <.localized_link href="/guides/features/test-insights">Test Insights</.localized_link> must be configured
 
 
 Flaky tests are tests that produce different results (pass or fail) when run multiple times with the same code. They erode trust in your test suite and waste developer time investigating false failures. Tuist automatically detects flaky tests and helps you track them over time.
@@ -25,22 +26,10 @@ Tuist detects flaky tests in two ways:
 
 When you run tests with retry functionality, Tuist analyzes the results of each attempt. If a test fails on some attempts but passes on others, it's marked as flaky.
 
-You can use the [Test Retry plugin](https://github.com/gradle/test-retry-gradle-plugin) or a similar mechanism to re-run failed tests. Tuist will detect tests that pass on some attempts but fail on others.
+Pass `-retry-tests-on-failure` or `-test-iterations` through `tuist test`:
 
-Add the plugin to your `build.gradle.kts`:
-
-```kotlin
-plugins {
-    id("org.gradle.test-retry") version "1.6.2"
-}
-
-tasks.test {
-    retry {
-        maxRetries = 3
-        maxFailures = 5
-        failOnPassedAfterRetry = false
-    }
-}
+```sh
+tuist test --scheme MyScheme -- -retry-tests-on-failure -test-iterations 3
 ```
 
 ![Flaky test case detail](/images/guides/features/test-insights/flaky-test-case-detail.png)
@@ -67,24 +56,24 @@ You can also manually mark or unmark tests as flaky from the test case detail pa
 
 Quarantining isolates a flaky test so it doesn't block CI while you fix it. A quarantined test is in one of two modes:
 
-- **Muted**: the test still runs, but the plugin sets `ignoreFailures = true` and only re-fails the build on non-quarantined failures. Failures still feed the flaky-tests detector, so you can keep watching the test without breaking the build. Pick this for a test you're actively investigating.
-- **Skipped**: the plugin filters the test out via Gradle's `excludeTestsMatching`, so it never starts. It produces no new results and drops off the flaky-tests dashboard until you re-enable it. Pick this when the test is broken, slow, or so persistently flaky that running it is just wasted CI minutes.
+- **Muted**: the test still runs, but `tuist test` masks the failure. Failures still feed the flaky-tests detector, so you can keep watching the test without breaking the build. Pick this for a test you're actively investigating.
+- **Skipped**: xcodebuild receives `-skip-testing <identifier>`, so the test never starts. It produces no new results and drops off the flaky-tests dashboard until you re-enable it. Pick this when the test is broken, slow, or so persistently flaky that running it is just wasted CI minutes.
 
-### Enabling quarantine {#enabling-quarantine}
+### Running tests {#running-tests}
 
-Quarantine is **automatically enabled on CI** (when the `CI` environment variable is set) and disabled for local builds. The plugin fetches the list of quarantined tests from the Tuist server before each test task; muted tests run normally and have their failures masked, skipped tests are filtered out.
+`tuist test` honours both modes automatically:
 
-You can explicitly control this in your `settings.gradle.kts`:
-
-```kotlin
-tuist {
-    testQuarantine {
-        enabled = true  // or false to disable
-    }
-}
+```sh
+tuist test
 ```
 
-When `enabled` is not set, it defaults to auto-detection: enabled on CI, disabled locally.
+Skipped tests are passed to xcodebuild as `-skip-testing` and never start. Muted tests run normally; if they fail, the failure is masked in the resulting build status.
+
+To bypass quarantine entirely and run everything, including muted and skipped tests:
+
+```sh
+tuist test --skip-quarantine
+```
 
 ## Slack notifications {#slack-notifications}
 

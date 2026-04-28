@@ -7,7 +7,7 @@ defmodule Tuist.Automations.Alerts.Alert do
   alias Tuist.Projects.Project
 
   @monitor_types ~w(flakiness_rate flaky_run_count)
-  @valid_states ~w(enabled muted)
+  @valid_states ~w(enabled muted skipped)
 
   @primary_key {:id, UUIDv7, autogenerate: true}
   @foreign_key_type UUIDv7

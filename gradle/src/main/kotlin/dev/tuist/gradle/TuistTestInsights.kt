@@ -501,11 +501,33 @@ internal abstract class TuistTestInsightsPlugin @Inject constructor() : Plugin<P
                     testTask.ignoreFailures = true
 
                     testTask.doFirst {
-                        val quarantineMap = quarantineServiceProvider.get().getQuarantinedTests()
-                        serviceProvider.get().quarantineMap = quarantineMap
-                        val modulePatterns = quarantineMap[moduleName]
-                        if (modulePatterns != null) {
-                            logger.lifecycle("Tuist: Found ${modulePatterns.size} quarantined test(s) in module $moduleName")
+                        val quarantinedTests = quarantineServiceProvider.get().getQuarantinedTests()
+                        // The post-run failure mask only needs muted tests:
+                        // skipped ones don't run, so they can't produce
+                        // failures we need to mask.
+                        serviceProvider.get().quarantineMap = quarantinedTests.muted
+
+                        val mutedInModule = quarantinedTests.muted[moduleName] ?: emptyList()
+                        val skippedInModule = quarantinedTests.skipped[moduleName] ?: emptyList()
+
+                        // Exclude skipped tests via Gradle's TestFilter so
+                        // they never run. Patterns use ANT-style globs:
+                        // "ClassName.methodName" or "*.methodName" if we
+                        // don't have a suite.
+                        skippedInModule.forEach { id ->
+                            val pattern = if (id.suiteName != null) {
+                                "${id.suiteName}.${id.testName}"
+                            } else {
+                                "*.${id.testName}"
+                            }
+                            testTask.filter.excludeTestsMatching(pattern)
+                        }
+
+                        if (mutedInModule.isNotEmpty() || skippedInModule.isNotEmpty()) {
+                            logger.lifecycle(
+                                "Tuist: Found ${mutedInModule.size + skippedInModule.size} quarantined test(s) " +
+                                    "in module $moduleName (${mutedInModule.size} muted, ${skippedInModule.size} skipped)"
+                            )
                         }
                     }
 
