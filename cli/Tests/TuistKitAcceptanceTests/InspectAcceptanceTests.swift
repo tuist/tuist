@@ -15,14 +15,6 @@ import TuistTesting
 @testable import TuistKit
 
 struct InspectAcceptanceTests {
-    /// Runs `tuist xcodebuild build` against the local Tuist cluster spun up for this
-    /// shard, then polls the server until the resulting build run reaches a terminal
-    /// status. `xcodebuild build` already exercises the same upload path that
-    /// `tuist inspect build` uses (via `UploadBuildRunService`), so this test catches
-    /// regressions in either entry point.
-    ///
-    /// `TUIST_URL` is expected to point at the per-shard server (`http://localhost:8080`
-    /// in CI) and `TUIST_AUTH_EMAIL` / `TUIST_AUTH_PASSWORD` at the seeded test account.
     @Test(
         .inTemporaryDirectory,
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
