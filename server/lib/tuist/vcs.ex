@@ -80,6 +80,39 @@ defmodule Tuist.VCS do
     ["GitHub"]
   end
 
+  @default_provider :github
+
+  @doc """
+  Default base URL for a forge provider when no custom instance is configured.
+  """
+  def default_client_url(provider \\ @default_provider)
+  def default_client_url(:github), do: "https://github.com"
+
+  @doc """
+  REST API base URL for a given forge provider and instance URL.
+
+  github.com is special-cased to use the dedicated `api.github.com`
+  hostname; self-hosted GitHub Enterprise Server instances expose the
+  REST API under `/api/v3` on the same host.
+  """
+  def api_url(provider, client_url)
+  def api_url(:github, nil), do: api_url(:github, default_client_url(:github))
+  def api_url(:github, "https://github.com"), do: "https://api.github.com"
+
+  def api_url(:github, client_url) when is_binary(client_url) do
+    client_url |> String.trim_trailing("/") |> Kernel.<>("/api/v3")
+  end
+
+  @doc """
+  Convenience overload that returns the API base URL for any installation
+  struct or map carrying a `:client_url` field.
+  """
+  def installation_api_url(%GitHubAppInstallation{client_url: client_url}), do: api_url(:github, client_url)
+
+  def installation_api_url(%{client_url: client_url}), do: api_url(:github, client_url)
+
+  def installation_api_url(_), do: api_url(:github, default_client_url(:github))
+
   def get_repository_content(
         %{repository_full_handle: repository_full_handle, provider: provider, token: token},
         opts \\ []
@@ -200,7 +233,7 @@ defmodule Tuist.VCS do
         issue_id: issue_id,
         body: body,
         installation_id: installation.installation_id,
-        api_url: GitHubAppInstallation.installation_api_url(installation)
+        api_url: installation_api_url(installation)
       })
     else
       false -> {:error, :not_pull_request}
@@ -229,7 +262,7 @@ defmodule Tuist.VCS do
           comment_id: comment_id,
           body: body,
           installation_id: installation.installation_id,
-          api_url: GitHubAppInstallation.installation_api_url(installation)
+          api_url: installation_api_url(installation)
         })
 
       {:error, :not_found} ->
@@ -267,7 +300,7 @@ defmodule Tuist.VCS do
       client = get_client_for_provider(:github)
       issue_id = get_issue_id_from_git_ref(git_ref)
       installation_id = installation.installation_id
-      api_url = GitHubAppInstallation.installation_api_url(installation)
+      api_url = installation_api_url(installation)
 
       vcs_comment_body =
         get_vcs_comment_body(%{
@@ -1124,7 +1157,7 @@ defmodule Tuist.VCS do
   Gets repositories for a GitHub app installation.
   """
   def get_github_app_installation_repositories(%GitHubAppInstallation{} = installation) do
-    api_url = GitHubAppInstallation.installation_api_url(installation)
+    api_url = installation_api_url(installation)
     installation_id = installation.installation_id
 
     KeyValueStore.get_or_update(
@@ -1182,8 +1215,8 @@ defmodule Tuist.VCS do
     "#{client_url}/apps/#{app_name}/installations/new?state=#{state_token}"
   end
 
-  defp normalize_client_url(nil), do: GitHubAppInstallation.default_client_url()
-  defp normalize_client_url(""), do: GitHubAppInstallation.default_client_url()
+  defp normalize_client_url(nil), do: default_client_url()
+  defp normalize_client_url(""), do: default_client_url()
 
   defp normalize_client_url(url) when is_binary(url), do: url |> String.trim() |> String.trim_trailing("/")
 
@@ -1194,7 +1227,7 @@ defmodule Tuist.VCS do
   client URL. The token round-trips through GitHub's installation flow so we
   know which GitHub instance the resulting installation belongs to.
   """
-  def generate_github_state_token(account_id, client_url \\ GitHubAppInstallation.default_client_url()) do
+  def generate_github_state_token(account_id, client_url \\ default_client_url()) do
     payload = "#{account_id}#{@github_state_token_separator}#{normalize_client_url(client_url)}"
     Phoenix.Token.sign(TuistWeb.Endpoint, "github_state", payload)
   end
@@ -1222,7 +1255,7 @@ defmodule Tuist.VCS do
         end
 
       {:ok, account_id} when is_integer(account_id) ->
-        {:ok, %{account_id: account_id, client_url: GitHubAppInstallation.default_client_url()}}
+        {:ok, %{account_id: account_id, client_url: default_client_url()}}
 
       {:error, _reason} = error ->
         error

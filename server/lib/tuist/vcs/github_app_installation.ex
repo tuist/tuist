@@ -9,7 +9,6 @@ defmodule Tuist.VCS.GitHubAppInstallation do
   alias Tuist.Accounts.Account
 
   @default_client_url "https://github.com"
-  @default_api_url "https://api.github.com"
 
   @primary_key {:id, UUIDv7, autogenerate: true}
   @foreign_key_type UUIDv7
@@ -40,32 +39,6 @@ defmodule Tuist.VCS.GitHubAppInstallation do
     |> cast(attrs, [:html_url])
     |> validate_required([])
   end
-
-  @doc """
-  Returns the default client URL used when no GitHub Enterprise Server is configured.
-  """
-  def default_client_url, do: @default_client_url
-
-  @doc """
-  Computes the REST API base URL for a given client URL. github.com uses
-  the dedicated `api.github.com` host; GitHub Enterprise Server installs
-  expose the API under `/api/v3` on the same host.
-  """
-  def api_url(client_url \\ @default_client_url)
-  def api_url(@default_client_url), do: @default_api_url
-  def api_url(nil), do: @default_api_url
-
-  def api_url(client_url) when is_binary(client_url) do
-    client_url |> String.trim_trailing("/") |> Kernel.<>("/api/v3")
-  end
-
-  @doc """
-  Returns the API base URL for a `%GitHubAppInstallation{}` struct or any
-  map that has a `client_url`.
-  """
-  def installation_api_url(%__MODULE__{client_url: client_url}), do: api_url(client_url)
-  def installation_api_url(%{client_url: client_url}), do: api_url(client_url)
-  def installation_api_url(_), do: @default_api_url
 
   defp normalize_client_url(changeset) do
     case get_change(changeset, :client_url) do

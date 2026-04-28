@@ -3467,14 +3467,33 @@ defmodule Tuist.VCSTest do
     end
   end
 
-  describe "GitHubAppInstallation.api_url/1" do
+  describe "api_url/2" do
     test "returns api.github.com for the default github.com client URL" do
-      assert GitHubAppInstallation.api_url("https://github.com") == "https://api.github.com"
+      assert VCS.api_url(:github, "https://github.com") == "https://api.github.com"
+    end
+
+    test "returns api.github.com when client_url is nil" do
+      assert VCS.api_url(:github, nil) == "https://api.github.com"
     end
 
     test "returns the GitHub Enterprise Server REST API path for custom hosts" do
-      assert GitHubAppInstallation.api_url("https://github.example.com") ==
+      assert VCS.api_url(:github, "https://github.example.com") ==
                "https://github.example.com/api/v3"
+    end
+
+    test "trims trailing slashes from custom hosts" do
+      assert VCS.api_url(:github, "https://github.example.com/") ==
+               "https://github.example.com/api/v3"
+    end
+  end
+
+  describe "default_client_url/1" do
+    test "returns github.com for the github provider" do
+      assert VCS.default_client_url(:github) == "https://github.com"
+    end
+
+    test "defaults to github when no provider is given" do
+      assert VCS.default_client_url() == "https://github.com"
     end
   end
 

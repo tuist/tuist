@@ -6,7 +6,7 @@ defmodule TuistWeb.Helpers.VCSLinks do
   use Phoenix.Component
   use Noora
 
-  alias Tuist.VCS.GitHubAppInstallation
+  alias Tuist.VCS
 
   attr :project, :map, required: true
   attr :commit_sha, :string, required: true
@@ -76,7 +76,7 @@ defmodule TuistWeb.Helpers.VCSLinks do
     |> resolve_github_app_installation()
     |> case do
       %{client_url: client_url} when is_binary(client_url) and client_url != "" -> client_url
-      _ -> GitHubAppInstallation.default_client_url()
+      _ -> VCS.default_client_url()
     end
   end
 

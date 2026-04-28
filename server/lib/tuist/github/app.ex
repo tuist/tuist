@@ -6,11 +6,11 @@ defmodule Tuist.GitHub.App do
   alias Tuist.Environment
   alias Tuist.GitHub.Retry
   alias Tuist.KeyValueStore
-  alias Tuist.VCS.GitHubAppInstallation
+  alias Tuist.VCS
 
   def get_installation_token(installation_id, opts \\ []) do
     ttl = to_timeout(minute: 10)
-    api_url = Keyword.get(opts, :api_url, GitHubAppInstallation.api_url())
+    api_url = Keyword.get(opts, :api_url, VCS.api_url(:github, nil))
 
     case KeyValueStore.get_or_update(
            [__MODULE__, "installation_token", api_url, installation_id],
@@ -63,7 +63,7 @@ defmodule Tuist.GitHub.App do
 
   defp refresh_installation_token(installation_id, opts) do
     jwt = generate_app_jwt(opts)
-    api_url = Keyword.get(opts, :api_url, GitHubAppInstallation.api_url())
+    api_url = Keyword.get(opts, :api_url, VCS.api_url(:github, nil))
 
     headers = [
       {"Accept", "application/vnd.github+json"},

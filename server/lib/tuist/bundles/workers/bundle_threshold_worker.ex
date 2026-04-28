@@ -11,7 +11,7 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorker do
   alias Tuist.Projects
   alias Tuist.Repo
   alias Tuist.Utilities.ByteFormatter
-  alias Tuist.VCS.GitHubAppInstallation
+  alias Tuist.VCS
 
   @check_name "tuist/bundle-size"
 
@@ -57,7 +57,7 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorker do
            Client.get_pull_request(%{
              repository_full_handle: project.vcs_connection.repository_full_handle,
              installation_id: installation.installation_id,
-             api_url: GitHubAppInstallation.installation_api_url(installation),
+             api_url: VCS.installation_api_url(installation),
              pr_number: pr_number
            }) do
       head_sha
@@ -87,7 +87,7 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorker do
     params = %{
       repository_full_handle: repo_handle,
       installation_id: installation_id,
-      api_url: GitHubAppInstallation.installation_api_url(installation),
+      api_url: VCS.installation_api_url(installation),
       name: @check_name,
       head_sha: git_commit_sha,
       status: "completed",

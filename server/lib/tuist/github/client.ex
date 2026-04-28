@@ -7,7 +7,6 @@ defmodule Tuist.GitHub.Client do
   alias Tuist.GitHub.Retry
   alias Tuist.VCS
   alias Tuist.VCS.Comment
-  alias Tuist.VCS.GitHubAppInstallation
   alias Tuist.VCS.Repositories.Content
   alias Tuist.VCS.Repositories.Tag
 
@@ -16,7 +15,7 @@ defmodule Tuist.GitHub.Client do
   Returns {:ok, %{meta: %{next_url: ...}, repositories: [...]}} format similar to Flop.
   """
   def list_installation_repositories(installation_id, opts \\ []) do
-    api_url = Keyword.get(opts, :api_url, GitHubAppInstallation.api_url())
+    api_url = Keyword.get(opts, :api_url, VCS.api_url(:github, nil))
 
     url =
       Keyword.get(
@@ -214,7 +213,7 @@ defmodule Tuist.GitHub.Client do
 
   defp github_request(method, attrs) do
     installation_id = Keyword.get(attrs, :installation_id)
-    api_url = Keyword.get(attrs, :api_url, GitHubAppInstallation.api_url())
+    api_url = Keyword.get(attrs, :api_url, VCS.api_url(:github, nil))
 
     case App.get_installation_token(installation_id, api_url: api_url) do
       {:ok, %{token: token}} ->
@@ -339,5 +338,5 @@ defmodule Tuist.GitHub.Client do
   end
 
   defp api_url(%{api_url: api_url}) when is_binary(api_url), do: api_url
-  defp api_url(_params), do: GitHubAppInstallation.api_url()
+  defp api_url(_params), do: VCS.api_url(:github, nil)
 end

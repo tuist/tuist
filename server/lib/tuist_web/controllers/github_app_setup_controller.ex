@@ -11,7 +11,6 @@ defmodule TuistWeb.GitHubAppSetupController do
 
   alias Tuist.Accounts
   alias Tuist.VCS
-  alias Tuist.VCS.GitHubAppInstallation
   alias TuistWeb.Errors.BadRequestError
 
   def setup(conn, params) do
@@ -22,7 +21,7 @@ defmodule TuistWeb.GitHubAppSetupController do
            VCS.create_github_app_installation(%{
              account_id: account.id,
              installation_id: installation_id,
-             client_url: client_url || GitHubAppInstallation.default_client_url()
+             client_url: client_url || VCS.default_client_url()
            }) do
       redirect(conn, to: ~p"/#{account.name}/integrations")
     else

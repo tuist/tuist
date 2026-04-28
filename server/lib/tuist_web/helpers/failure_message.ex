@@ -8,7 +8,7 @@ defmodule TuistWeb.Helpers.FailureMessage do
 
   import Phoenix.HTML, only: [raw: 1]
 
-  alias Tuist.VCS.GitHubAppInstallation
+  alias Tuist.VCS
 
   @doc """
   Formats a failure message with optional linking to source code in GitHub.
@@ -110,7 +110,7 @@ defmodule TuistWeb.Helpers.FailureMessage do
     |> resolve_github_app_installation()
     |> case do
       %{client_url: client_url} when is_binary(client_url) and client_url != "" -> client_url
-      _ -> GitHubAppInstallation.default_client_url()
+      _ -> VCS.default_client_url()
     end
   end
 

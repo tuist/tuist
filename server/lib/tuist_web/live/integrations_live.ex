@@ -8,7 +8,6 @@ defmodule TuistWeb.IntegrationsLive do
   alias Tuist.Slack
   alias Tuist.Utilities.DateFormatter
   alias Tuist.VCS
-  alias Tuist.VCS.GitHubAppInstallation
 
   @impl true
   def mount(_params, _uri, %{assigns: %{selected_account: selected_account, current_user: current_user}} = socket) do
@@ -31,7 +30,7 @@ defmodule TuistWeb.IntegrationsLive do
       |> assign(vcs_connections: vcs_connections)
       |> assign(selected_project_id: nil)
       |> assign(selected_repository_full_handle: nil)
-      |> assign(github_client_url: GitHubAppInstallation.default_client_url())
+      |> assign(github_client_url: VCS.default_client_url())
       |> assign(github_client_url_error: nil)
       |> assign(show_github_enterprise_input: false)
       |> assign(:head_title, "#{dgettext("dashboard_integrations", "Integrations")} · #{selected_account.name} · Tuist")
@@ -73,7 +72,7 @@ defmodule TuistWeb.IntegrationsLive do
     socket =
       socket
       |> assign(show_github_enterprise_input: false)
-      |> assign(github_client_url: GitHubAppInstallation.default_client_url())
+      |> assign(github_client_url: VCS.default_client_url())
       |> assign(github_client_url_error: nil)
 
     {:noreply, socket}
@@ -84,7 +83,7 @@ defmodule TuistWeb.IntegrationsLive do
     socket =
       socket
       |> assign(show_github_enterprise_input: true)
-      |> assign(github_client_url: GitHubAppInstallation.default_client_url())
+      |> assign(github_client_url: VCS.default_client_url())
       |> assign(github_client_url_error: nil)
 
     {:noreply, socket}
@@ -209,7 +208,7 @@ defmodule TuistWeb.IntegrationsLive do
 
   defp validate_github_client_url(raw_url) do
     trimmed = raw_url |> to_string() |> String.trim()
-    default = GitHubAppInstallation.default_client_url()
+    default = VCS.default_client_url()
 
     cond do
       trimmed in ["", default] ->
