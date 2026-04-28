@@ -64,10 +64,10 @@ defmodule TuistWeb.IntegrationsLiveTest do
 
     refute html =~ "Server URL"
     assert html =~ "github.com"
-    assert html =~ "Enterprise Server"
+    assert html =~ "Enterprise server"
   end
 
-  test "reveals the URL input when the Enterprise Server tab is selected", %{
+  test "reveals the URL input when the Enterprise server tab is selected", %{
     conn: conn,
     organization: organization
   } do

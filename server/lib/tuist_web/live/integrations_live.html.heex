@@ -23,11 +23,13 @@
             label="github.com"
             phx-click="select-github-com"
             data-selected={not @show_github_enterprise_input}
+            style="flex: 1; justify-content: center;"
           />
           <.button_group_item
-            label={dgettext("dashboard_integrations", "Enterprise Server")}
+            label={dgettext("dashboard_integrations", "Enterprise server")}
             phx-click="select-github-enterprise"
             data-selected={@show_github_enterprise_input}
+            style="flex: 1; justify-content: center;"
           />
         </.button_group>
       </div>
