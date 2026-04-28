@@ -48,6 +48,9 @@ if [ -z "${CI:-}" ]; then
   if ! postgres_database_exists; then
     bootstrap_postgres_database
   elif ! postgres_database_bootstrapped; then
+    # A previous install may have created the DB but exited before `ecto.load`
+    # finished. In that state later runs skip bootstrapping and migrations fail
+    # against missing base tables such as `users`, so rebuild the local DB.
     rebootstrap_postgres_database
   fi
 
