@@ -383,6 +383,7 @@ tuistHTTPDependencies.append(contentsOf: ["TuistSupport", "TuistHAR"])
 tuistCASDependencies.append(contentsOf: ["TuistCache", "TuistCASAnalytics"])
 tuistConfigLoaderDependencies.append(contentsOf: [
     "TuistLoader", "TuistCore", "TuistAlert", "TuistSupport",
+    "TuistHTTP",
     "ProjectDescription",
 ])
 tuistConfigLoaderTestDependencies.append(contentsOf: [
