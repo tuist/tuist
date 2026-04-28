@@ -432,6 +432,34 @@ builds = SeedHelpers.parallel_flat_map(1..seed_config.build_runs, fn i -> [build
 # Insert builds in batches to ClickHouse
 SeedHelpers.insert_bulk_ch(builds, Build, IngestRepo, "build runs")
 
+# Generate machine metrics for builds (one sample per second over the build duration)
+IO.puts("Generating machine metrics for build runs...")
+
+machine_metrics =
+  SeedHelpers.parallel_flat_map(builds, fn build ->
+    duration_seconds = div(build.duration, 1000)
+    sample_count = min(max(duration_seconds, 10), 300)
+    build_start = build.inserted_at |> NaiveDateTime.to_gregorian_seconds() |> elem(0)
+    inserted_at = NaiveDateTime.truncate(build.inserted_at, :second)
+
+    Enum.map(0..(sample_count - 1), fn i ->
+      %{
+        build_run_id: build.id,
+        timestamp: build_start + i * 1.0,
+        cpu_usage_percent: 20.0 + :rand.uniform() * 70.0,
+        memory_used_bytes: Enum.random(4_000_000_000..14_000_000_000),
+        memory_total_bytes: 16_000_000_000,
+        network_bytes_in: Enum.random(0..5_000_000),
+        network_bytes_out: Enum.random(0..2_000_000),
+        disk_bytes_read: Enum.random(0..50_000_000),
+        disk_bytes_written: Enum.random(0..30_000_000),
+        inserted_at: inserted_at
+      }
+    end)
+  end)
+
+SeedHelpers.insert_bulk_ch(machine_metrics, BuildMachineMetric, IngestRepo, "build machine metrics")
+
 generate_cache_key = fn _build_id, _task_type, _index ->
   "0~#{SeedHelpers.random_base64(88)}"
 end
@@ -2977,6 +3005,32 @@ gradle_cache_events = Enum.flat_map(gradle_seed_data, & &1.cache_events)
 SeedHelpers.insert_bulk_ch(gradle_builds, GradleBuild, IngestRepo, "Gradle builds")
 SeedHelpers.insert_bulk_ch(gradle_tasks, GradleTask, IngestRepo, "Gradle tasks")
 SeedHelpers.insert_bulk_ch(gradle_cache_events, GradleCacheEvent, IngestRepo, "Gradle cache events")
+
+# Generate machine metrics for Gradle builds
+gradle_machine_metrics =
+  Enum.flat_map(gradle_builds, fn build ->
+    duration_seconds = div(build.duration_ms, 1000)
+    sample_count = min(max(duration_seconds, 10), 300)
+    build_start = build.inserted_at |> NaiveDateTime.to_gregorian_seconds() |> elem(0)
+    inserted_at = NaiveDateTime.truncate(build.inserted_at, :second)
+
+    Enum.map(0..(sample_count - 1), fn i ->
+      %{
+        gradle_build_id: build.id,
+        timestamp: build_start + i * 1.0,
+        cpu_usage_percent: 25.0 + :rand.uniform() * 65.0,
+        memory_used_bytes: Enum.random(4_000_000_000..14_000_000_000),
+        memory_total_bytes: 16_000_000_000,
+        network_bytes_in: Enum.random(0..5_000_000),
+        network_bytes_out: Enum.random(0..2_000_000),
+        disk_bytes_read: Enum.random(0..50_000_000),
+        disk_bytes_written: Enum.random(0..30_000_000),
+        inserted_at: inserted_at
+      }
+    end)
+  end)
+
+SeedHelpers.insert_bulk_ch(gradle_machine_metrics, BuildMachineMetric, IngestRepo, "Gradle machine metrics")
 
 IO.puts(
   "  - Created #{length(gradle_builds)} Gradle builds with #{length(gradle_tasks)} tasks and #{length(gradle_cache_events)} cache events"
