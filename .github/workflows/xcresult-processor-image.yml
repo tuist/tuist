@@ -26,7 +26,7 @@ on:
       base_image:
         description: "Base Tart image"
         required: false
-        default: "ghcr.io/cirruslabs/macos-tahoe-xcode:26.0"
+        default: "ghcr.io/cirruslabs/macos-tahoe-xcode:26.4"
 
 concurrency:
   group: xcresult-processor-image
@@ -94,7 +94,7 @@ jobs:
         working-directory: infra/xcresult-processor-image
         run: |
           packer build \
-            -var "base_image=${{ inputs.base_image || 'ghcr.io/cirruslabs/macos-tahoe-xcode:26.0' }}" \
+            -var "base_image=${{ inputs.base_image || 'ghcr.io/cirruslabs/macos-tahoe-xcode:26.4' }}" \
             -var "output_image=tuist-xcresult-processor" \
             -var "release_tarball=/tmp/release.tar.gz" \
             xcresult-processor.pkr.hcl
