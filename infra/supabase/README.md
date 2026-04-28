@@ -17,19 +17,34 @@ One-shot SQL files for bootstrapping Postgres state that app migrations can't ow
 Two paths:
 
 1. **Supabase Dashboard → SQL Editor**, paste the file contents, replace `:'pw'` with a quoted password literal, click Run. Fine for one-off bootstrap.
-2. **Direct psql** (reproducible, scriptable — recommended):
+2. **Direct psql** (reproducible, scriptable — recommended). The two passwords come from 1Password:
+   - `PROCESSOR_DATABASE_PASSWORD` (the role password) lives at `op://tuist-k8s-<env>/PROCESSOR_DATABASE_PASSWORD/password`. Same value the chart composes into the processor's `DATABASE_URL` via ESO.
+   - The `postgres` superuser password (the credential that runs `CREATE ROLE`) lives at `op://Development/Tuist <Env> Database (Supabase)/password` — one item per env (`Tuist Staging Database (Supabase)`, `Tuist Canary Database (Supabase)`, `Tuist Production Database (Supabase)`).
+
+   Run from the repo root with the right env substituted in:
 
    ```bash
-   # Direct URL lives in Supabase Dashboard → Settings → Database → Connection string → URI.
-   # Use port 5432, not the pooler (6543) — role changes need a session.
-   export DIRECT_URL="$(op read 'op://tuist-k8s-<env>/SUPABASE_DIRECT_URL/password')"
-   export PW="$(op read 'op://tuist-k8s-<env>/PROCESSOR_DATABASE_URL/password')"
+   # Pick one — staging | canary | production
+   ENV=staging
+   case $ENV in
+     staging)    SUPABASE_REF=inzgspjesrhqhleomvkb; OP_DB_ITEM="Tuist Staging Database (Supabase)" ;;
+     canary)     SUPABASE_REF=thapckmapmffdgaiarvu; OP_DB_ITEM="Tuist Canary Database (Supabase)" ;;
+     production) SUPABASE_REF=yltsvvtmlktxdgpcbylg; OP_DB_ITEM="Tuist Production Database (Supabase)" ;;
+   esac
 
-   psql "$DIRECT_URL" -v pw="$PW" \
-     -f infra/supabase/tuist-processor-role.sql
+   PW="$(op read "op://tuist-k8s-$ENV/PROCESSOR_DATABASE_PASSWORD/password")"
+   SUPABASE_PG_PW="$(op read "op://Development/$OP_DB_ITEM/password")"
+
+   # Direct connection (port 5432, not the pooler) — role provisioning needs a session.
+   psql "postgresql://postgres:$SUPABASE_PG_PW@db.$SUPABASE_REF.supabase.co:5432/postgres?sslmode=require" \
+     -v pw="$PW" -f infra/supabase/tuist-processor-role.sql
+
+   # Smoke-test through the pooler as the new role.
+   psql "postgresql://tuist_processor:$PW@db.$SUPABASE_REF.supabase.co:6543/postgres?sslmode=require" \
+     -c "\z oban_jobs"
    ```
 
-The file ends with a `SELECT … information_schema.role_table_grants …` sanity query, so a clean run prints the exact set of tables + privileges the role holds.
+The first `psql` ends with a `SELECT … information_schema.role_table_grants …` sanity query — a clean run prints the exact set of tables + privileges the role holds. The smoke-test should show `tuist_processor=arwd/postgres` on the `oban_jobs` row.
 
 ## Populating 1Password
 
@@ -54,12 +69,23 @@ into the `DATABASE_URL` env var the processor pod reads at boot.
 ### Rotation
 
 ```bash
-export PW="$(openssl rand -base64 32 | tr -d '/+=')"
-op item edit "op://tuist-k8s-<env>/PROCESSOR_DATABASE_PASSWORD" password="$PW"
-psql "$DIRECT_URL" -c "ALTER ROLE tuist_processor WITH PASSWORD '$PW';"
+ENV=staging   # or canary | production
+case $ENV in
+  staging)    SUPABASE_REF=inzgspjesrhqhleomvkb; OP_DB_ITEM="Tuist Staging Database (Supabase)" ;;
+  canary)     SUPABASE_REF=thapckmapmffdgaiarvu; OP_DB_ITEM="Tuist Canary Database (Supabase)" ;;
+  production) SUPABASE_REF=yltsvvtmlktxdgpcbylg; OP_DB_ITEM="Tuist Production Database (Supabase)" ;;
+esac
+
+NEW_PW="$(openssl rand -base64 32 | tr -d '/+=')"
+SUPABASE_PG_PW="$(op read "op://Development/$OP_DB_ITEM/password")"
+
+op item edit "op://tuist-k8s-$ENV/PROCESSOR_DATABASE_PASSWORD" password="$NEW_PW"
+
+psql "postgresql://postgres:$SUPABASE_PG_PW@db.$SUPABASE_REF.supabase.co:5432/postgres?sslmode=require" \
+  -c "ALTER ROLE tuist_processor WITH PASSWORD '$NEW_PW';"
 ```
 
-ESO picks up the new password on its next refresh (1h default, `kubectl annotate externalsecret … force-sync=$(date +%s) --overwrite` to trigger sooner), then the processor Deployment rolls as pods re-read the Secret.
+ESO picks up the new password on its next refresh (1h default, `kubectl -n tuist-$ENV annotate externalsecret tuist-tuist-processor-external-secrets force-sync=$(date +%s) --overwrite` to trigger sooner), then the processor Deployment rolls as pods re-read the Secret.
 
 ## Why not an Ecto migration
 
