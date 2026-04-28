@@ -117,12 +117,6 @@ spec:
             - name: RELEASE_NODE
               value: "$(TUIST_CLUSTER_APP_NAME)@$(POD_IP)"
             {{- end }}
-            # S3 config is emitted in both managed and self-hosted modes.
-            # Tuist.Environment.s3_* checks TUIST_S3_* env vars before falling
-            # back to the :s3 block in priv/secrets/<env>.yml.enc, so setting
-            # these here makes the chart the source of truth and lets us keep
-            # bucket/region/endpoint visible in values overlays instead of
-            # buried in the encrypted secrets blob.
             - name: TUIST_S3_BUCKET_NAME
               value: {{ include "tuist.objectStorageBucketDefault" . | quote }}
             - name: TUIST_S3_ENDPOINT

@@ -113,9 +113,6 @@ spec:
               value: {{ .Values.server.hosted | ternary "1" "0" | quote }}
             - name: TUIST_LOG_LEVEL
               value: {{ .Values.server.logLevel | quote }}
-            # S3 config — same shape as the server pod. Tuist.Environment.s3_*
-            # reads these env vars before falling back to the :s3 block in
-            # priv/secrets/<env>.yml.enc, so the chart is the source of truth.
             - name: TUIST_S3_BUCKET_NAME
               value: {{ include "tuist.objectStorageBucketDefault" . | quote }}
             - name: TUIST_S3_ENDPOINT
