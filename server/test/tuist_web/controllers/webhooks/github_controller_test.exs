@@ -214,7 +214,7 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
       expect(VCS, :update_check_run, fn params ->
         assert params.check_run_id == 42
         assert params.conclusion == "success"
-        assert params.installation == %{installation_id: "12345"}
+        assert params.installation.installation_id == "12345"
         assert params.repository_full_handle == "org/repo"
         assert params.output.title == "Bundle size increase accepted"
         {:ok, %{"id" => 42}}

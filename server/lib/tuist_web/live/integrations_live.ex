@@ -210,15 +210,15 @@ defmodule TuistWeb.IntegrationsLive do
     trimmed = raw_url |> to_string() |> String.trim()
     default = VCS.default_client_url()
 
-    cond do
-      trimmed in ["", default] ->
+    case trimmed do
+      "" ->
         {default, nil}
 
-      Regex.match?(~r{^https?://[^\s]+$}, String.trim_trailing(trimmed, "/")) ->
-        {String.trim_trailing(trimmed, "/"), nil}
-
-      true ->
-        {trimmed, dgettext("dashboard_integrations", "Invalid URL")}
+      _ ->
+        case VCS.validate_client_url(trimmed) do
+          {:ok, url} -> {url, nil}
+          {:error, _} -> {trimmed, dgettext("dashboard_integrations", "Invalid URL")}
+        end
     end
   end
 

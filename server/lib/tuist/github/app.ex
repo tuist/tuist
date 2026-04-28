@@ -6,7 +6,14 @@ defmodule Tuist.GitHub.App do
   alias Tuist.Environment
   alias Tuist.GitHub.Retry
   alias Tuist.KeyValueStore
+  alias Tuist.OAuth2.SSRFGuard
   alias Tuist.VCS
+
+  # github.com is a known public host; skip the DNS pin to avoid the
+  # extra resolution on the hot path. Any other host (i.e. a self-hosted
+  # GitHub Enterprise Server) is user-supplied and gets pinned to a public
+  # IP at request time as SSRF protection.
+  @default_api_url "https://api.github.com"
 
   def get_installation_token(installation_id, opts \\ []) do
     ttl = to_timeout(minute: 10)
@@ -64,6 +71,7 @@ defmodule Tuist.GitHub.App do
   defp refresh_installation_token(installation_id, opts) do
     jwt = generate_app_jwt(opts)
     api_url = Keyword.get(opts, :api_url, VCS.api_url(:github, nil))
+    url = "#{api_url}/app/installations/#{installation_id}/access_tokens"
 
     headers = [
       {"Accept", "application/vnd.github+json"},
@@ -71,26 +79,46 @@ defmodule Tuist.GitHub.App do
       {"X-GitHub-Api-Version", "2022-11-28"}
     ]
 
-    req_opts =
-      [
-        url: "#{api_url}/app/installations/#{installation_id}/access_tokens",
-        headers: headers,
-        finch: Tuist.Finch
-      ] ++ Retry.retry_options()
+    with {:ok, request_url, ssrf_opts} <- pin_ghes_url(url, api_url) do
+      req_opts =
+        [
+          url: request_url,
+          headers: headers,
+          finch: Tuist.Finch
+        ] ++ ssrf_opts ++ Retry.retry_options()
 
-    case Req.post(req_opts) do
-      {:ok, %Req.Response{status: 201, body: %{"token" => token, "expires_at" => expires_at}}} ->
-        {:ok, expires_at, _} = DateTime.from_iso8601(expires_at)
-        {:ok, %{token: token, expires_at: expires_at}}
+      handle_token_response(Req.post(req_opts))
+    end
+  end
 
-      {:ok, %Req.Response{status: _status, body: _body}} ->
-        {:error, "Failed to get installation token"}
+  defp handle_token_response({:ok, %Req.Response{status: 201, body: %{"token" => token, "expires_at" => expires_at}}}) do
+    {:ok, expires_at, _} = DateTime.from_iso8601(expires_at)
+    {:ok, %{token: token, expires_at: expires_at}}
+  end
 
-      {:error, %Req.HTTPError{} = error} ->
-        {:error, "GitHub API connection error: #{inspect(error.reason)}"}
+  defp handle_token_response({:ok, %Req.Response{status: _status, body: _body}}) do
+    {:error, "Failed to get installation token"}
+  end
 
-      {:error, error} ->
-        {:error, "Unexpected error getting installation token: #{inspect(error)}"}
+  defp handle_token_response({:error, %Req.HTTPError{} = error}) do
+    {:error, "GitHub API connection error: #{inspect(error.reason)}"}
+  end
+
+  defp handle_token_response({:error, error}) do
+    {:error, "Unexpected error getting installation token: #{inspect(error)}"}
+  end
+
+  # Pin GHES URLs to a public IP to defend against DNS rebinding /
+  # SSRF; github.com is treated as a known public host and skips the pin.
+  defp pin_ghes_url(url, @default_api_url), do: {:ok, url, []}
+
+  defp pin_ghes_url(url, _api_url) do
+    case SSRFGuard.pin(url) do
+      {:ok, pinned_url, hostname} ->
+        {:ok, pinned_url, [connect_options: SSRFGuard.connect_options(hostname)]}
+
+      {:error, reason} ->
+        {:error, "GitHub Enterprise Server host failed SSRF check: #{inspect(reason)}"}
     end
   end
 end

@@ -10,10 +10,13 @@ defmodule Tuist.GitHub.Client do
 
   alias Tuist.GitHub.App
   alias Tuist.GitHub.Retry
+  alias Tuist.OAuth2.SSRFGuard
   alias Tuist.VCS
   alias Tuist.VCS.Comment
   alias Tuist.VCS.Repositories.Content
   alias Tuist.VCS.Repositories.Tag
+
+  @default_api_url "https://api.github.com"
 
   @doc """
   Lists repositories for a GitHub app installation with pagination support.
@@ -29,42 +32,39 @@ defmodule Tuist.GitHub.Client do
         "#{api_url}/installation/repositories?per_page=100"
       )
 
-    case App.get_installation_token(installation_id, api_url: api_url) do
-      {:ok, %{token: token}} ->
-        req_opts =
-          [
-            url: url,
-            headers: default_headers(token),
-            finch: Tuist.Finch
-          ] ++ Retry.retry_options()
+    with {:ok, %{token: token}} <- App.get_installation_token(installation_id, api_url: api_url),
+         {:ok, request_url, ssrf_opts} <- pin_ghes_url(url, api_url) do
+      req_opts =
+        [
+          url: request_url,
+          headers: default_headers(token),
+          finch: Tuist.Finch
+        ] ++ ssrf_opts ++ Retry.retry_options()
 
-        case Req.get(req_opts) do
-          {:ok, %{status: 200, body: %{"repositories" => repositories}, headers: headers}} ->
-            formatted_repos =
-              Enum.map(repositories, fn repo ->
-                %{
-                  id: repo["id"],
-                  name: repo["name"],
-                  full_name: repo["full_name"],
-                  private: repo["private"],
-                  default_branch: repo["default_branch"]
-                }
-              end)
+      case Req.get(req_opts) do
+        {:ok, %{status: 200, body: %{"repositories" => repositories}, headers: headers}} ->
+          formatted_repos =
+            Enum.map(repositories, fn repo ->
+              %{
+                id: repo["id"],
+                name: repo["name"],
+                full_name: repo["full_name"],
+                private: repo["private"],
+                default_branch: repo["default_branch"]
+              }
+            end)
 
-            next_url = extract_next_url(headers)
-            meta = %{next_url: next_url}
+          next_url = extract_next_url(headers)
+          meta = %{next_url: next_url}
 
-            {:ok, %{meta: meta, repositories: formatted_repos}}
+          {:ok, %{meta: meta, repositories: formatted_repos}}
 
-          {:ok, %{status: _status, body: _body}} ->
-            {:error, "Failed to fetch repositories"}
+        {:ok, %{status: _status, body: _body}} ->
+          {:error, "Failed to fetch repositories"}
 
-          {:error, reason} ->
-            {:error, "Request failed: #{inspect(reason)}"}
-        end
-
-      response ->
-        response
+        {:error, reason} ->
+          {:error, "Request failed: #{inspect(reason)}"}
+      end
     end
   end
 
@@ -213,24 +213,24 @@ defmodule Tuist.GitHub.Client do
   defp github_request(method, attrs) do
     installation_id = Keyword.get(attrs, :installation_id)
     api_url = Keyword.get(attrs, :api_url, VCS.api_url(:github, nil))
+    url = Keyword.fetch!(attrs, :url)
 
-    case App.get_installation_token(installation_id, api_url: api_url) do
-      {:ok, %{token: token}} ->
-        attrs_with_headers =
-          attrs
-          |> Keyword.put(:headers, [
-            {"Accept", "application/vnd.github.v3+json"},
-            {"Authorization", "token #{token}"}
-          ])
-          |> Keyword.put(:finch, Tuist.Finch)
-          |> Keyword.merge(Retry.retry_options())
-          |> Keyword.delete(:installation_id)
-          |> Keyword.delete(:api_url)
+    with {:ok, %{token: token}} <- App.get_installation_token(installation_id, api_url: api_url),
+         {:ok, pinned_url, ssrf_opts} <- pin_ghes_url(url, api_url) do
+      attrs_with_headers =
+        attrs
+        |> Keyword.put(:url, pinned_url)
+        |> Keyword.put(:headers, [
+          {"Accept", "application/vnd.github.v3+json"},
+          {"Authorization", "token #{token}"}
+        ])
+        |> Keyword.put(:finch, Tuist.Finch)
+        |> Keyword.merge(ssrf_opts)
+        |> Keyword.merge(Retry.retry_options())
+        |> Keyword.delete(:installation_id)
+        |> Keyword.delete(:api_url)
 
-        attrs_with_headers |> method.() |> handle_github_response(method, attrs)
-
-      {:error, response} ->
-        {:error, response}
+      attrs_with_headers |> method.() |> handle_github_response(method, attrs)
     end
   end
 
@@ -340,4 +340,18 @@ defmodule Tuist.GitHub.Client do
   defp resolve_installation(%{installation_id: id, client_url: client_url}), do: {id, VCS.api_url(:github, client_url)}
 
   defp resolve_installation(%{installation_id: id}), do: {id, VCS.api_url(:github, nil)}
+
+  # Pin GHES URLs to a public IP to defend against DNS rebinding /
+  # SSRF; github.com is treated as a known public host and skips the pin.
+  defp pin_ghes_url(url, @default_api_url), do: {:ok, url, []}
+
+  defp pin_ghes_url(url, _api_url) do
+    case SSRFGuard.pin(url) do
+      {:ok, pinned_url, hostname} ->
+        {:ok, pinned_url, [connect_options: SSRFGuard.connect_options(hostname)]}
+
+      {:error, reason} ->
+        {:error, "GitHub Enterprise Server host failed SSRF check: #{inspect(reason)}"}
+    end
+  end
 end

@@ -6,7 +6,7 @@ defmodule TuistWeb.Helpers.VCSLinks do
   use Phoenix.Component
   use Noora
 
-  alias Tuist.VCS
+  alias TuistWeb.Helpers.GitHubHost
 
   attr :project, :map, required: true
   attr :commit_sha, :string, required: true
@@ -14,7 +14,7 @@ defmodule TuistWeb.Helpers.VCSLinks do
   attr :rest, :global
 
   def commit_link(assigns) do
-    assigns = assign(assigns, :github_base_url, github_base_url(assigns.project))
+    assigns = assign(assigns, :github_base_url, GitHubHost.base_url(assigns.project))
 
     ~H"""
     <%= if @commit_sha not in [nil, ""] do %>
@@ -42,7 +42,7 @@ defmodule TuistWeb.Helpers.VCSLinks do
   attr :rest, :global
 
   def branch_link(assigns) do
-    assigns = assign(assigns, :github_base_url, github_base_url(assigns.project))
+    assigns = assign(assigns, :github_base_url, GitHubHost.base_url(assigns.project))
 
     ~H"""
     <%= if @branch not in [nil, ""] do %>
@@ -70,28 +70,4 @@ defmodule TuistWeb.Helpers.VCSLinks do
   defp has_github_vcs?(project) do
     project.vcs_connection && project.vcs_connection.provider == :github
   end
-
-  defp github_base_url(project) do
-    project
-    |> resolve_github_app_installation()
-    |> case do
-      %{client_url: client_url} when is_binary(client_url) and client_url != "" -> client_url
-      _ -> VCS.default_client_url()
-    end
-  end
-
-  # The github_app_installation must be preloaded for GHES URLs to render correctly.
-  # Forcing a Repo.preload here as a safety net so callers that forgot to preload
-  # don't silently render github.com links for GHES customers.
-  defp resolve_github_app_installation(%{vcs_connection: %{github_app_installation: %{client_url: _} = installation}}),
-    do: installation
-
-  defp resolve_github_app_installation(%{vcs_connection: %Tuist.Projects.VCSConnection{} = vcs_connection}) do
-    %{github_app_installation: installation} =
-      Tuist.Repo.preload(vcs_connection, :github_app_installation)
-
-    installation
-  end
-
-  defp resolve_github_app_installation(_), do: nil
 end

@@ -7,6 +7,7 @@ defmodule Tuist.VCS.GitHubAppInstallation do
   import Ecto.Changeset
 
   alias Tuist.Accounts.Account
+  alias Tuist.VCS
 
   @default_client_url "https://github.com"
 
@@ -28,7 +29,12 @@ defmodule Tuist.VCS.GitHubAppInstallation do
     |> cast(attrs, [:account_id, :installation_id, :html_url, :client_url])
     |> normalize_client_url()
     |> validate_required([:account_id, :installation_id, :client_url])
-    |> validate_format(:client_url, ~r{^https?://[^\s]+$}, message: "must be a valid URL like https://github.example.com")
+    |> validate_change(:client_url, fn :client_url, value ->
+      case VCS.validate_client_url(value) do
+        {:ok, _} -> []
+        {:error, _} -> [client_url: "must be a valid URL like https://github.example.com"]
+      end
+    end)
     |> unique_constraint([:account_id])
     |> unique_constraint([:installation_id])
     |> foreign_key_constraint(:account_id)

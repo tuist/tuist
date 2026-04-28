@@ -185,9 +185,19 @@ defmodule Tuist.GitHub.ClientTest do
     test "routes to a GitHub Enterprise Server API URL based on the installation's client_url" do
       # Given
       ghes_api_url = "https://github.example.com/api/v3"
+      pinned_url = "https://198.51.100.10/api/v3/repos/tuist/tuist/issues/1/comments"
+
+      stub(Tuist.OAuth2.SSRFGuard, :pin, fn url ->
+        assert url == "#{ghes_api_url}/repos/tuist/tuist/issues/1/comments"
+        {:ok, pinned_url, "github.example.com"}
+      end)
+
+      stub(Tuist.OAuth2.SSRFGuard, :connect_options, fn "github.example.com" -> [hostname: "github.example.com"] end)
 
       expect(Req, :post, fn opts ->
-        assert opts[:url] == "#{ghes_api_url}/repos/tuist/tuist/issues/1/comments"
+        # SSRF-pinned URL is passed to Req, with TLS hostname preserved
+        assert opts[:url] == pinned_url
+        assert opts[:connect_options] == [hostname: "github.example.com"]
         # api_url and installation should be stripped before reaching Req
         refute Keyword.has_key?(opts, :api_url)
         refute Keyword.has_key?(opts, :installation_id)

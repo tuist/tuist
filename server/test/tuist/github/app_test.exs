@@ -103,12 +103,21 @@ defmodule Tuist.GitHub.AppTest do
       # Given
       installation_id = "12345"
       ghes_api_url = "https://github.example.com/api/v3"
+      pinned_url = "https://198.51.100.10/api/v3/app/installations/#{installation_id}/access_tokens"
       token = "ghs_ghes_token"
       expires_at = "2024-04-30T11:20:30Z"
 
+      stub(Tuist.OAuth2.SSRFGuard, :pin, fn url ->
+        assert url == "#{ghes_api_url}/app/installations/#{installation_id}/access_tokens"
+        {:ok, pinned_url, "github.example.com"}
+      end)
+
+      stub(Tuist.OAuth2.SSRFGuard, :connect_options, fn "github.example.com" -> [hostname: "github.example.com"] end)
+
       stub(Req, :post, fn opts ->
-        assert Keyword.get(opts, :url) ==
-                 "#{ghes_api_url}/app/installations/#{installation_id}/access_tokens"
+        # The Req call uses the IP-pinned URL with TLS hostname preserved
+        assert Keyword.get(opts, :url) == pinned_url
+        assert Keyword.get(opts, :connect_options) == [hostname: "github.example.com"]
 
         {:ok,
          %Req.Response{
@@ -125,6 +134,18 @@ defmodule Tuist.GitHub.AppTest do
 
       # Then
       assert {:ok, %{token: ^token}} = result
+    end
+
+    test "rejects requests to GitHub Enterprise hosts that resolve to private IPs" do
+      installation_id = "12345"
+      ghes_api_url = "https://internal.example.com/api/v3"
+
+      stub(Tuist.OAuth2.SSRFGuard, :pin, fn _url -> {:error, :private_ip_resolved} end)
+
+      result = App.get_installation_token(installation_id, api_url: ghes_api_url)
+
+      assert {:error, message} = result
+      assert message =~ "SSRF"
     end
   end
 end

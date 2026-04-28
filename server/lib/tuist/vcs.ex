@@ -27,8 +27,6 @@ defmodule Tuist.VCS do
   alias Tuist.VCS.GitHubAppInstallation
   alias Tuist.VCS.Workers.CommentWorker
 
-  @github_state_token_separator "::"
-
   @tuist_run_report_prefix "### 🛠️ Tuist Run Report 🛠️"
   @max_flaky_tests_in_comment 5
   @max_failed_tests_in_comment 5
@@ -104,14 +102,36 @@ defmodule Tuist.VCS do
   end
 
   @doc """
-  Convenience overload that returns the API base URL for any installation
-  struct or map carrying a `:client_url` field.
+  Convenience overload that returns the API base URL for an installation.
+  Raises if the input is not a recognised installation struct/map.
   """
   def installation_api_url(%GitHubAppInstallation{client_url: client_url}), do: api_url(:github, client_url)
 
-  def installation_api_url(%{client_url: client_url}), do: api_url(:github, client_url)
+  def installation_api_url(%{client_url: client_url}) when is_binary(client_url), do: api_url(:github, client_url)
 
-  def installation_api_url(_), do: api_url(:github, default_client_url(:github))
+  @doc """
+  Validates a user-supplied `client_url` for a forge instance. Returns
+  `{:ok, normalized_url}` on success or `{:error, reason}` otherwise.
+
+  This is a *shape* check — it verifies the URL has an http(s) scheme and a
+  non-empty host, and trims trailing slashes. It deliberately does not perform
+  DNS resolution: SSRF protection happens at request time via
+  `Tuist.OAuth2.SSRFGuard.pin/1` so a TOCTOU rebinding attack between
+  validation and request cannot bypass it.
+  """
+  def validate_client_url(url) when is_binary(url) do
+    trimmed = url |> String.trim() |> String.trim_trailing("/")
+
+    case URI.parse(trimmed) do
+      %URI{scheme: scheme, host: host} when scheme in ["http", "https"] and is_binary(host) and host != "" ->
+        {:ok, trimmed}
+
+      _ ->
+        {:error, :invalid_url}
+    end
+  end
+
+  def validate_client_url(_), do: {:error, :invalid_url}
 
   def get_repository_content(
         %{repository_full_handle: repository_full_handle, provider: provider, token: token},
@@ -1214,8 +1234,7 @@ defmodule Tuist.VCS do
   know which GitHub instance the resulting installation belongs to.
   """
   def generate_github_state_token(account_id, client_url \\ default_client_url()) do
-    payload = "#{account_id}#{@github_state_token_separator}#{normalize_client_url(client_url)}"
-    Phoenix.Token.sign(TuistWeb.Endpoint, "github_state", payload)
+    Phoenix.Token.sign(TuistWeb.Endpoint, "github_state", {account_id, normalize_client_url(client_url)})
   end
 
   @doc """
@@ -1228,20 +1247,14 @@ defmodule Tuist.VCS do
     token_max_age_seconds = 7_776_000
 
     case Phoenix.Token.verify(TuistWeb.Endpoint, "github_state", token, max_age: token_max_age_seconds) do
-      {:ok, payload} when is_binary(payload) ->
-        case String.split(payload, @github_state_token_separator, parts: 2) do
-          [account_id_str, client_url] ->
-            case Integer.parse(account_id_str) do
-              {account_id, ""} -> {:ok, %{account_id: account_id, client_url: normalize_client_url(client_url)}}
-              _ -> {:error, :invalid}
-            end
-
-          _ ->
-            {:error, :invalid}
-        end
+      {:ok, {account_id, client_url}} when is_integer(account_id) and is_binary(client_url) ->
+        {:ok, %{account_id: account_id, client_url: normalize_client_url(client_url)}}
 
       {:ok, account_id} when is_integer(account_id) ->
         {:ok, %{account_id: account_id, client_url: default_client_url()}}
+
+      {:ok, _} ->
+        {:error, :invalid}
 
       {:error, _reason} = error ->
         error
