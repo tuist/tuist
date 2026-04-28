@@ -6,7 +6,7 @@ defmodule Tuist.Processor.BuildProcessor do
   the archive from S3 into a temp file, hands the path to `process_build/2`,
   writes the returned structured data to the DB, and deletes the temp file.
 
-  On processor-mode pods (`TUIST_PROCESSOR_MODE=true`) this runs as the Oban
+  On processor-mode pods (`TUIST_MODE=processor`) this runs as the Oban
   worker body — the CPU-heavy parse work is scheduled onto dedicated replicas
   rather than every web server pod. On self-hosted installs it runs in the
   same BEAM as the rest of the server.

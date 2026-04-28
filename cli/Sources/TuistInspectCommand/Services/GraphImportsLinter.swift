@@ -62,7 +62,14 @@
             let allTargetNames = Set(allTargets.map(\.target.productName))
 
             for target in allInternalTargets {
-                let sourceDependencies = Set(try await targetScanner.imports(for: target.target))
+                let reachableModules = reachableModules(
+                    for: target,
+                    graphTraverser: graphTraverser,
+                    allTargetNames: allTargetNames
+                )
+                let sourceDependencies = Set(
+                    try await targetScanner.imports(for: target.target, reachableModules: reachableModules)
+                )
 
                 let explicitTargetDependencies = explicitTargetDependencies(
                     graphTraverser: graphTraverser,
@@ -156,6 +163,21 @@
                 .flatMap { $0 }
                 .map(\.target.productName)
             return Set(explicitTargetDependencies)
+        }
+
+        /// Modules reachable from the target's transitive declared-dependency closure.
+        /// Used to evaluate `#if canImport(X)` the same way the compiler would: `X` is
+        /// reachable iff it sits in this target's declared dep graph.
+        private func reachableModules(
+            for target: GraphTarget,
+            graphTraverser: GraphTraverser,
+            allTargetNames: Set<String>
+        ) -> Set<String> {
+            let transitive = graphTraverser.allTargetDependencies(
+                path: target.path,
+                name: target.target.name
+            )
+            return Set(transitive.map(\.target.productName)).intersection(allTargetNames)
         }
     }
 #endif

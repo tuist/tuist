@@ -60,8 +60,9 @@ spec:
               containerPort: 4369
             {{- end }}
           env:
-            - name: TUIST_WEB
-              value: "true"
+            # TUIST_MODE defaults to :web in Tuist.Environment.mode/0 — no
+            # need to set it explicitly here. The processor Deployment sets
+            # TUIST_MODE=processor; everything else is :web.
             {{- if not .Values.server.managedSecrets }}
             - name: DATABASE_URL
               value: {{ include "tuist.databaseUrl" . | quote }}
@@ -96,7 +97,7 @@ spec:
             {{- end }}
             {{- if .Values.xcresultProcessor.enabled }}
             # Hand off the :process_xcresult queue to the macOS xcresult-
-            # processor Pods scheduled onto vk-orchard's virtual node.
+            # processor Pods scheduled onto Mac mini nodes via tart-cri.
             # Linux pods don't ship the macOS-only xcresult NIF, so
             # without this flag the server's local Oban worker would
             # claim jobs and crash on `:nif_not_loaded` for every

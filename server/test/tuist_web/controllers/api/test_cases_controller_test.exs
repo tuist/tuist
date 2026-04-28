@@ -145,7 +145,7 @@ defmodule TuistWeb.API.TestCasesControllerTest do
         )
 
       expect(Tests, :list_test_cases, fn _project_id, options ->
-        assert %{field: :state, op: :==, value: "muted"} in options.filters
+        assert %{field: :state, op: :in, value: ["muted", "skipped"]} in options.filters
 
         {[quarantined_test_case],
          %{
@@ -167,6 +167,66 @@ defmodule TuistWeb.API.TestCasesControllerTest do
       assert length(response["test_cases"]) == 1
       assert hd(response["test_cases"])["name"] == "quarantinedTest"
       assert hd(response["test_cases"])["is_quarantined"] == true
+    end
+
+    test "marks skipped test cases as quarantined in response", %{conn: conn, user: user, project: project} do
+      skipped_test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          name: "skippedTest",
+          state: "skipped",
+          last_ran_at: NaiveDateTime.utc_now()
+        )
+
+      stub(Tests, :list_test_cases, fn _project_id, _options ->
+        {[skipped_test_case],
+         %{
+           has_next_page?: false,
+           has_previous_page?: false,
+           current_page: 1,
+           page_size: 20,
+           total_count: 1,
+           total_pages: 1
+         }}
+      end)
+
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/tests/test-cases")
+
+      response = json_response(conn, :ok)
+
+      assert [result] = response["test_cases"]
+      assert result["state"] == "skipped"
+      assert result["is_quarantined"] == true
+    end
+
+    test "filters test cases by explicit skipped state", %{conn: conn, user: user, project: project} do
+      skipped_test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          name: "skippedTest",
+          state: "skipped",
+          last_ran_at: NaiveDateTime.utc_now()
+        )
+
+      expect(Tests, :list_test_cases, fn _project_id, options ->
+        assert %{field: :state, op: :==, value: "skipped"} in options.filters
+
+        {[skipped_test_case],
+         %{
+           has_next_page?: false,
+           has_previous_page?: false,
+           current_page: 1,
+           page_size: 20,
+           total_count: 1,
+           total_pages: 1
+         }}
+      end)
+
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/tests/test-cases?state=skipped")
+
+      response = json_response(conn, :ok)
+
+      assert [%{"state" => "skipped"}] = response["test_cases"]
     end
 
     test "supports pagination", %{conn: conn, user: user, project: project} do

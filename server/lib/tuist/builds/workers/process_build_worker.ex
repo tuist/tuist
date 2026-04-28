@@ -4,7 +4,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
   structured build run.
 
   In the managed deployment the `:process_build` queue only runs on processor
-  pods (`TUIST_PROCESSOR_MODE=true`), so this worker's body executes there;
+  pods (`TUIST_MODE=processor`), so this worker's body executes there;
   the server pods enqueue jobs but never claim them. In self-hosted installs
   the server runs both roles in the same BEAM.
   """

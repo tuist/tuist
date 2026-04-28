@@ -7,15 +7,16 @@ import Config
 # any compile-time configuration in here, as it won't be applied.
 # The block below contains prod specific runtime configuration.
 
-# ## Using releases
+# ## Pod role
 #
-# If you use `mix release`, you need to explicitly enable the server
-# by passing the TUIST_WEB=true when you start it:
+# The release boots into one of two modes selected by `TUIST_MODE`:
 #
-#     TUIST_WEB=true bin/tuist start
+#   * unset / `TUIST_MODE=web` — Phoenix endpoint binds, every Oban queue
+#     and ingestion buffer runs. Default for `bin/tuist start`.
+#   * `TUIST_MODE=processor` — no Phoenix listener; Oban runs only the
+#     `:process_build` queue.
 #
-# Alternatively, you can use `mix phx.gen.release` to generate a `bin/server`
-# script that automatically sets the env var above.
+# See `Tuist.Environment.mode/0` for the full list.
 if Tuist.Environment.web?() do
   config :tuist, TuistWeb.Endpoint, server: true
 end
@@ -397,45 +398,48 @@ otel_endpoint = Tuist.Environment.get([:otel, :exporter, :otlp, :endpoint])
 
 # Oban.
 #
-# Three pod roles share this codebase:
-#   * Web/server (default): runs every queue. Self-hosted installs without
-#     dedicated processors stay on this shape.
-#   * Build processor (TUIST_PROCESSOR_MODE=1): only :process_build. CPU-
-#     heavy xcactivitylog parse, runs in-cluster on Linux.
-#   * Xcresult processor (TUIST_XCRESULT_PROCESSOR_MODE=1): only
-#     :process_xcresult. Runs on macOS (Scaleway Mac mini) outside the
-#     Hetzner k8s cluster because xcresulttool is Xcode-only.
+# Four queue-list shapes derived from the same base. Pod role is set
+# via TUIST_MODE; delegate flags let the web tier hand off specific
+# queues to dedicated fleets without changing pod role.
 #
-# When dedicated processors are running the server pod drops the matching
-# queue via TUIST_DELEGATE_PROCESS_BUILD / TUIST_DELEGATE_PROCESS_XCRESULT
-# so jobs land exclusively on the dedicated fleet — without those flags the
-# server would race the processors on SKIP LOCKED, and on Linux the
-# xcresult parse would crash because the macOS-only NIF isn't loaded.
+#   * Web/server (default): every queue. Self-hosted installs without
+#     dedicated processors stay on this shape.
+#   * Build processor (TUIST_MODE=processor): only :process_build. CPU-
+#     heavy xcactivitylog parse, runs in-cluster on Linux.
+#   * Xcresult processor (TUIST_MODE=xcresult_processor): only
+#     :process_xcresult. Runs on macOS (Scaleway Mac mini) inside a
+#     Tart VM because xcresulttool is Xcode-only.
+#   * Server pods with TUIST_DELEGATE_PROCESS_BUILD=1 /
+#     TUIST_DELEGATE_PROCESS_XCRESULT=1 skip the matching queue so
+#     jobs land exclusively on the dedicated fleet — without those
+#     flags the server would race the processors on SKIP LOCKED, and
+#     on Linux the xcresult parse would crash because the macOS-only
+#     NIF isn't loaded.
+base_queues = [default: 10]
+process_build_queue = {:process_build, Tuist.Environment.process_build_queue_concurrency()}
+process_xcresult_queue = {:process_xcresult, Tuist.Environment.process_xcresult_queue_concurrency()}
+
 oban_queues =
   cond do
     Tuist.Environment.processor_mode?() ->
-      [process_build: Tuist.Environment.process_build_queue_concurrency()]
+      [process_build_queue]
 
     Tuist.Environment.xcresult_processor_mode?() ->
-      [process_xcresult: Tuist.Environment.process_xcresult_queue_concurrency()]
+      [process_xcresult_queue]
 
     true ->
-      base = [default: 10]
-
-      base =
-        if Tuist.Environment.delegate_process_build?() do
-          base
-        else
-          base ++ [process_build: Tuist.Environment.process_build_queue_concurrency()]
-        end
-
-      if Tuist.Environment.delegate_process_xcresult?() do
-        base
-      else
-        base ++ [process_xcresult: Tuist.Environment.process_xcresult_queue_concurrency()]
-      end
+      base = base_queues
+      base = if Tuist.Environment.delegate_process_build?(), do: base, else: base ++ [process_build_queue]
+      if Tuist.Environment.delegate_process_xcresult?(), do: base, else: base ++ [process_xcresult_queue]
   end
 
+# Cron is leader-only: whichever Oban node wins the leader election runs the
+# crontab. With multiple pod roles in the same Oban cluster (server + processor)
+# the leader can land on either. Configure the same crontab everywhere so
+# scheduled jobs fire regardless of which pod is currently leader; the *jobs*
+# are then claimed by whichever pod runs the matching queue. Pruner + Lifeline
+# are also leader-only; both work fine on either pod since the tuist_processor
+# DB role has the necessary INSERT/UPDATE/DELETE on oban_jobs.
 config :tuist, Oban,
   queues: oban_queues,
   plugins: [

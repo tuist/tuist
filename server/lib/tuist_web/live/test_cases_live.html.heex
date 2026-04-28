@@ -572,7 +572,14 @@
                   />
                   <.badge
                     :if={test_case.state == "muted"}
-                    label={dgettext("dashboard_tests", "Quarantined")}
+                    label={dgettext("dashboard_tests", "Muted")}
+                    color="destructive"
+                    style="light-fill"
+                    size="large"
+                  />
+                  <.badge
+                    :if={test_case.state == "skipped"}
+                    label={dgettext("dashboard_tests", "Skipped")}
                     color="destructive"
                     style="light-fill"
                     size="large"

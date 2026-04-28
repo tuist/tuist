@@ -85,6 +85,17 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
     end
   end
 
+  describe "GET /customers/:slug" do
+    test "renders the localized Hyperconnect case study", %{conn: conn} do
+      conn = get(conn, ~p"/ko/customers/hyperconnect")
+
+      html = html_response(conn, 200)
+
+      assert html =~ "Hyperconnect가 Tuist로 멀티 서비스 파이프라인을 최적화한 방법"
+      assert html =~ "복수의 서비스 타깃을 동시에 운영"
+    end
+  end
+
   describe "GET /newsletter/verify" do
     test "successfully verifies email with valid token", %{conn: conn} do
       # Given

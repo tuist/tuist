@@ -50,11 +50,13 @@ The following data is stored in ClickHouse for analytics purposes:
 - **Shard plan test suites** (`shard_plan_test_suites` table): Per-shard test suite assignments with estimated durations
 - **Shard runs** (`shard_runs` table): Per-shard execution results with status and duration
 - **Test runs** (`test_runs` table): Includes `shard_plan_id` linking test results to their shard plan
+- **Bundle artifacts** (`artifacts` table): App bundle artifact tree (paths, sizes, SHA hashes, parent/child hierarchy) per uploaded bundle. Currently mirrored from the PostgreSQL `artifacts` table via synchronous dual-write during the PG → ClickHouse migration; ClickHouse becomes the source of truth in a later phase.
 - Build performance metrics
 
 ### Non-Exportable Data
 - Encrypted passwords and authentication secrets
 - Encrypted SSO client secrets for Okta and custom OAuth2 providers
+- Internal replication bookkeeping (e.g., `bundles.artifacts_replicated_to_ch`) used to drive the PG → ClickHouse artifacts backfill
 
 ## Binary Files
 

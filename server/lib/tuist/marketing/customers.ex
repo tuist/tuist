@@ -11,7 +11,22 @@ defmodule Tuist.Marketing.Customers do
     highlighters: [],
     html_converter: Tuist.Marketing.MDExConverter
 
+  alias Tuist.Marketing.Customers.CaseStudy
+
   @case_studies Enum.sort_by(@case_studies, & &1.date, {:desc, Date})
 
-  def get_case_studies, do: @case_studies
+  def get_case_studies(locale \\ "en") do
+    Enum.map(@case_studies, &CaseStudy.localize(&1, locale))
+  end
+
+  def get_case_study(slug, locale \\ "en") do
+    slug = String.trim_trailing(slug, "/")
+
+    @case_studies
+    |> Enum.find(&(&1.slug == slug))
+    |> case do
+      nil -> nil
+      case_study -> CaseStudy.localize(case_study, locale)
+    end
+  end
 end

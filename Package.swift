@@ -301,6 +301,7 @@ var tuistConfigLoaderTestDependencies: [Target.Dependency] = [
     "TuistConfigLoader",
     "TuistConfig",
     "TuistConstants",
+    "TuistHTTP",
     "TuistRootDirectoryLocator",
     pathDependency,
     fileSystemDependency,
@@ -382,6 +383,7 @@ tuistHTTPDependencies.append(contentsOf: ["TuistSupport", "TuistHAR"])
 tuistCASDependencies.append(contentsOf: ["TuistCache", "TuistCASAnalytics"])
 tuistConfigLoaderDependencies.append(contentsOf: [
     "TuistLoader", "TuistCore", "TuistAlert", "TuistSupport",
+    "TuistHTTP",
     "ProjectDescription",
 ])
 tuistConfigLoaderTestDependencies.append(contentsOf: [
@@ -909,6 +911,8 @@ var targets: [Target] = [
         name: "TuistHTTPTests",
         dependencies: [
             "TuistHTTP",
+            "TuistEnvironment",
+            "TuistEnvironmentTesting",
             mockableDependency,
         ],
         path: "cli/Tests/TuistHTTPTests"
@@ -1728,7 +1732,7 @@ let package = Package(
         .package(id: "facebook.zstd", from: "1.5.0"),
         .package(id: "chrisaljoudi.swift-log-oslog", .upToNextMajor(from: "0.2.2")),
         .package(id: "MobileNativeFoundation.XCLogParser", .upToNextMajor(from: "0.2.47")),
-        .package(path: "processor/native/xcactivitylog_nif"),
+        .package(path: "server/native/xcactivitylog_nif"),
         .package(id: "swiftyJSON.SwiftyJSON", .upToNextMajor(from: "5.0.2")),
         .package(id: "tuist.Rosalind", .upToNextMajor(from: "0.7.22")),
         .package(id: "swiftGen.StencilSwiftKit", exact: "2.10.1"),

@@ -279,7 +279,7 @@ defmodule TuistWeb.TestCaseLive do
         %{"data" => new_state},
         %{assigns: %{test_case_id: test_case_id, test_case_detail: test_case_detail, current_user: current_user}} = socket
       )
-      when new_state in ["enabled", "muted"] do
+      when new_state in ["enabled", "muted", "skipped"] do
     {:ok, updated_test_case} =
       Tests.update_test_case(
         test_case_id,
@@ -428,10 +428,12 @@ defmodule TuistWeb.TestCaseLive do
     "?#{assigns.uri.query |> Query.put("sort_by", column) |> Query.put("sort_order", new_order) |> Query.drop("page")}"
   end
 
-  defp state_label("muted"), do: dgettext("dashboard_tests", "Quarantined")
+  defp state_label("muted"), do: dgettext("dashboard_tests", "Muted")
+  defp state_label("skipped"), do: dgettext("dashboard_tests", "Skipped")
   defp state_label(_), do: dgettext("dashboard_tests", "Enabled")
 
   defp state_icon("muted"), do: "volume_3"
+  defp state_icon("skipped"), do: "player_track_next"
   defp state_icon(_), do: "player_play"
 
   defp event_icon("first_run"), do: "info_circle"
@@ -439,6 +441,8 @@ defmodule TuistWeb.TestCaseLive do
   defp event_icon("unmarked_flaky"), do: "circle_check"
   defp event_icon("muted"), do: "volume_3"
   defp event_icon("unmuted"), do: "player_play"
+  defp event_icon("skipped"), do: "player_track_next"
+  defp event_icon("unskipped"), do: "player_play"
   defp event_icon(_), do: "info_circle"
 
   defp event_color("first_run"), do: "primary"
@@ -446,13 +450,17 @@ defmodule TuistWeb.TestCaseLive do
   defp event_color("unmarked_flaky"), do: "success"
   defp event_color("muted"), do: "destructive"
   defp event_color("unmuted"), do: "information"
+  defp event_color("skipped"), do: "destructive"
+  defp event_color("unskipped"), do: "information"
   defp event_color(_), do: "primary"
 
   defp event_title("first_run"), do: dgettext("dashboard_tests", "First run of this test")
   defp event_title("marked_flaky"), do: dgettext("dashboard_tests", "Marked as flaky")
   defp event_title("unmarked_flaky"), do: dgettext("dashboard_tests", "Unmarked as flaky")
-  defp event_title("muted"), do: dgettext("dashboard_tests", "Quarantined")
+  defp event_title("muted"), do: dgettext("dashboard_tests", "Muted")
   defp event_title("unmuted"), do: dgettext("dashboard_tests", "Enabled")
+  defp event_title("skipped"), do: dgettext("dashboard_tests", "Skipped")
+  defp event_title("unskipped"), do: dgettext("dashboard_tests", "Enabled")
   defp event_title(_), do: dgettext("dashboard_tests", "Event")
 
   defp format_event_subtitle(%{event_type: "first_run"}), do: nil

@@ -314,6 +314,16 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/builds/upload/complete`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/builds/upload/complete/post(completeBuildsMultipartUpload)`.
     func completeBuildsMultipartUpload(_ input: Operations.completeBuildsMultipartUpload.Input) async throws -> Operations.completeBuildsMultipartUpload.Output
+    /// List automation alerts for a project.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/automations/alerts`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/automations/alerts/get(listAutomationAlerts)`.
+    func listAutomationAlerts(_ input: Operations.listAutomationAlerts.Input) async throws -> Operations.listAutomationAlerts.Output
+    /// Create an automation alert.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/automations/alerts`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/automations/alerts/post(createAutomationAlert)`.
+    func createAutomationAlert(_ input: Operations.createAutomationAlert.Input) async throws -> Operations.createAutomationAlert.Output
     /// Get a single bundle by ID
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}`.
@@ -654,6 +664,21 @@ public protocol APIProtocol: Sendable {
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/test-case-runs/get(listTestCaseRunsByTestRun)`.
     @available(*, deprecated)
     func listTestCaseRunsByTestRun(_ input: Operations.listTestCaseRunsByTestRun.Input) async throws -> Operations.listTestCaseRunsByTestRun.Output
+    /// Get an automation alert by ID.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}/get(getAutomationAlert)`.
+    func getAutomationAlert(_ input: Operations.getAutomationAlert.Input) async throws -> Operations.getAutomationAlert.Output
+    /// Update an automation alert.
+    ///
+    /// - Remark: HTTP `PUT /api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}/put(updateAutomationAlert)`.
+    func updateAutomationAlert(_ input: Operations.updateAutomationAlert.Input) async throws -> Operations.updateAutomationAlert.Output
+    /// Delete an automation alert.
+    ///
+    /// - Remark: HTTP `DELETE /api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}/delete(deleteAutomationAlert)`.
+    func deleteAutomationAlert(_ input: Operations.deleteAutomationAlert.Input) async throws -> Operations.deleteAutomationAlert.Output
 }
 
 /// Convenience overloads for operation inputs.
@@ -1394,6 +1419,34 @@ extension APIProtocol {
         body: Operations.completeBuildsMultipartUpload.Input.Body? = nil
     ) async throws -> Operations.completeBuildsMultipartUpload.Output {
         try await completeBuildsMultipartUpload(Operations.completeBuildsMultipartUpload.Input(
+            path: path,
+            headers: headers,
+            body: body
+        ))
+    }
+    /// List automation alerts for a project.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/automations/alerts`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/automations/alerts/get(listAutomationAlerts)`.
+    public func listAutomationAlerts(
+        path: Operations.listAutomationAlerts.Input.Path,
+        headers: Operations.listAutomationAlerts.Input.Headers = .init()
+    ) async throws -> Operations.listAutomationAlerts.Output {
+        try await listAutomationAlerts(Operations.listAutomationAlerts.Input(
+            path: path,
+            headers: headers
+        ))
+    }
+    /// Create an automation alert.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/automations/alerts`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/automations/alerts/post(createAutomationAlert)`.
+    public func createAutomationAlert(
+        path: Operations.createAutomationAlert.Input.Path,
+        headers: Operations.createAutomationAlert.Input.Headers = .init(),
+        body: Operations.createAutomationAlert.Input.Body? = nil
+    ) async throws -> Operations.createAutomationAlert.Output {
+        try await createAutomationAlert(Operations.createAutomationAlert.Input(
             path: path,
             headers: headers,
             body: body
@@ -2255,6 +2308,47 @@ extension APIProtocol {
             headers: headers
         ))
     }
+    /// Get an automation alert by ID.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}/get(getAutomationAlert)`.
+    public func getAutomationAlert(
+        path: Operations.getAutomationAlert.Input.Path,
+        headers: Operations.getAutomationAlert.Input.Headers = .init()
+    ) async throws -> Operations.getAutomationAlert.Output {
+        try await getAutomationAlert(Operations.getAutomationAlert.Input(
+            path: path,
+            headers: headers
+        ))
+    }
+    /// Update an automation alert.
+    ///
+    /// - Remark: HTTP `PUT /api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}/put(updateAutomationAlert)`.
+    public func updateAutomationAlert(
+        path: Operations.updateAutomationAlert.Input.Path,
+        headers: Operations.updateAutomationAlert.Input.Headers = .init(),
+        body: Operations.updateAutomationAlert.Input.Body? = nil
+    ) async throws -> Operations.updateAutomationAlert.Output {
+        try await updateAutomationAlert(Operations.updateAutomationAlert.Input(
+            path: path,
+            headers: headers,
+            body: body
+        ))
+    }
+    /// Delete an automation alert.
+    ///
+    /// - Remark: HTTP `DELETE /api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}/delete(deleteAutomationAlert)`.
+    public func deleteAutomationAlert(
+        path: Operations.deleteAutomationAlert.Input.Path,
+        headers: Operations.deleteAutomationAlert.Input.Headers = .init()
+    ) async throws -> Operations.deleteAutomationAlert.Output {
+        try await deleteAutomationAlert(Operations.deleteAutomationAlert.Input(
+            path: path,
+            headers: headers
+        ))
+    }
 }
 
 /// Server URLs defined in the OpenAPI document.
@@ -2487,6 +2581,94 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/BuildCacheTasksIndexPage`.
         public typealias BuildCacheTasksIndexPage = Swift.Int
+        /// An automation alert — a rule that evaluates a monitor condition and runs trigger/recovery actions.
+        ///
+        /// - Remark: Generated from `#/components/schemas/AutomationAlert`.
+        public struct AutomationAlert: Codable, Hashable, Sendable {
+            /// Evaluation cadence (e.g. "5m").
+            ///
+            /// - Remark: Generated from `#/components/schemas/AutomationAlert/cadence`.
+            public var cadence: Swift.String
+            /// - Remark: Generated from `#/components/schemas/AutomationAlert/enabled`.
+            public var enabled: Swift.Bool
+            /// - Remark: Generated from `#/components/schemas/AutomationAlert/id`.
+            public var id: Swift.String
+            /// The monitor type that evaluates the condition.
+            ///
+            /// - Remark: Generated from `#/components/schemas/AutomationAlert/monitor_type`.
+            @frozen public enum monitor_typePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case flakiness_rate = "flakiness_rate"
+                case flaky_run_count = "flaky_run_count"
+            }
+            /// The monitor type that evaluates the condition.
+            ///
+            /// - Remark: Generated from `#/components/schemas/AutomationAlert/monitor_type`.
+            public var monitor_type: Components.Schemas.AutomationAlert.monitor_typePayload
+            /// - Remark: Generated from `#/components/schemas/AutomationAlert/name`.
+            public var name: Swift.String
+            /// - Remark: Generated from `#/components/schemas/AutomationAlert/recovery_actions`.
+            public var recovery_actions: [Components.Schemas.AutomationAlertAction]?
+            /// Recovery parameters (e.g. window).
+            ///
+            /// - Remark: Generated from `#/components/schemas/AutomationAlert/recovery_config`.
+            public var recovery_config: OpenAPIRuntime.OpenAPIObjectContainer?
+            /// - Remark: Generated from `#/components/schemas/AutomationAlert/recovery_enabled`.
+            public var recovery_enabled: Swift.Bool?
+            /// - Remark: Generated from `#/components/schemas/AutomationAlert/trigger_actions`.
+            public var trigger_actions: [Components.Schemas.AutomationAlertAction]
+            /// Monitor-specific trigger parameters (e.g. threshold, window).
+            ///
+            /// - Remark: Generated from `#/components/schemas/AutomationAlert/trigger_config`.
+            public var trigger_config: OpenAPIRuntime.OpenAPIObjectContainer
+            /// Creates a new `AutomationAlert`.
+            ///
+            /// - Parameters:
+            ///   - cadence: Evaluation cadence (e.g. "5m").
+            ///   - enabled:
+            ///   - id:
+            ///   - monitor_type: The monitor type that evaluates the condition.
+            ///   - name:
+            ///   - recovery_actions:
+            ///   - recovery_config: Recovery parameters (e.g. window).
+            ///   - recovery_enabled:
+            ///   - trigger_actions:
+            ///   - trigger_config: Monitor-specific trigger parameters (e.g. threshold, window).
+            public init(
+                cadence: Swift.String,
+                enabled: Swift.Bool,
+                id: Swift.String,
+                monitor_type: Components.Schemas.AutomationAlert.monitor_typePayload,
+                name: Swift.String,
+                recovery_actions: [Components.Schemas.AutomationAlertAction]? = nil,
+                recovery_config: OpenAPIRuntime.OpenAPIObjectContainer? = nil,
+                recovery_enabled: Swift.Bool? = nil,
+                trigger_actions: [Components.Schemas.AutomationAlertAction],
+                trigger_config: OpenAPIRuntime.OpenAPIObjectContainer
+            ) {
+                self.cadence = cadence
+                self.enabled = enabled
+                self.id = id
+                self.monitor_type = monitor_type
+                self.name = name
+                self.recovery_actions = recovery_actions
+                self.recovery_config = recovery_config
+                self.recovery_enabled = recovery_enabled
+                self.trigger_actions = trigger_actions
+                self.trigger_config = trigger_config
+            }
+            public enum CodingKeys: String, CodingKey {
+                case cadence
+                case enabled
+                case id
+                case monitor_type
+                case name
+                case recovery_actions
+                case recovery_config
+                case recovery_enabled
+                case trigger_actions
+                case trigger_config
+            }
+        }
         /// The upload has been initiated and a ID is returned to upload the various parts using multi-part uploads
         ///
         /// - Remark: Generated from `#/components/schemas/ArtifactUploadID`.
@@ -4504,9 +4686,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/TestCase/is_flaky`.
             public var is_flaky: Swift.Bool
-            /// Whether the test case is quarantined
+            /// Whether the test case is quarantined (either `muted` or `skipped`). Deprecated: use `state` instead.
             ///
             /// - Remark: Generated from `#/components/schemas/TestCase/is_quarantined`.
+            @available(*, deprecated)
             public var is_quarantined: Swift.Bool
             /// The module containing the test case
             ///
@@ -4545,6 +4728,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/TestCase/name`.
             public var name: Swift.String
+            /// Lifecycle state of the test case. Currently one of `enabled`, `muted`, or `skipped`; the field is left as an open string so adding new states in the future doesn't break clients pinned to the older spec. `enabled` means it runs as part of the suite and contributes to pass/fail counts. `muted` (mute-mode quarantine) means it still runs so we keep collecting flakiness signal, but failures no longer fail the build. `skipped` (skip-mode quarantine) means it is excluded from execution entirely.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestCase/state`.
+            public var state: Swift.String
             /// The test suite containing the test case (optional)
             ///
             /// - Remark: Generated from `#/components/schemas/TestCase/suite`.
@@ -4588,9 +4775,10 @@ public enum Components {
             ///   - avg_duration: Average duration of recent runs in milliseconds
             ///   - id: ID of the test case
             ///   - is_flaky: Whether the test case is marked as flaky
-            ///   - is_quarantined: Whether the test case is quarantined
+            ///   - is_quarantined: Whether the test case is quarantined (either `muted` or `skipped`). Deprecated: use `state` instead.
             ///   - module: The module containing the test case
             ///   - name: Name of the test case
+            ///   - state: Lifecycle state of the test case. Currently one of `enabled`, `muted`, or `skipped`; the field is left as an open string so adding new states in the future doesn't break clients pinned to the older spec. `enabled` means it runs as part of the suite and contributes to pass/fail counts. `muted` (mute-mode quarantine) means it still runs so we keep collecting flakiness signal, but failures no longer fail the build. `skipped` (skip-mode quarantine) means it is excluded from execution entirely.
             ///   - suite: The test suite containing the test case (optional)
             ///   - url: URL to the test case detail page
             public init(
@@ -4600,6 +4788,7 @@ public enum Components {
                 is_quarantined: Swift.Bool,
                 module: Components.Schemas.TestCase.modulePayload,
                 name: Swift.String,
+                state: Swift.String,
                 suite: Components.Schemas.TestCase.suitePayload? = nil,
                 url: Swift.String
             ) {
@@ -4609,6 +4798,7 @@ public enum Components {
                 self.is_quarantined = is_quarantined
                 self.module = module
                 self.name = name
+                self.state = state
                 self.suite = suite
                 self.url = url
             }
@@ -4619,6 +4809,7 @@ public enum Components {
                 case is_quarantined
                 case module
                 case name
+                case state
                 case suite
                 case url
             }
@@ -7253,6 +7444,12 @@ public enum Components {
             case assembly = "assembly"
             case unknown = "unknown"
         }
+        /// - Remark: Generated from `#/components/schemas/TestCasesIndexState`.
+        @frozen public enum TestCasesIndexState: String, Codable, Hashable, Sendable, CaseIterable {
+            case enabled = "enabled"
+            case muted = "muted"
+            case skipped = "skipped"
+        }
         /// The URL to upload an artifact.
         ///
         /// - Remark: Generated from `#/components/schemas/ArtifactUploadURL`.
@@ -8740,6 +8937,79 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/GenerationsIndexPageSize`.
         public typealias GenerationsIndexPageSize = Swift.Int
+        /// An action run when an automation alert triggers or recovers.
+        ///
+        /// - Remark: Generated from `#/components/schemas/AutomationAlertAction`.
+        public struct AutomationAlertAction: Codable, Hashable, Sendable {
+            /// Slack channel ID. Required for send_slack actions.
+            ///
+            /// - Remark: Generated from `#/components/schemas/AutomationAlertAction/channel`.
+            public var channel: Swift.String?
+            /// Slack channel name for display.
+            ///
+            /// - Remark: Generated from `#/components/schemas/AutomationAlertAction/channel_name`.
+            public var channel_name: Swift.String?
+            /// Label name. Required for add_label and remove_label actions.
+            ///
+            /// - Remark: Generated from `#/components/schemas/AutomationAlertAction/label`.
+            public var label: Swift.String?
+            /// Message template. Required for send_slack actions. Supports {{variable}} interpolation.
+            ///
+            /// - Remark: Generated from `#/components/schemas/AutomationAlertAction/message`.
+            public var message: Swift.String?
+            /// Required for change_state actions.
+            ///
+            /// - Remark: Generated from `#/components/schemas/AutomationAlertAction/state`.
+            @frozen public enum statePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case enabled = "enabled"
+                case muted = "muted"
+            }
+            /// Required for change_state actions.
+            ///
+            /// - Remark: Generated from `#/components/schemas/AutomationAlertAction/state`.
+            public var state: Components.Schemas.AutomationAlertAction.statePayload?
+            /// - Remark: Generated from `#/components/schemas/AutomationAlertAction/type`.
+            @frozen public enum _typePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case change_state = "change_state"
+                case send_slack = "send_slack"
+                case add_label = "add_label"
+                case remove_label = "remove_label"
+            }
+            /// - Remark: Generated from `#/components/schemas/AutomationAlertAction/type`.
+            public var _type: Components.Schemas.AutomationAlertAction._typePayload
+            /// Creates a new `AutomationAlertAction`.
+            ///
+            /// - Parameters:
+            ///   - channel: Slack channel ID. Required for send_slack actions.
+            ///   - channel_name: Slack channel name for display.
+            ///   - label: Label name. Required for add_label and remove_label actions.
+            ///   - message: Message template. Required for send_slack actions. Supports {{variable}} interpolation.
+            ///   - state: Required for change_state actions.
+            ///   - _type:
+            public init(
+                channel: Swift.String? = nil,
+                channel_name: Swift.String? = nil,
+                label: Swift.String? = nil,
+                message: Swift.String? = nil,
+                state: Components.Schemas.AutomationAlertAction.statePayload? = nil,
+                _type: Components.Schemas.AutomationAlertAction._typePayload
+            ) {
+                self.channel = channel
+                self.channel_name = channel_name
+                self.label = label
+                self.message = message
+                self.state = state
+                self._type = _type
+            }
+            public enum CodingKeys: String, CodingKey {
+                case channel
+                case channel_name
+                case label
+                case message
+                case state
+                case _type = "type"
+            }
+        }
         /// A platform that a bundle can support (e.g. iOS)
         ///
         /// - Remark: Generated from `#/components/schemas/BundleSupportedPlatform`.
@@ -15365,10 +15635,12 @@ public enum Operations {
                                 case first_run = "first_run"
                                 case marked_flaky = "marked_flaky"
                                 case unmarked_flaky = "unmarked_flaky"
-                                case muted = "muted"
-                                case unmuted = "unmuted"
                                 case quarantined = "quarantined"
                                 case unquarantined = "unquarantined"
+                                case muted = "muted"
+                                case unmuted = "unmuted"
+                                case skipped = "skipped"
+                                case unskipped = "unskipped"
                             }
                             /// The type of event.
                             ///
@@ -16225,28 +16497,28 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page`.
                 public var page: Swift.Int?
-                /// Filter bundles by git branch.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/git_branch`.
-                public var git_branch: Swift.String?
                 /// Number of items per page.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page_size`.
                 public var page_size: Swift.Int?
+                /// Filter bundles by git branch.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/git_branch`.
+                public var git_branch: Swift.String?
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
                 ///   - page: Page number for pagination.
-                ///   - git_branch: Filter bundles by git branch.
                 ///   - page_size: Number of items per page.
+                ///   - git_branch: Filter bundles by git branch.
                 public init(
                     page: Swift.Int? = nil,
-                    git_branch: Swift.String? = nil,
-                    page_size: Swift.Int? = nil
+                    page_size: Swift.Int? = nil,
+                    git_branch: Swift.String? = nil
                 ) {
                     self.page = page
-                    self.git_branch = git_branch
                     self.page_size = page_size
+                    self.git_branch = git_branch
                 }
             }
             public var query: Operations.listBundles.Input.Query
@@ -28883,6 +29155,525 @@ public enum Operations {
             }
         }
     }
+    /// List automation alerts for a project.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/automations/alerts`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/automations/alerts/get(listAutomationAlerts)`.
+    public enum listAutomationAlerts {
+        public static let id: Swift.String = "listAutomationAlerts"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/GET/path`.
+            public struct Path: Sendable, Hashable {
+                /// The handle of the account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/GET/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/GET/path/project_handle`.
+                public var project_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the account.
+                ///   - project_handle: The handle of the project.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                }
+            }
+            public var path: Operations.listAutomationAlerts.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listAutomationAlerts.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listAutomationAlerts.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.listAutomationAlerts.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            public init(
+                path: Operations.listAutomationAlerts.Input.Path,
+                headers: Operations.listAutomationAlerts.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/GET/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/GET/responses/200/content/json/alerts`.
+                        public var alerts: [Components.Schemas.AutomationAlert]
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - alerts:
+                        public init(alerts: [Components.Schemas.AutomationAlert]) {
+                            self.alerts = alerts
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case alerts
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/GET/responses/200/content/application\/json`.
+                    case json(Operations.listAutomationAlerts.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.listAutomationAlerts.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listAutomationAlerts.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listAutomationAlerts.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// List of automation alerts
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/automations/alerts/get(listAutomationAlerts)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.listAutomationAlerts.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.listAutomationAlerts.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/GET/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listAutomationAlerts.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listAutomationAlerts.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Forbidden
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/automations/alerts/get(listAutomationAlerts)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.listAutomationAlerts.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.listAutomationAlerts.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Create an automation alert.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/automations/alerts`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/automations/alerts/post(createAutomationAlert)`.
+    public enum createAutomationAlert {
+        public static let id: Swift.String = "createAutomationAlert"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/POST/path`.
+            public struct Path: Sendable, Hashable {
+                /// The handle of the account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/POST/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/POST/path/project_handle`.
+                public var project_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the account.
+                ///   - project_handle: The handle of the project.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                }
+            }
+            public var path: Operations.createAutomationAlert.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createAutomationAlert.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createAutomationAlert.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.createAutomationAlert.Input.Headers
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/POST/requestBody/json`.
+                public struct jsonPayload: Codable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/POST/requestBody/json/cadence`.
+                    public var cadence: Swift.String?
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/POST/requestBody/json/monitor_type`.
+                    @frozen public enum monitor_typePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                        case flakiness_rate = "flakiness_rate"
+                        case flaky_run_count = "flaky_run_count"
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/POST/requestBody/json/monitor_type`.
+                    public var monitor_type: Operations.createAutomationAlert.Input.Body.jsonPayload.monitor_typePayload
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/POST/requestBody/json/name`.
+                    public var name: Swift.String
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/POST/requestBody/json/recovery_actions`.
+                    public var recovery_actions: [Components.Schemas.AutomationAlertAction]?
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/POST/requestBody/json/recovery_config`.
+                    public var recovery_config: OpenAPIRuntime.OpenAPIObjectContainer?
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/POST/requestBody/json/recovery_enabled`.
+                    public var recovery_enabled: Swift.Bool?
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/POST/requestBody/json/trigger_actions`.
+                    public var trigger_actions: [Components.Schemas.AutomationAlertAction]
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/POST/requestBody/json/trigger_config`.
+                    public var trigger_config: OpenAPIRuntime.OpenAPIObjectContainer?
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - cadence:
+                    ///   - monitor_type:
+                    ///   - name:
+                    ///   - recovery_actions:
+                    ///   - recovery_config:
+                    ///   - recovery_enabled:
+                    ///   - trigger_actions:
+                    ///   - trigger_config:
+                    public init(
+                        cadence: Swift.String? = nil,
+                        monitor_type: Operations.createAutomationAlert.Input.Body.jsonPayload.monitor_typePayload,
+                        name: Swift.String,
+                        recovery_actions: [Components.Schemas.AutomationAlertAction]? = nil,
+                        recovery_config: OpenAPIRuntime.OpenAPIObjectContainer? = nil,
+                        recovery_enabled: Swift.Bool? = nil,
+                        trigger_actions: [Components.Schemas.AutomationAlertAction],
+                        trigger_config: OpenAPIRuntime.OpenAPIObjectContainer? = nil
+                    ) {
+                        self.cadence = cadence
+                        self.monitor_type = monitor_type
+                        self.name = name
+                        self.recovery_actions = recovery_actions
+                        self.recovery_config = recovery_config
+                        self.recovery_enabled = recovery_enabled
+                        self.trigger_actions = trigger_actions
+                        self.trigger_config = trigger_config
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case cadence
+                        case monitor_type
+                        case name
+                        case recovery_actions
+                        case recovery_config
+                        case recovery_enabled
+                        case trigger_actions
+                        case trigger_config
+                    }
+                }
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/POST/requestBody/content/application\/json`.
+                case json(Operations.createAutomationAlert.Input.Body.jsonPayload)
+            }
+            public var body: Operations.createAutomationAlert.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            ///   - body:
+            public init(
+                path: Operations.createAutomationAlert.Input.Path,
+                headers: Operations.createAutomationAlert.Input.Headers = .init(),
+                body: Operations.createAutomationAlert.Input.Body? = nil
+            ) {
+                self.path = path
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Created: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/POST/responses/201/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/POST/responses/201/content/application\/json`.
+                    case json(Components.Schemas.AutomationAlert)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.AutomationAlert {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createAutomationAlert.Output.Created.Body
+                /// Creates a new `Created`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createAutomationAlert.Output.Created.Body) {
+                    self.body = body
+                }
+            }
+            /// Created alert
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/automations/alerts/post(createAutomationAlert)/responses/201`.
+            ///
+            /// HTTP response code: `201 created`.
+            case created(Operations.createAutomationAlert.Output.Created)
+            /// The associated value of the enum case if `self` is `.created`.
+            ///
+            /// - Throws: An error if `self` is not `.created`.
+            /// - SeeAlso: `.created`.
+            public var created: Operations.createAutomationAlert.Output.Created {
+                get throws {
+                    switch self {
+                    case let .created(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "created",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/POST/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/POST/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createAutomationAlert.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createAutomationAlert.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Forbidden
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/automations/alerts/post(createAutomationAlert)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.createAutomationAlert.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.createAutomationAlert.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct UnprocessableContent: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/POST/responses/422/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/POST/responses/422/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createAutomationAlert.Output.UnprocessableContent.Body
+                /// Creates a new `UnprocessableContent`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createAutomationAlert.Output.UnprocessableContent.Body) {
+                    self.body = body
+                }
+            }
+            /// Validation error
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/automations/alerts/post(createAutomationAlert)/responses/422`.
+            ///
+            /// HTTP response code: `422 unprocessableContent`.
+            case unprocessableContent(Operations.createAutomationAlert.Output.UnprocessableContent)
+            /// The associated value of the enum case if `self` is `.unprocessableContent`.
+            ///
+            /// - Throws: An error if `self` is not `.unprocessableContent`.
+            /// - SeeAlso: `.unprocessableContent`.
+            public var unprocessableContent: Operations.createAutomationAlert.Output.UnprocessableContent {
+                get throws {
+                    switch self {
+                    case let .unprocessableContent(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unprocessableContent",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
     /// Get a single bundle by ID
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}`.
@@ -33362,6 +34153,16 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/GET/query/suite_name`.
                 public var suite_name: Swift.String?
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/GET/query/state`.
+                @frozen public enum statePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case enabled = "enabled"
+                    case muted = "muted"
+                    case skipped = "skipped"
+                }
+                /// Filter by test case state.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/GET/query/state`.
+                public var state: Operations.listTestCases.Input.Query.statePayload?
                 ///
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/GET/query/page_size`.
@@ -33378,6 +34179,7 @@ public enum Operations {
                 ///   - module_name: Filter by module name. Returns only test cases in the given module.
                 ///   - name: Filter by test case name.
                 ///   - suite_name: Filter by suite name.
+                ///   - state: Filter by test case state.
                 ///   - page_size:
                 ///   - page:
                 public init(
@@ -33386,6 +34188,7 @@ public enum Operations {
                     module_name: Swift.String? = nil,
                     name: Swift.String? = nil,
                     suite_name: Swift.String? = nil,
+                    state: Operations.listTestCases.Input.Query.statePayload? = nil,
                     page_size: Swift.Int? = nil,
                     page: Swift.Int? = nil
                 ) {
@@ -33394,6 +34197,7 @@ public enum Operations {
                     self.module_name = module_name
                     self.name = name
                     self.suite_name = suite_name
+                    self.state = state
                     self.page_size = page_size
                     self.page = page
                 }
@@ -35428,9 +36232,10 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/GET/responses/200/content/json/is_flaky`.
                         public var is_flaky: Swift.Bool
-                        /// Whether the test case is quarantined.
+                        /// Whether the test case is quarantined (either `muted` or `skipped`). Deprecated: use `state` instead.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/GET/responses/200/content/json/is_quarantined`.
+                        @available(*, deprecated)
                         public var is_quarantined: Swift.Bool
                         /// Duration of the last run in milliseconds.
                         ///
@@ -35489,6 +36294,10 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/GET/responses/200/content/json/reliability_rate`.
                         public var reliability_rate: Swift.Double?
+                        /// The state of the test case. Currently one of `enabled`, `muted`, or `skipped`; the field is left as an open string so adding new states in the future doesn't break clients pinned to the older spec.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/GET/responses/200/content/json/state`.
+                        public var state: Swift.String
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/GET/responses/200/content/json/suite`.
                         public struct suitePayload: Codable, Hashable, Sendable {
                             /// ID of the suite.
@@ -35534,13 +36343,14 @@ public enum Operations {
                         ///   - flakiness_rate: Flakiness rate percentage (0-100) over last 30 days.
                         ///   - id: The test case ID.
                         ///   - is_flaky: Whether the test case is marked as flaky.
-                        ///   - is_quarantined: Whether the test case is quarantined.
+                        ///   - is_quarantined: Whether the test case is quarantined (either `muted` or `skipped`). Deprecated: use `state` instead.
                         ///   - last_duration: Duration of the last run in milliseconds.
                         ///   - last_ran_at: Unix timestamp of when the test case last ran.
                         ///   - last_status: Status of the last run.
                         ///   - module:
                         ///   - name: Name of the test case.
                         ///   - reliability_rate: Success rate percentage (0-100).
+                        ///   - state: The state of the test case. Currently one of `enabled`, `muted`, or `skipped`; the field is left as an open string so adding new states in the future doesn't break clients pinned to the older spec.
                         ///   - suite:
                         ///   - total_runs: Total number of runs.
                         ///   - url: URL to view the test case in the dashboard.
@@ -35557,6 +36367,7 @@ public enum Operations {
                             module: Operations.getTestCase.Output.Ok.Body.jsonPayload.modulePayload,
                             name: Swift.String,
                             reliability_rate: Swift.Double? = nil,
+                            state: Swift.String,
                             suite: Operations.getTestCase.Output.Ok.Body.jsonPayload.suitePayload? = nil,
                             total_runs: Swift.Int,
                             url: Swift.String
@@ -35573,6 +36384,7 @@ public enum Operations {
                             self.module = module
                             self.name = name
                             self.reliability_rate = reliability_rate
+                            self.state = state
                             self.suite = suite
                             self.total_runs = total_runs
                             self.url = url
@@ -35590,6 +36402,7 @@ public enum Operations {
                             case module
                             case name
                             case reliability_rate
+                            case state
                             case suite
                             case total_runs
                             case url
@@ -35807,9 +36620,7 @@ public enum Operations {
                 ///
                 /// - Parameters:
                 ///   - accept:
-                public init(
-                    accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getCacheEndpoints.AcceptableContentType>] = .defaultValues()
-                ) {
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getCacheEndpoints.AcceptableContentType>] = .defaultValues()) {
                     self.accept = accept
                 }
             }
@@ -51461,6 +52272,869 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Get an automation alert by ID.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}/get(getAutomationAlert)`.
+    public enum getAutomationAlert {
+        public static let id: Swift.String = "getAutomationAlert"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}/GET/path`.
+            public struct Path: Sendable, Hashable {
+                /// The handle of the account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}/GET/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}/GET/path/project_handle`.
+                public var project_handle: Swift.String
+                /// The ID of the alert.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}/GET/path/alert_id`.
+                public var alert_id: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the account.
+                ///   - project_handle: The handle of the project.
+                ///   - alert_id: The ID of the alert.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String,
+                    alert_id: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                    self.alert_id = alert_id
+                }
+            }
+            public var path: Operations.getAutomationAlert.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getAutomationAlert.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getAutomationAlert.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.getAutomationAlert.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            public init(
+                path: Operations.getAutomationAlert.Input.Path,
+                headers: Operations.getAutomationAlert.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}/GET/responses/200/content/application\/json`.
+                    case json(Components.Schemas.AutomationAlert)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.AutomationAlert {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getAutomationAlert.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getAutomationAlert.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Alert details
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}/get(getAutomationAlert)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.getAutomationAlert.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.getAutomationAlert.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}/GET/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getAutomationAlert.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getAutomationAlert.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Forbidden
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}/get(getAutomationAlert)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.getAutomationAlert.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.getAutomationAlert.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}/GET/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}/GET/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getAutomationAlert.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getAutomationAlert.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// Not found
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}/get(getAutomationAlert)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.getAutomationAlert.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.getAutomationAlert.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Update an automation alert.
+    ///
+    /// - Remark: HTTP `PUT /api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}/put(updateAutomationAlert)`.
+    public enum updateAutomationAlert {
+        public static let id: Swift.String = "updateAutomationAlert"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}/PUT/path`.
+            public struct Path: Sendable, Hashable {
+                /// The handle of the account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}/PUT/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}/PUT/path/project_handle`.
+                public var project_handle: Swift.String
+                /// The ID of the alert.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}/PUT/path/alert_id`.
+                public var alert_id: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the account.
+                ///   - project_handle: The handle of the project.
+                ///   - alert_id: The ID of the alert.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String,
+                    alert_id: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                    self.alert_id = alert_id
+                }
+            }
+            public var path: Operations.updateAutomationAlert.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}/PUT/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.updateAutomationAlert.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.updateAutomationAlert.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.updateAutomationAlert.Input.Headers
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}/PUT/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}/PUT/requestBody/json`.
+                public struct jsonPayload: Codable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}/PUT/requestBody/json/cadence`.
+                    public var cadence: Swift.String?
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}/PUT/requestBody/json/enabled`.
+                    public var enabled: Swift.Bool?
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}/PUT/requestBody/json/name`.
+                    public var name: Swift.String?
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}/PUT/requestBody/json/recovery_actions`.
+                    public var recovery_actions: [Components.Schemas.AutomationAlertAction]?
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}/PUT/requestBody/json/recovery_config`.
+                    public var recovery_config: OpenAPIRuntime.OpenAPIObjectContainer?
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}/PUT/requestBody/json/recovery_enabled`.
+                    public var recovery_enabled: Swift.Bool?
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}/PUT/requestBody/json/trigger_actions`.
+                    public var trigger_actions: [Components.Schemas.AutomationAlertAction]?
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}/PUT/requestBody/json/trigger_config`.
+                    public var trigger_config: OpenAPIRuntime.OpenAPIObjectContainer?
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - cadence:
+                    ///   - enabled:
+                    ///   - name:
+                    ///   - recovery_actions:
+                    ///   - recovery_config:
+                    ///   - recovery_enabled:
+                    ///   - trigger_actions:
+                    ///   - trigger_config:
+                    public init(
+                        cadence: Swift.String? = nil,
+                        enabled: Swift.Bool? = nil,
+                        name: Swift.String? = nil,
+                        recovery_actions: [Components.Schemas.AutomationAlertAction]? = nil,
+                        recovery_config: OpenAPIRuntime.OpenAPIObjectContainer? = nil,
+                        recovery_enabled: Swift.Bool? = nil,
+                        trigger_actions: [Components.Schemas.AutomationAlertAction]? = nil,
+                        trigger_config: OpenAPIRuntime.OpenAPIObjectContainer? = nil
+                    ) {
+                        self.cadence = cadence
+                        self.enabled = enabled
+                        self.name = name
+                        self.recovery_actions = recovery_actions
+                        self.recovery_config = recovery_config
+                        self.recovery_enabled = recovery_enabled
+                        self.trigger_actions = trigger_actions
+                        self.trigger_config = trigger_config
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case cadence
+                        case enabled
+                        case name
+                        case recovery_actions
+                        case recovery_config
+                        case recovery_enabled
+                        case trigger_actions
+                        case trigger_config
+                    }
+                }
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}/PUT/requestBody/content/application\/json`.
+                case json(Operations.updateAutomationAlert.Input.Body.jsonPayload)
+            }
+            public var body: Operations.updateAutomationAlert.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            ///   - body:
+            public init(
+                path: Operations.updateAutomationAlert.Input.Path,
+                headers: Operations.updateAutomationAlert.Input.Headers = .init(),
+                body: Operations.updateAutomationAlert.Input.Body? = nil
+            ) {
+                self.path = path
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}/PUT/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}/PUT/responses/200/content/application\/json`.
+                    case json(Components.Schemas.AutomationAlert)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.AutomationAlert {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.updateAutomationAlert.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.updateAutomationAlert.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Updated alert
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}/put(updateAutomationAlert)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.updateAutomationAlert.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.updateAutomationAlert.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}/PUT/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}/PUT/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.updateAutomationAlert.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.updateAutomationAlert.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Forbidden
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}/put(updateAutomationAlert)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.updateAutomationAlert.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.updateAutomationAlert.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}/PUT/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}/PUT/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.updateAutomationAlert.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.updateAutomationAlert.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// Not found
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}/put(updateAutomationAlert)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.updateAutomationAlert.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.updateAutomationAlert.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct UnprocessableContent: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}/PUT/responses/422/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}/PUT/responses/422/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.updateAutomationAlert.Output.UnprocessableContent.Body
+                /// Creates a new `UnprocessableContent`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.updateAutomationAlert.Output.UnprocessableContent.Body) {
+                    self.body = body
+                }
+            }
+            /// Validation error
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}/put(updateAutomationAlert)/responses/422`.
+            ///
+            /// HTTP response code: `422 unprocessableContent`.
+            case unprocessableContent(Operations.updateAutomationAlert.Output.UnprocessableContent)
+            /// The associated value of the enum case if `self` is `.unprocessableContent`.
+            ///
+            /// - Throws: An error if `self` is not `.unprocessableContent`.
+            /// - SeeAlso: `.unprocessableContent`.
+            public var unprocessableContent: Operations.updateAutomationAlert.Output.UnprocessableContent {
+                get throws {
+                    switch self {
+                    case let .unprocessableContent(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unprocessableContent",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Delete an automation alert.
+    ///
+    /// - Remark: HTTP `DELETE /api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}/delete(deleteAutomationAlert)`.
+    public enum deleteAutomationAlert {
+        public static let id: Swift.String = "deleteAutomationAlert"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}/DELETE/path`.
+            public struct Path: Sendable, Hashable {
+                /// The handle of the account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}/DELETE/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}/DELETE/path/project_handle`.
+                public var project_handle: Swift.String
+                /// The ID of the alert.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}/DELETE/path/alert_id`.
+                public var alert_id: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the account.
+                ///   - project_handle: The handle of the project.
+                ///   - alert_id: The ID of the alert.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String,
+                    alert_id: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                    self.alert_id = alert_id
+                }
+            }
+            public var path: Operations.deleteAutomationAlert.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}/DELETE/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.deleteAutomationAlert.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.deleteAutomationAlert.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.deleteAutomationAlert.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            public init(
+                path: Operations.deleteAutomationAlert.Input.Path,
+                headers: Operations.deleteAutomationAlert.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct NoContent: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}/DELETE/responses/204/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}/DELETE/responses/204/content/application\/json`.
+                    case json(OpenAPIRuntime.OpenAPIValueContainer)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: OpenAPIRuntime.OpenAPIValueContainer {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.deleteAutomationAlert.Output.NoContent.Body
+                /// Creates a new `NoContent`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.deleteAutomationAlert.Output.NoContent.Body) {
+                    self.body = body
+                }
+            }
+            /// Deleted
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}/delete(deleteAutomationAlert)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            case noContent(Operations.deleteAutomationAlert.Output.NoContent)
+            /// The associated value of the enum case if `self` is `.noContent`.
+            ///
+            /// - Throws: An error if `self` is not `.noContent`.
+            /// - SeeAlso: `.noContent`.
+            public var noContent: Operations.deleteAutomationAlert.Output.NoContent {
+                get throws {
+                    switch self {
+                    case let .noContent(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "noContent",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}/DELETE/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}/DELETE/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.deleteAutomationAlert.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.deleteAutomationAlert.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Forbidden
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}/delete(deleteAutomationAlert)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.deleteAutomationAlert.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.deleteAutomationAlert.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}/DELETE/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}/DELETE/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.deleteAutomationAlert.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.deleteAutomationAlert.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// Not found
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}/delete(deleteAutomationAlert)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.deleteAutomationAlert.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.deleteAutomationAlert.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
                             response: self
                         )
                     }

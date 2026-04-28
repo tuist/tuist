@@ -1,0 +1,11 @@
+[agent]
+kind = "opencode"
+model = "fireworks-ai/accounts/fireworks/models/kimi-k2p5"
+
+[defaults]
+base = "origin/main"
+max_concurrency = 2
+
+[[skills]]
+name = "tuist-elixir-review"
+source = "./.blick/skills/tuist-elixir-review"

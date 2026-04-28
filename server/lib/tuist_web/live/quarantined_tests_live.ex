@@ -52,6 +52,19 @@ defmodule TuistWeb.QuarantinedTestsLive do
         type: :text,
         operator: :=~,
         value: ""
+      },
+      %Filter.Filter{
+        id: "state",
+        field: "state",
+        display_name: dgettext("dashboard_tests", "Mode"),
+        type: :option,
+        options: ["muted", "skipped"],
+        options_display_names: %{
+          "muted" => dgettext("dashboard_tests", "Muted"),
+          "skipped" => dgettext("dashboard_tests", "Skipped")
+        },
+        operator: :==,
+        value: nil
       }
     ]
 

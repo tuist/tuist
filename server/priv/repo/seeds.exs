@@ -25,6 +25,7 @@ alias Tuist.Shards.ShardPlanTestSuite
 alias Tuist.Shards.ShardRun
 alias Tuist.Slack.Installation
 alias Tuist.Tests.Test
+alias Tuist.Tests.TestCase
 alias Tuist.Tests.TestCaseEvent
 alias Tuist.Tests.TestCaseRun
 alias Tuist.Tests.TestModuleRun
@@ -931,22 +932,31 @@ test_case_definitions =
 {test_case_id_map, _test_cases_with_flaky_run, _new_test_case_ids} =
   Tuist.Tests.create_test_cases(tuist_project.id, test_case_definitions, %{})
 
-# Update flaky test cases to be marked as is_flaky
-# ~70% stay quarantined, ~30% get unquarantined (to show chart going down)
-# (create_test_cases doesn't set these from input, so we insert updated rows)
+# Update flaky test cases to be marked as is_flaky.
+# Split the flaky population across three states so both quarantine modes are exercised:
+#   ~30% enabled (not quarantined — recovered, chart dips)
+#   ~40% muted   (quarantine · mute mode — still runs, failures masked)
+#   ~30% skipped (quarantine · skip mode — excluded from execution via -skip-testing)
+# (create_test_cases doesn't set these from input, so we insert updated rows.)
 flaky_test_case_defs =
   test_case_definitions
   |> Enum.filter(& &1.is_flaky)
   |> Enum.map(fn def ->
     id = test_case_id_map[{def.name, def.module_name, def.suite_name}]
-    # ~30% will be unquarantined
-    is_quarantined = Enum.random(1..10) > 3
-    {def, id, is_quarantined}
+
+    state =
+      case Enum.random(1..10) do
+        n when n <= 3 -> "enabled"
+        n when n <= 7 -> "muted"
+        _ -> "skipped"
+      end
+
+    {def, id, state}
   end)
-  |> Enum.reject(fn {_def, id, _is_quarantined} -> is_nil(id) end)
+  |> Enum.reject(fn {_def, id, _state} -> is_nil(id) end)
 
 flaky_test_case_updates =
-  Enum.map(flaky_test_case_defs, fn {def, id, is_quarantined} ->
+  Enum.map(flaky_test_case_defs, fn {def, id, state} ->
     now = NaiveDateTime.utc_now()
 
     %{
@@ -959,34 +969,54 @@ flaky_test_case_updates =
       last_duration: def.duration,
       last_ran_at: def.ran_at,
       is_flaky: true,
-      state: if(is_quarantined, do: "muted", else: "enabled"),
+      state: state,
       inserted_at: now,
       recent_durations: [def.duration],
       avg_duration: def.duration
     }
   end)
 
-# Track which test cases are quarantined vs unquarantined for event generation
+# Track which test cases are quarantined (muted or skipped) vs enabled for event generation.
+quarantined_states = ["muted", "skipped"]
+
 {quarantined_ids, unquarantined_ids} =
   flaky_test_case_defs
-  |> Enum.split_with(fn {_def, _id, is_quarantined} -> is_quarantined end)
-  |> then(fn {quarantined, unquarantined} ->
-    {Enum.map(quarantined, fn {_def, id, _} -> id end), Enum.map(unquarantined, fn {_def, id, _} -> id end)}
+  |> Enum.split_with(fn {_def, _id, state} -> state in quarantined_states end)
+  |> then(fn {quarantined, enabled} ->
+    {Enum.map(quarantined, fn {_def, id, _} -> id end), Enum.map(enabled, fn {_def, id, _} -> id end)}
   end)
+
+muted_count = Enum.count(flaky_test_case_defs, fn {_def, _id, state} -> state == "muted" end)
+skipped_count = Enum.count(flaky_test_case_defs, fn {_def, _id, state} -> state == "skipped" end)
 
 quarantined_test_cases =
   if length(flaky_test_case_updates) > 0 do
-    IngestRepo.insert_all(Tuist.Tests.TestCase, flaky_test_case_updates, timeout: 120_000)
+    IngestRepo.insert_all(TestCase, flaky_test_case_updates, timeout: 120_000)
 
     IO.puts(
-      "Updated #{length(flaky_test_case_updates)} test cases as flaky (#{length(quarantined_ids)} quarantined, #{length(unquarantined_ids)} unquarantined)"
+      "Updated #{length(flaky_test_case_updates)} test cases as flaky (#{muted_count} muted, #{skipped_count} skipped, #{length(unquarantined_ids)} enabled)"
     )
 
-    # Keep track of quarantined test cases for ensuring they get test runs
+    # Keep track of quarantined test cases for ensuring they get test runs.
+    # We include both muted and skipped tests: skipped tests don't produce
+    # new results going forward, but they would have had historical runs
+    # before being quarantined, so the UI should still surface a last run link.
     flaky_test_case_updates
-    |> Enum.filter(&(&1.state == "muted"))
+    |> Enum.filter(&(&1.state in ["muted", "skipped"]))
     |> Enum.map(fn tc ->
-      %{id: tc.id, name: tc.name, module_name: tc.module_name, suite_name: tc.suite_name}
+      %{
+        id: tc.id,
+        name: tc.name,
+        module_name: tc.module_name,
+        suite_name: tc.suite_name,
+        project_id: tc.project_id,
+        last_status: tc.last_status,
+        last_duration: tc.last_duration,
+        last_ran_at: tc.last_ran_at,
+        state: tc.state,
+        recent_durations: tc.recent_durations,
+        avg_duration: tc.avg_duration
+      }
     end)
   else
     []
@@ -1821,35 +1851,72 @@ if length(quarantined_test_cases) > 0 do
   IngestRepo.insert_all(TestModuleRun, [quarantine_module_run], timeout: 120_000)
   IngestRepo.insert_all(TestSuiteRun, [quarantine_suite_run], timeout: 120_000)
 
-  # Create a test case run for each quarantined test case
+  # Create a test case run for each quarantined test case, remembering the
+  # generated run id so we can re-insert the TestCase row with an updated
+  # last_run_id for proper link rendering in the Quarantined Tests page.
   quarantined_case_runs =
     Enum.map(quarantined_test_cases, fn tc ->
+      run_id = UUIDv7.generate()
+
+      {tc, run_id,
+       %{
+         id: run_id,
+         name: tc.name,
+         test_run_id: quarantine_test_run_id,
+         test_module_run_id: quarantine_module_id,
+         test_suite_run_id: quarantine_suite_id,
+         test_case_id: tc.id,
+         project_id: project_id,
+         is_ci: true,
+         scheme: "AppTests",
+         account_id: org_account_id,
+         ran_at: ran_at,
+         git_branch: "main",
+         git_commit_sha: "abc123def456",
+         status: 0,
+         is_flaky: true,
+         is_new: false,
+         duration: Enum.random(10..200),
+         module_name: tc.module_name,
+         suite_name: tc.suite_name,
+         inserted_at: ran_at
+       }}
+    end)
+
+  IngestRepo.insert_all(
+    TestCaseRun,
+    Enum.map(quarantined_case_runs, fn {_tc, _run_id, run} -> run end),
+    timeout: 120_000
+  )
+
+  # Re-insert the quarantined test_cases with last_run_id populated so the
+  # Quarantined Tests page renders the link_button (underlined secondary link)
+  # rather than the plain-span fallback.
+  now = NaiveDateTime.utc_now()
+
+  quarantined_test_case_updates =
+    Enum.map(quarantined_case_runs, fn {tc, run_id, run} ->
       %{
-        id: UUIDv7.generate(),
+        id: tc.id,
         name: tc.name,
-        test_run_id: quarantine_test_run_id,
-        test_module_run_id: quarantine_module_id,
-        test_suite_run_id: quarantine_suite_id,
-        test_case_id: tc.id,
-        project_id: project_id,
-        is_ci: true,
-        scheme: "AppTests",
-        account_id: org_account_id,
-        ran_at: ran_at,
-        git_branch: "main",
-        git_commit_sha: "abc123def456",
-        status: 0,
-        is_flaky: true,
-        is_new: false,
-        duration: Enum.random(10..200),
         module_name: tc.module_name,
         suite_name: tc.suite_name,
-        inserted_at: ran_at
+        project_id: tc.project_id,
+        last_status: tc.last_status,
+        last_duration: run.duration,
+        last_ran_at: ran_at,
+        is_flaky: true,
+        last_run_id: run_id,
+        state: tc.state,
+        inserted_at: now,
+        recent_durations: tc.recent_durations,
+        avg_duration: tc.avg_duration
       }
     end)
 
-  IngestRepo.insert_all(TestCaseRun, quarantined_case_runs, timeout: 120_000)
-  IO.puts("  - Created #{length(quarantined_case_runs)} runs for quarantined test cases")
+  IngestRepo.insert_all(TestCase, quarantined_test_case_updates, timeout: 120_000)
+
+  IO.puts("  - Created #{length(quarantined_case_runs)} runs for quarantined test cases (with last_run_id)")
 end
 
 # =============================================================================

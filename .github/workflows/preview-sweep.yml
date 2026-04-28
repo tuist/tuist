@@ -1,18 +1,17 @@
 name: Preview Sweep
 
-# Hourly cleanup pass over the preview cluster. Two responsibilities:
+# Hourly cleanup pass over the preview cluster. Deletes preview namespaces
+# whose `tuist.dev/expires-at` label is in the past — uninstalls the
+# release and drops the namespace. Also exposed as workflow_dispatch for
+# force-runs (e.g. after manually uninstalling something out-of-band).
 #
-#   1. Delete preview namespaces whose `tuist.dev/expires-at` label is in
-#      the past (uninstalls the release + drops the namespace).
-#   2. Scale the preview MachineDeployment back to 0 when no preview
-#      namespaces remain. Combined with the always-on single control plane,
-#      this gets idle cost down to ~€5/mo.
+# No worker-pool scaling here: the preview cluster keeps a fixed worker
+# pool (see infra/k8s/syself/workload-cluster-preview.yaml). Scaling from
+# CI would require management-cluster permissions Syself's OIDC users
+# don't have.
 #
-# Also exposed as workflow_dispatch for force-runs (e.g. after manually
-# uninstalling something out-of-band).
-#
-# Requires the same two GitHub Environment secrets (server-k8s-preview) as
-# preview-deploy.yml: KUBECONFIG (workload) + KUBECONFIG_MGMT (management).
+# Required GitHub Environment secret (environment: server-k8s-preview):
+#   KUBECONFIG  - same secret used by preview-deploy.yml.
 
 on:
   schedule:
@@ -24,32 +23,23 @@ permissions:
 
 jobs:
   sweep:
-    name: Sweep + scale to zero
+    name: Sweep expired previews
     runs-on: ubuntu-latest
     environment:
       name: server-k8s-preview
-    # Shares the cluster-scale lane with preview-deploy.yml's scale-up job
-    # so the sweep can never patch the management Cluster CR while a deploy
-    # is mid-scale. Uses the same group name across both workflows.
-    concurrency:
-      group: preview-cluster-scale
-      cancel-in-progress: false
     timeout-minutes: 15
     env:
       KUBECONFIG: ${{ github.workspace }}/.kube/config
-      KUBECONFIG_MGMT: ${{ github.workspace }}/.kube/mgmt
     steps:
       - uses: jdx/mise-action@v3.2.0
         with:
           install_args: "helm kubectl"
           cache: "false"
-      - name: Load kubeconfigs
+      - name: Load kubeconfig
         run: |
           mkdir -p "$(dirname "$KUBECONFIG")"
           echo "${{ secrets.KUBECONFIG }}" | base64 -d > "$KUBECONFIG"
           chmod 600 "$KUBECONFIG"
-          echo "${{ secrets.KUBECONFIG_MGMT }}" | base64 -d > "$KUBECONFIG_MGMT"
-          chmod 600 "$KUBECONFIG_MGMT"
 
       - name: Delete expired preview namespaces
         # We helm-uninstall first so chart hooks (PVC retention etc.) get a
@@ -84,27 +74,3 @@ jobs:
               echo "    Live: $NS (expires in $((EXP - NOW))s)"
             fi
           done <<< "$MAPPING"
-
-      - name: Scale worker pool to zero if idle
-        # If no `tuist.dev/preview=true` namespaces remain, the worker pool
-        # has nothing to host. Scale md-0 back to 0 to drop cost to control
-        # plane only.
-        run: |
-          set -euo pipefail
-          REMAINING=$(kubectl get namespaces -l tuist.dev/preview=true -o name | wc -l | tr -d '[:space:]')
-          echo "Remaining preview namespaces: $REMAINING"
-          if [ "$REMAINING" -gt 0 ]; then
-            echo "Previews still live — leaving worker pool alone."
-            exit 0
-          fi
-
-          ORG_NS=$(KUBECONFIG="$KUBECONFIG_MGMT" kubectl config view --minify -o jsonpath='{.contexts[0].context.namespace}')
-          CURRENT=$(KUBECONFIG="$KUBECONFIG_MGMT" kubectl -n "$ORG_NS" get cluster tuist-preview \
-            -o jsonpath='{.spec.topology.workers.machineDeployments[?(@.name=="md-0")].replicas}')
-          echo "md-0 replicas currently: $CURRENT"
-          if [ "${CURRENT:-0}" -gt 0 ]; then
-            echo "==> Scaling md-0 to 0..."
-            KUBECONFIG="$KUBECONFIG_MGMT" kubectl -n "$ORG_NS" patch cluster tuist-preview \
-              --type=json \
-              -p='[{"op":"replace","path":"/spec/topology/workers/machineDeployments/0/replicas","value":0}]'
-          fi

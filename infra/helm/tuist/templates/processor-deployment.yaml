@@ -25,7 +25,7 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
       annotations:
-        # PromEx in the release binds /metrics on :9091 even with TUIST_WEB=0
+        # PromEx in the release binds /metrics on :9091 in every TUIST_MODE
         # (it's a separate HTTP server, not the Phoenix endpoint). The Alloy
         # scraper finds the endpoint via these annotations and forwards to
         # Grafana Cloud Prometheus — same path as the server pod.
@@ -58,8 +58,8 @@ spec:
       containers:
         - name: processor
           # Same image as the server Deployment — the release boots into
-          # processor mode via TUIST_PROCESSOR_MODE below instead of shipping
-          # a separate image. That keeps the worker module, Ecto schemas, and
+          # processor mode via TUIST_MODE below instead of shipping a
+          # separate image. That keeps the worker module, Ecto schemas, and
           # priv/secrets exactly in sync with what enqueued the job.
           image: "{{ .Values.server.image.repository }}:{{ .Values.server.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.server.image.pullPolicy }}
@@ -74,12 +74,11 @@ spec:
               containerPort: 9091
           env:
             # Gate the BEAM into processor mode: skip the Phoenix web endpoint
-            # (TUIST_WEB=0) and narrow the Oban queue set to :process_build in
+            # AND narrow the Oban queue set to :process_build only.
+            # See `Tuist.Environment.mode/0` and the oban_queues block in
             # server/config/runtime.exs.
-            - name: TUIST_PROCESSOR_MODE
-              value: "1"
-            - name: TUIST_WEB
-              value: "0"
+            - name: TUIST_MODE
+              value: processor
             - name: TUIST_PROCESS_BUILD_QUEUE_CONCURRENCY
               value: {{ .Values.processor.queueConcurrency | quote }}
             # Tells runtime.exs to use transaction-mode pooler settings:
@@ -123,12 +122,12 @@ spec:
           # it within ~30s and Oban.Plugins.Lifeline reclaims the in-flight
           # jobs for other pods. The BEAM crashes hard on unrecoverable errors,
           # so TCP-less liveness is acceptable here.
-          lifecycle:
-            preStop:
-              exec:
-                # Pause briefly before SIGTERM so the BEAM finishes claiming
-                # jobs that were already in-flight at shutdown.
-                command: ["sh", "-c", "sleep 10"]
+          #
+          # No preStop hook either — there's no Service to drain (Oban polls
+          # for work, it doesn't receive HTTP). On SIGTERM the BEAM gets
+          # `terminationGracePeriodSeconds` to finish whatever parse it had
+          # claimed; anything still running at the deadline is reclaimed by
+          # Oban.Plugins.Lifeline on a healthy pod.
           resources:
             {{- toYaml .Values.processor.resources | nindent 12 }}
           volumeMounts:

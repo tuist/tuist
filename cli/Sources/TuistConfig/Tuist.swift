@@ -13,6 +13,14 @@ public enum TuistConfigError: LocalizedError, Equatable {
 }
 
 public struct Tuist: Equatable, Hashable, Sendable {
+    public struct Network: Equatable, Hashable, Sendable {
+        public let proxy: Bool
+
+        public init(proxy: Bool = true) {
+            self.proxy = proxy
+        }
+    }
+
     public struct Cache: Equatable, Hashable, Sendable {
         public let upload: Bool
 
@@ -24,6 +32,7 @@ public struct Tuist: Equatable, Hashable, Sendable {
     public let project: TuistProject
     public let fullHandle: String?
     public let inspectOptions: InspectOptions
+    public let network: Network
     public let cache: Cache
     public let url: URL
 
@@ -33,7 +42,8 @@ public struct Tuist: Equatable, Hashable, Sendable {
             fullHandle: nil,
             inspectOptions: .init(redundantDependencies: .init(ignoreTagsMatching: [])),
             cache: Cache(),
-            url: Constants.URLs.production
+            url: Constants.URLs.production,
+            network: Network()
         )
     }
 
@@ -42,11 +52,13 @@ public struct Tuist: Equatable, Hashable, Sendable {
         fullHandle: String?,
         inspectOptions: InspectOptions,
         cache: Cache = Cache(),
-        url: URL
+        url: URL,
+        network: Network = Network()
     ) {
         self.project = project
         self.fullHandle = fullHandle
         self.inspectOptions = inspectOptions
+        self.network = network
         self.cache = cache
         self.url = url
     }
@@ -54,6 +66,7 @@ public struct Tuist: Equatable, Hashable, Sendable {
     public func hash(into hasher: inout Hasher) {
         hasher.combine(project)
         hasher.combine(fullHandle)
+        hasher.combine(network)
         hasher.combine(url)
     }
 
@@ -70,14 +83,16 @@ public struct Tuist: Equatable, Hashable, Sendable {
             fullHandle: String? = nil,
             inspectOptions: InspectOptions = .init(redundantDependencies: .init(ignoreTagsMatching: [])),
             cache: Cache = Cache(),
-            url: URL = Constants.URLs.production
+            url: URL = Constants.URLs.production,
+            network: Network = Network()
         ) -> Self {
             return Tuist(
                 project: project,
                 fullHandle: fullHandle,
                 inspectOptions: inspectOptions,
                 cache: cache,
-                url: url
+                url: url,
+                network: network
             )
         }
     #endif

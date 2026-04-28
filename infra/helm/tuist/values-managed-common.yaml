@@ -116,7 +116,7 @@ server:
   terminationGracePeriodSeconds: 60
 
 # Processor runs in-cluster as a dedicated Oban consumer for :process_build.
-# Same Docker image as the server; TUIST_PROCESSOR_MODE=true in the chart
+# Same Docker image as the server; TUIST_MODE=processor in the chart
 # flips the BEAM into queue-only mode. Postgres is the coordination plane —
 # FOR UPDATE SKIP LOCKED gives natural load-balancing across replicas.
 #
