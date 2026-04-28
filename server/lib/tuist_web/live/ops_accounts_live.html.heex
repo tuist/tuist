@@ -19,7 +19,7 @@
       <.table
         id="ops-accounts-table"
         rows={@accounts}
-        row_click={fn account -> JS.navigate(~p"/ops/accounts/#{account.id}") end}
+        row_navigate={fn account -> ~p"/ops/accounts/#{account.id}" end}
       >
         <:col :let={account} label="Name">
           <.text_cell label={account.name} />
