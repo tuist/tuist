@@ -53,37 +53,40 @@ else
 fi
 echo "==> License source: ${LICENSE_MODE}"
 
-# k8s tooling is platform-agnostic — install via mise so versions stay aligned
-# with whatever the registry has at HEAD.
-mise install kind@latest helm@latest kubectl@latest >/dev/null
+# Everything we can install via mise — k8s tooling + the macOS VM stack
+# (colima/lima/docker CLI all have aqua-backed mise registry entries).
+mise install kind@latest helm@latest kubectl@latest \
+  colima@latest lima@latest docker-cli@latest >/dev/null
 
-# macOS VM stack: install via brew so colima picks up its full dependency tree
-# (lima for `limactl`, qemu for the VM driver, docker for the CLI). The mise
-# `colima` package ships only the colima binary, which leaves both lima and
-# qemu missing on a fresh runner.
 if [[ "$(uname -s)" == "Darwin" ]]; then
-  for pkg in docker docker-compose colima lima qemu; do
-    if ! brew list --formula "$pkg" >/dev/null 2>&1; then
-      brew install "$pkg"
-    fi
-  done
+  # qemu is colima's VM driver and isn't in the mise registry — its build
+  # artifacts aren't single-binary GitHub releases. brew is the only path on
+  # macOS, but we limit it to this one package; everything else is mise.
+  if ! brew list --formula qemu >/dev/null 2>&1; then
+    brew install qemu
+  fi
 
-  if ! colima status >/dev/null 2>&1; then
+  # colima invokes `limactl` from PATH; mise's lima package puts it in its
+  # own bin dir, so prepend that for the rest of the script.
+  PATH="$(mise where lima@latest)/bin:$(mise where qemu@latest 2>/dev/null || brew --prefix qemu)/bin:$PATH"
+  export PATH
+
+  if ! mise x colima@latest -- colima status >/dev/null 2>&1; then
     echo "==> Starting colima…"
     # `--vm-type qemu` so we don't depend on nested Apple Virtualization.framework
     # support — Namespace's macOS runners are themselves VMs and the default `vz`
     # driver fails with `error starting vm: error at 'creating and starting': exit
     # status 1` when there's no underlying VZ to nest into.
-    colima start --vm-type qemu --cpu 4 --memory 8 --disk 30
+    mise x colima@latest -- colima start --vm-type qemu --cpu 4 --memory 8 --disk 30
   fi
 fi
 
 if [[ -n "${GITHUB_ACTOR:-}" && -n "${GITHUB_TOKEN:-}" ]]; then
-  echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin >/dev/null
+  echo "$GITHUB_TOKEN" | mise x docker-cli@latest -- docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin >/dev/null
 fi
 
 echo "==> Pulling ${IMAGE_REF}…"
-docker pull "$IMAGE_REF"
+mise x docker-cli@latest -- docker pull "$IMAGE_REF"
 
 echo "==> Creating kind cluster '${CLUSTER_NAME}'…"
 if ! mise x kind@latest -- kind get clusters 2>/dev/null | grep -qx "$CLUSTER_NAME"; then
