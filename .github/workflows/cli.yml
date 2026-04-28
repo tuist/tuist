@@ -220,7 +220,11 @@ jobs:
     name: Build Acceptance Tests
     runs-on: namespace-profile-default-macos
     timeout-minutes: 60
-    if: (github.event.pull_request.draft == false || github.event_name != 'pull_request') && github.event.pull_request.head.repo.fork != true
+    # TEMP (this PR only): drop the `draft == false` gate so the docker build and
+    # acceptance tests run on draft PRs too — we want to confirm the new
+    # kind+helm pipeline is green before flipping the PR out of draft. Restore
+    # the gate before merge.
+    if: github.event.pull_request.head.repo.fork != true
     outputs:
       matrix: ${{ steps.shard.outputs.matrix }}
     steps:
