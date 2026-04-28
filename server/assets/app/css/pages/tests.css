@@ -4,6 +4,14 @@
   gap: var(--noora-spacing-6);
   padding: var(--noora-spacing-7) var(--noora-spacing-5);
 
+  & > [data-part="filters"] {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    align-items: center;
+    gap: var(--noora-spacing-4);
+  }
+
   & [data-part="widgets"] {
     display: flex;
     flex-direction: row;
@@ -40,7 +48,6 @@
       visibility: hidden;
     }
     & > [data-part="selective-testing-chart-section"] {
-      padding: var(--noora-spacing-9) var(--noora-spacing-7);
       & > [data-part="legends-and-toggle"] {
         display: flex;
         justify-content: space-between;

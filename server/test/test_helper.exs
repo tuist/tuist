@@ -109,7 +109,7 @@ Mimic.copy(UeberauthApple)
 Mimic.copy(Zstream)
 Mimic.copy(Slipstream)
 Mimic.copy(Port)
-Mimic.copy(Processor.BuildProcessor)
+Mimic.copy(Tuist.Processor.BuildProcessor)
 Mimic.copy(XcodeProcessor.XCResultProcessor)
 Mimic.copy(Tuist.Tasks)
 

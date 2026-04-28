@@ -68,6 +68,7 @@ struct TestCaseListCommandServiceTests {
             serverURL: .value(serverURL),
             flaky: .value(nil),
             quarantined: .value(nil),
+            state: .value(nil),
             page: .value(1),
             pageSize: .value(10)
         ).willReturn(response)
@@ -106,6 +107,7 @@ struct TestCaseListCommandServiceTests {
             serverURL: .value(serverURL),
             flaky: .value(nil),
             quarantined: .value(nil),
+            state: .value(nil),
             page: .value(1),
             pageSize: .value(10)
         ).willReturn(response)
@@ -143,6 +145,7 @@ struct TestCaseListCommandServiceTests {
             serverURL: .value(serverURL),
             flaky: .value(true),
             quarantined: .value(true),
+            state: .value(nil),
             page: .value(1),
             pageSize: .value(10)
         ).willReturn(response)
@@ -186,6 +189,7 @@ struct TestCaseListCommandServiceTests {
             serverURL: .value(serverURL),
             flaky: .value(nil),
             quarantined: .value(nil),
+            state: .value(nil),
             page: .value(1),
             pageSize: .value(500)
         ).willReturn(response)
@@ -229,6 +233,7 @@ struct TestCaseListCommandServiceTests {
             serverURL: .value(serverURL),
             flaky: .value(nil),
             quarantined: .value(true),
+            state: .value(nil),
             page: .value(1),
             pageSize: .value(500)
         ).willReturn(response)
@@ -269,6 +274,7 @@ struct TestCaseListCommandServiceTests {
             serverURL: .value(serverURL),
             flaky: .value(nil),
             quarantined: .value(nil),
+            state: .value(nil),
             page: .value(1),
             pageSize: .value(5)
         ).willReturn(response)
@@ -311,6 +317,7 @@ struct TestCaseListCommandServiceTests {
             serverURL: .value(serverURL),
             flaky: .value(nil),
             quarantined: .value(nil),
+            state: .value(nil),
             page: .value(2),
             pageSize: .value(10)
         ).willReturn(response)
@@ -352,6 +359,7 @@ struct TestCaseListCommandServiceTests {
             serverURL: .value(serverURL),
             flaky: .value(nil),
             quarantined: .value(nil),
+            state: .value(nil),
             page: .value(5),
             pageSize: .value(10)
         ).willReturn(response)
@@ -391,6 +399,7 @@ struct TestCaseListCommandServiceTests {
             serverURL: .value(serverURL),
             flaky: .value(nil),
             quarantined: .value(nil),
+            state: .value(nil),
             page: .value(1),
             pageSize: .value(10)
         ).willReturn(response)
@@ -430,6 +439,7 @@ struct TestCaseListCommandServiceTests {
             serverURL: .value(serverURL),
             flaky: .value(nil),
             quarantined: .value(nil),
+            state: .value(nil),
             page: .value(1),
             pageSize: .value(10)
         ).willReturn(response)
@@ -465,6 +475,7 @@ struct TestCaseListCommandServiceTests {
             serverURL: .value(serverURL),
             flaky: .value(nil),
             quarantined: .value(nil),
+            state: .value(nil),
             page: .value(1),
             pageSize: .value(10)
         ).willReturn(response)
@@ -487,6 +498,7 @@ struct TestCaseListCommandServiceTests {
             serverURL: .any,
             flaky: .any,
             quarantined: .any,
+            state: .any,
             page: .any,
             pageSize: .any
         ).called(1)
@@ -523,7 +535,8 @@ extension Components.Schemas.TestCase {
         suiteName: String? = nil,
         avgDuration: Int = 100,
         isFlaky: Bool = false,
-        isQuarantined: Bool = false
+        isQuarantined: Bool = false,
+        state: String = "enabled"
     ) -> Self {
         .init(
             avg_duration: avgDuration,
@@ -532,6 +545,7 @@ extension Components.Schemas.TestCase {
             is_quarantined: isQuarantined,
             module: .init(id: UUID().uuidString, name: moduleName),
             name: name,
+            state: state,
             suite: suiteName.map { .init(id: UUID().uuidString, name: $0) },
             url: "https://tuist.dev/test-case/\(UUID().uuidString)"
         )

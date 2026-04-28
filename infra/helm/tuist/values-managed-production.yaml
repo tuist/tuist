@@ -27,8 +27,6 @@ server:
       value: prod
     - name: TUIST_DATABASE_POOL_SIZE
       value: "15"
-    - name: TUIST_PROCESSOR_URL
-      value: http://processor.tuist.dev:4002
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
       value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
 
@@ -89,3 +87,31 @@ objectStorage:
       cache: tuist-cache
       xcodeCache: tuist-xcode-cache
       registry: tuist-registry
+
+processor:
+  # Supabase production project (yltsvvtmlktxdgpcbylg) — dedicated pooler on
+  # port 6543 (transaction mode). Same hostname as the direct Postgres
+  # endpoint, just a different port. Pooler creds are the `tuist_processor`
+  # role provisioned via infra/supabase/tuist-processor-role.sql.
+  database:
+    host: db.yltsvvtmlktxdgpcbylg.supabase.co
+  extraEnv:
+    # Must match the server's TUIST_DEPLOY_ENV above so the processor pod
+    # decrypts the same priv/secrets/<env>.yml.enc file the web tier does.
+    - name: TUIST_DEPLOY_ENV
+      value: prod
+    - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
+      value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "1Gi"
+    limits:
+      cpu: "2000m"
+      memory: "2Gi"
+
+# In-cluster Valkey backs the auth rate limiter (Hammer.Redis). The
+# chart wires TUIST_REDIS_URL to the embedded Service; without it the
+# rate limiter falls back to the per-pod InMemory bucket.
+redis:
+  enabled: true

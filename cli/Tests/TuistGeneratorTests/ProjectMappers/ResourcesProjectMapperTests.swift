@@ -1157,6 +1157,37 @@ struct ResourcesProjectMapperTests {
         #expect(targetKindSetting == .string("regular"))
     }
 
+    @Test
+    func objcImplementationFileContentSanitizesTargetNameWithHyphens() {
+        // Given
+        let targetName = "YoutubePlayer-in-WKWebView"
+
+        // When
+        let got = ResourcesProjectMapper.objcImplementationFileContent(
+            targetName: targetName,
+            bundleName: "MyProject_YoutubePlayer-in-WKWebView"
+        )
+
+        // Then
+        #expect(!got.contains("YoutubePlayer-in-WKWebViewBundleFinder"))
+        #expect(got.contains("YoutubePlayerInWKWebViewBundleFinder"))
+        #expect(got.contains("YoutubePlayerInWKWebView_SWIFTPM_MODULE_BUNDLE"))
+        #expect(!got.contains("YoutubePlayer-in-WKWebView_SWIFTPM_MODULE_BUNDLE"))
+    }
+
+    @Test
+    func objcHeaderFileContentSanitizesTargetNameWithHyphens() {
+        // Given
+        let targetName = "YoutubePlayer-in-WKWebView"
+
+        // When
+        let got = ResourcesProjectMapper.objcHeaderFileContent(targetName: targetName)
+
+        // Then
+        #expect(got.contains("YoutubePlayerInWKWebView_SWIFTPM_MODULE_BUNDLE"))
+        #expect(!got.contains("YoutubePlayer-in-WKWebView_SWIFTPM_MODULE_BUNDLE"))
+    }
+
     // MARK: - Helpers
 
     private func verifySideEffects(

@@ -488,6 +488,13 @@ defmodule TuistWeb.Marketing.MarketingController do
 
     post_urls = Enum.map(Blog.get_posts(), &Tuist.Environment.app_url(path: &1.slug))
 
+    case_study_urls =
+      for locale <- Localization.all_locales(),
+          case_study <- Customers.get_case_studies() do
+        localized_path = Localization.localized_href(case_study.slug, locale)
+        Tuist.Environment.app_url(path: localized_path)
+      end
+
     newsletter_issue_urls =
       Enum.map(
         Newsletter.issues(),
@@ -510,7 +517,9 @@ defmodule TuistWeb.Marketing.MarketingController do
         &Tuist.Environment.app_url(path: Tuist.Docs.Paths.public_path_from_slug(&1))
       )
 
-    entries = localized_entries ++ page_urls ++ post_urls ++ newsletter_issue_urls ++ docs_urls
+    entries =
+      localized_entries ++
+        case_study_urls ++ page_urls ++ post_urls ++ newsletter_issue_urls ++ docs_urls
 
     conn
     |> assign(:entries, entries)
@@ -568,18 +577,21 @@ defmodule TuistWeb.Marketing.MarketingController do
   end
 
   def case_study(%{request_path: request_path} = conn, _params) do
+    locale = Gettext.get_locale(TuistWeb.Gettext)
     request_path = Localization.path_without_locale(request_path)
-
-    case_study =
-      Enum.find(Customers.get_case_studies(), &(&1.slug == String.trim_trailing(request_path, "/")))
+    case_study = Customers.get_case_study(request_path, locale)
 
     if is_nil(case_study) do
       raise NotFoundError
     else
       related_case_studies =
-        Customers.get_case_studies()
+        locale
+        |> Customers.get_case_studies()
         |> Enum.reject(&(&1.slug == case_study.slug))
         |> Enum.take_random(3)
+
+      customers_path = Localization.localized_href("/customers", locale)
+      case_study_path = Localization.localized_href(case_study.slug, locale)
 
       conn
       |> assign(:head_title, case_study.title)
@@ -592,11 +604,11 @@ defmodule TuistWeb.Marketing.MarketingController do
       |> assign_structured_data(
         get_breadcrumbs_structured_data([
           {dgettext("marketing", "Tuist"), Tuist.Environment.app_url(path: ~p"/")},
-          {dgettext("marketing", "Customers"), Tuist.Environment.app_url(path: ~p"/customers")},
-          {case_study.title, Tuist.Environment.app_url(path: case_study.slug)}
+          {dgettext("marketing", "Customers"), Tuist.Environment.app_url(path: customers_path)},
+          {case_study.title, Tuist.Environment.app_url(path: case_study_path)}
         ])
       )
-      |> assign_structured_data(get_case_study_article_structured_data(case_study))
+      |> assign_structured_data(get_case_study_article_structured_data(case_study, locale))
       |> assign(:case_study, case_study)
       |> assign(:related_case_studies, related_case_studies)
       |> render(:case_study, layout: false)

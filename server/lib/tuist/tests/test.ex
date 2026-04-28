@@ -18,7 +18,8 @@ defmodule Tuist.Tests.Test do
       :macos_version,
       :account_id,
       :is_ci,
-      :build_system
+      :build_system,
+      :ran_at
     ],
     sortable: [:ran_at, :duration, :inserted_at]
   }

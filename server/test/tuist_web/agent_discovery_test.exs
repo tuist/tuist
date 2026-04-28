@@ -34,6 +34,11 @@ defmodule TuistWeb.AgentDiscoveryTest do
                      "href" => "https://tuist.dev/api/docs",
                      "type" => "text/html"
                    }
+                 ],
+                 "status" => [
+                   %{
+                     "href" => "https://tuist.dev/ready"
+                   }
                  ]
                }
              ]

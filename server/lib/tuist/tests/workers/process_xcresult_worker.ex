@@ -27,6 +27,13 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
       {:ok, parsed_data} ->
         replace_test_run(parsed_data, args)
 
+        case Map.get(args, "vcs_comment_params", %{}) do
+          params when params != %{} -> Tuist.VCS.enqueue_vcs_pull_request_comment(params)
+          _ -> :ok
+        end
+
+        :ok
+
       {:error, reason} ->
         if attempt >= max_attempts do
           Logger.error(

@@ -58,6 +58,13 @@ defmodule Tuist.Bundles.Bundle do
         apk: 4
       ]
 
+    # Set to true once the bundle's artifacts have been synchronously
+    # replicated to ClickHouse from `Bundles.create_bundle/2`. The follow-up
+    # backfill paginates rows where this is false to recover both
+    # pre-dual-write history and any bundle whose CH write failed under a
+    # transient outage.
+    field :artifacts_replicated_to_ch, :boolean, default: false
+
     belongs_to :project, Tuist.Projects.Project, type: :integer
     belongs_to :uploaded_by_account, Tuist.Accounts.Account, type: :integer
     has_many :artifacts, Artifact

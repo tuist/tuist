@@ -114,6 +114,20 @@ defmodule Tuist.Automations.Alerts.AlertTest do
       assert changeset.valid?
     end
 
+    test "accepts a change_state action with skipped state" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "trigger_actions" => [%{"type" => "change_state", "state" => "skipped"}]
+          })
+        )
+
+      assert changeset.valid?
+    end
+
     test "rejects change_state action with invalid state" do
       project = ProjectsFixtures.project_fixture()
 

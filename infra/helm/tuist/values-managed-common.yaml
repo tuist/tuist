@@ -28,6 +28,15 @@ server:
     port: 80
     targetPort: 8080
 
+  # ingress-nginx defaults `proxy-body-size` to 1m, which rejects large
+  # `createBundle` requests (the JSON manifest carries one entry per
+  # artifact and grows past 1 MB on big iOS apps). Match the Phoenix
+  # Plug.Parsers limit at lib/tuist_web/endpoint.ex so the two stay in
+  # lockstep — bump both when bumping either.
+  ingress:
+    annotations:
+      nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+
   # All runtime secrets (DATABASE_URL, CLICKHOUSE_URL, S3 creds, Sentry, Stripe,
   # OAuth, Mailgun, etc.) live in priv/secrets/<env>.yml.enc baked into the
   # image. The app decrypts them at boot when MASTER_KEY is present in the
@@ -105,6 +114,39 @@ server:
       memory: "2Gi"
 
   terminationGracePeriodSeconds: 60
+
+# Processor runs in-cluster as a dedicated Oban consumer for :process_build.
+# Same Docker image as the server; TUIST_MODE=processor in the chart
+# flips the BEAM into queue-only mode. Postgres is the coordination plane —
+# FOR UPDATE SKIP LOCKED gives natural load-balancing across replicas.
+#
+# The DATABASE_URL in 1P ("PROCESSOR_DATABASE_URL") must embed the
+# `tuist_processor` role provisioned via infra/supabase/tuist-processor-role.sql
+# on each env's Supabase project. Without the role, ESO syncs an empty URL
+# and processor pods crashloop — see infra/supabase/README.md for bootstrap.
+processor:
+  enabled: true
+  replicaCount: 2
+  queueConcurrency: 5
+  managedSecrets: true
+  externalSecrets:
+    refreshInterval: "1h"
+    storeRef:
+      kind: ClusterSecretStore
+      name: onepassword
+    databasePassword:
+      item: PROCESSOR_DATABASE_PASSWORD
+      field: password
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+  resources:
+    requests:
+      cpu: "250m"
+      memory: "512Mi"
+    limits:
+      cpu: "1000m"
+      memory: "1Gi"
 
 # Everything below = external. The managed deployment never runs embedded
 # Postgres / ClickHouse / object storage / observability stacks.

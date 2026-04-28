@@ -52,6 +52,19 @@ defmodule TuistWeb.QuarantinedTestsLive do
         type: :text,
         operator: :=~,
         value: ""
+      },
+      %Filter.Filter{
+        id: "state",
+        field: "state",
+        display_name: dgettext("dashboard_tests", "Mode"),
+        type: :option,
+        options: ["muted", "skipped"],
+        options_display_names: %{
+          "muted" => dgettext("dashboard_tests", "Muted"),
+          "skipped" => dgettext("dashboard_tests", "Skipped")
+        },
+        operator: :==,
+        value: nil
       }
     ]
 
@@ -154,6 +167,8 @@ defmodule TuistWeb.QuarantinedTestsLive do
       else
         Query.put(socket.assigns.uri.query, "analytics-date-range", preset)
       end
+
+    query_params = Query.drop(query_params, "page")
 
     {:noreply,
      push_patch(socket, to: "/#{selected_account.name}/#{selected_project.name}/tests/quarantined-tests?#{query_params}")}

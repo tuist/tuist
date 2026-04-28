@@ -1,0 +1,140 @@
+{{- if .Values.processor.enabled }}
+{{- $processorSecretName := ternary (include "tuist.componentName" (dict "root" . "component" "processor-external-secrets")) (include "tuist.componentName" (dict "root" . "component" "app-secrets")) .Values.processor.managedSecrets }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "processor") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: processor
+spec:
+  replicas: {{ .Values.processor.replicaCount }}
+  strategy:
+    {{- toYaml .Values.processor.strategy | nindent 4 }}
+  selector:
+    matchLabels:
+      {{- include "tuist.componentLabels" (dict "root" . "component" "processor") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "tuist.componentLabels" (dict "root" . "component" "processor") | nindent 8 }}
+        {{- with .Values.global.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- with .Values.processor.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        # PromEx in the release binds /metrics on :9091 in every TUIST_MODE
+        # (it's a separate HTTP server, not the Phoenix endpoint). The Alloy
+        # scraper finds the endpoint via these annotations and forwards to
+        # Grafana Cloud Prometheus — same path as the server pod.
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9091"
+        {{- with .Values.processor.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "tuist.componentServiceAccountName" (dict "root" . "component" "server") }}
+      terminationGracePeriodSeconds: {{ .Values.processor.terminationGracePeriodSeconds }}
+      {{- include "tuist.podScheduling" . | nindent 6 }}
+      # Soft anti-affinity: the scheduler prefers one replica per node so a
+      # worker VM loss still leaves a healthy pod. Falls back to co-locating
+      # during a rolling deploy (maxSurge=1, maxUnavailable=0) when only two
+      # worker nodes exist.
+      {{- if .Values.processor.topologySpread.enabled }}
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              {{- include "tuist.componentLabels" (dict "root" . "component" "processor") | nindent 14 }}
+      {{- end }}
+      {{- with .Values.processor.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: processor
+          # Same image as the server Deployment — the release boots into
+          # processor mode via TUIST_MODE below instead of shipping a
+          # separate image. That keeps the worker module, Ecto schemas, and
+          # priv/secrets exactly in sync with what enqueued the job.
+          image: "{{ .Values.server.image.repository }}:{{ .Values.server.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.server.image.pullPolicy }}
+          command:
+            - /app/bin/tuist
+            - start
+          ports:
+            # PromEx /metrics — declared so the Alloy scraper can discover it
+            # via the prometheus.io/port pod annotation above. Not exposed
+            # via a Service; scraping happens directly against the pod IP.
+            - name: metrics
+              containerPort: 9091
+          env:
+            # Gate the BEAM into processor mode: skip the Phoenix web endpoint
+            # AND narrow the Oban queue set to :process_build only.
+            # See `Tuist.Environment.mode/0` and the oban_queues block in
+            # server/config/runtime.exs.
+            - name: TUIST_MODE
+              value: processor
+            - name: TUIST_PROCESS_BUILD_QUEUE_CONCURRENCY
+              value: {{ .Values.processor.queueConcurrency | quote }}
+            # Tells runtime.exs to use transaction-mode pooler settings:
+            # `prepare: :unnamed` and no tcp_keepalives_* startup parameters.
+            # Required because DATABASE_URL below points at Supavisor on 6543.
+            - name: TUIST_DATABASE_POOLED
+              value: "1"
+            # Override DATABASE_URL baked into priv/secrets/<env>.yml.enc with
+            # the least-privilege tuist_processor role. Scope: SELECT/INSERT/
+            # UPDATE/DELETE on oban_jobs + read-only on accounts/projects.
+            # See infra/supabase/tuist-processor-role.sql.
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $processorSecretName }}
+                  key: processor-database-url
+            {{- if or .Values.server.masterKey .Values.server.managedSecrets }}
+            # MASTER_KEY unlocks the rest of priv/secrets/<env>.yml.enc
+            # (ClickHouse URL, S3 creds, Sentry, Stripe, etc.). The release
+            # boots with the same secrets the web server would, minus the
+            # DATABASE_URL override above.
+            - name: MASTER_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ ternary (include "tuist.componentName" (dict "root" . "component" "server-external-secrets")) (include "tuist.componentName" (dict "root" . "component" "app-secrets")) .Values.server.managedSecrets }}
+                  key: server-master-key
+            {{- end }}
+            - name: TUIST_HOSTED
+              value: {{ .Values.server.hosted | ternary "1" "0" | quote }}
+            - name: TUIST_LOG_LEVEL
+              value: {{ .Values.server.logLevel | quote }}
+            {{- with .Values.processor.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with .Values.server.extraEnvFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          # No HTTP probes — the pod has no web endpoint. Liveness is proved
+          # by Oban's heartbeat into oban_peers: a wedged BEAM stops updating
+          # it within ~30s and Oban.Plugins.Lifeline reclaims the in-flight
+          # jobs for other pods. The BEAM crashes hard on unrecoverable errors,
+          # so TCP-less liveness is acceptable here.
+          #
+          # No preStop hook either — there's no Service to drain (Oban polls
+          # for work, it doesn't receive HTTP). On SIGTERM the BEAM gets
+          # `terminationGracePeriodSeconds` to finish whatever parse it had
+          # claimed; anything still running at the deadline is reclaimed by
+          # Oban.Plugins.Lifeline on a healthy pod.
+          resources:
+            {{- toYaml .Values.processor.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: {{ .Values.processor.tmpSizeLimit | quote }}
+{{- end }}

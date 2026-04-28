@@ -44,7 +44,7 @@ class TuistTestQuarantineTest {
     }
 
     @Test
-    fun `getQuarantinedTests groups tests by module`() {
+    fun `getQuarantinedTests groups muted tests by module`() {
         val service = createService()
 
         val responseBody = Gson().toJson(
@@ -53,37 +53,115 @@ class TuistTestQuarantineTest {
                     QuarantinedTestCase(
                         name = "testLogin",
                         module = QuarantinedModule(id = "1", name = ":app"),
-                        suite = QuarantinedSuite(id = "1", name = "com.example.LoginTest")
+                        suite = QuarantinedSuite(id = "1", name = "com.example.LoginTest"),
+                        state = "muted"
                     ),
                     QuarantinedTestCase(
                         name = "testLogout",
                         module = QuarantinedModule(id = "1", name = ":app"),
-                        suite = QuarantinedSuite(id = "2", name = "com.example.LogoutTest")
+                        suite = QuarantinedSuite(id = "2", name = "com.example.LogoutTest"),
+                        state = "muted"
                     ),
                     QuarantinedTestCase(
                         name = "testParse",
                         module = QuarantinedModule(id = "2", name = ":lib"),
-                        suite = QuarantinedSuite(id = "3", name = "com.example.ParserTest")
+                        suite = QuarantinedSuite(id = "3", name = "com.example.ParserTest"),
+                        state = "muted"
                     )
                 )
             )
         )
         mockWebServer.enqueue(MockResponse().setResponseCode(200).setBody(responseBody))
 
-        val exclusions = service.getQuarantinedTests()
+        val result = service.getQuarantinedTests()
 
-        assertEquals(2, exclusions.size)
+        assertEquals(2, result.muted.size)
+        assertTrue(result.skipped.isEmpty())
         assertEquals(
             listOf(
                 TestIdentifier("com.example.LoginTest", "testLogin"),
                 TestIdentifier("com.example.LogoutTest", "testLogout")
             ),
-            exclusions[":app"]
+            result.muted[":app"]
         )
         assertEquals(
             listOf(TestIdentifier("com.example.ParserTest", "testParse")),
-            exclusions[":lib"]
+            result.muted[":lib"]
         )
+    }
+
+    @Test
+    fun `getQuarantinedTests splits muted and skipped tests by mode`() {
+        val service = createService()
+
+        val responseBody = Gson().toJson(
+            QuarantinedTestCasesResponse(
+                testCases = listOf(
+                    QuarantinedTestCase(
+                        name = "testFlaky",
+                        module = QuarantinedModule(id = "1", name = ":app"),
+                        suite = QuarantinedSuite(id = "1", name = "com.example.FooTest"),
+                        state = "muted"
+                    ),
+                    QuarantinedTestCase(
+                        name = "testBroken",
+                        module = QuarantinedModule(id = "1", name = ":app"),
+                        suite = QuarantinedSuite(id = "2", name = "com.example.BarTest"),
+                        state = "skipped"
+                    ),
+                    QuarantinedTestCase(
+                        name = "testSlow",
+                        module = QuarantinedModule(id = "2", name = ":lib"),
+                        suite = QuarantinedSuite(id = "3", name = "com.example.SlowTest"),
+                        state = "skipped"
+                    )
+                )
+            )
+        )
+        mockWebServer.enqueue(MockResponse().setResponseCode(200).setBody(responseBody))
+
+        val result = service.getQuarantinedTests()
+
+        assertEquals(
+            listOf(TestIdentifier("com.example.FooTest", "testFlaky")),
+            result.muted[":app"]
+        )
+        assertEquals(
+            listOf(TestIdentifier("com.example.BarTest", "testBroken")),
+            result.skipped[":app"]
+        )
+        assertEquals(
+            listOf(TestIdentifier("com.example.SlowTest", "testSlow")),
+            result.skipped[":lib"]
+        )
+        assertFalse(result.muted.containsKey(":lib"))
+    }
+
+    @Test
+    fun `getQuarantinedTests treats null state as muted for back-compat`() {
+        val service = createService()
+
+        val responseBody = Gson().toJson(
+            QuarantinedTestCasesResponse(
+                testCases = listOf(
+                    QuarantinedTestCase(
+                        name = "testLegacy",
+                        module = QuarantinedModule(id = "1", name = ":app"),
+                        suite = QuarantinedSuite(id = "1", name = "com.example.LegacyTest"),
+                        state = null
+                    )
+                )
+            )
+        )
+        mockWebServer.enqueue(MockResponse().setResponseCode(200).setBody(responseBody))
+
+        val result = service.getQuarantinedTests()
+
+        assertEquals(
+            listOf(TestIdentifier("com.example.LegacyTest", "testLegacy")),
+            result.muted[":app"]
+        )
+        assertTrue(result.skipped.isEmpty())
     }
 
     @Test
@@ -96,16 +174,17 @@ class TuistTestQuarantineTest {
                     QuarantinedTestCase(
                         name = "testDynamic",
                         module = QuarantinedModule(id = "1", name = ":app"),
-                        suite = null
+                        suite = null,
+                        state = "muted"
                     )
                 )
             )
         )
         mockWebServer.enqueue(MockResponse().setResponseCode(200).setBody(responseBody))
 
-        val exclusions = service.getQuarantinedTests()
+        val result = service.getQuarantinedTests()
 
-        assertEquals(listOf(TestIdentifier(null, "testDynamic")), exclusions[":app"])
+        assertEquals(listOf(TestIdentifier(null, "testDynamic")), result.muted[":app"])
     }
 
     @Test
@@ -118,16 +197,17 @@ class TuistTestQuarantineTest {
                     QuarantinedTestCase(
                         name = "testBlank",
                         module = QuarantinedModule(id = "1", name = ":app"),
-                        suite = QuarantinedSuite(id = "1", name = "  ")
+                        suite = QuarantinedSuite(id = "1", name = "  "),
+                        state = "muted"
                     )
                 )
             )
         )
         mockWebServer.enqueue(MockResponse().setResponseCode(200).setBody(responseBody))
 
-        val exclusions = service.getQuarantinedTests()
+        val result = service.getQuarantinedTests()
 
-        assertEquals(listOf(TestIdentifier(null, "testBlank")), exclusions[":app"])
+        assertEquals(listOf(TestIdentifier(null, "testBlank")), result.muted[":app"])
     }
 
     @Test
@@ -140,17 +220,21 @@ class TuistTestQuarantineTest {
                     QuarantinedTestCase(
                         name = "testFlaky",
                         module = QuarantinedModule(id = "1", name = ":app"),
-                        suite = QuarantinedSuite(id = "1", name = "com.example.FlakyTest")
+                        suite = QuarantinedSuite(id = "1", name = "com.example.FlakyTest"),
+                        state = "muted"
                     )
                 )
             )
         )
         mockWebServer.enqueue(MockResponse().setResponseCode(200).setBody(responseBody))
 
-        val exclusions = service.getQuarantinedTests()
+        val result = service.getQuarantinedTests()
 
-        assertEquals(1, exclusions.size)
-        assertEquals(listOf(TestIdentifier("com.example.FlakyTest", "testFlaky")), exclusions[":app"])
+        assertEquals(1, result.muted.size)
+        assertEquals(
+            listOf(TestIdentifier("com.example.FlakyTest", "testFlaky")),
+            result.muted[":app"]
+        )
 
         val request = mockWebServer.takeRequest()
         assertEquals("GET", request.method)
@@ -159,7 +243,7 @@ class TuistTestQuarantineTest {
     }
 
     @Test
-    fun `getQuarantinedTests returns empty map on network error`() {
+    fun `getQuarantinedTests returns empty result on network error`() {
         val baseUrl = "http://localhost:1"
         val httpClient = TuistHttpClient(
             configurationProvider = object : ConfigurationProvider {
@@ -175,20 +259,20 @@ class TuistTestQuarantineTest {
         )
         val service = TuistTestQuarantineService(httpClient = httpClient, baseUrl = baseUrl)
 
-        val exclusions = service.getQuarantinedTests()
+        val result = service.getQuarantinedTests()
 
-        assertTrue(exclusions.isEmpty())
+        assertTrue(result.isEmpty())
     }
 
     @Test
-    fun `getQuarantinedTests returns empty map on non-200 response`() {
+    fun `getQuarantinedTests returns empty result on non-200 response`() {
         val service = createService()
 
         mockWebServer.enqueue(MockResponse().setResponseCode(500).setBody("Internal Server Error"))
 
-        val exclusions = service.getQuarantinedTests()
+        val result = service.getQuarantinedTests()
 
-        assertTrue(exclusions.isEmpty())
+        assertTrue(result.isEmpty())
     }
 
     @Test
@@ -201,7 +285,8 @@ class TuistTestQuarantineTest {
                     QuarantinedTestCase(
                         name = "testCached",
                         module = QuarantinedModule(id = "1", name = ":app"),
-                        suite = QuarantinedSuite(id = "1", name = "com.example.CachedTest")
+                        suite = QuarantinedSuite(id = "1", name = "com.example.CachedTest"),
+                        state = "muted"
                     )
                 )
             )
@@ -224,9 +309,34 @@ class TuistTestQuarantineTest {
         val responseBody = Gson().toJson(QuarantinedTestCasesResponse(testCases = emptyList()))
         mockWebServer.enqueue(MockResponse().setResponseCode(200).setBody(responseBody))
 
-        val exclusions = service.getQuarantinedTests()
+        val result = service.getQuarantinedTests()
 
-        assertTrue(exclusions.isEmpty())
+        assertTrue(result.isEmpty())
+    }
+
+    @Test
+    fun `QuarantinedTests all unions muted and skipped per module`() {
+        val muted = mapOf(
+            ":app" to listOf(TestIdentifier("FooTest", "testFlaky"))
+        )
+        val skipped = mapOf(
+            ":app" to listOf(TestIdentifier("BarTest", "testBroken")),
+            ":lib" to listOf(TestIdentifier("SlowTest", "testSlow"))
+        )
+
+        val all = QuarantinedTests(muted = muted, skipped = skipped).all
+
+        assertEquals(
+            listOf(
+                TestIdentifier("FooTest", "testFlaky"),
+                TestIdentifier("BarTest", "testBroken")
+            ),
+            all[":app"]
+        )
+        assertEquals(
+            listOf(TestIdentifier("SlowTest", "testSlow")),
+            all[":lib"]
+        )
     }
 
     @Test

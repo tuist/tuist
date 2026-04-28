@@ -7,13 +7,14 @@ defmodule TuistWeb.Marketing.MarketingBlogLive do
 
   alias Tuist.Marketing.Blog
   alias Tuist.Marketing.Content
+  alias TuistWeb.Marketing.Localization
 
-  on_mount {TuistWeb.Authentication, :mount_current_user}
+  on_mount({TuistWeb.Authentication, :mount_current_user})
 
   @posts_per_page 9
 
   def mount(_params, _session, socket) do
-    all_entries = Content.get_entries()
+    all_entries = Content.get_entries(current_locale())
     structured_posts = Blog.get_posts()
 
     socket =
@@ -37,7 +38,7 @@ defmodule TuistWeb.Marketing.MarketingBlogLive do
 
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   def handle_params(params, _url, socket) do
-    all_entries = Content.get_entries()
+    all_entries = Content.get_entries(current_locale())
     search_query = Map.get(params, "search", "")
     category = Map.get(params, "category")
 
@@ -128,12 +129,12 @@ defmodule TuistWeb.Marketing.MarketingBlogLive do
 
   def handle_event("search", %{"search" => search_query}, socket) do
     # Reset pagination and category when searching
-    {:noreply, push_patch(socket, to: ~p"/blog?search=#{search_query}")}
+    {:noreply, push_patch(socket, to: "#{blog_path()}?search=#{URI.encode_www_form(search_query)}")}
   end
 
   def handle_event("select_category", %{"category" => category}, socket) do
     # Reset pagination and search when selecting category
-    {:noreply, push_patch(socket, to: ~p"/blog?category=#{category}")}
+    {:noreply, push_patch(socket, to: "#{blog_path()}?category=#{URI.encode_www_form(category)}")}
   end
 
   def handle_event("page_change", %{"page" => page}, socket) do
@@ -152,6 +153,14 @@ defmodule TuistWeb.Marketing.MarketingBlogLive do
     params = ["page=#{page}" | params]
     query_string = "?#{Enum.join(params, "&")}"
 
-    {:noreply, push_patch(socket, to: "/blog#{query_string}")}
+    {:noreply, push_patch(socket, to: "#{blog_path()}#{query_string}")}
+  end
+
+  defp blog_path do
+    Localization.localized_href("/blog", current_locale())
+  end
+
+  defp current_locale do
+    Gettext.get_locale(TuistWeb.Gettext)
   end
 end
