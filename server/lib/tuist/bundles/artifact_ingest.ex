@@ -4,8 +4,14 @@ defmodule Tuist.Bundles.ArtifactIngest do
 
   Used during the PG → CH migration of the `artifacts` table. Until reads are
   cut over, `Tuist.Bundles.Artifact` remains the source of truth and this
-  schema only receives shadow writes via the `Bufferable`-generated
-  `Tuist.Bundles.ArtifactIngest.Buffer` submodule.
+  schema receives synchronous shadow writes from
+  `Tuist.Bundles.create_bundle/2`. We deliberately do not use
+  `Tuist.Ingestion.Bufferable` here: a buffered async flush that crashes on
+  a transient ClickHouse outage would silently drop rows after the PG
+  transaction has already committed, with no durable record for the
+  follow-up backfill to recover. Going synchronous lets the write fail
+  loudly (caught by the rescue in `Bundles`) and leaves the bundle's
+  `artifacts_replicated_to_ch` flag unset so the backfill picks it up.
 
   Rows match the PG layout one-for-one except `size` is `Int64` (the column
   whose width was the original motivation for migrating off PG; see the
@@ -13,7 +19,6 @@ defmodule Tuist.Bundles.ArtifactIngest do
   """
 
   use Ecto.Schema
-  use Tuist.Ingestion.Bufferable
 
   @primary_key {:id, Ch, type: "UUID", autogenerate: false}
   schema "artifacts" do

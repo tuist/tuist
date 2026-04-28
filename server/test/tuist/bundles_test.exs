@@ -6,7 +6,9 @@ defmodule Tuist.BundlesTest do
 
   alias Tuist.Bundles
   alias Tuist.Bundles.ArtifactIngest
+  alias Tuist.Bundles.Bundle
   alias Tuist.ClickHouseRepo
+  alias Tuist.Repo
   alias TuistTestSupport.Fixtures.BundlesFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
@@ -43,48 +45,46 @@ defmodule Tuist.BundlesTest do
       assert bundle.id == id
     end
 
-    test "shadow-writes the bundle's artifacts to ClickHouse" do
+    test "replicates the bundle's artifacts to ClickHouse and marks the bundle replicated" do
       # Given
       project_id = ProjectsFixtures.project_fixture().id
       id = UUIDv7.generate()
 
       # When
       {:ok, _bundle} =
-        with_flushed_ingestion_buffers(fn ->
-          Bundles.create_bundle(%{
-            id: id,
-            name: "App",
-            app_bundle_id: "dev.tuist.app",
-            install_size: 1024,
-            download_size: 1024,
-            supported_platforms: [:ios],
-            version: "1.0.0",
-            git_branch: "main",
-            type: :app,
-            project_id: project_id,
-            artifacts: [
-              %{
-                artifact_type: :directory,
-                path: "App.app",
-                shasum: "aaa",
-                # Use a value comfortably within PG int4 (max 2_147_483_647).
-                # Dual-write goes through PG first today, so we are
-                # upper-bounded by the column type that motivated this
-                # whole migration. Once phase 4 drops the PG table, we can
-                # round-trip an actual Int64-sized value end-to-end.
-                size: 2_000_000_000,
-                children: [
-                  %{
-                    artifact_type: :file,
-                    path: "App.app/Info.plist",
-                    shasum: "bbb",
-                    size: 1024
-                  }
-                ]
-              }
-            ]
-          })
-        end)
+        Bundles.create_bundle(%{
+          id: id,
+          name: "App",
+          app_bundle_id: "dev.tuist.app",
+          install_size: 1024,
+          download_size: 1024,
+          supported_platforms: [:ios],
+          version: "1.0.0",
+          git_branch: "main",
+          type: :app,
+          project_id: project_id,
+          artifacts: [
+            %{
+              artifact_type: :directory,
+              path: "App.app",
+              shasum: "aaa",
+              # Use a value comfortably within PG int4 (max 2_147_483_647).
+              # Dual-write goes through PG first today, so we are
+              # upper-bounded by the column type that motivated this
+              # whole migration. Once phase 4 drops the PG table, we can
+              # round-trip an actual Int64-sized value end-to-end.
+              size: 2_000_000_000,
+              children: [
+                %{
+                  artifact_type: :file,
+                  path: "App.app/Info.plist",
+                  shasum: "bbb",
+                  size: 1024
+                }
+              ]
+            }
+          ]
+        })
 
       # Then
       ch_artifacts =
@@ -106,9 +106,12 @@ defmodule Tuist.BundlesTest do
       # `:utc_datetime` value without losing the wall-clock time.
       assert NaiveDateTime.compare(parent.inserted_at, ~N[2024-08-10 02:00:00]) == :eq
       assert NaiveDateTime.compare(parent.updated_at, ~N[2024-08-10 02:00:00]) == :eq
+      # The replication flag must be set so the follow-up backfill skips
+      # this bundle.
+      assert Repo.get!(Bundle, id).artifacts_replicated_to_ch == true
     end
 
-    test "does not fail bundle creation when ClickHouse is unavailable" do
+    test "leaves artifacts_replicated_to_ch=false when ClickHouse is unavailable so the backfill recovers the bundle" do
       # Given
       project_id = ProjectsFixtures.project_fixture().id
       id = UUIDv7.generate()
@@ -140,8 +143,36 @@ defmodule Tuist.BundlesTest do
           ]
         })
 
-      # Then
+      # Then bundle creation succeeded, but the replication flag is left
+      # false so the follow-up backfill (paginating
+      # `WHERE artifacts_replicated_to_ch = false`) recovers the rows.
       assert bundle.id == id
+      assert Repo.get!(Bundle, id).artifacts_replicated_to_ch == false
+    end
+
+    test "marks bundles with no artifacts as already replicated" do
+      # Given
+      project_id = ProjectsFixtures.project_fixture().id
+      id = UUIDv7.generate()
+
+      # When
+      {:ok, _bundle} =
+        Bundles.create_bundle(%{
+          id: id,
+          name: "App",
+          app_bundle_id: "dev.tuist.app",
+          install_size: 1024,
+          download_size: 1024,
+          supported_platforms: [:ios],
+          version: "1.0.0",
+          git_branch: "main",
+          type: :app,
+          project_id: project_id
+        })
+
+      # Then a vacuous bundle (no artifacts) is considered replicated so
+      # the backfill does not pick it up unnecessarily.
+      assert Repo.get!(Bundle, id).artifacts_replicated_to_ch == true
     end
 
     test "raises if an artifact type is invalid" do

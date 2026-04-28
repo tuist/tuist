@@ -9,6 +9,7 @@ defmodule Tuist.Bundles do
   alias Tuist.Bundles.ArtifactIngest
   alias Tuist.Bundles.Bundle
   alias Tuist.Bundles.BundleThreshold
+  alias Tuist.IngestRepo
   alias Tuist.Projects.Project
   alias Tuist.Repo
 
@@ -42,7 +43,7 @@ defmodule Tuist.Bundles do
 
     case Repo.transaction(multi) do
       {:ok, %{bundle: bundle, artifacts: artifacts}} ->
-        shadow_write_artifacts_to_clickhouse(artifacts)
+        bundle = replicate_artifacts_to_clickhouse(bundle, artifacts)
         {:ok, Repo.preload(bundle, preload)}
 
       {:error, _operation, changeset, _changes} ->
@@ -50,30 +51,43 @@ defmodule Tuist.Bundles do
     end
   end
 
-  # Mirrors the artifacts that were just persisted to PG into ClickHouse via
-  # the bufferable schema. PG remains the source of truth for reads until the
-  # backfill completes and reads are cut over (see the PG → CH artifacts
-  # migration in `priv/ingest_repo/migrations/`).
+  # Mirrors the just-persisted artifacts into ClickHouse synchronously and,
+  # on success, marks the bundle as replicated. PG remains the source of
+  # truth for reads until the backfill completes and reads are cut over.
   #
-  # Failures must never propagate: bundle creation has already committed in
-  # PG, and a transient CH outage would otherwise surface as a 5xx to the CLI
-  # for a write that actually succeeded. The backfill migration is
-  # idempotent (ReplacingMergeTree on `(bundle_id, id)`), so any rows lost
-  # here are picked up on the next deploy's backfill re-run.
-  defp shadow_write_artifacts_to_clickhouse([]), do: :ok
+  # The write is intentionally synchronous (not via `Tuist.Ingestion.Buffer`):
+  # a buffered async flush that crashes on a transient CH outage would drop
+  # rows after the PG transaction has already committed, with no durable
+  # signal for recovery. With the synchronous path, `IngestRepo.with_retry`
+  # absorbs brief blips, and longer outages surface here as exceptions —
+  # rescued so bundle creation does not 5xx, but with the bundle's
+  # `artifacts_replicated_to_ch` flag left unset so the follow-up backfill
+  # paginating `WHERE artifacts_replicated_to_ch = false` recovers it.
+  defp replicate_artifacts_to_clickhouse(bundle, []) do
+    mark_replicated!(bundle)
+  end
 
-  defp shadow_write_artifacts_to_clickhouse(artifacts) do
+  defp replicate_artifacts_to_clickhouse(bundle, artifacts) do
     rows = Enum.map(artifacts, &ArtifactIngest.from_pg/1)
-    ArtifactIngest.Buffer.insert_all(rows)
-    :ok
+    IngestRepo.insert_all(ArtifactIngest, rows)
+    mark_replicated!(bundle)
   rescue
     e ->
       Logger.error(
-        "Failed to shadow-write artifacts to ClickHouse: #{Exception.message(e)}\n" <>
-          Exception.format_stacktrace(__STACKTRACE__)
+        "Failed to replicate artifacts to ClickHouse for bundle #{bundle.id}: " <>
+          Exception.message(e) <> "\n" <> Exception.format_stacktrace(__STACKTRACE__)
       )
 
-      :ok
+      bundle
+  end
+
+  defp mark_replicated!(%Bundle{id: id} = bundle) do
+    Repo.update_all(
+      from(b in Bundle, where: b.id == ^id),
+      set: [artifacts_replicated_to_ch: true]
+    )
+
+    %{bundle | artifacts_replicated_to_ch: true}
   end
 
   defp insert_artifacts_in_batches(repo, artifacts, bundle_id) do
