@@ -1,0 +1,36 @@
+# Provider overlay: `local` — for development against kind / minikube /
+# docker-desktop. Layered after values-managed.yaml when the chosen
+# cluster is registered with `provider: local` in
+# `Tuist.Kura.Clusters`.
+#
+# Disables the Ingress (no LB in local kind) and uses the cluster's
+# default StorageClass. Replicas drop to 1 so a single-node kind
+# cluster can host the StatefulSet without scheduling fights.
+
+replicaCount: 1
+
+ingress:
+  enabled: false
+
+persistence:
+  enabled: true
+  storageClass: ""
+  size: 10Gi
+
+# Telemetry endpoint defined in values-managed.yaml is unreachable from
+# kind unless the operator also runs the observability stack locally.
+# Drop to a no-op so the rollout doesn't spam errors.
+config:
+  telemetry:
+    otlpTracesEndpoint: ""
+    deploymentEnvironment: development
+
+resources:
+  requests:
+    cpu: "100m"
+    memory: "256Mi"
+  limits:
+    memory: "512Mi"
+
+pdb:
+  enabled: false

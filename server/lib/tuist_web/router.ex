@@ -703,6 +703,8 @@ defmodule TuistWeb.Router do
       ] do
       live "/", TuistWeb.OpsCacheLive
       live "/accounts", TuistWeb.OpsAccountsLive
+      live "/accounts/:id", TuistWeb.OpsAccountLive
+      live "/accounts/:id/kura/deployments/:deployment_id", TuistWeb.OpsAccountKuraDeploymentLive
     end
   end
 
