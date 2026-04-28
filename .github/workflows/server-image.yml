@@ -74,9 +74,7 @@ permissions:
 jobs:
   build:
     name: Build + scan
-    # TEMP (this PR only): drop the `draft == false` gate so the docker build runs
-    # on draft PRs too — we want to confirm the new kind+helm pipeline is green
-    # before flipping the PR out of draft. Restore the gate before merge.
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     uses: ./.github/workflows/server-image-build.yml
     with:
       tag: image-${{ github.sha }}

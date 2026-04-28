@@ -220,11 +220,7 @@ jobs:
     name: Build Acceptance Tests
     runs-on: namespace-profile-default-macos
     timeout-minutes: 60
-    # TEMP (this PR only): drop the `draft == false` gate so the docker build and
-    # acceptance tests run on draft PRs too — we want to confirm the new
-    # kind+helm pipeline is green before flipping the PR out of draft. Restore
-    # the gate before merge.
-    if: github.event.pull_request.head.repo.fork != true
+    if: (github.event.pull_request.draft == false || github.event_name != 'pull_request') && github.event.pull_request.head.repo.fork != true
     outputs:
       matrix: ${{ steps.shard.outputs.matrix }}
     steps:
@@ -271,31 +267,13 @@ jobs:
 
   cli-acceptance-tests:
     name: Acceptance Tests
-    # GitHub-hosted macos-latest is the only macOS runner where colima can
-    # actually start a Linux VM. Namespace's macOS profiles fail both VM
-    # backends: vz exits during boot (no nested-virt support on the Apple
-    # Silicon VMs) and qemu hits lima v2.0.3's `panic: send on closed channel`
-    # in the qemu driver (verified across mise, brew, and the
-    # `crazy-max/ghaction-setup-docker` action — same lima version, same panic).
-    runs-on: macos-latest
+    runs-on: namespace-profile-default-macos
     timeout-minutes: 60
     needs: cli-acceptance-tests-build
     if: toJSON(fromJSON(needs.cli-acceptance-tests-build.outputs.matrix).shard) != '[]'
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.cli-acceptance-tests-build.outputs.matrix) }}
-    env:
-      # The server image is built once by the `Server image` workflow (server-image.yml)
-      # under `image-<sha>`. Each shard pulls that same tag and runs against it via
-      # the per-shard kind cluster spun up below.
-      #
-      # `TUIST_URL` is intentionally **not** set at job level — `tuist auth login`
-      # (used by the early `Authenticate with Tuist` step to reach prod tuist.dev's
-      # binary cache) reads it from the env, and pointing it at `localhost:8080`
-      # before the cluster is up would make that step fail. The env vars the
-      # acceptance test itself needs (`TUIST_URL`, `TUIST_AUTH_*`) are scoped to
-      # the `Run shard` step further down.
-      TUIST_IMAGE_TAG: image-${{ github.sha }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -305,10 +283,7 @@ jobs:
         run: bash mise/tasks/cli/ee.sh
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
-      # nscloud-cache-action requires a Namespace cache volume; skip on
-      # GitHub-hosted runners where mise just downloads fresh.
-      - if: startsWith(runner.name, 'namespace-')
-        uses: namespacelabs/nscloud-cache-action@v1
+      - uses: namespacelabs/nscloud-cache-action@v1
         with:
           cache: mise
       - uses: actions/cache/restore@v4
@@ -344,54 +319,10 @@ jobs:
           security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
           security default-keychain -s $KEYCHAIN_PATH
           security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
-      - name: Wait for server image
-        # Polls the `Server image / Build + scan` check run on this SHA via the
-        # GitHub check API; fast-fails if the image build itself fails. Same
-        # composite action that any future workflow consuming this image can drop in.
-        uses: ./.github/actions/wait-for-server-image
-      - name: Bring up acceptance cluster (shard ${{ matrix.shard }})
-        # The task creates a per-shard kind cluster, loads the prebuilt server
-        # image, and runs `helm upgrade --install` against the same chart we
-        # deploy to canary + production (overlay:
-        # infra/helm/tuist/values-acceptance.yaml). The chart spins up the embedded
-        # postgres / clickhouse / minio + the server + processor pods, and then we
-        # kubectl-exec a one-shot seed of `tuistrocks@tuist.dev`. No teardown step —
-        # each shard runs on a fresh ephemeral macOS runner that's destroyed when
-        # the job ends.
-        env:
-          # Don't pull down every tool in mise.toml just because we're invoking a
-          # mise task — `core:erlang@28.4.3` has no lockfile URL on macos-arm64
-          # under MISE_LOCKED=1, and we don't need the elixir toolchain on this
-          # Swift-only runner anyway. Same `MISE_TASK_RUN_AUTO_INSTALL=0` knob
-          # server.yml already uses for the same reason.
-          MISE_TASK_RUN_AUTO_INSTALL: "0"
-          # Override the workflow-level MISE_LOCKED=1: the cluster brings in
-          # kind/helm/kubectl/colima/docker-cli at `@latest` (so they always
-          # match what the chart expects), and those `@latest` resolutions
-          # don't have lockfile URLs to pin against.
-          MISE_LOCKED: "0"
-          # mise hits GitHub releases for the @latest installs; without an
-          # auth token it gets rate-limited (403) on shared CI runners.
-          MISE_GITHUB_TOKEN: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
-          GITHUB_ACTOR: ${{ github.actor }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # 1Password service account token. The task uses this to install ESO +
-          # a `onepassword` ClusterSecretStore in the kind cluster, which the chart's
-          # ExternalSecret then resolves to fetch `TUIST_LICENSE_KEY` from the
-          # `tuist-k8s-preview` 1P vault — same path Pedro's preview-up.sh wires.
-          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
-        run: mise run cli:acceptance-cluster:up ${{ matrix.shard }}
       - name: Run shard ${{ matrix.shard }}
         run: tuist test --without-building --platform macOS TuistAcceptanceTests -- -retry-tests-on-failure -test-iterations 2
         env:
           TUIST_SHARD_INDEX: ${{ matrix.shard }}
-          # Scoped to this step so the earlier `tuist auth login` (which uses
-          # TUIST_URL to pick a server) doesn't get redirected at our local
-          # cluster. The acceptance test trait reads these from the inherited
-          # process env.
-          TUIST_URL: http://localhost:8080
-          TUIST_AUTH_EMAIL: tuistrocks@tuist.dev
-          TUIST_AUTH_PASSWORD: tuistrocks
 
   cli-acceptance-tests-fork:
     name: Acceptance Tests (Fork)
