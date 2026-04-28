@@ -334,13 +334,18 @@ jobs:
         # composite action that any future workflow consuming this image can drop in.
         uses: ./.github/actions/wait-for-server-image
       - name: Bring up acceptance cluster (shard ${{ matrix.shard }})
-        # The mise task installs colima/docker/docker-compose on demand, starts colima
-        # if needed, logs in to GHCR with the workflow token, and waits for the cluster
-        # to be healthy. No teardown step — each shard runs on a fresh ephemeral
-        # macOS runner that's destroyed when the job ends.
+        # The mise task installs kind/helm/kubectl/colima/docker on demand, creates a
+        # per-shard kind cluster, loads the prebuilt server image, and runs
+        # `helm upgrade --install` against the same chart we deploy to canary +
+        # production (overlay: infra/helm/tuist/values-acceptance.yaml). The chart
+        # spins up the embedded postgres / clickhouse / minio + the server +
+        # processor pods, and then we kubectl-exec a one-shot seed of the
+        # `tuistrocks@tuist.dev` user. No teardown step — each shard runs on a fresh
+        # ephemeral macOS runner that's destroyed when the job ends.
         env:
           GITHUB_ACTOR: ${{ github.actor }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TUIST_LICENSE_KEY: ${{ secrets.TUIST_LICENSE_KEY }}
         run: mise run cli:acceptance-cluster:up ${{ matrix.shard }}
       - name: Run shard ${{ matrix.shard }}
         run: tuist test --without-building --platform macOS TuistAcceptanceTests -- -retry-tests-on-failure -test-iterations 2
