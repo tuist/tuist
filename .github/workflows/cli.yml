@@ -219,41 +219,20 @@ jobs:
   # Build the Tuist server image once; each acceptance-test shard pulls it down and
   # boots its own cluster against it. The same image runs as both web server and Oban
   # processor (TUIST_PROCESSOR_MODE flips the role at runtime, see #10428), so a
-  # single-container deploy covers the build inspection path end-to-end.
+  # single-container deploy covers the build inspection path end-to-end. The build
+  # itself lives in the reusable `server-image-build.yml` workflow so server.yml's
+  # vulnerability scan and this acceptance build share the same definition.
   cli-acceptance-tests-server-image:
     name: Build Acceptance Cluster Image
-    runs-on: namespace-profile-default-with-volume
-    timeout-minutes: 40
     if: (github.event.pull_request.draft == false || github.event_name != 'pull_request') && github.event.pull_request.head.repo.fork != true
-    outputs:
-      image_tag: ${{ steps.tag.outputs.image_tag }}
     permissions:
       contents: read
       packages: write
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: false
-      - id: tag
-        run: echo "image_tag=acceptance-${GITHUB_SHA:0:12}" >> "$GITHUB_OUTPUT"
-      - uses: namespacelabs/nscloud-setup-buildx-action@v0
-      - uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./server/Dockerfile
-          target: runner
-          push: true
-          tags: |
-            ghcr.io/tuist/tuist:${{ steps.tag.outputs.image_tag }}
-          build-args: |
-            TUIST_HOSTED=0
-            MIX_ENV=prod
-            APT_CACHE_BUST=${{ github.sha }}
+    uses: ./.github/workflows/server-image-build.yml
+    with:
+      tag: acceptance-${{ github.sha }}
+      tuist_hosted: "0"
+      mix_env: prod
 
   cli-acceptance-tests-build:
     name: Build Acceptance Tests
