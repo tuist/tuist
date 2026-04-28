@@ -57,6 +57,7 @@ jobs:
       # (built via server/native/xcresult_nif/build.sh as a Mix release
       # step) and the macOS-only priv/native/xcresult_nif.so.
       - name: Build server release for macOS
+        id: release
         working-directory: server
         run: |
           set -euo pipefail
@@ -67,12 +68,21 @@ jobs:
           ./native/xcresult_nif/build.sh
           MIX_ENV=prod mix compile --warnings-as-errors
           MIX_ENV=prod mix release tuist --overwrite
+          # mix.exs honors $TUIST_MIX_BUILD_ROOT (set on the bare-metal
+          # runner to share the BEAM build cache across jobs). When it's
+          # set, the release lands at $TUIST_MIX_BUILD_ROOT/server/prod/
+          # rel/tuist; when unset, plain ./_build/prod/rel/tuist.
+          if [ -n "${TUIST_MIX_BUILD_ROOT:-}" ]; then
+            RELEASE_DIR="${TUIST_MIX_BUILD_ROOT}/server/prod/rel/tuist"
+          else
+            RELEASE_DIR="$(pwd)/_build/prod/rel/tuist"
+          fi
+          echo "dir=${RELEASE_DIR}" >> "$GITHUB_OUTPUT"
 
       - name: Package release tarball
-        working-directory: server
         run: |
           set -euo pipefail
-          tar -czf /tmp/release.tar.gz -C _build/prod/rel/tuist .
+          tar -czf /tmp/release.tar.gz -C "${{ steps.release.outputs.dir }}" .
           ls -lh /tmp/release.tar.gz
 
       # 2. Bake the tarball into a Tart image.
