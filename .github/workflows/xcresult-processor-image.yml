@@ -90,6 +90,13 @@ jobs:
         working-directory: infra/xcresult-processor-image
         run: packer init xcresult-processor.pkr.hcl
 
+      # The bare-metal runner has tuist-bot ghcr.io creds cached from
+      # earlier image-push jobs. Those creds don't authorize pulls
+      # from ghcr.io/cirruslabs/*, so Tart's token-fetch returns 403.
+      # Log out so Tart falls back to anonymous (public) for the pull.
+      - name: Drop cached ghcr.io credentials
+        run: tart logout ghcr.io || true
+
       - name: Build image
         working-directory: infra/xcresult-processor-image
         run: |
