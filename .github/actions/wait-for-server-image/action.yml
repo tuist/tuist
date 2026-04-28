@@ -28,10 +28,12 @@ inputs:
     default: ${{ github.sha }}
   check-name:
     description: |
-      Name of the check run to wait for. Matches `<workflow name> / <job name>` as
-      shown on the PR's checks page.
+      Name of the check run to wait for. For reusable workflows GitHub renders the
+      check as `<parent job name> / <reusable job name>` — here the parent
+      (server-image.yml `build` job, name "Build + scan") calls the reusable
+      (server-image-build.yml `build` job, name "Build").
     required: false
-    default: "Server image / Build + scan"
+    default: "Build + scan / Build"
   timeout-minutes:
     description: Maximum time to wait before failing.
     required: false

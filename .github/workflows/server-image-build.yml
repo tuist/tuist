@@ -43,7 +43,9 @@ env:
 
 jobs:
   build:
-    name: Build ${{ inputs.tag }}
+    # Static name so the rendered PR check (`<parent job name> / <reusable job
+    # name>`) stays stable across SHAs — wait-for-server-image filters on it.
+    name: Build
     runs-on: namespace-profile-default-with-volume
     timeout-minutes: 40
     steps:
