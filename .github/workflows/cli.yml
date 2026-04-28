@@ -216,24 +216,6 @@ jobs:
       - name: Run tests
         run: tuist test TuistUnitTests -- -retry-tests-on-failure -test-iterations 4
 
-  # Build the Tuist server image once; each acceptance-test shard pulls it down and
-  # boots its own cluster against it. The same image runs as both web server and Oban
-  # processor (TUIST_PROCESSOR_MODE flips the role at runtime, see #10428), so a
-  # single-container deploy covers the build inspection path end-to-end. The build
-  # itself lives in the reusable `server-image-build.yml` workflow so server.yml's
-  # vulnerability scan and this acceptance build share the same definition.
-  cli-acceptance-tests-server-image:
-    name: Build Acceptance Cluster Image
-    if: (github.event.pull_request.draft == false || github.event_name != 'pull_request') && github.event.pull_request.head.repo.fork != true
-    permissions:
-      contents: read
-      packages: write
-    uses: ./.github/workflows/server-image-build.yml
-    with:
-      tag: acceptance-${{ github.sha }}
-      tuist_hosted: "0"
-      mix_env: prod
-
   cli-acceptance-tests-build:
     name: Build Acceptance Tests
     runs-on: namespace-profile-default-macos
@@ -287,16 +269,17 @@ jobs:
     name: Acceptance Tests
     runs-on: namespace-profile-default-macos
     timeout-minutes: 60
-    needs: [cli-acceptance-tests-build, cli-acceptance-tests-server-image]
+    needs: cli-acceptance-tests-build
     if: toJSON(fromJSON(needs.cli-acceptance-tests-build.outputs.matrix).shard) != '[]'
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.cli-acceptance-tests-build.outputs.matrix) }}
     env:
-      # Each shard runs on its own macOS runner, so a single fixed port is fine — but we
-      # still namespace COMPOSE_PROJECT_NAME on the shard index so concurrent runs on the
-      # same Docker daemon (locally / re-runs) don't collide on volumes/networks.
-      TUIST_IMAGE_TAG: ${{ needs.cli-acceptance-tests-server-image.outputs.image_tag }}
+      # The server image is built once by the `Server image` workflow (server-image.yml)
+      # under `image-<sha>`. Each shard pulls that same tag, then namespaces its compose
+      # project on the shard index so concurrent runs on the same Docker daemon don't
+      # collide on volumes/networks.
+      TUIST_IMAGE_TAG: image-${{ github.sha }}
       TUIST_URL: http://localhost:8080
       TUIST_AUTH_EMAIL: tuistrocks@tuist.dev
       TUIST_AUTH_PASSWORD: tuistrocks
@@ -351,6 +334,23 @@ jobs:
           colima start --cpu 4 --memory 8 --disk 30
       - name: Log in to GHCR
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+      - name: Wait for server image
+        # The `server-image.yml` workflow builds + Trivy-scans + pushes
+        # `ghcr.io/tuist/tuist:image-<sha>` on the same SHA. It runs in parallel with
+        # this workflow, so poll the registry until the manifest exists. Cap at 30 min
+        # to match the image build's worst-case wall time.
+        run: |
+          set -eu
+          deadline=$(( $(date +%s) + 1800 ))
+          until docker manifest inspect "ghcr.io/tuist/tuist:${TUIST_IMAGE_TAG}" >/dev/null 2>&1; do
+            if [ "$(date +%s)" -ge "$deadline" ]; then
+              echo "Timed out waiting for ghcr.io/tuist/tuist:${TUIST_IMAGE_TAG}" >&2
+              exit 1
+            fi
+            echo "Image not yet available, retrying in 15s…"
+            sleep 15
+          done
+          echo "Image ghcr.io/tuist/tuist:${TUIST_IMAGE_TAG} is available."
       - name: Bring up acceptance cluster (shard ${{ matrix.shard }})
         run: bash mise/tasks/cli/acceptance-cluster/up.sh ${{ matrix.shard }}
       - name: Run shard ${{ matrix.shard }}

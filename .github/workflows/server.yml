@@ -360,18 +360,6 @@ jobs:
         run: mix deps.get
       - name: Check
         run: ./mise/tasks/security.sh
-  docker_build:
-    name: Docker build
-    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
-    permissions:
-      contents: read
-      packages: write
-    uses: ./.github/workflows/server-image-build.yml
-    with:
-      tag: scan-${{ github.sha }}
-      scan: true
-      tuist_hosted: "0"
-      mix_env: prod
   # The Codegen produces non-deterministic results, so we're skipping it for now
   # api-codegen:
   #   name: API Codegen Check
