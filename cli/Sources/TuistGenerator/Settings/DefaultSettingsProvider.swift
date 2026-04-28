@@ -247,11 +247,9 @@ public struct DefaultSettingsProvider: DefaultSettingsProviding {
             return { key, _ in essentialKeys.contains(key) && !excludedKeys.contains(key) }
         case let .recommended(excludedKeys):
             let xcodeVersion = try await XcodeController.current.selectedVersion()
+            let higherVersionKeys = Set(newXcodeKeys.filter { $0.key > xcodeVersion }.values.flatMap { $0 })
             return { key, _ in
-                // Filter keys that are from higher Xcode version than current (otherwise return true)
-                !newXcodeKeys
-                    .filter { $0.key > xcodeVersion }
-                    .values.flatMap { $0 }.contains(key) &&
+                !higherVersionKeys.contains(key) &&
                     !excludedKeys.contains(key)
             }
         case .none:
