@@ -71,8 +71,6 @@ func (in *ScalewayAppleSiliconMachineSpec) DeepCopyInto(out *ScalewayAppleSilico
 		out.ProviderID = new(string)
 		*out.ProviderID = *in.ProviderID
 	}
-	out.SSHKeySecretRef = in.SSHKeySecretRef
-	out.BootstrapSecretRef = in.BootstrapSecretRef
 }
 
 func (in *ScalewayAppleSiliconMachineStatus) DeepCopyInto(out *ScalewayAppleSiliconMachineStatus) {

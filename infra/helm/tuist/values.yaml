@@ -289,27 +289,32 @@ xcresultProcessor:
       maxSurge: 1
       maxUnavailable: 0
 
-# macOS Mac mini fleet, provisioned declaratively via Cluster API. The
-# `cluster-api-provider-scaleway-applesilicon` operator reconciles
-# ScalewayAppleSiliconMachine CRs against Scaleway's Apple Silicon API
-# + SSH-driven kubelet/tart-cri bootstrap. Mac minis appear as real
-# k8s nodes with `kubernetes.io/os=darwin`.
+# macOS Mac mini fleet, provisioned declaratively via Cluster API.
 #
-# Scaling is `kubectl scale machinedeployment <name> --replicas=N`.
-# No imperative shell scripts; all fleet state is in CRs.
+# Operator UX:
+#   1. Drop Scaleway IAM credentials in 1Password (one item with
+#      `access-key`, `secret-key`, `project-id` fields).
+#   2. Set `macosFleet.enabled: true` + `controlPlane.host` +
+#      `machine.podCIDR` in the chart.
+#   3. `helm upgrade`. Done — Mac minis are ordered, joined to the
+#      cluster as `kubernetes.io/os=darwin` Nodes, and the
+#      xcresult-processor Deployment schedules onto them.
 #
-# Prerequisites the chart does NOT manage (created out-of-band):
-#   - <fleet-name>-ssh Secret with `id_ed25519` (SSH key whose public
-#     half is registered with the Scaleway tenant).
-#   - <fleet-name>-bootstrap Secret with `bootstrap-token`, `api-server`,
-#     `ca-cert-data`, optional `kubelet-version` keys.
-#   - capi-scaleway-applesilicon Secret with `access-key`, `secret-key`,
-#     `project-id` for the operator's Scaleway API auth.
+# Everything else is operator-managed:
+#   - SSH key: generated on first reconcile (Ed25519), public half
+#     registered with Scaleway via the IAM API, private half stored
+#     in `<fleet-name>-ssh` Secret. The chart doesn't pre-create it.
+#   - Bootstrap material: bootstrap token minted on each Machine
+#     reconcile (24h TTL); API server URL + CA cert read from the
+#     operator pod's in-cluster service-account context. No 1P
+#     entries needed for cluster join material.
+#
+# Scaling: `kubectl scale machinedeployment <name> --replicas=N`.
 macosFleet:
   enabled: false
   name: ""             # default: <release>-macos-fleet
   replicas: 1
-  kubeletVersion: v1.32.1
+  kubeletVersion: 1.32.1
   controlPlane:
     host: ""           # API server endpoint Mac minis dial when joining
     port: 6443
@@ -318,14 +323,28 @@ macosFleet:
     tag: ""
     pullPolicy: IfNotPresent
   scaleway:
-    secretName: ""     # default: <release>-capi-scaleway-applesilicon
+    # Name of the Secret holding `access-key`, `secret-key`,
+    # `project-id`. ESO populates it from 1Password by default; set
+    # to a manually-created Secret name to opt out.
+    secretName: ""
+    externalSecrets:
+      enabled: true
+      refreshInterval: "1h"
+      storeRef:
+        kind: ClusterSecretStore
+        name: onepassword
+      # 1Password item path for the Scaleway credentials. The item
+      # must have three fields named per the `fields` mapping below.
+      item: SCALEWAY_API
+      fields:
+        accessKey: access-key
+        secretKey: secret-key
+        projectID: project-id
   machine:
     type: M2-M
     zone: fr-par-3
     os: macos-tahoe-26.0
     podCIDR: ""        # required: per-host slice of cluster CIDR
-    sshKeySecretName: ""
-    bootstrapSecretName: ""
 
 cache:
   enabled: true

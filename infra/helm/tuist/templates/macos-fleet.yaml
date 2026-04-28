@@ -59,10 +59,15 @@ spec:
       zone: {{ .Values.macosFleet.machine.zone | default "fr-par-3" | quote }}
       os: {{ .Values.macosFleet.machine.os | default "macos-tahoe-26.0" | quote }}
       podCIDR: {{ required "macosFleet.machine.podCIDR is required" .Values.macosFleet.machine.podCIDR | quote }}
-      sshKeySecretRef:
-        name: {{ .Values.macosFleet.machine.sshKeySecretName | default (printf "%s-ssh" $fleetName) | quote }}
-      bootstrapSecretRef:
-        name: {{ .Values.macosFleet.machine.bootstrapSecretName | default (printf "%s-bootstrap" $fleetName) | quote }}
+      # SSH key + cluster bootstrap material are operator-managed —
+      # the operator generates an Ed25519 keypair per fleet on first
+      # reconcile (registers the public half with Scaleway via IAM,
+      # stores the private half in `<fleetName>-ssh`) and mints a
+      # short-TTL bootstrap token + reads the cluster CA & API server
+      # URL from its in-cluster service-account context for each
+      # Machine.
+      fleetName: {{ $fleetName | quote }}
+      kubeletVersion: {{ .Values.macosFleet.kubeletVersion | default "1.32.1" | quote }}
 ---
 apiVersion: cluster.x-k8s.io/v1beta1
 kind: MachineDeployment
@@ -87,12 +92,13 @@ spec:
       clusterName: {{ $fleetName }}
       version: {{ .Values.macosFleet.kubeletVersion | default "v1.32.1" | quote }}
       bootstrap:
-        # The bootstrap data the *kubelet* reads (kubeadm join-style)
-        # is in the Secret referenced by macosFleet.machine.bootstrapSecretName,
-        # which the CAPI provider's Reconciler reads + materializes
-        # on the host. From CAPI core's perspective we mark bootstrap
-        # as "provided externally" by setting dataSecretName directly.
-        dataSecretName: {{ .Values.macosFleet.machine.bootstrapSecretName | default (printf "%s-bootstrap" $fleetName) | quote }}
+        # We don't use a CAPI bootstrap provider — the Tuist
+        # ScalewayAppleSilicon operator's MachineReconciler does the
+        # bootstrap step inline via SSH using material it mints
+        # itself (token, CA, API URL). The empty Secret reference
+        # here satisfies CAPI core's contract without naming a
+        # nonexistent Secret.
+        dataSecretName: {{ printf "%s-bootstrap-noop" $fleetName | quote }}
       infrastructureRef:
         apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
         kind: ScalewayAppleSiliconMachineTemplate

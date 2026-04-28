@@ -32,18 +32,12 @@ spec:
                   properties:
                     spec:
                       type: object
-                      required: [podCIDR, sshKeySecretRef, bootstrapSecretRef]
+                      required: [podCIDR]
                       properties:
                         providerID: { type: string }
                         type: { type: string, default: M2-M }
                         zone: { type: string, default: fr-par-3 }
                         os: { type: string, default: macos-tahoe-26.0 }
                         podCIDR: { type: string }
-                        sshKeySecretRef:
-                          type: object
-                          required: [name]
-                          properties: { name: { type: string } }
-                        bootstrapSecretRef:
-                          type: object
-                          required: [name]
-                          properties: { name: { type: string } }
+                        fleetName: { type: string }
+                        kubeletVersion: { type: string }

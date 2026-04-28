@@ -100,9 +100,15 @@ spec:
             - --leader-elect=true
             - --metrics-bind-address=:8080
             - --health-probe-bind-address=:8081
+            - --secrets-namespace={{ .Release.Namespace }}
+            - --default-kubelet-version={{ .Values.macosFleet.kubeletVersion | default "1.32.1" }}
           env:
-            # Scaleway credentials. The Secret is created out-of-band
-            # (1Password → ESO, or kubectl create secret).
+            # Scaleway credentials. ESO syncs them from 1Password into
+            # this Secret automatically (see
+            # capi-scaleway-applesilicon-external-secrets.yaml). For
+            # self-hosters not using ESO, override
+            # `macosFleet.scaleway.secretName` to point at a Secret
+            # they create themselves.
             - name: SCW_ACCESS_KEY
               valueFrom:
                 secretKeyRef:

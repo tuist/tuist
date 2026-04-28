@@ -5,7 +5,6 @@ package controllers
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -26,6 +25,7 @@ import (
 
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/api/v1alpha1"
 	"github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/internal/bootstrap"
+	"github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/internal/credentials"
 	"github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/internal/scaleway"
 )
 
@@ -44,8 +44,10 @@ const (
 // ScalewayAppleSiliconMachineReconciler reconciles ScalewayAppleSiliconMachine objects.
 type ScalewayAppleSiliconMachineReconciler struct {
 	client.Client
-	Scheme         *runtime.Scheme
-	ScalewayClient *scaleway.Client
+	Scheme              *runtime.Scheme
+	ScalewayClient      *scaleway.Client
+	CredentialsManager  *credentials.Manager
+	DefaultKubeletVersion string
 }
 
 // +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=scalewayapplesiliconmachines,verbs=get;list;watch;create;update;patch;delete
@@ -53,7 +55,7 @@ type ScalewayAppleSiliconMachineReconciler struct {
 // +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=scalewayapplesiliconmachines/finalizers,verbs=update
 // +kubebuilder:rbac:groups=cluster.x-k8s.io,resources=machines,verbs=get;list;watch
 // +kubebuilder:rbac:groups=cluster.x-k8s.io,resources=clusters,verbs=get;list;watch
-// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update
 // +kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch
 
 func (r *ScalewayAppleSiliconMachineReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -156,16 +158,24 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 		}
 
-		sshKey, err := r.readSecretKey(ctx, machine.Namespace, machine.Spec.SSHKeySecretRef.Name, "id_ed25519")
+		fleet := machine.Spec.FleetName
+		if fleet == "" {
+			fleet = machine.Namespace + "-" + machine.Name
+		}
+		sshKey, err := r.CredentialsManager.EnsureFleetSSHKey(ctx, fleet)
 		if err != nil {
-			conditions.MarkFalse(machine, BootstrappedCondition, "SSHKeyMissing",
+			conditions.MarkFalse(machine, BootstrappedCondition, "SSHKeyUnavailable",
 				clusterv1.ConditionSeverityError, "%v", err)
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 		}
 
-		bootstrapData, err := r.readBootstrapSecret(ctx, machine)
+		kubeletVersion := machine.Spec.KubeletVersion
+		if kubeletVersion == "" {
+			kubeletVersion = r.DefaultKubeletVersion
+		}
+		bootstrapData, err := r.CredentialsManager.MintBootstrap(ctx, kubeletVersion)
 		if err != nil {
-			conditions.MarkFalse(machine, BootstrappedCondition, "BootstrapDataMissing",
+			conditions.MarkFalse(machine, BootstrappedCondition, "BootstrapMintFailed",
 				clusterv1.ConditionSeverityError, "%v", err)
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 		}
@@ -178,8 +188,8 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			Hostname:       machine.Name,
 			PodCIDR:        machine.Spec.PodCIDR,
 			KubeletVersion: bootstrapData.KubeletVersion,
-			BootstrapToken: bootstrapData.Token,
-			APIServer:      bootstrapData.APIServer,
+			BootstrapToken: bootstrapData.BootstrapToken,
+			APIServer:      bootstrapData.APIServerURL,
 			CACertData:     bootstrapData.CACertData,
 		}); err != nil {
 			conditions.MarkFalse(machine, BootstrappedCondition, "BootstrapFailed",
@@ -233,58 +243,6 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileDelete(
 }
 
 // === helpers ================================================================
-
-type bootstrapData struct {
-	Token          string
-	APIServer      string
-	CACertData     string
-	KubeletVersion string
-}
-
-func (r *ScalewayAppleSiliconMachineReconciler) readBootstrapSecret(
-	ctx context.Context,
-	machine *infrav1.ScalewayAppleSiliconMachine,
-) (*bootstrapData, error) {
-	secret := &corev1.Secret{}
-	if err := r.Get(ctx, types.NamespacedName{
-		Namespace: machine.Namespace,
-		Name:      machine.Spec.BootstrapSecretRef.Name,
-	}, secret); err != nil {
-		return nil, fmt.Errorf("read bootstrap secret: %w", err)
-	}
-
-	required := []string{"bootstrap-token", "api-server", "ca-cert-data"}
-	for _, k := range required {
-		if _, ok := secret.Data[k]; !ok {
-			return nil, fmt.Errorf("bootstrap secret missing key %q", k)
-		}
-	}
-	version := strings.TrimSpace(string(secret.Data["kubelet-version"]))
-	if version == "" {
-		version = "1.32.1"
-	}
-	return &bootstrapData{
-		Token:          strings.TrimSpace(string(secret.Data["bootstrap-token"])),
-		APIServer:      strings.TrimSpace(string(secret.Data["api-server"])),
-		CACertData:     strings.TrimSpace(string(secret.Data["ca-cert-data"])),
-		KubeletVersion: version,
-	}, nil
-}
-
-func (r *ScalewayAppleSiliconMachineReconciler) readSecretKey(
-	ctx context.Context,
-	namespace, name, key string,
-) ([]byte, error) {
-	secret := &corev1.Secret{}
-	if err := r.Get(ctx, types.NamespacedName{Namespace: namespace, Name: name}, secret); err != nil {
-		return nil, err
-	}
-	value, ok := secret.Data[key]
-	if !ok {
-		return nil, fmt.Errorf("secret %s/%s missing key %q", namespace, name, key)
-	}
-	return value, nil
-}
 
 func (r *ScalewayAppleSiliconMachineReconciler) findNode(ctx context.Context, hostname string) (*corev1.Node, error) {
 	node := &corev1.Node{}

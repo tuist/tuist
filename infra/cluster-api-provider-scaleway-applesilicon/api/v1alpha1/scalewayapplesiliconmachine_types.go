@@ -30,26 +30,22 @@ type ScalewayAppleSiliconMachineSpec struct {
 	// PodCIDR is the per-host CIDR slice this Mac mini's CNI plugin
 	// hands out to Pods. Cluster operators carve the cluster CIDR
 	// (e.g. 10.42.0.0/16) into per-machine /24s and set this field
-	// per-Machine — there's no automatic IPAM at this layer.
+	// per-Machine — there's no automatic IPAM at this layer (yet).
 	PodCIDR string `json:"podCIDR"`
 
-	// SSHKeySecretRef points at a Secret with `id_ed25519` containing
-	// the private key the controller uses to SSH into the Mac mini
-	// during bootstrap. Public half must already be associated with
-	// the Scaleway tenant so it lands in the host's
-	// ~/.ssh/authorized_keys at first boot.
-	SSHKeySecretRef SecretReference `json:"sshKeySecretRef"`
+	// FleetName groups Machines that share an SSH key. Set by the
+	// MachineTemplate (typically to the parent MachineDeployment's
+	// name). The operator generates one Ed25519 keypair per fleet,
+	// registers the public half with Scaleway via the IAM API, and
+	// stores the private half in `<fleetName>-ssh` so all Machines
+	// in the fleet share the same operator-held credential.
+	// +optional
+	FleetName string `json:"fleetName,omitempty"`
 
-	// BootstrapSecretRef points at a Secret with the cluster join
-	// material (`bootstrap-token`, `api-server`, `ca-cert-data`).
-	// The controller writes a kubelet bootstrap kubeconfig from
-	// these values when provisioning each machine.
-	BootstrapSecretRef SecretReference `json:"bootstrapSecretRef"`
-}
-
-// SecretReference is a typed reference to a Secret in the same namespace.
-type SecretReference struct {
-	Name string `json:"name"`
+	// KubeletVersion override; defaults to the operator's
+	// chart-level value when empty.
+	// +optional
+	KubeletVersion string `json:"kubeletVersion,omitempty"`
 }
 
 // ScalewayAppleSiliconMachineStatus is the observed state of the Machine.

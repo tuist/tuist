@@ -39,7 +39,7 @@ spec:
           properties:
             spec:
               type: object
-              required: [podCIDR, sshKeySecretRef, bootstrapSecretRef]
+              required: [podCIDR]
               properties:
                 providerID:
                   type: string
@@ -54,16 +54,10 @@ spec:
                   default: macos-tahoe-26.0
                 podCIDR:
                   type: string
-                sshKeySecretRef:
-                  type: object
-                  required: [name]
-                  properties:
-                    name: { type: string }
-                bootstrapSecretRef:
-                  type: object
-                  required: [name]
-                  properties:
-                    name: { type: string }
+                fleetName:
+                  type: string
+                kubeletVersion:
+                  type: string
             status:
               type: object
               properties:

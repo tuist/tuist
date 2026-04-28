@@ -26,6 +26,7 @@ import (
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/api/v1alpha1"
 	"github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/controllers"
 	"github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/internal/bootstrap"
+	"github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/internal/credentials"
 	"github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/internal/scaleway"
 )
 
@@ -46,10 +47,18 @@ func main() {
 		probeAddr            string
 		enableLeaderElection bool
 	)
+	var (
+		secretsNamespace      string
+		defaultKubeletVersion string
+	)
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "Prometheus metrics endpoint")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "Liveness/readiness probe endpoint")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", true,
 		"Single-leader election; required when running >1 replica")
+	flag.StringVar(&secretsNamespace, "secrets-namespace", "default",
+		"Namespace where the operator stores per-fleet SSH key Secrets")
+	flag.StringVar(&defaultKubeletVersion, "default-kubelet-version", "1.32.1",
+		"Kubelet version to install when a Machine doesn't specify one")
 
 	opts := zap.Options{Development: false}
 	opts.BindFlags(flag.CommandLine)
@@ -94,10 +103,18 @@ func main() {
 		os.Exit(1)
 	}
 
+	credsManager := &credentials.Manager{
+		Client:    mgr.GetClient(),
+		Scaleway:  scwClient,
+		Namespace: secretsNamespace,
+	}
+
 	if err := (&controllers.ScalewayAppleSiliconMachineReconciler{
-		Client:         mgr.GetClient(),
-		Scheme:         mgr.GetScheme(),
-		ScalewayClient: scwClient,
+		Client:                mgr.GetClient(),
+		Scheme:                mgr.GetScheme(),
+		ScalewayClient:        scwClient,
+		CredentialsManager:    credsManager,
+		DefaultKubeletVersion: defaultKubeletVersion,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup MachineReconciler")
 		os.Exit(1)

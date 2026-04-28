@@ -12,13 +12,15 @@ import (
 	"fmt"
 
 	applesilicon "github.com/scaleway/scaleway-sdk-go/api/applesilicon/v1alpha1"
+	iam "github.com/scaleway/scaleway-sdk-go/api/iam/v1alpha1"
 	"github.com/scaleway/scaleway-sdk-go/scw"
 )
 
-// Client talks to Scaleway's Apple Silicon API. Construct with
-// NewClient; in tests, the API field can be replaced with a fake.
+// Client talks to Scaleway's Apple Silicon + IAM APIs. Construct with
+// NewClient; in tests, the API fields can be replaced with fakes.
 type Client struct {
 	API *applesilicon.API
+	IAM *iam.API
 }
 
 // NewClient initializes a Scaleway client from the standard environment
@@ -32,7 +34,7 @@ func NewClient() (*Client, error) {
 		if err != nil {
 			return nil, fmt.Errorf("scaleway client: %w", err)
 		}
-		return &Client{API: applesilicon.NewAPI(client)}, nil
+		return &Client{API: applesilicon.NewAPI(client), IAM: iam.NewAPI(client)}, nil
 	}
 	profile, err := cfg.GetActiveProfile()
 	if err != nil {
@@ -42,7 +44,43 @@ func NewClient() (*Client, error) {
 	if err != nil {
 		return nil, fmt.Errorf("scaleway client: %w", err)
 	}
-	return &Client{API: applesilicon.NewAPI(client)}, nil
+	return &Client{API: applesilicon.NewAPI(client), IAM: iam.NewAPI(client)}, nil
+}
+
+// EnsureSSHKey registers `publicKey` with Scaleway under `name` if it
+// isn't already there. Idempotent: no-op when the same name is
+// already known. Returns the Scaleway-side SSH key ID.
+func (c *Client) EnsureSSHKey(ctx context.Context, name, publicKey string) (string, error) {
+	page := int32(1)
+	pageSize := uint32(100)
+	for {
+		resp, err := c.IAM.ListSSHKeys(&iam.ListSSHKeysRequest{
+			Name:     &name,
+			Page:     &page,
+			PageSize: &pageSize,
+		}, scw.WithContext(ctx))
+		if err != nil {
+			return "", fmt.Errorf("list ssh keys: %w", err)
+		}
+		for _, k := range resp.SSHKeys {
+			if k.Name == name {
+				return k.ID, nil
+			}
+		}
+		if uint64(uint32(page))*uint64(pageSize) >= uint64(resp.TotalCount) {
+			break
+		}
+		page++
+	}
+
+	created, err := c.IAM.CreateSSHKey(&iam.CreateSSHKeyRequest{
+		Name:      name,
+		PublicKey: publicKey,
+	}, scw.WithContext(ctx))
+	if err != nil {
+		return "", fmt.Errorf("create ssh key: %w", err)
+	}
+	return created.ID, nil
 }
 
 // Server is the subset of fields the CAPI controller cares about.
