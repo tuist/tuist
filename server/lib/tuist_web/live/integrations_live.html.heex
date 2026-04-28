@@ -13,18 +13,16 @@
       </span>
     </div>
     <div data-part="content">
-      <div :if={is_nil(@github_app_installation)} data-part="github-host-toggle">
+      <div
+        :if={is_nil(@github_app_installation)}
+        data-part="github-host-toggle"
+        style="display: flex; justify-content: flex-end;"
+      >
         <.toggle
           id="github-enterprise-toggle"
           checked={@show_github_enterprise_input}
           phx-click="toggle-github-enterprise-input"
-          label={dgettext("dashboard_integrations", "Use GitHub Enterprise Server")}
-          description={
-            dgettext(
-              "dashboard_integrations",
-              "Install the Tuist app on a self-hosted GitHub Enterprise Server instance"
-            )
-          }
+          label={dgettext("dashboard_integrations", "GitHub Enterprise Server")}
         />
       </div>
       <div
@@ -37,13 +35,7 @@
             name="github_client_url"
             type="basic"
             value={@github_client_url}
-            label={dgettext("dashboard_integrations", "GitHub Enterprise Server URL")}
-            sublabel={
-              dgettext(
-                "dashboard_integrations",
-                "The base URL of your self-hosted GitHub Enterprise Server"
-              )
-            }
+            label={dgettext("dashboard_integrations", "Server URL")}
             placeholder="https://github.example.com"
             error={@github_client_url_error}
             phx-debounce="300"
@@ -53,7 +45,7 @@
       <div data-part="actions">
         <.button
           :if={is_nil(@github_app_installation)}
-          label={install_button_label(@github_client_url)}
+          label={dgettext("dashboard_integrations", "Install GitHub App")}
           variant="primary"
           href={
             VCS.get_github_app_installation_url(@selected_account, client_url: @github_client_url)

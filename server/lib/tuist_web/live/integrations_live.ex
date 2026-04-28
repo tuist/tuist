@@ -210,19 +210,7 @@ defmodule TuistWeb.IntegrationsLive do
         {String.trim_trailing(trimmed, "/"), nil}
 
       true ->
-        {trimmed,
-         dgettext(
-           "dashboard_integrations",
-           "Enter a valid GitHub URL such as https://github.example.com"
-         )}
-    end
-  end
-
-  defp install_button_label(client_url) do
-    if client_url == GitHubAppInstallation.default_client_url() do
-      dgettext("dashboard_integrations", "Install GitHub App")
-    else
-      dgettext("dashboard_integrations", "Install on GitHub Enterprise Server")
+        {trimmed, dgettext("dashboard_integrations", "Invalid URL")}
     end
   end
 

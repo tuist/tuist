@@ -62,8 +62,8 @@ defmodule TuistWeb.IntegrationsLiveTest do
 
     {:ok, _lv, html} = live(conn, ~p"/#{organization.account.name}/integrations")
 
-    refute html =~ "GitHub Enterprise Server URL"
-    assert html =~ "Use GitHub Enterprise Server"
+    refute html =~ "Server URL"
+    assert html =~ "GitHub Enterprise Server"
   end
 
   test "reveals the URL input when the user toggles GitHub Enterprise Server on", %{
@@ -77,29 +77,7 @@ defmodule TuistWeb.IntegrationsLiveTest do
     {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/integrations")
 
     html = render_click(lv, "toggle-github-enterprise-input")
-    assert html =~ "GitHub Enterprise Server URL"
-  end
-
-  test "switches the install button label when a GitHub Enterprise URL is entered", %{
-    conn: conn,
-    organization: organization
-  } do
-    stub(VCS, :get_github_app_installation_url, fn _account, _opts ->
-      "https://github.example.com/apps/test-app/installations/new"
-    end)
-
-    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/integrations")
-
-    render_click(lv, "toggle-github-enterprise-input")
-
-    html =
-      lv
-      |> form("form[phx-change=update-github-client-url]", %{
-        "github_client_url" => "https://github.example.com"
-      })
-      |> render_change()
-
-    assert html =~ "Install on GitHub Enterprise Server"
+    assert html =~ "Server URL"
   end
 
   test "shows a validation error and disables the install button for malformed URLs", %{
@@ -121,7 +99,7 @@ defmodule TuistWeb.IntegrationsLiveTest do
       })
       |> render_change()
 
-    assert html =~ "Enter a valid GitHub URL"
+    assert html =~ "Invalid URL"
   end
 
   test "toggling off hides the input and clears the URL", %{
@@ -144,9 +122,9 @@ defmodule TuistWeb.IntegrationsLiveTest do
 
     html = render_click(lv, "toggle-github-enterprise-input")
 
-    refute html =~ "GitHub Enterprise Server URL"
+    refute html =~ "Server URL"
     assert html =~ "Install GitHub App"
-    assert html =~ "Use GitHub Enterprise Server"
+    assert html =~ "GitHub Enterprise Server"
   end
 
   describe "delete-connection" do
