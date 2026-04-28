@@ -147,6 +147,43 @@ defmodule Tuist.Environment do
     end
   end
 
+  @doc """
+  Returns the kubeconfig (raw YAML string) for the given Kura cluster
+  ID, or `nil` if none is configured.
+
+  Three sources are checked in order:
+
+    1. `TUIST_KURA_KUBECONFIG_PATH_<CLUSTER>` env var pointing at a
+       file on disk (the convenient dev path — devs use their own
+       `~/.kube/config` against a kind cluster).
+    2. `TUIST_KURA_KUBECONFIG_<CLUSTER>` env var with the kubeconfig
+       YAML inline.
+    3. The encrypted secrets bundle, under
+       `kura.kubeconfigs.<cluster>` (the production path — kubeconfigs
+       are baked into `priv/secrets/<env>.yml.enc`).
+
+  In all forms the cluster ID is uppercased and `-` becomes `_` for
+  env vars; the secrets bundle uses an atom key with `_` for `-`.
+  """
+  def kura_kubeconfig(cluster_id, secrets \\ secrets()) when is_binary(cluster_id) do
+    upper = cluster_id |> String.upcase() |> String.replace("-", "_")
+
+    cond do
+      path = System.get_env("TUIST_KURA_KUBECONFIG_PATH_#{upper}") ->
+        case File.read(path) do
+          {:ok, contents} -> contents
+          {:error, _reason} -> nil
+        end
+
+      inline = System.get_env("TUIST_KURA_KUBECONFIG_#{upper}") ->
+        inline
+
+      true ->
+        key = cluster_id |> String.replace("-", "_") |> String.to_atom()
+        get([:kura, :kubeconfigs, key], secrets)
+    end
+  end
+
   def plain_authentication_secret(secrets \\ secrets()) do
     get([:plain, :authentication_secret], secrets)
   end
