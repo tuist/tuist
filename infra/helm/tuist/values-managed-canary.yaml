@@ -60,6 +60,14 @@ processor:
   # role provisioned via infra/supabase/tuist-processor-role.sql.
   database:
     host: db.thapckmapmffdgaiarvu.supabase.co
+  replicaCount: 1
+  podDisruptionBudget:
+    enabled: false
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
   extraEnv:
     # Must match the server's TUIST_DEPLOY_ENV above so the processor pod
     # decrypts the same priv/secrets/<env>.yml.enc file the web tier does.
