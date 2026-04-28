@@ -374,11 +374,6 @@ objectStorage:
       cache: tuist-cache
       xcodeCache: tuist-xcode-cache
       registry: tuist-registry
-    # When true, the chart provisions an ExternalSecret that syncs S3
-    # access keys from the configured store (1Password by default) and
-    # the deployments source TUIST_S3_ACCESS_KEY_ID / TUIST_S3_SECRET_ACCESS_KEY
-    # from that ESO-synced Secret. When false, accessKey/secretKey above
-    # are used directly via the bundled app-secrets Secret.
     managedSecrets: false
     externalSecrets:
       refreshInterval: "1h"
