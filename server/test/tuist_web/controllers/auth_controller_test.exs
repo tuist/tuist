@@ -507,6 +507,64 @@ defmodule TuistWeb.AuthControllerTest do
                Tuist.Accounts.get_oauth2_identity(:oauth2, "spoofed-uid", "https://evil.example.com")
     end
 
+    test "auto-accepts a pending invitation when an existing user signs in via the org's SSO",
+         %{conn: conn} do
+      # An admin invites a Tuist user whose account predates the org's SSO
+      # configuration (e.g. originally signed up via Google). The invitation
+      # is the admin's recorded consent to grant access, and the invite email
+      # alerts the invitee. On their next SSO login we auto-accept the
+      # invitation so they don't have to find the email and click the link.
+      admin = AccountsFixtures.user_fixture(email: "inviter-via-sso@example.com")
+      invitee = AccountsFixtures.user_fixture(email: "auto-accepted@example.com")
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          creator: admin,
+          sso_provider: :oauth2,
+          sso_organization_id: "https://idp.example.com",
+          oauth2_client_id: UUIDv7.generate(),
+          oauth2_client_secret: UUIDv7.generate(),
+          oauth2_authorize_url: "https://idp.example.com/oauth2/authorize",
+          oauth2_token_url: "https://idp.example.com/oauth2/token",
+          oauth2_user_info_url: "https://idp.example.com/oauth2/userinfo"
+        )
+
+      {:ok, _invitation} =
+        Tuist.Accounts.invite_user_to_organization(
+          invitee.email,
+          %{inviter: admin, to: organization, url: fn token -> "/auth/invitations/#{token}" end}
+        )
+
+      expect(SSOClient, :exchange_token, fn _token_url, "auth-code", _redirect_uri, _client_id, _client_secret ->
+        {:ok, %{"access_token" => "access-token", "token_type" => "Bearer", "scope" => "openid email profile"}}
+      end)
+
+      expect(SSOClient, :fetch_userinfo, fn _user_info_url, "access-token" ->
+        {:ok, %{"sub" => "invitee-sub", "email" => invitee.email, "name" => "Invitee"}}
+      end)
+
+      conn =
+        conn
+        |> init_test_session(%{
+          sso_organization_id: organization.id,
+          sso_state: "expected-state",
+          sso_route_provider: :oauth2
+        })
+        |> get("/users/auth/oauth2/callback?code=auth-code&state=expected-state")
+
+      assert redirected_to(conn) =~ ~r{^/}
+      assert get_session(conn, :user_token)
+      assert Tuist.Accounts.organization_user?(invitee, organization)
+
+      assert {:ok, oauth_identity} =
+               Tuist.Accounts.get_oauth2_identity(:oauth2, "invitee-sub", "https://idp.example.com")
+
+      assert oauth_identity.user.id == invitee.id
+
+      # the invitation must be deleted so it can't be replayed
+      assert is_nil(Tuist.Accounts.get_invitation_by_invitee_email_and_organization(invitee.email, organization))
+    end
+
     test "refuses cross-tenant account takeover when two custom OAuth2 IdPs return the same sub",
          %{conn: conn} do
       # Customer A has a legitimate user whose identity came from their IdP.

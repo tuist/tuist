@@ -198,29 +198,58 @@ defmodule TuistWeb.AuthController do
          provider_organization_id,
          oauth_return_url
        ) do
-    if can_link_existing_user?(existing_user, auth.provider, sso_organization) do
-      {:ok, _oauth_identity} =
-        Accounts.link_oauth_identity_to_user(existing_user, %{
-          provider: auth.provider,
-          id_in_provider: to_string(auth.uid),
-          provider_organization_id: provider_organization_id
+    cond do
+      can_link_existing_user?(existing_user, auth.provider, sso_organization) ->
+        do_link_and_log_in(
+          conn,
+          existing_user,
+          auth,
+          auth_params,
+          provider_organization_id,
+          oauth_return_url
+        )
+
+      invitation = pending_invitation_for(existing_user, sso_organization) ->
+        Accounts.accept_invitation(%{
+          invitation: invitation,
+          invitee: existing_user,
+          organization: sso_organization
         })
 
-      if oauth_return_url do
-        conn
-        |> put_session(:user_return_to, oauth_return_url)
-        |> delete_session(:oauth_return_to)
-        |> Authentication.log_in_user(existing_user, auth_params)
-      else
-        Authentication.log_in_user(conn, existing_user, auth_params)
-      end
-    else
-      log(
-        :warning,
-        "Refused to link existing user #{existing_user.id} via custom SSO provider #{auth.provider}: user is not a member of the authenticating organization."
-      )
+        do_link_and_log_in(
+          conn,
+          existing_user,
+          auth,
+          auth_params,
+          provider_organization_id,
+          oauth_return_url
+        )
 
-      raise_sso_unauthorized(:existing_user_not_member)
+      true ->
+        log(
+          :warning,
+          "Refused to link existing user #{existing_user.id} via custom SSO provider #{auth.provider}: user is not a member of the authenticating organization and has no pending invitation."
+        )
+
+        raise_sso_unauthorized(:existing_user_not_member)
+    end
+  end
+
+  defp do_link_and_log_in(conn, user, auth, auth_params, provider_organization_id, oauth_return_url) do
+    {:ok, _oauth_identity} =
+      Accounts.link_oauth_identity_to_user(user, %{
+        provider: auth.provider,
+        id_in_provider: to_string(auth.uid),
+        provider_organization_id: provider_organization_id
+      })
+
+    if oauth_return_url do
+      conn
+      |> put_session(:user_return_to, oauth_return_url)
+      |> delete_session(:oauth_return_to)
+      |> Authentication.log_in_user(user, auth_params)
+    else
+      Authentication.log_in_user(conn, user, auth_params)
     end
   end
 
@@ -230,11 +259,23 @@ defmodule TuistWeb.AuthController do
   # via email-based auto-linking. We only auto-link when the existing user
   # is already a member of the authenticating organization, since the admin
   # already has access to manage that user.
+  #
+  # As a controlled exception, we also allow auto-link when there is a
+  # pending invitation for the user's email to the authenticating org (see
+  # `pending_invitation_for/2` below). The invitation is the admin's
+  # explicit, recorded intent to grant access — and creating one always
+  # sends an alerting email to the invitee.
   defp can_link_existing_user?(_user, provider, _organization) when provider not in [:okta, :oauth2], do: true
   defp can_link_existing_user?(_user, _provider, nil), do: false
 
   defp can_link_existing_user?(user, _provider, %Organization{} = organization) do
     Accounts.belongs_to_organization?(user, organization)
+  end
+
+  defp pending_invitation_for(_user, nil), do: nil
+
+  defp pending_invitation_for(%{email: email}, %Organization{} = organization) do
+    Accounts.get_invitation_by_invitee_email_and_organization(email, organization)
   end
 
   def authenticate_cli_deprecated(conn, params) do
