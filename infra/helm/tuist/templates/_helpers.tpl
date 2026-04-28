@@ -128,6 +128,32 @@ http://{{ include "tuist.componentName" (dict "root" . "component" "object-stora
 {{- end -}}
 {{- end -}}
 
+{{/*
+Cache app's DATABASE_URL. Resolves to (in order):
+  1. cache.databaseUrl when set explicitly (self-hosted with own Postgres).
+  2. embedded Postgres + cache.embedded.database when postgresql.mode is
+     "embedded". The cache database is created by templates/postgresql-init.yaml
+     on first Postgres boot.
+  3. empty string (cache must be disabled or running in managedSecrets mode
+     where DATABASE_URL is unlocked from priv/secrets at runtime).
+
+Fails the render when an explicit `cache.databaseUrl` is set alongside an
+embedded Postgres. The two sources are mutually exclusive — silently
+preferring one would let an operator's intent (typically: an explicit URL
+written to override the embedded composition) be overridden by the chart's
+default. Mirrors the guard in tuist.licenseEnv.
+*/}}
+{{- define "tuist.cacheDatabaseUrl" -}}
+{{- if and .Values.cache.databaseUrl (eq .Values.postgresql.mode "embedded") -}}
+{{- fail "cache.databaseUrl and postgresql.mode=embedded are mutually exclusive — set one (explicit external URL OR embedded Postgres composition), not both." -}}
+{{- end -}}
+{{- if .Values.cache.databaseUrl -}}
+{{- .Values.cache.databaseUrl -}}
+{{- else if eq .Values.postgresql.mode "embedded" -}}
+ecto://{{ .Values.postgresql.embedded.username }}:{{ .Values.postgresql.embedded.password }}@{{ include "tuist.componentName" (dict "root" . "component" "postgresql") }}:5432/{{ .Values.cache.embedded.database }}
+{{- end -}}
+{{- end -}}
+
 {{- define "tuist.databaseUrl" -}}
 {{- if eq .Values.postgresql.mode "embedded" -}}
 ecto://{{ .Values.postgresql.embedded.username }}:{{ .Values.postgresql.embedded.password }}@{{ include "tuist.componentName" (dict "root" . "component" "postgresql") }}:5432/{{ .Values.postgresql.embedded.database }}
