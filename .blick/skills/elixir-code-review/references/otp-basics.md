@@ -49,12 +49,15 @@ def fetch_data(pid) do
   GenServer.call(pid, :fetch_data, 10_000)  # 10 second timeout
 end
 
-# Handle timeout in caller
-case GenServer.call(pid, :fetch, 5_000) do
-  {:ok, data} -> data
-  {:error, reason} -> handle_error(reason)
-rescue
-  exit -> {:error, :timeout}
+# Handle timeout in caller. GenServer.call timeouts are EXITs, not
+# exceptions, so use `try/catch :exit` (not `rescue`).
+try do
+  case GenServer.call(pid, :fetch, 5_000) do
+    {:ok, data} -> data
+    {:error, reason} -> handle_error(reason)
+  end
+catch
+  :exit, {:timeout, _} -> {:error, :timeout}
 end
 ```
 

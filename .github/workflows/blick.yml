@@ -2,6 +2,17 @@ name: blick
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - "server/**"
+      - "cache/**"
+      - "processor/**"
+      - "xcode_processor/**"
+      - "tuist_common/**"
+      - "noora/**"
+      - ".blick/**"
+      - "blick.toml"
+      - ".github/workflows/blick.yml"
 
 permissions:
   contents: read
@@ -19,7 +30,9 @@ env:
 jobs:
   review:
     name: Review
-    if: github.event.pull_request.head.repo.full_name == github.repository
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository
+      && github.event.pull_request.draft == false
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -42,7 +55,10 @@ jobs:
         run: blick review --base "origin/${{ github.event.pull_request.base.ref }}" --json --stream
 
       - name: Publish review
-        if: always()
+        # Only publish when the review step succeeded and produced a run
+        # artifact. On agent crash / Fireworks 5xx we'd otherwise post an
+        # empty or stale review.
+        if: success() && hashFiles('.blick/runs/latest/**') != ''
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: blick publish

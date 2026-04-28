@@ -24,7 +24,7 @@ description: Reviews Elixir code for idiomatic patterns, OTP basics, and documen
 
 ### Pattern Matching
 - [ ] Functions use pattern matching over conditionals where appropriate
-- [ ] With clauses have else handling for error cases
+- [ ] `with` has an `else` clause **only when** the error needs transforming or distinguishing (a bare `with` that lets un-tagged error tuples flow through is idiomatic and should not be flagged)
 - [ ] Guards used instead of runtime checks where possible
 - [ ] Destructuring used in function heads, not body
 

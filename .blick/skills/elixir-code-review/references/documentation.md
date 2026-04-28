@@ -1,5 +1,10 @@
 # Documentation
 
+> **Repository override:** this codebase intentionally does **not** use
+> typespecs. Treat any `@spec`/`@type`/`@typep` content below as
+> historical context only — do **not** flag missing typespecs in review,
+> and do not suggest adding them.
+
 ## Module Documentation
 
 ### @moduledoc
@@ -43,7 +48,7 @@ end
 
 ## Function Documentation
 
-### @doc with @spec
+### @doc
 
 ```elixir
 @doc """
@@ -59,30 +64,9 @@ Returns `{:ok, user}` if found, `{:error, :not_found}` otherwise.
     iex> fetch_user(-1)
     {:error, :not_found}
 """
-@spec fetch_user(pos_integer()) :: {:ok, User.t()} | {:error, :not_found}
 def fetch_user(id) when is_integer(id) and id > 0 do
   # ...
 end
-```
-
-### @spec Patterns
-
-```elixir
-# Basic types
-@spec add(integer(), integer()) :: integer()
-
-# Union types
-@spec parse(String.t()) :: {:ok, map()} | {:error, term()}
-
-# Custom types
-@type result :: {:ok, t()} | {:error, reason()}
-@spec fetch(id()) :: result()
-
-# Keyword options
-@spec start_link(keyword()) :: GenServer.on_start()
-
-# When clauses for type variables
-@spec map(list(a), (a -> b)) :: list(b) when a: term(), b: term()
 ```
 
 ## Doctests
@@ -122,7 +106,6 @@ Creates a user in the database.
 
 ## Review Questions
 
-1. Do all public modules have @moduledoc?
-2. Do all public functions have @doc and @spec?
+1. Do public-API modules (controllers, contexts, public boundaries) have @moduledoc?
+2. Do public-API functions have @doc?
 3. Are doctests used for pure, deterministic functions?
-4. Do @specs accurately reflect function signatures?
