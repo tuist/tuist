@@ -341,18 +341,25 @@ jobs:
         # composite action that any future workflow consuming this image can drop in.
         uses: ./.github/actions/wait-for-server-image
       - name: Bring up acceptance cluster (shard ${{ matrix.shard }})
-        # The mise task installs kind/helm/kubectl/colima/docker on demand, creates a
-        # per-shard kind cluster, loads the prebuilt server image, and runs
-        # `helm upgrade --install` against the same chart we deploy to canary +
-        # production (overlay: infra/helm/tuist/values-acceptance.yaml). The chart
-        # spins up the embedded postgres / clickhouse / minio + the server +
-        # processor pods, and then we kubectl-exec a one-shot seed of the
-        # `tuistrocks@tuist.dev` user. No teardown step — each shard runs on a fresh
-        # ephemeral macOS runner that's destroyed when the job ends.
+        # The task installs kind/helm/kubectl/colima/docker on demand via
+        # `mise install <tool>@latest`, creates a per-shard kind cluster, loads the
+        # prebuilt server image, and runs `helm upgrade --install` against the same
+        # chart we deploy to canary + production (overlay:
+        # infra/helm/tuist/values-acceptance.yaml). The chart spins up the embedded
+        # postgres / clickhouse / minio + the server + processor pods, and then we
+        # kubectl-exec a one-shot seed of `tuistrocks@tuist.dev`. No teardown step —
+        # each shard runs on a fresh ephemeral macOS runner that's destroyed when
+        # the job ends.
         env:
+          # Don't pull down every tool in mise.toml just because we're invoking a
+          # mise task — `core:erlang@28.4.3` has no lockfile URL on macos-arm64
+          # under MISE_LOCKED=1, and we don't need the elixir toolchain on this
+          # Swift-only runner anyway. Same `MISE_TASK_RUN_AUTO_INSTALL=0` knob
+          # server.yml already uses for the same reason.
+          MISE_TASK_RUN_AUTO_INSTALL: "0"
           GITHUB_ACTOR: ${{ github.actor }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # 1Password service account token. The mise task uses this to install ESO +
+          # 1Password service account token. The task uses this to install ESO +
           # a `onepassword` ClusterSecretStore in the kind cluster, which the chart's
           # ExternalSecret then resolves to fetch `TUIST_LICENSE_KEY` from the
           # `tuist-k8s-preview` 1P vault — same path Pedro's preview-up.sh wires.
