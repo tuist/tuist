@@ -79,7 +79,7 @@ jobs:
         id: cache
         with:
           path: .build
-          key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved') }}
+          key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
@@ -114,7 +114,7 @@ jobs:
         id: cache
         with:
           path: .build
-          key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved') }}
+          key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
@@ -152,7 +152,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .build
-          key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved') }}
+          key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
@@ -197,7 +197,7 @@ jobs:
         id: cache
         with:
           path: .build
-          key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved') }}
+          key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
@@ -278,7 +278,7 @@ jobs:
         id: cache
         with:
           path: .build
-          key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved') }}
+          key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
@@ -337,7 +337,7 @@ jobs:
         id: cache
         with:
           path: .build
-          key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved') }}
+          key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
@@ -395,7 +395,7 @@ jobs:
         id: cache
         with:
           path: .build
-          key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved') }}
+          key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
@@ -437,7 +437,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .build
-          key: linux-cli-${{ hashFiles('Package.resolved') }}
+          key: linux-cli-${{ hashFiles('Package.resolved', 'Package.swift') }}
       - name: Resolve dependencies
         if: steps.cache-restore.outputs.cache-hit != 'true'
         run: swift package resolve --replace-scm-with-registry
@@ -465,7 +465,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .build
-          key: linux-cli-${{ hashFiles('Package.resolved') }}
+          key: linux-cli-${{ hashFiles('Package.resolved', 'Package.swift') }}
       - name: Resolve dependencies
         if: steps.cache-restore.outputs.cache-hit != 'true'
         run: swift package resolve --replace-scm-with-registry
