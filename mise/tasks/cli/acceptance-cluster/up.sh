@@ -53,29 +53,37 @@ else
 fi
 echo "==> License source: ${LICENSE_MODE}"
 
-# Tools — installed on demand so a fresh runner doesn't need a separate
-# `brew install` step. `lima` is colima's runtime (provides `limactl`); without
-# it `colima start` exits with `limactl: executable file not found in $PATH`.
-mise install kind@latest helm@latest kubectl@latest \
-  colima@latest lima@latest docker-cli@latest >/dev/null
+# k8s tooling is platform-agnostic — install via mise so versions stay aligned
+# with whatever the registry has at HEAD.
+mise install kind@latest helm@latest kubectl@latest >/dev/null
 
+# macOS VM stack: install via brew so colima picks up its full dependency tree
+# (lima for `limactl`, qemu for the VM driver, docker for the CLI). The mise
+# `colima` package ships only the colima binary, which leaves both lima and
+# qemu missing on a fresh runner.
 if [[ "$(uname -s)" == "Darwin" ]]; then
-  # colima invokes `limactl` from PATH, so make lima's bin directory
-  # discoverable for the duration of this script.
-  PATH="$(mise where lima@latest)/bin:$PATH"
-  export PATH
-  if ! mise x colima@latest -- colima status >/dev/null 2>&1; then
+  for pkg in docker docker-compose colima lima qemu; do
+    if ! brew list --formula "$pkg" >/dev/null 2>&1; then
+      brew install "$pkg"
+    fi
+  done
+
+  if ! colima status >/dev/null 2>&1; then
     echo "==> Starting colima…"
-    mise x colima@latest -- colima start --cpu 4 --memory 8 --disk 30
+    # `--vm-type qemu` so we don't depend on nested Apple Virtualization.framework
+    # support — Namespace's macOS runners are themselves VMs and the default `vz`
+    # driver fails with `error starting vm: error at 'creating and starting': exit
+    # status 1` when there's no underlying VZ to nest into.
+    colima start --vm-type qemu --cpu 4 --memory 8 --disk 30
   fi
 fi
 
 if [[ -n "${GITHUB_ACTOR:-}" && -n "${GITHUB_TOKEN:-}" ]]; then
-  echo "$GITHUB_TOKEN" | mise x docker-cli@latest -- docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin >/dev/null
+  echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin >/dev/null
 fi
 
 echo "==> Pulling ${IMAGE_REF}…"
-mise x docker-cli@latest -- docker pull "$IMAGE_REF"
+docker pull "$IMAGE_REF"
 
 echo "==> Creating kind cluster '${CLUSTER_NAME}'…"
 if ! mise x kind@latest -- kind get clusters 2>/dev/null | grep -qx "$CLUSTER_NAME"; then
