@@ -163,6 +163,14 @@ defmodule TuistWeb.Router do
     plug TuistWeb.WarningsHeaderPlug
   end
 
+  pipeline :orchard_api do
+    # Embedded Orchard control plane. Auth is HTTP Basic against
+    # `orchard_service_accounts`; per-endpoint role checks are enforced
+    # by the controllers via `OrchardAuthPlug.require_role/2`.
+    plug :accepts, ["json"]
+    plug TuistWeb.Plugs.OrchardAuthPlug
+  end
+
   pipeline :api_catalog do
     plug :accepts, ["linkset"]
   end
@@ -624,6 +632,46 @@ defmodule TuistWeb.Router do
     get "/spec", OpenApiSpex.Plug.RenderSpec, []
   end
 
+  # Embedded Orchard control plane. Wire format matches Cirrus's
+  # upstream `pkg/resource/v1` JSON contract so their `orchard worker`
+  # daemon and our vk-orchard provider both speak to it without
+  # modification. See `Tuist.Orchard` for the public API.
+  scope "/api/orchard/v1", TuistWeb.Orchard do
+    pipe_through :orchard_api
+
+    get "/controller/info", ControllerInfoController, :info
+
+    # Workers
+    post "/workers", WorkerController, :create
+    put "/workers/:name", WorkerController, :update
+    get "/workers/:name", WorkerController, :show
+    get "/workers", WorkerController, :index
+    delete "/workers/:name", WorkerController, :delete
+
+    # VMs
+    post "/vms", VMController, :create
+    put "/vms/:name", VMController, :update
+    put "/vms/:name/state", VMController, :update_state
+    get "/vms/:name", VMController, :show
+    get "/vms", VMController, :index
+    delete "/vms/:name", VMController, :delete
+
+    # VM events (logs / status / conditions)
+    post "/vms/:name/events", VMEventController, :append
+    get "/vms/:name/events", VMEventController, :index
+
+    # Service accounts
+    post "/service-accounts", ServiceAccountController, :create
+    put "/service-accounts/:name", ServiceAccountController, :update
+    get "/service-accounts/:name", ServiceAccountController, :show
+    get "/service-accounts", ServiceAccountController, :index
+    delete "/service-accounts/:name", ServiceAccountController, :delete
+
+    # RPC: WebSocket the worker daemon holds open to receive
+    # scheduling instructions (sync VMs).
+    get "/rpc/watch", RPCController, :watch
+  end
+
   scope "/api", TuistWeb.API do
     pipe_through [:open_api, :non_authenticated_api]
 
@@ -703,6 +751,7 @@ defmodule TuistWeb.Router do
       ] do
       live "/", TuistWeb.OpsCacheLive
       live "/accounts", TuistWeb.OpsAccountsLive
+      live "/orchard", TuistWeb.OpsOrchardLive
     end
   end
 

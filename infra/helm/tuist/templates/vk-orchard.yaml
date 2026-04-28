@@ -96,7 +96,8 @@ spec:
             - name: VK_LISTEN_ADDR
               value: ":10250"
             - name: ORCHARD_URL
-              value: {{ required "vkOrchard.orchard.url is required" .Values.vkOrchard.orchard.url | quote }}
+              {{- $defaultUrl := printf "http://%s/api/orchard/v1" (include "tuist.componentName" (dict "root" . "component" "server")) }}
+              value: {{ default $defaultUrl .Values.vkOrchard.orchard.url | quote }}
             - name: ORCHARD_SERVICE_ACCOUNT_NAME
               valueFrom:
                 secretKeyRef:

@@ -286,8 +286,13 @@ xcresultProcessor:
 
 # Virtual Kubelet provider that exposes the Tuist Orchard fleet (Scaleway
 # Mac minis hosting Tart VMs) as a virtual k8s Node. See
-# infra/vk-orchard/AGENTS.md for the full design. Required to schedule
-# any macOS workload via this chart.
+# infra/vk-orchard/AGENTS.md for the full design.
+#
+# `orchard.url` defaults to the *embedded* Orchard control plane that
+# runs as part of the Tuist server (`/api/orchard/v1` mounted in
+# server/lib/tuist_web/router.ex). Self-hosters wanting to use Cirrus's
+# upstream Orchard binary instead can override this to point at it; the
+# wire protocol is identical.
 vkOrchard:
   enabled: false
   nodeName: tuist-orchard
@@ -296,11 +301,14 @@ vkOrchard:
     tag: ""
     pullPolicy: IfNotPresent
   orchard:
-    # URL of the Orchard control plane the provider talks to.
+    # URL of the Orchard control plane. Empty defaults to the in-cluster
+    # Tuist server (`http://<server-svc>/api/orchard/v1`); the chart
+    # template fills it in. Override for an external Orchard controller.
     url: ""
     # Secret holding `service-account-name` and `service-account-token`
-    # keys. If empty, defaults to the chart's own component secret name —
-    # set externally (ESO, manual create, etc.).
+    # keys. The default Helm install does NOT create this — operators
+    # must seed it via `kubectl create secret` (or ESO sync from 1P)
+    # using a service account provisioned via /ops/orchard.
     secretName: ""
   resources:
     requests:

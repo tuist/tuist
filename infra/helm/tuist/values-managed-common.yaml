@@ -164,9 +164,13 @@ xcresultProcessor:
     tag: ""  # Set by CI to the commit SHA on each deploy.
 
 # Virtual Kubelet provider for the Orchard fleet. Co-deployed with
-# xcresultProcessor since the Pods can't schedule without it. Orchard
-# URL + service-account credentials come from 1Password via ESO; the
-# Secret it materializes (`tuist-vk-orchard`) is referenced here.
+# xcresultProcessor since the Pods can't schedule without it.
+#
+# The Orchard control plane runs *inside* the Tuist server (see
+# server/lib/tuist/orchard.ex + /api/orchard/v1) so vkOrchard.orchard.url
+# defaults to the in-cluster server endpoint — no separate Orchard pod.
+# Service-account credentials come from a Secret seeded out-of-band by
+# operators; the SA itself is provisioned via /ops/orchard.
 vkOrchard:
   enabled: true
   nodeName: tuist-orchard
@@ -174,7 +178,7 @@ vkOrchard:
     repository: ghcr.io/tuist/vk-orchard
     tag: ""
   orchard:
-    url: ""  # set per-env in values-managed-<env>.yaml
+    secretName: tuist-vk-orchard-orchard-credentials
 
 # Everything below = external. The managed deployment never runs embedded
 # Postgres / ClickHouse / object storage / observability stacks.
