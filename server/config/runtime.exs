@@ -44,18 +44,14 @@ if Enum.member?([:prod, :stag, :can], env) do
       do: [:inet6, {:keepalive, true}],
       else: [{:keepalive, true}]
 
-  # Supavisor (Supabase's transaction-mode pooler) listens on 6543 and (a)
-  # rejects non-standard startup parameters with `protocol_violation` and
-  # (b) doesn't allow named prepared statements because each transaction
-  # may land on a different backend connection. Direct Postgres on 5432
-  # accepts both and benefits from Postgrex's prepared-statement caching,
-  # so the URL port picks the connection shape per pod:
-  #
-  #   * server pod (DATABASE_URL from priv/secrets, port 5432) → :named
-  #     prepares + tcp_keepalives_* startup parameters as before.
-  #   * processor pod (DATABASE_URL composed by the chart with port 6543)
-  #     → :unnamed prepares, no startup parameters.
-  pooled? = (parsed_url.port || 5432) == 6543
+  # Picks the connection shape based on `TUIST_DATABASE_POOLED` (set by the
+  # chart on processor pods, unset on server pods). Direct Postgres keeps
+  # `:named` prepares + tcp_keepalives_* startup parameters; transaction-
+  # mode poolers (Supabase Supavisor on 6543, PgBouncer, etc.) drop both
+  # — they reject non-standard startup parameters with `protocol_violation`
+  # and can't reuse named prepares across transactions that land on
+  # different backend connections.
+  pooled? = Tuist.Environment.database_pooled?()
 
   postgres_parameters =
     if pooled?,

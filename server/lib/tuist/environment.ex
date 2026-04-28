@@ -575,6 +575,17 @@ defmodule Tuist.Environment do
     truthy?(System.get_env("TUIST_DELEGATE_PROCESS_BUILD", "0"))
   end
 
+  @doc """
+  Whether the configured DATABASE_URL points at a transaction-mode pooler
+  (Supabase Supavisor, PgBouncer, etc.) rather than a direct Postgres
+  endpoint. Toggles `prepare: :unnamed` and drops `tcp_keepalives_*`
+  startup parameters in `runtime.exs` — both required for transaction-mode
+  poolers to work, both unnecessary cost on direct connections.
+  """
+  def database_pooled? do
+    truthy?(System.get_env("TUIST_DATABASE_POOLED", "0"))
+  end
+
   def process_build_queue_concurrency do
     case System.get_env("TUIST_PROCESS_BUILD_QUEUE_CONCURRENCY") do
       value when is_binary(value) and value != "" -> String.to_integer(value)

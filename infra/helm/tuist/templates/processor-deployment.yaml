@@ -70,10 +70,15 @@ spec:
               value: "0"
             - name: TUIST_PROCESS_BUILD_QUEUE_CONCURRENCY
               value: {{ .Values.processor.queueConcurrency | quote }}
+            # Tells runtime.exs to use transaction-mode pooler settings:
+            # `prepare: :unnamed` and no tcp_keepalives_* startup parameters.
+            # Required because DATABASE_URL below points at Supavisor on 6543.
+            - name: TUIST_DATABASE_POOLED
+              value: "1"
             # Override DATABASE_URL baked into priv/secrets/<env>.yml.enc with
             # the least-privilege tuist_processor role. Scope: SELECT/INSERT/
-            # UPDATE on oban_jobs + builds + build_* + read-only lookups on
-            # accounts/projects. See infra/supabase/tuist-processor-role.sql.
+            # UPDATE/DELETE on oban_jobs + read-only on accounts/projects.
+            # See infra/supabase/tuist-processor-role.sql.
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
