@@ -7,17 +7,18 @@ defmodule Tuist.IngestRepo.Migrations.BackfillArtifactsFromPostgres do
 
   The flag doubles as the resume cursor — a killed run restarts and
   the WHERE filter naturally skips bundles whose flag was already
-  flipped. This recovers both pre-dual-write history and any bundle
-  whose dual-write hit a transient ClickHouse outage post-deploy
-  (mirroring the contract documented in `Tuist.Bundles.ArtifactIngest`).
+  flipped. The candidate set is exactly two populations:
 
-  Race window: between the CH insert and the PG flag UPDATE for a
-  given batch. A crash inside that window re-inserts that batch's
-  rows on the next run; CH stores duplicates as separate rows under
-  `MergeTree`, so they persist until something else collapses them.
-  Bounded by one batch and an unlikely crash, so we accept it rather
-  than pay the cost of a deduplicating engine or per-batch existence
-  checks.
+    1. Pre-phase-1 history: rows that existed before the column was
+       added and were column-defaulted to `false` by the schema migration.
+    2. Bundles whose live dual-write raised — see the rescue clause in
+       `Tuist.Bundles.replicate_artifacts_to_clickhouse/2`, which flips
+       the flag from its insert-time default of `true` back to `false`.
+
+  Bundles whose dual-write is *in flight* never enter the scan because
+  they are inserted with `artifacts_replicated_to_ch = true` from the
+  start (see `Tuist.Bundles.Bundle`). The migration cannot race with a
+  live dual-write.
 
   Live schemas (`Bundle`, `Artifact`, `ArtifactIngest`) are deliberately
   not referenced from this migration. Migrations are immutable history,
