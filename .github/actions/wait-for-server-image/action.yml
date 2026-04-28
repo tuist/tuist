@@ -23,9 +23,13 @@ inputs:
     required: false
     default: ${{ github.token }}
   sha:
-    description: Commit SHA to look up the check on. Defaults to the workflow's SHA.
+    description: |
+      Commit SHA to look up the check on. Defaults to the PR's head SHA on
+      `pull_request` events (where `github.sha` resolves to the synthetic merge
+      commit and check runs land on the head SHA), falling back to `github.sha`
+      for `push` / `workflow_dispatch` / `merge_group` events.
     required: false
-    default: ${{ github.sha }}
+    default: ${{ github.event.pull_request.head.sha || github.sha }}
   check-name:
     description: |
       Name of the check run to wait for. For reusable workflows GitHub renders the
