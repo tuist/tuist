@@ -18,18 +18,18 @@
         data-part="github-host-tabs"
         style="display: flex; justify-content: flex-end;"
       >
-        <.button_group size="medium">
+        <.button_group size="medium" style="display: grid; grid-template-columns: 1fr 1fr;">
           <.button_group_item
             label="github.com"
             phx-click="select-github-com"
             data-selected={not @show_github_enterprise_input}
-            style="flex: 1; justify-content: center;"
+            style="justify-content: center; white-space: nowrap;"
           />
           <.button_group_item
             label={dgettext("dashboard_integrations", "Enterprise server")}
             phx-click="select-github-enterprise"
             data-selected={@show_github_enterprise_input}
-            style="flex: 1; justify-content: center;"
+            style="justify-content: center; white-space: nowrap;"
           />
         </.button_group>
       </div>
