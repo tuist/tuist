@@ -54,11 +54,16 @@ fi
 echo "==> License source: ${LICENSE_MODE}"
 
 # Tools — installed on demand so a fresh runner doesn't need a separate
-# `brew install` step.
+# `brew install` step. `lima` is colima's runtime (provides `limactl`); without
+# it `colima start` exits with `limactl: executable file not found in $PATH`.
 mise install kind@latest helm@latest kubectl@latest \
-  colima@latest docker-cli@latest >/dev/null
+  colima@latest lima@latest docker-cli@latest >/dev/null
 
 if [[ "$(uname -s)" == "Darwin" ]]; then
+  # colima invokes `limactl` from PATH, so make lima's bin directory
+  # discoverable for the duration of this script.
+  PATH="$(mise where lima@latest)/bin:$PATH"
+  export PATH
   if ! mise x colima@latest -- colima status >/dev/null 2>&1; then
     echo "==> Starting colima…"
     mise x colima@latest -- colima start --cpu 4 --memory 8 --disk 30
