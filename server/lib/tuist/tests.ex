@@ -1499,6 +1499,7 @@ defmodule Tuist.Tests do
   def list_test_cases(project_id, attrs, opts \\ []) do
     filters = Map.get(attrs, :filters, [])
     has_name_filter = Enum.any?(filters, fn f -> f.field == :name end)
+    quarantine_filter? = quarantine_filter?(filters)
     active_period = Keyword.get(opts, :active_period)
     is_ci = Keyword.get(opts, :is_ci)
 
@@ -1518,6 +1519,14 @@ defmodule Tuist.Tests do
             on: test_case.id == active.test_case_id
           )
 
+        # Quarantined-by-state filters (`state in ["muted", "skipped"]` or the
+        # legacy `quarantined=true` shortcut) bypass the active window. Skipped
+        # tests intentionally never run, so their `last_ran_at` doesn't
+        # refresh — without this branch they'd age out after 14 days and the
+        # CLI/Gradle plugin would silently start running them again.
+        quarantine_filter? ->
+          base_query
+
         has_name_filter ->
           base_query
 
@@ -1527,6 +1536,21 @@ defmodule Tuist.Tests do
       end
 
     Tuist.ClickHouseFlop.validate_and_run!(base_query, attrs, for: TestCase)
+  end
+
+  defp quarantine_filter?(filters) do
+    Enum.any?(filters, fn
+      %{field: :state, value: value} when value in ["muted", "skipped"] -> true
+      %{field: "state", value: value} when value in ["muted", "skipped"] -> true
+      %{field: :state, op: :in, value: values} when is_list(values) ->
+        Enum.any?(values, &(&1 in ["muted", "skipped"]))
+
+      %{field: "state", op: :in, value: values} when is_list(values) ->
+        Enum.any?(values, &(&1 in ["muted", "skipped"]))
+
+      _ ->
+        false
+    end)
   end
 
   defp active_test_case_ids_query(project_id, {start_datetime, end_datetime}, is_ci) do

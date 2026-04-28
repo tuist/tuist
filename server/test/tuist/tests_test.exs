@@ -2586,6 +2586,84 @@ defmodule Tuist.TestsTest do
       {[updated_test_case], _meta} = Tests.list_test_cases(project.id, %{})
       assert updated_test_case.state == "muted"
     end
+
+    test "skipped/muted state filters bypass the 14-day active window" do
+      # Skipped tests intentionally never run, so their `last_ran_at` doesn't
+      # refresh. Without bypassing the active-window filter for state-based
+      # quarantine queries, those tests would age out of the listing after 14
+      # days and the CLI/Gradle plugin would silently start running them again.
+      project = ProjectsFixtures.project_fixture()
+
+      stale_ran_at =
+        NaiveDateTime.utc_now() |> NaiveDateTime.add(-30, :day) |> NaiveDateTime.truncate(:microsecond)
+
+      {:ok, _test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          ran_at: stale_ran_at,
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "success",
+              duration: 1000,
+              test_cases: [
+                %{name: "stale_skipped", status: "success", duration: 100},
+                %{name: "stale_muted", status: "success", duration: 100}
+              ]
+            }
+          ]
+        )
+
+      RunsFixtures.optimize_test_case_runs()
+
+      # Resolve the seeded test_case rows by name (the test name search bypasses
+      # the active window in `list_test_cases/3`, so this works even with stale
+      # `last_ran_at`), then mark each one with the corresponding state.
+      {seeded_cases, _} =
+        Tests.list_test_cases(project.id, %{
+          filters: [%{field: :name, op: :ilike_and, value: "stale_"}]
+        })
+
+      Enum.each(seeded_cases, fn tc ->
+        new_state = if tc.name == "stale_skipped", do: "skipped", else: "muted"
+        {:ok, _} = Tests.update_test_case(tc.id, %{state: new_state})
+      end)
+
+      RunsFixtures.optimize_test_case_runs()
+
+      # Sanity check: with no quarantine filter, the stale rows are filtered out
+      # by the default 14-day active window.
+      {default_results, _} = Tests.list_test_cases(project.id, %{})
+      assert default_results == []
+
+      # state="skipped" must surface stale-skipped despite stale last_ran_at.
+      {skipped_results, _} =
+        Tests.list_test_cases(project.id, %{
+          filters: [%{field: :state, op: :==, value: "skipped"}]
+        })
+
+      assert Enum.map(skipped_results, & &1.name) == ["stale_skipped"]
+
+      # state="muted" must surface stale-muted despite stale last_ran_at.
+      {muted_results, _} =
+        Tests.list_test_cases(project.id, %{
+          filters: [%{field: :state, op: :==, value: "muted"}]
+        })
+
+      assert Enum.map(muted_results, & &1.name) == ["stale_muted"]
+
+      # The legacy `quarantined=true` shortcut (`state IN ["muted", "skipped"]`)
+      # also bypasses the window.
+      {quarantined_results, _} =
+        Tests.list_test_cases(project.id, %{
+          filters: [%{field: :state, op: :in, value: ["muted", "skipped"]}]
+        })
+
+      assert quarantined_results |> Enum.map(& &1.name) |> Enum.sort() == [
+               "stale_muted",
+               "stale_skipped"
+             ]
+    end
   end
 
   describe "get_test_case_by_id/1" do
