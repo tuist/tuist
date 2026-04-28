@@ -32,10 +32,9 @@
 #     supervision tree so it can run alongside `mise run dev`. It boots
 #     only the apps it needs (Repo, IngestRepo, Oban, Briefly, Req,
 #     Tzdata).
-#   - Helm "succeeds" when the StatefulSet's pods are Ready. Kura images
-#     older than the one carrying PR #10446 don't expose `/ready`, so
-#     the readiness probe will return 404 and helm will time out — this
-#     is a chart-vs-image version mismatch, not an orchestration bug.
+#   - Use Kura >= 0.3.0 (which contains the PR #10446 warm-rollout
+#     primitives, including the `/ready` endpoint the chart's
+#     readinessProbe relies on). Older images return 404 on `/ready`.
 
 Application.put_env(:tuist, :clickhouse_writes_async, false)
 
@@ -77,7 +76,7 @@ IO.puts("→ account #{account.name} (id=#{account.id})")
 
 {:ok, _} =
   Kura.record_version(
-    "0.1.0",
+    "0.3.0",
     DateTime.utc_now() |> DateTime.truncate(:second)
   )
 
@@ -87,7 +86,7 @@ IO.puts("→ recorded version 0.1.0")
   Kura.create_deployment(%{
     account_id: account.id,
     cluster_id: "local-1",
-    image_tag: "0.1.0",
+    image_tag: "0.3.0",
     requested_by_user_id: user.id
   })
 
