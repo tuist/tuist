@@ -56,54 +56,47 @@ echo "==> License source: ${LICENSE_MODE}"
 # k8s tooling — installed via mise (platform-agnostic, no VM dependencies).
 mise install kind@latest helm@latest kubectl@latest >/dev/null
 
-# macOS VM stack. Brew ships colima + qemu, but lima needs to be pinned to v1.x:
-# lima v2.0.3 / v2.1.1 (whatever brew currently has) consistently panic with
-# `panic: send on closed channel` in pkg/driver/qemu/qemu_driver.go:382 the
-# moment the qemu hostagent waits on the SSH requirement. v1 doesn't have the
-# v2 rewrite of that driver and works.
-if [[ "$(uname -s)" == "Darwin" ]] && ! docker info >/dev/null 2>&1; then
-  for pkg in docker docker-compose colima qemu; do
-    if ! brew list --formula "$pkg" >/dev/null 2>&1; then
-      brew install "$pkg"
-    fi
-  done
-
-  if ! command -v limactl >/dev/null 2>&1 || ! limactl --version | grep -q "limactl version 1\."; then
-    echo "==> Installing pinned lima v1.2.1 (avoids the v2 qemu_driver panic)…"
-    LIMA_VERSION="1.2.1"
-    LIMA_ARCH=$(uname -m | sed 's/x86_64/x86_64/;s/arm64/arm64/')
-    curl -fsSL -o /tmp/lima.tar.gz \
-      "https://github.com/lima-vm/lima/releases/download/v${LIMA_VERSION}/lima-${LIMA_VERSION}-Darwin-${LIMA_ARCH}.tar.gz"
-    sudo mkdir -p /opt/lima
-    sudo tar -xzf /tmp/lima.tar.gz -C /opt/lima
-    rm /tmp/lima.tar.gz
-    PATH="/opt/lima/bin:$PATH"
-    export PATH
+# macOS container runtime: podman. Reasons over colima/lima/qemu:
+#   * colima 0.8 + lima 2.x panic in the qemu driver
+#     (pkg/driver/qemu/qemu_driver.go:382, "send on closed channel"). lima v1
+#     fixes that, but pairs only with colima 0.7 — moving target.
+#   * podman uses Apple's Virtualization.framework (applehv) directly via its
+#     own VMM; no lima/qemu in the path. kind has first-class podman support
+#     via KIND_EXPERIMENTAL_PROVIDER=podman, so we never need a docker
+#     daemon at all.
+#   * tuist's local dev workflow already standardises on podman.
+if [[ "$(uname -s)" == "Darwin" ]] && ! podman info >/dev/null 2>&1; then
+  if ! brew list --formula podman >/dev/null 2>&1; then
+    brew install podman
   fi
 
-  echo "==> Starting colima…"
-  # Try vz first, fall back to qemu. With lima v1 even the qemu fallback is
-  # safe (no panic).
-  if ! colima start --vm-type vz --cpu 2 --memory 4 --disk 20; then
-    echo "==> vz failed, retrying with qemu…"
-    colima delete -f >/dev/null 2>&1 || true
-    colima start --vm-type qemu --cpu 2 --memory 4 --disk 20
+  if ! podman machine list --format '{{.Name}}' | grep -q '^podman-machine-default'; then
+    echo "==> podman machine init…"
+    podman machine init --cpus 2 --memory 4096 --disk-size 20
+  fi
+  if ! podman machine list --format '{{.Running}}' | grep -q true; then
+    echo "==> podman machine start…"
+    podman machine start
   fi
 fi
 
-if ! docker info >/dev/null 2>&1; then
-  echo "ERROR: Docker daemon is not reachable after install + colima start." >&2
+if ! podman info >/dev/null 2>&1; then
+  echo "ERROR: podman daemon is not reachable after install + machine start." >&2
   exit 1
 fi
 
 if [[ -n "${GITHUB_ACTOR:-}" && -n "${GITHUB_TOKEN:-}" ]]; then
-  echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin >/dev/null
+  echo "$GITHUB_TOKEN" | podman login ghcr.io -u "$GITHUB_ACTOR" --password-stdin >/dev/null
 fi
 
 echo "==> Pulling ${IMAGE_REF}…"
-docker pull "$IMAGE_REF"
+podman pull "$IMAGE_REF"
 
-echo "==> Creating kind cluster '${CLUSTER_NAME}'…"
+# Tell kind (and tools that wrap docker like helm chart pulls) to use podman
+# instead of dockerd.
+export KIND_EXPERIMENTAL_PROVIDER=podman
+
+echo "==> Creating kind cluster '${CLUSTER_NAME}' (podman provider)…"
 if ! mise x kind@latest -- kind get clusters 2>/dev/null | grep -qx "$CLUSTER_NAME"; then
   mise x kind@latest -- kind create cluster --name "$CLUSTER_NAME"
 else

@@ -74,7 +74,9 @@ permissions:
 jobs:
   build:
     name: Build + scan
-    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    # TEMP (this PR only): drop the `draft == false` gate so the docker image
+    # builds on draft PRs too, since the acceptance tests need it. Restore
+    # before merge.
     uses: ./.github/workflows/server-image-build.yml
     with:
       tag: image-${{ github.sha }}

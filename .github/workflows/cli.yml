@@ -220,7 +220,10 @@ jobs:
     name: Build Acceptance Tests
     runs-on: namespace-profile-default-macos
     timeout-minutes: 60
-    if: (github.event.pull_request.draft == false || github.event_name != 'pull_request') && github.event.pull_request.head.repo.fork != true
+    # TEMP (this PR only): drop the `draft == false` gate so the docker build and
+    # acceptance tests run on draft PRs while we exercise the new podman+kind
+    # pipeline. Restore the gate before merge.
+    if: github.event.pull_request.head.repo.fork != true
     outputs:
       matrix: ${{ steps.shard.outputs.matrix }}
     steps:
@@ -274,6 +277,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.cli-acceptance-tests-build.outputs.matrix) }}
+    env:
+      TUIST_IMAGE_TAG: image-${{ github.sha }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -319,10 +324,24 @@ jobs:
           security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
           security default-keychain -s $KEYCHAIN_PATH
           security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
+      - name: Wait for server image
+        uses: ./.github/actions/wait-for-server-image
+      - name: Bring up acceptance cluster (shard ${{ matrix.shard }})
+        env:
+          MISE_TASK_RUN_AUTO_INSTALL: "0"
+          MISE_LOCKED: "0"
+          MISE_GITHUB_TOKEN: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: mise run cli:acceptance-cluster:up ${{ matrix.shard }}
       - name: Run shard ${{ matrix.shard }}
         run: tuist test --without-building --platform macOS TuistAcceptanceTests -- -retry-tests-on-failure -test-iterations 2
         env:
           TUIST_SHARD_INDEX: ${{ matrix.shard }}
+          TUIST_URL: http://localhost:8080
+          TUIST_AUTH_EMAIL: tuistrocks@tuist.dev
+          TUIST_AUTH_PASSWORD: tuistrocks
 
   cli-acceptance-tests-fork:
     name: Acceptance Tests (Fork)

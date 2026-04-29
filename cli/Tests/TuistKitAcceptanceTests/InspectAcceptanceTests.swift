@@ -15,15 +15,7 @@ import TuistTesting
 @testable import TuistKit
 
 struct InspectAcceptanceTests {
-    // Disabled: the per-shard kind+helm cluster the test runs against can't be
-    // brought up reliably on any of the macOS runner profiles available today
-    // (Namespace's vz backend exits during boot, qemu panics in lima v2 / aborts
-    // with lima v1, GitHub-hosted macos-latest has the same lima/qemu issues).
-    // The test body, helm overlay, mise task, composite action, and OpenAPI
-    // schema additions all stay in the codebase ready to use — re-enable by
-    // removing the `.disabled` trait once the macOS Docker stack stabilizes.
     @Test(
-        .disabled("macOS docker-in-CI stack is unreliable — see PR #10472."),
         .inTemporaryDirectory,
         .withMockedEnvironment(inheritingVariables: ["PATH", "TUIST_URL"]),
         .withMockedNoora,
