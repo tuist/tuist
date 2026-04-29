@@ -211,8 +211,30 @@ jobs:
           # creates Cluster/MachineDeployment resources — the validating
           # webhooks are served from these pods, and helm hits 'no
           # endpoints available' if it races them.
-          kubectl wait --for=condition=Available --timeout=300s \
-            -n capi-system deployment/capi-controller-manager
+          if ! kubectl wait --for=condition=Available --timeout=300s \
+            -n capi-system deployment/capi-controller-manager; then
+            echo "::error::capi-controller-manager did not become Available in 5min"
+            echo "::group::deployment describe"
+            kubectl describe deployment -n capi-system capi-controller-manager || true
+            echo "::endgroup::"
+            echo "::group::pods in capi-system"
+            kubectl get pods -n capi-system -o wide || true
+            echo "::endgroup::"
+            echo "::group::pod describe (each)"
+            for pod in $(kubectl get pods -n capi-system -o name 2>/dev/null); do
+              echo "--- $pod ---"
+              kubectl describe -n capi-system "$pod" || true
+            done
+            echo "::endgroup::"
+            echo "::group::events in capi-system (last 50)"
+            kubectl get events -n capi-system --sort-by=.lastTimestamp | tail -50 || true
+            echo "::endgroup::"
+            echo "::group::cert-manager certificates in capi-system"
+            kubectl get certificates -n capi-system || true
+            kubectl describe certificate -n capi-system capi-serving-cert || true
+            echo "::endgroup::"
+            exit 1
+          fi
 
       - name: helm upgrade --install
         # App secrets never pass through --set: the chart runs in
