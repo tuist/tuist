@@ -606,7 +606,7 @@ defmodule TuistWeb.API.TestCasesControllerTest do
     end
   end
 
-  describe "PUT /api/projects/:account_handle/:project_handle/tests/test-cases/:test_case_id" do
+  describe "PATCH /api/projects/:account_handle/:project_handle/tests/test-cases/:test_case_id" do
     setup %{conn: conn} do
       user = AccountsFixtures.user_fixture(preload: [:account])
       project = ProjectsFixtures.project_fixture(account_id: user.account.id)
@@ -643,7 +643,7 @@ defmodule TuistWeb.API.TestCasesControllerTest do
       conn =
         conn
         |> put_req_header("content-type", "application/json")
-        |> put(
+        |> patch(
           "/api/projects/#{user.account.name}/#{project.name}/tests/test-cases/#{test_case.id}",
           %{state: "enabled"}
         )
@@ -681,7 +681,7 @@ defmodule TuistWeb.API.TestCasesControllerTest do
       conn =
         conn
         |> put_req_header("content-type", "application/json")
-        |> put(
+        |> patch(
           "/api/projects/#{user.account.name}/#{project.name}/tests/test-cases/#{test_case.id}",
           %{state: "muted"}
         )
@@ -700,8 +700,37 @@ defmodule TuistWeb.API.TestCasesControllerTest do
       conn =
         conn
         |> put_req_header("content-type", "application/json")
-        |> put(
+        |> patch(
           "/api/projects/#{user.account.name}/#{project.name}/tests/test-cases/#{UUIDv7.generate()}",
+          %{state: "enabled"}
+        )
+
+      # Then
+      assert json_response(conn, :not_found)
+    end
+
+    test "returns 404 when test case is deleted between lookup and update", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      # Given
+      test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          state: "muted",
+          last_ran_at: NaiveDateTime.utc_now()
+        )
+
+      stub(Tests, :get_test_case_by_id, fn _id -> {:ok, test_case} end)
+      stub(Tests, :update_test_case, fn _id, _attrs, _opts -> {:error, :not_found} end)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> patch(
+          "/api/projects/#{user.account.name}/#{project.name}/tests/test-cases/#{test_case.id}",
           %{state: "enabled"}
         )
 
@@ -729,7 +758,7 @@ defmodule TuistWeb.API.TestCasesControllerTest do
       conn =
         conn
         |> put_req_header("content-type", "application/json")
-        |> put(
+        |> patch(
           "/api/projects/#{user.account.name}/#{project.name}/tests/test-cases/#{test_case.id}",
           %{state: "enabled"}
         )
@@ -747,7 +776,7 @@ defmodule TuistWeb.API.TestCasesControllerTest do
       conn =
         conn
         |> put_req_header("content-type", "application/json")
-        |> put(
+        |> patch(
           "/api/projects/#{project.account.name}/#{project.name}/tests/test-cases/#{UUIDv7.generate()}",
           %{state: "enabled"}
         )
@@ -761,7 +790,7 @@ defmodule TuistWeb.API.TestCasesControllerTest do
       conn =
         conn
         |> put_req_header("content-type", "application/json")
-        |> put(
+        |> patch(
           "/api/projects/#{user.account.name}/#{project.name}/tests/test-cases/#{UUIDv7.generate()}",
           %{state: "not-a-real-state"}
         )
@@ -775,7 +804,7 @@ defmodule TuistWeb.API.TestCasesControllerTest do
       conn =
         conn
         |> put_req_header("content-type", "application/json")
-        |> put(
+        |> patch(
           "/api/projects/#{user.account.name}/#{project.name}/tests/test-cases/#{UUIDv7.generate()}",
           %{}
         )
@@ -807,7 +836,7 @@ defmodule TuistWeb.API.TestCasesControllerTest do
       conn =
         conn
         |> put_req_header("content-type", "application/json")
-        |> put(
+        |> patch(
           "/api/projects/#{user.account.name}/#{project.name}/tests/test-cases/#{test_case.id}",
           %{is_flaky: true}
         )
@@ -841,7 +870,7 @@ defmodule TuistWeb.API.TestCasesControllerTest do
       conn =
         conn
         |> put_req_header("content-type", "application/json")
-        |> put(
+        |> patch(
           "/api/projects/#{user.account.name}/#{project.name}/tests/test-cases/#{test_case.id}",
           %{state: "enabled", is_flaky: false}
         )

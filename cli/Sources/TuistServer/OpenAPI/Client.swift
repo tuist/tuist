@@ -9383,8 +9383,8 @@ public struct Client: APIProtocol {
     ///
     /// Updates mutable fields on a test case. Supports changing `state` (currently one of `enabled`, `muted`, or `skipped`; the field is left as an open string so adding new states in the future doesn't break clients pinned to the older spec) and toggling `is_flaky`. Corresponding events (`muted`/`unmuted`, `skipped`/`unskipped`, `marked_flaky`/`unmarked_flaky`) are recorded automatically when values transition.
     ///
-    /// - Remark: HTTP `PUT /api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/put(updateTestCase)`.
+    /// - Remark: HTTP `PATCH /api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/patch(updateTestCase)`.
     public func updateTestCase(_ input: Operations.updateTestCase.Input) async throws -> Operations.updateTestCase.Output {
         try await client.send(
             input: input,
@@ -9400,7 +9400,7 @@ public struct Client: APIProtocol {
                 )
                 var request: HTTPTypes.HTTPRequest = .init(
                     soar_path: path,
-                    method: .put
+                    method: .patch
                 )
                 suppressMutabilityWarning(&request)
                 converter.setAcceptHeader(

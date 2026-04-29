@@ -420,21 +420,28 @@ defmodule TuistWeb.API.TestCasesController do
         if test_case.project_id == selected_project.id do
           actor_id = Authentication.authenticated_subject_account(conn).id
 
-          {:ok, updated_test_case} = Tests.update_test_case(test_case_id, attrs, actor_id: actor_id)
+          case Tests.update_test_case(test_case_id, attrs, actor_id: actor_id) do
+            {:ok, updated_test_case} ->
+              json(conn, %{
+                id: updated_test_case.id,
+                name: updated_test_case.name,
+                module: %{
+                  id: updated_test_case.module_name,
+                  name: updated_test_case.module_name
+                },
+                suite: build_suite(updated_test_case.suite_name),
+                is_flaky: updated_test_case.is_flaky,
+                is_quarantined: quarantined?(updated_test_case.state),
+                state: updated_test_case.state || "enabled",
+                url:
+                  ~p"/#{selected_project.account.name}/#{selected_project.name}/tests/test-cases/#{updated_test_case.id}"
+              })
 
-          json(conn, %{
-            id: updated_test_case.id,
-            name: updated_test_case.name,
-            module: %{
-              id: updated_test_case.module_name,
-              name: updated_test_case.module_name
-            },
-            suite: build_suite(updated_test_case.suite_name),
-            is_flaky: updated_test_case.is_flaky,
-            is_quarantined: quarantined?(updated_test_case.state),
-            state: updated_test_case.state || "enabled",
-            url: ~p"/#{selected_project.account.name}/#{selected_project.name}/tests/test-cases/#{updated_test_case.id}"
-          })
+            {:error, :not_found} ->
+              conn
+              |> put_status(:not_found)
+              |> json(%{message: "Test case not found."})
+          end
         else
           conn
           |> put_status(:not_found)

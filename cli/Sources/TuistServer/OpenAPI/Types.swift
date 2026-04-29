@@ -443,8 +443,8 @@ public protocol APIProtocol: Sendable {
     ///
     /// Updates mutable fields on a test case. Supports changing `state` (currently one of `enabled`, `muted`, or `skipped`; the field is left as an open string so adding new states in the future doesn't break clients pinned to the older spec) and toggling `is_flaky`. Corresponding events (`muted`/`unmuted`, `skipped`/`unskipped`, `marked_flaky`/`unmarked_flaky`) are recorded automatically when values transition.
     ///
-    /// - Remark: HTTP `PUT /api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/put(updateTestCase)`.
+    /// - Remark: HTTP `PATCH /api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/patch(updateTestCase)`.
     func updateTestCase(_ input: Operations.updateTestCase.Input) async throws -> Operations.updateTestCase.Output
     /// Get cache endpoints.
     ///
@@ -1758,8 +1758,8 @@ extension APIProtocol {
     ///
     /// Updates mutable fields on a test case. Supports changing `state` (currently one of `enabled`, `muted`, or `skipped`; the field is left as an open string so adding new states in the future doesn't break clients pinned to the older spec) and toggling `is_flaky`. Corresponding events (`muted`/`unmuted`, `skipped`/`unskipped`, `marked_flaky`/`unmarked_flaky`) are recorded automatically when values transition.
     ///
-    /// - Remark: HTTP `PUT /api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/put(updateTestCase)`.
+    /// - Remark: HTTP `PATCH /api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/patch(updateTestCase)`.
     public func updateTestCase(
         path: Operations.updateTestCase.Input.Path,
         headers: Operations.updateTestCase.Input.Headers = .init(),
@@ -36617,8 +36617,8 @@ public enum Operations {
     ///
     /// Updates mutable fields on a test case. Supports changing `state` (currently one of `enabled`, `muted`, or `skipped`; the field is left as an open string so adding new states in the future doesn't break clients pinned to the older spec) and toggling `is_flaky`. Corresponding events (`muted`/`unmuted`, `skipped`/`unskipped`, `marked_flaky`/`unmarked_flaky`) are recorded automatically when values transition.
     ///
-    /// - Remark: HTTP `PUT /api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/put(updateTestCase)`.
+    /// - Remark: HTTP `PATCH /api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/patch(updateTestCase)`.
     public enum updateTestCase {
         public static let id: Swift.String = "updateTestCase"
         public struct Input: Sendable, Hashable {
@@ -36871,7 +36871,7 @@ public enum Operations {
             }
             /// The updated test case
             ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/put(updateTestCase)/responses/200`.
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/patch(updateTestCase)/responses/200`.
             ///
             /// HTTP response code: `200 ok`.
             case ok(Operations.updateTestCase.Output.Ok)
@@ -36922,7 +36922,7 @@ public enum Operations {
             }
             /// Invalid update params (empty body or malformed field values)
             ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/put(updateTestCase)/responses/400`.
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/patch(updateTestCase)/responses/400`.
             ///
             /// HTTP response code: `400 badRequest`.
             case badRequest(Operations.updateTestCase.Output.BadRequest)
@@ -36973,7 +36973,7 @@ public enum Operations {
             }
             /// You don't have permission to update this resource
             ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/put(updateTestCase)/responses/403`.
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/patch(updateTestCase)/responses/403`.
             ///
             /// HTTP response code: `403 forbidden`.
             case forbidden(Operations.updateTestCase.Output.Forbidden)
@@ -37024,7 +37024,7 @@ public enum Operations {
             }
             /// Test case not found
             ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/put(updateTestCase)/responses/404`.
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/patch(updateTestCase)/responses/404`.
             ///
             /// HTTP response code: `404 notFound`.
             case notFound(Operations.updateTestCase.Output.NotFound)

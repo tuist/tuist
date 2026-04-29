@@ -497,7 +497,7 @@ defmodule TuistWeb.Router do
             end
 
             get "/:test_case_id", TestCasesController, :show
-            put "/:test_case_id", TestCasesController, :update
+            patch "/:test_case_id", TestCasesController, :update
             get "/:test_case_id/events", TestCasesController, :events
             get "/:test_case_id/runs", TestCaseRunsController, :index_by_test_case
           end

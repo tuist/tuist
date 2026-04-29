@@ -14015,7 +14015,7 @@ paths:
       summary: Get a test case by ID.
       tags:
         - Test Cases
-    put:
+    patch:
       callbacks: {}
       description: Updates mutable fields on a test case. Supports changing `state` (currently one of `enabled`, `muted`, or `skipped`; the field is left as an open string so adding new states in the future doesn't break clients pinned to the older spec) and toggling `is_flaky`. Corresponding events (`muted`/`unmuted`, `skipped`/`unskipped`, `marked_flaky`/`unmarked_flaky`) are recorded automatically when values transition.
       operationId: updateTestCase
