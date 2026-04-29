@@ -339,10 +339,14 @@ jobs:
           # upload URLs with this value, so it has to be the public host.
           # k8s honours the *last* env entry when names collide, so the
           # extraEnv here wins over the chart's hardcoded value.
-          # Keep cache enabled (matches values-preview.yaml). The CLI
-          # queries cache endpoints during `tuist test`; with caching off
-          # at the cluster, the build aborts with "No cache endpoints are
-          # available."
+          # Cache is disabled for acceptance:
+          #   * The cache pod's Exqlite repo fails to open its database
+          #     on the preview cluster's CSI volumes (database_open_failed
+          #     during schema_migrations create), keeping the helm install
+          #     in a perpetual not-ready state.
+          #   * Acceptance tests don't exercise the cache; the build/test
+          #     steps set TUIST_ENABLE_CACHING=0 so the CLI doesn't ask
+          #     for cache endpoints.
           # Drop --atomic so we keep the broken release around for
           # post-mortem on failure (otherwise helm tears everything
           # down before we can grab pod logs). We still --wait, so a
@@ -351,6 +355,7 @@ jobs:
             --namespace "$NAMESPACE" \
             -f infra/helm/tuist/values-preview.yaml \
             --set global.imagePullSecrets[0].name=ghcr-pull-secret \
+            --set cache.enabled=false \
             --set server.image.tag="$IMAGE_TAG" \
             --set server.ingress.enabled=true \
             --set server.ingress.host="$HOST" \
@@ -544,6 +549,12 @@ jobs:
         id: shard
         env:
           TUIST_URL: ${{ needs.cli-acceptance-cluster.outputs.url }}
+          # The acceptance cluster runs without the cache helm component
+          # (the cache pod's Exqlite repo can't open its DB on the
+          # preview cluster's CSI volumes). The CLI errors out on
+          # "No cache endpoints are available." when caching is on; turn
+          # it off for the cluster-bound build + test path.
+          TUIST_ENABLE_CACHING: "0"
         run: tuist test --build-only --shard-total 2 --shard-granularity suite TuistAcceptanceTests
 
   cli-acceptance-tests:
@@ -622,6 +633,9 @@ jobs:
           TUIST_URL: ${{ needs.cli-acceptance-cluster.outputs.url }}
           TUIST_AUTH_EMAIL: tuistrocks@tuist.dev
           TUIST_AUTH_PASSWORD: tuistrocks
+          # Cache is disabled in the acceptance cluster (see Build tests
+          # step above); the CLI must not query cache endpoints.
+          TUIST_ENABLE_CACHING: "0"
 
   # Teardown the helm release + namespace once the test shards finish (or fail,
   # or get cancelled). preview-sweep.yml's TTL annotation is the backstop, but
