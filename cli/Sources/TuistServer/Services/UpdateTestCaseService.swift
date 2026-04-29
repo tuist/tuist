@@ -24,6 +24,7 @@ public enum ServerTestCaseState: String, Sendable, CaseIterable {
 
 enum UpdateTestCaseServiceError: LocalizedError {
     case unknownError(Int)
+    case badRequest(String)
     case notFound(String)
     case forbidden(String)
 
@@ -31,6 +32,8 @@ enum UpdateTestCaseServiceError: LocalizedError {
         switch self {
         case let .unknownError(statusCode):
             return "The test case could not be updated due to an unknown Tuist response of \(statusCode)."
+        case let .badRequest(message):
+            return message
         case let .notFound(message):
             return message
         case let .forbidden(message):
@@ -72,6 +75,11 @@ public struct UpdateTestCaseService: UpdateTestCaseServicing {
             switch okResponse.body {
             case let .json(json):
                 return json
+            }
+        case let .badRequest(badRequest):
+            switch badRequest.body {
+            case let .json(error):
+                throw UpdateTestCaseServiceError.badRequest(error.message)
             }
         case let .notFound(notFound):
             switch notFound.body {

@@ -300,8 +300,10 @@ defmodule TuistWeb.API.TestCasesController do
   operation(:update,
     summary: "Update a test case.",
     description:
-      "Updates mutable fields on a test case. Supports changing `state` between `enabled` and `muted` and toggling " <>
-        "`is_flaky`. Corresponding events (`muted`/`unmuted`, `marked_flaky`/`unmarked_flaky`) are recorded " <>
+      "Updates mutable fields on a test case. Supports changing `state` (currently one of `enabled`, `muted`, " <>
+        "or `skipped`; the field is left as an open string so adding new states in the future doesn't break " <>
+        "clients pinned to the older spec) and toggling `is_flaky`. Corresponding events " <>
+        "(`muted`/`unmuted`, `skipped`/`unskipped`, `marked_flaky`/`unmarked_flaky`) are recorded " <>
         "automatically when values transition.",
     operation_id: "updateTestCase",
     parameters: [
@@ -331,8 +333,8 @@ defmodule TuistWeb.API.TestCasesController do
          properties: %{
            state: %Schema{
              type: :string,
-             enum: ["enabled", "muted"],
-             description: "The new state of the test case."
+             description:
+               "The new state of the test case. Currently one of `enabled`, `muted`, or `skipped`; the field is left as an open string so adding new states in the future doesn't break clients pinned to the older spec."
            },
            is_flaky: %Schema{
              type: :boolean,
@@ -369,13 +371,19 @@ defmodule TuistWeb.API.TestCasesController do
              is_quarantined: %Schema{
                type: :boolean,
                deprecated: true,
-               description: "Whether the test case is quarantined. Deprecated: use `state` instead."
+               description:
+                 "Whether the test case is quarantined (either `muted` or `skipped`). Deprecated: use `state` instead."
              },
-             state: %Schema{type: :string, enum: ["enabled", "muted"], description: "The state of the test case."},
+             state: %Schema{
+               type: :string,
+               description:
+                 "The state of the test case. Currently one of `enabled`, `muted`, or `skipped`; the field is left as an open string so adding new states in the future doesn't break clients pinned to the older spec."
+             },
              url: %Schema{type: :string, description: "URL to view the test case in the dashboard."}
            },
            required: [:id, :name, :module, :is_flaky, :is_quarantined, :state, :url]
          }},
+      bad_request: {"Invalid update params (empty body or malformed field values)", "application/json", Error},
       not_found: {"Test case not found", "application/json", Error},
       forbidden: {"You don't have permission to update this resource", "application/json", Error}
     }
@@ -388,36 +396,42 @@ defmodule TuistWeb.API.TestCasesController do
       ) do
     attrs = Map.take(body_params, [:state, :is_flaky])
 
-    case Tests.get_test_case_by_id(test_case_id) do
-      {:ok, test_case} ->
-        if test_case.project_id == selected_project.id do
-          actor_id = Authentication.authenticated_subject_account(conn).id
+    if map_size(attrs) == 0 do
+      conn
+      |> put_status(:bad_request)
+      |> json(%{message: "Provide at least one of `state` or `is_flaky`."})
+    else
+      case Tests.get_test_case_by_id(test_case_id) do
+        {:ok, test_case} ->
+          if test_case.project_id == selected_project.id do
+            actor_id = Authentication.authenticated_subject_account(conn).id
 
-          {:ok, updated_test_case} = Tests.update_test_case(test_case_id, attrs, actor_id: actor_id)
+            {:ok, updated_test_case} = Tests.update_test_case(test_case_id, attrs, actor_id: actor_id)
 
-          json(conn, %{
-            id: updated_test_case.id,
-            name: updated_test_case.name,
-            module: %{
-              id: updated_test_case.module_name,
-              name: updated_test_case.module_name
-            },
-            suite: build_suite(updated_test_case.suite_name),
-            is_flaky: updated_test_case.is_flaky,
-            is_quarantined: (updated_test_case.state || "enabled") == "muted",
-            state: updated_test_case.state || "enabled",
-            url: ~p"/#{selected_project.account.name}/#{selected_project.name}/tests/test-cases/#{updated_test_case.id}"
-          })
-        else
+            json(conn, %{
+              id: updated_test_case.id,
+              name: updated_test_case.name,
+              module: %{
+                id: updated_test_case.module_name,
+                name: updated_test_case.module_name
+              },
+              suite: build_suite(updated_test_case.suite_name),
+              is_flaky: updated_test_case.is_flaky,
+              is_quarantined: quarantined?(updated_test_case.state),
+              state: updated_test_case.state || "enabled",
+              url: ~p"/#{selected_project.account.name}/#{selected_project.name}/tests/test-cases/#{updated_test_case.id}"
+            })
+          else
+            conn
+            |> put_status(:not_found)
+            |> json(%{message: "Test case not found."})
+          end
+
+        {:error, :not_found} ->
           conn
           |> put_status(:not_found)
           |> json(%{message: "Test case not found."})
-        end
-
-      {:error, :not_found} ->
-        conn
-        |> put_status(:not_found)
-        |> json(%{message: "Test case not found."})
+      end
     end
   end
 

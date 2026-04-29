@@ -1,6 +1,6 @@
 defmodule Tuist.MCP.Components.Tools.UpdateTestCase do
   @moduledoc """
-  Update mutable fields on a test case. Supports changing `state` between `enabled` and `muted` and toggling `is_flaky`. The account_handle and project_handle can be extracted from a Tuist dashboard URL: https://tuist.dev/{account_handle}/{project_handle}.
+  Update mutable fields on a test case. Supports changing `state` between `enabled`, `muted`, and `skipped`, and toggling `is_flaky`. The account_handle and project_handle can be extracted from a Tuist dashboard URL: https://tuist.dev/{account_handle}/{project_handle}.
   """
 
   use Tuist.MCP.Tool,
@@ -28,7 +28,7 @@ defmodule Tuist.MCP.Components.Tools.UpdateTestCase do
         },
         "state" => %{
           "type" => "string",
-          "enum" => ["enabled", "muted"],
+          "enum" => ["enabled", "muted", "skipped"],
           "description" => "The new state of the test case."
         },
         "is_flaky" => %{
@@ -51,7 +51,7 @@ defmodule Tuist.MCP.Components.Tools.UpdateTestCase do
   @impl EMCP.Tool
   def description,
     do:
-      "Update mutable fields on a test case. Supports changing `state` between `enabled` and `muted` and toggling `is_flaky`. The account_handle and project_handle can be extracted from a Tuist dashboard URL: #{Tuist.Environment.app_url()}/{account_handle}/{project_handle}."
+      "Update mutable fields on a test case. Supports changing `state` between `enabled`, `muted`, and `skipped`, and toggling `is_flaky`. The account_handle and project_handle can be extracted from a Tuist dashboard URL: #{Tuist.Environment.app_url()}/{account_handle}/{project_handle}."
 
   @impl EMCP.Tool
   def call(conn, args) do
@@ -119,10 +119,12 @@ defmodule Tuist.MCP.Components.Tools.UpdateTestCase do
     end
   end
 
-  defp maybe_put_state(attrs, %{"state" => state}) when state in ["enabled", "muted"],
+  defp maybe_put_state(attrs, %{"state" => state}) when state in ["enabled", "muted", "skipped"],
     do: {:ok, Map.put(attrs, :state, state)}
 
-  defp maybe_put_state(_attrs, %{"state" => _invalid}), do: {:error, "`state` must be either `enabled` or `muted`."}
+  defp maybe_put_state(_attrs, %{"state" => _invalid}),
+    do: {:error, "`state` must be one of `enabled`, `muted`, or `skipped`."}
+
   defp maybe_put_state(attrs, _args), do: {:ok, attrs}
 
   defp maybe_put_is_flaky(attrs, %{"is_flaky" => is_flaky}) when is_boolean(is_flaky),

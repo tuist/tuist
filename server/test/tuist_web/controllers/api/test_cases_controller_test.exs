@@ -770,6 +770,20 @@ defmodule TuistWeb.API.TestCasesControllerTest do
       assert response(conn, 400)
     end
 
+    test "returns 400 when body omits both state and is_flaky", %{conn: conn, user: user, project: project} do
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> put(
+          "/api/projects/#{user.account.name}/#{project.name}/tests/test-cases/#{UUIDv7.generate()}",
+          %{}
+        )
+
+      # Then
+      assert json_response(conn, :bad_request)["message"] =~ "Provide at least one"
+    end
+
     test "marks a test case as flaky", %{conn: conn, user: user, project: project} do
       # Given
       test_case =

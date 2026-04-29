@@ -75,7 +75,7 @@ struct TestCaseUpdateCommandServiceTests {
         let updated = ServerUpdatedTestCase.test(
             module: .test(name: "AuthTests"),
             name: "testLogin()",
-            state: .enabled
+            state: "enabled"
         )
         given(updateTestCaseService).updateTestCase(
             fullHandle: .value(fullHandle),
@@ -130,7 +130,7 @@ struct TestCaseUpdateCommandServiceTests {
             id: "resolved-id",
             module: .test(name: "AuthTests"),
             name: "testLogin()",
-            state: .muted
+            state: "muted"
         )
         given(updateTestCaseService).updateTestCase(
             fullHandle: .value(fullHandle),
@@ -171,7 +171,7 @@ struct TestCaseUpdateCommandServiceTests {
             isFlaky: true,
             module: .test(name: "AppTests"),
             name: "testFlaky()",
-            state: .muted,
+            state: "muted",
             suite: .test(name: "FlakyTests"),
             url: "https://tuist.dev/some-test"
         )
@@ -255,7 +255,7 @@ struct TestCaseUpdateCommandServiceTests {
             isFlaky: true,
             module: .test(name: "AuthTests"),
             name: "testLogin()",
-            state: .enabled
+            state: "enabled"
         )
         given(updateTestCaseService).updateTestCase(
             fullHandle: .value(fullHandle),
@@ -301,7 +301,7 @@ struct TestCaseUpdateCommandServiceTests {
             isFlaky: false,
             module: .test(name: "AuthTests"),
             name: "testLogin()",
-            state: .enabled
+            state: "enabled"
         )
         given(updateTestCaseService).updateTestCase(
             fullHandle: .value(fullHandle),

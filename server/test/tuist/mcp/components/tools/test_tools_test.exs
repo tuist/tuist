@@ -440,7 +440,7 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
                  "state" => "invalid"
                })
 
-      assert text =~ "`state` must be either `enabled` or `muted`."
+      assert text =~ "`state` must be one of `enabled`, `muted`, or `skipped`."
     end
 
     test "returns error without test_case_id or identifier" do
