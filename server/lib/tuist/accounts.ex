@@ -1272,10 +1272,15 @@ defmodule Tuist.Accounts do
       Repo.one(from(u in User, where: u.email == ^email, preload: [:account]))
 
     if User.valid_password?(user, password) do
-      if is_nil(user.confirmed_at) do
-        {:error, :not_confirmed}
-      else
-        {:ok, user}
+      cond do
+        is_nil(user.confirmed_at) ->
+          {:error, :not_confirmed}
+
+        not user.active ->
+          {:error, :invalid_email_or_password}
+
+        true ->
+          {:ok, user}
       end
     else
       {:error, :invalid_email_or_password}
@@ -1364,9 +1369,10 @@ defmodule Tuist.Accounts do
     preload = Keyword.get(opts, :preload, [])
     {:ok, query} = UserToken.verify_session_token_query(token)
 
-    query
-    |> Repo.one()
-    |> Repo.preload(preload)
+    case query |> Repo.one() |> Repo.preload(preload) do
+      %User{active: false} -> nil
+      user -> user
+    end
   end
 
   @doc """

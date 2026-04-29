@@ -23,6 +23,7 @@ defmodule Tuist.Accounts.User do
     field :confirmed_at, :naive_datetime
     field :last_sign_in_at, :naive_datetime
     field :preferred_locale, :string
+    field :active, :boolean, default: true
     belongs_to :last_visited_project, Project, foreign_key: :last_visited_project_id
 
     has_one(:account, Account, foreign_key: :user_id, on_delete: :delete_all)
@@ -124,6 +125,10 @@ defmodule Tuist.Accounts.User do
   def confirm_changeset(user) do
     now = NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
     change(user, confirmed_at: now)
+  end
+
+  def active_changeset(user, active) when is_boolean(active) do
+    change(user, active: active)
   end
 
   def preferred_locale_changeset(user, attrs) do

@@ -13,7 +13,7 @@ defmodule Tuist.Authentication do
         resource
 
       {:ok, resource, _opts} ->
-        Tuist.Repo.preload(resource, :account)
+        resource |> Tuist.Repo.preload(:account) |> reject_if_inactive_user()
 
       _ ->
         user = Accounts.get_user_by_token(token)
@@ -21,10 +21,13 @@ defmodule Tuist.Authentication do
         if is_nil(user) do
           account_or_project_token(token)
         else
-          user
+          reject_if_inactive_user(user)
         end
     end
   end
+
+  defp reject_if_inactive_user(%User{active: false}), do: nil
+  defp reject_if_inactive_user(other), do: other
 
   defp account_or_project_token(token) do
     project_token = Projects.get_project_by_full_token(token)
