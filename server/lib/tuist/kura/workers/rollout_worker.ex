@@ -111,6 +111,9 @@ defmodule Tuist.Kura.Workers.RolloutWorker do
   defp render_instance_values(%KuraDeployment{image_tag: image_tag} = _deployment, account, %Clusters{} = cluster) do
     release = Clusters.release_name(account.name, cluster)
     host = Clusters.public_url(account.name, cluster) |> URI.parse() |> Map.fetch!(:host)
+    {:ok, chart_path} = chart_path()
+    hook_script = File.read!(Path.join(chart_path, "hooks/tuist.lua"))
+    extension_env = render_extension_env()
 
     """
     fullnameOverride: #{release}
@@ -119,6 +122,12 @@ defmodule Tuist.Kura.Workers.RolloutWorker do
     config:
       tenantId: "#{account.name}"
       region: "#{cluster.region}"
+    extension:
+      enabled: true
+      script: |
+    #{indent(hook_script, 8)}
+    extraEnv:
+    #{extension_env}
     ingress:
       hosts:
         - host: #{host}
@@ -138,6 +147,65 @@ defmodule Tuist.Kura.Workers.RolloutWorker do
             app.kubernetes.io/name: kura
             app.kubernetes.io/instance: #{release}
     """
+  end
+
+  # Builds the YAML fragment that goes under `extraEnv:` in the per-instance
+  # overlay. The chart wires these straight onto the StatefulSet, so they
+  # become the env Kura's extension engine reads at startup.
+  #
+  # We always set the HTTP-callback target (the Tuist server URL) and the
+  # shared secret. We only set the signer if the central server has a
+  # license signing key; in dev/test the server returns nil and the
+  # response_headers hook degrades to no-op (Kura skips unknown signers).
+  defp render_extension_env do
+    base = [
+      env("KURA_EXTENSION_FAIL_CLOSED_AUTHENTICATE", "true"),
+      env("KURA_EXTENSION_FAIL_CLOSED_AUTHORIZE", "true"),
+      env("KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL", Tuist.Environment.app_url())
+    ]
+
+    base =
+      case Tuist.Environment.kura_verify_token() do
+        nil -> base
+        token -> base ++ [env("KURA_EXTENSION_HTTP_CLIENT_TUIST_HEADERS_AUTHORIZATION", "Bearer #{token}")]
+      end
+
+    base =
+      case license_signing_key() do
+        nil ->
+          base
+
+        signing_key ->
+          base ++
+            [
+              env("KURA_EXTENSION_SIGNER_TUIST_ALGORITHM", "hmac-sha256"),
+              env("KURA_EXTENSION_SIGNER_TUIST_SECRET", signing_key)
+            ]
+      end
+
+    Enum.join(base, "\n")
+  end
+
+  defp env(name, value) do
+    # Single-quoted YAML scalar; escape embedded single quotes.
+    escaped = String.replace(value || "", "'", "''")
+    "  - name: #{name}\n    value: '#{escaped}'"
+  end
+
+  defp license_signing_key do
+    case Tuist.License.get_license() do
+      {:ok, %{signing_key: key}} when is_binary(key) and key != "" -> key
+      _ -> nil
+    end
+  rescue
+    # In dev/test there's no license; Tuist.License may raise rather than
+    # return an error tuple. Treat absence as "no signing".
+    _ -> nil
+  end
+
+  defp indent(text, n) do
+    pad = String.duplicate(" ", n)
+    text |> String.split("\n") |> Enum.map_join("\n", &(pad <> &1))
   end
 
   defp write_temp(contents, label) do

@@ -634,6 +634,12 @@ defmodule TuistWeb.Router do
     post "/auth/apple", AuthController, :authenticate_apple
 
     post "/auth/oidc/token", OIDCController, :exchange_token
+
+    # Internal — used by Kura mesh nodes via the Lua extension hook.
+    # Gated by a shared secret in the Authorization header (checked in
+    # the controller), not by user-level auth, so it sits in the
+    # non_authenticated_api pipeline.
+    post "/internal/auth/verify", Internal.AuthController, :verify
   end
 
   scope "/oauth2", TuistWeb.Oauth do

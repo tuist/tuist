@@ -148,6 +148,16 @@ defmodule Tuist.Environment do
   end
 
   @doc """
+  Shared secret presented by Kura mesh nodes (via the
+  `KURA_EXTENSION_HTTP_CLIENT_TUIST_HEADERS_AUTHORIZATION` env var) when
+  calling `POST /api/internal/auth/verify`. Provisioned alongside the
+  per-cluster kubeconfigs.
+  """
+  def kura_verify_token(secrets \\ secrets()) do
+    System.get_env("TUIST_KURA_VERIFY_TOKEN") || get([:kura, :verify_token], secrets)
+  end
+
+  @doc """
   Returns the kubeconfig (raw YAML string) for the given Kura cluster
   ID, or `nil` if none is configured.
 

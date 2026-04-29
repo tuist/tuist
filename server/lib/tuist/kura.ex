@@ -105,9 +105,13 @@ defmodule Tuist.Kura do
 
   @doc "Marks a deployment as succeeded with the finish time."
   def mark_succeeded(%KuraDeployment{} = deployment) do
+    # Clearing error_message guards against a race where another worker
+    # raced ahead and stamped a transient error onto the row before this
+    # worker's success update lands.
     deployment
     |> KuraDeployment.status_changeset(%{
       status: :succeeded,
+      error_message: nil,
       finished_at: DateTime.utc_now() |> DateTime.truncate(:second)
     })
     |> Repo.update()
