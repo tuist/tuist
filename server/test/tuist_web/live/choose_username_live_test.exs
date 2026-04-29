@@ -159,6 +159,32 @@ defmodule TuistWeb.ChooseUsernameLiveTest do
       assert html =~ "has already been taken"
     end
 
+    test "redirects to log in when email is already taken", %{conn: conn} do
+      existing_user = user_fixture()
+
+      oauth_data = %{
+        "provider" => "google",
+        "uid" => "unique-uid-#{System.unique_integer([:positive])}",
+        "email" => existing_user.email,
+        "provider_organization_id" => nil,
+        "oauth_return_url" => nil
+      }
+
+      {:ok, lv, _html} =
+        conn
+        |> init_test_session(%{"pending_oauth_signup" => oauth_data})
+        |> live(~p"/users/choose-username")
+
+      username = "newhandle#{System.unique_integer([:positive])}"
+
+      result =
+        lv
+        |> form("#choose-username-form", account: %{name: username})
+        |> render_submit()
+
+      assert {:error, {:redirect, %{to: "/users/log_in"}}} = result
+    end
+
     test "shows error when username contains invalid characters", %{conn: conn} do
       oauth_data = %{
         "provider" => "google",

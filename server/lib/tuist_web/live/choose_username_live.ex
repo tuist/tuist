@@ -118,6 +118,20 @@ defmodule TuistWeb.ChooseUsernameLive do
 
         {:noreply, socket}
 
+      {:error, :email_taken} ->
+        socket =
+          socket
+          |> put_flash(
+            :error,
+            dgettext(
+              "dashboard_auth",
+              "An account with this email already exists. Please log in instead."
+            )
+          )
+          |> redirect(to: ~p"/users/log_in")
+
+        {:noreply, socket}
+
       {:error, errors} when is_map(errors) ->
         error = Map.get(errors, :name)
 
