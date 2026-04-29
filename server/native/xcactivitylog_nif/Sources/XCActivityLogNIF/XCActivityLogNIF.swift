@@ -2,37 +2,12 @@ import Foundation
 import Path
 import XCActivityLogParser
 
-// Heap-allocated, lock-protected handoff between the parsing Task and the NIF
-// thread. Reference-counted so it stays alive as long as either side holds it
-// — required because we may abandon the wait on timeout and return from the
-// NIF while the Task is still running. Mutators are synchronous so the lock
-// is never held across a suspension point.
-private final class ParseHandoff: @unchecked Sendable {
-    private let lock = NSLock()
-    private var _result: Result<BuildData, Error>?
-    private var _abandoned = false
-
-    // Returns true if the NIF thread is still waiting (and the result was
-    // stored); false if it timed out and the Task should drop its outcome.
-    func deliverIfWaiting(_ outcome: Result<BuildData, Error>) -> Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        guard !_abandoned else { return false }
-        _result = outcome
-        return true
-    }
-
-    func abandon() {
-        lock.lock()
-        _abandoned = true
-        lock.unlock()
-    }
-
-    func takeResult() -> Result<BuildData, Error>? {
-        lock.lock()
-        defer { lock.unlock() }
-        return _result
-    }
+// Heap-allocated holder for the parse result. The NIF may abandon the wait on
+// timeout and return before the Task finishes, so the result storage cannot
+// live on the stack — ARC keeps the box alive as long as either side holds a
+// reference. The semaphore provides the happens-before edge for safe reads.
+private final class ParseResultBox: @unchecked Sendable {
+    var value: Result<BuildData, Error>?
 }
 
 // Hard cap on a single parse. The Swift Task runs on the cooperative pool,
@@ -56,10 +31,10 @@ public func parseXCActivityLog(
     let legacyCASMetadataPath = String(cString: legacyCASMetadataPathPtr)
     let url = URL(fileURLWithPath: path)
 
-    let handoff = ParseHandoff()
+    let box = ParseResultBox()
     let semaphore = DispatchSemaphore(value: 0)
 
-    Task { @Sendable in
+    let task = Task { @Sendable in
         let outcome: Result<BuildData, Error>
         do {
             let parsed = try await XCActivityLogParser().parse(
@@ -71,15 +46,17 @@ public func parseXCActivityLog(
         } catch {
             outcome = .failure(error)
         }
-
-        if handoff.deliverIfWaiting(outcome) {
-            semaphore.signal()
-        }
+        box.value = outcome
+        semaphore.signal()
     }
+    // Propagate cancellation on every exit path (timeout, success, throw).
+    // The current parser doesn't check Task.isCancelled, so this is a no-op
+    // today, but it makes the structured intent explicit and future-proofs
+    // the handoff if a parser starts honoring cancellation.
+    defer { task.cancel() }
 
     let deadline = DispatchTime.now() + .seconds(parseTimeoutSeconds)
     if semaphore.wait(timeout: deadline) == .timedOut {
-        handoff.abandon()
         let error = NSError(
             domain: "XCActivityLogNIF",
             code: -1,
@@ -88,16 +65,7 @@ public func parseXCActivityLog(
         return writeError(error, outputPtr: outputPtr, outputLen: outputLen)
     }
 
-    guard let result = handoff.takeResult() else {
-        let error = NSError(
-            domain: "XCActivityLogNIF",
-            code: -2,
-            userInfo: [NSLocalizedDescriptionKey: "parse handoff missing result"]
-        )
-        return writeError(error, outputPtr: outputPtr, outputLen: outputLen)
-    }
-
-    switch result {
+    switch box.value! {
     case let .success(parsed):
         do {
             let jsonData = try JSONEncoder().encode(parsed)
