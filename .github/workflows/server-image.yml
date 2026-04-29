@@ -1,21 +1,14 @@
 name: Server image
 
-# Single source of truth for building + Trivy-scanning + publishing the
-# `ghcr.io/tuist/tuist:image-<sha>` server image. Both `server.yml` (used to host the
-# docker_build job) and `cli.yml`'s acceptance tests now consume this image instead of
-# rebuilding it themselves — that's what stops a combined-paths PR from doing two
-# parallel buildx runs against the same Dockerfile.
+# Builds + Trivy-scans + publishes the `ghcr.io/tuist/tuist:image-<sha>` server
+# image for server-affecting changes. CLI acceptance tests call the reusable
+# image build directly from cli.yml, so the regular CLI jobs and the image build
+# can fan out together without polling this workflow.
 #
 # Triggered on the union of the paths that can affect the image so any commit that
-# changes the runtime gets a fresh scanned image. Consumers wait for the
-# `image-<sha>` tag to land in GHCR before doing their work.
+# changes the runtime gets a fresh scanned image.
 
 on:
-  # Triggered on changes that affect the image itself (server, shared libs, examples
-  # baked into priv) AND on changes that require a *consumer* of the image to fire —
-  # most importantly the CLI acceptance tests, which spin a cluster against this
-  # image and would time out waiting for the tag if the image workflow didn't run on
-  # cli-only PRs.
   push:
     branches:
       - main
@@ -25,12 +18,6 @@ on:
       - noora/**
       - examples/xcode/**
       - skills/skills/**
-      - cli/Sources/**
-      - cli/Tests/**
-      - cli/cluster/**
-      - cli/Templates/**
-      - cli/TuistCacheEE/**
-      - mise/tasks/cli/acceptance-cluster/**
       - mise.toml
       - mise.lock
       - Tuist/**
@@ -38,7 +25,6 @@ on:
       - Package.resolved
       - .github/workflows/server-image.yml
       - .github/workflows/server-image-build.yml
-      - .github/workflows/cli.yml
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
@@ -47,12 +33,6 @@ on:
       - noora/**
       - examples/xcode/**
       - skills/skills/**
-      - cli/Sources/**
-      - cli/Tests/**
-      - cli/cluster/**
-      - cli/Templates/**
-      - cli/TuistCacheEE/**
-      - mise/tasks/cli/acceptance-cluster/**
       - mise.toml
       - mise.lock
       - Tuist/**
@@ -60,7 +40,6 @@ on:
       - Package.resolved
       - .github/workflows/server-image.yml
       - .github/workflows/server-image-build.yml
-      - .github/workflows/cli.yml
   merge_group: {}
 
 concurrency:

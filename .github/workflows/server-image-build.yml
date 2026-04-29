@@ -1,16 +1,16 @@
 name: Server image build
 
 # Reusable: builds the Tuist server image off `server/Dockerfile`. Called from both
-# `server.yml` (vulnerability scan) and `cli.yml` (acceptance-test cluster) so the
-# build args + buildx setup live in one place. The image is always pushed to GHCR with
-# the supplied tag — callers that don't need a registry artifact just discard the tag.
-# Trivy is invoked when `scan: true`, mirroring the previous `server.yml` behavior.
+# `server-image.yml` (vulnerability scan) and `cli.yml` (acceptance-test cluster)
+# so the build args + buildx setup live in one place. The image is always pushed
+# to GHCR with the supplied tag. Trivy is invoked when `scan: true`, mirroring the
+# previous `server.yml` behavior.
 
 on:
   workflow_call:
     inputs:
       tag:
-        description: Image tag (under ghcr.io/tuist/tuist) — e.g. acceptance-<sha>.
+        description: Image tag (under ghcr.io/tuist/tuist) — e.g. image-<sha>.
         required: true
         type: string
       scan:
@@ -31,7 +31,7 @@ on:
     outputs:
       image_tag:
         description: Tag the image was pushed under.
-        value: ${{ inputs.tag }}
+        value: ${{ jobs.build.outputs.image_tag }}
 
 permissions:
   contents: read
@@ -44,11 +44,16 @@ env:
 jobs:
   build:
     # Static name so the rendered PR check (`<parent job name> / <reusable job
-    # name>`) stays stable across SHAs — wait-for-server-image filters on it.
+    # name>`) stays stable across SHAs.
     name: Build
     runs-on: namespace-profile-default-with-volume
     timeout-minutes: 40
+    outputs:
+      image_tag: ${{ steps.image.outputs.tag }}
     steps:
+      - name: Expose image tag
+        id: image
+        run: echo "tag=${{ inputs.tag }}" >>"$GITHUB_OUTPUT"
       - uses: actions/checkout@v4
         with:
           submodules: false
@@ -57,7 +62,7 @@ jobs:
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          password: ${{ github.token }}
       - uses: docker/build-push-action@v6
         with:
           context: .

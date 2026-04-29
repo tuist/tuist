@@ -216,6 +216,21 @@ jobs:
       - name: Run tests
         run: tuist test TuistUnitTests -- -retry-tests-on-failure -test-iterations 4
 
+  cli-server-image:
+    name: Server Image
+    # GHCR write permissions and the preview-cluster secret path are not exposed
+    # to forks. Keep fork PRs on the existing canary-backed acceptance path.
+    if: github.event.pull_request.head.repo.fork != true
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/server-image-build.yml
+    with:
+      tag: image-${{ github.sha }}
+      scan: true
+      tuist_hosted: "0"
+      mix_env: prod
+
   # Deploys the tuist server image into an ephemeral helm release on Pedro's
   # Syself-managed preview cluster (the same cluster preview-deploy.yml uses
   # for per-PR previews). The cluster has ESO + ClusterSecretStore + a
@@ -237,6 +252,7 @@ jobs:
   # test outcome; preview-sweep.yml's TTL annotation acts as a backstop.
   cli-acceptance-cluster:
     name: Acceptance Cluster
+    needs: cli-server-image
     runs-on: ubuntu-latest
     # Budget: 20m helm wait + ~5min smoke/seed/retry + setup overhead.
     timeout-minutes: 40
@@ -255,7 +271,7 @@ jobs:
       namespace: ${{ steps.resolve.outputs.namespace }}
     env:
       KUBECONFIG: ${{ github.workspace }}/.kube/config
-      IMAGE_TAG: image-${{ github.sha }}
+      IMAGE_TAG: ${{ needs.cli-server-image.outputs.image_tag }}
       # helm + kubectl aren't pinned in mise.lock; the workflow-level
       # MISE_LOCKED=1 would block their install.
       MISE_LOCKED: "0"
@@ -269,8 +285,6 @@ jobs:
           install_args: "helm kubectl"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
-      - name: Wait for server image
-        uses: ./.github/actions/wait-for-server-image
       - name: Resolve release / namespace / host
         id: resolve
         run: |
