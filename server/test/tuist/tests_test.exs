@@ -2664,6 +2664,111 @@ defmodule Tuist.TestsTest do
                "stale_skipped"
              ]
     end
+
+    test "active_period ending at \"now\" with no is_ci filter takes the last_ran_at fast path" do
+      # The default LiveView shape (preset window + analytics_environment="any")
+      # short-circuits the test_case_runs subquery and filters on `last_ran_at`
+      # directly. This verifies the fast path returns the same set as the
+      # subquery-backed path it replaces.
+      project = ProjectsFixtures.project_fixture()
+
+      stale_ran_at =
+        NaiveDateTime.utc_now() |> NaiveDateTime.add(-30, :day) |> NaiveDateTime.truncate(:second)
+
+      fresh_ran_at = NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
+
+      {:ok, _stale_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          ran_at: stale_ran_at,
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "success",
+              duration: 1000,
+              test_cases: [%{name: "stale_test", status: "success", duration: 100}]
+            }
+          ]
+        )
+
+      {:ok, _fresh_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          ran_at: fresh_ran_at,
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "success",
+              duration: 1000,
+              test_cases: [%{name: "fresh_test", status: "success", duration: 100}]
+            }
+          ]
+        )
+
+      RunsFixtures.optimize_test_case_runs()
+
+      now = DateTime.utc_now()
+      start_datetime = DateTime.add(now, -7, :day)
+
+      {results, _meta} =
+        Tests.list_test_cases(project.id, %{}, active_period: {start_datetime, now}, is_ci: nil)
+
+      assert Enum.map(results, & &1.name) == ["fresh_test"]
+    end
+
+    test "active_period with is_ci filter still routes through the test_case_runs subquery" do
+      # When the user pins analytics to CI or Local we need to consult
+      # `test_case_runs` directly — `last_ran_at` on `test_cases` doesn't
+      # distinguish CI vs local runs. Verify the slow path still produces
+      # correct results.
+      project = ProjectsFixtures.project_fixture()
+      ran_at = NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
+
+      {:ok, _ci_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          is_ci: true,
+          ran_at: ran_at,
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "success",
+              duration: 1000,
+              test_cases: [%{name: "ci_only_test", status: "success", duration: 100}]
+            }
+          ]
+        )
+
+      {:ok, _local_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          is_ci: false,
+          ran_at: ran_at,
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "success",
+              duration: 1000,
+              test_cases: [%{name: "local_only_test", status: "success", duration: 100}]
+            }
+          ]
+        )
+
+      RunsFixtures.optimize_test_case_runs()
+
+      now = DateTime.utc_now()
+      start_datetime = DateTime.add(now, -7, :day)
+
+      {ci_results, _} =
+        Tests.list_test_cases(project.id, %{}, active_period: {start_datetime, now}, is_ci: true)
+
+      assert Enum.map(ci_results, & &1.name) == ["ci_only_test"]
+
+      {local_results, _} =
+        Tests.list_test_cases(project.id, %{}, active_period: {start_datetime, now}, is_ci: false)
+
+      assert Enum.map(local_results, & &1.name) == ["local_only_test"]
+    end
   end
 
   describe "get_test_case_by_id/1" do

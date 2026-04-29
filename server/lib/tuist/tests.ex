@@ -1484,6 +1484,13 @@ defmodule Tuist.Tests do
     end
   end
 
+  # When `active_period.end_datetime` is within this many seconds of "now" we
+  # treat the period as ending at "now" and short-circuit the test_case_runs
+  # subquery, using the denormalized `last_ran_at` on `test_cases` instead.
+  # The default analytics presets (`last-7-days`, `last-30-days`, …) all set
+  # `end_datetime = now()` at request time, so they hit this fast path.
+  @active_period_now_tolerance_seconds 300
+
   @doc """
   Lists test cases for a project directly from the test_cases table.
   Denormalized fields (last_status, last_duration, last_ran_at) are kept up to date
@@ -1511,6 +1518,17 @@ defmodule Tuist.Tests do
 
     base_query =
       cond do
+        not is_nil(active_period) and is_nil(is_ci) and active_period_ends_now?(active_period) ->
+          # Fast path for the default LiveView shape (preset window, "any"
+          # environment): every test that ran in the window has a
+          # `last_ran_at >= start_datetime` on `test_cases`, so we can skip
+          # the test_case_runs aggregation + hash join entirely. Cuts the
+          # FINAL scan over a single project's deduplicated rows from a
+          # ~2s p90 to a sub-second filter.
+          {start_datetime, _end_datetime} = active_period
+          start_naive = DateTime.to_naive(start_datetime)
+          where(base_query, [test_case], test_case.last_ran_at >= ^start_naive)
+
         not is_nil(active_period) ->
           active_ids = active_test_case_ids_query(project_id, active_period, is_ci)
 
@@ -1536,6 +1554,11 @@ defmodule Tuist.Tests do
       end
 
     Tuist.ClickHouseFlop.validate_and_run!(base_query, attrs, for: TestCase)
+  end
+
+  defp active_period_ends_now?({_start_datetime, end_datetime}) do
+    abs(DateTime.diff(DateTime.utc_now(), end_datetime, :second)) <=
+      @active_period_now_tolerance_seconds
   end
 
   defp quarantine_filter?(filters) do
