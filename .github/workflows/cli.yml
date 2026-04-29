@@ -261,15 +261,7 @@ jobs:
           MISE_GITHUB_TOKEN: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
           GITHUB_ACTOR: ${{ github.actor }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Inline license path: skip ESO + 1Password and feed the license
-          # straight to helm via --set server.license.key. The shared
-          # OP_SERVICE_ACCOUNT_TOKEN repo secret doesn't have access to the
-          # `tuist-k8s-preview` vault Pedro's preview-up.sh uses (that vault
-          # belongs to his personal OP service account), so the ESO path
-          # times out with "vault tuist-k8s-preview not found". Until the
-          # CI service account is granted vault access, the simpler path
-          # is a dedicated TUIST_LICENSE_KEY repo secret.
-          TUIST_LICENSE_KEY: ${{ secrets.TUIST_LICENSE_KEY }}
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
           INSTALL_TUNNEL: "1"
         run: mise run cli:acceptance-cluster:up 0
       - name: Publish cluster URL artifact
