@@ -182,7 +182,7 @@ defmodule TuistWeb.ChooseUsernameLiveTest do
         |> form("#choose-username-form", account: %{name: username})
         |> render_submit()
 
-      assert {:error, {:redirect, %{to: "/users/log_in"}}} = result
+      assert {:error, {:redirect, %{to: "/auth/cancel-pending-signup"}}} = result
     end
 
     test "shows error when username contains invalid characters", %{conn: conn} do

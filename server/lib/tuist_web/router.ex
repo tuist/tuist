@@ -760,6 +760,7 @@ defmodule TuistWeb.Router do
   scope "/auth", TuistWeb do
     pipe_through [:browser_app]
     get "/complete-signup", AuthController, :complete_signup
+    get "/cancel-pending-signup", AuthController, :cancel_pending_signup
   end
 
   scope "/users/auth", TuistWeb do
