@@ -49,7 +49,7 @@ jobs:
         run: |
           SHORT_SHA="${SHA:0:7}"
           COMMIT_URL="${REPO_URL}/commit/${SHA}"
-          TEXT=$(printf ':x: `%s` failed on main for <%s|tuist%s>: %s\n\n%s' "$WORKFLOW_NAME" "$COMMIT_URL" "$SHORT_SHA" "$COMMIT_MESSAGE" "$RUN_URL")
+          TEXT=$(printf ':x: <%s|%s> failed on main for <%s|tuist%s>: %s' "$RUN_URL" "$WORKFLOW_NAME" "$COMMIT_URL" "$SHORT_SHA" "$COMMIT_MESSAGE")
           jq -n --arg text "$TEXT" '{text: $text}' > "$RUNNER_TEMP/slack-payload.json"
       - uses: slackapi/slack-github-action@v2
         with:
