@@ -62,20 +62,22 @@ public struct ExternalProjectsPlatformNarrowerGraphMapper: GraphMapping { // swi
 
         var targetFilteredDestinations = externalTargetSupportedDestinations[graphTarget]
 
-        // Local SPM test targets are orphans (nothing depends on them), so the top-down
-        // traversal never reaches them. Inherit destinations from their direct dependencies instead.
+        // Orphan local SPM test targets aren't reached by the top-down traversal. Intersect
+        // destinations of the test's linkable deps — linking is an AND constraint, and
+        // non-linkable deps (macros, bundles) don't constrain runtime platforms.
         if targetFilteredDestinations == nil,
            target.metadata.tags.contains(TargetTags.localSwiftPackageTest)
         {
-            let depDestinations = target.dependencies.compactMap { dep -> Set<Destination>? in
+            let linkableDestinations = target.dependencies.compactMap { dep -> Set<Destination>? in
                 guard case let .target(name, _, _) = dep,
-                      let depTarget = project.targets[name]
+                      let depTarget = project.targets[name],
+                      depTarget.isLinkable()
                 else { return nil }
                 let depGraphTarget = GraphTarget(path: project.path, target: depTarget, project: project)
                 return externalTargetSupportedDestinations[depGraphTarget]
             }
-            if let merged = depDestinations.first {
-                targetFilteredDestinations = depDestinations.dropFirst().reduce(merged) { $0.union($1) }
+            if let first = linkableDestinations.first {
+                targetFilteredDestinations = linkableDestinations.dropFirst().reduce(first) { $0.intersection($1) }
             }
         }
 

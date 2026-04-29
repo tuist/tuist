@@ -381,4 +381,190 @@ final class ExternalProjectsPlatformNarrowerGraphMapperTests: TuistUnitTestCase 
             Set([.macOS])
         )
     }
+
+    func test_map_when_local_swift_package_test_target_depends_on_macro() async throws {
+        // Given
+        let directory = try temporaryPath()
+        let packagesDirectory = directory.appending(component: "Dependencies")
+
+        let appTarget = Target.test(name: "App", destinations: [.iPad, .iPhone])
+
+        let externalLibrary = Target.test(
+            name: "MyLibrary",
+            destinations: [.iPad, .iPhone],
+            product: .staticFramework
+        )
+        let externalMacro = Target.test(
+            name: "MyMacro",
+            destinations: [.mac],
+            product: .macro
+        )
+        let externalLocalPackageTests = Target.test(
+            name: "MyLibraryTests",
+            destinations: [.iPad, .iPhone],
+            product: .unitTests,
+            dependencies: [
+                .target(name: externalLibrary.name),
+                .target(name: externalMacro.name),
+            ],
+            metadata: .test(tags: Set([TargetTags.localSwiftPackageTest]))
+        )
+
+        let project = Project.test(path: directory, targets: [appTarget])
+        let externalProject = Project.test(
+            path: packagesDirectory,
+            targets: [externalLibrary, externalMacro, externalLocalPackageTests],
+            type: .external(hash: nil)
+        )
+
+        let appTargetDependency = GraphDependency.target(name: appTarget.name, path: project.path)
+        let externalLibraryDependency = GraphDependency.target(name: externalLibrary.name, path: externalProject.path)
+        let externalMacroDependency = GraphDependency.target(name: externalMacro.name, path: externalProject.path)
+
+        let graph = Graph.test(
+            projects: [
+                directory: project,
+                packagesDirectory: externalProject,
+            ],
+            dependencies: [
+                appTargetDependency: Set([externalLibraryDependency]),
+                externalLibraryDependency: Set([externalMacroDependency]),
+            ]
+        )
+
+        // When
+        let (mappedGraph, _, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
+
+        // Then
+        XCTAssertEqual(
+            try XCTUnwrap(
+                mappedGraph.projects[externalProject.path]?.targets[externalLocalPackageTests.name]?.supportedPlatforms
+            ),
+            Set([.iOS])
+        )
+    }
+
+    func test_map_when_local_swift_package_test_target_depends_only_on_macro() async throws {
+        // Given
+        let directory = try temporaryPath()
+        let packagesDirectory = directory.appending(component: "Dependencies")
+
+        let appTarget = Target.test(name: "App", destinations: [.iPad, .iPhone])
+
+        let externalLibrary = Target.test(
+            name: "MyLibrary",
+            destinations: [.iPad, .iPhone],
+            product: .staticFramework
+        )
+        let externalMacro = Target.test(
+            name: "MyMacro",
+            destinations: [.mac],
+            product: .macro
+        )
+        let externalLocalPackageTests = Target.test(
+            name: "MyLibraryTests",
+            destinations: [.iPad, .iPhone, .mac],
+            product: .unitTests,
+            dependencies: [
+                .target(name: externalMacro.name),
+            ],
+            metadata: .test(tags: Set([TargetTags.localSwiftPackageTest]))
+        )
+
+        let project = Project.test(path: directory, targets: [appTarget])
+        let externalProject = Project.test(
+            path: packagesDirectory,
+            targets: [externalLibrary, externalMacro, externalLocalPackageTests],
+            type: .external(hash: nil)
+        )
+
+        let appTargetDependency = GraphDependency.target(name: appTarget.name, path: project.path)
+        let externalLibraryDependency = GraphDependency.target(name: externalLibrary.name, path: externalProject.path)
+        let externalMacroDependency = GraphDependency.target(name: externalMacro.name, path: externalProject.path)
+
+        let graph = Graph.test(
+            projects: [
+                directory: project,
+                packagesDirectory: externalProject,
+            ],
+            dependencies: [
+                appTargetDependency: Set([externalLibraryDependency]),
+                externalLibraryDependency: Set([externalMacroDependency]),
+            ]
+        )
+
+        // When
+        let (mappedGraph, _, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
+
+        // Then
+        XCTAssertEqual(
+            try XCTUnwrap(
+                mappedGraph.projects[externalProject.path]?.targets[externalLocalPackageTests.name]?.destinations
+            ),
+            Set([.iPad, .iPhone, .mac])
+        )
+    }
+
+    func test_map_when_local_swift_package_test_target_has_incompatible_linkable_deps() async throws {
+        // Given
+        let directory = try temporaryPath()
+        let packagesDirectory = directory.appending(component: "Dependencies")
+
+        let iosApp = Target.test(name: "iOSApp", destinations: [.iPad, .iPhone])
+        let macApp = Target.test(name: "MacApp", destinations: [.mac], product: .app)
+
+        let libA = Target.test(
+            name: "LibA",
+            destinations: [.iPad, .iPhone],
+            product: .staticFramework
+        )
+        let libB = Target.test(
+            name: "LibB",
+            destinations: [.mac],
+            product: .staticFramework
+        )
+        let externalLocalPackageTests = Target.test(
+            name: "LibTests",
+            destinations: [.iPad, .iPhone, .mac],
+            product: .unitTests,
+            dependencies: [
+                .target(name: libA.name),
+                .target(name: libB.name),
+            ],
+            metadata: .test(tags: Set([TargetTags.localSwiftPackageTest]))
+        )
+
+        let project = Project.test(path: directory, targets: [iosApp, macApp])
+        let externalProject = Project.test(
+            path: packagesDirectory,
+            targets: [libA, libB, externalLocalPackageTests],
+            type: .external(hash: nil)
+        )
+
+        let iosAppDependency = GraphDependency.target(name: iosApp.name, path: project.path)
+        let macAppDependency = GraphDependency.target(name: macApp.name, path: project.path)
+        let libADependency = GraphDependency.target(name: libA.name, path: externalProject.path)
+        let libBDependency = GraphDependency.target(name: libB.name, path: externalProject.path)
+
+        let graph = Graph.test(
+            projects: [
+                directory: project,
+                packagesDirectory: externalProject,
+            ],
+            dependencies: [
+                iosAppDependency: Set([libADependency]),
+                macAppDependency: Set([libBDependency]),
+            ]
+        )
+
+        // When
+        let (mappedGraph, _, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
+
+        // Then
+        let mappedTests = try XCTUnwrap(
+            mappedGraph.projects[externalProject.path]?.targets[externalLocalPackageTests.name]
+        )
+        XCTAssertEqual(mappedTests.destinations, Set())
+        XCTAssertTrue(mappedTests.metadata.tags.contains("tuist:prunable"))
+    }
 }
