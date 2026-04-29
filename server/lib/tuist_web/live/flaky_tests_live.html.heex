@@ -91,7 +91,7 @@
       <div data-part="widgets">
         <.widget
           loading={!@flaky_test_cases_analytics.ok?}
-          title={dgettext("dashboard_tests", "Flaky test cases")}
+          title={dgettext("dashboard_tests", "Flagged flaky test cases")}
           description={
             dgettext(
               "dashboard_tests",
@@ -289,7 +289,7 @@
                   end,
                 name:
                   case @analytics_selected_widget do
-                    "flaky_test_cases" -> dgettext("dashboard_tests", "Flaky test cases")
+                    "flaky_test_cases" -> dgettext("dashboard_tests", "Flagged flaky test cases")
                     "flaky_test_runs" -> dgettext("dashboard_tests", "Flaky test runs")
                     _ -> dgettext("dashboard_tests", "Flaky test case runs")
                   end,
