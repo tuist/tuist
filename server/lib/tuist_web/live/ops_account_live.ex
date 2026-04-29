@@ -107,24 +107,6 @@ defmodule TuistWeb.OpsAccountLive do
   end
 
   @impl true
-  def handle_event("validate_add_server", %{"server" => params}, socket) do
-    # Re-derive the volume default whenever the spec changes so the
-    # operator sees a sensible value without typing it.
-    spec = String.to_existing_atom(params["spec"] || "medium")
-    current_volume = params["volume_size_gi"]
-    previous_spec = socket.assigns.add_server_form["spec"]
-
-    volume =
-      if previous_spec != params["spec"] or current_volume in [nil, ""] do
-        to_string(Specs.default_volume_gi(spec) || current_volume || "200")
-      else
-        current_volume
-      end
-
-    {:noreply, assign(socket, :add_server_form, Map.put(params, "volume_size_gi", volume))}
-  end
-
-  @impl true
   def handle_event("submit_add_server", %{"server" => params}, socket) do
     account = socket.assigns.account
     user = socket.assigns.current_user
@@ -139,11 +121,13 @@ defmodule TuistWeb.OpsAccountLive do
          )}
 
       [%{version: image_tag} | _] ->
+        spec = parse_spec(params["spec"])
+
         attrs = %{
           account_id: account.id,
           cluster_id: params["cluster_id"],
-          spec: String.to_existing_atom(params["spec"] || "medium"),
-          volume_size_gi: parse_int(params["volume_size_gi"], 200),
+          spec: spec,
+          volume_size_gi: parse_int(params["volume_size_gi"], Specs.default_volume_gi(spec) || 200),
           image_tag: image_tag,
           requested_by_user_id: user && user.id
         }
@@ -151,6 +135,17 @@ defmodule TuistWeb.OpsAccountLive do
         do_submit_add_server(socket, attrs)
     end
   end
+
+  defp parse_spec(value) when is_binary(value) and value != "" do
+    case value do
+      "small" -> :small
+      "medium" -> :medium
+      "large" -> :large
+      _ -> :medium
+    end
+  end
+
+  defp parse_spec(_), do: :medium
 
   defp do_submit_add_server(socket, attrs) do
     case Kura.create_server(attrs) do
