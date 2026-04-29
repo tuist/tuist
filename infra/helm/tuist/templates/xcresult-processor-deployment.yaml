@@ -44,7 +44,7 @@ spec:
       # injection in launchd.plist.
       containers:
         - name: xcresult-processor
-          image: "{{ .Values.xcresultProcessor.image.repository }}:{{ .Values.xcresultProcessor.image.tag | default .Chart.AppVersion }}"
+          image: "{{ .Values.xcresultProcessor.image.repository }}:{{ .Values.xcresultProcessor.image.tag | default "latest" }}"
           imagePullPolicy: {{ .Values.xcresultProcessor.image.pullPolicy }}
           env:
             # Boot mode: queue-only consumer for :process_xcresult. Same

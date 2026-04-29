@@ -136,6 +136,10 @@ func (p *Provider) CreatePod(ctx context.Context, pod *corev1.Pod) error {
 	}
 
 	// Stage user-data: a /etc/tuist.env-style file with Pod env.
+	// `sudo tee` doesn't create parent dirs, so mkdir first.
+	if err := client.MkdirP(ctx, "/var/lib/tart-userdata", "/var/log/tart-vms", true); err != nil {
+		return fmt.Errorf("mkdir userdata: %w", err)
+	}
 	userDataPath := "/var/lib/tart-userdata/" + vmName + ".env"
 	envFile := renderEnvFile(c.Env)
 	if err := client.WriteFile(ctx, userDataPath, envFile, true); err != nil {

@@ -142,11 +142,11 @@ macosFleet:
   image:
     # capi-provider-scaleway-applesilicon — operator that owns Mac
     # mini lifecycle (Scaleway create/release + SSH-Tart bootstrap).
-    tag: "471b516b"
+    tag: "ae4b412d"
   vkImage:
     # vk-applesilicon — registers the virtual Node + routes Pods to
     # Tart VMs via SSH.
-    tag: "471b516b"
+    tag: "ae4b412d"
   machine:
     # M4-S is normally what we'd pick (smallest M4); falls back to
     # M2-M when M4-S is no_stock. Override per Scaleway capacity.

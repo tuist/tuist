@@ -197,6 +197,37 @@ func (c *Client) IP(ctx context.Context, name string) (string, error) {
 	return strings.TrimSpace(string(out)), nil
 }
 
+// MkdirP runs `mkdir -p` for each path on the host. Used to ensure
+// parent directories exist before WriteFile (tee doesn't create them).
+func (c *Client) MkdirP(ctx context.Context, paths ...interface{}) error {
+	// Last arg can optionally be a bool flag for sudo; keep the
+	// signature flexible so callers don't have to wrap.
+	useSudo := false
+	stringPaths := make([]string, 0, len(paths))
+	for _, p := range paths {
+		switch v := p.(type) {
+		case string:
+			stringPaths = append(stringPaths, v)
+		case bool:
+			useSudo = v
+		}
+	}
+	parts := []string{"mkdir", "-p"}
+	parts = append(parts, stringPaths...)
+	cmdline := ""
+	for _, part := range parts {
+		if cmdline != "" {
+			cmdline += " "
+		}
+		cmdline += shellEscape(part)
+	}
+	if useSudo {
+		cmdline = "sudo " + cmdline
+	}
+	r := c.runWithStdin(ctx, "", "/bin/sh", "-c", cmdline)
+	return r.err
+}
+
 // WriteFile uploads `contents` to `remotePath` on the host. Uses
 // `cat | sudo tee` so the path can be root-owned. Used for staging
 // per-VM user-data files before `tart run`.
