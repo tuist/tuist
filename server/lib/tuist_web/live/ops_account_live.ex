@@ -50,11 +50,14 @@ defmodule TuistWeb.OpsAccountLive do
     default_cluster = Clusters.available() |> List.first()
     default_spec = :medium
 
-    %{
-      "cluster_id" => default_cluster && default_cluster.id,
-      "spec" => Atom.to_string(default_spec),
-      "volume_size_gi" => to_string(Specs.default_volume_gi(default_spec) || 200)
-    }
+    to_form(
+      %{
+        "cluster_id" => default_cluster && default_cluster.id,
+        "spec" => Atom.to_string(default_spec),
+        "volume_size_gi" => to_string(Specs.default_volume_gi(default_spec) || 200)
+      },
+      as: :server
+    )
   end
 
   defp preload_billing(account) do
