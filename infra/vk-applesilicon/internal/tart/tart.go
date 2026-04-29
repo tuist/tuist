@@ -96,9 +96,11 @@ func (c *Client) Set(ctx context.Context, name string, cpu, memoryMB int) error 
 // redirection so the SSH session can return.
 func (c *Client) Run(ctx context.Context, name string, opts RunOptions) error {
 	args := []string{c.Binary, "run", name, "--no-graphics"}
-	for _, m := range opts.UserData {
-		args = append(args, "--user-data", shellEscape(m))
-	}
+	// Pod env is injected via a shared dir mounted into the guest at
+	// /Volumes/My Shared Files/<tag>; the xcresult image's launchd
+	// reads /etc/tuist.env from there at boot. Tart 2.32 dropped
+	// --user-data; we use --dir with the staged userdata file's
+	// parent directory and a fixed `env` tag.
 	for _, dir := range opts.SharedDirs {
 		args = append(args, "--dir", shellEscape(dir))
 	}

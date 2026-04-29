@@ -135,18 +135,21 @@ func (p *Provider) CreatePod(ctx context.Context, pod *corev1.Pod) error {
 		return fmt.Errorf("tart clone: %w", err)
 	}
 
-	// Stage user-data: a /etc/tuist.env-style file with Pod env.
-	// `sudo tee` doesn't create parent dirs, so mkdir first.
-	if err := client.MkdirP(ctx, "/var/lib/tart-userdata", "/var/log/tart-vms", true); err != nil {
+	// Stage user-data file in a per-VM directory. Tart 2.32 dropped
+	// the --user-data flag; instead we share a directory into the
+	// guest as `env` so the VM's launchd can mount and read
+	// /Volumes/My Shared Files/env/tuist.env at boot.
+	envDir := "/var/lib/tart-userdata/" + vmName
+	if err := client.MkdirP(ctx, envDir, "/var/log/tart-vms", true); err != nil {
 		return fmt.Errorf("mkdir userdata: %w", err)
 	}
-	userDataPath := "/var/lib/tart-userdata/" + vmName + ".env"
-	envFile := renderEnvFile(c.Env)
-	if err := client.WriteFile(ctx, userDataPath, envFile, true); err != nil {
+	if err := client.WriteFile(ctx, envDir+"/tuist.env", renderEnvFile(c.Env), true); err != nil {
 		return fmt.Errorf("write userdata: %w", err)
 	}
 
-	if err := client.Run(ctx, vmName, tart.RunOptions{UserData: []string{userDataPath}}); err != nil {
+	if err := client.Run(ctx, vmName, tart.RunOptions{
+		SharedDirs: []string{"env:" + envDir + ":ro"},
+	}); err != nil {
 		return fmt.Errorf("tart run: %w", err)
 	}
 
