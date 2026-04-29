@@ -2,6 +2,45 @@ import Foundation
 import Path
 import XCActivityLogParser
 
+// Heap-allocated, lock-protected handoff between the parsing Task and the NIF
+// thread. Reference-counted so it stays alive as long as either side holds it
+// — required because we may abandon the wait on timeout and return from the
+// NIF while the Task is still running. Mutators are synchronous so the lock
+// is never held across a suspension point.
+private final class ParseHandoff: @unchecked Sendable {
+    private let lock = NSLock()
+    private var _result: Result<BuildData, Error>?
+    private var _abandoned = false
+
+    // Returns true if the NIF thread is still waiting (and the result was
+    // stored); false if it timed out and the Task should drop its outcome.
+    func deliverIfWaiting(_ outcome: Result<BuildData, Error>) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        guard !_abandoned else { return false }
+        _result = outcome
+        return true
+    }
+
+    func abandon() {
+        lock.lock()
+        _abandoned = true
+        lock.unlock()
+    }
+
+    func takeResult() -> Result<BuildData, Error>? {
+        lock.lock()
+        defer { lock.unlock() }
+        return _result
+    }
+}
+
+// Hard cap on a single parse. The Swift Task runs on the cooperative pool,
+// not the BEAM dirty scheduler we're called from, so timing out here lets the
+// dirty scheduler thread go even when the parser itself is wedged on a
+// pathological xcactivitylog.
+private let parseTimeoutSeconds = 900
+
 @_cdecl("parse_xcactivitylog")
 public func parseXCActivityLog(
     _ pathPtr: UnsafePointer<CChar>,
@@ -16,27 +55,48 @@ public func parseXCActivityLog(
     let legacyCASMetadataPath = String(cString: legacyCASMetadataPathPtr)
     let url = URL(fileURLWithPath: path)
 
-    // nonisolated(unsafe) is needed because the Swift 6 concurrency checker doesn't understand
-    // that the DispatchSemaphore guarantees sequential access (write before signal, read after wait).
-    nonisolated(unsafe) var result: Result<BuildData, Error>!
+    let handoff = ParseHandoff()
     let semaphore = DispatchSemaphore(value: 0)
 
     Task { @Sendable in
+        let outcome: Result<BuildData, Error>
         do {
             let parsed = try await XCActivityLogParser().parse(
                 xcactivitylogURL: url,
                 casAnalyticsDatabasePath: try AbsolutePath(validating: casAnalyticsDbPath),
                 legacyCASMetadataPath: try AbsolutePath(validating: legacyCASMetadataPath)
             )
-            result = .success(parsed)
+            outcome = .success(parsed)
         } catch {
-            result = .failure(error)
+            outcome = .failure(error)
         }
-        semaphore.signal()
-    }
-    semaphore.wait()
 
-    switch result! {
+        if handoff.deliverIfWaiting(outcome) {
+            semaphore.signal()
+        }
+    }
+
+    let deadline = DispatchTime.now() + .seconds(parseTimeoutSeconds)
+    if semaphore.wait(timeout: deadline) == .timedOut {
+        handoff.abandon()
+        let error = NSError(
+            domain: "XCActivityLogNIF",
+            code: -1,
+            userInfo: [NSLocalizedDescriptionKey: "parse timed out after \(parseTimeoutSeconds)s"]
+        )
+        return writeError(error, outputPtr: outputPtr, outputLen: outputLen)
+    }
+
+    guard let result = handoff.takeResult() else {
+        let error = NSError(
+            domain: "XCActivityLogNIF",
+            code: -2,
+            userInfo: [NSLocalizedDescriptionKey: "parse handoff missing result"]
+        )
+        return writeError(error, outputPtr: outputPtr, outputLen: outputLen)
+    }
+
+    switch result {
     case let .success(parsed):
         do {
             let jsonData = try JSONEncoder().encode(parsed)

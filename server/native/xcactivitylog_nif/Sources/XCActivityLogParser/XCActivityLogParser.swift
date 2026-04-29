@@ -82,14 +82,18 @@ public struct XCActivityLogParser: Sendable {
 
     // MARK: - Build Steps
 
+    // Iterative DFS so build trees thousands of levels deep don't overflow the
+    // stack. Order matches the recursive walk: parent before children.
     private func flattenBuildSteps(_ steps: [BuildStep]) -> [BuildStep] {
-        steps.flatMap { step in
-            var flattened = [step]
+        var result = [BuildStep]()
+        var stack = Array(steps.reversed())
+        while let step = stack.popLast() {
+            result.append(step)
             if !step.subSteps.isEmpty {
-                flattened.append(contentsOf: flattenBuildSteps(step.subSteps))
+                stack.append(contentsOf: step.subSteps.reversed())
             }
-            return flattened
         }
+        return result
     }
 
     // MARK: - Category
@@ -293,7 +297,7 @@ public struct XCActivityLogParser: Sendable {
         let descriptions = keyDescriptions
         let nodeIDs = keyNodeIDs
 
-        return try await Array(keyStatuses).concurrentMap(maxConcurrentTasks: 50) { (key, status) in
+        return try await Array(keyStatuses).concurrentMap(maxConcurrentTasks: 8) { (key, status) in
             // A key observed only as an upload (no query or materialize) is a fresh
             // compile whose result we pushed to the remote CAS — the cache did not
             // serve that work, so it counts as a miss.
@@ -377,7 +381,7 @@ public struct XCActivityLogParser: Sendable {
             uniqueDownloads.map { ($0.nodeID, $0.type, "download") } +
             uniqueUploads.map { ($0.nodeID, $0.type, "upload") }
 
-        return try await allItems.concurrentCompactMap(maxConcurrentTasks: 50) { item in
+        return try await allItems.concurrentCompactMap(maxConcurrentTasks: 8) { item in
             await createCASOutput(nodeID: item.nodeID, type: item.type, operation: item.operation, casReader: casReader)
         }
     }

@@ -9,13 +9,26 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
   the server runs both roles in the same BEAM.
   """
 
-  use Oban.Worker, queue: :process_build, max_attempts: 5
+  use Oban.Worker,
+    queue: :process_build,
+    max_attempts: 5,
+    unique: [
+      keys: [:build_id],
+      states: [:available, :scheduled, :executing, :retryable],
+      period: :infinity
+    ]
 
   alias Tuist.Accounts
   alias Tuist.Builds
   alias Tuist.Storage
 
   require Logger
+
+  # Cap one job's wall time so a single huge xcactivitylog cannot hold a worker
+  # slot indefinitely. Slightly higher than the NIF's internal timeout so the
+  # NIF returns its own error (with telemetry) before Oban kills the process.
+  @impl Oban.Worker
+  def timeout(_job), do: to_timeout(minute: 20)
 
   @impl Oban.Worker
   def perform(%Oban.Job{
