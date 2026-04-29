@@ -15,7 +15,7 @@ The problem is that, with a small team like ours, the cost of setting up a local
 
 So, as engineers, we started thinking about a system for ourselves. Coding agents have pushed the cost of building this kind of internal tooling down dramatically. We wanted something that aligned with how we ship: continuously, with the repository as the source of truth for context. And because we started exploring this when LLMs were becoming popular, we had a hunch that they could be the right primitive to build on top of.
 
-The challenge with LLMs is finding a good balance between three forces: quality, speed, and price. Speed is mostly a solved problem, and price is going down every quarter as more companies invest in inference infrastructure. Quality is the interesting part. That is the part I want to share, because we have been building a system that learns from how coding agents work today: the idea of context as the lever for quality convergence.
+The challenge with LLMs is finding a good balance between three forces: quality, speed, and price. Speed is mostly a solved problem, and price is going down every quarter as more companies invest in inference infrastructure. Quality is the interesting part. That is the part I want to focus on here, because we have been building a system that learns from how coding agents work today: the idea of context as the lever for quality convergence.
 
 ## Meet L10N.md
 
