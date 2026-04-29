@@ -51,26 +51,30 @@ defmodule Tuist.Bundles do
     end
   end
 
-  # Mirrors the just-persisted artifacts into ClickHouse synchronously and,
-  # on success, marks the bundle as replicated. PG remains the source of
-  # truth for reads until the backfill completes and reads are cut over.
+  # Mirrors the just-persisted artifacts into ClickHouse synchronously.
+  # PG remains the source of truth for reads until the backfill completes
+  # and reads are cut over.
+  #
+  # New bundles are inserted with `artifacts_replicated_to_ch = true` (see
+  # `Tuist.Bundles.Bundle`), so the steady-state path here is a no-op on
+  # the flag — the dual-write owns the bundle's CH copy from insert time
+  # and the backfill never sees it while replication is in flight.
   #
   # The write is intentionally synchronous (not via `Tuist.Ingestion.Buffer`):
   # a buffered async flush that crashes on a transient CH outage would drop
   # rows after the PG transaction has already committed, with no durable
   # signal for recovery. With the synchronous path, `IngestRepo.with_retry`
   # absorbs brief blips, and longer outages surface here as exceptions —
-  # rescued so bundle creation does not 5xx, but with the bundle's
-  # `artifacts_replicated_to_ch` flag left unset so the follow-up backfill
-  # paginating `WHERE artifacts_replicated_to_ch = false` recovers it.
-  defp replicate_artifacts_to_clickhouse(bundle, []) do
-    mark_replicated!(bundle)
-  end
+  # rescued so bundle creation does not 5xx, then the bundle's
+  # `artifacts_replicated_to_ch` flag is flipped to `false` so the follow-up
+  # backfill paginating `WHERE artifacts_replicated_to_ch = false` recovers
+  # it.
+  defp replicate_artifacts_to_clickhouse(bundle, []), do: bundle
 
   defp replicate_artifacts_to_clickhouse(bundle, artifacts) do
     rows = Enum.map(artifacts, &ArtifactIngest.from_pg/1)
     IngestRepo.insert_all(ArtifactIngest, rows)
-    mark_replicated!(bundle)
+    bundle
   rescue
     e ->
       Logger.error(
@@ -78,16 +82,16 @@ defmodule Tuist.Bundles do
           Exception.message(e) <> "\n" <> Exception.format_stacktrace(__STACKTRACE__)
       )
 
-      bundle
+      mark_unreplicated!(bundle)
   end
 
-  defp mark_replicated!(%Bundle{id: id} = bundle) do
+  defp mark_unreplicated!(%Bundle{id: id} = bundle) do
     Repo.update_all(
       from(b in Bundle, where: b.id == ^id),
-      set: [artifacts_replicated_to_ch: true]
+      set: [artifacts_replicated_to_ch: false]
     )
 
-    %{bundle | artifacts_replicated_to_ch: true}
+    %{bundle | artifacts_replicated_to_ch: false}
   end
 
   defp insert_artifacts_in_batches(repo, artifacts, bundle_id) do
