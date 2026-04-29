@@ -240,10 +240,11 @@ The CI pipeline will fail if any `.po` files are modified by anyone other than `
 
 ## Deployment
 
-The application deploys to Render with different environments:
-- `mise run deploy:staging` - Deploy to staging
-- `mise run deploy:canary` - Deploy to canary
-- `mise run deploy:production` - Deploy to production
+The application deploys to managed Syself Kubernetes clusters on Hetzner via Helm. See `infra/AGENTS.md` for the full layout.
+
+- Push to `main` triggers `.github/workflows/server-production-deployment.yml`, which cascades canary → acceptance tests → production (hotfix fast-path available).
+- Single-environment deploys use `.github/workflows/server-deployment.yml` via `workflow_dispatch`.
+- Chart and per-env values live in `infra/helm/tuist/` (`values-managed-{staging,canary,production}.yaml`).
 
 ## Important Notes
 
