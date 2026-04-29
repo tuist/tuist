@@ -61,9 +61,16 @@ Tenant-owned schemas include at least: `Bundle`, `Run`, `Cache`,
 
 ## 3. ClickHouse `IngestRepo` is write-only
 
-`Tuist.IngestRepo` is the analytics ClickHouse repo. ClickHouse is the
-analytics DB, and we treat it as **write-only from application code** —
-reads happen out of band.
+There are **two** ClickHouse repos in this codebase, and they are not
+interchangeable. Be precise about which one a call uses before flagging.
+
+- **`Tuist.IngestRepo`** — write-only ingest path. Application code must
+  not read from it; reads happen out of band.
+- **`Tuist.ClickHouseRepo`** — the read-only ClickHouse repo (declared
+  with `read_only: true` in `server/lib/tuist/clickhouse_repo.ex`). This
+  is the **legitimate** path for analytics reads from application code.
+  `server/lib/tuist/tests/analytics.ex`,
+  `server/lib/tuist/builds/analytics.ex`, etc. all read through it.
 
 ### Flag (Severity: high)
 
@@ -72,7 +79,17 @@ reads happen out of band.
   `Tuist.IngestRepo.exists?/1`, or `Tuist.IngestRepo.aggregate/3`.
 - Any `from(... ) |> Tuist.IngestRepo.<read fn>`.
 
-The fix is almost always to read from `Tuist.Repo` (PostgreSQL) instead.
+The fix is almost always to read through `Tuist.ClickHouseRepo` (for
+ClickHouse-only data) or `Tuist.Repo` (PostgreSQL).
+
+### Do not flag
+
+- `Tuist.ClickHouseRepo.all/1`, `Tuist.ClickHouseRepo.one/1`,
+  `Tuist.ClickHouseRepo.aggregate/3`, or any other read through
+  `ClickHouseRepo`. That repo exists specifically for application reads.
+  Do **not** confuse it with `IngestRepo`.
+- Writes via `Tuist.IngestRepo.insert/2` / `insert_all/2,3` — those are
+  the intended use.
 
 ---
 
