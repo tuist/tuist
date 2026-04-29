@@ -3,6 +3,8 @@ defmodule Tuist.ContentFileWatcher do
 
   use GenServer
 
+  require Logger
+
   @reload_delay_ms 100
 
   def start_link(opts) do
@@ -16,10 +18,20 @@ defmodule Tuist.ContentFileWatcher do
     extensions = Keyword.fetch!(opts, :extensions)
     cache = Keyword.fetch!(opts, :cache)
 
-    {:ok, watcher_pid} = file_system().start_link(dirs: dirs)
-    file_system().subscribe(watcher_pid)
+    case file_system().start_link(dirs: dirs) do
+      {:ok, watcher_pid} ->
+        file_system().subscribe(watcher_pid)
 
-    {:ok, %{cache: cache, extensions: extensions, reload_timer: nil, watcher_pid: watcher_pid}}
+        {:ok, %{cache: cache, extensions: extensions, reload_timer: nil, watcher_pid: watcher_pid}}
+
+      :ignore ->
+        Logger.warning("Content file watcher disabled because the file_system backend could not start")
+        :ignore
+
+      {:error, reason} ->
+        Logger.warning("Content file watcher disabled: #{inspect(reason)}")
+        :ignore
+    end
   end
 
   @impl true
