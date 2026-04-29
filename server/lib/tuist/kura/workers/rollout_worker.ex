@@ -114,11 +114,62 @@ defmodule Tuist.Kura.Workers.RolloutWorker do
     end
   end
 
-  defp kubeconfig_for(%Clusters{id: cluster_id}) do
+  defp kubeconfig_for(%Clusters{id: cluster_id, provider: provider}) do
     case Tuist.Environment.kura_kubeconfig(cluster_id) do
-      nil -> {:error, "no kubeconfig configured for cluster #{cluster_id}"}
-      "" -> {:error, "kubeconfig for cluster #{cluster_id} is empty"}
+      nil -> autodiscover_kubeconfig(cluster_id, provider)
+      "" -> autodiscover_kubeconfig(cluster_id, provider)
       kubeconfig when is_binary(kubeconfig) -> {:ok, kubeconfig}
+    end
+  end
+
+  # For local-provider clusters, fall back to kind so developers don't
+  # need to set TUIST_KURA_KUBECONFIG_PATH_LOCAL_1. If the kind cluster
+  # named by `Clusters.local_kind_cluster_name/0` doesn't exist yet we
+  # auto-create it (dev/test only) — the deployment row stays at
+  # `:provisioning` while kind boots, which is the right UX.
+  defp autodiscover_kubeconfig(cluster_id, "local") do
+    name = Clusters.local_kind_cluster_name()
+
+    case System.find_executable("kind") do
+      nil ->
+        {:error,
+         "no kubeconfig configured for cluster #{cluster_id} and `kind` is not on PATH " <>
+           "(install via mise: mise install kind, or set TUIST_KURA_KUBECONFIG_PATH_#{String.upcase(cluster_id) |> String.replace("-", "_")} to a kubeconfig file)"}
+
+      _ ->
+        case kind_get_kubeconfig(name) do
+          {:ok, kubeconfig} ->
+            {:ok, kubeconfig}
+
+          {:error, _output} ->
+            with :ok <- ensure_kind_cluster(name) do
+              kind_get_kubeconfig(name)
+            end
+        end
+    end
+  end
+
+  defp autodiscover_kubeconfig(cluster_id, _provider) do
+    {:error, "no kubeconfig configured for cluster #{cluster_id}"}
+  end
+
+  defp kind_get_kubeconfig(name) do
+    case MuonTrap.cmd("kind", ["get", "kubeconfig", "--name", name], stderr_to_stdout: true) do
+      {kubeconfig, 0} when is_binary(kubeconfig) and kubeconfig != "" -> {:ok, kubeconfig}
+      {output, _status} -> {:error, output}
+    end
+  end
+
+  defp ensure_kind_cluster(name) do
+    if Tuist.Environment.dev?() or Tuist.Environment.test?() do
+      Logger.info("[Kura.RolloutWorker] kind cluster `#{name}` missing; creating it (this takes ~60s)")
+
+      case MuonTrap.cmd("kind", ["create", "cluster", "--name", name], stderr_to_stdout: true) do
+        {_output, 0} -> :ok
+        {output, _status} -> {:error, "kind create cluster failed: #{String.trim(output)}"}
+      end
+    else
+      {:error, "kind cluster `#{name}` not found and auto-create is dev-only"}
     end
   end
 

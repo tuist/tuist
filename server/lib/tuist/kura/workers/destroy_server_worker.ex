@@ -61,16 +61,39 @@ defmodule Tuist.Kura.Workers.DestroyServerWorker do
   end
 
   defp helm_uninstall(%KuraServer{} = server, %Clusters{} = cluster) do
-    case Tuist.Environment.kura_kubeconfig(cluster.id) do
-      nil ->
-        {:error, "no kubeconfig for cluster #{cluster.id}"}
+    with {:ok, kubeconfig} <- resolve_kubeconfig(cluster),
+         {:ok, kubeconfig_path} <- write_temp(kubeconfig) do
+      {:ok, account} = Accounts.get_account_by_id(server.account_id)
+      release = Clusters.release_name(account.name, cluster)
+      run_helm_uninstall(release, kubeconfig_path)
+    end
+  end
 
-      kubeconfig when is_binary(kubeconfig) ->
-        with {:ok, kubeconfig_path} <- write_temp(kubeconfig) do
-          {:ok, account} = Accounts.get_account_by_id(server.account_id)
-          release = Clusters.release_name(account.name, cluster)
-          run_helm_uninstall(release, kubeconfig_path)
+  defp resolve_kubeconfig(%Clusters{id: id, provider: "local"}) do
+    case Tuist.Environment.kura_kubeconfig(id) do
+      kc when is_binary(kc) and kc != "" ->
+        {:ok, kc}
+
+      _ ->
+        case System.find_executable("kind") do
+          nil ->
+            {:error, "no kubeconfig for cluster #{id} and kind is not on PATH"}
+
+          _ ->
+            name = Clusters.local_kind_cluster_name()
+
+            case MuonTrap.cmd("kind", ["get", "kubeconfig", "--name", name], stderr_to_stdout: true) do
+              {kubeconfig, 0} -> {:ok, kubeconfig}
+              {output, _} -> {:error, "kind kubeconfig fetch failed: #{String.trim(output)}"}
+            end
         end
+    end
+  end
+
+  defp resolve_kubeconfig(%Clusters{id: id}) do
+    case Tuist.Environment.kura_kubeconfig(id) do
+      kc when is_binary(kc) and kc != "" -> {:ok, kc}
+      _ -> {:error, "no kubeconfig for cluster #{id}"}
     end
   end
 
