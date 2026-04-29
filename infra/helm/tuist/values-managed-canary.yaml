@@ -20,12 +20,6 @@ server:
   podDisruptionBudget:
     enabled: false
 
-  strategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxSurge: 0
-      maxUnavailable: 1
-
   # ingress-nginx fronts the server on port 443 with a Cloudflare Origin
   # CA cert (synced into the tuist-tls-cloudflare-origin Secret out-of-
   # band; 15-year validity). Cloudflare is set to Full (strict) SSL.
@@ -35,15 +29,13 @@ server:
     host: canary.tuist.dev
     tlsSecretName: tuist-tls-cloudflare-origin
 
-  # Canary is always a single pod, so no anti-affinity here.
-  # Requests are sized so a rolling deploy's surge pod (maxSurge: 1) fits
-  # alongside the existing pod on the canary nodepool's two workers — at
-  # 1 GiB each they don't both fit. Limits stay generous so the live pod
-  # has headroom under load.
+  # Request sized so a surge pod (chart-default maxSurge: 1) co-schedules
+  # alongside the live pod on the 2-worker canary nodepool. Steady-state
+  # working set is ~700 MiB; the 2 GiB limit absorbs that under load.
   resources:
     requests:
       cpu: "250m"
-      memory: "512Mi"
+      memory: "256Mi"
     limits:
       cpu: "2000m"
       memory: "2Gi"
