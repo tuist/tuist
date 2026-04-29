@@ -113,4 +113,152 @@ defmodule Tuist.KuraTest do
       assert Enum.map(result, & &1.id) == [d2.id, d1.id]
     end
   end
+
+  describe "create_server/1" do
+    setup do
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      {:ok, account: account, user: user}
+    end
+
+    test "inserts a server (provisioning) and an initial deployment + enqueues rollout", %{account: account, user: user} do
+      assert {:ok, server} =
+               Kura.create_server(%{
+                 account_id: account.id,
+                 cluster_id: "eu-1",
+                 spec: :medium,
+                 volume_size_gi: 200,
+                 image_tag: "0.5.2",
+                 requested_by_user_id: user.id
+               })
+
+      assert server.status == :provisioning
+      assert server.spec == :medium
+      assert server.volume_size_gi == 200
+
+      assert [%{image_tag: "0.5.2", kura_server_id: kura_server_id}] =
+               server.deployments
+
+      assert kura_server_id == server.id
+
+      assert_enqueued(
+        worker: Tuist.Kura.Workers.RolloutWorker,
+        args: %{"deployment_id" => List.first(server.deployments).id}
+      )
+    end
+
+    test "fills volume_size_gi from spec defaults when omitted", %{account: account} do
+      assert {:ok, server} =
+               Kura.create_server(%{
+                 account_id: account.id,
+                 cluster_id: "eu-1",
+                 spec: :small,
+                 image_tag: "0.5.2"
+               })
+
+      assert server.volume_size_gi == 50
+    end
+
+    test "rejects an unknown cluster", %{account: account} do
+      assert {:error, %Ecto.Changeset{errors: [cluster_id: _]}} =
+               Kura.create_server(%{
+                 account_id: account.id,
+                 cluster_id: "moon-1",
+                 spec: :medium,
+                 image_tag: "0.5.2"
+               })
+    end
+
+    test "rejects a duplicate (account, cluster, spec)", %{account: account} do
+      attrs = %{
+        account_id: account.id,
+        cluster_id: "eu-1",
+        spec: :medium,
+        image_tag: "0.5.2"
+      }
+
+      assert {:ok, _} = Kura.create_server(attrs)
+      assert {:error, %Ecto.Changeset{}} = Kura.create_server(attrs)
+    end
+  end
+
+  describe "list_servers_for_account/1" do
+    test "returns active servers, omits destroyed" do
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      {:ok, kept} =
+        Kura.create_server(%{
+          account_id: account.id,
+          cluster_id: "eu-1",
+          spec: :small,
+          image_tag: "0.5.2"
+        })
+
+      {:ok, gone} =
+        Kura.create_server(%{
+          account_id: account.id,
+          cluster_id: "eu-1",
+          spec: :large,
+          image_tag: "0.5.2"
+        })
+
+      {:ok, _} = Kura.mark_destroyed(gone)
+
+      ids = Kura.list_servers_for_account(account.id) |> Enum.map(& &1.id)
+      assert kept.id in ids
+      refute gone.id in ids
+    end
+  end
+
+  describe "destroy_server/1" do
+    test "marks destroying, removes the cache endpoint, enqueues the destroy worker" do
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      {:ok, server} =
+        Kura.create_server(%{
+          account_id: account.id,
+          cluster_id: "eu-1",
+          spec: :medium,
+          image_tag: "0.5.2"
+        })
+
+      {:ok, server} = Kura.activate_server(server, "0.5.2")
+      assert server.status == :active
+
+      assert [%{url: _url}] = Accounts.list_account_cache_endpoints(account, :kura)
+
+      assert {:ok, server} = Kura.destroy_server(server)
+      assert server.status == :destroying
+      assert Accounts.list_account_cache_endpoints(account, :kura) == []
+
+      assert_enqueued(worker: Tuist.Kura.Workers.DestroyServerWorker, args: %{"server_id" => server.id})
+    end
+  end
+
+  describe "subscribe_to_account/1" do
+    test "broadcasts created/updated/destroyed events to the account topic" do
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      :ok = Kura.subscribe_to_account(account.id)
+
+      {:ok, server} =
+        Kura.create_server(%{
+          account_id: account.id,
+          cluster_id: "eu-1",
+          spec: :medium,
+          image_tag: "0.5.2"
+        })
+
+      assert_receive {:kura_server, :created, %{id: id1}}
+      assert id1 == server.id
+
+      {:ok, _} = Kura.activate_server(server, "0.5.2")
+      assert_receive {:kura_server, :updated, _}
+
+      {:ok, _} = Kura.destroy_server(server)
+      assert_receive {:kura_server, :updated, %{status: :destroying}}
+    end
+  end
 end

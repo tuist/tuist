@@ -22,6 +22,8 @@ defmodule Tuist.Kura.Workers.RolloutWorker do
   alias Tuist.Kura
   alias Tuist.Kura.Clusters
   alias Tuist.Kura.KuraDeployment
+  alias Tuist.Kura.KuraServer
+  alias Tuist.Kura.Specs
   alias Tuist.Repo
 
   require Logger
@@ -52,38 +54,50 @@ defmodule Tuist.Kura.Workers.RolloutWorker do
   end
 
   defp execute(%KuraDeployment{} = deployment) do
-    deployment = Repo.preload(deployment, :account)
+    deployment = Repo.preload(deployment, [:account, :kura_server])
     account = deployment.account
     cluster = Clusters.get(deployment.cluster_id)
+    server = deployment.kura_server
 
     case cluster do
       nil ->
         message = "cluster #{deployment.cluster_id} is no longer in the catalog"
         {:ok, _} = Kura.mark_failed(deployment, message)
+        if server, do: Kura.fail_server(server)
         {:error, message}
 
       %Clusters{} = cluster ->
-        do_execute(deployment, account, cluster)
+        do_execute(deployment, account, cluster, server)
     end
   end
 
-  defp do_execute(%KuraDeployment{} = deployment, account, %Clusters{} = cluster) do
-    case prepare(deployment, account, cluster) do
+  defp do_execute(%KuraDeployment{} = deployment, account, %Clusters{} = cluster, server) do
+    case prepare(deployment, account, cluster, server) do
       {:ok, %{kubeconfig_path: kubeconfig, instance_values_path: instance_values}} ->
         {:ok, deployment} = Kura.mark_running(deployment)
-        run_rollout(deployment, account, cluster, kubeconfig, instance_values)
+
+        case run_rollout(deployment, account, cluster, kubeconfig, instance_values) do
+          :ok ->
+            if server, do: Kura.activate_server(server, deployment.image_tag)
+            :ok
+
+          {:error, _message} = error ->
+            if server, do: Kura.fail_server(server)
+            error
+        end
 
       {:error, message} ->
         {:ok, _} = Kura.mark_failed(deployment, message)
+        if server, do: Kura.fail_server(server)
         {:error, message}
     end
   end
 
-  defp prepare(%KuraDeployment{} = deployment, account, %Clusters{} = cluster) do
+  defp prepare(%KuraDeployment{} = deployment, account, %Clusters{} = cluster, server) do
     with {:ok, _chart_path} <- chart_path(),
          {:ok, kubeconfig} <- kubeconfig_for(cluster),
          {:ok, kubeconfig_path} <- write_temp(kubeconfig, "kubeconfig"),
-         instance_yaml <- render_instance_values(deployment, account, cluster),
+         instance_yaml <- render_instance_values(deployment, account, cluster, server),
          {:ok, instance_values_path} <- write_temp(instance_yaml, "instance.yaml") do
       {:ok, %{kubeconfig_path: kubeconfig_path, instance_values_path: instance_values_path}}
     end
@@ -108,12 +122,14 @@ defmodule Tuist.Kura.Workers.RolloutWorker do
     end
   end
 
-  defp render_instance_values(%KuraDeployment{image_tag: image_tag} = _deployment, account, %Clusters{} = cluster) do
+  defp render_instance_values(%KuraDeployment{image_tag: image_tag} = _deployment, account, %Clusters{} = cluster, server) do
     release = Clusters.release_name(account.name, cluster)
     host = Clusters.public_url(account.name, cluster) |> URI.parse() |> Map.fetch!(:host)
     {:ok, chart_path} = chart_path()
     hook_script = File.read!(Path.join(chart_path, "hooks/tuist.lua"))
     extension_env = render_extension_env()
+    spec_block = render_spec_block(server)
+    persistence_block = render_persistence_block(server)
 
     """
     fullnameOverride: #{release}
@@ -128,6 +144,8 @@ defmodule Tuist.Kura.Workers.RolloutWorker do
     #{indent(hook_script, 8)}
     extraEnv:
     #{extension_env}
+    #{spec_block}
+    #{persistence_block}
     ingress:
       hosts:
         - host: #{host}
@@ -148,6 +166,37 @@ defmodule Tuist.Kura.Workers.RolloutWorker do
             app.kubernetes.io/instance: #{release}
     """
   end
+
+  # Resource overlay derived from the server's spec. When the deployment
+  # has no parent server (e.g. a standalone test deployment), fall back
+  # to the defaults baked into values-managed.yaml by emitting nothing.
+  defp render_spec_block(%KuraServer{spec: spec}) do
+    case Specs.resource_overlay(spec) do
+      %{"resources" => res} ->
+        """
+        resources:
+          requests:
+            cpu: "#{res["requests"]["cpu"]}"
+            memory: "#{res["requests"]["memory"]}"
+          limits:
+            memory: "#{res["limits"]["memory"]}"\
+        """
+
+      _ ->
+        ""
+    end
+  end
+
+  defp render_spec_block(_), do: ""
+
+  defp render_persistence_block(%KuraServer{volume_size_gi: gi}) when is_integer(gi) and gi > 0 do
+    """
+    persistence:
+      size: #{gi}Gi\
+    """
+  end
+
+  defp render_persistence_block(_), do: ""
 
   # Builds the YAML fragment that goes under `extraEnv:` in the per-instance
   # overlay. The chart wires these straight onto the StatefulSet, so they
@@ -315,7 +364,7 @@ defmodule Tuist.Kura.Workers.RolloutWorker do
   # Convenience: re-export so test code can poke at the helper without
   # going through Oban.
   @doc false
-  def render_instance_values_for_test(deployment, account, cluster) do
-    render_instance_values(deployment, account, cluster)
+  def render_instance_values_for_test(deployment, account, cluster, server \\ nil) do
+    render_instance_values(deployment, account, cluster, server)
   end
 end

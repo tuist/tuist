@@ -12,11 +12,12 @@ defmodule TuistWeb.OpsAccountLive do
 
   alias Phoenix.LiveView.JS
   alias Tuist.Accounts
-  alias Tuist.Accounts.AccountCacheEndpoint
   alias Tuist.Billing
   alias Tuist.Billing.Subscription
   alias Tuist.Kura
   alias Tuist.Kura.Clusters
+  alias Tuist.Kura.KuraServer
+  alias Tuist.Kura.Specs
   alias Tuist.Repo
 
   require Logger
@@ -26,6 +27,7 @@ defmodule TuistWeb.OpsAccountLive do
     case Accounts.get_account_by_id(parse_id(id)) do
       {:ok, account} ->
         account = preload_billing(account)
+        if connected?(socket), do: Kura.subscribe_to_account(account.id)
 
         {:ok,
          socket
@@ -33,6 +35,8 @@ defmodule TuistWeb.OpsAccountLive do
          |> assign(:account, account)
          |> assign(:upgrade_target_account, nil)
          |> assign(:upgrade_target_customer, nil)
+         |> assign(:show_add_server_modal?, false)
+         |> assign(:add_server_form, default_add_server_form())
          |> load_kura_state()}
 
       {:error, :not_found} ->
@@ -40,6 +44,25 @@ defmodule TuistWeb.OpsAccountLive do
          socket
          |> put_flash(:error, "Account not found.")
          |> push_navigate(to: ~p"/ops/accounts")}
+    end
+  end
+
+  defp default_add_server_form do
+    default_cluster = Clusters.all() |> List.first()
+    default_spec = :medium
+
+    %{
+      "cluster_id" => default_cluster && default_cluster.id,
+      "spec" => Atom.to_string(default_spec),
+      "volume_size_gi" => to_string(Specs.default_volume_gi(default_spec) || 200),
+      "image_tag" => latest_image_tag()
+    }
+  end
+
+  defp latest_image_tag do
+    case Kura.latest_versions(1) do
+      [%{version: version} | _] -> version
+      _ -> ""
     end
   end
 
@@ -65,113 +88,86 @@ defmodule TuistWeb.OpsAccountLive do
   defp load_kura_state(socket) do
     account = socket.assigns.account
 
-    bound = Accounts.list_account_cache_endpoints(account, :kura)
-    bound_cluster_ids = Enum.map(bound, &cluster_id_from_url/1) |> Enum.reject(&is_nil/1)
-
     socket
-    |> assign(:kura_bound, bound)
-    |> assign(:kura_bound_cluster_ids, bound_cluster_ids)
+    |> assign(:kura_servers, Kura.list_servers_for_account(account.id))
     |> assign(:kura_clusters, Clusters.all())
+    |> assign(:kura_specs, Specs.all())
     |> assign(:kura_versions, Kura.latest_versions(20))
-    |> assign(:kura_deployments, Kura.list_deployments_for_account(account.id, 20))
   end
 
-  # Pull the cluster ID out of the stored URL by reversing the host
-  # template `<account>-<cluster>.kura.tuist.dev`. Returns nil if the URL
-  # doesn't match (e.g. it was inserted before this convention).
-  def cluster_id_from_url_helper(%AccountCacheEndpoint{} = endpoint), do: cluster_id_from_url(endpoint)
+  ## Kura events
 
-  defp cluster_id_from_url(%AccountCacheEndpoint{url: url}) do
-    case URI.parse(url) do
-      %URI{host: host} when is_binary(host) ->
-        case String.split(host, ".kura.") do
-          [prefix, _] ->
-            case String.split(prefix, "-", parts: 2) do
-              [_account, cluster_id] -> cluster_id
-              _ -> nil
-            end
-
-          _ ->
-            nil
-        end
-
-      _ ->
-        nil
-    end
+  @impl true
+  def handle_event("open_add_server", _params, socket) do
+    {:noreply, assign(socket, :show_add_server_modal?, true)}
   end
 
   @impl true
-  def handle_event("bind_cluster", %{"cluster_id" => cluster_id}, socket) do
-    account = socket.assigns.account
-
-    case Clusters.get(cluster_id) do
-      nil ->
-        {:noreply, put_flash(socket, :error, "Unknown cluster #{cluster_id}.")}
-
-      %Clusters{} = cluster ->
-        url = Clusters.public_url(account.name, cluster)
-
-        case Accounts.create_account_cache_endpoint(account, %{url: url, technology: :kura}) do
-          {:ok, _endpoint} ->
-            {:noreply,
-             socket
-             |> put_flash(:info, "Bound #{cluster_id} → #{url}")
-             |> load_kura_state()}
-
-          {:error, changeset} ->
-            {:noreply,
-             put_flash(socket, :error, "Failed to bind: #{inspect(changeset.errors)}")}
-        end
-    end
+  def handle_event("close_add_server", _params, socket) do
+    {:noreply, assign(socket, :show_add_server_modal?, false)}
   end
 
   @impl true
-  def handle_event("unbind", %{"id" => id}, socket) do
-    case Accounts.get_account_cache_endpoint(socket.assigns.account, id) do
-      nil ->
-        {:noreply, put_flash(socket, :error, "Endpoint not found.")}
+  def handle_event("validate_add_server", %{"server" => params}, socket) do
+    # Re-derive the volume default whenever the spec changes so the
+    # operator sees a sensible value without typing it.
+    spec = String.to_existing_atom(params["spec"] || "medium")
+    current_volume = params["volume_size_gi"]
+    previous_spec = socket.assigns.add_server_form["spec"]
 
-      endpoint ->
-        {:ok, _} = Accounts.delete_account_cache_endpoint(endpoint)
-        {:noreply, socket |> put_flash(:info, "Endpoint removed.") |> load_kura_state()}
-    end
+    volume =
+      if previous_spec != params["spec"] or current_volume in [nil, ""] do
+        to_string(Specs.default_volume_gi(spec) || current_volume || "200")
+      else
+        current_volume
+      end
+
+    {:noreply, assign(socket, :add_server_form, Map.put(params, "volume_size_gi", volume))}
   end
 
   @impl true
-  def handle_event("deploy", %{"cluster_id" => cluster_id, "image_tag" => image_tag}, socket) do
+  def handle_event("submit_add_server", %{"server" => params}, socket) do
     account = socket.assigns.account
     user = socket.assigns.current_user
 
-    case Kura.create_deployment(%{
-           account_id: account.id,
-           cluster_id: cluster_id,
-           image_tag: image_tag,
-           requested_by_user_id: user && user.id
-         }) do
-      {:ok, deployment} ->
+    attrs = %{
+      account_id: account.id,
+      cluster_id: params["cluster_id"],
+      spec: String.to_existing_atom(params["spec"] || "medium"),
+      volume_size_gi: parse_int(params["volume_size_gi"], 200),
+      image_tag: params["image_tag"],
+      requested_by_user_id: user && user.id
+    }
+
+    case Kura.create_server(attrs) do
+      {:ok, server} ->
         {:noreply,
          socket
-         |> put_flash(:info, "Queued deployment of #{image_tag} to #{cluster_id}.")
-         |> push_navigate(
-           to: ~p"/ops/accounts/#{account.id}/kura/deployments/#{deployment.id}"
-         )}
+         |> put_flash(:info, "Provisioning Kura server on #{server.cluster_id}…")
+         |> assign(:show_add_server_modal?, false)
+         |> assign(:add_server_form, default_add_server_form())
+         |> load_kura_state()}
 
       {:error, %Ecto.Changeset{} = changeset} ->
-        {:noreply, put_flash(socket, :error, "Invalid deployment: #{inspect(changeset.errors)}")}
+        {:noreply,
+         socket
+         |> put_flash(:error, "Failed to provision: #{format_errors(changeset)}")}
 
       {:error, reason} ->
-        {:noreply, put_flash(socket, :error, "Failed to queue: #{inspect(reason)}")}
+        {:noreply, put_flash(socket, :error, "Failed to provision: #{inspect(reason)}")}
     end
   end
 
   @impl true
-  def handle_event("poll_versions_now", _params, socket) do
-    {:ok, _job} =
-      %{}
-      |> Tuist.Kura.Workers.PollVersionsWorker.new()
-      |> Oban.insert()
+  def handle_event("destroy_server", %{"id" => id}, socket) do
+    case Kura.get_server(socket.assigns.account.id, id) do
+      nil ->
+        {:noreply, put_flash(socket, :error, "Server not found.")}
 
-    {:noreply, put_flash(socket, :info, "Version poll scheduled.")}
+      %KuraServer{} = server ->
+        {:ok, _} = Kura.destroy_server(server)
+        {:noreply, socket |> put_flash(:info, "Destroying Kura server…") |> load_kura_state()}
+    end
   end
 
   ## Plan & billing event handlers (moved from OpsAccountsLive)
@@ -253,6 +249,25 @@ defmodule TuistWeb.OpsAccountLive do
      |> push_event("close-modal", %{id: "enterprise-modal"})}
   end
 
+  @impl true
+  def handle_info({:kura_server, _event, _server}, socket) do
+    {:noreply, load_kura_state(socket)}
+  end
+
+  defp parse_int(value, default) when is_binary(value) do
+    case Integer.parse(value) do
+      {n, _} when n > 0 -> n
+      _ -> default
+    end
+  end
+
+  defp parse_int(_, default), do: default
+
+  defp format_errors(%Ecto.Changeset{errors: errors}) do
+    errors
+    |> Enum.map_join(", ", fn {field, {msg, _}} -> "#{field} #{msg}" end)
+  end
+
   ## View helpers
 
   def cluster_kubeconfig_status(%Clusters{id: id}) do
@@ -262,17 +277,24 @@ defmodule TuistWeb.OpsAccountLive do
     end
   end
 
-  def deployment_status_label(:pending), do: "Pending"
-  def deployment_status_label(:running), do: "Running"
-  def deployment_status_label(:succeeded), do: "Succeeded"
-  def deployment_status_label(:failed), do: "Failed"
-  def deployment_status_label(:cancelled), do: "Cancelled"
+  def server_status_label(:provisioning), do: "Provisioning"
+  def server_status_label(:active), do: "Active"
+  def server_status_label(:failed), do: "Failed"
+  def server_status_label(:destroying), do: "Destroying"
+  def server_status_label(:destroyed), do: "Destroyed"
 
-  def deployment_status_color(:pending), do: "neutral"
-  def deployment_status_color(:running), do: "information"
-  def deployment_status_color(:succeeded), do: "success"
-  def deployment_status_color(:failed), do: "destructive"
-  def deployment_status_color(:cancelled), do: "warning"
+  def server_status_color(:provisioning), do: "information"
+  def server_status_color(:active), do: "success"
+  def server_status_color(:failed), do: "destructive"
+  def server_status_color(:destroying), do: "warning"
+  def server_status_color(:destroyed), do: "neutral"
+
+  def spec_label(spec) when is_atom(spec) do
+    case Specs.get(spec) do
+      %Specs{label: label} -> label
+      _ -> Atom.to_string(spec)
+    end
+  end
 
   ## Stripe-customer prefill helpers (moved from OpsAccountsLive)
 
