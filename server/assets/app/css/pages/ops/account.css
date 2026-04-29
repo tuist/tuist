@@ -54,3 +54,26 @@
     max-width: 480px;
   }
 }
+
+/* Add Kura server modal — Noora portals it out of #ops-account, so
+   styles live at the top level and target the form class. Mirrors the
+   enterprise-upgrade form: vertical stack, consistent gap, and pairs
+   each <.label> with the field below it. */
+.add-server-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-4);
+  min-width: 420px;
+
+  & .select-field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-2);
+  }
+
+  & [data-part="hint"] {
+    margin: var(--noora-spacing-0);
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-small);
+  }
+}

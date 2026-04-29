@@ -159,12 +159,16 @@
         show_required
       />
 
-      <div class="select-field">
-        <.label label="Initial Kura version" required />
-        <.select id="add-server-image-tag" name="server[image_tag]" value={@add_server_form["image_tag"]} label="Version">
-          <:item :for={version <- @kura_versions} value={version.version} label={version.version} />
-        </.select>
-      </div>
+      <p data-part="hint">
+        <%= case @latest_kura_version do %>
+          <% nil -> %>
+            No Kura release has been cached yet. The hourly poll runs in the background;
+            try again in a minute or run "Poll versions now" from the Oban dashboard.
+          <% version -> %>
+            Provisioned with Kura <strong>{version.version}</strong>
+            (latest cached release). Subsequent upgrades pick up the next release the same way.
+        <% end %>
+      </p>
     </form>
 
     <:footer>
