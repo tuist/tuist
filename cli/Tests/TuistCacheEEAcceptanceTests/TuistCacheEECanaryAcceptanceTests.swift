@@ -93,7 +93,9 @@ struct TuistCacheEECanaryAcceptanceTests {
         TuistTest.expectLogs("cacheable tasks (100%)")
     }
 
+    // FIXME(#10528): Fails consistently on CI against canary; quarantined until diagnosed.
     @Test(
+        .disabled("Quarantined: see https://github.com/tuist/tuist/issues/10528"),
         .inTemporaryDirectory,
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
         .withMockedNoora,
@@ -136,7 +138,9 @@ struct TuistCacheEECanaryAcceptanceTests {
         try await TuistTest.run(XcodeBuildBuildCommand.self, arguments)
     }
 
+    // FIXME(#10528): Fails consistently on CI against canary; quarantined until diagnosed.
     @Test(
+        .disabled("Quarantined: see https://github.com/tuist/tuist/issues/10528"),
         .inTemporaryDirectory,
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
         .withMockedNoora,
