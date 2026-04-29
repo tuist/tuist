@@ -392,6 +392,20 @@ objectStorage:
       cache: tuist-cache
       xcodeCache: tuist-xcode-cache
       registry: tuist-registry
+    managedSecrets: false
+    externalSecrets:
+      refreshInterval: "1h"
+      storeRef:
+        kind: ClusterSecretStore
+        name: onepassword
+      accessKey:
+        # 1Password item title and field. With the 1P SDK provider the vault
+        # is set on the ClusterSecretStore, not here.
+        item: S3_CREDENTIALS
+        field: access_key_id
+      secretKey:
+        item: S3_CREDENTIALS
+        field: secret_access_key
   embedded:
     provider: minio
     image:

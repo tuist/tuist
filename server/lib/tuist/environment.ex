@@ -293,7 +293,9 @@ defmodule Tuist.Environment do
 
   def s3_access_key_id(secrets \\ secrets()) do
     if dev_use_remote_storage?() do
-      System.get_env("AWS_ACCESS_KEY_ID") || get([:s3, :access_key_id], secrets)
+      System.get_env("TUIST_S3_ACCESS_KEY_ID") ||
+        System.get_env("AWS_ACCESS_KEY_ID") ||
+        get([:s3, :access_key_id], secrets)
     else
       "minio"
     end
@@ -301,19 +303,24 @@ defmodule Tuist.Environment do
 
   def s3_secret_access_key(secrets \\ secrets()) do
     if dev_use_remote_storage?() do
-      System.get_env("AWS_SECRET_ACCESS_KEY") || get([:s3, :secret_access_key], secrets)
+      System.get_env("TUIST_S3_SECRET_ACCESS_KEY") ||
+        System.get_env("AWS_SECRET_ACCESS_KEY") ||
+        get([:s3, :secret_access_key], secrets)
     else
       "minio1234"
     end
   end
 
   def s3_region(secrets \\ secrets()) do
-    System.get_env("AWS_REGION") || get([:s3, :region], secrets) || "auto"
+    System.get_env("TUIST_S3_REGION") ||
+      System.get_env("AWS_REGION") ||
+      get([:s3, :region], secrets) ||
+      "auto"
   end
 
   def s3_bucket_name(secrets \\ secrets()) do
     if dev_use_remote_storage?() do
-      get([:s3, :bucket_name], secrets)
+      System.get_env("TUIST_S3_BUCKET_NAME") || get([:s3, :bucket_name], secrets)
     else
       "tuist-development"
     end
@@ -321,7 +328,7 @@ defmodule Tuist.Environment do
 
   def s3_endpoint(secrets \\ secrets()) do
     if dev_use_remote_storage?() do
-      get([:s3, :endpoint], secrets)
+      System.get_env("TUIST_S3_ENDPOINT") || get([:s3, :endpoint], secrets)
     else
       System.get_env("TUIST_LOCAL_S3_ENDPOINT") ||
         case System.get_env("TUIST_MINIO_API_PORT") do
@@ -333,7 +340,10 @@ defmodule Tuist.Environment do
 
   def s3_virtual_host(secrets \\ secrets()) do
     if dev_use_remote_storage?() do
-      [:s3, :virtual_host] |> get(secrets) |> truthy?()
+      case System.get_env("TUIST_S3_VIRTUAL_HOST") do
+        nil -> [:s3, :virtual_host] |> get(secrets) |> truthy?()
+        value -> truthy?(value)
+      end
     else
       false
     end
@@ -341,7 +351,10 @@ defmodule Tuist.Environment do
 
   def s3_bucket_as_host(secrets \\ secrets()) do
     if dev_use_remote_storage?() do
-      [:s3, :bucket_as_host] |> get(secrets) |> truthy?()
+      case System.get_env("TUIST_S3_BUCKET_AS_HOST") do
+        nil -> [:s3, :bucket_as_host] |> get(secrets) |> truthy?()
+        value -> truthy?(value)
+      end
     else
       false
     end

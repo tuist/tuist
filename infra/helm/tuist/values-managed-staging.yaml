@@ -71,6 +71,11 @@ server:
       cpu: "1000m"
       memory: "1536Mi"
 
+objectStorage:
+  external:
+    buckets:
+      default: tuist-stag-storage
+
 processor:
   # Supabase staging project (inzgspjesrhqhleomvkb) — dedicated pooler on
   # port 6543 (transaction mode). Same hostname as the direct Postgres

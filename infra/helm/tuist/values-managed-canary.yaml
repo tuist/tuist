@@ -20,6 +20,12 @@ server:
   podDisruptionBudget:
     enabled: false
 
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+
   # ingress-nginx fronts the server on port 443 with a Cloudflare Origin
   # CA cert (synced into the tuist-tls-cloudflare-origin Secret out-of-
   # band; 15-year validity). Cloudflare is set to Full (strict) SSL.
@@ -52,6 +58,11 @@ server:
       value: "15"
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
       value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
+
+objectStorage:
+  external:
+    buckets:
+      default: tuist-can-storage
 
 processor:
   # Supabase canary project (thapckmapmffdgaiarvu) — dedicated pooler on
