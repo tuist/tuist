@@ -491,6 +491,17 @@ jobs:
           security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
           security default-keychain -s $KEYCHAIN_PATH
           security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
+      - name: Authenticate against acceptance cluster
+        # The earlier `tuist auth login` step authenticates against the
+        # default tuist server (canary). `tuist test` then tries to upload
+        # run metadata to TUIST_URL (our preview cluster), where it has no
+        # session — the request 401s. Authenticate against the preview
+        # cluster URL too so credentials get saved for that host.
+        env:
+          TUIST_URL: ${{ needs.cli-acceptance-cluster.outputs.url }}
+          TUIST_AUTH_EMAIL: tuistrocks@tuist.dev
+          TUIST_AUTH_PASSWORD: tuistrocks
+        run: tuist auth login --email tuistrocks@tuist.dev --password tuistrocks
       - name: Run shard ${{ matrix.shard }}
         run: tuist test --without-building --platform macOS TuistAcceptanceTests -- -retry-tests-on-failure -test-iterations 2
         env:
