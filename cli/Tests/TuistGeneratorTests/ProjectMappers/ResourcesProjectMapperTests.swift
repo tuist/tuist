@@ -137,6 +137,28 @@ struct ResourcesProjectMapperTests {
     }
 
     @Test
+    func mapWhenInternalObjcStaticFrameworkHasResources() async throws {
+        // Given
+        let resources: [ResourceFileElement] = [.file(path: "/image.png")]
+        let target = Target.test(product: .staticFramework, sources: ["/Absolute/File.m"], resources: .init(resources))
+        let project = Project.test(targets: [target], type: .local) // Internal target (not external)
+        given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
+        given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
+
+        // When
+        let (gotProject, gotSideEffects) = try await subject.map(project: project)
+
+        // Then
+        let gotTarget = try #require(gotProject.targets.values.sorted().last)
+        verifyObjcBundleAccessor(
+            for: target,
+            gotTarget: gotTarget,
+            gotSideEffects: gotSideEffects,
+            project: project
+        )
+    }
+
+    @Test
     func mapWhenDisableBundleAccessorsIsTrueDoesNotGenerateAccessors() async throws {
         // Given
         let resources: [ResourceFileElement] = [.file(path: "/image.png")]
@@ -1227,12 +1249,8 @@ struct ResourcesProjectMapperTests {
         gotSideEffects: [SideEffectDescriptor],
         project: Project
     ) {
-        #expect(
-            gotTarget.settings?.base["GCC_PREFIX_HEADER"] ==
-                .string(
-                    "$(SRCROOT)/\(Constants.DerivedDirectory.name)/\(Constants.DerivedDirectory.sources)/TuistBundle+\(target.name).h"
-                )
-        )
+        // Verify GCC_PREFIX_HEADER is NOT set (we no longer override user's prefix header)
+        #expect(gotTarget.settings?.base["GCC_PREFIX_HEADER"] == nil)
         #expect(gotTarget.sources.count == 2)
         #expect(gotSideEffects.count == 2)
         let generatedFiles = gotSideEffects.compactMap {
