@@ -219,7 +219,10 @@ if [[ "$LICENSE_MODE" = "eso" ]]; then
     fi
     if ! op item get TUIST_LICENSE_KEY --vault "$OP_VAULT" --format json >/dev/null 2>&1; then
       echo "ERROR: vault '${OP_VAULT}' does not contain an item named 'TUIST_LICENSE_KEY'." >&2
-      echo "       Add one (Login or Password category, license value in the 'password' field) and retry." >&2
+      echo "       Items currently in '${OP_VAULT}':" >&2
+      op item list --vault "$OP_VAULT" --format json 2>/dev/null \
+        | jq -r '.[] | "         - \(.title) (\(.category))"' >&2 || true
+      echo "       Add a TUIST_LICENSE_KEY item (Login or Password category, license value in the 'password' field) and retry." >&2
       exit 1
     fi
   fi
