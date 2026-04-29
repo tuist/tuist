@@ -73,7 +73,7 @@ defmodule Tuist.MixProject do
       {:credo, "== 1.7.13", only: [:dev, :test], runtime: false},
       {:sentry, "~> 11.0.4"},
       {:tower, "~> 0.8"},
-      {:tower_opentelemetry, github: "tuist/tower_opentelemetry"},
+      {:tower_opentelemetry, "~> 0.2.0"},
       {:hackney, "~> 1.8"},
       {:castore, "~> 1.0.12"},
       {:uniq, "~> 0.6"},
