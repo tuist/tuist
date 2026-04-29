@@ -85,14 +85,24 @@
           <.text_cell label={server.url || "—"} />
         </:col>
         <:col :let={server} label="Actions">
-          <.button
-            :if={server.status not in [:destroying, :destroyed]}
-            variant="secondary"
-            label="Destroy"
-            phx-click="destroy_server"
-            phx-value-id={server.id}
-            data-confirm={"Destroy the Kura server on #{server.cluster_id}? This runs `helm uninstall` and removes the URL from the account's cache endpoints."}
-          />
+          <div data-part="actions">
+            <.button
+              :if={List.first(server.deployments)}
+              variant="secondary"
+              label="View logs"
+              navigate={
+                ~p"/ops/accounts/#{@account.id}/kura/deployments/#{List.first(server.deployments).id}"
+              }
+            />
+            <.button
+              :if={server.status not in [:destroying, :destroyed]}
+              variant="secondary"
+              label="Destroy"
+              phx-click="destroy_server"
+              phx-value-id={server.id}
+              data-confirm={"Destroy the Kura server on #{server.cluster_id}? This runs `helm uninstall` and removes the URL from the account's cache endpoints."}
+            />
+          </div>
         </:col>
         <:empty_state>
           <.table_empty_state

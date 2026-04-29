@@ -133,11 +133,19 @@ defmodule Tuist.Kura do
     end
   end
 
-  @doc "Returns the active (non-destroyed) servers for an account."
+  @doc """
+  Returns the non-destroyed servers for an account, each preloaded with
+  its deployments (newest first) so the /ops UI can link straight to
+  the latest deployment's log tail.
+  """
   def list_servers_for_account(account_id) do
+    deployments_query =
+      from(d in KuraDeployment, order_by: [desc: d.inserted_at, desc: d.id])
+
     KuraServer
     |> where([s], s.account_id == ^account_id and s.status != :destroyed)
     |> order_by([s], asc: s.cluster_id, asc: s.spec)
+    |> preload(deployments: ^deployments_query)
     |> Repo.all()
   end
 
