@@ -124,10 +124,30 @@ func (p *Provider) CreatePod(ctx context.Context, pod *corev1.Pod) error {
 	if err := client.Pull(ctx, c.Image); err != nil {
 		return fmt.Errorf("tart pull %s: %w", c.Image, err)
 	}
-	// Clone is idempotent only if the VM doesn't already exist; if a
-	// previous CreatePod attempt left a half-baked VM behind, delete
-	// it first.
-	if vm, _ := client.Get(ctx, vmName); vm != nil {
+	// VM presence + liveness check.
+	//
+	// Tart 2.32 `tart get` reports "stopped" even for a running VM
+	// (it doesn't update the state file for backgrounded processes),
+	// so we can't trust it to detect a running VM. Use `tart ip` as
+	// the liveness probe: a non-empty IP means the VM has booted.
+	//
+	//   - VM exists + has IP → already running, fast-path success
+	//   - VM exists + no IP → stale half-baked clone, delete + re-create
+	//   - VM doesn't exist → clone fresh
+	vm, _ := client.Get(ctx, vmName)
+	if vm != nil {
+		if ip, err := client.IP(ctx, vmName); err == nil && ip != "" {
+			// Already running. Mark and return.
+			p.mu.Lock()
+			if _, ok := p.pods[podKey(pod)]; !ok {
+				p.pods[podKey(pod)] = &placedPod{
+					pod: pod, hostIP: host.IP, vmName: vmName,
+					startTS: metav1.Now(),
+				}
+			}
+			p.mu.Unlock()
+			return nil
+		}
 		_ = client.Stop(ctx, vmName, 5*time.Second)
 		_ = client.Delete(ctx, vmName)
 	}
@@ -231,11 +251,20 @@ func (p *Provider) GetPodStatus(ctx context.Context, namespace, name string) (*c
 	}
 	defer client.Close()
 
-	vm, err := client.Get(ctx, pp.vmName)
-	if err != nil {
-		return &corev1.PodStatus{Phase: corev1.PodUnknown}, nil
+	// Tart 2.32's `get` doesn't update state for backgrounded VMs,
+	// so we use the IP as a liveness signal: if the VM has obtained
+	// an IP, it's running. If not, we don't know — could be booting,
+	// could have crashed.
+	ip, err := client.IP(ctx, pp.vmName)
+	status := &corev1.PodStatus{StartTime: &pp.startTS, HostIP: pp.hostIP}
+	if err == nil && ip != "" {
+		status.Phase = corev1.PodRunning
+		status.PodIP = ip
+		status.Conditions = []corev1.PodCondition{{Type: corev1.PodReady, Status: corev1.ConditionTrue}}
+	} else {
+		status.Phase = corev1.PodPending
 	}
-	return tartStateToPodStatus(vm, pp), nil
+	return status, nil
 }
 
 func (p *Provider) GetPods(ctx context.Context) ([]*corev1.Pod, error) {

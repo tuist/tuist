@@ -114,20 +114,26 @@ func (c *Client) Run(ctx context.Context, name string, opts RunOptions) error {
 		return err
 	}
 
-	// Poll until the VM reports `running`.
+	// Poll until the VM has booted far enough to obtain an IP. We
+	// can't poll `tart get` for State=="running" because Tart 2.32's
+	// CLI doesn't update the on-disk state file for backgrounded VMs
+	// — `get` reports "stopped" forever even when Apple's
+	// Virtualization process is happily running the guest. `tart ip`
+	// is the closest reliable probe: it returns the guest's IP only
+	// once VM networking is up, which strictly implies the VM is
+	// running.
 	deadline := time.Now().Add(2 * time.Minute)
 	for time.Now().Before(deadline) {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-time.After(2 * time.Second):
+		case <-time.After(3 * time.Second):
 		}
-		vm, err := c.Get(ctx, name)
-		if err == nil && vm.State == "running" {
+		if ip, err := c.IP(ctx, name); err == nil && ip != "" {
 			return nil
 		}
 	}
-	return fmt.Errorf("tart run %s: did not reach running state in 2m", name)
+	return fmt.Errorf("tart run %s: VM did not obtain an IP in 2m", name)
 }
 
 // RunOptions are knobs for Run.
