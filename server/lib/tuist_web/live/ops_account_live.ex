@@ -108,6 +108,8 @@ defmodule TuistWeb.OpsAccountLive do
 
   @impl true
   def handle_event("submit_add_server", %{"server" => params}, socket) do
+    Logger.info("[OpsAccountLive] submit_add_server params=#{inspect(params)}")
+
     account = socket.assigns.account
     user = socket.assigns.current_user
 
