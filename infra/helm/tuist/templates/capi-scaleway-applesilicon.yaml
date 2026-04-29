@@ -41,8 +41,17 @@ rules:
     resources: [machines, machinesets, machinedeployments, clusters]
     verbs: [get, list, watch]
   - apiGroups: [""]
-    resources: [secrets, nodes]
+    resources: [nodes]
     verbs: [get, list, watch]
+  - apiGroups: [""]
+    # The operator owns two Secret families:
+    #   - <fleet>-ssh: per-fleet Ed25519 keypair, generated once
+    #   - bootstrap-token-<id> in kube-system: 24h kubelet bootstrap
+    #     tokens, minted per Machine reconcile
+    # Both are write paths. We additionally watch other Secrets (cluster
+    # Secret holding Scaleway creds is one) but never modify those.
+    resources: [secrets]
+    verbs: [get, list, watch, create, update, patch, delete]
   - apiGroups: ["coordination.k8s.io"]
     resources: [leases]
     verbs: [get, list, watch, create, update, patch, delete]
