@@ -147,6 +147,6 @@ macosFleet:
     # via a deliberate values bump rather than a `:latest` race. Bump
     # this when you publish a new build of
     # ghcr.io/tuist/capi-provider-scaleway-applesilicon.
-    tag: "6f774f7f"
+    tag: "cb06c183"
   machine:
     podCIDR: 10.42.1.0/24
