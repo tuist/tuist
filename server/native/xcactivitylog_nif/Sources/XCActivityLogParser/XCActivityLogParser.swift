@@ -297,7 +297,7 @@ public struct XCActivityLogParser: Sendable {
         let descriptions = keyDescriptions
         let nodeIDs = keyNodeIDs
 
-        return try await Array(keyStatuses).concurrentMap(maxConcurrentTasks: 8) { (key, status) in
+        return try await Array(keyStatuses).concurrentMap(maxConcurrentTasks: 50) { (key, status) in
             // A key observed only as an upload (no query or materialize) is a fresh
             // compile whose result we pushed to the remote CAS — the cache did not
             // serve that work, so it counts as a miss.
@@ -381,7 +381,7 @@ public struct XCActivityLogParser: Sendable {
             uniqueDownloads.map { ($0.nodeID, $0.type, "download") } +
             uniqueUploads.map { ($0.nodeID, $0.type, "upload") }
 
-        return try await allItems.concurrentCompactMap(maxConcurrentTasks: 8) { item in
+        return try await allItems.concurrentCompactMap(maxConcurrentTasks: 50) { item in
             await createCASOutput(nodeID: item.nodeID, type: item.type, operation: item.operation, casReader: casReader)
         }
     }

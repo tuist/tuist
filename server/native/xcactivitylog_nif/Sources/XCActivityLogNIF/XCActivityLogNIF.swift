@@ -38,8 +38,9 @@ private final class ParseHandoff: @unchecked Sendable {
 // Hard cap on a single parse. The Swift Task runs on the cooperative pool,
 // not the BEAM dirty scheduler we're called from, so timing out here lets the
 // dirty scheduler thread go even when the parser itself is wedged on a
-// pathological xcactivitylog.
-private let parseTimeoutSeconds = 900
+// pathological xcactivitylog. Set below the Oban worker's wall-time limit so
+// the NIF returns a structured error before Oban kills the process.
+private let parseTimeoutSeconds = 240
 
 @_cdecl("parse_xcactivitylog")
 public func parseXCActivityLog(

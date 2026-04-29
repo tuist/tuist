@@ -25,10 +25,10 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
   require Logger
 
   # Cap one job's wall time so a single huge xcactivitylog cannot hold a worker
-  # slot indefinitely. Slightly higher than the NIF's internal timeout so the
-  # NIF returns its own error (with telemetry) before Oban kills the process.
+  # slot indefinitely. The NIF's internal timeout is set lower so it returns
+  # a structured error first; this is the outer guard for everything else.
   @impl Oban.Worker
-  def timeout(_job), do: to_timeout(minute: 20)
+  def timeout(_job), do: to_timeout(minute: 5)
 
   @impl Oban.Worker
   def perform(%Oban.Job{
