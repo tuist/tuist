@@ -7,15 +7,36 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
   pods (`TUIST_MODE=processor`), so this worker's body executes there;
   the server pods enqueue jobs but never claim them. In self-hosted installs
   the server runs both roles in the same BEAM.
+
+  ## Uniqueness
+
+  Jobs are unique on `build_id` over `available | scheduled | executing |
+  retryable` with `period: :infinity` to absorb the duplicate enqueues from
+  the race in `get_or_create_build`. A re-enqueue while a previous job is
+  still in-flight (or sitting in retryable) is silently dropped — to manually
+  requeue a stuck job, cancel the existing one first.
   """
 
-  use Oban.Worker, queue: :process_build, max_attempts: 5
+  use Oban.Worker,
+    queue: :process_build,
+    max_attempts: 5,
+    unique: [
+      keys: [:build_id],
+      states: [:available, :scheduled, :executing, :retryable],
+      period: :infinity
+    ]
 
   alias Tuist.Accounts
   alias Tuist.Builds
   alias Tuist.Storage
 
   require Logger
+
+  # Cap one job's wall time so a single huge xcactivitylog cannot hold a worker
+  # slot indefinitely. The NIF's internal timeout is set lower so it returns
+  # a structured error first; this is the outer guard for everything else.
+  @impl Oban.Worker
+  def timeout(_job), do: to_timeout(minute: 5)
 
   @impl Oban.Worker
   def perform(%Oban.Job{

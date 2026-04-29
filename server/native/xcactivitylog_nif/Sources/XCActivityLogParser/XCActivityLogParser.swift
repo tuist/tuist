@@ -82,14 +82,18 @@ public struct XCActivityLogParser: Sendable {
 
     // MARK: - Build Steps
 
+    // Iterative DFS so build trees thousands of levels deep don't overflow the
+    // stack. Order matches the recursive walk: parent before children.
     private func flattenBuildSteps(_ steps: [BuildStep]) -> [BuildStep] {
-        steps.flatMap { step in
-            var flattened = [step]
+        var result = [BuildStep]()
+        var stack = Array(steps.reversed())
+        while let step = stack.popLast() {
+            result.append(step)
             if !step.subSteps.isEmpty {
-                flattened.append(contentsOf: flattenBuildSteps(step.subSteps))
+                stack.append(contentsOf: step.subSteps.reversed())
             }
-            return flattened
         }
+        return result
     }
 
     // MARK: - Category
