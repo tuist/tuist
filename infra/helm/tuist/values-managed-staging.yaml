@@ -142,5 +142,11 @@ macosFleet:
   replicas: 1
   controlPlane:
     host: api-staging.tuist.dev
+  image:
+    # Pin staging to a specific SHA so each operator image rev rolls
+    # via a deliberate values bump rather than a `:latest` race. Bump
+    # this when you publish a new build of
+    # ghcr.io/tuist/capi-provider-scaleway-applesilicon.
+    tag: "86e39c0d"
   machine:
     podCIDR: 10.42.1.0/24
