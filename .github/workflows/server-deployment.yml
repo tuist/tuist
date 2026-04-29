@@ -205,8 +205,18 @@ jobs:
         # capi-system) + RBAC. Apply is idempotent; pinned to the
         # version our infra provider compiles against
         # (sigs.k8s.io/cluster-api v1.9.4).
+        #
+        # The YAML uses clusterctl-style placeholders like
+        # `${CAPI_INSECURE_DIAGNOSTICS:=false}` for container args.
+        # `clusterctl init` would expand them; raw `kubectl apply`
+        # leaves them literal and the controller crashes parsing its
+        # own flags. Substitute every `${VAR:=default}` with `default`
+        # before applying — we're happy with upstream defaults across
+        # the board.
         run: |
-          kubectl apply -f https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.9.4/cluster-api-components.yaml
+          curl -fsSL https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.9.4/cluster-api-components.yaml \
+            | sed -E 's/\$\{[A-Za-z_][A-Za-z0-9_]*:=([^}]*)\}/\1/g' \
+            | kubectl apply -f -
           # Wait for the controller pods to be Available before helm
           # creates Cluster/MachineDeployment resources — the validating
           # webhooks are served from these pods, and helm hits 'no
