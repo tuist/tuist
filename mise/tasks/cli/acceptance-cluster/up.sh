@@ -66,18 +66,33 @@ mise install kind@latest helm@latest kubectl@latest >/dev/null
 #     daemon at all.
 #   * tuist's local dev workflow already standardises on podman.
 if [[ "$(uname -s)" == "Darwin" ]] && ! podman info >/dev/null 2>&1; then
-  for pkg in podman qemu; do
-    if ! brew list --formula "$pkg" >/dev/null 2>&1; then
-      brew install "$pkg"
-    fi
-  done
+  if ! brew list --formula qemu >/dev/null 2>&1; then
+    brew install qemu
+  fi
+
+  # podman 5.x dropped the qemu provider on macOS (only applehv / libkrun left,
+  # both of which wrap Apple Virtualization and need nested virt that the
+  # runner doesn't expose). podman 4.9.x still supports qemu provider, which
+  # runs in pure software TCG mode and doesn't need nested virt. Pin to that
+  # by downloading the release tarball directly.
+  PODMAN_VERSION="4.9.5"
+  if ! command -v podman >/dev/null 2>&1 || ! podman --version | grep -q "podman version 4\."; then
+    PODMAN_ARCH=$(uname -m | sed 's/x86_64/amd64/;s/arm64/arm64/')
+    echo "==> Installing pinned podman v${PODMAN_VERSION} (qemu provider)…"
+    curl -fsSL -o /tmp/podman.zip \
+      "https://github.com/containers/podman/releases/download/v${PODMAN_VERSION}/podman-remote-release-darwin_${PODMAN_ARCH}.zip"
+    rm -rf /tmp/podman-extract
+    mkdir /tmp/podman-extract
+    unzip -q /tmp/podman.zip -d /tmp/podman-extract
+    sudo mkdir -p /opt/podman
+    sudo cp -R /tmp/podman-extract/podman-*/* /opt/podman/
+    PATH="/opt/podman/bin:$PATH"
+    export PATH
+    rm -rf /tmp/podman.zip /tmp/podman-extract
+  fi
 
   if ! podman machine list --format '{{.Name}}' | grep -q '^podman-machine-default'; then
-    echo "==> podman machine init…"
-    # Force the qemu provider: the default `vfkit` wraps Apple Virtualization,
-    # which Namespace's macOS profile (itself a VM) doesn't expose to guests
-    # — `vfkit exited unexpectedly with exit code 1`. qemu's TCG mode runs
-    # in pure software, no nested-virt required. Slower but works anywhere.
+    echo "==> podman machine init (qemu provider)…"
     CONTAINERS_MACHINE_PROVIDER=qemu \
       podman machine init --cpus 2 --memory 4096 --disk-size 20
   fi
