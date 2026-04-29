@@ -54,16 +54,8 @@ defmodule TuistWeb.OpsAccountLive do
     %{
       "cluster_id" => default_cluster && default_cluster.id,
       "spec" => Atom.to_string(default_spec),
-      "volume_size_gi" => to_string(Specs.default_volume_gi(default_spec) || 200),
-      "image_tag" => latest_image_tag()
+      "volume_size_gi" => to_string(Specs.default_volume_gi(default_spec) || 200)
     }
-  end
-
-  defp latest_image_tag do
-    case Kura.latest_versions(1) do
-      [%{version: version} | _] -> version
-      _ -> ""
-    end
   end
 
   defp preload_billing(account) do
@@ -87,12 +79,13 @@ defmodule TuistWeb.OpsAccountLive do
 
   defp load_kura_state(socket) do
     account = socket.assigns.account
+    latest = Kura.latest_versions(1) |> List.first()
 
     socket
     |> assign(:kura_servers, Kura.list_servers_for_account(account.id))
     |> assign(:kura_clusters, Clusters.all())
     |> assign(:kura_specs, Specs.all())
-    |> assign(:kura_versions, Kura.latest_versions(20))
+    |> assign(:latest_kura_version, latest)
   end
 
   ## Kura events
@@ -136,15 +129,30 @@ defmodule TuistWeb.OpsAccountLive do
     account = socket.assigns.account
     user = socket.assigns.current_user
 
-    attrs = %{
-      account_id: account.id,
-      cluster_id: params["cluster_id"],
-      spec: String.to_existing_atom(params["spec"] || "medium"),
-      volume_size_gi: parse_int(params["volume_size_gi"], 200),
-      image_tag: params["image_tag"],
-      requested_by_user_id: user && user.id
-    }
+    case Kura.latest_versions(1) do
+      [] ->
+        {:noreply,
+         put_flash(
+           socket,
+           :error,
+           "No cached Kura version available yet. The hourly poll worker hasn't seen any kura@* tags."
+         )}
 
+      [%{version: image_tag} | _] ->
+        attrs = %{
+          account_id: account.id,
+          cluster_id: params["cluster_id"],
+          spec: String.to_existing_atom(params["spec"] || "medium"),
+          volume_size_gi: parse_int(params["volume_size_gi"], 200),
+          image_tag: image_tag,
+          requested_by_user_id: user && user.id
+        }
+
+        do_submit_add_server(socket, attrs)
+    end
+  end
+
+  defp do_submit_add_server(socket, attrs) do
     case Kura.create_server(attrs) do
       {:ok, server} ->
         {:noreply,
