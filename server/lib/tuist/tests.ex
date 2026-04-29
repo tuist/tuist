@@ -674,24 +674,39 @@ defmodule Tuist.Tests do
     test_case_ids
     |> Enum.chunk_every(@existing_test_cases_batch_size)
     |> Enum.reduce(%{}, fn ids_chunk, acc ->
-      from(test_case in TestCase,
-        where: test_case.project_id == ^project_id,
-        where: test_case.id in ^ids_chunk,
-        select: %{
-          id: test_case.id,
-          recent_durations: test_case.recent_durations,
-          is_flaky: test_case.is_flaky,
-          state: test_case.state,
-          inserted_at: test_case.inserted_at
-        }
-      )
+      project_id
+      |> existing_test_cases_chunk_query(ids_chunk)
       |> ClickHouseRepo.all()
-      |> Enum.reduce(acc, fn row, inner_acc ->
-        Map.update(inner_acc, row.id, row, fn existing ->
-          if NaiveDateTime.after?(row.inserted_at, existing.inserted_at), do: row, else: existing
-        end)
-      end)
+      |> Enum.reduce(acc, &merge_latest_test_case/2)
     end)
+  end
+
+  defp existing_test_cases_chunk_query(project_id, ids_chunk) do
+    from(test_case in TestCase,
+      where: test_case.project_id == ^project_id,
+      where: test_case.id in ^ids_chunk,
+      select: %{
+        id: test_case.id,
+        recent_durations: test_case.recent_durations,
+        is_flaky: test_case.is_flaky,
+        state: test_case.state,
+        inserted_at: test_case.inserted_at
+      }
+    )
+  end
+
+  defp merge_latest_test_case(row, acc) do
+    case Map.fetch(acc, row.id) do
+      {:ok, existing} ->
+        if NaiveDateTime.after?(row.inserted_at, existing.inserted_at) do
+          Map.put(acc, row.id, row)
+        else
+          acc
+        end
+
+      :error ->
+        Map.put(acc, row.id, row)
+    end
   end
 
   defp generate_test_case_id(project_id, name, module_name, suite_name) do
