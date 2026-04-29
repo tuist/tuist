@@ -5,10 +5,13 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
+* add --skip-macro-support-targets flag to tuist graph by [@natanrolnik](https://github.com/natanrolnik) in [#10300](https://github.com/tuist/tuist/pull/10300)
 * re-add config-driven network proxy opt-out by [@pepicrft](https://github.com/pepicrft) in [#10513](https://github.com/tuist/tuist/pull/10513)
 * add "Skip" quarantine mode for test cases by [@fortmarek](https://github.com/fortmarek) in [#10429](https://github.com/tuist/tuist/pull/10429)
 ### 🐛 Bug Fixes
 
+* keep static framework xcstrings on main target Resources phase by [@pepicrft](https://github.com/pepicrft) in [#10532](https://github.com/tuist/tuist/pull/10532)
+* refresh expired tokens under optionalAuthentication by [@fortmarek](https://github.com/fortmarek) in [#10537](https://github.com/tuist/tuist/pull/10537)
 * add TuistHTTP to TuistConfigLoader cross-platform deps by [@fortmarek](https://github.com/fortmarek) in [#10531](https://github.com/tuist/tuist/pull/10531)
 * bump tuist.Command to 0.14.1 to surface xcodebuild stderr by [@fortmarek](https://github.com/fortmarek) in [#10508](https://github.com/tuist/tuist/pull/10508)
 
