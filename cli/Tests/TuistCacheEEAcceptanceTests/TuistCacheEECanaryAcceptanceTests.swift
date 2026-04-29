@@ -37,7 +37,10 @@ struct TuistCacheEECanaryAcceptanceTests {
         let environment = try #require(Environment.mocked)
 
         try await withShortStateDirectory(fileSystem: fileSystem) { stateDirectory in
+            let previousStateDirectory = environment.stateDirectory
             environment.stateDirectory = stateDirectory
+            defer { environment.stateDirectory = previousStateDirectory }
+
             let fixtureFullHandle = try #require(TuistTest.fixtureFullHandle)
 
             try await fileSystem.writeText(
