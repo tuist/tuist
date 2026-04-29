@@ -13,3 +13,11 @@ source = "./.blick/skills/tuist-elixir-review"
 [[skills]]
 name = "tuist-swift-review"
 source = "./.blick/skills/tuist-swift-review"
+
+[learn]
+lookback_days = 7
+min_signal = 3
+labels = ["blick-learn"]
+base = "main"
+draft = true
+branch = "blick/learn"
