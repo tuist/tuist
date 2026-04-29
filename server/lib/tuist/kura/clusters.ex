@@ -43,6 +43,22 @@ defmodule Tuist.Kura.Clusters do
     Enum.map(@catalog, &struct(__MODULE__, &1))
   end
 
+  @doc """
+  Returns the clusters available in the current runtime environment.
+
+  In production we expose every catalog entry to /ops; in dev/test we
+  only expose `provider: "local"` clusters so a developer doesn't see
+  (or accidentally provision into) infrastructure they don't have
+  access to.
+  """
+  def available do
+    if Tuist.Environment.dev?() or Tuist.Environment.test?() do
+      Enum.filter(all(), &(&1.provider == "local"))
+    else
+      all()
+    end
+  end
+
   @doc "Returns the cluster with the given ID, or `nil`."
   def get(id) when is_binary(id) do
     Enum.find(all(), &(&1.id == id))
