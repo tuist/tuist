@@ -351,8 +351,13 @@ macosFleet:
         secretKey: secret-key
         projectID: project-id
   machine:
-    type: M2-M
-    zone: fr-par-3
+    # M2-L (M2 Pro tier) is the smallest readily-stocked Apple Silicon
+    # type Scaleway carries in fr-par-1 today. fr-par-3 only offers
+    # M1-M which has been out of stock; fr-par-1 has the broader
+    # M2/M4 SKUs. Override per-env if a particular type/zone makes
+    # more sense for the workload.
+    type: M2-L
+    zone: fr-par-1
     os: macos-tahoe-26.0
     podCIDR: ""        # required: per-host slice of cluster CIDR
 

@@ -45,10 +45,10 @@ spec:
                   type: string
                 type:
                   type: string
-                  default: M2-M
+                  default: M2-L
                 zone:
                   type: string
-                  default: fr-par-3
+                  default: fr-par-1
                 os:
                   type: string
                   default: macos-tahoe-26.0
