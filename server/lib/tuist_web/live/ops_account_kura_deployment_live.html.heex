@@ -12,7 +12,7 @@
     <.card_section>
       <dl>
         <dt>Status</dt>
-        <dd>{status_label(@deployment.status)}</dd>
+        <dd>{deployment_status_label(@deployment.status)}</dd>
         <dt>Started</dt>
         <dd>{(@deployment.started_at && Calendar.strftime(@deployment.started_at, "%Y-%m-%d %H:%M:%S UTC")) || "—"}</dd>
         <dt>Finished</dt>
