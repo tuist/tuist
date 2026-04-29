@@ -122,43 +122,51 @@
   as the rollout worker advances the server's status.
   --%>
   <%!--
-  Always rendered (no :if) so Phoenix attaches phx-submit at mount and
-  the form keeps its event tracking across Noora's portal moves. Open
-  / close is driven by `phx:open-modal` / `phx:close-modal` events
-  pushed from the LiveView, matching the working modal pattern in
-  project_settings_live.
+  Add Kura server — uses Phoenix's <.form> wrapping <.modal> so phx-
+  submit and the submit button stay correctly bound across Noora's
+  portal moves. Same shape as project_settings_live's rename modal.
+  Modal is always rendered; visibility is driven by phx:open-modal /
+  phx:close-modal pushed from the LiveView.
   --%>
-  <.modal
-    id="add-server-modal"
-    title="Add Kura server"
-    description="Pick a backing cluster and a spec. The server is provisioned in the background and shows up in the list above as soon as it's ready."
-    header_type="icon"
-    header_size="small"
-    on_dismiss="close_add_server"
+  <.form
+    for={@add_server_form}
+    id="add-server-form"
+    phx-submit="submit_add_server"
+    class="add-server-form"
   >
-    <:header_icon><.server /></:header_icon>
-    <:trigger :let={modal_attrs}>
-      <button id="add-server-trigger" type="button" style="display: none;" {modal_attrs}></button>
-    </:trigger>
+    <.modal
+      id="add-server-modal"
+      title="Add Kura server"
+      description="Pick a backing cluster and a spec. The server is provisioned in the background and shows up in the list above as soon as it's ready."
+      header_type="icon"
+      header_size="small"
+      on_dismiss="close_add_server"
+    >
+      <:header_icon><.server /></:header_icon>
+      <:trigger :let={modal_attrs}>
+        <button id="add-server-trigger" type="button" style="display: none;" {modal_attrs}></button>
+      </:trigger>
 
-    <%!--
-    Form lives inside the modal body so the portal moves it together
-    with its inputs and submit button. Wrapping the modal in <form>
-    breaks here because Noora's modal portals body and footer to
-    separate DOM subtrees, leaving the form's inputs ownerless and
-    the submit click a no-op.
-    --%>
-    <form id="add-server-form" phx-submit="submit_add_server" class="add-server-form">
       <div class="select-field">
         <.label label="Cluster" required />
-        <.select id="add-server-cluster" name="server[cluster_id]" value={@add_server_form["cluster_id"]} label="Cluster">
+        <.select
+          id="add-server-cluster"
+          name="server[cluster_id]"
+          value={@add_server_form[:cluster_id].value}
+          label="Cluster"
+        >
           <:item :for={cluster <- @kura_clusters} value={cluster.id} label={"#{cluster.id} · #{cluster.region}"} />
         </.select>
       </div>
 
       <div class="select-field">
         <.label label="Spec" required />
-        <.select id="add-server-spec" name="server[spec]" value={@add_server_form["spec"]} label="Spec">
+        <.select
+          id="add-server-spec"
+          name="server[spec]"
+          value={@add_server_form[:spec].value}
+          label="Spec"
+        >
           <:item :for={spec <- @kura_specs} value={Atom.to_string(spec.id)} label={spec.label} />
         </.select>
       </div>
@@ -167,7 +175,7 @@
         id="add-server-volume"
         name="server[volume_size_gi]"
         label="Volume size (GiB)"
-        value={@add_server_form["volume_size_gi"]}
+        value={@add_server_form[:volume_size_gi].value}
         required
         show_required
       />
@@ -183,12 +191,18 @@
         <% end %>
       </p>
 
-      <div data-part="actions">
-        <.button label="Cancel" variant="secondary" type="button" phx-click="close_add_server" />
-        <.button label="Provision server" variant="primary" type="submit" />
-      </div>
-    </form>
-  </.modal>
+      <:footer>
+        <.modal_footer>
+          <:action>
+            <.button label="Cancel" variant="secondary" type="button" phx-click="close_add_server" />
+          </:action>
+          <:action>
+            <.button label="Provision server" variant="primary" type="submit" />
+          </:action>
+        </.modal_footer>
+      </:footer>
+    </.modal>
+  </.form>
 
   <%!--
   Enterprise-upgrade modal — only rendered when an upgrade is in flight
