@@ -319,6 +319,12 @@ jobs:
           HOST: ${{ steps.resolve.outputs.host }}
         run: |
           set -euo pipefail
+          # Clean up any leftover release from a previous failed run on this
+          # PR — k8s Jobs (the chart's pre-upgrade migration job) have
+          # immutable fields, so `helm upgrade --install` against a stale
+          # release fails with "field is immutable". Uninstall + reinstall
+          # is fine because we don't need to preserve state across runs.
+          helm uninstall "$RELEASE" --namespace "$NAMESPACE" --wait --ignore-not-found
           helm upgrade --install "$RELEASE" infra/helm/tuist \
             --namespace "$NAMESPACE" \
             -f infra/helm/tuist/values-preview.yaml \
@@ -478,7 +484,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     needs: [cli-acceptance-cluster, cli-acceptance-tests]
-    if: always() && needs.cli-acceptance-cluster.result == 'success'
+    # Always run, even if the cluster job failed — a partial deploy still
+    # leaves a release behind that the next run's `helm uninstall` would
+    # have to clean up. Earlier we gated on cluster success, but that left
+    # stale releases that broke immutable-field upgrades.
+    if: always() && needs.cli-acceptance-cluster.outputs.release != ''
     environment: server-k8s-preview
     env:
       KUBECONFIG: ${{ github.workspace }}/.kube/config
