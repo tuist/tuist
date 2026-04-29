@@ -16,14 +16,12 @@ defmodule Tuist.GitHub.Client do
   alias Tuist.VCS.Repositories.Content
   alias Tuist.VCS.Repositories.Tag
 
-  @default_api_url "https://api.github.com"
-
   @doc """
   Lists repositories for a GitHub app installation with pagination support.
   Returns {:ok, %{meta: %{next_url: ...}, repositories: [...]}} format similar to Flop.
   """
   def list_installation_repositories(installation, opts \\ []) do
-    {installation_id, api_url} = resolve_installation(installation)
+    api_url = installation_api_url(installation)
 
     url =
       Keyword.get(
@@ -32,7 +30,7 @@ defmodule Tuist.GitHub.Client do
         "#{api_url}/installation/repositories?per_page=100"
       )
 
-    with {:ok, %{token: token}} <- App.get_installation_token(installation_id, api_url: api_url),
+    with {:ok, %{token: token}} <- App.get_installation_token(installation, api_url: api_url),
          {:ok, request_url, ssrf_opts} <- pin_ghes_url(url, api_url) do
       req_opts =
         [
@@ -87,10 +85,10 @@ defmodule Tuist.GitHub.Client do
   end
 
   def get_user_by_id(%{id: github_id, installation: installation}) do
-    {installation_id, api_url} = resolve_installation(installation)
+    api_url = installation_api_url(installation)
     url = "#{api_url}/user/#{github_id}"
 
-    case github_request(&Req.get/1, url: url, installation_id: installation_id, api_url: api_url) do
+    case github_request(&Req.get/1, url: url, installation: installation, api_url: api_url) do
       {:ok, user} ->
         {:ok, %VCS.User{username: user["login"]}}
 
@@ -100,10 +98,10 @@ defmodule Tuist.GitHub.Client do
   end
 
   def get_comments(%{repository_full_handle: repository_full_handle, issue_id: issue_id, installation: installation}) do
-    {installation_id, api_url} = resolve_installation(installation)
+    api_url = installation_api_url(installation)
     url = "#{api_url}/repos/#{repository_full_handle}/issues/#{issue_id}/comments"
 
-    case github_request(&Req.get/1, url: url, installation_id: installation_id, api_url: api_url) do
+    case github_request(&Req.get/1, url: url, installation: installation, api_url: api_url) do
       {:ok, comments} ->
         {:ok,
          Enum.map(comments, fn comment ->
@@ -128,12 +126,12 @@ defmodule Tuist.GitHub.Client do
         body: body,
         installation: installation
       }) do
-    {installation_id, api_url} = resolve_installation(installation)
+    api_url = installation_api_url(installation)
     url = "#{api_url}/repos/#{repository_full_handle}/issues/#{issue_id}/comments"
 
     github_request(&Req.post/1,
       url: url,
-      installation_id: installation_id,
+      installation: installation,
       api_url: api_url,
       json: %{body: body}
     )
@@ -145,12 +143,12 @@ defmodule Tuist.GitHub.Client do
         body: body,
         installation: installation
       }) do
-    {installation_id, api_url} = resolve_installation(installation)
+    api_url = installation_api_url(installation)
     url = "#{api_url}/repos/#{repository_full_handle}/issues/comments/#{comment_id}"
 
     github_request(&Req.patch/1,
       url: url,
-      installation_id: installation_id,
+      installation: installation,
       api_url: api_url,
       json: %{body: body}
     )
@@ -211,11 +209,11 @@ defmodule Tuist.GitHub.Client do
   end
 
   defp github_request(method, attrs) do
-    installation_id = Keyword.get(attrs, :installation_id)
+    installation = Keyword.get(attrs, :installation)
     api_url = Keyword.get(attrs, :api_url, VCS.api_url(:github, nil))
     url = Keyword.fetch!(attrs, :url)
 
-    with {:ok, %{token: token}} <- App.get_installation_token(installation_id, api_url: api_url),
+    with {:ok, %{token: token}} <- App.get_installation_token(installation, api_url: api_url),
          {:ok, pinned_url, ssrf_opts} <- pin_ghes_url(url, api_url) do
       attrs_with_headers =
         attrs
@@ -227,7 +225,7 @@ defmodule Tuist.GitHub.Client do
         |> Keyword.put(:finch, Tuist.Finch)
         |> Keyword.merge(ssrf_opts)
         |> Keyword.merge(Retry.retry_options())
-        |> Keyword.delete(:installation_id)
+        |> Keyword.delete(:installation)
         |> Keyword.delete(:api_url)
 
       attrs_with_headers |> method.() |> handle_github_response(method, attrs)
@@ -268,18 +266,18 @@ defmodule Tuist.GitHub.Client do
         installation: installation,
         pr_number: pr_number
       }) do
-    {installation_id, api_url} = resolve_installation(installation)
+    api_url = installation_api_url(installation)
     url = "#{api_url}/repos/#{repository_full_handle}/pulls/#{pr_number}"
 
     github_request(&Req.get/1,
       url: url,
-      installation_id: installation_id,
+      installation: installation,
       api_url: api_url
     )
   end
 
   def create_check_run(%{repository_full_handle: repository_full_handle, installation: installation} = params) do
-    {installation_id, api_url} = resolve_installation(installation)
+    api_url = installation_api_url(installation)
     url = "#{api_url}/repos/#{repository_full_handle}/check-runs"
 
     json =
@@ -290,7 +288,7 @@ defmodule Tuist.GitHub.Client do
 
     github_request(&Req.post/1,
       url: url,
-      installation_id: installation_id,
+      installation: installation,
       api_url: api_url,
       json: json
     )
@@ -299,7 +297,7 @@ defmodule Tuist.GitHub.Client do
   def update_check_run(
         %{repository_full_handle: repository_full_handle, check_run_id: check_run_id, installation: installation} = params
       ) do
-    {installation_id, api_url} = resolve_installation(installation)
+    api_url = installation_api_url(installation)
     url = "#{api_url}/repos/#{repository_full_handle}/check-runs/#{check_run_id}"
 
     json =
@@ -310,7 +308,7 @@ defmodule Tuist.GitHub.Client do
 
     github_request(&Req.patch/1,
       url: url,
-      installation_id: installation_id,
+      installation: installation,
       api_url: api_url,
       json: json
     )
@@ -337,13 +335,12 @@ defmodule Tuist.GitHub.Client do
     ]
   end
 
-  defp resolve_installation(%{installation_id: id, client_url: client_url}), do: {id, VCS.api_url(:github, client_url)}
-
-  defp resolve_installation(%{installation_id: id}), do: {id, VCS.api_url(:github, nil)}
+  defp installation_api_url(%{client_url: client_url}), do: VCS.api_url(:github, client_url)
+  defp installation_api_url(_), do: VCS.api_url(:github, nil)
 
   # Pin GHES URLs to a public IP to defend against DNS rebinding /
   # SSRF; github.com is treated as a known public host and skips the pin.
-  defp pin_ghes_url(url, @default_api_url), do: {:ok, url, []}
+  defp pin_ghes_url(url, "https://api.github.com"), do: {:ok, url, []}
 
   defp pin_ghes_url(url, _api_url) do
     case SSRFGuard.pin(url) do

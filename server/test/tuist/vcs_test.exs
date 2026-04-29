@@ -3159,22 +3159,21 @@ defmodule Tuist.VCSTest do
                VCS.verify_github_state_token(state_token)
     end
 
-    test "targets a GitHub Enterprise Server URL when client_url is provided" do
+    test "kicks off the manifest registration flow when a GitHub Enterprise Server URL is provided" do
       # Given
       user = AccountsFixtures.user_fixture()
       account = user.account
-      app_name = "tuist-ghes-app"
       ghes_url = "https://github.example.com"
-
-      expect(Environment, :github_app_name, fn -> app_name end)
 
       # When
       result = VCS.get_github_app_installation_url(account, client_url: ghes_url)
 
-      # Then
-      assert String.starts_with?(result, "#{ghes_url}/apps/#{app_name}/installations/new?state=")
+      # Then — the link points at our internal manifest-start endpoint;
+      # the state token still encodes the chosen GHES URL so the rest of
+      # the flow knows where the customer came from.
+      assert String.contains?(result, "/integrations/github/manifest/start?state=")
 
-      state_token = result |> String.split("state=") |> List.last()
+      state_token = result |> String.split("state=") |> List.last() |> URI.decode_www_form()
       account_id = account.id
 
       assert {:ok, %{account_id: ^account_id, client_url: ^ghes_url}} =
@@ -3185,15 +3184,16 @@ defmodule Tuist.VCSTest do
       # Given
       user = AccountsFixtures.user_fixture()
       account = user.account
-      app_name = "tuist-ghes-app"
-
-      expect(Environment, :github_app_name, fn -> app_name end)
 
       # When
       result = VCS.get_github_app_installation_url(account, client_url: "  https://github.example.com/  ")
 
       # Then
-      assert String.starts_with?(result, "https://github.example.com/apps/#{app_name}/installations/new?state=")
+      assert String.contains?(result, "/integrations/github/manifest/start?state=")
+
+      state_token = result |> String.split("state=") |> List.last() |> URI.decode_www_form()
+
+      assert {:ok, %{client_url: "https://github.example.com"}} = VCS.verify_github_state_token(state_token)
     end
   end
 

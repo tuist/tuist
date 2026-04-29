@@ -413,7 +413,7 @@ defmodule Tuist.GitHub.ClientTest do
   describe "list_installation_repositories/2" do
     test "returns repositories for a given installation without pagination" do
       # Given
-      stub(App, :get_installation_token, fn "123", _opts ->
+      stub(App, :get_installation_token, fn %{installation_id: "123"}, _opts ->
         {:ok, %{token: "github_token"}}
       end)
 
@@ -476,7 +476,7 @@ defmodule Tuist.GitHub.ClientTest do
 
     test "returns repositories with pagination link" do
       # Given
-      stub(App, :get_installation_token, fn "123", _opts ->
+      stub(App, :get_installation_token, fn %{installation_id: "123"}, _opts ->
         {:ok, %{token: "github_token"}}
       end)
 
@@ -531,7 +531,7 @@ defmodule Tuist.GitHub.ClientTest do
 
     test "returns error when API returns non-200 status" do
       # Given
-      stub(App, :get_installation_token, fn "123", _opts ->
+      stub(App, :get_installation_token, fn %{installation_id: "123"}, _opts ->
         {:ok, %{token: "github_token"}}
       end)
 
@@ -556,7 +556,7 @@ defmodule Tuist.GitHub.ClientTest do
 
     test "handles empty repositories list" do
       # Given
-      stub(App, :get_installation_token, fn "123", _opts ->
+      stub(App, :get_installation_token, fn %{installation_id: "123"}, _opts ->
         {:ok, %{token: "github_token"}}
       end)
 
@@ -584,7 +584,7 @@ defmodule Tuist.GitHub.ClientTest do
 
     test "returns error when getting installation token fails" do
       # Given
-      stub(App, :get_installation_token, fn "123", _opts ->
+      stub(App, :get_installation_token, fn %{installation_id: "123"}, _opts ->
         {:error, "Failed to get token"}
       end)
 

@@ -6,6 +6,16 @@ defmodule Tuist.GitHub.AppTest do
   alias Tuist.GitHub.App
   alias Tuist.KeyValueStore
   alias Tuist.OAuth2.SSRFGuard
+  alias Tuist.VCS
+
+  @creds %{
+    app_name: "tuist",
+    app_id: "test-app-id",
+    client_id: "test-client-id",
+    client_secret: "test-client-secret",
+    private_key: "-----BEGIN RSA PRIVATE KEY-----\ntest\n-----END RSA PRIVATE KEY-----",
+    webhook_secret: "test-webhook-secret"
+  }
 
   setup do
     stub(JOSE.JWK, :from_pem, fn _ -> "pem" end)
@@ -13,6 +23,8 @@ defmodule Tuist.GitHub.AppTest do
     stub(JOSE.JWS, :compact, fn _ -> {%{}, "jwt"} end)
     stub(Tuist.Time, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
     stub(KeyValueStore, :get_or_update, fn _, _, func -> func.() end)
+    stub(VCS, :github_app_credentials, fn -> @creds end)
+    stub(VCS, :github_app_credentials, fn _ -> @creds end)
     :ok
   end
 

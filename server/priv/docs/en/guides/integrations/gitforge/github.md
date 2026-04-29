@@ -25,9 +25,11 @@ After that, you can add a project connection between your GitHub repository and 
 
 ### GitHub Enterprise Server {#github-enterprise-server}
 
-If you self-host Tuist alongside a GitHub Enterprise Server (GHES) instance, switch to the **Enterprise server** tab in the GitHub integration card and enter your GHES base URL (for example `https://github.example.com`) before clicking install. Tuist will route every API call, webhook callback, and rendered link through that host instead of github.com.
+Tuist also integrates with self-hosted GitHub Enterprise Server (GHES) instances. In the GitHub integration card, switch to the **Enterprise server** tab, enter your GHES base URL (for example `https://github.example.com`), and click install.
 
-This requires your Tuist server to be configured with the credentials of a GitHub App registered on your GHES instance. See <.localized_link href="/guides/server/self-host/install#platform-github">the self-host install guide</.localized_link> for the `TUIST_GITHUB_APP_*` environment variables. Tuist Cloud does not yet support GHES.
+Because GitHub Apps are scoped to a single GitHub instance, Tuist cannot reuse its github.com App on your GHES — instead, the install button takes you through GitHub's [App manifest flow](https://docs.github.com/en/apps/sharing-github-apps/registering-a-github-app-from-a-manifest): GHES walks your administrator through registering a fresh Tuist App on the instance, then hands the new App's credentials back to Tuist. Tuist stores those credentials encrypted per-installation and uses them for every API call, webhook signature, and link to your repositories from then on.
+
+No additional Tuist server configuration is needed; the manifest flow generates and provisions everything automatically.
 
 
 ## Pull/merge request comments {#pull-merge-request-comments}

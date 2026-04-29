@@ -1,9 +1,35 @@
 defmodule TuistWeb.Webhooks.GitHubController do
   use TuistWeb, :controller
 
+  alias Tuist.Environment
   alias Tuist.VCS
 
   require Logger
+
+  @doc """
+  Resolves the HMAC signing secret for an inbound GitHub webhook.
+
+  GitHub Apps registered on a customer's GHES instance via the manifest
+  flow have their own webhook secret stored on the
+  `GitHubAppInstallation` row; the global `TUIST_GITHUB_APP_WEBHOOK_SECRET`
+  env var only signs webhooks for the github.com Tuist App. We look up
+  the installation from the parsed body (`installation.id`) and prefer
+  its secret; we fall back to the env var so existing github.com
+  installations keep working.
+  """
+  def resolve_webhook_secret(conn) do
+    installation_id =
+      get_in(conn.body_params, ["installation", "id"]) ||
+        get_in(conn.body_params, [:installation, :id])
+
+    with id when not is_nil(id) <- installation_id,
+         {:ok, installation} <- VCS.get_github_app_installation_by_installation_id(to_string(id)),
+         secret when is_binary(secret) <- installation.webhook_secret do
+      secret
+    else
+      _ -> Environment.github_app_webhook_secret()
+    end
+  end
 
   def handle(conn, params) do
     event_type = conn |> get_req_header("x-github-event") |> List.first()

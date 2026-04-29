@@ -133,6 +133,50 @@ defmodule Tuist.VCS do
 
   def validate_client_url(_), do: {:error, :invalid_url}
 
+  @doc """
+  Returns the GitHub App credentials Tuist should use to act on behalf of
+  a given installation: an installation that has its own credentials (via
+  the App manifest flow on GHES) wins, otherwise we fall back to the
+  globally-configured env vars (which target github.com).
+
+  Returns `%{app_name, client_id, client_secret, private_key, webhook_secret, app_id}`
+  or `nil` if neither source has usable credentials.
+  """
+  def github_app_credentials(installation \\ nil)
+
+  def github_app_credentials(%GitHubAppInstallation{
+        app_id: app_id,
+        client_id: client_id,
+        client_secret: client_secret,
+        private_key: private_key,
+        webhook_secret: webhook_secret,
+        app_slug: app_slug
+      })
+      when is_binary(app_id) and is_binary(client_id) and is_binary(private_key) do
+    %{
+      app_name: app_slug,
+      app_id: app_id,
+      client_id: client_id,
+      client_secret: client_secret,
+      private_key: private_key,
+      webhook_secret: webhook_secret
+    }
+  end
+
+  def github_app_credentials(_) do
+    if Environment.github_app_configured?() do
+      %{
+        app_name: Environment.github_app_name(),
+        # github.com uses the app's client_id as the JWT issuer
+        app_id: Environment.github_app_client_id(),
+        client_id: Environment.github_app_client_id(),
+        client_secret: Environment.github_app_client_secret(),
+        private_key: Environment.github_app_private_key(),
+        webhook_secret: Environment.github_app_webhook_secret()
+      }
+    end
+  end
+
   def get_repository_content(
         %{repository_full_handle: repository_full_handle, provider: provider, token: token},
         opts \\ []
@@ -209,14 +253,14 @@ defmodule Tuist.VCS do
   defp get_github_app_installation_for_repository(%{repository_full_handle: repository_full_handle, project: project}) do
     project = Repo.preload(project, vcs_connection: :github_app_installation)
 
-    with true <- Environment.github_app_configured?(),
-         %{
+    with %{
            vcs_connection: %{
              repository_full_handle: connected_handle,
              github_app_installation: %GitHubAppInstallation{} = installation
            }
          } <- project,
-         true <- String.downcase(connected_handle) == String.downcase(repository_full_handle) do
+         true <- String.downcase(connected_handle) == String.downcase(repository_full_handle),
+         %{} <- github_app_credentials(installation) do
       {:ok, installation}
     else
       _ -> {:error, :not_found}
@@ -364,10 +408,16 @@ defmodule Tuist.VCS do
       installation: installation
     }
 
+    expected_client_id =
+      case github_app_credentials(installation) do
+        %{client_id: client_id} -> client_id
+        _ -> nil
+      end
+
     case client.get_comments(comments_params) do
       {:ok, comments} ->
         Enum.find(comments, fn comment ->
-          comment.client_id == Environment.github_app_client_id() and
+          comment.client_id == expected_client_id and
             String.starts_with?(comment.body, @tuist_run_report_prefix)
         end)
 
@@ -1145,11 +1195,34 @@ defmodule Tuist.VCS do
   end
 
   @doc """
+  Gets the (single) GitHub app installation for an account, if any.
+  """
+  def get_github_app_installation_for_account(account_id) do
+    case Repo.get_by(GitHubAppInstallation, account_id: account_id) do
+      nil -> {:error, :not_found}
+      github_app_installation -> {:ok, github_app_installation}
+    end
+  end
+
+  @doc """
   Updates a GitHub app installation.
   """
   def update_github_app_installation(%GitHubAppInstallation{} = github_app_installation, attrs) do
     github_app_installation
     |> GitHubAppInstallation.update_changeset(attrs)
+    |> Repo.update()
+  end
+
+  @doc """
+  Replaces the credentials and pending-install state on an existing
+  installation row. Used by the GHES manifest flow when the customer
+  re-registers an App on top of a previous, possibly-stale row.
+  """
+  def replace_github_app_installation(%GitHubAppInstallation{} = github_app_installation, attrs) do
+    # The new row supersedes the old one; clear the prior installation_id
+    # since the customer has not yet installed the freshly registered App.
+    github_app_installation
+    |> GitHubAppInstallation.changeset(Map.merge(%{installation_id: nil, html_url: nil}, attrs))
     |> Repo.update()
   end
 
@@ -1213,12 +1286,25 @@ defmodule Tuist.VCS do
 
   Accepts an optional `:client_url` to target a self-hosted GitHub Enterprise Server instance,
   defaulting to https://github.com.
+
+  For github.com, returns the direct installation URL of the
+  globally-configured Tuist App. For a GHES `client_url`, returns an
+  internal route that kicks off the App manifest registration flow —
+  GitHub Apps are scoped to a single GitHub instance, so a Tuist Cloud
+  App registered on github.com cannot be installed on GHES; the customer
+  must register and install their own App on the GHES instance and we
+  store its credentials per-installation.
   """
   def get_github_app_installation_url(%Account{id: account_id}, opts \\ []) do
     client_url = normalize_client_url(Keyword.get(opts, :client_url))
-    app_name = Environment.github_app_name()
     state_token = generate_github_state_token(account_id, client_url)
-    "#{client_url}/apps/#{app_name}/installations/new?state=#{state_token}"
+
+    if client_url == default_client_url() do
+      app_name = Environment.github_app_name()
+      "#{client_url}/apps/#{app_name}/installations/new?state=#{state_token}"
+    else
+      Environment.app_url(path: "/integrations/github/manifest/start?state=#{URI.encode_www_form(state_token)}")
+    end
   end
 
   defp normalize_client_url(nil), do: default_client_url()

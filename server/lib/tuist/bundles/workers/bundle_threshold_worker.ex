@@ -11,6 +11,7 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorker do
   alias Tuist.Projects
   alias Tuist.Repo
   alias Tuist.Utilities.ByteFormatter
+  alias Tuist.VCS
 
   @check_name "tuist/bundle-size"
 
@@ -26,7 +27,8 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorker do
          project = Projects.get_project_by_id(project_id),
          true <- project != nil,
          project = Repo.preload(project, [:account, vcs_connection: :github_app_installation]),
-         true <- Environment.github_app_configured?() && Projects.has_vcs_connection?(project) do
+         true <- Projects.has_vcs_connection?(project),
+         %{} <- VCS.github_app_credentials(project.vcs_connection.github_app_installation) do
       thresholds = Bundles.get_project_bundle_thresholds(project)
 
       if Enum.empty?(thresholds) do

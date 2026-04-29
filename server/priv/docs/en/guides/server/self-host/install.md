@@ -291,7 +291,7 @@ On top of the `TUIST_GITHUB_APP_CLIENT_ID` and `TUIST_GITHUB_APP_CLIENT_SECRET`,
 
 ##### GitHub Enterprise Server {#platform-github-enterprise-server}
 
-The same environment variables work whether the GitHub App lives on github.com or on a self-hosted GitHub Enterprise Server (GHES) instance — register the app on your GHES instance and use its credentials here. Each Tuist organization then chooses the target host on its integrations page (the **Enterprise server** tab) and enters its GHES base URL (e.g. `https://github.example.com`) before installing the app.
+The env vars above only configure Tuist's github.com App. To integrate Tuist with a GitHub Enterprise Server (GHES) instance instead, organization admins switch to the **Enterprise server** tab on the integrations page and enter the GHES base URL — Tuist walks them through GitHub's [App manifest flow](https://docs.github.com/en/apps/sharing-github-apps/registering-a-github-app-from-a-manifest) to register a fresh Tuist App on their GHES instance. The new App's credentials are stored encrypted per installation; no additional `TUIST_GITHUB_APP_*` env vars are needed.
 
 ## Testing Locally {#testing-locally}
 

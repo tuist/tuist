@@ -1,10 +1,19 @@
 defmodule TuistWeb.GitHubAppSetupController do
   @moduledoc """
-  Controller for handling GitHub App post-installation setup.
+  Handles the post-installation callback GitHub redirects to once a user
+  finishes installing the Tuist GitHub App. Two flows land here:
 
-  This controller is called by GitHub after a user installs the Tuist GitHub App.
-  The setup URL should be configured in the GitHub App settings as:
-  https://yourdomain.com/integrations/github/setup
+  - **github.com**: the App is globally registered for Tuist Cloud, so we
+    create a fresh `GitHubAppInstallation` row keyed on `account_id` with
+    the `installation_id` GitHub assigned. Per-installation App
+    credential columns stay nil and Tuist falls back to the
+    `TUIST_GITHUB_APP_*` env vars.
+
+  - **GitHub Enterprise Server (manifest flow)**: a pending row already
+    exists — `TuistWeb.GitHubAppManifestController` created it when GHES
+    finished the App registration and handed Tuist the new App's
+    credentials. We just fill in the `installation_id` (and `html_url`
+    from the install webhook later) on that row.
   """
 
   use TuistWeb, :controller
@@ -17,12 +26,7 @@ defmodule TuistWeb.GitHubAppSetupController do
     with {:ok, installation_id} <- extract_installation_id(params),
          {:ok, %{account_id: account_id, client_url: client_url}} <- extract_state(params),
          {:ok, account} <- Accounts.get_account_by_id(account_id),
-         {:ok, _github_app_installation} <-
-           VCS.create_github_app_installation(%{
-             account_id: account.id,
-             installation_id: installation_id,
-             client_url: client_url || VCS.default_client_url()
-           }) do
+         {:ok, _installation} <- attach_installation_id(account, client_url, installation_id) do
       redirect(conn, to: ~p"/#{account.name}/integrations")
     else
       {:error, :missing_installation_id} ->
@@ -33,6 +37,20 @@ defmodule TuistWeb.GitHubAppSetupController do
 
       {:error, :invalid_state_token} ->
         raise BadRequestError, dgettext("dashboard", "Invalid installation request. Please try again.")
+    end
+  end
+
+  defp attach_installation_id(account, client_url, installation_id) do
+    case VCS.get_github_app_installation_for_account(account.id) do
+      {:ok, existing} ->
+        VCS.update_github_app_installation(existing, %{installation_id: installation_id})
+
+      {:error, :not_found} ->
+        VCS.create_github_app_installation(%{
+          account_id: account.id,
+          installation_id: installation_id,
+          client_url: client_url || VCS.default_client_url()
+        })
     end
   end
 
