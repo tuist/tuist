@@ -289,7 +289,7 @@ jobs:
   cli-acceptance-cluster-ready:
     name: Acceptance Cluster Ready
     runs-on: namespace-profile-default
-    timeout-minutes: 15
+    timeout-minutes: 30
     if: github.event.pull_request.head.repo.fork != true
     outputs:
       url: ${{ steps.url.outputs.url }}
@@ -302,7 +302,13 @@ jobs:
           GH_RUN_ID: ${{ github.run_id }}
         run: |
           set -euo pipefail
-          deadline=$(( $(date +%s) + 12 * 60 ))
+          # The cluster job runs in parallel with this sentinel. Its budget is:
+          # wait-for-server-image (up to ~5min) + bring-up (kind+helm+ESO ~6min)
+          # + tunnel handshake (~30s). 25min covers the slow path; we exit
+          # early on the happy path the moment the artifact lands. We also
+          # short-circuit if the cluster job itself reaches a terminal failure
+          # so the test shards fail fast instead of waiting the full budget.
+          deadline=$(( $(date +%s) + 25 * 60 ))
           while :; do
             id=$(gh api --paginate \
                 "/repos/${GH_REPO}/actions/runs/${GH_RUN_ID}/artifacts?per_page=100" \
@@ -316,8 +322,18 @@ jobs:
               echo "Cluster URL: ${url}"
               break
             fi
+            cluster_conclusion=$(gh api \
+                "/repos/${GH_REPO}/actions/runs/${GH_RUN_ID}/jobs?per_page=100" \
+                --jq '.jobs[] | select(.name == "Acceptance Cluster") | .conclusion // ""' \
+                2>/dev/null | head -1)
+            case "$cluster_conclusion" in
+              failure|cancelled|timed_out|action_required|startup_failure)
+                echo "ERROR: Acceptance Cluster job ended with conclusion '${cluster_conclusion}'; aborting." >&2
+                exit 1
+                ;;
+            esac
             if [ "$(date +%s)" -ge "$deadline" ]; then
-              echo "ERROR: cluster URL artifact not available after 12 minutes." >&2
+              echo "ERROR: cluster URL artifact not available after 25 minutes." >&2
               exit 1
             fi
             sleep 10
