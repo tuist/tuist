@@ -97,7 +97,30 @@ type Server struct {
 // includes the one-time OS-default sudo password the controller stashes
 // for break-glass SSH access; it isn't persisted in Scaleway after the
 // initial provisioning window.
+//
+// Idempotent on `name`: if a server with the given name already exists
+// in the project we adopt it instead of creating a duplicate. This
+// matters because CreateServer + WaitForServer can take 3-5min total,
+// long enough for the parent reconcile context to time out and trigger
+// a retry that would otherwise re-call CreateServer (and burn another
+// 24h of Apple licensing on a server we won't end up using).
 func (c *Client) CreateServer(ctx context.Context, name, zone, serverType, osName string) (*Server, error) {
+	if existing, err := c.findServerByName(ctx, name, zone); err != nil {
+		return nil, fmt.Errorf("lookup existing server: %w", err)
+	} else if existing != nil {
+		// Adopt the in-flight server. WaitForServer is idempotent — it
+		// just polls until state==ready, fine to call on a server that
+		// already finished provisioning.
+		final, err := c.API.WaitForServer(&applesilicon.WaitForServerRequest{
+			ServerID: existing.ID,
+			Zone:     scw.Zone(zone),
+		}, scw.WithContext(ctx))
+		if err != nil {
+			return nil, fmt.Errorf("wait for existing server: %w", err)
+		}
+		return scalewayServerToServer(final), nil
+	}
+
 	osID, err := c.resolveOSID(ctx, zone, osName)
 	if err != nil {
 		return nil, err
@@ -123,6 +146,35 @@ func (c *Client) CreateServer(ctx context.Context, name, zone, serverType, osNam
 	}
 
 	return scalewayServerToServer(final), nil
+}
+
+// findServerByName returns the first server in the zone whose name
+// matches `name`. Returns (nil, nil) when no match exists. The
+// Scaleway ListServers API doesn't accept a name filter so we paginate
+// the full list and match client-side; the project rarely has more
+// than a handful of servers so this is fine.
+func (c *Client) findServerByName(ctx context.Context, name, zone string) (*applesilicon.Server, error) {
+	page := int32(1)
+	pageSize := uint32(100)
+	for {
+		resp, err := c.API.ListServers(&applesilicon.ListServersRequest{
+			Zone:     scw.Zone(zone),
+			Page:     &page,
+			PageSize: &pageSize,
+		}, scw.WithContext(ctx))
+		if err != nil {
+			return nil, err
+		}
+		for _, s := range resp.Servers {
+			if s.Name == name {
+				return s, nil
+			}
+		}
+		if len(resp.Servers) < int(pageSize) {
+			return nil, nil
+		}
+		page++
+	}
 }
 
 // GetServer fetches the current state of an existing server.
