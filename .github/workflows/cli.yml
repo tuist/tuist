@@ -343,6 +343,17 @@ jobs:
             "tuist.dev/expires-at=$(( $(date +%s) + 2 * 3600 ))" \
             "tuist.dev/preview=true" \
             --overwrite
+
+          # Seed the test user (tuistrocks@tuist.dev) + fixture project.
+          # The chart deploys with TUIST_DEPLOY_ENV=prod, where seeds.exs
+          # doesn't auto-run. The CLI's TUIST_AUTH_EMAIL/_PASSWORD env
+          # vars point at this user; without it every test fails fast on
+          # "unauthorized" trying to upload run metadata.
+          SERVER_POD=$(kubectl get pods -n "$NAMESPACE" \
+            -l app.kubernetes.io/component=server \
+            -o jsonpath='{.items[0].metadata.name}')
+          kubectl exec -n "$NAMESPACE" "$SERVER_POD" -- \
+            /app/bin/tuist rpc 'Code.eval_file(Application.app_dir(:tuist, "priv/repo/seeds.exs"))'
           # Smoke test through the public host. Retries cover DNS / cert
           # propagation lag.
           for i in $(seq 1 30); do
