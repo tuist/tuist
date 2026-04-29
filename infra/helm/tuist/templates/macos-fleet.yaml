@@ -1,125 +1,38 @@
 {{- if .Values.macosFleet.enabled }}
 {{- $fleetName := .Values.macosFleet.name | default (include "tuist.componentName" (dict "root" . "component" "macos-fleet")) }}
----
-# CAPI plumbing for the macOS Mac mini fleet. Three resources:
-#
-#   1. ScalewayAppleSiliconCluster — cluster-level stub; CAPI core
-#      requires it for the Cluster object to validate. We provide it
-#      pointing at the existing Tuist control plane.
-#   2. Cluster — the parent CAPI Cluster object that ties the
-#      infra-cluster to the (Hetzner-backed) control plane.
-#   3. ScalewayAppleSiliconMachineTemplate + MachineDeployment —
-#      the desired-state declaration for "we want N Mac minis of
-#      this shape". Scaling is `kubectl scale machinedeployment
-#      <name> --replicas=N`.
-#
-# Mac mini provisioning is fully declarative from this template down.
-# The CAPI provider Deployment (capi-scaleway-applesilicon.yaml) does
-# the imperative work of calling Scaleway's API + SSHing in to bootstrap
-# kubelet, but operators only ever see the declarative side.
-apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
-kind: ScalewayAppleSiliconCluster
-metadata:
-  name: {{ $fleetName }}
-  namespace: {{ .Release.Namespace }}
-  labels:
-    {{- include "tuist.labels" . | nindent 4 }}
-    app.kubernetes.io/component: macos-fleet
-spec:
-  controlPlaneEndpoint:
-    host: {{ required "macosFleet.controlPlane.host is required" .Values.macosFleet.controlPlane.host | quote }}
-    port: {{ .Values.macosFleet.controlPlane.port | default 6443 }}
----
-# Placeholder bootstrap data Secret. CAPI core's Machine controller
-# requires `bootstrap.dataSecretName` to resolve to an existing Secret
-# before it marks a Machine as bootstrapped — even when a real
-# bootstrap provider isn't in play. Our operator does the actual
-# kubelet bootstrap inline via SSH, so the contents here are unused;
-# only the Secret's existence matters.
-apiVersion: v1
-kind: Secret
-metadata:
-  name: {{ printf "%s-bootstrap-noop" $fleetName | quote }}
-  namespace: {{ .Release.Namespace }}
-  labels:
-    {{- include "tuist.labels" . | nindent 4 }}
-    app.kubernetes.io/component: macos-fleet
-type: cluster.x-k8s.io/secret
-stringData:
-  value: ""
-  format: cloud-config
----
-apiVersion: cluster.x-k8s.io/v1beta1
-kind: Cluster
-metadata:
-  name: {{ $fleetName }}
-  namespace: {{ .Release.Namespace }}
-  labels:
-    {{- include "tuist.labels" . | nindent 4 }}
-    app.kubernetes.io/component: macos-fleet
-spec:
-  infrastructureRef:
-    apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
-    kind: ScalewayAppleSiliconCluster
-    name: {{ $fleetName }}
+{{- $replicas := int (.Values.macosFleet.replicas | default 1) }}
+{{- /*
+Mac mini fleet: render N ScalewayAppleSiliconMachine CRs directly.
+Each one is reconciled by the cluster-api-provider-scaleway-applesilicon
+operator, which orders the Mac mini from Scaleway and SSH-installs Tart.
+
+We don't use CAPI core's Cluster/MachineDeployment machinery anymore —
+without kubelet on Mac minis there's no Node to wait for, so the
+indirection costs more than it gives. Scaling = bumping `replicas`.
+
+The vk-applesilicon Deployment (next template) discovers these CRs at
+runtime and registers a virtual Node backed by the fleet.
+*/ -}}
+{{- range $i, $_ := until $replicas }}
+{{- $instance := printf "%s-%d" $fleetName $i }}
 ---
 apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
-kind: ScalewayAppleSiliconMachineTemplate
+kind: ScalewayAppleSiliconMachine
 metadata:
-  name: {{ $fleetName }}
-  namespace: {{ .Release.Namespace }}
+  name: {{ $instance }}
+  namespace: {{ $.Release.Namespace }}
   labels:
-    {{- include "tuist.labels" . | nindent 4 }}
+    {{- include "tuist.labels" $ | nindent 4 }}
     app.kubernetes.io/component: macos-fleet
+    tuist.dev/fleet: {{ $fleetName }}
 spec:
-  template:
-    spec:
-      type: {{ .Values.macosFleet.machine.type | default "M4-S" | quote }}
-      zone: {{ .Values.macosFleet.machine.zone | default "fr-par-1" | quote }}
-      os: {{ .Values.macosFleet.machine.os | default "macos-tahoe-26.0" | quote }}
-      podCIDR: {{ required "macosFleet.machine.podCIDR is required" .Values.macosFleet.machine.podCIDR | quote }}
-      # SSH key + cluster bootstrap material are operator-managed —
-      # the operator generates an Ed25519 keypair per fleet on first
-      # reconcile (registers the public half with Scaleway via IAM,
-      # stores the private half in `<fleetName>-ssh`) and mints a
-      # short-TTL bootstrap token + reads the cluster CA & API server
-      # URL from its in-cluster service-account context for each
-      # Machine.
-      fleetName: {{ $fleetName | quote }}
-      kubeletVersion: {{ .Values.macosFleet.kubeletVersion | default "1.32.1" | quote }}
----
-apiVersion: cluster.x-k8s.io/v1beta1
-kind: MachineDeployment
-metadata:
-  name: {{ $fleetName }}
-  namespace: {{ .Release.Namespace }}
-  labels:
-    {{- include "tuist.labels" . | nindent 4 }}
-    app.kubernetes.io/component: macos-fleet
-    cluster.x-k8s.io/cluster-name: {{ $fleetName }}
-spec:
-  clusterName: {{ $fleetName }}
-  replicas: {{ .Values.macosFleet.replicas | default 1 }}
-  selector:
-    matchLabels:
-      cluster.x-k8s.io/cluster-name: {{ $fleetName }}
-  template:
-    metadata:
-      labels:
-        cluster.x-k8s.io/cluster-name: {{ $fleetName }}
-    spec:
-      clusterName: {{ $fleetName }}
-      version: {{ .Values.macosFleet.kubeletVersion | default "v1.32.1" | quote }}
-      bootstrap:
-        # We don't use a CAPI bootstrap provider — the Tuist
-        # ScalewayAppleSilicon operator's MachineReconciler does the
-        # bootstrap step inline via SSH using material it mints
-        # itself (token, CA, API URL). The empty Secret reference
-        # here satisfies CAPI core's contract without naming a
-        # nonexistent Secret.
-        dataSecretName: {{ printf "%s-bootstrap-noop" $fleetName | quote }}
-      infrastructureRef:
-        apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
-        kind: ScalewayAppleSiliconMachineTemplate
-        name: {{ $fleetName }}
+  type: {{ $.Values.macosFleet.machine.type | default "M4-S" | quote }}
+  zone: {{ $.Values.macosFleet.machine.zone | default "fr-par-1" | quote }}
+  os: {{ $.Values.macosFleet.machine.os | default "macos-tahoe-26.0" | quote }}
+  fleetName: {{ $fleetName | quote }}
+  # podCIDR is unused now that Mac minis aren't k8s nodes (the VK
+  # provider doesn't expose per-host pod networks), but the CRD still
+  # requires the field. Leave it nominal.
+  podCIDR: {{ $.Values.macosFleet.machine.podCIDR | default "10.0.0.0/24" | quote }}
+{{- end }}
 {{- end }}

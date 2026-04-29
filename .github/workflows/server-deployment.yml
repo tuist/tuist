@@ -197,55 +197,6 @@ jobs:
         # nothing changed.
         run: kubectl apply -f "$HELM_CHART_PATH/crds/"
 
-      - name: Ensure Cluster API core stack
-        # Our chart references `cluster.x-k8s.io/v1beta1` types
-        # (Cluster, MachineDeployment) that require the upstream CAPI
-        # core controllers to reconcile. `cluster-api-components.yaml`
-        # ships CRDs + webhooks + capi-controller-manager (in
-        # capi-system) + RBAC. Apply is idempotent; pinned to the
-        # version our infra provider compiles against
-        # (sigs.k8s.io/cluster-api v1.9.4).
-        #
-        # The YAML uses clusterctl-style placeholders like
-        # `${CAPI_INSECURE_DIAGNOSTICS:=false}` for container args.
-        # `clusterctl init` would expand them; raw `kubectl apply`
-        # leaves them literal and the controller crashes parsing its
-        # own flags. Substitute every `${VAR:=default}` with `default`
-        # before applying — we're happy with upstream defaults across
-        # the board.
-        run: |
-          curl -fsSL https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.9.4/cluster-api-components.yaml \
-            | sed -E 's/\$\{[A-Za-z_][A-Za-z0-9_]*:=([^}]*)\}/\1/g' \
-            | kubectl apply -f -
-          # Wait for the controller pods to be Available before helm
-          # creates Cluster/MachineDeployment resources — the validating
-          # webhooks are served from these pods, and helm hits 'no
-          # endpoints available' if it races them.
-          if ! kubectl wait --for=condition=Available --timeout=300s \
-            -n capi-system deployment/capi-controller-manager; then
-            echo "::error::capi-controller-manager did not become Available in 5min"
-            echo "::group::deployment describe"
-            kubectl describe deployment -n capi-system capi-controller-manager || true
-            echo "::endgroup::"
-            echo "::group::pods in capi-system"
-            kubectl get pods -n capi-system -o wide || true
-            echo "::endgroup::"
-            echo "::group::pod describe (each)"
-            for pod in $(kubectl get pods -n capi-system -o name 2>/dev/null); do
-              echo "--- $pod ---"
-              kubectl describe -n capi-system "$pod" || true
-            done
-            echo "::endgroup::"
-            echo "::group::events in capi-system (last 50)"
-            kubectl get events -n capi-system --sort-by=.lastTimestamp | tail -50 || true
-            echo "::endgroup::"
-            echo "::group::cert-manager certificates in capi-system"
-            kubectl get certificates -n capi-system || true
-            kubectl describe certificate -n capi-system capi-serving-cert || true
-            echo "::endgroup::"
-            exit 1
-          fi
-
       - name: helm upgrade --install
         # App secrets never pass through --set: the chart runs in
         # `server.managedSecrets: true` mode, which reads DATABASE_URL /

@@ -1,0 +1,137 @@
+{{- if .Values.macosFleet.enabled }}
+{{- $name := include "tuist.componentName" (dict "root" . "component" "vk-applesilicon") }}
+{{- $fleetName := .Values.macosFleet.name | default (include "tuist.componentName" (dict "root" . "component" "macos-fleet")) }}
+{{- /*
+Virtual Kubelet provider for the macOS Mac mini fleet. Registers a
+single virtual Node (kubernetes.io/os=darwin), watches Pods scheduled
+to it, and translates each Pod into a Tart VM running on one of the
+ScalewayAppleSiliconMachines reconciled by our CAPI provider.
+
+Only deploys when macosFleet.enabled — without a fleet there are no
+Mac minis to talk to.
+*/}}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: vk-applesilicon
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: vk-applesilicon
+rules:
+  # Manage the virtual Node object.
+  - apiGroups: [""]
+    resources: [nodes, nodes/status]
+    verbs: [get, list, watch, create, update, patch, delete]
+  # Watch Pods scheduled to our virtual Node + write status.
+  - apiGroups: [""]
+    resources: [pods, pods/status]
+    verbs: [get, list, watch, create, update, patch, delete]
+  # Read events (for context on Pod failures).
+  - apiGroups: [""]
+    resources: [events]
+    verbs: [get, list, watch, create, patch]
+  # Discover Mac minis.
+  - apiGroups: [infrastructure.cluster.x-k8s.io]
+    resources: [scalewayapplesiliconmachines]
+    verbs: [get, list, watch]
+  # Read the per-fleet SSH Secret the CAPI operator writes.
+  - apiGroups: [""]
+    resources: [secrets]
+    verbs: [get, list, watch]
+  # controller-runtime's leader-election machinery.
+  - apiGroups: [coordination.k8s.io]
+    resources: [leases]
+    verbs: [get, list, watch, create, update, patch, delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: vk-applesilicon
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ $name }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $name }}
+    namespace: {{ .Release.Namespace }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: vk-applesilicon
+spec:
+  # Single replica — the virtual Node has one identity, no HA shape
+  # for this version. controller-runtime leader-election makes scaling
+  # to >1 safe but unnecessary.
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "tuist.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: vk-applesilicon
+  template:
+    metadata:
+      labels:
+        {{- include "tuist.componentLabels" (dict "root" . "component" "vk-applesilicon") | nindent 8 }}
+    spec:
+      serviceAccountName: {{ $name }}
+      containers:
+        - name: vk
+          image: "{{ .Values.macosFleet.vkImage.repository }}:{{ .Values.macosFleet.vkImage.tag | default "latest" }}"
+          imagePullPolicy: {{ .Values.macosFleet.vkImage.pullPolicy | default "IfNotPresent" }}
+          args:
+            - --node-name={{ $fleetName }}
+            - --namespace={{ .Release.Namespace }}
+            - --ssh-key=/etc/vk-applesilicon/ssh/id_ed25519
+            - --host-cpu={{ .Values.macosFleet.vkImage.hostCPU | default 8 }}
+            - --host-memory-mb={{ .Values.macosFleet.vkImage.hostMemoryMB | default 16384 }}
+          ports:
+            - name: metrics
+              containerPort: 8080
+            - name: probe
+              containerPort: 8081
+          livenessProbe:
+            httpGet: { path: /healthz, port: probe }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet: { path: /readyz, port: probe }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          volumeMounts:
+            - name: ssh
+              mountPath: /etc/vk-applesilicon/ssh
+              readOnly: true
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+      volumes:
+        - name: ssh
+          secret:
+            secretName: {{ printf "%s-ssh" $fleetName }}
+            defaultMode: 0o400
+            items:
+              - key: id_ed25519
+                path: id_ed25519
+{{- end }}

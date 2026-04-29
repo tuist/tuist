@@ -36,9 +36,10 @@ spec:
         - key: tuist.dev/macos
           operator: Exists
           effect: NoSchedule
-      # No init containers, no sidecars — tart-cri maps Pod ↔ Tart VM
-      # 1:1 and rejects multi-container Pods at admission. The first
-      # (and only) container's image is the Tart VM image; env flows
+      # No init containers, no sidecars — vk-applesilicon maps Pod ↔
+      # Tart VM 1:1 and rejects multi-container Pods at CreatePod.
+      # The first (and only) container's image is the Tart VM image;
+      # env flows
       # through to /etc/tuist.env inside the VM via the user-data
       # injection in launchd.plist.
       containers:

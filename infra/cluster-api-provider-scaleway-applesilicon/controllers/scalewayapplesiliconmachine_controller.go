@@ -7,21 +7,15 @@ import (
 	"fmt"
 	"time"
 
-	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
-	"sigs.k8s.io/cluster-api/util"
 	"sigs.k8s.io/cluster-api/util/conditions"
 	"sigs.k8s.io/cluster-api/util/patch"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
-	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/api/v1alpha1"
 	"github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/internal/bootstrap"
@@ -66,18 +60,7 @@ func (r *ScalewayAppleSiliconMachineReconciler) Reconcile(ctx context.Context, r
 		}
 		return ctrl.Result{}, err
 	}
-
-	// Resolve the parent CAPI Machine (label set by the MachineSet
-	// controller). Without it we can't read the cluster the Machine
-	// belongs to or its bootstrap data.
-	parent, err := util.GetOwnerMachine(ctx, r.Client, machine.ObjectMeta)
-	if err != nil {
-		return ctrl.Result{}, err
-	}
-	if parent == nil {
-		logger.Info("waiting for owner Machine to be set")
-		return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
-	}
+	_ = logger
 
 	patchHelper, err := patch.NewHelper(machine, r.Client)
 	if err != nil {
@@ -100,13 +83,12 @@ func (r *ScalewayAppleSiliconMachineReconciler) Reconcile(ctx context.Context, r
 		controllerutil.AddFinalizer(machine, MachineFinalizer)
 	}
 
-	return r.reconcileNormal(ctx, machine, parent)
+	return r.reconcileNormal(ctx, machine)
 }
 
 func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 	ctx context.Context,
 	machine *infrav1.ScalewayAppleSiliconMachine,
-	parent *clusterv1.Machine,
 ) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 
@@ -193,7 +175,6 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 	// as soon as Tart is installed.
 	machine.Status.Ready = true
 	machine.Status.Phase = "Ready"
-	_ = parent
 	return ctrl.Result{RequeueAfter: 5 * time.Minute}, nil
 }
 
@@ -218,17 +199,6 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileDelete(
 
 // === helpers ================================================================
 
-func (r *ScalewayAppleSiliconMachineReconciler) findNode(ctx context.Context, hostname string) (*corev1.Node, error) {
-	node := &corev1.Node{}
-	if err := r.Get(ctx, types.NamespacedName{Name: hostname}, node); err != nil {
-		if apierrors.IsNotFound(err) {
-			return nil, nil
-		}
-		return nil, err
-	}
-	return node, nil
-}
-
 func machineIP(m *infrav1.ScalewayAppleSiliconMachine) string {
 	for _, a := range m.Status.Addresses {
 		if a.Type == clusterv1.MachineExternalIP {
@@ -238,50 +208,9 @@ func machineIP(m *infrav1.ScalewayAppleSiliconMachine) string {
 	return ""
 }
 
-func nodeReady(node *corev1.Node) bool {
-	for _, c := range node.Status.Conditions {
-		if c.Type == corev1.NodeReady {
-			return c.Status == corev1.ConditionTrue
-		}
-	}
-	return false
-}
-
 func (r *ScalewayAppleSiliconMachineReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&infrav1.ScalewayAppleSiliconMachine{}).
-		Watches(
-			&corev1.Node{},
-			handler.EnqueueRequestsFromMapFunc(r.nodeToMachine),
-			builder.WithPredicates(),
-		).
-		Watches(
-			&clusterv1.Machine{},
-			handler.EnqueueRequestsFromMapFunc(r.parentMachineToMachine),
-		).
 		Complete(r)
 }
 
-func (r *ScalewayAppleSiliconMachineReconciler) nodeToMachine(_ context.Context, obj client.Object) []reconcile.Request {
-	node, ok := obj.(*corev1.Node)
-	if !ok {
-		return nil
-	}
-	// Node name == Machine name (we --hostname-override at kubelet
-	// boot to enforce this).
-	return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: node.Name}}}
-}
-
-func (r *ScalewayAppleSiliconMachineReconciler) parentMachineToMachine(_ context.Context, obj client.Object) []reconcile.Request {
-	parent, ok := obj.(*clusterv1.Machine)
-	if !ok {
-		return nil
-	}
-	if parent.Spec.InfrastructureRef.Kind != "ScalewayAppleSiliconMachine" {
-		return nil
-	}
-	return []reconcile.Request{{NamespacedName: types.NamespacedName{
-		Namespace: parent.Spec.InfrastructureRef.Namespace,
-		Name:      parent.Spec.InfrastructureRef.Name,
-	}}}
-}

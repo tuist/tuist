@@ -327,6 +327,16 @@ macosFleet:
     # green build. Pin per-env in `values-managed-<env>.yaml` for prod.
     tag: ""
     pullPolicy: IfNotPresent
+  # Virtual Kubelet provider image — registers the virtual Node and
+  # routes Pod CRUD to Tart on Mac minis via SSH.
+  vkImage:
+    repository: ghcr.io/tuist/vk-applesilicon
+    tag: ""
+    pullPolicy: IfNotPresent
+    # Capacity advertised on the virtual Node per Mac mini. Sum of all
+    # Mac minis in the fleet = total Node capacity. M4-S = 8 vCPU/16GB.
+    hostCPU: 8
+    hostMemoryMB: 16384
   scaleway:
     # Name of the Secret holding `access-key`, `secret-key`,
     # `project-id`. ESO populates it from 1Password by default; set
