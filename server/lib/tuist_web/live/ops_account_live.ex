@@ -158,10 +158,14 @@ defmodule TuistWeb.OpsAccountLive do
       {:error, %Ecto.Changeset{} = changeset} ->
         {:noreply,
          socket
-         |> put_flash(:error, "Failed to provision: #{format_errors(changeset)}")}
+         |> put_flash(:error, "Failed to provision: #{format_errors(changeset)}")
+         |> push_event("close-modal", %{id: "add-server-modal"})}
 
       {:error, reason} ->
-        {:noreply, put_flash(socket, :error, "Failed to provision: #{inspect(reason)}")}
+        {:noreply,
+         socket
+         |> put_flash(:error, "Failed to provision: #{inspect(reason)}")
+         |> push_event("close-modal", %{id: "add-server-modal"})}
     end
   end
 

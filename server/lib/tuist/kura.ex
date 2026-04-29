@@ -88,6 +88,12 @@ defmodule Tuist.Kura do
 
     image_tag = attrs[:image_tag] || attrs["image_tag"]
 
+    # Recycle terminal-state rows that share the same triple. Failed
+    # and destroyed servers shouldn't permanently block reprovisioning;
+    # active/provisioning/destroying rows still trigger the unique
+    # constraint and surface a clear changeset error to the operator.
+    recycle_terminal_server(attrs)
+
     Repo.transaction(fn ->
       with {:ok, server} <- attrs |> KuraServer.create_changeset() |> Repo.insert(),
            {:ok, deployment} <-
@@ -108,6 +114,23 @@ defmodule Tuist.Kura do
         {:error, reason} -> Repo.rollback(reason)
       end
     end)
+  end
+
+  defp recycle_terminal_server(attrs) do
+    account_id = attrs[:account_id] || attrs["account_id"]
+    cluster_id = attrs[:cluster_id] || attrs["cluster_id"]
+    spec = attrs[:spec] || attrs["spec"]
+
+    if account_id && cluster_id && spec do
+      from(s in KuraServer,
+        where:
+          s.account_id == ^account_id and
+            s.cluster_id == ^cluster_id and
+            s.spec == ^spec and
+            s.status in [:failed, :destroyed]
+      )
+      |> Repo.delete_all()
+    end
   end
 
   @doc "Returns the active (non-destroyed) servers for an account."
