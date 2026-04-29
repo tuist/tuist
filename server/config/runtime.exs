@@ -417,24 +417,19 @@ oban_queues =
     true -> base_queues ++ [process_build_queue]
   end
 
-# Cron is leader-only: whichever Oban node wins the leader election runs the
-# crontab. With multiple pod roles in the same Oban cluster (server + processor)
-# the leader can land on either. Configure the same crontab everywhere so
-# scheduled jobs fire regardless of which pod is currently leader; the *jobs*
-# are then claimed by whichever pod runs the matching queue. Pruner + Lifeline
-# are also leader-only; both work fine on either pod since the tuist_processor
-# DB role has the necessary INSERT/UPDATE/DELETE on oban_jobs.
+# Leader-only Oban work (Cron, Pruner, Lifeline, Oban.Met.Reporter) runs on
+# whichever node wins the peer election. Server pods are always running and
+# carry the full DB role, so we make them the only leader-eligible nodes by
+# setting `peer: false` on processor pods. Oban normalises that to the
+# Isolated peer with `leader?: false`, so leader-only plugins start there but
+# stay idle.
 #
-# Oban.Met is the exception: its leader-only Reporter runs `CREATE OR REPLACE
-# FUNCTION public.oban_count_estimate(...)` on every checkpoint, which the
-# tuist_processor role can't do (USAGE only on schema public, see
-# infra/supabase/tuist-processor-role.sql). Disable auto-start on processor
-# pods so the supervisor doesn't attach there; server pods keep reporting and
-# the dashboard view is unaffected.
-if Tuist.Environment.processor_mode?() do
-  config :oban_met, auto_start: false
-end
-
+# Why not let the processor become leader? The tuist_processor role is
+# least-privilege (USAGE only on schema public, see
+# infra/supabase/tuist-processor-role.sql). Oban.Met.Reporter's leader path
+# runs `CREATE OR REPLACE FUNCTION public.oban_count_estimate(...)` on every
+# checkpoint, which the role can't execute and which crashes the Reporter
+# repeatedly when the processor wins the election.
 config :tuist, Oban,
   queues: oban_queues,
   plugins: [
@@ -456,6 +451,10 @@ config :tuist, Oban,
          else: []
        )}
   ]
+
+if Tuist.Environment.processor_mode?() do
+  config :tuist, Oban, peer: false
+end
 
 # Guardian
 config :tuist, Tuist.Guardian,
