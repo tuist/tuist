@@ -221,7 +221,7 @@ defmodule Tuist.Tests.Analytics do
       group_by: fragment("formatDateTime(?, ?)", f.ran_at, ^date_format),
       select: %{
         date: fragment("formatDateTime(?, ?)", f.ran_at, ^date_format),
-        count: count(f.test_case_id)
+        count: count()
       },
       order_by: fragment("formatDateTime(?, ?)", f.ran_at, ^date_format)
     )
@@ -236,7 +236,7 @@ defmodule Tuist.Tests.Analytics do
       where: f.project_id == ^project_id,
       where: f.ran_at >= ^start_datetime,
       where: f.ran_at <= ^end_datetime,
-      select: count(f.test_case_id)
+      select: count()
     )
     |> apply_flaky_test_case_run_is_ci_filter(is_ci)
     |> ClickHouseRepo.one() || 0

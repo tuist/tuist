@@ -225,16 +225,16 @@
                             List.last(@flaky_test_cases_analytics.result.dates)
                           ]
 
+                        "flaky_test_case_runs" ->
+                          [
+                            List.first(@flaky_test_case_runs_analytics.result.dates),
+                            List.last(@flaky_test_case_runs_analytics.result.dates)
+                          ]
+
                         "flaky_test_runs" ->
                           [
                             List.first(@flaky_test_runs_analytics.result.dates),
                             List.last(@flaky_test_runs_analytics.result.dates)
-                          ]
-
-                        _ ->
-                          [
-                            List.first(@flaky_test_case_runs_analytics.result.dates),
-                            List.last(@flaky_test_case_runs_analytics.result.dates)
                           ]
                       end,
                     padding: [10, 0, 0, 0]
@@ -267,8 +267,8 @@
                 color:
                   case @analytics_selected_widget do
                     "flaky_test_cases" -> "var:noora-chart-flaky"
+                    "flaky_test_case_runs" -> "var:noora-chart-primary"
                     "flaky_test_runs" -> "var:noora-chart-tertiary"
-                    _ -> "var:noora-chart-primary"
                   end,
                 data:
                   case @analytics_selected_widget do
@@ -277,21 +277,21 @@
                       |> Enum.zip(@flaky_test_cases_analytics.result.values)
                       |> Enum.map(&Tuple.to_list/1)
 
+                    "flaky_test_case_runs" ->
+                      @flaky_test_case_runs_analytics.result.dates
+                      |> Enum.zip(@flaky_test_case_runs_analytics.result.values)
+                      |> Enum.map(&Tuple.to_list/1)
+
                     "flaky_test_runs" ->
                       @flaky_test_runs_analytics.result.dates
                       |> Enum.zip(@flaky_test_runs_analytics.result.values)
-                      |> Enum.map(&Tuple.to_list/1)
-
-                    _ ->
-                      @flaky_test_case_runs_analytics.result.dates
-                      |> Enum.zip(@flaky_test_case_runs_analytics.result.values)
                       |> Enum.map(&Tuple.to_list/1)
                   end,
                 name:
                   case @analytics_selected_widget do
                     "flaky_test_cases" -> dgettext("dashboard_tests", "Flagged flaky test cases")
+                    "flaky_test_case_runs" -> dgettext("dashboard_tests", "Flaky test case runs")
                     "flaky_test_runs" -> dgettext("dashboard_tests", "Flaky test runs")
-                    _ -> dgettext("dashboard_tests", "Flaky test case runs")
                   end,
                 type: "line",
                 smooth: 0.1,
