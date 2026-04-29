@@ -289,6 +289,10 @@ On top of the `TUIST_GITHUB_APP_CLIENT_ID` and `TUIST_GITHUB_APP_CLIENT_SECRET`,
 | --- | --- | --- | --- | --- |
 | `TUIST_GITHUB_APP_PRIVATE_KEY` | The private key of the GitHub application | Yes | | `-----BEGIN RSA PRIVATE KEY-----...` |
 
+##### GitHub Enterprise Server {#platform-github-enterprise-server}
+
+The same environment variables work whether the GitHub App lives on github.com or on a self-hosted GitHub Enterprise Server (GHES) instance — register the app on your GHES instance and use its credentials here. Each Tuist organization then chooses the target host on its integrations page (the **Enterprise server** tab) and enters its GHES base URL (e.g. `https://github.example.com`) before installing the app.
+
 ## Testing Locally {#testing-locally}
 
 We provide a comprehensive Docker Compose configuration that includes all required dependencies for testing Tuist server on your local machine before deploying to your infrastructure:

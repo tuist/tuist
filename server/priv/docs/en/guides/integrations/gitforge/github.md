@@ -23,6 +23,12 @@ After that, you can add a project connection between your GitHub repository and 
 >
 > If your GitHub organization uses [IP allow lists](https://docs.github.com/en/organizations/keeping-your-organization-secure/managing-security-settings-for-your-organization/managing-allowed-ip-addresses-for-your-organization) or your GitHub instance is behind a firewall, make sure to allowlist Tuist's <.localized_link href="/guides/server/network#outbound-ip-addresses">outbound IP addresses</.localized_link> so that the integration can communicate with your repository.
 
+### GitHub Enterprise Server {#github-enterprise-server}
+
+If you self-host Tuist alongside a GitHub Enterprise Server (GHES) instance, switch to the **Enterprise server** tab in the GitHub integration card and enter your GHES base URL (for example `https://github.example.com`) before clicking install. Tuist will route every API call, webhook callback, and rendered link through that host instead of github.com.
+
+This requires your Tuist server to be configured with the credentials of a GitHub App registered on your GHES instance. See <.localized_link href="/guides/server/self-host/install#platform-github">the self-host install guide</.localized_link> for the `TUIST_GITHUB_APP_*` environment variables. Tuist Cloud does not yet support GHES.
+
 
 ## Pull/merge request comments {#pull-merge-request-comments}
 
