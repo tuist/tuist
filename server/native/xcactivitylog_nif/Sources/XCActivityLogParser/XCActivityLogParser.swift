@@ -84,7 +84,9 @@ public struct XCActivityLogParser: Sendable {
 
     // Iterative DFS so build trees thousands of levels deep don't overflow the
     // stack. Order matches the recursive walk: parent before children.
-    private func flattenBuildSteps(_ steps: [BuildStep]) -> [BuildStep] {
+    // Visibility is `internal` (not `private`) so tests can exercise the
+    // deep-tree path directly.
+    func flattenBuildSteps(_ steps: [BuildStep]) -> [BuildStep] {
         var result = [BuildStep]()
         var stack = Array(steps.reversed())
         while let step = stack.popLast() {

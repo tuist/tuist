@@ -7,6 +7,14 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
   pods (`TUIST_MODE=processor`), so this worker's body executes there;
   the server pods enqueue jobs but never claim them. In self-hosted installs
   the server runs both roles in the same BEAM.
+
+  ## Uniqueness
+
+  Jobs are unique on `build_id` over `available | scheduled | executing |
+  retryable` with `period: :infinity` to absorb the duplicate enqueues from
+  the race in `get_or_create_build`. A re-enqueue while a previous job is
+  still in-flight (or sitting in retryable) is silently dropped — to manually
+  requeue a stuck job, cancel the existing one first.
   """
 
   use Oban.Worker,

@@ -2,6 +2,7 @@ import FileSystem
 import Foundation
 import Path
 import Testing
+import XCLogParser
 
 @testable import XCActivityLogParser
 
@@ -151,6 +152,82 @@ struct XCActivityLogParserTests {
             #expect(task.status != "hit_local",
                     "Upload-bearing key \(task.key) misclassified as hit_local")
         }
+    }
+
+    // MARK: - flattenBuildSteps
+
+    @Test func flattenBuildSteps_handlesDeepTreeWithoutStackOverflow() {
+        // Recursive flatten blew the stack on deeply nested step trees; the
+        // iterative DFS shouldn't. 2000 is well past the recursive Swift
+        // limit on a default test thread (~1k frames) but low enough that
+        // tearing the nested struct down via ARC at scope exit doesn't itself
+        // overflow the stack — the latter is unrelated to what we're testing.
+        let depth = 2_000
+        var leaf = makeStep(identifier: "step-\(depth)", subSteps: [])
+        for level in stride(from: depth - 1, through: 0, by: -1) {
+            leaf = makeStep(identifier: "step-\(level)", subSteps: [leaf])
+        }
+
+        let result = parser.flattenBuildSteps([leaf])
+
+        #expect(result.count == depth + 1)
+        #expect(result.first?.identifier == "step-0")
+        #expect(result.last?.identifier == "step-\(depth)")
+    }
+
+    @Test func flattenBuildSteps_preservesDFSOrder() {
+        // Two siblings at the root, each with two children — DFS pre-order
+        // is: a, a1, a2, b, b1, b2.
+        let tree = [
+            makeStep(identifier: "a", subSteps: [
+                makeStep(identifier: "a1", subSteps: []),
+                makeStep(identifier: "a2", subSteps: [])
+            ]),
+            makeStep(identifier: "b", subSteps: [
+                makeStep(identifier: "b1", subSteps: []),
+                makeStep(identifier: "b2", subSteps: [])
+            ])
+        ]
+
+        let result = parser.flattenBuildSteps(tree)
+
+        #expect(result.map(\.identifier) == ["a", "a1", "a2", "b", "b1", "b2"])
+    }
+
+    private func makeStep(identifier: String, subSteps: [BuildStep]) -> BuildStep {
+        BuildStep(
+            type: .detail,
+            machineName: "",
+            buildIdentifier: "",
+            identifier: identifier,
+            parentIdentifier: "",
+            domain: "",
+            title: "",
+            signature: "",
+            startDate: "",
+            endDate: "",
+            startTimestamp: 0,
+            endTimestamp: 0,
+            duration: 0,
+            detailStepType: .other,
+            buildStatus: "",
+            schema: "",
+            subSteps: subSteps,
+            warningCount: 0,
+            errorCount: 0,
+            architecture: "",
+            documentURL: "",
+            warnings: nil,
+            errors: nil,
+            notes: nil,
+            swiftFunctionTimes: nil,
+            fetchedFromCache: false,
+            compilationEndTimestamp: 0,
+            compilationDuration: 0,
+            clangTimeTraceFile: nil,
+            linkerStatistics: nil,
+            swiftTypeCheckTimes: nil
+        )
     }
 }
 
