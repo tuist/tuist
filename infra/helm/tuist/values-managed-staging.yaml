@@ -147,3 +147,7 @@ macosFleet:
     # vk-applesilicon — registers the virtual Node + routes Pods to
     # Tart VMs via SSH.
     tag: "471b516b"
+  machine:
+    # M4-S is normally what we'd pick (smallest M4); falls back to
+    # M2-M when M4-S is no_stock. Override per Scaleway capacity.
+    type: M2-M
