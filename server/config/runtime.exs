@@ -477,7 +477,11 @@ if otel_endpoint do
   config :opentelemetry,
     span_processor: :batch,
     resource: [
-      service: [name: "tuist-server", namespace: "tuist"],
+      service: [
+        name: "tuist-server",
+        namespace: "tuist",
+        version: to_string(Tuist.Environment.version())
+      ],
       deployment: [environment: to_string(env)]
     ]
 
