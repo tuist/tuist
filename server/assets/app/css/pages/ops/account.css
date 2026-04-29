@@ -76,4 +76,15 @@
     color: var(--noora-surface-label-secondary);
     font: var(--noora-font-body-small);
   }
+
+  /* Cancel + Provision row pinned to the bottom-right. We render the
+     buttons inline at the end of the form (instead of using Noora's
+     <:footer> slot) because the modal portals its footer to a
+     separate DOM subtree, which orphans the inputs from the form. */
+  & > [data-part="actions"] {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--noora-spacing-3);
+    margin-top: var(--noora-spacing-2);
+  }
 }
