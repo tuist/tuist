@@ -1,32 +1,29 @@
-// Package bootstrap orchestrates the per-Machine setup that turns a
-// freshly-provisioned Scaleway Mac mini into a Kubernetes Ready node.
+// Package bootstrap turns a freshly-provisioned Scaleway Mac mini into
+// a Tart-ready compute host.
 //
-// Equivalent to the imperative shell version that previously lived
-// at infra/tart-cri/platform/provision.sh, ported to Go so the CAPI
-// MachineReconciler can drive it without forking out to bash.
+// We DO NOT install kubelet on the Mac mini. The Mac mini is a "dumb"
+// Tart server: the in-cluster Virtual Kubelet provider
+// (infra/vk-applesilicon) SSHes in to drive `tart pull/clone/run/...`
+// against this host. From the cluster's perspective, Mac minis show up
+// as slots on a single virtual Node, not as standalone k8s Nodes.
 //
 // Steps, in order, idempotent on retry:
 //   1. Wait for SSH (host has just booted from a Scaleway image).
 //   2. Grant the SSH user passwordless sudo using the OS-default password.
 //   3. Configure GUI auto-login via /etc/kcpassword + autoLoginUser
-//      so Virtualization.framework has a live console session
-//      (Tart's hard requirement).
+//      so Virtualization.framework has a live console session (Tart's
+//      hard requirement).
 //   4. Install Homebrew + Tart if missing.
-//   5. Install kubelet for darwin/arm64 from dl.k8s.io.
-//   6. Install tart-cri + tart-cni binaries (assumed to be embedded
-//      in the operator image at /usr/local/share/tart-cri/).
-//   7. Drop kubelet config + bootstrap kubeconfig + CNI conflist +
-//      launchd plists.
-//   8. launchctl bootstrap both daemons.
 //
-// After step 8 the Mac mini's kubelet self-registers with the cluster
-// API server; the MachineReconciler watches the corresponding Node
-// object for `Ready=True` to flip the Machine's Status.Ready.
+// After step 4 the host is ready for the VK provider to claim. The
+// MachineReconciler flips Machine.Status.Ready=true when this returns
+// nil.
 package bootstrap
 
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"fmt"
 	"strings"
 	"time"
@@ -34,44 +31,18 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-// Config drives the bootstrap. All fields are required.
+// Config drives the bootstrap.
 type Config struct {
-	IP             string
-	SSHUser        string
-	SudoPassword   string
-	SSHPrivateKey  []byte
-	Hostname       string
-	PodCIDR        string
-	KubeletVersion string
-
-	BootstrapToken string
-	APIServer      string
-	CACertData     string
-
-	// Path to the tart-cri + tart-cni + kubelet binaries on disk
-	// (inside the operator pod's image). All three default to
-	// /usr/local/share/tart-cri/. Kubernetes upstream doesn't publish
-	// kubelet for darwin (any arch) on dl.k8s.io, so we cross-compile
-	// it ourselves at image build time and ship it alongside.
-	TartCRIBinary string
-	TartCNIBinary string
-	KubeletBinary string
+	IP            string
+	SSHUser       string
+	SudoPassword  string
+	SSHPrivateKey []byte
 }
 
 // Run executes the bootstrap. Idempotent: re-running on a partially-
 // bootstrapped host completes the missing steps without redoing the
 // finished ones.
 func Run(ctx context.Context, cfg Config) error {
-	if cfg.TartCRIBinary == "" {
-		cfg.TartCRIBinary = "/usr/local/share/tart-cri/tart-cri"
-	}
-	if cfg.TartCNIBinary == "" {
-		cfg.TartCNIBinary = "/usr/local/share/tart-cri/tart-cni"
-	}
-	if cfg.KubeletBinary == "" {
-		cfg.KubeletBinary = "/usr/local/share/tart-cri/kubelet"
-	}
-
 	signer, err := ssh.ParsePrivateKey(cfg.SSHPrivateKey)
 	if err != nil {
 		return fmt.Errorf("parse ssh key: %w", err)
@@ -96,18 +67,6 @@ func Run(ctx context.Context, cfg Config) error {
 	if err := installTart(ctx, client); err != nil {
 		return fmt.Errorf("install tart: %w", err)
 	}
-	if err := installKubelet(ctx, client, cfg.KubeletBinary, cfg.KubeletVersion); err != nil {
-		return fmt.Errorf("install kubelet: %w", err)
-	}
-	if err := uploadTartCRIBinaries(ctx, client, cfg.TartCRIBinary, cfg.TartCNIBinary); err != nil {
-		return fmt.Errorf("upload tart-cri binaries: %w", err)
-	}
-	if err := writeConfigs(ctx, client, cfg); err != nil {
-		return fmt.Errorf("write configs: %w", err)
-	}
-	if err := bootDaemons(ctx, client); err != nil {
-		return fmt.Errorf("boot daemons: %w", err)
-	}
 	return nil
 }
 
@@ -123,127 +82,90 @@ func dial(ip, user string, signer ssh.Signer) (*ssh.Client, error) {
 
 func waitForSSH(ctx context.Context, ip, user string, signer ssh.Signer) error {
 	deadline := time.Now().Add(5 * time.Minute)
-	for time.Now().Before(deadline) {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
+	for {
+		if time.Now().After(deadline) {
+			return fmt.Errorf("SSH not available after 5m at %s", ip)
 		}
 		client, err := dial(ip, user, signer)
 		if err == nil {
-			_ = client.Close()
+			client.Close()
 			return nil
 		}
-		time.Sleep(5 * time.Second)
-	}
-	return fmt.Errorf("SSH not available after 5m at %s", ip)
-}
-
-func enablePasswordlessSudo(ctx context.Context, client *ssh.Client, user, pw string) error {
-	cmd := fmt.Sprintf(
-		"echo %s | sudo -S sh -c 'echo \"%s ALL=(ALL) NOPASSWD: ALL\" > /etc/sudoers.d/%s && chmod 0440 /etc/sudoers.d/%s' && sudo -n true",
-		shellEscape(pw), user, user, user,
-	)
-	return runCommand(ctx, client, cmd)
-}
-
-func enableAutoLogin(ctx context.Context, client *ssh.Client, user, pw string) error {
-	encoded := encodeKCPassword(pw)
-	cmd := fmt.Sprintf(
-		"printf '%s' | sudo tee /etc/kcpassword > /dev/null && sudo chmod 600 /etc/kcpassword && sudo defaults write /Library/Preferences/com.apple.loginwindow autoLoginUser %s",
-		hexEscapes(encoded), user,
-	)
-	return runCommand(ctx, client, cmd)
-}
-
-func installTart(ctx context.Context, client *ssh.Client) error {
-	script := `set -euo pipefail
-if ! command -v tart >/dev/null 2>&1; then
-    if ! command -v brew >/dev/null 2>&1; then
-        NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-        eval "$(/opt/homebrew/bin/brew shellenv)"
-    fi
-    brew install cirruslabs/cli/tart
-fi
-`
-	return runCommand(ctx, client, script)
-}
-
-// installKubelet uploads the operator-bundled darwin/arm64 kubelet
-// binary to /usr/local/bin/kubelet. We don't curl from dl.k8s.io
-// because Kubernetes upstream only publishes Linux kubelet builds —
-// darwin returns 404. The Dockerfile's kubelet-builder stage
-// cross-compiles kubelet from kubernetes/kubernetes source for
-// darwin/arm64 and stages it at `kubeletBinary` in the operator
-// image; we ship that to each Mac mini at bootstrap time.
-//
-// `version` only drives the skip-if-already-installed check —
-// idempotent re-runs avoid the SCP when the right kubelet is
-// already in place.
-func installKubelet(ctx context.Context, client *ssh.Client, kubeletBinary, version string) error {
-	check := fmt.Sprintf(
-		`[ -x /usr/local/bin/kubelet ] && /usr/local/bin/kubelet --version | grep -q "v%s"`,
-		version,
-	)
-	if err := runCommand(ctx, client, check); err == nil {
-		return nil
-	}
-	if err := uploadFile(ctx, client, kubeletBinary, "/tmp/kubelet", 0o755); err != nil {
-		return err
-	}
-	return runCommand(ctx, client, `set -euo pipefail
-sudo mkdir -p /usr/local/bin
-sudo install -m 0755 /tmp/kubelet /usr/local/bin/kubelet
-rm -f /tmp/kubelet
-`)
-}
-
-func uploadTartCRIBinaries(ctx context.Context, client *ssh.Client, criPath, cniPath string) error {
-	if err := uploadFile(ctx, client, criPath, "/tmp/tart-cri", 0o755); err != nil {
-		return err
-	}
-	if err := uploadFile(ctx, client, cniPath, "/tmp/tart-cni", 0o755); err != nil {
-		return err
-	}
-	script := `set -euo pipefail
-sudo mkdir -p /usr/local/bin /opt/cni/bin /var/lib/tart-cri /var/log/tart-cri /var/log/kubelet /var/log/pods /var/run/tart-cri /etc/kubernetes /etc/cni/net.d
-sudo install -m 0755 /tmp/tart-cri /usr/local/bin/tart-cri
-sudo install -m 0755 /tmp/tart-cni /opt/cni/bin/tart-cni
-rm -f /tmp/tart-cri /tmp/tart-cni
-`
-	return runCommand(ctx, client, script)
-}
-
-func writeConfigs(ctx context.Context, client *ssh.Client, cfg Config) error {
-	configs := map[string]string{
-		"/etc/kubernetes/kubelet-config.yaml":         kubeletConfig(),
-		"/etc/cni/net.d/10-tart.conflist":             cniConflist(cfg.PodCIDR),
-		"/etc/kubernetes/bootstrap-kubelet.conf":      bootstrapKubeconfig(cfg),
-		"/Library/LaunchDaemons/dev.tuist.tart-cri.plist":  tartCRIPlist(),
-		"/Library/LaunchDaemons/dev.tuist.kubelet.plist":   kubeletPlist(cfg),
-	}
-
-	for path, contents := range configs {
-		// Stage to /tmp first, then sudo-install with the right mode.
-		// `tee` via sudo lets us write to root-owned paths over a
-		// non-root SSH session.
-		cmd := fmt.Sprintf("sudo tee %s > /dev/null", path)
-		if err := runCommandWithStdin(ctx, client, cmd, contents); err != nil {
-			return fmt.Errorf("write %s: %w", path, err)
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(10 * time.Second):
 		}
 	}
-	return nil
 }
 
-func bootDaemons(ctx context.Context, client *ssh.Client) error {
+// enablePasswordlessSudo writes a sudoers.d entry for the SSH user. We
+// authenticate the initial sudo with the OS-default password Scaleway
+// returns at server creation time; subsequent sudo calls don't need it.
+func enablePasswordlessSudo(ctx context.Context, client *ssh.Client, user, password string) error {
+	script := fmt.Sprintf(`set -euo pipefail
+if [ -f /etc/sudoers.d/%[1]s-nopasswd ]; then exit 0; fi
+echo '%[2]s' | sudo -S tee /etc/sudoers.d/%[1]s-nopasswd > /dev/null <<EOF
+%[1]s ALL=(ALL) NOPASSWD: ALL
+EOF
+sudo chmod 440 /etc/sudoers.d/%[1]s-nopasswd
+`, user, password)
+	return runCommand(ctx, client, script)
+}
+
+// enableAutoLogin sets the macOS auto-login flag so a desktop session
+// exists at boot. Tart's Virtualization.framework requires a live
+// console session — without this, every `tart run` returns
+// "Virtualization is not available because no graphic console is
+// available".
+//
+// macOS implements auto-login via:
+//   - /etc/kcpassword (XOR-encoded password with Apple's well-known key)
+//   - com.apple.loginwindow.autoLoginUser preference
+func enableAutoLogin(ctx context.Context, client *ssh.Client, user, password string) error {
+	encoded := encodeKCPassword(password)
+	// Stage the binary kcpassword via base64 to avoid TTY issues.
+	script := fmt.Sprintf(`set -euo pipefail
+if defaults read /Library/Preferences/com.apple.loginwindow autoLoginUser 2>/dev/null | grep -q '%[1]s'; then exit 0; fi
+echo '%[2]s' | base64 -d | sudo tee /etc/kcpassword > /dev/null
+sudo chmod 600 /etc/kcpassword
+sudo defaults write /Library/Preferences/com.apple.loginwindow autoLoginUser '%[1]s'
+`, user, encoded)
+	return runCommand(ctx, client, script)
+}
+
+// kcpasswordKey is Apple's well-known XOR cipher used to obfuscate
+// the auto-login password in /etc/kcpassword. Not security; just
+// unicode/locale safety.
+var kcpasswordKey = []byte{0x7d, 0x89, 0x52, 0x23, 0xd2, 0xbc, 0xdd, 0xea, 0xa3, 0xb9, 0x1f}
+
+func encodeKCPassword(password string) string {
+	src := []byte(password)
+	// Pad to next multiple of len(key) with NULs (matches Apple's behavior).
+	pad := len(kcpasswordKey) - (len(src) % len(kcpasswordKey))
+	for i := 0; i < pad; i++ {
+		src = append(src, 0)
+	}
+	for i := range src {
+		src[i] ^= kcpasswordKey[i%len(kcpasswordKey)]
+	}
+	// base64 for transport via SSH stdin.
+	return b64(src)
+}
+
+// installTart installs Homebrew + Tart on the host. Idempotent.
+func installTart(ctx context.Context, client *ssh.Client) error {
 	script := `set -euo pipefail
-sudo chown root:wheel /Library/LaunchDaemons/dev.tuist.tart-cri.plist /Library/LaunchDaemons/dev.tuist.kubelet.plist
-sudo chmod 644 /Library/LaunchDaemons/dev.tuist.tart-cri.plist /Library/LaunchDaemons/dev.tuist.kubelet.plist
-sudo launchctl bootout system/dev.tuist.tart-cri 2>/dev/null || true
-sudo launchctl bootout system/dev.tuist.kubelet 2>/dev/null || true
-sudo launchctl bootstrap system /Library/LaunchDaemons/dev.tuist.tart-cri.plist
-sleep 2
-sudo launchctl bootstrap system /Library/LaunchDaemons/dev.tuist.kubelet.plist
+if [ ! -x /opt/homebrew/bin/brew ]; then
+    NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+fi
+if ! /opt/homebrew/bin/brew list --formula tart >/dev/null 2>&1; then
+    /opt/homebrew/bin/brew tap cirruslabs/cli >/dev/null 2>&1 || true
+    /opt/homebrew/bin/brew install cirruslabs/cli/tart
+fi
+sudo ln -sf /opt/homebrew/bin/tart /usr/local/bin/tart 2>/dev/null || \
+    (sudo mkdir -p /usr/local/bin && sudo ln -sf /opt/homebrew/bin/tart /usr/local/bin/tart)
+/opt/homebrew/bin/tart --version
 `
 	return runCommand(ctx, client, script)
 }
@@ -269,8 +191,9 @@ func runCommandWithStdin(ctx context.Context, client *ssh.Client, cmd, stdin str
 	session.Stderr = &stderr
 
 	done := make(chan error, 1)
-	go func() { done <- session.Run(cmd) }()
-
+	go func() {
+		done <- session.Run(cmd)
+	}()
 	select {
 	case <-ctx.Done():
 		_ = session.Signal(ssh.SIGTERM)
@@ -283,161 +206,6 @@ func runCommandWithStdin(ctx context.Context, client *ssh.Client, cmd, stdin str
 	}
 }
 
-func uploadFile(ctx context.Context, client *ssh.Client, srcPath, dstPath string, _ int) error {
-	// Simple impl: cat the local file into the remote shell's stdin.
-	// The operator image carries the binaries at known paths, so this
-	// is fine. Avoids depending on scp/sftp as a separate transport.
-	return runCommandWithStdin(ctx, client,
-		fmt.Sprintf("cat > %s && chmod 0755 %s", dstPath, dstPath),
-		readFileOrEmpty(srcPath),
-	)
-}
-
-// === Config rendering ======================================================
-
-func kubeletConfig() string {
-	return `apiVersion: kubelet.config.k8s.io/v1beta1
-kind: KubeletConfiguration
-containerRuntimeEndpoint: unix:///var/run/tart-cri/tart-cri.sock
-cgroupsPerQOS: false
-enforceNodeAllocatable: []
-failSwapOn: false
-nodeStatusReportFrequency: 30s
-nodeStatusUpdateFrequency: 10s
-imageMinimumGCAge: 24h
-imageGCHighThresholdPercent: 80
-imageGCLowThresholdPercent: 60
-podLogsDir: /var/log/pods
-authentication:
-  x509:
-    clientCAFile: /etc/kubernetes/pki/ca.crt
-  webhook:
-    enabled: true
-authorization:
-  mode: Webhook
-resolvConf: /etc/resolv.conf
-healthzBindAddress: 127.0.0.1
-healthzPort: 10248
-`
-}
-
-func cniConflist(podCIDR string) string {
-	return fmt.Sprintf(`{
-  "cniVersion": "1.0.0",
-  "name": "tart",
-  "plugins": [
-    {"type": "tart-cni", "podCIDR": "%s"}
-  ]
-}
-`, podCIDR)
-}
-
-func bootstrapKubeconfig(cfg Config) string {
-	return fmt.Sprintf(`apiVersion: v1
-kind: Config
-clusters:
-  - name: tuist
-    cluster:
-      server: %s
-      certificate-authority-data: %s
-contexts:
-  - name: bootstrap
-    context:
-      cluster: tuist
-      user: bootstrap
-current-context: bootstrap
-users:
-  - name: bootstrap
-    user:
-      token: %s
-`, cfg.APIServer, cfg.CACertData, cfg.BootstrapToken)
-}
-
-func tartCRIPlist() string {
-	return `<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0"><dict>
-<key>Label</key><string>dev.tuist.tart-cri</string>
-<key>ProgramArguments</key><array>
-  <string>/usr/local/bin/tart-cri</string>
-  <string>--socket</string><string>/var/run/tart-cri/tart-cri.sock</string>
-  <string>--state</string><string>/var/lib/tart-cri/state.json</string>
-  <string>--log-dir</string><string>/var/log/pods</string>
-</array>
-<key>RunAtLoad</key><true/><key>KeepAlive</key><true/>
-<key>StandardOutPath</key><string>/var/log/tart-cri/stdout.log</string>
-<key>StandardErrorPath</key><string>/var/log/tart-cri/stderr.log</string>
-<key>ProcessType</key><string>Background</string>
-</dict></plist>
-`
-}
-
-func kubeletPlist(cfg Config) string {
-	return fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0"><dict>
-<key>Label</key><string>dev.tuist.kubelet</string>
-<key>ProgramArguments</key><array>
-  <string>/usr/local/bin/kubelet</string>
-  <string>--config=/etc/kubernetes/kubelet-config.yaml</string>
-  <string>--kubeconfig=/etc/kubernetes/kubelet.conf</string>
-  <string>--bootstrap-kubeconfig=/etc/kubernetes/bootstrap-kubelet.conf</string>
-  <string>--cert-dir=/var/lib/kubelet/pki</string>
-  <string>--hostname-override=%s</string>
-  <string>--node-labels=kubernetes.io/os=darwin,kubernetes.io/arch=arm64,tuist.dev/runtime=tart</string>
-  <string>--register-with-taints=tuist.dev/macos=true:NoSchedule</string>
-</array>
-<key>RunAtLoad</key><true/><key>KeepAlive</key><true/>
-<key>StandardOutPath</key><string>/var/log/kubelet/stdout.log</string>
-<key>StandardErrorPath</key><string>/var/log/kubelet/stderr.log</string>
-<key>ProcessType</key><string>Background</string>
-</dict></plist>
-`, cfg.Hostname)
-}
-
-// === kcpassword encoding (Apple's well-known XOR key) =======================
-
-var kcpasswordKey = []byte{0x7D, 0x89, 0x52, 0x23, 0xD2, 0xBC, 0xDD, 0xEA, 0xA3, 0xB9, 0x1F}
-
-func encodeKCPassword(pw string) []byte {
-	out := []byte(pw)
-	for i := range out {
-		out[i] ^= kcpasswordKey[i%len(kcpasswordKey)]
-	}
-	// Pad to 12 bytes with the magic key itself (Apple convention so
-	// loginwindow doesn't try to read past EOF).
-	for len(out) < 12 {
-		out = append(out, kcpasswordKey[len(out)%len(kcpasswordKey)])
-	}
-	return out
-}
-
-func hexEscapes(data []byte) string {
-	var b strings.Builder
-	for _, c := range data {
-		fmt.Fprintf(&b, "\\x%02x", c)
-	}
-	return b.String()
-}
-
-// shellEscape single-quotes a value safely for embedding in `sh -c '...'`.
-func shellEscape(s string) string {
-	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
-}
-
-// readFileOrEmpty is used by uploadFile. We read the binary at provider
-// init time and pass the bytes through; avoiding a per-call file read.
-// Implemented as a package-level overridable for testability.
-var readFileOrEmpty = func(path string) string {
-	// Real impl is provided at controller init via SetBinaryReader.
-	// This default returns empty so we don't accidentally panic in
-	// tests.
-	return ""
-}
-
-// SetBinaryReader injects the function the controller uses to read
-// the embedded tart-cri/tart-cni binary contents. Called from main()
-// so the package doesn't need an os import.
-func SetBinaryReader(fn func(string) string) {
-	readFileOrEmpty = fn
+func b64(b []byte) string {
+	return base64.StdEncoding.EncodeToString(b)
 }

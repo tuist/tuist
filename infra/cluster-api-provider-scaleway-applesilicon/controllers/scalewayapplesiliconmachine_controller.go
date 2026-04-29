@@ -38,16 +38,14 @@ const (
 	// Conditions surfaced on the CR for operator visibility.
 	ProvisionedCondition  clusterv1.ConditionType = "Provisioned"
 	BootstrappedCondition clusterv1.ConditionType = "Bootstrapped"
-	NodeReadyCondition    clusterv1.ConditionType = "NodeReady"
 )
 
 // ScalewayAppleSiliconMachineReconciler reconciles ScalewayAppleSiliconMachine objects.
 type ScalewayAppleSiliconMachineReconciler struct {
 	client.Client
-	Scheme              *runtime.Scheme
-	ScalewayClient      *scaleway.Client
-	CredentialsManager  *credentials.Manager
-	DefaultKubeletVersion string
+	Scheme             *runtime.Scheme
+	ScalewayClient     *scaleway.Client
+	CredentialsManager *credentials.Manager
 }
 
 // +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=scalewayapplesiliconmachines,verbs=get;list;watch;create;update;patch;delete
@@ -175,28 +173,11 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 		}
 
-		kubeletVersion := machine.Spec.KubeletVersion
-		if kubeletVersion == "" {
-			kubeletVersion = r.DefaultKubeletVersion
-		}
-		bootstrapData, err := r.CredentialsManager.MintBootstrap(ctx, kubeletVersion)
-		if err != nil {
-			conditions.MarkFalse(machine, BootstrappedCondition, "BootstrapMintFailed",
-				clusterv1.ConditionSeverityError, "%v", err)
-			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
-		}
-
 		if err := bootstrap.Run(ctx, bootstrap.Config{
-			IP:             ip,
-			SSHUser:        machine.Annotations["scaleway.tuist.dev/ssh-username"],
-			SudoPassword:   machine.Annotations["scaleway.tuist.dev/sudo-password"],
-			SSHPrivateKey:  sshKey,
-			Hostname:       machine.Name,
-			PodCIDR:        machine.Spec.PodCIDR,
-			KubeletVersion: bootstrapData.KubeletVersion,
-			BootstrapToken: bootstrapData.BootstrapToken,
-			APIServer:      bootstrapData.APIServerURL,
-			CACertData:     bootstrapData.CACertData,
+			IP:            ip,
+			SSHUser:       machine.Annotations["scaleway.tuist.dev/ssh-username"],
+			SudoPassword:  machine.Annotations["scaleway.tuist.dev/sudo-password"],
+			SSHPrivateKey: sshKey,
 		}); err != nil {
 			conditions.MarkFalse(machine, BootstrappedCondition, "BootstrapFailed",
 				clusterv1.ConditionSeverityWarning, "%v", err)
@@ -207,25 +188,12 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 		logger.Info("bootstrap complete", "host", ip)
 	}
 
-	// Stage 3: wait for the Node object to report Ready.
-	machine.Status.Phase = "WaitingForNode"
-	node, err := r.findNode(ctx, machine.Name)
-	if err != nil || node == nil {
-		conditions.MarkFalse(machine, NodeReadyCondition, "NodeNotRegistered",
-			clusterv1.ConditionSeverityInfo, "kubelet hasn't registered with the API server yet")
-		return ctrl.Result{RequeueAfter: 15 * time.Second}, nil
-	}
-
-	if !nodeReady(node) {
-		conditions.MarkFalse(machine, NodeReadyCondition, "NodeNotReady",
-			clusterv1.ConditionSeverityInfo, "kubelet registered but Node.Ready=false")
-		return ctrl.Result{RequeueAfter: 15 * time.Second}, nil
-	}
-
-	conditions.MarkTrue(machine, NodeReadyCondition)
+	// Mac mini is Tart-ready. The in-cluster VK provider claims it as
+	// a slot when needed; from CAPI's perspective the Machine is Ready
+	// as soon as Tart is installed.
 	machine.Status.Ready = true
 	machine.Status.Phase = "Ready"
-	_ = parent // kept for future: write back addresses, etc.
+	_ = parent
 	return ctrl.Result{RequeueAfter: 5 * time.Minute}, nil
 }
 

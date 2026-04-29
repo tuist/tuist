@@ -1,13 +1,12 @@
 // Command manager is the controller-manager binary for the Scaleway
 // Apple Silicon CAPI infrastructure provider. Watches
 // ScalewayAppleSiliconMachine + ScalewayAppleSiliconCluster CRs and
-// reconciles them against Scaleway's Apple Silicon API + the host's
-// kubelet/tart-cri runtime.
+// reconciles them against Scaleway's Apple Silicon API: order/release
+// Mac minis, then SSH-bootstrap Tart on each.
 //
-// Configured entirely via env / flags: the operator pod's Deployment
-// spec mounts a Secret with Scaleway credentials and an embedded
-// tart-cri / tart-cni binary set the bootstrap step ships to each
-// fresh Mac mini.
+// Mac minis are NOT k8s nodes — the in-cluster Virtual Kubelet
+// provider (infra/vk-applesilicon) claims them as Tart slots. This
+// operator only owns lifecycle (provision + bootstrap-Tart + release).
 package main
 
 import (
@@ -25,7 +24,6 @@ import (
 
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/api/v1alpha1"
 	"github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/controllers"
-	"github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/internal/bootstrap"
 	"github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/internal/credentials"
 	"github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/internal/scaleway"
 )
@@ -46,10 +44,7 @@ func main() {
 		metricsAddr          string
 		probeAddr            string
 		enableLeaderElection bool
-	)
-	var (
-		secretsNamespace      string
-		defaultKubeletVersion string
+		secretsNamespace     string
 	)
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "Prometheus metrics endpoint")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "Liveness/readiness probe endpoint")
@@ -57,25 +52,12 @@ func main() {
 		"Single-leader election; required when running >1 replica")
 	flag.StringVar(&secretsNamespace, "secrets-namespace", "default",
 		"Namespace where the operator stores per-fleet SSH key Secrets")
-	flag.StringVar(&defaultKubeletVersion, "default-kubelet-version", "1.32.1",
-		"Kubelet version to install when a Machine doesn't specify one")
 
 	opts := zap.Options{Development: false}
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
-
-	// Wire the bootstrap package's binary reader to read the embedded
-	// tart-cri/tart-cni binaries the operator image carries.
-	bootstrap.SetBinaryReader(func(path string) string {
-		data, err := os.ReadFile(path)
-		if err != nil {
-			setupLog.Error(err, "read embedded binary", "path", path)
-			return ""
-		}
-		return string(data)
-	})
 
 	scwClient, err := scaleway.NewClient()
 	if err != nil {
@@ -84,11 +66,11 @@ func main() {
 	}
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
-		Scheme:                  scheme,
-		Metrics:                 metricsserver.Options{BindAddress: metricsAddr},
-		HealthProbeBindAddress:  probeAddr,
-		LeaderElection:          enableLeaderElection,
-		LeaderElectionID:        "scaleway-applesilicon.infrastructure.cluster.x-k8s.io",
+		Scheme:                 scheme,
+		Metrics:                metricsserver.Options{BindAddress: metricsAddr},
+		HealthProbeBindAddress: probeAddr,
+		LeaderElection:         enableLeaderElection,
+		LeaderElectionID:       "scaleway-applesilicon.infrastructure.cluster.x-k8s.io",
 	})
 	if err != nil {
 		setupLog.Error(err, "create manager")
@@ -110,11 +92,10 @@ func main() {
 	}
 
 	if err := (&controllers.ScalewayAppleSiliconMachineReconciler{
-		Client:                mgr.GetClient(),
-		Scheme:                mgr.GetScheme(),
-		ScalewayClient:        scwClient,
-		CredentialsManager:    credsManager,
-		DefaultKubeletVersion: defaultKubeletVersion,
+		Client:             mgr.GetClient(),
+		Scheme:             mgr.GetScheme(),
+		ScalewayClient:     scwClient,
+		CredentialsManager: credsManager,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup MachineReconciler")
 		os.Exit(1)
