@@ -35,7 +35,6 @@ defmodule TuistWeb.OpsAccountLive do
          |> assign(:account, account)
          |> assign(:upgrade_target_account, nil)
          |> assign(:upgrade_target_customer, nil)
-         |> assign(:show_add_server_modal?, false)
          |> assign(:add_server_form, default_add_server_form())
          |> load_kura_state()}
 
@@ -48,7 +47,7 @@ defmodule TuistWeb.OpsAccountLive do
   end
 
   defp default_add_server_form do
-    default_cluster = Clusters.all() |> List.first()
+    default_cluster = Clusters.available() |> List.first()
     default_spec = :medium
 
     %{
@@ -83,7 +82,7 @@ defmodule TuistWeb.OpsAccountLive do
 
     socket
     |> assign(:kura_servers, Kura.list_servers_for_account(account.id))
-    |> assign(:kura_clusters, Clusters.all())
+    |> assign(:kura_clusters, Clusters.available())
     |> assign(:kura_specs, Specs.all())
     |> assign(:latest_kura_version, latest)
   end
@@ -92,18 +91,12 @@ defmodule TuistWeb.OpsAccountLive do
 
   @impl true
   def handle_event("open_add_server", _params, socket) do
-    {:noreply,
-     socket
-     |> assign(:show_add_server_modal?, true)
-     |> push_event("open-modal", %{id: "add-server-modal"})}
+    {:noreply, push_event(socket, "open-modal", %{id: "add-server-modal"})}
   end
 
   @impl true
   def handle_event("close_add_server", _params, socket) do
-    {:noreply,
-     socket
-     |> assign(:show_add_server_modal?, false)
-     |> push_event("close-modal", %{id: "add-server-modal"})}
+    {:noreply, push_event(socket, "close-modal", %{id: "add-server-modal"})}
   end
 
   @impl true
@@ -155,7 +148,6 @@ defmodule TuistWeb.OpsAccountLive do
         {:noreply,
          socket
          |> put_flash(:info, "Provisioning Kura server on #{server.cluster_id}…")
-         |> assign(:show_add_server_modal?, false)
          |> assign(:add_server_form, default_add_server_form())
          |> push_event("close-modal", %{id: "add-server-modal"})
          |> load_kura_state()}
