@@ -48,10 +48,14 @@ type Config struct {
 	APIServer      string
 	CACertData     string
 
-	// Path to the tart-cri + tart-cni binaries on disk (inside the
-	// operator pod's image). Defaults to /usr/local/share/tart-cri/.
+	// Path to the tart-cri + tart-cni + kubelet binaries on disk
+	// (inside the operator pod's image). All three default to
+	// /usr/local/share/tart-cri/. Kubernetes upstream doesn't publish
+	// kubelet for darwin (any arch) on dl.k8s.io, so we cross-compile
+	// it ourselves at image build time and ship it alongside.
 	TartCRIBinary string
 	TartCNIBinary string
+	KubeletBinary string
 }
 
 // Run executes the bootstrap. Idempotent: re-running on a partially-
@@ -63,6 +67,9 @@ func Run(ctx context.Context, cfg Config) error {
 	}
 	if cfg.TartCNIBinary == "" {
 		cfg.TartCNIBinary = "/usr/local/share/tart-cri/tart-cni"
+	}
+	if cfg.KubeletBinary == "" {
+		cfg.KubeletBinary = "/usr/local/share/tart-cri/kubelet"
 	}
 
 	signer, err := ssh.ParsePrivateKey(cfg.SSHPrivateKey)
@@ -89,7 +96,7 @@ func Run(ctx context.Context, cfg Config) error {
 	if err := installTart(ctx, client); err != nil {
 		return fmt.Errorf("install tart: %w", err)
 	}
-	if err := installKubelet(ctx, client, cfg.KubeletVersion); err != nil {
+	if err := installKubelet(ctx, client, cfg.KubeletBinary, cfg.KubeletVersion); err != nil {
 		return fmt.Errorf("install kubelet: %w", err)
 	}
 	if err := uploadTartCRIBinaries(ctx, client, cfg.TartCRIBinary, cfg.TartCNIBinary); err != nil {
@@ -162,15 +169,32 @@ fi
 	return runCommand(ctx, client, script)
 }
 
-func installKubelet(ctx context.Context, client *ssh.Client, version string) error {
-	script := fmt.Sprintf(`set -euo pipefail
-if [ ! -x /usr/local/bin/kubelet ] || ! /usr/local/bin/kubelet --version | grep -q "v%s"; then
-    curl -fsSLo /tmp/kubelet "https://dl.k8s.io/release/v%s/bin/darwin/arm64/kubelet"
-    sudo install -m 0755 /tmp/kubelet /usr/local/bin/kubelet
-    rm /tmp/kubelet
-fi
-`, version, version)
-	return runCommand(ctx, client, script)
+// installKubelet uploads the operator-bundled darwin/arm64 kubelet
+// binary to /usr/local/bin/kubelet. We don't curl from dl.k8s.io
+// because Kubernetes upstream only publishes Linux kubelet builds —
+// darwin returns 404. The Dockerfile's kubelet-builder stage
+// cross-compiles kubelet from kubernetes/kubernetes source for
+// darwin/arm64 and stages it at `kubeletBinary` in the operator
+// image; we ship that to each Mac mini at bootstrap time.
+//
+// `version` only drives the skip-if-already-installed check —
+// idempotent re-runs avoid the SCP when the right kubelet is
+// already in place.
+func installKubelet(ctx context.Context, client *ssh.Client, kubeletBinary, version string) error {
+	check := fmt.Sprintf(
+		`[ -x /usr/local/bin/kubelet ] && /usr/local/bin/kubelet --version | grep -q "v%s"`,
+		version,
+	)
+	if err := runCommand(ctx, client, check); err == nil {
+		return nil
+	}
+	if err := uploadFile(ctx, client, kubeletBinary, "/tmp/kubelet", 0o755); err != nil {
+		return err
+	}
+	return runCommand(ctx, client, `set -euo pipefail
+sudo install -m 0755 /tmp/kubelet /usr/local/bin/kubelet
+rm -f /tmp/kubelet
+`)
 }
 
 func uploadTartCRIBinaries(ctx context.Context, client *ssh.Client, criPath, cniPath string) error {
