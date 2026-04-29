@@ -2136,6 +2136,49 @@ defmodule Tuist.Tests.AnalyticsTest do
       assert ci_only.count == 1
       assert local_only.count == 1
     end
+
+    test "computes trend by comparing the current period to the equivalent prior period" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:00:00Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      # One flaky run in the prior 30-day window
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        is_flaky: true,
+        ran_at: ~N[2024-03-10 09:00:00.000000],
+        inserted_at: ~N[2024-03-10 09:00:00.000000]
+      )
+
+      # Two flaky runs in the current 30-day window
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        is_flaky: true,
+        ran_at: ~N[2024-04-05 09:00:00.000000],
+        inserted_at: ~N[2024-04-05 09:00:00.000000]
+      )
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        is_flaky: true,
+        ran_at: ~N[2024-04-20 09:00:00.000000],
+        inserted_at: ~N[2024-04-20 09:00:00.000000]
+      )
+
+      RunsFixtures.optimize_test_case_runs()
+
+      # When
+      got =
+        Analytics.flaky_test_case_runs_analytics(
+          project.id,
+          start_datetime: ~U[2024-04-01 00:00:00Z],
+          end_datetime: ~U[2024-04-30 23:59:59Z]
+        )
+
+      # Then
+      assert got.count == 2
+      assert got.trend == 100.0
+    end
   end
 
   describe "flaky_tests_analytics/2" do

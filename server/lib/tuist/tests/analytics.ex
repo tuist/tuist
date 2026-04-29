@@ -186,7 +186,6 @@ defmodule Tuist.Tests.Analytics do
         project_id,
         start_datetime,
         end_datetime,
-        date_period,
         clickhouse_time_bucket,
         opts
       )
@@ -211,7 +210,7 @@ defmodule Tuist.Tests.Analytics do
     }
   end
 
-  defp flaky_test_case_runs_count(project_id, start_datetime, end_datetime, _date_period, time_bucket, opts) do
+  defp flaky_test_case_runs_count(project_id, start_datetime, end_datetime, time_bucket, opts) do
     date_format = get_clickhouse_date_format(time_bucket)
     is_ci = Keyword.get(opts, :is_ci)
 

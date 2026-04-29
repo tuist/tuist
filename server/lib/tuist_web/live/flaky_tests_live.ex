@@ -273,6 +273,8 @@ defmodule TuistWeb.FlakyTestsLive do
   defp normalize_selected_widget(widget) when widget in ["flaky_test_cases", "flaky_test_case_runs", "flaky_test_runs"],
     do: widget
 
+  defp normalize_selected_widget("flaky_tests"), do: "flaky_test_cases"
+  defp normalize_selected_widget("flaky_runs"), do: "flaky_test_runs"
   defp normalize_selected_widget(_), do: "flaky_test_cases"
 
   defp analytics_trend_label("last-24-hours"), do: dgettext("dashboard_tests", "since yesterday")
