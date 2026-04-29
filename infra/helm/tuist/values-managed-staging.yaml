@@ -132,21 +132,18 @@ xcresultProcessor:
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
       value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
 
-# Mac mini fleet — declarative via CAPI. The CAPI provider operator
-# deploys alongside the server; the MachineDeployment desired-state
-# below tells it to keep 1 Mac mini (M4-S in fr-par-1; the chart
-# default) with this pod CIDR slice carved out of the staging
-# cluster CIDR.
+# Mac mini fleet. The chart renders one ScalewayAppleSiliconMachine
+# CR per replica; the cluster-api-provider-scaleway-applesilicon
+# operator orders + bootstraps each, and the vk-applesilicon
+# Deployment registers a single virtual Node backed by the fleet.
 macosFleet:
   enabled: true
   replicas: 1
-  controlPlane:
-    host: api-staging.tuist.dev
   image:
-    # Pin staging to a specific SHA so each operator image rev rolls
-    # via a deliberate values bump rather than a `:latest` race. Bump
-    # this when you publish a new build of
-    # ghcr.io/tuist/capi-provider-scaleway-applesilicon.
-    tag: "cb06c183"
-  machine:
-    podCIDR: 10.42.1.0/24
+    # capi-provider-scaleway-applesilicon — operator that owns Mac
+    # mini lifecycle (Scaleway create/release + SSH-Tart bootstrap).
+    tag: "471b516b"
+  vkImage:
+    # vk-applesilicon — registers the virtual Node + routes Pods to
+    # Tart VMs via SSH.
+    tag: "471b516b"
