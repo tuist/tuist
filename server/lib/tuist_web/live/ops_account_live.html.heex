@@ -135,7 +135,7 @@
       <button id="add-server-trigger" type="button" style="display: none;" {modal_attrs}></button>
     </:trigger>
 
-    <form id="add-server-form" phx-change="validate_add_server" phx-submit="submit_add_server" class="add-server-form">
+    <form id="add-server-form" phx-submit="submit_add_server" class="add-server-form">
       <div class="select-field">
         <.label label="Cluster" required />
         <.select id="add-server-cluster" name="server[cluster_id]" value={@add_server_form["cluster_id"]} label="Cluster">
