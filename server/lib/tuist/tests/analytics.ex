@@ -8,6 +8,7 @@ defmodule Tuist.Tests.Analytics do
   alias Tuist.ClickHouseRepo
   alias Tuist.CommandEvents.Event
   alias Tuist.Tests
+  alias Tuist.Tests.FlakyTestCaseRun
   alias Tuist.Tests.Test
   alias Tuist.Tests.TestCase
   alias Tuist.Tests.TestCaseEvent
@@ -164,6 +165,87 @@ defmodule Tuist.Tests.Analytics do
       dates: dates
     }
   end
+
+  @doc """
+  Returns analytics for the number of flaky test case runs over time for a project.
+  Counts every individual test case execution where `is_flaky = true`, not the
+  number of test cases flagged or the number of build runs that contained
+  flakiness. Backed by the `flaky_test_case_runs` materialized view.
+  """
+  def flaky_test_case_runs_analytics(project_id, opts \\ []) do
+    start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+
+    days_delta = Date.diff(DateTime.to_date(end_datetime), DateTime.to_date(start_datetime))
+    date_period = date_period(start_datetime: start_datetime, end_datetime: end_datetime)
+    time_bucket = time_bucket_for_date_period(date_period)
+    clickhouse_time_bucket = time_bucket_to_clickhouse_interval(time_bucket)
+
+    current_runs_data =
+      flaky_test_case_runs_count(
+        project_id,
+        start_datetime,
+        end_datetime,
+        date_period,
+        clickhouse_time_bucket,
+        opts
+      )
+
+    current_runs = process_runs_count_data(current_runs_data, start_datetime, end_datetime, date_period)
+
+    previous_runs_count =
+      flaky_test_case_runs_total_count(
+        project_id,
+        DateTime.add(start_datetime, -days_delta, :day),
+        start_datetime,
+        opts
+      )
+
+    current_runs_count = flaky_test_case_runs_total_count(project_id, start_datetime, end_datetime, opts)
+
+    %{
+      trend: trend(previous_value: previous_runs_count, current_value: current_runs_count),
+      count: current_runs_count,
+      values: Enum.map(current_runs, & &1.count),
+      dates: Enum.map(current_runs, & &1.date)
+    }
+  end
+
+  defp flaky_test_case_runs_count(project_id, start_datetime, end_datetime, _date_period, time_bucket, opts) do
+    date_format = get_clickhouse_date_format(time_bucket)
+    is_ci = Keyword.get(opts, :is_ci)
+
+    from(f in FlakyTestCaseRun,
+      where: f.project_id == ^project_id,
+      where: f.ran_at >= ^start_datetime,
+      where: f.ran_at <= ^end_datetime,
+      group_by: fragment("formatDateTime(?, ?)", f.ran_at, ^date_format),
+      select: %{
+        date: fragment("formatDateTime(?, ?)", f.ran_at, ^date_format),
+        count: count(f.test_case_id)
+      },
+      order_by: fragment("formatDateTime(?, ?)", f.ran_at, ^date_format)
+    )
+    |> apply_flaky_test_case_run_is_ci_filter(is_ci)
+    |> ClickHouseRepo.all()
+  end
+
+  defp flaky_test_case_runs_total_count(project_id, start_datetime, end_datetime, opts) do
+    is_ci = Keyword.get(opts, :is_ci)
+
+    from(f in FlakyTestCaseRun,
+      where: f.project_id == ^project_id,
+      where: f.ran_at >= ^start_datetime,
+      where: f.ran_at <= ^end_datetime,
+      select: count(f.test_case_id)
+    )
+    |> apply_flaky_test_case_run_is_ci_filter(is_ci)
+    |> ClickHouseRepo.one() || 0
+  end
+
+  defp apply_flaky_test_case_run_is_ci_filter(query, nil), do: query
+  defp apply_flaky_test_case_run_is_ci_filter(query, true), do: where(query, [f], f.is_ci == true)
+  defp apply_flaky_test_case_run_is_ci_filter(query, false), do: where(query, [f], f.is_ci == false)
 
   @doc """
   Returns analytics for the number of flaky test cases over time for a project.

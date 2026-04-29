@@ -90,78 +90,113 @@
     <div data-part="analytics-content">
       <div data-part="widgets">
         <.widget
-          loading={!@flaky_tests_analytics.ok?}
-          title={dgettext("dashboard_tests", "Flaky Tests")}
+          loading={!@flaky_test_cases_analytics.ok?}
+          title={dgettext("dashboard_tests", "Flaky test cases")}
           description={
             dgettext(
               "dashboard_tests",
-              "Number of test cases currently flagged as flaky at each point in the period."
+              "Number of unique test cases currently flagged as flaky at the end of the period. Each test case is counted at most once, regardless of how often it flaked."
             )
           }
           value={
-            if @flaky_tests_analytics.ok?,
-              do: format_number(@flaky_tests_analytics.result.count)
+            if @flaky_test_cases_analytics.ok?,
+              do: format_number(@flaky_test_cases_analytics.result.count)
           }
-          id="widget-flaky-tests"
+          id="widget-flaky-test-cases"
           legend_color="flaky"
           trend_value={
-            if @flaky_tests_analytics.ok?,
-              do: @flaky_tests_analytics.result.trend,
+            if @flaky_test_cases_analytics.ok?,
+              do: @flaky_test_cases_analytics.result.trend,
               else: nil
           }
           trend_type={:inverse}
           trend_label={@analytics_trend_label}
           phx_click="select_widget"
-          phx_value_widget="flaky_tests"
-          selected={@analytics_selected_widget == "flaky_tests"}
+          phx_value_widget="flaky_test_cases"
+          selected={@analytics_selected_widget == "flaky_test_cases"}
           empty={
-            @flaky_tests_analytics.ok? &&
-              @flaky_tests_analytics.result.count == 0 &&
-              Enum.all?(@flaky_tests_analytics.result.values, &(&1 == 0))
+            @flaky_test_cases_analytics.ok? &&
+              @flaky_test_cases_analytics.result.count == 0 &&
+              Enum.all?(@flaky_test_cases_analytics.result.values, &(&1 == 0))
           }
         />
         <.widget
-          loading={!@flaky_runs_analytics.ok?}
-          title={dgettext("dashboard_tests", "Flaky Runs")}
+          loading={!@flaky_test_case_runs_analytics.ok?}
+          title={dgettext("dashboard_tests", "Flaky test case runs")}
           description={
             dgettext(
               "dashboard_tests",
-              "Number of individual test runs marked as flaky during the period."
+              "Total number of individual test case executions marked as flaky in the period. A single test case can be counted many times if it flaked across multiple runs."
             )
           }
           value={
-            if @flaky_runs_analytics.ok?,
-              do: format_number(@flaky_runs_analytics.result.count)
+            if @flaky_test_case_runs_analytics.ok?,
+              do: format_number(@flaky_test_case_runs_analytics.result.count)
           }
-          id="widget-flaky-runs"
+          id="widget-flaky-test-case-runs"
           legend_color="primary"
           trend_value={
-            if @flaky_runs_analytics.ok?,
-              do: @flaky_runs_analytics.result.trend,
+            if @flaky_test_case_runs_analytics.ok?,
+              do: @flaky_test_case_runs_analytics.result.trend,
               else: nil
           }
           trend_type={:inverse}
           trend_label={@analytics_trend_label}
           phx_click="select_widget"
-          phx_value_widget="flaky_runs"
-          selected={@analytics_selected_widget == "flaky_runs"}
-          empty={@flaky_runs_analytics.ok? && @flaky_runs_analytics.result.count == 0}
+          phx_value_widget="flaky_test_case_runs"
+          selected={@analytics_selected_widget == "flaky_test_case_runs"}
+          empty={
+            @flaky_test_case_runs_analytics.ok? &&
+              @flaky_test_case_runs_analytics.result.count == 0
+          }
+        />
+        <.widget
+          loading={!@flaky_test_runs_analytics.ok?}
+          title={dgettext("dashboard_tests", "Flaky test runs")}
+          description={
+            dgettext(
+              "dashboard_tests",
+              "Number of test runs (build-level test invocations) that contained at least one flaky test case. Each test run is counted once even if it contained many flaky executions."
+            )
+          }
+          value={
+            if @flaky_test_runs_analytics.ok?,
+              do: format_number(@flaky_test_runs_analytics.result.count)
+          }
+          id="widget-flaky-test-runs"
+          legend_color="tertiary"
+          trend_value={
+            if @flaky_test_runs_analytics.ok?,
+              do: @flaky_test_runs_analytics.result.trend,
+              else: nil
+          }
+          trend_type={:inverse}
+          trend_label={@analytics_trend_label}
+          phx_click="select_widget"
+          phx_value_widget="flaky_test_runs"
+          selected={@analytics_selected_widget == "flaky_test_runs"}
+          empty={@flaky_test_runs_analytics.ok? && @flaky_test_runs_analytics.result.count == 0}
         />
       </div>
       <.card_section :if={
-        (@analytics_selected_widget == "flaky_tests" and !@flaky_tests_analytics.ok?) or
-          (@analytics_selected_widget == "flaky_runs" and !@flaky_runs_analytics.ok?)
+        (@analytics_selected_widget == "flaky_test_cases" and !@flaky_test_cases_analytics.ok?) or
+          (@analytics_selected_widget == "flaky_test_case_runs" and
+             !@flaky_test_case_runs_analytics.ok?) or
+          (@analytics_selected_widget == "flaky_test_runs" and !@flaky_test_runs_analytics.ok?)
       }>
         <div data-part="analytics-chart">
           <.skeleton_chart />
         </div>
       </.card_section>
       <.card_section :if={
-        (@analytics_selected_widget == "flaky_tests" and @flaky_tests_analytics.ok? and
-           (@flaky_tests_analytics.result.count != 0 or
-              Enum.any?(@flaky_tests_analytics.result.values, &(&1 > 0)))) or
-          (@analytics_selected_widget == "flaky_runs" and @flaky_runs_analytics.ok? and
-             @flaky_runs_analytics.result.count != 0)
+        (@analytics_selected_widget == "flaky_test_cases" and @flaky_test_cases_analytics.ok? and
+           (@flaky_test_cases_analytics.result.count != 0 or
+              Enum.any?(@flaky_test_cases_analytics.result.values, &(&1 > 0)))) or
+          (@analytics_selected_widget == "flaky_test_case_runs" and
+             @flaky_test_case_runs_analytics.ok? and
+             @flaky_test_case_runs_analytics.result.count != 0) or
+          (@analytics_selected_widget == "flaky_test_runs" and @flaky_test_runs_analytics.ok? and
+             @flaky_test_runs_analytics.result.count != 0)
       }>
         <div data-part="analytics-chart">
           <.chart
@@ -184,16 +219,22 @@
                     formatter: "fn:toLocaleDate",
                     customValues:
                       case @analytics_selected_widget do
-                        "flaky_tests" ->
+                        "flaky_test_cases" ->
                           [
-                            List.first(@flaky_tests_analytics.result.dates),
-                            List.last(@flaky_tests_analytics.result.dates)
+                            List.first(@flaky_test_cases_analytics.result.dates),
+                            List.last(@flaky_test_cases_analytics.result.dates)
+                          ]
+
+                        "flaky_test_runs" ->
+                          [
+                            List.first(@flaky_test_runs_analytics.result.dates),
+                            List.last(@flaky_test_runs_analytics.result.dates)
                           ]
 
                         _ ->
                           [
-                            List.first(@flaky_runs_analytics.result.dates),
-                            List.last(@flaky_runs_analytics.result.dates)
+                            List.first(@flaky_test_case_runs_analytics.result.dates),
+                            List.last(@flaky_test_case_runs_analytics.result.dates)
                           ]
                       end,
                     padding: [10, 0, 0, 0]
@@ -225,25 +266,32 @@
               %{
                 color:
                   case @analytics_selected_widget do
-                    "flaky_tests" -> "var:noora-chart-flaky"
+                    "flaky_test_cases" -> "var:noora-chart-flaky"
+                    "flaky_test_runs" -> "var:noora-chart-tertiary"
                     _ -> "var:noora-chart-primary"
                   end,
                 data:
                   case @analytics_selected_widget do
-                    "flaky_tests" ->
-                      @flaky_tests_analytics.result.dates
-                      |> Enum.zip(@flaky_tests_analytics.result.values)
+                    "flaky_test_cases" ->
+                      @flaky_test_cases_analytics.result.dates
+                      |> Enum.zip(@flaky_test_cases_analytics.result.values)
+                      |> Enum.map(&Tuple.to_list/1)
+
+                    "flaky_test_runs" ->
+                      @flaky_test_runs_analytics.result.dates
+                      |> Enum.zip(@flaky_test_runs_analytics.result.values)
                       |> Enum.map(&Tuple.to_list/1)
 
                     _ ->
-                      @flaky_runs_analytics.result.dates
-                      |> Enum.zip(@flaky_runs_analytics.result.values)
+                      @flaky_test_case_runs_analytics.result.dates
+                      |> Enum.zip(@flaky_test_case_runs_analytics.result.values)
                       |> Enum.map(&Tuple.to_list/1)
                   end,
                 name:
                   case @analytics_selected_widget do
-                    "flaky_tests" -> dgettext("dashboard_tests", "Flaky tests")
-                    _ -> dgettext("dashboard_tests", "Flaky runs")
+                    "flaky_test_cases" -> dgettext("dashboard_tests", "Flaky test cases")
+                    "flaky_test_runs" -> dgettext("dashboard_tests", "Flaky test runs")
+                    _ -> dgettext("dashboard_tests", "Flaky test case runs")
                   end,
                 type: "line",
                 smooth: 0.1,
@@ -256,11 +304,14 @@
       </.card_section>
       <.empty_card_section
         :if={
-          (@analytics_selected_widget == "flaky_tests" and @flaky_tests_analytics.ok? and
-             @flaky_tests_analytics.result.count == 0 and
-             Enum.all?(@flaky_tests_analytics.result.values, &(&1 == 0))) or
-            (@analytics_selected_widget == "flaky_runs" and @flaky_runs_analytics.ok? and
-               @flaky_runs_analytics.result.count == 0)
+          (@analytics_selected_widget == "flaky_test_cases" and @flaky_test_cases_analytics.ok? and
+             @flaky_test_cases_analytics.result.count == 0 and
+             Enum.all?(@flaky_test_cases_analytics.result.values, &(&1 == 0))) or
+            (@analytics_selected_widget == "flaky_test_case_runs" and
+               @flaky_test_case_runs_analytics.ok? and
+               @flaky_test_case_runs_analytics.result.count == 0) or
+            (@analytics_selected_widget == "flaky_test_runs" and @flaky_test_runs_analytics.ok? and
+               @flaky_test_runs_analytics.result.count == 0)
         }
         title={dgettext("dashboard_tests", "No data yet")}
       >
