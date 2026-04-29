@@ -9,7 +9,9 @@ package scaleway
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 
 	applesilicon "github.com/scaleway/scaleway-sdk-go/api/applesilicon/v1alpha1"
@@ -215,14 +217,42 @@ func (c *Client) GetServer(ctx context.Context, id, zone string) (*Server, error
 	return scalewayServerToServer(srv), nil
 }
 
-// DeleteServer terminates a Mac mini. Apple's licensing means we keep
-// paying for the full 24h window, but the server itself is released
-// back to Scaleway for the next tenant.
+// DeleteServer terminates a Mac mini. Apple's licensing enforces a
+// 24h floor — DeleteServer fails with HTTP 412 inside that window.
+// When that happens we fall back to UpdateServer with
+// `schedule_deletion=true`, which queues the delete for the floor
+// expiry. Scaleway keeps billing through the floor either way.
 func (c *Client) DeleteServer(ctx context.Context, id, zone string) error {
-	return c.API.DeleteServer(&applesilicon.DeleteServerRequest{
+	err := c.API.DeleteServer(&applesilicon.DeleteServerRequest{
 		ServerID: id,
 		Zone:     scw.Zone(zone),
 	}, scw.WithContext(ctx))
+	if err == nil {
+		return nil
+	}
+	if !isPreconditionFailed(err) {
+		return err
+	}
+	scheduled := true
+	_, updateErr := c.API.UpdateServer(&applesilicon.UpdateServerRequest{
+		ServerID:         id,
+		Zone:             scw.Zone(zone),
+		ScheduleDeletion: &scheduled,
+	}, scw.WithContext(ctx))
+	if updateErr != nil {
+		return fmt.Errorf("schedule deletion (after immediate delete failed with %v): %w", err, updateErr)
+	}
+	return nil
+}
+
+// isPreconditionFailed detects Scaleway's HTTP 412 — typically the
+// 24h Apple-licensing floor on DeleteServer.
+func isPreconditionFailed(err error) bool {
+	var scwErr *scw.ResponseError
+	if errors.As(err, &scwErr) {
+		return scwErr.StatusCode == http.StatusPreconditionFailed
+	}
+	return false
 }
 
 func (c *Client) resolveOSID(ctx context.Context, zone, name string) (string, error) {
