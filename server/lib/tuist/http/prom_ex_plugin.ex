@@ -277,6 +277,12 @@ defmodule Tuist.HTTP.PromExPlugin do
   end
 
   def execute_http_queue_status_telemetry_event do
+    if Process.whereis(Tuist.Finch) do
+      execute_http_queue_status_telemetry_event_for_running_finch()
+    end
+  end
+
+  defp execute_http_queue_status_telemetry_event_for_running_finch do
     url = Tuist.Environment.s3_endpoint()
 
     case Finch.get_pool_status(Tuist.Finch, url) do

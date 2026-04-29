@@ -289,6 +289,7 @@ defmodule Tuist.Application do
         Supervisor.child_spec(TestCaseEvent.Buffer, id: TestCaseEvent.Buffer),
         Supervisor.child_spec(CASEvent.Buffer, id: CASEvent.Buffer),
         Tuist.Vault,
+        Tuist.PromEx,
         {Oban, Application.fetch_env!(:tuist, Oban)},
         {Cachex, [:tuist, []]},
         {Finch, name: Tuist.Finch, pools: finch_pools()},
