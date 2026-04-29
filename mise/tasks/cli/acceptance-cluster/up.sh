@@ -74,21 +74,19 @@ if [[ "$(uname -s)" == "Darwin" ]] && ! podman info >/dev/null 2>&1; then
   # both of which wrap Apple Virtualization and need nested virt that the
   # runner doesn't expose). podman 4.9.x still supports qemu provider, which
   # runs in pure software TCG mode and doesn't need nested virt. Pin to that
-  # by downloading the release tarball directly.
+  # by installing the macOS .pkg directly (the .zip release is the remote
+  # client only — no machine support).
   PODMAN_VERSION="4.9.5"
   if ! command -v podman >/dev/null 2>&1 || ! podman --version | grep -q "podman version 4\."; then
     PODMAN_ARCH=$(uname -m | sed 's/x86_64/amd64/;s/arm64/arm64/')
     echo "==> Installing pinned podman v${PODMAN_VERSION} (qemu provider)…"
-    curl -fsSL -o /tmp/podman.zip \
-      "https://github.com/containers/podman/releases/download/v${PODMAN_VERSION}/podman-remote-release-darwin_${PODMAN_ARCH}.zip"
-    rm -rf /tmp/podman-extract
-    mkdir /tmp/podman-extract
-    unzip -q /tmp/podman.zip -d /tmp/podman-extract
-    sudo mkdir -p /opt/podman
-    sudo cp -R /tmp/podman-extract/podman-*/* /opt/podman/
+    curl -fsSL -o /tmp/podman.pkg \
+      "https://github.com/containers/podman/releases/download/v${PODMAN_VERSION}/podman-installer-macos-${PODMAN_ARCH}.pkg"
+    sudo installer -pkg /tmp/podman.pkg -target /
+    rm /tmp/podman.pkg
+    # podman .pkg installs to /opt/podman/bin; ensure that's on PATH.
     PATH="/opt/podman/bin:$PATH"
     export PATH
-    rm -rf /tmp/podman.zip /tmp/podman-extract
   fi
 
   if ! podman machine list --format '{{.Name}}' | grep -q '^podman-machine-default'; then
