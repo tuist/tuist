@@ -152,9 +152,15 @@ defmodule Tuist.Environment do
   `KURA_EXTENSION_HTTP_CLIENT_TUIST_HEADERS_AUTHORIZATION` env var) when
   calling `POST /api/internal/auth/verify`. Provisioned alongside the
   per-cluster kubeconfigs.
+
+  In dev/test we default to a fixed `dev-kura-verify-token` so both
+  sides (the rollout worker and the verify endpoint) match without the
+  developer setting anything.
   """
   def kura_verify_token(secrets \\ secrets()) do
-    System.get_env("TUIST_KURA_VERIFY_TOKEN") || get([:kura, :verify_token], secrets)
+    System.get_env("TUIST_KURA_VERIFY_TOKEN") ||
+      get([:kura, :verify_token], secrets) ||
+      if(dev?() or test?(), do: "dev-kura-verify-token")
   end
 
   @doc """
