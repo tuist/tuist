@@ -13,6 +13,10 @@
 #   * cluster name        → tuist-acceptance-${shard}
 #   * TUIST_CLUSTER_HOST_PORT → 8080 + shard * 10
 #
+# Container runtime — picked by the host OS:
+#   Linux   → docker (kind's default backend; pre-installed on Namespace Linux runners)
+#   Darwin  → podman 4.9.5 with the qemu provider (see notes in the macOS block)
+#
 # License source — picked by which env var is exported (matches preview-up.sh):
 #   $OP_SERVICE_ACCOUNT_TOKEN  → install External Secrets Operator + a 1Password
 #                                ClusterSecretStore in the kind cluster. The
@@ -21,6 +25,18 @@
 #                                same shape Pedro's preview deploys use.
 #   $TUIST_LICENSE_KEY         → local fallback. Skips ESO and inlines the key.
 #                                Only for local development.
+#
+# Optional public exposure:
+#   INSTALL_TUNNEL=1           → install cloudflared and start a Quick Tunnel
+#                                (`trycloudflare.com`, no auth, no signup) against
+#                                http://localhost:${HOST_PORT}. Writes the public
+#                                URL to /tmp/tuist-acceptance-${shard}-url so the
+#                                workflow step can publish it as an artifact for
+#                                a separate macOS test job to consume. Used when
+#                                the cluster lives on a Linux runner and the
+#                                xcodebuild-bound test job lives on a macOS
+#                                runner that cannot host a Linux VM (no nested
+#                                virt → no HVF → no podman/docker machine).
 #
 # Required env (one of):
 #   OP_SERVICE_ACCOUNT_TOKEN  — 1Password service account token (CI path)
@@ -65,6 +81,12 @@ mise install kind@latest helm@latest kubectl@latest >/dev/null
 #     via KIND_EXPERIMENTAL_PROVIDER=podman, so we never need a docker
 #     daemon at all.
 #   * tuist's local dev workflow already standardises on podman.
+#
+# Note: in CI we run this script on a Linux runner instead — the macOS Namespace
+# runner has no nested virt, so HVF/applehv/vfkit all fail and podman 4.9.x's
+# qemu provider (which hardcodes `-accel hvf`) can't fall back to TCG. The macOS
+# path below remains for local dev on Apple silicon hardware where HVF works
+# natively.
 if [[ "$(uname -s)" == "Darwin" ]] && ! podman info >/dev/null 2>&1; then
   if ! brew list --formula qemu >/dev/null 2>&1; then
     brew install qemu
@@ -100,23 +122,39 @@ if [[ "$(uname -s)" == "Darwin" ]] && ! podman info >/dev/null 2>&1; then
   fi
 fi
 
-if ! podman info >/dev/null 2>&1; then
-  echo "ERROR: podman daemon is not reachable after install + machine start." >&2
+# Pick the container runtime. Linux runners have docker preinstalled and kind
+# uses it as the default backend; macOS local dev uses podman (above).
+case "$(uname -s)" in
+  Darwin)
+    CONTAINER_TOOL="podman"
+    export KIND_EXPERIMENTAL_PROVIDER=podman
+    ;;
+  Linux)
+    if ! command -v docker >/dev/null 2>&1 || ! docker info >/dev/null 2>&1; then
+      echo "ERROR: docker is required on Linux runners and is not reachable." >&2
+      exit 1
+    fi
+    CONTAINER_TOOL="docker"
+    ;;
+  *)
+    echo "ERROR: unsupported host OS: $(uname -s)" >&2
+    exit 1
+    ;;
+esac
+
+if ! "$CONTAINER_TOOL" info >/dev/null 2>&1; then
+  echo "ERROR: ${CONTAINER_TOOL} daemon is not reachable." >&2
   exit 1
 fi
 
 if [[ -n "${GITHUB_ACTOR:-}" && -n "${GITHUB_TOKEN:-}" ]]; then
-  echo "$GITHUB_TOKEN" | podman login ghcr.io -u "$GITHUB_ACTOR" --password-stdin >/dev/null
+  echo "$GITHUB_TOKEN" | "$CONTAINER_TOOL" login ghcr.io -u "$GITHUB_ACTOR" --password-stdin >/dev/null
 fi
 
 echo "==> Pulling ${IMAGE_REF}…"
-podman pull "$IMAGE_REF"
+"$CONTAINER_TOOL" pull "$IMAGE_REF"
 
-# Tell kind (and tools that wrap docker like helm chart pulls) to use podman
-# instead of dockerd.
-export KIND_EXPERIMENTAL_PROVIDER=podman
-
-echo "==> Creating kind cluster '${CLUSTER_NAME}' (podman provider)…"
+echo "==> Creating kind cluster '${CLUSTER_NAME}' (${CONTAINER_TOOL} provider)…"
 if ! mise x kind@latest -- kind get clusters 2>/dev/null | grep -qx "$CLUSTER_NAME"; then
   mise x kind@latest -- kind create cluster --name "$CLUSTER_NAME"
 else
@@ -213,3 +251,81 @@ if ! curl -fsS "http://localhost:${HOST_PORT}/ready" >/dev/null 2>&1; then
 fi
 
 echo "==> Cluster '${CLUSTER_NAME}' ready at http://localhost:${HOST_PORT}"
+
+# Optional: expose the cluster on a public Quick Tunnel so a separate runner
+# can reach it. cloudflared's `--url` mode produces a fresh
+# `https://<random>.trycloudflare.com` URL on each invocation, no auth, no
+# signup. The tunnel terminates when this script's CI job ends.
+if [[ "${INSTALL_TUNNEL:-0}" == "1" ]]; then
+  echo "==> Installing cloudflared…"
+  if ! command -v cloudflared >/dev/null 2>&1; then
+    case "$(uname -s)-$(uname -m)" in
+      Linux-x86_64)
+        CFD_URL="https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64"
+        ;;
+      Linux-aarch64)
+        CFD_URL="https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm64"
+        ;;
+      Darwin-arm64)
+        CFD_URL="https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-darwin-arm64.tgz"
+        ;;
+      *)
+        echo "ERROR: cloudflared not packaged for $(uname -s)-$(uname -m)" >&2
+        exit 1
+        ;;
+    esac
+
+    if [[ "$CFD_URL" == *.tgz ]]; then
+      curl -fsSL -o /tmp/cloudflared.tgz "$CFD_URL"
+      tar -xzf /tmp/cloudflared.tgz -C /tmp
+      sudo install -m 0755 /tmp/cloudflared /usr/local/bin/cloudflared
+      rm -f /tmp/cloudflared.tgz /tmp/cloudflared
+    else
+      curl -fsSL -o /tmp/cloudflared "$CFD_URL"
+      sudo install -m 0755 /tmp/cloudflared /usr/local/bin/cloudflared
+      rm -f /tmp/cloudflared
+    fi
+  fi
+
+  TUNNEL_LOG="/tmp/tuist-acceptance-${SHARD}-tunnel.log"
+  TUNNEL_PID_FILE="/tmp/tuist-acceptance-${SHARD}-tunnel.pid"
+  URL_FILE="/tmp/tuist-acceptance-${SHARD}-url"
+
+  echo "==> Starting cloudflared Quick Tunnel for http://localhost:${HOST_PORT}…"
+  nohup cloudflared tunnel --no-autoupdate --url "http://localhost:${HOST_PORT}" \
+    >"$TUNNEL_LOG" 2>&1 &
+  echo $! >"$TUNNEL_PID_FILE"
+  disown
+
+  TUNNEL_URL=""
+  for _ in $(seq 1 60); do
+    TUNNEL_URL=$(grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' "$TUNNEL_LOG" | head -1 || true)
+    [ -n "$TUNNEL_URL" ] && break
+    sleep 2
+  done
+
+  if [[ -z "$TUNNEL_URL" ]]; then
+    echo "ERROR: cloudflared did not produce a tunnel URL within 2 minutes." >&2
+    cat "$TUNNEL_LOG" >&2
+    exit 1
+  fi
+
+  # Verify the tunnel actually reaches the cluster — cloudflared can return a
+  # URL before the tunnel is fully connected, so probe the same readiness
+  # endpoint we hit locally.
+  for _ in $(seq 1 30); do
+    if curl -fsS "${TUNNEL_URL}/ready" >/dev/null 2>&1; then
+      break
+    fi
+    sleep 2
+  done
+
+  if ! curl -fsS "${TUNNEL_URL}/ready" >/dev/null 2>&1; then
+    echo "ERROR: tunnel URL ${TUNNEL_URL} did not return /ready within 1 minute." >&2
+    cat "$TUNNEL_LOG" >&2
+    exit 1
+  fi
+
+  printf '%s' "$TUNNEL_URL" >"$URL_FILE"
+  echo "==> Tunnel URL: $TUNNEL_URL (written to $URL_FILE)"
+fi

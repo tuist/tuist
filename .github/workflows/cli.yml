@@ -216,13 +216,74 @@ jobs:
       - name: Run tests
         run: tuist test TuistUnitTests -- -retry-tests-on-failure -test-iterations 4
 
+  # Brings up a single shared kind+helm cluster on a Linux runner (macOS Namespace
+  # runners can't host a Linux VM — no nested virt → no HVF → no docker/podman
+  # machine), exposes it via a cloudflared Quick Tunnel, and publishes the
+  # public URL as a workflow artifact. The acceptance test shards run on macOS
+  # in parallel and consume the URL from this artifact. The cluster job idles
+  # until its timeout to outlive the test shards; whichever finishes first ends
+  # the cluster naturally when GHA tears the runner down.
+  cli-acceptance-cluster:
+    name: Acceptance Cluster
+    runs-on: namespace-profile-default
+    timeout-minutes: 30
+    # ESO needs the 1Password service-account token, which is not exposed to
+    # forks. Same gate as the tests.
+    # TEMP (this PR only): drop the `draft == false` gate so this runs on draft
+    # PRs while we exercise the new pipeline. Restore the gate before merge.
+    if: github.event.pull_request.head.repo.fork != true
+    permissions:
+      contents: read
+      packages: read
+    env:
+      TUIST_IMAGE_TAG: image-${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          # Skip the default `mise install`: this job doesn't need the heavy
+          # toolchains (elixir, swift, …) from mise.toml. up.sh installs the
+          # exact tools it needs (kind, helm, kubectl) on demand.
+          install: false
+          cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - name: Wait for server image
+        uses: ./.github/actions/wait-for-server-image
+      - name: Bring up acceptance cluster
+        env:
+          MISE_TASK_RUN_AUTO_INSTALL: "0"
+          MISE_LOCKED: "0"
+          MISE_GITHUB_TOKEN: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          INSTALL_TUNNEL: "1"
+        run: mise run cli:acceptance-cluster:up 0
+      - name: Publish cluster URL artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cli-acceptance-cluster-url
+          path: /tmp/tuist-acceptance-0-url
+          retention-days: 1
+          if-no-files-found: error
+      - name: Hold cluster until test shards finish
+        # Test shards have a 60min timeout each but typically finish in under
+        # 20min. We sleep up to ~25min, leaving margin for the slowest shard.
+        # If a shard is still running when we exit, GHA will tear down the
+        # runner regardless; the shard itself will fail when its requests start
+        # timing out, which is the correct signal.
+        run: sleep 1500
+
   cli-acceptance-tests-build:
     name: Build Acceptance Tests
     runs-on: namespace-profile-default-macos
     timeout-minutes: 60
     # TEMP (this PR only): drop the `draft == false` gate so the docker build and
-    # acceptance tests run on draft PRs while we exercise the new podman+kind
-    # pipeline. Restore the gate before merge.
+    # acceptance tests run on draft PRs while we exercise the new pipeline.
+    # Restore the gate before merge.
     if: github.event.pull_request.head.repo.fork != true
     outputs:
       matrix: ${{ steps.shard.outputs.matrix }}
@@ -277,8 +338,6 @@ jobs:
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.cli-acceptance-tests-build.outputs.matrix) }}
-    env:
-      TUIST_IMAGE_TAG: image-${{ github.sha }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -324,22 +383,43 @@ jobs:
           security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
           security default-keychain -s $KEYCHAIN_PATH
           security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
-      - name: Wait for server image
-        uses: ./.github/actions/wait-for-server-image
-      - name: Bring up acceptance cluster (shard ${{ matrix.shard }})
+      - name: Wait for shared cluster URL
+        # The Linux `cli-acceptance-cluster` job brings up a single shared
+        # kind+helm cluster and exposes it via a cloudflared Quick Tunnel, then
+        # uploads the public URL as the `cli-acceptance-cluster-url` artifact.
+        # Both shards poll for that artifact in parallel — we don't `needs:` the
+        # cluster job because that would serialise on its full ~25min hold.
         env:
-          MISE_TASK_RUN_AUTO_INSTALL: "0"
-          MISE_LOCKED: "0"
-          MISE_GITHUB_TOKEN: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
-          GITHUB_ACTOR: ${{ github.actor }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
-        run: mise run cli:acceptance-cluster:up ${{ matrix.shard }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          GH_RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          deadline=$(( $(date +%s) + 600 ))
+          while :; do
+            id=$(gh api --paginate \
+                "/repos/${GH_REPO}/actions/runs/${GH_RUN_ID}/artifacts?per_page=100" \
+                --jq '.artifacts[] | select(.name == "cli-acceptance-cluster-url") | .id' \
+                2>/dev/null | head -1)
+            if [ -n "${id:-}" ]; then
+              gh api "/repos/${GH_REPO}/actions/artifacts/${id}/zip" >/tmp/cluster-url.zip
+              unzip -o /tmp/cluster-url.zip -d /tmp/cluster-url >/dev/null
+              url=$(cat /tmp/cluster-url/tuist-acceptance-0-url)
+              echo "TUIST_URL=${url}" >>"$GITHUB_ENV"
+              echo "Cluster URL: ${url}"
+              break
+            fi
+            if [ "$(date +%s)" -ge "$deadline" ]; then
+              echo "ERROR: cluster URL artifact not available after 10 minutes." >&2
+              exit 1
+            fi
+            sleep 10
+          done
       - name: Run shard ${{ matrix.shard }}
         run: tuist test --without-building --platform macOS TuistAcceptanceTests -- -retry-tests-on-failure -test-iterations 2
         env:
           TUIST_SHARD_INDEX: ${{ matrix.shard }}
-          TUIST_URL: http://localhost:8080
+          # TUIST_URL is populated from the shared cluster URL artifact above.
           TUIST_AUTH_EMAIL: tuistrocks@tuist.dev
           TUIST_AUTH_PASSWORD: tuistrocks
 
