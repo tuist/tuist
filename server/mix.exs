@@ -72,7 +72,7 @@ defmodule Tuist.MixProject do
       {:bandit, git: "https://github.com/tuist/bandit", branch: "detect-client-disconnect-on-timeout", override: true},
       {:credo, "== 1.7.13", only: [:dev, :test], runtime: false},
       {:sentry, "~> 11.0.4"},
-      {:tower, "~> 0.8"},
+      {:tower, "0.8.0"},
       {:tower_opentelemetry, "~> 0.2.0"},
       {:hackney, "~> 1.8"},
       {:castore, "~> 1.0.12"},
