@@ -30,9 +30,8 @@ struct InspectAcceptanceTests {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let fullHandle = try #require(TuistTest.fixtureFullHandle)
-        let serverURL = try #require(
-            URL(string: try #require(Environment.current.variables["TUIST_ACCEPTANCE_URL"]))
-        )
+        let acceptanceURLString = try #require(Environment.current.variables["TUIST_ACCEPTANCE_URL"])
+        let serverURL = try #require(URL(string: acceptanceURLString))
 
         try await TuistTest.run(
             XcodeBuildBuildCommand.self,
