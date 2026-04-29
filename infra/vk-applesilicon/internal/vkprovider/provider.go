@@ -33,6 +33,14 @@ type Provider struct {
 	// Returning an empty set causes the Pod to stay Pending.
 	Hosts func(context.Context) ([]Host, error)
 
+	// AdvertisedCapacity is the {CPU, MemoryMB} the virtual Node
+	// reports to the scheduler regardless of how many Mac minis are
+	// currently Ready. Pods schedule onto our Node based on this;
+	// CreatePod still fails if no host is actually reachable, but
+	// the Pod gets a real reason instead of "Insufficient cpu" from
+	// the scheduler.
+	AdvertisedCapacity Host
+
 	// SSHKey is the per-fleet Ed25519 private key used to dial Mac
 	// minis. PEM-encoded.
 	SSHKey []byte
@@ -252,11 +260,19 @@ func (p *Provider) ConfigureNode(ctx context.Context, node *corev1.Node) {
 		Effect: corev1.TaintEffectNoSchedule,
 	})
 
-	// Capacity is sum of all hosts; we re-compute on Hosts() each Pod
-	// placement but seed Node.Status here. The VK runtime calls
-	// NodeProvider.Ping/Notify on a timer to refresh.
-	hosts, _ := p.Hosts(ctx)
-	cpu, mem := totalCapacity(hosts)
+	// Capacity is the configured pool size, NOT the count of currently-
+	// Ready Mac minis. Reporting 0 when no host has been bootstrapped
+	// yet causes the scheduler to reject Pods with "Insufficient
+	// cpu/memory" before they ever reach our virtual Node — which
+	// removes our ability to surface the real reason (no host).
+	cpu := p.AdvertisedCapacity.CPU
+	mem := p.AdvertisedCapacity.MemoryMB
+	if cpu == 0 {
+		cpu = 8
+	}
+	if mem == 0 {
+		mem = 16384
+	}
 	if node.Status.Capacity == nil {
 		node.Status.Capacity = corev1.ResourceList{}
 	}

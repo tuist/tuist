@@ -96,6 +96,10 @@ func main() {
 	}
 
 	provider := vkprovider.New(nodeName, sshKey, disc.Hosts)
+	provider.AdvertisedCapacity = vkprovider.Host{
+		CPU:      hostCPU,
+		MemoryMB: hostMemoryMB,
+	}
 	defer provider.Stop()
 
 	// 1. Pod controller: any Pod scheduled to our virtual Node fires

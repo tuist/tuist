@@ -130,8 +130,9 @@ spec:
         - name: ssh
           secret:
             secretName: {{ printf "%s-ssh" $fleetName }}
-            defaultMode: 0o400
-            items:
-              - key: id_ed25519
-                path: id_ed25519
+            # 0444 (world-readable) is fine because the Pod's nonroot
+            # user is the only one in the pod's mount namespace; we
+            # don't get a usable owner-uid match on the projected
+            # secret with stricter modes.
+            defaultMode: 0o444
 {{- end }}

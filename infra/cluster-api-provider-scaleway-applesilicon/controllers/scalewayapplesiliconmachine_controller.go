@@ -51,7 +51,8 @@ type ScalewayAppleSiliconMachineReconciler struct {
 // +kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch
 
 func (r *ScalewayAppleSiliconMachineReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	logger := log.FromContext(ctx)
+	logger := log.FromContext(ctx).WithValues("machine", req.NamespacedName)
+	logger.Info("reconcile entry")
 
 	machine := &infrav1.ScalewayAppleSiliconMachine{}
 	if err := r.Get(ctx, req.NamespacedName, machine); err != nil {
@@ -60,7 +61,6 @@ func (r *ScalewayAppleSiliconMachineReconciler) Reconcile(ctx context.Context, r
 		}
 		return ctrl.Result{}, err
 	}
-	_ = logger
 
 	patchHelper, err := patch.NewHelper(machine, r.Client)
 	if err != nil {

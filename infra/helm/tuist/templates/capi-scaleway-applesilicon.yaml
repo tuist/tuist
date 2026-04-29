@@ -110,7 +110,6 @@ spec:
             - --metrics-bind-address=:8080
             - --health-probe-bind-address=:8081
             - --secrets-namespace={{ .Release.Namespace }}
-            - --default-kubelet-version={{ .Values.macosFleet.kubeletVersion | default "1.32.1" }}
           env:
             # Scaleway credentials. ESO syncs them from 1Password into
             # this Secret automatically (see
