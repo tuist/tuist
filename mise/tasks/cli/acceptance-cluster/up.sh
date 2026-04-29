@@ -66,17 +66,24 @@ mise install kind@latest helm@latest kubectl@latest >/dev/null
 #     daemon at all.
 #   * tuist's local dev workflow already standardises on podman.
 if [[ "$(uname -s)" == "Darwin" ]] && ! podman info >/dev/null 2>&1; then
-  if ! brew list --formula podman >/dev/null 2>&1; then
-    brew install podman
-  fi
+  for pkg in podman qemu; do
+    if ! brew list --formula "$pkg" >/dev/null 2>&1; then
+      brew install "$pkg"
+    fi
+  done
 
   if ! podman machine list --format '{{.Name}}' | grep -q '^podman-machine-default'; then
     echo "==> podman machine init…"
-    podman machine init --cpus 2 --memory 4096 --disk-size 20
+    # Force the qemu provider: the default `vfkit` wraps Apple Virtualization,
+    # which Namespace's macOS profile (itself a VM) doesn't expose to guests
+    # — `vfkit exited unexpectedly with exit code 1`. qemu's TCG mode runs
+    # in pure software, no nested-virt required. Slower but works anywhere.
+    CONTAINERS_MACHINE_PROVIDER=qemu \
+      podman machine init --cpus 2 --memory 4096 --disk-size 20
   fi
   if ! podman machine list --format '{{.Running}}' | grep -q true; then
     echo "==> podman machine start…"
-    podman machine start
+    CONTAINERS_MACHINE_PROVIDER=qemu podman machine start
   fi
 fi
 
