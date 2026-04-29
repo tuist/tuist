@@ -140,6 +140,8 @@ config :phoenix, :json_library, Jason
 # as a reference
 config :prom_ex, :storage_adapter, Tuist.PromEx.StripedPeep
 
+config :tower, reporters: [TowerOpentelemetry]
+
 # Oban
 config :tuist, Oban,
   repo: Tuist.Repo,
@@ -305,8 +307,6 @@ config :tuist, :urls,
   shop: "https://shop.tuist.dev"
 
 config :tuist_common, finch_name: Tuist.Finch
-
-config :tower, reporters: [TowerOpentelemetry]
 
 config :ueberauth, Ueberauth,
   base_path: "/users/auth",
