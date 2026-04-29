@@ -174,6 +174,7 @@ struct CommandEnvironmentVariableTests {
     @Test(.withMockedEnvironment()) func graphCommandUsesEnvVars() throws {
         setVariable(.graphSkipTestTargets, value: "true")
         setVariable(.graphSkipExternalDependencies, value: "true")
+        setVariable(.graphSkipMacroSupportTargets, value: "true")
         setVariable(.graphPlatform, value: "ios")
         setVariable(.graphFormat, value: "svg")
         setVariable(.graphOpen, value: "false")
@@ -185,6 +186,7 @@ struct CommandEnvironmentVariableTests {
         let graphCommandWithEnvVars = try GraphCommand.parse([])
         #expect(graphCommandWithEnvVars.skipTestTargets == true)
         #expect(graphCommandWithEnvVars.skipExternalDependencies == true)
+        #expect(graphCommandWithEnvVars.skipMacroSupportTargets == true)
         #expect(graphCommandWithEnvVars.platform == .iOS)
         #expect(graphCommandWithEnvVars.format == .svg)
         #expect(graphCommandWithEnvVars.open == false)
@@ -196,6 +198,7 @@ struct CommandEnvironmentVariableTests {
         let graphCommandWithArgs = try GraphCommand.parse([
             "--no-skip-test-targets",
             "--no-skip-external-dependencies",
+            "--no-skip-macro-support-targets",
             "--platform", "macos",
             "--format", "json",
             "--open",
@@ -206,6 +209,7 @@ struct CommandEnvironmentVariableTests {
         ])
         #expect(graphCommandWithArgs.skipTestTargets == false)
         #expect(graphCommandWithArgs.skipExternalDependencies == false)
+        #expect(graphCommandWithArgs.skipMacroSupportTargets == false)
         #expect(graphCommandWithArgs.platform == .macOS)
         #expect(graphCommandWithArgs.format == .json)
         #expect(graphCommandWithArgs.open == true)
