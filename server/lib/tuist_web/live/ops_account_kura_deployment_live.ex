@@ -84,9 +84,9 @@ defmodule TuistWeb.OpsAccountKuraDeploymentLive do
     end
   end
 
-  def status_label(:pending), do: "Pending"
-  def status_label(:running), do: "Running"
-  def status_label(:succeeded), do: "Succeeded"
-  def status_label(:failed), do: "Failed"
-  def status_label(:cancelled), do: "Cancelled"
+  def deployment_status_label(:pending), do: "Pending"
+  def deployment_status_label(:running), do: "Running"
+  def deployment_status_label(:succeeded), do: "Succeeded"
+  def deployment_status_label(:failed), do: "Failed"
+  def deployment_status_label(:cancelled), do: "Cancelled"
 end
