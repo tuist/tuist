@@ -1,0 +1,56 @@
+/* /ops/accounts/:id — the account detail page (and the linked Kura
+   deployment-log page). Both share the same wrapper styling so the
+   header, card spacing, and action rows match the rest of /ops. */
+#ops-account,
+#ops-kura-deployment {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-9);
+  padding: var(--noora-spacing-7) var(--noora-spacing-5);
+
+  & > [data-part="header"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-2);
+
+    & > [data-part="title"] {
+      margin: var(--noora-spacing-0);
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
+    }
+
+    & > [data-part="subtitle"] {
+      margin: var(--noora-spacing-0);
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-body-medium);
+    }
+  }
+
+  /* Horizontal row of action buttons inside a card section. Used by
+     the Plan & billing card (Manage on Stripe / Upgrade / Cancel) and
+     the deployment trigger card. */
+  & [data-part="actions"] {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--noora-spacing-3);
+    align-items: center;
+  }
+
+  /* "Latest version + Poll now" header row inside the deployments card. */
+  & [data-part="row"] {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--noora-spacing-4);
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  /* Trigger-deployment form: stack labels vertically with consistent
+     spacing, mirroring the search filter rhythm used elsewhere. */
+  & [data-part="deploy-form"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-4);
+    max-width: 480px;
+  }
+}
