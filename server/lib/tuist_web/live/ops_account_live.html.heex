@@ -194,10 +194,21 @@
       <:footer>
         <.modal_footer>
           <:action>
-            <.button label="Cancel" variant="secondary" type="button" phx-click="close_add_server" />
+            <.button label="Cancel" variant="secondary" phx-click="close_add_server" />
           </:action>
           <:action>
-            <.button label="Provision server" variant="primary" type="submit" />
+            <%!--
+            Plain <button type="submit"> rather than Noora's <.button>
+            because Noora's :rest, :global, include list doesn't allow
+            `type` (Phoenix's @globals doesn't include it either), so
+            the `type="submit"` attribute gets stripped before render
+            and the button never triggers the enclosing form's submit
+            event. The `noora-button` class + data-variant attributes
+            keep the visual treatment identical to the rest of the UI.
+            --%>
+            <button type="submit" class="noora-button" data-variant="primary" data-size="large">
+              <span>Provision server</span>
+            </button>
           </:action>
         </.modal_footer>
       </:footer>
