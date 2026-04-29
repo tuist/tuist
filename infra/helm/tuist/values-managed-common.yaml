@@ -90,6 +90,18 @@ server:
     enabled: true
     asHook: true
     backoffLimit: 3
+    # Without a memory request the migration pod is the first thing
+    # kubelet evicts when a node hits the 300Mi pressure threshold,
+    # which is what killed the artifacts-backfill rollout. The limit
+    # bounds a runaway backfill so it self-terminates instead of
+    # taking the node's other pods down with it.
+    resources:
+      requests:
+        cpu: "250m"
+        memory: "1Gi"
+      limits:
+        cpu: "1000m"
+        memory: "2Gi"
 
   # HTTP probes all hit /ready. startupProbe covers the ~30-60s Phoenix boot
   # and the OTel / Sentry init latency we occasionally see in prod.

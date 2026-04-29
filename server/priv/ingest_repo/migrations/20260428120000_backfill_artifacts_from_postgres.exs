@@ -41,13 +41,14 @@ defmodule Tuist.IngestRepo.Migrations.BackfillArtifactsFromPostgres do
   @disable_ddl_transaction true
   @disable_migration_lock true
 
-  # Sized so each batch lands ~100K-200K artifacts in CH (the band
-  # CH ingests most happily) while keeping BEAM memory under ~200MB
-  # even on a tail bundle with hundreds of artifacts. With ~225M
-  # artifacts on production this works out to a few hundred batches,
-  # so the inter-batch throttle below stays a small slice of total
-  # runtime instead of dominating it.
-  @bundle_batch_size 1_000
+  # Bundle artifact counts are heavy-tailed: most bundles have a few
+  # hundred artifacts, but enterprise iOS bundles can carry tens of
+  # thousands. A 1000-bundle batch hit a tail combination that spiked
+  # BEAM memory past 8 GB and got the migration pod OOM-evicted in
+  # production, so keep the batch small enough that even a tail
+  # combination stays bounded. The inter-batch throttle below adds
+  # only a small slice of runtime at this size.
+  @bundle_batch_size 100
   # Matches the throttle other long-running CH backfills use
   # (`BackfillTestRunsFromCommandEvents`, `BackfillFirstRunEvents`):
   # gives live PG/CH traffic breathing room and lets CH merges keep up
@@ -95,6 +96,11 @@ defmodule Tuist.IngestRepo.Migrations.BackfillArtifactsFromPostgres do
             "(running total: #{new_bundle_total} bundles / #{new_artifact_total} artifacts)"
         )
 
+        # The artifact list and its CH-encoded copy are the largest
+        # transient allocations in the loop; force a GC so they're
+        # reclaimed before the next batch instead of accumulating
+        # across iterations of this long-lived migration process.
+        :erlang.garbage_collect()
         Process.sleep(@throttle_ms)
         drain(new_bundle_total, new_artifact_total)
     end
