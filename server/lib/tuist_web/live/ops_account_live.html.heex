@@ -121,8 +121,14 @@
   via `Kura.create_server/1`. The list above updates live via PubSub
   as the rollout worker advances the server's status.
   --%>
+  <%!--
+  Always rendered (no :if) so Phoenix attaches phx-submit at mount and
+  the form keeps its event tracking across Noora's portal moves. Open
+  / close is driven by `phx:open-modal` / `phx:close-modal` events
+  pushed from the LiveView, matching the working modal pattern in
+  project_settings_live.
+  --%>
   <.modal
-    :if={@show_add_server_modal?}
     id="add-server-modal"
     title="Add Kura server"
     description="Pick a backing cluster and a spec. The server is provisioned in the background and shows up in the list above as soon as it's ready."
