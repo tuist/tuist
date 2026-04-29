@@ -30,6 +30,14 @@ defmodule Tuist.Kura.Clusters do
     %{id: "local-1", region: "local", provider: "local", location: "kind"}
   ]
 
+  @doc """
+  When the cluster's provider is `local` and we're running in dev/test,
+  the rollout worker auto-discovers the kubeconfig from kind using this
+  cluster name. Operators just need `kind create cluster --name #{inspect("kura-dev")}`;
+  no env var to remember.
+  """
+  def local_kind_cluster_name, do: "kura-dev"
+
   @doc "Returns every registered cluster."
   def all do
     Enum.map(@catalog, &struct(__MODULE__, &1))
