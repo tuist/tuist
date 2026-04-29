@@ -685,7 +685,7 @@ defmodule Tuist.Tests do
           inserted_at: test_case.inserted_at
         }
       )
-      |> IngestRepo.all()
+      |> ClickHouseRepo.all()
       |> Enum.reduce(acc, fn row, inner_acc ->
         Map.update(inner_acc, row.id, row, fn existing ->
           if NaiveDateTime.after?(row.inserted_at, existing.inserted_at), do: row, else: existing
