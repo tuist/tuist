@@ -343,6 +343,10 @@ jobs:
           # queries cache endpoints during `tuist test`; with caching off
           # at the cluster, the build aborts with "No cache endpoints are
           # available."
+          # Drop --atomic so we keep the broken release around for
+          # post-mortem on failure (otherwise helm tears everything
+          # down before we can grab pod logs). We still --wait, so a
+          # timeout is treated as failure.
           if ! helm upgrade --install "$RELEASE" infra/helm/tuist \
             --namespace "$NAMESPACE" \
             -f infra/helm/tuist/values-preview.yaml \
@@ -353,11 +357,18 @@ jobs:
             --set "server.appUrl=https://${HOST}" \
             --set "server.extraEnv[0].name=TUIST_S3_ENDPOINT" \
             --set "server.extraEnv[0].value=https://${OBJECT_STORAGE_HOST}" \
-            --atomic --timeout 20m --wait; then
-            echo "::error::helm install failed; pod state:" >&2
-            kubectl -n "$NAMESPACE" get pods >&2 || true
-            kubectl -n "$NAMESPACE" describe pods >&2 || true
+            --timeout 20m --wait; then
+            echo "::error::helm install failed; pod state + logs:" >&2
+            kubectl -n "$NAMESPACE" get pods -o wide >&2 || true
             kubectl -n "$NAMESPACE" get events --sort-by=.lastTimestamp >&2 || true
+            for pod in $(kubectl -n "$NAMESPACE" get pods -o name); do
+              echo "=== describe $pod ===" >&2
+              kubectl -n "$NAMESPACE" describe "$pod" >&2 || true
+              echo "=== logs $pod (current) ===" >&2
+              kubectl -n "$NAMESPACE" logs "$pod" --all-containers --tail=200 >&2 || true
+              echo "=== logs $pod (previous) ===" >&2
+              kubectl -n "$NAMESPACE" logs "$pod" --all-containers --previous --tail=200 >&2 || true
+            done
             exit 1
           fi
           # Expose the embedded MinIO Service externally so the macOS test
