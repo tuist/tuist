@@ -147,7 +147,7 @@ defmodule TuistWeb.FlakyTestsLiveTest do
       refute has_element?(lv, "#flaky-tests-table", "testOldFlaky")
     end
 
-    test "renders flaky tests and flaky runs widgets", %{
+    test "renders flaky test cases, test case runs, and test runs widgets", %{
       conn: conn,
       organization: organization,
       project: project
@@ -164,8 +164,9 @@ defmodule TuistWeb.FlakyTestsLiveTest do
 
       # Then
       render_async(lv, 2000)
-      assert has_element?(lv, "#widget-flaky-tests")
-      assert has_element?(lv, "#widget-flaky-runs")
+      assert has_element?(lv, "#widget-flaky-test-cases")
+      assert has_element?(lv, "#widget-flaky-test-case-runs")
+      assert has_element?(lv, "#widget-flaky-test-runs")
     end
   end
 

@@ -2005,6 +2005,182 @@ defmodule Tuist.Tests.AnalyticsTest do
     end
   end
 
+  describe "flaky_test_case_runs_analytics/2" do
+    test "returns zero when no flaky test case runs exist" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:00:00Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      # When
+      got =
+        Analytics.flaky_test_case_runs_analytics(
+          project.id,
+          start_datetime: ~U[2024-04-01 00:00:00Z],
+          end_datetime: ~U[2024-04-30 23:59:59Z]
+        )
+
+      # Then
+      assert got.count == 0
+      assert Enum.all?(got.values, &(&1 == 0))
+    end
+
+    test "counts every flaky test case execution in the period and ignores non-flaky runs" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:00:00Z] end)
+      project = ProjectsFixtures.project_fixture()
+      test_case_id = UUIDv7.generate()
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: test_case_id,
+        is_flaky: true,
+        ran_at: ~N[2024-04-10 09:00:00.000000],
+        inserted_at: ~N[2024-04-10 09:00:00.000000]
+      )
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: test_case_id,
+        is_flaky: true,
+        ran_at: ~N[2024-04-15 09:00:00.000000],
+        inserted_at: ~N[2024-04-15 09:00:00.000000]
+      )
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: test_case_id,
+        is_flaky: false,
+        ran_at: ~N[2024-04-15 10:00:00.000000],
+        inserted_at: ~N[2024-04-15 10:00:00.000000]
+      )
+
+      RunsFixtures.optimize_test_case_runs()
+
+      # When
+      got =
+        Analytics.flaky_test_case_runs_analytics(
+          project.id,
+          start_datetime: ~U[2024-04-01 00:00:00Z],
+          end_datetime: ~U[2024-04-30 23:59:59Z]
+        )
+
+      # Then
+      assert got.count == 2
+    end
+
+    test "excludes runs outside the date range" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:00:00Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        is_flaky: true,
+        ran_at: ~N[2024-03-15 09:00:00.000000],
+        inserted_at: ~N[2024-03-15 09:00:00.000000]
+      )
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        is_flaky: true,
+        ran_at: ~N[2024-04-15 09:00:00.000000],
+        inserted_at: ~N[2024-04-15 09:00:00.000000]
+      )
+
+      RunsFixtures.optimize_test_case_runs()
+
+      # When
+      got =
+        Analytics.flaky_test_case_runs_analytics(
+          project.id,
+          start_datetime: ~U[2024-04-01 00:00:00Z],
+          end_datetime: ~U[2024-04-30 23:59:59Z]
+        )
+
+      # Then
+      assert got.count == 1
+    end
+
+    test "honors the is_ci filter" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:00:00Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        is_flaky: true,
+        is_ci: true,
+        ran_at: ~N[2024-04-10 09:00:00.000000],
+        inserted_at: ~N[2024-04-10 09:00:00.000000]
+      )
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        is_flaky: true,
+        is_ci: false,
+        ran_at: ~N[2024-04-15 09:00:00.000000],
+        inserted_at: ~N[2024-04-15 09:00:00.000000]
+      )
+
+      RunsFixtures.optimize_test_case_runs()
+
+      base_opts = [start_datetime: ~U[2024-04-01 00:00:00Z], end_datetime: ~U[2024-04-30 23:59:59Z]]
+
+      # When
+      any_env = Analytics.flaky_test_case_runs_analytics(project.id, base_opts)
+      ci_only = Analytics.flaky_test_case_runs_analytics(project.id, Keyword.put(base_opts, :is_ci, true))
+      local_only = Analytics.flaky_test_case_runs_analytics(project.id, Keyword.put(base_opts, :is_ci, false))
+
+      # Then
+      assert any_env.count == 2
+      assert ci_only.count == 1
+      assert local_only.count == 1
+    end
+
+    test "computes trend by comparing the current period to the equivalent prior period" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:00:00Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      # One flaky run in the prior 30-day window
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        is_flaky: true,
+        ran_at: ~N[2024-03-10 09:00:00.000000],
+        inserted_at: ~N[2024-03-10 09:00:00.000000]
+      )
+
+      # Two flaky runs in the current 30-day window
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        is_flaky: true,
+        ran_at: ~N[2024-04-05 09:00:00.000000],
+        inserted_at: ~N[2024-04-05 09:00:00.000000]
+      )
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        is_flaky: true,
+        ran_at: ~N[2024-04-20 09:00:00.000000],
+        inserted_at: ~N[2024-04-20 09:00:00.000000]
+      )
+
+      RunsFixtures.optimize_test_case_runs()
+
+      # When
+      got =
+        Analytics.flaky_test_case_runs_analytics(
+          project.id,
+          start_datetime: ~U[2024-04-01 00:00:00Z],
+          end_datetime: ~U[2024-04-30 23:59:59Z]
+        )
+
+      # Then
+      assert got.count == 2
+      assert got.trend == 100.0
+    end
+  end
+
   describe "flaky_tests_analytics/2" do
     test "returns zero when no test cases are flagged as flaky" do
       # Given
