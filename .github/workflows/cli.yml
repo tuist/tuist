@@ -342,7 +342,7 @@ jobs:
           # queries cache endpoints during `tuist test`; with caching off
           # at the cluster, the build aborts with "No cache endpoints are
           # available."
-          helm upgrade --install "$RELEASE" infra/helm/tuist \
+          if ! helm upgrade --install "$RELEASE" infra/helm/tuist \
             --namespace "$NAMESPACE" \
             -f infra/helm/tuist/values-preview.yaml \
             --set global.imagePullSecrets[0].name=ghcr-pull-secret \
@@ -352,7 +352,13 @@ jobs:
             --set "server.appUrl=https://${HOST}" \
             --set "server.extraEnv[0].name=TUIST_S3_ENDPOINT" \
             --set "server.extraEnv[0].value=https://${OBJECT_STORAGE_HOST}" \
-            --atomic --timeout 12m --wait
+            --atomic --timeout 20m --wait; then
+            echo "::error::helm install failed; pod state:" >&2
+            kubectl -n "$NAMESPACE" get pods >&2 || true
+            kubectl -n "$NAMESPACE" describe pods >&2 || true
+            kubectl -n "$NAMESPACE" get events --sort-by=.lastTimestamp >&2 || true
+            exit 1
+          fi
           # Expose the embedded MinIO Service externally so the macOS test
           # shards (and anything else outside the cluster) can resolve the
           # presigned URLs the server hands out. nginx default-ssl-cert
