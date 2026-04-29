@@ -112,6 +112,23 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 ) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 
+	// Stage 0: ensure the per-fleet SSH key is registered with Scaleway
+	// BEFORE we order the Mac mini. Scaleway only injects project SSH
+	// keys at first-boot — keys registered after CreateServer are not
+	// auto-installed on the host, leaving us locked out of SSH and
+	// unable to bootstrap kubelet. Doing this first means the Mac mini
+	// comes up with our pubkey already in ~/.ssh/authorized_keys.
+	fleet := machine.Spec.FleetName
+	if fleet == "" {
+		fleet = machine.Namespace + "-" + machine.Name
+	}
+	sshKey, err := r.CredentialsManager.EnsureFleetSSHKey(ctx, fleet)
+	if err != nil {
+		conditions.MarkFalse(machine, BootstrappedCondition, "SSHKeyUnavailable",
+			clusterv1.ConditionSeverityError, "%v", err)
+		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+	}
+
 	// Stage 1: ensure the Scaleway server exists.
 	if machine.Status.ServerID == "" {
 		machine.Status.Phase = "Provisioning"
@@ -155,17 +172,6 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 
 		ip := machineIP(machine)
 		if ip == "" {
-			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
-		}
-
-		fleet := machine.Spec.FleetName
-		if fleet == "" {
-			fleet = machine.Namespace + "-" + machine.Name
-		}
-		sshKey, err := r.CredentialsManager.EnsureFleetSSHKey(ctx, fleet)
-		if err != nil {
-			conditions.MarkFalse(machine, BootstrappedCondition, "SSHKeyUnavailable",
-				clusterv1.ConditionSeverityError, "%v", err)
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 		}
 
