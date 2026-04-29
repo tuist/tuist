@@ -113,7 +113,7 @@ struct TestCaseUpdateCommandService: TestCaseUpdateCommandServicing {
             info.append("Suite: \(suite.name)")
         }
 
-        info.append("State: \(testCase.state.rawValue)")
+        info.append("State: \(testCase.state)")
         info.append("Flaky: \(testCase.is_flaky ? "Yes" : "No")")
         info.append("URL: \(testCase.url)")
 

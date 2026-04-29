@@ -18,6 +18,8 @@ defmodule TuistWeb.API.TestCasesController do
   plug(TuistWeb.Plugs.LoaderPlug)
   plug(TuistWeb.API.Authorization.AuthorizationPlug, :test)
 
+  @valid_states ["enabled", "muted", "skipped"]
+
   tags ["Test Cases"]
 
   operation(:index,
@@ -396,42 +398,53 @@ defmodule TuistWeb.API.TestCasesController do
       ) do
     attrs = Map.take(body_params, [:state, :is_flaky])
 
-    if map_size(attrs) == 0 do
-      conn
-      |> put_status(:bad_request)
-      |> json(%{message: "Provide at least one of `state` or `is_flaky`."})
-    else
-      case Tests.get_test_case_by_id(test_case_id) do
-        {:ok, test_case} ->
-          if test_case.project_id == selected_project.id do
-            actor_id = Authentication.authenticated_subject_account(conn).id
+    cond do
+      map_size(attrs) == 0 ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{message: "Provide at least one of `state` or `is_flaky`."})
 
-            {:ok, updated_test_case} = Tests.update_test_case(test_case_id, attrs, actor_id: actor_id)
+      Map.has_key?(attrs, :state) and attrs.state not in @valid_states ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{message: "`state` must be one of `enabled`, `muted`, or `skipped`."})
 
-            json(conn, %{
-              id: updated_test_case.id,
-              name: updated_test_case.name,
-              module: %{
-                id: updated_test_case.module_name,
-                name: updated_test_case.module_name
-              },
-              suite: build_suite(updated_test_case.suite_name),
-              is_flaky: updated_test_case.is_flaky,
-              is_quarantined: quarantined?(updated_test_case.state),
-              state: updated_test_case.state || "enabled",
-              url: ~p"/#{selected_project.account.name}/#{selected_project.name}/tests/test-cases/#{updated_test_case.id}"
-            })
-          else
-            conn
-            |> put_status(:not_found)
-            |> json(%{message: "Test case not found."})
-          end
+      true ->
+        update_test_case(conn, selected_project, test_case_id, attrs)
+    end
+  end
 
-        {:error, :not_found} ->
+  defp update_test_case(conn, selected_project, test_case_id, attrs) do
+    case Tests.get_test_case_by_id(test_case_id) do
+      {:ok, test_case} ->
+        if test_case.project_id == selected_project.id do
+          actor_id = Authentication.authenticated_subject_account(conn).id
+
+          {:ok, updated_test_case} = Tests.update_test_case(test_case_id, attrs, actor_id: actor_id)
+
+          json(conn, %{
+            id: updated_test_case.id,
+            name: updated_test_case.name,
+            module: %{
+              id: updated_test_case.module_name,
+              name: updated_test_case.module_name
+            },
+            suite: build_suite(updated_test_case.suite_name),
+            is_flaky: updated_test_case.is_flaky,
+            is_quarantined: quarantined?(updated_test_case.state),
+            state: updated_test_case.state || "enabled",
+            url: ~p"/#{selected_project.account.name}/#{selected_project.name}/tests/test-cases/#{updated_test_case.id}"
+          })
+        else
           conn
           |> put_status(:not_found)
           |> json(%{message: "Test case not found."})
-      end
+        end
+
+      {:error, :not_found} ->
+        conn
+        |> put_status(:not_found)
+        |> json(%{message: "Test case not found."})
     end
   end
 
