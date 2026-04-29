@@ -424,6 +424,17 @@ oban_queues =
 # are then claimed by whichever pod runs the matching queue. Pruner + Lifeline
 # are also leader-only; both work fine on either pod since the tuist_processor
 # DB role has the necessary INSERT/UPDATE/DELETE on oban_jobs.
+#
+# Oban.Met is the exception: its leader-only Reporter runs `CREATE OR REPLACE
+# FUNCTION public.oban_count_estimate(...)` on every checkpoint, which the
+# tuist_processor role can't do (USAGE only on schema public, see
+# infra/supabase/tuist-processor-role.sql). Disable auto-start on processor
+# pods so the supervisor doesn't attach there; server pods keep reporting and
+# the dashboard view is unaffected.
+if Tuist.Environment.processor_mode?() do
+  config :oban_met, auto_start: false
+end
+
 config :tuist, Oban,
   queues: oban_queues,
   plugins: [
