@@ -140,6 +140,8 @@ config :phoenix, :json_library, Jason
 # as a reference
 config :prom_ex, :storage_adapter, Tuist.PromEx.StripedPeep
 
+config :tower, reporters: [TowerOpentelemetry]
+
 # Oban
 config :tuist, Oban,
   repo: Tuist.Repo,
