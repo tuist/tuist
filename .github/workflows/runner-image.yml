@@ -10,20 +10,16 @@ on:
         description: "Output image name (e.g. tuist-runner-xcode-26.4)"
         required: true
       runner_version:
-        description: "GitHub Actions runner version (e.g. 2.325.0)"
+        description: "GitHub Actions runner version (e.g. 2.333.1)"
         required: true
 
 jobs:
   build:
-    runs-on: namespace-profile-default-macos
+    runs-on: [self-hosted, macos, bare-metal, vm-image-builder]
+    env:
+      PATH: /opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
     steps:
       - uses: actions/checkout@v4
-
-      - name: Install Tart
-        run: brew install cirruslabs/cli/tart
-
-      - name: Install Packer
-        run: brew install hashicorp/tap/packer
 
       - name: Initialize Packer
         working-directory: infra/runner-images
@@ -39,7 +35,7 @@ jobs:
             runner.pkr.hcl
 
       - name: Log in to GHCR
-        run: tart login ghcr.io --username tuist-bot --password-stdin <<< "${{ secrets.GITHUB_TOKEN }}"
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | tart login ghcr.io --username tuist-bot --password-stdin
 
       - name: Push image to GHCR
-        run: tart push ${{ inputs.output_image }} ghcr.io/tuist/${{ inputs.output_image }}:latest
+        run: tart push "${{ inputs.output_image }}" "ghcr.io/tuist/${{ inputs.output_image }}:latest"
