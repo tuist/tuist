@@ -10,6 +10,7 @@ package scaleway
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	applesilicon "github.com/scaleway/scaleway-sdk-go/api/applesilicon/v1alpha1"
 	iam "github.com/scaleway/scaleway-sdk-go/api/iam/v1alpha1"
@@ -47,10 +48,16 @@ func NewClient() (*Client, error) {
 	return &Client{API: applesilicon.NewAPI(client), IAM: iam.NewAPI(client)}, nil
 }
 
-// EnsureSSHKey registers `publicKey` with Scaleway under `name` if it
-// isn't already there. Idempotent: no-op when the same name is
-// already known. Returns the Scaleway-side SSH key ID.
+// EnsureSSHKey registers `publicKey` with Scaleway under `name`.
+// Returns the Scaleway-side SSH key ID. If a key with the same name
+// already exists but its public-key bytes don't match `publicKey`, the
+// stale registration is deleted and replaced — otherwise we'd silently
+// pair a fresh cluster-side private key with a different pubkey on
+// Scaleway, which is exactly the kind of split-brain that locks every
+// SSH bootstrap out (see staging incident 2026-04-29).
 func (c *Client) EnsureSSHKey(ctx context.Context, name, publicKey string) (string, error) {
+	wantPub := normalizePubKey(publicKey)
+
 	page := int32(1)
 	pageSize := uint32(100)
 	for {
@@ -63,8 +70,17 @@ func (c *Client) EnsureSSHKey(ctx context.Context, name, publicKey string) (stri
 			return "", fmt.Errorf("list ssh keys: %w", err)
 		}
 		for _, k := range resp.SSHKeys {
-			if k.Name == name {
+			if k.Name != name {
+				continue
+			}
+			if normalizePubKey(k.PublicKey) == wantPub {
 				return k.ID, nil
+			}
+			// Same name, different pubkey — replace.
+			if err := c.IAM.DeleteSSHKey(&iam.DeleteSSHKeyRequest{
+				SSHKeyID: k.ID,
+			}, scw.WithContext(ctx)); err != nil {
+				return "", fmt.Errorf("delete stale ssh key %s: %w", k.ID, err)
 			}
 		}
 		if uint64(uint32(page))*uint64(pageSize) >= uint64(resp.TotalCount) {
@@ -81,6 +97,16 @@ func (c *Client) EnsureSSHKey(ctx context.Context, name, publicKey string) (stri
 		return "", fmt.Errorf("create ssh key: %w", err)
 	}
 	return created.ID, nil
+}
+
+// normalizePubKey reduces an OpenSSH public-key string to its base64
+// blob so we can compare across CR/LF + trailing-comment differences.
+func normalizePubKey(pub string) string {
+	fields := strings.Fields(pub)
+	if len(fields) >= 2 {
+		return fields[0] + " " + fields[1]
+	}
+	return strings.TrimSpace(pub)
 }
 
 // Server is the subset of fields the CAPI controller cares about.
