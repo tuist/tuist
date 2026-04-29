@@ -121,21 +121,25 @@
   via `Kura.create_server/1`. The list above updates live via PubSub
   as the rollout worker advances the server's status.
   --%>
-  <.modal
+  <form
     :if={@show_add_server_modal?}
-    id="add-server-modal"
-    title="Add Kura server"
-    description="Pick a backing cluster and a spec. The server is provisioned in the background and shows up in the list above as soon as it's ready."
-    header_type="icon"
-    header_size="small"
-    on_dismiss="close_add_server"
+    id="add-server-form"
+    phx-submit="submit_add_server"
+    class="add-server-form"
   >
-    <:header_icon><.server /></:header_icon>
-    <:trigger :let={modal_attrs}>
-      <button id="add-server-trigger" type="button" style="display: none;" {modal_attrs}></button>
-    </:trigger>
+    <.modal
+      id="add-server-modal"
+      title="Add Kura server"
+      description="Pick a backing cluster and a spec. The server is provisioned in the background and shows up in the list above as soon as it's ready."
+      header_type="icon"
+      header_size="small"
+      on_dismiss="close_add_server"
+    >
+      <:header_icon><.server /></:header_icon>
+      <:trigger :let={modal_attrs}>
+        <button id="add-server-trigger" type="button" style="display: none;" {modal_attrs}></button>
+      </:trigger>
 
-    <form id="add-server-form" phx-submit="submit_add_server" class="add-server-form">
       <div class="select-field">
         <.label label="Cluster" required />
         <.select id="add-server-cluster" name="server[cluster_id]" value={@add_server_form["cluster_id"]} label="Cluster">
@@ -169,24 +173,24 @@
             (latest cached release). Subsequent upgrades pick up the next release the same way.
         <% end %>
       </p>
-    </form>
 
-    <:footer>
-      <.modal_footer>
-        <:action>
-          <.button
-            label="Cancel"
-            variant="secondary"
-            type="button"
-            phx-click={JS.dispatch("phx:close-modal", detail: %{id: "add-server-modal"})}
-          />
-        </:action>
-        <:action>
-          <.button label="Provision server" variant="primary" type="submit" form="add-server-form" />
-        </:action>
-      </.modal_footer>
-    </:footer>
-  </.modal>
+      <:footer>
+        <.modal_footer>
+          <:action>
+            <.button
+              label="Cancel"
+              variant="secondary"
+              type="button"
+              phx-click="close_add_server"
+            />
+          </:action>
+          <:action>
+            <.button label="Provision server" variant="primary" type="submit" />
+          </:action>
+        </.modal_footer>
+      </:footer>
+    </.modal>
+  </form>
 
   <%!--
   Enterprise-upgrade modal — only rendered when an upgrade is in flight
