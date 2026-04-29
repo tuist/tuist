@@ -461,6 +461,12 @@ jobs:
     name: Build Acceptance Tests
     runs-on: namespace-profile-default-macos
     timeout-minutes: 60
+    # `tuist test --build-only --shard-total --shard-granularity suite`
+    # registers a shard plan on the configured server. The test shards
+    # query that plan by reference; if the plan lives on canary but the
+    # tests run against the preview cluster, lookup 404s with "shard plan
+    # not found". Build against the same cluster the tests use.
+    needs: cli-acceptance-cluster
     # TEMP (this PR only): drop the `draft == false` gate so the docker build and
     # acceptance tests run on draft PRs while we exercise the new pipeline.
     # Restore the gate before merge.
@@ -505,8 +511,18 @@ jobs:
         run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidation -bool YES
       - name: Download Metal Toolchain
         run: xcodebuild -downloadComponent MetalToolchain
+      - name: Authenticate against acceptance cluster
+        # The shard plan registered by `tuist test --build-only` lives on
+        # the server identified by TUIST_URL. We point it at the preview
+        # cluster so the test shards (which run with the same TUIST_URL)
+        # can find the plan.
+        env:
+          TUIST_URL: ${{ needs.cli-acceptance-cluster.outputs.url }}
+        run: tuist auth login --email tuistrocks@tuist.dev --password tuistrocks
       - name: Build tests
         id: shard
+        env:
+          TUIST_URL: ${{ needs.cli-acceptance-cluster.outputs.url }}
         run: tuist test --build-only --shard-total 2 --shard-granularity suite TuistAcceptanceTests
 
   cli-acceptance-tests:
