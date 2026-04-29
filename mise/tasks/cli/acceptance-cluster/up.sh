@@ -198,6 +198,13 @@ if [[ "$LICENSE_MODE" = "eso" ]]; then
     fi
   fi
 
+  # The CI OP service account has access to the `tuist` vault (verified by
+  # the diagnostic above on a previous run). Pedro's local preview-up.sh
+  # uses `tuist-k8s-preview`, but the CI token is scoped narrower; we point
+  # at `tuist` here and rely on a `TUIST_LICENSE_KEY` item being maintained
+  # in *both* vaults so each environment's token can resolve it.
+  OP_VAULT="${TUIST_OP_VAULT:-tuist}"
+
   if command -v op >/dev/null 2>&1; then
     echo "==> 1Password vaults visible to this service account:"
     if ! op vault list --format json 2>/tmp/op-err | jq -r '.[] | "  - \(.name) (\(.id))"'; then
@@ -205,9 +212,14 @@ if [[ "$LICENSE_MODE" = "eso" ]]; then
       cat /tmp/op-err >&2
       exit 1
     fi
-    if ! op vault list --format json | jq -e '.[] | select(.name == "tuist-k8s-preview")' >/dev/null 2>&1; then
-      echo "ERROR: this service account does not have access to vault 'tuist-k8s-preview'." >&2
-      echo "       Grant it in 1Password admin (Service Accounts → vault list) or pick a vault from the list above." >&2
+    if ! op vault list --format json | jq -e ".[] | select(.name == \"${OP_VAULT}\")" >/dev/null 2>&1; then
+      echo "ERROR: this service account does not have access to vault '${OP_VAULT}'." >&2
+      echo "       Grant it in 1Password admin (Service Accounts → vault list) or set TUIST_OP_VAULT to a vault from the list above." >&2
+      exit 1
+    fi
+    if ! op item get TUIST_LICENSE_KEY --vault "$OP_VAULT" --format json >/dev/null 2>&1; then
+      echo "ERROR: vault '${OP_VAULT}' does not contain an item named 'TUIST_LICENSE_KEY'." >&2
+      echo "       Add one (Login or Password category, license value in the 'password' field) and retry." >&2
       exit 1
     fi
   fi
@@ -218,7 +230,7 @@ if [[ "$LICENSE_MODE" = "eso" ]]; then
   mise x kubectl@latest -- kubectl -n onepassword create secret generic onepassword-sa-token \
     --from-literal=token="$OP_SERVICE_ACCOUNT_TOKEN"
 
-  cat <<'EOF' | mise x kubectl@latest -- kubectl apply -f -
+  cat <<EOF | mise x kubectl@latest -- kubectl apply -f -
 apiVersion: external-secrets.io/v1
 kind: ClusterSecretStore
 metadata:
@@ -226,7 +238,7 @@ metadata:
 spec:
   provider:
     onepasswordSDK:
-      vault: tuist-k8s-preview
+      vault: ${OP_VAULT}
       auth:
         serviceAccountSecretRef:
           name: onepassword-sa-token
