@@ -175,6 +175,43 @@ if [[ "$LICENSE_MODE" = "eso" ]]; then
     --wait --timeout 3m
 
   echo "==> Configuring 1Password ClusterSecretStore…"
+  # Sanity-check vault access before applying the ClusterSecretStore. ESO's
+  # error path is opaque ("vault X not found" doesn't say what X *is*
+  # accessible) — listing vaults up front turns "service-account scope is
+  # wrong" from a 3-minute timeout into an immediate, actionable error
+  # message. The 1Password CLI talks to the same Service Accounts API ESO
+  # uses internally, so what shows up here is exactly what ESO can reach.
+  if ! command -v op >/dev/null 2>&1; then
+    OP_VERSION="2.31.1"
+    case "$(uname -s)-$(uname -m)" in
+      Linux-x86_64)   OP_DIST="op_linux_amd64_v${OP_VERSION}.zip" ;;
+      Linux-aarch64)  OP_DIST="op_linux_arm64_v${OP_VERSION}.zip" ;;
+      Darwin-arm64)   OP_DIST="op_apple_universal_v${OP_VERSION}.pkg" ;;
+      Darwin-x86_64)  OP_DIST="op_apple_universal_v${OP_VERSION}.pkg" ;;
+      *)              OP_DIST="" ;;
+    esac
+    if [[ -n "$OP_DIST" && "$OP_DIST" == *.zip ]]; then
+      curl -fsSL -o /tmp/op.zip "https://cache.agilebits.com/dist/1P/op2/pkg/v${OP_VERSION}/${OP_DIST}"
+      unzip -qo /tmp/op.zip -d /tmp/op-extract
+      sudo install -m 0755 /tmp/op-extract/op /usr/local/bin/op
+      rm -rf /tmp/op.zip /tmp/op-extract
+    fi
+  fi
+
+  if command -v op >/dev/null 2>&1; then
+    echo "==> 1Password vaults visible to this service account:"
+    if ! op vault list --format json 2>/tmp/op-err | jq -r '.[] | "  - \(.name) (\(.id))"'; then
+      echo "ERROR: could not list 1Password vaults. op stderr:" >&2
+      cat /tmp/op-err >&2
+      exit 1
+    fi
+    if ! op vault list --format json | jq -e '.[] | select(.name == "tuist-k8s-preview")' >/dev/null 2>&1; then
+      echo "ERROR: this service account does not have access to vault 'tuist-k8s-preview'." >&2
+      echo "       Grant it in 1Password admin (Service Accounts → vault list) or pick a vault from the list above." >&2
+      exit 1
+    fi
+  fi
+
   mise x kubectl@latest -- kubectl create namespace onepassword --dry-run=client -o yaml \
     | mise x kubectl@latest -- kubectl apply -f -
   mise x kubectl@latest -- kubectl -n onepassword delete secret onepassword-sa-token --ignore-not-found
