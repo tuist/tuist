@@ -43,6 +43,9 @@ on:
       commit_sha:
         description: Commit SHA to deploy (defaults to the event's SHA)
         required: false
+      image_tag:
+        description: Pre-built image tag to deploy instead of building
+        required: false
   workflow_call:
     inputs:
       environment:
