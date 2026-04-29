@@ -282,9 +282,15 @@ jobs:
           release="acceptance-${slug}"
           namespace="acceptance-${slug}"
           host="${release}.preview.tuist.dev"
+          # Embedded MinIO needs a public hostname too — the server signs
+          # presigned URLs with TUIST_S3_ENDPOINT, and the CLI on the
+          # macOS runner has to resolve that. Cluster-internal DNS would
+          # fail at the upload step.
+          object_storage_host="minio-${release}.preview.tuist.dev"
           echo "release=${release}" >>"$GITHUB_OUTPUT"
           echo "namespace=${namespace}" >>"$GITHUB_OUTPUT"
           echo "host=${host}" >>"$GITHUB_OUTPUT"
+          echo "object_storage_host=${object_storage_host}" >>"$GITHUB_OUTPUT"
       - name: Load kubeconfig
         run: |
           mkdir -p "$(dirname "$KUBECONFIG")"
@@ -317,6 +323,7 @@ jobs:
           RELEASE: ${{ steps.resolve.outputs.release }}
           NAMESPACE: ${{ steps.resolve.outputs.namespace }}
           HOST: ${{ steps.resolve.outputs.host }}
+          OBJECT_STORAGE_HOST: ${{ steps.resolve.outputs.object_storage_host }}
         run: |
           set -euo pipefail
           # Clean up any leftover release from a previous failed run on this
@@ -325,6 +332,12 @@ jobs:
           # release fails with "field is immutable". Uninstall + reinstall
           # is fine because we don't need to preserve state across runs.
           helm uninstall "$RELEASE" --namespace "$NAMESPACE" --wait --ignore-not-found
+          # extraEnv override for TUIST_S3_ENDPOINT: the chart's helper
+          # hardcodes the cluster-internal Service DNS for embedded MinIO,
+          # which the macOS runner can't resolve. Server signs presigned
+          # upload URLs with this value, so it has to be the public host.
+          # k8s honours the *last* env entry when names collide, so the
+          # extraEnv here wins over the chart's hardcoded value.
           helm upgrade --install "$RELEASE" infra/helm/tuist \
             --namespace "$NAMESPACE" \
             -f infra/helm/tuist/values-preview.yaml \
@@ -334,7 +347,38 @@ jobs:
             --set server.ingress.enabled=true \
             --set server.ingress.host="$HOST" \
             --set "server.appUrl=https://${HOST}" \
+            --set "server.extraEnv[0].name=TUIST_S3_ENDPOINT" \
+            --set "server.extraEnv[0].value=https://${OBJECT_STORAGE_HOST}" \
             --atomic --timeout 12m --wait
+          # Expose the embedded MinIO Service externally so the macOS test
+          # shards (and anything else outside the cluster) can resolve the
+          # presigned URLs the server hands out. nginx default-ssl-cert
+          # serves the wildcard *.preview.tuist.dev cert; no per-host TLS
+          # plumbing required.
+          cat <<EOF | kubectl apply -f -
+          apiVersion: networking.k8s.io/v1
+          kind: Ingress
+          metadata:
+            name: ${RELEASE}-tuist-object-storage
+            namespace: ${NAMESPACE}
+            annotations:
+              nginx.ingress.kubernetes.io/proxy-body-size: "0"
+              nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+              nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+          spec:
+            ingressClassName: nginx
+            rules:
+              - host: ${OBJECT_STORAGE_HOST}
+                http:
+                  paths:
+                    - path: /
+                      pathType: Prefix
+                      backend:
+                        service:
+                          name: ${RELEASE}-tuist-object-storage
+                          port:
+                            number: 9000
+          EOF
           # TTL label so preview-sweep.yml cleans up if the explicit
           # teardown job below misses (e.g. workflow cancelled). Epoch
           # seconds, matching the format preview-deploy.yml writes — k8s
@@ -384,18 +428,33 @@ jobs:
               exit 1
             fi
           done
-          # Smoke test through the public host. Retries cover DNS / cert
-          # propagation lag.
+          # Smoke test the server through the public host. Retries cover
+          # DNS / cert propagation lag.
           for i in $(seq 1 30); do
             if curl -fsSL --max-time 5 "https://${HOST}/ready" >/dev/null; then
-              echo "url=https://${HOST}" >>"$GITHUB_OUTPUT"
               echo "OK — https://${HOST}/ready returned 200"
-              exit 0
+              break
             fi
             echo "Attempt $i: https://${HOST}/ready not yet reachable; retrying in 10s..."
             sleep 10
           done
-          echo "::error::https://${HOST}/ready never returned 200 after ~5 min."
+          if ! curl -fsSL --max-time 5 "https://${HOST}/ready" >/dev/null; then
+            echo "::error::https://${HOST}/ready never returned 200 after ~5 min."
+            exit 1
+          fi
+          # MinIO health check — its `/minio/health/live` endpoint returns
+          # 200 once the server is accepting requests. Wait for the new
+          # Ingress + DNS to resolve.
+          for i in $(seq 1 30); do
+            if curl -fsSL --max-time 5 "https://${OBJECT_STORAGE_HOST}/minio/health/live" >/dev/null; then
+              echo "OK — https://${OBJECT_STORAGE_HOST}/minio/health/live returned 200"
+              echo "url=https://${HOST}" >>"$GITHUB_OUTPUT"
+              exit 0
+            fi
+            echo "Attempt $i: https://${OBJECT_STORAGE_HOST}/minio/health/live not yet reachable; retrying in 10s..."
+            sleep 10
+          done
+          echo "::error::https://${OBJECT_STORAGE_HOST}/minio/health/live never returned 200 after ~5 min."
           exit 1
 
   cli-acceptance-tests-build:
