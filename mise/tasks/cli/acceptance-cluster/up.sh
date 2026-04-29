@@ -198,7 +198,18 @@ spec:
 EOF
 
   echo "==> Waiting for ClusterSecretStore to go Ready…"
-  mise x kubectl@latest -- kubectl wait --for=condition=Ready clustersecretstore/onepassword --timeout=60s
+  # ESO's helm release reports Ready as soon as the deployments respond to
+  # health checks, but the controller that reconciles new ClusterSecretStores
+  # can lag a bit further on a freshly-bootstrapped cluster — especially on a
+  # Linux runner where the kind node is still warming up. Give it 3 minutes
+  # and dump diagnostic state on timeout so we don't have to re-run blind.
+  if ! mise x kubectl@latest -- kubectl wait --for=condition=Ready clustersecretstore/onepassword --timeout=3m; then
+    echo "ERROR: ClusterSecretStore did not reach Ready. Diagnostic state:" >&2
+    mise x kubectl@latest -- kubectl describe clustersecretstore/onepassword >&2 || true
+    mise x kubectl@latest -- kubectl -n external-secrets get pods >&2 || true
+    mise x kubectl@latest -- kubectl -n external-secrets logs -l app.kubernetes.io/name=external-secrets --tail=200 >&2 || true
+    exit 1
+  fi
 
   # values-acceptance.yaml already sets server.externalSecrets.license.item.
   # The ExternalSecret materialises a Secret the chart's app-secrets reads,
