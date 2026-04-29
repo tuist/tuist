@@ -192,6 +192,7 @@ func installKubelet(ctx context.Context, client *ssh.Client, kubeletBinary, vers
 		return err
 	}
 	return runCommand(ctx, client, `set -euo pipefail
+sudo mkdir -p /usr/local/bin
 sudo install -m 0755 /tmp/kubelet /usr/local/bin/kubelet
 rm -f /tmp/kubelet
 `)
@@ -205,7 +206,7 @@ func uploadTartCRIBinaries(ctx context.Context, client *ssh.Client, criPath, cni
 		return err
 	}
 	script := `set -euo pipefail
-sudo mkdir -p /opt/cni/bin /var/lib/tart-cri /var/log/tart-cri /var/log/kubelet /var/log/pods /var/run/tart-cri /etc/kubernetes /etc/cni/net.d
+sudo mkdir -p /usr/local/bin /opt/cni/bin /var/lib/tart-cri /var/log/tart-cri /var/log/kubelet /var/log/pods /var/run/tart-cri /etc/kubernetes /etc/cni/net.d
 sudo install -m 0755 /tmp/tart-cri /usr/local/bin/tart-cri
 sudo install -m 0755 /tmp/tart-cni /opt/cni/bin/tart-cni
 rm -f /tmp/tart-cri /tmp/tart-cni
