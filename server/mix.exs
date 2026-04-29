@@ -6,7 +6,6 @@ defmodule Tuist.MixProject do
       app: :tuist,
       version: "0.1.0",
       elixir: "~> 1.19",
-      build_path: build_path(),
       elixirc_paths: elixirc_paths(Mix.env()),
       elixirc_options: [check_cwd: false],
       test_paths: ["test"],
@@ -33,13 +32,6 @@ defmodule Tuist.MixProject do
   defp elixirc_paths(:test), do: ["lib", "test/support", "credo"]
   defp elixirc_paths(:dev), do: ["lib", "credo"]
   defp elixirc_paths(_), do: ["lib"]
-
-  defp build_path do
-    case System.get_env("TUIST_MIX_BUILD_ROOT") do
-      root when root in [nil, ""] -> "_build"
-      root -> Path.join(root, "server")
-    end
-  end
 
   # Specifies your project dependencies.
   #
