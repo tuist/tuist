@@ -99,12 +99,18 @@ defmodule TuistWeb.OpsAccountLive do
 
   @impl true
   def handle_event("open_add_server", _params, socket) do
-    {:noreply, assign(socket, :show_add_server_modal?, true)}
+    {:noreply,
+     socket
+     |> assign(:show_add_server_modal?, true)
+     |> push_event("open-modal", %{id: "add-server-modal"})}
   end
 
   @impl true
   def handle_event("close_add_server", _params, socket) do
-    {:noreply, assign(socket, :show_add_server_modal?, false)}
+    {:noreply,
+     socket
+     |> assign(:show_add_server_modal?, false)
+     |> push_event("close-modal", %{id: "add-server-modal"})}
   end
 
   @impl true
@@ -146,6 +152,7 @@ defmodule TuistWeb.OpsAccountLive do
          |> put_flash(:info, "Provisioning Kura server on #{server.cluster_id}…")
          |> assign(:show_add_server_modal?, false)
          |> assign(:add_server_form, default_add_server_form())
+         |> push_event("close-modal", %{id: "add-server-modal"})
          |> load_kura_state()}
 
       {:error, %Ecto.Changeset{} = changeset} ->
