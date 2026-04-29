@@ -355,11 +355,18 @@ jobs:
           # for those ports), starts the application, runs seeds.exs,
           # and halts. Without those overrides, Application.ensure_all_started
           # fails with `:eaddrinuse` on the metrics port.
+          #
+          # Override every data-volume env var to 0: acceptance tests
+          # only need the test user / org / projects (created at the top
+          # of seeds.exs unconditionally). The bulk data generation
+          # (default 2k build runs, 1.5k test runs, 8k command events,
+          # ~30k CAS records) blew past the chart's 1Gi server memory
+          # limit and got OOMKilled (exit 137).
           SERVER_POD=$(kubectl get pods -n "$NAMESPACE" \
             -l app.kubernetes.io/component=server \
             -o jsonpath='{.items[0].metadata.name}')
           kubectl exec -n "$NAMESPACE" "$SERVER_POD" -- \
-            /app/bin/tuist eval 'Tuist.Release.seed()'
+            sh -c 'SEED_BUILD_RUNS=0 SEED_TEST_RUNS=0 SEED_COMMAND_EVENTS=0 SEED_PREVIEWS=0 SEED_BUNDLES=0 SEED_XCODE_GRAPHS=0 /app/bin/tuist eval "Tuist.Release.seed()"'
           # Smoke test through the public host. Retries cover DNS / cert
           # propagation lag.
           for i in $(seq 1 30); do
