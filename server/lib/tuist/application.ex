@@ -8,6 +8,8 @@ defmodule Tuist.Application do
   alias Tuist.Cache.CASEvent
   alias Tuist.CommandEvents
   alias Tuist.DBConnection.TelemetryListener
+  alias Tuist.Docs.ContentFileWatcher
+  alias Tuist.Docs.NimblePublisher.Cache
   alias Tuist.Environment
   alias Tuist.Gradle
   alias Tuist.Gradle.Build.Buffer
@@ -266,7 +268,7 @@ defmodule Tuist.Application do
 
   defp get_children do
     children =
-      List.flatten([
+      [
         {DBConnection.TelemetryListener, name: TelemetryListener},
         {Tuist.Repo, connection_listeners: {[TelemetryListener], :postgres}},
         {Tuist.ClickHouseRepo, connection_listeners: {[TelemetryListener], :clickhouse_read}},
@@ -296,10 +298,8 @@ defmodule Tuist.Application do
         {TuistWeb.RateLimit.InMemory, [clean_period: to_timeout(hour: 1)]},
         {Tuist.API.Pipeline, []},
         {Guardian.DB.Sweeper, [interval: 60 * 60 * 1000]},
-        TuistWeb.Telemetry,
-        dev_content_children(),
-        TuistWeb.Endpoint
-      ])
+        TuistWeb.Telemetry
+      ] ++ dev_content_children() ++ [TuistWeb.Endpoint]
 
     children
     |> Kernel.++(
@@ -355,11 +355,30 @@ defmodule Tuist.Application do
 
   defp dev_content_children do
     if Environment.dev?() do
+      docs_dirs = [
+        Path.expand("../../priv/docs", __DIR__),
+        Path.expand("../../../examples/xcode", __DIR__)
+      ]
+
+      marketing_dirs = [
+        Path.expand("../../priv/marketing", __DIR__)
+      ]
+
       [
-        Tuist.Docs.RuntimeStore,
-        Tuist.Docs.FileWatcher,
-        Tuist.Marketing.RuntimeStore,
-        Tuist.Marketing.FileWatcher
+        Cache,
+        Supervisor.child_spec(
+          {Tuist.ContentFileWatcher, name: ContentFileWatcher, dirs: docs_dirs, extensions: [".md"], cache: Cache},
+          id: ContentFileWatcher
+        ),
+        Tuist.Marketing.NimblePublisher.Cache,
+        Supervisor.child_spec(
+          {Tuist.ContentFileWatcher,
+           name: Tuist.Marketing.ContentFileWatcher,
+           dirs: marketing_dirs,
+           extensions: [".md", ".yml"],
+           cache: Tuist.Marketing.NimblePublisher.Cache},
+          id: Tuist.Marketing.ContentFileWatcher
+        )
       ]
     else
       []

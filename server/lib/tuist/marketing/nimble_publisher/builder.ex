@@ -1,4 +1,4 @@
-defmodule Tuist.Marketing.RuntimeLoader do
+defmodule Tuist.Marketing.NimblePublisher.Builder do
   @moduledoc false
 
   def build!(opts) do

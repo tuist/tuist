@@ -4,42 +4,21 @@ defmodule Tuist.Marketing.Changelog do
   The content is included in the compiled Erlang binary.
   """
 
-  alias Tuist.Marketing.Changelog.Entry
-  alias Tuist.Marketing.Changelog.EntryParser
-  alias Tuist.Marketing.MDExConverter
+  use Tuist.Marketing.NimblePublisher.Content,
+    build: Tuist.Marketing.Changelog.Entry,
+    dev_from: Path.expand("../../../priv/marketing/changelog/**/*.md", __DIR__),
+    prod_from: Application.app_dir(:tuist, "priv/marketing/changelog/**/*.md"),
+    as: :entries,
+    parser: Tuist.Marketing.Changelog.EntryParser,
+    highlighters: [],
+    html_converter: Tuist.Marketing.MDExConverter
 
-  if Mix.env() == :dev do
-    @entries_opts [
-      build: Entry,
-      from: Path.expand("../../../priv/marketing/changelog/**/*.md", __DIR__),
-      parser: EntryParser,
-      highlighters: [],
-      html_converter: MDExConverter
-    ]
+  def get_entries do
+    Enum.reverse(content_entries())
+  end
 
-    def get_entries do
-      __MODULE__
-      |> Tuist.Marketing.RuntimeStore.entries(@entries_opts)
-      |> Enum.reverse()
-    end
-
-    def get_categories do
-      get_entries() |> Enum.map(& &1.category) |> Enum.uniq()
-    end
-  else
-    use NimblePublisher,
-      build: Entry,
-      from: Application.app_dir(:tuist, "priv/marketing/changelog/**/*.md"),
-      as: :entries,
-      parser: EntryParser,
-      highlighters: [],
-      html_converter: MDExConverter
-
-    @entries Enum.reverse(@entries)
-    @categories @entries |> Enum.map(& &1.category) |> Enum.uniq()
-
-    def get_entries, do: @entries
-    def get_categories, do: @categories
+  def get_categories do
+    get_entries() |> Enum.map(& &1.category) |> Enum.uniq()
   end
 
   def get_entry_by_id(id), do: Enum.find(get_entries(), &(&1.id == id))

@@ -3,36 +3,19 @@ defmodule Tuist.Marketing.Customers do
   This module loads the case studies to be used in the case studies section of the marketing website.
   The content is included in the compiled Erlang binary.
   """
-  alias Tuist.Marketing.Customers.CaseParser
+  use Tuist.Marketing.NimblePublisher.Content,
+    build: Tuist.Marketing.Customers.CaseStudy,
+    dev_from: Path.expand("../../../priv/marketing/case_studies/*.md", __DIR__),
+    prod_from: Application.app_dir(:tuist, "priv/marketing/case_studies/*.md"),
+    as: :case_studies,
+    parser: Tuist.Marketing.Customers.CaseParser,
+    highlighters: [],
+    html_converter: Tuist.Marketing.MDExConverter
+
   alias Tuist.Marketing.Customers.CaseStudy
-  alias Tuist.Marketing.MDExConverter
 
-  if Mix.env() == :dev do
-    @case_studies_opts [
-      build: CaseStudy,
-      from: Path.expand("../../../priv/marketing/case_studies/*.md", __DIR__),
-      parser: CaseParser,
-      highlighters: [],
-      html_converter: MDExConverter
-    ]
-
-    defp case_studies do
-      __MODULE__
-      |> Tuist.Marketing.RuntimeStore.entries(@case_studies_opts)
-      |> Enum.sort_by(& &1.date, {:desc, Date})
-    end
-  else
-    use NimblePublisher,
-      build: CaseStudy,
-      from: Application.app_dir(:tuist, "priv/marketing/case_studies/*.md"),
-      as: :case_studies,
-      parser: CaseParser,
-      highlighters: [],
-      html_converter: MDExConverter
-
-    @case_studies Enum.sort_by(@case_studies, & &1.date, {:desc, Date})
-
-    defp case_studies, do: @case_studies
+  defp case_studies do
+    Enum.sort_by(content_entries(), & &1.date, {:desc, Date})
   end
 
   def get_case_studies(locale \\ "en") do

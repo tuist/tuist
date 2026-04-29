@@ -4,32 +4,10 @@ defmodule Tuist.Docs do
   plus runtime CLI pages fetched from the latest GitHub release.
   """
 
+  use Tuist.Docs.Content
+
   alias Tuist.Docs.CLI
   alias Tuist.Docs.Paths
-
-  if Mix.env() == :dev do
-    alias Tuist.Docs.RuntimeStore
-
-    defp static_pages, do: RuntimeStore.pages()
-    defp static_page(slug), do: RuntimeStore.get_page(slug)
-    defp static_slugs, do: RuntimeStore.slugs()
-  else
-    alias Tuist.Docs.Loader
-
-    {pages, source_paths} = Loader.load_pages!()
-
-    for source_path <- source_paths do
-      @external_resource source_path
-    end
-
-    @pages pages
-    @pages_by_slug Map.new(@pages, &{&1.slug, &1})
-    @slugs @pages_by_slug |> Map.keys() |> Enum.sort()
-
-    defp static_pages, do: @pages
-    defp static_page(slug), do: Map.get(@pages_by_slug, slug)
-    defp static_slugs, do: @slugs
-  end
 
   def pages, do: static_pages() ++ cli_pages()
   def slugs, do: Enum.sort(static_slugs() ++ Enum.map(cli_pages(), & &1.slug))

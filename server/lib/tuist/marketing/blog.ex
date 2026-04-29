@@ -4,42 +4,21 @@ defmodule Tuist.Marketing.Blog do
   The content is included in the compiled Erlang binary.
   """
 
-  alias Tuist.Marketing.Blog.Post
-  alias Tuist.Marketing.Blog.PostParser
-  alias Tuist.Marketing.MDExConverter
+  use Tuist.Marketing.NimblePublisher.Content,
+    build: Tuist.Marketing.Blog.Post,
+    dev_from: Path.expand("../../../priv/marketing/blog/**/*.md", __DIR__),
+    prod_from: Application.app_dir(:tuist, "priv/marketing/blog/**/*.md"),
+    as: :posts,
+    parser: Tuist.Marketing.Blog.PostParser,
+    highlighters: [],
+    html_converter: Tuist.Marketing.MDExConverter
 
-  if Mix.env() == :dev do
-    @posts_opts [
-      build: Post,
-      from: Path.expand("../../../priv/marketing/blog/**/*.md", __DIR__),
-      parser: PostParser,
-      highlighters: [],
-      html_converter: MDExConverter
-    ]
+  def get_posts do
+    Enum.reverse(content_entries())
+  end
 
-    def get_posts do
-      __MODULE__
-      |> Tuist.Marketing.RuntimeStore.entries(@posts_opts)
-      |> Enum.reverse()
-    end
-
-    def get_categories do
-      get_posts() |> Enum.map(& &1.category) |> Enum.uniq()
-    end
-  else
-    use NimblePublisher,
-      build: Post,
-      from: Application.app_dir(:tuist, "priv/marketing/blog/**/*.md"),
-      as: :posts,
-      parser: PostParser,
-      highlighters: [],
-      html_converter: MDExConverter
-
-    @posts Enum.reverse(@posts)
-    @categories @posts |> Enum.map(& &1.category) |> Enum.uniq()
-
-    def get_posts, do: @posts
-    def get_categories, do: @categories
+  def get_categories do
+    get_posts() |> Enum.map(& &1.category) |> Enum.uniq()
   end
 
   def get_post_author(post), do: get_authors()[post.author]

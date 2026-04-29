@@ -1,7 +1,7 @@
 defmodule Tuist.Locale do
   @moduledoc false
 
-  all_languages = [
+  @all_languages [
     %{code: "en", label: "English", native: "English"},
     %{code: "es", label: "Spanish", native: "Castellano"},
     %{code: "ja", label: "Japanese", native: "日本語"},
@@ -12,12 +12,10 @@ defmodule Tuist.Locale do
     %{code: "zh_Hant", label: "Chinese (Traditional)", native: "繁體中文"}
   ]
 
-  dev_all_locales? = System.get_env("TUIST_DEV_ALL_LOCALES") in ~w(1 true TRUE yes YES)
-
-  @languages (if Mix.env() == :dev and not dev_all_locales? do
-                Enum.filter(all_languages, &(&1.code == "en"))
+  @languages (if Tuist.Environment.dev_single_locale?() do
+                Enum.filter(@all_languages, &(&1.code == "en"))
               else
-                all_languages
+                @all_languages
               end)
 
   def languages, do: @languages

@@ -7,6 +7,7 @@ defmodule Tuist.Environment do
   # builds ignore TUIST_DEPLOY_ENV so tests can't accidentally flip into
   # a prod-like mode.
   @compile_env Mix.env()
+  @dev_all_locales Application.compile_env(:tuist, :dev_all_locales, false)
 
   @runtime_envs ~w(prod can stag)
 
@@ -92,6 +93,10 @@ defmodule Tuist.Environment do
     truthy?(System.get_env("TUIST_CLOUD_HOSTED", "0")) or
       truthy?(System.get_env("TUIST_HOSTED", "0"))
   end
+
+  def dev_all_locales?, do: @dev_all_locales
+
+  def dev_single_locale?, do: dev?() and not dev_all_locales?()
 
   def log_level do
     "TUIST_LOG_LEVEL" |> System.get_env("info") |> String.to_atom()

@@ -1,7 +1,3 @@
-all_locales = ~w(ar en es ja ko pl pt ru tr yue_Hant zh_Hans zh_Hant)
-dev_all_locales? = System.get_env("TUIST_DEV_ALL_LOCALES") in ~w(1 true TRUE yes YES)
-allowed_locales = if Mix.env() == :dev and not dev_all_locales?, do: ["en"], else: all_locales
-
 defmodule TuistWeb.Gettext do
   @moduledoc """
   A module providing Internationalization with a gettext-based API.
@@ -24,5 +20,6 @@ defmodule TuistWeb.Gettext do
 
   See the [Gettext Docs](https://hexdocs.pm/gettext) for detailed usage.
   """
-  use Gettext.Backend, otp_app: :tuist, allowed_locales: allowed_locales
+
+  use TuistWeb.Gettext.Configuration
 end
