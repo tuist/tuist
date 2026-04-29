@@ -1,11 +1,14 @@
 import FileSystem
 import FileSystemTesting
 import Foundation
+import Logging
 import Path
 import Testing
 import TuistAcceptanceTesting
 import TuistBuildCommand
 import TuistCacheCommand
+import TuistConfigLoader
+import TuistCore
 import TuistEnvironment
 import TuistEnvironmentTesting
 import TuistGenerateCommand
@@ -160,8 +163,17 @@ struct TuistCacheEECanaryAcceptanceTests {
             ]
         )
 
-        // Selective test results are persisted asynchronously
-        try await Task.sleep(nanoseconds: 7_000_000_000)
+        let unchangedTestTargetName = "MultiPlatformTransitiveDynamicFrameworkTests"
+        let unchangedTestHash = try await selectiveTestingHash(
+            for: unchangedTestTargetName,
+            fixtureDirectory: fixtureDirectory
+        )
+        try await waitForRemoteSelectiveTestResult(
+            targetName: unchangedTestTargetName,
+            hash: unchangedTestHash,
+            fixtureDirectory: fixtureDirectory,
+            fileSystem: fileSystem
+        )
 
         // When: Clean selective testing data
         try await TuistTest.run(
@@ -198,6 +210,61 @@ struct TuistCacheEECanaryAcceptanceTests {
         TuistTest.expectLogs(
             "The following targets have not changed since the last successful run and will be skipped: MultiPlatformTransitiveDynamicFrameworkTests"
         )
+    }
+
+    private func selectiveTestingHash(
+        for targetName: String,
+        fixtureDirectory: AbsolutePath
+    ) async throws -> String {
+        try await TuistTest.run(HashSelectiveTestingCommand.self, ["--path", fixtureDirectory.pathString])
+
+        let prefix = "\(targetName) - "
+        let output = Logger.testingLogHandler.collected[.info, <=]
+        let line = try #require(
+            output
+                .split(separator: "\n")
+                .reversed()
+                .first(where: { $0.hasPrefix(prefix) }),
+            "Selective testing hash for \(targetName) was not found in logs: \(output)"
+        )
+        return String(line.dropFirst(prefix.count))
+    }
+
+    /// Remote selective-test results become visible asynchronously on canary. Poll the same cache
+    /// lookup the second `tuist test` run depends on instead of sleeping for a fixed duration.
+    private func waitForRemoteSelectiveTestResult(
+        targetName: String,
+        hash: String,
+        fixtureDirectory: AbsolutePath,
+        fileSystem: FileSysteming
+    ) async throws {
+        let config = try await ConfigLoader().loadConfig(path: fixtureDirectory)
+        let cacheStorage = try await CacheStorageFactory().cacheStorage(config: config)
+        let expectedItem = CacheStorableItem(name: targetName, hash: hash)
+        let clock = ContinuousClock()
+        let deadline = clock.now.advanced(by: .seconds(60))
+
+        while true {
+            try await cleanLocalSelectiveTestsCache(fileSystem: fileSystem)
+            let fetchedItems = try await cacheStorage.fetch(Set([expectedItem]), cacheCategory: .selectiveTests)
+            if fetchedItems.keys.contains(where: { $0.hash == hash }) {
+                return
+            }
+
+            try #require(
+                clock.now < deadline,
+                "Remote selective test result for \(targetName) with hash \(hash) did not become available"
+            )
+            try await Task.sleep(for: .seconds(1))
+        }
+    }
+
+    private func cleanLocalSelectiveTestsCache(fileSystem: FileSysteming) async throws {
+        let directory = try CacheDirectoriesProvider().cacheDirectory(for: .selectiveTests)
+        if try await fileSystem.exists(directory) {
+            try await fileSystem.remove(directory)
+        }
+        try await fileSystem.makeDirectory(at: directory)
     }
 
     /// The cache server exposes a Unix-domain socket under the state directory. macOS limits the full
