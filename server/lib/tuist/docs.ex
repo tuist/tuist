@@ -5,26 +5,39 @@ defmodule Tuist.Docs do
   """
 
   alias Tuist.Docs.CLI
-  alias Tuist.Docs.Loader
   alias Tuist.Docs.Paths
 
-  {pages, source_paths} = Loader.load_pages!()
+  if Mix.env() == :dev do
+    alias Tuist.Docs.RuntimeStore
 
-  for source_path <- source_paths do
-    @external_resource source_path
+    defp static_pages, do: RuntimeStore.pages()
+    defp static_page(slug), do: RuntimeStore.get_page(slug)
+    defp static_slugs, do: RuntimeStore.slugs()
+  else
+    alias Tuist.Docs.Loader
+
+    {pages, source_paths} = Loader.load_pages!()
+
+    for source_path <- source_paths do
+      @external_resource source_path
+    end
+
+    @pages pages
+    @pages_by_slug Map.new(@pages, &{&1.slug, &1})
+    @slugs @pages_by_slug |> Map.keys() |> Enum.sort()
+
+    defp static_pages, do: @pages
+    defp static_page(slug), do: Map.get(@pages_by_slug, slug)
+    defp static_slugs, do: @slugs
   end
 
-  @pages pages
-  @pages_by_slug Map.new(@pages, &{&1.slug, &1})
-  @slugs @pages_by_slug |> Map.keys() |> Enum.sort()
-
-  def pages, do: @pages ++ cli_pages()
-  def slugs, do: Enum.sort(@slugs ++ Enum.map(cli_pages(), & &1.slug))
+  def pages, do: static_pages() ++ cli_pages()
+  def slugs, do: Enum.sort(static_slugs() ++ Enum.map(cli_pages(), & &1.slug))
 
   def get_page(path) when is_binary(path) do
     normalized = normalize_path(path)
 
-    case Map.get(@pages_by_slug, normalized) do
+    case static_page(normalized) do
       nil ->
         case cli_page(normalized) do
           nil -> fallback_to_english(normalized)
@@ -52,7 +65,7 @@ defmodule Tuist.Docs do
     case segments do
       [locale | rest] when locale != "en" ->
         en_slug = Path.join(["/en" | rest])
-        Map.get(@pages_by_slug, en_slug) || cli_page(en_slug)
+        static_page(en_slug) || cli_page(en_slug)
 
       _ ->
         nil

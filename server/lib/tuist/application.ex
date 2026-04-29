@@ -266,7 +266,7 @@ defmodule Tuist.Application do
 
   defp get_children do
     children =
-      [
+      List.flatten([
         {DBConnection.TelemetryListener, name: TelemetryListener},
         {Tuist.Repo, connection_listeners: {[TelemetryListener], :postgres}},
         {Tuist.ClickHouseRepo, connection_listeners: {[TelemetryListener], :clickhouse_read}},
@@ -297,8 +297,9 @@ defmodule Tuist.Application do
         {Tuist.API.Pipeline, []},
         {Guardian.DB.Sweeper, [interval: 60 * 60 * 1000]},
         TuistWeb.Telemetry,
+        dev_content_children(),
         TuistWeb.Endpoint
-      ]
+      ])
 
     children
     |> Kernel.++(
@@ -350,6 +351,19 @@ defmodule Tuist.Application do
         do: [],
         else: [Tuist.Marketing.Stats]
     )
+  end
+
+  defp dev_content_children do
+    if Environment.dev?() do
+      [
+        Tuist.Docs.RuntimeStore,
+        Tuist.Docs.FileWatcher,
+        Tuist.Marketing.RuntimeStore,
+        Tuist.Marketing.FileWatcher
+      ]
+    else
+      []
+    end
   end
 
   defp finch_pools do

@@ -14,7 +14,7 @@ defmodule Tuist.MixProject do
       releases: releases(),
       aliases: aliases(),
       deps: deps(),
-      compilers: [:boundary] ++ Mix.compilers(),
+      compilers: compilers(Mix.env()),
       listeners: [Phoenix.CodeReloader]
     ]
   end
@@ -33,6 +33,9 @@ defmodule Tuist.MixProject do
   defp elixirc_paths(:test), do: ["lib", "test/support", "credo"]
   defp elixirc_paths(:dev), do: ["lib", "credo"]
   defp elixirc_paths(_), do: ["lib"]
+
+  defp compilers(:dev), do: Mix.compilers()
+  defp compilers(_env), do: [:boundary] ++ Mix.compilers()
 
   defp build_path do
     case System.get_env("TUIST_MIX_BUILD_ROOT") do
