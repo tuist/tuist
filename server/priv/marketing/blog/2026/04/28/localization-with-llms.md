@@ -4,6 +4,7 @@ category: "engineering"
 tags: ["engineering", "localization", "i18n", "llm", "agents"]
 excerpt: "Existing localization tools take content out of the repository and translate it in environments where changes can't be validated. We tried Crowdin and Weblate, none of them felt right. So we built our own system on top of LLMs, with the repository as the source of truth and a lockfile to keep things incremental."
 author: pepicrft
+og_image_path: /marketing/images/blog/2026/04/28/localization-with-llms/og.jpg
 ---
 
 At Tuist we are building a platform team as a service. The companies and developers we serve are spread across the world, and a good portion of them work and think in languages that are not English. If we want our product to feel close to those communities, we have to meet them where they are. That is why we have been pushing for a multi-lingual product since the very beginning. The dashboard, the marketing site, the error messages, all of it.
