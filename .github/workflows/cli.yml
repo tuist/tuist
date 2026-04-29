@@ -216,29 +216,45 @@ jobs:
       - name: Run tests
         run: tuist test TuistUnitTests -- -retry-tests-on-failure -test-iterations 4
 
-  # Brings up a single shared kind+helm cluster on a Linux runner (macOS Namespace
-  # runners can't host a Linux VM — no nested virt → no HVF → no docker/podman
-  # machine), exposes it via a cloudflared Quick Tunnel, and publishes the
-  # public URL as a workflow artifact. The acceptance test shards run on macOS
-  # and consume the URL via `needs: cli-acceptance-cluster-ready` (the cheap
-  # Linux sentinel below) — they never poll on the macOS runner, so we don't
-  # spend macOS minutes waiting for the cluster to come up. The cluster job
-  # idles until its timeout to outlive the test shards; whichever finishes
-  # first ends the cluster naturally when GHA tears the runner down.
+  # Deploys the tuist server image into an ephemeral helm release on Pedro's
+  # Syself-managed preview cluster (the same cluster preview-deploy.yml uses
+  # for per-PR previews). The cluster has ESO + ClusterSecretStore + a
+  # wildcard `*.preview.tuist.dev` cert pre-configured during cluster
+  # bootstrap (see infra/k8s/syself-onboarding.md), so we don't bootstrap any
+  # of that here — we just helm install and the cluster's existing infra
+  # resolves the license from 1Password.
+  #
+  # Earlier iterations of this PR ran a fresh kind cluster on a Linux runner,
+  # exposed via cloudflared, which forced us to bootstrap ESO from scratch on
+  # every run. That hit a wall when the shared OP_SERVICE_ACCOUNT_TOKEN turned
+  # out to be scoped to the wrong vault. Going through Pedro's cluster
+  # sidesteps the bootstrap entirely and gives us a public URL via the
+  # existing ingress + wildcard-TLS pattern.
+  #
+  # Each run gets its own helm release in its own namespace, keyed on the PR
+  # number when available (so multiple pushes to a PR upgrade in place) and
+  # github.run_id otherwise. The teardown job below cleans up regardless of
+  # test outcome; preview-sweep.yml's TTL annotation acts as a backstop.
   cli-acceptance-cluster:
     name: Acceptance Cluster
-    runs-on: namespace-profile-default
-    timeout-minutes: 30
-    # ESO needs the 1Password service-account token, which is not exposed to
-    # forks. Same gate as the tests.
-    # TEMP (this PR only): drop the `draft == false` gate so this runs on draft
-    # PRs while we exercise the new pipeline. Restore the gate before merge.
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    # ESO + KUBECONFIG secrets aren't exposed to forks.
+    # TEMP (this PR only): drop the `draft == false` gate so this runs on
+    # draft PRs while we exercise the new pipeline. Restore the gate before
+    # merge.
     if: github.event.pull_request.head.repo.fork != true
+    environment: server-k8s-preview
     permissions:
       contents: read
       packages: read
+    outputs:
+      url: ${{ steps.deploy.outputs.url }}
+      release: ${{ steps.resolve.outputs.release }}
+      namespace: ${{ steps.resolve.outputs.namespace }}
     env:
-      TUIST_IMAGE_TAG: image-${{ github.sha }}
+      KUBECONFIG: ${{ github.workspace }}/.kube/config
+      IMAGE_TAG: image-${{ github.sha }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -246,98 +262,90 @@ jobs:
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
-          # Skip the default `mise install`: this job doesn't need the heavy
-          # toolchains (elixir, swift, …) from mise.toml. up.sh installs the
-          # exact tools it needs (kind, helm, kubectl) on demand.
-          install: false
+          install_args: "helm kubectl"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
       - name: Wait for server image
         uses: ./.github/actions/wait-for-server-image
-      - name: Bring up acceptance cluster
-        env:
-          MISE_TASK_RUN_AUTO_INSTALL: "0"
-          MISE_LOCKED: "0"
-          MISE_GITHUB_TOKEN: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
-          GITHUB_ACTOR: ${{ github.actor }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
-          INSTALL_TUNNEL: "1"
-        run: mise run cli:acceptance-cluster:up 0
-      - name: Publish cluster URL artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: cli-acceptance-cluster-url
-          path: /tmp/tuist-acceptance-0-url
-          retention-days: 1
-          if-no-files-found: error
-      - name: Hold cluster until test shards finish
-        # Test shards have a 60min timeout each but typically finish in under
-        # 20min. We sleep up to ~25min, leaving margin for the slowest shard.
-        # If a shard is still running when we exit, GHA will tear down the
-        # runner regardless; the shard itself will fail when its requests start
-        # timing out, which is the correct signal.
-        run: sleep 1500
-
-  # Cheap Linux sentinel that polls for the cluster URL artifact and exposes it
-  # as a job output. The macOS test shards `needs:` this job, which means GHA
-  # only schedules the (expensive) macOS runners *after* the cluster is up and
-  # the URL is known — no wasted macOS minutes spent polling. This pattern is
-  # reusable: any future acceptance-test workflow that needs a tuist server
-  # cluster can `needs: cli-acceptance-cluster-ready` and read the URL from
-  # `needs.cli-acceptance-cluster-ready.outputs.url`.
-  cli-acceptance-cluster-ready:
-    name: Acceptance Cluster Ready
-    runs-on: namespace-profile-default
-    timeout-minutes: 30
-    if: github.event.pull_request.head.repo.fork != true
-    outputs:
-      url: ${{ steps.url.outputs.url }}
-    steps:
-      - name: Wait for cluster URL artifact
-        id: url
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-          GH_RUN_ID: ${{ github.run_id }}
+      - name: Resolve release / namespace / host
+        id: resolve
         run: |
           set -euo pipefail
-          # The cluster job runs in parallel with this sentinel. Its budget is:
-          # wait-for-server-image (up to ~5min) + bring-up (kind+helm+ESO ~6min)
-          # + tunnel handshake (~30s). 25min covers the slow path; we exit
-          # early on the happy path the moment the artifact lands. We also
-          # short-circuit if the cluster job itself reaches a terminal failure
-          # so the test shards fail fast instead of waiting the full budget.
-          deadline=$(( $(date +%s) + 25 * 60 ))
-          while :; do
-            id=$(gh api --paginate \
-                "/repos/${GH_REPO}/actions/runs/${GH_RUN_ID}/artifacts?per_page=100" \
-                --jq '.artifacts[] | select(.name == "cli-acceptance-cluster-url") | .id' \
-                2>/dev/null | head -1)
-            if [ -n "${id:-}" ]; then
-              gh api "/repos/${GH_REPO}/actions/artifacts/${id}/zip" >/tmp/cluster-url.zip
-              unzip -o /tmp/cluster-url.zip -d /tmp/cluster-url >/dev/null
-              url=$(cat /tmp/cluster-url/tuist-acceptance-0-url)
-              echo "url=${url}" >>"$GITHUB_OUTPUT"
-              echo "Cluster URL: ${url}"
-              break
+          if [ -n "${{ github.event.pull_request.number }}" ]; then
+            slug="pr-${{ github.event.pull_request.number }}"
+          else
+            slug="run-${{ github.run_id }}"
+          fi
+          release="acceptance-${slug}"
+          namespace="acceptance-${slug}"
+          host="${release}.preview.tuist.dev"
+          echo "release=${release}" >>"$GITHUB_OUTPUT"
+          echo "namespace=${namespace}" >>"$GITHUB_OUTPUT"
+          echo "host=${host}" >>"$GITHUB_OUTPUT"
+      - name: Load kubeconfig
+        run: |
+          mkdir -p "$(dirname "$KUBECONFIG")"
+          echo "${{ secrets.KUBECONFIG }}" | base64 -d > "$KUBECONFIG"
+          chmod 600 "$KUBECONFIG"
+      - name: Re-apply role=preview label/taint on workers
+        # Same idempotent step preview-deploy.yml uses — CAPI/Syself doesn't
+        # surface node labels via topology variables, so workers come up
+        # unlabeled after MachineDeployment scale events.
+        run: |
+          kubectl label nodes -l '!node-role.kubernetes.io/control-plane' role=preview --overwrite
+          kubectl taint nodes -l '!node-role.kubernetes.io/control-plane' role=preview:NoSchedule --overwrite
+      - name: Provision GHCR pull secret in the namespace
+        # The chart's image is private (ghcr.io/tuist/tuist). Create a
+        # docker-registry secret named `ghcr-pull-secret` in the deploy
+        # namespace so the chart's pods can pull on this fresh namespace
+        # without depending on a cluster-wide reflector.
+        env:
+          NAMESPACE: ${{ steps.resolve.outputs.namespace }}
+        run: |
+          kubectl create namespace "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
+          kubectl -n "$NAMESPACE" create secret docker-registry ghcr-pull-secret \
+            --docker-server=ghcr.io \
+            --docker-username="${{ github.actor }}" \
+            --docker-password="${{ secrets.GITHUB_TOKEN }}" \
+            --dry-run=client -o yaml | kubectl apply -f -
+      - name: helm upgrade --install
+        id: deploy
+        env:
+          RELEASE: ${{ steps.resolve.outputs.release }}
+          NAMESPACE: ${{ steps.resolve.outputs.namespace }}
+          HOST: ${{ steps.resolve.outputs.host }}
+        run: |
+          set -euo pipefail
+          helm upgrade --install "$RELEASE" infra/helm/tuist \
+            --namespace "$NAMESPACE" \
+            -f infra/helm/tuist/values-preview.yaml \
+            --set global.imagePullSecrets[0].name=ghcr-pull-secret \
+            --set cache.enabled=false \
+            --set server.image.tag="$IMAGE_TAG" \
+            --set server.ingress.enabled=true \
+            --set server.ingress.host="$HOST" \
+            --set "server.appUrl=https://${HOST}" \
+            --atomic --timeout 12m --wait
+          # TTL annotation so preview-sweep.yml cleans up if the explicit
+          # teardown job below misses (e.g. workflow cancelled). 2h is plenty
+          # for the slowest shard.
+          kubectl label namespace "$NAMESPACE" \
+            "tuist.dev/expires-at=$(date -u -d '+2 hours' +%Y-%m-%dT%H:%M:%SZ)" \
+            "tuist.dev/preview=true" \
+            --overwrite
+          # Smoke test through the public host. Retries cover DNS / cert
+          # propagation lag.
+          for i in $(seq 1 30); do
+            if curl -fsSL --max-time 5 "https://${HOST}/ready" >/dev/null; then
+              echo "url=https://${HOST}" >>"$GITHUB_OUTPUT"
+              echo "OK — https://${HOST}/ready returned 200"
+              exit 0
             fi
-            cluster_conclusion=$(gh api \
-                "/repos/${GH_REPO}/actions/runs/${GH_RUN_ID}/jobs?per_page=100" \
-                --jq '.jobs[] | select(.name == "Acceptance Cluster") | .conclusion // ""' \
-                2>/dev/null | head -1)
-            case "$cluster_conclusion" in
-              failure|cancelled|timed_out|action_required|startup_failure)
-                echo "ERROR: Acceptance Cluster job ended with conclusion '${cluster_conclusion}'; aborting." >&2
-                exit 1
-                ;;
-            esac
-            if [ "$(date +%s)" -ge "$deadline" ]; then
-              echo "ERROR: cluster URL artifact not available after 25 minutes." >&2
-              exit 1
-            fi
+            echo "Attempt $i: https://${HOST}/ready not yet reachable; retrying in 10s..."
             sleep 10
           done
+          echo "::error::https://${HOST}/ready never returned 200 after ~5 min."
+          exit 1
 
   cli-acceptance-tests-build:
     name: Build Acceptance Tests
@@ -396,9 +404,10 @@ jobs:
     runs-on: namespace-profile-default-macos
     timeout-minutes: 60
     # Wait on both: the sharded test build (gives us the matrix) AND the
-    # cluster-ready sentinel (gives us the URL). The sentinel is a cheap Linux
-    # job, so we get proper queueing without spending macOS minutes polling.
-    needs: [cli-acceptance-tests-build, cli-acceptance-cluster-ready]
+    # cluster deploy (gives us the URL). The cluster job exits successfully
+    # the moment the helm release is healthy + the smoke test passes, so
+    # macOS shards only spin up when the cluster is actually reachable.
+    needs: [cli-acceptance-tests-build, cli-acceptance-cluster]
     if: toJSON(fromJSON(needs.cli-acceptance-tests-build.outputs.matrix).shard) != '[]'
     strategy:
       fail-fast: false
@@ -452,9 +461,42 @@ jobs:
         run: tuist test --without-building --platform macOS TuistAcceptanceTests -- -retry-tests-on-failure -test-iterations 2
         env:
           TUIST_SHARD_INDEX: ${{ matrix.shard }}
-          TUIST_URL: ${{ needs.cli-acceptance-cluster-ready.outputs.url }}
+          TUIST_URL: ${{ needs.cli-acceptance-cluster.outputs.url }}
           TUIST_AUTH_EMAIL: tuistrocks@tuist.dev
           TUIST_AUTH_PASSWORD: tuistrocks
+
+  # Teardown the helm release + namespace once the test shards finish (or fail,
+  # or get cancelled). preview-sweep.yml's TTL annotation is the backstop, but
+  # an explicit uninstall here keeps the cluster from accumulating stale
+  # releases between sweeps.
+  cli-acceptance-cluster-teardown:
+    name: Acceptance Cluster Teardown
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [cli-acceptance-cluster, cli-acceptance-tests]
+    if: always() && needs.cli-acceptance-cluster.result == 'success'
+    environment: server-k8s-preview
+    env:
+      KUBECONFIG: ${{ github.workspace }}/.kube/config
+      RELEASE: ${{ needs.cli-acceptance-cluster.outputs.release }}
+      NAMESPACE: ${{ needs.cli-acceptance-cluster.outputs.namespace }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: "helm kubectl"
+          cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - name: Load kubeconfig
+        run: |
+          mkdir -p "$(dirname "$KUBECONFIG")"
+          echo "${{ secrets.KUBECONFIG }}" | base64 -d > "$KUBECONFIG"
+          chmod 600 "$KUBECONFIG"
+      - name: helm uninstall + delete namespace
+        run: |
+          helm uninstall "$RELEASE" --namespace "$NAMESPACE" --wait --ignore-not-found || true
+          kubectl delete namespace "$NAMESPACE" --wait=false --ignore-not-found
 
   cli-acceptance-tests-fork:
     name: Acceptance Tests (Fork)
