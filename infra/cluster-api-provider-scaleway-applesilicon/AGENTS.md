@@ -107,10 +107,20 @@ Day-1 operator runbook:
    - `op://tuist-k8s-canary/SCALEWAY_API/{access-key,secret-key,project-id}`
    - `op://tuist-k8s-production/SCALEWAY_API/{access-key,secret-key,project-id}`
 
-   Each env gets its own Scaleway IAM principal scoped to that
-   cluster's needs (Apple Silicon CRUD + IAM SSH key registration);
-   a leaked staging key rotates without disrupting production. Each
-   cluster's pre-configured `ClusterSecretStore "onepassword"` is
+   Each env gets its own Scaleway IAM application scoped to that
+   cluster's needs; a leaked staging key rotates without disrupting
+   production. The IAM policy attached to that application needs
+   exactly two permission sets:
+
+   - `AppleSiliconFullAccess` (project scope) — order/release Mac
+     minis, list server types and OS images.
+   - `SSHKeysFullAccess` (project scope) — register the per-fleet
+     Ed25519 public key the operator generates on first reconcile.
+     **Do not use `IAMManager`** despite the name suggesting it
+     covers SSH keys; Scaleway gates `ssh_key` write under
+     `SSHKeysFullAccess` specifically.
+
+   Each cluster's pre-configured `ClusterSecretStore "onepassword"` is
    already scoped to the right vault, so the chart references the
    bare item name and ESO picks the correct vault automatically.
 
