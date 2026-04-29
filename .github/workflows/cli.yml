@@ -238,7 +238,8 @@ jobs:
   cli-acceptance-cluster:
     name: Acceptance Cluster
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    # Budget: 20m helm wait + ~5min smoke/seed/retry + setup overhead.
+    timeout-minutes: 40
     # ESO + KUBECONFIG secrets aren't exposed to forks.
     # TEMP (this PR only): drop the `draft == false` gate so this runs on
     # draft PRs while we exercise the new pipeline. Restore the gate before
