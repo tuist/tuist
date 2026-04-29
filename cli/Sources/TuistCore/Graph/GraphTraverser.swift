@@ -886,6 +886,7 @@ public class GraphTraverser: GraphTraversing {
             case .macro: return nil
             case .library: return nil
             case .bundle: return nil
+            case .multiPlatformBundle: return nil
             case .packageProduct: return nil
             case .target: return nil
             case .sdk: return nil
@@ -1119,7 +1120,7 @@ public class GraphTraverser: GraphTraversing {
                         return !precompiledMacroDependencies(dependency).isEmpty
                     case .macro:
                         return true
-                    case .bundle, .library, .framework, .sdk, .target, .packageProduct, .foreignBuildOutput:
+                    case .bundle, .multiPlatformBundle, .library, .framework, .sdk, .target, .packageProduct, .foreignBuildOutput:
                         return false
                     }
                 },
@@ -1127,7 +1128,7 @@ public class GraphTraverser: GraphTraversing {
                     switch dependency {
                     case .macro:
                         return true
-                    case .bundle, .library, .framework, .sdk, .target, .packageProduct, .xcframework, .foreignBuildOutput:
+                    case .bundle, .multiPlatformBundle, .library, .framework, .sdk, .target, .packageProduct, .xcframework, .foreignBuildOutput:
                         return false
                     }
                 }
@@ -1138,7 +1139,7 @@ public class GraphTraverser: GraphTraversing {
                     return Array(precompiledMacroDependencies(dependency))
                 case let .macro(path):
                     return [path]
-                case .bundle, .library, .framework, .sdk, .target, .packageProduct, .foreignBuildOutput:
+                case .bundle, .multiPlatformBundle, .library, .framework, .sdk, .target, .packageProduct, .foreignBuildOutput:
                     return []
                 }
             }
@@ -1457,7 +1458,7 @@ public class GraphTraverser: GraphTraversing {
         switch dependency {
         case .macro:
             return true
-        case .bundle, .framework, .xcframework, .library, .sdk, .target, .packageProduct, .foreignBuildOutput:
+        case .bundle, .multiPlatformBundle, .framework, .xcframework, .library, .sdk, .target, .packageProduct, .foreignBuildOutput:
             return false
         }
     }
@@ -1470,6 +1471,7 @@ public class GraphTraverser: GraphTraversing {
         case .framework: return true
         case .library: return true
         case .bundle: return true
+        case .multiPlatformBundle: return true
         case .packageProduct: return false
         case .target: return false
         case .sdk: return false
@@ -1484,6 +1486,7 @@ public class GraphTraverser: GraphTraversing {
         case .framework: return true
         case .library: return false
         case .bundle: return false
+        case .multiPlatformBundle: return false
         case .packageProduct: return false
         case .target: return false
         case .sdk: return false
@@ -1527,6 +1530,7 @@ public class GraphTraverser: GraphTraversing {
              let .library(_, _, linking, _, _):
             return linking == .static
         case .bundle: return false
+        case .multiPlatformBundle: return false
         case .packageProduct: return false
         case let .target(name, path, _):
             guard let target = target(path: path, name: name) else { return false }
@@ -1669,6 +1673,11 @@ public class GraphTraverser: GraphTraversing {
             )
         case let .bundle(path):
             return .bundle(path: path, condition: condition)
+        case .multiPlatformBundle:
+            // The wrapper sentinel is always expanded into per-slice `.bundle` deps by the cache
+            // graph mutator before reaching this point; if it's still here, it has no Xcode-readable
+            // representation.
+            return nil
         case let .packageProduct(_, product, .runtimeEmbedded):
             return .packageProduct(product: product, condition: condition)
         case .packageProduct:
@@ -1702,7 +1711,7 @@ public class GraphTraverser: GraphTraversing {
 
     private func isDependencyResourceBundle(dependency: GraphDependency) -> Bool {
         switch dependency {
-        case .bundle:
+        case .bundle, .multiPlatformBundle:
             return true
         case let .target(name: name, path: path, _):
             return target(path: path, name: name)?.target.product == .bundle
@@ -1731,7 +1740,7 @@ public class GraphTraverser: GraphTraversing {
                 switch dependency {
                 case let .framework(_, _, _, _, linking: linking, _, _):
                     return linking == .static
-                case .xcframework, .library, .bundle, .packageProduct, .target, .sdk, .macro, .foreignBuildOutput:
+                case .xcframework, .library, .bundle, .multiPlatformBundle, .packageProduct, .target, .sdk, .macro, .foreignBuildOutput:
                     return false
                 }
             }
@@ -1772,7 +1781,7 @@ public class GraphTraverser: GraphTraversing {
                 switch dependency {
                 case let .xcframework(xcframework):
                     return xcframework.linking == .static
-                case .framework, .library, .bundle, .packageProduct, .target, .sdk, .macro, .foreignBuildOutput:
+                case .framework, .library, .bundle, .multiPlatformBundle, .packageProduct, .target, .sdk, .macro, .foreignBuildOutput:
                     return false
                 }
             },

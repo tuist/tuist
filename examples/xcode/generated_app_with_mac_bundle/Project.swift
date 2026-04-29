@@ -49,7 +49,10 @@ let project = Project(
             bundleId: "ProjectResourcesFramework",
             deploymentTargets: .multiplatform(iOS: "13.0", macOS: "11.0"),
             sources: ["ProjectResourcesFramework/Sources/*.swift"],
-            resources: ["ProjectResourcesFramework/Sources/greeting.txt"]
+            resources: [
+                "ProjectResourcesFramework/Sources/greeting.txt",
+                "ProjectResourcesFramework/Sources/Assets.xcassets",
+            ]
         ),
     ]
 )

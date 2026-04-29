@@ -107,6 +107,11 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
     /// A dependency that represents a pre-compiled bundle.
     case bundle(path: AbsolutePath)
 
+    /// A Tuist-internal wrapper around per-SDK slices of a single resource bundle, produced by the
+    /// binary cache for multi-platform bundle targets. Always expanded into per-slice `.bundle`
+    /// dependencies before reaching project generation; never reaches Xcode.
+    case multiPlatformBundle(path: AbsolutePath)
+
     /// A dependency that represents a package product.
     case packageProduct(path: AbsolutePath, product: String, type: PackageProductType)
 
@@ -134,6 +139,9 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
         case let .bundle(path):
             hasher.combine("bundle")
             hasher.combine(path)
+        case let .multiPlatformBundle(path):
+            hasher.combine("multiPlatformBundle")
+            hasher.combine(path)
         case let .packageProduct(path, product, isPlugin):
             hasher.combine("package")
             hasher.combine(path)
@@ -160,6 +168,7 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
         case .framework: return false
         case .library: return false
         case .bundle: return false
+        case .multiPlatformBundle: return false
         case .packageProduct: return false
         case .target: return true
         case .sdk: return false
@@ -176,6 +185,7 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
         case let .framework(_, _, _, _, linking, _, _),
              let .library(_, _, linking, _, _): return linking == .static
         case .bundle: return false
+        case .multiPlatformBundle: return false
         case .packageProduct: return false
         case .target: return false
         case .sdk: return false
@@ -192,6 +202,7 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
         case let .framework(_, _, _, _, linking, _, _),
              let .library(_, _, linking, _, _): return linking == .dynamic
         case .bundle: return false
+        case .multiPlatformBundle: return false
         case .packageProduct: return false
         case .target: return false
         case .sdk: return false
@@ -206,6 +217,7 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
         case .framework: return true
         case .library: return true
         case .bundle: return true
+        case .multiPlatformBundle: return true
         case .packageProduct: return false
         case .target: return false
         case .sdk: return false
@@ -220,6 +232,7 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
         case .framework: return true
         case .library: return true
         case .bundle: return false
+        case .multiPlatformBundle: return false
         case .packageProduct: return true
         case .target: return true
         case .sdk: return true
@@ -234,6 +247,7 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
         case .framework: return false
         case .library: return false
         case .bundle: return false
+        case .multiPlatformBundle: return false
         case .packageProduct: return false
         case .target: return false
         case .sdk: return false
@@ -250,6 +264,7 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
              let .library(path: _, publicHeaders: _, linking: linking, architectures: _, swiftModuleMap: _):
             return linking == .dynamic
         case .bundle: return false
+        case .multiPlatformBundle: return false
         case .packageProduct(_, _, type: .runtimeEmbedded): return true
         case .packageProduct: return false
         case .target: return false
@@ -284,6 +299,8 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
             return "library '\(name)'"
         case .bundle:
             return "bundle '\(name)'"
+        case .multiPlatformBundle:
+            return "multi-platform bundle '\(name)'"
         case .packageProduct:
             return "package '\(name)'"
         case .target:
@@ -306,6 +323,8 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
         case let .library(path, _, _, _, _):
             return path.basename
         case let .bundle(path):
+            return path.basename
+        case let .multiPlatformBundle(path):
             return path.basename
         case let .packageProduct(_, product, _):
             return product

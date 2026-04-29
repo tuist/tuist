@@ -91,6 +91,8 @@ extension GraphDependency {
             return path.basenameWithoutExt
         case let .bundle(path):
             return path.basenameWithoutExt
+        case let .multiPlatformBundle(path):
+            return path.basenameWithoutExt
         case let .packageProduct(path: _, product: product, type: _):
             return product
         case let .sdk(

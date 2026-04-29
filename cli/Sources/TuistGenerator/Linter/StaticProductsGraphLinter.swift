@@ -193,6 +193,8 @@ struct StaticProductsGraphLinter: StaticProductsGraphLinting {
             return linking == .static
         case .bundle:
             return true
+        case .multiPlatformBundle:
+            return true
         case let .packageProduct(_, _, type):
             switch type {
             // Swift package products are currently assumed to be static

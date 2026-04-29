@@ -74,6 +74,8 @@ extension GraphDependency {
             return .init(fillColorName: .lightgray, shape: .folder)
         case .bundle:
             return .init(fillColorName: .aliceblue, shape: .box)
+        case .multiPlatformBundle:
+            return .init(fillColorName: .aliceblue, shape: .box)
         case .packageProduct:
             return .init(fillColorName: .tan4, textColorName: .white, shape: .tab)
         case .xcframework:
