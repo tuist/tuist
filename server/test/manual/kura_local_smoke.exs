@@ -46,9 +46,11 @@ Application.put_env(:tuist, :clickhouse_writes_async, false)
 {:ok, _} = Application.ensure_all_started(:briefly)
 {:ok, _} = Application.ensure_all_started(:req)
 {:ok, _} = Application.ensure_all_started(:tzdata)
+{:ok, _} = Application.ensure_all_started(:phoenix_pubsub)
 
 {:ok, _repo} = Tuist.Repo.start_link()
 {:ok, _ingest} = Tuist.IngestRepo.start_link()
+{:ok, _pubsub} = Phoenix.PubSub.Supervisor.start_link(name: Tuist.PubSub)
 
 {:ok, _oban} =
   Oban.start_link(
@@ -61,6 +63,7 @@ Application.put_env(:tuist, :clickhouse_writes_async, false)
 alias Tuist.Accounts
 alias Tuist.Kura
 alias Tuist.Kura.KuraDeployment
+alias Tuist.Kura.KuraServer
 alias Tuist.Kura.Workers.RolloutWorker
 alias Tuist.Repo
 
@@ -82,16 +85,23 @@ IO.puts("→ account #{account.name} (id=#{account.id})")
 
 IO.puts("→ recorded version 0.1.0")
 
-{:ok, %KuraDeployment{} = deployment} =
-  Kura.create_deployment(%{
+{:ok, %KuraServer{} = server} =
+  Kura.create_server(%{
     account_id: account.id,
     cluster_id: "local-1",
+    spec: :small,
     image_tag: "0.3.0",
     requested_by_user_id: user.id
   })
 
+deployment = List.first(server.deployments)
+
 IO.puts(
-  "→ deployment #{deployment.id} status=#{deployment.status} oban_job_id=#{deployment.oban_job_id}"
+  "→ server #{server.id} status=#{server.status} spec=#{server.spec} volume=#{server.volume_size_gi}Gi"
+)
+
+IO.puts(
+  "→ initial deployment #{deployment.id} oban_job_id=#{deployment.oban_job_id}"
 )
 
 %{rows: [[count]]} =
@@ -110,10 +120,13 @@ result = RolloutWorker.perform(%Oban.Job{args: %{"deployment_id" => deployment.i
 IO.puts("→ worker returned: #{inspect(result)}")
 
 final = Repo.get!(KuraDeployment, deployment.id)
-IO.puts("→ final status: #{final.status}")
+IO.puts("→ final deployment status: #{final.status}")
 IO.puts("→ started_at: #{inspect(final.started_at)}")
 IO.puts("→ finished_at: #{inspect(final.finished_at)}")
 IO.puts("→ error_message: #{inspect(final.error_message)}")
+
+final_server = Repo.get!(KuraServer, server.id)
+IO.puts("→ final server status: #{final_server.status} url=#{final_server.url || "—"} version=#{final_server.current_image_tag || "—"}")
 
 logs = Kura.list_log_lines(deployment.id, limit: 200)
 IO.puts("→ #{length(logs)} log line(s) captured")
