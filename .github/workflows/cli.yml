@@ -354,12 +354,15 @@ jobs:
           # with --sname/--name on this cluster, so rpc fails with
           # "Cannot run --rpc-eval if the node is not alive". `eval`
           # spawns a fresh distribution-less node that hits the same
-          # DATABASE_URL via the env baked into the image.
+          # DATABASE_URL via the env baked into the image. We have to
+          # start the application ourselves first — `eval` doesn't,
+          # which leaves Tuist.Repo unsupervised and seeds.exs fails on
+          # the very first repo call.
           SERVER_POD=$(kubectl get pods -n "$NAMESPACE" \
             -l app.kubernetes.io/component=server \
             -o jsonpath='{.items[0].metadata.name}')
           kubectl exec -n "$NAMESPACE" "$SERVER_POD" -- \
-            /app/bin/tuist eval 'Code.eval_file(Application.app_dir(:tuist, "priv/repo/seeds.exs"))'
+            /app/bin/tuist eval '{:ok, _} = Application.ensure_all_started(:tuist); Code.eval_file(Application.app_dir(:tuist, "priv/repo/seeds.exs"))'
           # Smoke test through the public host. Retries cover DNS / cert
           # propagation lag.
           for i in $(seq 1 30); do
