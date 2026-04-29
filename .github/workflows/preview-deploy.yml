@@ -25,14 +25,16 @@ name: Preview Deploy
 # timeline shows a "Preview – PR #1234" card (active during the deploy, set
 # inactive on teardown).
 #
-# Required GitHub Environment secrets (environment: server-k8s-preview):
-#   KUBECONFIG       - base64 kubeconfig for the preview WORKLOAD cluster's
-#                      CI ServiceAccount (cluster-admin in preview-system).
-#   KUBECONFIG_MGMT  - base64 kubeconfig for the SYSELF MANAGEMENT cluster's
-#                      `preview-scaler` SA (narrow Role: get/patch on
-#                      Cluster/tuist-preview, read on MachineDeployments).
+# Required GitHub Environment secret (environment: server-k8s-preview):
+#   KUBECONFIG  - base64 kubeconfig for the preview WORKLOAD cluster's CI
+#                 ServiceAccount (cluster-admin in preview-system). Minted
+#                 at cluster bootstrap; see infra/k8s/syself-onboarding.md §9.
 #
-# Both are minted at cluster bootstrap; see infra/k8s/syself-onboarding.md §9.
+# No management-cluster kubeconfig: the preview cluster keeps a fixed worker
+# pool (see workload-cluster-preview.yaml's "Why pinned `replicas: 1`"
+# comment) because Syself's OIDC users can't create the ServiceAccount we'd
+# need to scale from CI. ~€13/mo of always-on cost in exchange for sidestepping
+# that dependency entirely.
 
 on:
   workflow_dispatch:
@@ -246,6 +248,11 @@ jobs:
           submodules: false
       - id: tag
         run: echo "image_tag=sha-${{ needs.resolve.outputs.short_sha }}" >> "$GITHUB_OUTPUT"
+      - id: apt-bust
+        # Date-granular bust for the runner-base apt-upgrade layer. Previews
+        # don't need per-commit security patches; relaxing to daily lets
+        # successive pushes on the same PR reuse the apt layer.
+        run: echo "value=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
       - uses: namespacelabs/nscloud-setup-buildx-action@v0
       - uses: docker/login-action@v3
         with:
@@ -262,90 +269,22 @@ jobs:
           build-args: |
             TUIST_HOSTED=1
             MIX_ENV=prod
-            APT_CACHE_BUST=${{ needs.resolve.outputs.ref }}
-          # Share the same cache scope as the managed-env builds — same image,
-          # same Dockerfile, layers are interchangeable.
-          cache-from: type=gha,scope=server-cluster
-          cache-to: type=gha,mode=max,scope=server-cluster
-
-  scale-up:
-    # Scaling the management cluster's `tuist-preview` Cluster CR is the only
-    # write the deploy workflow shares with the sweep workflow. Splitting it
-    # into its own job lets us put a workflow-spanning concurrency group
-    # (`preview-cluster-scale`) on just this step — two PRs deploying at the
-    # same time still helm-install in parallel, but only one of them (and
-    # never the sweep) is mid-patch on the Cluster CR.
-    name: Scale preview worker pool up
-    needs: [resolve, build]
-    if: needs.resolve.outputs.action == 'deploy'
-    runs-on: namespace-profile-default
-    environment:
-      name: server-k8s-preview
-    concurrency:
-      group: preview-cluster-scale
-      cancel-in-progress: false
-    timeout-minutes: 15
-    env:
-      KUBECONFIG: ${{ github.workspace }}/.kube/config
-      KUBECONFIG_MGMT: ${{ github.workspace }}/.kube/mgmt
-    steps:
-      - uses: jdx/mise-action@v3.2.0
-        with:
-          install_args: "kubectl"
-          cache: "false"
-      - name: Load kubeconfigs
-        run: |
-          mkdir -p "$(dirname "$KUBECONFIG")"
-          echo "${{ secrets.KUBECONFIG }}" | base64 -d > "$KUBECONFIG"
-          chmod 600 "$KUBECONFIG"
-          echo "${{ secrets.KUBECONFIG_MGMT }}" | base64 -d > "$KUBECONFIG_MGMT"
-          chmod 600 "$KUBECONFIG_MGMT"
-      - name: Patch Cluster CR to ensure md-0 has ≥1 replica
-        run: |
-          set -euo pipefail
-          ORG_NS=$(KUBECONFIG="$KUBECONFIG_MGMT" kubectl config view --minify -o jsonpath='{.contexts[0].context.namespace}')
-          CURRENT=$(KUBECONFIG="$KUBECONFIG_MGMT" kubectl -n "$ORG_NS" get cluster tuist-preview \
-            -o jsonpath='{.spec.topology.workers.machineDeployments[?(@.name=="md-0")].replicas}')
-          echo "md-0 replicas currently: $CURRENT"
-          if [ "${CURRENT:-0}" -lt 1 ]; then
-            echo "==> Scaling md-0 to 1..."
-            KUBECONFIG="$KUBECONFIG_MGMT" kubectl -n "$ORG_NS" patch cluster tuist-preview \
-              --type=json \
-              -p='[{"op":"replace","path":"/spec/topology/workers/machineDeployments/0/replicas","value":1}]'
-          fi
-      - name: Wait for worker node Ready
-        # Cold-boot a Hetzner cpx31 + kubelet/CNI takes ~3–5 min. Done in
-        # this job (not the deploy job) so the Cluster CR concurrency lock
-        # is held until the new node is actually usable.
-        run: |
-          echo "Waiting for at least one worker node to be Ready..."
-          for i in $(seq 1 60); do
-            COUNT=$(kubectl get nodes -l '!node-role.kubernetes.io/control-plane' \
-              -o jsonpath='{range .items[*]}{.status.conditions[?(@.type=="Ready")].status}{"\n"}{end}' \
-              | grep -c "^True$" || true)
-            if [ "$COUNT" -ge 1 ]; then
-              echo "Worker(s) Ready: $COUNT"
-              kubectl get nodes
-              exit 0
-            fi
-            sleep 10
-          done
-          echo "::error::No worker became Ready within 10 minutes."
-          kubectl get nodes -o wide
-          exit 1
+            APT_CACHE_BUST=${{ steps.apt-bust.outputs.value }}
 
   deploy:
     name: Deploy ${{ needs.resolve.outputs.release }}
-    needs: [resolve, build, scale-up, start-deployment]
+    needs: [resolve, build, start-deployment]
     # The GitHub Deployment object is a PR-timeline UI nicety, never a
-    # gate. We only require the actual prerequisites (build + scale-up) to
-    # succeed; start-deployment can fail (e.g. status-check API conflict)
-    # without blocking the real deploy.
+    # gate. We only require the actual prerequisite (build) to succeed;
+    # start-deployment can fail (e.g. status-check API conflict) without
+    # blocking the real deploy. There's no scale-up job — the preview
+    # cluster keeps a fixed worker pool because we can't get the
+    # management-cluster permissions Syself would require for elastic
+    # scaling (see infra/k8s/syself/workload-cluster-preview.yaml).
     if: |
       always()
       && needs.resolve.outputs.action == 'deploy'
       && needs.build.result == 'success'
-      && needs.scale-up.result == 'success'
     runs-on: namespace-profile-default
     environment:
       name: server-k8s-preview

@@ -1,5 +1,14 @@
 defmodule Tuist.Builds.Workers.ProcessBuildWorker do
-  @moduledoc false
+  @moduledoc """
+  Oban worker that parses an uploaded xcactivitylog archive and writes the
+  structured build run.
+
+  In the managed deployment the `:process_build` queue only runs on processor
+  pods (`TUIST_MODE=processor`), so this worker's body executes there;
+  the server pods enqueue jobs but never claim them. In self-hosted installs
+  the server runs both roles in the same BEAM.
+  """
+
   use Oban.Worker, queue: :process_build, max_attempts: 5
 
   alias Tuist.Accounts
@@ -16,26 +25,10 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
         attempt: attempt,
         max_attempts: max_attempts
       }) do
-    processor_url = Tuist.Environment.processor_url()
     xcode_cache_upload_enabled = Map.get(args, "xcode_cache_upload_enabled", false)
-
-    result =
-      if is_nil(processor_url) or processor_url == "" do
-        process_locally(build_id, storage_key, account_id, xcode_cache_upload_enabled)
-      else
-        send_to_processor(
-          processor_url,
-          build_id,
-          storage_key,
-          account_id,
-          project_id,
-          xcode_cache_upload_enabled
-        )
-      end
-
     build_metadata = Map.get(args, "build_metadata", %{})
 
-    case result do
+    case process_build(build_id, storage_key, account_id, xcode_cache_upload_enabled) do
       {:ok, parsed_data} ->
         parsed_data = Map.put(parsed_data, "project_id", project_id)
         replace_build_run(build_id, parsed_data, account_id, build_metadata)
@@ -55,64 +48,20 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
     end
   end
 
-  defp process_locally(build_id, storage_key, account_id, xcode_cache_upload_enabled) do
+  defp process_build(build_id, storage_key, account_id, xcode_cache_upload_enabled) do
     with {:ok, account} <- Accounts.get_account_by_id(account_id) do
       temp_path = Path.join(System.tmp_dir!(), "build_#{build_id}.zip")
 
       try do
         case Storage.download_to_file(storage_key, temp_path, account) do
           {:ok, _} ->
-            Processor.BuildProcessor.process_build(temp_path, xcode_cache_upload_enabled)
+            Tuist.Processor.BuildProcessor.process_build(temp_path, xcode_cache_upload_enabled)
 
           {:error, _} = error ->
             error
         end
       after
         File.rm(temp_path)
-      end
-    end
-  end
-
-  defp send_to_processor(processor_url, build_id, storage_key, account_id, project_id, xcode_cache_upload_enabled) do
-    webhook_secret = Tuist.Environment.processor_webhook_secret()
-
-    if is_nil(webhook_secret) or webhook_secret == "" do
-      Logger.error("Processor webhook secret not configured for build #{build_id}")
-      {:error, "webhook_secret_not_configured"}
-    else
-      payload = %{
-        build_id: build_id,
-        storage_key: storage_key,
-        account_id: account_id,
-        project_id: project_id,
-        xcode_cache_upload_enabled: xcode_cache_upload_enabled
-      }
-
-      json_body = Jason.encode!(payload)
-
-      signature =
-        :hmac
-        |> :crypto.mac(:sha256, webhook_secret, json_body)
-        |> Base.encode16(case: :lower)
-
-      case Req.post("#{processor_url}/webhooks/process-build",
-             body: json_body,
-             headers: [
-               {"content-type", "application/json"},
-               {"x-webhook-signature", signature}
-             ],
-             receive_timeout: 1_200_000
-           ) do
-        {:ok, %{status: 200, body: parsed_data}} ->
-          {:ok, parsed_data}
-
-        {:ok, %{status: status, body: body}} ->
-          Logger.error("Processor returned #{status} for build #{build_id}: #{inspect(body)}")
-          {:error, "processor_error_#{status}: #{inspect(body)}"}
-
-        {:error, reason} ->
-          Logger.error("Processor request failed for build #{build_id}: #{inspect(reason)}")
-          {:error, reason}
       end
     end
   end

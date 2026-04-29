@@ -7,7 +7,7 @@ REPO_ROOT="$(git rev-parse --show-toplevel)"
 
 echo "==> Building tuist-server image..."
 docker build \
-    --target runner-selfhosted \
+    --target runner \
     --build-arg TUIST_HOSTED=0 \
     -t tuist-server:latest \
     -f "$REPO_ROOT/server/Dockerfile" \

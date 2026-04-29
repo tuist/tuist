@@ -153,6 +153,85 @@ server:
     # topologies that prefer a post-install Job instead.
     asHook: false
 
+processor:
+  # Oban-backed xcactivitylog processor. Runs the same Docker image as the
+  # server with TUIST_MODE=processor, which (a) disables the Phoenix
+  # web endpoint and (b) narrows the Oban queue set to :process_build only.
+  # Jobs flow from any `ProcessBuildWorker.new()` enqueue (server side) to
+  # these pods via SELECT … FOR UPDATE SKIP LOCKED; a saturated pod doesn't
+  # claim more work, so jobs naturally flow to whichever replica has headroom.
+  #
+  # Disabled by default — self-hosters who don't want a dedicated parse fleet
+  # can leave this off, and the server's main Deployment will consume the
+  # :process_build queue in-process like every other queue.
+  enabled: false
+  replicaCount: 2
+  # Per-pod Oban concurrency for the :process_build queue. Total parse
+  # parallelism is replicaCount * queueConcurrency.
+  queueConcurrency: 5
+  resources: {}
+  extraEnv: []
+  # When true, the chart provisions an ExternalSecret that syncs the
+  # `tuist_processor` role password from the configured store (1Password
+  # by default) and composes DATABASE_URL from it + the non-secret
+  # `database:` values below. When false, the full URL must be provided
+  # via `databaseUrl` for self-hosted installs.
+  managedSecrets: false
+  # Full DATABASE_URL for self-hosted installs pointing at the Postgres role
+  # provisioned via infra/supabase/tuist-processor-role.sql. Used as-is when
+  # managedSecrets is false; ignored when managedSecrets is true (the URL is
+  # composed from `database:` + the ESO-synced password instead).
+  databaseUrl: ""
+  # Non-secret connection parameters composed with the secret password into
+  # DATABASE_URL when `managedSecrets: true`. Kept out of 1P on purpose so
+  # rotation is a single-item update.
+  database:
+    # Supabase project pooler hostname — per-env, set in values-managed-<env>.yaml.
+    host: ""
+    # 6543 for Supavisor (transaction mode, recommended). 5432 for direct
+    # sessions (required if the worker uses SET / advisory locks).
+    port: 6543
+    name: postgres
+    username: tuist_processor
+    # Query params appended to the URL; sslmode=require + channel_binding
+    # matches Supabase defaults. No secrets here either.
+    params: "sslmode=require"
+  externalSecrets:
+    refreshInterval: "1h"
+    storeRef:
+      kind: ClusterSecretStore
+      name: onepassword
+    databasePassword:
+      item: PROCESSOR_DATABASE_PASSWORD
+      field: password
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      # maxUnavailable: 0 keeps at least one processor consuming the queue
+      # during a rolling deploy. maxSurge: 1 lets the surge pod co-locate
+      # on one of the two worker VMs when the topology spread can't satisfy
+      # strict separation.
+      maxSurge: 1
+      maxUnavailable: 0
+  topologySpread:
+    # Prefer one replica per Kubernetes node; ScheduleAnyway keeps the surge
+    # pod from being stuck pending during a deploy on a 2-node cluster.
+    enabled: true
+  affinity: {}
+  podDisruptionBudget:
+    enabled: false
+    minAvailable: 1
+  podAnnotations: {}
+  podLabels: {}
+  # Grace period long enough for an in-flight xcactivitylog parse (typically
+  # 30s–5min, occasionally up to ~20min on outsized archives) to finish
+  # before SIGKILL. Oban.Plugins.Lifeline reclaims anything that was still
+  # running at the deadline.
+  terminationGracePeriodSeconds: 1260
+  # Build archives are unzipped into the pod's /tmp. Scale to match the
+  # largest archive plus headroom for CAS metadata.
+  tmpSizeLimit: 10Gi
+
 cache:
   enabled: true
   replicaCount: 1
@@ -184,6 +263,24 @@ cache:
   apiKey: ""
   secretKeyBase: ""
   guardianSecretKey: ""
+  # DATABASE_URL for the cache Phoenix app's own Postgres. Two paths:
+  #
+  #   - Self-hosted with an external Postgres: set explicitly here, like
+  #     ecto://user:pass@host:5432/db.
+  #   - Embedded mode (postgresql.mode=embedded): leave empty. The chart
+  #     composes a URL pointing at the embedded Postgres + a dedicated
+  #     `cache.embedded.database` (auto-created at first Postgres boot via
+  #     templates/postgresql-init.yaml so the cache app's migrations don't
+  #     collide with the server's).
+  #
+  # Managed-cloud envs (managedSecrets: true) bypass this entirely — the
+  # cache app reads its own DATABASE_URL from priv/secrets/<env>.yml.enc
+  # baked into the image.
+  databaseUrl: ""
+  embedded:
+    # Database name created in the embedded Postgres for the cache app.
+    # Only meaningful when postgresql.mode=embedded; ignored otherwise.
+    database: tuist_cache
   storage:
     pvc:
       create: true
@@ -295,6 +392,20 @@ objectStorage:
       cache: tuist-cache
       xcodeCache: tuist-xcode-cache
       registry: tuist-registry
+    managedSecrets: false
+    externalSecrets:
+      refreshInterval: "1h"
+      storeRef:
+        kind: ClusterSecretStore
+        name: onepassword
+      accessKey:
+        # 1Password item title and field. With the 1P SDK provider the vault
+        # is set on the ClusterSecretStore, not here.
+        item: S3_CREDENTIALS
+        field: access_key_id
+      secretKey:
+        item: S3_CREDENTIALS
+        field: secret_access_key
   embedded:
     provider: minio
     image:

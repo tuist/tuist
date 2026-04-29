@@ -115,6 +115,39 @@ server:
 
   terminationGracePeriodSeconds: 60
 
+# Processor runs in-cluster as a dedicated Oban consumer for :process_build.
+# Same Docker image as the server; TUIST_MODE=processor in the chart
+# flips the BEAM into queue-only mode. Postgres is the coordination plane —
+# FOR UPDATE SKIP LOCKED gives natural load-balancing across replicas.
+#
+# The DATABASE_URL in 1P ("PROCESSOR_DATABASE_URL") must embed the
+# `tuist_processor` role provisioned via infra/supabase/tuist-processor-role.sql
+# on each env's Supabase project. Without the role, ESO syncs an empty URL
+# and processor pods crashloop — see infra/supabase/README.md for bootstrap.
+processor:
+  enabled: true
+  replicaCount: 2
+  queueConcurrency: 5
+  managedSecrets: true
+  externalSecrets:
+    refreshInterval: "1h"
+    storeRef:
+      kind: ClusterSecretStore
+      name: onepassword
+    databasePassword:
+      item: PROCESSOR_DATABASE_PASSWORD
+      field: password
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+  resources:
+    requests:
+      cpu: "250m"
+      memory: "512Mi"
+    limits:
+      cpu: "1000m"
+      memory: "1Gi"
+
 # Everything below = external. The managed deployment never runs embedded
 # Postgres / ClickHouse / object storage / observability stacks.
 cache:
@@ -139,17 +172,25 @@ clickhouse:
 
 objectStorage:
   mode: external
-  # Tigris S3-compatible storage.
+  # Tigris S3-compatible storage. Per-env access key + secret access key are
+  # synced from 1Password via ESO (item S3_CREDENTIALS in tuist-k8s-<env>);
+  # endpoint and region are vendor-level constants and live here. Per-env
+  # bucket name is set in values-managed-<env>.yaml.
   external:
-    endpoint: ""       # e.g. https://fly.storage.tigris.dev
-    accessKey: ""
-    secretKey: ""
+    endpoint: https://t3.storage.dev
     region: auto
-    buckets:
-      default: tuist
-      cache: tuist-cache
-      xcodeCache: tuist-xcode-cache
-      registry: tuist-registry
+    managedSecrets: true
+    externalSecrets:
+      refreshInterval: "1h"
+      storeRef:
+        kind: ClusterSecretStore
+        name: onepassword
+      accessKey:
+        item: S3_CREDENTIALS
+        field: access_key_id
+      secretKey:
+        item: S3_CREDENTIALS
+        field: secret_access_key
 
 observability:
   # We forward to Grafana Cloud via an in-cluster Alloy DaemonSet installed by

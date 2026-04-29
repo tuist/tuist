@@ -1,17 +1,32 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.188.3<!-- RELEASE NOTES START -->
+## What's Changed in 4.189.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* re-add config-driven network proxy opt-out by [@pepicrft](https://github.com/pepicrft) in [#10513](https://github.com/tuist/tuist/pull/10513)
+* add "Skip" quarantine mode for test cases by [@fortmarek](https://github.com/fortmarek) in [#10429](https://github.com/tuist/tuist/pull/10429)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.188.5...4.189.0
+
+## What's Changed in 4.188.5<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
 
+* update xcactivitylog_nif package path after processor consolidation by [@fortmarek](https://github.com/fortmarek) in [#10507](https://github.com/tuist/tuist/pull/10507)
 * honor #if guards in inspect dependencies --only implicit by [@fortmarek](https://github.com/fortmarek) in [#10474](https://github.com/tuist/tuist/pull/10474)
 * restore [Path] overload of TestAction.testPlans as deprecated by [@fortmarek](https://github.com/fortmarek) in [#10488](https://github.com/tuist/tuist/pull/10488)
 * sanitize target name in generated Obj-C bundle accessor identifiers by [@pepicrft](https://github.com/pepicrft) in [#10482](https://github.com/tuist/tuist/pull/10482)
+### ⚡ Performance
+
+* lower URLSession resource timeout from 300s to 90s by [@fortmarek](https://github.com/fortmarek) in [#10503](https://github.com/tuist/tuist/pull/10503)
 
 
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.188.2...4.188.3
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.188.2...4.188.5
 
 ## What's Changed in 4.188.2<!-- RELEASE NOTES START -->
 

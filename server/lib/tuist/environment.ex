@@ -58,9 +58,27 @@ defmodule Tuist.Environment do
     Enum.member?(["1", "true", "TRUE", "yes", "YES"], value)
   end
 
-  def web? do
-    "TUIST_WEB" |> System.get_env("1") |> truthy?()
+  @doc """
+  Pod role. Controls which subsystems the BEAM brings up at boot:
+
+    * `:web` (default) — full Phoenix endpoint, every Oban queue, every
+      ingestion buffer. What the existing server pods run.
+    * `:processor` — no Phoenix listener, narrowed Oban queue set to
+      `:process_build`. Booted by processor-deployment.yaml.
+
+  Read once from `TUIST_MODE`. Add new modes here when the supervision tree
+  needs another shape (e.g. a future `:scheduler` or `:ingest`).
+  """
+  def mode do
+    case System.get_env("TUIST_MODE") do
+      "processor" -> :processor
+      _ -> :web
+    end
   end
+
+  def web?, do: mode() == :web
+
+  def processor_mode?, do: mode() == :processor
 
   def database_url(secrets \\ secrets()) do
     System.get_env("DATABASE_URL") || get([:database_url], secrets)
@@ -275,7 +293,9 @@ defmodule Tuist.Environment do
 
   def s3_access_key_id(secrets \\ secrets()) do
     if dev_use_remote_storage?() do
-      System.get_env("AWS_ACCESS_KEY_ID") || get([:s3, :access_key_id], secrets)
+      System.get_env("TUIST_S3_ACCESS_KEY_ID") ||
+        System.get_env("AWS_ACCESS_KEY_ID") ||
+        get([:s3, :access_key_id], secrets)
     else
       "minio"
     end
@@ -283,19 +303,24 @@ defmodule Tuist.Environment do
 
   def s3_secret_access_key(secrets \\ secrets()) do
     if dev_use_remote_storage?() do
-      System.get_env("AWS_SECRET_ACCESS_KEY") || get([:s3, :secret_access_key], secrets)
+      System.get_env("TUIST_S3_SECRET_ACCESS_KEY") ||
+        System.get_env("AWS_SECRET_ACCESS_KEY") ||
+        get([:s3, :secret_access_key], secrets)
     else
       "minio1234"
     end
   end
 
   def s3_region(secrets \\ secrets()) do
-    System.get_env("AWS_REGION") || get([:s3, :region], secrets) || "auto"
+    System.get_env("TUIST_S3_REGION") ||
+      System.get_env("AWS_REGION") ||
+      get([:s3, :region], secrets) ||
+      "auto"
   end
 
   def s3_bucket_name(secrets \\ secrets()) do
     if dev_use_remote_storage?() do
-      get([:s3, :bucket_name], secrets)
+      System.get_env("TUIST_S3_BUCKET_NAME") || get([:s3, :bucket_name], secrets)
     else
       "tuist-development"
     end
@@ -303,7 +328,7 @@ defmodule Tuist.Environment do
 
   def s3_endpoint(secrets \\ secrets()) do
     if dev_use_remote_storage?() do
-      get([:s3, :endpoint], secrets)
+      System.get_env("TUIST_S3_ENDPOINT") || get([:s3, :endpoint], secrets)
     else
       System.get_env("TUIST_LOCAL_S3_ENDPOINT") ||
         case System.get_env("TUIST_MINIO_API_PORT") do
@@ -315,7 +340,10 @@ defmodule Tuist.Environment do
 
   def s3_virtual_host(secrets \\ secrets()) do
     if dev_use_remote_storage?() do
-      [:s3, :virtual_host] |> get(secrets) |> truthy?()
+      case System.get_env("TUIST_S3_VIRTUAL_HOST") do
+        nil -> [:s3, :virtual_host] |> get(secrets) |> truthy?()
+        value -> truthy?(value)
+      end
     else
       false
     end
@@ -323,7 +351,10 @@ defmodule Tuist.Environment do
 
   def s3_bucket_as_host(secrets \\ secrets()) do
     if dev_use_remote_storage?() do
-      [:s3, :bucket_as_host] |> get(secrets) |> truthy?()
+      case System.get_env("TUIST_S3_BUCKET_AS_HOST") do
+        nil -> [:s3, :bucket_as_host] |> get(secrets) |> truthy?()
+        value -> truthy?(value)
+      end
     else
       false
     end
@@ -567,12 +598,26 @@ defmodule Tuist.Environment do
     get([:cache_api_key], secrets)
   end
 
-  def processor_url(secrets \\ secrets()) do
-    get([:processor, :url], secrets)
+  def delegate_process_build? do
+    truthy?(System.get_env("TUIST_DELEGATE_PROCESS_BUILD", "0"))
   end
 
-  def processor_webhook_secret(secrets \\ secrets()) do
-    get([:processor, :webhook_secret], secrets)
+  @doc """
+  Whether the configured DATABASE_URL points at a transaction-mode pooler
+  (Supabase Supavisor, PgBouncer, etc.) rather than a direct Postgres
+  endpoint. Toggles `prepare: :unnamed` and drops `tcp_keepalives_*`
+  startup parameters in `runtime.exs` — both required for transaction-mode
+  poolers to work, both unnecessary cost on direct connections.
+  """
+  def database_pooled? do
+    truthy?(System.get_env("TUIST_DATABASE_POOLED", "0"))
+  end
+
+  def process_build_queue_concurrency do
+    case System.get_env("TUIST_PROCESS_BUILD_QUEUE_CONCURRENCY") do
+      value when is_binary(value) and value != "" -> String.to_integer(value)
+      _ -> if processor_mode?(), do: 5, else: 2
+    end
   end
 
   def xcode_processor_url(secrets \\ secrets()) do

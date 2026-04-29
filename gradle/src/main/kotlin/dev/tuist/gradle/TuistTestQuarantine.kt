@@ -2,6 +2,7 @@ package dev.tuist.gradle
 
 import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
+import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.logging.Logging
 import org.gradle.api.provider.Property
 import org.gradle.api.services.BuildService
@@ -18,8 +19,44 @@ data class QuarantinedTestCasesResponse(
 data class QuarantinedTestCase(
     val name: String,
     val module: QuarantinedModule,
-    val suite: QuarantinedSuite?
+    val suite: QuarantinedSuite?,
+    /**
+     * Quarantine mode for this test case.
+     *
+     * - `"muted"` (default) — the test runs and a failure is masked.
+     * - `"skipped"` — the test is excluded from execution entirely.
+     *
+     * `null` or any unrecognized value (including the legacy
+     * `"quarantined"` name from before the Mute/Skip split landed) is
+     * treated as `"muted"` for back-compat.
+     */
+    val state: String? = null
 )
+
+/**
+ * Quarantined tests grouped by mode. Each map keys module name to the
+ * test identifiers in that module that fall in the corresponding mode.
+ *
+ * - [muted] — tests still run but failures are masked post-run.
+ * - [skipped] — tests are excluded from execution via Gradle's
+ *   `Test.filter.excludeTestsMatching` before they ever start.
+ */
+data class QuarantinedTests(
+    val muted: Map<String, List<TestIdentifier>>,
+    val skipped: Map<String, List<TestIdentifier>>
+) {
+    /** Union of [muted] and [skipped] keyed by module. */
+    val all: Map<String, List<TestIdentifier>>
+        get() = (muted.keys + skipped.keys).associateWith { module ->
+            (muted[module] ?: emptyList()) + (skipped[module] ?: emptyList())
+        }
+
+    fun isEmpty(): Boolean = muted.isEmpty() && skipped.isEmpty()
+
+    companion object {
+        val EMPTY = QuarantinedTests(emptyMap(), emptyMap())
+    }
+}
 
 data class QuarantinedModule(
     val id: String,
@@ -47,24 +84,24 @@ class TuistTestQuarantineService(
 ) {
     private val logger = Logging.getLogger(TuistTestQuarantineService::class.java)
 
-    private var cachedExclusions: Map<String, List<TestIdentifier>>? = null
+    private var cached: QuarantinedTests? = null
 
     @Synchronized
-    fun getQuarantinedTests(): Map<String, List<TestIdentifier>> {
-        cachedExclusions?.let { return it }
+    fun getQuarantinedTests(): QuarantinedTests {
+        cached?.let { return it }
 
         val result = try {
             fetchQuarantinedTests()
         } catch (e: Exception) {
             logger.warn("Tuist: Failed to fetch quarantined tests: ${e.message}")
-            emptyMap()
+            QuarantinedTests.EMPTY
         }
 
-        cachedExclusions = result
+        cached = result
         return result
     }
 
-    private fun fetchQuarantinedTests(): Map<String, List<TestIdentifier>> {
+    private fun fetchQuarantinedTests(): QuarantinedTests {
         return httpClient.execute { config ->
             val url = URI(baseUrl.trimEnd('/')).resolve(
                 "/api/projects/${config.accountHandle}/${config.projectHandle}/tests/test-cases?quarantined=true&page_size=500"
@@ -81,7 +118,7 @@ class TuistTestQuarantineService(
                         ).use { reader ->
                             Gson().fromJson(reader, QuarantinedTestCasesResponse::class.java)
                         }
-                        buildQuarantineMap(response.testCases)
+                        splitByMode(response.testCases)
                     }
                     HttpURLConnection.HTTP_UNAUTHORIZED -> throw TokenExpiredException()
                     else -> {
@@ -91,7 +128,7 @@ class TuistTestQuarantineService(
                         logger.warn(
                             "Tuist: Quarantine request failed with HTTP ${connection.responseCode}: ${errorBody ?: "(no response body)"}"
                         )
-                        emptyMap()
+                        QuarantinedTests.EMPTY
                     }
                 }
             } finally {
@@ -100,7 +137,15 @@ class TuistTestQuarantineService(
         }
     }
 
-    private fun buildQuarantineMap(testCases: List<QuarantinedTestCase>): Map<String, List<TestIdentifier>> {
+    private fun splitByMode(testCases: List<QuarantinedTestCase>): QuarantinedTests {
+        val (skipped, muted) = testCases.partition { it.state == "skipped" }
+        return QuarantinedTests(
+            muted = groupByModule(muted),
+            skipped = groupByModule(skipped)
+        )
+    }
+
+    private fun groupByModule(testCases: List<QuarantinedTestCase>): Map<String, List<TestIdentifier>> {
         return testCases.groupBy(
             keySelector = { it.module.name },
             valueTransform = { testCase ->
@@ -128,14 +173,15 @@ abstract class TuistTestQuarantineBuildService :
     interface Params : BuildServiceParameters {
         val serverUrl: Property<String>
         val tuistProject: Property<String>
-        val projectDir: Property<String>
+        val useEnvironmentProxy: Property<Boolean>
+        val projectDir: DirectoryProperty
     }
 
     @Volatile
     private var delegate: TuistTestQuarantineService? = null
     private val lock = Any()
 
-    fun getQuarantinedTests(): Map<String, List<TestIdentifier>> = resolveDelegate().getQuarantinedTests()
+    fun getQuarantinedTests(): QuarantinedTests = resolveDelegate().getQuarantinedTests()
 
     private fun resolveDelegate(): TuistTestQuarantineService {
         delegate?.let { return it }
@@ -146,11 +192,11 @@ abstract class TuistTestQuarantineBuildService :
 
     private fun createDelegate(): TuistTestQuarantineService {
         val serverUrl = parameters.serverUrl.get()
-        val httpClients = TuistHttpClients()
+        val httpClients = TuistHttpClients(useEnvironmentProxy = parameters.useEnvironmentProxy.get())
         val configProvider = DefaultConfigurationProvider(
             project = parameters.tuistProject.orNull,
             serverUrl = serverUrl,
-            projectDir = java.io.File(parameters.projectDir.get()),
+            projectDir = parameters.projectDir.asFile.get(),
             httpClients = httpClients
         )
         val httpClient = TuistHttpClient(
