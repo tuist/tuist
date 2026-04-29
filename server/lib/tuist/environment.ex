@@ -182,7 +182,11 @@ defmodule Tuist.Environment do
   end
 
   def version do
-    Application.spec(:tuist)[:vsn]
+    case System.get_env("TUIST_VERSION") do
+      nil -> to_string(Application.spec(:tuist)[:vsn])
+      "" -> to_string(Application.spec(:tuist)[:vsn])
+      version -> version
+    end
   end
 
   def ops_user_handles(secrets \\ secrets()) do
