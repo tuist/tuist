@@ -67,10 +67,7 @@ interchangeable. Be precise about which one a call uses before flagging.
 - **`Tuist.IngestRepo`** — write-only ingest path. Application code must
   not read from it; reads happen out of band.
 - **`Tuist.ClickHouseRepo`** — the read-only ClickHouse repo (declared
-  with `read_only: true` in `server/lib/tuist/clickhouse_repo.ex`). This
-  is the **legitimate** path for analytics reads from application code.
-  `server/lib/tuist/tests/analytics.ex`,
-  `server/lib/tuist/builds/analytics.ex`, etc. all read through it.
+  with `read_only: true` in `server/lib/tuist/clickhouse_repo.ex`).
 
 ### Flag (Severity: high)
 
