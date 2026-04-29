@@ -71,6 +71,14 @@ server:
       cpu: "1000m"
       memory: "1536Mi"
 
+  # The migration hook is an extra pod that starts before Helm can terminate
+  # any existing workload pod. Use a low request so it schedules on staging's
+  # two-worker cluster, while the common 2Gi limit still caps backfill spikes.
+  migrationJob:
+    resources:
+      requests:
+        memory: "512Mi"
+
 objectStorage:
   external:
     buckets:
