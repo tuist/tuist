@@ -329,11 +329,12 @@ jobs:
             --set server.ingress.host="$HOST" \
             --set "server.appUrl=https://${HOST}" \
             --atomic --timeout 12m --wait
-          # TTL annotation so preview-sweep.yml cleans up if the explicit
-          # teardown job below misses (e.g. workflow cancelled). 2h is plenty
-          # for the slowest shard.
+          # TTL label so preview-sweep.yml cleans up if the explicit
+          # teardown job below misses (e.g. workflow cancelled). Epoch
+          # seconds, matching the format preview-deploy.yml writes — k8s
+          # label values can't contain ':' so ISO timestamps are out.
           kubectl label namespace "$NAMESPACE" \
-            "tuist.dev/expires-at=$(date -u -d '+2 hours' +%Y-%m-%dT%H:%M:%SZ)" \
+            "tuist.dev/expires-at=$(( $(date +%s) + 2 * 3600 ))" \
             "tuist.dev/preview=true" \
             --overwrite
           # Smoke test through the public host. Retries cover DNS / cert
