@@ -45,7 +45,7 @@ spec:
                   type: string
                 type:
                   type: string
-                  default: M2-L
+                  default: M4-S
                 zone:
                   type: string
                   default: fr-par-1

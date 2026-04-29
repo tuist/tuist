@@ -74,7 +74,7 @@ metadata:
 spec:
   template:
     spec:
-      type: {{ .Values.macosFleet.machine.type | default "M2-L" | quote }}
+      type: {{ .Values.macosFleet.machine.type | default "M4-S" | quote }}
       zone: {{ .Values.macosFleet.machine.zone | default "fr-par-1" | quote }}
       os: {{ .Values.macosFleet.machine.os | default "macos-tahoe-26.0" | quote }}
       podCIDR: {{ required "macosFleet.machine.podCIDR is required" .Values.macosFleet.machine.podCIDR | quote }}

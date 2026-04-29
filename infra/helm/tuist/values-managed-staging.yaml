@@ -134,7 +134,7 @@ xcresultProcessor:
 
 # Mac mini fleet — declarative via CAPI. The CAPI provider operator
 # deploys alongside the server; the MachineDeployment desired-state
-# below tells it to keep 1 Mac mini (M2-L in fr-par-1; the chart
+# below tells it to keep 1 Mac mini (M4-S in fr-par-1; the chart
 # default) with this pod CIDR slice carved out of the staging
 # cluster CIDR.
 macosFleet:
