@@ -644,19 +644,54 @@ defmodule Tuist.Tests do
     {test_case_id_map, test_cases_with_flaky_run, new_test_case_ids}
   end
 
-  defp get_all_project_test_cases(project_id) do
-    from(test_case in TestCase,
-      hints: ["FINAL"],
-      where: test_case.project_id == ^project_id,
-      select: %{
-        id: test_case.id,
-        recent_durations: test_case.recent_durations,
-        is_flaky: test_case.is_flaky,
-        state: test_case.state
-      }
-    )
-    |> IngestRepo.all()
-    |> Map.new(fn row -> {row.id, row} end)
+  defp collect_test_case_ids(project_id, test_modules) do
+    test_modules
+    |> Enum.flat_map(fn module_attrs ->
+      module_name = Map.get(module_attrs, :name)
+      test_cases = Map.get(module_attrs, :test_cases, [])
+
+      Enum.map(test_cases, fn case_attrs ->
+        suite_name = Map.get(case_attrs, :test_suite_name, "") || ""
+        generate_test_case_id(project_id, Map.get(case_attrs, :name), module_name, suite_name)
+      end)
+    end)
+    |> Enum.uniq()
+  end
+
+  # Batch size for `id IN (...)` lookups. Each UUID is ~38 bytes encoded in the
+  # SQL, so 5_000 IDs is ~190 KB, well below ClickHouse's default
+  # `max_query_size` of 256 KB even with surrounding query text. Larger batches
+  # would risk a `TOO_LARGE_QUERY` rejection on big test reports.
+  @existing_test_cases_batch_size 5_000
+
+  defp get_existing_test_cases(_project_id, []), do: %{}
+
+  # Returns the latest `recent_durations`, `is_flaky`, and `state` per test case
+  # for the given IDs. We avoid the FINAL hint because the per-call merge cost
+  # dominates when this is called during ingestion (every test report) and
+  # dedupe in Elixir from a small result set instead.
+  defp get_existing_test_cases(project_id, test_case_ids) do
+    test_case_ids
+    |> Enum.chunk_every(@existing_test_cases_batch_size)
+    |> Enum.reduce(%{}, fn ids_chunk, acc ->
+      from(test_case in TestCase,
+        where: test_case.project_id == ^project_id,
+        where: test_case.id in ^ids_chunk,
+        select: %{
+          id: test_case.id,
+          recent_durations: test_case.recent_durations,
+          is_flaky: test_case.is_flaky,
+          state: test_case.state,
+          inserted_at: test_case.inserted_at
+        }
+      )
+      |> IngestRepo.all()
+      |> Enum.reduce(acc, fn row, inner_acc ->
+        Map.update(inner_acc, row.id, row, fn existing ->
+          if NaiveDateTime.after?(row.inserted_at, existing.inserted_at), do: row, else: existing
+        end)
+      end)
+    end)
   end
 
   defp generate_test_case_id(project_id, name, module_name, suite_name) do
@@ -961,7 +996,8 @@ defmodule Tuist.Tests do
         get_test_case_run_data(test, test_modules)
       end
 
-    existing_test_cases = get_all_project_test_cases(test.project_id)
+    test_case_ids = collect_test_case_ids(test.project_id, test_modules)
+    existing_test_cases = get_existing_test_cases(test.project_id, test_case_ids)
 
     test_case_run_data_by_module =
       Enum.group_by(
@@ -1557,6 +1593,12 @@ defmodule Tuist.Tests do
     end)
   end
 
+  # `inserted_at` is added alongside `ran_at` so the partition pruner can skip
+  # months outside the window. `test_case_runs` is `PARTITION BY
+  # toYYYYMM(inserted_at)` and `ran_at` is not a partition key. Rows with
+  # `inserted_at < ran_at` would not exist (insert happens after the run
+  # completes), so this never excludes a row that the `ran_at` window would
+  # have included.
   defp active_test_case_ids_query(project_id, {start_datetime, end_datetime}, is_ci) do
     start_naive = DateTime.to_naive(start_datetime)
     end_naive = DateTime.to_naive(end_datetime)
@@ -1567,6 +1609,7 @@ defmodule Tuist.Tests do
           run.project_id == ^project_id and
             run.ran_at >= ^start_naive and
             run.ran_at <= ^end_naive and
+            run.inserted_at >= ^start_naive and
             not is_nil(run.test_case_id),
         group_by: run.test_case_id,
         select: %{test_case_id: run.test_case_id}

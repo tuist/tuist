@@ -371,6 +371,11 @@ defmodule Tuist.Tests.Analytics do
     }
   end
 
+  # `uniq` (HyperLogLog, ~2% relative error) replaces `uniqExact` here because
+  # this is a chart count rendered per bucket on a dashboard. Small error is
+  # acceptable, and `uniq` is materially cheaper than reading and hashing every
+  # row exactly. Also filters `inserted_at` alongside `ran_at` so the partition
+  # pruner can skip months outside the window.
   defp active_test_cases_count(project_id, endpoint, window_seconds, is_ci) do
     window_start = DateTime.add(endpoint, -window_seconds, :second)
 
@@ -378,7 +383,8 @@ defmodule Tuist.Tests.Analytics do
       where: tcr.project_id == ^project_id,
       where: tcr.ran_at >= ^window_start,
       where: tcr.ran_at <= ^endpoint,
-      select: fragment("uniqExact(?)", tcr.test_case_id)
+      where: tcr.inserted_at >= ^window_start,
+      select: fragment("uniq(?)", tcr.test_case_id)
     )
     |> apply_is_ci_filter(is_ci)
     |> ClickHouseRepo.one() || 0
