@@ -147,28 +147,39 @@
         <button id="add-server-trigger" type="button" style="display: none;" {modal_attrs}></button>
       </:trigger>
 
+      <%!--
+      Plain <select> instead of Noora's <.select> because Noora's
+      select is driven by a phx-hook (NooraSelect) that builds a
+      custom dropdown UI and doesn't reliably serialize through
+      LiveView's form submission — its hidden native select drops out
+      of the form payload after the hook mutates the DOM. The plain
+      element guarantees the value lands in the submit params and
+      stays styled via the .add-server-form CSS.
+      --%>
       <div class="select-field">
         <.label label="Cluster" required />
-        <.select
-          id="add-server-cluster"
-          name="server[cluster_id]"
-          value={@add_server_form[:cluster_id].value}
-          label="Cluster"
-        >
-          <:item :for={cluster <- @kura_clusters} value={cluster.id} label={"#{cluster.id} · #{cluster.region}"} />
-        </.select>
+        <select id="add-server-cluster" name="server[cluster_id]" required>
+          <option
+            :for={cluster <- @kura_clusters}
+            value={cluster.id}
+            selected={cluster.id == @add_server_form[:cluster_id].value}
+          >
+            {cluster.id} · {cluster.region}
+          </option>
+        </select>
       </div>
 
       <div class="select-field">
         <.label label="Spec" required />
-        <.select
-          id="add-server-spec"
-          name="server[spec]"
-          value={@add_server_form[:spec].value}
-          label="Spec"
-        >
-          <:item :for={spec <- @kura_specs} value={Atom.to_string(spec.id)} label={spec.label} />
-        </.select>
+        <select id="add-server-spec" name="server[spec]" required>
+          <option
+            :for={spec <- @kura_specs}
+            value={Atom.to_string(spec.id)}
+            selected={Atom.to_string(spec.id) == @add_server_form[:spec].value}
+          >
+            {spec.label}
+          </option>
+        </select>
       </div>
 
       <.text_input
