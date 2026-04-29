@@ -487,12 +487,10 @@ jobs:
     name: Build Acceptance Tests
     runs-on: namespace-profile-default-macos
     timeout-minutes: 60
-    # `tuist test --build-only --shard-total --shard-granularity suite`
-    # registers a shard plan on the configured server. The test shards
-    # query that plan by reference; if the plan lives on canary but the
-    # tests run against the preview cluster, lookup 404s with "shard plan
-    # not found". Build against the same cluster the tests use.
-    needs: cli-acceptance-cluster
+    # Build runs against the default tuist server (canary). Only the one
+    # cluster-bound test (InspectAcceptanceTests.build) reads the cluster
+    # URL via TUIST_ACCEPTANCE_URL on the test step; the rest of the
+    # acceptance suite + shard-plan registration stay on canary.
     # TEMP (this PR only): drop the `draft == false` gate so the docker build and
     # acceptance tests run on draft PRs while we exercise the new pipeline.
     # Restore the gate before merge.
@@ -537,24 +535,8 @@ jobs:
         run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidation -bool YES
       - name: Download Metal Toolchain
         run: xcodebuild -downloadComponent MetalToolchain
-      - name: Authenticate against acceptance cluster
-        # The shard plan registered by `tuist test --build-only` lives on
-        # the server identified by TUIST_URL. We point it at the preview
-        # cluster so the test shards (which run with the same TUIST_URL)
-        # can find the plan.
-        env:
-          TUIST_URL: ${{ needs.cli-acceptance-cluster.outputs.url }}
-        run: tuist auth login --email tuistrocks@tuist.dev --password tuistrocks
       - name: Build tests
         id: shard
-        env:
-          TUIST_URL: ${{ needs.cli-acceptance-cluster.outputs.url }}
-          # The acceptance cluster runs without the cache helm component
-          # (the cache pod's Exqlite repo can't open its DB on the
-          # preview cluster's CSI volumes). The CLI errors out on
-          # "No cache endpoints are available." when caching is on; turn
-          # it off for the cluster-bound build + test path.
-          TUIST_ENABLE_CACHING: "0"
         run: tuist test --build-only --shard-total 2 --shard-granularity suite TuistAcceptanceTests
 
   cli-acceptance-tests:
@@ -616,26 +598,24 @@ jobs:
           security default-keychain -s $KEYCHAIN_PATH
           security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
       - name: Authenticate against acceptance cluster
-        # The earlier `tuist auth login` step authenticates against the
-        # default tuist server (canary). `tuist test` then tries to upload
-        # run metadata to TUIST_URL (our preview cluster), where it has no
-        # session — the request 401s. Authenticate against the preview
-        # cluster URL too so credentials get saved for that host.
+        # Only the cluster-bound test (InspectAcceptanceTests.build) needs
+        # this — its trait calls LoginCommand programmatically against
+        # TUIST_ACCEPTANCE_URL, but persisting a session for that host up
+        # front saves a round-trip and matches the canary auth pattern.
         env:
           TUIST_URL: ${{ needs.cli-acceptance-cluster.outputs.url }}
-          TUIST_AUTH_EMAIL: tuistrocks@tuist.dev
-          TUIST_AUTH_PASSWORD: tuistrocks
         run: tuist auth login --email tuistrocks@tuist.dev --password tuistrocks
       - name: Run shard ${{ matrix.shard }}
         run: tuist test --without-building --platform macOS TuistAcceptanceTests -- -retry-tests-on-failure -test-iterations 2
         env:
           TUIST_SHARD_INDEX: ${{ matrix.shard }}
-          TUIST_URL: ${{ needs.cli-acceptance-cluster.outputs.url }}
+          # TUIST_URL is left unset so the suite runs against canary by
+          # default (where shard plans + run-metadata uploads are
+          # registered). The single cluster-bound test reads
+          # TUIST_ACCEPTANCE_URL instead via withFixtureConnectedToAcceptanceCluster.
+          TUIST_ACCEPTANCE_URL: ${{ needs.cli-acceptance-cluster.outputs.url }}
           TUIST_AUTH_EMAIL: tuistrocks@tuist.dev
           TUIST_AUTH_PASSWORD: tuistrocks
-          # Cache is disabled in the acceptance cluster (see Build tests
-          # step above); the CLI must not query cache endpoints.
-          TUIST_ENABLE_CACHING: "0"
 
   # Teardown the helm release + namespace once the test shards finish (or fail,
   # or get cancelled). preview-sweep.yml's TTL annotation is the backstop, but

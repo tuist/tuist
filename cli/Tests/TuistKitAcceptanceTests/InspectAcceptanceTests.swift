@@ -16,18 +16,22 @@ import TuistTesting
 
 struct InspectAcceptanceTests {
     @Test(
+        .disabled(
+            if: ProcessInfo.processInfo.environment["TUIST_ACCEPTANCE_URL"] == nil,
+            "Requires the per-PR acceptance helm release (TUIST_ACCEPTANCE_URL). The CI workflow boots a kind+helm tuist server on Pedro's preview cluster and feeds the URL through this env var; without it, the test has nowhere to upload + verify the build."
+        ),
         .inTemporaryDirectory,
-        .withMockedEnvironment(inheritingVariables: ["PATH", "TUIST_URL"]),
+        .withMockedEnvironment(inheritingVariables: ["PATH", "TUIST_ACCEPTANCE_URL"]),
         .withMockedNoora,
         .withMockedLogger(forwardLogs: true),
-        .withFixtureConnectedToCanary("xcode_project_with_inspect_build")
+        .withFixtureConnectedToAcceptanceCluster("xcode_project_with_inspect_build")
     )
     func build() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let fullHandle = try #require(TuistTest.fixtureFullHandle)
         let serverURL = try #require(
-            URL(string: Environment.current.variables["TUIST_URL"] ?? "https://canary.tuist.dev")
+            URL(string: try #require(Environment.current.variables["TUIST_ACCEPTANCE_URL"]))
         )
 
         try await TuistTest.run(
