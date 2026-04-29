@@ -16,8 +16,8 @@ defmodule Tuist.ContentFileWatcher do
     extensions = Keyword.fetch!(opts, :extensions)
     cache = Keyword.fetch!(opts, :cache)
 
-    {:ok, watcher_pid} = FileSystem.start_link(dirs: dirs)
-    FileSystem.subscribe(watcher_pid)
+    {:ok, watcher_pid} = file_system().start_link(dirs: dirs)
+    file_system().subscribe(watcher_pid)
 
     {:ok, %{cache: cache, extensions: extensions, reload_timer: nil, watcher_pid: watcher_pid}}
   end
@@ -45,4 +45,6 @@ defmodule Tuist.ContentFileWatcher do
   end
 
   defp schedule_reload(state), do: state
+
+  defp file_system, do: Module.concat([FileSystem])
 end
