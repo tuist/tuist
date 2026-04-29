@@ -20,11 +20,12 @@ server:
   podDisruptionBudget:
     enabled: false
 
-  strategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxSurge: 0
-      maxUnavailable: 1
+  # Inherit the chart-default surge strategy. The previous terminate-first
+  # override (maxSurge: 0, maxUnavailable: 1) made ingress-nginx 503 on
+  # CLI test traffic during the ~30s boot window of every canary deploy,
+  # because replicaCount: 1 leaves no healthy upstream. The surge pod's
+  # memory request below is sized so it can co-schedule with the existing
+  # pod on the 2-worker canary nodepool.
 
   # ingress-nginx fronts the server on port 443 with a Cloudflare Origin
   # CA cert (synced into the tuist-tls-cloudflare-origin Secret out-of-
@@ -35,15 +36,16 @@ server:
     host: canary.tuist.dev
     tlsSecretName: tuist-tls-cloudflare-origin
 
-  # Canary is always a single pod, so no anti-affinity here.
-  # Requests are sized so a rolling deploy's surge pod (maxSurge: 1) fits
-  # alongside the existing pod on the canary nodepool's two workers — at
-  # 1 GiB each they don't both fit. Limits stay generous so the live pod
-  # has headroom under load.
+  # Single pod outside of rolling deploys, so no anti-affinity here. The
+  # request is intentionally well below the steady-state working set
+  # (~700 MiB observed); the limit keeps the live pod with headroom. The
+  # 2-worker nodepool's free-memory budget is too tight for two 512 MiB
+  # requests to co-schedule, which is why the previous strategy override
+  # existed.
   resources:
     requests:
       cpu: "250m"
-      memory: "512Mi"
+      memory: "256Mi"
     limits:
       cpu: "2000m"
       memory: "2Gi"
