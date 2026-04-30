@@ -80,7 +80,7 @@ defmodule TuistWeb.API.Internal.AuthController do
   end
 
   defp require_kura_caller(conn, _opts) do
-    expected = Tuist.Environment.kura_verify_token()
+    expected = Tuist.Environment.cache_api_key()
     presented = bearer(conn)
 
     cond do
