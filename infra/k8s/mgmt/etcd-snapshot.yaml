@@ -1,0 +1,101 @@
+# Hourly etcd snapshot of the management cluster, uploaded to Tigris
+# (S3-compatible). Talos has no built-in S3 snapshot upload (k3s does;
+# Talos doesn't), so we run this as a CronJob.
+#
+# Restore from a snapshot is a manual operation: provision a fresh Talos
+# VM with the same machine config, then `talosctl etcd recover --from-bucket`
+# (or `talosctl etcd snapshot restore` from a downloaded .db). Both are
+# documented in https://www.talos.dev/v1.7/talos-guides/install/cloud-platforms/.
+#
+# Expects two pre-existing Secrets in mgmt-system:
+#   - talos-snapshotter-config: a restricted talosconfig (role
+#     os:etcd:backup): see infra/k8s/self-hosted-migration.md §1.8
+#   - tigris-credentials: bucket-scoped Tigris keys
+#     (access_key_id + secret_access_key fields)
+#
+# Bucket lifecycle policy on the Tigris side enforces 7-day retention,
+# so this CronJob doesn't have to manage cleanup.
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: mgmt-system
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: etcd-snapshot
+  namespace: mgmt-system
+spec:
+  schedule: "0 * * * *"
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 600
+      template:
+        spec:
+          restartPolicy: OnFailure
+          # Pin to the control-plane node (we have one, but be explicit
+          # so a future scale-out doesn't surprise the snapshotter).
+          tolerations:
+            - key: node-role.kubernetes.io/control-plane
+              operator: Exists
+              effect: NoSchedule
+          nodeSelector:
+            node-role.kubernetes.io/control-plane: ""
+          # Talos exposes the API on the host network at :50000.
+          hostNetwork: true
+          dnsPolicy: ClusterFirstWithHostNet
+          initContainers:
+            - name: snapshot
+              image: ghcr.io/siderolabs/talosctl:v1.13.0
+              args:
+                - --talosconfig=/talosconfig/talosconfig
+                - --nodes=127.0.0.1
+                - etcd
+                - snapshot
+                - /share/snapshot.db
+              volumeMounts:
+                - name: talosconfig
+                  mountPath: /talosconfig
+                  readOnly: true
+                - name: share
+                  mountPath: /share
+          containers:
+            - name: upload
+              image: amazon/aws-cli:2.17.0
+              command:
+                - sh
+                - -c
+                - |
+                  set -eu
+                  TS=$(date -u +%Y-%m-%dT%H-%M-%SZ)
+                  aws --endpoint-url=https://fly.storage.tigris.dev \
+                    s3 cp /share/snapshot.db \
+                    s3://tuist-mgmt-etcd-snapshots/etcd-${TS}.db
+              env:
+                - name: AWS_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: tigris-credentials
+                      key: access_key_id
+                - name: AWS_SECRET_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: tigris-credentials
+                      key: secret_access_key
+                - name: AWS_DEFAULT_REGION
+                  value: auto
+              volumeMounts:
+                - name: share
+                  mountPath: /share
+                  readOnly: true
+          volumes:
+            - name: talosconfig
+              secret:
+                secretName: talos-snapshotter-config
+            - name: share
+              emptyDir: {}

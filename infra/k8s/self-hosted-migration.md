@@ -13,9 +13,10 @@ This document is a one-time migration plan. The successor onboarding doc (replac
 ## Decisions locked
 
 1. **Management cluster hosting**: separate Hetzner Cloud project (`tuist-mgmt`), isolated blast radius from the prod workload project.
-2. **Management cluster shape**: single CCX13 VM (€16/mo) running [k3s](https://k3s.io) with embedded etcd. Cattle, not pet: rebuilt from manifests + an etcd snapshot in ~30 min if it dies.
+2. **Management cluster shape**: single CCX13 VM (€16/mo) running [Talos Linux](https://www.talos.dev) as a single-node Kubernetes control plane (etcd embedded in the kubelet's static-pod manifests, scheduling allowed on the control plane). Cattle, not pet: rebuilt from machine config + an etcd snapshot in ~30 min if it dies. Talos is immutable, configured declaratively via `talosctl apply-config`, no SSH.
 3. **CA topology**: per-workload-cluster, exactly the shape [#10571](https://github.com/tuist/tuist/pull/10571) wires (CA runs in the workload cluster, talks to the management cluster via a kubeconfig Secret).
-4. **SSO replacement**: per-person kubeconfigs distributed via 1Password (we already use ESO + 1Password everywhere). No Tailscale dependency to introduce.
+4. **SSO replacement**: per-person kubeconfigs + talosconfigs distributed via 1Password (we already use ESO + 1Password everywhere). No Tailscale dependency to introduce.
+5. **Workload-cluster runtime stays kubeadm-based.** Talos is the mgmt cluster only. The four workload clusters keep using the `hetzner-apalla-1-34-v6` ClusterStack (kubeadm via cloud-stack-operator). Two distributions to operate, but the boundary is clean: Talos on the controller node only.
 
 ## Scope and non-scope
 
@@ -29,87 +30,141 @@ This document is a one-time migration plan. The successor onboarding doc (replac
 
 - A Hetzner Cloud account with permission to create a new project.
 - The current Syself management-cluster kubeconfig (per-person OIDC, used during `clusterctl move`).
-- CLI tools installed via mise:
+- CLI tools:
   ```bash
-  mise use -g kubectl helm clusterctl
+  mise use -g kubectl helm clusterctl talosctl
   ```
+  Plus [`hcloud-upload-image`](https://github.com/apricote/hcloud-upload-image) (one-time install: `go install github.com/apricote/hcloud-upload-image@latest` or grab the binary from the release page).
 - The 1Password CLI (`op`).
-- An existing Tigris bucket for etcd snapshots, or willingness to create one in this migration.
+- A Tigris bucket for etcd snapshots (we'll create one in §1.8 if it doesn't exist yet).
 
 ## Phase 1: Stand up the management cluster
 
-### 1.1 Hetzner project + secrets
+### 1.1 Hetzner project + token
+
+In the Hetzner Cloud console:
+1. Create a new project named `tuist-mgmt`. Switch into it.
+2. Security → API tokens → Generate API token. Permission is read+write (only option). Name it `tuist-mgmt-caph`.
+
+Save the token to 1Password:
 
 ```bash
-# In the Hetzner Cloud console:
-#   1. Create project: tuist-mgmt
-#   2. Generate API token (read+write)
-#   3. Upload an SSH key
-
 op item create --vault Founders --category='API Credential' \
   --title='hetzner-tuist-mgmt' \
   credential='<paste token>'
-
-ssh-keygen -t ed25519 -f ~/.ssh/tuist-mgmt -N ''
-# Upload .pub via Hetzner Cloud → Security → SSH Keys.
 ```
 
-### 1.2 Provision the management VM
+No SSH key needed. Talos doesn't run an SSH daemon; all node operations go through `talosctl` over its own mTLS API on `:50000`.
 
-One CCX13 in `fsn1`, public IP, the SSH key just uploaded.
+### 1.2 Upload a Talos snapshot to Hetzner Cloud
+
+Hetzner Cloud only boots its own images, so we publish a Talos disk image as a Hetzner Cloud snapshot first. One-time per Talos version.
+
+The Talos image factory builds Talos with the extensions you specify. We don't need any extensions for the mgmt cluster: vanilla Talos has Hetzner support built in. The vanilla schematic id is `376567988ad370138ad8b2698212367b8edcb69b5fd68c80be1f2ec7d603b4ba` (visit <https://factory.talos.dev> if you want to add extensions later).
 
 ```bash
-# Variables.
-HCLOUD_TOKEN="$(op read 'op://Founders/hetzner-tuist-mgmt/credential')"
+export HCLOUD_TOKEN="$(op read 'op://Founders/hetzner-tuist-mgmt/credential')"
 
-# Create the VM via API (or Cloud console). CCX13 = 2 dedicated vCPU, 8 GiB,
-# enough headroom for k3s + CAPI controllers + a buffer for future tooling.
-curl -sX POST https://api.hetzner.cloud/v1/servers \
-  -H "Authorization: Bearer $HCLOUD_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "tuist-mgmt",
-    "server_type": "ccx13",
-    "image": "ubuntu-24.04",
-    "location": "fsn1",
-    "ssh_keys": ["tuist-mgmt"],
-    "public_net": {"enable_ipv4": true, "enable_ipv6": true}
-  }' | jq '.server.public_net.ipv4.ip'
-# Save the IP as MGMT_IP for the next steps.
+export TALOS_VERSION=v1.13.0
+export TALOS_SCHEMATIC=376567988ad370138ad8b2698212367b8edcb69b5fd68c80be1f2ec7d603b4ba
+
+hcloud-upload-image upload \
+  --image-url "https://factory.talos.dev/image/${TALOS_SCHEMATIC}/${TALOS_VERSION}/hcloud-amd64.raw.xz" \
+  --architecture x86 \
+  --description "talos-${TALOS_VERSION}"
+
+# Output includes the snapshot id. Capture it.
+hcloud image list --type snapshot --output noheader -o columns=id,description \
+  | grep "talos-${TALOS_VERSION}" | awk '{print $1}'
 ```
 
-### 1.3 Install k3s
+Save the snapshot id; we'll reference it in §1.3.
 
-Install k3s directly via SSH using the canonical installer. Disable Traefik (we don't need ingress on the mgmt cluster) and ServiceLB (no LoadBalancer services).
+### 1.3 Provision the VM and apply the Talos machine config
 
 ```bash
-export MGMT_IP=<ip from previous step>
+export TALOS_IMAGE_ID=<snapshot id from 1.2>
 
-ssh -i ~/.ssh/tuist-mgmt -o StrictHostKeyChecking=accept-new root@$MGMT_IP \
-  'curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="--disable=traefik --disable=servicelb --write-kubeconfig-mode=0644" sh -'
+# Create the server from the Talos snapshot. CCX13 = 2 dedicated vCPU, 8 GiB.
+hcloud server create \
+  --name tuist-mgmt \
+  --type ccx13 \
+  --image "$TALOS_IMAGE_ID" \
+  --location fsn1 \
+  --output json \
+  | tee /tmp/tuist-mgmt-create.json \
+  | jq -r '"server_id=\(.server.id) ip=\(.server.public_net.ipv4.ip)"'
 
-# Pull the kubeconfig back, rewrite the embedded server URL from
-# 127.0.0.1 to the public IP, and cache locally.
-ssh -i ~/.ssh/tuist-mgmt root@$MGMT_IP 'cat /etc/rancher/k3s/k3s.yaml' \
-  | sed "s/127.0.0.1/$MGMT_IP/" > ~/.kube/tuist-mgmt.yaml
+export MGMT_SERVER_ID=$(jq -r '.server.id' /tmp/tuist-mgmt-create.json)
+export MGMT_IP=$(jq -r '.server.public_net.ipv4.ip' /tmp/tuist-mgmt-create.json)
+
+# Wait for Talos to boot into maintenance mode (~30s).
+until talosctl --nodes "$MGMT_IP" --insecure version --short 2>/dev/null; do sleep 5; done
+
+# Generate machine config (controlplane + worker + talosconfig). For a
+# single-node cluster, we only use controlplane.yaml, plus a patch to
+# allow scheduling on the control plane.
+mkdir -p /tmp/tuist-mgmt-config
+talosctl gen config tuist-mgmt "https://${MGMT_IP}:6443" \
+  --output-dir /tmp/tuist-mgmt-config \
+  --with-docs=false \
+  --with-examples=false \
+  --config-patch '[
+    {"op": "add", "path": "/cluster/allowSchedulingOnControlPlanes", "value": true},
+    {"op": "add", "path": "/cluster/proxy", "value": {"disabled": false}}
+  ]'
+
+# Apply the controlplane config (insecure = trust on first use; thereafter
+# the talosconfig has client certs and we drop --insecure).
+talosctl apply-config --insecure \
+  --nodes "$MGMT_IP" \
+  --file /tmp/tuist-mgmt-config/controlplane.yaml
+
+# Bootstrap etcd (single member quorum).
+export TALOSCONFIG=/tmp/tuist-mgmt-config/talosconfig
+talosctl config endpoint "$MGMT_IP"
+talosctl config node "$MGMT_IP"
+until talosctl bootstrap; do sleep 5; done
+
+# Pull the kubeconfig.
+talosctl kubeconfig ~/.kube/tuist-mgmt.yaml
 chmod 600 ~/.kube/tuist-mgmt.yaml
 
 export KUBECONFIG=~/.kube/tuist-mgmt.yaml
+until kubectl get nodes 2>/dev/null | grep -q Ready; do sleep 5; done
 kubectl get nodes
-# Expect 1 Ready control-plane.
+# Expect 1 Ready node, both control-plane and worker roles.
 ```
 
-### 1.4 Lock down the API server
+Stash the talosconfig and kubeconfig in 1Password:
 
-`:22` is allowlisted to operator IPs. `:6443` is left public, gated by k3s's x509 client-cert auth.
+```bash
+op document create /tmp/tuist-mgmt-config/talosconfig \
+  --vault Founders --title 'talosconfig: tuist-mgmt'
+op document create ~/.kube/tuist-mgmt.yaml \
+  --vault Founders --title 'kubeconfig: tuist-mgmt'
 
-The reason `:6443` isn't allowlisted: cluster-autoscaler runs in each workload cluster and talks to the mgmt API from its node's IP. CAPI replaces nodes on scale and health events, so per-node allowlisting isn't maintainable. Hetzner Cloud Networks would solve it (private API), but cross-project networks don't exist and we locked mgmt into a separate Hetzner project for blast-radius isolation. Cert auth is robust enough on its own; we accept the trade.
+# Wipe local generated configs once they're in 1Password (they hold
+# admin certs).
+shred -u /tmp/tuist-mgmt-config/controlplane.yaml \
+        /tmp/tuist-mgmt-config/worker.yaml \
+        /tmp/tuist-mgmt-config/talosconfig
+```
+
+### 1.4 Lock down the API endpoints
+
+Two ports on the VM matter:
+- `:50000`: talosctl API (machine config, etcd snapshots, system logs). Operator-IP allowlist.
+- `:6443`: kube-apiserver. Public + x509 client-cert auth.
+
+The reason `:6443` isn't allowlisted: cluster-autoscaler runs in each workload cluster and talks to the mgmt API from its node's IP. CAPI replaces nodes on scale and health events, so per-node allowlisting isn't maintainable. Hetzner Cloud Networks would solve it (private API) but cross-project networks don't exist and we locked mgmt into a separate Hetzner project for blast-radius isolation. Cert auth is robust enough on its own; we accept the trade.
+
+Talos's etcd ports (`:2379`, `:2380`) and kubelet API (`:10250`) are exposed only on the loopback / node interface by default; no firewall rule needed to keep them off the public internet.
 
 ```bash
 HCLOUD_TOKEN="$(op read 'op://Founders/hetzner-tuist-mgmt/credential')"
-MGMT_SERVER_ID=<id from §1.2 server-create response>
 
-# Operator IPs to allowlist for SSH. Add more as the team grows.
+# Operator IPs to allowlist for talosctl. Add more as the team grows.
 OPERATOR_IPS='["<your-ip>/32"]'
 
 curl -sX POST https://api.hetzner.cloud/v1/firewalls \
@@ -118,19 +173,11 @@ curl -sX POST https://api.hetzner.cloud/v1/firewalls \
   -d "$(jq -n --argjson ops "$OPERATOR_IPS" --argjson sid "$MGMT_SERVER_ID" '{
     name: "tuist-mgmt",
     rules: [
-      {direction: "in", protocol: "tcp", port: "22",   source_ips: $ops},
-      {direction: "in", protocol: "tcp", port: "6443", source_ips: ["0.0.0.0/0", "::/0"]}
+      {direction: "in", protocol: "tcp", port: "50000", source_ips: $ops},
+      {direction: "in", protocol: "tcp", port: "6443",  source_ips: ["0.0.0.0/0", "::/0"]}
     ],
     apply_to: [{type: "server", server: {id: $sid}}]
   }')"
-```
-
-Distribute the kubeconfig to each operator via 1Password:
-
-```bash
-op document create ~/.kube/tuist-mgmt.yaml \
-  --vault Founders \
-  --title 'kubeconfig: tuist-mgmt'
 ```
 
 ### 1.5 Initialize CAPI + caph + cluster-stack-operator
@@ -197,41 +244,46 @@ kubectl -n org-tuist get clusterstackrelease -w
 
 ### 1.8 etcd snapshots → Tigris
 
-k3s has built-in etcd snapshots via S3. Hourly cadence, retention 168 (= 7 days). Bucket `tuist-mgmt-etcd-snapshots`, dedicated bucket-scoped access key in 1Password as `tigris-tuist-mgmt-etcd` with `access_key_id` + `secret_access_key` fields.
+Talos doesn't ship with built-in S3 snapshot upload (k3s does; Talos doesn't). The standard pattern is an in-cluster `CronJob` that calls `talosctl etcd snapshot` against the node and uploads the resulting `.db` file to S3. Hourly cadence, retention 168 (= 7 days, enforced by Tigris bucket lifecycle policy). Bucket `tuist-mgmt-etcd-snapshots`, bucket-scoped access key in 1Password as `tigris-tuist-mgmt-etcd` with `access_key_id` + `secret_access_key` fields.
 
-Create the bucket + scoped key in the Tigris dashboard first, save the keys to 1Password, then on the mgmt VM:
+**1. Tigris setup.** Create the bucket + a bucket-scoped access key in the Tigris dashboard. Add a lifecycle rule that deletes objects older than 7 days. Save the keys to 1Password.
 
-```bash
-ssh -i ~/.ssh/tuist-mgmt root@$MGMT_IP
-
-# Pull the keys from 1Password (run from your laptop, paste into the SSH session
-# or use a temp script; don't bake the values into shell history).
-TIGRIS_KEY="$(op read 'op://Founders/tigris-tuist-mgmt-etcd/access_key_id')"
-TIGRIS_SECRET="$(op read 'op://Founders/tigris-tuist-mgmt-etcd/secret_access_key')"
-
-mkdir -p /etc/rancher/k3s
-cat > /etc/rancher/k3s/config.yaml <<EOF
-etcd-snapshot-schedule-cron: '0 * * * *'
-etcd-snapshot-retention: 168
-etcd-s3: true
-etcd-s3-endpoint: fly.storage.tigris.dev
-etcd-s3-bucket: tuist-mgmt-etcd-snapshots
-etcd-s3-access-key: $TIGRIS_KEY
-etcd-s3-secret-key: $TIGRIS_SECRET
-EOF
-chmod 600 /etc/rancher/k3s/config.yaml
-
-systemctl restart k3s
-```
-
-Verify the first snapshot:
+**2. Generate a restricted talosconfig** for the snapshotter (role `os:etcd:backup` covers `etcd snapshot` and nothing else):
 
 ```bash
-kubectl get etcdsnapshotfile
-# Expect at least one entry within the next hour.
+export TALOSCONFIG="$(op read 'op://Founders/talosconfig: tuist-mgmt/document')"
+talosctl config new --roles os:etcd:backup /tmp/snapshotter-talosconfig
 ```
 
-The mgmt cluster's etcd holds CAPI CRs, Secrets, and ClusterStack state; everything `clusterctl move` would replay if we ever rebuild from a snapshot. The workload clusters' own etcds (per-cluster KubeadmControlPlane quorums) are *not* covered by this; that's intentional, since workload clusters hold no state we can't reconstruct from Helm + ESO + 1Password. If a stateful in-cluster service ever lands, revisit.
+**3. Apply the CronJob and Secrets.** The manifest is checked in at [`infra/k8s/mgmt/etcd-snapshot.yaml`](mgmt/etcd-snapshot.yaml). It expects two Secrets: `talos-snapshotter-config` (the restricted talosconfig from step 2) and `tigris-credentials` (Tigris access key).
+
+```bash
+export KUBECONFIG=~/.kube/tuist-mgmt.yaml
+kubectl create namespace mgmt-system
+
+kubectl -n mgmt-system create secret generic talos-snapshotter-config \
+  --from-file=talosconfig=/tmp/snapshotter-talosconfig
+
+kubectl -n mgmt-system create secret generic tigris-credentials \
+  --from-literal=access_key_id="$(op read 'op://Founders/tigris-tuist-mgmt-etcd/access_key_id')" \
+  --from-literal=secret_access_key="$(op read 'op://Founders/tigris-tuist-mgmt-etcd/secret_access_key')"
+
+kubectl apply -f infra/k8s/mgmt/etcd-snapshot.yaml
+
+shred -u /tmp/snapshotter-talosconfig
+```
+
+Verify the first run within an hour:
+
+```bash
+kubectl -n mgmt-system get cronjob etcd-snapshot
+kubectl -n mgmt-system logs -l job-name --tail=50
+# Or trigger immediately:
+kubectl -n mgmt-system create job --from=cronjob/etcd-snapshot etcd-snapshot-manual
+kubectl -n mgmt-system logs job/etcd-snapshot-manual
+```
+
+The mgmt cluster's etcd holds CAPI CRs, Secrets, and ClusterStack state: everything `clusterctl move` would replay if we ever rebuild from a snapshot. The workload clusters' own etcds (per-cluster KubeadmControlPlane quorums) are *not* covered by this; that's intentional, since workload clusters hold no state we can't reconstruct from Helm + ESO + 1Password. If a stateful in-cluster service ever lands, revisit.
 
 ---
 
@@ -504,8 +556,8 @@ Only after all four clusters have soaked on our mgmt cluster for ≥1 week and C
 
 | Activity | Cadence | Owner | Notes |
 |---|---|---|---|
-| OS patching of the mgmt VM | Monthly | Agent PR + human review | `apt update && apt upgrade && reboot`; mgmt cluster downtime is fine, workload clusters keep serving |
-| caph + CSO upgrade | Quarterly | Agent PR + human review | Match upstream releases; test in staging by re-pointing to a throwaway mgmt cluster first |
+| Talos image upgrade for the mgmt VM | Monthly | Agent PR + human review | `talosctl upgrade --image=...`; Talos is immutable and atomic: bumps replace the running image, ~2 min of mgmt API downtime per upgrade. No `apt`. Workload clusters keep serving. |
+| caph + CSO upgrade | Quarterly | Agent PR + human review | Match upstream releases; test by spinning up a throwaway Talos VM with the same machine config, applying the upgrade, then promoting |
 | CAPI minor upgrade | ~Yearly | Engineer + agent | `clusterctl upgrade plan` then `clusterctl upgrade apply`; do alongside K8s minor bumps |
 | Kubernetes minor bump (4 clusters) | Yearly | Engineer + agent | Bump `ClusterStack` version + each Cluster CR's `topology.version`; staging → canary → production over a few days |
 | Etcd snapshot restore drill | Quarterly | Agent + supervise | Spin up a throwaway VM, restore the latest Tigris snapshot, confirm `kubectl get clusters` returns the expected state |
@@ -520,7 +572,7 @@ Steady state: ~1–2h/month of engineer time with agent execution, plus a half-d
 
 All four originally-open items have been settled and folded into the runbook:
 
-- **Firewall posture**: `:22` allowlisted to operator IPs, `:6443` public with cert auth. See §1.4 for why allowlisting `:6443` isn't tenable when CAPI replaces nodes.
+- **Firewall posture**: `:50000` (talosctl) allowlisted to operator IPs, `:6443` public with cert auth. No SSH (Talos has no SSH daemon). See §1.4 for why allowlisting `:6443` isn't tenable when CAPI replaces nodes.
 - **Hetzner token rotation**: post-migration as a Phase 6 hardening step, not during cutover. See §Phase 6 step 2.
 - **Tigris bucket**: `tuist-mgmt-etcd-snapshots`, retention 168 (7 days hourly), dedicated bucket-scoped key in 1Password as `tigris-tuist-mgmt-etcd`. See §1.8.
 - **Workload-cluster etcd backup**: explicitly accepted as a gap. Workload clusters hold no state we can't reconstruct from Helm + ESO + 1Password; recovery is `kubectl apply` against the Cluster CR + ~30 min for nodes to come up. Revisit if a stateful in-cluster service ever lands. See trailing paragraph in §1.8.
