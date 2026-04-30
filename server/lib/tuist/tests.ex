@@ -994,11 +994,17 @@ defmodule Tuist.Tests do
   # inserted_at, so we extract the month and add a toYYYYMM filter to prune all
   # but one partition (~8K rows read, ~35x improvement).
   defp uuidv7_to_yyyymm(uuid_string) do
-    hex = uuid_string |> String.replace("-", "") |> String.slice(0, 12)
-    timestamp_ms = String.to_integer(hex, 16)
+    uuid = String.replace(uuid_string, "-", "")
 
-    case DateTime.from_unix(timestamp_ms, :millisecond) do
-      {:ok, datetime} -> {:ok, datetime.year * 100 + datetime.month}
+    with 32 <- String.length(uuid),
+         "7" <- String.at(uuid, 12) do
+      timestamp_ms = uuid |> String.slice(0, 12) |> String.to_integer(16)
+
+      case DateTime.from_unix(timestamp_ms, :millisecond) do
+        {:ok, datetime} -> {:ok, datetime.year * 100 + datetime.month}
+        _ -> :error
+      end
+    else
       _ -> :error
     end
   rescue
@@ -1171,7 +1177,12 @@ defmodule Tuist.Tests do
         where: tcr.git_commit_sha == ^git_commit_sha,
         where: tcr.is_ci == true,
         where: tcr.status in ["success", "failure"],
-        select: %{id: tcr.id, test_case_id: tcr.test_case_id, status: tcr.status}
+        select: %{
+          id: tcr.id,
+          project_id: tcr.project_id,
+          test_case_id: tcr.test_case_id,
+          status: tcr.status
+        }
       )
 
     query
@@ -2147,17 +2158,22 @@ defmodule Tuist.Tests do
     }
   end
 
+  @mark_flaky_runs_batch_size 5_000
+
   defp mark_test_case_runs_as_flaky([]), do: :ok
 
   defp mark_test_case_runs_as_flaky(runs) when is_list(runs) do
-    ids = runs |> Enum.map(& &1.id) |> Enum.uniq()
-
     # FINAL is required because `test_case_runs` is a ReplacingMergeTree:
     # without it, a run that has already been re-inserted (e.g. previously
     # marked flaky) can return multiple versions for the same id until the
     # merge collapses them, and we'd re-insert every version.
+    # Keep the full-row fetch scoped; an id-only FINAL scan times out on large
+    # ClickHouse partitions during xcresult ingestion.
     full_runs =
-      ClickHouseRepo.all(from(tcr in TestCaseRun, hints: ["FINAL"], where: tcr.id in ^ids))
+      runs
+      |> Enum.uniq_by(& &1.id)
+      |> Enum.chunk_every(@mark_flaky_runs_batch_size)
+      |> Enum.flat_map(&fetch_full_test_case_runs/1)
 
     updated_runs =
       Enum.map(full_runs, fn run ->
