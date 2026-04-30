@@ -2218,7 +2218,7 @@ struct BuildPhaseGeneratorTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func generateLinks_generatesAlwaysOutOfDateShellScriptBuildPhase_when_macroFrameworkIsExclusiveToMacOS() async throws {
+    ) func generateLinks_generatesStampFileShellScriptBuildPhase_when_macroFrameworkIsExclusiveToMacOS() async throws {
         // Given
         let app = Target.test(name: "app", platform: .macOS, product: .app)
         let macroFramework = Target.test(name: "framework", platform: .macOS, product: .staticFramework)
@@ -2254,15 +2254,16 @@ struct BuildPhaseGeneratorTests {
             .compactMap { $0 as? PBXShellScriptBuildPhase }
             .first(where: { $0.name() == "Copy Swift Macro executable into $BUILT_PRODUCT_DIR" })
 
-        #expect(buildPhase?.outputPaths == [])
-        #expect(buildPhase?.alwaysOutOfDate == true)
+        #expect(buildPhase?.outputPaths == ["$(DERIVED_FILE_DIR)/copy-swift-macro.stamp"])
+        #expect(buildPhase?.alwaysOutOfDate == false)
+        #expect(buildPhase?.shellScript?.contains("touch \"$DERIVED_FILE_DIR/copy-swift-macro.stamp\"") == true)
     }
 
     @Test(
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func generateLinks_generatesAlwaysOutOfDateShellScriptBuildPhase_when_macroFrameworkIsMixedDestination() async throws {
+    ) func generateLinks_generatesStampFileShellScriptBuildPhase_when_macroFrameworkIsMixedDestination() async throws {
         // Given
         let app = Target.test(name: "app", destinations: [.iPhone, .mac], product: .app)
         let macroFramework = Target.test(name: "framework", destinations: [.iPhone, .mac], product: .staticFramework)
@@ -2298,8 +2299,9 @@ struct BuildPhaseGeneratorTests {
             .compactMap { $0 as? PBXShellScriptBuildPhase }
             .first(where: { $0.name() == "Copy Swift Macro executable into $BUILT_PRODUCT_DIR" })
 
-        #expect(buildPhase?.outputPaths == [])
-        #expect(buildPhase?.alwaysOutOfDate == true)
+        #expect(buildPhase?.outputPaths == ["$(DERIVED_FILE_DIR)/copy-swift-macro.stamp"])
+        #expect(buildPhase?.alwaysOutOfDate == false)
+        #expect(buildPhase?.shellScript?.contains("touch \"$DERIVED_FILE_DIR/copy-swift-macro.stamp\"") == true)
     }
 
     // MARK: - Helpers
