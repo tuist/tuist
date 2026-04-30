@@ -314,7 +314,11 @@ defmodule Tuist.Tests do
   defp normalize_ci_provider(provider) when is_atom(provider), do: Atom.to_string(provider)
 
   def create_test(attrs) do
-    attrs = normalize_string_keys(attrs)
+    attrs =
+      attrs
+      |> normalize_string_keys()
+      |> override_status_for_quarantined_failures()
+
     shard_plan_id = Map.get(attrs, :shard_plan_id)
 
     if is_nil(shard_plan_id) do
@@ -322,6 +326,58 @@ defmodule Tuist.Tests do
     else
       create_or_update_sharded_test(attrs)
     end
+  end
+
+  # When the only failing test cases are quarantined (muted), the run still
+  # passes from the user's perspective: CI exits 0, so the dashboard should
+  # mirror that. The CLI sends the raw failure aggregate plus an
+  # `is_quarantined` flag per case, leaving the server to compute the
+  # effective status. This also rewrites per-module/per-suite statuses so
+  # the run detail view stays consistent.
+  defp override_status_for_quarantined_failures(attrs) do
+    test_modules = Map.get(attrs, :test_modules, [])
+    all_test_cases = Enum.flat_map(test_modules, &Map.get(&1, :test_cases, []))
+
+    attrs
+    |> Map.put(:status, effective_status(Map.get(attrs, :status), all_test_cases))
+    |> Map.put(:test_modules, Enum.map(test_modules, &override_module_status/1))
+  end
+
+  defp override_module_status(module_attrs) do
+    test_cases = Map.get(module_attrs, :test_cases, [])
+    test_suites = Map.get(module_attrs, :test_suites, [])
+
+    module_attrs
+    |> Map.put(:status, effective_status(Map.get(module_attrs, :status), test_cases))
+    |> Map.put(:test_suites, Enum.map(test_suites, &override_suite_status(&1, test_cases)))
+  end
+
+  defp override_suite_status(suite_attrs, module_test_cases) do
+    suite_name = Map.get(suite_attrs, :name) || ""
+
+    suite_test_cases =
+      Enum.filter(module_test_cases, fn case_attrs ->
+        (Map.get(case_attrs, :test_suite_name) || "") == suite_name
+      end)
+
+    Map.put(suite_attrs, :status, effective_status(Map.get(suite_attrs, :status), suite_test_cases))
+  end
+
+  defp effective_status("failure", test_cases) do
+    cond do
+      not Enum.any?(test_cases, &(Map.get(&1, :status) == "failure")) -> "failure"
+      any_non_quarantined_failure?(test_cases) -> "failure"
+      true -> "success"
+    end
+  end
+
+  defp effective_status(status, _test_cases), do: status
+
+  defp any_non_quarantined_failure?(test_cases) do
+    Enum.any?(test_cases, fn case_attrs ->
+      Map.get(case_attrs, :status) == "failure" and
+        not Map.get(case_attrs, :is_quarantined, false)
+    end)
   end
 
   defp normalize_string_keys(%_{} = struct), do: struct
