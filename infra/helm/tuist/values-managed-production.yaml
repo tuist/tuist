@@ -104,7 +104,7 @@ processor:
       memory: "1Gi"
     limits:
       cpu: "2000m"
-      memory: "6Gi"
+      memory: "8Gi"
 
 # In-cluster Valkey backs the auth rate limiter (Hammer.Redis). The
 # chart wires TUIST_REDIS_URL to the embedded Service; without it the
