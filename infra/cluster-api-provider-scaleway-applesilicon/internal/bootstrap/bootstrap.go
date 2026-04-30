@@ -195,20 +195,31 @@ sudo chmod 0755 /usr/local/bin/tart-kubelet
 }
 
 // loadTartKubeletLaunchd writes /Library/LaunchDaemons/dev.tuist.tart-kubelet.plist
-// with this host's flags substituted in, then `launchctl bootstrap`s it
-// (replaces any prior load idempotently).
+// with this host's flags substituted in, fixes ownership on the
+// kubelet's writable paths so the SSH user owns them (the launchd job
+// runs as that user — see the comment in renderLaunchdPlist), then
+// `launchctl bootstrap`s it. Idempotent across reruns.
 func loadTartKubeletLaunchd(ctx context.Context, client *ssh.Client, cfg Config) error {
 	plist := renderLaunchdPlist(cfg)
-	script := `set -euo pipefail
+	script := fmt.Sprintf(`set -euo pipefail
 PLIST=/Library/LaunchDaemons/dev.tuist.tart-kubelet.plist
 sudo tee "$PLIST" >/dev/null
 sudo chown root:wheel "$PLIST"
 sudo chmod 0644 "$PLIST"
+# Apple's Virtualization.framework requires the calling process to be
+# owned by the user with the live GUI console session — see
+# renderLaunchdPlist's UserName field. Hand kubelet-writable paths to
+# that user so it can write VM logs / userdata / read its kubeconfig.
+sudo mkdir -p /var/log/tart-vms /var/lib/tart-userdata /etc/tart-kubelet
+sudo touch /var/log/tart-kubelet.log
+sudo chown -R %[1]s:staff /var/log/tart-vms /var/lib/tart-userdata /var/log/tart-kubelet.log
+sudo chown %[1]s:staff /etc/tart-kubelet/kubeconfig
+sudo chmod 0600 /etc/tart-kubelet/kubeconfig
 # launchctl bootstrap is the modern API; bootout first to make this
 # idempotent across reruns with new args.
 sudo launchctl bootout system "$PLIST" 2>/dev/null || true
 sudo launchctl bootstrap system "$PLIST"
-`
+`, shellQuote(cfg.SSHUser))
 	return runCommandWithStdin(ctx, client, script, plist)
 }
 
@@ -225,20 +236,33 @@ func renderLaunchdPlist(cfg Config) string {
 	if maxPods == 0 {
 		maxPods = 8
 	}
+	user := cfg.SSHUser
+	if user == "" {
+		user = "m1"
+	}
+	// Run tart-kubelet as the SSH user (m1). Apple's
+	// Virtualization.framework requires the calling process to be the
+	// same user that holds the live GUI console session — Tart's
+	// "Failed to get current host key" otherwise. The auto-login we
+	// configured in `enableAutoLogin` puts m1 on the console at boot;
+	// matching the launchd job's UserName lines tart up with that
+	// session.
 	return fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
   <key>Label</key>
   <string>dev.tuist.tart-kubelet</string>
+  <key>UserName</key>
+  <string>%[5]s</string>
   <key>ProgramArguments</key>
   <array>
     <string>/usr/local/bin/tart-kubelet</string>
-    <string>--node-name=%s</string>
+    <string>--node-name=%[1]s</string>
     <string>--kubeconfig=/etc/tart-kubelet/kubeconfig</string>
-    <string>--host-cpu=%d</string>
-    <string>--host-memory-mb=%d</string>
-    <string>--max-pods=%d</string>
+    <string>--host-cpu=%[2]d</string>
+    <string>--host-memory-mb=%[3]d</string>
+    <string>--max-pods=%[4]d</string>
   </array>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
@@ -247,12 +271,12 @@ func renderLaunchdPlist(cfg Config) string {
   <key>StandardErrorPath</key><string>/var/log/tart-kubelet.log</string>
   <key>EnvironmentVariables</key>
   <dict>
-    <key>HOME</key><string>/var/root</string>
+    <key>HOME</key><string>/Users/%[5]s</string>
     <key>PATH</key><string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
   </dict>
 </dict>
 </plist>
-`, cfg.NodeName, cpu, mem, maxPods)
+`, cfg.NodeName, cpu, mem, maxPods, user)
 }
 
 func shellQuote(s string) string {

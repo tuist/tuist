@@ -38,13 +38,20 @@ type Reconciler struct {
 	Store        *Store
 }
 
-// SetupWithManager wires the reconciler with a NodeName predicate so
-// we only see Pods k8s scheduled here.
+// SetupWithManager wires the reconciler with two predicates:
+//   - NodeName match: only Pods k8s scheduled here.
+//   - Handleable shape: skip multi-container / init / ephemeral Pods.
+//     DaemonSets from kube-system land on this Node anyway (they
+//     tolerate every taint); we don't want them in our reconcile
+//     queue spamming TartCreateFailed events.
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&corev1.Pod{}, builder.WithPredicates(predicate.NewPredicateFuncs(func(o client.Object) bool {
 			pod, ok := o.(*corev1.Pod)
-			return ok && pod.Spec.NodeName == r.NodeName
+			if !ok || pod.Spec.NodeName != r.NodeName {
+				return false
+			}
+			return podIsHandled(pod)
 		}))).
 		Complete(r)
 }
@@ -96,11 +103,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 // createPod is idempotent. The Store guards against double-creates,
 // and the underlying `tart` calls are themselves idempotent (`pull`
 // caches, `clone` errors if the VM exists — we detect via Store).
+// The SetupWithManager predicate filters Pods that don't fit
+// tart-kubelet's contract before they reach this method.
 func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
-	if len(pod.Spec.Containers) != 1 {
-		return fmt.Errorf("pod %s/%s has %d containers; tart-kubelet expects exactly 1",
-			pod.Namespace, pod.Name, len(pod.Spec.Containers))
-	}
 
 	if existing := r.Store.Get(pod.Namespace, pod.Name); existing != nil {
 		return nil
@@ -195,6 +200,23 @@ func (r *Reconciler) podStatus(ctx context.Context, pod *corev1.Pod) (*corev1.Po
 func (r *Reconciler) publishStatus(ctx context.Context, pod *corev1.Pod, status *corev1.PodStatus) error {
 	pod.Status = *status
 	return r.CachedClient.Status().Update(ctx, pod)
+}
+
+// podIsHandled returns true for Pods that fit tart-kubelet's contract:
+// exactly one app container, no init or ephemeral containers. DaemonSets
+// from kube-system that tolerate every taint will land on this Node;
+// we skip them silently rather than fail-and-event-spam.
+func podIsHandled(pod *corev1.Pod) bool {
+	if len(pod.Spec.Containers) != 1 {
+		return false
+	}
+	if len(pod.Spec.InitContainers) > 0 {
+		return false
+	}
+	if len(pod.Spec.EphemeralContainers) > 0 {
+		return false
+	}
+	return true
 }
 
 // VMNameForPod produces a Tart-safe VM name. Tart accepts alphanum +
