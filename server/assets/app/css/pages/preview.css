@@ -187,7 +187,7 @@
 
         & > [data-part="qr-code"] {
           box-shadow: var(--noora-border-light-default);
-          border-radius: var(--noora-radius-large);
+          border-radius: var(--noora-radius-4);
           width: 120px;
           height: 120px;
         }
