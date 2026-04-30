@@ -89,8 +89,14 @@ func (c *Client) Set(ctx context.Context, name string, cpu, memoryMB int) error 
 // until Stop or Delete.
 //
 // Tart 2.32 quirks accommodated here:
-//   - `tart run` is foreground-only: we wrap it with `nohup`+stdio
-//     redirection so the parent can return.
+//   - `tart run` is foreground-only: we wrap it in `sh -c '… &'` so
+//     the shell forks it as a background process and exits. Tart is
+//     reparented to launchd. We deliberately do NOT use `nohup` —
+//     it requires a controlling TTY to detach from, and launchd-
+//     spawned processes don't have one (it errors with
+//     "Inappropriate ioctl for device" and the VM never starts).
+//     Without a controlling TTY there's no SIGHUP to worry about
+//     either, so plain `&` is enough.
 //   - `tart get` doesn't update on-disk state for backgrounded VMs, so
 //     we poll `tart ip --wait` instead of state.
 func (c *Client) Run(ctx context.Context, name string, sharedDirs []string) error {
@@ -106,10 +112,7 @@ func (c *Client) Run(ctx context.Context, name string, sharedDirs []string) erro
 	logPath := filepath.Join(c.LogDir, name+".log")
 	cmdline := shellJoin(args)
 
-	// Re-exec via /bin/sh so we can use `nohup … &` to detach. The
-	// kubelet process should not hold the VM as a child — VMs outlive
-	// individual reconciles.
-	bg := fmt.Sprintf("nohup %s >%s 2>&1 &", cmdline, shellEscape(logPath))
+	bg := fmt.Sprintf("%s >%s 2>&1 &", cmdline, shellEscape(logPath))
 	if _, err := c.run(ctx, "/bin/sh", "-c", bg); err != nil {
 		return err
 	}
