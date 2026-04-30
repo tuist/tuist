@@ -231,25 +231,17 @@ jobs:
       tuist_hosted: "0"
       mix_env: prod
 
-  # Deploys the tuist server image into an ephemeral helm release on Pedro's
-  # Syself-managed preview cluster (the same cluster preview-deploy.yml uses
-  # for per-PR previews). The cluster has ESO + ClusterSecretStore + a
-  # wildcard `*.preview.tuist.dev` cert pre-configured during cluster
-  # bootstrap (see infra/k8s/syself-onboarding.md), so we don't bootstrap any
-  # of that here — we just helm install and the cluster's existing infra
-  # resolves the license from 1Password.
+  # Deploys the Tuist server image into an ephemeral Helm release on the
+  # Syself-managed preview cluster used for per-PR previews. The cluster already
+  # provides ESO, a ClusterSecretStore, ingress, and the wildcard
+  # `*.preview.tuist.dev` certificate, so this job only creates the release
+  # namespace, installs the chart, seeds test fixtures, and exposes the server
+  # and object-storage hosts for the macOS shards.
   #
-  # Earlier iterations of this PR ran a fresh kind cluster on a Linux runner,
-  # exposed via cloudflared, which forced us to bootstrap ESO from scratch on
-  # every run. That hit a wall when the shared OP_SERVICE_ACCOUNT_TOKEN turned
-  # out to be scoped to the wrong vault. Going through Pedro's cluster
-  # sidesteps the bootstrap entirely and gives us a public URL via the
-  # existing ingress + wildcard-TLS pattern.
-  #
-  # Each run gets its own helm release in its own namespace, keyed on the PR
-  # number when available (so multiple pushes to a PR upgrade in place) and
-  # github.run_id otherwise. The teardown job below cleans up regardless of
-  # test outcome; preview-sweep.yml's TTL annotation acts as a backstop.
+  # Each run gets its own Helm release in its own namespace, keyed on the PR
+  # number when available so multiple pushes to the same PR upgrade in place,
+  # and github.run_id otherwise. The teardown job removes the release and
+  # namespace; preview-sweep.yml's TTL annotation is the backstop.
   cli-acceptance-cluster:
     name: Acceptance Cluster
     needs: cli-server-image
