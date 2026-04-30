@@ -30,11 +30,31 @@ defmodule Tuist.Kura.Deployer.HelmKubernetes do
 
   alias Tuist.Kura.KuraServer
   alias Tuist.Kura.Regions
-  alias Tuist.Kura.Specs
 
   require Logger
 
   @namespace "kura"
+
+  # Customer-facing spec → Pod resources. The catalog of customer
+  # tiers (small/medium/large) lives in `Tuist.Kura.Specs`; how each
+  # tier maps to Kubernetes-flavored requests/limits is a
+  # deployer-specific concern that lives here. A future bare-metal
+  # deployer would have its own table mapping the same tiers to
+  # instance types.
+  @pod_resources %{
+    small: %{
+      "requests" => %{"cpu" => "250m", "memory" => "512Mi"},
+      "limits" => %{"memory" => "1Gi"}
+    },
+    medium: %{
+      "requests" => %{"cpu" => "500m", "memory" => "1.5Gi"},
+      "limits" => %{"memory" => "2Gi"}
+    },
+    large: %{
+      "requests" => %{"cpu" => "1000m", "memory" => "3Gi"},
+      "limits" => %{"memory" => "4Gi"}
+    }
+  }
 
   ## Deployer callbacks
 
@@ -179,8 +199,16 @@ defmodule Tuist.Kura.Deployer.HelmKubernetes do
     |> maybe_merge(ingress(region, account.name))
   end
 
-  defp resources(%KuraServer{spec: spec}) do
-    case Specs.resource_overlay(spec) do
+  @impl true
+  def resources_for(%KuraServer{spec: spec}) do
+    case Map.get(@pod_resources, spec) do
+      nil -> %{}
+      pod_resources -> %{"resources" => pod_resources}
+    end
+  end
+
+  defp resources(%KuraServer{} = server) do
+    case resources_for(server) do
       %{"resources" => _} = overlay -> overlay
       _ -> nil
     end

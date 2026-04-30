@@ -7,6 +7,13 @@ defmodule Tuist.Kura.SpecsTest do
     assert Enum.map(Specs.all(), & &1.id) == [:small, :medium, :large]
   end
 
+  test "every spec carries a customer-facing label and description" do
+    for %Specs{label: label, description: description} <- Specs.all() do
+      assert is_binary(label) and label != ""
+      assert is_binary(description) and description != ""
+    end
+  end
+
   test "get/1 returns the matching spec" do
     assert %Specs{id: :medium, label: "Medium"} = Specs.get(:medium)
     assert Specs.get(:huge) == nil
@@ -17,12 +24,5 @@ defmodule Tuist.Kura.SpecsTest do
     assert Specs.default_volume_gi(:medium) == 200
     assert Specs.default_volume_gi(:large) == 500
     assert Specs.default_volume_gi(:nonsense) == nil
-  end
-
-  test "resource_overlay/1 builds requests/limits for the spec" do
-    overlay = Specs.resource_overlay(:medium)
-    assert overlay["resources"]["requests"]["cpu"] == "500m"
-    assert overlay["resources"]["requests"]["memory"] == "1.5Gi"
-    assert overlay["resources"]["limits"]["memory"] == "2Gi"
   end
 end
