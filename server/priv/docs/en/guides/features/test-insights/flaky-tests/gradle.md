@@ -93,6 +93,10 @@ tuist {
 
 When `enabled` is not set, it defaults to auto-detection: enabled on CI, disabled locally.
 
+## Slack notifications {#slack-notifications}
+
+Get notified instantly when a test becomes flaky by setting up <.localized_link href="/guides/integrations/slack#flaky-test-alerts">flaky test alerts</.localized_link> in your Slack integration.
+
 ## Querying flaky and quarantined state {#querying}
 
 ### CLI
@@ -113,7 +117,3 @@ All of these accept `--json` for scripting.
 ### REST API
 
 The same data is available over HTTP — see the [Test Cases endpoints](https://tuist.dev/api/docs#tag/test-cases) in the API reference for the full list of routes, filters, and response fields. State changes (mark/unmark flaky, mute, skip) currently happen from the dashboard UI, not via the public REST API.
-
-## Slack notifications {#slack-notifications}
-
-Get notified instantly when a test becomes flaky by setting up <.localized_link href="/guides/integrations/slack#flaky-test-alerts">flaky test alerts</.localized_link> in your Slack integration.
