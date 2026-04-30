@@ -202,10 +202,15 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
 
       html = render_submit(lv, "generate_scim_token", %{"scim_token" => %{"name" => "okta"}})
 
+      assert html =~ ~s(data-part="modal-message")
+      assert html =~ ~s(data-part="title">)
       assert html =~ "Token created"
+      assert html =~ ~s(data-part="subtitle">)
       assert html =~ "will not be shown again"
       assert html =~ "tuist_scim_"
       assert html =~ ~s(id="new-scim-token")
+      assert html =~ ~s(aria-label="Revoke token")
+      assert html =~ "icon-tabler-trash"
       refute html =~ "No SCIM tokens yet"
 
       [token] = SCIM.list_tokens(org)

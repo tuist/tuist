@@ -434,60 +434,69 @@
             <:trigger :let={attrs}>
               <.button
                 label={dgettext("dashboard_account", "Generate token")}
-                variant="primary"
+                variant="secondary"
                 size="medium"
                 {attrs}
               />
             </:trigger>
 
-            <.line_divider />
+            <div data-part="modal-content-wrapper">
+              <.line_divider />
 
-            <%= if @new_scim_token_plaintext do %>
-              <div data-part="modal-body">
-                <p data-part="modal-description">
-                  {dgettext(
-                    "dashboard_account",
-                    "Token created. Copy it now — it will not be shown again after you close this dialog."
-                  )}
-                </p>
-                <div data-part="read-only-value">
-                  <code id="new-scim-token">{@new_scim_token_plaintext}</code>
-                  <.button
-                    id="copy-scim-token-button"
-                    variant="secondary"
-                    size="small"
-                    icon_only
-                    phx-hook="Clipboard"
-                    data-clipboard-value={@new_scim_token_plaintext}
-                    aria-label={dgettext("dashboard_account", "Copy token")}
-                  >
-                    <.copy />
-                  </.button>
-                </div>
-              </div>
-            <% else %>
-              <.form
-                for={@new_scim_token_form}
-                id="generate-scim-token-form"
-                phx-submit="generate_scim_token"
-              >
+              <%= if @new_scim_token_plaintext do %>
                 <div data-part="modal-body">
-                  <p data-part="modal-description">
-                    {dgettext(
-                      "dashboard_account",
-                      "Name this token so you can identify it later (for example: \"Okta\")."
-                    )}
-                  </p>
-                  <.text_input
-                    field={@new_scim_token_form[:name]}
-                    type="basic"
-                    label={dgettext("dashboard_account", "Token name")}
-                    placeholder={dgettext("dashboard_account", "e.g. Okta")}
-                    required
-                  />
+                  <div data-part="modal-message">
+                    <span data-part="title">
+                      {dgettext("dashboard_account", "Token created")}
+                    </span>
+                    <span data-part="subtitle">
+                      {dgettext(
+                        "dashboard_account",
+                        "Copy it now — it will not be shown again after you close this dialog."
+                      )}
+                    </span>
+                  </div>
+                  <div data-part="read-only-value">
+                    <code id="new-scim-token">{@new_scim_token_plaintext}</code>
+                    <.button
+                      id="copy-scim-token-button"
+                      variant="secondary"
+                      size="small"
+                      icon_only
+                      phx-hook="Clipboard"
+                      data-clipboard-value={@new_scim_token_plaintext}
+                      aria-label={dgettext("dashboard_account", "Copy token")}
+                    >
+                      <.copy />
+                    </.button>
+                  </div>
                 </div>
-              </.form>
-            <% end %>
+              <% else %>
+                <.form
+                  for={@new_scim_token_form}
+                  id="generate-scim-token-form"
+                  phx-submit="generate_scim_token"
+                >
+                  <div data-part="modal-body">
+                    <.text_input
+                      field={@new_scim_token_form[:name]}
+                      type="basic"
+                      label={dgettext("dashboard_account", "Token name")}
+                      sublabel={
+                        dgettext(
+                          "dashboard_account",
+                          "Name this token so you can identify it later (for example: \"Okta\")."
+                        )
+                      }
+                      placeholder={dgettext("dashboard_account", "e.g. Okta")}
+                      required
+                    />
+                  </div>
+                </.form>
+              <% end %>
+
+              <.line_divider />
+            </div>
 
             <:footer>
               <.modal_footer>
@@ -537,18 +546,21 @@
             <.button_cell>
               <:button>
                 <.button
-                  label={dgettext("dashboard_account", "Revoke")}
+                  icon_only
                   variant="secondary"
                   size="small"
                   phx-click="revoke_scim_token"
                   phx-value-id={token.id}
+                  aria-label={dgettext("dashboard_account", "Revoke token")}
                   data-confirm={
                     dgettext(
                       "dashboard_account",
                       "Revoke this token? This action cannot be undone."
                     )
                   }
-                />
+                >
+                  <.icon name="trash" />
+                </.button>
               </:button>
             </.button_cell>
           </:col>
