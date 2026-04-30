@@ -495,7 +495,8 @@ Steady state: ~1–2h/month of engineer time with agent execution, plus a half-d
 
 - [ ] Decide firewall posture for the mgmt API server (allowlist vs. cert-pinning only).
 - [ ] Decide whether to rotate the shared `hetzner` API token during migration or as a follow-up hardening step.
-- [ ] Tigris bucket name + retention for etcd snapshots.
+- [ ] Tigris bucket name + retention for management-cluster etcd snapshots.
+- [ ] Workload-cluster etcd backup strategy: confirm whether Syself currently backs up the per-cluster KubeadmControlPlane etcds and, if so, replicate that on our side (or accept the gap consciously). The mgmt-cluster etcd snapshots in §1.8 protect only `clusterctl move`-replayable state, not the data plane.
 
 ---
 
