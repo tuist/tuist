@@ -21,7 +21,7 @@ This document is a one-time migration plan. The successor onboarding doc (replac
 
 **In scope:** the four Cluster CRs in [`infra/k8s/syself/`](syself/): `tuist-staging`, `tuist-canary`, `tuist`, `tuist-preview`. The `ClusterStack` CR in [`infra/k8s/syself/cluster-stack.yaml`](syself/cluster-stack.yaml).
 
-**Out of scope (today):** the cache, xcode-processor, and search clusters are not on Syself today — their workflows hold separate `KUBECONFIG_*` secrets pointing at different infrastructure. They're planned to consolidate onto Syself-shaped Cluster API in the future; when they do, they'll land directly on our self-hosted management cluster (no Syself path needed) and join `org-tuist` alongside the four migrated here.
+**Out of scope (today):** the cache, xcode-processor, and search clusters are not on Syself today; their workflows hold separate `KUBECONFIG_*` secrets pointing at different infrastructure. They're planned to consolidate onto Syself-shaped Cluster API in the future; when they do, they'll land directly on our self-hosted management cluster (no Syself path needed) and join `org-tuist` alongside the four migrated here.
 
 ---
 
@@ -145,7 +145,7 @@ op document create ~/.kube/tuist-mgmt.yaml \
 | caph | `v1.1.0`  | <https://github.com/syself/cluster-api-provider-hetzner/releases> |
 | cluster-stack-operator | `v0.1.0-alpha.9` | <https://github.com/SovereignCloudStack/cluster-stack-operator/releases> |
 
-CSO has been on `alpha.9` since April 2025 with no further releases — it's the version Syself runs in production today, alpha-suffix notwithstanding. clusterctl 1.13 is v1beta2-native and reads Syself's v1beta1 CRs cleanly via conversion webhooks, so a version skew with Syself's controllers (which we can't introspect from `org-tuist`) is safe.
+CSO has been on `alpha.9` since April 2025 with no further releases; it's the version Syself runs in production today, alpha-suffix notwithstanding. clusterctl 1.13 is v1beta2-native and reads Syself's v1beta1 CRs cleanly via conversion webhooks, so a version skew with Syself's controllers (which we can't introspect from `org-tuist`) is safe.
 
 ```bash
 export KUBECONFIG=~/.kube/tuist-mgmt.yaml
@@ -205,7 +205,7 @@ Create the bucket + scoped key in the Tigris dashboard first, save the keys to 1
 ssh -i ~/.ssh/tuist-mgmt root@$MGMT_IP
 
 # Pull the keys from 1Password (run from your laptop, paste into the SSH session
-# or use a temp script — don't bake the values into shell history).
+# or use a temp script; don't bake the values into shell history).
 TIGRIS_KEY="$(op read 'op://Founders/tigris-tuist-mgmt-etcd/access_key_id')"
 TIGRIS_SECRET="$(op read 'op://Founders/tigris-tuist-mgmt-etcd/secret_access_key')"
 
@@ -231,7 +231,7 @@ kubectl get etcdsnapshotfile
 # Expect at least one entry within the next hour.
 ```
 
-The mgmt cluster's etcd holds CAPI CRs, Secrets, and ClusterStack state — everything `clusterctl move` would replay if we ever rebuild from a snapshot. The workload clusters' own etcds (per-cluster KubeadmControlPlane quorums) are *not* covered by this; that's intentional, since workload clusters hold no state we can't reconstruct from Helm + ESO + 1Password. If a stateful in-cluster service ever lands, revisit.
+The mgmt cluster's etcd holds CAPI CRs, Secrets, and ClusterStack state; everything `clusterctl move` would replay if we ever rebuild from a snapshot. The workload clusters' own etcds (per-cluster KubeadmControlPlane quorums) are *not* covered by this; that's intentional, since workload clusters hold no state we can't reconstruct from Helm + ESO + 1Password. If a stateful in-cluster service ever lands, revisit.
 
 ---
 
