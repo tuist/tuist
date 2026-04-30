@@ -1,6 +1,6 @@
 defmodule Tuist.Kura.Workers.DestroyServerWorker do
   @moduledoc """
-  Tears down a Kura server by dispatching to the region's provider,
+  Tears down a Kura server by dispatching to the region's deployer,
   then marks the row `:destroyed`.
 
   The `account_cache_endpoints` row is removed up-front by
@@ -10,7 +10,7 @@ defmodule Tuist.Kura.Workers.DestroyServerWorker do
   Failures here are logged but do not block the row's transition to
   `:destroyed`. A stuck `:destroying` row would block re-using the
   (account, region) pair, which is worse than an orphaned backing
-  resource that an operator can clean up manually. Provider impls
+  resource that an operator can clean up manually. Deployer impls
   should mirror this and prefer returning `:ok` over surfacing a
   permanent error.
   """
@@ -18,7 +18,7 @@ defmodule Tuist.Kura.Workers.DestroyServerWorker do
 
   alias Tuist.Kura
   alias Tuist.Kura.KuraServer
-  alias Tuist.Kura.Provider
+  alias Tuist.Kura.Deployer
   alias Tuist.Kura.Regions
   alias Tuist.Repo
 
@@ -50,9 +50,9 @@ defmodule Tuist.Kura.Workers.DestroyServerWorker do
         :ok
 
       %Regions{} ->
-        case Provider.destroy(server) do
+        case Deployer.destroy(server) do
           :ok -> :ok
-          {:error, reason} -> Logger.warning("[Kura.DestroyServerWorker] provider destroy failed: #{inspect(reason)}")
+          {:error, reason} -> Logger.warning("[Kura.DestroyServerWorker] deployer destroy failed: #{inspect(reason)}")
         end
 
         {:ok, _} = Kura.mark_destroyed(server)

@@ -1,4 +1,4 @@
-defmodule Tuist.Kura.Provider do
+defmodule Tuist.Kura.Deployer do
   @moduledoc """
   Behaviour the control plane uses to provision, roll, and destroy
   Kura servers on a particular backing platform.
@@ -10,10 +10,10 @@ defmodule Tuist.Kura.Provider do
   developer laptop. Each backing platform is a module that implements
   this behaviour.
 
-  Implementations return an opaque `provider_node_ref` from
+  Implementations return an opaque `deployer_node_ref` from
   `provision/3`. The control plane stores it on the `KuraServer` row
   and hands it back for every subsequent operation. Refs are
-  provider-defined; the control plane never parses them.
+  deployer-defined; the control plane never parses them.
 
   Adding a backing platform is self-contained: implement the
   callbacks, register the module against a region in
@@ -34,7 +34,7 @@ defmodule Tuist.Kura.Provider do
   partial unique index on `kura_servers` for the higher-level
   guarantee.
 
-  Returns the opaque ref plus any metadata the provider wants to
+  Returns the opaque ref plus any metadata the deployer wants to
   persist. Both are stored verbatim on the `KuraServer` row.
   """
   @callback provision(Account.t(), Regions.t(), KuraServer.t()) ::
@@ -47,7 +47,7 @@ defmodule Tuist.Kura.Provider do
   upgrade in place, ssh + systemctl restart, a multi-step warm
   rollout, etc.
 
-  `inputs.on_log_line` is the sink for stdout/stderr the provider
+  `inputs.on_log_line` is the sink for stdout/stderr the deployer
   produces. The control plane batches those into ClickHouse and
   surfaces them in /ops.
   """
@@ -56,7 +56,7 @@ defmodule Tuist.Kura.Provider do
   @doc """
   Destroy the backing resource. Must be safe to call on already-
   destroyed refs (return `:ok`) so the control plane can finalise the
-  row even after a provider crash mid-uninstall.
+  row even after a deployer crash mid-uninstall.
   """
   @callback destroy(ref :: String.t(), Regions.t()) :: :ok | {:error, term()}
 
@@ -75,31 +75,31 @@ defmodule Tuist.Kura.Provider do
 
   ## Convenience dispatchers
 
-  @doc "Calls `rollout/2` on the region's provider."
-  def rollout(%KuraServer{provider_node_ref: ref, region: region_id}, inputs) do
+  @doc "Calls `rollout/2` on the region's deployer."
+  def rollout(%KuraServer{deployer_node_ref: ref, region: region_id}, inputs) do
     with {:ok, region} <- Regions.fetch(region_id) do
-      region.provider.rollout(ref, Map.put(inputs, :region, region))
+      region.deployer.rollout(ref, Map.put(inputs, :region, region))
     end
   end
 
-  @doc "Calls `destroy/2` on the region's provider."
-  def destroy(%KuraServer{provider_node_ref: ref, region: region_id}) do
+  @doc "Calls `destroy/2` on the region's deployer."
+  def destroy(%KuraServer{deployer_node_ref: ref, region: region_id}) do
     with {:ok, region} <- Regions.fetch(region_id) do
-      region.provider.destroy(ref, region)
+      region.deployer.destroy(ref, region)
     end
   end
 
-  @doc "Calls `public_url/3` on the region's provider."
-  def public_url(%Account{name: handle}, %KuraServer{provider_node_ref: ref, region: region_id}) do
+  @doc "Calls `public_url/3` on the region's deployer."
+  def public_url(%Account{name: handle}, %KuraServer{deployer_node_ref: ref, region: region_id}) do
     with {:ok, region} <- Regions.fetch(region_id) do
-      region.provider.public_url(handle, region, ref)
+      region.deployer.public_url(handle, region, ref)
     end
   end
 
-  @doc "Calls `current_image_tag/2` on the region's provider."
-  def current_image_tag(%KuraServer{provider_node_ref: ref, region: region_id}) do
+  @doc "Calls `current_image_tag/2` on the region's deployer."
+  def current_image_tag(%KuraServer{deployer_node_ref: ref, region: region_id}) do
     with {:ok, region} <- Regions.fetch(region_id) do
-      region.provider.current_image_tag(ref, region)
+      region.deployer.current_image_tag(ref, region)
     end
   end
 end
