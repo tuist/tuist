@@ -36,6 +36,10 @@ type Reconciler struct {
 	Tart         *tart.Client
 	Resolver     *envresolver.Resolver
 	Store        *Store
+
+	// GC reclaims disk when a Tart pull errors with no-space. Optional
+	// — when nil, the reconciler just surfaces the error.
+	GC *Collector
 }
 
 // SetupWithManager wires the reconciler with two predicates:
@@ -124,7 +128,18 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 	}
 
 	if err := r.Tart.Pull(ctx, c.Image); err != nil {
-		return fmt.Errorf("tart pull: %w", err)
+		// On disk-pressure failures, free space (orphan VMs / stale OCI
+		// caches from terminated Pods) and retry once. Without this the
+		// host fills with leftovers and every subsequent reconcile
+		// fails the same way until something cleans up by hand.
+		if r.GC != nil && IsNoSpaceError(err) {
+			r.GC.RunOnce(ctx)
+			if err2 := r.Tart.Pull(ctx, c.Image); err2 != nil {
+				return fmt.Errorf("tart pull (after gc): %w", err2)
+			}
+		} else {
+			return fmt.Errorf("tart pull: %w", err)
+		}
 	}
 
 	// If a stale clone of the same name exists from a previous boot

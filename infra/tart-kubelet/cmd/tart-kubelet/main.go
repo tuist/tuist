@@ -116,6 +116,17 @@ func main() {
 
 	resolver := &envresolver.Resolver{K8s: mgr.GetAPIReader()}
 
+	gcCollector := &podagent.Collector{
+		K8s:      mgr.GetAPIReader(),
+		Tart:     tartClient,
+		NodeName: nodeName,
+		Interval: 5 * time.Minute,
+	}
+	if err := mgr.Add(gcCollector); err != nil {
+		setupLog.Error(err, "add gc collector")
+		os.Exit(1)
+	}
+
 	store := podagent.NewStore()
 
 	// Hydrate the Pod ↔ VM map from on-host state before reconciles
@@ -136,6 +147,7 @@ func main() {
 		Tart:         tartClient,
 		Resolver:     resolver,
 		Store:        store,
+		GC:           gcCollector,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup pod reconciler")
 		os.Exit(1)

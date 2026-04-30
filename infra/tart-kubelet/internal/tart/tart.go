@@ -44,9 +44,13 @@ func New() *Client {
 	}
 }
 
-// VM is the subset of `tart get`/`tart list` JSON we care about.
+// VM is the subset of `tart get` / `tart list` JSON we care about.
+//
+// `tart list` returns Name in the JSON; `tart get` doesn't (it's
+// implicit in the path argument). Get() therefore stamps Name from
+// the caller after Unmarshal.
 type VM struct {
-	Name   string `json:"-"`
+	Name   string `json:"Name,omitempty"`
 	Source string `json:"Source"`
 	State  string `json:"State"`
 	CPU    int    `json:"CPU"`
