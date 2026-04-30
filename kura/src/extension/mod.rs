@@ -58,6 +58,7 @@ pub struct ExtensionContext {
     pub route: String,
     pub method: String,
     pub operation: String,
+    pub server_tenant_id: String,
     pub tenant_id: Option<String>,
     pub namespace_id: Option<String>,
     pub producer: Option<String>,
@@ -327,6 +328,7 @@ impl ExtensionEngine {
             self.script_hash.as_str(),
             credentials_fingerprint(&ctx.headers),
             principal.clone(),
+            ctx.server_tenant_id.clone(),
             ctx.tenant_id.clone(),
             ctx.namespace_id.clone(),
             ctx.operation.clone(),
@@ -825,9 +827,7 @@ fn parse_signers() -> Result<HashMap<String, Signer>, String> {
             .get("SECRET")
             .ok_or_else(|| format!("missing {SIGNER_PREFIX}{id}_SECRET"))?;
         let secret = BASE64.decode(secret_b64.trim()).map_err(|error| {
-            format!(
-                "{SIGNER_PREFIX}{id}_SECRET must be base64-encoded raw key bytes: {error}"
-            )
+            format!("{SIGNER_PREFIX}{id}_SECRET must be base64-encoded raw key bytes: {error}")
         })?;
         let algorithm = match algorithm.to_ascii_lowercase().as_str() {
             "hmac-sha256" | "hmac_sha256" | "hmacsha256" => SignerAlgorithm::HmacSha256,
@@ -1130,6 +1130,7 @@ end
                     route: "/api/cache/module/{id}".into(),
                     method: "GET".into(),
                     operation: "artifact.read".into(),
+                    server_tenant_id: "acme".into(),
                     tenant_id: Some("acme".into()),
                     namespace_id: Some("ios".into()),
                     producer: Some("module".into()),
@@ -1242,6 +1243,7 @@ end
             route: "/api/cache/cas/{id}".into(),
             method: "GET".into(),
             operation: "artifact.read".into(),
+            server_tenant_id: "acme".into(),
             tenant_id: Some("acme".into()),
             namespace_id: Some("ios".into()),
             producer: Some("xcode".into()),
@@ -1310,6 +1312,7 @@ end
             route: "/api/cache/cas/{id}".into(),
             method: "GET".into(),
             operation: "artifact.read".into(),
+            server_tenant_id: "acme".into(),
             tenant_id: Some("acme".into()),
             namespace_id: Some("ios".into()),
             producer: Some("xcode".into()),
@@ -1329,43 +1332,47 @@ end
     /// can read it; these tests are how we keep its three contracts
     /// honest:
     ///
-    ///   * `authenticate` — extract bearer, call /api/internal/auth/verify,
-    ///     translate response into a Kura principal or deny.
-    ///   * `authorize` — resolve the request's tenant from
-    ///     `ctx.tenant_id`, `ctx.query.tenant_id`, or
-    ///     `ctx.query.account_handle` (the legacy CLI shape) and
-    ///     check it against the principal's `account_handles`.
+    ///   * `authenticate` — forward the caller's Authorization header to
+    ///     `/api/projects`, translate the returned project list into a
+    ///     minimal Kura principal, or deny.
+    ///   * `authorize` — resolve the request's project from
+    ///     `ctx.tenant_id` + `ctx.namespace_id`, or the legacy query
+    ///     params, require the tenant to match
+    ///     `ctx.server_tenant_id`, and then check it against the
+    ///     principal's `projects`.
     ///   * `response_headers` — for module-cache GETs, sign
     ///     `ctx.query.hash` with HMAC-SHA256 so the CLI's existing
     ///     `x-tuist-signature` verification works against Kura.
     mod tuist_hook {
         use super::*;
-        use axum::{Json, Router, extract::Json as JsonBody, http::StatusCode, routing::post};
+        use axum::{
+            Json, Router,
+            http::{HeaderMap, StatusCode},
+            routing::get,
+        };
         use serde_json::{Value, json};
         use std::sync::Mutex;
 
         const HOOK: &str = include_str!("../../ops/helm/kura/hooks/tuist.lua");
-        const VERIFY_BEARER: &str = "test-verify-token";
 
-        fn script_with_prelude() -> String {
-            format!("tuist_verify_authorization = \"Bearer {VERIFY_BEARER}\"\n{HOOK}")
+        fn script() -> String {
+            HOOK.to_owned()
         }
 
-        /// Spawns a mock for the Tuist server's `/api/internal/auth/verify`
-        /// endpoint. The handler receives the JSON body the hook sent
-        /// (so it can branch on the bearer token) and returns
-        /// `(status, body)`.
-        async fn spawn_verify_mock<F>(handler: F) -> String
+        /// Spawns a mock for the Tuist server's `/api/projects`
+        /// endpoint. The handler receives the forwarded request
+        /// headers and returns `(status, body)`.
+        async fn spawn_projects_mock<F>(handler: F) -> String
         where
-            F: Fn(Value) -> (StatusCode, Value) + Send + Sync + 'static,
+            F: Fn(HeaderMap) -> (StatusCode, Value) + Send + Sync + 'static,
         {
             let handler = Arc::new(handler);
             let app = Router::new().route(
-                "/api/internal/auth/verify",
-                post(move |JsonBody(body): JsonBody<Value>| {
+                "/api/projects",
+                get(move |headers: HeaderMap| {
                     let handler = handler.clone();
                     async move {
-                        let (status, payload) = handler(body);
+                        let (status, payload) = handler(headers);
                         (status, Json(payload))
                     }
                 }),
@@ -1373,17 +1380,19 @@ end
 
             let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
                 .await
-                .expect("bind verify mock");
-            let address = listener.local_addr().expect("verify mock addr");
+                .expect("bind projects mock");
+            let address = listener.local_addr().expect("projects mock addr");
             tokio::spawn(async move {
-                axum::serve(listener, app).await.expect("verify mock serve");
+                axum::serve(listener, app)
+                    .await
+                    .expect("projects mock serve");
             });
             format!("http://{address}")
         }
 
         async fn engine_pointing_at(base_url: &str) -> SharedExtension {
             let url = base_url.to_owned();
-            test_engine(&script_with_prelude(), move |_| unsafe {
+            test_engine(&script(), move |_| unsafe {
                 std::env::set_var("KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL", &url);
                 std::env::set_var("KURA_EXTENSION_HOOK_TIMEOUT_MS", "5000");
                 std::env::set_var(
@@ -1400,6 +1409,7 @@ end
                 route: "/api/cache/gradle/{cache_key}".into(),
                 method: "GET".into(),
                 operation: "artifact.read".into(),
+                server_tenant_id: "acme".into(),
                 tenant_id: None,
                 namespace_id: None,
                 producer: Some("gradle".into()),
@@ -1411,11 +1421,12 @@ end
             }
         }
 
-        fn principal_with_handles(handles: &[&str]) -> Value {
+        fn projects_payload(projects: &[&str]) -> Value {
             json!({
-                "id": "42",
-                "kind": "account",
-                "account_handles": handles,
+                "projects": projects
+                    .iter()
+                    .map(|project| json!({ "full_name": project }))
+                    .collect::<Vec<_>>(),
             })
         }
 
@@ -1435,15 +1446,9 @@ end
         }
 
         #[tokio::test]
-        async fn allows_when_verify_returns_principal() {
-            let base = spawn_verify_mock(|body| {
-                assert_eq!(body["token"], json!("user-token"));
-                (
-                    StatusCode::OK,
-                    json!({"principal": principal_with_handles(&["acme"])}),
-                )
-            })
-            .await;
+        async fn allows_when_projects_endpoint_returns_accessible_projects() {
+            let base =
+                spawn_projects_mock(|_| (StatusCode::OK, projects_payload(&["acme/ios"]))).await;
             let engine = engine_pointing_at(&base).await;
 
             let mut context = ctx();
@@ -1451,21 +1456,19 @@ end
                 .headers
                 .insert("authorization".into(), "Bearer user-token".into());
             context.tenant_id = Some("acme".into());
+            context.namespace_id = Some("ios".into());
 
             let decision = engine.evaluate_access(&context).await;
             assert!(matches!(decision, AccessDecision::Allow(Some(_))));
         }
 
         #[tokio::test]
-        async fn forwards_shared_secret_to_verify_endpoint() {
-            // The chart prepends `tuist_verify_authorization` to the
-            // hook so it can attach a Bearer header per call. We assert
-            // the header arrives intact.
+        async fn forwards_bearer_to_projects_endpoint() {
             let captured = Arc::new(Mutex::new(None::<String>));
             let captured_for_handler = captured.clone();
             let app = Router::new().route(
-                "/api/internal/auth/verify",
-                post(move |headers: axum::http::HeaderMap| {
+                "/api/projects",
+                get(move |headers: HeaderMap| {
                     let captured = captured_for_handler.clone();
                     async move {
                         let auth = headers
@@ -1473,7 +1476,7 @@ end
                             .and_then(|v| v.to_str().ok())
                             .map(str::to_owned);
                         *captured.lock().unwrap() = auth;
-                        Json(json!({"principal": principal_with_handles(&["acme"])}))
+                        Json(projects_payload(&["acme/ios"]))
                     }
                 }),
             );
@@ -1487,19 +1490,19 @@ end
                 .headers
                 .insert("authorization".into(), "Bearer user-token".into());
             context.tenant_id = Some("acme".into());
+            context.namespace_id = Some("ios".into());
 
             let _ = engine.evaluate_access(&context).await;
 
             assert_eq!(
                 captured.lock().unwrap().as_deref(),
-                Some(format!("Bearer {VERIFY_BEARER}").as_str())
+                Some("Bearer user-token")
             );
         }
 
         #[tokio::test]
-        async fn denies_when_verify_returns_unauthorized() {
-            let base = spawn_verify_mock(|_| (StatusCode::UNAUTHORIZED, json!({})))
-                .await;
+        async fn denies_when_projects_endpoint_returns_unauthorized() {
+            let base = spawn_projects_mock(|_| (StatusCode::UNAUTHORIZED, json!({}))).await;
             let engine = engine_pointing_at(&base).await;
 
             let mut context = ctx();
@@ -1507,6 +1510,7 @@ end
                 .headers
                 .insert("authorization".into(), "Bearer bad".into());
             context.tenant_id = Some("acme".into());
+            context.namespace_id = Some("ios".into());
 
             let deny = expect_deny(engine.evaluate_access(&context).await);
             assert_eq!(deny.status, 401);
@@ -1514,13 +1518,11 @@ end
         }
 
         #[tokio::test]
-        async fn denies_when_verify_is_unavailable() {
+        async fn denies_when_projects_endpoint_is_unavailable() {
             // 5xx and other non-{200,401} outcomes get a transient deny
             // with a short TTL.
-            let base = spawn_verify_mock(|_| {
-                (StatusCode::INTERNAL_SERVER_ERROR, json!({}))
-            })
-            .await;
+            let base =
+                spawn_projects_mock(|_| (StatusCode::INTERNAL_SERVER_ERROR, json!({}))).await;
             let engine = engine_pointing_at(&base).await;
 
             let mut context = ctx();
@@ -1528,6 +1530,7 @@ end
                 .headers
                 .insert("authorization".into(), "Bearer anything".into());
             context.tenant_id = Some("acme".into());
+            context.namespace_id = Some("ios".into());
 
             let deny = expect_deny(engine.evaluate_access(&context).await);
             assert_eq!(deny.status, 503);
@@ -1536,14 +1539,84 @@ end
         // --- authorize --------------------------------------------------
 
         #[tokio::test]
-        async fn authorizes_legacy_account_handle_query_param() {
-            let base = spawn_verify_mock(|_| {
-                (
-                    StatusCode::OK,
-                    json!({"principal": principal_with_handles(&["acme"])}),
-                )
-            })
-            .await;
+        async fn authorizes_legacy_account_and_project_handle_query_params() {
+            let base =
+                spawn_projects_mock(|_| (StatusCode::OK, projects_payload(&["acme/ios"]))).await;
+            let engine = engine_pointing_at(&base).await;
+
+            let mut context = ctx();
+            context
+                .headers
+                .insert("authorization".into(), "Bearer t".into());
+            context.query.insert("account_handle".into(), "acme".into());
+            context.query.insert("project_handle".into(), "ios".into());
+
+            let decision = engine.evaluate_access(&context).await;
+            assert!(
+                matches!(decision, AccessDecision::Allow(Some(_))),
+                "expected Allow(Some), got {decision:?}"
+            );
+        }
+
+        #[tokio::test]
+        async fn authorizes_generic_tenant_and_namespace_context() {
+            let base =
+                spawn_projects_mock(|_| (StatusCode::OK, projects_payload(&["acme/ios"]))).await;
+            let engine = engine_pointing_at(&base).await;
+
+            let mut context = ctx();
+            context
+                .headers
+                .insert("authorization".into(), "Bearer t".into());
+            context.tenant_id = Some("acme".into());
+            context.namespace_id = Some("ios".into());
+
+            let decision = engine.evaluate_access(&context).await;
+            assert!(
+                matches!(decision, AccessDecision::Allow(Some(_))),
+                "expected Allow(Some), got {decision:?}"
+            );
+        }
+
+        #[tokio::test]
+        async fn authorizes_case_insensitively_like_current_cache_nodes() {
+            let base =
+                spawn_projects_mock(|_| (StatusCode::OK, projects_payload(&["Acme/iOS"]))).await;
+            let engine = engine_pointing_at(&base).await;
+
+            let mut context = ctx();
+            context
+                .headers
+                .insert("authorization".into(), "Bearer t".into());
+            context.query.insert("account_handle".into(), "ACME".into());
+            context.query.insert("project_handle".into(), "IOS".into());
+
+            let decision = engine.evaluate_access(&context).await;
+            assert!(matches!(decision, AccessDecision::Allow(Some(_))));
+        }
+
+        #[tokio::test]
+        async fn denies_when_project_is_not_in_principal_projects() {
+            let base =
+                spawn_projects_mock(|_| (StatusCode::OK, projects_payload(&["acme/ios"]))).await;
+            let engine = engine_pointing_at(&base).await;
+
+            let mut context = ctx();
+            context
+                .headers
+                .insert("authorization".into(), "Bearer t".into());
+            context.tenant_id = Some("acme".into());
+            context.namespace_id = Some("android".into());
+
+            let deny = expect_deny(engine.evaluate_access(&context).await);
+            assert_eq!(deny.status, 403);
+        }
+
+        #[tokio::test]
+        async fn denies_when_request_tenant_does_not_match_server_tenant() {
+            let base =
+                spawn_projects_mock(|_| (StatusCode::OK, projects_payload(&["someone-else/ios"])))
+                    .await;
             let engine = engine_pointing_at(&base).await;
 
             let mut context = ctx();
@@ -1552,24 +1625,18 @@ end
                 .insert("authorization".into(), "Bearer t".into());
             context
                 .query
-                .insert("account_handle".into(), "acme".into());
+                .insert("account_handle".into(), "someone-else".into());
+            context.query.insert("project_handle".into(), "ios".into());
 
-            let decision = engine.evaluate_access(&context).await;
-            assert!(
-                matches!(decision, AccessDecision::Allow(Some(_))),
-                "expected Allow(Some), got {decision:?}"
-            );
+            let deny = expect_deny(engine.evaluate_access(&context).await);
+            assert_eq!(deny.status, 403);
+            assert!(deny.message.contains("server for"));
         }
 
         #[tokio::test]
-        async fn authorizes_generic_tenant_id_query_param() {
-            let base = spawn_verify_mock(|_| {
-                (
-                    StatusCode::OK,
-                    json!({"principal": principal_with_handles(&["acme"])}),
-                )
-            })
-            .await;
+        async fn denies_when_request_carries_no_project() {
+            let base =
+                spawn_projects_mock(|_| (StatusCode::OK, projects_payload(&["acme/ios"]))).await;
             let engine = engine_pointing_at(&base).await;
 
             let mut context = ctx();
@@ -1578,72 +1645,23 @@ end
                 .insert("authorization".into(), "Bearer t".into());
             context.query.insert("tenant_id".into(), "acme".into());
 
-            let decision = engine.evaluate_access(&context).await;
-            assert!(
-                matches!(decision, AccessDecision::Allow(Some(_))),
-                "expected Allow(Some), got {decision:?}"
-            );
-        }
-
-        #[tokio::test]
-        async fn denies_when_tenant_is_not_in_principal_handles() {
-            let base = spawn_verify_mock(|_| {
-                (
-                    StatusCode::OK,
-                    json!({"principal": principal_with_handles(&["acme"])}),
-                )
-            })
-            .await;
-            let engine = engine_pointing_at(&base).await;
-
-            let mut context = ctx();
-            context
-                .headers
-                .insert("authorization".into(), "Bearer t".into());
-            context.tenant_id = Some("someone-else".into());
-
             let deny = expect_deny(engine.evaluate_access(&context).await);
             assert_eq!(deny.status, 403);
-        }
-
-        #[tokio::test]
-        async fn denies_when_request_carries_no_tenant() {
-            let base = spawn_verify_mock(|_| {
-                (
-                    StatusCode::OK,
-                    json!({"principal": principal_with_handles(&["acme"])}),
-                )
-            })
-            .await;
-            let engine = engine_pointing_at(&base).await;
-
-            let mut context = ctx();
-            context
-                .headers
-                .insert("authorization".into(), "Bearer t".into());
-            // Neither tenant_id nor query params: the request can't be
-            // resolved to any tenant.
-
-            let deny = expect_deny(engine.evaluate_access(&context).await);
-            assert_eq!(deny.status, 403);
-            assert!(deny.message.to_lowercase().contains("tenant"));
+            assert!(deny.message.to_lowercase().contains("namespace"));
         }
 
         // --- response_headers -------------------------------------------
 
         #[tokio::test]
         async fn signs_module_cache_get_responses() {
-            let engine = test_engine(&script_with_prelude(), |_| unsafe {
+            let engine = test_engine(&script(), |_| unsafe {
                 // BASE_URL is required for the http client to build, even
                 // though the response_headers hook never calls it.
                 std::env::set_var(
                     "KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL",
                     "http://127.0.0.1:1",
                 );
-                std::env::set_var(
-                    "KURA_EXTENSION_SIGNER_TUIST_ALGORITHM",
-                    "hmac-sha256",
-                );
+                std::env::set_var("KURA_EXTENSION_SIGNER_TUIST_ALGORITHM", "hmac-sha256");
                 std::env::set_var(
                     "KURA_EXTENSION_SIGNER_TUIST_SECRET",
                     BASE64.encode(b"shared-key"),
@@ -1675,15 +1693,12 @@ end
 
         #[tokio::test]
         async fn skips_signature_for_non_module_routes() {
-            let engine = test_engine(&script_with_prelude(), |_| unsafe {
+            let engine = test_engine(&script(), |_| unsafe {
                 std::env::set_var(
                     "KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL",
                     "http://127.0.0.1:1",
                 );
-                std::env::set_var(
-                    "KURA_EXTENSION_SIGNER_TUIST_ALGORITHM",
-                    "hmac-sha256",
-                );
+                std::env::set_var("KURA_EXTENSION_SIGNER_TUIST_ALGORITHM", "hmac-sha256");
                 std::env::set_var(
                     "KURA_EXTENSION_SIGNER_TUIST_SECRET",
                     BASE64.encode(b"shared-key"),
@@ -1702,15 +1717,12 @@ end
 
         #[tokio::test]
         async fn skips_signature_for_error_status_codes() {
-            let engine = test_engine(&script_with_prelude(), |_| unsafe {
+            let engine = test_engine(&script(), |_| unsafe {
                 std::env::set_var(
                     "KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL",
                     "http://127.0.0.1:1",
                 );
-                std::env::set_var(
-                    "KURA_EXTENSION_SIGNER_TUIST_ALGORITHM",
-                    "hmac-sha256",
-                );
+                std::env::set_var("KURA_EXTENSION_SIGNER_TUIST_ALGORITHM", "hmac-sha256");
                 std::env::set_var(
                     "KURA_EXTENSION_SIGNER_TUIST_SECRET",
                     BASE64.encode(b"shared-key"),
