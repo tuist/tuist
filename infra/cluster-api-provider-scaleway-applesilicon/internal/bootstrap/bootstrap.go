@@ -112,16 +112,16 @@ func Run(ctx context.Context, cfg Config) error {
 }
 
 // UpdateTartKubelet rolls a new tart-kubelet binary onto an
-// already-bootstrapped Mac mini. Re-runs only the install + launchd
-// reload steps; skips the host-level bootstrap (sudo, auto-login,
-// hostname, Tart, kubeconfig) which doesn't change between updates.
+// already-bootstrapped Mac mini. Refreshes the kubeconfig (token
+// rotation, server-URL changes, or hosts that were bootstrapped before
+// tart-kubelet existed at all), uploads the latest binary, and reloads
+// the launchd job.
 //
-// The on-disk install is idempotent on URL: if the binary's URL hash
-// matches the marker file, the curl is skipped. The launchd
-// `bootout`+`bootstrap` cycle runs unconditionally — it's a ~1-second
-// agent restart and Tart VMs running on the host are detached via
-// `nohup` so they're unaffected. tart-kubelet's startup state-recovery
-// pass picks them back up on the new agent.
+// Skips the one-shot host prep (sudo, auto-login, hostname, Tart) —
+// those don't change between updates. The launchd `bootout`+`bootstrap`
+// cycle runs unconditionally — it's a ~1-second agent restart and Tart
+// VMs survive `nohup`-detached, so workloads are unaffected. The
+// kubelet's startup state-recovery pass re-binds them on the new agent.
 func UpdateTartKubelet(ctx context.Context, cfg Config) error {
 	signer, err := ssh.ParsePrivateKey(cfg.SSHPrivateKey)
 	if err != nil {
@@ -133,6 +133,9 @@ func UpdateTartKubelet(ctx context.Context, cfg Config) error {
 	}
 	defer client.Close()
 
+	if err := writeKubeconfig(ctx, client, cfg.Kubeconfig); err != nil {
+		return fmt.Errorf("refresh kubeconfig: %w", err)
+	}
 	if err := installTartKubelet(ctx, client, cfg.TartKubeletBinary); err != nil {
 		return fmt.Errorf("install tart-kubelet: %w", err)
 	}

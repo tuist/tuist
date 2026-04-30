@@ -66,6 +66,7 @@ spec:
                 phase: { type: string }
                 failureReason: { type: string }
                 failureMessage: { type: string }
+                tartKubeletBinarySHA: { type: string }
                 addresses:
                   type: array
                   items:

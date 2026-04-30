@@ -222,11 +222,17 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 		if ip == "" {
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 		}
+		kubeconfigYAML, err := r.Kubeconfig.Render(ctx, machine.Name)
+		if err != nil {
+			logger.Error(err, "render kubeconfig for update; will retry")
+			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+		}
 		if err := bootstrap.UpdateTartKubelet(ctx, bootstrap.Config{
 			IP:                ip,
 			SSHUser:           machine.Annotations["scaleway.tuist.dev/ssh-username"],
 			SSHPrivateKey:     sshKey,
 			NodeName:          machine.Name,
+			Kubeconfig:        kubeconfigYAML,
 			TartKubeletBinary: r.TartKubeletBinary,
 			HostCPU:           r.TartKubeletHostCPU,
 			HostMemoryMB:      r.TartKubeletHostMemoryMB,
