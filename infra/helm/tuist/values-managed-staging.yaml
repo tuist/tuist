@@ -134,19 +134,24 @@ xcresultProcessor:
 
 # Mac mini fleet. The chart renders one ScalewayAppleSiliconMachine
 # CR per replica; the cluster-api-provider-scaleway-applesilicon
-# operator orders + bootstraps each, and the vk-applesilicon
-# Deployment registers a single virtual Node backed by the fleet.
+# operator orders each Mac mini, then SSH-bootstraps it with
+# tart-kubelet. The Mac mini joins the cluster as a real Node.
 macosFleet:
   enabled: true
   replicas: 1
   image:
     # capi-provider-scaleway-applesilicon — operator that owns Mac
-    # mini lifecycle (Scaleway create/release + SSH-Tart bootstrap).
+    # mini lifecycle (Scaleway create/release + SSH bootstrap +
+    # tart-kubelet install).
     tag: "ae4b412d"
-  vkImage:
-    # vk-applesilicon — registers the virtual Node + routes Pods to
-    # Tart VMs via SSH.
-    tag: "67efa1bb"
+  # External k8s API server URL the Mac minis dial when joining.
+  # Pinned to the staging managed-control-plane endpoint.
+  apiServerURL: "https://k8s.staging.tuist.dev:6443"
+  tartKubelet:
+    # Pin per env. Bumping this URL rolls a new tart-kubelet across
+    # the fleet on the next operator reconcile (each host re-downloads
+    # + relaunches its launchd job).
+    binaryURL: "https://github.com/tuist/tuist/releases/download/tart-kubelet-v0.0.0/tart-kubelet-darwin-arm64"
   machine:
     # M4-S is normally what we'd pick (smallest M4); falls back to
     # M2-M when M4-S is no_stock. Override per Scaleway capacity.

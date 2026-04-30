@@ -4,6 +4,8 @@ package controllers
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"time"
 
@@ -20,6 +22,7 @@ import (
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/api/v1alpha1"
 	"github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/internal/bootstrap"
 	"github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/internal/credentials"
+	"github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/internal/kubeconfig"
 	"github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/internal/scaleway"
 )
 
@@ -40,6 +43,22 @@ type ScalewayAppleSiliconMachineReconciler struct {
 	Scheme             *runtime.Scheme
 	ScalewayClient     *scaleway.Client
 	CredentialsManager *credentials.Manager
+
+	// Kubeconfig builds the per-host kubeconfig the bootstrap installs.
+	// Required for tart-kubelet to authenticate to the cluster.
+	Kubeconfig *kubeconfig.Builder
+
+	// TartKubeletBinaryURL is the HTTPS URL of the darwin/arm64
+	// tart-kubelet binary. Pinned per fleet via Helm value
+	// `macosFleet.tartKubelet.binaryURL` and threaded through to the
+	// bootstrap `installTartKubelet` step.
+	TartKubeletBinaryURL string
+
+	// TartKubelet host advertising — passed into bootstrap which bakes
+	// them into the launchd plist on each Mac mini.
+	TartKubeletHostCPU      int
+	TartKubeletHostMemoryMB int
+	TartKubeletMaxPods      int
 }
 
 // +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=scalewayapplesiliconmachines,verbs=get;list;watch;create;update;patch;delete
@@ -155,11 +174,24 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 		}
 
+		kubeconfigYAML, err := r.Kubeconfig.Render(ctx, machine.Name)
+		if err != nil {
+			conditions.MarkFalse(machine, BootstrappedCondition, "KubeconfigUnavailable",
+				clusterv1.ConditionSeverityWarning, "%v", err)
+			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+		}
+
 		if err := bootstrap.Run(ctx, bootstrap.Config{
-			IP:            ip,
-			SSHUser:       machine.Annotations["scaleway.tuist.dev/ssh-username"],
-			SudoPassword:  machine.Annotations["scaleway.tuist.dev/sudo-password"],
-			SSHPrivateKey: sshKey,
+			IP:             ip,
+			SSHUser:        machine.Annotations["scaleway.tuist.dev/ssh-username"],
+			SudoPassword:   machine.Annotations["scaleway.tuist.dev/sudo-password"],
+			SSHPrivateKey:  sshKey,
+			NodeName:       machine.Name,
+			Kubeconfig:     kubeconfigYAML,
+			TartKubeletURL: r.TartKubeletBinaryURL,
+			HostCPU:        r.TartKubeletHostCPU,
+			HostMemoryMB:   r.TartKubeletHostMemoryMB,
+			MaxPods:        r.TartKubeletMaxPods,
 		}); err != nil {
 			conditions.MarkFalse(machine, BootstrappedCondition, "BootstrapFailed",
 				clusterv1.ConditionSeverityWarning, "%v", err)
@@ -170,12 +202,60 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 		logger.Info("bootstrap complete", "host", ip)
 	}
 
-	// Mac mini is Tart-ready. The in-cluster VK provider claims it as
-	// a slot when needed; from CAPI's perspective the Machine is Ready
-	// as soon as Tart is installed.
+	// Stage 3: rolling tart-kubelet update.
+	//
+	// Bootstrap installs the agent once. After that, the chart's
+	// configured `binaryURL` is the source of truth for what version
+	// each Mac mini should be running. We hash the URL and compare it
+	// to the last-applied hash in status; on mismatch we re-run the
+	// install + launchd reload steps and stamp the new hash. The
+	// install itself is idempotent on its on-disk URL marker, so a
+	// stale status hash just means an extra SSH session — no incorrect
+	// behavior.
+	//
+	// Running Tart VMs survive an agent restart (`nohup`-detached) and
+	// the kubelet's startup state-recovery pass re-binds them, so the
+	// rollout is zero-downtime for workloads.
+	if r.TartKubeletBinaryURL != "" {
+		desiredHash := tartKubeletHash(r.TartKubeletBinaryURL)
+		if machine.Status.TartKubeletURLHash != desiredHash {
+			ip := machineIP(machine)
+			if ip == "" {
+				return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+			}
+			if err := bootstrap.UpdateTartKubelet(ctx, bootstrap.Config{
+				IP:             ip,
+				SSHUser:        machine.Annotations["scaleway.tuist.dev/ssh-username"],
+				SSHPrivateKey:  sshKey,
+				NodeName:       machine.Name,
+				TartKubeletURL: r.TartKubeletBinaryURL,
+				HostCPU:        r.TartKubeletHostCPU,
+				HostMemoryMB:   r.TartKubeletHostMemoryMB,
+				MaxPods:        r.TartKubeletMaxPods,
+			}); err != nil {
+				logger.Error(err, "tart-kubelet update failed; will retry")
+				return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
+			}
+			machine.Status.TartKubeletURLHash = desiredHash
+			logger.Info("rolled new tart-kubelet", "host", ip, "hash", desiredHash)
+		}
+	}
+
+	// Mac mini is now running tart-kubelet and registering itself as a
+	// real Node. From CAPI's perspective the Machine is Ready as soon
+	// as bootstrap returns; whether the Node has reported Ready yet is
+	// a separate concern observable via `kubectl get nodes`.
 	machine.Status.Ready = true
 	machine.Status.Phase = "Ready"
 	return ctrl.Result{RequeueAfter: 5 * time.Minute}, nil
+}
+
+// tartKubeletHash returns a short stable hash of the binary URL.
+// First 16 hex chars of sha256 — enough to distinguish realistic
+// version pins without bloating status.
+func tartKubeletHash(url string) string {
+	h := sha256.Sum256([]byte(url))
+	return hex.EncodeToString(h[:8])
 }
 
 func (r *ScalewayAppleSiliconMachineReconciler) reconcileDelete(

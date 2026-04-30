@@ -36,12 +36,11 @@ spec:
         - key: tuist.dev/macos
           operator: Exists
           effect: NoSchedule
-      # No init containers, no sidecars — vk-applesilicon maps Pod ↔
-      # Tart VM 1:1 and rejects multi-container Pods at CreatePod.
+      # No init containers, no sidecars — tart-kubelet maps Pod ↔
+      # Tart VM 1:1 and rejects multi-container Pods at admission.
       # The first (and only) container's image is the Tart VM image;
-      # env flows
-      # through to /etc/tuist.env inside the VM via the user-data
-      # injection in launchd.plist.
+      # env flows through to /etc/tuist.env inside the VM via the
+      # shared `env` directory mounted from the host's user-data dir.
       containers:
         - name: xcresult-processor
           image: "{{ .Values.xcresultProcessor.image.repository }}:{{ .Values.xcresultProcessor.image.tag | default "latest" }}"

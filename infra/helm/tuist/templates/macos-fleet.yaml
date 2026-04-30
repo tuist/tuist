@@ -4,14 +4,15 @@
 {{- /*
 Mac mini fleet: render N ScalewayAppleSiliconMachine CRs directly.
 Each one is reconciled by the cluster-api-provider-scaleway-applesilicon
-operator, which orders the Mac mini from Scaleway and SSH-installs Tart.
+operator, which orders the Mac mini from Scaleway and SSH-bootstraps
+it (sudo, auto-login, Tart, kubeconfig, tart-kubelet binary,
+launchd job). The Mac mini joins the cluster as a real Node.
 
-We don't use CAPI core's Cluster/MachineDeployment machinery anymore —
-without kubelet on Mac minis there's no Node to wait for, so the
-indirection costs more than it gives. Scaling = bumping `replicas`.
-
-The vk-applesilicon Deployment (next template) discovers these CRs at
-runtime and registers a virtual Node backed by the fleet.
+Scaling = bumping `replicas`. CAPI core's
+Cluster/MachineDeployment machinery is intentionally not used; we
+own the lifecycle directly because there's no separate workload
+cluster — the cluster these Mac minis join is the same one running
+the operator.
 */ -}}
 {{- range $i, $_ := until $replicas }}
 {{- $instance := printf "%s-%d" $fleetName $i }}
@@ -30,9 +31,9 @@ spec:
   zone: {{ $.Values.macosFleet.machine.zone | default "fr-par-1" | quote }}
   os: {{ $.Values.macosFleet.machine.os | default "macos-tahoe-26.0" | quote }}
   fleetName: {{ $fleetName | quote }}
-  # podCIDR is unused now that Mac minis aren't k8s nodes (the VK
-  # provider doesn't expose per-host pod networks), but the CRD still
-  # requires the field. Leave it nominal.
+  # podCIDR is a CRD-required field that's not actively used today —
+  # tart-kubelet's Pods get Tart-internal IPs, not cluster CIDR slices.
+  # Leave it nominal until we add per-host CNI plumbing.
   podCIDR: {{ $.Values.macosFleet.machine.podCIDR | default "10.0.0.0/24" | quote }}
 {{- end }}
 {{- end }}

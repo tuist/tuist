@@ -163,7 +163,6 @@ defmodule TuistWeb.Router do
     plug TuistWeb.WarningsHeaderPlug
   end
 
-
   pipeline :api_catalog do
     plug :accepts, ["linkset"]
   end

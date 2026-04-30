@@ -1,23 +1,28 @@
 // Package bootstrap turns a freshly-provisioned Scaleway Mac mini into
-// a Tart-ready compute host.
+// a tart-kubelet-ready cluster Node.
 //
-// We DO NOT install kubelet on the Mac mini. The Mac mini is a "dumb"
-// Tart server: the in-cluster Virtual Kubelet provider
-// (infra/vk-applesilicon) SSHes in to drive `tart pull/clone/run/...`
-// against this host. From the cluster's perspective, Mac minis show up
-// as slots on a single virtual Node, not as standalone k8s Nodes.
+// Each Mac mini joins the cluster as a real `Node` via tart-kubelet
+// — a small kubelet-shaped agent that watches the API server for Pods
+// scheduled to its Node and runs them as Tart VMs locally. From the
+// cluster's perspective, every Mac mini is a standalone Node with
+// kubernetes.io/os=darwin.
 //
 // Steps, in order, idempotent on retry:
-//   1. Wait for SSH (host has just booted from a Scaleway image).
-//   2. Grant the SSH user passwordless sudo using the OS-default password.
-//   3. Configure GUI auto-login via /etc/kcpassword + autoLoginUser
-//      so Virtualization.framework has a live console session (Tart's
-//      hard requirement).
-//   4. Install Homebrew + Tart if missing.
+//  1. Wait for SSH (host has just booted from a Scaleway image).
+//  2. Grant the SSH user passwordless sudo using the OS-default password.
+//  3. Configure GUI auto-login via /etc/kcpassword + autoLoginUser
+//     so Virtualization.framework has a live console session (Tart's
+//     hard requirement).
+//  4. Set the macOS hostname to the CR name so tart-kubelet's default
+//     Node name lines up with the inventory CR.
+//  5. Install Homebrew + Tart.
+//  6. Drop the kubeconfig the controller built for this host.
+//  7. Download the tart-kubelet binary.
+//  8. Write the launchd plist with this host's flags + load it.
 //
-// After step 4 the host is ready for the VK provider to claim. The
-// MachineReconciler flips Machine.Status.Ready=true when this returns
-// nil.
+// After step 8 the agent on the Mac mini registers a Node and starts
+// reconciling Pods. The MachineReconciler flips Machine.Status.Ready
+// when this returns nil.
 package bootstrap
 
 import (
@@ -37,6 +42,27 @@ type Config struct {
 	SSHUser       string
 	SudoPassword  string
 	SSHPrivateKey []byte
+
+	// NodeName is the cluster Node name tart-kubelet should register.
+	// Matches the ScalewayAppleSiliconMachine CR name so `kubectl get
+	// nodes` reflects the inventory.
+	NodeName string
+
+	// Kubeconfig is the YAML kubeconfig the controller built for this
+	// host (contains a long-lived ServiceAccount token + the API
+	// server's external URL + CA bundle). Dropped at
+	// /etc/tart-kubelet/kubeconfig.
+	Kubeconfig string
+
+	// TartKubeletURL is the HTTPS URL of the darwin/arm64 binary to
+	// install. Pinned per fleet via Helm values; the operator threads
+	// it through here.
+	TartKubeletURL string
+
+	// HostCPU / HostMemoryMB / MaxPods are advertised on the Node.
+	HostCPU      int
+	HostMemoryMB int
+	MaxPods      int
 }
 
 // Run executes the bootstrap. Idempotent: re-running on a partially-
@@ -64,10 +90,167 @@ func Run(ctx context.Context, cfg Config) error {
 	if err := enableAutoLogin(ctx, client, cfg.SSHUser, cfg.SudoPassword); err != nil {
 		return fmt.Errorf("auto-login: %w", err)
 	}
+	if cfg.NodeName != "" {
+		if err := setHostname(ctx, client, cfg.NodeName); err != nil {
+			return fmt.Errorf("set hostname: %w", err)
+		}
+	}
 	if err := installTart(ctx, client); err != nil {
 		return fmt.Errorf("install tart: %w", err)
 	}
+	if err := writeKubeconfig(ctx, client, cfg.Kubeconfig); err != nil {
+		return fmt.Errorf("write kubeconfig: %w", err)
+	}
+	if err := installTartKubelet(ctx, client, cfg.TartKubeletURL); err != nil {
+		return fmt.Errorf("install tart-kubelet: %w", err)
+	}
+	if err := loadTartKubeletLaunchd(ctx, client, cfg); err != nil {
+		return fmt.Errorf("load launchd job: %w", err)
+	}
 	return nil
+}
+
+// UpdateTartKubelet rolls a new tart-kubelet binary onto an
+// already-bootstrapped Mac mini. Re-runs only the install + launchd
+// reload steps; skips the host-level bootstrap (sudo, auto-login,
+// hostname, Tart, kubeconfig) which doesn't change between updates.
+//
+// The on-disk install is idempotent on URL: if the binary's URL hash
+// matches the marker file, the curl is skipped. The launchd
+// `bootout`+`bootstrap` cycle runs unconditionally — it's a ~1-second
+// agent restart and Tart VMs running on the host are detached via
+// `nohup` so they're unaffected. tart-kubelet's startup state-recovery
+// pass picks them back up on the new agent.
+func UpdateTartKubelet(ctx context.Context, cfg Config) error {
+	signer, err := ssh.ParsePrivateKey(cfg.SSHPrivateKey)
+	if err != nil {
+		return fmt.Errorf("parse ssh key: %w", err)
+	}
+	client, err := dial(cfg.IP, cfg.SSHUser, signer)
+	if err != nil {
+		return err
+	}
+	defer client.Close()
+
+	if err := installTartKubelet(ctx, client, cfg.TartKubeletURL); err != nil {
+		return fmt.Errorf("install tart-kubelet: %w", err)
+	}
+	if err := loadTartKubeletLaunchd(ctx, client, cfg); err != nil {
+		return fmt.Errorf("reload launchd job: %w", err)
+	}
+	return nil
+}
+
+// setHostname makes the macOS hostname match the CR name, so
+// `os.Hostname()` inside tart-kubelet (the default --node-name) lines
+// up with the inventory. The operator passes --node-name explicitly
+// regardless; this is belt-and-braces.
+func setHostname(ctx context.Context, client *ssh.Client, name string) error {
+	script := fmt.Sprintf(`set -euo pipefail
+sudo scutil --set HostName %[1]s
+sudo scutil --set LocalHostName %[1]s
+sudo scutil --set ComputerName %[1]s
+`, shellQuote(name))
+	return runCommand(ctx, client, script)
+}
+
+// writeKubeconfig drops the controller-built kubeconfig at the
+// well-known path tart-kubelet looks for.
+func writeKubeconfig(ctx context.Context, client *ssh.Client, kubeconfig string) error {
+	if kubeconfig == "" {
+		return fmt.Errorf("empty kubeconfig in bootstrap config")
+	}
+	script := `set -euo pipefail
+sudo mkdir -p /etc/tart-kubelet
+sudo tee /etc/tart-kubelet/kubeconfig >/dev/null
+sudo chmod 0600 /etc/tart-kubelet/kubeconfig
+`
+	return runCommandWithStdin(ctx, client, script, kubeconfig)
+}
+
+// installTartKubelet downloads the tart-kubelet binary to
+// /usr/local/bin. Idempotent: re-running with the same URL skips the
+// download if the marker file matches.
+func installTartKubelet(ctx context.Context, client *ssh.Client, url string) error {
+	if url == "" {
+		return fmt.Errorf("empty TartKubeletURL")
+	}
+	script := fmt.Sprintf(`set -euo pipefail
+mkdir -p /tmp/tart-kubelet-install
+URL_HASH=$(echo -n %[1]s | shasum -a 256 | awk '{print $1}')
+MARKER=/usr/local/bin/.tart-kubelet.url.sha
+if [ -f "$MARKER" ] && [ "$(cat "$MARKER")" = "$URL_HASH" ] && [ -x /usr/local/bin/tart-kubelet ]; then exit 0; fi
+curl -fsSL %[1]s -o /tmp/tart-kubelet-install/tart-kubelet
+chmod 0755 /tmp/tart-kubelet-install/tart-kubelet
+sudo mv /tmp/tart-kubelet-install/tart-kubelet /usr/local/bin/tart-kubelet
+echo "$URL_HASH" | sudo tee "$MARKER" >/dev/null
+`, shellQuote(url))
+	return runCommand(ctx, client, script)
+}
+
+// loadTartKubeletLaunchd writes /Library/LaunchDaemons/dev.tuist.tart-kubelet.plist
+// with this host's flags substituted in, then `launchctl bootstrap`s it
+// (replaces any prior load idempotently).
+func loadTartKubeletLaunchd(ctx context.Context, client *ssh.Client, cfg Config) error {
+	plist := renderLaunchdPlist(cfg)
+	script := `set -euo pipefail
+PLIST=/Library/LaunchDaemons/dev.tuist.tart-kubelet.plist
+sudo tee "$PLIST" >/dev/null
+sudo chown root:wheel "$PLIST"
+sudo chmod 0644 "$PLIST"
+# launchctl bootstrap is the modern API; bootout first to make this
+# idempotent across reruns with new args.
+sudo launchctl bootout system "$PLIST" 2>/dev/null || true
+sudo launchctl bootstrap system "$PLIST"
+`
+	return runCommandWithStdin(ctx, client, script, plist)
+}
+
+func renderLaunchdPlist(cfg Config) string {
+	cpu := cfg.HostCPU
+	if cpu == 0 {
+		cpu = 8
+	}
+	mem := cfg.HostMemoryMB
+	if mem == 0 {
+		mem = 16384
+	}
+	maxPods := cfg.MaxPods
+	if maxPods == 0 {
+		maxPods = 8
+	}
+	return fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>dev.tuist.tart-kubelet</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/local/bin/tart-kubelet</string>
+    <string>--node-name=%s</string>
+    <string>--kubeconfig=/etc/tart-kubelet/kubeconfig</string>
+    <string>--host-cpu=%d</string>
+    <string>--host-memory-mb=%d</string>
+    <string>--max-pods=%d</string>
+  </array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>ThrottleInterval</key><integer>10</integer>
+  <key>StandardOutPath</key><string>/var/log/tart-kubelet.log</string>
+  <key>StandardErrorPath</key><string>/var/log/tart-kubelet.log</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>HOME</key><string>/var/root</string>
+    <key>PATH</key><string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
+</dict>
+</plist>
+`, cfg.NodeName, cpu, mem, maxPods)
+}
+
+func shellQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
 
 func dial(ip, user string, signer ssh.Signer) (*ssh.Client, error) {

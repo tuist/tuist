@@ -4,11 +4,9 @@
 # Cluster API infrastructure provider for Scaleway Apple Silicon Mac
 # minis. Watches ScalewayAppleSiliconMachine CRs and reconciles them
 # against Scaleway's API: orders the host, SSHes in, installs Tart +
-# kubelet + tart-cri, then waits for the kubelet to register and
-# Node.Ready to flip true.
-#
-# CRDs and `MachineDeployment` samples live alongside this template
-# (capi-scaleway-applesilicon-{crds,machinedeployment}.yaml).
+# tart-kubelet, drops a kubeconfig, and loads the launchd job. The
+# Mac mini joins the cluster as a real Node and starts handling Pods
+# scheduled to it.
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -110,6 +108,13 @@ spec:
             - --metrics-bind-address=:8080
             - --health-probe-bind-address=:8081
             - --secrets-namespace={{ .Release.Namespace }}
+            - --api-server-url={{ .Values.macosFleet.apiServerURL | required ".Values.macosFleet.apiServerURL is required (external https URL Mac minis dial)" }}
+            - --tartkubelet-token-secret={{ include "tuist.componentName" (dict "root" . "component" "tart-kubelet") }}-token
+            - --tartkubelet-token-namespace={{ .Release.Namespace }}
+            - --tartkubelet-binary-url={{ .Values.macosFleet.tartKubelet.binaryURL | required ".Values.macosFleet.tartKubelet.binaryURL is required (https URL of darwin/arm64 tart-kubelet)" }}
+            - --tartkubelet-host-cpu={{ .Values.macosFleet.tartKubelet.hostCPU | default 8 }}
+            - --tartkubelet-host-memory-mb={{ .Values.macosFleet.tartKubelet.hostMemoryMB | default 16384 }}
+            - --tartkubelet-max-pods={{ .Values.macosFleet.tartKubelet.maxPods | default 8 }}
           env:
             # Scaleway credentials. ESO syncs them from 1Password into
             # this Secret automatically (see

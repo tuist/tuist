@@ -2,11 +2,13 @@
 // Apple Silicon CAPI infrastructure provider. Watches
 // ScalewayAppleSiliconMachine + ScalewayAppleSiliconCluster CRs and
 // reconciles them against Scaleway's Apple Silicon API: order/release
-// Mac minis, then SSH-bootstrap Tart on each.
+// Mac minis, then SSH-bootstrap each into a real cluster Node.
 //
-// Mac minis are NOT k8s nodes — the in-cluster Virtual Kubelet
-// provider (infra/vk-applesilicon) claims them as Tart slots. This
-// operator only owns lifecycle (provision + bootstrap-Tart + release).
+// Bootstrap installs `tart-kubelet` on the Mac mini — a small
+// kubelet-shaped agent that registers a Node with the cluster API and
+// runs Pods scheduled to it as Tart VMs. The operator owns lifecycle
+// (provision, bootstrap, release) and produces the kubeconfig the
+// agent uses to authenticate.
 package main
 
 import (
@@ -25,6 +27,7 @@ import (
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/api/v1alpha1"
 	"github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/controllers"
 	"github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/internal/credentials"
+	"github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/internal/kubeconfig"
 	"github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/internal/scaleway"
 )
 
@@ -45,6 +48,14 @@ func main() {
 		probeAddr            string
 		enableLeaderElection bool
 		secretsNamespace     string
+
+		apiServerURL          string
+		tokenSecretName       string
+		tokenSecretNamespace  string
+		tartKubeletBinaryURL  string
+		tartKubeletHostCPU    int
+		tartKubeletHostMemory int
+		tartKubeletMaxPods    int
 	)
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "Prometheus metrics endpoint")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "Liveness/readiness probe endpoint")
@@ -52,6 +63,18 @@ func main() {
 		"Single-leader election; required when running >1 replica")
 	flag.StringVar(&secretsNamespace, "secrets-namespace", "default",
 		"Namespace where the operator stores per-fleet SSH key Secrets")
+
+	flag.StringVar(&apiServerURL, "api-server-url", os.Getenv("CAPI_TARTKUBELET_API_SERVER_URL"),
+		"External API server URL Mac minis dial when joining (https://...).")
+	flag.StringVar(&tokenSecretName, "tartkubelet-token-secret", os.Getenv("CAPI_TARTKUBELET_TOKEN_SECRET"),
+		"Name of the Secret holding the shared tart-kubelet ServiceAccount token.")
+	flag.StringVar(&tokenSecretNamespace, "tartkubelet-token-namespace", os.Getenv("CAPI_TARTKUBELET_TOKEN_NAMESPACE"),
+		"Namespace of the tart-kubelet token Secret.")
+	flag.StringVar(&tartKubeletBinaryURL, "tartkubelet-binary-url", os.Getenv("CAPI_TARTKUBELET_BINARY_URL"),
+		"HTTPS URL of the darwin/arm64 tart-kubelet binary.")
+	flag.IntVar(&tartKubeletHostCPU, "tartkubelet-host-cpu", 8, "CPU cores tart-kubelet advertises on its Node")
+	flag.IntVar(&tartKubeletHostMemory, "tartkubelet-host-memory-mb", 16384, "Memory MB tart-kubelet advertises on its Node")
+	flag.IntVar(&tartKubeletMaxPods, "tartkubelet-max-pods", 8, "Max concurrent Pods on each Mac mini")
 
 	opts := zap.Options{Development: false}
 	opts.BindFlags(flag.CommandLine)
@@ -91,11 +114,23 @@ func main() {
 		Namespace: secretsNamespace,
 	}
 
+	kubeconfigBuilder := &kubeconfig.Builder{
+		Client:               mgr.GetClient(),
+		APIServerURL:         apiServerURL,
+		TokenSecretName:      tokenSecretName,
+		TokenSecretNamespace: tokenSecretNamespace,
+	}
+
 	if err := (&controllers.ScalewayAppleSiliconMachineReconciler{
-		Client:             mgr.GetClient(),
-		Scheme:             mgr.GetScheme(),
-		ScalewayClient:     scwClient,
-		CredentialsManager: credsManager,
+		Client:                  mgr.GetClient(),
+		Scheme:                  mgr.GetScheme(),
+		ScalewayClient:          scwClient,
+		CredentialsManager:      credsManager,
+		Kubeconfig:              kubeconfigBuilder,
+		TartKubeletBinaryURL:    tartKubeletBinaryURL,
+		TartKubeletHostCPU:      tartKubeletHostCPU,
+		TartKubeletHostMemoryMB: tartKubeletHostMemory,
+		TartKubeletMaxPods:      tartKubeletMaxPods,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup MachineReconciler")
 		os.Exit(1)

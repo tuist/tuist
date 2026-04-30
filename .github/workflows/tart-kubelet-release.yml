@@ -1,0 +1,94 @@
+name: tart-kubelet release
+
+# Builds the darwin/arm64 tart-kubelet binary and publishes it as an
+# asset on a per-SHA GitHub Release. The Helm chart pins
+# `macosFleet.tartKubelet.binaryURL` to a release URL produced here;
+# the CAPI provider's bootstrap downloads from that URL when it
+# provisions or rolls a Mac mini.
+#
+# Releases are tagged `tart-kubelet-<short-sha>` so multiple deploys can
+# reference distinct binaries without collision. The latest tag also
+# moves to `tart-kubelet-latest` for convenience but the chart should
+# pin a SHA-specific URL for reproducibility.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - infra/tart-kubelet/**
+      - .github/workflows/tart-kubelet-release.yml
+  pull_request:
+    paths:
+      - infra/tart-kubelet/**
+      - .github/workflows/tart-kubelet-release.yml
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    runs-on: namespace-profile-default
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: infra/tart-kubelet/go.mod
+          cache-dependency-path: infra/tart-kubelet/go.sum
+      - name: Vet
+        working-directory: infra/tart-kubelet
+        run: go vet ./...
+      - name: Test
+        working-directory: infra/tart-kubelet
+        run: go test ./...
+
+  release:
+    needs: test
+    if: github.event_name != 'pull_request'
+    runs-on: namespace-profile-default
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: infra/tart-kubelet/go.mod
+          cache-dependency-path: infra/tart-kubelet/go.sum
+
+      - name: Build darwin/arm64 binary
+        working-directory: infra/tart-kubelet
+        env:
+          GOOS: darwin
+          GOARCH: arm64
+          CGO_ENABLED: "0"
+        run: |
+          mkdir -p dist
+          go build -trimpath -ldflags "-s -w" \
+            -o dist/tart-kubelet-darwin-arm64 \
+            ./cmd/tart-kubelet
+          shasum -a 256 dist/tart-kubelet-darwin-arm64 > dist/tart-kubelet-darwin-arm64.sha256
+
+      - name: Compute release tag
+        id: tag
+        run: |
+          GIT_SHA="${GITHUB_SHA::8}"
+          echo "tag=tart-kubelet-${GIT_SHA}" >> "$GITHUB_OUTPUT"
+          echo "title=tart-kubelet ${GIT_SHA}" >> "$GITHUB_OUTPUT"
+
+      - name: Create / update release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="${{ steps.tag.outputs.tag }}"
+          # `gh release create` errors if the release exists; we want
+          # idempotency so re-runs (e.g. workflow_dispatch on the same
+          # SHA) don't fail. Try create, fall through to upload --clobber.
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            gh release create "$TAG" \
+              --title "${{ steps.tag.outputs.title }}" \
+              --notes "Automated release for tart-kubelet built from $GITHUB_SHA." \
+              --target "$GITHUB_SHA"
+          fi
+          gh release upload "$TAG" \
+            infra/tart-kubelet/dist/tart-kubelet-darwin-arm64 \
+            infra/tart-kubelet/dist/tart-kubelet-darwin-arm64.sha256 \
+            --clobber

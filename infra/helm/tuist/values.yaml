@@ -327,12 +327,24 @@ macosFleet:
     # green build. Pin per-env in `values-managed-<env>.yaml` for prod.
     tag: ""
     pullPolicy: IfNotPresent
-  # Virtual Kubelet provider image — registers the virtual Node and
-  # routes Pod CRUD to Tart on Mac minis via SSH.
-  vkImage:
-    repository: ghcr.io/tuist/vk-applesilicon
-    tag: ""
-    pullPolicy: IfNotPresent
+  # External URL of the cluster API server that Mac minis dial when
+  # joining. Required when macosFleet.enabled — Mac minis are off
+  # cluster, so the in-cluster service URL won't resolve.
+  apiServerURL: ""
+
+  # tart-kubelet — kubelet-shaped agent the CAPI provider installs on
+  # each Mac mini. Replaces the old VK provider; each Mac mini joins
+  # the cluster as a real Node and runs Pods scheduled to it as
+  # Tart VMs.
+  tartKubelet:
+    # Required: HTTPS URL of the darwin/arm64 binary. The bootstrap
+    # downloads from here on first install AND on every URL change
+    # (rolling out a new version = bumping this URL).
+    binaryURL: ""
+    # Capacity advertised by each Mac mini when it registers its Node.
+    hostCPU: 8
+    hostMemoryMB: 16384
+    maxPods: 8
     # Capacity advertised on the virtual Node per Mac mini. Sum of all
     # Mac minis in the fleet = total Node capacity. M4-S = 8 vCPU/16GB.
     hostCPU: 8
