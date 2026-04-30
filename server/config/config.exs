@@ -122,7 +122,10 @@ config :logger, :console,
   ]
 
 config :mime, :types, %{
-  "application/linkset+json" => ["linkset"]
+  "application/linkset+json" => ["linkset"],
+  "application/vnd.swift.registry.v1+json" => ["swift-registry-v1-json"],
+  "application/vnd.swift.registry.v1+zip" => ["swift-registry-v1-zip"],
+  "application/vnd.swift.registry.v1+swift" => ["swift-registry-v1-api"]
 }
 
 # Money

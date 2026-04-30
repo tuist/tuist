@@ -197,8 +197,30 @@ defmodule TuistWeb.Router do
     plug TuistWeb.AnalyticsPlug, :track_page_view
   end
 
+  pipeline :api_registry_swift do
+    plug :accepts, ["swift-registry-v1-json", "swift-registry-v1-zip", "swift-registry-v1-api"]
+  end
+
   scope "/", TuistWeb do
     get "/robots.txt", RobotsTxtController, :show, metadata: %{robots_txt: false}
+  end
+
+  scope "/api/registry/swift", TuistWeb do
+    pipe_through [:api_registry_swift]
+
+    get "/", RegistryController, :availability
+    head "/", RegistryController, :availability
+    get "/availability", RegistryController, :availability
+    head "/availability", RegistryController, :availability
+    get "/identifiers", RegistryController, :identifiers
+    head "/identifiers", RegistryController, :identifiers
+    post "/login", RegistryController, :login
+    get "/:scope/:name", RegistryController, :list_releases
+    head "/:scope/:name", RegistryController, :list_releases
+    get "/:scope/:name/:version", RegistryController, :show_release
+    head "/:scope/:name/:version", RegistryController, :show_release
+    get "/:scope/:name/:version/Package.swift", RegistryController, :show_manifest
+    head "/:scope/:name/:version/Package.swift", RegistryController, :show_manifest
   end
 
   # Marketing
