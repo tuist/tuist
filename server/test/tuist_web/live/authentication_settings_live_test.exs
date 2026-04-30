@@ -212,6 +212,7 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
       document = Floki.parse_fragment!(html)
       plaintext_token = document |> Floki.find("#new-scim-token") |> Floki.text()
       assert Floki.attribute(document, "#copy-scim-token-button", "data-clipboard-value") == [plaintext_token]
+      assert Floki.attribute(document, "#copy-scim-token-button", "type") == ["button"]
       assert html =~ ~s(aria-label="Revoke token")
       assert html =~ "icon-tabler-trash"
       refute html =~ "No SCIM tokens yet"
