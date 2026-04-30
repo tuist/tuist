@@ -5,9 +5,7 @@ import TuistEnvironment
 import TuistEnvKey
 import TuistSupport
 
-public struct XcodeBuildTestWithoutBuildingCommand: AsyncParsableCommand, TrackableParsableCommand,
-    RecentPathRememberableCommand
-{
+public struct XcodeBuildTestWithoutBuildingCommand: AsyncParsableCommand, TrackableParsableCommand {
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "test-without-building",

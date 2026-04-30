@@ -43,7 +43,7 @@
 
         & > [data-part="badge-success"],
         & > [data-part="badge-failure"] {
-          border-radius: var(--noora-radius-large);
+          border-radius: var(--noora-radius-4);
           & > [data-part="icon"] {
             padding: var(--noora-spacing-3);
             width: var(--noora-icon-size-large);

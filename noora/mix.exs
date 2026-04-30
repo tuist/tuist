@@ -7,7 +7,6 @@ defmodule Noora.MixProject do
       description: "A component library for Phoenix LiveView applications",
       version: "0.81.0",
       elixir: "~> 1.16",
-      build_path: build_path(),
       elixirc_options: [check_cwd: false],
       start_permanent: Mix.env() == :prod,
       deps: deps(),
@@ -20,13 +19,6 @@ defmodule Noora.MixProject do
     [
       extra_applications: [:logger]
     ]
-  end
-
-  defp build_path do
-    case System.get_env("TUIST_MIX_BUILD_ROOT") do
-      root when root in [nil, ""] -> "_build"
-      root -> Path.join(root, "noora")
-    end
   end
 
   defp deps do

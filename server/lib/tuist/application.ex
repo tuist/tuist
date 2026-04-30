@@ -5,9 +5,17 @@ defmodule Tuist.Application do
   use Boundary, top_level?: true, deps: [Tuist, TuistWeb]
 
   alias Tuist.Builds.Build
+  alias Tuist.Builds.BuildFile
+  alias Tuist.Builds.BuildIssue
+  alias Tuist.Builds.BuildMachineMetric
+  alias Tuist.Builds.BuildTarget
+  alias Tuist.Builds.CacheableTask
+  alias Tuist.Builds.CASOutput
   alias Tuist.Cache.CASEvent
   alias Tuist.CommandEvents
   alias Tuist.DBConnection.TelemetryListener
+  alias Tuist.Docs.ContentFileWatcher
+  alias Tuist.Docs.NimblePublisher.Cache
   alias Tuist.Environment
   alias Tuist.Gradle
   alias Tuist.Gradle.Build.Buffer
@@ -273,6 +281,12 @@ defmodule Tuist.Application do
         {Tuist.IngestRepo, connection_listeners: {[TelemetryListener], :clickhouse_write}},
         Supervisor.child_spec(CommandEvents.Event.Buffer, id: CommandEvents.Event.Buffer),
         Supervisor.child_spec(Build.Buffer, id: Build.Buffer),
+        Supervisor.child_spec(BuildFile.Buffer, id: BuildFile.Buffer),
+        Supervisor.child_spec(BuildIssue.Buffer, id: BuildIssue.Buffer),
+        Supervisor.child_spec(BuildMachineMetric.Buffer, id: BuildMachineMetric.Buffer),
+        Supervisor.child_spec(BuildTarget.Buffer, id: BuildTarget.Buffer),
+        Supervisor.child_spec(CacheableTask.Buffer, id: CacheableTask.Buffer),
+        Supervisor.child_spec(CASOutput.Buffer, id: CASOutput.Buffer),
         Supervisor.child_spec(XcodeGraph.Buffer, id: XcodeGraph.Buffer),
         Supervisor.child_spec(XcodeProject.Buffer, id: XcodeProject.Buffer),
         Supervisor.child_spec(XcodeTarget.Buffer, id: XcodeTarget.Buffer),
@@ -296,9 +310,8 @@ defmodule Tuist.Application do
         {TuistWeb.RateLimit.InMemory, [clean_period: to_timeout(hour: 1)]},
         {Tuist.API.Pipeline, []},
         {Guardian.DB.Sweeper, [interval: 60 * 60 * 1000]},
-        TuistWeb.Telemetry,
-        TuistWeb.Endpoint
-      ]
+        TuistWeb.Telemetry
+      ] ++ dev_content_children() ++ [TuistWeb.Endpoint]
 
     children
     |> Kernel.++(
@@ -366,6 +379,38 @@ defmodule Tuist.Application do
       base ++ [Tuist.Registry.AlternateManifests]
     else
       base
+    end
+  end
+
+  defp dev_content_children do
+    if Environment.dev?() do
+      docs_dirs = [
+        Path.expand("../../priv/docs", __DIR__),
+        Path.expand("../../../examples/xcode", __DIR__)
+      ]
+
+      marketing_dirs = [
+        Path.expand("../../priv/marketing", __DIR__)
+      ]
+
+      [
+        Cache,
+        Supervisor.child_spec(
+          {Tuist.ContentFileWatcher, name: ContentFileWatcher, dirs: docs_dirs, extensions: [".md"], cache: Cache},
+          id: ContentFileWatcher
+        ),
+        Tuist.Marketing.NimblePublisher.Cache,
+        Supervisor.child_spec(
+          {Tuist.ContentFileWatcher,
+           name: Tuist.Marketing.ContentFileWatcher,
+           dirs: marketing_dirs,
+           extensions: [".md", ".yml"],
+           cache: Tuist.Marketing.NimblePublisher.Cache},
+          id: Tuist.Marketing.ContentFileWatcher
+        )
+      ]
+    else
+      []
     end
   end
 

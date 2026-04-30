@@ -294,6 +294,7 @@ if Tuist.Environment.error_tracking_enabled?() do
     client: TuistCommon.SentryHTTPClient,
     dsn: Tuist.Environment.sentry_dsn(secrets),
     environment_name: env,
+    release: Tuist.Environment.version(),
     enable_source_code_context: true,
     root_source_code_paths: [File.cwd!()],
     before_send: {Tuist.SentryEventFilter, :before_send}
@@ -507,7 +508,11 @@ if otel_endpoint do
   config :opentelemetry,
     span_processor: :batch,
     resource: [
-      service: [name: "tuist-server", namespace: "tuist"],
+      service: [
+        name: "tuist-server",
+        namespace: "tuist",
+        version: to_string(Tuist.Environment.version())
+      ],
       deployment: [environment: to_string(env)]
     ]
 

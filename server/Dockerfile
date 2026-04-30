@@ -241,9 +241,11 @@ RUN chown nobody /app
 
 ARG MIX_ENV=prod
 ARG TUIST_HOSTED=1
+ARG TUIST_VERSION=0.0.0
 ARG EMBED_CLICKHOUSE=false
 ENV MIX_ENV=$MIX_ENV
 ENV TUIST_HOSTED=$TUIST_HOSTED
+ENV TUIST_VERSION=$TUIST_VERSION
 
 # Swift runtime libs the NIF links against at load time. Small (~20 MB) but
 # carried by every release image because any pod may run in processor mode

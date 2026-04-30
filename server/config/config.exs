@@ -284,6 +284,8 @@ config :tuist, :blocked_handles, [
   "jobs"
 ]
 
+config :tuist, :dev_all_locales, System.get_env("TUIST_DEV_ALL_LOCALES") in ~w(1 true TRUE yes YES)
+
 config :tuist, :urls,
   production: "https://tuist.dev",
   contact: "mailto:contact@tuist.dev",

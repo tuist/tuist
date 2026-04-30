@@ -41,13 +41,18 @@ defmodule Tuist.IngestRepo.Migrations.BackfillArtifactsFromPostgres do
   @disable_ddl_transaction true
   @disable_migration_lock true
 
-  # Sized so each batch lands ~100K-200K artifacts in CH (the band
-  # CH ingests most happily) while keeping BEAM memory under ~200MB
-  # even on a tail bundle with hundreds of artifacts. With ~225M
-  # artifacts on production this works out to a few hundred batches,
-  # so the inter-batch throttle below stays a small slice of total
-  # runtime instead of dominating it.
-  @bundle_batch_size 1_000
+  # Bundle batch sizes the resume cursor (the `artifacts_replicated_to_ch`
+  # flag is flipped per-batch). Artifact streaming below decouples peak
+  # BEAM memory from the batch's total artifact count, so the bundle
+  # batch can stay large enough to keep wall time inside the deploy
+  # hook's 60-minute window without risking OOM on a tail batch.
+  @bundle_batch_size 100
+  # Caps the artifact list (and its CH-encoded copy) the migration holds
+  # at any moment. A 1000-bundle batch with a heavy tail spiked BEAM
+  # memory past 8 GB and OOM-evicted the migration pod in production;
+  # streaming through 5K-row chunks keeps peak working set in the tens
+  # of MB regardless of how heavy a bundle batch turns out to be.
+  @artifact_chunk_size 5_000
   # Matches the throttle other long-running CH backfills use
   # (`BackfillTestRunsFromCommandEvents`, `BackfillFirstRunEvents`):
   # gives live PG/CH traffic breathing room and lets CH merges keep up
@@ -106,18 +111,9 @@ defmodule Tuist.IngestRepo.Migrations.BackfillArtifactsFromPostgres do
         :done
 
       bundle_ids ->
-        artifacts = fetch_artifacts(bundle_ids)
-
-        if artifacts != [] do
-          IngestRepo.insert_all("artifacts", artifacts,
-            types: @ch_types,
-            timeout: :infinity,
-            log: false
-          )
-        end
-
+        artifacts_count = stream_and_insert_artifacts(bundle_ids)
         mark_replicated(bundle_ids)
-        {length(bundle_ids), length(artifacts)}
+        {length(bundle_ids), artifacts_count}
     end
   end
 
@@ -131,23 +127,55 @@ defmodule Tuist.IngestRepo.Migrations.BackfillArtifactsFromPostgres do
     |> Repo.all(timeout: :infinity)
   end
 
-  defp fetch_artifacts(bundle_ids) do
-    from(a in "artifacts",
-      where: a.bundle_id in ^bundle_ids,
-      select: %{
-        id: a.id,
-        bundle_id: a.bundle_id,
-        artifact_type: a.artifact_type,
-        path: a.path,
-        size: a.size,
-        shasum: a.shasum,
-        artifact_id: a.artifact_id,
-        inserted_at: a.inserted_at,
-        updated_at: a.updated_at
-      }
-    )
-    |> Repo.all(timeout: :infinity, log: false)
-    |> Enum.map(&encode_for_ch/1)
+  # Streams the bundle batch's artifacts from Postgres in chunks of
+  # `@artifact_chunk_size`, encoding and inserting each chunk into
+  # ClickHouse before reading the next. Postgres opens a server-side
+  # cursor for the duration of the surrounding transaction, so the
+  # BEAM never holds more than one chunk at once even when the batch
+  # spans bundles with tens of thousands of artifacts each.
+  defp stream_and_insert_artifacts(bundle_ids) do
+    query =
+      from(a in "artifacts",
+        where: a.bundle_id in ^bundle_ids,
+        select: %{
+          id: a.id,
+          bundle_id: a.bundle_id,
+          artifact_type: a.artifact_type,
+          path: a.path,
+          size: a.size,
+          shasum: a.shasum,
+          artifact_id: a.artifact_id,
+          inserted_at: a.inserted_at,
+          updated_at: a.updated_at
+        }
+      )
+
+    {:ok, count} =
+      Repo.transaction(
+        fn ->
+          query
+          |> Repo.stream(max_rows: @artifact_chunk_size)
+          |> Stream.chunk_every(@artifact_chunk_size)
+          |> Enum.reduce(0, fn chunk, acc ->
+            encoded = Enum.map(chunk, &encode_for_ch/1)
+
+            IngestRepo.insert_all("artifacts", encoded,
+              types: @ch_types,
+              timeout: :infinity,
+              log: false
+            )
+
+            # Force a GC between chunks so the encoded list and the raw
+            # row chunk are reclaimed before the cursor pulls the next
+            # page, instead of accumulating across iterations.
+            :erlang.garbage_collect()
+            acc + length(encoded)
+          end)
+        end,
+        timeout: :infinity
+      )
+
+    count
   end
 
   defp mark_replicated(bundle_ids) do

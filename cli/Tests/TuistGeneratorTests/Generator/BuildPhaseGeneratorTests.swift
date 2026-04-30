@@ -2211,6 +2211,95 @@ struct BuildPhaseGeneratorTests {
                     "$BUILD_DIR/Debug-$EFFECTIVE_PLATFORM_NAME/\(macroExecutable.productName)",
                 ]
         )
+        #expect(buildPhase?.alwaysOutOfDate == false)
+    }
+
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .withMockedXcodeController,
+        .inTemporaryDirectory
+    ) func generateLinks_generatesAlwaysOutOfDateShellScriptBuildPhase_when_macroFrameworkIsExclusiveToMacOS() async throws {
+        // Given
+        let app = Target.test(name: "app", platform: .macOS, product: .app)
+        let macroFramework = Target.test(name: "framework", platform: .macOS, product: .staticFramework)
+        let macroExecutable = Target.test(name: "macro", platform: .macOS, product: .macro)
+        let project = Project.test(targets: [app, macroFramework, macroExecutable])
+        let fileElements = createProductFileElements(for: [app, macroFramework, macroExecutable])
+        let pbxproj = PBXProj()
+        let pbxTarget = PBXNativeTarget(name: app.name)
+
+        let graph = Graph.test(path: project.path, projects: [project.path: project], dependencies: [
+            .target(name: app.name, path: project.path): Set([.target(name: macroFramework.name, path: project.path)]),
+            .target(name: macroFramework.name, path: project.path): Set([.target(
+                name: macroExecutable.name,
+                path: project.path
+            )]),
+            .target(name: macroExecutable.name, path: project.path): Set([]),
+        ])
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        try await subject.generateBuildPhases(
+            path: "/Project",
+            target: macroFramework,
+            graphTraverser: graphTraverser,
+            pbxTarget: pbxTarget,
+            fileElements: fileElements,
+            pbxproj: pbxproj
+        )
+
+        // Then
+        let buildPhase = pbxTarget
+            .buildPhases
+            .compactMap { $0 as? PBXShellScriptBuildPhase }
+            .first(where: { $0.name() == "Copy Swift Macro executable into $BUILT_PRODUCT_DIR" })
+
+        #expect(buildPhase?.outputPaths == [])
+        #expect(buildPhase?.alwaysOutOfDate == true)
+    }
+
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .withMockedXcodeController,
+        .inTemporaryDirectory
+    ) func generateLinks_generatesAlwaysOutOfDateShellScriptBuildPhase_when_macroFrameworkIsMixedDestination() async throws {
+        // Given
+        let app = Target.test(name: "app", destinations: [.iPhone, .mac], product: .app)
+        let macroFramework = Target.test(name: "framework", destinations: [.iPhone, .mac], product: .staticFramework)
+        let macroExecutable = Target.test(name: "macro", platform: .macOS, product: .macro)
+        let project = Project.test(targets: [app, macroFramework, macroExecutable])
+        let fileElements = createProductFileElements(for: [app, macroFramework, macroExecutable])
+        let pbxproj = PBXProj()
+        let pbxTarget = PBXNativeTarget(name: app.name)
+
+        let graph = Graph.test(path: project.path, projects: [project.path: project], dependencies: [
+            .target(name: app.name, path: project.path): Set([.target(name: macroFramework.name, path: project.path)]),
+            .target(name: macroFramework.name, path: project.path): Set([.target(
+                name: macroExecutable.name,
+                path: project.path
+            )]),
+            .target(name: macroExecutable.name, path: project.path): Set([]),
+        ])
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        try await subject.generateBuildPhases(
+            path: "/Project",
+            target: macroFramework,
+            graphTraverser: graphTraverser,
+            pbxTarget: pbxTarget,
+            fileElements: fileElements,
+            pbxproj: pbxproj
+        )
+
+        // Then
+        let buildPhase = pbxTarget
+            .buildPhases
+            .compactMap { $0 as? PBXShellScriptBuildPhase }
+            .first(where: { $0.name() == "Copy Swift Macro executable into $BUILT_PRODUCT_DIR" })
+
+        #expect(buildPhase?.outputPaths == [])
+        #expect(buildPhase?.alwaysOutOfDate == true)
     }
 
     // MARK: - Helpers

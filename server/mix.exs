@@ -6,7 +6,6 @@ defmodule Tuist.MixProject do
       app: :tuist,
       version: "0.1.0",
       elixir: "~> 1.19",
-      build_path: build_path(),
       elixirc_paths: elixirc_paths(Mix.env()),
       elixirc_options: [check_cwd: false],
       test_paths: ["test"],
@@ -14,7 +13,7 @@ defmodule Tuist.MixProject do
       releases: releases(),
       aliases: aliases(),
       deps: deps(),
-      compilers: [:boundary] ++ Mix.compilers(),
+      compilers: compilers(Mix.env()),
       listeners: [Phoenix.CodeReloader]
     ]
   end
@@ -34,12 +33,9 @@ defmodule Tuist.MixProject do
   defp elixirc_paths(:dev), do: ["lib", "credo"]
   defp elixirc_paths(_), do: ["lib"]
 
-  defp build_path do
-    case System.get_env("TUIST_MIX_BUILD_ROOT") do
-      root when root in [nil, ""] -> "_build"
-      root -> Path.join(root, "server")
-    end
-  end
+  # Boundary verifies a large module graph and makes content edits slow in dev.
+  defp compilers(:dev), do: Mix.compilers()
+  defp compilers(_env), do: [:boundary] ++ Mix.compilers()
 
   # Specifies your project dependencies.
   #
