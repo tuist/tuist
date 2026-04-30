@@ -183,7 +183,7 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
                 // the same cache: a sibling builder either sees no cache
                 // directory (and races to compile), or the fully populated
                 // final directory — never a half-written one.
-                try await ensureDirectoryExists(cacheDirectory)
+                try POSIXDirectory.ensureExists(cacheDirectory)
                 let stagingDirectory = cacheDirectory
                     .appending(component: "\(hash).tmp.\(ProcessInfo.processInfo.processIdentifier).\(UUID().uuidString)")
                 try await fileSystem.makeDirectory(at: stagingDirectory)
@@ -246,19 +246,6 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
         }
 
         return try await projectDescriptionHelpersModuleTask.value
-    }
-
-    /// Idempotent directory creation that tolerates a concurrent process
-    /// creating the same directory between our existence check and the
-    /// `mkdir(2)` call (i.e. an `EEXIST` race).
-    private func ensureDirectoryExists(_ path: AbsolutePath) async throws {
-        if try await fileSystem.exists(path) { return }
-        do {
-            try await fileSystem.makeDirectory(at: path)
-        } catch {
-            if try await fileSystem.exists(path) { return }
-            throw error
-        }
     }
 
     private func createCommand(
