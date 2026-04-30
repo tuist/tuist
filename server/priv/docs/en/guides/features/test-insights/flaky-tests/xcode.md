@@ -68,10 +68,6 @@ A quarantined test is in one of two modes:
 - **Muted tests** still execute. A muted test that fails is recorded as **failed** on the test case run and flagged as flaky — the per-test status is not rewritten. What gets overridden is the **overall test run**: if every failing test case in the run is muted, the run as a whole is reported as passed, so muted failures don't break CI.
 - **Skipped tests** don't run at all, so the dashboard keeps showing the status from the test's last actual execution — that snapshot can be weeks old.
 
-### Stale quarantined tests {#stale-quarantined-tests}
-
-Test cases are not deleted from Tuist when you delete or rename them in source. The default views hide test cases inactive for 14 days, but **quarantined tests intentionally bypass that filter** so a long-forgotten quarantined test isn't silently re-enabled. Renaming a test creates a new entry on Tuist's side (a test is identified by its module, suite, and name); the old one is orphaned but stays in the data. To drop a stale entry from the dashboard, un-quarantine it first — the inactivity filter will then hide it from default views.
-
 ### Running tests {#running-tests}
 
 `tuist xcodebuild test` is a passthrough wrapper that honours both modes automatically. Use it the same way you'd call xcodebuild:
