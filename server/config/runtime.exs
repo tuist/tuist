@@ -459,20 +459,14 @@ if Tuist.Environment.processor_mode?() do
 end
 
 # Path to the Kura Helm chart used by Tuist.Kura.Workers.RolloutWorker.
-# Production builds bake the chart into priv/kura_chart at image build
-# time (see server/Dockerfile); dev/test default to the in-tree path so
-# the local rollout-against-kind workflow works out of the box.
+# Production releases bake the chart into priv/kura_chart at image
+# build time (see server/Dockerfile); dev and test read it from the
+# in-tree monorepo path one level up from the server/ directory.
 kura_chart_path =
-  System.get_env("TUIST_KURA_CHART_PATH") ||
-    case env do
-      :prod ->
-        Application.app_dir(:tuist, "priv/kura_chart")
-
-      _ ->
-        # runtime.exs runs from the server/ directory; the kura monorepo
-        # path sits one level up.
-        Path.expand("../kura/ops/helm/kura", File.cwd!())
-    end
+  case env do
+    e when e in [:prod, :stag, :can] -> Application.app_dir(:tuist, "priv/kura_chart")
+    _ -> Path.expand("../kura/ops/helm/kura", File.cwd!())
+  end
 
 config :tuist, :kura_chart_path, kura_chart_path
 
