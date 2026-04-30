@@ -62,9 +62,9 @@ public struct ExternalProjectsPlatformNarrowerGraphMapper: GraphMapping { // swi
 
         var targetFilteredDestinations = externalTargetSupportedDestinations[graphTarget]
 
-        // Orphan local SPM test targets aren't reached by the top-down traversal. Intersect
-        // destinations of the test's linkable deps — linking is an AND constraint, and
-        // non-linkable deps (macros, bundles) don't constrain runtime platforms.
+        // Orphan local SPM test targets aren't reached by the top-down traversal. Union
+        // destinations of the test's linkable deps — non-linkable deps (macros, bundles)
+        // don't constrain runtime platforms.
         if targetFilteredDestinations == nil,
            target.metadata.tags.contains(TargetTags.localSwiftPackageTest)
         {
@@ -77,7 +77,7 @@ public struct ExternalProjectsPlatformNarrowerGraphMapper: GraphMapping { // swi
                 return externalTargetSupportedDestinations[depGraphTarget]
             }
             if let first = linkableDestinations.first {
-                targetFilteredDestinations = linkableDestinations.dropFirst().reduce(first) { $0.intersection($1) }
+                targetFilteredDestinations = linkableDestinations.dropFirst().reduce(first) { $0.union($1) }
             }
         }
 

@@ -505,7 +505,7 @@ final class ExternalProjectsPlatformNarrowerGraphMapperTests: TuistUnitTestCase 
         )
     }
 
-    func test_map_when_local_swift_package_test_target_has_incompatible_linkable_deps() async throws {
+    func test_map_when_local_swift_package_test_target_has_disjoint_linkable_deps() async throws {
         // Given
         let directory = try temporaryPath()
         let packagesDirectory = directory.appending(component: "Dependencies")
@@ -564,7 +564,7 @@ final class ExternalProjectsPlatformNarrowerGraphMapperTests: TuistUnitTestCase 
         let mappedTests = try XCTUnwrap(
             mappedGraph.projects[externalProject.path]?.targets[externalLocalPackageTests.name]
         )
-        XCTAssertEqual(mappedTests.destinations, Set())
-        XCTAssertTrue(mappedTests.metadata.tags.contains("tuist:prunable"))
+        XCTAssertEqual(mappedTests.destinations, Set([.iPad, .iPhone, .mac]))
+        XCTAssertFalse(mappedTests.metadata.tags.contains("tuist:prunable"))
     }
 }
