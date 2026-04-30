@@ -91,6 +91,7 @@ struct BuildPhaseGenerator: BuildPhaseGenerating {
         let directSwiftMacroExecutables = graphTraverser.directSwiftMacroExecutables(path: path, name: target.name).sorted()
         try generateCopySwiftMacroExecutableScriptBuildPhase(
             directSwiftMacroExecutables: directSwiftMacroExecutables,
+            target: target,
             pbxTarget: pbxTarget,
             pbxproj: pbxproj
         )
@@ -504,10 +505,16 @@ struct BuildPhaseGenerator: BuildPhaseGenerating {
 
     private func generateCopySwiftMacroExecutableScriptBuildPhase(
         directSwiftMacroExecutables: [GraphDependencyReference],
+        target: Target,
         pbxTarget: PBXTarget,
         pbxproj: PBXProj
     ) throws {
         if directSwiftMacroExecutables.isEmpty { return }
+
+        // macOS-exclusive consumers: script body is a no-op (src == dest once
+        // `$EFFECTIVE_PLATFORM_NAME` is empty) and the declared output would
+        // collide with the macro target's `Ld` step on the same path.
+        if target.isExclusiveTo(.macOS) { return }
 
         let copySwiftMacrosBuildPhase = PBXShellScriptBuildPhase(name: "Copy Swift Macro executable into $BUILT_PRODUCT_DIR")
 
@@ -544,11 +551,19 @@ struct BuildPhaseGenerator: BuildPhaseGenerating {
             ]
         }
 
-        copySwiftMacrosBuildPhase.outputPaths = executableNames.flatMap { executable in
-            [
-                "$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/\(executable)",
-                "$BUILD_DIR/Debug-$EFFECTIVE_PLATFORM_NAME/\(executable)",
-            ]
+        if target.supports(.macOS) {
+            // Reached only for mixed-destination consumers (macOS-exclusive returned
+            // above). The phase is still needed to populate `Debug-<platform>/<exe>`
+            // for non-macOS slices, but declared outputs would collide on this
+            // target's own macOS slice — so omit them.
+            copySwiftMacrosBuildPhase.alwaysOutOfDate = true
+        } else {
+            copySwiftMacrosBuildPhase.outputPaths = executableNames.flatMap { executable in
+                [
+                    "$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/\(executable)",
+                    "$BUILD_DIR/Debug-$EFFECTIVE_PLATFORM_NAME/\(executable)",
+                ]
+            }
         }
 
         pbxproj.add(object: copySwiftMacrosBuildPhase)
