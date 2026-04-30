@@ -1,4 +1,11 @@
-import Darwin
+#if canImport(Darwin)
+    import Darwin
+#elseif canImport(Glibc)
+    import Glibc
+#elseif canImport(Musl)
+    import Musl
+#endif
+
 import FileSystem
 import Foundation
 import Path
@@ -176,9 +183,7 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
                 // the same cache: a sibling builder either sees no cache
                 // directory (and races to compile), or the fully populated
                 // final directory — never a half-written one.
-                if !(try await fileSystem.exists(cacheDirectory)) {
-                    try await fileSystem.makeDirectory(at: cacheDirectory)
-                }
+                try await ensureDirectoryExists(cacheDirectory)
                 let stagingDirectory = cacheDirectory
                     .appending(component: "\(hash).tmp.\(ProcessInfo.processInfo.processIdentifier).\(UUID().uuidString)")
                 try await fileSystem.makeDirectory(at: stagingDirectory)
@@ -206,12 +211,17 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
                 let time = String(format: "%.3f", duration)
                 Logger.current.debug("Built \(name) in (\(time)s)")
 
-                // Atomically publish the staged compilation. `rename(2)` between
-                // two directories on the same volume is atomic — and on macOS
-                // it fails with `ENOTEMPTY` if the destination directory exists
-                // and is non-empty, which is the "another process won" case;
-                // we treat that as success and discard our staging directory.
-                let renameResult = Darwin.rename(stagingDirectory.pathString, moduleCacheDirectory.pathString)
+                // Atomically publish the staged compilation. POSIX `rename(2)`
+                // between two directories on the same volume is atomic, and
+                // fails with `ENOTEMPTY` (or `EEXIST` on some platforms) when
+                // the destination directory exists and is non-empty — i.e. the
+                // "another process won the race" case. We treat that as
+                // success and remove our staging directory.
+                let renameResult = stagingDirectory.pathString.withCString { stagingCString in
+                    moduleCacheDirectory.pathString.withCString { destCString in
+                        rename(stagingCString, destCString)
+                    }
+                }
                 if renameResult != 0 {
                     let renameErrno = errno
                     try? await fileSystem.remove(stagingDirectory)
@@ -236,6 +246,19 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
         }
 
         return try await projectDescriptionHelpersModuleTask.value
+    }
+
+    /// Idempotent directory creation that tolerates a concurrent process
+    /// creating the same directory between our existence check and the
+    /// `mkdir(2)` call (i.e. an `EEXIST` race).
+    private func ensureDirectoryExists(_ path: AbsolutePath) async throws {
+        if try await fileSystem.exists(path) { return }
+        do {
+            try await fileSystem.makeDirectory(at: path)
+        } catch {
+            if try await fileSystem.exists(path) { return }
+            throw error
+        }
     }
 
     private func createCommand(

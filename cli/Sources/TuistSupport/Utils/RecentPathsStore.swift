@@ -48,14 +48,26 @@ public struct RecentPathsStore: RecentPathsStoring {
     }
 
     public func remember(path: AbsolutePath, date: Date) async throws {
-        if !(try await fileSystem.exists(storageDirectory)) {
-            try await fileSystem.makeDirectory(at: storageDirectory)
-        }
+        try await ensureStorageDirectoryExists()
         let lock = FileLock(at: storageDirectory.appending(component: "recent-paths.json.lock"))
         try await lock.withExclusiveLock {
             var content = try await readUnlocked()
             content[path] = RecentPathMetadata(lastUpdated: date)
             try writeUnlocked(content)
+        }
+    }
+
+    private func ensureStorageDirectoryExists() async throws {
+        // Idempotent: another concurrent process may also be creating the
+        // directory. `FileSystem.makeDirectory` is built on top of POSIX
+        // `mkdir(2)` which fails with `EEXIST` if the directory was created
+        // between our existence check and the call. Treat that as success.
+        if try await fileSystem.exists(storageDirectory) { return }
+        do {
+            try await fileSystem.makeDirectory(at: storageDirectory)
+        } catch {
+            if try await fileSystem.exists(storageDirectory) { return }
+            throw error
         }
     }
 
