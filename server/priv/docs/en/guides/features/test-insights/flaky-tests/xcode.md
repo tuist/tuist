@@ -73,7 +73,7 @@ A quarantined test is in one of two modes:
 
 ### Why quarantined tests can appear as passing {#quarantined-passing}
 
-- **Muted tests** still execute and may genuinely fail, but the runner masks the failure so the build passes. The underlying run is recorded with its real status, but build-level summaries show it as a pass.
+- **Muted tests** still execute. A muted test that fails is recorded as **failed** on the test case run and flagged as flaky — the per-test status is not rewritten. What gets overridden is the **overall test run**: if every failing test case in the run is muted, the run as a whole is reported as passed, so muted failures don't break CI.
 - **Skipped tests** don't run at all, so `last_status` and `last_ran_at` are not updated — what you see is the *last status before the test was skipped*, which can be weeks old.
 
 ### Stale quarantined tests {#stale-quarantined-tests}
