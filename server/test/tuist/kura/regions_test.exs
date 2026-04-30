@@ -1,8 +1,16 @@
 defmodule Tuist.Kura.RegionsTest do
-  use ExUnit.Case, async: true
+  # Mutates TUIST_DEV_INSTANCE around the local-region tests, so we
+  # can't run async with anything else that reads it.
+  use ExUnit.Case, async: false
 
   alias Tuist.Kura.Deployer.HelmKubernetes
   alias Tuist.Kura.Regions
+
+  setup do
+    previous = System.get_env("TUIST_DEV_INSTANCE")
+    on_exit(fn -> reset_env("TUIST_DEV_INSTANCE", previous) end)
+    :ok
+  end
 
   describe "all/0" do
     test "exposes the eu production region backed by HelmKubernetes" do
@@ -18,7 +26,6 @@ defmodule Tuist.Kura.RegionsTest do
                Enum.find(Regions.all(), &(&1.id == "local"))
 
       assert config.helm_overlay == "local"
-      assert config.kind_cluster_name == "kura-dev"
     end
   end
 
@@ -57,15 +64,29 @@ defmodule Tuist.Kura.RegionsTest do
     end
   end
 
-  describe "HelmKubernetes.public_url/3" do
+  describe "local region with worktree scoping" do
+    test "kind cluster + URL pick up TUIST_DEV_INSTANCE" do
+      System.put_env("TUIST_DEV_INSTANCE", "42")
+      region = Regions.get("local")
+
+      assert region.deployer_config.kind_cluster_name == "kura-dev-42"
+      assert region.deployer_config.public_url == "http://localhost:4042"
+      assert HelmKubernetes.public_url("tuist", region, "any-ref") == "http://localhost:4042"
+    end
+
+    test "falls back to suffix 0 outside mise" do
+      System.delete_env("TUIST_DEV_INSTANCE")
+      region = Regions.get("local")
+
+      assert region.deployer_config.kind_cluster_name == "kura-dev-0"
+      assert region.deployer_config.public_url == "http://localhost:4000"
+    end
+  end
+
+  describe "HelmKubernetes.public_url/3 (eu)" do
     test "interpolates the production host template with the account handle" do
       region = Regions.get("eu")
       assert HelmKubernetes.public_url("tuist", region, "any-ref") == "https://tuist-eu-1.kura.tuist.dev"
-    end
-
-    test "uses the literal local URL for kind-backed regions" do
-      region = Regions.get("local")
-      assert HelmKubernetes.public_url("tuist", region, "any-ref") == "http://localhost:4000"
     end
   end
 
@@ -80,4 +101,7 @@ defmodule Tuist.Kura.RegionsTest do
       assert HelmKubernetes.release_name("tuist", region) == "kura-tuist-local"
     end
   end
+
+  defp reset_env(name, nil), do: System.delete_env(name)
+  defp reset_env(name, value), do: System.put_env(name, value)
 end

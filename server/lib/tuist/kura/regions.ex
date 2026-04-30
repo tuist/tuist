@@ -11,57 +11,39 @@ defmodule Tuist.Kura.Regions do
       because URLs and `account_cache_endpoints` reference it.
     * `display_name` — what the /ops UI renders.
     * `deployer` — the `Tuist.Kura.Deployer` implementation that
-      actually provisions, rolls, and destroys meshes here. The
+      actually provisions, rolls, and destroys Kura servers here. The
       customer never sees this.
     * `deployer_config` — opaque to the rest of the codebase; only the
       deployer module reads it.
 
-  Adding a region is a code change: edit `@catalog`, supply whatever
-  deployer config the chosen impl needs, deploy. Regions change rarely
-  and deployer configs reference assets that ship with the release.
+  The `local` region is worktree-scoped via `TUIST_DEV_INSTANCE`: its
+  kind cluster name and forwarded port are suffixed with the instance
+  number so multiple worktrees can run side by side without colliding.
   """
 
   alias Tuist.Kura.Deployer.HelmKubernetes
 
   defstruct [:id, :display_name, :deployer, :deployer_config]
 
-  @catalog [
-    %{
-      id: "eu",
-      display_name: "Europe (Hetzner Falkenstein)",
-      deployer: HelmKubernetes,
-      deployer_config: %{
-        cluster_id: "eu-1",
-        helm_overlay: "hetzner",
-        public_host_template: "{account_handle}-{cluster_id}.kura.tuist.dev"
-      }
-    },
-    %{
-      id: "local",
-      display_name: "Local (kind)",
-      deployer: HelmKubernetes,
-      deployer_config: %{
-        cluster_id: "local",
-        helm_overlay: "local",
-        kind_cluster_name: "kura-dev",
-        public_url: "http://localhost:4000"
-      }
-    }
-  ]
+  # The local region's kind cluster + forwarded port are derived from
+  # `TUIST_DEV_INSTANCE` so each worktree is isolated. Worktree
+  # instance N runs Kura on `kura-dev-N` and exposes it at
+  # `localhost:(4000+N)`.
+  @local_kura_base_port 4000
 
   @doc "All registered regions."
-  def all, do: Enum.map(@catalog, &struct(__MODULE__, &1))
+  def all, do: [eu_region(), local_region()]
 
   @doc """
   Regions exposed in the current runtime environment. Dev/test sees
-  only the local-only regions so a developer can't accidentally
-  provision into managed infrastructure.
+  only the local region so a developer can't accidentally provision
+  into managed infrastructure.
   """
   def available do
     if Tuist.Environment.dev?() or Tuist.Environment.test?() do
-      Enum.filter(all(), &(&1.id == "local"))
+      [local_region()]
     else
-      all()
+      [eu_region()]
     end
   end
 
@@ -80,4 +62,46 @@ defmodule Tuist.Kura.Regions do
   @doc "True iff the given ID is in the catalog."
   def exists?(id) when is_binary(id), do: not is_nil(get(id))
   def exists?(_), do: false
+
+  defp eu_region do
+    %__MODULE__{
+      id: "eu",
+      display_name: "Europe (Hetzner Falkenstein)",
+      deployer: HelmKubernetes,
+      deployer_config: %{
+        cluster_id: "eu-1",
+        helm_overlay: "hetzner",
+        public_host_template: "{account_handle}-{cluster_id}.kura.tuist.dev"
+      }
+    }
+  end
+
+  defp local_region do
+    suffix = dev_instance_suffix()
+
+    %__MODULE__{
+      id: "local",
+      display_name: "Local (kind)",
+      deployer: HelmKubernetes,
+      deployer_config: %{
+        cluster_id: "local",
+        helm_overlay: "local",
+        kind_cluster_name: "kura-dev-#{suffix}",
+        public_url: "http://localhost:#{@local_kura_base_port + suffix}"
+      }
+    }
+  end
+
+  # Reads the worktree suffix from `TUIST_DEV_INSTANCE` (set by the
+  # mise dev_instance_env.sh hook). Defaults to 0 when running outside
+  # mise (CI, one-off scripts) so behaviour stays predictable.
+  defp dev_instance_suffix do
+    case System.get_env("TUIST_DEV_INSTANCE") do
+      nil -> 0
+      "" -> 0
+      value -> String.to_integer(value)
+    end
+  rescue
+    ArgumentError -> 0
+  end
 end
