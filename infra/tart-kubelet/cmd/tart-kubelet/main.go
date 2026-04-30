@@ -21,7 +21,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/clientcmd"
 	ctrl "sigs.k8s.io/controller-runtime"
 	cache "sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -47,17 +46,15 @@ func init() {
 
 func main() {
 	var (
-		nodeName       string
-		kubeconfigPath string
-		hostCPU        int
-		hostMemoryMB   int
-		maxPods        int
-		metricsAddr    string
-		probeAddr      string
-		tartBinary     string
+		nodeName     string
+		hostCPU      int
+		hostMemoryMB int
+		maxPods      int
+		metricsAddr  string
+		probeAddr    string
+		tartBinary   string
 	)
 	flag.StringVar(&nodeName, "node-name", envOr("TART_KUBELET_NODE_NAME", ""), "Node name to register as. Defaults to os.Hostname() when empty.")
-	flag.StringVar(&kubeconfigPath, "kubeconfig", envOr("TART_KUBELET_KUBECONFIG", "/etc/tart-kubelet/kubeconfig"), "Path to kubeconfig used to talk to the API server.")
 	flag.IntVar(&hostCPU, "host-cpu", 8, "CPU cores to advertise on the Node.")
 	flag.IntVar(&hostMemoryMB, "host-memory-mb", 16384, "Memory MB to advertise on the Node.")
 	flag.IntVar(&maxPods, "max-pods", 8, "Max concurrent Pods (= concurrent Tart VMs) on this Node.")
@@ -65,6 +62,10 @@ func main() {
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "Liveness/readiness probe endpoint.")
 	flag.StringVar(&tartBinary, "tart-binary", "/opt/homebrew/bin/tart", "Path to the local tart CLI.")
 
+	// `--kubeconfig` is registered automatically by controller-runtime's
+	// init() (sigs.k8s.io/controller-runtime/pkg/client/config). Defining
+	// our own flag of the same name here would panic with `flag
+	// redefined`; rely on theirs and let the launchd plist pass the path.
 	opts := zap.Options{Development: false}
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
@@ -79,13 +80,12 @@ func main() {
 		nodeName = hostname
 	}
 
-	// Build the rest config from the provisioned kubeconfig (long-lived
-	// SA token written by the CAPI provider during host bootstrap).
-	cfg, err := clientcmd.BuildConfigFromFlags("", kubeconfigPath)
-	if err != nil {
-		setupLog.Error(err, "load kubeconfig", "path", kubeconfigPath)
-		os.Exit(1)
-	}
+	// controller-runtime's GetConfigOrDie resolves config via (in order):
+	//   1. `--kubeconfig` flag value (set by launchd plist)
+	//   2. KUBECONFIG env
+	//   3. in-cluster service-account mount (won't apply on Mac mini)
+	//   4. ~/.kube/config
+	cfg := ctrl.GetConfigOrDie()
 
 	// Narrow the cache: we only ever care about Pods scheduled to this
 	// Node and the Node object itself. Cluster-wide watches on a node-
@@ -162,7 +162,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	setupLog.Info("starting tart-kubelet", "node", nodeName, "kubeconfig", kubeconfigPath)
+	setupLog.Info("starting tart-kubelet", "node", nodeName)
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 		setupLog.Error(err, "manager exited")
 		os.Exit(1)
