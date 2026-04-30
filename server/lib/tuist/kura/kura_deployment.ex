@@ -1,13 +1,19 @@
 defmodule Tuist.Kura.KuraDeployment do
   @moduledoc """
-  One attempt to roll a Kura mesh for a (account, cluster) pair to a
-  specific image tag.
+  One rollout attempt for a `KuraServer`.
 
-  The deployment row is the unit of intent: the /ops UI inserts it,
-  `Tuist.Kura.Workers.RolloutWorker` picks it up via Oban, runs the
-  partitioned warm rollout, and updates `status` plus timestamps as it
-  progresses. Per-line log output streams to the
-  `kura_deployment_log_lines` ClickHouse table, keyed by `id`.
+  Created by `Tuist.Kura.create_server/1` (initial install) or
+  `create_deployment/1` (version bump), picked up by
+  `Tuist.Kura.Workers.RolloutWorker` via Oban. The worker dispatches
+  to the region's provider, which decides what "rollout" means.
+
+  Per-line stdout/stderr streams to the `kura_deployment_log_lines`
+  ClickHouse table keyed by `id` so /ops can tail in real time.
+
+  `cluster_id` is an audit field: which backing cluster the rollout
+  actually targeted, populated from `region.provider_config.cluster_id`
+  at insert. Operators reading the deployment list see something
+  concrete (`"eu-1"`) rather than the abstract region (`"eu"`).
   """
   use Ecto.Schema
 
@@ -44,14 +50,20 @@ defmodule Tuist.Kura.KuraDeployment do
     |> validate_required([:account_id, :cluster_id, :image_tag])
     |> validate_format(:image_tag, ~r/^\d+\.\d+\.\d+$/, message: "must be a Kura semver like 0.5.2")
     |> validate_change(:cluster_id, fn :cluster_id, value ->
-      if Tuist.Kura.Clusters.exists?(value),
+      if known_cluster_id?(value),
         do: [],
-        else: [cluster_id: "is not a registered cluster"]
+        else: [cluster_id: "is not referenced by any region"]
     end)
     |> foreign_key_constraint(:account_id)
     |> foreign_key_constraint(:requested_by_user_id)
     |> foreign_key_constraint(:kura_server_id)
   end
+
+  defp known_cluster_id?(value) when is_binary(value) do
+    Enum.any?(Tuist.Kura.Regions.all(), &(&1.provider_config[:cluster_id] == value))
+  end
+
+  defp known_cluster_id?(_), do: false
 
   def status_changeset(deployment, attrs) do
     deployment

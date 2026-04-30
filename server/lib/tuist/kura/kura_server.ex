@@ -1,19 +1,28 @@
 defmodule Tuist.Kura.KuraServer do
   @moduledoc """
-  A Kura mesh provisioned for a single account, on a single backing
-  cluster, at a single spec (resource size). The `(account, cluster,
-  spec)` triple is unique — an account can run multiple servers if it
-  wants different specs in different regions, but not two of the same
-  shape in the same cluster.
+  A Kura mesh provisioned for a single account, in a single region.
+
+  The customer-facing identity is `(account, region)`: an account can
+  light up Kura in as many regions as it needs, but only one mesh per
+  region. The size of that mesh is the `spec`, which today maps to
+  per-node capacity (CPU/memory/volume); spec is a sizing knob, not
+  part of the server's identity.
 
   Lifecycle:
 
-      provisioning → active     ↘
-                    ↓             destroying → destroyed
-                  failed
+      provisioning → active      ↘
+                     ↓              destroying → destroyed
+                   failed
 
   `url` and `current_image_tag` are populated when the server first
   reaches `:active` and updated on subsequent successful deployments.
+
+  `provider_node_ref` is the opaque handle the provider returned from
+  `provision/3`. The control plane stores it untouched and hands it
+  back to the provider for `rollout/3` and `destroy/1`. For the
+  helm/Kubernetes provider it's the helm release name. `provider_metadata`
+  is a JSON bag the provider uses to remember anything else it needs
+  between calls (instance type, zone, peer seeding info, etc.).
 
   Per-server lifecycle events (the actual rollout attempts) live in
   `kura_deployments` via `kura_server_id`.
@@ -31,12 +40,14 @@ defmodule Tuist.Kura.KuraServer do
 
   @primary_key {:id, :binary_id, autogenerate: true}
   schema "kura_servers" do
-    field :cluster_id, :string
+    field :region, :string
     field :spec, Ecto.Enum, values: Enum.with_index(@specs), default: :medium
     field :volume_size_gi, :integer
     field :status, Ecto.Enum, values: Enum.with_index(@statuses), default: :provisioning
     field :url, :string
     field :current_image_tag, :string
+    field :provider_node_ref, :string
+    field :provider_metadata, :map, default: %{}
 
     belongs_to :account, Account
     belongs_to :requested_by, User, foreign_key: :requested_by_user_id
@@ -53,28 +64,37 @@ defmodule Tuist.Kura.KuraServer do
     server
     |> cast(attrs, [
       :account_id,
-      :cluster_id,
+      :region,
       :spec,
       :volume_size_gi,
-      :requested_by_user_id
+      :requested_by_user_id,
+      :provider_node_ref,
+      :provider_metadata
     ])
-    |> validate_required([:account_id, :cluster_id, :spec, :volume_size_gi])
+    |> validate_required([:account_id, :region, :spec, :volume_size_gi])
     |> validate_number(:volume_size_gi, greater_than: 0, less_than_or_equal_to: 10_000)
-    |> validate_change(:cluster_id, fn :cluster_id, value ->
-      if Tuist.Kura.Clusters.exists?(value),
+    |> validate_change(:region, fn :region, value ->
+      if Tuist.Kura.Regions.exists?(value),
         do: [],
-        else: [cluster_id: "is not a registered cluster"]
+        else: [region: "is not a registered region"]
     end)
     |> foreign_key_constraint(:account_id)
     |> foreign_key_constraint(:requested_by_user_id)
-    |> unique_constraint([:account_id, :cluster_id, :spec],
-      message: "an active Kura server already exists for this account, cluster, and spec"
+    |> unique_constraint([:account_id, :region],
+      name: :kura_servers_account_region_active_index,
+      message: "an active Kura server already exists for this account and region"
     )
   end
 
   def status_changeset(server, attrs) do
     server
-    |> cast(attrs, [:status, :url, :current_image_tag])
+    |> cast(attrs, [
+      :status,
+      :url,
+      :current_image_tag,
+      :provider_node_ref,
+      :provider_metadata
+    ])
     |> validate_required([:status])
   end
 end

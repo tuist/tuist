@@ -15,8 +15,8 @@ defmodule TuistWeb.OpsAccountLive do
   alias Tuist.Billing
   alias Tuist.Billing.Subscription
   alias Tuist.Kura
-  alias Tuist.Kura.Clusters
   alias Tuist.Kura.KuraServer
+  alias Tuist.Kura.Regions
   alias Tuist.Kura.Specs
   alias Tuist.Repo
 
@@ -47,12 +47,12 @@ defmodule TuistWeb.OpsAccountLive do
   end
 
   defp default_add_server_form do
-    default_cluster = Clusters.available() |> List.first()
+    default_region = Regions.available() |> List.first()
     default_spec = :medium
 
     to_form(
       %{
-        "cluster_id" => default_cluster && default_cluster.id,
+        "region" => default_region && default_region.id,
         "spec" => Atom.to_string(default_spec),
         "volume_size_gi" => to_string(Specs.default_volume_gi(default_spec) || 200)
       },
@@ -85,7 +85,7 @@ defmodule TuistWeb.OpsAccountLive do
 
     socket
     |> assign(:kura_servers, Kura.list_servers_for_account(account.id))
-    |> assign(:kura_clusters, Clusters.available())
+    |> assign(:kura_regions, Regions.available())
     |> assign(:kura_specs, Specs.all())
     |> assign(:latest_kura_version, latest)
   end
@@ -104,68 +104,24 @@ defmodule TuistWeb.OpsAccountLive do
 
   @impl true
   def handle_event("submit_add_server", %{"server" => params}, socket) do
-    Logger.info("[OpsAccountLive] submit_add_server params=#{inspect(params)}")
-
-    account = socket.assigns.account
-    user = socket.assigns.current_user
-
     case Kura.latest_versions(1) do
       [] ->
         {:noreply,
-         put_flash(
-           socket,
-           :error,
-           "No cached Kura version available yet. The hourly poll worker hasn't seen any kura@* tags."
-         )}
+         put_flash(socket, :error, "No cached Kura version yet. Wait for the poll worker to see kura@*.")}
 
       [%{version: image_tag} | _] ->
         spec = parse_spec(params["spec"])
 
         attrs = %{
-          account_id: account.id,
-          cluster_id: params["cluster_id"],
+          account_id: socket.assigns.account.id,
+          region: params["region"],
           spec: spec,
           volume_size_gi: parse_int(params["volume_size_gi"], Specs.default_volume_gi(spec) || 200),
           image_tag: image_tag,
-          requested_by_user_id: user && user.id
+          requested_by_user_id: socket.assigns.current_user && socket.assigns.current_user.id
         }
 
-        do_submit_add_server(socket, attrs)
-    end
-  end
-
-  defp parse_spec(value) when is_binary(value) and value != "" do
-    case value do
-      "small" -> :small
-      "medium" -> :medium
-      "large" -> :large
-      _ -> :medium
-    end
-  end
-
-  defp parse_spec(_), do: :medium
-
-  defp do_submit_add_server(socket, attrs) do
-    case Kura.create_server(attrs) do
-      {:ok, server} ->
-        {:noreply,
-         socket
-         |> put_flash(:info, "Provisioning Kura server on #{server.cluster_id}…")
-         |> assign(:add_server_form, default_add_server_form())
-         |> push_event("close-modal", %{id: "add-server-modal"})
-         |> load_kura_state()}
-
-      {:error, %Ecto.Changeset{} = changeset} ->
-        {:noreply,
-         socket
-         |> put_flash(:error, "Failed to provision: #{format_errors(changeset)}")
-         |> push_event("close-modal", %{id: "add-server-modal"})}
-
-      {:error, reason} ->
-        {:noreply,
-         socket
-         |> put_flash(:error, "Failed to provision: #{inspect(reason)}")
-         |> push_event("close-modal", %{id: "add-server-modal"})}
+        submit_add_server(socket, attrs)
     end
   end
 
@@ -265,6 +221,36 @@ defmodule TuistWeb.OpsAccountLive do
     {:noreply, load_kura_state(socket)}
   end
 
+  ## Add-server helpers
+
+  defp parse_spec("small"), do: :small
+  defp parse_spec("large"), do: :large
+  defp parse_spec(_), do: :medium
+
+  defp submit_add_server(socket, attrs) do
+    case Kura.create_server(attrs) do
+      {:ok, server} ->
+        {:noreply,
+         socket
+         |> put_flash(:info, "Provisioning Kura server in #{server.region}…")
+         |> assign(:add_server_form, default_add_server_form())
+         |> push_event("close-modal", %{id: "add-server-modal"})
+         |> load_kura_state()}
+
+      {:error, %Ecto.Changeset{} = changeset} ->
+        {:noreply,
+         socket
+         |> put_flash(:error, "Failed to provision: #{format_errors(changeset)}")
+         |> push_event("close-modal", %{id: "add-server-modal"})}
+
+      {:error, reason} ->
+        {:noreply,
+         socket
+         |> put_flash(:error, "Failed to provision: #{inspect(reason)}")
+         |> push_event("close-modal", %{id: "add-server-modal"})}
+    end
+  end
+
   defp parse_int(value, default) when is_binary(value) do
     case Integer.parse(value) do
       {n, _} when n > 0 -> n
@@ -281,12 +267,15 @@ defmodule TuistWeb.OpsAccountLive do
 
   ## View helpers
 
-  def cluster_kubeconfig_status(%Clusters{id: id}) do
-    case Tuist.Environment.kura_kubeconfig(id) do
+  def region_kubeconfig_status(%Regions{provider_config: %{cluster_id: cluster_id}}) do
+    case Tuist.Environment.kura_kubeconfig(cluster_id) do
       nil -> :missing
+      "" -> :missing
       _ -> :configured
     end
   end
+
+  def region_kubeconfig_status(_), do: :configured
 
   def server_status_label(:provisioning), do: "Provisioning"
   def server_status_label(:active), do: "Active"
