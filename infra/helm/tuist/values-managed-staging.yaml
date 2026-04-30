@@ -150,7 +150,7 @@ macosFleet:
     # mini lifecycle (Scaleway create/release + SSH bootstrap +
     # tart-kubelet install). Bumping this tag rolls a new tart-kubelet
     # binary across the fleet (the operator bakes it in).
-    tag: "tart-kubelet-f52495b1"
+    tag: "tart-kubelet-5f5188f9"
   # External k8s API server URL the Mac minis dial when joining.
   # The Syself-managed `autopilot-1.autopilot-prod.k8s.syself.net`
   # endpoint serves a TLS cert signed by a CA we don't have access to
