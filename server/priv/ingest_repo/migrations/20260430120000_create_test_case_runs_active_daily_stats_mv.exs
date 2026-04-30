@@ -19,6 +19,14 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestCaseRunsActiveDailyStatsMv do
   backfill, mirroring `recreate_flaky_test_case_runs_mv` to avoid the
   ZooKeeper "table is shutting down" race on ClickHouse Cloud during a
   POPULATE.
+
+  The MV trigger is created **before** the backfill so live writes during the
+  partition loop are captured. A row inserted while its partition is being
+  backfilled gets aggregated twice (once via the trigger, once via the
+  backfill INSERT) — that's safe here because `uniqExactState` is set-based
+  and `uniqExactMerge` deduplicates at query time. The opposite ordering
+  would silently drop any row inserted after a partition was processed but
+  before the trigger existed.
   """
   use Ecto.Migration
   alias Tuist.IngestRepo
@@ -41,8 +49,6 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestCaseRunsActiveDailyStatsMv do
     ORDER BY (project_id, date, is_ci)
     """)
 
-    backfill_by_partition()
-
     IngestRepo.query!("""
     CREATE MATERIALIZED VIEW IF NOT EXISTS test_case_runs_active_daily_stats_mv
     TO test_case_runs_active_daily_stats
@@ -55,6 +61,8 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestCaseRunsActiveDailyStatsMv do
     WHERE test_case_id IS NOT NULL
     GROUP BY project_id, toDate(ran_at), is_ci
     """)
+
+    backfill_by_partition()
   end
 
   def down do

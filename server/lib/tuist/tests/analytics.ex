@@ -358,9 +358,13 @@ defmodule Tuist.Tests.Analytics do
     window_days = Tests.active_window_days()
 
     previous_endpoint = DateTime.add(start_datetime, -1, :second)
-    previous_count = active_test_cases_count(project_id, previous_endpoint, window_days, is_ci)
+    previous_count = active_test_cases_count(project_id, previous_endpoint, window_days, is_ci, date_period)
 
-    values = Enum.map(date_endpoints, &active_test_cases_count(project_id, &1, window_days, is_ci))
+    values =
+      Enum.map(
+        date_endpoints,
+        &active_test_cases_count(project_id, &1, window_days, is_ci, date_period)
+      )
 
     current_count = List.last(values) || 0
 
@@ -372,13 +376,33 @@ defmodule Tuist.Tests.Analytics do
     }
   end
 
-  # Reads `test_case_runs_active_daily_stats`, an AggregatingMergeTree MV that
-  # pre-computes `uniqExactState(test_case_id)` per (project_id, date, is_ci).
-  # Each call merges at most ~28 daily states (14 days × 2 is_ci) via
-  # `uniqExactMerge` instead of scanning `test_case_runs` for every chart
-  # bucket. The window is `window_days` calendar days inclusive of
-  # `endpoint`'s date.
-  defp active_test_cases_count(project_id, endpoint, window_days, is_ci) do
+  # For day/month buckets, reads `test_case_runs_active_daily_stats` — an
+  # AggregatingMergeTree MV that pre-computes `uniqExactState(test_case_id)`
+  # per (project_id, date, is_ci). Each call merges at most ~28 daily states
+  # (14 days × 2 is_ci) via `uniqExactMerge` instead of scanning
+  # `test_case_runs`.
+  #
+  # For hour buckets (the `last-24-hours` preset), the daily MV is too coarse
+  # — every hourly endpoint within the same UTC day would return the same
+  # value, and an endpoint earlier in the day would count runs that haven't
+  # happened yet. Fall back to the raw `test_case_runs` query in that case;
+  # the 14-day window over an hourly chart only spans ~14 days of source
+  # rows, so the cost is bounded.
+  defp active_test_cases_count(project_id, endpoint, window_days, is_ci, :hour) do
+    window_start = DateTime.add(endpoint, -window_days * 86_400, :second)
+
+    from(tcr in TestCaseRun,
+      where: tcr.project_id == ^project_id,
+      where: tcr.ran_at >= ^window_start,
+      where: tcr.ran_at <= ^endpoint,
+      where: tcr.inserted_at >= ^window_start,
+      select: fragment("uniqExact(?)", tcr.test_case_id)
+    )
+    |> apply_is_ci_filter(is_ci)
+    |> ClickHouseRepo.one() || 0
+  end
+
+  defp active_test_cases_count(project_id, endpoint, window_days, is_ci, _date_period) do
     end_date = DateTime.to_date(endpoint)
     start_date = Date.add(end_date, -(window_days - 1))
 
