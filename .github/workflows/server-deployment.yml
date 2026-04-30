@@ -222,6 +222,36 @@ jobs:
               echo "Release $HELM_RELEASE_NAME status is ${status:-not-installed}; no recovery needed."
               ;;
           esac
+      - name: Clean up stale migration Jobs
+        # The migration Job used to embed `.Release.Revision` in its name
+        # (`server-migrate-77`, `server-migrate-78`, …), so the hook's
+        # `before-hook-creation` delete policy never matched and Jobs piled
+        # up on the cluster across deploys. The chart now uses a stable
+        # name; sweep every revision-suffixed Job from the prior template
+        # before invoking helm so their Pending pods stop fighting the new
+        # hook for scheduler attention.
+        run: |
+          set -euo pipefail
+
+          stale_jobs="$(
+            kubectl -n "$NAMESPACE" get jobs \
+              -l app.kubernetes.io/component=server-migration \
+              -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' |
+              grep -E '-[0-9]+$' || true
+          )"
+
+          if [ -z "$stale_jobs" ]; then
+            echo "No revision-suffixed migration Jobs to clean up."
+            exit 0
+          fi
+
+          echo "Deleting stale migration Jobs:"
+          echo "$stale_jobs"
+          # `--ignore-not-found` covers a rare race where helm's hook gets
+          # deleted between the list and delete calls. Cascade=foreground
+          # so dependent pods (Pending or otherwise) go with the Job.
+          echo "$stale_jobs" | xargs -r kubectl -n "$NAMESPACE" delete job \
+            --ignore-not-found --cascade=foreground --timeout=2m
       - name: helm upgrade --install
         # App secrets never pass through --set: the chart runs in
         # `server.managedSecrets: true` mode, which reads DATABASE_URL /
