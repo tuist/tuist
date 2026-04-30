@@ -17,6 +17,7 @@ defmodule Tuist do
       Marketing.Content,
       Marketing.Pages,
       Docs,
+      Docs.AskAgent,
       Docs.OgImage,
       Docs.Page,
       Docs.Paths,

@@ -141,6 +141,12 @@ config :tuist, Tuist.ClickHouseRepo,
   database: "tuist_development",
   settings: [readonly: 1]
 
+config :tuist, Tuist.Docs.AskAgent,
+  model: System.get_env("TUIST_DOCS_AGENT_MODEL", "openai:local-model"),
+  base_url: System.get_env("TUIST_DOCS_AGENT_BASE_URL", "http://localhost:1234/v1"),
+  api_key: System.get_env("TUIST_DOCS_AGENT_API_KEY", "lm-studio"),
+  sources_path: System.get_env("TUIST_DOCS_SOURCES_PATH") || Path.expand("../", File.cwd!())
+
 config :tuist, Tuist.IngestRepo,
   hostname: "localhost",
   port: 8123,

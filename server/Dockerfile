@@ -227,7 +227,7 @@ ARG APT_CACHE_BUST=0
 RUN : "APT_CACHE_BUST=${APT_CACHE_BUST}" \
   && apt-get update -y && \
   apt-get upgrade -y && \
-  apt-get install -y curl build-essential gcc wget libvips libstdc++6 openssl libncurses5 locales ca-certificates postgresql-client zip unzip git tini \
+  apt-get install -y curl build-essential gcc wget libvips libstdc++6 openssl libncurses5 locales ca-certificates postgresql-client zip unzip git tini ripgrep \
   && apt-get clean && rm -f /var/lib/apt/lists/*_*
 
 RUN sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && locale-gen
@@ -289,6 +289,20 @@ RUN if [ "$EMBED_CLICKHOUSE" = "true" ]; then \
 
 ENV SECRETS_DIRECTORY=/app/priv/secrets/
 COPY server/priv/repo/structure.sql /app/priv/repo/structure.sql
+
+# Project sources for the docs "Ask AI" agent's grep_sources tool. Read-only,
+# greps only — no compilation here. Path lines up with TUIST_DOCS_SOURCES_PATH
+# in the production environment.
+COPY cli /app/sources/cli
+COPY server /app/sources/server
+COPY cache /app/sources/cache
+COPY kura /app/sources/kura
+COPY app /app/sources/app
+COPY android /app/sources/android
+COPY tuist_common /app/sources/tuist_common
+COPY noora /app/sources/noora
+COPY handbook /app/sources/handbook
+ENV TUIST_DOCS_SOURCES_PATH=/app/sources
 
 # ========================================
 # Stage: Default runtime

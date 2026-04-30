@@ -167,7 +167,8 @@ defmodule Tuist.MixProject do
       {:carta, "~> 0.2.0"},
       {:browse_chrome, "~> 0.4.0"},
       {:browse, "~> 0.5.0", override: true},
-      {:muontrap, "~> 1.7", override: true}
+      {:muontrap, "~> 1.7", override: true},
+      {:condukt, "~> 0.6"}
     ]
   end
 

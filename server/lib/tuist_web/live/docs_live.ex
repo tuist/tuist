@@ -23,9 +23,23 @@ defmodule TuistWeb.DocsLive do
   def mount(_params, _session, socket) do
     locale = Gettext.get_locale()
 
+    remote_ip =
+      if connected?(socket) do
+        socket
+        |> get_connect_info(:peer_data)
+        |> case do
+          nil ->
+            nil
+
+          peer ->
+            TuistWeb.RemoteIp.from_connect_info(%{peer_data: peer, x_headers: get_connect_info(socket, :x_headers) || []})
+        end
+      end
+
     socket =
       socket
       |> assign(:locale, locale)
+      |> assign(:remote_ip, remote_ip)
       |> attach_hook(:assign_current_path, :handle_params, fn _params, url, socket ->
         uri = URI.parse(url)
         current_path = if(is_nil(uri.query), do: uri.path, else: "#{uri.path}?#{uri.query}")

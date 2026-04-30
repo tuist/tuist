@@ -3,26 +3,52 @@
   data-host={@host}
   data-api-key={@api_key}
   data-locale={@locale}
+  data-tab="search"
 >
   <div data-part="backdrop"></div>
   <div data-part="modal">
-    <div data-part="search-wrapper">
-      <div data-part="input-container">
-        <span data-part="search-icon"><.search /></span>
-        <input
-          data-part="search-input"
-          type="text"
-          placeholder={@placeholder}
-          autocomplete="off"
-          spellcheck="false"
-        />
+    <div data-part="search-pane" data-tab-pane="search">
+      <div data-part="body">
+        <p data-part="empty-state">{dgettext("docs", "No search history")}</p>
+        <div data-part="results"></div>
+      </div>
+      <div data-part="search-wrapper">
+        <div data-part="input-container">
+          <span data-part="search-icon"><.search /></span>
+          <input
+            data-part="search-input"
+            type="text"
+            placeholder={@placeholder}
+            autocomplete="off"
+            spellcheck="false"
+          />
+        </div>
       </div>
     </div>
-    <div data-part="body">
-      <p data-part="empty-state">{dgettext("docs", "No search history")}</p>
-      <div data-part="results"></div>
+
+    <div data-part="ask-pane" data-tab-pane="ask" hidden>
+      <.live_component
+        module={TuistWeb.Docs.AskComponent}
+        id="docs-ask-component"
+        remote_ip={assigns[:remote_ip]}
+      />
     </div>
+
     <div data-part="footer">
+      <div data-part="segment">
+        <.button_group size="small" id="docs-search-segment">
+          <.button_group_item
+            label={dgettext("docs", "Search")}
+            data-tab-target="search"
+            data-selected="true"
+          >
+            <:icon_left><.search /></:icon_left>
+          </.button_group_item>
+          <.button_group_item label={dgettext("docs", "Ask AI")} data-tab-target="ask">
+            <:icon_left><.bulb /></:icon_left>
+          </.button_group_item>
+        </.button_group>
+      </div>
       <div data-part="footer-hints">
         <span data-part="footer-hint">
           <svg

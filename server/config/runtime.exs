@@ -509,3 +509,11 @@ if Tuist.Environment.analytics_enabled?(secrets) do
       retry_delay: 1_000
     ]
 end
+
+if model = System.get_env("TUIST_DOCS_AGENT_MODEL") do
+  config :tuist, Tuist.Docs.AskAgent,
+    model: model,
+    base_url: System.get_env("TUIST_DOCS_AGENT_BASE_URL"),
+    api_key: System.get_env("TUIST_DOCS_AGENT_API_KEY"),
+    sources_path: System.get_env("TUIST_DOCS_SOURCES_PATH")
+end
