@@ -69,11 +69,11 @@ defmodule Tuist.Kura.Regions do
   def get(id) when is_binary(id), do: Enum.find(all(), &(&1.id == id))
   def get(_), do: nil
 
-  @doc "Same as `get/1` but raises if the region isn't registered."
-  def get!(id) do
+  @doc "Tagged-tuple variant of `get/1`."
+  def fetch(id) do
     case get(id) do
-      nil -> raise ArgumentError, "unknown Kura region: #{inspect(id)}"
-      region -> region
+      nil -> {:error, :not_found}
+      region -> {:ok, region}
     end
   end
 

@@ -37,15 +37,13 @@ defmodule Tuist.Kura.RegionsTest do
     end
   end
 
-  describe "get!/1" do
-    test "returns the region when found" do
-      assert %Regions{id: "local"} = Regions.get!("local")
+  describe "fetch/1" do
+    test "returns {:ok, region} when found" do
+      assert {:ok, %Regions{id: "local"}} = Regions.fetch("local")
     end
 
-    test "raises for an unknown region" do
-      assert_raise ArgumentError, ~r/unknown Kura region/, fn ->
-        Regions.get!("nonexistent")
-      end
+    test "returns {:error, :not_found} for an unknown region" do
+      assert Regions.fetch("nonexistent") == {:error, :not_found}
     end
   end
 
@@ -61,24 +59,24 @@ defmodule Tuist.Kura.RegionsTest do
 
   describe "HelmKubernetes.public_url/3" do
     test "interpolates the production host template with the account handle" do
-      region = Regions.get!("eu")
+      region = Regions.get("eu")
       assert HelmKubernetes.public_url("tuist", region, "any-ref") == "https://tuist-eu-1.kura.tuist.dev"
     end
 
     test "uses the literal local URL for kind-backed regions" do
-      region = Regions.get!("local")
+      region = Regions.get("local")
       assert HelmKubernetes.public_url("tuist", region, "any-ref") == "http://localhost:4000"
     end
   end
 
   describe "HelmKubernetes.release_name/2" do
     test "produces a kura-<account>-<cluster> release name" do
-      region = Regions.get!("eu")
+      region = Regions.get("eu")
       assert HelmKubernetes.release_name("tuist", region) == "kura-tuist-eu-1"
     end
 
     test "uses the local cluster_id for kind regions" do
-      region = Regions.get!("local")
+      region = Regions.get("local")
       assert HelmKubernetes.release_name("tuist", region) == "kura-tuist-local"
     end
   end

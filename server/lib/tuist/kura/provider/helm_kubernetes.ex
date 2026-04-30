@@ -138,104 +138,107 @@ defmodule Tuist.Kura.Provider.HelmKubernetes do
   ## Values rendering
 
   defp write_instance_values(image_tag, account, region, server, chart) do
-    yaml = render_values(image_tag, account, region, server, chart)
-    write_temp(yaml, "instance.yaml")
+    image_tag
+    |> values(account, region, server, chart)
+    |> Ymlr.document!()
+    |> write_temp("instance.yaml")
   end
 
-  defp render_values(image_tag, account, %Regions{} = region, %KuraServer{} = server, chart) do
+  defp values(image_tag, account, %Regions{} = region, %KuraServer{} = server, chart) do
     release = release_name(account.name, region)
     hook_script = chart |> Path.join("hooks/tuist.lua") |> File.read!() |> with_lua_prelude()
 
-    """
-    fullnameOverride: #{release}
-    image:
-      tag: "#{image_tag}"
-    config:
-      tenantId: "#{account.name}"
-      region: "#{region.id}"
-    extension:
-      enabled: true
-      script: |
-    #{indent(hook_script, 8)}
-    extraEnv:
-    #{render_extension_env(region)}
-    #{render_resources(server)}
-    #{render_persistence(server)}
-    #{render_ingress(region, account.name)}
-    topologySpreadConstraints:
-      - maxSkew: 1
-        topologyKey: kubernetes.io/hostname
-        whenUnsatisfiable: DoNotSchedule
-        labelSelector:
-          matchLabels:
-            app.kubernetes.io/name: kura
-            app.kubernetes.io/instance: #{release}
-    """
+    %{
+      "fullnameOverride" => release,
+      "image" => %{"tag" => image_tag},
+      "config" => %{
+        "tenantId" => account.name,
+        "region" => region.id
+      },
+      "extension" => %{
+        "enabled" => true,
+        "script" => hook_script
+      },
+      "extraEnv" => extension_env(region),
+      "topologySpreadConstraints" => [
+        %{
+          "maxSkew" => 1,
+          "topologyKey" => "kubernetes.io/hostname",
+          "whenUnsatisfiable" => "DoNotSchedule",
+          "labelSelector" => %{
+            "matchLabels" => %{
+              "app.kubernetes.io/name" => "kura",
+              "app.kubernetes.io/instance" => release
+            }
+          }
+        }
+      ]
+    }
+    |> maybe_merge(resources(server))
+    |> maybe_merge(persistence(server))
+    |> maybe_merge(ingress(region, account.name))
   end
 
-  defp render_resources(%KuraServer{spec: spec}) do
+  defp resources(%KuraServer{spec: spec}) do
     case Specs.resource_overlay(spec) do
-      %{"resources" => %{"requests" => req, "limits" => lim}} ->
-        """
-        resources:
-          requests:
-            cpu: "#{req["cpu"]}"
-            memory: "#{req["memory"]}"
-          limits:
-            memory: "#{lim["memory"]}"\
-        """
-
-      _ ->
-        ""
+      %{"resources" => _} = overlay -> overlay
+      _ -> nil
     end
   end
 
-  defp render_resources(_), do: ""
+  defp resources(_), do: nil
 
-  defp render_persistence(%KuraServer{volume_size_gi: gi}) when is_integer(gi) and gi > 0 do
-    "persistence:\n  size: #{gi}Gi"
+  defp persistence(%KuraServer{volume_size_gi: gi}) when is_integer(gi) and gi > 0 do
+    %{"persistence" => %{"size" => "#{gi}Gi"}}
   end
 
-  defp render_persistence(_), do: ""
+  defp persistence(_), do: nil
 
-  defp render_ingress(%Regions{provider_config: config}, handle) do
+  defp ingress(%Regions{provider_config: config}, handle) do
     case config[:public_host_template] do
       nil ->
         # Local kind has no public DNS; the chart's local overlay
         # disables Ingress entirely.
-        ""
+        nil
 
       template ->
         host = interpolate_host(template, handle, config)
 
-        """
-        ingress:
-          hosts:
-            - host: #{host}
-              paths:
-                - path: /
-                  pathType: Prefix
-          tls:
-            - secretName: tuist-tls-cloudflare-origin-kura
-              hosts:
-                - #{host}\
-        """
+        %{
+          "ingress" => %{
+            "hosts" => [
+              %{
+                "host" => host,
+                "paths" => [%{"path" => "/", "pathType" => "Prefix"}]
+              }
+            ],
+            "tls" => [
+              %{
+                "secretName" => "tuist-tls-cloudflare-origin-kura",
+                "hosts" => [host]
+              }
+            ]
+          }
+        }
     end
   end
 
-  defp render_extension_env(%Regions{} = region) do
-    [
-      yaml_env("KURA_EXTENSION_FAIL_CLOSED_AUTHENTICATE", "true"),
-      yaml_env("KURA_EXTENSION_FAIL_CLOSED_AUTHORIZE", "true"),
+  defp maybe_merge(map, nil), do: map
+  defp maybe_merge(map, fragment) when is_map(fragment), do: Map.merge(map, fragment)
+
+  defp extension_env(%Regions{} = region) do
+    base = [
+      env_var("KURA_EXTENSION_FAIL_CLOSED_AUTHENTICATE", "true"),
+      env_var("KURA_EXTENSION_FAIL_CLOSED_AUTHORIZE", "true"),
       # Kura's hook timeout defaults to 25ms — below a cold HTTPS round
       # trip. Cache hits stay sub-ms regardless.
-      yaml_env("KURA_EXTENSION_HOOK_TIMEOUT_MS", "5000"),
-      yaml_env("KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL", tuist_base_url(region)),
-      yaml_env("KURA_EXTENSION_HTTP_CLIENT_TUIST_CONNECT_TIMEOUT_MS", "3000"),
-      yaml_env("KURA_EXTENSION_HTTP_CLIENT_TUIST_REQUEST_TIMEOUT_MS", "4000")
-      | signer_env()
+      env_var("KURA_EXTENSION_HOOK_TIMEOUT_MS", "5000"),
+      env_var("KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL", tuist_base_url(region)),
+      env_var("KURA_EXTENSION_HTTP_CLIENT_TUIST_CONNECT_TIMEOUT_MS", "3000"),
+      env_var("KURA_EXTENSION_HTTP_CLIENT_TUIST_REQUEST_TIMEOUT_MS", "4000")
     ]
-    |> Enum.join("\n")
+
+    base ++ signer_env()
   end
 
   defp signer_env do
@@ -245,17 +248,13 @@ defmodule Tuist.Kura.Provider.HelmKubernetes do
 
       key ->
         [
-          yaml_env("KURA_EXTENSION_SIGNER_TUIST_ALGORITHM", "hmac-sha256"),
-          yaml_env("KURA_EXTENSION_SIGNER_TUIST_SECRET", key)
+          env_var("KURA_EXTENSION_SIGNER_TUIST_ALGORITHM", "hmac-sha256"),
+          env_var("KURA_EXTENSION_SIGNER_TUIST_SECRET", key)
         ]
     end
   end
 
-  defp yaml_env(name, value) do
-    "  - name: #{name}\n    value: '#{escape_yaml(value)}'"
-  end
-
-  defp escape_yaml(value), do: String.replace(value || "", "'", "''")
+  defp env_var(name, value), do: %{"name" => name, "value" => value}
 
   defp license_signing_key do
     case Tuist.License.get_license() do
@@ -307,11 +306,6 @@ defmodule Tuist.Kura.Provider.HelmKubernetes do
     template
     |> String.replace("{account_handle}", handle)
     |> String.replace("{cluster_id}", cluster_id)
-  end
-
-  defp indent(text, n) do
-    pad = String.duplicate(" ", n)
-    text |> String.split("\n") |> Enum.map_join("\n", &(pad <> &1))
   end
 
   defp parse_image_tag(output) do
