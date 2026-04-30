@@ -137,26 +137,19 @@ processor:
   nodeSelector:
     node.cluster.x-k8s.io/pool: processor
 
-  # Pod anti-affinity so the two replicas never land on the same worker.
-  # Without this two processor pods can co-locate on one cpx51 node and the
-  # combined 24Gi limits exceed the 32Gi node, OOMing the BEAM under load.
-  # Soft (preferred) so a single-node failure still schedules; the scheduler
-  # falls back to co-locating only when the alternative is Pending pods.
-  # The chart's default topologySpreadConstraints would express the same
-  # intent, but stacking both mechanisms can fight in edge cases, so we
-  # disable the spread in the managed env and rely on this block alone
-  # (matches the server deployment pattern above).
+  # Hard one-replica-per-node spread. Soft preferred-anti-affinity wasn't
+  # enough — when the new ReplicaSet was rolling out and only one cpx62
+  # node was Ready yet, both pods landed on it and stayed stacked even
+  # after the second node came up; combined ~10 cores of work on one
+  # 16-vCPU node halved effective parsing throughput while the other
+  # node sat idle. DoNotSchedule + nodeTaintsPolicy=Honor (set in the
+  # template) makes the separation enforced without deadlocking under
+  # node drain — a tainted node is excluded from the topology so the
+  # replacement pod can still land on the surviving worker.
   topologySpread:
-    enabled: false
-  affinity:
-    podAntiAffinity:
-      preferredDuringSchedulingIgnoredDuringExecution:
-        - weight: 100
-          podAffinityTerm:
-            labelSelector:
-              matchLabels:
-                app.kubernetes.io/component: processor
-            topologyKey: kubernetes.io/hostname
+    enabled: true
+    whenUnsatisfiable: DoNotSchedule
+  affinity: {}
 
 # In-cluster Valkey backs the auth rate limiter (Hammer.Redis). The
 # chart wires TUIST_REDIS_URL to the embedded Service; without it the
