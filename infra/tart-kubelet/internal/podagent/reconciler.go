@@ -127,31 +127,31 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 		return err
 	}
 
-	if err := r.Tart.Pull(ctx, c.Image); err != nil {
-		// On disk-pressure failures, free space (orphan VMs / stale OCI
-		// caches from terminated Pods) and retry once. Without this the
-		// host fills with leftovers and every subsequent reconcile
-		// fails the same way until something cleans up by hand.
-		if r.GC != nil && IsNoSpaceError(err) {
-			r.GC.RunOnce(ctx)
-			if err2 := r.Tart.Pull(ctx, c.Image); err2 != nil {
-				return fmt.Errorf("tart pull (after gc): %w", err2)
+	// Reuse an existing local clone if one is on disk: a kubelet
+	// restart kills the running VM (launchctl bootout signals the
+	// process group) but the cloned image stays. Re-running it skips
+	// the multi-minute pull + clone cycle.
+	existingClone, _ := r.Tart.Get(ctx, vmName)
+
+	if existingClone == nil {
+		if err := r.Tart.Pull(ctx, c.Image); err != nil {
+			// On disk-pressure failures, free space (orphan VMs / stale
+			// OCI caches from terminated Pods) and retry once. Without
+			// this the host fills with leftovers and every subsequent
+			// reconcile fails the same way until something cleans up
+			// by hand.
+			if r.GC != nil && IsNoSpaceError(err) {
+				r.GC.RunOnce(ctx)
+				if err2 := r.Tart.Pull(ctx, c.Image); err2 != nil {
+					return fmt.Errorf("tart pull (after gc): %w", err2)
+				}
+			} else {
+				return fmt.Errorf("tart pull: %w", err)
 			}
-		} else {
-			return fmt.Errorf("tart pull: %w", err)
 		}
-	}
-
-	// If a stale clone of the same name exists from a previous boot
-	// (kubelet restart, host reboot mid-clone), drop it — we'll
-	// recreate cleanly. `Get` returns (nil,nil) for missing VMs.
-	if vm, _ := r.Tart.Get(ctx, vmName); vm != nil {
-		_ = r.Tart.Stop(ctx, vmName, 5*time.Second)
-		_ = r.Tart.Delete(ctx, vmName)
-	}
-
-	if err := r.Tart.Clone(ctx, c.Image, vmName); err != nil {
-		return fmt.Errorf("tart clone: %w", err)
+		if err := r.Tart.Clone(ctx, c.Image, vmName); err != nil {
+			return fmt.Errorf("tart clone: %w", err)
+		}
 	}
 
 	if err := r.Tart.Run(ctx, vmName, []string{"env:" + envDir + ":ro"}); err != nil {

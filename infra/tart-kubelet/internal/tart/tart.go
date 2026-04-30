@@ -15,6 +15,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -93,14 +94,17 @@ func (c *Client) Set(ctx context.Context, name string, cpu, memoryMB int) error 
 // until Stop or Delete.
 //
 // Tart 2.32 quirks accommodated here:
-//   - `tart run` is foreground-only: we wrap it in `sh -c '… &'` so
-//     the shell forks it as a background process and exits. Tart is
-//     reparented to launchd. We deliberately do NOT use `nohup` —
-//     it requires a controlling TTY to detach from, and launchd-
-//     spawned processes don't have one (it errors with
-//     "Inappropriate ioctl for device" and the VM never starts).
-//     Without a controlling TTY there's no SIGHUP to worry about
-//     either, so plain `&` is enough.
+//   - `tart run` is foreground-only. We start it directly from Go with
+//     `Setsid: true` so it gets its own session and process group.
+//     Earlier we wrapped it in `sh -c 'tart … &'` — that left tart
+//     in the same pgid as tart-kubelet, so `launchctl bootout`
+//     during a kubelet upgrade signalled the whole group and killed
+//     the running VM. Setsid puts the VM out of reach of those
+//     signals; the tart-kubelet's startup state-recovery pass then
+//     re-binds it on the next reconcile.
+//   - We deliberately do NOT use `nohup` — it requires a controlling
+//     TTY to detach from, and launchd-spawned processes don't have
+//     one. With Setsid we don't need it.
 //   - `tart get` doesn't update on-disk state for backgrounded VMs, so
 //     we poll `tart ip --wait` instead of state.
 func (c *Client) Run(ctx context.Context, name string, sharedDirs []string) error {
@@ -108,18 +112,33 @@ func (c *Client) Run(ctx context.Context, name string, sharedDirs []string) erro
 		return fmt.Errorf("mkdir log dir: %w", err)
 	}
 
-	args := []string{c.Binary, "run", name, "--no-graphics"}
+	args := []string{"run", name, "--no-graphics"}
 	for _, dir := range sharedDirs {
 		args = append(args, "--dir", dir)
 	}
 
 	logPath := filepath.Join(c.LogDir, name+".log")
-	cmdline := shellJoin(args)
-
-	bg := fmt.Sprintf("%s >%s 2>&1 &", cmdline, shellEscape(logPath))
-	if _, err := c.run(ctx, "/bin/sh", "-c", bg); err != nil {
-		return err
+	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
+	if err != nil {
+		return fmt.Errorf("open vm log: %w", err)
 	}
+
+	// Bare exec.Command (NOT CommandContext) so the parent ctx
+	// cancelling — kubelet shutdown, reconcile timeout — doesn't
+	// SIGKILL the VM. Setsid + cmd.Start (no Wait) leaves tart
+	// running independently.
+	cmd := exec.Command(c.Binary, args...)
+	cmd.Stdout = logFile
+	cmd.Stderr = logFile
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	if err := cmd.Start(); err != nil {
+		_ = logFile.Close()
+		return fmt.Errorf("start tart run: %w", err)
+	}
+	// Close our own fd; the child holds its own dup. Reap the
+	// process so it doesn't go zombie if it exits before we Stop it.
+	_ = logFile.Close()
+	go func() { _ = cmd.Wait() }()
 
 	deadline := time.Now().Add(2 * time.Minute)
 	for time.Now().Before(deadline) {

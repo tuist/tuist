@@ -230,9 +230,19 @@ func recoverState(
 	if err != nil {
 		return err
 	}
+	// Probe each local VM with `tart ip` — that's the only reliable
+	// liveness signal under Tart 2.32 (the on-disk State field stays
+	// "stopped" for backgrounded VMs even when they're running).
+	// Stopped clones (left over from a previous kubelet kill) get
+	// skipped here; createPod will pick them up and start them.
 	live := make(map[string]bool, len(vms))
 	for _, vm := range vms {
-		live[vm.Name] = true
+		if vm.Source != "local" {
+			continue
+		}
+		if ip, ipErr := tartClient.IP(ctx, vm.Name); ipErr == nil && ip != "" {
+			live[vm.Name] = true
+		}
 	}
 
 	pods := &corev1.PodList{}
