@@ -101,28 +101,28 @@ kubectl get nodes
 
 ### 1.4 Lock down the API server
 
-The k3s API on `:6443` is publicly reachable by default. Two layers: Hetzner firewall + cert-pinned kubeconfig.
+`:22` is allowlisted to operator IPs. `:6443` is left public, gated by k3s's x509 client-cert auth.
+
+The reason `:6443` isn't allowlisted: cluster-autoscaler runs in each workload cluster and talks to the mgmt API from its node's IP. CAPI replaces nodes on scale and health events, so per-node allowlisting isn't maintainable. Hetzner Cloud Networks would solve it (private API), but cross-project networks don't exist and we locked mgmt into a separate Hetzner project for blast-radius isolation. Cert auth is robust enough on its own; we accept the trade.
 
 ```bash
-# Allow only the IPs that need it: each operator's static IP, plus the
-# workload clusters' egress (or, simpler, leave it open and rely on cert
-# pinning since clusterctl + kubectl auth via x509 client certs out of the
-# box). Decide based on team preference. Recommended: restrict to a small
-# allowlist initially and expand if needed.
 HCLOUD_TOKEN="$(op read 'op://Founders/hetzner-tuist-mgmt/credential')"
+MGMT_SERVER_ID=<id from §1.2 server-create response>
 
-# Sketch (fill in source CIDRs):
+# Operator IPs to allowlist for SSH. Add more as the team grows.
+OPERATOR_IPS='["<your-ip>/32"]'
+
 curl -sX POST https://api.hetzner.cloud/v1/firewalls \
   -H "Authorization: Bearer $HCLOUD_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{
-    "name": "tuist-mgmt",
-    "rules": [
-      {"direction": "in", "protocol": "tcp", "port": "22",   "source_ips": ["<your-ip>/32"]},
-      {"direction": "in", "protocol": "tcp", "port": "6443", "source_ips": ["<allowlist>"]}
+  -d "$(jq -n --argjson ops "$OPERATOR_IPS" --argjson sid "$MGMT_SERVER_ID" '{
+    name: "tuist-mgmt",
+    rules: [
+      {direction: "in", protocol: "tcp", port: "22",   source_ips: $ops},
+      {direction: "in", protocol: "tcp", port: "6443", source_ips: ["0.0.0.0/0", "::/0"]}
     ],
-    "apply_to": [{"type": "server", "server": {"id": <mgmt-server-id>}}]
-  }'
+    apply_to: [{type: "server", server: {id: $sid}}]
+  }')"
 ```
 
 Distribute the kubeconfig to each operator via 1Password:
@@ -197,14 +197,18 @@ kubectl -n org-tuist get clusterstackrelease -w
 
 ### 1.8 etcd snapshots → Tigris
 
-k3s has built-in etcd snapshots via S3. Configure once, hourly cadence, 7-day retention.
+k3s has built-in etcd snapshots via S3. Hourly cadence, retention 168 (= 7 days). Bucket `tuist-mgmt-etcd-snapshots`, dedicated bucket-scoped access key in 1Password as `tigris-tuist-mgmt-etcd` with `access_key_id` + `secret_access_key` fields.
+
+Create the bucket + scoped key in the Tigris dashboard first, save the keys to 1Password, then on the mgmt VM:
 
 ```bash
-# Tigris bucket (e.g. tuist-mgmt-etcd-snapshots) and access keys assumed in
-# 1Password as `tigris-tuist-mgmt-etcd`.
 ssh -i ~/.ssh/tuist-mgmt root@$MGMT_IP
 
-# On the VM:
+# Pull the keys from 1Password (run from your laptop, paste into the SSH session
+# or use a temp script — don't bake the values into shell history).
+TIGRIS_KEY="$(op read 'op://Founders/tigris-tuist-mgmt-etcd/access_key_id')"
+TIGRIS_SECRET="$(op read 'op://Founders/tigris-tuist-mgmt-etcd/secret_access_key')"
+
 mkdir -p /etc/rancher/k3s
 cat > /etc/rancher/k3s/config.yaml <<EOF
 etcd-snapshot-schedule-cron: '0 * * * *'
@@ -212,9 +216,10 @@ etcd-snapshot-retention: 168
 etcd-s3: true
 etcd-s3-endpoint: fly.storage.tigris.dev
 etcd-s3-bucket: tuist-mgmt-etcd-snapshots
-etcd-s3-access-key: <from 1Password>
-etcd-s3-secret-key: <from 1Password>
+etcd-s3-access-key: $TIGRIS_KEY
+etcd-s3-secret-key: $TIGRIS_SECRET
 EOF
+chmod 600 /etc/rancher/k3s/config.yaml
 
 systemctl restart k3s
 ```
@@ -226,7 +231,7 @@ kubectl get etcdsnapshotfile
 # Expect at least one entry within the next hour.
 ```
 
-Document the restore drill in section §11 of this file (do this in the same PR).
+The mgmt cluster's etcd holds CAPI CRs, Secrets, and ClusterStack state — everything `clusterctl move` would replay if we ever rebuild from a snapshot. The workload clusters' own etcds (per-cluster KubeadmControlPlane quorums) are *not* covered by this; that's intentional, since workload clusters hold no state we can't reconstruct from Helm + ESO + 1Password. If a stateful in-cluster service ever lands, revisit.
 
 ---
 
@@ -465,13 +470,33 @@ Only after all four clusters have soaked on our mgmt cluster for ≥1 week and C
    gh secret list --env <each environment>
    grep -r 'syself' .github/workflows/
    ```
-2. **Cancel the Syself subscription** via their console / support.
-3. **Delete the Syself OIDC kubeconfig** from operator machines and 1Password:
+2. **Rotate the shared Hetzner API token.** During migration we kept reusing `hetzner-tuist-syself` so caph on both old and new mgmt clusters could read it without coordination. Now: generate a fresh token in the workload-cluster Hetzner project, update our mgmt cluster's `hetzner` Secret, verify caph reconciliation lands a no-op, then revoke the old token in the Hetzner console.
+   ```bash
+   # New token in the workload Hetzner project, save to 1Password.
+   op item edit 'hetzner-tuist-syself' credential='<new token>'
+
+   # Push to our mgmt cluster.
+   kubectl --kubeconfig ~/.kube/tuist-mgmt.yaml -n org-tuist \
+     create secret generic hetzner \
+     --from-literal=hcloud="$(op read 'op://Founders/hetzner-tuist-syself/credential')" \
+     --from-literal=hcloud-ssh-key-name=tuist-syself \
+     --dry-run=client -o yaml \
+     | kubectl --kubeconfig ~/.kube/tuist-mgmt.yaml apply -f -
+
+   # Confirm caph reconciles with the new token (no spurious server replacements).
+   kubectl --kubeconfig ~/.kube/tuist-mgmt.yaml -n caph-system \
+     logs -l control-plane=controller-manager --tail=200
+
+   # Revoke the old token in Hetzner Cloud console once verified.
+   ```
+   Consider renaming the 1Password item to `hetzner-tuist-mgmt` post-rotation since the `-syself` suffix no longer reflects reality.
+3. **Cancel the Syself subscription** via their console / support.
+4. **Delete the Syself OIDC kubeconfig** from operator machines and 1Password:
    ```bash
    rm -rf ~/.kube/tuist-syself-mgmt.yaml ~/.kube/cache/oidc-login
    ```
-4. **Replace [`syself-onboarding.md`](syself-onboarding.md) with a successor `onboarding.md`** that covers our mgmt cluster + workload bootstrap. Rename `infra/k8s/syself/` → `infra/k8s/clusters/`. Move the autoscaler RBAC manifest from `infra/k8s/syself/processor-autoscaler-mgmt-rbac.yaml` to `infra/k8s/mgmt/processor-autoscaler-rbac.yaml`.
-5. **Archive this migration doc.** Move it to `infra/k8s/archive/2026-Q2-self-host-migration.md` so it stays as historical context without cluttering the active runbook surface.
+5. **Replace [`syself-onboarding.md`](syself-onboarding.md) with a successor `onboarding.md`** that covers our mgmt cluster + workload bootstrap. Rename `infra/k8s/syself/` → `infra/k8s/clusters/`. Move the autoscaler RBAC manifest from `infra/k8s/syself/processor-autoscaler-mgmt-rbac.yaml` to `infra/k8s/mgmt/processor-autoscaler-rbac.yaml`.
+6. **Archive this migration doc.** Move it to `infra/k8s/archive/2026-Q2-self-host-migration.md` so it stays as historical context without cluttering the active runbook surface.
 
 ---
 
@@ -493,10 +518,12 @@ Steady state: ~1–2h/month of engineer time with agent execution, plus a half-d
 
 ## Open items
 
-- [ ] Decide firewall posture for the mgmt API server (allowlist vs. cert-pinning only).
-- [ ] Decide whether to rotate the shared `hetzner` API token during migration or as a follow-up hardening step.
-- [ ] Tigris bucket name + retention for management-cluster etcd snapshots.
-- [ ] Workload-cluster etcd backup strategy: confirm whether Syself currently backs up the per-cluster KubeadmControlPlane etcds and, if so, replicate that on our side (or accept the gap consciously). The mgmt-cluster etcd snapshots in §1.8 protect only `clusterctl move`-replayable state, not the data plane.
+All four originally-open items have been settled and folded into the runbook:
+
+- **Firewall posture**: `:22` allowlisted to operator IPs, `:6443` public with cert auth. See §1.4 for why allowlisting `:6443` isn't tenable when CAPI replaces nodes.
+- **Hetzner token rotation**: post-migration as a Phase 6 hardening step, not during cutover. See §Phase 6 step 2.
+- **Tigris bucket**: `tuist-mgmt-etcd-snapshots`, retention 168 (7 days hourly), dedicated bucket-scoped key in 1Password as `tigris-tuist-mgmt-etcd`. See §1.8.
+- **Workload-cluster etcd backup**: explicitly accepted as a gap. Workload clusters hold no state we can't reconstruct from Helm + ESO + 1Password; recovery is `kubectl apply` against the Cluster CR + ~30 min for nodes to come up. Revisit if a stateful in-cluster service ever lands. See trailing paragraph in §1.8.
 
 ---
 
