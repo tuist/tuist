@@ -143,7 +143,10 @@ function authorize(ctx, principal)
   end
 
   return {
-    deny = { status = 403, message = "Forbidden" },
+    deny = {
+      status = 403,
+      message = "Forbidden: tenant '" .. tenant .. "' is not granted to this principal",
+    },
     ttl_seconds = 3,
   }
 end

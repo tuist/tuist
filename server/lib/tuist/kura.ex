@@ -1,10 +1,10 @@
 defmodule Tuist.Kura do
   @moduledoc """
-  Per-account Kura mesh management.
+  Per-account Kura server management.
 
   Identity is `(account, region)`: an account can light up Kura in as
-  many regions as it needs, but only one mesh per region. The size of
-  that mesh is the `spec` (capacity tier).
+  many regions as it needs, but only one server per region. `spec` is
+  the capacity tier of that server.
 
   This context is provider-agnostic. The how-do-we-actually-provision
   decisions live behind `Tuist.Kura.Provider`; here we just call into
@@ -64,8 +64,7 @@ defmodule Tuist.Kura do
   preloaded) or `{:error, reason}`.
 
   `attrs` keys: `:account_id`, `:region`, `:spec`, `:image_tag`,
-  `:requested_by_user_id`, optional `:volume_size_gi` (defaults from
-  the spec catalog).
+  optional `:volume_size_gi` (defaults from the spec catalog).
   """
   def create_server(attrs) do
     attrs = normalize_attrs(attrs)
@@ -100,7 +99,6 @@ defmodule Tuist.Kura do
       account_id: server.account_id,
       cluster_id: deployment_cluster_id(region),
       image_tag: image_tag,
-      requested_by_user_id: server.requested_by_user_id,
       kura_server_id: server.id
     }
     |> KuraDeployment.create_changeset()

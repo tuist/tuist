@@ -80,11 +80,6 @@ pub struct Config {
     pub rocksdb_write_buffer_size_bytes: usize,
     pub rocksdb_max_write_buffer_number: i32,
     pub analytics: Option<AnalyticsConfig>,
-    // None disables the OTLP exporter entirely (no tracing batches sent,
-    // no init-time errors). Operators set this by leaving the env var
-    // unset; the Helm chart only renders the env when the value is
-    // non-empty so a `config.telemetry.otlpTracesEndpoint: ""` in a
-    // values overlay is enough to disable tracing.
     pub otlp_traces_endpoint: Option<String>,
     pub otel_service_name: String,
     pub otel_deployment_environment: String,
@@ -680,11 +675,6 @@ impl Config {
                 None
             }
         };
-        // OTLP tracing is optional: if the env is unset (or set to an
-        // empty string), the exporter is not initialized and Kura runs
-        // without distributed tracing. Operators disable it by leaving
-        // the chart's `config.telemetry.otlpTracesEndpoint` empty so the
-        // env doesn't render at all.
         let otlp_traces_endpoint = lookup(KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT)
             .map(|value| value.trim().to_owned())
             .filter(|value| !value.is_empty());

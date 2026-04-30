@@ -20,7 +20,6 @@ defmodule Tuist.Kura.KuraDeployment do
   import Ecto.Changeset
 
   alias Tuist.Accounts.Account
-  alias Tuist.Accounts.User
   alias Tuist.Kura.KuraServer
 
   @statuses [:pending, :running, :succeeded, :failed, :cancelled]
@@ -36,7 +35,6 @@ defmodule Tuist.Kura.KuraDeployment do
     field :finished_at, :utc_datetime
 
     belongs_to :account, Account
-    belongs_to :requested_by, User, foreign_key: :requested_by_user_id
     belongs_to :kura_server, KuraServer, type: :binary_id
 
     timestamps(type: :utc_datetime_usec)
@@ -46,7 +44,7 @@ defmodule Tuist.Kura.KuraDeployment do
 
   def create_changeset(deployment \\ %__MODULE__{}, attrs) do
     deployment
-    |> cast(attrs, [:account_id, :cluster_id, :image_tag, :requested_by_user_id, :kura_server_id])
+    |> cast(attrs, [:account_id, :cluster_id, :image_tag, :kura_server_id])
     |> validate_required([:account_id, :cluster_id, :image_tag])
     |> validate_format(:image_tag, ~r/^\d+\.\d+\.\d+$/, message: "must be a Kura semver like 0.5.2")
     |> validate_change(:cluster_id, fn :cluster_id, value ->
@@ -55,7 +53,6 @@ defmodule Tuist.Kura.KuraDeployment do
         else: [cluster_id: "is not referenced by any region"]
     end)
     |> foreign_key_constraint(:account_id)
-    |> foreign_key_constraint(:requested_by_user_id)
     |> foreign_key_constraint(:kura_server_id)
   end
 

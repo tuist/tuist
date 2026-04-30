@@ -1,12 +1,10 @@
 defmodule Tuist.Kura.KuraServer do
   @moduledoc """
-  A Kura mesh provisioned for a single account, in a single region.
+  A Kura server provisioned for a single account, in a single region.
 
-  The customer-facing identity is `(account, region)`: an account can
-  light up Kura in as many regions as it needs, but only one mesh per
-  region. The size of that mesh is the `spec`, which today maps to
-  per-node capacity (CPU/memory/volume); spec is a sizing knob, not
-  part of the server's identity.
+  Identity is `(account, region)`: an account can light up Kura in as
+  many regions as it needs, but only one server per region. `spec` is
+  a capacity knob (CPU/memory/volume per node), not part of identity.
 
   Lifecycle:
 
@@ -20,11 +18,12 @@ defmodule Tuist.Kura.KuraServer do
   `provider_node_ref` is the opaque handle the provider returned from
   `provision/3`. The control plane stores it untouched and hands it
   back to the provider for `rollout/3` and `destroy/1`. For the
-  helm/Kubernetes provider it's the helm release name. `provider_metadata`
-  is a JSON bag the provider uses to remember anything else it needs
-  between calls (instance type, zone, peer seeding info, etc.).
+  helm/Kubernetes provider it's the helm release name.
+  `provider_metadata` is a JSON bag the provider uses to remember
+  anything else it needs between calls (instance type, zone, peer
+  seeding info, etc.).
 
-  Per-server lifecycle events (the actual rollout attempts) live in
+  Per-server lifecycle events (rollout attempts) live in
   `kura_deployments` via `kura_server_id`.
   """
   use Ecto.Schema
@@ -32,7 +31,6 @@ defmodule Tuist.Kura.KuraServer do
   import Ecto.Changeset
 
   alias Tuist.Accounts.Account
-  alias Tuist.Accounts.User
   alias Tuist.Kura.KuraDeployment
 
   @specs [:small, :medium, :large]
@@ -50,7 +48,6 @@ defmodule Tuist.Kura.KuraServer do
     field :provider_metadata, :map, default: %{}
 
     belongs_to :account, Account
-    belongs_to :requested_by, User, foreign_key: :requested_by_user_id
 
     has_many :deployments, KuraDeployment, foreign_key: :kura_server_id
 
@@ -67,7 +64,6 @@ defmodule Tuist.Kura.KuraServer do
       :region,
       :spec,
       :volume_size_gi,
-      :requested_by_user_id,
       :provider_node_ref,
       :provider_metadata
     ])
@@ -79,7 +75,6 @@ defmodule Tuist.Kura.KuraServer do
         else: [region: "is not a registered region"]
     end)
     |> foreign_key_constraint(:account_id)
-    |> foreign_key_constraint(:requested_by_user_id)
     |> unique_constraint([:account_id, :region],
       name: :kura_servers_account_region_active_index,
       message: "an active Kura server already exists for this account and region"

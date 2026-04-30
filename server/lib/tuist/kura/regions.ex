@@ -1,8 +1,8 @@
 defmodule Tuist.Kura.Regions do
   @moduledoc """
-  Catalog of regions where Kura meshes can run. The customer-facing
+  Catalog of regions where Kura servers can run. The customer-facing
   unit of provisioning: an account picks one or more regions and the
-  control plane spins up exactly one Kura mesh per region.
+  control plane spins up exactly one Kura server per region.
 
   A region carries:
 

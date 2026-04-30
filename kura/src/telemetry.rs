@@ -72,9 +72,6 @@ pub fn init_tracing(config: &Config) -> TelemetryGuards {
             }
         }
         Err(error) => {
-            // Reached either when the operator explicitly disabled OTLP
-            // (no endpoint configured) or when exporter init genuinely
-            // failed. One log line on startup either way; never per-batch.
             eprintln!("OTLP tracing not active: {error}");
             if sentry_guard.is_some() {
                 tracing_subscriber::registry()

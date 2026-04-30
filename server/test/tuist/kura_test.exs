@@ -45,13 +45,12 @@ defmodule Tuist.KuraTest do
       {:ok, account: account, user: user}
     end
 
-    test "inserts a deployment row and enqueues the rollout worker", %{account: account, user: user} do
+    test "inserts a deployment row and enqueues the rollout worker", %{account: account} do
       assert {:ok, %KuraDeployment{status: :pending} = deployment} =
                Kura.create_deployment(%{
                  account_id: account.id,
                  cluster_id: "eu-1",
-                 image_tag: "0.5.2",
-                 requested_by_user_id: user.id
+                 image_tag: "0.5.2"
                })
 
       assert deployment.oban_job_id
@@ -125,11 +124,10 @@ defmodule Tuist.KuraTest do
       assert {:ok, server} =
                Kura.create_server(%{
                  account_id: account.id,
-                 cluster_id: "eu-1",
+                 region: "eu",
                  spec: :medium,
                  volume_size_gi: 200,
-                 image_tag: "0.5.2",
-                 requested_by_user_id: user.id
+                 image_tag: "0.5.2"
                })
 
       assert server.status == :provisioning
