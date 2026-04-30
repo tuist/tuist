@@ -17,14 +17,6 @@ Flaky tests are tests that produce different results (pass or fail) when run mul
 
 ![Flaky Tests page](/images/guides/features/test-insights/flaky-tests-page.png)
 
-## How tests are tracked {#tracking}
-
-A test case is identified by `(project, module, suite, name)` and tracked at the **individual test level** — not by class or suite. Tracking is **project-wide**, not per-branch: runs from any branch contribute to the same test case's history, so a test that only flakes on one branch shows up in the project's flaky-tests view.
-
-A test only becomes flaky if it has produced **both a passing and a failing result** for the same code. A test that fails on every attempt is a failing test, not a flaky one.
-
-`is_flaky` (auto-detected) and the quarantine state (`enabled` / `muted` / `skipped`, set manually) are **independent dimensions**. A test is commonly flaky and muted at the same time.
-
 ## How flaky detection works {#how-it-works}
 
 Tuist detects flaky tests in two ways:
