@@ -1,15 +1,15 @@
 defmodule Tuist.Kura.Workers.RolloutWorker do
   @moduledoc """
   Executes a single Kura deployment by dispatching to the region's
-  provider.
+  deployer.
 
   Intentionally thin: load the deployment + parent server, mark
-  `:running`, ask the provider to roll out, translate the outcome
-  into row state. Provider-specific machinery (helm shells, log
-  streaming, kubeconfig discovery) lives behind `Tuist.Kura.Provider`;
+  `:running`, ask the deployer to roll out, translate the outcome
+  into row state. Deployer-specific machinery (helm shells, log
+  streaming, kubeconfig discovery) lives behind `Tuist.Kura.Deployer`;
   the control plane has no opinion about how the rollout happens.
 
-  Stdout/stderr the provider produces are streamed into ClickHouse via
+  Stdout/stderr the deployer produces are streamed into ClickHouse via
   the per-deployment log sink so /ops can tail in real time.
   Concurrency is capped at 1 by the `:kura_rollout` queue.
   """
@@ -18,7 +18,7 @@ defmodule Tuist.Kura.Workers.RolloutWorker do
   alias Tuist.Kura
   alias Tuist.Kura.KuraDeployment
   alias Tuist.Kura.KuraServer
-  alias Tuist.Kura.Provider
+  alias Tuist.Kura.Deployer
   alias Tuist.Kura.Regions
   alias Tuist.Repo
 
@@ -78,7 +78,7 @@ defmodule Tuist.Kura.Workers.RolloutWorker do
       on_log_line: log_sink(deployment.id)
     }
 
-    case Provider.rollout(server, inputs) do
+    case Deployer.rollout(server, inputs) do
       :ok ->
         {:ok, _} = Kura.mark_succeeded(deployment)
         Kura.activate_server(server, deployment.image_tag)
@@ -98,7 +98,7 @@ defmodule Tuist.Kura.Workers.RolloutWorker do
     {:error, message}
   end
 
-  # Returns a 2-arity callback the provider invokes per stdout/stderr
+  # Returns a 2-arity callback the deployer invokes per stdout/stderr
   # line. The callback batches into ClickHouse with a monotonically
   # increasing sequence so /ops's tail order is stable.
   defp log_sink(deployment_id) do
