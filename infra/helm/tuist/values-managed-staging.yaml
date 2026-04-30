@@ -124,9 +124,10 @@ xcresultProcessor:
   image:
     # Pinned to a SHA so production's `:latest` (still on the legacy
     # Orchard `--user-data` flow) isn't disturbed by feature-branch
-    # builds. The 7aac3f0d build carries inject-env.sh's
-    # `--dir env:` support that tart-kubelet relies on.
-    tag: "7aac3f0d"
+    # builds. The c9823bb6 build adds xcactivitylog_nif.so to the
+    # release tarball; without it the BEAM crashes at boot trying
+    # to dlopen the .so eagerly via @on_load.
+    tag: "c9823bb6"
   strategy:
     type: RollingUpdate
     rollingUpdate:
