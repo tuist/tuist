@@ -229,8 +229,11 @@ processor:
   # running at the deadline.
   terminationGracePeriodSeconds: 1260
   # Build archives are unzipped into the pod's /tmp. Scale to match the
-  # largest archive plus headroom for CAS metadata.
-  tmpSizeLimit: 10Gi
+  # largest archive plus headroom for CAS metadata. Sized for queueConcurrency
+  # archives concurrently — each can be up to PROCESS_BUILD_MAX_XCACTIVITYLOG_BYTES
+  # (default 1 GiB) post-extract, plus the .zip itself, plus the unzipped CAS
+  # databases. 16 GiB gives ~3 GiB per slot at queueConcurrency = 5.
+  tmpSizeLimit: 16Gi
 
 cache:
   enabled: true

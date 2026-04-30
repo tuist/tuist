@@ -14,7 +14,6 @@ defmodule Tuist.Builds do
   alias Tuist.Builds.CASOutput
   alias Tuist.ClickHouseFlop
   alias Tuist.ClickHouseRepo
-  alias Tuist.IngestRepo
   alias Tuist.Projects.Project
   alias Tuist.Repo
 
@@ -80,17 +79,21 @@ defmodule Tuist.Builds do
 
       {:ok, build_map} = Build.Buffer.insert(build_map)
 
-      Task.await_many(
-        [
-          Task.async(fn -> create_build_issues(build_map, Map.get(attrs, :issues, [])) end),
-          Task.async(fn -> create_build_files(build_map, Map.get(attrs, :files, [])) end),
-          Task.async(fn -> create_build_targets(build_map, Map.get(attrs, :targets, [])) end),
-          Task.async(fn -> create_cacheable_tasks(build_map, cacheable_tasks) end),
-          Task.async(fn -> create_cas_outputs(build_map, cas_outputs) end),
-          Task.async(fn -> create_machine_metrics(build_map, machine_metrics) end)
-        ],
-        30_000
-      )
+      # Per-table writes go through Bufferable Buffers (async cast).
+      # Previously these were synchronous IngestRepo.insert_all/3 calls fanned
+      # out via Task.await_many; under ClickHouse pressure the await_many would
+      # blow the worker's wall-time budget and orphan in-flight builds, which
+      # made ProcessBuildWorker the dominant source of stuck "executing" rows
+      # in Oban. Routing through buffers makes create_build/1 effectively
+      # non-blocking on ClickHouse health, at the cost of losing in-memory
+      # rows on hard pod kill — acceptable since the existing Build.Buffer
+      # write above already had that property.
+      create_build_issues(build_map, Map.get(attrs, :issues, []))
+      create_build_files(build_map, Map.get(attrs, :files, []))
+      create_build_targets(build_map, Map.get(attrs, :targets, []))
+      create_cacheable_tasks(build_map, cacheable_tasks)
+      create_cas_outputs(build_map, cas_outputs)
+      create_machine_metrics(build_map, machine_metrics)
 
       project = Project |> Repo.get(build.project_id) |> Repo.preload(:account)
 
@@ -128,13 +131,13 @@ defmodule Tuist.Builds do
         }
       end)
 
-    IngestRepo.insert_all(BuildFile, files)
+    BuildFile.Buffer.insert_all(files)
   end
 
   defp create_build_targets(build, targets) do
     targets = Enum.map(targets, &BuildTarget.changeset(build.id, &1))
 
-    IngestRepo.insert_all(BuildTarget, targets)
+    BuildTarget.Buffer.insert_all(targets)
   end
 
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
@@ -158,10 +161,7 @@ defmodule Tuist.Builds do
         }
       end)
 
-    IngestRepo.insert_all(
-      BuildIssue,
-      issues
-    )
+    BuildIssue.Buffer.insert_all(issues)
   end
 
   defp normalize_issue_type(:warning), do: 0
@@ -219,7 +219,7 @@ defmodule Tuist.Builds do
         }
       end)
 
-    IngestRepo.insert_all(CacheableTask, tasks)
+    CacheableTask.Buffer.insert_all(tasks)
   end
 
   defp create_machine_metrics(build, metrics) when is_list(metrics) do
@@ -229,6 +229,7 @@ defmodule Tuist.Builds do
       Enum.map(metrics, fn metric ->
         %{
           build_run_id: build.id,
+          gradle_build_id: nil,
           timestamp: metric.timestamp,
           cpu_usage_percent: metric.cpu_usage_percent / 1,
           memory_used_bytes: metric.memory_used_bytes,
@@ -241,7 +242,7 @@ defmodule Tuist.Builds do
         }
       end)
 
-    IngestRepo.insert_all(BuildMachineMetric, entries)
+    BuildMachineMetric.Buffer.insert_all(entries)
 
     :ok
   end
@@ -265,7 +266,7 @@ defmodule Tuist.Builds do
         }
       end)
 
-    IngestRepo.insert_all(CASOutput, outputs)
+    CASOutput.Buffer.insert_all(outputs)
   end
 
   def list_build_issues(build_run_id) do

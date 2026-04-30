@@ -1,8 +1,11 @@
 # Production workload Cluster for Tuist on Syself Apalla (Hetzner).
 #
-# Shape: 3 × cpx22 cloud control plane + 2 × ccx23 dedicated-vCPU workers
-# in fsn1. ~€87/mo. Dedicated cores on the workers give us predictable
-# p99 latency without foreclosing HPA.
+# Shape: 3 × cpx22 cloud control plane + 2 × ccx33 dedicated-vCPU workers
+# in fsn1. ~€135/mo. Dedicated cores on the workers give us predictable
+# p99 latency without foreclosing HPA. Workers are sized for the
+# xcactivitylog processor: at queueConcurrency=5 with a 1 GiB per-archive
+# cap, peak per-pod memory is ~20 GiB, so we run on 32 GiB nodes with
+# pod anti-affinity (one processor replica per node).
 
 apiVersion: cluster.x-k8s.io/v1beta1
 kind: Cluster
@@ -37,7 +40,7 @@ spec:
       - name: controlPlaneMachineArchHcloud
         value: amd64
       - name: workerMachineTypeHcloud
-        value: ccx23
+        value: ccx33
       - name: SSHKeyNameHcloud
         value:
           - name: tuist-syself

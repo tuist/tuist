@@ -98,13 +98,41 @@ processor:
       value: prod
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
       value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
+  # Sized so 5 concurrent xcactivitylog parses (queueConcurrency = 5) all fit
+  # without OOMKill. The Swift parser holds ~3-4x the .xcactivitylog file size
+  # in memory while building the BuildStep tree, so the worker enforces a
+  # PROCESS_BUILD_MAX_XCACTIVITYLOG_BYTES cap (default 1 GiB); 5 * 4 * 1 GiB
+  # ~= 20 GiB peak, with some slack for the BEAM, NIF JSON encode, and the
+  # zip extraction in /tmp. Workers are ccx33 (32 GiB), and the anti-affinity
+  # below pins one replica per node so each pod gets the full per-node budget.
   resources:
     requests:
-      cpu: "500m"
-      memory: "1Gi"
+      cpu: "1000m"
+      memory: "4Gi"
     limits:
-      cpu: "2000m"
-      memory: "2Gi"
+      cpu: "4000m"
+      memory: "24Gi"
+
+  # Pod anti-affinity so the two replicas never land on the same worker.
+  # Without this two processor pods can co-locate on one ccx33 node and the
+  # combined 24Gi limits exceed the 32Gi node, OOMing the BEAM under load.
+  # Soft (preferred) so a single-node failure still schedules; the scheduler
+  # falls back to co-locating only when the alternative is Pending pods.
+  # The chart's default topologySpreadConstraints would express the same
+  # intent, but stacking both mechanisms can fight in edge cases, so we
+  # disable the spread in the managed env and rely on this block alone
+  # (matches the server deployment pattern above).
+  topologySpread:
+    enabled: false
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            labelSelector:
+              matchLabels:
+                app.kubernetes.io/component: processor
+            topologyKey: kubernetes.io/hostname
 
 # In-cluster Valkey backs the auth rate limiter (Hammer.Redis). The
 # chart wires TUIST_REDIS_URL to the embedded Service; without it the

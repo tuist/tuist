@@ -14,6 +14,14 @@ defmodule Tuist.Processor.BuildProcessor do
 
   @apple_reference_date_offset 978_307_200
 
+  # Hard cap on the .xcactivitylog file we hand to the Swift parser. The
+  # parser holds ~3-4x this in resident memory while building the BuildStep
+  # tree and JSON-encoding the result, so the processor pod's memory limit is
+  # sized as `queueConcurrency * 4 * max_xcactivitylog_bytes` plus BEAM
+  # overhead. Override per-environment via `TUIST_PROCESS_BUILD_MAX_XCACTIVITYLOG_BYTES`
+  # if a customer's build legitimately exceeds the default.
+  @default_max_xcactivitylog_bytes 1024 * 1024 * 1024
+
   def process_build(build_zip_path, xcode_cache_upload_enabled) do
     temp_dir = make_temp_dir()
 
@@ -34,7 +42,8 @@ defmodule Tuist.Processor.BuildProcessor do
     cas_analytics_db_path = Path.join(temp_dir, "cas_analytics.db")
     legacy_cas_metadata_path = Path.join(temp_dir, "cas_metadata")
 
-    with {:ok, parsed_data} <-
+    with :ok <- check_xcactivitylog_size(xcactivitylog_path),
+         {:ok, parsed_data} <-
            parse_build(
              xcactivitylog_path,
              cas_analytics_db_path,
@@ -84,6 +93,24 @@ defmodule Tuist.Processor.BuildProcessor do
     {:ok, files} = File.ls(xcactivitylog_dir)
     file = Enum.find(files, &String.ends_with?(&1, ".xcactivitylog"))
     Path.join(xcactivitylog_dir, file)
+  end
+
+  defp check_xcactivitylog_size(path) do
+    %File.Stat{size: size} = File.stat!(path)
+    max_bytes = max_xcactivitylog_bytes()
+
+    if size > max_bytes do
+      {:error, {:xcactivitylog_too_large, %{size: size, max_bytes: max_bytes}}}
+    else
+      :ok
+    end
+  end
+
+  defp max_xcactivitylog_bytes do
+    case System.get_env("TUIST_PROCESS_BUILD_MAX_XCACTIVITYLOG_BYTES") do
+      value when is_binary(value) and value != "" -> String.to_integer(value)
+      _ -> @default_max_xcactivitylog_bytes
+    end
   end
 
   defp read_machine_metrics(path, start_time, end_time) do
