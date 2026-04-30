@@ -311,59 +311,42 @@ defmodule Tuist.SCIM do
 
   defp ops_to_attrs([], acc), do: acc
 
-  defp ops_to_attrs([op | rest], acc) do
+  defp ops_to_attrs([%{"op" => op, "path" => path, "value" => value} | rest], acc)
+       when is_binary(op) and is_binary(path) do
+    ops_to_attrs(rest, put_patch_attr(String.downcase(op), String.downcase(path), value, acc))
+  end
+
+  defp ops_to_attrs([%{"op" => op, "value" => value} | rest], acc) when is_binary(op) and is_map(value) do
+    op = String.downcase(op)
+
     acc =
-      case normalize_op(op) do
-        {:replace, "active", value} when is_boolean(value) ->
-          Map.put(acc, :active, value)
+      cond do
+        op == "replace" and Map.has_key?(value, "active") ->
+          put_patch_attr(op, "active", Map.get(value, "active"), acc)
 
-        {:replace, "username", value} when is_binary(value) ->
-          Map.put(acc, :user_name, value)
+        op == "replace" and Map.has_key?(value, "userName") ->
+          put_patch_attr(op, "username", Map.get(value, "userName"), acc)
 
-        {op, "roles", value} when op in [:add, :replace] ->
-          case extract_role(value) do
-            nil -> acc
-            role -> Map.put(acc, :role, role)
-          end
-
-        _ ->
+        true ->
           acc
       end
 
     ops_to_attrs(rest, acc)
   end
 
-  defp normalize_op(%{"op" => op, "path" => path, "value" => value}) when is_binary(op) and is_binary(path) do
-    case safe_atom(String.downcase(op)) do
-      :invalid -> :invalid
-      atom -> {atom, String.downcase(path), value}
+  defp ops_to_attrs([_op | rest], acc), do: ops_to_attrs(rest, acc)
+
+  defp put_patch_attr("replace", "active", value, acc) when is_boolean(value), do: Map.put(acc, :active, value)
+  defp put_patch_attr("replace", "username", value, acc) when is_binary(value), do: Map.put(acc, :user_name, value)
+
+  defp put_patch_attr(op, "roles", value, acc) when op in ["add", "replace"] do
+    case extract_role(value) do
+      nil -> acc
+      role -> Map.put(acc, :role, role)
     end
   end
 
-  defp normalize_op(%{"op" => op, "value" => value}) when is_binary(op) and is_map(value) do
-    op_atom = safe_atom(String.downcase(op))
-
-    cond do
-      op_atom == :invalid ->
-        :invalid
-
-      Map.has_key?(value, "active") ->
-        {op_atom, "active", Map.get(value, "active")}
-
-      Map.has_key?(value, "userName") ->
-        {op_atom, "username", Map.get(value, "userName")}
-
-      true ->
-        :invalid
-    end
-  end
-
-  defp normalize_op(_), do: :invalid
-
-  defp safe_atom("add"), do: :add
-  defp safe_atom("replace"), do: :replace
-  defp safe_atom("remove"), do: :remove
-  defp safe_atom(_), do: :invalid
+  defp put_patch_attr(_op, _path, _value, acc), do: acc
 
   defp extract_role(value) when is_binary(value), do: normalize_role_string(value)
   defp extract_role([%{"value" => v} | _]) when is_binary(v), do: normalize_role_string(v)
@@ -472,23 +455,23 @@ defmodule Tuist.SCIM do
   def patch_group(_org, _id, _ops), do: {:error, :not_found}
 
   defp apply_group_op(organization, role, %{"op" => op_str, "value" => value} = op) do
-    op_atom = safe_atom(String.downcase(op_str))
+    op_name = String.downcase(op_str)
     path = Map.get(op, "path")
 
     cond do
-      op_atom == :add ->
+      op_name == "add" ->
         Enum.each(extract_member_ids(value), fn user_id ->
           add_member(organization, user_id, role)
         end)
 
-      op_atom == :remove ->
+      op_name == "remove" ->
         ids = member_ids_from_path(path) ++ extract_member_ids(value)
 
         Enum.each(ids, fn user_id ->
           remove_member(organization, user_id)
         end)
 
-      op_atom == :replace and path in ["members", nil] ->
+      op_name == "replace" and path in ["members", nil] ->
         Enum.each(Accounts.get_organization_members(organization, role), fn u ->
           remove_member(organization, u.id)
         end)
@@ -502,10 +485,12 @@ defmodule Tuist.SCIM do
     end
   end
 
-  defp apply_group_op(organization, _role, %{"op" => "remove", "path" => path}) do
-    Enum.each(member_ids_from_path(path), fn user_id ->
-      remove_member(organization, user_id)
-    end)
+  defp apply_group_op(organization, _role, %{"op" => op_name, "path" => path}) when is_binary(op_name) do
+    if String.downcase(op_name) == "remove" do
+      Enum.each(member_ids_from_path(path), fn user_id ->
+        remove_member(organization, user_id)
+      end)
+    end
   end
 
   defp apply_group_op(_organization, _role, _op), do: :ok
