@@ -511,11 +511,6 @@ struct BuildPhaseGenerator: BuildPhaseGenerating {
     ) throws {
         if directSwiftMacroExecutables.isEmpty { return }
 
-        // macOS-exclusive consumers: script body is a no-op (src == dest once
-        // `$EFFECTIVE_PLATFORM_NAME` is empty) and the declared output would
-        // collide with the macro target's `Ld` step on the same path.
-        if target.isExclusiveTo(.macOS) { return }
-
         let copySwiftMacrosBuildPhase = PBXShellScriptBuildPhase(name: "Copy Swift Macro executable into $BUILT_PRODUCT_DIR")
 
         let executableNames = directSwiftMacroExecutables.compactMap {
@@ -552,10 +547,11 @@ struct BuildPhaseGenerator: BuildPhaseGenerating {
         }
 
         if target.supports(.macOS) {
-            // Reached only for mixed-destination consumers (macOS-exclusive returned
-            // above). The phase is still needed to populate `Debug-<platform>/<exe>`
-            // for non-macOS slices, but declared outputs would collide on this
-            // target's own macOS slice — so omit them.
+            // Any consumer that supports macOS still needs the phase because the
+            // compiler/editor load plugin executables from `Debug...`, even when
+            // the active configuration is not Debug. Declared outputs would collide
+            // on native macOS builds where `$EFFECTIVE_PLATFORM_NAME` is empty, so
+            // omit them and always run the phase instead.
             copySwiftMacrosBuildPhase.alwaysOutOfDate = true
         } else {
             copySwiftMacrosBuildPhase.outputPaths = executableNames.flatMap { executable in

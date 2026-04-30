@@ -2218,7 +2218,7 @@ struct BuildPhaseGeneratorTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func generateLinks_doesNotGenerateShellScriptBuildPhase_when_macroFrameworkIsExclusiveToMacOS() async throws {
+    ) func generateLinks_generatesAlwaysOutOfDateShellScriptBuildPhase_when_macroFrameworkIsExclusiveToMacOS() async throws {
         // Given
         let app = Target.test(name: "app", platform: .macOS, product: .app)
         let macroFramework = Target.test(name: "framework", platform: .macOS, product: .staticFramework)
@@ -2254,7 +2254,8 @@ struct BuildPhaseGeneratorTests {
             .compactMap { $0 as? PBXShellScriptBuildPhase }
             .first(where: { $0.name() == "Copy Swift Macro executable into $BUILT_PRODUCT_DIR" })
 
-        #expect(buildPhase == nil)
+        #expect(buildPhase?.outputPaths == [])
+        #expect(buildPhase?.alwaysOutOfDate == true)
     }
 
     @Test(
