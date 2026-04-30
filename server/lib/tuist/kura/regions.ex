@@ -10,27 +10,27 @@ defmodule Tuist.Kura.Regions do
       Stored on `kura_servers.region`. Never renamed once published
       because URLs and `account_cache_endpoints` reference it.
     * `display_name` — what the /ops UI renders.
-    * `provider` — the `Tuist.Kura.Provider` implementation that
+    * `deployer` — the `Tuist.Kura.Deployer` implementation that
       actually provisions, rolls, and destroys meshes here. The
       customer never sees this.
-    * `provider_config` — opaque to the rest of the codebase; only the
-      provider module reads it.
+    * `deployer_config` — opaque to the rest of the codebase; only the
+      deployer module reads it.
 
   Adding a region is a code change: edit `@catalog`, supply whatever
-  provider config the chosen impl needs, deploy. Regions change rarely
-  and provider configs reference assets that ship with the release.
+  deployer config the chosen impl needs, deploy. Regions change rarely
+  and deployer configs reference assets that ship with the release.
   """
 
-  alias Tuist.Kura.Provider.HelmKubernetes
+  alias Tuist.Kura.Deployer.HelmKubernetes
 
-  defstruct [:id, :display_name, :provider, :provider_config]
+  defstruct [:id, :display_name, :deployer, :deployer_config]
 
   @catalog [
     %{
       id: "eu",
       display_name: "Europe (Hetzner Falkenstein)",
-      provider: HelmKubernetes,
-      provider_config: %{
+      deployer: HelmKubernetes,
+      deployer_config: %{
         cluster_id: "eu-1",
         helm_overlay: "hetzner",
         public_host_template: "{account_handle}-{cluster_id}.kura.tuist.dev"
@@ -39,8 +39,8 @@ defmodule Tuist.Kura.Regions do
     %{
       id: "local",
       display_name: "Local (kind)",
-      provider: HelmKubernetes,
-      provider_config: %{
+      deployer: HelmKubernetes,
+      deployer_config: %{
         cluster_id: "local",
         helm_overlay: "local",
         kind_cluster_name: "kura-dev",
@@ -54,7 +54,7 @@ defmodule Tuist.Kura.Regions do
 
   @doc """
   Regions exposed in the current runtime environment. Dev/test sees
-  only the local-provider regions so a developer can't accidentally
+  only the local-only regions so a developer can't accidentally
   provision into managed infrastructure.
   """
   def available do

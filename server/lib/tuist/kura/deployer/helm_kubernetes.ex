@@ -1,4 +1,4 @@
-defmodule Tuist.Kura.Provider.HelmKubernetes do
+defmodule Tuist.Kura.Deployer.HelmKubernetes do
   @moduledoc """
   Runs Kura as a `StatefulSet` on a managed Kubernetes cluster, deployed
   via the Helm chart at `kura/ops/helm/kura/`.
@@ -9,7 +9,7 @@ defmodule Tuist.Kura.Provider.HelmKubernetes do
   `rollout.sh`. The script owns the partitioned-warm-rollout state
   machine; we are a transport. `destroy/2` is `helm uninstall --wait`.
 
-  Region `provider_config` keys read by this module:
+  Region `deployer_config` keys read by this module:
 
     * `:cluster_id` (required) — kubeconfig-secret lookup key + helm
       release suffix.
@@ -26,7 +26,7 @@ defmodule Tuist.Kura.Provider.HelmKubernetes do
       auto-create the cluster.
   """
 
-  @behaviour Tuist.Kura.Provider
+  @behaviour Tuist.Kura.Deployer
 
   alias Tuist.Kura.KuraServer
   alias Tuist.Kura.Regions
@@ -36,7 +36,7 @@ defmodule Tuist.Kura.Provider.HelmKubernetes do
 
   @namespace "kura"
 
-  ## Provider callbacks
+  ## Deployer callbacks
 
   @impl true
   def provision(%{name: handle}, %Regions{} = region, %KuraServer{}) do
@@ -90,7 +90,7 @@ defmodule Tuist.Kura.Provider.HelmKubernetes do
   end
 
   @impl true
-  def public_url(handle, %Regions{provider_config: config}, _ref) do
+  def public_url(handle, %Regions{deployer_config: config}, _ref) do
     cond do
       template = config[:public_host_template] ->
         "https://" <> interpolate_host(template, handle, config)
@@ -131,7 +131,7 @@ defmodule Tuist.Kura.Provider.HelmKubernetes do
   The helm release name for `(account, region)`. Public so tests and
   ops scripts can compute it without going through `provision/3`.
   """
-  def release_name(handle, %Regions{provider_config: %{cluster_id: cluster_id}}) do
+  def release_name(handle, %Regions{deployer_config: %{cluster_id: cluster_id}}) do
     "kura-#{handle}-#{cluster_id}"
   end
 
@@ -194,7 +194,7 @@ defmodule Tuist.Kura.Provider.HelmKubernetes do
 
   defp persistence(_), do: nil
 
-  defp ingress(%Regions{provider_config: config}, handle) do
+  defp ingress(%Regions{deployer_config: config}, handle) do
     case config[:public_host_template] do
       nil ->
         # Local kind has no public DNS; the chart's local overlay
@@ -286,7 +286,7 @@ defmodule Tuist.Kura.Provider.HelmKubernetes do
   # Kura pods reach the Tuist server via this base URL. For local kind
   # we rewrite `localhost` to `host.docker.internal` because the pod's
   # loopback is the pod itself.
-  defp tuist_base_url(%Regions{provider_config: %{helm_overlay: "local"}}) do
+  defp tuist_base_url(%Regions{deployer_config: %{helm_overlay: "local"}}) do
     Tuist.Environment.app_url()
     |> URI.parse()
     |> rewrite_loopback("host.docker.internal")
@@ -315,7 +315,7 @@ defmodule Tuist.Kura.Provider.HelmKubernetes do
     end
   end
 
-  defp helm_overlay(%Regions{provider_config: %{helm_overlay: overlay}}), do: overlay
+  defp helm_overlay(%Regions{deployer_config: %{helm_overlay: overlay}}), do: overlay
 
   ## Kubeconfig discovery
 
@@ -338,14 +338,14 @@ defmodule Tuist.Kura.Provider.HelmKubernetes do
     end
   end
 
-  defp resolve_kubeconfig(%Regions{provider_config: config} = region) do
+  defp resolve_kubeconfig(%Regions{deployer_config: config} = region) do
     case Tuist.Environment.kura_kubeconfig(config[:cluster_id]) do
       kc when is_binary(kc) and kc != "" -> {:ok, kc}
       _ -> autodiscover_kubeconfig(region)
     end
   end
 
-  defp autodiscover_kubeconfig(%Regions{provider_config: %{kind_cluster_name: name}}) do
+  defp autodiscover_kubeconfig(%Regions{deployer_config: %{kind_cluster_name: name}}) do
     cond do
       System.find_executable("kind") == nil ->
         {:error, "no kubeconfig configured and kind is not on PATH"}
@@ -366,7 +366,7 @@ defmodule Tuist.Kura.Provider.HelmKubernetes do
     end
   end
 
-  defp autodiscover_kubeconfig(%Regions{provider_config: %{cluster_id: id}}) do
+  defp autodiscover_kubeconfig(%Regions{deployer_config: %{cluster_id: id}}) do
     {:error, "no kubeconfig configured for cluster #{id}"}
   end
 

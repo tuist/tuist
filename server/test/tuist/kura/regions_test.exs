@@ -1,12 +1,12 @@
 defmodule Tuist.Kura.RegionsTest do
   use ExUnit.Case, async: true
 
-  alias Tuist.Kura.Provider.HelmKubernetes
+  alias Tuist.Kura.Deployer.HelmKubernetes
   alias Tuist.Kura.Regions
 
   describe "all/0" do
     test "exposes the eu production region backed by HelmKubernetes" do
-      assert %Regions{id: "eu", provider: HelmKubernetes, provider_config: config} =
+      assert %Regions{id: "eu", deployer: HelmKubernetes, deployer_config: config} =
                Enum.find(Regions.all(), &(&1.id == "eu"))
 
       assert config.cluster_id == "eu-1"
@@ -14,7 +14,7 @@ defmodule Tuist.Kura.RegionsTest do
     end
 
     test "exposes the local dev region backed by HelmKubernetes" do
-      assert %Regions{id: "local", provider: HelmKubernetes, provider_config: config} =
+      assert %Regions{id: "local", deployer: HelmKubernetes, deployer_config: config} =
                Enum.find(Regions.all(), &(&1.id == "local"))
 
       assert config.helm_overlay == "local"

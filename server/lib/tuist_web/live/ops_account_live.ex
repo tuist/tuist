@@ -266,7 +266,7 @@ defmodule TuistWeb.OpsAccountLive do
 
   ## View helpers
 
-  def region_kubeconfig_status(%Regions{provider_config: %{cluster_id: cluster_id}}) do
+  def region_kubeconfig_status(%Regions{deployer_config: %{cluster_id: cluster_id}}) do
     case Tuist.Environment.kura_kubeconfig(cluster_id) do
       nil -> :missing
       "" -> :missing
