@@ -73,7 +73,7 @@ email = "#{handle}@example.com"
 password =
   "ClimbingMountFuji!" <> Base.encode16(:crypto.strong_rand_bytes(8))
 
-{:ok, user} = Accounts.create_user(email, password: password)
+{:ok, _user} = Accounts.create_user(email, password: password)
 account = Accounts.get_account_from_user(user)
 IO.puts("→ account #{account.name} (id=#{account.id})")
 
@@ -90,8 +90,7 @@ IO.puts("→ recorded version 0.1.0")
     account_id: account.id,
     region: "local",
     spec: :small,
-    image_tag: "0.3.0",
-    requested_by_user_id: user.id
+    image_tag: "0.3.0"
   })
 
 deployment = List.first(server.deployments)

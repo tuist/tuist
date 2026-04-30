@@ -117,8 +117,7 @@ defmodule TuistWeb.OpsAccountLive do
           region: params["region"],
           spec: spec,
           volume_size_gi: parse_int(params["volume_size_gi"], Specs.default_volume_gi(spec) || 200),
-          image_tag: image_tag,
-          requested_by_user_id: socket.assigns.current_user && socket.assigns.current_user.id
+          image_tag: image_tag
         }
 
         submit_add_server(socket, attrs)

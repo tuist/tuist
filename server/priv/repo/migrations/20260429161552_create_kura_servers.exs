@@ -35,7 +35,6 @@ defmodule Tuist.Repo.Migrations.CreateKuraServers do
       add :current_image_tag, :string
       add :provider_node_ref, :string
       add :provider_metadata, :map, null: false, default: %{}
-      add :requested_by_user_id, references(:users, on_delete: :nilify_all)
 
       timestamps(type: :timestamptz)
     end

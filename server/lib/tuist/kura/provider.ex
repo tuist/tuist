@@ -1,7 +1,7 @@
 defmodule Tuist.Kura.Provider do
   @moduledoc """
   Behaviour the control plane uses to provision, roll, and destroy
-  Kura meshes on a particular backing platform.
+  Kura servers on a particular backing platform.
 
   The control plane (Oban workers, /ops UI, the `Tuist.Kura` context)
   speaks in regions and accounts. It does not know whether a given
