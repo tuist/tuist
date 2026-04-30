@@ -84,6 +84,78 @@ external-secrets:
   webhook:
     port: 9443
 
+# KEDA drives event-based pod autoscaling (currently consumed by the
+# processor Deployment in the tuist chart, which scales on Oban
+# queue depth via the Postgres scaler). Self-hosters who don't need
+# event-based scaling can leave this on; the operator is idle until a
+# ScaledObject points at a workload.
+keda:
+  enabled: true
+
+# cluster-autoscaler-clusterapi grows / shrinks the workload cluster's
+# MachineDeployments based on Pending Pods. Pairs with KEDA: KEDA scales
+# replicas on queue depth, the new replicas go Pending under DoNotSchedule
+# (one processor pod per node), CA notices the unschedulable Pod and adds a
+# node from the md-processor pool up to the annotation-declared max-size.
+#
+# Disabled by default because it has hard prereqs that aren't reproducible
+# without operator action:
+#
+#   1. The MachineDeployment(s) to be scaled must be annotated with
+#      `cluster.x-k8s.io/cluster-api-autoscaler-node-group-{min,max}-size`.
+#      For production these live on `md-processor` in
+#      infra/k8s/syself/workload-cluster-production.yaml.
+#
+#   2. CA in two-cluster mode (workload pod, management API) requires a
+#      ServiceAccount on the SYSELF MANAGEMENT cluster with permission to
+#      get/list/watch + patch MachineDeployments and the Cluster topology.
+#      Manifest: infra/k8s/syself/processor-autoscaler-mgmt-rbac.yaml.
+#      Syself's default OIDC users CANNOT create ServiceAccounts in
+#      org-tuist — request the perms via support, then apply the manifest.
+#      See infra/k8s/syself-onboarding.md "Cluster autoscaler bootstrap".
+#
+#   3. The SA token from (2) must be packaged as a kubeconfig and stored
+#      as a Secret in the workload cluster's `platform` namespace. CA
+#      reads it via `--cloud-config` to talk to the management API.
+#
+# Once those land, flip `enabled: true` per environment (overlay) and run
+# `helm upgrade platform`.
+cluster-autoscaler:
+  enabled: false
+  cloudProvider: clusterapi
+  # Two-cluster mode: CA's management-cluster client uses a kubeconfig
+  # mounted from a Secret; its workload-cluster client uses the in-cluster
+  # SA. The Secret is created out-of-band (see syself-onboarding.md) so the
+  # token never lands in values / helm history.
+  clusterAPIMode: kubeconfig-incluster
+  clusterAPIWorkloadKubeconfigPath: /etc/kubernetes/value
+  clusterAPIConfigMapsNamespace: platform
+  extraArgs:
+    # Identifies which MachineDeployments belong to the Tuist workload
+    # cluster so CA only manages those (the management cluster may host
+    # other clusters' CRs).
+    node-group-auto-discovery: clusterapi:clusterName=tuist
+    # CAPI-recommended scale-down timing. Default is 10m for unneeded;
+    # the processor parses can run up to ~20m, so we wait longer to avoid
+    # racing a long-running parse off its node.
+    scale-down-unneeded-time: 30m
+    scale-down-delay-after-add: 10m
+    scale-down-utilization-threshold: "0.4"
+    # Cluster-autoscaler refuses to evict pods that have local storage
+    # unless this is set. The processor's emptyDir for /tmp counts.
+    skip-nodes-with-local-storage: "false"
+  # Mount the management-cluster kubeconfig from a Secret created by hand
+  # (see syself-onboarding.md). The chart maps this through
+  # /etc/kubernetes/value when `clusterAPIMode: kubeconfig-incluster`.
+  extraVolumes:
+    - name: mgmt-kubeconfig
+      secret:
+        secretName: cluster-autoscaler-mgmt-kubeconfig
+  extraVolumeMounts:
+    - name: mgmt-kubeconfig
+      mountPath: /etc/kubernetes
+      readOnly: true
+
 # Whether to emit the ClusterIssuer template below. Turn off if you manage
 # cert-manager issuers with a separate GitOps process.
 clusterIssuer:

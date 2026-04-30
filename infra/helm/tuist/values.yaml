@@ -246,6 +246,31 @@ processor:
   # before SIGKILL. Oban.Plugins.Lifeline reclaims anything that was still
   # running at the deadline.
   terminationGracePeriodSeconds: 1260
+  # KEDA-driven horizontal autoscaling on Oban queue depth. When enabled,
+  # the chart emits a ScaledObject + TriggerAuthentication that point at the
+  # processor's Postgres (same DATABASE_URL the workers use). KEDA queries
+  # `oban_jobs` for available + scheduled jobs on the :process_build queue
+  # and scales the Deployment between min/max replicas, dividing the queue
+  # depth by `targetQueryValue` to pick a replica count.
+  #
+  # Requires the KEDA operator to be installed cluster-wide (e.g., via the
+  # platform chart) so the keda.sh CRDs exist. Self-host: leave disabled
+  # unless you have KEDA installed; fall back to `replicaCount` for static
+  # sizing.
+  autoscaling:
+    enabled: false
+    minReplicaCount: 2
+    maxReplicaCount: 6
+    # HPA target: divide queue depth by this to pick a replica count.
+    # Roughly = queueConcurrency. With queueConcurrency=8, 16 queued jobs
+    # → 2 replicas; 32 queued → 4; 64 queued → ceiling at maxReplicaCount.
+    targetQueryValue: 8
+    # How often KEDA runs the Postgres query (seconds).
+    pollingInterval: 30
+    # How long the ScaledObject keeps replicas after the query drops to
+    # zero (seconds). 5 min keeps capacity warm across small lulls and
+    # avoids scale-down churn between bursts.
+    cooldownPeriod: 300
   # Build archives are unzipped into the pod's /tmp. Scale to match the
   # largest archive plus headroom for CAS metadata. 16 GiB gives ~3 GiB per
   # slot at queueConcurrency = 5, which is enough for any realistic build

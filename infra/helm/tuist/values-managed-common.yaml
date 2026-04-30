@@ -151,7 +151,14 @@ server:
 processor:
   enabled: true
   replicaCount: 2
-  queueConcurrency: 5
+  # Per-pod parse parallelism. cpx62 worker has 16 vCPU / 32 GiB; the pod
+  # limits below carve out 12 vCPU / 24 GiB and one pod sits per node under
+  # DoNotSchedule. At concurrency 5 we measured ~5 cores / ~9 GiB resident
+  # under load, leaving more than half the node's capacity unused. 8 is the
+  # next conservative step: ~8 cores / ~14 GiB peak (well under the 24 GiB
+  # limit and the BEAM's 12 dirty-CPU schedulers). Raise further only after
+  # confirming memory stays under ~70% of the limit at peak.
+  queueConcurrency: 8
   managedSecrets: true
   externalSecrets:
     refreshInterval: "1h"

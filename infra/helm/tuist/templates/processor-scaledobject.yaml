@@ -1,0 +1,59 @@
+{{- if and .Values.processor.enabled .Values.processor.autoscaling.enabled }}
+{{- $secretName := include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
+{{- $processorSecretName := ternary (include "tuist.componentName" (dict "root" . "component" "processor-external-secrets")) $secretName .Values.processor.managedSecrets }}
+# KEDA reads DATABASE_URL out of the same Secret the processor pods use.
+# When `processor.managedSecrets` is true the URL is composed by the
+# processor-external-secrets ExternalSecret; otherwise it lives in the
+# chart-managed app-secrets Secret. Either way the key is the same.
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "processor-keda-auth") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: processor
+spec:
+  secretTargetRef:
+    - parameter: connection
+      name: {{ $processorSecretName }}
+      key: processor-database-url
+---
+# Drives the processor Deployment's replica count from Oban queue depth.
+# Postgres is already the coordination plane for the workers, so KEDA just
+# follows the same source of truth — no extra metric pipeline, no Prometheus
+# adapter. Replicas are bounded by [minReplicaCount, maxReplicaCount];
+# under DoNotSchedule topology spread on managed clusters, scaling above
+# the available node count parks excess pods Pending until cluster-autoscaler
+# adds a node.
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "processor") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: processor
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "tuist.componentName" (dict "root" . "component" "processor") }}
+  pollingInterval: {{ .Values.processor.autoscaling.pollingInterval }}
+  cooldownPeriod: {{ .Values.processor.autoscaling.cooldownPeriod }}
+  minReplicaCount: {{ .Values.processor.autoscaling.minReplicaCount }}
+  maxReplicaCount: {{ .Values.processor.autoscaling.maxReplicaCount }}
+  triggers:
+    - type: postgresql
+      metadata:
+        # `available` = unclaimed jobs ready now; `scheduled` = jobs whose
+        # scheduled_at has passed but haven't been picked up yet. `executing`
+        # is excluded on purpose — it would prevent scale-down (every replica
+        # at full concurrency keeps that count high even when no backlog
+        # remains).
+        query: >-
+          SELECT count(*) FROM oban_jobs
+          WHERE queue = 'process_build'
+          AND state IN ('available', 'scheduled')
+        targetQueryValue: "{{ .Values.processor.autoscaling.targetQueryValue }}"
+      authenticationRef:
+        name: {{ include "tuist.componentName" (dict "root" . "component" "processor-keda-auth") }}
+{{- end }}

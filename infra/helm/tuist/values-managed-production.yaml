@@ -106,17 +106,18 @@ processor:
       value: prod
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
       value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
-  # Sized for the dedicated cpx51 processor pool (16 vCPU / 32 GiB shared
-  # vCPU per node). With anti-affinity pinning one replica per node, each
+  # Sized for the dedicated cpx62 processor pool (16 vCPU / 32 GiB shared
+  # vCPU per node). With DoNotSchedule pinning one replica per node, each
   # pod owns the whole node minus kube-system overhead; we leave ~4 GiB
   # and ~4 vCPU as headroom. The Swift parser holds ~3-4x the .xcactivitylog
   # file size in memory while building the BuildStep tree and JSON-encoding
-  # the result; at queueConcurrency=5 most realistic builds fit comfortably
-  # in 24 GiB. If we ever start seeing OOMKills again the next move is
-  # either to lower queueConcurrency, bump pod memory, or reintroduce a
-  # per-archive size cap in Tuist.Processor.BuildProcessor.
+  # the result; at queueConcurrency=8 (set in values-managed-common.yaml)
+  # peak usage is ~14 GiB, comfortably under 24 GiB. If we ever start seeing
+  # OOMKills again the next move is either to lower queueConcurrency, bump
+  # pod memory, or reintroduce a per-archive size cap in
+  # Tuist.Processor.BuildProcessor.
   # CPU limit at 12 cores lets the BEAM run ~12 dirty-CPU schedulers,
-  # so all 5 NIF parses run on dedicated dirty schedulers without
+  # so all 8 NIF parses run on dedicated dirty schedulers without
   # serializing on scheduler availability the way they did at 4 cores.
   resources:
     requests:
@@ -126,11 +127,11 @@ processor:
       cpu: "12000m"
       memory: "24Gi"
 
-  # Pin processor pods to the dedicated cpx51 pool provisioned by
+  # Pin processor pods to the dedicated cpx62 pool provisioned by
   # md-processor in workload-cluster-production.yaml. The label is set on
   # the MachineDeployment metadata; CAPI propagates it to each node's
   # registration. Without this the pods could land on the cheaper ccx23
-  # general pool that doesn't have the memory headroom 5 concurrent parses
+  # general pool that doesn't have the memory headroom 8 concurrent parses
   # need. Syself's ClusterClass v6 doesn't expose a taint variable, so we
   # rely on nodeSelector alone — server pods stay on the general pool via
   # their own anti-affinity, not via taint isolation.
@@ -150,6 +151,20 @@ processor:
     enabled: true
     whenUnsatisfiable: DoNotSchedule
   affinity: {}
+
+  # KEDA scales replicas on Oban queue depth (process_build queue,
+  # state IN ('available','scheduled')). minReplicaCount = the steady-state
+  # node count so quiet periods keep two warm pods; maxReplicaCount is
+  # bounded by the md-processor MachineDeployment's max-replica setting in
+  # workload-cluster-production.yaml — overshooting it just parks pods
+  # Pending under DoNotSchedule until cluster-autoscaler grows the pool.
+  # targetQueryValue ≈ queueConcurrency: backlog of 16 → 2 replicas,
+  # 32 → 4, 64 → 6 (capped).
+  autoscaling:
+    enabled: true
+    minReplicaCount: 2
+    maxReplicaCount: 6
+    targetQueryValue: 8
 
 # In-cluster Valkey backs the auth rate limiter (Hammer.Redis). The
 # chart wires TUIST_REDIS_URL to the embedded Service; without it the

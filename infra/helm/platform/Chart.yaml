@@ -25,3 +25,11 @@ dependencies:
     version: 0.10.4
     repository: https://charts.external-secrets.io
     condition: external-secrets.enabled
+  - name: keda
+    version: 2.16.0
+    repository: https://kedacore.github.io/charts
+    condition: keda.enabled
+  - name: cluster-autoscaler
+    version: 9.43.2
+    repository: https://kubernetes.github.io/autoscaler
+    condition: cluster-autoscaler.enabled

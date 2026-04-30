@@ -475,6 +475,73 @@ gh workflow run preview-deploy.yml \
 
 The workflow scales the worker pool up if needed (~3–5 min cold start), labels/taints the new node, runs `helm upgrade --install`, and posts the URL back to the PR. The hourly `preview-sweep.yml` workflow handles deletion + scale-down.
 
+## 9.8 Cluster autoscaler bootstrap (production processor pool)
+
+Wires `cluster-autoscaler-clusterapi` (deployed by the platform chart) to the production workload cluster's `md-processor` MachineDeployment, so the processor node pool grows / shrinks with KEDA-driven replica changes. **Production only** — staging / canary keep a fixed two-node pool.
+
+Same caveat as 9.6: this requires `create serviceaccounts,roles,rolebindings` in `org-tuist` on the management cluster. Syself's default OIDC users don't have those — open a support ticket first.
+
+```bash
+# 1. Apply RBAC on the MANAGEMENT cluster.
+sed 's/__ORG_NS__/org-tuist/g' \
+  infra/k8s/syself/processor-autoscaler-mgmt-rbac.yaml \
+  | kubectl --kubeconfig ~/.kube/tuist-syself-mgmt.yaml apply -f -
+
+# 2. Extract the SA token (the Secret was created alongside the SA).
+export MGMT_TOKEN=$(kubectl --kubeconfig ~/.kube/tuist-syself-mgmt.yaml \
+  -n org-tuist get secret processor-autoscaler-token \
+  -o jsonpath='{.data.token}' | base64 -d)
+export MGMT_SERVER=$(kubectl --kubeconfig ~/.kube/tuist-syself-mgmt.yaml \
+  config view --raw --minify -o jsonpath='{.clusters[0].cluster.server}')
+export MGMT_CA=$(kubectl --kubeconfig ~/.kube/tuist-syself-mgmt.yaml \
+  config view --raw --minify -o jsonpath='{.clusters[0].cluster.certificate-authority-data}')
+
+# 3. Build a kubeconfig pointing at the management API as the
+#    processor-autoscaler SA, and ship it as a Secret on the WORKLOAD cluster.
+cat <<EOF > /tmp/ca-mgmt-kubeconfig.yaml
+apiVersion: v1
+kind: Config
+clusters:
+  - name: mgmt
+    cluster:
+      server: $MGMT_SERVER
+      certificate-authority-data: $MGMT_CA
+contexts:
+  - name: ca
+    context: { cluster: mgmt, user: processor-autoscaler, namespace: org-tuist }
+users:
+  - name: processor-autoscaler
+    user: { token: $MGMT_TOKEN }
+current-context: ca
+EOF
+
+kubectl --kubeconfig ~/.kube/tuist-prod.yaml -n platform create secret generic \
+  cluster-autoscaler-mgmt-kubeconfig \
+  --from-file=value=/tmp/ca-mgmt-kubeconfig.yaml
+shred -u /tmp/ca-mgmt-kubeconfig.yaml
+
+# 4. Re-run the platform chart with cluster-autoscaler enabled.
+helm upgrade --install platform infra/helm/platform \
+  -n platform \
+  -f infra/helm/platform/values-hetzner.yaml \
+  --set cluster-autoscaler.enabled=true
+```
+
+The `md-processor` MD's `cluster-api-autoscaler-node-group-{min,max}-size` annotations (in `workload-cluster-production.yaml`) declare the pool's bounds (currently 2..6). When the queue drains, CA reaps idle nodes after `--scale-down-unneeded-time` (30m, set in the platform values to give long-running parses room).
+
+**Verifying it works:**
+```bash
+# Watch CA's view of the node group.
+kubectl --kubeconfig ~/.kube/tuist-prod.yaml -n platform logs \
+  -l app.kubernetes.io/name=cluster-autoscaler -f \
+  | grep md-processor
+
+# Force a scale event by enqueuing test process_build jobs and watching the
+# MachineDeployment's replica count.
+kubectl --kubeconfig ~/.kube/tuist-syself-mgmt.yaml -n org-tuist get \
+  machinedeployment -l cluster.x-k8s.io/cluster-name=tuist -w
+```
+
 ## 10. Teardown
 
 Workload cluster:

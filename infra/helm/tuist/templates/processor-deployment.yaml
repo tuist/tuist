@@ -11,7 +11,9 @@ metadata:
     {{- include "tuist.labels" . | nindent 4 }}
     app.kubernetes.io/component: processor
 spec:
+  {{- if not .Values.processor.autoscaling.enabled }}
   replicas: {{ .Values.processor.replicaCount }}
+  {{- end }}
   strategy:
     {{- toYaml .Values.processor.strategy | nindent 4 }}
   selector:

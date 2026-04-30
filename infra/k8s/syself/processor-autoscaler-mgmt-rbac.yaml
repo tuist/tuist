@@ -1,0 +1,94 @@
+# ServiceAccount and Role for cluster-autoscaler-clusterapi to read + scale
+# the production workload cluster's MachineDeployments. Lives in the SYSELF
+# MANAGEMENT cluster (where the Cluster / MachineDeployment / Machine CRs
+# live), NOT in the workload cluster — CA is deployed in the workload cluster
+# and points at this SA via a kubeconfig mounted from a Secret.
+#
+# Permissions are intentionally minimal:
+#   - get / patch / update the `tuist` Cluster + its MachineDeployments
+#     (so CA can change spec.topology.workers.machineDeployments[*].replicas
+#     and the corresponding MD's spec.replicas during scale events).
+#   - get / list / watch MachineDeployments + MachineSets + Machines (so CA
+#     can observe node-group state, including replica counts, ready
+#     conditions, and pending-machine status).
+#   - patch / annotate Machines (CA marks specific Machines for deletion via
+#     the `cluster.x-k8s.io/delete-machine` annotation when scaling down,
+#     instead of relying on the MD's default eviction order).
+#
+# Apply against the management cluster ONCE per env (production here):
+#
+#   sed 's/__ORG_NS__/org-tuist/g' \
+#     infra/k8s/syself/processor-autoscaler-mgmt-rbac.yaml \
+#     | kubectl --kubeconfig ~/.kube/tuist-syself-mgmt.yaml apply -f -
+#
+# Then extract the SA token from the management cluster and ship it as a
+# kubeconfig Secret on the workload cluster — see
+# infra/k8s/syself-onboarding.md "Cluster autoscaler bootstrap".
+#
+# Prerequisite: Syself's OIDC user MUST have permission to create
+# serviceaccounts / roles / rolebindings in the org-tuist namespace. This is
+# NOT granted by default; open a Syself support ticket if applying this
+# returns a Forbidden error. See section 9.6 of syself-onboarding.md.
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: processor-autoscaler
+  namespace: __ORG_NS__
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: processor-autoscaler-token
+  namespace: __ORG_NS__
+  annotations:
+    kubernetes.io/service-account.name: processor-autoscaler
+type: kubernetes.io/service-account-token
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: processor-autoscaler
+  namespace: __ORG_NS__
+rules:
+  # Read the production Cluster and patch its topology to scale the
+  # md-processor MachineDeployment via spec.topology.workers...replicas.
+  # ClusterClass-managed clusters require the topology patch (changing
+  # the MD spec directly is reverted by the topology controller).
+  - apiGroups: [cluster.x-k8s.io]
+    resources: [clusters]
+    resourceNames: [tuist]
+    verbs: [get, patch, update]
+  # Read MD/MS/Machine state. CA's clusterapi provider polls these to map
+  # the node group to its current replicas + machine list.
+  - apiGroups: [cluster.x-k8s.io]
+    resources: [machinedeployments, machinesets, machines]
+    verbs: [get, list, watch]
+  # Patch MachineDeployments so CA can update `spec.replicas` directly when
+  # the topology controller is unavailable (CAPI fallback path), and update
+  # the autoscaler annotations on the MD if min/max are reconciled. Patch
+  # Machines so CA can mark specific Machines with
+  # `cluster.x-k8s.io/delete-machine` during scale-down.
+  - apiGroups: [cluster.x-k8s.io]
+    resources: [machinedeployments, machines]
+    verbs: [patch, update]
+  # Optional but recommended: scale subresource on MachineDeployments lets
+  # CA use the standard /scale endpoint, which is the preferred path on
+  # CAPI versions where it's enabled.
+  - apiGroups: [cluster.x-k8s.io]
+    resources: [machinedeployments/scale]
+    verbs: [get, update, patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: processor-autoscaler
+  namespace: __ORG_NS__
+roleRef:
+  kind: Role
+  name: processor-autoscaler
+  apiGroup: rbac.authorization.k8s.io
+subjects:
+  - kind: ServiceAccount
+    name: processor-autoscaler
+    namespace: __ORG_NS__
