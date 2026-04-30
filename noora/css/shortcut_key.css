@@ -14,13 +14,13 @@
   color: var(--noora-surface-label-secondary);
 
   &[data-size="small"] {
-    border-radius: var(--noora-radius-small);
+    border-radius: var(--noora-radius-2);
     padding: var(--noora-spacing-1) var(--noora-spacing-2);
     font: var(--noora-font-body-small);
   }
 
   &[data-size="large"] {
-    border-radius: var(--noora-radius-medium);
+    border-radius: var(--noora-radius-3);
     padding: var(--noora-spacing-2) var(--noora-spacing-3);
     font: var(--noora-font-body-medium);
   }
