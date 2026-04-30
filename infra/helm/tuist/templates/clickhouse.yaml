@@ -83,9 +83,14 @@ spec:
           resources:
             {{- toYaml .Values.clickhouse.embedded.resources | nindent 12 }}
       volumes:
+        {{- if not .Values.clickhouse.embedded.persistence.create }}
+        - name: data
+          emptyDir: {}
+        {{- end }}
         - name: config
           configMap:
             name: {{ include "tuist.componentName" (dict "root" . "component" "clickhouse-config") }}
+  {{- if .Values.clickhouse.embedded.persistence.create }}
   volumeClaimTemplates:
     - metadata:
         name: data
@@ -98,6 +103,7 @@ spec:
         {{- if .Values.clickhouse.embedded.persistence.storageClassName }}
         storageClassName: {{ .Values.clickhouse.embedded.persistence.storageClassName }}
         {{- end }}
+  {{- end }}
 ---
 apiVersion: batch/v1
 kind: Job
