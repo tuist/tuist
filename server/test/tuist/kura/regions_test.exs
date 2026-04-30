@@ -102,6 +102,25 @@ defmodule Tuist.Kura.RegionsTest do
     end
   end
 
+  describe "HelmKubernetes.resources_for/1" do
+    test "maps each customer-facing spec to Pod resources" do
+      for spec <- [:small, :medium, :large] do
+        server = %Tuist.Kura.KuraServer{spec: spec}
+        assert %{"resources" => %{"requests" => req, "limits" => lim}} =
+                 HelmKubernetes.resources_for(server)
+
+        assert is_binary(req["cpu"])
+        assert is_binary(req["memory"])
+        assert is_binary(lim["memory"])
+      end
+    end
+
+    test "returns an empty map for an unknown spec" do
+      server = %Tuist.Kura.KuraServer{spec: :nonsense}
+      assert HelmKubernetes.resources_for(server) == %{}
+    end
+  end
+
   defp reset_env(name, nil), do: System.delete_env(name)
   defp reset_env(name, value), do: System.put_env(name, value)
 end
