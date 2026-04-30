@@ -86,12 +86,12 @@ type ScalewayAppleSiliconMachineStatus struct {
 	// +optional
 	Conditions clusterv1.Conditions `json:"conditions,omitempty"`
 
-	// TartKubeletURLHash is a short hash of the tart-kubelet binary URL
-	// that's currently installed on the Mac mini. Drift between this
-	// and the operator's configured URL triggers a rolling update of
+	// TartKubeletBinarySHA is the SHA-256 of the tart-kubelet binary
+	// currently installed on the Mac mini. Drift between this and the
+	// operator's own baked-in binary SHA triggers a rolling update of
 	// the agent on each reconcile.
 	// +optional
-	TartKubeletURLHash string `json:"tartKubeletURLHash,omitempty"`
+	TartKubeletBinarySHA string `json:"tartKubeletBinarySHA,omitempty"`
 }
 
 // +kubebuilder:object:root=true

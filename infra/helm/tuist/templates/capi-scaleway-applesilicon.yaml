@@ -111,7 +111,6 @@ spec:
             - --api-server-url={{ .Values.macosFleet.apiServerURL | required ".Values.macosFleet.apiServerURL is required (external https URL Mac minis dial)" }}
             - --tartkubelet-token-secret={{ include "tuist.componentName" (dict "root" . "component" "tart-kubelet") }}-token
             - --tartkubelet-token-namespace={{ .Release.Namespace }}
-            - --tartkubelet-binary-url={{ .Values.macosFleet.tartKubelet.binaryURL | required ".Values.macosFleet.tartKubelet.binaryURL is required (https URL of darwin/arm64 tart-kubelet)" }}
             - --tartkubelet-host-cpu={{ .Values.macosFleet.tartKubelet.hostCPU | default 8 }}
             - --tartkubelet-host-memory-mb={{ .Values.macosFleet.tartKubelet.hostMemoryMB | default 16384 }}
             - --tartkubelet-max-pods={{ .Values.macosFleet.tartKubelet.maxPods | default 8 }}

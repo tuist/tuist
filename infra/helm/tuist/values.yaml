@@ -335,12 +335,9 @@ macosFleet:
   # tart-kubelet — kubelet-shaped agent the CAPI provider installs on
   # each Mac mini. Replaces the old VK provider; each Mac mini joins
   # the cluster as a real Node and runs Pods scheduled to it as
-  # Tart VMs.
+  # Tart VMs. The darwin/arm64 binary is baked into the operator's
+  # own image — bumping `macosFleet.image.tag` rolls a new kubelet.
   tartKubelet:
-    # Required: HTTPS URL of the darwin/arm64 binary. The bootstrap
-    # downloads from here on first install AND on every URL change
-    # (rolling out a new version = bumping this URL).
-    binaryURL: ""
     # Capacity advertised by each Mac mini when it registers its Node.
     hostCPU: 8
     hostMemoryMB: 16384

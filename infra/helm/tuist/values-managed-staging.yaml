@@ -145,13 +145,8 @@ macosFleet:
     # tart-kubelet install).
     tag: "ae4b412d"
   # External k8s API server URL the Mac minis dial when joining.
-  # Pinned to the staging managed-control-plane endpoint.
-  apiServerURL: "https://k8s.staging.tuist.dev:6443"
-  tartKubelet:
-    # Pin per env. Bumping this URL rolls a new tart-kubelet across
-    # the fleet on the next operator reconcile (each host re-downloads
-    # + relaunches its launchd job).
-    binaryURL: "https://github.com/tuist/tuist/releases/download/tart-kubelet-v0.0.0/tart-kubelet-darwin-arm64"
+  # Pinned to the Syself-managed staging control plane endpoint.
+  apiServerURL: "https://autopilot-1.autopilot-prod.k8s.syself.net:443"
   machine:
     # M4-S is normally what we'd pick (smallest M4); falls back to
     # M2-M when M4-S is no_stock. Override per Scaleway capacity.

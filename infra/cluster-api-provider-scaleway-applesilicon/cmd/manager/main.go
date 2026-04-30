@@ -12,6 +12,8 @@
 package main
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"flag"
 	"os"
 
@@ -52,7 +54,7 @@ func main() {
 		apiServerURL          string
 		tokenSecretName       string
 		tokenSecretNamespace  string
-		tartKubeletBinaryURL  string
+		tartKubeletBinaryPath string
 		tartKubeletHostCPU    int
 		tartKubeletHostMemory int
 		tartKubeletMaxPods    int
@@ -70,8 +72,9 @@ func main() {
 		"Name of the Secret holding the shared tart-kubelet ServiceAccount token.")
 	flag.StringVar(&tokenSecretNamespace, "tartkubelet-token-namespace", os.Getenv("CAPI_TARTKUBELET_TOKEN_NAMESPACE"),
 		"Namespace of the tart-kubelet token Secret.")
-	flag.StringVar(&tartKubeletBinaryURL, "tartkubelet-binary-url", os.Getenv("CAPI_TARTKUBELET_BINARY_URL"),
-		"HTTPS URL of the darwin/arm64 tart-kubelet binary.")
+	flag.StringVar(&tartKubeletBinaryPath, "tartkubelet-binary-path",
+		envOrDefault("CAPI_TARTKUBELET_BINARY_PATH", "/opt/tart-kubelet/tart-kubelet-darwin-arm64"),
+		"Local path of the darwin/arm64 tart-kubelet binary baked into this image.")
 	flag.IntVar(&tartKubeletHostCPU, "tartkubelet-host-cpu", 8, "CPU cores tart-kubelet advertises on its Node")
 	flag.IntVar(&tartKubeletHostMemory, "tartkubelet-host-memory-mb", 16384, "Memory MB tart-kubelet advertises on its Node")
 	flag.IntVar(&tartKubeletMaxPods, "tartkubelet-max-pods", 8, "Max concurrent Pods on each Mac mini")
@@ -87,6 +90,14 @@ func main() {
 		setupLog.Error(err, "scaleway client init")
 		os.Exit(1)
 	}
+
+	tartKubeletBinary, err := os.ReadFile(tartKubeletBinaryPath)
+	if err != nil {
+		setupLog.Error(err, "read tart-kubelet binary", "path", tartKubeletBinaryPath)
+		os.Exit(1)
+	}
+	binarySHA := sha256Hex(tartKubeletBinary)
+	setupLog.Info("loaded tart-kubelet binary", "path", tartKubeletBinaryPath, "bytes", len(tartKubeletBinary), "sha", binarySHA)
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
@@ -127,7 +138,8 @@ func main() {
 		ScalewayClient:          scwClient,
 		CredentialsManager:      credsManager,
 		Kubeconfig:              kubeconfigBuilder,
-		TartKubeletBinaryURL:    tartKubeletBinaryURL,
+		TartKubeletBinary:       tartKubeletBinary,
+		TartKubeletBinarySHA:    binarySHA,
 		TartKubeletHostCPU:      tartKubeletHostCPU,
 		TartKubeletHostMemoryMB: tartKubeletHostMemory,
 		TartKubeletMaxPods:      tartKubeletMaxPods,
@@ -150,4 +162,16 @@ func main() {
 		setupLog.Error(err, "manager exited")
 		os.Exit(1)
 	}
+}
+
+func envOrDefault(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return fallback
+}
+
+func sha256Hex(b []byte) string {
+	h := sha256.Sum256(b)
+	return hex.EncodeToString(h[:])
 }

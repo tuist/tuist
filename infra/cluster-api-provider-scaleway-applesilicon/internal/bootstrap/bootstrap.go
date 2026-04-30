@@ -54,10 +54,11 @@ type Config struct {
 	// /etc/tart-kubelet/kubeconfig.
 	Kubeconfig string
 
-	// TartKubeletURL is the HTTPS URL of the darwin/arm64 binary to
-	// install. Pinned per fleet via Helm values; the operator threads
-	// it through here.
-	TartKubeletURL string
+	// TartKubeletBinary is the in-memory bytes of the darwin/arm64
+	// tart-kubelet binary, baked into the operator image and read at
+	// startup. We upload these bytes over SSH to /usr/local/bin on the
+	// Mac mini — no external URL, no separate release artifact.
+	TartKubeletBinary []byte
 
 	// HostCPU / HostMemoryMB / MaxPods are advertised on the Node.
 	HostCPU      int
@@ -101,7 +102,7 @@ func Run(ctx context.Context, cfg Config) error {
 	if err := writeKubeconfig(ctx, client, cfg.Kubeconfig); err != nil {
 		return fmt.Errorf("write kubeconfig: %w", err)
 	}
-	if err := installTartKubelet(ctx, client, cfg.TartKubeletURL); err != nil {
+	if err := installTartKubelet(ctx, client, cfg.TartKubeletBinary); err != nil {
 		return fmt.Errorf("install tart-kubelet: %w", err)
 	}
 	if err := loadTartKubeletLaunchd(ctx, client, cfg); err != nil {
@@ -132,7 +133,7 @@ func UpdateTartKubelet(ctx context.Context, cfg Config) error {
 	}
 	defer client.Close()
 
-	if err := installTartKubelet(ctx, client, cfg.TartKubeletURL); err != nil {
+	if err := installTartKubelet(ctx, client, cfg.TartKubeletBinary); err != nil {
 		return fmt.Errorf("install tart-kubelet: %w", err)
 	}
 	if err := loadTartKubeletLaunchd(ctx, client, cfg); err != nil {
@@ -168,24 +169,26 @@ sudo chmod 0600 /etc/tart-kubelet/kubeconfig
 	return runCommandWithStdin(ctx, client, script, kubeconfig)
 }
 
-// installTartKubelet downloads the tart-kubelet binary to
-// /usr/local/bin. Idempotent: re-running with the same URL skips the
-// download if the marker file matches.
-func installTartKubelet(ctx context.Context, client *ssh.Client, url string) error {
-	if url == "" {
-		return fmt.Errorf("empty TartKubeletURL")
+// installTartKubelet uploads the operator-baked tart-kubelet binary
+// to /usr/local/bin/tart-kubelet on the Mac mini and marks it
+// executable. We pipe the bytes via stdin into `sudo tee` rather than
+// downloading from an external URL — the operator's image is the
+// single source of truth for the kubelet version, so deploying a new
+// operator image rolls a new kubelet across the fleet.
+//
+// Always overwrites. The reconciler's drift detection prevents
+// unnecessary calls (it compares the operator's binary SHA to the
+// last-applied SHA in the CR's status).
+func installTartKubelet(ctx context.Context, client *ssh.Client, binary []byte) error {
+	if len(binary) == 0 {
+		return fmt.Errorf("tart-kubelet binary is empty")
 	}
-	script := fmt.Sprintf(`set -euo pipefail
-mkdir -p /tmp/tart-kubelet-install
-URL_HASH=$(echo -n %[1]s | shasum -a 256 | awk '{print $1}')
-MARKER=/usr/local/bin/.tart-kubelet.url.sha
-if [ -f "$MARKER" ] && [ "$(cat "$MARKER")" = "$URL_HASH" ] && [ -x /usr/local/bin/tart-kubelet ]; then exit 0; fi
-curl -fsSL %[1]s -o /tmp/tart-kubelet-install/tart-kubelet
-chmod 0755 /tmp/tart-kubelet-install/tart-kubelet
-sudo mv /tmp/tart-kubelet-install/tart-kubelet /usr/local/bin/tart-kubelet
-echo "$URL_HASH" | sudo tee "$MARKER" >/dev/null
-`, shellQuote(url))
-	return runCommand(ctx, client, script)
+	script := `set -euo pipefail
+sudo mkdir -p /usr/local/bin
+sudo tee /usr/local/bin/tart-kubelet >/dev/null
+sudo chmod 0755 /usr/local/bin/tart-kubelet
+`
+	return runCommandWithStdin(ctx, client, script, string(binary))
 }
 
 // loadTartKubeletLaunchd writes /Library/LaunchDaemons/dev.tuist.tart-kubelet.plist
