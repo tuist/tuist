@@ -68,6 +68,7 @@ mise run dev
 - `mise run format`
 - `mix sobelow`
 - `mise run security`
+- Dev compiles skip the Boundary compiler for fast content reloads. Run a non-dev compile (for example, `MIX_ENV=test mix compile`) when you want to validate boundaries locally before pushing.
 
 **Assets**
 - `mix assets.setup` - Installs server esbuild and the local `noora` JS dependencies
