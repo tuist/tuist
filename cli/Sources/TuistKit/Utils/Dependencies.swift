@@ -47,10 +47,7 @@ public func initDependencies(_ action: (SessionPaths) async throws -> Void) asyn
                         try await HARRecorder.$current.withValue(harRecorder) {
                             try await ServerCredentialsStore.$current.withValue(ServerCredentialsStore(backend: .fileSystem)) {
                                 try await CachedValueStore.$current.withValue(CachedValueStore(backend: .fileSystem)) {
-                                    try await RecentPathsStore.$current
-                                        .withValue(RecentPathsStore(storageDirectory: Environment.current.stateDirectory)) {
-                                            try await action(sessionPaths)
-                                        }
+                                    try await action(sessionPaths)
                                 }
                             }
                         }

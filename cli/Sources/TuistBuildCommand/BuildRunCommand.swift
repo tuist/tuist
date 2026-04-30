@@ -128,9 +128,7 @@
         var passthroughXcodeBuildArguments: [String] = []
     }
 
-    public struct BuildRunCommand: AsyncParsableCommand, LogConfigurableCommand,
-        RecentPathRememberableCommand
-    {
+    public struct BuildRunCommand: AsyncParsableCommand, LogConfigurableCommand {
         public init() {}
 
         public static var configuration: CommandConfiguration {

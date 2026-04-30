@@ -7,7 +7,7 @@ import TuistEnvKey
 import TuistSupport
 import XcodeGraph
 
-public struct XcodeBuildBuildForTestingCommand: AsyncParsableCommand, TrackableParsableCommand, RecentPathRememberableCommand {
+public struct XcodeBuildBuildForTestingCommand: AsyncParsableCommand, TrackableParsableCommand {
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "build-for-testing",
