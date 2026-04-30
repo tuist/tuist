@@ -72,10 +72,20 @@ spec:
             {{- toYaml .Values.postgresql.embedded.resources | nindent 12 }}
       {{- if and .Values.cache.enabled (eq .Values.postgresql.mode "embedded") }}
       volumes:
+        {{- if not .Values.postgresql.embedded.persistence.create }}
+        - name: data
+          emptyDir: {}
+        {{- end }}
         - name: init-scripts
           configMap:
             name: {{ include "tuist.componentName" (dict "root" . "component" "postgresql-init") }}
       {{- end }}
+      {{- if and (not .Values.postgresql.embedded.persistence.create) (not (and .Values.cache.enabled (eq .Values.postgresql.mode "embedded"))) }}
+      volumes:
+        - name: data
+          emptyDir: {}
+      {{- end }}
+  {{- if .Values.postgresql.embedded.persistence.create }}
   volumeClaimTemplates:
     - metadata:
         name: data
@@ -88,4 +98,5 @@ spec:
         {{- if .Values.postgresql.embedded.persistence.storageClassName }}
         storageClassName: {{ .Values.postgresql.embedded.persistence.storageClassName }}
         {{- end }}
+  {{- end }}
 {{- end }}
