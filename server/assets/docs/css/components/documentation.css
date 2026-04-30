@@ -20,7 +20,7 @@
   gap: var(--noora-spacing-4);
   transition: box-shadow 0.15s ease;
   box-shadow: var(--noora-light-border-default);
-  border-radius: var(--noora-radius-xlarge);
+  border-radius: var(--noora-radius-6);
   background: var(--noora-surface-background-primary);
   width: 100%;
   overflow: hidden;
@@ -37,7 +37,7 @@
   justify-content: center;
   align-items: center;
   box-shadow: var(--noora-light-border-default);
-  border-radius: var(--noora-radius-xlarge);
+  border-radius: var(--noora-radius-6);
   background: linear-gradient(
     180deg,
     light-dark(var(--noora-purple-50), color-mix(in oklch, var(--noora-purple-700) 18%, transparent)) 0%,

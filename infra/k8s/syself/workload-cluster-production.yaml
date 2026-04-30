@@ -64,7 +64,7 @@ spec:
           variables:
             overrides:
               - name: workerMachineTypeHcloud
-                value: cpx51
+                value: cpx62
     variables:
       - name: region
         value: fsn1

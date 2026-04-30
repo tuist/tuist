@@ -219,9 +219,12 @@ processor:
       maxSurge: 1
       maxUnavailable: 0
   topologySpread:
-    # Prefer one replica per Kubernetes node; ScheduleAnyway keeps the surge
-    # pod from being stuck pending during a deploy on a 2-node cluster.
+    # Spread one replica per Kubernetes node. Default whenUnsatisfiable is
+    # ScheduleAnyway so a 1-node cluster (preview / small self-host) still
+    # schedules; override to DoNotSchedule on multi-node clusters where
+    # co-location would degrade throughput (managed production does this).
     enabled: true
+    whenUnsatisfiable: ScheduleAnyway
   affinity: {}
   # Optional nodeSelector to pin processor pods to a dedicated node pool.
   # The managed cluster sets `node.cluster.x-k8s.io/pool: processor` on

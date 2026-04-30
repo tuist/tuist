@@ -4,7 +4,7 @@
   align-items: center;
   outline: 0;
   border: 0;
-  border-radius: var(--noora-radius-small);
+  border-radius: var(--noora-radius-2);
   background: transparent;
   padding: 0;
   color: var(--noora-surface-label-secondary);
