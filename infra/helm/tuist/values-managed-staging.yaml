@@ -115,12 +115,18 @@ processor:
 
 xcresultProcessor:
   # Single replica in staging. The xcresult processor is a regular k8s
-  # Deployment scheduled onto the Mac mini macOS node via Tart-CRI;
+  # Deployment scheduled onto the Mac mini macOS node via tart-kubelet;
   # rolling deploys get the same maxSurge=0/maxUnavailable=1 treatment
   # as the server, with jobs queuing in oban_jobs while the pod
   # restarts.
   enabled: true
   replicaCount: 1
+  image:
+    # Pinned to a SHA so production's `:latest` (still on the legacy
+    # Orchard `--user-data` flow) isn't disturbed by feature-branch
+    # builds. The 7aac3f0d build carries inject-env.sh's
+    # `--dir env:` support that tart-kubelet relies on.
+    tag: "7aac3f0d"
   strategy:
     type: RollingUpdate
     rollingUpdate:
