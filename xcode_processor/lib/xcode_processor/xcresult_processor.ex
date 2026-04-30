@@ -61,12 +61,7 @@ defmodule XcodeProcessor.XCResultProcessor do
   defp process_archive(archive_path, temp_dir) do
     with :ok <- extract_archive(archive_path, temp_dir),
          xcresult_path when not is_nil(xcresult_path) <- find_xcresult(temp_dir) do
-      root_dir = Path.dirname(xcresult_path)
-
-      with {:ok, parsed_data} <- parse_xcresult(xcresult_path, root_dir) do
-        quarantined_tests = read_quarantined_tests(xcresult_path)
-        {:ok, apply_quarantine(parsed_data, quarantined_tests)}
-      end
+      parse_xcresult(xcresult_path, Path.dirname(xcresult_path))
     else
       nil -> {:error, :xcresult_not_found}
       {:error, _} = error -> error
@@ -101,66 +96,6 @@ defmodule XcodeProcessor.XCResultProcessor do
       status = if match?({:ok, _}, result), do: :ok, else: :error
       {result, %{status: status}}
     end)
-  end
-
-  defp read_quarantined_tests(xcresult_path) do
-    json_path = Path.join(xcresult_path, "quarantined_tests.json")
-
-    case File.read(json_path) do
-      {:ok, content} -> JSON.decode!(content)
-      {:error, :enoent} -> []
-    end
-  end
-
-  defp apply_quarantine(parsed_data, []), do: parsed_data
-
-  defp apply_quarantine(parsed_data, quarantined_tests) do
-    test_modules =
-      (parsed_data["test_modules"] || [])
-      |> Enum.map(fn module ->
-        test_cases =
-          (module["test_cases"] || [])
-          |> Enum.map(fn test_case ->
-            is_quarantined =
-              Enum.any?(quarantined_tests, fn q ->
-                matches_quarantine?(test_case, module["name"], q)
-              end)
-
-            Map.put(test_case, "is_quarantined", is_quarantined)
-          end)
-
-        Map.put(module, "test_cases", test_cases)
-      end)
-
-    parsed_data
-    |> Map.put("test_modules", test_modules)
-    |> override_run_status_when_only_quarantined_failed()
-  end
-
-  # Mirror the local CLI behavior: when every failing test case is
-  # quarantined (muted), the run passes from the user's perspective — CI
-  # exits 0 — so the dashboard's run-level status should agree. Only the
-  # top-level status is rewritten; individual test cases keep their raw
-  # `failure` status so flakiness signal stays intact.
-  defp override_run_status_when_only_quarantined_failed(%{"status" => "failure"} = data) do
-    failing_cases =
-      (data["test_modules"] || [])
-      |> Enum.flat_map(&Map.get(&1, "test_cases", []))
-      |> Enum.filter(&(&1["status"] == "failure"))
-
-    if failing_cases != [] and Enum.all?(failing_cases, &Map.get(&1, "is_quarantined", false)) do
-      Map.put(data, "status", "success")
-    else
-      data
-    end
-  end
-
-  defp override_run_status_when_only_quarantined_failed(data), do: data
-
-  defp matches_quarantine?(test_case, module_name, quarantined) do
-    quarantined["target"] == module_name &&
-      (is_nil(quarantined["class"]) || quarantined["class"] == test_case["test_suite_name"]) &&
-      (is_nil(quarantined["method"]) || quarantined["method"] == test_case["name"])
   end
 
   defp upload_attachments(parsed_data, bucket, opts) do
