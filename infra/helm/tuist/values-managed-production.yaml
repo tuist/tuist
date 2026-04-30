@@ -71,6 +71,14 @@ server:
                 app.kubernetes.io/component: server
             topologyKey: kubernetes.io/hostname
 
+  # Keep server pods on the dedicated-vCPU general pool. Without this the
+  # scheduler could place a server replica on the cpx51 processor pool
+  # (shared vCPU, sized for parsing) and we'd get the latency spikes the
+  # ccx23 dedicated cores were chosen to avoid. md-0 in
+  # workload-cluster-production.yaml carries the matching pool label.
+  nodeSelector:
+    node.cluster.x-k8s.io/pool: general
+
 postgresql:
   external:
     host: db.tuist.dev  # Supabase pooler endpoint for production.
@@ -98,23 +106,37 @@ processor:
       value: prod
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
       value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
-  # Sized so 5 concurrent xcactivitylog parses (queueConcurrency = 5) all fit
-  # without OOMKill. The Swift parser holds ~3-4x the .xcactivitylog file size
-  # in memory while building the BuildStep tree, so the worker enforces a
-  # PROCESS_BUILD_MAX_XCACTIVITYLOG_BYTES cap (default 1 GiB); 5 * 4 * 1 GiB
-  # ~= 20 GiB peak, with some slack for the BEAM, NIF JSON encode, and the
-  # zip extraction in /tmp. Workers are ccx33 (32 GiB), and the anti-affinity
-  # below pins one replica per node so each pod gets the full per-node budget.
+  # Sized for the dedicated cpx51 processor pool (16 vCPU / 32 GiB shared
+  # vCPU per node). With anti-affinity pinning one replica per node, each
+  # pod owns the whole node minus kube-system overhead; we leave ~4 GiB
+  # and ~4 vCPU as headroom. The Swift parser holds ~3-4x the .xcactivitylog
+  # file size in memory, so the worker enforces a
+  # PROCESS_BUILD_MAX_XCACTIVITYLOG_BYTES cap (default 1 GiB);
+  # 5 concurrent * 4 * 1 GiB ~= 20 GiB peak fits in the 24Gi limit.
+  # CPU limit at 12 cores lets the BEAM run ~12 dirty-CPU schedulers,
+  # so all 5 NIF parses run on dedicated dirty schedulers without
+  # serializing on scheduler availability the way they did at 4 cores.
   resources:
     requests:
-      cpu: "1000m"
-      memory: "4Gi"
-    limits:
       cpu: "4000m"
+      memory: "8Gi"
+    limits:
+      cpu: "12000m"
       memory: "24Gi"
 
+  # Pin processor pods to the dedicated cpx51 pool provisioned by
+  # md-processor in workload-cluster-production.yaml. The label is set on
+  # the MachineDeployment metadata; CAPI propagates it to each node's
+  # registration. Without this the pods could land on the cheaper ccx23
+  # general pool that doesn't have the memory headroom 5 concurrent parses
+  # need. Syself's ClusterClass v6 doesn't expose a taint variable, so we
+  # rely on nodeSelector alone — server pods stay on the general pool via
+  # their own anti-affinity, not via taint isolation.
+  nodeSelector:
+    node.cluster.x-k8s.io/pool: processor
+
   # Pod anti-affinity so the two replicas never land on the same worker.
-  # Without this two processor pods can co-locate on one ccx33 node and the
+  # Without this two processor pods can co-locate on one cpx51 node and the
   # combined 24Gi limits exceed the 32Gi node, OOMing the BEAM under load.
   # Soft (preferred) so a single-node failure still schedules; the scheduler
   # falls back to co-locating only when the alternative is Pending pods.
