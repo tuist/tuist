@@ -1,3 +1,4 @@
+import Darwin
 import FileSystem
 import Foundation
 import Path
@@ -169,21 +170,62 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
                     return module
                 }
 
-                try await fileSystem.makeDirectory(at: moduleCacheDirectory)
+                // Compile into a sibling temp directory and atomically publish
+                // it to the final cache path with rename(2). This makes the
+                // operation safe across concurrent processes/instances sharing
+                // the same cache: a sibling builder either sees no cache
+                // directory (and races to compile), or the fully populated
+                // final directory — never a half-written one.
+                if !(try await fileSystem.exists(cacheDirectory)) {
+                    try await fileSystem.makeDirectory(at: cacheDirectory)
+                }
+                let stagingDirectory = cacheDirectory
+                    .appending(component: "\(hash).tmp.\(ProcessInfo.processInfo.processIdentifier).\(UUID().uuidString)")
+                try await fileSystem.makeDirectory(at: stagingDirectory)
 
                 let command = try await createCommand(
                     moduleName: name,
                     directory: path,
-                    outputDirectory: moduleCacheDirectory,
+                    outputDirectory: stagingDirectory,
                     projectDescriptionSearchPaths: projectDescriptionSearchPaths,
                     customProjectDescriptionHelperModules: customProjectDescriptionHelperModules
                 )
 
                 let timer = clock.startTimer()
-                try System.shared.runAndPrint(command, verbose: false, environment: Environment.current.manifestLoadingVariables)
+                do {
+                    try System.shared.runAndPrint(
+                        command,
+                        verbose: false,
+                        environment: Environment.current.manifestLoadingVariables
+                    )
+                } catch {
+                    try? await fileSystem.remove(stagingDirectory)
+                    throw error
+                }
                 let duration = timer.stop()
                 let time = String(format: "%.3f", duration)
                 Logger.current.debug("Built \(name) in (\(time)s)")
+
+                // Atomically publish the staged compilation. `rename(2)` between
+                // two directories on the same volume is atomic — and on macOS
+                // it fails with `ENOTEMPTY` if the destination directory exists
+                // and is non-empty, which is the "another process won" case;
+                // we treat that as success and discard our staging directory.
+                let renameResult = Darwin.rename(stagingDirectory.pathString, moduleCacheDirectory.pathString)
+                if renameResult != 0 {
+                    let renameErrno = errno
+                    try? await fileSystem.remove(stagingDirectory)
+                    if renameErrno != ENOTEMPTY, renameErrno != EEXIST {
+                        throw NSError(
+                            domain: NSPOSIXErrorDomain,
+                            code: Int(renameErrno),
+                            userInfo: [
+                                NSLocalizedDescriptionKey:
+                                    "Failed to publish ProjectDescriptionHelpers cache to \(moduleCacheDirectory.pathString)",
+                            ]
+                        )
+                    }
+                }
 
                 return module
             }

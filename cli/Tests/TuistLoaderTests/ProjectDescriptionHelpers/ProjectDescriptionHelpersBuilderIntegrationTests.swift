@@ -73,6 +73,66 @@ final class ProjectDescriptionHelpersBuilderIntegrationTests: TuistTestCase {
         XCTAssertTrue(exists)
     }
 
+    /// Reproduces the cross-process race in https://github.com/tuist/tuist/issues/9588.
+    /// Multiple `ProjectDescriptionHelpersBuilder` instances stand in for separate
+    /// `tuist` processes sharing the same `cacheDirectory`. The current
+    /// implementation creates the module cache directory eagerly before
+    /// `swiftc` finishes, so a sibling builder can observe the directory as
+    /// "already compiled" (line 168 of ProjectDescriptionHelpersBuilder) and
+    /// return a module whose dylib has not yet been written, surfacing as
+    /// `JIT session error: Symbols not found` at load time.
+    func test_build_is_atomic_across_concurrent_builders_sharing_cache() async throws {
+        // Given
+        let path = try temporaryPath()
+        let helpersPath = path
+            .appending(try RelativePath(validating: "\(Constants.tuistDirectoryName)/\(Constants.helpersDirectoryName)"))
+        try await fileSystem.makeDirectory(at: path.appending(component: Constants.tuistDirectoryName))
+        try await fileSystem.makeDirectory(at: helpersPath)
+        try await fileSystem.writeText(
+            "import Foundation; class Test {}",
+            at: helpersPath.appending(component: "Helper.swift")
+        )
+        let projectDescriptionPath = try await resourceLocator.projectDescription()
+        let searchPaths = ProjectDescriptionSearchPaths.paths(for: projectDescriptionPath)
+        // Repeat the race a handful of times with a fresh cache each cycle so
+        // the test reliably hits the timing window where one builder observes
+        // the cache directory created by another *before* swiftc has finished.
+        let fileSystem = self.fileSystem!
+        let helpersDirectoryLocator = self.helpersDirectoryLocator!
+        for cycle in 0 ..< 16 {
+            let cacheDirectory = path.appending(component: "shared-cache-\(cycle)")
+            try await fileSystem.makeDirectory(at: cacheDirectory)
+
+            // When: each task uses its own builder, sharing only the on-disk cache,
+            // mirroring multiple `tuist` processes racing on the same XDG_CACHE_HOME.
+            let results = try await Array(0 ..< 8).concurrentMap { _ -> Bool in
+                let builder = ProjectDescriptionHelpersBuilder(
+                    cacheDirectory: cacheDirectory,
+                    helpersDirectoryLocator: helpersDirectoryLocator
+                )
+                let modules = try await builder.build(
+                    at: path,
+                    projectDescriptionSearchPaths: searchPaths,
+                    projectDescriptionHelperPlugins: []
+                )
+                for module in modules {
+                    let exists = try await fileSystem.exists(module.path)
+                    if !exists { return false }
+                }
+                return true
+            }
+
+            // Then: every returned module path must point at a dylib that already
+            // exists on disk. Today this fails because builders short-circuit on
+            // the directory existence check before swiftc has finished writing
+            // the dylib to it.
+            XCTAssertTrue(
+                results.allSatisfy { $0 },
+                "Cycle \(cycle): a builder returned a module whose dylib was not yet written"
+            )
+        }
+    }
+
     func test_build_when_the_helpers_is_a_plugin() async throws {
         // Given
         let path = try temporaryPath()

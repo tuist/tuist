@@ -48,20 +48,37 @@ public struct RecentPathsStore: RecentPathsStoring {
     }
 
     public func remember(path: AbsolutePath, date: Date) async throws {
-        var content = try await read()
-        content[path] = RecentPathMetadata(lastUpdated: date)
-        try await write(content, storageDirectory: storageDirectory)
+        if !(try await fileSystem.exists(storageDirectory)) {
+            try await fileSystem.makeDirectory(at: storageDirectory)
+        }
+        let lock = FileLock(at: storageDirectory.appending(component: "recent-paths.json.lock"))
+        try await lock.withExclusiveLock {
+            var content = try await readUnlocked()
+            content[path] = RecentPathMetadata(lastUpdated: date)
+            try writeUnlocked(content)
+        }
     }
 
     public func read() async throws -> [AbsolutePath: RecentPathMetadata] {
+        let lock = FileLock(at: storageDirectory.appending(component: "recent-paths.json.lock"))
+        return try await lock.withExclusiveLock {
+            try await readUnlocked()
+        }
+    }
+
+    private func readUnlocked() async throws -> [AbsolutePath: RecentPathMetadata] {
         let recentPathsFile = recentPathsFile(storageDirectory: storageDirectory)
         guard try await fileSystem.exists(recentPathsFile) else { return [:] }
         return try await fileSystem.readJSONFile(at: recentPathsFile)
     }
 
-    private func write(_ content: [AbsolutePath: RecentPathMetadata], storageDirectory: AbsolutePath) async throws {
+    private func writeUnlocked(_ content: [AbsolutePath: RecentPathMetadata]) throws {
         let recentPathsFile = recentPathsFile(storageDirectory: storageDirectory)
-        try await fileSystem.writeAsJSON(content, at: recentPathsFile, options: Set([.overwrite]))
+        let data = try JSONEncoder().encode(content)
+        // Use Foundation's atomic write which uses plain rename(2) — safe under
+        // the exclusive flock and unaffected by `renamex_np`'s `RENAME_EXCL`
+        // semantics that surface as "File exists" errors under concurrent writes.
+        try data.write(to: URL(fileURLWithPath: recentPathsFile.pathString), options: [.atomic])
     }
 
     private func recentPathsFile(storageDirectory: AbsolutePath) -> AbsolutePath {
