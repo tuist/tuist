@@ -97,18 +97,18 @@ final class ProjectDescriptionHelpersBuilderIntegrationTests: TuistTestCase {
         // Repeat the race a handful of times with a fresh cache each cycle so
         // the test reliably hits the timing window where one builder observes
         // the cache directory created by another *before* swiftc has finished.
-        let fileSystem = self.fileSystem!
-        let helpersDirectoryLocator = self.helpersDirectoryLocator!
+        let fs: FileSysteming = fileSystem
+        let locator: HelpersDirectoryLocating = helpersDirectoryLocator
         for cycle in 0 ..< 16 {
             let cacheDirectory = path.appending(component: "shared-cache-\(cycle)")
-            try await fileSystem.makeDirectory(at: cacheDirectory)
+            try await fs.makeDirectory(at: cacheDirectory)
 
             // When: each task uses its own builder, sharing only the on-disk cache,
             // mirroring multiple `tuist` processes racing on the same XDG_CACHE_HOME.
             let results = try await Array(0 ..< 8).concurrentMap { _ -> Bool in
                 let builder = ProjectDescriptionHelpersBuilder(
                     cacheDirectory: cacheDirectory,
-                    helpersDirectoryLocator: helpersDirectoryLocator
+                    helpersDirectoryLocator: locator
                 )
                 let modules = try await builder.build(
                     at: path,
@@ -116,7 +116,7 @@ final class ProjectDescriptionHelpersBuilderIntegrationTests: TuistTestCase {
                     projectDescriptionHelperPlugins: []
                 )
                 for module in modules {
-                    let exists = try await fileSystem.exists(module.path)
+                    let exists = try await fs.exists(module.path)
                     if !exists { return false }
                 }
                 return true
