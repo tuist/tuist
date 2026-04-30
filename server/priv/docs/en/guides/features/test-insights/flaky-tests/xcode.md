@@ -117,17 +117,7 @@ All of these accept `--json` for scripting.
 
 ### REST API
 
-The same data is available under `/api/projects/{account_handle}/{project_handle}/tests/test-cases`:
-
-| Endpoint | Purpose |
-| --- | --- |
-| `GET /test-cases` | List, with filters: `flaky`, `quarantined`, `state` (`enabled` / `muted` / `skipped`), `module_name`, `suite_name`, `name`. |
-| `GET /test-cases/{test_case_id}` | Detail: `is_flaky`, `state`, `last_status`, `flakiness_rate` (% over the last 30 days), `total_runs`, `failed_runs`. |
-| `GET /test-cases/{test_case_id}/events` | Immutable audit log of state transitions. |
-| `GET /test-cases/{test_case_id}/runs` | Paginated run history. |
-| `GET /test-cases/runs/{test_case_run_id}` | One run, including per-repetition statuses and failure messages. |
-
-State changes (mark/unmark flaky, mute, skip) currently happen from the dashboard UI, not via the public REST API.
+The same data is available over HTTP — see the [Test Cases endpoints](https://tuist.dev/api/docs#tag/test-cases) in the API reference for the full list of routes, filters, and response fields. State changes (mark/unmark flaky, mute, skip) currently happen from the dashboard UI, not via the public REST API.
 
 ## Slack notifications {#slack-notifications}
 
