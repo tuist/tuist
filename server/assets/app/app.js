@@ -101,10 +101,12 @@ document.addEventListener("click", (event) => {
 
   event.preventDefault();
 
-  copyTextToClipboard(value).catch((error) => {
+  copyTextToClipboard(value, {
+    container: trigger.closest("[role='dialog']"),
+  }).catch((error) => {
     console.warn("Failed to copy text to clipboard", error);
   });
-});
+}, true);
 
 // Analytics
 window.addEventListener("phx:navigate", (info) => {

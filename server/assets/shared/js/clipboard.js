@@ -1,4 +1,4 @@
-function legacyCopyTextToClipboard(text) {
+function legacyCopyTextToClipboard(text, container = document.body) {
   return new Promise((resolve, reject) => {
     const textarea = document.createElement("textarea");
     textarea.value = text;
@@ -8,7 +8,7 @@ function legacyCopyTextToClipboard(text) {
     textarea.style.left = "-9999px";
     textarea.style.opacity = "0";
 
-    document.body.appendChild(textarea);
+    container.appendChild(textarea);
     textarea.focus({ preventScroll: true });
     textarea.select();
     textarea.setSelectionRange(0, textarea.value.length);
@@ -22,13 +22,16 @@ function legacyCopyTextToClipboard(text) {
     } catch (error) {
       reject(error);
     } finally {
-      document.body.removeChild(textarea);
+      container.removeChild(textarea);
     }
   });
 }
 
-export function copyTextToClipboard(text) {
-  return legacyCopyTextToClipboard(text).catch((legacyError) => {
+export function copyTextToClipboard(text, options = {}) {
+  const container =
+    options.container instanceof HTMLElement ? options.container : document.body;
+
+  return legacyCopyTextToClipboard(text, container).catch((legacyError) => {
     if (navigator.clipboard?.writeText && window.isSecureContext) {
       return navigator.clipboard.writeText(text);
     }
