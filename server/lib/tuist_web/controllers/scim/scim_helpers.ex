@@ -11,7 +11,7 @@ defmodule TuistWeb.SCIM.Helpers do
   def send_scim_json(conn, status, body) do
     conn
     |> put_resp_content_type(@content_type)
-    |> send_resp(status, Jason.encode!(body))
+    |> send_resp(status, JSON.encode!(body))
   end
 
   def send_scim_error(conn, status, detail, scim_type \\ nil) do

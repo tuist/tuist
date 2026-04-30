@@ -88,7 +88,7 @@ defmodule TuistWeb.Plugs.SCIMAuthPlug do
     conn
     |> put_resp_header("www-authenticate", ~s(Bearer realm="tuist-scim"))
     |> put_resp_content_type("application/scim+json")
-    |> send_resp(401, Jason.encode!(body))
+    |> send_resp(401, JSON.encode!(body))
     |> halt()
   end
 end
