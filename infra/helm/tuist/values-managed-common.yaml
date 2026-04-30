@@ -94,16 +94,18 @@ server:
     # Keep a non-zero memory request so the migration pod isn't the first
     # thing kubelet evicts under node pressure. Production has room for this
     # default; staging/canary override the request lower so the pre-upgrade
-    # hook still schedules on their smaller two-worker clusters. The limit
-    # bounds a runaway backfill so it self-terminates instead of taking the
-    # node's other pods down with it.
+    # hook still schedules on their smaller two-worker clusters. The 4Gi
+    # limit gives the artifact backfill (which streams chunks but still
+    # carries the BEAM, the PG cursor, and the CH client) headroom over
+    # its tens-of-MB working set, while still bounding a runaway so it
+    # self-terminates instead of taking the node's other pods down.
     resources:
       requests:
         cpu: "250m"
         memory: "1Gi"
       limits:
         cpu: "1000m"
-        memory: "2Gi"
+        memory: "4Gi"
 
   # HTTP probes all hit /ready. startupProbe covers the ~30-60s Phoenix boot
   # and the OTel / Sentry init latency we occasionally see in prod.
