@@ -31,7 +31,7 @@ This document is a one-time migration plan. The successor onboarding doc (replac
 - The current Syself management-cluster kubeconfig (per-person OIDC, used during `clusterctl move`).
 - CLI tools installed via mise:
   ```bash
-  mise use -g kubectl helm clusterctl k3sup
+  mise use -g kubectl helm clusterctl
   ```
 - The 1Password CLI (`op`).
 - An existing Tigris bucket for etcd snapshots, or willingness to create one in this migration.
@@ -80,20 +80,20 @@ curl -sX POST https://api.hetzner.cloud/v1/servers \
 
 ### 1.3 Install k3s
 
-`k3sup` is the path-of-least-resistance bootstrap. Disable Traefik (we don't need ingress on the mgmt cluster) and ServiceLB (no LoadBalancer services).
+Install k3s directly via SSH using the canonical installer. Disable Traefik (we don't need ingress on the mgmt cluster) and ServiceLB (no LoadBalancer services).
 
 ```bash
 export MGMT_IP=<ip from previous step>
 
-k3sup install \
-  --ip "$MGMT_IP" \
-  --user root \
-  --ssh-key ~/.ssh/tuist-mgmt \
-  --k3s-extra-args '--disable=traefik --disable=servicelb --write-kubeconfig-mode=0644' \
-  --local-path ~/.kube/tuist-mgmt.yaml \
-  --context tuist-mgmt
+ssh -i ~/.ssh/tuist-mgmt -o StrictHostKeyChecking=accept-new root@$MGMT_IP \
+  'curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="--disable=traefik --disable=servicelb --write-kubeconfig-mode=0644" sh -'
 
+# Pull the kubeconfig back, rewrite the embedded server URL from
+# 127.0.0.1 to the public IP, and cache locally.
+ssh -i ~/.ssh/tuist-mgmt root@$MGMT_IP 'cat /etc/rancher/k3s/k3s.yaml' \
+  | sed "s/127.0.0.1/$MGMT_IP/" > ~/.kube/tuist-mgmt.yaml
 chmod 600 ~/.kube/tuist-mgmt.yaml
+
 export KUBECONFIG=~/.kube/tuist-mgmt.yaml
 kubectl get nodes
 # Expect 1 Ready control-plane.
@@ -137,23 +137,22 @@ op document create ~/.kube/tuist-mgmt.yaml \
 
 `clusterctl init` bootstraps the providers directly into k3s. Three pieces, three version pins.
 
-**Settle the version pins before running `clusterctl init`.** Syself's OIDC user can't read controller pods cluster-wide on the Syself management cluster (we're locked to `org-tuist`), so we can't introspect their exact versions. Two options:
+**Versions to pin** (latest stable as of writing; refresh from upstream release pages at execution time if any have moved):
 
-- **Option A (preferred): pin to current upstream stable.** Pick recent stable releases for CAPI / caph / CSO. clusterctl 1.13 is v1beta2-native and reads v1beta1 cleanly via conversion webhooks — the version skew with Syself is safe. Look up:
-  - CAPI: <https://github.com/kubernetes-sigs/cluster-api/releases>
-  - caph: <https://github.com/syself/cluster-api-provider-hetzner/releases>
-  - CSO: <https://github.com/SovereignCloudStack/cluster-stack-operator/releases>
-- **Option B (paranoid): match Syself's versions exactly.** Open a Syself support ticket and ask. They'll tell you. Worth doing only if the dry-run in §2.3 surfaces conversion-webhook errors.
+| Component | Version | Source |
+|---|---|---|
+| CAPI core | `v1.13.1` | <https://github.com/kubernetes-sigs/cluster-api/releases> |
+| caph | `v1.1.0`  | <https://github.com/syself/cluster-api-provider-hetzner/releases> |
+| cluster-stack-operator | `v0.1.0-alpha.9` | <https://github.com/SovereignCloudStack/cluster-stack-operator/releases> |
 
-Then run:
+CSO has been on `alpha.9` since April 2025 with no further releases — it's the version Syself runs in production today, alpha-suffix notwithstanding. clusterctl 1.13 is v1beta2-native and reads Syself's v1beta1 CRs cleanly via conversion webhooks, so a version skew with Syself's controllers (which we can't introspect from `org-tuist`) is safe.
 
 ```bash
 export KUBECONFIG=~/.kube/tuist-mgmt.yaml
 
-# Fill these in from the upstream release pages above.
-export CAPI_VERSION=v1.13.x       # cluster-api core, paired with clusterctl 1.13
-export CAPH_VERSION=v1.0.x        # cluster-api-provider-hetzner
-export CSO_VERSION=v0.1.0-alpha.x # cluster-stack-operator
+export CAPI_VERSION=v1.13.1
+export CAPH_VERSION=v1.1.0
+export CSO_VERSION=v0.1.0-alpha.9
 
 clusterctl init \
   --core "cluster-api:$CAPI_VERSION" \
