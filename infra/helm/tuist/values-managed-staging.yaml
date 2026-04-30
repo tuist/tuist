@@ -87,6 +87,7 @@ objectStorage:
   external:
     buckets:
       default: tuist-stag-storage
+      registry: tuist-stag-registry
 
 processor:
   # Supabase staging project (inzgspjesrhqhleomvkb) — dedicated pooler on
@@ -129,3 +130,43 @@ processor:
     limits:
       cpu: "500m"
       memory: "1536Mi"
+
+# Staging clusters only have a Frankfurt footprint, so registry serving
+# is single-region here — production is the first env that gets US.
+registryPopulation:
+  database:
+    host: db.inzgspjesrhqhleomvkb.supabase.co
+  extraEnv:
+    - name: TUIST_DEPLOY_ENV
+      value: stag
+    - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
+      value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "256Mi"
+    limits:
+      cpu: "500m"
+      memory: "768Mi"
+
+registryServing:
+  regions:
+    - name: eu-central
+      replicaCount: 1
+      storage:
+        size: 50Gi
+      ingress:
+        host: registry-eu-central-staging.tuist.dev
+        tlsSecretName: registry-eu-central-staging-tls
+  extraEnv:
+    - name: TUIST_DEPLOY_ENV
+      value: stag
+    - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
+      value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "256Mi"
+    limits:
+      cpu: "500m"
+      memory: "768Mi"

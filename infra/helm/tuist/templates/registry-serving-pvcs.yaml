@@ -1,0 +1,23 @@
+{{- if .Values.registryServing.enabled }}
+{{- $root := . }}
+{{- range $region := .Values.registryServing.regions }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" $root "component" (printf "registry-serving-%s" $region.name)) }}
+  labels:
+    {{- include "tuist.labels" $root | nindent 4 }}
+    app.kubernetes.io/component: registry-serving
+    tuist.dev/registry-region: {{ $region.name | quote }}
+spec:
+  accessModes:
+    {{- toYaml (default (list "ReadWriteOnce") $region.storage.accessModes) | nindent 4 }}
+  resources:
+    requests:
+      storage: {{ default $root.Values.registryServing.storage.size $region.storage.size }}
+  {{- with (default $root.Values.registryServing.storage.storageClassName $region.storage.storageClassName) }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+{{- end }}
+{{- end }}

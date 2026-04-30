@@ -1,0 +1,24 @@
+{{- if .Values.registryServing.enabled }}
+{{- $root := . }}
+{{- range $region := .Values.registryServing.regions }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" $root "component" (printf "registry-serving-%s" $region.name)) }}
+  labels:
+    {{- include "tuist.labels" $root | nindent 4 }}
+    app.kubernetes.io/component: registry-serving
+    tuist.dev/registry-region: {{ $region.name | quote }}
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: {{ $root.Values.registryServing.service.port }}
+      targetPort: http
+      protocol: TCP
+  selector:
+    {{- include "tuist.componentLabels" (dict "root" $root "component" "registry-serving") | nindent 4 }}
+    tuist.dev/registry-region: {{ $region.name | quote }}
+{{- end }}
+{{- end }}

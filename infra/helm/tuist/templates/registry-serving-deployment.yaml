@@ -1,0 +1,204 @@
+{{- if .Values.registryServing.enabled }}
+{{- $secretName := include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
+{{- $masterKeySecretName := ternary (include "tuist.componentName" (dict "root" . "component" "server-external-secrets")) $secretName .Values.server.managedSecrets }}
+{{- $objectStorageAccessKey := include "tuist.objectStorageAccessKey" . -}}
+{{- $objectStorageSecretKey := include "tuist.objectStorageSecretKey" . -}}
+{{- $root := . }}
+{{- range $region := .Values.registryServing.regions }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" $root "component" (printf "registry-serving-%s" $region.name)) }}
+  labels:
+    {{- include "tuist.labels" $root | nindent 4 }}
+    app.kubernetes.io/component: registry-serving
+    tuist.dev/registry-region: {{ $region.name | quote }}
+spec:
+  replicas: {{ default 1 $region.replicaCount }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      {{- include "tuist.componentLabels" (dict "root" $root "component" "registry-serving") | nindent 6 }}
+      tuist.dev/registry-region: {{ $region.name | quote }}
+  template:
+    metadata:
+      labels:
+        {{- include "tuist.componentLabels" (dict "root" $root "component" "registry-serving") | nindent 8 }}
+        tuist.dev/registry-region: {{ $region.name | quote }}
+        {{- with $root.Values.global.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- with $root.Values.registryServing.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9091"
+        {{- with $root.Values.registryServing.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "tuist.componentServiceAccountName" (dict "root" $root "component" "server") }}
+      terminationGracePeriodSeconds: {{ $root.Values.registryServing.terminationGracePeriodSeconds }}
+      {{- include "tuist.podScheduling" $root | nindent 6 }}
+      {{- with $region.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      # Region pinning. The chart expects multi-region clusters to label
+      # nodes with topology.kubernetes.io/region (the standard Kubernetes
+      # convention) — values are e.g. "eu-central", "us-east". Per-region
+      # overrides via $region.nodeSelector still work for clusters that
+      # use a custom label (e.g. node.cluster.x-k8s.io/region).
+      nodeSelector:
+        {{- if $region.nodeSelector }}
+        {{- toYaml $region.nodeSelector | nindent 8 }}
+        {{- else }}
+        topology.kubernetes.io/region: {{ $region.name | quote }}
+        {{- end }}
+      {{- with $region.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: registry-serving
+          # Same image as the server. TUIST_MODE=registry_serving mounts
+          # only the /api/registry/swift/* routes on the Phoenix endpoint
+          # and runs the :registry_prefetch queue (used after a disk miss
+          # to populate the local PVC for next time). peer: false in
+          # runtime.exs keeps these pods out of leader election; the
+          # population pod is the only Oban leader.
+          image: "{{ $root.Values.server.image.repository }}:{{ $root.Values.server.image.tag | default $root.Chart.AppVersion }}"
+          imagePullPolicy: {{ $root.Values.server.image.pullPolicy }}
+          command:
+            - /app/bin/tuist
+            - start
+          ports:
+            - name: http
+              containerPort: 8080
+            - name: metrics
+              containerPort: 9091
+          env:
+            - name: TUIST_MODE
+              value: registry_serving
+            - name: TUIST_REGISTRY_STORAGE_DIR
+              value: /storage
+            - name: TUIST_REGISTRY_SERVING_REGION
+              value: {{ $region.name | quote }}
+            - name: PORT
+              value: "8080"
+            {{- if or $root.Values.server.masterKey $root.Values.server.managedSecrets }}
+            - name: MASTER_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $masterKeySecretName }}
+                  key: server-master-key
+            {{- end }}
+            - name: TUIST_HOSTED
+              value: {{ $root.Values.server.hosted | ternary "1" "0" | quote }}
+            - name: TUIST_LOG_LEVEL
+              value: {{ $root.Values.server.logLevel | quote }}
+            - name: TUIST_S3_BUCKET_NAME
+              value: {{ include "tuist.objectStorageBucketDefault" $root | quote }}
+            - name: TUIST_S3_REGISTRY_BUCKET
+              value: {{ include "tuist.objectStorageBucketRegistry" $root | quote }}
+            - name: TUIST_S3_ENDPOINT
+              value: {{ include "tuist.objectStorageEndpoint" $root | quote }}
+            - name: TUIST_S3_REGION
+              value: {{ include "tuist.objectStorageRegion" $root | quote }}
+            - name: TUIST_S3_VIRTUAL_HOST
+              value: {{ $root.Values.server.s3.virtualHost | ternary "1" "0" | quote }}
+            - name: TUIST_S3_BUCKET_AS_HOST
+              value: {{ $root.Values.server.s3.bucketAsHost | ternary "1" "0" | quote }}
+            {{- if and (eq $root.Values.objectStorage.mode "external") $root.Values.objectStorage.external.managedSecrets }}
+            - name: TUIST_S3_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tuist.componentName" (dict "root" $root "component" "object-storage-external-secrets") }}
+                  key: object-storage-access-key
+            - name: TUIST_S3_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tuist.componentName" (dict "root" $root "component" "object-storage-external-secrets") }}
+                  key: object-storage-secret-key
+            {{- else if and $objectStorageAccessKey $objectStorageSecretKey }}
+            - name: TUIST_S3_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $secretName }}
+                  key: object-storage-access-key
+            - name: TUIST_S3_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $secretName }}
+                  key: object-storage-secret-key
+            {{- end }}
+            {{- if and $root.Values.observability.enabled (include "tuist.observabilityOtlpEndpoint" $root) }}
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: {{ include "tuist.observabilityOtlpEndpoint" $root | quote }}
+            - name: TUIST_LOKI_URL
+              value: "http://{{ include "tuist.componentName" (dict "root" $root "component" "loki") }}:3100"
+            {{- end }}
+            {{- with $root.Values.registryServing.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with $root.Values.server.extraEnvFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          # Phoenix `/api/registry/swift/availability` is a static 200 the
+          # SwiftPM client uses to check the registry is reachable. Reuse
+          # it as the kubelet probe target so a wedged BEAM gets restarted.
+          startupProbe:
+            httpGet:
+              path: /api/registry/swift/availability
+              port: http
+              httpHeaders:
+                - name: Accept
+                  value: application/vnd.swift.registry.v1+json
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /api/registry/swift/availability
+              port: http
+              httpHeaders:
+                - name: Accept
+                  value: application/vnd.swift.registry.v1+json
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /api/registry/swift/availability
+              port: http
+              httpHeaders:
+                - name: Accept
+                  value: application/vnd.swift.registry.v1+json
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 3
+            failureThreshold: 5
+          lifecycle:
+            preStop:
+              exec:
+                command: ["sh", "-c", "sleep 10"]
+          resources:
+            {{- toYaml (default $root.Values.registryServing.resources $region.resources) | nindent 12 }}
+          volumeMounts:
+            - name: storage
+              mountPath: /storage
+      volumes:
+        - name: storage
+          persistentVolumeClaim:
+            claimName: {{ include "tuist.componentName" (dict "root" $root "component" (printf "registry-serving-%s" $region.name)) }}
+{{- end }}
+{{- end }}
