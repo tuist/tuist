@@ -4,12 +4,12 @@ defmodule Tuist.Kura.Specs do
 
   A spec is a label and a rough capacity description. It is **not** a
   Kubernetes resources block, an instance type, or a volume size. The
-  deployer for a region translates `(spec, volume_size_gi)` into
+  provisioner for a region translates `(spec, volume_size_gi)` into
   whatever its platform actually needs:
 
     * On Kubernetes (`HelmKubernetes`), the spec maps to Pod CPU and
       memory requests/limits and the volume to a PVC size.
-    * On a future bare-metal deployer (Hetzner Dedicated, Vultr, …),
+    * On a future bare-metal provisioner (Hetzner Dedicated, Vultr, …),
       the same spec would map to an instance type and the volume to
       a separately-attached block volume.
 

@@ -10,20 +10,20 @@ defmodule Tuist.Kura.Regions do
       Stored on `kura_servers.region`. Never renamed once published
       because URLs and `account_cache_endpoints` reference it.
     * `display_name` — what the /ops UI renders.
-    * `deployer` — the `Tuist.Kura.Deployer` implementation that
+    * `provisioner` — the `Tuist.Kura.Provisioner` implementation that
       actually provisions, rolls, and destroys Kura servers here. The
       customer never sees this.
-    * `deployer_config` — opaque to the rest of the codebase; only the
-      deployer module reads it.
+    * `provisioner_config` — opaque to the rest of the codebase; only the
+      provisioner module reads it.
 
   The `local` region is worktree-scoped via `TUIST_DEV_INSTANCE`: its
   kind cluster name and forwarded port are suffixed with the instance
   number so multiple worktrees can run side by side without colliding.
   """
 
-  alias Tuist.Kura.Deployer.HelmKubernetes
+  alias Tuist.Kura.Provisioner.HelmKubernetes
 
-  defstruct [:id, :display_name, :deployer, :deployer_config]
+  defstruct [:id, :display_name, :provisioner, :provisioner_config]
 
   # The local region's kind cluster + forwarded port are derived from
   # `TUIST_DEV_INSTANCE` so each worktree is isolated. Worktree
@@ -67,8 +67,8 @@ defmodule Tuist.Kura.Regions do
     %__MODULE__{
       id: "eu",
       display_name: "Europe (Hetzner Falkenstein)",
-      deployer: HelmKubernetes,
-      deployer_config: %{
+      provisioner: HelmKubernetes,
+      provisioner_config: %{
         cluster_id: "eu-1",
         helm_overlay: "hetzner",
         public_host_template: "{account_handle}-{cluster_id}.kura.tuist.dev"
@@ -82,8 +82,8 @@ defmodule Tuist.Kura.Regions do
     %__MODULE__{
       id: "local",
       display_name: "Local (kind)",
-      deployer: HelmKubernetes,
-      deployer_config: %{
+      provisioner: HelmKubernetes,
+      provisioner_config: %{
         cluster_id: "local",
         helm_overlay: "local",
         kind_cluster_name: "kura-dev-#{suffix}",

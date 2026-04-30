@@ -15,11 +15,11 @@ defmodule Tuist.Kura.KuraServer do
   `url` and `current_image_tag` are populated when the server first
   reaches `:active` and updated on subsequent successful deployments.
 
-  `deployer_node_ref` is the opaque handle the deployer returned from
+  `provisioner_node_ref` is the opaque handle the provisioner returned from
   `provision/3`. The control plane stores it untouched and hands it
-  back to the deployer for `rollout/3` and `destroy/1`. For the
-  helm-Kubernetes deployer it's the helm release name.
-  `deployer_metadata` is a JSON bag the deployer uses to remember
+  back to the provisioner for `rollout/3` and `destroy/1`. For the
+  helm-Kubernetes provisioner it's the helm release name.
+  `provisioner_metadata` is a JSON bag the provisioner uses to remember
   anything else it needs between calls (instance type, zone, peer
   seeding info, etc.).
 
@@ -44,8 +44,8 @@ defmodule Tuist.Kura.KuraServer do
     field :status, Ecto.Enum, values: Enum.with_index(@statuses), default: :provisioning
     field :url, :string
     field :current_image_tag, :string
-    field :deployer_node_ref, :string
-    field :deployer_metadata, :map, default: %{}
+    field :provisioner_node_ref, :string
+    field :provisioner_metadata, :map, default: %{}
 
     belongs_to :account, Account
 
@@ -64,8 +64,8 @@ defmodule Tuist.Kura.KuraServer do
       :region,
       :spec,
       :volume_size_gi,
-      :deployer_node_ref,
-      :deployer_metadata
+      :provisioner_node_ref,
+      :provisioner_metadata
     ])
     |> validate_required([:account_id, :region, :spec, :volume_size_gi])
     |> validate_number(:volume_size_gi, greater_than: 0, less_than_or_equal_to: 10_000)
@@ -87,8 +87,8 @@ defmodule Tuist.Kura.KuraServer do
       :status,
       :url,
       :current_image_tag,
-      :deployer_node_ref,
-      :deployer_metadata
+      :provisioner_node_ref,
+      :provisioner_metadata
     ])
     |> validate_required([:status])
   end

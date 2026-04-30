@@ -5,13 +5,13 @@ defmodule Tuist.Kura.KuraDeployment do
   Created by `Tuist.Kura.create_server/1` (initial install) or
   `create_deployment/1` (version bump), picked up by
   `Tuist.Kura.Workers.RolloutWorker` via Oban. The worker dispatches
-  to the region's deployer, which decides what "rollout" means.
+  to the region's provisioner, which decides what "rollout" means.
 
   Per-line stdout/stderr streams to the `kura_deployment_log_lines`
   ClickHouse table keyed by `id` so /ops can tail in real time.
 
   `cluster_id` is an audit field: which backing cluster the rollout
-  actually targeted, populated from `region.deployer_config.cluster_id`
+  actually targeted, populated from `region.provisioner_config.cluster_id`
   at insert. Operators reading the deployment list see something
   concrete (`"eu-1"`) rather than the abstract region (`"eu"`).
   """
@@ -57,7 +57,7 @@ defmodule Tuist.Kura.KuraDeployment do
   end
 
   defp known_cluster_id?(value) when is_binary(value) do
-    Enum.any?(Tuist.Kura.Regions.all(), &(&1.deployer_config[:cluster_id] == value))
+    Enum.any?(Tuist.Kura.Regions.all(), &(&1.provisioner_config[:cluster_id] == value))
   end
 
   defp known_cluster_id?(_), do: false

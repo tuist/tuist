@@ -6,9 +6,9 @@ defmodule Tuist.Kura do
   many regions as it needs, but only one server per region. `spec` is
   the capacity tier of that server.
 
-  This context is deployer-agnostic. The how-do-we-actually-provision
-  decisions live behind `Tuist.Kura.Deployer`; here we just call into
-  it and store the opaque `deployer_node_ref` it gives back.
+  This context is provisioner-agnostic. The how-do-we-actually-provision
+  decisions live behind `Tuist.Kura.Provisioner`; here we just call into
+  it and store the opaque `provisioner_node_ref` it gives back.
 
   Lifecycle transitions broadcast on `"kura:account:<account_id>"` over
   Phoenix.PubSub. When a server reaches `:active` its public URL is
@@ -29,7 +29,7 @@ defmodule Tuist.Kura do
   alias Tuist.Kura.DeploymentLogLine
   alias Tuist.Kura.KuraDeployment
   alias Tuist.Kura.KuraServer
-  alias Tuist.Kura.Deployer
+  alias Tuist.Kura.Provisioner
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Specs
   alias Tuist.Kura.Workers.DestroyServerWorker
@@ -113,7 +113,7 @@ defmodule Tuist.Kura do
   @doc """
   Provisions a new Kura server for an account in a region.
 
-  Calls the region's deployer for an opaque ref, inserts a `KuraServer`
+  Calls the region's provisioner for an opaque ref, inserts a `KuraServer`
   (status: `:provisioning`) and an initial `KuraDeployment`, and
   enqueues the rollout worker. Returns `{:ok, server}` (deployments
   preloaded) or `{:error, reason}`.
@@ -128,8 +128,8 @@ defmodule Tuist.Kura do
          {:ok, account} <- Accounts.get_account_by_id(attrs[:account_id]),
          attrs <- with_defaults(attrs, region),
          _ <- recycle_terminal_servers(attrs),
-         {:ok, ref, metadata} <- region.deployer.provision(account, region, server_stub(attrs)) do
-      attrs = Map.merge(attrs, %{deployer_node_ref: ref, deployer_metadata: metadata})
+         {:ok, ref, metadata} <- region.provisioner.provision(account, region, server_stub(attrs)) do
+      attrs = Map.merge(attrs, %{provisioner_node_ref: ref, provisioner_metadata: metadata})
       insert_server_and_enqueue(attrs, region)
     end
   end
@@ -190,9 +190,9 @@ defmodule Tuist.Kura do
 
   # The deployment row carries `cluster_id` as an audit field — which
   # backing cluster a rollout actually targeted. Filled from the
-  # region's deployer_config so operators see something concrete (e.g.
+  # region's provisioner_config so operators see something concrete (e.g.
   # "eu-1") instead of the abstract region ID.
-  defp deployment_cluster_id(%Regions{deployer_config: %{cluster_id: id}}), do: id
+  defp deployment_cluster_id(%Regions{provisioner_config: %{cluster_id: id}}), do: id
   defp deployment_cluster_id(%Regions{id: id}), do: id
 
   # Failed rows would block re-creation against the partial unique
@@ -234,7 +234,7 @@ defmodule Tuist.Kura do
   """
   def activate_server(%KuraServer{} = server, image_tag) when is_binary(image_tag) do
     {:ok, account} = Accounts.get_account_by_id(server.account_id)
-    url = Deployer.public_url(account, server)
+    url = Provisioner.public_url(account, server)
 
     Repo.transaction(fn ->
       {:ok, server} =

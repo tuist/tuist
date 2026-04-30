@@ -5,9 +5,9 @@ defmodule Tuist.Repo.Migrations.CreateKuraServers do
   light up Kura in as many regions as it needs, but only one mesh per
   region.
 
-  `deployer_node_ref` is the opaque handle the region's deployer
+  `provisioner_node_ref` is the opaque handle the region's provisioner
   returns from `provision/3`. The control plane stores it untouched.
-  `deployer_metadata` is a JSONB bag the provider may use to remember
+  `provisioner_metadata` is a JSONB bag the provider may use to remember
   anything else it needs between calls.
 
   The unique index is partial on `status != :destroyed` so a
@@ -33,8 +33,8 @@ defmodule Tuist.Repo.Migrations.CreateKuraServers do
       add :status, :integer, null: false, default: 0
       add :url, :string
       add :current_image_tag, :string
-      add :deployer_node_ref, :string
-      add :deployer_metadata, :map, null: false, default: %{}
+      add :provisioner_node_ref, :string
+      add :provisioner_metadata, :map, null: false, default: %{}
 
       timestamps(type: :timestamptz)
     end

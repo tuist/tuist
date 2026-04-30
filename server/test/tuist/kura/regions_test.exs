@@ -3,7 +3,7 @@ defmodule Tuist.Kura.RegionsTest do
   # can't run async with anything else that reads it.
   use ExUnit.Case, async: false
 
-  alias Tuist.Kura.Deployer.HelmKubernetes
+  alias Tuist.Kura.Provisioner.HelmKubernetes
   alias Tuist.Kura.Regions
 
   setup do
@@ -14,7 +14,7 @@ defmodule Tuist.Kura.RegionsTest do
 
   describe "all/0" do
     test "exposes the eu production region backed by HelmKubernetes" do
-      assert %Regions{id: "eu", deployer: HelmKubernetes, deployer_config: config} =
+      assert %Regions{id: "eu", provisioner: HelmKubernetes, provisioner_config: config} =
                Enum.find(Regions.all(), &(&1.id == "eu"))
 
       assert config.cluster_id == "eu-1"
@@ -22,7 +22,7 @@ defmodule Tuist.Kura.RegionsTest do
     end
 
     test "exposes the local dev region backed by HelmKubernetes" do
-      assert %Regions{id: "local", deployer: HelmKubernetes, deployer_config: config} =
+      assert %Regions{id: "local", provisioner: HelmKubernetes, provisioner_config: config} =
                Enum.find(Regions.all(), &(&1.id == "local"))
 
       assert config.helm_overlay == "local"
@@ -69,8 +69,8 @@ defmodule Tuist.Kura.RegionsTest do
       System.put_env("TUIST_DEV_INSTANCE", "42")
       region = Regions.get("local")
 
-      assert region.deployer_config.kind_cluster_name == "kura-dev-42"
-      assert region.deployer_config.public_url == "http://localhost:4042"
+      assert region.provisioner_config.kind_cluster_name == "kura-dev-42"
+      assert region.provisioner_config.public_url == "http://localhost:4042"
       assert HelmKubernetes.public_url("tuist", region, "any-ref") == "http://localhost:4042"
     end
 
@@ -78,8 +78,8 @@ defmodule Tuist.Kura.RegionsTest do
       System.delete_env("TUIST_DEV_INSTANCE")
       region = Regions.get("local")
 
-      assert region.deployer_config.kind_cluster_name == "kura-dev-0"
-      assert region.deployer_config.public_url == "http://localhost:4000"
+      assert region.provisioner_config.kind_cluster_name == "kura-dev-0"
+      assert region.provisioner_config.public_url == "http://localhost:4000"
     end
   end
 
