@@ -13,6 +13,7 @@ defmodule Tuist.Tests.Analytics do
   alias Tuist.Tests.TestCase
   alias Tuist.Tests.TestCaseEvent
   alias Tuist.Tests.TestCaseRun
+  alias Tuist.Tests.TestCaseRunActiveDailyStat
   alias Tuist.Tests.TestCaseRunByTestRun
   alias Tuist.Tests.TestCaseRunDailyAggregate
 
@@ -354,12 +355,12 @@ defmodule Tuist.Tests.Analytics do
     dates = date_range_for_date_period(date_period, start_datetime: start_datetime, end_datetime: end_datetime)
     date_endpoints = Enum.map(dates, &date_to_end_of_bucket(&1, date_period))
 
-    window_seconds = Tests.active_window_days() * 86_400
+    window_days = Tests.active_window_days()
 
     previous_endpoint = DateTime.add(start_datetime, -1, :second)
-    previous_count = active_test_cases_count(project_id, previous_endpoint, window_seconds, is_ci)
+    previous_count = active_test_cases_count(project_id, previous_endpoint, window_days, is_ci)
 
-    values = Enum.map(date_endpoints, &active_test_cases_count(project_id, &1, window_seconds, is_ci))
+    values = Enum.map(date_endpoints, &active_test_cases_count(project_id, &1, window_days, is_ci))
 
     current_count = List.last(values) || 0
 
@@ -371,21 +372,21 @@ defmodule Tuist.Tests.Analytics do
     }
   end
 
-  # `inserted_at` is filtered alongside `ran_at` so the partition pruner can
-  # skip months outside the window. `test_case_runs` is `PARTITION BY
-  # toYYYYMM(inserted_at)` and `ran_at` is not a partition key. Rows with
-  # `inserted_at < ran_at` would not exist (insert happens after the run
-  # completes), so this never excludes a row that the `ran_at` window would
-  # have included.
-  defp active_test_cases_count(project_id, endpoint, window_seconds, is_ci) do
-    window_start = DateTime.add(endpoint, -window_seconds, :second)
+  # Reads `test_case_runs_active_daily_stats`, an AggregatingMergeTree MV that
+  # pre-computes `uniqExactState(test_case_id)` per (project_id, date, is_ci).
+  # Each call merges at most ~28 daily states (14 days × 2 is_ci) via
+  # `uniqExactMerge` instead of scanning `test_case_runs` for every chart
+  # bucket. The window is `window_days` calendar days inclusive of
+  # `endpoint`'s date.
+  defp active_test_cases_count(project_id, endpoint, window_days, is_ci) do
+    end_date = DateTime.to_date(endpoint)
+    start_date = Date.add(end_date, -(window_days - 1))
 
-    from(tcr in TestCaseRun,
-      where: tcr.project_id == ^project_id,
-      where: tcr.ran_at >= ^window_start,
-      where: tcr.ran_at <= ^endpoint,
-      where: tcr.inserted_at >= ^window_start,
-      select: fragment("uniqExact(?)", tcr.test_case_id)
+    from(s in TestCaseRunActiveDailyStat,
+      where: s.project_id == ^project_id,
+      where: s.date >= ^start_date,
+      where: s.date <= ^end_date,
+      select: fragment("uniqExactMerge(test_case_ids_state)")
     )
     |> apply_is_ci_filter(is_ci)
     |> ClickHouseRepo.one() || 0
