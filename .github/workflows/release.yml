@@ -633,7 +633,7 @@ jobs:
     name: Release CLI
     needs: check-releases
     if: needs.check-releases.outputs.cli-should-release == 'true'
-    runs-on: namespace-profile-macos-xcode-26
+    runs-on: namespace-profile-default-macos
     timeout-minutes: 50
     env:
       GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
