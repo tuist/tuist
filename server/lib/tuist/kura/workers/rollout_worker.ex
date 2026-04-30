@@ -81,7 +81,7 @@ defmodule Tuist.Kura.Workers.RolloutWorker do
   defp fail(deployment, server, reason) do
     message = if is_binary(reason), do: reason, else: inspect(reason)
     # Synthetic log line so /ops shows the reason instead of an empty terminal.
-    {:ok, _} = Kura.append_log_lines(deployment.id, [{1, :stderr, message}])
+    {:ok, _} = Kura.append_log_lines(deployment.id, [{next_sequence(), :stderr, message}])
     {:ok, _} = Kura.mark_failed(deployment, message)
     if server, do: Kura.fail_server(server)
     {:error, message}

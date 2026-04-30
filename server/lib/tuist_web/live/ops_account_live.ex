@@ -47,7 +47,7 @@ defmodule TuistWeb.OpsAccountLive do
   end
 
   defp default_add_server_form do
-    default_region = Regions.available() |> List.first()
+    default_region = List.first(Regions.available())
     default_spec = :medium
 
     to_form(
@@ -81,7 +81,7 @@ defmodule TuistWeb.OpsAccountLive do
 
   defp load_kura_state(socket) do
     account = socket.assigns.account
-    latest = Kura.latest_versions(1) |> List.first()
+    latest = 1 |> Kura.latest_versions() |> List.first()
 
     socket
     |> assign(:kura_servers, Kura.list_servers_for_account(account.id))
@@ -107,7 +107,7 @@ defmodule TuistWeb.OpsAccountLive do
     case Kura.latest_versions(1) do
       [] ->
         {:noreply,
-         put_flash(socket, :error, "No cached Kura version yet. Wait for the poll worker to see kura@*.")}
+         put_flash(socket, :error, "Could not resolve a Kura release from GitHub right now. Try again shortly.")}
 
       [%{version: image_tag} | _] ->
         spec = parse_spec(params["spec"])
@@ -260,8 +260,7 @@ defmodule TuistWeb.OpsAccountLive do
   defp parse_int(_, default), do: default
 
   defp format_errors(%Ecto.Changeset{errors: errors}) do
-    errors
-    |> Enum.map_join(", ", fn {field, {msg, _}} -> "#{field} #{msg}" end)
+    Enum.map_join(errors, ", ", fn {field, {msg, _}} -> "#{field} #{msg}" end)
   end
 
   ## View helpers
