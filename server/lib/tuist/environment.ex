@@ -54,6 +54,26 @@ defmodule Tuist.Environment do
     env() == :prod
   end
 
+  @doc """
+  Worktree suffix from `TUIST_DEV_INSTANCE`, set by the mise
+  `dev_instance_env.sh` hook. Used to scope ports, DB names, kind
+  cluster names, and similar per-worktree resources so multiple
+  worktrees can run side by side without colliding. Returns 0 when
+  unset (CI, ad-hoc scripts) or when the value isn't a valid integer.
+  """
+  def dev_instance_suffix do
+    case System.get_env("TUIST_DEV_INSTANCE") do
+      value when is_binary(value) and value != "" ->
+        case Integer.parse(value) do
+          {n, ""} -> n
+          _ -> 0
+        end
+
+      _ ->
+        0
+    end
+  end
+
   def truthy?(value) do
     Enum.member?(["1", "true", "TRUE", "yes", "YES"], value)
   end
@@ -145,22 +165,6 @@ defmodule Tuist.Environment do
       _ ->
         nil
     end
-  end
-
-  @doc """
-  Shared secret presented by Kura mesh nodes (via the
-  `KURA_EXTENSION_HTTP_CLIENT_TUIST_HEADERS_AUTHORIZATION` env var) when
-  calling `POST /api/internal/auth/verify`. Provisioned alongside the
-  per-cluster kubeconfigs.
-
-  In dev/test we default to a fixed `dev-kura-verify-token` so both
-  sides (the rollout worker and the verify endpoint) match without the
-  developer setting anything.
-  """
-  def kura_verify_token(secrets \\ secrets()) do
-    System.get_env("TUIST_KURA_VERIFY_TOKEN") ||
-      get([:kura, :verify_token], secrets) ||
-      if(dev?() or test?(), do: "dev-kura-verify-token")
   end
 
   @doc """

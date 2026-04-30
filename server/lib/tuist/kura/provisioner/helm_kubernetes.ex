@@ -295,10 +295,12 @@ defmodule Tuist.Kura.Provisioner.HelmKubernetes do
 
   # Kura's per-client HTTP config doesn't accept static headers. We
   # inject the verify endpoint's shared secret as a Lua global the hook
-  # picks up at call time.
+  # picks up at call time. The Tuist server already provisions a shared
+  # secret for the cache nodes (`Tuist.Environment.cache_api_key/0`);
+  # Kura nodes reuse it so we don't carry two parallel secrets.
   defp with_lua_prelude(script) do
     auth =
-      case Tuist.Environment.kura_verify_token() do
+      case Tuist.Environment.cache_api_key() do
         token when is_binary(token) and token != "" -> "Bearer #{token}"
         _ -> ""
       end
