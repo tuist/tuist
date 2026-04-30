@@ -461,11 +461,14 @@ end
 # Path to the Kura Helm chart used by Tuist.Kura.Workers.RolloutWorker.
 # Production releases bake the chart into priv/kura_chart at image
 # build time (see server/Dockerfile); dev and test read it from the
-# in-tree monorepo path one level up from the server/ directory.
+# in-tree monorepo path one level up from the server/ directory. Each
+# env is enumerated explicitly so a new one (e.g. `:bench`) fails loudly
+# rather than silently picking the wrong path.
 kura_chart_path =
   case env do
     e when e in [:prod, :stag, :can] -> Application.app_dir(:tuist, "priv/kura_chart")
-    _ -> Path.expand("../kura/ops/helm/kura", File.cwd!())
+    e when e in [:dev, :test] -> Path.expand("../kura/ops/helm/kura", File.cwd!())
+    other -> raise "unknown env #{inspect(other)} for :kura_chart_path; add it to runtime.exs"
   end
 
 config :tuist, :kura_chart_path, kura_chart_path

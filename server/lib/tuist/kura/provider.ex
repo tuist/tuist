@@ -77,25 +77,29 @@ defmodule Tuist.Kura.Provider do
 
   @doc "Calls `rollout/2` on the region's provider."
   def rollout(%KuraServer{provider_node_ref: ref, region: region_id}, inputs) do
-    region = Regions.get!(region_id)
-    region.provider.rollout(ref, Map.put(inputs, :region, region))
+    with {:ok, region} <- Regions.fetch(region_id) do
+      region.provider.rollout(ref, Map.put(inputs, :region, region))
+    end
   end
 
   @doc "Calls `destroy/2` on the region's provider."
   def destroy(%KuraServer{provider_node_ref: ref, region: region_id}) do
-    region = Regions.get!(region_id)
-    region.provider.destroy(ref, region)
+    with {:ok, region} <- Regions.fetch(region_id) do
+      region.provider.destroy(ref, region)
+    end
   end
 
   @doc "Calls `public_url/3` on the region's provider."
   def public_url(%Account{name: handle}, %KuraServer{provider_node_ref: ref, region: region_id}) do
-    region = Regions.get!(region_id)
-    region.provider.public_url(handle, region, ref)
+    with {:ok, region} <- Regions.fetch(region_id) do
+      region.provider.public_url(handle, region, ref)
+    end
   end
 
   @doc "Calls `current_image_tag/2` on the region's provider."
   def current_image_tag(%KuraServer{provider_node_ref: ref, region: region_id}) do
-    region = Regions.get!(region_id)
-    region.provider.current_image_tag(ref, region)
+    with {:ok, region} <- Regions.fetch(region_id) do
+      region.provider.current_image_tag(ref, region)
+    end
   end
 end
