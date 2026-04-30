@@ -178,7 +178,7 @@ jobs:
 
   cli-unit-tests:
     name: Unit Tests
-    runs-on: namespace-profile-default-macos-xcode-24
+    runs-on: namespace-profile-macos-xcode-26
     timeout-minutes: 30
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
@@ -218,7 +218,7 @@ jobs:
 
   cli-acceptance-tests-build:
     name: Build Acceptance Tests
-    runs-on: namespace-profile-default-macos-xcode-24
+    runs-on: namespace-profile-macos-xcode-26
     timeout-minutes: 60
     if: (github.event.pull_request.draft == false || github.event_name != 'pull_request') && github.event.pull_request.head.repo.fork != true
     outputs:
@@ -267,7 +267,7 @@ jobs:
 
   cli-acceptance-tests:
     name: Acceptance Tests
-    runs-on: namespace-profile-default-macos-xcode-24
+    runs-on: namespace-profile-macos-xcode-26
     timeout-minutes: 60
     needs: cli-acceptance-tests-build
     if: toJSON(fromJSON(needs.cli-acceptance-tests-build.outputs.matrix).shard) != '[]'
