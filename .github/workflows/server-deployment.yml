@@ -223,13 +223,11 @@ jobs:
               ;;
           esac
       - name: Clean up stale migration Jobs
-        # The migration Job used to embed `.Release.Revision` in its name
-        # (`server-migrate-77`, `server-migrate-78`, …), so the hook's
-        # `before-hook-creation` delete policy never matched and Jobs piled
-        # up on the cluster across deploys. The chart now uses a stable
-        # name; sweep every revision-suffixed Job from the prior template
-        # before invoking helm so their Pending pods stop fighting the new
-        # hook for scheduler attention.
+        # The chart's pre-upgrade migration hook is named
+        # `tuist-tuist-server-migrate` (stable across revisions). Any
+        # `tuist-tuist-server-migrate-<n>` Jobs in the namespace are
+        # orphans whose Pending pods would otherwise compete with the new
+        # hook for scheduler attention; sweep them before invoking helm.
         run: |
           set -euo pipefail
 

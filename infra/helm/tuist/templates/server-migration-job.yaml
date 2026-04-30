@@ -7,11 +7,8 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   # Stable name across revisions so the `before-hook-creation` delete
-  # policy below actually deletes the previous Job (and its pods) before
-  # the new one is created. The previous template appended the release
-  # revision to the name, so the policy never matched and old Jobs
-  # accumulated on the cluster across deploys, with their Pending pods
-  # competing with the new hook for scheduler attention.
+  # policy below matches and deletes the prior Job (and its Pending pods)
+  # before the new hook schedules.
   name: {{ include "tuist.componentName" (dict "root" . "component" "server-migrate") }}
   labels:
     {{- include "tuist.labels" . | nindent 4 }}
