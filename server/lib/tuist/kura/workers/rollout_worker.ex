@@ -1,25 +1,23 @@
 defmodule Tuist.Kura.Workers.RolloutWorker do
   @moduledoc """
-  Executes a single Kura deployment by dispatching to the region's
-  deployer.
+  Executes a single Kura deployment through `Tuist.Kura.Provisioner`.
 
   Intentionally thin: load the deployment + parent server, mark
-  `:running`, ask the deployer to roll out, translate the outcome
-  into row state. Deployer-specific machinery (helm shells, log
-  streaming, kubeconfig discovery) lives behind `Tuist.Kura.Deployer`;
-  the control plane has no opinion about how the rollout happens.
+  `:running`, hand it to the provisioner, translate the outcome into
+  row state. Provisioner-specific machinery (helm shells, log
+  streaming, kubeconfig discovery) lives behind the behaviour; this
+  worker has no opinion about how the rollout happens.
 
-  Stdout/stderr the deployer produces are streamed into ClickHouse via
-  the per-deployment log sink so /ops can tail in real time.
-  Concurrency is capped at 1 by the `:kura_rollout` queue.
+  Stdout/stderr from the provisioner streams into ClickHouse via the
+  per-deployment log sink so /ops can tail in real time. Concurrency
+  is capped at 1 by the `:kura_rollout` queue.
   """
   use Oban.Worker, queue: :kura_rollout, max_attempts: 1
 
   alias Tuist.Kura
   alias Tuist.Kura.KuraDeployment
   alias Tuist.Kura.KuraServer
-  alias Tuist.Kura.Deployer
-  alias Tuist.Kura.Regions
+  alias Tuist.Kura.Provisioner
   alias Tuist.Repo
 
   require Logger
@@ -50,39 +48,30 @@ defmodule Tuist.Kura.Workers.RolloutWorker do
   defp execute(%KuraDeployment{} = deployment) do
     deployment = Repo.preload(deployment, [:account, :kura_server])
 
-    case resolve_target(deployment) do
-      {:ok, server, region} -> roll(deployment, server, region)
-      {:error, message} -> fail(deployment, deployment.kura_server, message)
+    case deployment.kura_server do
+      nil -> fail(deployment, nil, "deployment has no parent kura_server")
+      %KuraServer{} = server -> roll(deployment, server)
     end
   end
 
-  defp resolve_target(%KuraDeployment{kura_server: nil}) do
-    {:error, "deployment has no parent kura_server"}
-  end
-
-  defp resolve_target(%KuraDeployment{kura_server: %KuraServer{region: region_id} = server}) do
-    case Regions.get(region_id) do
-      nil -> {:error, "region #{region_id} is no longer in the catalog"}
-      region -> {:ok, server, region}
-    end
-  end
-
-  defp roll(deployment, server, region) do
+  defp roll(deployment, %KuraServer{} = server) do
     {:ok, deployment} = Kura.mark_running(deployment)
 
     inputs = %{
       image_tag: deployment.image_tag,
       account: deployment.account,
       server: server,
-      region: region,
       on_log_line: log_sink(deployment.id)
     }
 
-    case Deployer.rollout(server, inputs) do
+    case Provisioner.rollout(server, inputs) do
       :ok ->
         {:ok, _} = Kura.mark_succeeded(deployment)
         Kura.activate_server(server, deployment.image_tag)
         :ok
+
+      {:error, :not_found} ->
+        fail(deployment, server, "region #{server.region} is no longer in the catalog")
 
       {:error, reason} ->
         fail(deployment, server, reason)
@@ -98,7 +87,7 @@ defmodule Tuist.Kura.Workers.RolloutWorker do
     {:error, message}
   end
 
-  # Returns a 2-arity callback the deployer invokes per stdout/stderr
+  # Returns a 2-arity callback the provisioner invokes per stdout/stderr
   # line. The callback batches into ClickHouse with a monotonically
   # increasing sequence so /ops's tail order is stable.
   defp log_sink(deployment_id) do
