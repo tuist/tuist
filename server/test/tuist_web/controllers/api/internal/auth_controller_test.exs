@@ -7,7 +7,7 @@ defmodule TuistWeb.API.Internal.AuthControllerTest do
 
   @valid_caller_token "test-kura-shared-secret"
 
-  setup :stub_kura_verify_token
+  setup :stub_cache_api_key
 
   describe "POST /api/internal/auth/verify" do
     test "rejects callers that don't present the shared secret", %{conn: conn} do
@@ -29,8 +29,8 @@ defmodule TuistWeb.API.Internal.AuthControllerTest do
       assert json_response(conn, 401) == %{"error" => "invalid_caller"}
     end
 
-    test "responds 401 when the verify token is not configured" do
-      stub(Environment, :kura_verify_token, fn -> nil end)
+    test "responds 503 when the shared secret is not configured" do
+      stub(Environment, :cache_api_key, fn -> nil end)
 
       conn =
         Phoenix.ConnTest.build_conn()
@@ -104,8 +104,8 @@ defmodule TuistWeb.API.Internal.AuthControllerTest do
     |> put_req_header("authorization", "Bearer #{@valid_caller_token}")
   end
 
-  defp stub_kura_verify_token(_) do
-    stub(Environment, :kura_verify_token, fn -> @valid_caller_token end)
+  defp stub_cache_api_key(_) do
+    stub(Environment, :cache_api_key, fn -> @valid_caller_token end)
     :ok
   end
 end
