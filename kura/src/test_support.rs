@@ -66,7 +66,7 @@ where
         rocksdb_write_buffer_size_bytes: 8 * 1024 * 1024,
         rocksdb_max_write_buffer_number: 4,
         analytics: None,
-        otlp_traces_endpoint: "http://127.0.0.1:4318/v1/traces".into(),
+        otlp_traces_endpoint: Some("http://127.0.0.1:4318/v1/traces".into()),
         otel_service_name: "kura-test".into(),
         otel_deployment_environment: "test".into(),
         sentry_dsn: None,

@@ -62,8 +62,8 @@
   <.card title="Kura" icon="server">
     <.card_section>
       <.table id="kura-servers-table" rows={@kura_servers}>
-        <:col :let={server} label="Cluster">
-          <.text_cell label={server.cluster_id} />
+        <:col :let={server} label="Region">
+          <.text_cell label={server.region} />
         </:col>
         <:col :let={server} label="Spec">
           <.text_cell label={spec_label(server.spec)} />
@@ -100,7 +100,7 @@
               label="Destroy"
               phx-click="destroy_server"
               phx-value-id={server.id}
-              data-confirm={"Destroy the Kura server on #{server.cluster_id}? This runs `helm uninstall` and removes the URL from the account's cache endpoints."}
+              data-confirm={"Destroy the Kura server in #{server.region}? This tears down the backing resource and removes the URL from the account's cache endpoints."}
             />
           </div>
         </:col>
@@ -126,10 +126,12 @@
   </.card>
 
   <%!--
-  Add Kura server — picks a (cluster, spec) tuple plus optional
-  volume size override and image tag, then provisions a fresh server
-  via `Kura.create_server/1`. The list above updates live via PubSub
-  as the rollout worker advances the server's status.
+  Add Kura server — picks a (region, spec) tuple plus optional volume
+  size override and image tag, then provisions a fresh server via
+  `Kura.create_server/1`. The list above updates live via PubSub as
+  the rollout worker advances the server's status. Region maps to a
+  provider impl behind the scenes (HelmKubernetes today); the customer
+  never picks a provider directly.
   --%>
   <%!--
   Add Kura server — uses Phoenix's <.form> wrapping <.modal> so phx-
@@ -147,7 +149,7 @@
     <.modal
       id="add-server-modal"
       title="Add Kura server"
-      description="Pick a backing cluster and a spec. The server is provisioned in the background and shows up in the list above as soon as it's ready."
+      description="Pick a region and a spec. The server is provisioned in the background and shows up in the list above as soon as it's ready."
       header_type="icon"
       header_size="small"
       on_dismiss="close_add_server"
@@ -167,14 +169,14 @@
       stays styled via the .add-server-form CSS.
       --%>
       <div class="select-field">
-        <.label label="Cluster" required />
-        <select id="add-server-cluster" name="server[cluster_id]" required>
+        <.label label="Region" required />
+        <select id="add-server-region" name="server[region]" required>
           <option
-            :for={cluster <- @kura_clusters}
-            value={cluster.id}
-            selected={cluster.id == @add_server_form[:cluster_id].value}
+            :for={region <- @kura_regions}
+            value={region.id}
+            selected={region.id == @add_server_form[:region].value}
           >
-            {cluster.id} · {cluster.region}
+            {region.display_name}
           </option>
         </select>
       </div>

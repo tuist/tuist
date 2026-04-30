@@ -80,7 +80,12 @@ pub struct Config {
     pub rocksdb_write_buffer_size_bytes: usize,
     pub rocksdb_max_write_buffer_number: i32,
     pub analytics: Option<AnalyticsConfig>,
-    pub otlp_traces_endpoint: String,
+    // None disables the OTLP exporter entirely (no tracing batches sent,
+    // no init-time errors). Operators set this by leaving the env var
+    // unset; the Helm chart only renders the env when the value is
+    // non-empty so a `config.telemetry.otlpTracesEndpoint: ""` in a
+    // values overlay is enough to disable tracing.
+    pub otlp_traces_endpoint: Option<String>,
     pub otel_service_name: String,
     pub otel_deployment_environment: String,
     pub sentry_dsn: Option<String>,
@@ -675,11 +680,14 @@ impl Config {
                 None
             }
         };
-        let otlp_traces_endpoint = required_value(
-            &mut lookup,
-            KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,
-            &mut missing,
-        );
+        // OTLP tracing is optional: if the env is unset (or set to an
+        // empty string), the exporter is not initialized and Kura runs
+        // without distributed tracing. Operators disable it by leaving
+        // the chart's `config.telemetry.otlpTracesEndpoint` empty so the
+        // env doesn't render at all.
+        let otlp_traces_endpoint = lookup(KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT)
+            .map(|value| value.trim().to_owned())
+            .filter(|value| !value.is_empty());
         let otel_service_name = required_value(&mut lookup, KURA_OTEL_SERVICE_NAME, &mut missing);
         let otel_deployment_environment =
             required_value(&mut lookup, KURA_OTEL_DEPLOYMENT_ENVIRONMENT, &mut missing);
@@ -785,8 +793,7 @@ impl Config {
             rocksdb_write_buffer_size_bytes,
             rocksdb_max_write_buffer_number,
             analytics,
-            otlp_traces_endpoint: otlp_traces_endpoint
-                .expect("otlp_traces_endpoint should be present when configuration is valid"),
+            otlp_traces_endpoint,
             otel_service_name: otel_service_name
                 .expect("otel_service_name should be present when configuration is valid"),
             otel_deployment_environment: otel_deployment_environment.expect(
@@ -998,7 +1005,8 @@ mod tests {
         assert!(error.contains(KURA_TMP_DIR));
         assert!(error.contains(KURA_DATA_DIR));
         assert!(error.contains(KURA_NODE_URL));
-        assert!(error.contains(KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT));
+        // KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT is now optional —
+        // unset disables tracing rather than failing config validation.
         assert!(error.contains(KURA_OTEL_SERVICE_NAME));
         assert!(error.contains(KURA_OTEL_DEPLOYMENT_ENVIRONMENT));
     }
@@ -1108,8 +1116,8 @@ mod tests {
         assert_eq!(config.rocksdb_max_write_buffer_number, 4);
         assert_eq!(config.analytics, None);
         assert_eq!(
-            config.otlp_traces_endpoint,
-            "https://otel.example.com/v1/traces"
+            config.otlp_traces_endpoint.as_deref(),
+            Some("https://otel.example.com/v1/traces")
         );
         assert_eq!(config.otel_service_name, "kura-eu");
         assert_eq!(config.otel_deployment_environment, "staging");

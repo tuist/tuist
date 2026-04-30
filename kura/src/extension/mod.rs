@@ -99,7 +99,13 @@ struct LuaRuntime {
 #[derive(Clone)]
 struct Signer {
     algorithm: SignerAlgorithm,
-    secret: String,
+    // Raw HMAC key bytes. The env var carries this as a base64-encoded
+    // string (since env vars are text-only and the keys are arbitrary
+    // bytes); we decode at parse time so the HMAC matches whoever else
+    // signs with the same underlying key. Tuist's central server, for
+    // example, stores the license signing key as base64 and decodes
+    // before HMAC — Kura must do the same or signatures diverge.
+    secret: Vec<u8>,
 }
 
 #[derive(Clone)]
@@ -663,7 +669,7 @@ fn sign_payload(
         .ok_or_else(|| format!("unknown signer '{signer_id}'"))?;
     match signer.algorithm {
         SignerAlgorithm::HmacSha256 => {
-            let mut mac = HmacSha256::new_from_slice(signer.secret.as_bytes())
+            let mut mac = HmacSha256::new_from_slice(&signer.secret)
                 .map_err(|error| format!("failed to initialize signer '{signer_id}': {error}"))?;
             mac.update(payload.as_bytes());
             Ok(BASE64.encode(mac.finalize().into_bytes()))
@@ -806,10 +812,14 @@ fn parse_signers() -> Result<HashMap<String, Signer>, String> {
             .get("ALGORITHM")
             .map(String::as_str)
             .unwrap_or("hmac-sha256");
-        let secret = values
+        let secret_b64 = values
             .get("SECRET")
-            .cloned()
             .ok_or_else(|| format!("missing {SIGNER_PREFIX}{id}_SECRET"))?;
+        let secret = BASE64.decode(secret_b64.trim()).map_err(|error| {
+            format!(
+                "{SIGNER_PREFIX}{id}_SECRET must be base64-encoded raw key bytes: {error}"
+            )
+        })?;
         let algorithm = match algorithm.to_ascii_lowercase().as_str() {
             "hmac-sha256" | "hmac_sha256" | "hmacsha256" => SignerAlgorithm::HmacSha256,
             _ => {
@@ -1094,7 +1104,12 @@ end
                     "KURA_EXTENSION_SIGNER_CACHE_PRIMARY_ALGORITHM",
                     "hmac-sha256",
                 );
-                std::env::set_var("KURA_EXTENSION_SIGNER_CACHE_PRIMARY_SECRET", "super-secret");
+                // Env carries the key as base64; parser decodes to the
+                // raw bytes "super-secret".
+                std::env::set_var(
+                    "KURA_EXTENSION_SIGNER_CACHE_PRIMARY_SECRET",
+                    BASE64.encode(b"super-secret"),
+                );
             },
         )
         .await;
@@ -1124,7 +1139,7 @@ end
                 "CACHE_PRIMARY".into(),
                 Signer {
                     algorithm: SignerAlgorithm::HmacSha256,
-                    secret: "super-secret".into(),
+                    secret: b"super-secret".to_vec(),
                 },
             )]),
             "cache_primary",

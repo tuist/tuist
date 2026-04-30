@@ -55,6 +55,63 @@
   }
 }
 
+/* Deployment detail page — metadata grid + terminal-style log viewer.
+   The page-wrapper rules (header, padding, gap) are already shared
+   with #ops-account in the block at the top of this file. */
+#ops-kura-deployment {
+  & [data-part="metadata-grid"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-5);
+  }
+
+  & [data-part="metadata-row"] {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: var(--noora-spacing-5);
+  }
+
+  & [data-part="metadata"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-1);
+
+    & > [data-part="title"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-body-small);
+    }
+
+    & > [data-part="label"] {
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-body-medium);
+      word-break: break-word;
+    }
+  }
+
+  & [data-part="empty-logs"] {
+    margin: var(--noora-spacing-0);
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-medium);
+  }
+
+  & [data-part="terminal"] {
+    max-height: 60vh;
+    overflow: auto;
+    padding: var(--noora-spacing-4);
+    background: var(--noora-surface-background-secondary, #0b0d12);
+    color: var(--noora-surface-label-on-dark, #e6e6e6);
+    border-radius: var(--noora-radius-medium);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12px;
+    line-height: 1.5;
+
+    & [data-part="line"] {
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+  }
+}
+
 /* Add Kura server modal — Noora portals it out of #ops-account, so
    styles live at the top level and target the form class. Mirrors the
    enterprise-upgrade form: vertical stack, consistent gap, and pairs
