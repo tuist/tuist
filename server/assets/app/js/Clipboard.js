@@ -1,10 +1,14 @@
+import { copyTextToClipboard } from "../../shared/js/clipboard.js";
+
 export default {
   mounted() {
     this.copyToClipboard = (event) => {
       // Use currentTarget to get the element with the phx-hook, not the clicked child
       const value = event.currentTarget.dataset.clipboardValue;
       if (value) {
-        navigator.clipboard.writeText(value);
+        copyTextToClipboard(value).catch((error) => {
+          console.warn("Failed to copy text to clipboard", error);
+        });
       }
     };
 
