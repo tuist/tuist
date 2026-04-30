@@ -26,7 +26,7 @@ import "./app.css";
 import ThemeSwitcher, { ThemeToggle, observeThemeChanges } from "./js/ThemeSwitcher.js";
 import ImageFallback from "./js/ImageFallback.js";
 import DeeplinkValidation from "./js/DeeplinkValidation.js";
-import Clipboard, { setupClipboard } from "./js/Clipboard.js";
+import Clipboard from "./js/Clipboard.js";
 import BundleSizeSunburstChartLegend from "./js/BundleSizeSunburstChartLegend.js";
 import VideoPlayer from "./js/VideoPlayer.js";
 import TimelineSeek from "./js/TimelineSeek.js";
@@ -84,7 +84,6 @@ window.addEventListener("phx:page-loading-stop", (_info) => topbar.hide());
 liveSocket.connect();
 
 setupQueryMemory();
-setupClipboard();
 
 // Analytics
 window.addEventListener("phx:navigate", (info) => {

@@ -1,17 +1,10 @@
 import { copyTextToClipboard } from "../../shared/js/clipboard.js";
 
-export function setupClipboard() {
-  document.addEventListener(
-    "click",
-    (event) => {
-      const trigger =
-        event.target instanceof Element ? event.target.closest("[data-clipboard-value]") : null;
-
-      if (!(trigger instanceof HTMLElement)) {
-        return;
-      }
-
-      const value = trigger.dataset.clipboardValue;
+export default {
+  mounted() {
+    this.copyToClipboard = (event) => {
+      // Use currentTarget to get the element with the phx-hook, not the clicked child.
+      const value = event.currentTarget.dataset.clipboardValue;
       if (!value) {
         return;
       }
@@ -19,13 +12,18 @@ export function setupClipboard() {
       event.preventDefault();
 
       copyTextToClipboard(value, {
-        container: trigger.closest("[role='dialog']"),
+        container: this.el.closest("[role='dialog']"),
       }).catch((error) => {
         console.warn("Failed to copy text to clipboard", error);
       });
-    },
-    true
-  );
-}
+    };
 
-export default {};
+    this.el.addEventListener("click", this.copyToClipboard);
+  },
+
+  destroyed() {
+    if (this.copyToClipboard) {
+      this.el.removeEventListener("click", this.copyToClipboard);
+    }
+  },
+};
