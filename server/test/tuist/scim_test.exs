@@ -78,22 +78,24 @@ defmodule Tuist.SCIMTest do
                SCIM.list_users(org, filter: %{attribute: "userName", op: :eq, value: "x@example.com"})
     end
 
-    test "patch_user/3 toggles active via replace op", %{organization: org} do
+    test "patch_user/3 deactivates and removes role via replace active=false", %{organization: org} do
       {:ok, user} = SCIM.provision_user(org, %{user_name: "d@example.com"})
 
       ops = [%{"op" => "replace", "path" => "active", "value" => false}]
 
       assert {:ok, updated} = SCIM.patch_user(org, user.id, ops)
       assert updated.active == false
+      refute Accounts.belongs_to_organization?(user, org)
     end
 
-    test "patch_user/3 supports value-only replace (Azure-style)", %{organization: org} do
+    test "patch_user/3 deactivates and removes role via value-only replace (Azure-style)", %{organization: org} do
       {:ok, user} = SCIM.provision_user(org, %{user_name: "e@example.com"})
 
       ops = [%{"op" => "Replace", "value" => %{"active" => false}}]
 
       assert {:ok, updated} = SCIM.patch_user(org, user.id, ops)
       assert updated.active == false
+      refute Accounts.belongs_to_organization?(user, org)
     end
 
     test "deactivate_user/2 sets active false and removes role", %{organization: org} do

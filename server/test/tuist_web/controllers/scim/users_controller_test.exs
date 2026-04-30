@@ -94,6 +94,7 @@ defmodule TuistWeb.SCIM.UsersControllerTest do
 
       conn = patch(conn, "/scim/v2/Users/#{user.id}", body)
       assert json_response(conn, 200)["active"] == false
+      assert {:error, :not_found} = SCIM.get_user(org, user.id)
     end
   end
 

@@ -216,6 +216,10 @@ defmodule Tuist.SCIM do
     end
   end
 
+  defp apply_attrs(%User{} = user, organization, %{active: false}) do
+    deactivate_user(organization, user.id)
+  end
+
   defp apply_attrs(%User{} = user, organization, attrs) do
     Multi.new()
     |> maybe_update_email(user, attrs)
