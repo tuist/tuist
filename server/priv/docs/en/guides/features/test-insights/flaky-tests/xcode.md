@@ -56,7 +56,7 @@ You can also manually mark or unmark tests as flaky from the test case detail pa
 
 ## Quarantining flaky tests {#quarantining}
 
-Quarantining isolates a flaky test so it doesn't block CI while you fix it. By default it's a **manual action** — you quarantine, un-quarantine, and switch modes from the test case detail page in the dashboard — but you can also wire it into an **automation alert** under **Settings → Automations** by adding a `change_state` trigger action (e.g. auto-mute on a 10% flakiness rate over 30 days) and a matching recovery action to un-quarantine when the test recovers. Every transition, manual or automated, is recorded as an event (`muted`, `unmuted`, `skipped`, `unskipped`) on the test case's audit log.
+Quarantining isolates a flaky test so it doesn't block CI while you fix it. By default it's a **manual action** — you quarantine, un-quarantine, and switch modes from the test case detail page in the dashboard — but you can also wire it into an **automation alert** under **Settings → Automations** so a test is automatically muted (or skipped) when it crosses a flakiness threshold, and un-quarantined when it recovers. Every transition, manual or automated, is recorded on the test case's audit log.
 
 A quarantined test is in one of two modes:
 
@@ -66,11 +66,11 @@ A quarantined test is in one of two modes:
 ### Why quarantined tests can appear as passing {#quarantined-passing}
 
 - **Muted tests** still execute. A muted test that fails is recorded as **failed** on the test case run and flagged as flaky — the per-test status is not rewritten. What gets overridden is the **overall test run**: if every failing test case in the run is muted, the run as a whole is reported as passed, so muted failures don't break CI.
-- **Skipped tests** don't run at all, so `last_status` and `last_ran_at` are not updated — what you see is the *last status before the test was skipped*, which can be weeks old.
+- **Skipped tests** don't run at all, so the dashboard keeps showing the status from the test's last actual execution — that snapshot can be weeks old.
 
 ### Stale quarantined tests {#stale-quarantined-tests}
 
-Test cases are not hard-deleted from Tuist when you delete or rename them in source. The default views filter out test cases inactive for 14 days, but **quarantined tests intentionally bypass that filter** so a long-forgotten quarantined test isn't silently re-enabled. Renaming a test creates a new identity (since identity is `module + suite + name`); the old identity is orphaned but stays in the data. To drop a stale entry from the dashboard, un-quarantine it first — the inactive-window filter will then hide it from default views.
+Test cases are not deleted from Tuist when you delete or rename them in source. The default views hide test cases inactive for 14 days, but **quarantined tests intentionally bypass that filter** so a long-forgotten quarantined test isn't silently re-enabled. Renaming a test creates a new entry on Tuist's side (a test is identified by its module, suite, and name); the old one is orphaned but stays in the data. To drop a stale entry from the dashboard, un-quarantine it first — the inactivity filter will then hide it from default views.
 
 ### Running tests {#running-tests}
 
