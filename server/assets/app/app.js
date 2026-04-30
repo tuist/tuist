@@ -36,6 +36,7 @@ import StopPropagationOnDrag from "./js/StopPropagationOnDrag.js";
 import SelectSlackChannelPopup from "./js/SelectSlackChannelPopup.js";
 import PublicProjectCTABanner from "./js/PublicProjectCTABanner.js";
 import TextAttachmentContent from "./js/hooks/TextAttachmentContent.js";
+import { copyTextToClipboard } from "../shared/js/clipboard.js";
 import { setupQueryMemory } from "./js/QueryMemory.js";
 import { getUserLocale } from "./js/UserLocale.js";
 import { getUserTimezone } from "./js/UserTimezone.js";
@@ -84,6 +85,26 @@ window.addEventListener("phx:page-loading-stop", (_info) => topbar.hide());
 liveSocket.connect();
 
 setupQueryMemory();
+
+document.addEventListener("click", (event) => {
+  const trigger =
+    event.target instanceof Element ? event.target.closest("[data-clipboard-value]") : null;
+
+  if (!(trigger instanceof HTMLElement)) {
+    return;
+  }
+
+  const value = trigger.dataset.clipboardValue;
+  if (!value) {
+    return;
+  }
+
+  event.preventDefault();
+
+  copyTextToClipboard(value).catch((error) => {
+    console.warn("Failed to copy text to clipboard", error);
+  });
+});
 
 // Analytics
 window.addEventListener("phx:navigate", (info) => {
