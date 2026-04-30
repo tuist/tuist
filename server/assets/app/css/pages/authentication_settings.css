@@ -104,7 +104,7 @@
         align-items: center;
 
         & > [data-part="field"] {
-          align-items: flex-start;
+          align-items: flex-end;
         }
 
         & [data-part="read-only-value"] {
