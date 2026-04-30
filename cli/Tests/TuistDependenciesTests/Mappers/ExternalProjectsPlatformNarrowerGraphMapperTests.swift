@@ -568,48 +568,43 @@ final class ExternalProjectsPlatformNarrowerGraphMapperTests: TuistUnitTestCase 
         XCTAssertFalse(mappedTests.metadata.tags.contains("tuist:prunable"))
     }
 
-    func test_map_when_local_swift_package_test_target_depends_on_platform_conditional_libraries() async throws {
+    func test_map_when_local_swift_package_test_target_is_not_widened_beyond_declared_destinations() async throws {
         // Given
         let directory = try temporaryPath()
         let packagesDirectory = directory.appending(component: "Dependencies")
 
         let iosApp = Target.test(name: "iOSApp", destinations: [.iPad, .iPhone])
-        let macApp = Target.test(name: "MacApp", destinations: [.mac], product: .app)
+        let watchApp = Target.test(name: "WatchApp", destinations: [.appleWatch], product: .app)
 
         let libA = Target.test(
             name: "LibA",
-            destinations: [.iPad, .iPhone],
+            destinations: [.iPad, .iPhone, .appleWatch],
             product: .staticFramework
         )
-        let libB = Target.test(
-            name: "LibB",
-            destinations: [.mac],
-            product: .staticFramework
-        )
-        let iosCondition = try XCTUnwrap(PlatformCondition.when([.ios]))
-        let macosCondition = try XCTUnwrap(PlatformCondition.when([.macos]))
         let externalLocalPackageTests = Target.test(
             name: "LibTests",
-            destinations: [.iPad, .iPhone, .mac],
+            destinations: [.iPad, .iPhone],
             product: .unitTests,
             dependencies: [
-                .target(name: libA.name, condition: iosCondition),
-                .target(name: libB.name, condition: macosCondition),
+                .target(name: libA.name),
             ],
             metadata: .test(tags: Set([TargetTags.localSwiftPackageTest]))
         )
 
-        let project = Project.test(path: directory, targets: [iosApp, macApp])
+        let project = Project.test(path: directory, targets: [iosApp, watchApp])
         let externalProject = Project.test(
             path: packagesDirectory,
-            targets: [libA, libB, externalLocalPackageTests],
+            targets: [libA, externalLocalPackageTests],
             type: .external(hash: nil)
         )
 
         let iosAppDependency = GraphDependency.target(name: iosApp.name, path: project.path)
-        let macAppDependency = GraphDependency.target(name: macApp.name, path: project.path)
+        let watchAppDependency = GraphDependency.target(name: watchApp.name, path: project.path)
+        let externalLocalPackageTestsDependency = GraphDependency.target(
+            name: externalLocalPackageTests.name,
+            path: externalProject.path
+        )
         let libADependency = GraphDependency.target(name: libA.name, path: externalProject.path)
-        let libBDependency = GraphDependency.target(name: libB.name, path: externalProject.path)
 
         let graph = Graph.test(
             projects: [
@@ -618,7 +613,8 @@ final class ExternalProjectsPlatformNarrowerGraphMapperTests: TuistUnitTestCase 
             ],
             dependencies: [
                 iosAppDependency: Set([libADependency]),
-                macAppDependency: Set([libBDependency]),
+                watchAppDependency: Set([libADependency]),
+                externalLocalPackageTestsDependency: Set([libADependency]),
             ]
         )
 
@@ -629,7 +625,72 @@ final class ExternalProjectsPlatformNarrowerGraphMapperTests: TuistUnitTestCase 
         let mappedTests = try XCTUnwrap(
             mappedGraph.projects[externalProject.path]?.targets[externalLocalPackageTests.name]
         )
-        XCTAssertEqual(mappedTests.destinations, Set([.iPad, .iPhone, .mac]))
+        XCTAssertEqual(mappedTests.destinations, Set([.iPad, .iPhone]))
+        XCTAssertFalse(mappedTests.metadata.tags.contains("tuist:prunable"))
+    }
+
+    func test_map_when_local_swift_package_test_target_depends_on_platform_conditional_library() async throws {
+        // Given
+        let directory = try temporaryPath()
+        let packagesDirectory = directory.appending(component: "Dependencies")
+
+        let iosApp = Target.test(name: "iOSApp", destinations: [.iPad, .iPhone])
+        let watchApp = Target.test(name: "WatchApp", destinations: [.appleWatch], product: .app)
+
+        let libA = Target.test(
+            name: "LibA",
+            destinations: [.iPad, .iPhone, .appleWatch],
+            product: .staticFramework
+        )
+        let iosCondition = try XCTUnwrap(PlatformCondition.when([.ios]))
+        let externalLocalPackageTests = Target.test(
+            name: "LibTests",
+            destinations: [.iPad, .iPhone, .appleWatch],
+            product: .unitTests,
+            dependencies: [
+                .target(name: libA.name, condition: iosCondition),
+            ],
+            metadata: .test(tags: Set([TargetTags.localSwiftPackageTest]))
+        )
+
+        let project = Project.test(path: directory, targets: [iosApp, watchApp])
+        let externalProject = Project.test(
+            path: packagesDirectory,
+            targets: [libA, externalLocalPackageTests],
+            type: .external(hash: nil)
+        )
+
+        let iosAppDependency = GraphDependency.target(name: iosApp.name, path: project.path)
+        let watchAppDependency = GraphDependency.target(name: watchApp.name, path: project.path)
+        let externalLocalPackageTestsDependency = GraphDependency.target(
+            name: externalLocalPackageTests.name,
+            path: externalProject.path
+        )
+        let libADependency = GraphDependency.target(name: libA.name, path: externalProject.path)
+
+        let graph = Graph.test(
+            projects: [
+                directory: project,
+                packagesDirectory: externalProject,
+            ],
+            dependencies: [
+                iosAppDependency: Set([libADependency]),
+                watchAppDependency: Set([libADependency]),
+                externalLocalPackageTestsDependency: Set([libADependency]),
+            ],
+            dependencyConditions: [
+                GraphEdge(from: externalLocalPackageTestsDependency, to: libADependency): iosCondition,
+            ]
+        )
+
+        // When
+        let (mappedGraph, _, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
+
+        // Then
+        let mappedTests = try XCTUnwrap(
+            mappedGraph.projects[externalProject.path]?.targets[externalLocalPackageTests.name]
+        )
+        XCTAssertEqual(mappedTests.destinations, Set([.iPad, .iPhone]))
         XCTAssertFalse(mappedTests.metadata.tags.contains("tuist:prunable"))
     }
 }
