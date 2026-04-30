@@ -64,7 +64,7 @@ You can also manually mark or unmark tests as flaky from the test case detail pa
 
 ## Quarantining flaky tests {#quarantining}
 
-Quarantining isolates a flaky test so it doesn't block CI while you fix it. Quarantine is **always a manual action** — there's no automatic threshold that quarantines a test on your behalf, since deciding when a test is too noisy to keep running is a judgment call that deserves a human in the loop. You quarantine, un-quarantine, and switch modes from the test case detail page in the dashboard. Every transition is recorded as an event (`muted`, `unmuted`, `skipped`, `unskipped`) on the test case's audit log.
+Quarantining isolates a flaky test so it doesn't block CI while you fix it. By default it's a **manual action** — you quarantine, un-quarantine, and switch modes from the test case detail page in the dashboard — but you can also wire it into an **automation alert** under **Settings → Automations** by adding a `change_state` trigger action (e.g. auto-mute on a 10% flakiness rate over 30 days) and a matching recovery action to un-quarantine when the test recovers. Every transition, manual or automated, is recorded as an event (`muted`, `unmuted`, `skipped`, `unskipped`) on the test case's audit log.
 
 A quarantined test is in one of two modes:
 
