@@ -54,7 +54,7 @@ This is particularly useful for catching flaky tests that don't fail consistentl
 
 ### Automatic clearing
 
-Tuist automatically clears the flaky flag from tests that haven't been flaky for the configured cooldown window (default **14 days**). This ensures tests that have been fixed don't remain marked as flaky indefinitely. The window is configurable per project via the `flaky_cooldown_days` setting.
+Detection and clearing run through an **automation alert** on the project. Every project gets a default "Flaky test detection" automation whose *trigger* marks a test as flaky and whose *recovery* clears the flag once the test has gone the configured recovery window (default **14 days**) without re-triggering. Edit it under **Settings → Automations** to change the recovery window, swap the recovery actions (e.g. also un-quarantine), or disable recovery entirely so tests stay marked flaky until you clear them by hand.
 
 ### Manual management
 
