@@ -103,8 +103,19 @@ processor:
       cpu: "500m"
       memory: "1Gi"
     limits:
-      cpu: "2000m"
+      cpu: "3000m"
       memory: "8Gi"
+
+  # Required pod anti-affinity so the two replicas always land on different
+  # workers. With 2 replicas and 2 workers, this gives 1-per-node strictly —
+  # both for HA and to keep parsing CPU from saturating a single node.
+  affinity:
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector:
+            matchLabels:
+              app.kubernetes.io/component: processor
+          topologyKey: kubernetes.io/hostname
 
 # In-cluster Valkey backs the auth rate limiter (Hammer.Redis). The
 # chart wires TUIST_REDIS_URL to the embedded Service; without it the
