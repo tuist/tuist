@@ -30,6 +30,11 @@ Sensitive authentication data (passwords, tokens) are excluded from exports.
 - Build system data (Xcode graphs, projects, targets)
 - Cacheable tasks (Xcode cache analytics: type, status, keys)
 
+### Kura Servers & Rollouts
+- **Kura servers** (`kura_servers` table): Per-account server records including region, customer-facing spec, volume size, lifecycle status, public URL, current image tag, opaque provisioner handle, provisioner metadata, and timestamps
+- **Kura deployments** (`kura_deployments` table): Rollout attempts linked to an account and Kura server, including target cluster identifier, requested image tag, rollout status, error message, Oban job ID, start/finish timestamps, and audit timestamps
+- **Derived cache endpoints** (`account_cache_endpoints` table): The Kura public URLs mirrored into the account's cache endpoint list while a server is active
+
 ### App Previews & Builds
 - Preview metadata (versions, platforms, git info)
 - App build information
@@ -57,12 +62,15 @@ The following data is stored in ClickHouse for analytics purposes:
 - **Test case runs by commit** (`test_case_runs_by_commit` materialized view): Slim projection of `test_case_runs` ordered by (`project_id`, `git_commit_sha`, `scheme`, `is_ci`, `status`, `id`). Powers the cross-run flakiness lookup; contains no data not already covered by the source `test_case_runs` table.
 - **Per-test-case daily run stats** (`test_case_run_daily_stats_per_case` materialized view): AggregatingMergeTree keyed on (`project_id`, `date`, `test_case_id`) with `count` and `sumState(toUInt8(is_flaky))` aggregate states. Powers the flaky-test automation engine's per-test windowed comparisons; contains no data not already covered by the source `test_case_runs` table.
 - **Per-environment last-run timestamps** (`test_cases.last_ran_at_ci`, `test_cases.last_ran_at_local` columns): Denormalized timestamps tracking the most recent CI and local run per test case. Maintained by the ingestion path on every test run; contains no data not already covered by the source `test_case_runs` table.
+- **Kura deployment log lines** (`kura_deployment_log_lines` table): Ordered stdout/stderr captured during Kura provision, rollout, and destroy operations for an account's servers. These logs may include Kubernetes resource names, public URLs, and operator-visible rollout diagnostics.
 - Build performance metrics
 
 ### Non-Exportable Data
 - Encrypted passwords and authentication secrets
 - Account, SCIM-scoped account, and project token values and encrypted token hashes
 - Encrypted SSO client secrets for Okta and custom OAuth2 providers
+- Internal replication bookkeeping (e.g., `bundles.artifacts_replicated_to_ch`) used to drive the PG → ClickHouse artifacts backfill
+- Kura cluster kubeconfigs and internal shared secrets (for example `cache_api_key`) used by the control plane to talk to deployment infrastructure
 
 ## Binary Files
 

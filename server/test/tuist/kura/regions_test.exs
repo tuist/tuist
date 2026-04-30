@@ -1,16 +1,10 @@
 defmodule Tuist.Kura.RegionsTest do
-  # Mutates TUIST_DEV_INSTANCE around the local-region tests, so we
-  # can't run async with anything else that reads it.
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
+  use Mimic
 
+  alias Tuist.Kura.KuraServer
   alias Tuist.Kura.Provisioner.HelmKubernetes
   alias Tuist.Kura.Regions
-
-  setup do
-    previous = System.get_env("TUIST_DEV_INSTANCE")
-    on_exit(fn -> reset_env("TUIST_DEV_INSTANCE", previous) end)
-    :ok
-  end
 
   describe "all/0" do
     test "exposes the eu production region backed by HelmKubernetes" do
@@ -26,6 +20,30 @@ defmodule Tuist.Kura.RegionsTest do
                Enum.find(Regions.all(), &(&1.id == "local"))
 
       assert config.helm_overlay == "local"
+    end
+  end
+
+  describe "available/0" do
+    test "returns only the local region in test" do
+      assert Enum.map(Regions.available(), & &1.id) == ["local"]
+    end
+  end
+
+  describe "available_region/1" do
+    test "returns the region when it is available in the current runtime" do
+      assert %Regions{id: "local"} = Regions.available_region("local")
+    end
+
+    test "returns nil for a registered region that is not available here" do
+      assert Regions.available_region("eu") == nil
+    end
+  end
+
+  describe "available?/1" do
+    test "is true only for regions available in the current runtime" do
+      assert Regions.available?("local")
+      refute Regions.available?("eu")
+      refute Regions.available?(:local)
     end
   end
 
@@ -66,7 +84,7 @@ defmodule Tuist.Kura.RegionsTest do
 
   describe "local region with worktree scoping" do
     test "kind cluster + URL pick up TUIST_DEV_INSTANCE" do
-      System.put_env("TUIST_DEV_INSTANCE", "42")
+      stub(Tuist.Environment, :dev_instance_suffix, fn -> 42 end)
       region = Regions.get("local")
 
       assert region.provisioner_config.kind_cluster_name == "kura-dev-42"
@@ -75,7 +93,7 @@ defmodule Tuist.Kura.RegionsTest do
     end
 
     test "falls back to suffix 0 outside mise" do
-      System.delete_env("TUIST_DEV_INSTANCE")
+      stub(Tuist.Environment, :dev_instance_suffix, fn -> 0 end)
       region = Regions.get("local")
 
       assert region.provisioner_config.kind_cluster_name == "kura-dev-0"
@@ -105,7 +123,8 @@ defmodule Tuist.Kura.RegionsTest do
   describe "HelmKubernetes.resources_for/1" do
     test "maps each customer-facing spec to Pod resources" do
       for spec <- [:small, :medium, :large] do
-        server = %Tuist.Kura.KuraServer{spec: spec}
+        server = %KuraServer{spec: spec}
+
         assert %{"resources" => %{"requests" => req, "limits" => lim}} =
                  HelmKubernetes.resources_for(server)
 
@@ -116,11 +135,8 @@ defmodule Tuist.Kura.RegionsTest do
     end
 
     test "returns an empty map for an unknown spec" do
-      server = %Tuist.Kura.KuraServer{spec: :nonsense}
+      server = %KuraServer{spec: :nonsense}
       assert HelmKubernetes.resources_for(server) == %{}
     end
   end
-
-  defp reset_env(name, nil), do: System.delete_env(name)
-  defp reset_env(name, value), do: System.put_env(name, value)
 end

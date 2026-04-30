@@ -4,11 +4,10 @@ defmodule TuistWeb.API.Internal.AuthController do
   extension hook.
 
   This is **not** part of the public API — the surface is gated by a
-  shared secret in the `Authorization` header that Kura sends from
-  `KURA_EXTENSION_HTTP_CLIENT_TUIST_HEADERS_AUTHORIZATION`. The shared
-  secret lives in the encrypted secrets bundle as
-  `kura.verify_token` and is provisioned by the rollout worker into
-  the Kura StatefulSet's env at deploy time.
+  shared secret in the `Authorization` header. The rollout worker
+  injects that value into the hook as the Lua global
+  `tuist_verify_authorization`, sourcing it from
+  `Tuist.Environment.cache_api_key/0`.
 
   The endpoint accepts a CLI bearer token, runs it through the same
   `Tuist.Authentication.authenticated_subject/1` resolver the rest of
@@ -52,9 +51,7 @@ defmodule TuistWeb.API.Internal.AuthController do
   end
 
   defp principal(%User{} = user) do
-    handles =
-      [user.account.name | Enum.map(Accounts.get_user_organization_accounts(user), & &1.account.name)]
-      |> Enum.uniq()
+    handles = Enum.uniq([user.account.name | Enum.map(Accounts.get_user_organization_accounts(user), & &1.account.name)])
 
     %{
       id: to_string(user.id),

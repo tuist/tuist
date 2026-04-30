@@ -156,7 +156,8 @@
     >
       <:header_icon><.server /></:header_icon>
       <:trigger :let={modal_attrs}>
-        <button id="add-server-trigger" type="button" style="display: none;" {modal_attrs}></button>
+        <button id="add-server-trigger" type="button" style="display: none;" {modal_attrs}>
+        </button>
       </:trigger>
 
       <%!--
@@ -206,8 +207,9 @@
       <p data-part="hint">
         <%= case @latest_kura_version do %>
           <% nil -> %>
-            No Kura release has been cached yet. The hourly poll runs in the background;
-            try again in a minute or run "Poll versions now" from the Oban dashboard.
+            No Kura release is available right now. The server fetches GitHub releases on
+            demand and caches successful responses for an hour, so try again shortly if
+            GitHub was temporarily unavailable.
           <% version -> %>
             Provisioned with Kura <strong>{version.version}</strong>
             (latest cached release). Subsequent upgrades pick up the next release the same way.
@@ -258,7 +260,11 @@
       <button id="enterprise-trigger" type="button" style="display: none;" {modal_attrs}></button>
     </:trigger>
 
-    <form id="enterprise-form" phx-submit="submit_enterprise_upgrade" class="enterprise-upgrade-form">
+    <form
+      id="enterprise-form"
+      phx-submit="submit_enterprise_upgrade"
+      class="enterprise-upgrade-form"
+    >
       <.text_input
         id="enterprise-name"
         name="name"
@@ -343,7 +349,12 @@
           />
         </:action>
         <:action>
-          <.button label="Upgrade to Enterprise" variant="primary" type="submit" form="enterprise-form" />
+          <.button
+            label="Upgrade to Enterprise"
+            variant="primary"
+            type="submit"
+            form="enterprise-form"
+          />
         </:action>
       </.modal_footer>
     </:footer>

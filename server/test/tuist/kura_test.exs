@@ -7,7 +7,9 @@ defmodule Tuist.KuraTest do
   alias Tuist.Accounts
   alias Tuist.Kura
   alias Tuist.Kura.KuraDeployment
+  alias Tuist.Kura.KuraServer
   alias Tuist.Kura.Workers.RolloutWorker
+  alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
   setup :set_mimic_global
@@ -33,13 +35,37 @@ defmodule Tuist.KuraTest do
       end)
 
       assert ["0.5.2", "0.5.1", "0.5.0"] ==
-               Kura.latest_versions(10) |> Enum.map(& &1.version)
+               10 |> Kura.latest_versions() |> Enum.map(& &1.version)
     end
 
     test "returns an empty list when GitHub is unreachable" do
       stub(Req, :get, fn _url, _opts -> {:error, :timeout} end)
 
       assert Kura.latest_versions(10) == []
+    end
+
+    test "does not cache a failed GitHub fetch" do
+      stub(Req, :get, fn _url, _opts ->
+        call_count = Process.get(:github_release_call_count, 0)
+        Process.put(:github_release_call_count, call_count + 1)
+
+        case call_count do
+          0 ->
+            {:error, :timeout}
+
+          _ ->
+            {:ok,
+             %Req.Response{
+               status: 200,
+               body: [
+                 %{"tag_name" => "kura@0.5.2", "published_at" => "2026-04-29T00:00:00Z"}
+               ]
+             }}
+        end
+      end)
+
+      assert Kura.latest_versions(10) == []
+      assert ["0.5.2"] == 10 |> Kura.latest_versions() |> Enum.map(& &1.version)
     end
 
     test "caps the result at limit" do
@@ -144,7 +170,7 @@ defmodule Tuist.KuraTest do
       assert {:ok, server} =
                Kura.create_server(%{
                  account_id: account.id,
-                 region: "eu",
+                 region: "local",
                  spec: :medium,
                  volume_size_gi: 200,
                  image_tag: "0.5.2"
@@ -160,7 +186,7 @@ defmodule Tuist.KuraTest do
       assert kura_server_id == server.id
 
       assert_enqueued(
-        worker: Tuist.Kura.Workers.RolloutWorker,
+        worker: RolloutWorker,
         args: %{"deployment_id" => List.first(server.deployments).id}
       )
     end
@@ -169,12 +195,22 @@ defmodule Tuist.KuraTest do
       assert {:ok, server} =
                Kura.create_server(%{
                  account_id: account.id,
-                 region: "eu",
+                 region: "local",
                  spec: :small,
                  image_tag: "0.5.2"
                })
 
       assert server.volume_size_gi == 50
+    end
+
+    test "rejects a region that is not available in the current environment", %{account: account} do
+      assert {:error, %Ecto.Changeset{errors: [region: {"is not available in this environment", _}]}} =
+               Kura.create_server(%{
+                 account_id: account.id,
+                 region: "eu",
+                 spec: :medium,
+                 image_tag: "0.5.2"
+               })
     end
 
     test "rejects an unknown region", %{account: account} do
@@ -190,7 +226,7 @@ defmodule Tuist.KuraTest do
     test "rejects a duplicate (account, region)", %{account: account} do
       attrs = %{
         account_id: account.id,
-        region: "eu",
+        region: "local",
         spec: :medium,
         image_tag: "0.5.2"
       }
@@ -208,22 +244,25 @@ defmodule Tuist.KuraTest do
       {:ok, kept} =
         Kura.create_server(%{
           account_id: account.id,
-          region: "eu",
-          spec: :small,
-          image_tag: "0.5.2"
-        })
-
-      {:ok, gone} =
-        Kura.create_server(%{
-          account_id: account.id,
           region: "local",
           spec: :small,
           image_tag: "0.5.2"
         })
 
+      {:ok, gone} =
+        %KuraServer{}
+        |> KuraServer.create_changeset(%{
+          account_id: account.id,
+          region: "eu",
+          spec: :small,
+          volume_size_gi: 50,
+          provisioner_node_ref: "kura-tuist-eu-1"
+        })
+        |> Repo.insert()
+
       {:ok, _} = Kura.mark_destroyed(gone)
 
-      ids = Kura.list_servers_for_account(account.id) |> Enum.map(& &1.id)
+      ids = account.id |> Kura.list_servers_for_account() |> Enum.map(& &1.id)
       assert kept.id in ids
       refute gone.id in ids
     end
@@ -237,7 +276,7 @@ defmodule Tuist.KuraTest do
       {:ok, server} =
         Kura.create_server(%{
           account_id: account.id,
-          region: "eu",
+          region: "local",
           spec: :medium,
           image_tag: "0.5.2"
         })
@@ -264,7 +303,7 @@ defmodule Tuist.KuraTest do
       {:ok, server} =
         Kura.create_server(%{
           account_id: account.id,
-          region: "eu",
+          region: "local",
           spec: :medium,
           image_tag: "0.5.2"
         })

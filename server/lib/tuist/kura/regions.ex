@@ -47,6 +47,14 @@ defmodule Tuist.Kura.Regions do
     end
   end
 
+  @doc "The region with the given ID in the current runtime, or `nil` if unavailable."
+  def available_region(id) when is_binary(id), do: Enum.find(available(), &(&1.id == id))
+  def available_region(_), do: nil
+
+  @doc "True iff the given ID is available in the current runtime."
+  def available?(id) when is_binary(id), do: not is_nil(available_region(id))
+  def available?(_), do: false
+
   @doc "The region with the given ID, or `nil` if unknown."
   def get(id) when is_binary(id), do: Enum.find(all(), &(&1.id == id))
   def get(_), do: nil
@@ -77,7 +85,7 @@ defmodule Tuist.Kura.Regions do
   end
 
   defp local_region do
-    suffix = dev_instance_suffix()
+    suffix = Tuist.Environment.dev_instance_suffix()
 
     %__MODULE__{
       id: "local",
@@ -90,18 +98,5 @@ defmodule Tuist.Kura.Regions do
         public_url: "http://localhost:#{@local_kura_base_port + suffix}"
       }
     }
-  end
-
-  # Reads the worktree suffix from `TUIST_DEV_INSTANCE` (set by the
-  # mise dev_instance_env.sh hook). Defaults to 0 when running outside
-  # mise (CI, one-off scripts) so behaviour stays predictable.
-  defp dev_instance_suffix do
-    case System.get_env("TUIST_DEV_INSTANCE") do
-      nil -> 0
-      "" -> 0
-      value -> String.to_integer(value)
-    end
-  rescue
-    ArgumentError -> 0
   end
 end
