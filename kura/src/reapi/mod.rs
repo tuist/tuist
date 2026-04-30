@@ -89,7 +89,12 @@ impl ReapiService {
         let Some(extension) = self.state.extension.as_ref() else {
             return Ok(None);
         };
-        let context = grpc_extension_context(&spec, request.metadata(), None);
+        let context = grpc_extension_context(
+            &self.state.config.tenant_id,
+            &spec,
+            request.metadata(),
+            None,
+        );
         match extension.evaluate_access(&context).await {
             AccessDecision::Allow(principal) => Ok(principal),
             AccessDecision::Deny(deny) => {
@@ -107,7 +112,12 @@ impl ReapiService {
         let Some(extension) = self.state.extension.as_ref() else {
             return Ok(());
         };
-        let context = grpc_extension_context(&spec, response.metadata(), Some(200));
+        let context = grpc_extension_context(
+            &self.state.config.tenant_id,
+            &spec,
+            response.metadata(),
+            Some(200),
+        );
         let headers = extension.response_headers(&context, principal).await;
         for (name, value) in headers.headers {
             let metadata_key = tonic::metadata::MetadataKey::from_bytes(name.as_bytes())
@@ -921,6 +931,7 @@ fn rpc_status(code: i32, message: impl Into<String>) -> RpcStatus {
 }
 
 fn grpc_extension_context(
+    server_tenant_id: &str,
     spec: &GrpcExtensionSpec<'_>,
     metadata: &tonic::metadata::MetadataMap,
     status_code: Option<u16>,
@@ -930,6 +941,7 @@ fn grpc_extension_context(
         route: spec.route.to_owned(),
         method: "RPC".into(),
         operation: spec.operation.to_owned(),
+        server_tenant_id: server_tenant_id.to_owned(),
         tenant_id: None,
         namespace_id: spec.namespace_id.map(ToOwned::to_owned),
         producer: spec.producer.map(ToOwned::to_owned),

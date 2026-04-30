@@ -436,4 +436,9 @@ The script may define these hooks:
 - `authorize(ctx, principal)`
 - `response_headers(ctx, principal)`
 
+For tenant-aware deployments, `ctx` carries both the request target
+(`tenant_id`, `namespace_id`) and the node's configured tenant as
+`server_tenant_id` (derived from `KURA_TENANT_ID`), so hooks can reject
+cross-tenant traffic even when clients send explicit query params.
+
 The runtime keeps decision caching, metrics, timeouts, and cryptographic primitives in Rust, while the script supplies policy.

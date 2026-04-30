@@ -169,7 +169,7 @@ defmodule Tuist.Kura.Provisioner.HelmKubernetes do
 
   defp values(image_tag, account, %Regions{} = region, %KuraServer{} = server, chart) do
     release = release_name(account.name, region)
-    hook_script = chart |> Path.join("hooks/tuist.lua") |> File.read!() |> with_lua_prelude()
+    hook_script = chart |> Path.join("hooks/tuist.lua") |> File.read!()
 
     %{
       "fullnameOverride" => release,
@@ -294,26 +294,6 @@ defmodule Tuist.Kura.Provisioner.HelmKubernetes do
     end
   rescue
     _ -> nil
-  end
-
-  # Kura's per-client HTTP config doesn't accept static headers. We
-  # inject the verify endpoint's shared secret as a Lua global the hook
-  # picks up at call time. The Tuist server already provisions a shared
-  # secret for the cache nodes (`Tuist.Environment.cache_api_key/0`);
-  # Kura nodes reuse it so we don't carry two parallel secrets.
-  defp with_lua_prelude(script) do
-    auth =
-      case Tuist.Environment.cache_api_key() do
-        token when is_binary(token) and token != "" -> "Bearer #{token}"
-        _ -> ""
-      end
-
-    "tuist_verify_authorization = #{lua_string(auth)}\n" <> script
-  end
-
-  defp lua_string(value) do
-    escaped = value |> String.replace("\\", "\\\\") |> String.replace(~s("), ~s(\\"))
-    ~s("#{escaped}")
   end
 
   # Kura pods reach the Tuist server via this base URL. For local kind
