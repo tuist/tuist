@@ -112,6 +112,8 @@ defmodule Tuist.Builds do
   end
 
   defp create_build_files(build, files) do
+    now = :second |> DateTime.utc_now() |> DateTime.to_naive()
+
     files =
       Enum.map(files, fn file_attrs ->
         %{
@@ -127,7 +129,8 @@ defmodule Tuist.Builds do
           path: file_attrs.path,
           target: file_attrs.target,
           project: file_attrs.project,
-          compilation_duration: file_attrs.compilation_duration
+          compilation_duration: file_attrs.compilation_duration,
+          inserted_at: now
         }
       end)
 
@@ -142,6 +145,8 @@ defmodule Tuist.Builds do
 
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   defp create_build_issues(build, issues) do
+    now = :second |> DateTime.utc_now() |> DateTime.to_naive()
+
     issues =
       Enum.map(issues, fn issue_attrs ->
         %{
@@ -157,7 +162,8 @@ defmodule Tuist.Builds do
           starting_line: issue_attrs.starting_line,
           ending_line: issue_attrs.ending_line,
           starting_column: issue_attrs.starting_column,
-          ending_column: issue_attrs.ending_column
+          ending_column: issue_attrs.ending_column,
+          inserted_at: now
         }
       end)
 
