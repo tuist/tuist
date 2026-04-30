@@ -1,25 +1,23 @@
 defmodule Tuist.Kura.Workers.DestroyServerWorker do
   @moduledoc """
-  Tears down a Kura server by dispatching to the region's deployer,
-  then marks the row `:destroyed`.
+  Tears down a Kura server through `Tuist.Kura.Provisioner` and marks the
+  row `:destroyed`.
 
-  The `account_cache_endpoints` row is removed up-front by
-  `Tuist.Kura.destroy_server/1` so the CLI stops resolving the URL
-  immediately, even before the cluster-side teardown finishes.
+  `account_cache_endpoints` is removed up-front by
+  `Tuist.Kura.destroy_server/1` so the CLI stops resolving the URL the
+  instant the row enters `:destroying` — even before the cluster-side
+  teardown finishes.
 
-  Failures here are logged but do not block the row's transition to
+  Failures here are logged but never block the row's transition to
   `:destroyed`. A stuck `:destroying` row would block re-using the
-  (account, region) pair, which is worse than an orphaned backing
-  resource that an operator can clean up manually. Deployer impls
-  should mirror this and prefer returning `:ok` over surfacing a
-  permanent error.
+  `(account, region)` pair, which is worse than an orphaned backing
+  resource that an operator can clean up manually.
   """
   use Oban.Worker, queue: :kura_rollout, max_attempts: 1
 
   alias Tuist.Kura
+  alias Tuist.Kura.Provisioner
   alias Tuist.Kura.KuraServer
-  alias Tuist.Kura.Deployer
-  alias Tuist.Kura.Regions
   alias Tuist.Repo
 
   require Logger
@@ -35,28 +33,19 @@ defmodule Tuist.Kura.Workers.DestroyServerWorker do
         :ok
 
       %KuraServer{} = server ->
-        execute(server)
+        log_outcome(server, Provisioner.destroy(server))
+        {:ok, _} = Kura.mark_destroyed(server)
+        :ok
     end
   end
 
-  defp execute(%KuraServer{} = server) do
-    case Regions.get(server.region) do
-      nil ->
-        Logger.warning(
-          "[Kura.DestroyServerWorker] region #{server.region} no longer in catalog; marking destroyed anyway"
-        )
+  defp log_outcome(_server, :ok), do: :ok
 
-        {:ok, _} = Kura.mark_destroyed(server)
-        :ok
+  defp log_outcome(%KuraServer{region: region}, {:error, :not_found}) do
+    Logger.warning("[Kura.DestroyServerWorker] region #{region} not in catalog; marking destroyed anyway")
+  end
 
-      %Regions{} ->
-        case Deployer.destroy(server) do
-          :ok -> :ok
-          {:error, reason} -> Logger.warning("[Kura.DestroyServerWorker] deployer destroy failed: #{inspect(reason)}")
-        end
-
-        {:ok, _} = Kura.mark_destroyed(server)
-        :ok
-    end
+  defp log_outcome(_server, {:error, reason}) do
+    Logger.warning("[Kura.DestroyServerWorker] provisioner destroy failed: #{inspect(reason)}")
   end
 end
