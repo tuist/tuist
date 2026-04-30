@@ -73,6 +73,18 @@ defmodule Tuist.Kura.Deployer do
   @callback current_image_tag(ref :: String.t(), Regions.t()) ::
               {:ok, String.t() | nil} | {:error, term()}
 
+  @doc """
+  Translate a customer-facing `(spec, volume_size_gi)` pair into a
+  deployer-specific resource description, used by the deployer
+  during provisioning and rollout. Shape is implementation-defined.
+
+  Kubernetes deployers return Pod resource requests/limits;
+  bare-metal deployers would return an instance type and a block
+  volume size. The customer-facing `Tuist.Kura.Specs` catalog stays
+  free of any platform vocabulary.
+  """
+  @callback resources_for(KuraServer.t()) :: map()
+
   ## Convenience dispatchers
 
   @doc "Calls `rollout/2` on the region's deployer."
