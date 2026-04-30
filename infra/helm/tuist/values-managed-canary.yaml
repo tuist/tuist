@@ -40,6 +40,15 @@ server:
       cpu: "2000m"
       memory: "2Gi"
 
+  # The migration hook runs before Helm can roll any workload pods, so it must
+  # fit next to the steady-state canary server, processor, Redis, and telemetry
+  # pods. Keep the production-sized limit, but use a lower request so the
+  # short-lived hook doesn't sit Pending until Helm's 60m timeout.
+  migrationJob:
+    resources:
+      requests:
+        memory: "512Mi"
+
   extraEnv:
     # Selects which priv/secrets/<env>.yml.enc file the app decrypts at
     # boot. Image is env-agnostic (built with MIX_ENV=prod); this flag

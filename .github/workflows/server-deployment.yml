@@ -43,6 +43,9 @@ on:
       commit_sha:
         description: Commit SHA to deploy (defaults to the event's SHA)
         required: false
+      image_tag:
+        description: Pre-built image tag to deploy instead of building
+        required: false
   workflow_call:
     inputs:
       environment:
@@ -188,6 +191,37 @@ jobs:
           mkdir -p "$(dirname "$KUBECONFIG")"
           echo "${{ secrets.KUBECONFIG }}" | base64 -d > "$KUBECONFIG"
           chmod 600 "$KUBECONFIG"
+      - name: Recover interrupted Helm release
+        run: |
+          set -euo pipefail
+
+          status="$(
+            helm status "$HELM_RELEASE_NAME" -n "$NAMESPACE" 2>/dev/null |
+              awk '/^STATUS:/ { print $2 }' ||
+              true
+          )"
+          case "$status" in
+            pending-install|pending-upgrade|pending-rollback)
+              echo "Release $HELM_RELEASE_NAME is $status; rolling back to the last deployed revision before upgrading."
+              helm history "$HELM_RELEASE_NAME" -n "$NAMESPACE" --max 20
+
+              deployed_revision="$(
+                helm history "$HELM_RELEASE_NAME" -n "$NAMESPACE" --max 20 |
+                  awk '$0 ~ /[[:space:]]deployed[[:space:]]/ { revision = $1 } END { print revision }'
+              )"
+
+              if [ -z "$deployed_revision" ]; then
+                echo "No deployed revision found for $HELM_RELEASE_NAME in $NAMESPACE."
+                exit 1
+              fi
+
+              helm rollback "$HELM_RELEASE_NAME" "$deployed_revision" \
+                --namespace "$NAMESPACE" --wait --timeout 10m
+              ;;
+            *)
+              echo "Release $HELM_RELEASE_NAME status is ${status:-not-installed}; no recovery needed."
+              ;;
+          esac
       - name: helm upgrade --install
         # App secrets never pass through --set: the chart runs in
         # `server.managedSecrets: true` mode, which reads DATABASE_URL /

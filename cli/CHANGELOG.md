@@ -1,7 +1,17 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.189.0<!-- RELEASE NOTES START -->
+## What's Changed in 4.191.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* stabilize cache EE canary acceptance test by [@fortmarek](https://github.com/fortmarek) in [#10549](https://github.com/tuist/tuist/pull/10549)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.191.0...4.191.1
+
+## What's Changed in 4.191.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
 
@@ -17,7 +27,7 @@ All notable changes to this project will be documented in this file.
 
 
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.188.5...4.189.0
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.188.5...4.191.0
 
 ## What's Changed in 4.188.5<!-- RELEASE NOTES START -->
 

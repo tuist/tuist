@@ -39,11 +39,20 @@ jobs:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.CACHE_OP_SERVICE_ACCOUNT_TOKEN }}
         run: |
           echo "SLACK_WEBHOOK_URL=$(op read 'op://cache/SLACK_WEBHOOK_URL/password')" >> $GITHUB_ENV
+      - name: Build Slack payload
+        env:
+          WORKFLOW_NAME: ${{ github.event.workflow_run.name }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+          COMMIT_MESSAGE: ${{ github.event.workflow_run.head_commit.message }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
+          REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+        run: |
+          SHORT_SHA="${SHA:0:7}"
+          COMMIT_URL="${REPO_URL}/commit/${SHA}"
+          TEXT=$(printf ':x: <%s|%s> failed on main for <%s|tuist%s>: %s' "$RUN_URL" "$WORKFLOW_NAME" "$COMMIT_URL" "$SHORT_SHA" "$COMMIT_MESSAGE")
+          jq -n --arg text "$TEXT" '{text: $text}' > "$RUNNER_TEMP/slack-payload.json"
       - uses: slackapi/slack-github-action@v2
         with:
           webhook: ${{ env.SLACK_WEBHOOK_URL }}
           webhook-type: incoming-webhook
-          payload: |
-            {
-              "text": "`${{ github.event.workflow_run.name }}` failed on main: ${{ github.event.workflow_run.html_url }}"
-            }
+          payload-file-path: ${{ runner.temp }}/slack-payload.json
