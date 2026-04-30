@@ -189,8 +189,7 @@
     gap: var(--noora-spacing-3);
     border-radius: var(--noora-radius-medium);
     background: var(--noora-surface-background-tertiary);
-    padding: var(--noora-spacing-3) var(--noora-spacing-3) var(--noora-spacing-3)
-      var(--noora-spacing-5);
+    padding: var(--noora-spacing-3) var(--noora-spacing-3) var(--noora-spacing-3) var(--noora-spacing-5);
     min-width: 0;
 
     & > code {
