@@ -17,8 +17,7 @@ Sensitive authentication data (passwords, tokens) are excluded from exports.
 - User profiles (email, active/inactive status, account settings, preferred locale)
 - Organization memberships and roles
 - Account billing information and subscriptions
-- API tokens and project tokens (existence only, not values)
-- SCIM bearer tokens (existence, name, timestamps, and last-used metadata only; token values and hashes are excluded)
+- API tokens, SCIM-scoped account tokens, and project tokens (existence, scopes, names, timestamps, and last-used metadata only; token values and hashes are excluded)
 - Custom cache endpoint configurations
 - Organization SSO configuration metadata, including the configured SSO provider, provider URL, and full OAuth2 endpoint URLs
 
@@ -56,7 +55,7 @@ The following data is stored in ClickHouse for analytics purposes:
 
 ### Non-Exportable Data
 - Encrypted passwords and authentication secrets
-- SCIM bearer token values and encrypted token hashes
+- Account, SCIM-scoped account, and project token values and encrypted token hashes
 - Encrypted SSO client secrets for Okta and custom OAuth2 providers
 - Internal replication bookkeeping (e.g., `bundles.artifacts_replicated_to_ch`) used to drive the PG → ClickHouse artifacts backfill
 

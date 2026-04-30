@@ -4,8 +4,9 @@ defmodule Tuist.SCIM do
 
   Exposes inbound user and group provisioning from external Identity Providers
   (Okta, Azure AD/Entra, JumpCloud, etc.) into Tuist organizations. Each
-  organization issues its own bearer token (`Tuist.SCIM.SCIMToken`) which the
-  IdP uses to authenticate against the SCIM endpoints under `/scim/v2/`.
+  organization issues its own bearer token (`Tuist.Accounts.AccountToken` with
+  the `account:scim:write` scope) which the IdP uses to authenticate against
+  the SCIM endpoints under `/scim/v2/`.
 
   Users are deduplicated by email. Provisioning a user that already exists in
   Tuist adds them to the calling organization with the requested role; it does
@@ -20,6 +21,7 @@ defmodule Tuist.SCIM do
   alias Ecto.Multi
   alias Tuist.Accounts
   alias Tuist.Accounts.Account
+  alias Tuist.Accounts.AccountToken
   alias Tuist.Accounts.Organization
   alias Tuist.Accounts.Role
   alias Tuist.Accounts.User
@@ -27,7 +29,6 @@ defmodule Tuist.SCIM do
   alias Tuist.Base64
   alias Tuist.Environment
   alias Tuist.Repo
-  alias Tuist.SCIM.SCIMToken
 
   @group_admins "admins"
   @group_users "users"
@@ -38,31 +39,52 @@ defmodule Tuist.SCIM do
   Issues a new SCIM bearer token for an organization. Returns `{:ok, {token,
   plaintext}}`. The plaintext is shown to the user once and never persisted.
   """
-  def create_token(%Organization{id: organization_id}, attrs \\ %{}) do
+  def create_token(%Organization{} = organization, attrs \\ %{}) do
+    account = organization_account(organization)
     raw = Base64.encode(:crypto.strong_rand_bytes(24))
     encrypted = Bcrypt.hash_pwd_salt(raw <> Environment.secret_key_password())
 
-    case %{
-           organization_id: organization_id,
+    case %AccountToken{}
+         |> Ecto.Changeset.change(%{
+           account_id: account.id,
            encrypted_token_hash: encrypted,
-           name: Map.get(attrs, :name)
-         }
-         |> SCIMToken.create_changeset()
+           scopes: [AccountToken.scim_scope()],
+           name: Map.get(attrs, :name),
+           all_projects: false
+         })
+         |> Ecto.Changeset.validate_required([:account_id, :encrypted_token_hash, :scopes, :name])
+         |> Ecto.Changeset.validate_length(:name, max: 64)
+         |> Ecto.Changeset.unique_constraint([:account_id, :encrypted_token_hash])
+         |> Ecto.Changeset.unique_constraint([:account_id, :name], name: "account_tokens_account_id_name_index")
          |> Repo.insert() do
       {:ok, token} -> {:ok, {token, "tuist_scim_#{token.id}_#{raw}"}}
       {:error, changeset} -> {:error, changeset}
     end
   end
 
-  def list_tokens(%Organization{id: organization_id}) do
-    Repo.all(from t in SCIMToken, where: t.organization_id == ^organization_id, order_by: [desc: t.inserted_at])
+  def list_tokens(%Organization{} = organization) do
+    account = organization_account(organization)
+    scope = AccountToken.scim_scope()
+
+    Repo.all(
+      from t in AccountToken,
+        where: t.account_id == ^account.id and ^scope in t.scopes,
+        order_by: [desc: t.inserted_at]
+    )
   end
 
-  def revoke_token(%SCIMToken{} = token), do: Repo.delete(token)
+  def revoke_token(%AccountToken{} = token), do: Repo.delete(token)
 
-  def revoke_token(%Organization{id: organization_id}, token_id) when is_binary(token_id) do
+  def revoke_token(%Organization{} = organization, token_id) when is_binary(token_id) do
+    account = organization_account(organization)
+    scope = AccountToken.scim_scope()
+
     with {:ok, _} <- UUIDv7.cast(token_id),
-         %SCIMToken{} = token <- Repo.get_by(SCIMToken, id: token_id, organization_id: organization_id) do
+         %AccountToken{} = token <-
+           Repo.one(
+             from t in AccountToken,
+               where: t.id == ^token_id and t.account_id == ^account.id and ^scope in t.scopes
+           ) do
       Repo.delete(token)
     else
       _ -> {:error, :not_found}
@@ -73,12 +95,11 @@ defmodule Tuist.SCIM do
   Looks up the organization that owns the given plaintext bearer token.
   """
   def authenticate_token(plaintext) when is_binary(plaintext) do
-    with ["tuist", "scim", token_id, raw] <- String.split(plaintext, "_", parts: 4),
-         {:ok, _} <- UUIDv7.cast(token_id),
-         %SCIMToken{} = token <- Repo.get(SCIMToken, token_id),
-         true <- verify_pass(token, raw),
-         %Organization{} = org <- Organization |> Repo.get(token.organization_id) |> Repo.preload(:account) do
-      {:ok, org, token}
+    with {:ok, %AccountToken{} = token} <-
+           plaintext |> account_token_plaintext() |> Accounts.account_token(preload: [account: :organization]),
+         true <- scim_token?(token),
+         %Account{organization: %Organization{} = organization} <- token.account do
+      {:ok, Repo.preload(organization, :account), token}
     else
       _ -> {:error, :invalid_token}
     end
@@ -86,17 +107,25 @@ defmodule Tuist.SCIM do
 
   def authenticate_token(_), do: {:error, :invalid_token}
 
-  defp verify_pass(%SCIMToken{encrypted_token_hash: hash}, raw) do
-    Bcrypt.verify_pass(raw <> Environment.secret_key_password(), hash)
+  defp account_token_plaintext(plaintext) do
+    case String.split(plaintext, "_", parts: 4) do
+      ["tuist", "scim", token_id, raw] -> "tuist_#{token_id}_#{raw}"
+      _ -> plaintext
+    end
   end
+
+  defp scim_token?(%AccountToken{scopes: scopes}), do: AccountToken.scim_scope() in scopes
+
+  defp organization_account(%Organization{account: %Account{} = account}), do: account
+  defp organization_account(%Organization{} = organization), do: Repo.preload(organization, :account).account
 
   @doc """
   Best-effort touch of `last_used_at`. Failures are swallowed.
   """
-  def touch_token(%SCIMToken{} = token) do
+  def touch_token(%AccountToken{} = token) do
     now = DateTime.truncate(DateTime.utc_now(), :second)
 
-    Repo.update_all(from(t in SCIMToken, where: t.id == ^token.id), set: [last_used_at: now])
+    Repo.update_all(from(t in AccountToken, where: t.id == ^token.id), set: [last_used_at: now])
   rescue
     _ -> :ok
   end

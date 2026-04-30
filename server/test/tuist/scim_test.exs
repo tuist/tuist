@@ -4,18 +4,59 @@ defmodule Tuist.SCIMTest do
   import TuistTestSupport.Fixtures.AccountsFixtures
 
   alias Tuist.Accounts
+  alias Tuist.Accounts.AccountToken
   alias Tuist.SCIM
 
   describe "tokens" do
     test "create_token/2 issues a usable bearer and persists only its hash" do
-      organization = organization_fixture()
+      organization = organization_fixture(preload: [:account])
 
       assert {:ok, {token, plaintext}} = SCIM.create_token(organization, %{name: "okta"})
-      assert token.organization_id == organization.id
+      assert token.account_id == organization.account.id
+      assert token.scopes == [AccountToken.scim_scope()]
       assert token.encrypted_token_hash != plaintext
       assert String.starts_with?(plaintext, "tuist_scim_")
 
       assert {:ok, ^organization, _token} = plaintext |> SCIM.authenticate_token() |> resolve(organization)
+    end
+
+    test "authenticate_token/1 accepts organization account tokens with the SCIM scope" do
+      organization = organization_fixture(preload: [:account])
+
+      {:ok, {_token, plaintext}} =
+        Accounts.create_account_token(%{
+          account: organization.account,
+          scopes: [AccountToken.scim_scope()],
+          name: "scim"
+        })
+
+      assert {:ok, ^organization, _token} = plaintext |> SCIM.authenticate_token() |> resolve(organization)
+    end
+
+    test "authenticate_token/1 rejects account tokens without the SCIM scope" do
+      organization = organization_fixture(preload: [:account])
+
+      {:ok, {_token, plaintext}} =
+        Accounts.create_account_token(%{
+          account: organization.account,
+          scopes: ["project:cache:read"],
+          name: "cache"
+        })
+
+      assert {:error, :invalid_token} = SCIM.authenticate_token(plaintext)
+    end
+
+    test "authenticate_token/1 rejects SCIM-scoped personal account tokens" do
+      user = user_fixture(preload: [:account])
+
+      {:ok, {_token, plaintext}} =
+        Accounts.create_account_token(%{
+          account: user.account,
+          scopes: [AccountToken.scim_scope()],
+          name: "scim"
+        })
+
+      assert {:error, :invalid_token} = SCIM.authenticate_token(plaintext)
     end
 
     test "authenticate_token/1 rejects a tampered token" do

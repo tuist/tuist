@@ -4,7 +4,7 @@ defmodule TuistWeb.Plugs.SCIMAuthPlug do
 
   On success, assigns:
     * `:scim_organization` - the resolved `%Organization{}` (with `:account` preloaded)
-    * `:scim_token` - the matched `%Tuist.SCIM.SCIMToken{}`
+    * `:scim_token` - the matched `%Tuist.Accounts.AccountToken{}`
     * `:scim_base_url` - the absolute URL prefix for the org's SCIM endpoints
 
   On failure, halts with a SCIM-formatted 401 Unauthorized response.

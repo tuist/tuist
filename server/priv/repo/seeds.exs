@@ -1,6 +1,7 @@
 import Ecto.Query
 
 alias Tuist.Accounts
+alias Tuist.Accounts.AccountToken
 alias Tuist.Alerts.Alert
 alias Tuist.Alerts.AlertRule
 alias Tuist.AppBuilds.AppBuild
@@ -19,7 +20,6 @@ alias Tuist.IngestRepo
 alias Tuist.Projects
 alias Tuist.Projects.Project
 alias Tuist.Repo
-alias Tuist.SCIM.SCIMToken
 alias Tuist.Shards.ShardPlan
 alias Tuist.Shards.ShardPlanModule
 alias Tuist.Shards.ShardPlanTestSuite
@@ -332,19 +332,30 @@ case okta_seed_value.(:scim_token, nil) do
     IO.puts("Skipping Okta SCIM token seed: configure TUIST_OKTA_SCIM_TOKEN or okta.scim_token.")
 
   okta_scim_token ->
-    ["tuist", "scim", okta_scim_token_id, okta_scim_token_raw] =
-      String.split(okta_scim_token, "_", parts: 4)
+    {okta_scim_token_id, okta_scim_token_raw} =
+      case String.split(okta_scim_token, "_", parts: 4) do
+        ["tuist", "scim", token_id, raw] ->
+          {token_id, raw}
+
+        _ ->
+          ["tuist", token_id, raw] = String.split(okta_scim_token, "_", parts: 3)
+          {token_id, raw}
+      end
 
     okta_scim_encrypted_token_hash =
       Bcrypt.hash_pwd_salt(okta_scim_token_raw <> Environment.secret_key_password())
 
-    case Repo.get(SCIMToken, okta_scim_token_id) do
+    organization_account = Repo.preload(organization, :account).account
+
+    case Repo.get(AccountToken, okta_scim_token_id) do
       nil ->
-        %SCIMToken{id: okta_scim_token_id}
+        %AccountToken{id: okta_scim_token_id}
         |> Ecto.Changeset.change(%{
           encrypted_token_hash: okta_scim_encrypted_token_hash,
           name: "Okta",
-          organization_id: organization.id
+          account_id: organization_account.id,
+          scopes: [AccountToken.scim_scope()],
+          all_projects: false
         })
         |> Repo.insert!()
 
@@ -353,7 +364,9 @@ case okta_seed_value.(:scim_token, nil) do
         |> Ecto.Changeset.change(%{
           encrypted_token_hash: okta_scim_encrypted_token_hash,
           name: "Okta",
-          organization_id: organization.id
+          account_id: organization_account.id,
+          scopes: [AccountToken.scim_scope()],
+          all_projects: false
         })
         |> Repo.update!()
     end

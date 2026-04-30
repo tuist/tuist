@@ -150,7 +150,6 @@ defmodule Tuist do
       OAuth2.SSOClient,
       OAuth2.SSRFGuard,
       SCIM,
-      SCIM.SCIMToken,
       SCIM.Filter,
       SCIM.Resource
     ]

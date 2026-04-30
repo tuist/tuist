@@ -24,9 +24,12 @@ defmodule Tuist.Accounts.AccountToken do
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.AccountTokenProject
 
+  @scim_scope "account:scim:write"
+
   @valid_scopes [
     "ci",
     "mcp",
+    @scim_scope,
     "account:members:read",
     "account:members:write",
     "account:registry:read",
@@ -58,6 +61,7 @@ defmodule Tuist.Accounts.AccountToken do
     field :scopes, {:array, :string}
     field :name, :string
     field :expires_at, :utc_datetime
+    field :last_used_at, :utc_datetime
     field :all_projects, :boolean, default: false
 
     belongs_to :account, Account
@@ -73,6 +77,8 @@ defmodule Tuist.Accounts.AccountToken do
   Returns all valid scopes for account tokens.
   """
   def valid_scopes, do: @valid_scopes
+
+  def scim_scope, do: @scim_scope
 
   def create_changeset(attrs) do
     %__MODULE__{}
