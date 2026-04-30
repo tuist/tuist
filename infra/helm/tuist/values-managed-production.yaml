@@ -110,9 +110,11 @@ processor:
   # vCPU per node). With anti-affinity pinning one replica per node, each
   # pod owns the whole node minus kube-system overhead; we leave ~4 GiB
   # and ~4 vCPU as headroom. The Swift parser holds ~3-4x the .xcactivitylog
-  # file size in memory, so the worker enforces a
-  # PROCESS_BUILD_MAX_XCACTIVITYLOG_BYTES cap (default 1 GiB);
-  # 5 concurrent * 4 * 1 GiB ~= 20 GiB peak fits in the 24Gi limit.
+  # file size in memory while building the BuildStep tree and JSON-encoding
+  # the result; at queueConcurrency=5 most realistic builds fit comfortably
+  # in 24 GiB. If we ever start seeing OOMKills again the next move is
+  # either to lower queueConcurrency, bump pod memory, or reintroduce a
+  # per-archive size cap in Tuist.Processor.BuildProcessor.
   # CPU limit at 12 cores lets the BEAM run ~12 dirty-CPU schedulers,
   # so all 5 NIF parses run on dedicated dirty schedulers without
   # serializing on scheduler availability the way they did at 4 cores.

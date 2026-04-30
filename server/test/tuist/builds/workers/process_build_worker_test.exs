@@ -205,24 +205,6 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
       assert {:error, :not_found} =
                ProcessBuildWorker.perform(oban_job(job_args(build.id, "999999", project.id), 3, 3))
     end
-
-    test "cancels job and marks build failed on first attempt for oversized xcactivitylog",
-         %{account: account, project: project, build: build} do
-      expect(Tuist.Storage, :download_to_file, fn _, _, _ -> {:ok, :done} end)
-
-      expect(BuildProcessor, :process_build, fn _, _ ->
-        {:error, {:xcactivitylog_too_large, %{size: 5_000_000_000, max_bytes: 1_073_741_824}}}
-      end)
-
-      expect(Tuist.Builds, :create_build, fn attrs ->
-        assert attrs.status == "failed_processing"
-        assert attrs.id == build.id
-        {:ok, %{id: build.id}}
-      end)
-
-      assert {:cancel, {:xcactivitylog_too_large, _}} =
-               ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, project.id), 1, 5))
-    end
   end
 
   describe "perform/1 VCS comment" do

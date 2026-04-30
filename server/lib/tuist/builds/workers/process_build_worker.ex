@@ -59,15 +59,6 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
           _ -> :ok
         end
 
-      {:error, {:xcactivitylog_too_large, %{size: size, max_bytes: max_bytes}} = reason} ->
-        # Oversize archives won't shrink on retry, so fail terminally on the
-        # first attempt instead of poisoning the queue and starving healthy
-        # builds for the remaining retry budget.
-        Logger.error("Build #{build_id} xcactivitylog is #{size} bytes, exceeds cap of #{max_bytes}, discarding")
-
-        mark_failed_build_processing(build_id, project_id, account_id, build_metadata)
-        {:cancel, reason}
-
       {:error, reason} ->
         if attempt >= max_attempts do
           Logger.error("Build processing failed permanently for build #{build_id}: #{inspect(reason)}")
