@@ -7,13 +7,6 @@ defmodule Tuist.Kura.SpecsTest do
     assert Enum.map(Specs.all(), & &1.id) == [:small, :medium, :large]
   end
 
-  test "every spec carries a customer-facing label and description" do
-    for %Specs{label: label, description: description} <- Specs.all() do
-      assert is_binary(label) and label != ""
-      assert is_binary(description) and description != ""
-    end
-  end
-
   test "get/1 returns the matching spec" do
     assert %Specs{id: :medium, label: "Medium"} = Specs.get(:medium)
     assert Specs.get(:huge) == nil

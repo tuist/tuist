@@ -98,8 +98,11 @@ defmodule Tuist.Kura.Provisioner.HelmKubernetes do
     case write_kubeconfig(region) do
       {:ok, kubeconfig} ->
         args = ["helm", "uninstall", release, "--namespace", @namespace, "--ignore-not-found", "--wait"]
-        _ = shell(args, kubeconfig, &drop_log/2)
-        :ok
+
+        case shell(args, kubeconfig, &drop_log/2) do
+          :ok -> :ok
+          {:error, status} -> {:error, "helm uninstall exited with status #{status}"}
+        end
 
       {:error, reason} ->
         # An orphaned helm release is preferable to a stuck `:destroying`
@@ -325,8 +328,7 @@ defmodule Tuist.Kura.Provisioner.HelmKubernetes do
 
   defp tuist_base_url(_), do: Tuist.Environment.app_url()
 
-  defp rewrite_loopback(%URI{host: host} = uri, replacement)
-       when host in ["localhost", "127.0.0.1", "0.0.0.0"] do
+  defp rewrite_loopback(%URI{host: host} = uri, replacement) when host in ["localhost", "127.0.0.1", "0.0.0.0"] do
     %{uri | host: replacement}
   end
 
@@ -362,9 +364,8 @@ defmodule Tuist.Kura.Provisioner.HelmKubernetes do
   end
 
   defp write_kubeconfig(%Regions{} = region) do
-    with {:ok, contents} <- resolve_kubeconfig(region),
-         {:ok, path} <- write_temp(contents, "kubeconfig") do
-      {:ok, path}
+    with {:ok, contents} <- resolve_kubeconfig(region) do
+      write_temp(contents, "kubeconfig")
     end
   end
 

@@ -39,7 +39,9 @@ defmodule Tuist.Kura do
   require Logger
 
   @pubsub Tuist.PubSub
-  @versions_cache_ttl :timer.hours(1)
+  @versions_cache_key [__MODULE__, "versions"]
+  @versions_cache_ttl to_timeout(hour: 1)
+  @versions_cache_opts [ttl: @versions_cache_ttl, persist_across_deployments: true]
 
   ## Versions
 
@@ -48,22 +50,34 @@ defmodule Tuist.Kura do
 
   Reads through `Tuist.KeyValueStore` with a one-hour TTL: the first
   request after a cold start (or after the TTL expires) calls GitHub
-  Releases; subsequent calls hit the in-memory or Redis cache. No
-  background worker, no `kura_versions` table — the source of truth
-  is the GitHub release feed.
+  Releases; subsequent successful calls hit the in-memory or Redis
+  cache. No background worker, no `kura_versions` table — the source
+  of truth is the GitHub release feed.
 
   Returns a list of `%{version: String.t(), released_at: DateTime.t()}`
   maps, newest first, capped at `limit`. Returns `[]` when the
   GitHub call fails so callers (e.g. /ops version dropdown) degrade
-  gracefully.
+  gracefully. Failed fetches are not cached, so a transient GitHub
+  outage does not pin the UI to an empty result for the full TTL.
   """
   def latest_versions(limit \\ 20) when is_integer(limit) do
-    KeyValueStore.get_or_update(
-      [__MODULE__, "versions"],
-      [ttl: @versions_cache_ttl],
-      &fetch_versions/0
-    )
-    |> Enum.take(limit)
+    versions =
+      case KeyValueStore.get(@versions_cache_key, @versions_cache_opts) do
+        nil ->
+          case fetch_versions() do
+            [] = versions ->
+              versions
+
+            versions ->
+              _ = KeyValueStore.put(@versions_cache_key, versions, @versions_cache_opts)
+              versions
+          end
+
+        versions ->
+          versions
+      end
+
+    Enum.take(versions, limit)
   end
 
   defp fetch_versions do
@@ -126,8 +140,8 @@ defmodule Tuist.Kura do
 
     with {:ok, region} <- fetch_region(attrs[:region]),
          {:ok, account} <- Accounts.get_account_by_id(attrs[:account_id]),
-         attrs <- with_defaults(attrs, region),
-         _ <- recycle_terminal_servers(attrs),
+         attrs = with_defaults(attrs, region),
+         recycle_terminal_servers(attrs),
          {:ok, ref, metadata} <- region.provisioner.provision(account, region, server_stub(attrs)) do
       attrs = Map.merge(attrs, %{provisioner_node_ref: ref, provisioner_metadata: metadata})
       insert_server_and_enqueue(attrs, region)
@@ -161,7 +175,7 @@ defmodule Tuist.Kura do
   end
 
   defp normalize_attrs(attrs) do
-    Enum.into(attrs, %{}, fn
+    Map.new(attrs, fn
       {key, value} when is_atom(key) -> {key, value}
       {key, value} -> {String.to_existing_atom(key), value}
     end)
@@ -178,9 +192,15 @@ defmodule Tuist.Kura do
   end
 
   defp fetch_region(region_id) do
-    case Regions.get(region_id) do
-      nil -> {:error, %Ecto.Changeset{errors: [region: {"is not a registered region", []}]}}
-      region -> {:ok, region}
+    cond do
+      region = Regions.available_region(region_id) ->
+        {:ok, region}
+
+      Regions.exists?(region_id) ->
+        {:error, %Ecto.Changeset{errors: [region: {"is not available in this environment", []}]}}
+
+      true ->
+        {:error, %Ecto.Changeset{errors: [region: {"is not a registered region", []}]}}
     end
   end
 
@@ -200,10 +220,9 @@ defmodule Tuist.Kura do
   # them so a retry from /ops Just Works.
   defp recycle_terminal_servers(%{account_id: account_id, region: region})
        when not is_nil(account_id) and is_binary(region) do
-    from(s in KuraServer,
-      where: s.account_id == ^account_id and s.region == ^region and s.status == :failed
+    Repo.delete_all(
+      from(s in KuraServer, where: s.account_id == ^account_id and s.region == ^region and s.status == :failed)
     )
-    |> Repo.delete_all()
   end
 
   defp recycle_terminal_servers(_), do: :ok
@@ -293,11 +312,7 @@ defmodule Tuist.Kura do
   defp remove_cache_endpoint(%KuraServer{url: nil}), do: :ok
 
   defp remove_cache_endpoint(%KuraServer{account_id: account_id, url: url}) do
-    from(e in AccountCacheEndpoint,
-      where: e.account_id == ^account_id and e.url == ^url
-    )
-    |> Repo.delete_all()
-
+    Repo.delete_all(from(e in AccountCacheEndpoint, where: e.account_id == ^account_id and e.url == ^url))
     :ok
   end
 
@@ -372,7 +387,7 @@ defmodule Tuist.Kura do
     deployment |> KuraDeployment.status_changeset(attrs) |> Repo.update()
   end
 
-  defp now_truncated, do: DateTime.utc_now() |> DateTime.truncate(:second)
+  defp now_truncated, do: DateTime.truncate(DateTime.utc_now(), :second)
 
   ## Logs (ClickHouse)
 

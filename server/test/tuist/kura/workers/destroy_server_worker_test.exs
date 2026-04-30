@@ -22,7 +22,7 @@ defmodule Tuist.Kura.Workers.DestroyServerWorkerTest do
     {:ok, server} =
       Kura.create_server(%{
         account_id: account.id,
-        region: "eu",
+        region: "local",
         spec: :small,
         image_tag: "0.5.2"
       })
@@ -32,9 +32,10 @@ defmodule Tuist.Kura.Workers.DestroyServerWorkerTest do
 
   describe "perform/1" do
     test "marks the row destroyed and stops on a missing server" do
-      log = capture_log(fn ->
-        :ok = perform_for("00000000-0000-0000-0000-000000000000")
-      end)
+      log =
+        capture_log(fn ->
+          :ok = perform_for("00000000-0000-0000-0000-000000000000")
+        end)
 
       assert log =~ "server 00000000-0000-0000-0000-000000000000 not found"
     end
