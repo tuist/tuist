@@ -1,6 +1,17 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.191.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* re-embed test target frameworks not embedded in host by [@pepicrft](https://github.com/pepicrft) in [#10504](https://github.com/tuist/tuist/pull/10504)
+* make shared cache and state writes safe across concurrent processes by [@pepicrft](https://github.com/pepicrft) in [#10562](https://github.com/tuist/tuist/pull/10562)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.191.1...4.191.2
+
 ## What's Changed in 4.191.1<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
