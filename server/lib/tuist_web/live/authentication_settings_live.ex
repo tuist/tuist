@@ -169,7 +169,7 @@ defmodule TuistWeb.AuthenticationSettingsLive do
   def handle_event("scim_modal_open_change", _params, socket), do: {:noreply, socket}
 
   def handle_event("revoke_scim_token", %{"id" => id}, socket) do
-    case SCIM.revoke_token(id) do
+    case SCIM.revoke_token(socket.assigns.organization, id) do
       {:ok, _} ->
         {:noreply, assign(socket, :scim_tokens, SCIM.list_tokens(socket.assigns.organization))}
 

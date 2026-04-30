@@ -21,7 +21,9 @@ defmodule Tuist.SCIM do
   alias Tuist.Accounts
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.Organization
+  alias Tuist.Accounts.Role
   alias Tuist.Accounts.User
+  alias Tuist.Accounts.UserRole
   alias Tuist.Base64
   alias Tuist.Environment
   alias Tuist.Repo
@@ -58,10 +60,12 @@ defmodule Tuist.SCIM do
 
   def revoke_token(%SCIMToken{} = token), do: Repo.delete(token)
 
-  def revoke_token(token_id) when is_binary(token_id) do
-    case Repo.get(SCIMToken, token_id) do
-      nil -> {:error, :not_found}
-      token -> Repo.delete(token)
+  def revoke_token(%Organization{id: organization_id}, token_id) when is_binary(token_id) do
+    with {:ok, _} <- UUIDv7.cast(token_id),
+         %SCIMToken{} = token <- Repo.get_by(SCIMToken, id: token_id, organization_id: organization_id) do
+      Repo.delete(token)
+    else
+      _ -> {:error, :not_found}
     end
   end
 
@@ -147,9 +151,15 @@ defmodule Tuist.SCIM do
   end
 
   def get_user(%Organization{} = organization, user_id) do
-    case Repo.one(from u in members_query(organization), where: u.id == ^user_id, preload: [:account]) do
-      nil -> {:error, :not_found}
-      user -> {:ok, user}
+    case normalize_user_id(user_id) do
+      {:ok, user_id} ->
+        case Repo.one(from u in members_query(organization), where: u.id == ^user_id, preload: [:account]) do
+          nil -> {:error, :not_found}
+          user -> {:ok, user}
+        end
+
+      :error ->
+        {:error, :not_found}
     end
   end
 
@@ -216,8 +226,11 @@ defmodule Tuist.SCIM do
     end
   end
 
-  defp apply_attrs(%User{} = user, organization, %{active: false}) do
-    deactivate_user(organization, user.id)
+  defp apply_attrs(%User{} = user, organization, %{active: false} = attrs) do
+    with {:ok, updated_user} <- apply_attrs(user, organization, Map.delete(attrs, :active)),
+         :ok <- remove_user_role_from_organization(updated_user, organization) do
+      set_active(updated_user, false)
+    end
   end
 
   defp apply_attrs(%User{} = user, organization, attrs) do
@@ -350,12 +363,8 @@ defmodule Tuist.SCIM do
   """
   def deactivate_user(%Organization{} = organization, user_id) do
     with {:ok, user} <- get_user(organization, user_id) do
-      :ok = Accounts.remove_user_from_organization(user, organization)
-
-      case Repo.get(User, user.id) do
-        nil -> {:ok, %{user | active: false}}
-        live -> set_active(live, false)
-      end
+      :ok = remove_user_role_from_organization(user, organization)
+      set_active(user, false)
     end
   end
 
@@ -363,6 +372,34 @@ defmodule Tuist.SCIM do
 
   defp set_active(%User{} = user, active) do
     user |> User.active_changeset(active) |> Repo.update()
+  end
+
+  defp remove_user_role_from_organization(%User{id: user_id}, %Organization{id: organization_id}) do
+    case organization_role_membership(user_id, organization_id) do
+      nil ->
+        :ok
+
+      %{user_role: user_role, role: role} ->
+        {:ok, _} =
+          Multi.new()
+          |> Multi.delete(:user_role, user_role)
+          |> Multi.delete(:role, role)
+          |> Repo.transaction()
+
+        :ok
+    end
+  end
+
+  defp organization_role_membership(user_id, organization_id) do
+    Repo.one(
+      from ur in UserRole,
+        join: r in Role,
+        on: ur.role_id == r.id,
+        where:
+          ur.user_id == ^user_id and r.resource_type == "Organization" and
+            r.resource_id == ^organization_id,
+        select: %{user_role: ur, role: r}
+    )
   end
 
   ## Groups
@@ -477,8 +514,19 @@ defmodule Tuist.SCIM do
 
   defp remove_member(organization, user_id) do
     case Accounts.get_user_by_id(user_id) do
-      %User{} = user -> Accounts.remove_user_from_organization(user, organization)
+      %User{} = user -> remove_user_role_from_organization(user, organization)
       _ -> :ok
     end
   end
+
+  defp normalize_user_id(user_id) when is_integer(user_id), do: {:ok, user_id}
+
+  defp normalize_user_id(user_id) when is_binary(user_id) do
+    case Integer.parse(user_id) do
+      {id, ""} -> {:ok, id}
+      _ -> :error
+    end
+  end
+
+  defp normalize_user_id(_), do: :error
 end

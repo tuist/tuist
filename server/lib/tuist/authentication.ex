@@ -3,6 +3,7 @@ defmodule Tuist.Authentication do
   A module to deal with authentication in the system.
   """
   alias Tuist.Accounts
+  alias Tuist.Accounts.Account
   alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Accounts.User
   alias Tuist.Projects
@@ -10,7 +11,7 @@ defmodule Tuist.Authentication do
   def authenticated_subject(token) do
     case Tuist.Guardian.resource_from_token(token) do
       {:ok, %AuthenticatedAccount{} = resource, _opts} ->
-        resource
+        reject_if_inactive_account_user(resource)
 
       {:ok, resource, _opts} ->
         resource |> Tuist.Repo.preload(:account) |> reject_if_inactive_user()
@@ -28,6 +29,15 @@ defmodule Tuist.Authentication do
 
   defp reject_if_inactive_user(%User{active: false}), do: nil
   defp reject_if_inactive_user(other), do: other
+
+  defp reject_if_inactive_account_user(%AuthenticatedAccount{account: %Account{} = account} = resource) do
+    case Tuist.Repo.preload(account, :user) do
+      %Account{user: %User{active: false}} -> nil
+      account -> %{resource | account: account}
+    end
+  end
+
+  defp reject_if_inactive_account_user(resource), do: resource
 
   defp account_or_project_token(token) do
     project_token = Projects.get_project_by_full_token(token)

@@ -79,7 +79,7 @@ SSO and SCIM are configured as two separate Okta applications:
 16. Click **Save**.
 17. Open the **Assignments** tab and assign the users or groups that should be provisioned into Tuist.
 
-When Okta assigns a user to the SCIM app, Tuist creates or reuses the user by email and adds them to the organization. When Okta unassigns or deactivates the user, Tuist removes their organization membership. Assign the same users or groups to the OIDC application if they should also be able to sign in with SSO.
+When Okta assigns a user to the SCIM app, Tuist creates or reuses the user by email and adds them to the organization. The SCIM app is authoritative for the users assigned to it, so only assign users or groups whose email identities your Okta tenant is allowed to manage. When Okta unassigns or deactivates the user, Tuist removes their organization role and marks the user inactive while preserving the user record and any work they own. Assign the same users or groups to the OIDC application if they should also be able to sign in with SSO.
 
 ### Supported SCIM features {#okta-supported-scim-features}
 

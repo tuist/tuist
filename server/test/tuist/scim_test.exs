@@ -107,9 +107,37 @@ defmodule Tuist.SCIMTest do
       refute Accounts.belongs_to_organization?(user, org)
     end
 
+    test "deactivate_user/2 preserves SSO-linked users while removing their explicit role" do
+      org =
+        organization_fixture(
+          sso_provider: :google,
+          sso_organization_id: "sso-deactivate-#{System.unique_integer([:positive])}.com"
+        )
+
+      {:ok, user} = SCIM.provision_user(org, %{user_name: "sso-deactivate@example.com"})
+
+      {:ok, _oauth_identity} =
+        Accounts.link_oauth_identity_to_user(user, %{
+          provider: :google,
+          id_in_provider: "google-#{System.unique_integer([:positive])}",
+          provider_organization_id: org.sso_organization_id
+        })
+
+      assert Accounts.belongs_to_sso_organization?(user, org)
+
+      assert {:ok, deactivated} = SCIM.deactivate_user(org, user.id)
+      assert deactivated.active == false
+      assert Accounts.get_user_by_id(user.id)
+      assert Accounts.get_user_role_in_organization(user, org) == nil
+    end
+
     test "get_user/2 returns not_found for a non-member", %{organization: org} do
       stranger = user_fixture()
       assert {:error, :not_found} = SCIM.get_user(org, stranger.id)
+    end
+
+    test "get_user/2 returns not_found for a non-integer id", %{organization: org} do
+      assert {:error, :not_found} = SCIM.get_user(org, "not-an-id")
     end
   end
 

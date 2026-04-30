@@ -261,5 +261,17 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
       refute html =~ "to-revoke"
       assert SCIM.list_tokens(org) == []
     end
+
+    test "does not revoke a token from another organization", %{conn: conn, account: account} do
+      other_org = AccountsFixtures.organization_fixture()
+      {:ok, {other_token, _plaintext}} = SCIM.create_token(other_org, %{name: "other-org-token"})
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/authentication")
+
+      html = render_hook(lv, "revoke_scim_token", %{"id" => other_token.id})
+      assert html =~ "Token not found."
+      assert [%{id: token_id}] = SCIM.list_tokens(other_org)
+      assert token_id == other_token.id
+    end
   end
 end
