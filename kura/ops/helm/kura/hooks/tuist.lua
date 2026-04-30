@@ -6,22 +6,21 @@
 --
 -- Three jobs, mirroring what the Tuist server does for `/api/cache/*`:
 --
---   1. authenticate — extract the bearer token from the Authorization
---      header and ask the Tuist server to resolve it to a principal
---      (HTTP callback). All four token shapes the server accepts
---      (Guardian JWTs, legacy user tokens, project tokens, account
---      tokens) work without Kura needing to know how any of them are
---      laid out. Kura's built-in allow/deny TTL caches absorb the
---      callback cost — a hot bearer token costs one roundtrip, then
---      hits cache.
+--   1. authenticate — forward the caller's Authorization header to
+--      the Tuist server's `/api/projects` endpoint. All four token
+--      shapes the server accepts (Guardian JWTs, legacy user tokens,
+--      project tokens, account tokens) work without Kura needing to
+--      know how any of them are laid out. Kura's built-in allow/deny
+--      TTL caches absorb the callback cost — a hot bearer token costs
+--      one roundtrip, then hits cache.
 --
---   2. authorize — the principal returned by the server includes the
---      list of account handles it has cache permission on. We resolve
---      the request's target tenant from (in order) `ctx.tenant_id`,
---      `ctx.query.account_handle`, or `ctx.query.tenant_id` — the
---      legacy Tuist CLI and Gradle plugin still send `account_handle`
---      / `project_handle` rather than the generic `tenant_id`, and
---      we accept both shapes until those clients migrate.
+--   2. authorize — the principal carries the list of project handles
+--      it can access. We resolve the request's target project from (in
+--      order) `ctx.tenant_id` + `ctx.namespace_id`,
+--      `ctx.query.account_handle` + `ctx.query.project_handle`, or
+--      `ctx.query.tenant_id` + `ctx.query.namespace_id`, and require
+--      the requested tenant to match `ctx.server_tenant_id` so one
+--      account's Kura mesh cannot serve another account's namespace.
 --
 --   3. response_headers — for module-cache GETs we sign `ctx.query.hash`
 --      with the same license signing key the central Tuist server
@@ -32,26 +31,35 @@
 --   * KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL  → https://tuist.dev (or staging)
 --   * KURA_EXTENSION_SIGNER_TUIST_ALGORITHM      → hmac-sha256
 --   * KURA_EXTENSION_SIGNER_TUIST_SECRET         → license signing key (raw bytes, base64-encoded)
---
--- The verify endpoint is gated by a shared bearer secret. Kura's
--- HTTP-client config doesn't support static headers per client, so the
--- rollout worker prepends a Lua constant `tuist_verify_authorization`
--- (set to `"Bearer <shared-secret>"`) to this script at render time.
--- We default it to the empty string here so a static lint of this file
--- is happy on its own.
-tuist_verify_authorization = tuist_verify_authorization or ""
 
-local function bearer(headers)
+local function authorization_header(headers)
   local authorization = headers.authorization or headers.Authorization
   if authorization == nil or authorization == "" then
     return nil
   end
-  return string.gsub(authorization, "^Bearer%s+", "")
+  return authorization
+end
+
+local function project_handles(body)
+  local projects = {}
+
+  if body == nil or body.projects == nil then
+    return projects
+  end
+
+  for _, project in ipairs(body.projects) do
+    local full_name = project.full_name
+    if full_name ~= nil and full_name ~= "" then
+      table.insert(projects, string.lower(full_name))
+    end
+  end
+
+  return projects
 end
 
 function authenticate(ctx)
-  local token = bearer(ctx.headers)
-  if token == nil or token == "" then
+  local authorization = authorization_header(ctx.headers)
+  if authorization == nil then
     return {
       deny = { status = 401, message = "Missing Authorization header" },
       ttl_seconds = 3,
@@ -59,22 +67,21 @@ function authenticate(ctx)
   end
 
   local response = kura.http_json("tuist", {
-    method = "POST",
-    path = "/api/internal/auth/verify",
+    method = "GET",
+    path = "/api/projects",
     headers = {
-      ["content-type"] = "application/json",
-      ["authorization"] = tuist_verify_authorization,
+      ["authorization"] = authorization,
     },
-    body = { token = token },
   })
 
-  if response.status == 200 and response.body and response.body.principal then
-    local principal = response.body.principal
+  if response.status == 200 and response.body and response.body.projects then
     return {
       principal = {
-        id = principal.id,
-        kind = principal.kind,
-        attributes = principal,
+        id = "tuist",
+        kind = "subject",
+        attributes = {
+          projects = project_handles(response.body),
+        },
       },
       ttl_seconds = 60,
     }
@@ -98,25 +105,53 @@ function authenticate(ctx)
 end
 
 local function request_tenant(ctx)
-  -- Generic Kura field — the new shape clients will send.
-  if ctx.tenant_id ~= nil and ctx.tenant_id ~= "" then
-    return ctx.tenant_id
+  local tenant = ctx.tenant_id
+
+  if ctx.query ~= nil then
+    if (tenant == nil or tenant == "") and ctx.query.account_handle ~= nil and ctx.query.account_handle ~= "" then
+      tenant = ctx.query.account_handle
+    end
+    if (tenant == nil or tenant == "") and ctx.query.tenant_id ~= nil and ctx.query.tenant_id ~= "" then
+      tenant = ctx.query.tenant_id
+    end
+
   end
 
-  -- Legacy Tuist clients (CLI, Gradle plugin) still send `account_handle`
-  -- on cache routes. The project_handle param identifies the project
-  -- inside the account, but the access check is account-scoped, so we
-  -- only need the account handle here.
-  if ctx.query ~= nil then
-    if ctx.query.account_handle ~= nil and ctx.query.account_handle ~= "" then
-      return ctx.query.account_handle
-    end
-    if ctx.query.tenant_id ~= nil and ctx.query.tenant_id ~= "" then
-      return ctx.query.tenant_id
-    end
+  if tenant ~= nil and tenant ~= "" then
+    return string.lower(tenant)
   end
 
   return nil
+end
+
+local function request_namespace(ctx)
+  local namespace = ctx.namespace_id
+
+  if ctx.query ~= nil then
+    if (namespace == nil or namespace == "") and ctx.query.project_handle ~= nil and ctx.query.project_handle ~= "" then
+      namespace = ctx.query.project_handle
+    end
+    if (namespace == nil or namespace == "") and ctx.query.namespace_id ~= nil and ctx.query.namespace_id ~= "" then
+      namespace = ctx.query.namespace_id
+    end
+  end
+
+  if namespace ~= nil and namespace ~= "" then
+    return string.lower(namespace)
+  end
+
+  return nil
+end
+
+local function request_project(ctx)
+  local tenant = request_tenant(ctx)
+  local namespace = request_namespace(ctx)
+
+  if tenant ~= nil and namespace ~= nil then
+    return tenant, namespace, tenant .. "/" .. namespace
+  end
+
+  return tenant, namespace, nil
 end
 
 function authorize(ctx, principal)
@@ -127,17 +162,36 @@ function authorize(ctx, principal)
     }
   end
 
-  local tenant = request_tenant(ctx)
-  if tenant == nil then
+  local tenant, _, project = request_project(ctx)
+  if project == nil then
     return {
-      deny = { status = 403, message = "Missing tenant_id or account_handle on request" },
+      deny = { status = 403, message = "Missing tenant_id/account_handle or namespace_id/project_handle on request" },
       ttl_seconds = 3,
     }
   end
 
-  local handles = principal.attributes and principal.attributes.account_handles or {}
-  for _, handle in ipairs(handles) do
-    if handle == tenant then
+  local server_tenant = ctx.server_tenant_id
+  if server_tenant == nil or server_tenant == "" then
+    return {
+      deny = { status = 503, message = "Server tenant is unavailable" },
+      ttl_seconds = 3,
+    }
+  end
+
+  server_tenant = string.lower(server_tenant)
+  if tenant ~= server_tenant then
+    return {
+      deny = {
+        status = 403,
+        message = "Forbidden: tenant '" .. tenant .. "' is routed to server for '" .. server_tenant .. "'",
+      },
+      ttl_seconds = 3,
+    }
+  end
+
+  local projects = principal.attributes and principal.attributes.projects or {}
+  for _, candidate in ipairs(projects) do
+    if candidate == project then
       return { allow = true, ttl_seconds = 60 }
     end
   end
@@ -145,7 +199,7 @@ function authorize(ctx, principal)
   return {
     deny = {
       status = 403,
-      message = "Forbidden: tenant '" .. tenant .. "' is not granted to this principal",
+      message = "Forbidden: project '" .. project .. "' is not granted to this principal",
     },
     ttl_seconds = 3,
   }

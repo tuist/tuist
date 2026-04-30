@@ -479,6 +479,7 @@ async fn extension_context_from_http(
         route: route.to_owned(),
         method: method.to_owned(),
         operation: metadata.operation,
+        server_tenant_id: state.config.tenant_id.clone(),
         tenant_id: metadata.tenant_id,
         namespace_id: metadata.namespace_id,
         producer: metadata.producer,
