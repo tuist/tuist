@@ -5,12 +5,12 @@ on:
     branches: [main]
     paths:
       - infra/cluster-api-provider-scaleway-applesilicon/**
-      - infra/tart-cri/**
+      - infra/tart-kubelet/**
       - .github/workflows/capi-provider-scaleway-applesilicon-image.yml
   pull_request:
     paths:
       - infra/cluster-api-provider-scaleway-applesilicon/**
-      - infra/tart-cri/**
+      - infra/tart-kubelet/**
       - .github/workflows/capi-provider-scaleway-applesilicon-image.yml
   workflow_dispatch: {}
 
@@ -37,12 +37,24 @@ jobs:
       - name: Vet (provider)
         working-directory: infra/cluster-api-provider-scaleway-applesilicon
         run: go vet ./...
-      - name: Test (tart-cri)
-        working-directory: infra/tart-cri
+
+  test-tart-kubelet:
+    runs-on: namespace-profile-default
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: infra/tart-kubelet/go.mod
+          cache-dependency-path: infra/tart-kubelet/go.sum
+      - name: Test (tart-kubelet)
+        working-directory: infra/tart-kubelet
         run: go test ./...
+      - name: Vet (tart-kubelet)
+        working-directory: infra/tart-kubelet
+        run: go vet ./...
 
   build:
-    needs: test
+    needs: [test, test-tart-kubelet]
     if: github.event_name != 'pull_request'
     runs-on: namespace-profile-default
     steps:
