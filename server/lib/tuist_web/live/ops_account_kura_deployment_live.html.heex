@@ -10,28 +10,45 @@
 
   <.card title="Status" icon="info_circle">
     <.card_section>
-      <dl>
-        <dt>Status</dt>
-        <dd>{deployment_status_label(@deployment.status)}</dd>
-        <dt>Started</dt>
-        <dd>{(@deployment.started_at && Calendar.strftime(@deployment.started_at, "%Y-%m-%d %H:%M:%S UTC")) || "—"}</dd>
-        <dt>Finished</dt>
-        <dd>{(@deployment.finished_at && Calendar.strftime(@deployment.finished_at, "%Y-%m-%d %H:%M:%S UTC")) || "—"}</dd>
-        <%= if @deployment.error_message do %>
-          <dt>Error</dt>
-          <dd><pre>{@deployment.error_message}</pre></dd>
-        <% end %>
-      </dl>
+      <div data-part="metadata-grid">
+        <div data-part="metadata-row">
+          <div data-part="metadata">
+            <div data-part="title">Status</div>
+            <span data-part="label">
+              <.badge
+                label={deployment_status_label(@deployment.status)}
+                color={deployment_status_color(@deployment.status)}
+                size="small"
+                style="light-fill"
+              />
+            </span>
+          </div>
+          <div data-part="metadata">
+            <div data-part="title">Started</div>
+            <span data-part="label">{format_time(@deployment.started_at)}</span>
+          </div>
+          <div data-part="metadata">
+            <div data-part="title">Finished</div>
+            <span data-part="label">{format_time(@deployment.finished_at)}</span>
+          </div>
+        </div>
+      </div>
+    </.card_section>
+
+    <.card_section :if={@deployment.error_message}>
+      <div data-part="metadata">
+        <div data-part="title">Error</div>
+        <span data-part="label">{@deployment.error_message}</span>
+      </div>
     </.card_section>
   </.card>
 
   <.card title="Logs" icon="message_circle">
     <.card_section>
       <%= if @log_lines == [] do %>
-        <p>No log output yet. Polling every two seconds while the deployment is pending or running.</p>
+        <p data-part="empty-logs">{empty_logs_message(@deployment.status)}</p>
       <% else %>
-        <pre id="kura-log-tail" phx-update="ignore" style="max-height: 60vh; overflow: auto;"><%= for line <- @log_lines do %><%= line.line %>
-<% end %></pre>
+        <div id="kura-log-tail" phx-update="ignore" data-part="terminal"><%= for line <- @log_lines do %><div data-part="line">{line.line}</div><% end %></div>
       <% end %>
     </.card_section>
   </.card>

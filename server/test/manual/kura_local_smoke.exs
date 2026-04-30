@@ -14,7 +14,7 @@
 # The script:
 #   1. Spins up a fresh user/account (named kura-e2e-<timestamp>).
 #   2. Records a Kura version row.
-#   3. Inserts a deployment for (account, local-1, that version).
+#   3. Inserts a deployment for (account, local, that version).
 #   4. Confirms the Oban job sits in the DB.
 #   5. Runs `Tuist.Kura.Workers.RolloutWorker.perform/1` inline so you
 #      see the helm/kubectl output go through the worker, the namespace
@@ -88,7 +88,7 @@ IO.puts("→ recorded version 0.1.0")
 {:ok, %KuraServer{} = server} =
   Kura.create_server(%{
     account_id: account.id,
-    cluster_id: "local-1",
+    region: "local",
     spec: :small,
     image_tag: "0.3.0",
     requested_by_user_id: user.id

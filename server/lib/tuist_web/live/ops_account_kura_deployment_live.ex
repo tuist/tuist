@@ -89,4 +89,28 @@ defmodule TuistWeb.OpsAccountKuraDeploymentLive do
   def deployment_status_label(:succeeded), do: "Succeeded"
   def deployment_status_label(:failed), do: "Failed"
   def deployment_status_label(:cancelled), do: "Cancelled"
+
+  def deployment_status_color(:pending), do: "neutral"
+  def deployment_status_color(:running), do: "information"
+  def deployment_status_color(:succeeded), do: "success"
+  def deployment_status_color(:failed), do: "destructive"
+  def deployment_status_color(:cancelled), do: "warning"
+
+  def format_time(nil), do: "—"
+  def format_time(%DateTime{} = dt), do: Calendar.strftime(dt, "%Y-%m-%d %H:%M:%S UTC")
+
+  def empty_logs_message(status) when status in [:pending, :running],
+    do: "No log output yet. Polling every two seconds while the deployment is pending or running."
+
+  def empty_logs_message(:succeeded),
+    do: "The deployment finished without producing any captured log output."
+
+  def empty_logs_message(:failed),
+    do:
+      "The deployment failed before producing any captured log output. See the error message above for details."
+
+  def empty_logs_message(:cancelled),
+    do: "The deployment was cancelled before producing any log output."
+
+  def empty_logs_message(_), do: "No log output captured."
 end
