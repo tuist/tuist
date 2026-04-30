@@ -26,7 +26,7 @@ import "./app.css";
 import ThemeSwitcher, { ThemeToggle, observeThemeChanges } from "./js/ThemeSwitcher.js";
 import ImageFallback from "./js/ImageFallback.js";
 import DeeplinkValidation from "./js/DeeplinkValidation.js";
-import Clipboard from "./js/Clipboard.js";
+import Clipboard, { setupClipboard } from "./js/Clipboard.js";
 import BundleSizeSunburstChartLegend from "./js/BundleSizeSunburstChartLegend.js";
 import VideoPlayer from "./js/VideoPlayer.js";
 import TimelineSeek from "./js/TimelineSeek.js";
@@ -36,7 +36,6 @@ import StopPropagationOnDrag from "./js/StopPropagationOnDrag.js";
 import SelectSlackChannelPopup from "./js/SelectSlackChannelPopup.js";
 import PublicProjectCTABanner from "./js/PublicProjectCTABanner.js";
 import TextAttachmentContent from "./js/hooks/TextAttachmentContent.js";
-import { copyTextToClipboard } from "../shared/js/clipboard.js";
 import { setupQueryMemory } from "./js/QueryMemory.js";
 import { getUserLocale } from "./js/UserLocale.js";
 import { getUserTimezone } from "./js/UserTimezone.js";
@@ -85,28 +84,7 @@ window.addEventListener("phx:page-loading-stop", (_info) => topbar.hide());
 liveSocket.connect();
 
 setupQueryMemory();
-
-document.addEventListener("click", (event) => {
-  const trigger =
-    event.target instanceof Element ? event.target.closest("[data-clipboard-value]") : null;
-
-  if (!(trigger instanceof HTMLElement)) {
-    return;
-  }
-
-  const value = trigger.dataset.clipboardValue;
-  if (!value) {
-    return;
-  }
-
-  event.preventDefault();
-
-  copyTextToClipboard(value, {
-    container: trigger.closest("[role='dialog']"),
-  }).catch((error) => {
-    console.warn("Failed to copy text to clipboard", error);
-  });
-}, true);
+setupClipboard();
 
 // Analytics
 window.addEventListener("phx:navigate", (info) => {
