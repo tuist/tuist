@@ -29,8 +29,7 @@ public func parseXCResult(
                 semaphore.signal()
                 return
             }
-            let quarantinedTests = readQuarantinedTests(at: xcresultPath)
-            result = .success(parsed.applyingQuarantine(quarantinedTests))
+            result = .success(parsed)
         } catch {
             result = .failure(error)
         }
@@ -62,14 +61,6 @@ public func parseXCResult(
     case let .failure(error):
         return writeError(error, outputPtr: outputPtr, outputLen: outputLen)
     }
-}
-
-private func readQuarantinedTests(at xcresultPath: AbsolutePath) -> [QuarantinedTestIdentifier] {
-    let url = URL(fileURLWithPath: xcresultPath.appending(component: "quarantined_tests.json").pathString)
-    guard let data = try? Data(contentsOf: url),
-          let entries = try? JSONDecoder().decode([QuarantinedTestIdentifier].self, from: data)
-    else { return [] }
-    return entries
 }
 
 private func writeError(

@@ -26,7 +26,31 @@ struct TestQuarantineService: TestQuarantineServicing {
         quarantinedTests: [TestIdentifier]
     ) -> TestSummary {
         guard !quarantinedTests.isEmpty else { return testSummary }
-        return testSummary.applyingQuarantine(quarantinedTests.map(\.quarantineIdentifier))
+        var result = testSummary
+        result.testModules = result.testModules.map { module in
+            var module = module
+            module.testCases = module.testCases.map { testCase in
+                var testCase = testCase
+                testCase.isQuarantined = quarantinedTests.contains { matches(testCase: testCase, quarantined: $0) }
+                return testCase
+            }
+            return module
+        }
+        if result.status == .failed, onlyQuarantinedTestsFailed(testSummary: result) {
+            result.status = .passed
+        }
+        return result
+    }
+
+    private func matches(testCase: TestCase, quarantined: TestIdentifier) -> Bool {
+        guard testCase.module == quarantined.target else { return false }
+        if let quarantinedClass = quarantined.class, testCase.testSuite != quarantinedClass {
+            return false
+        }
+        if let quarantinedMethod = quarantined.method, testCase.name != quarantinedMethod {
+            return false
+        }
+        return true
     }
 
     func onlyQuarantinedTestsFailed(
@@ -44,24 +68,19 @@ struct TestQuarantineService: TestQuarantineServicing {
         guard !quarantinedTests.isEmpty else { return false }
         let failedTests = testStatuses.testCases.filter { $0.status == .failed }
         guard !failedTests.isEmpty else { return false }
-        let identifiers = quarantinedTests.map(\.quarantineIdentifier)
         return failedTests.allSatisfy { testCase in
-            identifiers.contains { $0.matches(testCaseStatus: testCase) }
+            quarantinedTests.contains { matches(testCaseStatus: testCase, quarantined: $0) }
         }
     }
-}
 
-extension TestIdentifier {
-    fileprivate var quarantineIdentifier: QuarantinedTestIdentifier {
-        QuarantinedTestIdentifier(target: target, class: `class`, method: method)
-    }
-}
-
-extension QuarantinedTestIdentifier {
-    fileprivate func matches(testCaseStatus: TestResultStatuses.TestCaseStatus) -> Bool {
-        guard testCaseStatus.module == target else { return false }
-        if let `class`, testCaseStatus.testSuite != `class` { return false }
-        if let method, testCaseStatus.name != method { return false }
+    private func matches(testCaseStatus: TestResultStatuses.TestCaseStatus, quarantined: TestIdentifier) -> Bool {
+        guard testCaseStatus.module == quarantined.target else { return false }
+        if let quarantinedClass = quarantined.class, testCaseStatus.testSuite != quarantinedClass {
+            return false
+        }
+        if let quarantinedMethod = quarantined.method, testCaseStatus.name != quarantinedMethod {
+            return false
+        }
         return true
     }
 }
