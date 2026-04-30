@@ -29,7 +29,7 @@ public func parseXCResult(
                 semaphore.signal()
                 return
             }
-            result = .success(applyQuarantine(to: parsed, at: xcresultPath))
+            result = .success(parsed)
         } catch {
             result = .failure(error)
         }
@@ -61,53 +61,6 @@ public func parseXCResult(
     case let .failure(error):
         return writeError(error, outputPtr: outputPtr, outputLen: outputLen)
     }
-}
-
-private struct QuarantineEntry: Decodable {
-    let target: String
-    let `class`: String?
-    let method: String?
-
-    func matches(_ testCase: TestCase) -> Bool {
-        guard testCase.module == target else { return false }
-        if let `class`, testCase.testSuite != `class` { return false }
-        if let method, testCase.name != method { return false }
-        return true
-    }
-}
-
-/// Reads `quarantined_tests.json` from inside the xcresult bundle (written
-/// by the CLI before upload), flags matching cases as quarantined, and —
-/// matching the local CLI's exit-code policy — demotes the run-level status
-/// from `.failed` to `.passed` when every failing case is quarantined.
-/// Individual test cases keep their raw `.failed` status so flakiness
-/// signal stays intact.
-func applyQuarantine(to summary: TestSummary, at xcresultPath: AbsolutePath) -> TestSummary {
-    let url = URL(fileURLWithPath: xcresultPath.appending(component: "quarantined_tests.json").pathString)
-    guard let data = try? Data(contentsOf: url),
-          let entries = try? JSONDecoder().decode([QuarantineEntry].self, from: data),
-          !entries.isEmpty
-    else {
-        return summary
-    }
-
-    var summary = summary
-    summary.testModules = summary.testModules.map { module in
-        var module = module
-        module.testCases = module.testCases.map { testCase in
-            var testCase = testCase
-            testCase.isQuarantined = entries.contains { $0.matches(testCase) }
-            return testCase
-        }
-        return module
-    }
-
-    let failingCases = summary.testModules.flatMap(\.testCases).filter { $0.status == .failed }
-    if !failingCases.isEmpty, failingCases.allSatisfy(\.isQuarantined) {
-        summary.status = .passed
-    }
-
-    return summary
 }
 
 private func writeError(
