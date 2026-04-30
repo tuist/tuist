@@ -91,6 +91,7 @@ struct BuildPhaseGenerator: BuildPhaseGenerating {
         let directSwiftMacroExecutables = graphTraverser.directSwiftMacroExecutables(path: path, name: target.name).sorted()
         try generateCopySwiftMacroExecutableScriptBuildPhase(
             directSwiftMacroExecutables: directSwiftMacroExecutables,
+            target: target,
             pbxTarget: pbxTarget,
             pbxproj: pbxproj
         )
@@ -504,6 +505,7 @@ struct BuildPhaseGenerator: BuildPhaseGenerating {
 
     private func generateCopySwiftMacroExecutableScriptBuildPhase(
         directSwiftMacroExecutables: [GraphDependencyReference],
+        target: Target,
         pbxTarget: PBXTarget,
         pbxproj: PBXProj
     ) throws {
@@ -544,11 +546,20 @@ struct BuildPhaseGenerator: BuildPhaseGenerating {
             ]
         }
 
-        copySwiftMacrosBuildPhase.outputPaths = executableNames.flatMap { executable in
-            [
-                "$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/\(executable)",
-                "$BUILD_DIR/Debug-$EFFECTIVE_PLATFORM_NAME/\(executable)",
-            ]
+        if target.supports(.macOS) {
+            // Any consumer that supports macOS still needs the phase because the
+            // compiler/editor load plugin executables from `Debug...`, even when
+            // the active configuration is not Debug. Declared outputs would collide
+            // on native macOS builds where `$EFFECTIVE_PLATFORM_NAME` is empty, so
+            // omit them and always run the phase instead.
+            copySwiftMacrosBuildPhase.alwaysOutOfDate = true
+        } else {
+            copySwiftMacrosBuildPhase.outputPaths = executableNames.flatMap { executable in
+                [
+                    "$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/\(executable)",
+                    "$BUILD_DIR/Debug-$EFFECTIVE_PLATFORM_NAME/\(executable)",
+                ]
+            }
         }
 
         pbxproj.add(object: copySwiftMacrosBuildPhase)
