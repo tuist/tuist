@@ -21,7 +21,7 @@ This document is a one-time migration plan. The successor onboarding doc (replac
 
 **In scope:** the four Cluster CRs in [`infra/k8s/syself/`](syself/): `tuist-staging`, `tuist-canary`, `tuist`, `tuist-preview`. The `ClusterStack` CR in [`infra/k8s/syself/cluster-stack.yaml`](syself/cluster-stack.yaml).
 
-**Open question, settle before Phase 3 cutover:** the cache, xcode-processor, and search workflows reference separate `KUBECONFIG_*` secrets. Confirm whether their clusters are also Syself-managed. If yes, their Cluster CRs need to land in `org-tuist` on our new mgmt cluster too (or in their own namespace) and the `clusterctl move` in §3.2 must include them. If no, they stay where they are and we cancel Syself once the four primary clusters are off.
+**Out of scope (today):** the cache, xcode-processor, and search clusters are not on Syself today — their workflows hold separate `KUBECONFIG_*` secrets pointing at different infrastructure. They're planned to consolidate onto Syself-shaped Cluster API in the future; when they do, they'll land directly on our self-hosted management cluster (no Syself path needed) and join `org-tuist` alongside the four migrated here.
 
 ---
 
@@ -135,36 +135,35 @@ op document create ~/.kube/tuist-mgmt.yaml \
 
 ### 1.5 Initialize CAPI + caph + cluster-stack-operator
 
-`clusterctl init` bootstraps the providers directly into k3s.
+`clusterctl init` bootstraps the providers directly into k3s. Three pieces, three version pins.
 
-> **Pin clusterctl to the same CAPI minor version Syself runs.** Check Syself's mgmt cluster first:
-> ```bash
-> KUBECONFIG=~/.kube/tuist-syself-mgmt.yaml \
->   kubectl get pods -n capi-system -o jsonpath='{.items[0].spec.containers[0].image}'
-> ```
-> Match `clusterctl` to the same minor (`v1.6.x`, `v1.7.x`, …). Cross-version `clusterctl move` works via conversion webhooks but is one fewer thing to debug if versions match exactly.
+**Settle the version pins before running `clusterctl init`.** Syself's OIDC user can't read controller pods cluster-wide on the Syself management cluster (we're locked to `org-tuist`), so we can't introspect their exact versions. Two options:
+
+- **Option A (preferred): pin to current upstream stable.** Pick recent stable releases for CAPI / caph / CSO. clusterctl 1.13 is v1beta2-native and reads v1beta1 cleanly via conversion webhooks — the version skew with Syself is safe. Look up:
+  - CAPI: <https://github.com/kubernetes-sigs/cluster-api/releases>
+  - caph: <https://github.com/syself/cluster-api-provider-hetzner/releases>
+  - CSO: <https://github.com/SovereignCloudStack/cluster-stack-operator/releases>
+- **Option B (paranoid): match Syself's versions exactly.** Open a Syself support ticket and ask. They'll tell you. Worth doing only if the dry-run in §2.3 surfaces conversion-webhook errors.
+
+Then run:
 
 ```bash
 export KUBECONFIG=~/.kube/tuist-mgmt.yaml
 
-# caph version: pin to whatever Syself's mgmt cluster runs.
-# Inspect there first: kubectl -n caph-system get deploy caph-controller-manager -o yaml | grep image:
-export HETZNER_PROVIDER_VERSION=<match Syself>
+# Fill these in from the upstream release pages above.
+export CAPI_VERSION=v1.13.x       # cluster-api core, paired with clusterctl 1.13
+export CAPH_VERSION=v1.0.x        # cluster-api-provider-hetzner
+export CSO_VERSION=v0.1.0-alpha.x # cluster-stack-operator
 
-# clusterctl finds caph from upstream registries by default. Pin to match
-# Syself's version so move semantics + CR conversion are 1:1.
 clusterctl init \
-  --core "cluster-api:<match Syself>" \
-  --bootstrap "kubeadm:<match Syself>" \
-  --control-plane "kubeadm:<match Syself>" \
-  --infrastructure "hetzner:$HETZNER_PROVIDER_VERSION"
+  --core "cluster-api:$CAPI_VERSION" \
+  --bootstrap "kubeadm:$CAPI_VERSION" \
+  --control-plane "kubeadm:$CAPI_VERSION" \
+  --infrastructure "hetzner:$CAPH_VERSION"
 
-# cluster-stack-operator ships as a Helm chart (release assets on the SCS
-# repo). Match the version Syself runs:
-#   KUBECONFIG=~/.kube/tuist-syself-mgmt.yaml \
-#     kubectl get pods -n cso-system -o jsonpath='{.items[0].spec.containers[0].image}'
+# cluster-stack-operator ships as a Helm chart from the SCS OCI registry.
 helm install cso oci://registry.scs.community/cluster-stack-operator/cso \
-  --version <match Syself> \
+  --version "$CSO_VERSION" \
   -n cso-system --create-namespace
 
 # Verify everything is Running.
@@ -495,7 +494,6 @@ Steady state: ~1–2h/month of engineer time with agent execution, plus a half-d
 
 ## Open items
 
-- [ ] Confirm whether cache, xcode-processor, and search clusters are Syself-managed (folds them into the Phase 3 cutover or leaves them out of scope).
 - [ ] Decide firewall posture for the mgmt API server (allowlist vs. cert-pinning only).
 - [ ] Decide whether to rotate the shared `hetzner` API token during migration or as a follow-up hardening step.
 - [ ] Tigris bucket name + retention for etcd snapshots.
