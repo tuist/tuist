@@ -53,19 +53,24 @@ jobs:
           install_args: "erlang elixir"
           working_directory: server
 
-      # 1. Build the macOS Erlang release. Includes the xcresult NIF
-      # (built via server/native/xcresult_nif/build.sh as a Mix release
-      # step) and the macOS-only priv/native/xcresult_nif.so.
+      # 1. Build the macOS Erlang release. Includes both the xcresult NIF
+      # (used by xcresult-processor mode) and the xcactivitylog NIF
+      # (used by build-processor mode). Both are macOS-only and both
+      # have `@on_load` that crashes the BEAM at boot if the .so is
+      # missing in a prod build — the xcresult-processor mode doesn't
+      # *call* xcactivitylog_nif but the Module still gets loaded
+      # eagerly, so the .so has to be present either way.
       - name: Build server release for macOS
         id: release
         working-directory: server
         run: |
           set -euo pipefail
           MIX_ENV=prod mix deps.get --only prod
-          # Build the xcresult NIF first — `mix release` doesn't know to
-          # invoke the build.sh; we run it explicitly so .so + .dylib land
-          # in priv/native before the release tarball is assembled.
+          # `mix release` doesn't invoke the per-NIF build.sh scripts;
+          # run them explicitly so the .so / .dylib land in priv/native
+          # before the release tarball is assembled.
           ./native/xcresult_nif/build.sh
+          ./native/xcactivitylog_nif/build.sh
           MIX_ENV=prod mix compile --warnings-as-errors
           MIX_ENV=prod mix release tuist --overwrite
           # mix.exs honors $TUIST_MIX_BUILD_ROOT (set on the bare-metal
