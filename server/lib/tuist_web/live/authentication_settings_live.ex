@@ -171,10 +171,7 @@ defmodule TuistWeb.AuthenticationSettingsLive do
   def handle_event("revoke_scim_token", %{"id" => id}, socket) do
     case SCIM.revoke_token(id) do
       {:ok, _} ->
-        {:noreply,
-         socket
-         |> assign(:scim_tokens, SCIM.list_tokens(socket.assigns.organization))
-         |> assign(:flash_message, {"success", dgettext("dashboard_account", "SCIM token revoked.")})}
+        {:noreply, assign(socket, :scim_tokens, SCIM.list_tokens(socket.assigns.organization))}
 
       {:error, :not_found} ->
         {:noreply, assign(socket, :flash_message, {"error", dgettext("dashboard_account", "Token not found.")})}

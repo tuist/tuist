@@ -19,6 +19,7 @@ alias Tuist.IngestRepo
 alias Tuist.Projects
 alias Tuist.Projects.Project
 alias Tuist.Repo
+alias Tuist.SCIM.SCIMToken
 alias Tuist.Shards.ShardPlan
 alias Tuist.Shards.ShardPlanModule
 alias Tuist.Shards.ShardPlanTestSuite
@@ -293,11 +294,70 @@ _member_user =
       member
   end
 
-Accounts.update_sso_configuration(organization.id, :okta, %{
-  oauth2_client_id: System.get_env("TUIST_OKTA_1_CLIENT_ID"),
-  oauth2_client_secret: System.get_env("TUIST_OKTA_1_CLIENT_SECRET"),
-  sso_organization_id: "trial-2983119.okta.com"
-})
+okta_seed_value = fn key, default ->
+  case Environment.get([:okta, key]) do
+    value when is_binary(value) ->
+      value = String.trim(value)
+      if value == "", do: default, else: value
+
+    nil ->
+      default
+
+    value ->
+      value
+  end
+end
+
+okta_domain = okta_seed_value.(:domain, "trial-2983119.okta.com")
+okta_client_id = okta_seed_value.(:client_id, "0oastwz9g1cW2qjIY697")
+okta_client_secret = okta_seed_value.(:client_secret, nil)
+
+organization =
+  if okta_client_secret do
+    {:ok, organization} =
+      Accounts.update_sso_configuration(organization.id, :okta, %{
+        oauth2_client_id: okta_client_id,
+        oauth2_client_secret: okta_client_secret,
+        sso_organization_id: okta_domain
+      })
+
+    organization
+  else
+    IO.puts("Skipping Okta SSO seed: configure TUIST_OKTA_CLIENT_SECRET or okta.client_secret.")
+    organization
+  end
+
+case okta_seed_value.(:scim_token, nil) do
+  nil ->
+    IO.puts("Skipping Okta SCIM token seed: configure TUIST_OKTA_SCIM_TOKEN or okta.scim_token.")
+
+  okta_scim_token ->
+    ["tuist", "scim", okta_scim_token_id, okta_scim_token_raw] =
+      String.split(okta_scim_token, "_", parts: 4)
+
+    okta_scim_encrypted_token_hash =
+      Bcrypt.hash_pwd_salt(okta_scim_token_raw <> Environment.secret_key_password())
+
+    case Repo.get(SCIMToken, okta_scim_token_id) do
+      nil ->
+        %SCIMToken{id: okta_scim_token_id}
+        |> Ecto.Changeset.change(%{
+          encrypted_token_hash: okta_scim_encrypted_token_hash,
+          name: "Okta",
+          organization_id: organization.id
+        })
+        |> Repo.insert!()
+
+      token ->
+        token
+        |> Ecto.Changeset.change(%{
+          encrypted_token_hash: okta_scim_encrypted_token_hash,
+          name: "Okta",
+          organization_id: organization.id
+        })
+        |> Repo.update!()
+    end
+end
 
 _public_project =
   case Projects.get_project_by_slug("tuist/public") do

@@ -257,7 +257,7 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
       assert html =~ "to-revoke"
 
       html = render_hook(lv, "revoke_scim_token", %{"id" => token.id})
-      assert html =~ "SCIM token revoked."
+      refute html =~ "SCIM token revoked."
       refute html =~ "to-revoke"
       assert SCIM.list_tokens(org) == []
     end
