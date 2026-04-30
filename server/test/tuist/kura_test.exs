@@ -2,39 +2,59 @@ defmodule Tuist.KuraTest do
   use ExUnit.Case, async: false
   use TuistTestSupport.Cases.DataCase
 
+  import Mimic
+
   alias Tuist.Accounts
   alias Tuist.Kura
   alias Tuist.Kura.KuraDeployment
-  alias Tuist.Kura.KuraVersion
   alias Tuist.Kura.Workers.RolloutWorker
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
-  describe "record_version/2" do
-    test "inserts a new version" do
-      now = DateTime.utc_now() |> DateTime.truncate(:second)
+  setup :set_mimic_global
 
-      assert {:ok, %KuraVersion{version: "0.5.2"}} = Kura.record_version("0.5.2", now)
-    end
-
-    test "is idempotent on duplicate version" do
-      now = DateTime.utc_now() |> DateTime.truncate(:second)
-
-      {:ok, _} = Kura.record_version("0.5.2", now)
-      assert {:ok, _} = Kura.record_version("0.5.2", now)
-
-      assert length(Kura.latest_versions(10)) == 1
-    end
+  setup do
+    Cachex.del(:tuist, "Elixir.Tuist.Kura-versions")
+    :ok
   end
 
   describe "latest_versions/1" do
-    test "returns versions sorted newest first" do
-      now = DateTime.utc_now() |> DateTime.truncate(:second)
-      {:ok, _} = Kura.record_version("0.5.0", DateTime.add(now, -3600, :second))
-      {:ok, _} = Kura.record_version("0.5.1", DateTime.add(now, -1800, :second))
-      {:ok, _} = Kura.record_version("0.5.2", now)
+    test "returns kura@* releases newest first" do
+      stub(Req, :get, fn _url, _opts ->
+        {:ok,
+         %Req.Response{
+           status: 200,
+           body: [
+             %{"tag_name" => "kura@0.5.0", "published_at" => "2026-04-01T00:00:00Z"},
+             %{"tag_name" => "kura@0.5.2", "published_at" => "2026-04-29T00:00:00Z"},
+             %{"tag_name" => "kura@0.5.1", "published_at" => "2026-04-15T00:00:00Z"},
+             %{"tag_name" => "tuist@4.188.3", "published_at" => "2026-04-15T00:00:00Z"}
+           ]
+         }}
+      end)
 
       assert ["0.5.2", "0.5.1", "0.5.0"] ==
                Kura.latest_versions(10) |> Enum.map(& &1.version)
+    end
+
+    test "returns an empty list when GitHub is unreachable" do
+      stub(Req, :get, fn _url, _opts -> {:error, :timeout} end)
+
+      assert Kura.latest_versions(10) == []
+    end
+
+    test "caps the result at limit" do
+      stub(Req, :get, fn _url, _opts ->
+        {:ok,
+         %Req.Response{
+           status: 200,
+           body:
+             for n <- 0..30 do
+               %{"tag_name" => "kura@0.5.#{n}", "published_at" => "2026-04-#{rem(n, 28) + 1}T00:00:00Z"}
+             end
+         }}
+      end)
+
+      assert length(Kura.latest_versions(5)) == 5
     end
   end
 
@@ -149,7 +169,7 @@ defmodule Tuist.KuraTest do
       assert {:ok, server} =
                Kura.create_server(%{
                  account_id: account.id,
-                 cluster_id: "eu-1",
+                 region: "eu",
                  spec: :small,
                  image_tag: "0.5.2"
                })
@@ -157,20 +177,20 @@ defmodule Tuist.KuraTest do
       assert server.volume_size_gi == 50
     end
 
-    test "rejects an unknown cluster", %{account: account} do
-      assert {:error, %Ecto.Changeset{errors: [cluster_id: _]}} =
+    test "rejects an unknown region", %{account: account} do
+      assert {:error, %Ecto.Changeset{errors: [region: _]}} =
                Kura.create_server(%{
                  account_id: account.id,
-                 cluster_id: "moon-1",
+                 region: "moon",
                  spec: :medium,
                  image_tag: "0.5.2"
                })
     end
 
-    test "rejects a duplicate (account, cluster, spec)", %{account: account} do
+    test "rejects a duplicate (account, region)", %{account: account} do
       attrs = %{
         account_id: account.id,
-        cluster_id: "eu-1",
+        region: "eu",
         spec: :medium,
         image_tag: "0.5.2"
       }
@@ -181,14 +201,14 @@ defmodule Tuist.KuraTest do
   end
 
   describe "list_servers_for_account/1" do
-    test "returns active servers, omits destroyed" do
+    test "returns non-destroyed servers" do
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
 
       {:ok, kept} =
         Kura.create_server(%{
           account_id: account.id,
-          cluster_id: "eu-1",
+          region: "eu",
           spec: :small,
           image_tag: "0.5.2"
         })
@@ -196,8 +216,8 @@ defmodule Tuist.KuraTest do
       {:ok, gone} =
         Kura.create_server(%{
           account_id: account.id,
-          cluster_id: "eu-1",
-          spec: :large,
+          region: "local",
+          spec: :small,
           image_tag: "0.5.2"
         })
 
@@ -217,7 +237,7 @@ defmodule Tuist.KuraTest do
       {:ok, server} =
         Kura.create_server(%{
           account_id: account.id,
-          cluster_id: "eu-1",
+          region: "eu",
           spec: :medium,
           image_tag: "0.5.2"
         })
@@ -244,7 +264,7 @@ defmodule Tuist.KuraTest do
       {:ok, server} =
         Kura.create_server(%{
           account_id: account.id,
-          cluster_id: "eu-1",
+          region: "eu",
           spec: :medium,
           image_tag: "0.5.2"
         })

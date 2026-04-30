@@ -22,11 +22,13 @@ defmodule Tuist.Kura do
   alias Phoenix.PubSub
   alias Tuist.Accounts
   alias Tuist.Accounts.AccountCacheEndpoint
+  alias Tuist.GitHub.Releases
+  alias Tuist.GitHub.Retry
   alias Tuist.IngestRepo
+  alias Tuist.KeyValueStore
   alias Tuist.Kura.DeploymentLogLine
   alias Tuist.Kura.KuraDeployment
   alias Tuist.Kura.KuraServer
-  alias Tuist.Kura.KuraVersion
   alias Tuist.Kura.Provider
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Specs
@@ -34,24 +36,77 @@ defmodule Tuist.Kura do
   alias Tuist.Kura.Workers.RolloutWorker
   alias Tuist.Repo
 
+  require Logger
+
   @pubsub Tuist.PubSub
+  @versions_cache_ttl :timer.hours(1)
 
   ## Versions
 
-  @doc "Inserts a version row if not already present. Idempotent."
-  def record_version(version, %DateTime{} = released_at) when is_binary(version) do
-    %{version: version, released_at: released_at}
-    |> KuraVersion.changeset()
-    |> Repo.insert(on_conflict: :nothing, conflict_target: :version)
+  @doc """
+  Returns published Kura versions newest first.
+
+  Reads through `Tuist.KeyValueStore` with a one-hour TTL: the first
+  request after a cold start (or after the TTL expires) calls GitHub
+  Releases; subsequent calls hit the in-memory or Redis cache. No
+  background worker, no `kura_versions` table — the source of truth
+  is the GitHub release feed.
+
+  Returns a list of `%{version: String.t(), released_at: DateTime.t()}`
+  maps, newest first, capped at `limit`. Returns `[]` when the
+  GitHub call fails so callers (e.g. /ops version dropdown) degrade
+  gracefully.
+  """
+  def latest_versions(limit \\ 20) when is_integer(limit) do
+    KeyValueStore.get_or_update(
+      [__MODULE__, "versions"],
+      [ttl: @versions_cache_ttl],
+      &fetch_versions/0
+    )
+    |> Enum.take(limit)
   end
 
-  @doc "Returns the most recently released versions, newest first."
-  def latest_versions(limit \\ 20) when is_integer(limit) do
-    KuraVersion
-    |> order_by([v], desc: v.released_at)
-    |> limit(^limit)
-    |> Repo.all()
+  defp fetch_versions do
+    headers = [
+      {"Accept", "application/vnd.github.v3+json"}
+      | github_auth_headers()
+    ]
+
+    req_opts = [finch: Tuist.Finch, headers: headers] ++ Retry.retry_options()
+
+    case Req.get(Releases.releases_url() <> "?per_page=100", req_opts) do
+      {:ok, %Req.Response{status: 200, body: releases}} when is_list(releases) ->
+        releases
+        |> Enum.flat_map(&extract_kura_release/1)
+        |> Enum.sort_by(& &1.released_at, {:desc, DateTime})
+
+      {:ok, %Req.Response{status: status}} ->
+        Logger.warning("[Kura.latest_versions] GitHub responded with #{status}")
+        []
+
+      {:error, reason} ->
+        Logger.warning("[Kura.latest_versions] GitHub request failed: #{inspect(reason)}")
+        []
+    end
   end
+
+  defp github_auth_headers do
+    case Tuist.Environment.github_token_update_package_releases() do
+      nil -> []
+      token -> [{"Authorization", "Bearer #{token}"}]
+    end
+  end
+
+  # Releases are tagged like `kura@0.5.2`. Returns a list with one entry
+  # for matching tags, dropped otherwise.
+  defp extract_kura_release(%{"tag_name" => "kura@" <> version, "published_at" => published_at}) do
+    case DateTime.from_iso8601(published_at) do
+      {:ok, dt, _offset} -> [%{version: version, released_at: DateTime.truncate(dt, :second)}]
+      _ -> []
+    end
+  end
+
+  defp extract_kura_release(_), do: []
 
   ## Servers
 
