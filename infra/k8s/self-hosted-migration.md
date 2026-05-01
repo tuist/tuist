@@ -1,6 +1,6 @@
 # Self-Hosted Kubernetes Migration: From Syself Apalla to Tuist-Owned
 
-Replace Syself's managed Cluster API control with our own management cluster running [Cluster API](https://cluster-api.sigs.k8s.io/) + Syself's [`caph`](https://github.com/syself/cluster-api-provider-hetzner) Hetzner provider directly. The topology layer that Syself's Apalla product provides via a proprietary `hetzner-apalla` ClusterStack gets replaced by a `ClusterClass` we author ourselves (see [`infra/k8s/clusters/`](clusters/)).
+Replace Syself's managed Cluster API control with our own management cluster running [Cluster API](https://cluster-api.sigs.k8s.io/) + Syself's [`caph`](https://github.com/syself/cluster-api-provider-hetzner) Hetzner provider directly. The topology layer that Syself's Apalla product provides via a proprietary `hetzner-apalla` ClusterStack will be replaced by a `ClusterClass` we author ourselves, but **after the migration**: see Phase 7 ([`infra/k8s/clusters/`](clusters/) holds the reference templates we'll fork from). The migration itself doesn't depend on that work landing.
 
 This document is a one-time migration plan. The successor onboarding doc (replacing [`syself-onboarding.md`](syself-onboarding.md)) is a separate artifact written after the cutover proves out.
 
@@ -17,13 +17,13 @@ This document is a one-time migration plan. The successor onboarding doc (replac
 3. **CA topology**: per-workload-cluster, exactly the shape [#10571](https://github.com/tuist/tuist/pull/10571) wires (CA runs in the workload cluster, talks to the management cluster via a kubeconfig Secret).
 4. **SSO replacement**: per-person kubeconfigs + talosconfigs distributed via 1Password (we already use ESO + 1Password everywhere). No Tailscale dependency to introduce.
 5. **Workload-cluster runtime stays kubeadm-based.** Talos is the mgmt cluster only. The four workload clusters keep running kubeadm-bootstrapped vanilla Ubuntu nodes (provisioned by caph). Two distributions to operate, but the boundary is clean: Talos on the controller node only.
-6. **Topology layer: a ClusterClass we author**, not a third-party ClusterStack. Syself's `hetzner-apalla` stack is proprietary and unavailable outside their Apalla product, so we replace it with a ClusterClass forked from caph's reference templates and adapted for our two-pool production topology. No `cluster-stack-operator` to install. See [`infra/k8s/clusters/`](clusters/).
+6. **Topology layer: deferred to post-migration.** Syself's `hetzner-apalla` ClusterStack is proprietary and unavailable outside Apalla, so we eventually need our own `tuist-hcloud` ClusterClass. **For the migration itself, we don't author one.** `clusterctl move` brings the existing rendered KubeadmControlPlane / KubeadmConfigTemplate / HCloudMachineTemplate over as plain CAPI resources; the topology controller errors gracefully on the missing classRef but caph + KCP + MD controllers continue managing the workload clusters. ClusterClass authoring lives in Phase 7 as a follow-up project with no time pressure.
 
 ## Scope and non-scope
 
-**In scope:** the four Cluster CRs in [`infra/k8s/syself/`](syself/) (`tuist-staging`, `tuist-canary`, `tuist`, `tuist-preview`) and their CAPI-rendered children (KubeadmControlPlane, KubeadmConfigTemplate, HCloudMachineTemplate, MachineDeployment, Machine). These get rewritten to topology mode against our `tuist-hcloud` ClusterClass during cutover.
+**In scope:** the four Cluster CRs in [`infra/k8s/syself/`](syself/) (`tuist-staging`, `tuist-canary`, `tuist`, `tuist-preview`) and their CAPI-rendered children (KubeadmControlPlane, KubeadmConfigTemplate, HCloudMachineTemplate, MachineDeployment, Machine). These move via `clusterctl move` and continue reconciling on our mgmt cluster as plain CAPI resources (no ClusterClass involvement during cutover).
 
-**Explicitly NOT migrated:** the Apalla `ClusterStack` + `HetznerClusterStackReleaseTemplate` CRs in [`infra/k8s/syself/cluster-stack.yaml`](syself/cluster-stack.yaml). These reference Apalla machinery we don't have on the new mgmt cluster (no CSO, no `clusterstack.x-k8s.io` CRDs).
+**Explicitly NOT migrated:** the Apalla `ClusterStack` + `HetznerClusterStackReleaseTemplate` CRs in [`infra/k8s/syself/cluster-stack.yaml`](syself/cluster-stack.yaml). These reference Apalla machinery we don't have on the new mgmt cluster (no CSO, no `clusterstack.x-k8s.io` CRDs). Pre-stripped from the source side in §3.2.
 
 **Out of scope (today):** the cache, xcode-processor, and search clusters are not on Syself today; their workflows hold separate `KUBECONFIG_*` secrets pointing at different infrastructure. They're planned to consolidate onto Syself-shaped Cluster API in the future; when they do, they'll land directly on our self-hosted management cluster (no Syself path needed) and join `org-tuist` alongside the four migrated here.
 
@@ -232,16 +232,13 @@ kubectl -n org-tuist create secret generic hetzner \
   --from-literal=hcloud-ssh-key-name=tuist-syself
 ```
 
-### 1.7 Apply our ClusterClass
+### 1.7 Topology layer: deferred to post-migration
 
-The Apalla ClusterStack does not migrate (proprietary, see Decisions §6). We apply our own ClusterClass forked from caph's reference templates. The class lives at [`infra/k8s/clusters/clusterclass-tuist.yaml`](clusters/) and is authored + validated in Phase 1.5.
+The original plan was to apply a `tuist-hcloud` ClusterClass here that replaced Apalla's proprietary stack. After reading what Apalla actually rendered (substantial: 40+ apiserver flags, audit logging, konnectivity, custom kubelet config, EventRateLimit, etc.), authoring a faithful replacement turned into a 2-day project that would block the Syself escape.
 
-```bash
-kubectl apply -f infra/k8s/clusters/clusterclass-tuist.yaml
-kubectl -n org-tuist get clusterclass tuist-hcloud
-```
+**Decision: skip the ClusterClass for the migration itself.** `clusterctl move` in Phase 3 brings the existing rendered `KubeadmControlPlane` / `KubeadmConfigTemplate` / `HCloudMachineTemplate` over as plain CAPI resources. caph reconciles them on the new mgmt cluster without needing the ClusterClass to resolve. The Cluster CRs keep `topology.classRef.name: hetzner-apalla-1-34-v6`, which doesn't resolve on our side; the topology controller errors gracefully (no destructive reconciliation, just no new topology-driven changes), but caph + KCP + MD controllers continue managing the workload clusters as expected.
 
-Phase 1.5 below covers the authoring + validation work that has to land before this step is meaningful.
+Authoring `tuist-hcloud` becomes a post-migration project (see "Phase 7: Author the tuist-hcloud ClusterClass" near the end of this document). No time pressure, can port the Apalla hardening features we actually need.
 
 ### 1.8 etcd snapshots → Tigris
 
@@ -304,95 +301,13 @@ The mgmt cluster's etcd holds CAPI CRs, Secrets, and ClusterClass state: everyth
 
 ---
 
-## Phase 1.5: Author and validate the ClusterClass
-
-The Apalla ClusterStack we used to depend on (`hetzner-apalla-1-34-v6`) is Syself-proprietary. Our replacement is a self-authored `ClusterClass` named `tuist-hcloud`, forked from caph's published reference templates and adapted for our two-pool production topology (general + processor) plus the simpler 1-pool shape used by staging / canary / preview.
-
-This phase has to complete before Phase 2 cutover. Workload clusters can keep running on Syself's Apalla in the meantime.
-
-### 1.5.1 Fork caph's reference ClusterClass
-
-The reference templates are checked in unchanged at [`infra/k8s/clusters/reference-templates/`](clusters/reference-templates/). Start from `cluster-class.yaml` and adapt:
-
-- **Class name**: `quick-start` → `tuist-hcloud`.
-- **Add a worker pool variable for processor-class machines** (default `cpx62`), distinct from the default `hcloud-worker` class which is general-purpose. Mirrors the existing `md-processor` MachineDeployment in production.
-- **Pool labels**: expose `node.cluster.x-k8s.io/pool` as a per-MachineDeployment variable so both `pool=general` (current `md-0` on production) and `pool=processor` (current `md-processor`) propagate to kubelet labels. The label prefix is required by kubeadm to allow the kubelet to set it during registration.
-- **Cluster-autoscaler annotations**: emit `cluster.x-k8s.io/cluster-autoscaler-node-group-{min,max}-size` on the MachineDeployment template, sourced from variables. PR [#10571](https://github.com/tuist/tuist/pull/10571) currently sets these manually on `md-processor`; the ClusterClass should set them by default for any pool that opts in.
-
-Save as `infra/k8s/clusters/clusterclass-tuist.yaml`.
-
-### 1.5.2 Convert per-cluster manifests to topology mode
-
-Adapt each existing `infra/k8s/syself/workload-cluster-{staging,canary,production,preview}.yaml` into a topology-mode Cluster CR pointing at `tuist-hcloud`. Save as `infra/k8s/clusters/cluster-<env>.yaml`. Each file shrinks from ~80 lines to ~30. Variables override what differs (control plane size, machine types, pool replica counts, scaling annotations).
-
-The original `infra/k8s/syself/*.yaml` files stay in place until Phase 6 cleanup. Source-of-truth flip happens during Phase 2/3.
-
-### 1.5.3 Validate against a throwaway 5th cluster
-
-Don't apply the new ClusterClass to any of the four production-bound clusters yet. Validate by spinning up a disposable test cluster on the new mgmt cluster:
-
-```bash
-kubectl apply -f infra/k8s/clusters/clusterclass-tuist.yaml
-
-# A minimal 1-CP + 1-worker test cluster, distinct from the four real clusters.
-cat <<'YAML' | kubectl apply -f -
-apiVersion: cluster.x-k8s.io/v1beta2
-kind: Cluster
-metadata:
-  name: tuist-cc-validation
-  namespace: org-tuist
-spec:
-  topology:
-    classRef: { name: tuist-hcloud }
-    version: v1.34.6
-    controlPlane: { replicas: 1 }
-    workers:
-      machineDeployments:
-        - class: hcloud-worker
-          name: md-0
-          replicas: 1
-          failureDomain: fsn1
-          variables:
-            overrides:
-              - name: hcloudWorkerMachineType
-                value: cpx22
-YAML
-
-# Wait for Ready, sanity-check, then delete.
-kubectl -n org-tuist get cluster tuist-cc-validation -w
-# After Ready=True:
-kubectl -n org-tuist delete cluster tuist-cc-validation
-```
-
-Total cost of the validation cluster: a few cents (it lives 10–15 min before deletion).
-
-### 1.5.4 Compare rendered manifests against Syself's
-
-To make Phase 2 cutover land as a no-op (so `clusterctl move` doesn't trigger a rolling rebuild on production nodes), the KubeadmControlPlane / KubeadmConfigTemplate / HCloudMachineTemplate that our ClusterClass renders must match what Syself's Apalla CSO already rendered. Read the existing rendered resources from Syself's mgmt cluster and diff:
-
-```bash
-KUBECONFIG=~/.kube/tuist-syself-mgmt.yaml \
-  kubectl -n org-tuist get kubeadmcontrolplane,kubeadmconfigtemplate,hcloudmachinetemplate -o yaml \
-  > /tmp/syself-rendered.yaml
-
-# Compare against what the ClusterClass produces against tuist-cc-validation
-# (or one of the env-specific test renderings via `clusterctl alpha topology plan`).
-diff -u /tmp/syself-rendered.yaml /tmp/our-rendered.yaml | less
-```
-
-Iterate on the ClusterClass until the diff is either empty or limited to fields CAPI is happy to reconcile in place (label/annotation drift is fine; spec differences trigger rolling rebuilds we want to avoid during cutover).
-
-If a no-op landing isn't achievable in reasonable time, the fallback is to accept a rolling rebuild during cutover, which means staggering env cutovers (staging first, week of soak per env) instead of the all-at-once cutover currently in Phase 3.
-
----
-
 ## Phase 2: Cutover preflight
 
 > **Important constraint #1:** [`clusterctl move`](https://cluster-api.sigs.k8s.io/clusterctl/commands/move.html) is **namespace-scoped, not cluster-scoped**: it moves every CAPI object in `org-tuist` in a single operation, including all four Clusters at once. There's no `--filter-cluster`, and the block-move annotation pauses the *whole* move, not individual clusters.
 >
 > **Important constraint #2:** the source side has Apalla's `ClusterStack` + `HetznerClusterStackReleaseTemplate` CRs in `org-tuist`. The target side doesn't have CSO or its CRDs. `clusterctl move` will refuse to migrate those resources because the target lacks the `clusterstack.x-k8s.io` CRDs. We treat this as a feature (we don't want them on the target) and pre-strip references on the source side before invoking `move`.
 >
-> **Important constraint #3:** every `Cluster` CR on the source side currently has `topology.classRef.name: hetzner-apalla-1-34-v6`. After move (or hand-roll) we rewrite each Cluster CR to `topology.classRef.name: tuist-hcloud`. If Phase 1.5.4's diff exercise produced a no-op render, this swap is a CR edit only; no rolling rebuilds. If not, expect a controlled rolling replacement (stagger envs accordingly).
+> **Important constraint #3:** every `Cluster` CR on the source side has `topology.classRef.name: hetzner-apalla-1-34-v6`. We deliberately leave that reference intact during cutover (see §1.7). On the target side the topology controller will report a "ClusterClass not found" error per cluster; that's the expected steady state until the Phase 7 ClusterClass authoring lands. The error is non-destructive: caph + KubeadmControlPlane + MachineDeployment controllers continue managing the workload clusters from the rendered children that came along in the move. No rolling rebuild during cutover.
 
 The plan: cut over all four clusters in one maintenance window. Workload clusters keep serving traffic during and after the move (kubelet certificates are signed by each workload cluster's own CA, independent of the management plane).
 
@@ -416,19 +331,16 @@ clusterctl describe cluster --show-tree > /tmp/syself-pre-move-tree.txt
 ```bash
 export KUBECONFIG=~/.kube/tuist-mgmt.yaml
 
-# Our ClusterClass is applied and ready (Phase 1.5).
-kubectl -n org-tuist get clusterclass tuist-hcloud
-# Expect: present, no errors in describe.
-
 # `hetzner` Secret exists in org-tuist (created in §1.6). Without it, caph
 # on the new side can't reconcile any HCloudMachine.
 kubectl -n org-tuist get secret hetzner
 
-# Provider versions match.
+# Provider versions on both sides should be in the same minor for clean
+# CR conversion during move (clusterctl 1.13 handles cross-version v1beta1
+# ↔ v1beta2 via webhooks, but matching is one fewer thing to debug).
 kubectl -n caph-system get deploy caph-controller-manager -o jsonpath='{.spec.template.spec.containers[0].image}'
 KUBECONFIG=~/.kube/tuist-syself-mgmt.yaml \
   kubectl -n caph-system get deploy caph-controller-manager -o jsonpath='{.spec.template.spec.containers[0].image}'
-# Strings should match.
 ```
 
 ### 2.3 Dry-run
@@ -493,23 +405,24 @@ clusterctl move \
 
 The command sets `Cluster.Spec.Paused=true` on each Cluster on the source before transferring objects. After all objects land on the target, finalizers are stripped from the source copies and the source Clusters are deleted bookkeeping-only (no Hetzner-side teardown). Workload clusters never notice.
 
-### 3.4 Rewrite Cluster CRs to point at our ClusterClass
+### 3.4 Confirm topology controller errors are non-destructive
 
-Each moved Cluster still has `topology.classRef.name: hetzner-apalla-1-34-v6`. Swap to `tuist-hcloud`. If Phase 1.5.4's diff exercise produced a no-op render, this is a one-line edit and CAPI sees no spec drift:
+Each moved Cluster still has `topology.classRef.name: hetzner-apalla-1-34-v6`. The topology controller on our side will report a "ClusterClass not found" error per Cluster. **This is the expected steady state** until Phase 7 lands a real `tuist-hcloud` ClusterClass.
+
+Confirm the error is benign by watching that no MachineDeployment / Machine deletions get queued:
 
 ```bash
 export KUBECONFIG=~/.kube/tuist-mgmt.yaml
 
-for c in tuist-staging tuist-canary tuist tuist-preview; do
-  kubectl -n org-tuist patch cluster $c --type=merge \
-    -p '{"spec":{"topology":{"classRef":{"name":"tuist-hcloud"}}}}'
-done
+# Conditions on each Cluster: TopologyReconciled=False with a
+# "ClusterClass not found" reason is expected and OK.
+kubectl -n org-tuist get cluster -o jsonpath='{range .items[*]}{.metadata.name}{": "}{range .status.conditions[?(@.type=="TopologyReconciled")]}{.status}/{.reason} {.message}{end}{"\n"}{end}'
 
-# Watch for any rolling rebuild signals (Machine deletions you didn't expect).
+# Watch for any unexpected Machine deletions (there shouldn't be any).
 kubectl -n org-tuist get machine -w
 ```
 
-If the render diff in Phase 1.5.4 wasn't fully no-op, expect rolling MachineDeployment replacement during this step. Stagger the patch calls and let each cluster stabilize before moving to the next.
+If you see Machines being deleted, abort and roll back (§3.7) ; that means CAPI is tearing down nodes, which it shouldn't be without a working ClusterClass to render replacements.
 
 ### 3.5 Verify
 
@@ -543,19 +456,14 @@ A clean deploy proves CI-side reachability is intact for each environment.
 
 ### 3.7 Rollback (if §3.5 or §3.6 fails)
 
-Rollback is harder than the original plan because Apalla's stack was pre-stripped in §3.2: rolling back requires re-applying [`infra/k8s/syself/cluster-stack.yaml`](syself/cluster-stack.yaml) on Syself's mgmt cluster *and* reverting the Cluster CRs' `topology.classRef.name` swap. Sequence:
+Rollback requires re-applying Apalla's stack on Syself (we pre-stripped it in §3.2) and moving the CAPI objects back:
 
 ```bash
 # 1. Re-apply Apalla's ClusterStack on Syself's mgmt cluster.
 KUBECONFIG=~/.kube/tuist-syself-mgmt.yaml kubectl apply -f infra/k8s/syself/cluster-stack.yaml
 
-# 2. Revert each Cluster CR's topology.classRef name (still on our mgmt cluster).
-for c in tuist-staging tuist-canary tuist tuist-preview; do
-  kubectl --kubeconfig ~/.kube/tuist-mgmt.yaml -n org-tuist patch cluster $c --type=merge \
-    -p '{"spec":{"topology":{"classRef":{"name":"hetzner-apalla-1-34-v6"}}}}'
-done
-
-# 3. Move back.
+# 2. Move back. Cluster CRs still reference hetzner-apalla-1-34-v6, so once
+#    Apalla's stack is reapplied, the topology controller resumes happily.
 clusterctl move \
   --kubeconfig ~/.kube/tuist-mgmt.yaml \
   --to-kubeconfig ~/.kube/tuist-syself-mgmt.yaml \
@@ -689,8 +597,57 @@ Only after all four clusters have soaked on our mgmt cluster for ≥1 week and C
    ```bash
    rm -rf ~/.kube/tuist-syself-mgmt.yaml ~/.kube/cache/oidc-login
    ```
-5. **Replace [`syself-onboarding.md`](syself-onboarding.md) with a successor `onboarding.md`** that covers our mgmt cluster + workload bootstrap. Rename `infra/k8s/syself/` → `infra/k8s/clusters/`. Move the autoscaler RBAC manifest from `infra/k8s/syself/processor-autoscaler-mgmt-rbac.yaml` to `infra/k8s/mgmt/processor-autoscaler-rbac.yaml`.
-6. **Archive this migration doc.** Move it to `infra/k8s/archive/2026-Q2-self-host-migration.md` so it stays as historical context without cluttering the active runbook surface.
+5. **Replace [`syself-onboarding.md`](syself-onboarding.md) with a successor `onboarding.md`** that covers our mgmt cluster + workload bootstrap. Move the autoscaler RBAC manifest from `infra/k8s/syself/processor-autoscaler-mgmt-rbac.yaml` to `infra/k8s/mgmt/processor-autoscaler-rbac.yaml`.
+6. **Archive this migration doc** *after Phase 7 lands*. Until then keep it active because the post-migration steady state references the deferred ClusterClass authoring. Final destination: `infra/k8s/archive/2026-Q2-self-host-migration.md`.
+
+---
+
+## Phase 7: Author the `tuist-hcloud` ClusterClass (post-migration follow-up)
+
+Not blocking on Syself escape. Run after Phase 6 with no time pressure. The four workload clusters keep operating with `topology.classRef.name: hetzner-apalla-1-34-v6` (which doesn't resolve on our mgmt cluster ; topology controller errors gracefully) and reconcile fine via the rendered KubeadmControlPlane / KubeadmConfigTemplate / HCloudMachineTemplate that came along during `clusterctl move`.
+
+What this phase delivers: a `tuist-hcloud` ClusterClass we own, sourced from caph's reference templates plus a port of Apalla's hardening choices we deem load-bearing. After it lands, swap each Cluster's `topology.classRef.name` to `tuist-hcloud`. The swap is a CR edit only when the rendered diff is empty.
+
+### 7.1 Decide which Apalla customizations to port
+
+Categorize each item from Apalla's rendered KubeadmControlPlane spec:
+
+- **Load-bearing** (cluster breaks if dropped): pre-baked image references (or vanilla Ubuntu + Cilium install path), `initConfiguration.skipPhases: [addon/kube-proxy]` (Cilium replaces it), CIDR settings.
+- **Hardening worth keeping**: API server audit logging, EventRateLimit admission, `protectKernelDefaults`, custom kubelet TLS cipher list, etcd `auto-compaction` + 8 GB quota.
+- **Optional**: konnectivity egress selector (only meaningful if API server and nodes are on separate networks; we're flat public), custom HPA tuning, eviction threshold tweaks.
+
+Score each as keep / drop / defer. The `infra/k8s/clusters/reference-templates/` directory has caph's vanilla starting point; Apalla's full rendered spec is captured in the `clusterctl describe` output saved to `/tmp/syself-pre-move-tree.txt` during Phase 2.1 (or re-pull from the still-running Cluster CRs on our mgmt cluster).
+
+### 7.2 Author the ClusterClass
+
+Save as `infra/k8s/clusters/clusterclass-tuist.yaml`. Two MachineDeployment classes (`hcloud-worker` for general, `hcloud-worker-processor` for the cpx62 pool) or one with overrides ; caller's choice. Pool labels (`node.cluster.x-k8s.io/pool: ...`) propagate from `MachineDeployment.metadata.labels` to nodes via CAPI's built-in machine-to-node label sync; no kubelet patch needed.
+
+Convert each `infra/k8s/syself/workload-cluster-*.yaml` to a topology-mode Cluster CR pointing at `tuist-hcloud`. Save as `infra/k8s/clusters/cluster-{staging,canary,production,preview}.yaml`.
+
+### 7.3 Validate via throwaway 5th cluster
+
+Spin up `tuist-cc-validation` against the new ClusterClass on the mgmt cluster. Confirm Ready, sanity-check rendered children, delete. ~€1 of Hetzner spend.
+
+### 7.4 Diff render against current state
+
+```bash
+# What Apalla originally rendered (still on the mgmt cluster, just inert).
+kubectl -n org-tuist get kubeadmcontrolplane,kubeadmconfigtemplate,hcloudmachinetemplate -o yaml \
+  > /tmp/current-rendered.yaml
+
+# What our ClusterClass would produce per real cluster.
+clusterctl alpha topology plan -f infra/k8s/clusters/cluster-staging.yaml \
+  > /tmp/proposed-staging.yaml
+# (repeat per env)
+
+diff -u /tmp/current-rendered.yaml /tmp/proposed-staging.yaml | less
+```
+
+Iterate until the spec diff is empty (or limited to fields CAPI is happy to reconcile in place: labels, annotations). Then swap each Cluster's `topology.classRef.name` to `tuist-hcloud`. If the diff has spec changes, expect rolling MachineDeployment replacement on swap; stagger envs.
+
+### 7.5 Drop the inert Apalla CRs
+
+Once all four Clusters are happily reconciling against `tuist-hcloud`, the Apalla classRef references are gone. Optionally clean up the residual `clusterctl describe`-only state.
 
 ---
 
@@ -699,11 +656,11 @@ Only after all four clusters have soaked on our mgmt cluster for ≥1 week and C
 | Activity | Cadence | Owner | Notes |
 |---|---|---|---|
 | Talos image upgrade for the mgmt VM | Monthly | Agent PR + human review | `talosctl upgrade --image=...`; Talos is immutable and atomic: bumps replace the running image, ~2 min of mgmt API downtime per upgrade. No `apt`. Workload clusters keep serving. |
-| caph upgrade | Quarterly | Agent PR + human review | `clusterctl upgrade plan`/`apply` for caph; rebase our ClusterClass against any upstream changes in caph's reference templates (see [`infra/k8s/clusters/reference-templates/`](clusters/reference-templates/)) |
+| caph upgrade | Quarterly | Agent PR + human review | `clusterctl upgrade plan`/`apply` for caph. After Phase 7 lands, also rebase our ClusterClass against any upstream changes in caph's reference templates ([`infra/k8s/clusters/reference-templates/`](clusters/reference-templates/)) |
 | CAPI minor upgrade | ~Yearly | Engineer + agent | `clusterctl upgrade plan` then `clusterctl upgrade apply`; do alongside K8s minor bumps |
-| Kubernetes minor bump (4 clusters) | Yearly | Engineer + agent | Bump each Cluster CR's `topology.version`; refresh node images / cloud-init in the ClusterClass if needed; staging → canary → production over a few days |
+| Kubernetes minor bump (4 clusters) | Yearly | Engineer + agent | After Phase 7: bump each Cluster CR's `topology.version`. Until then: edit the rendered `KubeadmControlPlane.spec.version` + each `MachineDeployment.spec.template.spec.version` directly per cluster (4× edits, no template inheritance). Stage staging → canary → production over a few days. |
 | Etcd snapshot restore drill | Quarterly | Agent + supervise | Spin up a throwaway VM, restore the latest Tigris snapshot, confirm `kubectl get clusters` returns the expected state |
-| caph reference-template refresh | On caph minor releases | Agent | `curl` the new release assets into [`infra/k8s/clusters/reference-templates/`](clusters/reference-templates/), diff against our `clusterclass-tuist.yaml`, port any upstream improvements |
+| caph reference-template refresh | On caph minor releases | Agent | `curl` the new release assets into [`infra/k8s/clusters/reference-templates/`](clusters/reference-templates/). After Phase 7: diff against our `clusterclass-tuist.yaml`, port any upstream improvements |
 | Mgmt cluster downtime | Rare | Engineer | Workload clusters keep serving; preview scaling + autoscaler stop until restored |
 
 Steady state: ~1–2h/month of engineer time with agent execution, plus a half-day for the K8s minor bump once or twice a year.
@@ -732,8 +689,8 @@ Almost certainly unrelated to the move (kubelet doesn't talk to the mgmt cluster
 **caph on the new mgmt cluster doesn't see existing HCloudMachines.**
 The `hetzner` Secret in `org-tuist` is missing or has the wrong token. caph reconciles by querying Hetzner's API for the existing servers; without a valid token it can't observe state.
 
-**`Cluster` reports `topology.classRef.name` not found.**
-The `tuist-hcloud` ClusterClass wasn't applied to the new mgmt cluster, or it errored. `kubectl -n org-tuist describe clusterclass tuist-hcloud` and `kubectl apply -f infra/k8s/clusters/clusterclass-tuist.yaml` to retry.
+**`Cluster` reports `TopologyReconciled=False, reason=ClusterClassNotFound`.**
+Expected if you're between Phase 3 and Phase 7. The `hetzner-apalla-1-34-v6` ClusterClass intentionally doesn't exist on our mgmt cluster; the topology controller errors but doesn't take destructive action. Confirm by checking that no Machines are being deleted and that the rendered KubeadmControlPlane / MachineDeployments are healthy. Phase 7 lands `tuist-hcloud` and the swap clears the error.
 
 **cluster-autoscaler logs `failed to register node group: forbidden`.**
 The `processor-autoscaler` SA in `org-tuist` is missing or its RoleBinding wasn't applied. Re-apply [`processor-autoscaler-mgmt-rbac.yaml`](syself/processor-autoscaler-mgmt-rbac.yaml) (the path moves in Phase 6 cleanup).
