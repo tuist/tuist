@@ -63,6 +63,7 @@ struct GraphService {
         layoutAlgorithm: GraphViz.LayoutAlgorithm,
         skipTestTargets: Bool,
         skipExternalDependencies: Bool,
+        skipMacroSupportTargets: Bool,
         open: Bool,
         platformToFilter: Platform?,
         targetsToFilter: [String],
@@ -95,6 +96,7 @@ struct GraphService {
         let filteredTargetsAndDependencies = graph.filter(
             skipTestTargets: skipTestTargets,
             skipExternalDependencies: skipExternalDependencies,
+            skipMacroSupportTargets: skipMacroSupportTargets,
             platformToFilter: platformToFilter,
             targetsToFilter: targetsToFilter
         )

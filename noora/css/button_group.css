@@ -36,7 +36,7 @@
   align-items: center;
 
   box-shadow: var(--noora-border-light-default);
-  border-radius: var(--noora-radius-medium);
+  border-radius: var(--noora-radius-3);
   background-color: var(--noora-button-group-background);
   padding: var(--noora-spacing-1);
   overflow: hidden;
@@ -61,7 +61,7 @@
   cursor: pointer;
   outline: unset;
   border: unset;
-  border-radius: var(--noora-radius-small);
+  border-radius: var(--noora-radius-2);
 
   background-color: unset;
   overflow: hidden;

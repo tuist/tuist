@@ -39,11 +39,21 @@ struct ServerClientAuthenticationMiddleware: ClientMiddleware {
 
         let urlForAuthentication = authenticationURL ?? baseURL
         let config = ServerAuthenticationConfig.current
-        guard let token = try await serverAuthenticationController.authenticationToken(
-            serverURL: urlForAuthentication,
-            refreshIfNeeded: !config.optionalAuthentication
-        )
-        else {
+
+        let token: AuthenticationToken?
+        do {
+            token = try await serverAuthenticationController.authenticationToken(
+                serverURL: urlForAuthentication,
+                refreshIfNeeded: true
+            )
+        } catch {
+            if config.optionalAuthentication {
+                return try await next(request, body, baseURL)
+            }
+            throw error
+        }
+
+        guard let token else {
             if config.optionalAuthentication {
                 return try await next(request, body, baseURL)
             }

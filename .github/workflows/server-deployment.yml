@@ -43,6 +43,9 @@ on:
       commit_sha:
         description: Commit SHA to deploy (defaults to the event's SHA)
         required: false
+      image_tag:
+        description: Pre-built image tag to deploy instead of building
+        required: false
   workflow_call:
     inputs:
       environment:
@@ -196,7 +199,65 @@ jobs:
         # a manual step. `kubectl apply` is idempotent — no-op when
         # nothing changed.
         run: kubectl apply -f "$HELM_CHART_PATH/crds/"
+      - name: Recover interrupted Helm release
+        run: |
+          set -euo pipefail
 
+          status="$(
+            helm status "$HELM_RELEASE_NAME" -n "$NAMESPACE" 2>/dev/null |
+              awk '/^STATUS:/ { print $2 }' ||
+              true
+          )"
+          case "$status" in
+            pending-install|pending-upgrade|pending-rollback)
+              echo "Release $HELM_RELEASE_NAME is $status; rolling back to the last deployed revision before upgrading."
+              helm history "$HELM_RELEASE_NAME" -n "$NAMESPACE" --max 20
+
+              deployed_revision="$(
+                helm history "$HELM_RELEASE_NAME" -n "$NAMESPACE" --max 20 |
+                  awk '$0 ~ /[[:space:]]deployed[[:space:]]/ { revision = $1 } END { print revision }'
+              )"
+
+              if [ -z "$deployed_revision" ]; then
+                echo "No deployed revision found for $HELM_RELEASE_NAME in $NAMESPACE."
+                exit 1
+              fi
+
+              helm rollback "$HELM_RELEASE_NAME" "$deployed_revision" \
+                --namespace "$NAMESPACE" --wait --timeout 10m
+              ;;
+            *)
+              echo "Release $HELM_RELEASE_NAME status is ${status:-not-installed}; no recovery needed."
+              ;;
+          esac
+      - name: Clean up stale migration Jobs
+        # The chart's pre-upgrade migration hook is named
+        # `tuist-tuist-server-migrate` (stable across revisions). Any
+        # `tuist-tuist-server-migrate-<n>` Jobs in the namespace are
+        # orphans whose Pending pods would otherwise compete with the new
+        # hook for scheduler attention; sweep them before invoking helm.
+        run: |
+          set -euo pipefail
+
+          stale_jobs="$(
+            kubectl -n "$NAMESPACE" get jobs \
+              -l app.kubernetes.io/component=server-migration \
+              -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' |
+              grep -E '-[0-9]+$' || true
+          )"
+
+          if [ -z "$stale_jobs" ]; then
+            echo "No revision-suffixed migration Jobs to clean up."
+            exit 0
+          fi
+
+          echo "Deleting stale migration Jobs:"
+          echo "$stale_jobs"
+          # `--ignore-not-found` covers a rare race where helm's hook gets
+          # deleted between the list and delete calls. Cascade=foreground
+          # so dependent pods (Pending or otherwise) go with the Job.
+          echo "$stale_jobs" | xargs -r kubectl -n "$NAMESPACE" delete job \
+            --ignore-not-found --cascade=foreground --timeout=2m
       - name: helm upgrade --install
         # App secrets never pass through --set: the chart runs in
         # `server.managedSecrets: true` mode, which reads DATABASE_URL /

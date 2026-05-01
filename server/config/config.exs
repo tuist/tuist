@@ -140,6 +140,8 @@ config :phoenix, :json_library, Jason
 # as a reference
 config :prom_ex, :storage_adapter, Tuist.PromEx.StripedPeep
 
+config :tower, reporters: [TowerOpentelemetry]
+
 # Oban
 config :tuist, Oban,
   repo: Tuist.Repo,
@@ -278,6 +280,8 @@ config :tuist, :blocked_handles, [
   "careers",
   "jobs"
 ]
+
+config :tuist, :dev_all_locales, System.get_env("TUIST_DEV_ALL_LOCALES") in ~w(1 true TRUE yes YES)
 
 config :tuist, :urls,
   production: "https://tuist.dev",

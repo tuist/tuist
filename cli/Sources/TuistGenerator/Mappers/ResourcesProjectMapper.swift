@@ -94,22 +94,32 @@ public struct ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this
                 buildableFolders: resourceBuildableFolders
             )
             modifiedTarget.sources = target.sources.filter { $0.path.extension != "metal" }
-            // Asset catalogs and string catalogs are added to the main target's Sources build
-            // phase so Xcode generates typed symbols. This mirrors SwiftPM's PIF builder:
+            // Asset catalogs are added to the main target's Sources build phase so Xcode
+            // generates typed asset symbols. This mirrors SwiftPM's PIF builder:
             //   - https://github.com/swiftlang/swift-package-manager/blob/main/Sources/XCBuildSupport/PIFBuilder.swift#L944-L952
-            //   - https://github.com/swiftlang/swift-package-manager/blob/main/Sources/SwiftBuildSupport/PackagePIFProjectBuilder.swift#L345-L360
-            // Both are also compiled into the companion resource bundle via its Resources phase.
-            // The companion bundle declares PACKAGE_RESOURCE_TARGET_KIND = "resource" (above)
-            // so Xcode treats it as a pure resource container and skips string extraction.
-            // The main target carries PACKAGE_RESOURCE_TARGET_KIND = "regular" (below) so Xcode
-            // runs extraction here where the Swift source references live.
-            let codeGeneratingResourceExtensions: Set<String> = ["xcassets", "xcstrings"]
+            //   - https://github.com/swiftlang/swift-package-manager/blob/main/Sources/SwiftBuildSupport/PackagePIFProjectBuilder.swift#L347-L353
+            // They are also compiled into the companion resource bundle via its Resources phase.
+            let assetCatalogExtensions: Set<String> = ["xcassets"]
             for resource in target.resources.resources {
-                if let ext = resource.path.extension, codeGeneratingResourceExtensions.contains(ext) {
+                if let ext = resource.path.extension, assetCatalogExtensions.contains(ext) {
                     modifiedTarget.sources.append(SourceFile(path: resource.path))
                 }
             }
-            modifiedTarget.resources.resources = originalTargetExplicitResources
+            // String catalogs (.xcstrings) stay on the main target's Resources phase so Xcode
+            // runs localization extraction and stale-string detection in the same target where
+            // the Swift sources live. They are also kept on the companion bundle's Resources
+            // phase so the catalog is compiled to .strings for Bundle.module lookups at runtime.
+            // PACKAGE_RESOURCE_BUNDLE_NAME (set on the main target below) makes swift-build's
+            // XCStringsCompiler.shouldCompileCatalog skip catalog compilation here, so the
+            // catalog is only compiled once, inside the companion bundle.
+            // See: https://github.com/swiftlang/swift-build/blob/main/Sources/SWBApplePlatform/XCStringsCompiler.swift
+            // The buildable-folders path arrives at the same shape via the partition logic,
+            // which routes shared entries (xcstrings) into originalTargetExplicitResources.
+            var explicitResources = originalTargetExplicitResources
+            explicitResources.append(
+                contentsOf: target.resources.resources.filter { $0.path.extension == "xcstrings" }
+            )
+            modifiedTarget.resources.resources = explicitResources
             modifiedTarget.copyFiles = []
             modifiedTarget.buildableFolders = remainingBuildableFolders
             modifiedTarget.dependencies.append(.target(

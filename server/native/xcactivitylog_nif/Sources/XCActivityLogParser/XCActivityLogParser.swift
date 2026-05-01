@@ -82,14 +82,18 @@ public struct XCActivityLogParser: Sendable {
 
     // MARK: - Build Steps
 
+    // Iterative DFS so build trees thousands of levels deep don't overflow the
+    // stack. Order matches the recursive walk: parent before children.
     private func flattenBuildSteps(_ steps: [BuildStep]) -> [BuildStep] {
-        steps.flatMap { step in
-            var flattened = [step]
+        var result = [BuildStep]()
+        var stack = Array(steps.reversed())
+        while let step = stack.popLast() {
+            result.append(step)
             if !step.subSteps.isEmpty {
-                flattened.append(contentsOf: flattenBuildSteps(step.subSteps))
+                stack.append(contentsOf: step.subSteps.reversed())
             }
-            return flattened
         }
+        return result
     }
 
     // MARK: - Category
@@ -121,19 +125,27 @@ public struct XCActivityLogParser: Sendable {
 
         let targetIdentifiers = buildTargetIdentifiers(from: steps)
         var targetsCompiledCount = [String: Int]()
+        var targetFilesCount = [String: Int]()
         for target in targetSteps {
             targetsCompiledCount[target.identifier] = 0
+            targetFilesCount[target.identifier] = 0
         }
 
-        for step in buildSteps where !step.fetchedFromCache {
+        // Tally both totals and not-fetched-from-cache counts per target in a
+        // single pass. Filtering buildSteps once per target is O(targets * buildSteps),
+        // which dominates parse time on logs with ~1k targets and ~100k build steps.
+        for step in buildSteps {
             guard let targetID = targetIdentifiers[step.identifier] else { continue }
-            targetsCompiledCount[targetID, default: 0] += 1
+            targetFilesCount[targetID, default: 0] += 1
+            if !step.fetchedFromCache {
+                targetsCompiledCount[targetID, default: 0] += 1
+            }
         }
 
         var cleanCount = 0
         for (target, filesCompiledCount) in targetsCompiledCount {
-            let targetFilesCount = buildSteps.filter { targetIdentifiers[$0.identifier] == target }.count
-            if filesCompiledCount == targetFilesCount && filesCompiledCount > 0 {
+            let total = targetFilesCount[target] ?? 0
+            if filesCompiledCount == total && filesCompiledCount > 0 {
                 cleanCount += 1
             }
         }

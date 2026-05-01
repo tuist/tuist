@@ -71,6 +71,23 @@ server:
       cpu: "1000m"
       memory: "1536Mi"
 
+  # The migration hook is an extra pod that starts before Helm can
+  # terminate any existing workload pod. `Tuist.Release.migrate` only loads
+  # the app config and runs Ecto migrations (no Phoenix endpoint, no Oban,
+  # pool size 1), so peak working set is around 150-250Mi. Match the
+  # staging server's shape so the hook fits whenever the server fits; the
+  # common 4Gi limit still caps backfill spikes.
+  migrationJob:
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "200Mi"
+
+objectStorage:
+  external:
+    buckets:
+      default: tuist-stag-storage
+
 processor:
   # Supabase staging project (inzgspjesrhqhleomvkb) — dedicated pooler on
   # port 6543 (transaction mode). Same hostname as the direct Postgres

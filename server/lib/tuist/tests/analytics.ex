@@ -8,10 +8,12 @@ defmodule Tuist.Tests.Analytics do
   alias Tuist.ClickHouseRepo
   alias Tuist.CommandEvents.Event
   alias Tuist.Tests
+  alias Tuist.Tests.FlakyTestCaseRun
   alias Tuist.Tests.Test
   alias Tuist.Tests.TestCase
   alias Tuist.Tests.TestCaseEvent
   alias Tuist.Tests.TestCaseRun
+  alias Tuist.Tests.TestCaseRunActiveDailyStat
   alias Tuist.Tests.TestCaseRunByTestRun
   alias Tuist.Tests.TestCaseRunDailyAggregate
 
@@ -166,6 +168,86 @@ defmodule Tuist.Tests.Analytics do
   end
 
   @doc """
+  Returns analytics for the number of flaky test case runs over time for a project.
+  Counts every individual test case execution where `is_flaky = true`, not the
+  number of test cases flagged or the number of build runs that contained
+  flakiness. Backed by the `flaky_test_case_runs` materialized view.
+  """
+  def flaky_test_case_runs_analytics(project_id, opts \\ []) do
+    start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+
+    days_delta = Date.diff(DateTime.to_date(end_datetime), DateTime.to_date(start_datetime))
+    date_period = date_period(start_datetime: start_datetime, end_datetime: end_datetime)
+    time_bucket = time_bucket_for_date_period(date_period)
+    clickhouse_time_bucket = time_bucket_to_clickhouse_interval(time_bucket)
+
+    current_runs_data =
+      flaky_test_case_runs_count(
+        project_id,
+        start_datetime,
+        end_datetime,
+        clickhouse_time_bucket,
+        opts
+      )
+
+    current_runs = process_runs_count_data(current_runs_data, start_datetime, end_datetime, date_period)
+
+    previous_runs_count =
+      flaky_test_case_runs_total_count(
+        project_id,
+        DateTime.add(start_datetime, -days_delta, :day),
+        start_datetime,
+        opts
+      )
+
+    current_runs_count = flaky_test_case_runs_total_count(project_id, start_datetime, end_datetime, opts)
+
+    %{
+      trend: trend(previous_value: previous_runs_count, current_value: current_runs_count),
+      count: current_runs_count,
+      values: Enum.map(current_runs, & &1.count),
+      dates: Enum.map(current_runs, & &1.date)
+    }
+  end
+
+  defp flaky_test_case_runs_count(project_id, start_datetime, end_datetime, time_bucket, opts) do
+    date_format = get_clickhouse_date_format(time_bucket)
+    is_ci = Keyword.get(opts, :is_ci)
+
+    from(f in FlakyTestCaseRun,
+      where: f.project_id == ^project_id,
+      where: f.ran_at >= ^start_datetime,
+      where: f.ran_at <= ^end_datetime,
+      group_by: fragment("formatDateTime(?, ?)", f.ran_at, ^date_format),
+      select: %{
+        date: fragment("formatDateTime(?, ?)", f.ran_at, ^date_format),
+        count: count()
+      },
+      order_by: fragment("formatDateTime(?, ?)", f.ran_at, ^date_format)
+    )
+    |> apply_flaky_test_case_run_is_ci_filter(is_ci)
+    |> ClickHouseRepo.all()
+  end
+
+  defp flaky_test_case_runs_total_count(project_id, start_datetime, end_datetime, opts) do
+    is_ci = Keyword.get(opts, :is_ci)
+
+    from(f in FlakyTestCaseRun,
+      where: f.project_id == ^project_id,
+      where: f.ran_at >= ^start_datetime,
+      where: f.ran_at <= ^end_datetime,
+      select: count()
+    )
+    |> apply_flaky_test_case_run_is_ci_filter(is_ci)
+    |> ClickHouseRepo.one() || 0
+  end
+
+  defp apply_flaky_test_case_run_is_ci_filter(query, nil), do: query
+  defp apply_flaky_test_case_run_is_ci_filter(query, true), do: where(query, [f], f.is_ci == true)
+  defp apply_flaky_test_case_run_is_ci_filter(query, false), do: where(query, [f], f.is_ci == false)
+
+  @doc """
   Returns analytics for the number of flaky test cases over time for a project.
   At each bucket endpoint T, the value is the number of test cases currently
   flagged as flaky, derived by replaying `marked_flaky` / `unmarked_flaky`
@@ -273,12 +355,16 @@ defmodule Tuist.Tests.Analytics do
     dates = date_range_for_date_period(date_period, start_datetime: start_datetime, end_datetime: end_datetime)
     date_endpoints = Enum.map(dates, &date_to_end_of_bucket(&1, date_period))
 
-    window_seconds = Tests.active_window_days() * 86_400
+    window_days = Tests.active_window_days()
 
     previous_endpoint = DateTime.add(start_datetime, -1, :second)
-    previous_count = active_test_cases_count(project_id, previous_endpoint, window_seconds, is_ci)
+    previous_count = active_test_cases_count(project_id, previous_endpoint, window_days, is_ci, date_period)
 
-    values = Enum.map(date_endpoints, &active_test_cases_count(project_id, &1, window_seconds, is_ci))
+    values =
+      Enum.map(
+        date_endpoints,
+        &active_test_cases_count(project_id, &1, window_days, is_ci, date_period)
+      )
 
     current_count = List.last(values) || 0
 
@@ -290,14 +376,41 @@ defmodule Tuist.Tests.Analytics do
     }
   end
 
-  defp active_test_cases_count(project_id, endpoint, window_seconds, is_ci) do
-    window_start = DateTime.add(endpoint, -window_seconds, :second)
+  # For day/month buckets, reads `test_case_runs_active_daily_stats` — an
+  # AggregatingMergeTree MV that pre-computes `uniqExactState(test_case_id)`
+  # per (project_id, date, is_ci). Each call merges at most ~28 daily states
+  # (14 days × 2 is_ci) via `uniqExactMerge` instead of scanning
+  # `test_case_runs`.
+  #
+  # For hour buckets (the `last-24-hours` preset), the daily MV is too coarse
+  # — every hourly endpoint within the same UTC day would return the same
+  # value, and an endpoint earlier in the day would count runs that haven't
+  # happened yet. Fall back to the raw `test_case_runs` query in that case;
+  # the 14-day window over an hourly chart only spans ~14 days of source
+  # rows, so the cost is bounded.
+  defp active_test_cases_count(project_id, endpoint, window_days, is_ci, :hour) do
+    window_start = DateTime.add(endpoint, -window_days * 86_400, :second)
 
     from(tcr in TestCaseRun,
       where: tcr.project_id == ^project_id,
       where: tcr.ran_at >= ^window_start,
       where: tcr.ran_at <= ^endpoint,
+      where: tcr.inserted_at >= ^window_start,
       select: fragment("uniqExact(?)", tcr.test_case_id)
+    )
+    |> apply_is_ci_filter(is_ci)
+    |> ClickHouseRepo.one() || 0
+  end
+
+  defp active_test_cases_count(project_id, endpoint, window_days, is_ci, _date_period) do
+    end_date = DateTime.to_date(endpoint)
+    start_date = Date.add(end_date, -(window_days - 1))
+
+    from(s in TestCaseRunActiveDailyStat,
+      where: s.project_id == ^project_id,
+      where: s.date >= ^start_date,
+      where: s.date <= ^end_date,
+      select: fragment("uniqExactMerge(test_case_ids_state)")
     )
     |> apply_is_ci_filter(is_ci)
     |> ClickHouseRepo.one() || 0

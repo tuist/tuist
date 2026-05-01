@@ -42,6 +42,23 @@ defaults:
     working-directory: server
 
 jobs:
+  swift-test:
+    name: Swift Tests (XCActivityLogParser)
+    runs-on: namespace-profile-macos-xcode-26
+    timeout-minutes: 15
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    defaults:
+      run:
+        working-directory: server/native/xcactivitylog_nif
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore SwiftPM Cache
+        uses: actions/cache@v4
+        with:
+          path: server/native/xcactivitylog_nif/.build
+          key: xcactivitylog-nif-swiftpm-${{ hashFiles('server/native/xcactivitylog_nif/Package.resolved') }}
+      - name: Run tests
+        run: swift test --replace-scm-with-registry
   gettext:
     name: Gettext
     runs-on: namespace-profile-default-with-volume

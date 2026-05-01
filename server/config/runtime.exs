@@ -294,6 +294,7 @@ if Tuist.Environment.error_tracking_enabled?() do
     client: TuistCommon.SentryHTTPClient,
     dsn: Tuist.Environment.sentry_dsn(secrets),
     environment_name: env,
+    release: Tuist.Environment.version(),
     enable_source_code_context: true,
     root_source_code_paths: [File.cwd!()],
     before_send: {Tuist.SentryEventFilter, :before_send}
@@ -433,13 +434,19 @@ oban_queues =
       if Tuist.Environment.delegate_process_xcresult?(), do: base, else: base ++ [process_xcresult_queue]
   end
 
-# Cron is leader-only: whichever Oban node wins the leader election runs the
-# crontab. With multiple pod roles in the same Oban cluster (server + processor)
-# the leader can land on either. Configure the same crontab everywhere so
-# scheduled jobs fire regardless of which pod is currently leader; the *jobs*
-# are then claimed by whichever pod runs the matching queue. Pruner + Lifeline
-# are also leader-only; both work fine on either pod since the tuist_processor
-# DB role has the necessary INSERT/UPDATE/DELETE on oban_jobs.
+# Leader-only Oban work (Cron, Pruner, Lifeline, Oban.Met.Reporter) runs on
+# whichever node wins the peer election. Server pods are always running and
+# carry the full DB role, so we make them the only leader-eligible nodes by
+# setting `peer: false` on processor pods. Oban normalises that to the
+# Isolated peer with `leader?: false`, so leader-only plugins start there but
+# stay idle.
+#
+# Why not let the processor become leader? The tuist_processor role is
+# least-privilege (USAGE only on schema public, see
+# infra/supabase/tuist-processor-role.sql). Oban.Met.Reporter's leader path
+# runs `CREATE OR REPLACE FUNCTION public.oban_count_estimate(...)` on every
+# checkpoint, which the role can't execute and which crashes the Reporter
+# repeatedly when the processor wins the election.
 config :tuist, Oban,
   queues: oban_queues,
   plugins: [
@@ -464,6 +471,10 @@ config :tuist, Oban,
        )}
   ]
 
+if Tuist.Environment.processor_mode?() do
+  config :tuist, Oban, peer: false
+end
+
 # Guardian
 config :tuist, Tuist.Guardian,
   issuer: "tuist",
@@ -485,7 +496,11 @@ if otel_endpoint do
   config :opentelemetry,
     span_processor: :batch,
     resource: [
-      service: [name: "tuist-server", namespace: "tuist"],
+      service: [
+        name: "tuist-server",
+        namespace: "tuist",
+        version: to_string(Tuist.Environment.version())
+      ],
       deployment: [environment: to_string(env)]
     ]
 

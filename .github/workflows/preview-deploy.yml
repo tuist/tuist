@@ -248,6 +248,11 @@ jobs:
           submodules: false
       - id: tag
         run: echo "image_tag=sha-${{ needs.resolve.outputs.short_sha }}" >> "$GITHUB_OUTPUT"
+      - id: apt-bust
+        # Date-granular bust for the runner-base apt-upgrade layer. Previews
+        # don't need per-commit security patches; relaxing to daily lets
+        # successive pushes on the same PR reuse the apt layer.
+        run: echo "value=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
       - uses: namespacelabs/nscloud-setup-buildx-action@v0
       - uses: docker/login-action@v3
         with:
@@ -264,11 +269,7 @@ jobs:
           build-args: |
             TUIST_HOSTED=1
             MIX_ENV=prod
-            APT_CACHE_BUST=${{ needs.resolve.outputs.ref }}
-          # Share the same cache scope as the managed-env builds — same image,
-          # same Dockerfile, layers are interchangeable.
-          cache-from: type=gha,scope=server-cluster
-          cache-to: type=gha,mode=max,scope=server-cluster
+            APT_CACHE_BUST=${{ steps.apt-bust.outputs.value }}
 
   deploy:
     name: Deploy ${{ needs.resolve.outputs.release }}

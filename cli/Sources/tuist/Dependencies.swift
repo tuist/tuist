@@ -91,16 +91,11 @@ func initNoora(jsonThroughNoora: Bool = false) -> Noora {
                                 try await ServerCredentialsStore.$current
                                     .withValue(ServerCredentialsStore(backend: .fileSystem)) {
                                         try await CachedValueStore.$current.withValue(CachedValueStore(backend: .fileSystem)) {
-                                            try await RecentPathsStore.$current
-                                                .withValue(RecentPathsStore(storageDirectory: Environment.current
-                                                        .stateDirectory))
-                                                {
-                                                    try await Extension.$hashCacheService
-                                                        .withValue(HashCacheCommandService()) {
-                                                            try await withCacheService {
-                                                                try await action(sessionPaths)
-                                                            }
-                                                        }
+                                            try await Extension.$hashCacheService
+                                                .withValue(HashCacheCommandService()) {
+                                                    try await withCacheService {
+                                                        try await action(sessionPaths)
+                                                    }
                                                 }
                                         }
                                     }

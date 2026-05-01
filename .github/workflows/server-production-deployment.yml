@@ -118,7 +118,7 @@ jobs:
   acceptance-tests:
     name: Acceptance Tests
     needs: canary
-    runs-on: namespace-profile-default-macos
+    runs-on: namespace-profile-macos-xcode-26
     timeout-minutes: 15
     environment: server-k8s-canary
     steps:

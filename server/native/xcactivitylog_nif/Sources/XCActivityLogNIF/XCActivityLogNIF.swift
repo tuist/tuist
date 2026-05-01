@@ -2,6 +2,21 @@ import Foundation
 import Path
 import XCActivityLogParser
 
+// Heap-allocated holder for the parse result. The NIF may abandon the wait on
+// timeout and return before the Task finishes, so the result storage cannot
+// live on the stack — ARC keeps the box alive as long as either side holds a
+// reference. The semaphore provides the happens-before edge for safe reads.
+private final class ParseResultBox: @unchecked Sendable {
+    var value: Result<BuildData, Error>?
+}
+
+// Hard cap on a single parse. The Swift Task runs on the cooperative pool,
+// not the BEAM dirty scheduler we're called from, so timing out here lets the
+// dirty scheduler thread go even when the parser itself is wedged on a
+// pathological xcactivitylog. Set below the Oban worker's wall-time limit so
+// the NIF returns a structured error before Oban kills the process.
+private let parseTimeoutSeconds = 240
+
 @_cdecl("parse_xcactivitylog")
 public func parseXCActivityLog(
     _ pathPtr: UnsafePointer<CChar>,
@@ -16,27 +31,41 @@ public func parseXCActivityLog(
     let legacyCASMetadataPath = String(cString: legacyCASMetadataPathPtr)
     let url = URL(fileURLWithPath: path)
 
-    // nonisolated(unsafe) is needed because the Swift 6 concurrency checker doesn't understand
-    // that the DispatchSemaphore guarantees sequential access (write before signal, read after wait).
-    nonisolated(unsafe) var result: Result<BuildData, Error>!
+    let box = ParseResultBox()
     let semaphore = DispatchSemaphore(value: 0)
 
-    Task { @Sendable in
+    let task = Task { @Sendable in
+        let outcome: Result<BuildData, Error>
         do {
             let parsed = try await XCActivityLogParser().parse(
                 xcactivitylogURL: url,
                 casAnalyticsDatabasePath: try AbsolutePath(validating: casAnalyticsDbPath),
                 legacyCASMetadataPath: try AbsolutePath(validating: legacyCASMetadataPath)
             )
-            result = .success(parsed)
+            outcome = .success(parsed)
         } catch {
-            result = .failure(error)
+            outcome = .failure(error)
         }
+        box.value = outcome
         semaphore.signal()
     }
-    semaphore.wait()
+    // Propagate cancellation on every exit path (timeout, success, throw).
+    // The current parser doesn't check Task.isCancelled, so this is a no-op
+    // today, but it makes the structured intent explicit and future-proofs
+    // the handoff if a parser starts honoring cancellation.
+    defer { task.cancel() }
 
-    switch result! {
+    let deadline = DispatchTime.now() + .seconds(parseTimeoutSeconds)
+    if semaphore.wait(timeout: deadline) == .timedOut {
+        let error = NSError(
+            domain: "XCActivityLogNIF",
+            code: -1,
+            userInfo: [NSLocalizedDescriptionKey: "parse timed out after \(parseTimeoutSeconds)s"]
+        )
+        return writeError(error, outputPtr: outputPtr, outputLen: outputLen)
+    }
+
+    switch box.value! {
     case let .success(parsed):
         do {
             let jsonData = try JSONEncoder().encode(parsed)

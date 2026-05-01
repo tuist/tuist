@@ -10,8 +10,10 @@ defmodule Tuist.Bundles.ArtifactIngest do
   a transient ClickHouse outage would silently drop rows after the PG
   transaction has already committed, with no durable record for the
   follow-up backfill to recover. Going synchronous lets the write fail
-  loudly (caught by the rescue in `Bundles`) and leaves the bundle's
-  `artifacts_replicated_to_ch` flag unset so the backfill picks it up.
+  loudly (caught by the rescue in `Bundles`), which then flips the bundle's
+  `artifacts_replicated_to_ch` flag to `false` so the backfill picks it up
+  — new bundles default the flag to `true` at insert, so the backfill
+  never races with an in-flight dual-write.
 
   Rows match the PG layout one-for-one except `size` is `Int64` (the column
   whose width was the original motivation for migrating off PG; see the

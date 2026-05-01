@@ -7,6 +7,7 @@ defmodule Tuist.Environment do
   # builds ignore TUIST_DEPLOY_ENV so tests can't accidentally flip into
   # a prod-like mode.
   @compile_env Mix.env()
+  @dev_all_locales Application.compile_env(:tuist, :dev_all_locales, false)
 
   @runtime_envs ~w(prod can stag)
 
@@ -100,6 +101,10 @@ defmodule Tuist.Environment do
       truthy?(System.get_env("TUIST_HOSTED", "0"))
   end
 
+  def dev_all_locales?, do: @dev_all_locales
+
+  def dev_single_locale?, do: dev?() and not dev_all_locales?()
+
   def log_level do
     "TUIST_LOG_LEVEL" |> System.get_env("info") |> String.to_atom()
   end
@@ -116,7 +121,7 @@ defmodule Tuist.Environment do
     prometheus_enabled = System.get_env("TUIST_PROMETHEUS_ENABLED")
 
     if is_nil(prometheus_enabled) do
-      not dev?() and not test?() and web?()
+      not dev?() and not test?()
     else
       truthy?(prometheus_enabled)
     end
@@ -189,7 +194,11 @@ defmodule Tuist.Environment do
   end
 
   def version do
-    Application.spec(:tuist)[:vsn]
+    case System.get_env("TUIST_VERSION") do
+      nil -> to_string(Application.spec(:tuist)[:vsn])
+      "" -> to_string(Application.spec(:tuist)[:vsn])
+      version -> version
+    end
   end
 
   def ops_user_handles(secrets \\ secrets()) do
@@ -300,7 +309,9 @@ defmodule Tuist.Environment do
 
   def s3_access_key_id(secrets \\ secrets()) do
     if dev_use_remote_storage?() do
-      System.get_env("AWS_ACCESS_KEY_ID") || get([:s3, :access_key_id], secrets)
+      System.get_env("TUIST_S3_ACCESS_KEY_ID") ||
+        System.get_env("AWS_ACCESS_KEY_ID") ||
+        get([:s3, :access_key_id], secrets)
     else
       "minio"
     end
@@ -308,19 +319,24 @@ defmodule Tuist.Environment do
 
   def s3_secret_access_key(secrets \\ secrets()) do
     if dev_use_remote_storage?() do
-      System.get_env("AWS_SECRET_ACCESS_KEY") || get([:s3, :secret_access_key], secrets)
+      System.get_env("TUIST_S3_SECRET_ACCESS_KEY") ||
+        System.get_env("AWS_SECRET_ACCESS_KEY") ||
+        get([:s3, :secret_access_key], secrets)
     else
       "minio1234"
     end
   end
 
   def s3_region(secrets \\ secrets()) do
-    System.get_env("AWS_REGION") || get([:s3, :region], secrets) || "auto"
+    System.get_env("TUIST_S3_REGION") ||
+      System.get_env("AWS_REGION") ||
+      get([:s3, :region], secrets) ||
+      "auto"
   end
 
   def s3_bucket_name(secrets \\ secrets()) do
     if dev_use_remote_storage?() do
-      get([:s3, :bucket_name], secrets)
+      System.get_env("TUIST_S3_BUCKET_NAME") || get([:s3, :bucket_name], secrets)
     else
       "tuist-development"
     end
@@ -328,7 +344,7 @@ defmodule Tuist.Environment do
 
   def s3_endpoint(secrets \\ secrets()) do
     if dev_use_remote_storage?() do
-      get([:s3, :endpoint], secrets)
+      System.get_env("TUIST_S3_ENDPOINT") || get([:s3, :endpoint], secrets)
     else
       System.get_env("TUIST_LOCAL_S3_ENDPOINT") ||
         case System.get_env("TUIST_MINIO_API_PORT") do
@@ -340,7 +356,10 @@ defmodule Tuist.Environment do
 
   def s3_virtual_host(secrets \\ secrets()) do
     if dev_use_remote_storage?() do
-      [:s3, :virtual_host] |> get(secrets) |> truthy?()
+      case System.get_env("TUIST_S3_VIRTUAL_HOST") do
+        nil -> [:s3, :virtual_host] |> get(secrets) |> truthy?()
+        value -> truthy?(value)
+      end
     else
       false
     end
@@ -348,7 +367,10 @@ defmodule Tuist.Environment do
 
   def s3_bucket_as_host(secrets \\ secrets()) do
     if dev_use_remote_storage?() do
-      [:s3, :bucket_as_host] |> get(secrets) |> truthy?()
+      case System.get_env("TUIST_S3_BUCKET_AS_HOST") do
+        nil -> [:s3, :bucket_as_host] |> get(secrets) |> truthy?()
+        value -> truthy?(value)
+      end
     else
       false
     end

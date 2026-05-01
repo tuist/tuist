@@ -29,18 +29,29 @@ server:
     host: canary.tuist.dev
     tlsSecretName: tuist-tls-cloudflare-origin
 
-  # Canary is always a single pod, so no anti-affinity here.
-  # Requests are sized so a rolling deploy's surge pod (maxSurge: 1) fits
-  # alongside the existing pod on the canary nodepool's two workers — at
-  # 1 GiB each they don't both fit. Limits stay generous so the live pod
-  # has headroom under load.
+  # Request sized so a surge pod (chart-default maxSurge: 1) co-schedules
+  # alongside the live pod on the 2-worker canary nodepool. Steady-state
+  # working set is ~700 MiB; the 2 GiB limit absorbs that under load.
   resources:
     requests:
       cpu: "250m"
-      memory: "512Mi"
+      memory: "256Mi"
     limits:
       cpu: "2000m"
       memory: "2Gi"
+
+  # The migration hook runs before Helm can roll any workload pods, so it
+  # must fit next to the steady-state canary server, processor, Redis, and
+  # telemetry pods on the 2-worker cluster. `Tuist.Release.migrate` only
+  # loads the app config and runs Ecto migrations (no Phoenix endpoint, no
+  # Oban, pool size 1), so peak working set is around 150-250Mi. Match the
+  # canary server's request so the hook fits whenever the server fits;
+  # the common 4Gi limit absorbs long-running data-backfill spikes.
+  migrationJob:
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "200Mi"
 
   extraEnv:
     # Selects which priv/secrets/<env>.yml.enc file the app decrypts at
@@ -52,6 +63,11 @@ server:
       value: "15"
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
       value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
+
+objectStorage:
+  external:
+    buckets:
+      default: tuist-can-storage
 
 processor:
   # Supabase canary project (thapckmapmffdgaiarvu) — dedicated pooler on

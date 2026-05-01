@@ -100,6 +100,97 @@ defmodule Tuist.Processor.XCResultProcessorTest do
       assert case_b["is_quarantined"] == false
     end
 
+    @tag :tmp_dir
+    test "demotes run status to success when every failing test is quarantined", %{
+      tmp_dir: tmp_dir
+    } do
+      quarantined_tests = [
+        %{"target" => "AppTests", "class" => "Suite", "method" => "testFlaky()"}
+      ]
+
+      {:ok, fixture_zip} =
+        :zip.create(
+          ~c"#{Path.join(tmp_dir, "fixture.zip")}",
+          [
+            {~c"Test.xcresult/Info.plist", "fake"},
+            {~c"Test.xcresult/quarantined_tests.json", JSON.encode!(quarantined_tests)}
+          ]
+        )
+
+      parsed_data = %{
+        "status" => "failure",
+        "test_modules" => [
+          %{
+            "name" => "AppTests",
+            "test_cases" => [
+              %{"name" => "testStable()", "test_suite_name" => "Suite", "status" => "success"},
+              %{"name" => "testFlaky()", "test_suite_name" => "Suite", "status" => "failure"}
+            ]
+          }
+        ]
+      }
+
+      stub(ExAws.S3, :download_file, fn _bucket, _key, dest_path ->
+        File.cp!(to_string(fixture_zip), dest_path)
+        %ExAws.Operation.S3{http_method: :get, bucket: "tuist", path: "key"}
+      end)
+
+      expect(ExAws, :request, fn _ -> {:ok, :done} end)
+      expect(XcodeProcessor.XCResultNIF, :parse, fn _path, _root -> {:ok, parsed_data} end)
+
+      {:ok, result} = XCResultProcessor.process("some/key.zip")
+
+      assert result["status"] == "success"
+      [module] = result["test_modules"]
+      [stable, flaky] = module["test_cases"]
+      assert stable["status"] == "success"
+      assert flaky["status"] == "failure"
+      assert flaky["is_quarantined"] == true
+    end
+
+    @tag :tmp_dir
+    test "keeps run status as failure when at least one failing test is not quarantined", %{
+      tmp_dir: tmp_dir
+    } do
+      quarantined_tests = [
+        %{"target" => "AppTests", "class" => "Suite", "method" => "testFlaky()"}
+      ]
+
+      {:ok, fixture_zip} =
+        :zip.create(
+          ~c"#{Path.join(tmp_dir, "fixture.zip")}",
+          [
+            {~c"Test.xcresult/Info.plist", "fake"},
+            {~c"Test.xcresult/quarantined_tests.json", JSON.encode!(quarantined_tests)}
+          ]
+        )
+
+      parsed_data = %{
+        "status" => "failure",
+        "test_modules" => [
+          %{
+            "name" => "AppTests",
+            "test_cases" => [
+              %{"name" => "testFlaky()", "test_suite_name" => "Suite", "status" => "failure"},
+              %{"name" => "testReal()", "test_suite_name" => "Suite", "status" => "failure"}
+            ]
+          }
+        ]
+      }
+
+      stub(ExAws.S3, :download_file, fn _bucket, _key, dest_path ->
+        File.cp!(to_string(fixture_zip), dest_path)
+        %ExAws.Operation.S3{http_method: :get, bucket: "tuist", path: "key"}
+      end)
+
+      expect(ExAws, :request, fn _ -> {:ok, :done} end)
+      expect(XcodeProcessor.XCResultNIF, :parse, fn _path, _root -> {:ok, parsed_data} end)
+
+      {:ok, result} = XCResultProcessor.process("some/key.zip")
+
+      assert result["status"] == "failure"
+    end
+
     test "returns parsed data unchanged when no quarantined_tests.json" do
       {fixture_dir, fixture_zip} = create_xcresult_zip()
       on_exit(fn -> File.rm_rf(fixture_dir) end)

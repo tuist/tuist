@@ -111,6 +111,11 @@ server:
   podAnnotations: {}
   podLabels: {}
   affinity: {}
+  # Optional nodeSelector to keep server pods off a dedicated worker pool
+  # (for example, the cpx51 processor pool the managed cluster provisions
+  # for xcactivitylog parsing). Self-hosters can leave this empty.
+  nodeSelector: {}
+  tolerations: []
   terminationGracePeriodSeconds: 60
   # Preferred HTTP probes. All three hit the Phoenix /ready endpoint.
   #
@@ -214,10 +219,23 @@ processor:
       maxSurge: 1
       maxUnavailable: 0
   topologySpread:
-    # Prefer one replica per Kubernetes node; ScheduleAnyway keeps the surge
-    # pod from being stuck pending during a deploy on a 2-node cluster.
+    # Spread one replica per Kubernetes node. Default whenUnsatisfiable is
+    # ScheduleAnyway so a 1-node cluster (preview / small self-host) still
+    # schedules; override to DoNotSchedule on multi-node clusters where
+    # co-location would degrade throughput (managed production does this).
     enabled: true
+    whenUnsatisfiable: ScheduleAnyway
   affinity: {}
+  # Optional nodeSelector to pin processor pods to a dedicated node pool.
+  # The managed cluster sets `node.cluster.x-k8s.io/pool: processor` on
+  # cpx51 worker nodes provisioned for parsing; self-hosters can leave
+  # this empty and processors will land on any schedulable node.
+  nodeSelector: {}
+  # Tolerations for taint-based pool isolation. Syself's ClusterClass v6
+  # doesn't expose a taint variable so the managed cluster relies on
+  # nodeSelector alone, but the field is wired up so a future cluster
+  # class (or a self-hoster with their own taints) can use it.
+  tolerations: []
   podDisruptionBudget:
     enabled: false
     minAvailable: 1
@@ -229,8 +247,10 @@ processor:
   # running at the deadline.
   terminationGracePeriodSeconds: 1260
   # Build archives are unzipped into the pod's /tmp. Scale to match the
-  # largest archive plus headroom for CAS metadata.
-  tmpSizeLimit: 10Gi
+  # largest archive plus headroom for CAS metadata. 16 GiB gives ~3 GiB per
+  # slot at queueConcurrency = 5, which is enough for any realistic build
+  # archive plus its CAS sidecar files.
+  tmpSizeLimit: 16Gi
 
 xcresultProcessor:
   # Dedicated macOS workers that consume `:process_xcresult`. The parse
@@ -473,6 +493,7 @@ postgresql:
     username: tuist
     password: tuist
     persistence:
+      create: true
       storageClassName: ""
       accessModes:
         - ReadWriteOnce
@@ -496,6 +517,7 @@ clickhouse:
     username: default
     password: ""
     persistence:
+      create: true
       storageClassName: ""
       accessModes:
         - ReadWriteOnce
@@ -540,6 +562,20 @@ objectStorage:
       cache: tuist-cache
       xcodeCache: tuist-xcode-cache
       registry: tuist-registry
+    managedSecrets: false
+    externalSecrets:
+      refreshInterval: "1h"
+      storeRef:
+        kind: ClusterSecretStore
+        name: onepassword
+      accessKey:
+        # 1Password item title and field. With the 1P SDK provider the vault
+        # is set on the ClusterSecretStore, not here.
+        item: S3_CREDENTIALS
+        field: access_key_id
+      secretKey:
+        item: S3_CREDENTIALS
+        field: secret_access_key
   embedded:
     provider: minio
     image:
@@ -554,6 +590,7 @@ objectStorage:
     rootPassword: minio1234
     region: auto
     persistence:
+      create: true
       storageClassName: ""
       accessModes:
         - ReadWriteOnce

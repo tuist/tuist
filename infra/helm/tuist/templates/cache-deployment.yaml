@@ -145,11 +145,19 @@ spec:
         {{- end }}
       volumes:
         - name: storage
+          {{- if .Values.cache.storage.pvc.create }}
           persistentVolumeClaim:
             claimName: {{ include "tuist.componentName" (dict "root" . "component" "cache-storage") }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
         - name: data
+          {{- if .Values.cache.data.pvc.create }}
           persistentVolumeClaim:
             claimName: {{ include "tuist.componentName" (dict "root" . "component" "cache-data") }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
         - name: socket
           emptyDir: {}
         {{- if .Values.cache.nginx.enabled }}

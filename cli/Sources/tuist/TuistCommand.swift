@@ -165,10 +165,6 @@ public struct TuistCommand: AsyncParsableCommand {
                 let serverURL = try ServerEnvironmentService().url(configServerURL: config.url)
                 let command = try parseAsRoot(processedArguments)
 
-                if command is RecentPathRememberableCommand {
-                    try await RecentPathsStore.current.remember(path: path)
-                }
-
                 executeCommand = {
                     logFilePathDisplayStrategy =
                         (command as? LogConfigurableCommand)?
