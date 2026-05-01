@@ -71,7 +71,13 @@ jobs:
           # before the release tarball is assembled.
           ./native/xcresult_nif/build.sh
           ./native/xcactivitylog_nif/build.sh
-          MIX_ENV=prod mix compile --warnings-as-errors
+          # The bare-metal Mac mini reuses a single $TUIST_MIX_BUILD_ROOT
+          # across runs, which is mostly fine — except mix's mtime-based
+          # incremental compile occasionally keeps a stale .beam after a
+          # rebase. `--force` recompiles every .ex regardless; the BEAM
+          # build is fast enough (~30s) that the safety is worth more
+          # than the saved time.
+          MIX_ENV=prod mix compile --force --warnings-as-errors
           MIX_ENV=prod mix release tuist --overwrite
           # mix.exs honors $TUIST_MIX_BUILD_ROOT (set on the bare-metal
           # runner to share the BEAM build cache across jobs). When it's
