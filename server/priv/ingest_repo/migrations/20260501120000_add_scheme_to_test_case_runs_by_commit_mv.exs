@@ -1,26 +1,27 @@
 defmodule Tuist.IngestRepo.Migrations.AddSchemeToTestCaseRunsByCommitMv do
   @moduledoc """
-  Adds `scheme` to the cross-run flakiness lookup data so two CI runs on
-  the same commit but different schemes are treated as separate execution
+  Adds `scheme` to the cross-run flakiness lookup so two CI runs on the
+  same commit but different schemes are treated as separate execution
   variants and do not flag each other as flaky.
 
-  Creates a new storage table `test_case_runs_by_commit_v2` and a new
-  materialized view `test_case_runs_by_commit_v2_mv` running alongside
-  the existing `test_case_runs_by_commit` / `test_case_runs_by_commit_mv`
-  pair. The legacy artifacts are left in place so production reads keep
-  working through the deploy window. The application schema points at the
-  v2 table from this PR forward; a follow-up migration drops the legacy
-  table and view once the rollout is stable.
+  Builds a new-schema table under a temporary name, backfills it from
+  `test_case_runs` partitions, then atomically swaps it into the canonical
+  `test_case_runs_by_commit` name via `EXCHANGE TABLES`. The previous
+  legacy data ends up parked under `test_case_runs_by_commit_v2` and is
+  dropped in a follow-up migration once the rollout is stable. Keeping
+  the canonical name means application code does not have to switch
+  table identifiers across the deploy.
 
-  The v2 table's ORDER BY puts `scheme` in the prefix
-  `(project_id, git_commit_sha, scheme, is_ci, status, id)` so the new
-  lookup keyed by project + commit + scheme reads a small contiguous
-  range.
+  The new ORDER BY puts `scheme` in the prefix
+  `(project_id, git_commit_sha, scheme, is_ci, status, id)` so the lookup
+  keyed by project + commit + scheme reads a small contiguous range.
 
-  Backfill is partition-by-partition, mirroring the original migration.
-  Inserts that arrive between the backfill completing and the MV being
-  created go through the legacy MV only; this is the same race the
-  original migration accepts and is acceptable for a one-time window.
+  Backfill runs partition-by-partition before the swap. The window between
+  dropping the legacy MV and creating the new MV is short (three DDLs); a
+  small number of inserts to `test_case_runs` during that window will not
+  be reflected in the by-commit lookup table. Those source rows are still
+  in `test_case_runs` and only affect cross-run flakiness detection for
+  that brief window — same trade-off the original MV migration accepted.
   """
   use Ecto.Migration
   alias Tuist.IngestRepo
@@ -32,8 +33,10 @@ defmodule Tuist.IngestRepo.Migrations.AddSchemeToTestCaseRunsByCommitMv do
   @columns ~w(project_id git_commit_sha scheme is_ci status id test_case_id inserted_at)
 
   def up do
+    IngestRepo.query!("DROP TABLE IF EXISTS test_case_runs_by_commit_new")
+
     IngestRepo.query!("""
-    CREATE TABLE IF NOT EXISTS test_case_runs_by_commit_v2 (
+    CREATE TABLE test_case_runs_by_commit_new (
       project_id Int64,
       git_commit_sha String,
       scheme String,
@@ -48,9 +51,13 @@ defmodule Tuist.IngestRepo.Migrations.AddSchemeToTestCaseRunsByCommitMv do
 
     backfill_by_partition()
 
+    IngestRepo.query!("DROP VIEW IF EXISTS test_case_runs_by_commit_mv")
+
+    IngestRepo.query!("EXCHANGE TABLES test_case_runs_by_commit AND test_case_runs_by_commit_new")
+
     IngestRepo.query!("""
-    CREATE MATERIALIZED VIEW IF NOT EXISTS test_case_runs_by_commit_v2_mv
-    TO test_case_runs_by_commit_v2
+    CREATE MATERIALIZED VIEW test_case_runs_by_commit_mv
+    TO test_case_runs_by_commit
     AS SELECT
       project_id,
       git_commit_sha,
@@ -62,11 +69,32 @@ defmodule Tuist.IngestRepo.Migrations.AddSchemeToTestCaseRunsByCommitMv do
       inserted_at
     FROM test_case_runs
     """)
+
+    IngestRepo.query!("DROP TABLE IF EXISTS test_case_runs_by_commit_v2")
+
+    IngestRepo.query!("RENAME TABLE test_case_runs_by_commit_new TO test_case_runs_by_commit_v2")
   end
 
   def down do
-    IngestRepo.query!("DROP VIEW IF EXISTS test_case_runs_by_commit_v2_mv")
+    IngestRepo.query!("DROP VIEW IF EXISTS test_case_runs_by_commit_mv")
+
+    IngestRepo.query!("EXCHANGE TABLES test_case_runs_by_commit AND test_case_runs_by_commit_v2")
+
     IngestRepo.query!("DROP TABLE IF EXISTS test_case_runs_by_commit_v2")
+
+    IngestRepo.query!("""
+    CREATE MATERIALIZED VIEW test_case_runs_by_commit_mv
+    TO test_case_runs_by_commit
+    AS SELECT
+      project_id,
+      git_commit_sha,
+      is_ci,
+      status,
+      id,
+      test_case_id,
+      inserted_at
+    FROM test_case_runs
+    """)
   end
 
   defp backfill_by_partition do
@@ -82,12 +110,12 @@ defmodule Tuist.IngestRepo.Migrations.AddSchemeToTestCaseRunsByCommitMv do
       )
 
     for [partition] <- partitions do
-      Logger.info("Backfilling partition #{partition} into test_case_runs_by_commit_v2")
+      Logger.info("Backfilling partition #{partition} into test_case_runs_by_commit_new")
 
       retry_on_shutting_down(fn ->
         IngestRepo.query!(
           """
-          INSERT INTO test_case_runs_by_commit_v2 (#{Enum.join(@columns, ", ")})
+          INSERT INTO test_case_runs_by_commit_new (#{Enum.join(@columns, ", ")})
           SELECT #{Enum.join(@columns, ", ")}
           FROM test_case_runs
           WHERE toYYYYMM(inserted_at) = {partition:UInt32}
