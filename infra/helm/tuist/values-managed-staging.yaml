@@ -124,10 +124,13 @@ xcresultProcessor:
   image:
     # Pinned to a SHA so production's `:latest` (still on the legacy
     # Orchard `--user-data` flow) isn't disturbed by feature-branch
-    # builds. The c9823bb6 build adds xcactivitylog_nif.so to the
-    # release tarball; without it the BEAM crashes at boot trying
-    # to dlopen the .so eagerly via @on_load.
-    tag: "c9823bb6"
+    # builds. The f2263303 build force-recompiles the Elixir app
+    # before assembling the release — the bare-metal Mac mini's mix
+    # cache had been keeping a pre-collapse ProcessXcresultWorker
+    # .beam past every rebase, which surfaced as
+    # `xcode_processor_error_500` on every Oban attempt despite the
+    # source already being on the local-only path.
+    tag: "f2263303"
   strategy:
     type: RollingUpdate
     rollingUpdate:
