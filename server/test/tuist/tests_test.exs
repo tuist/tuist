@@ -3788,7 +3788,7 @@ defmodule Tuist.TestsTest do
           ]
         })
 
-      # Second CI run on scheme "Pinterest-Workspace": same test case passes on same commit
+      # Second CI run on scheme "AppWorkspace": same test case passes on same commit
       {:ok, second_test} =
         Tests.create_test(%{
           id: UUIDv7.generate(),
@@ -3800,7 +3800,7 @@ defmodule Tuist.TestsTest do
           xcode_version: "15.0",
           git_branch: "main",
           git_commit_sha: commit_sha,
-          scheme: "Pinterest-Workspace",
+          scheme: "AppWorkspace",
           ran_at: NaiveDateTime.utc_now(),
           is_ci: true,
           test_modules: [
