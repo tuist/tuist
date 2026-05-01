@@ -166,7 +166,20 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 }
 
 func (r *Reconciler) deletePod(ctx context.Context, pod *corev1.Pod) error {
-	return r.deleteByKey(ctx, pod.Namespace, pod.Name)
+	if err := r.deleteByKey(ctx, pod.Namespace, pod.Name); err != nil {
+		return err
+	}
+	// Real kubelet finalizes deletion by re-issuing Delete with
+	// GracePeriodSeconds: 0 once the runtime has confirmed the
+	// container is gone. Without this, the Pod stays "Terminating"
+	// forever — k8s waits on the kubelet to ack, and we are it.
+	gracePeriod := int64(0)
+	if err := r.CachedClient.Delete(ctx, pod, &client.DeleteOptions{
+		GracePeriodSeconds: &gracePeriod,
+	}); err != nil && !apierrors.IsNotFound(err) {
+		return fmt.Errorf("finalize pod delete: %w", err)
+	}
+	return nil
 }
 
 func (r *Reconciler) deleteByKey(ctx context.Context, namespace, name string) error {
