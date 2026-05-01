@@ -5,8 +5,6 @@ defmodule Tuist.Bundles.Bundle do
 
   import Ecto.Changeset
 
-  alias Tuist.Bundles.Artifact
-
   @derive {
     Flop.Schema,
     filterable: [
@@ -58,17 +56,13 @@ defmodule Tuist.Bundles.Bundle do
         apk: 4
       ]
 
-    # New bundles default to `true` — `Bundles.create_bundle/2`'s
-    # synchronous dual-write owns their CH copy from insert time, so the
-    # backfill never sees them while replication is in flight. The flag
-    # only flips to `false` if the dual-write's CH insert raises; the
-    # follow-up backfill paginates over those (plus pre-phase-1 legacy
-    # rows that were column-defaulted to `false`).
-    field :artifacts_replicated_to_ch, :boolean, default: true
+    # Artifacts live in ClickHouse — `Tuist.Bundles.Artifact` cannot be
+    # an `Ecto.Schema` association on a PG schema. Populated via virtual
+    # field by `Tuist.Bundles.create_bundle/2` and `Tuist.Bundles.get_bundle/2`.
+    field :artifacts, {:array, :map}, virtual: true, default: []
 
     belongs_to :project, Tuist.Projects.Project, type: :integer
     belongs_to :uploaded_by_account, Tuist.Accounts.Account, type: :integer
-    has_many :artifacts, Artifact
 
     timestamps(type: :utc_datetime)
   end

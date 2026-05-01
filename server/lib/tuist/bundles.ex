@@ -6,112 +6,51 @@ defmodule Tuist.Bundles do
   import Ecto.Query
 
   alias Tuist.Bundles.Artifact
-  alias Tuist.Bundles.ArtifactIngest
   alias Tuist.Bundles.Bundle
   alias Tuist.Bundles.BundleThreshold
+  alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
   alias Tuist.Projects.Project
   alias Tuist.Repo
 
-  require Logger
-
   @doc """
   Creates a bundle with associated artifacts.
+
+  The bundle row is written to PostgreSQL and the artifacts are written
+  to ClickHouse. Both writes happen inside a single PG transaction so an
+  exception from the ClickHouse insert (e.g. transient outage) rolls back
+  the bundle insert; the caller sees the underlying error and can retry.
   """
   def create_bundle(attrs \\ %{}, opts \\ []) do
     {artifacts, bundle_attrs} = Map.pop(attrs, :artifacts, [])
     bundle_id = Map.fetch!(attrs, :id)
-
-    Ecto.Multi.new()
-    |> create_bundle_multi(bundle_attrs)
-    |> create_artifacts_multi(artifacts, bundle_id)
-    |> execute_bundle_transaction(opts)
-  end
-
-  defp create_bundle_multi(multi, bundle_attrs) do
-    Ecto.Multi.insert(multi, :bundle, Bundle.changeset(%Bundle{}, bundle_attrs))
-  end
-
-  defp create_artifacts_multi(multi, artifacts, bundle_id) do
-    Ecto.Multi.run(multi, :artifacts, fn repo, _changes ->
-      insert_artifacts_in_batches(repo, artifacts, bundle_id)
-    end)
-  end
-
-  defp execute_bundle_transaction(multi, opts) do
     preload = Keyword.get(opts, :preload, [])
 
-    case Repo.transaction(multi) do
-      {:ok, %{bundle: bundle, artifacts: artifacts}} ->
-        bundle = replicate_artifacts_to_clickhouse(bundle, artifacts)
-        {:ok, Repo.preload(bundle, preload)}
+    result =
+      Ecto.Multi.new()
+      |> Ecto.Multi.insert(:bundle, Bundle.changeset(%Bundle{}, bundle_attrs))
+      |> Ecto.Multi.run(:artifacts, fn _repo, _changes ->
+        flattened = flatten_artifacts(artifacts, bundle_id)
+        insert_artifacts_to_clickhouse(flattened)
+        {:ok, flattened}
+      end)
+      |> Repo.transaction()
 
-      {:error, _operation, changeset, _changes} ->
+    case result do
+      {:ok, %{bundle: bundle, artifacts: flattened}} ->
+        {:ok, Repo.preload(%{bundle | artifacts: flattened}, preload)}
+
+      {:error, :bundle, changeset, _} ->
         {:error, changeset}
     end
   end
 
-  # Mirrors the just-persisted artifacts into ClickHouse synchronously.
-  # PG remains the source of truth for reads until the backfill completes
-  # and reads are cut over.
-  #
-  # New bundles are inserted with `artifacts_replicated_to_ch = true` (see
-  # `Tuist.Bundles.Bundle`), so the steady-state path here is a no-op on
-  # the flag — the dual-write owns the bundle's CH copy from insert time
-  # and the backfill never sees it while replication is in flight.
-  #
-  # The write is intentionally synchronous (not via `Tuist.Ingestion.Buffer`):
-  # a buffered async flush that crashes on a transient CH outage would drop
-  # rows after the PG transaction has already committed, with no durable
-  # signal for recovery. With the synchronous path, `IngestRepo.with_retry`
-  # absorbs brief blips, and longer outages surface here as exceptions —
-  # rescued so bundle creation does not 5xx, then the bundle's
-  # `artifacts_replicated_to_ch` flag is flipped to `false` so the follow-up
-  # backfill paginating `WHERE artifacts_replicated_to_ch = false` recovers
-  # it.
-  defp replicate_artifacts_to_clickhouse(bundle, []), do: bundle
+  defp insert_artifacts_to_clickhouse([]), do: :ok
 
-  defp replicate_artifacts_to_clickhouse(bundle, artifacts) do
-    rows = Enum.map(artifacts, &ArtifactIngest.from_pg/1)
-    IngestRepo.insert_all(ArtifactIngest, rows)
-    bundle
-  rescue
-    e ->
-      Logger.error(
-        "Failed to replicate artifacts to ClickHouse for bundle #{bundle.id}: " <>
-          Exception.message(e) <> "\n" <> Exception.format_stacktrace(__STACKTRACE__)
-      )
-
-      mark_unreplicated!(bundle)
-  end
-
-  defp mark_unreplicated!(%Bundle{id: id} = bundle) do
-    Repo.update_all(
-      from(b in Bundle, where: b.id == ^id),
-      set: [artifacts_replicated_to_ch: false]
-    )
-
-    %{bundle | artifacts_replicated_to_ch: false}
-  end
-
-  defp insert_artifacts_in_batches(repo, artifacts, bundle_id) do
-    artifacts
-    |> flatten_artifacts(bundle_id)
-    |> batch_insert_artifacts(repo)
-  end
-
-  defp batch_insert_artifacts(flattened_artifacts, repo) do
-    # Each artifact has ~10 fields, so 6000 artifacts per batch keeps us under 65535 params
-    batch_size = 6000
-
-    flattened_artifacts
-    |> Enum.chunk_every(batch_size)
-    |> Enum.reduce_while({:ok, []}, fn batch, {:ok, acc} ->
-      case repo.insert_all(Artifact, batch, returning: true) do
-        {_count, artifacts} -> {:cont, {:ok, acc ++ artifacts}}
-        error -> {:halt, error}
-      end
-    end)
+  defp insert_artifacts_to_clickhouse(flattened) do
+    rows = Enum.map(flattened, &Artifact.to_ch_row/1)
+    IngestRepo.insert_all(Artifact, rows)
+    :ok
   end
 
   @doc """
@@ -137,27 +76,41 @@ defmodule Tuist.Bundles do
   end
 
   def get_bundle_artifact_tree(bundle_id) do
-    Repo.all(from(a in Artifact, where: a.bundle_id == ^bundle_id, order_by: [asc: a.path]))
+    from(a in Artifact,
+      where: a.bundle_id == type(^bundle_id, Ecto.UUID),
+      order_by: [asc: a.path]
+    )
+    |> ClickHouseRepo.all()
+    |> Enum.map(&decode_artifact_type/1)
   end
 
+  # ClickHouse stores `artifact_type` as `LowCardinality(String)`; the rest
+  # of the codebase (filters, comparisons, JSON serialization) expects the
+  # historical PG `Ecto.Enum` atom shape, so normalize at the read boundary.
+  defp decode_artifact_type(%{artifact_type: type} = artifact) when is_binary(type) do
+    %{artifact | artifact_type: String.to_existing_atom(type)}
+  end
+
+  defp decode_artifact_type(artifact), do: artifact
+
   defp bundle_artifacts(%Bundle{id: id}) do
-    # Get all artifacts for this bundle in a single query
     all_artifacts =
-      Repo.all(
-        from a in Artifact,
-          where: a.bundle_id == ^id,
-          select: %{
-            id: a.id,
-            artifact_type: a.artifact_type,
-            path: a.path,
-            size: a.size,
-            shasum: a.shasum,
-            artifact_id: a.artifact_id,
-            bundle_id: a.bundle_id,
-            inserted_at: a.inserted_at,
-            updated_at: a.updated_at
-          }
+      from(a in Artifact,
+        where: a.bundle_id == type(^id, Ecto.UUID),
+        select: %{
+          id: a.id,
+          artifact_type: a.artifact_type,
+          path: a.path,
+          size: a.size,
+          shasum: a.shasum,
+          artifact_id: a.artifact_id,
+          bundle_id: a.bundle_id,
+          inserted_at: a.inserted_at,
+          updated_at: a.updated_at
+        }
       )
+      |> ClickHouseRepo.all()
+      |> Enum.map(&decode_artifact_type/1)
 
     # Filter top-level artifacts (those with no parent)
     top_level_artifacts =
@@ -622,8 +575,7 @@ defmodule Tuist.Bundles do
          parent_id \\ nil,
          current_timestamp \\ DateTime.truncate(DateTime.utc_now(), :second)
        ) do
-    valid_artifact_types =
-      Artifact |> Ecto.Enum.values(:artifact_type) |> Enum.map(&Atom.to_string/1)
+    valid_artifact_types = Enum.map(Artifact.artifact_types(), &Atom.to_string/1)
 
     Enum.flat_map(artifacts, fn artifact ->
       artifact_id = UUIDv7.generate()

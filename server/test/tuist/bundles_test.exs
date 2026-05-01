@@ -5,7 +5,7 @@ defmodule Tuist.BundlesTest do
   import Ecto.Query
 
   alias Tuist.Bundles
-  alias Tuist.Bundles.ArtifactIngest
+  alias Tuist.Bundles.Artifact
   alias Tuist.Bundles.Bundle
   alias Tuist.ClickHouseRepo
   alias Tuist.Repo
@@ -45,7 +45,7 @@ defmodule Tuist.BundlesTest do
       assert bundle.id == id
     end
 
-    test "replicates the bundle's artifacts to ClickHouse and marks the bundle replicated" do
+    test "writes the bundle's artifacts to ClickHouse" do
       # Given
       project_id = ProjectsFixtures.project_fixture().id
       id = UUIDv7.generate()
@@ -68,12 +68,7 @@ defmodule Tuist.BundlesTest do
               artifact_type: :directory,
               path: "App.app",
               shasum: "aaa",
-              # Use a value comfortably within PG int4 (max 2_147_483_647).
-              # Dual-write goes through PG first today, so we are
-              # upper-bounded by the column type that motivated this
-              # whole migration. Once phase 4 drops the PG table, we can
-              # round-trip an actual Int64-sized value end-to-end.
-              size: 2_000_000_000,
+              size: 5_000_000_000,
               children: [
                 %{
                   artifact_type: :file,
@@ -86,35 +81,28 @@ defmodule Tuist.BundlesTest do
           ]
         })
 
-      # Then — read back via the read-only `ClickHouseRepo` (the counterpart
-      # of the write-centric `IngestRepo`) so the test verifies that the
-      # synchronous replication actually landed rows in ClickHouse, not just
-      # that the call returned `:ok`.
+      # Then read back via the read-only `ClickHouseRepo` (the counterpart
+      # of the write-centric `IngestRepo`) to confirm the rows landed.
       ch_artifacts =
         ClickHouseRepo.all(
-          from(a in ArtifactIngest,
+          from(a in Artifact,
             where: a.bundle_id == type(^id, Ecto.UUID),
             order_by: [asc: a.path]
           )
         )
 
       assert Enum.map(ch_artifacts, & &1.path) == ["App.app", "App.app/Info.plist"]
-      assert Enum.map(ch_artifacts, & &1.size) == [2_000_000_000, 1024]
+      assert Enum.map(ch_artifacts, & &1.size) == [5_000_000_000, 1024]
       assert Enum.map(ch_artifacts, & &1.artifact_type) == ["directory", "file"]
       assert Enum.all?(ch_artifacts, &(&1.bundle_id == id))
       [parent, child] = ch_artifacts
       assert parent.artifact_id == nil
       assert child.artifact_id == parent.id
-      # The CH `DateTime64(6)` column round-trips the second-precision PG
-      # `:utc_datetime` value without losing the wall-clock time.
       assert NaiveDateTime.compare(parent.inserted_at, ~N[2024-08-10 02:00:00]) == :eq
       assert NaiveDateTime.compare(parent.updated_at, ~N[2024-08-10 02:00:00]) == :eq
-      # The replication flag must be set so the follow-up backfill skips
-      # this bundle.
-      assert Repo.get!(Bundle, id).artifacts_replicated_to_ch == true
     end
 
-    test "leaves artifacts_replicated_to_ch=false when ClickHouse is unavailable so the backfill recovers the bundle" do
+    test "rolls back the bundle insert when ClickHouse is unavailable" do
       # Given
       project_id = ProjectsFixtures.project_fixture().id
       id = UUIDv7.generate()
@@ -124,7 +112,7 @@ defmodule Tuist.BundlesTest do
       end)
 
       # When
-      {:ok, bundle} =
+      assert_raise DBConnection.ConnectionError, fn ->
         Bundles.create_bundle(%{
           id: id,
           name: "App",
@@ -145,37 +133,11 @@ defmodule Tuist.BundlesTest do
             }
           ]
         })
+      end
 
-      # Then bundle creation succeeded, but the replication flag is left
-      # false so the follow-up backfill (paginating
-      # `WHERE artifacts_replicated_to_ch = false`) recovers the rows.
-      assert bundle.id == id
-      assert Repo.get!(Bundle, id).artifacts_replicated_to_ch == false
-    end
-
-    test "marks bundles with no artifacts as already replicated" do
-      # Given
-      project_id = ProjectsFixtures.project_fixture().id
-      id = UUIDv7.generate()
-
-      # When
-      {:ok, _bundle} =
-        Bundles.create_bundle(%{
-          id: id,
-          name: "App",
-          app_bundle_id: "dev.tuist.app",
-          install_size: 1024,
-          download_size: 1024,
-          supported_platforms: [:ios],
-          version: "1.0.0",
-          git_branch: "main",
-          type: :app,
-          project_id: project_id
-        })
-
-      # Then a vacuous bundle (no artifacts) is considered replicated so
-      # the backfill does not pick it up unnecessarily.
-      assert Repo.get!(Bundle, id).artifacts_replicated_to_ch == true
+      # Then the PG bundle insert is rolled back so we never have a bundle
+      # row without its artifacts in ClickHouse.
+      assert is_nil(Repo.get(Bundle, id))
     end
 
     test "raises if an artifact type is invalid" do
