@@ -20,6 +20,13 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: mgmt-system
+  labels:
+    # The CronJob below needs hostNetwork (talosd binds to the host loopback
+    # for in-process API calls). Talos's default PodSecurity admission
+    # enforces "restricted" on unlabeled namespaces, which blocks hostNetwork.
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/audit: privileged
+    pod-security.kubernetes.io/warn: privileged
 ---
 apiVersion: batch/v1
 kind: CronJob
@@ -50,11 +57,16 @@ spec:
           hostNetwork: true
           dnsPolicy: ClusterFirstWithHostNet
           initContainers:
+            # The snapshotter talosconfig (in the talos-snapshotter-config
+            # Secret) carries endpoint=node=<public IP of the mgmt VM>. We
+            # connect via the public IP because that's the only address in
+            # talosd's TLS cert SAN list (127.0.0.1 isn't). The kernel
+            # short-circuits self-connections to a local IP via loopback,
+            # so the Hetzner firewall isn't in the path.
             - name: snapshot
               image: ghcr.io/siderolabs/talosctl:v1.13.0
               args:
                 - --talosconfig=/talosconfig/talosconfig
-                - --nodes=127.0.0.1
                 - etcd
                 - snapshot
                 - /share/snapshot.db
@@ -65,6 +77,11 @@ spec:
                 - name: share
                   mountPath: /share
           containers:
+            # Single-PUT upload (s3api put-object) instead of `s3 cp`. `s3 cp`
+            # switches to multipart for files >8MB, which requires the
+            # CreateMultipartUpload IAM action. Single-PUT only needs
+            # s3:PutObject, matching the bucket-scoped Tigris key's policy.
+            # 14MB snapshots are well under the 5GB single-PUT limit.
             - name: upload
               image: amazon/aws-cli:2.17.0
               command:
@@ -74,8 +91,10 @@ spec:
                   set -eu
                   TS=$(date -u +%Y-%m-%dT%H-%M-%SZ)
                   aws --endpoint-url=https://fly.storage.tigris.dev \
-                    s3 cp /share/snapshot.db \
-                    s3://tuist-mgmt-etcd-snapshots/etcd-${TS}.db
+                    s3api put-object \
+                    --bucket tuist-mgmt-etcd-snapshots \
+                    --key etcd-${TS}.db \
+                    --body /share/snapshot.db
               env:
                 - name: AWS_ACCESS_KEY_ID
                   valueFrom:

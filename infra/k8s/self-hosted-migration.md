@@ -247,20 +247,38 @@ Phase 1.5 below covers the authoring + validation work that has to land before t
 
 Talos doesn't ship with built-in S3 snapshot upload (k3s does; Talos doesn't). The standard pattern is an in-cluster `CronJob` that calls `talosctl etcd snapshot` against the node and uploads the resulting `.db` file to S3. Hourly cadence, retention 168 (= 7 days, enforced by Tigris bucket lifecycle policy). Bucket `tuist-mgmt-etcd-snapshots`, bucket-scoped access key in 1Password as `tigris-tuist-mgmt-etcd` with `access_key_id` + `secret_access_key` fields.
 
-**1. Tigris setup.** Create the bucket + a bucket-scoped access key in the Tigris dashboard. Add a lifecycle rule that deletes objects older than 7 days. Save the keys to 1Password.
-
-**2. Generate a restricted talosconfig** for the snapshotter (role `os:etcd:backup` covers `etcd snapshot` and nothing else):
+**1. Tigris setup.** Create the bucket + a bucket-scoped access key in the Tigris dashboard. The key needs `s3:PutObject`, `s3:GetObject`, `s3:DeleteObject` on `tuist-mgmt-etcd-snapshots/*` and `s3:ListBucket` on the bucket itself. Tigris's "read-write" preset on a single bucket usually covers this, but verify after creation by uploading a test object from your laptop:
 
 ```bash
-export TALOSCONFIG="$(op read 'op://Founders/talosconfig: tuist-mgmt/document')"
-talosctl config new --roles os:etcd:backup /tmp/snapshotter-talosconfig
+echo hi | AWS_ACCESS_KEY_ID="$(op read 'op://Founders/tigris-tuist-mgmt-etcd/access_key_id')" \
+  AWS_SECRET_ACCESS_KEY="$(op read 'op://Founders/tigris-tuist-mgmt-etcd/secret_access_key')" \
+  AWS_DEFAULT_REGION=auto \
+  aws --endpoint-url=https://fly.storage.tigris.dev s3api put-object \
+  --bucket tuist-mgmt-etcd-snapshots --key healthcheck.txt --body /dev/stdin
 ```
 
-**3. Apply the CronJob and Secrets.** The manifest is checked in at [`infra/k8s/mgmt/etcd-snapshot.yaml`](mgmt/etcd-snapshot.yaml). It expects two Secrets: `talos-snapshotter-config` (the restricted talosconfig from step 2) and `tigris-credentials` (Tigris access key).
+Add a lifecycle rule that deletes objects older than 7 days. Save the keys to 1Password.
+
+**2. Generate a restricted talosconfig** for the snapshotter (role `os:etcd:backup` covers `etcd snapshot` and nothing else). The CronJob runs hostNetwork on the control-plane node and connects via the public IP because that's the only address in talosd's TLS cert SAN list (127.0.0.1 isn't):
+
+```bash
+# Use the admin talosconfig from /tmp/tuist-mgmt-config/talosconfig (Phase
+# 1.3) or pull a fresh copy from 1Password if that's been shredded:
+#   op document get 'talosconfig: tuist-mgmt' --vault Founders > /tmp/admin-talosconfig
+#   export TALOSCONFIG=/tmp/admin-talosconfig
+export TALOSCONFIG=/tmp/tuist-mgmt-config/talosconfig
+
+talosctl config new --roles os:etcd:backup /tmp/snapshotter-talosconfig
+talosctl --talosconfig /tmp/snapshotter-talosconfig config endpoint "$MGMT_IP"
+talosctl --talosconfig /tmp/snapshotter-talosconfig config node "$MGMT_IP"
+```
+
+**3. Apply the CronJob and Secrets.** The manifest is checked in at [`infra/k8s/mgmt/etcd-snapshot.yaml`](mgmt/etcd-snapshot.yaml). It creates the `mgmt-system` namespace (labeled `pod-security.kubernetes.io/enforce: privileged` because hostNetwork is needed) and the CronJob. We add the two Secrets it expects: `talos-snapshotter-config` (the restricted talosconfig from step 2) and `tigris-credentials` (Tigris access key).
 
 ```bash
 export KUBECONFIG=~/.kube/tuist-mgmt.yaml
-kubectl create namespace mgmt-system
+
+kubectl apply -f infra/k8s/mgmt/etcd-snapshot.yaml
 
 kubectl -n mgmt-system create secret generic talos-snapshotter-config \
   --from-file=talosconfig=/tmp/snapshotter-talosconfig
@@ -268,8 +286,6 @@ kubectl -n mgmt-system create secret generic talos-snapshotter-config \
 kubectl -n mgmt-system create secret generic tigris-credentials \
   --from-literal=access_key_id="$(op read 'op://Founders/tigris-tuist-mgmt-etcd/access_key_id')" \
   --from-literal=secret_access_key="$(op read 'op://Founders/tigris-tuist-mgmt-etcd/secret_access_key')"
-
-kubectl apply -f infra/k8s/mgmt/etcd-snapshot.yaml
 
 shred -u /tmp/snapshotter-talosconfig
 ```
