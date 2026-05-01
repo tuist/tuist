@@ -532,12 +532,6 @@ struct BuildPhaseGenerator: BuildPhaseGenerating {
             fi
             """
         }
-        copySwiftMacrosBuildPhase.shellScript = """
-        #  This build phase serves two purposes:
-        #  - Force Xcode build system to compile the macOS executable transitively when compiling for non-macOS destinations
-        #  - Place the artifacts in the "Debug" directory where the built artifacts for the active destination live. We default to "Debug" because otherwise the Xcode editor fails to resolve the macro references.
-        \(copyLines.joined(separator: "\n"))
-        """
 
         copySwiftMacrosBuildPhase.inputPaths = executableNames.flatMap {
             [
@@ -547,13 +541,28 @@ struct BuildPhaseGenerator: BuildPhaseGenerating {
         }
 
         if target.supports(.macOS) {
-            // Any consumer that supports macOS still needs the phase because the
-            // compiler/editor load plugin executables from `Debug...`, even when
-            // the active configuration is not Debug. Declared outputs would collide
-            // on native macOS builds where `$EFFECTIVE_PLATFORM_NAME` is empty, so
-            // omit them and always run the phase instead.
-            copySwiftMacrosBuildPhase.alwaysOutOfDate = true
+            // Declaring the actual destination paths as outputs would collide with
+            // the macro target's `Ld` step on native macOS builds (where
+            // `$EFFECTIVE_PLATFORM_NAME` is empty and both write to
+            // `$BUILD_DIR/Debug/<exe>`). Use a stamp file under `$DERIVED_FILE_DIR`
+            // (per-target / per-configuration / per-platform) so Xcode's
+            // incremental up-to-date check still works without colliding.
+            copySwiftMacrosBuildPhase.shellScript = """
+            #  This build phase serves two purposes:
+            #  - Force Xcode build system to compile the macOS executable transitively when compiling for non-macOS destinations
+            #  - Place the artifacts in the "Debug" directory where the built artifacts for the active destination live. We default to "Debug" because otherwise the Xcode editor fails to resolve the macro references.
+            \(copyLines.joined(separator: "\n"))
+            mkdir -p "$DERIVED_FILE_DIR"
+            touch "$DERIVED_FILE_DIR/copy-swift-macro.stamp"
+            """
+            copySwiftMacrosBuildPhase.outputPaths = ["$(DERIVED_FILE_DIR)/copy-swift-macro.stamp"]
         } else {
+            copySwiftMacrosBuildPhase.shellScript = """
+            #  This build phase serves two purposes:
+            #  - Force Xcode build system to compile the macOS executable transitively when compiling for non-macOS destinations
+            #  - Place the artifacts in the "Debug" directory where the built artifacts for the active destination live. We default to "Debug" because otherwise the Xcode editor fails to resolve the macro references.
+            \(copyLines.joined(separator: "\n"))
+            """
             copySwiftMacrosBuildPhase.outputPaths = executableNames.flatMap { executable in
                 [
                     "$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/\(executable)",
