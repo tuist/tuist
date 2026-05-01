@@ -141,13 +141,9 @@ xcresultProcessor:
   image:
     # Pinned to a SHA so production's `:latest` (still on the legacy
     # Orchard `--user-data` flow) isn't disturbed by feature-branch
-    # builds. The f2263303 build force-recompiles the Elixir app
-    # before assembling the release — the bare-metal Mac mini's mix
-    # cache had been keeping a pre-collapse ProcessXcresultWorker
-    # .beam past every rebase, which surfaced as
-    # `xcode_processor_error_500` on every Oban attempt despite the
-    # source already being on the local-only path.
-    tag: "f2263303"
+    # builds. 4bf47026 is the first build after merging origin/main;
+    # paired with the --force compile flag added in f2263303.
+    tag: "4bf47026"
   strategy:
     type: RollingUpdate
     rollingUpdate:
