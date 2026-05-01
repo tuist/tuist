@@ -1,14 +1,19 @@
 defmodule Tuist.Tests.TestCaseRunByCommit do
   @moduledoc """
-  Slim read-only schema backed by the `test_case_runs_by_commit` materialized
-  view. Ordered by `(project_id, git_commit_sha, scheme, is_ci, status, id)`,
-  making the cross-run flakiness lookup (filter by project + commit + scheme
-  + CI + status) efficient.
+  Slim read-only schema backed by the `test_case_runs_by_commit_v2`
+  materialized view. Ordered by
+  `(project_id, git_commit_sha, scheme, is_ci, status, id)`, making the
+  cross-run flakiness lookup (filter by project + commit + scheme + CI +
+  status) efficient.
 
   `scheme` is part of the key so two runs on the same commit but different
   schemes are treated as separate execution variants and do not flag each
   other as flaky (a same-commit pass on one scheme does not contradict a
   same-commit fail on another).
+
+  The v2 table runs alongside the legacy `test_case_runs_by_commit` table
+  and view, which are kept in place during the rollout window and dropped
+  in a follow-up migration once the rollout is stable.
 
   Used by `Tuist.Tests.get_existing_ci_runs_for_commit/4` to identify
   historical CI runs for a given commit and scheme; the main table is then
@@ -18,7 +23,7 @@ defmodule Tuist.Tests.TestCaseRunByCommit do
   use Ecto.Schema
 
   @primary_key {:id, Ecto.UUID, autogenerate: false}
-  schema "test_case_runs_by_commit" do
+  schema "test_case_runs_by_commit_v2" do
     field :project_id, Ch, type: "Int64"
     field :git_commit_sha, Ch, type: "String"
     field :scheme, Ch, type: "String"

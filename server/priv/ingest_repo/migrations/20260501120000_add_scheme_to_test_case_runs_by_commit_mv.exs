@@ -1,13 +1,26 @@
 defmodule Tuist.IngestRepo.Migrations.AddSchemeToTestCaseRunsByCommitMv do
   @moduledoc """
-  Adds `scheme` to `test_case_runs_by_commit` so the cross-run flakiness
-  lookup in `Tuist.Tests.get_existing_ci_runs_for_commit/4` can partition
-  by scheme. Two CI runs on the same commit but different schemes are
-  different execution variants and must not flag each other as flaky.
+  Adds `scheme` to the cross-run flakiness lookup data so two CI runs on
+  the same commit but different schemes are treated as separate execution
+  variants and do not flag each other as flaky.
 
-  Recreates the storage table with `scheme` in the prefix of the ORDER BY
-  so a lookup keyed by `(project_id, git_commit_sha, scheme, is_ci,
-  status)` reads a small contiguous range.
+  Creates a new storage table `test_case_runs_by_commit_v2` and a new
+  materialized view `test_case_runs_by_commit_v2_mv` running alongside
+  the existing `test_case_runs_by_commit` / `test_case_runs_by_commit_mv`
+  pair. The legacy artifacts are left in place so production reads keep
+  working through the deploy window. The application schema points at the
+  v2 table from this PR forward; a follow-up migration drops the legacy
+  table and view once the rollout is stable.
+
+  The v2 table's ORDER BY puts `scheme` in the prefix
+  `(project_id, git_commit_sha, scheme, is_ci, status, id)` so the new
+  lookup keyed by project + commit + scheme reads a small contiguous
+  range.
+
+  Backfill is partition-by-partition, mirroring the original migration.
+  Inserts that arrive between the backfill completing and the MV being
+  created go through the legacy MV only; this is the same race the
+  original migration accepts and is acceptable for a one-time window.
   """
   use Ecto.Migration
   alias Tuist.IngestRepo
@@ -19,11 +32,8 @@ defmodule Tuist.IngestRepo.Migrations.AddSchemeToTestCaseRunsByCommitMv do
   @columns ~w(project_id git_commit_sha scheme is_ci status id test_case_id inserted_at)
 
   def up do
-    IngestRepo.query!("DROP VIEW IF EXISTS test_case_runs_by_commit_mv")
-    IngestRepo.query!("DROP TABLE IF EXISTS test_case_runs_by_commit")
-
     IngestRepo.query!("""
-    CREATE TABLE IF NOT EXISTS test_case_runs_by_commit (
+    CREATE TABLE IF NOT EXISTS test_case_runs_by_commit_v2 (
       project_id Int64,
       git_commit_sha String,
       scheme String,
@@ -39,8 +49,8 @@ defmodule Tuist.IngestRepo.Migrations.AddSchemeToTestCaseRunsByCommitMv do
     backfill_by_partition()
 
     IngestRepo.query!("""
-    CREATE MATERIALIZED VIEW IF NOT EXISTS test_case_runs_by_commit_mv
-    TO test_case_runs_by_commit
+    CREATE MATERIALIZED VIEW IF NOT EXISTS test_case_runs_by_commit_v2_mv
+    TO test_case_runs_by_commit_v2
     AS SELECT
       project_id,
       git_commit_sha,
@@ -55,35 +65,8 @@ defmodule Tuist.IngestRepo.Migrations.AddSchemeToTestCaseRunsByCommitMv do
   end
 
   def down do
-    IngestRepo.query!("DROP VIEW IF EXISTS test_case_runs_by_commit_mv")
-    IngestRepo.query!("DROP TABLE IF EXISTS test_case_runs_by_commit")
-
-    IngestRepo.query!("""
-    CREATE TABLE IF NOT EXISTS test_case_runs_by_commit (
-      project_id Int64,
-      git_commit_sha String,
-      is_ci Bool DEFAULT false,
-      status Enum8('success' = 0, 'failure' = 1, 'skipped' = 2),
-      id UUID,
-      test_case_id Nullable(UUID),
-      inserted_at DateTime64(6)
-    ) ENGINE = ReplacingMergeTree(inserted_at)
-    ORDER BY (project_id, git_commit_sha, is_ci, status, id)
-    """)
-
-    IngestRepo.query!("""
-    CREATE MATERIALIZED VIEW IF NOT EXISTS test_case_runs_by_commit_mv
-    TO test_case_runs_by_commit
-    AS SELECT
-      project_id,
-      git_commit_sha,
-      is_ci,
-      status,
-      id,
-      test_case_id,
-      inserted_at
-    FROM test_case_runs
-    """)
+    IngestRepo.query!("DROP VIEW IF EXISTS test_case_runs_by_commit_v2_mv")
+    IngestRepo.query!("DROP TABLE IF EXISTS test_case_runs_by_commit_v2")
   end
 
   defp backfill_by_partition do
@@ -99,12 +82,12 @@ defmodule Tuist.IngestRepo.Migrations.AddSchemeToTestCaseRunsByCommitMv do
       )
 
     for [partition] <- partitions do
-      Logger.info("Backfilling partition #{partition} into test_case_runs_by_commit")
+      Logger.info("Backfilling partition #{partition} into test_case_runs_by_commit_v2")
 
       retry_on_shutting_down(fn ->
         IngestRepo.query!(
           """
-          INSERT INTO test_case_runs_by_commit (#{Enum.join(@columns, ", ")})
+          INSERT INTO test_case_runs_by_commit_v2 (#{Enum.join(@columns, ", ")})
           SELECT #{Enum.join(@columns, ", ")}
           FROM test_case_runs
           WHERE toYYYYMM(inserted_at) = {partition:UInt32}
