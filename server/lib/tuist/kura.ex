@@ -27,11 +27,11 @@ defmodule Tuist.Kura do
   alias Tuist.GitHub.Retry
   alias Tuist.IngestRepo
   alias Tuist.KeyValueStore
+  alias Tuist.Kura.Deployment
   alias Tuist.Kura.DeploymentLogLine
-  alias Tuist.Kura.KuraDeployment
-  alias Tuist.Kura.KuraServer
   alias Tuist.Kura.Provisioner
   alias Tuist.Kura.Regions
+  alias Tuist.Kura.Server
   alias Tuist.Kura.Specs
   alias Tuist.Kura.Workers.DestroyServerWorker
   alias Tuist.Kura.Workers.RolloutWorker
@@ -129,8 +129,8 @@ defmodule Tuist.Kura do
   Creates a new Kura server for an account in a region.
 
   Internally this asks the region's provisioner for an opaque ref,
-  inserts a `KuraServer` (status: `:provisioning`) and an initial
-  `KuraDeployment` row, and enqueues the worker that performs the first
+  inserts a `Server` (status: `:provisioning`) and an initial
+  `Deployment` row, and enqueues the worker that performs the first
   install. Returns `{:ok, server}` (deployment history preloaded) or
   `{:error, reason}`.
 
@@ -152,7 +152,7 @@ defmodule Tuist.Kura do
 
   defp insert_server_and_enqueue(attrs, region) do
     Repo.transaction(fn ->
-      with {:ok, server} <- attrs |> KuraServer.create_changeset() |> Repo.insert(),
+      with {:ok, server} <- attrs |> Server.create_changeset() |> Repo.insert(),
            {:ok, deployment} <- insert_initial_deployment(server, region, attrs[:image_tag]),
            {:ok, job} <- enqueue_rollout(deployment),
            {:ok, _} <- stamp_job_id(deployment, job.id) do
@@ -172,7 +172,7 @@ defmodule Tuist.Kura do
       image_tag: image_tag,
       kura_server_id: server.id
     }
-    |> KuraDeployment.create_changeset()
+    |> Deployment.create_changeset()
     |> Repo.insert()
   end
 
@@ -207,7 +207,7 @@ defmodule Tuist.Kura do
   end
 
   defp server_stub(attrs) do
-    struct(KuraServer, Map.take(attrs, [:spec, :volume_size_gi]))
+    struct(Server, Map.take(attrs, [:spec, :volume_size_gi]))
   end
 
   # The deployment row stored in `kura_deployments` carries `cluster_id`
@@ -223,9 +223,7 @@ defmodule Tuist.Kura do
   # them so a retry from /ops Just Works.
   defp recycle_terminal_servers(%{account_id: account_id, region: region})
        when not is_nil(account_id) and is_binary(region) do
-    Repo.delete_all(
-      from(s in KuraServer, where: s.account_id == ^account_id and s.region == ^region and s.status == :failed)
-    )
+    Repo.delete_all(from(s in Server, where: s.account_id == ^account_id and s.region == ^region and s.status == :failed))
   end
 
   defp recycle_terminal_servers(_), do: :ok
@@ -236,9 +234,9 @@ defmodule Tuist.Kura do
   straight to the latest log tail.
   """
   def list_servers_for_account(account_id) do
-    deployments_query = from(d in KuraDeployment, order_by: [desc: d.inserted_at, desc: d.id])
+    deployments_query = from(d in Deployment, order_by: [desc: d.inserted_at, desc: d.id])
 
-    KuraServer
+    Server
     |> where([s], s.account_id == ^account_id and s.status != :destroyed)
     |> order_by([s], asc: s.region, asc: s.spec)
     |> preload(deployments: ^deployments_query)
@@ -247,21 +245,21 @@ defmodule Tuist.Kura do
 
   @doc "Fetches a server scoped to the given account."
   def get_server(account_id, server_id) do
-    Repo.get_by(KuraServer, id: server_id, account_id: account_id)
+    Repo.get_by(Server, id: server_id, account_id: account_id)
   end
 
   @doc """
   Marks a server as `:active`, mirrors its URL into
   `account_cache_endpoints`, and broadcasts.
   """
-  def activate_server(%KuraServer{} = server, image_tag) when is_binary(image_tag) do
+  def activate_server(%Server{} = server, image_tag) when is_binary(image_tag) do
     {:ok, account} = Accounts.get_account_by_id(server.account_id)
     url = Provisioner.public_url(account, server)
 
     Repo.transaction(fn ->
       {:ok, server} =
         server
-        |> KuraServer.status_changeset(%{status: :active, url: url, current_image_tag: image_tag})
+        |> Server.status_changeset(%{status: :active, url: url, current_image_tag: image_tag})
         |> Repo.update()
 
       ensure_cache_endpoint(account, url)
@@ -271,8 +269,8 @@ defmodule Tuist.Kura do
   end
 
   @doc "Marks a server as `:failed` after an unrecoverable rollout error."
-  def fail_server(%KuraServer{} = server) do
-    {:ok, server} = server |> KuraServer.status_changeset(%{status: :failed}) |> Repo.update()
+  def fail_server(%Server{} = server) do
+    {:ok, server} = server |> Server.status_changeset(%{status: :failed}) |> Repo.update()
     broadcast_server(server, :updated)
     {:ok, server}
   end
@@ -282,10 +280,10 @@ defmodule Tuist.Kura do
   cache-endpoint mirror immediately so the CLI stops resolving the URL,
   and enqueues the destroy worker.
   """
-  def destroy_server(%KuraServer{} = server) do
+  def destroy_server(%Server{} = server) do
     Repo.transaction(fn ->
       {:ok, server} =
-        server |> KuraServer.status_changeset(%{status: :destroying}) |> Repo.update()
+        server |> Server.status_changeset(%{status: :destroying}) |> Repo.update()
 
       remove_cache_endpoint(server)
       {:ok, _} = %{server_id: server.id} |> DestroyServerWorker.new() |> Oban.insert()
@@ -295,9 +293,9 @@ defmodule Tuist.Kura do
   end
 
   @doc "Marks a server as `:destroyed` after the destroy worker finishes."
-  def mark_destroyed(%KuraServer{} = server) do
+  def mark_destroyed(%Server{} = server) do
     {:ok, server} =
-      server |> KuraServer.status_changeset(%{status: :destroyed, url: nil}) |> Repo.update()
+      server |> Server.status_changeset(%{status: :destroyed, url: nil}) |> Repo.update()
 
     broadcast_server(server, :destroyed)
     {:ok, server}
@@ -312,9 +310,9 @@ defmodule Tuist.Kura do
     end
   end
 
-  defp remove_cache_endpoint(%KuraServer{url: nil}), do: :ok
+  defp remove_cache_endpoint(%Server{url: nil}), do: :ok
 
-  defp remove_cache_endpoint(%KuraServer{account_id: account_id, url: url}) do
+  defp remove_cache_endpoint(%Server{account_id: account_id, url: url}) do
     Repo.delete_all(from(e in AccountCacheEndpoint, where: e.account_id == ^account_id and e.url == ^url))
     :ok
   end
@@ -322,12 +320,12 @@ defmodule Tuist.Kura do
   ## Deployments
 
   @doc """
-  Inserts a `KuraDeployment` deployment record and enqueues the rollout
+  Inserts a `Deployment` deployment record and enqueues the rollout
   worker.
   """
   def create_deployment(attrs) do
     Repo.transaction(fn ->
-      with {:ok, deployment} <- attrs |> KuraDeployment.create_changeset() |> Repo.insert(),
+      with {:ok, deployment} <- attrs |> Deployment.create_changeset() |> Repo.insert(),
            {:ok, job} <- enqueue_rollout(deployment),
            {:ok, deployment} <- stamp_job_id(deployment, job.id) do
         deployment
@@ -337,19 +335,19 @@ defmodule Tuist.Kura do
     end)
   end
 
-  defp enqueue_rollout(%KuraDeployment{id: id}) do
+  defp enqueue_rollout(%Deployment{id: id}) do
     %{deployment_id: id} |> RolloutWorker.new() |> Oban.insert()
   end
 
   defp stamp_job_id(deployment, job_id) do
     deployment
-    |> KuraDeployment.status_changeset(%{oban_job_id: job_id, status: :pending})
+    |> Deployment.status_changeset(%{oban_job_id: job_id, status: :pending})
     |> Repo.update()
   end
 
   @doc "Returns deployment records for the account, newest first."
   def list_deployments_for_account(account_id, limit \\ 50) do
-    KuraDeployment
+    Deployment
     |> where([d], d.account_id == ^account_id)
     |> order_by([d], desc: d.inserted_at, desc: d.id)
     |> limit(^limit)
@@ -358,11 +356,11 @@ defmodule Tuist.Kura do
 
   @doc "Fetches a deployment record, scoped so URLs cannot enumerate."
   def get_deployment(account_id, deployment_id) do
-    Repo.get_by(KuraDeployment, id: deployment_id, account_id: account_id)
+    Repo.get_by(Deployment, id: deployment_id, account_id: account_id)
   end
 
   @doc "Marks a deployment record as running and stamps the start time."
-  def mark_running(%KuraDeployment{} = deployment) do
+  def mark_running(%Deployment{} = deployment) do
     update_deployment_status(deployment, %{
       status: :running,
       started_at: now_truncated()
@@ -370,7 +368,7 @@ defmodule Tuist.Kura do
   end
 
   @doc "Marks a deployment record as succeeded."
-  def mark_succeeded(%KuraDeployment{} = deployment) do
+  def mark_succeeded(%Deployment{} = deployment) do
     update_deployment_status(deployment, %{
       status: :succeeded,
       error_message: nil,
@@ -379,7 +377,7 @@ defmodule Tuist.Kura do
   end
 
   @doc "Marks a deployment record as failed."
-  def mark_failed(%KuraDeployment{} = deployment, message) when is_binary(message) do
+  def mark_failed(%Deployment{} = deployment, message) when is_binary(message) do
     update_deployment_status(deployment, %{
       status: :failed,
       error_message: message,
@@ -388,7 +386,7 @@ defmodule Tuist.Kura do
   end
 
   defp update_deployment_status(deployment, attrs) do
-    deployment |> KuraDeployment.status_changeset(attrs) |> Repo.update()
+    deployment |> Deployment.status_changeset(attrs) |> Repo.update()
   end
 
   defp now_truncated, do: DateTime.truncate(DateTime.utc_now(), :second)
@@ -460,13 +458,13 @@ defmodule Tuist.Kura do
   @doc """
   Subscribe the calling process to server lifecycle events for an
   account. Messages arrive as
-  `{:kura_server, :created | :updated | :destroyed, %KuraServer{}}`.
+  `{:kura_server, :created | :updated | :destroyed, %Server{}}`.
   """
   def subscribe_to_account(account_id) do
     PubSub.subscribe(@pubsub, account_topic(account_id))
   end
 
-  defp broadcast_server(%KuraServer{account_id: account_id} = server, event) do
+  defp broadcast_server(%Server{account_id: account_id} = server, event) do
     PubSub.broadcast(@pubsub, account_topic(account_id), {:kura_server, event, server})
   end
 

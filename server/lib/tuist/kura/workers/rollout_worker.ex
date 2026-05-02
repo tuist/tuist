@@ -15,46 +15,46 @@ defmodule Tuist.Kura.Workers.RolloutWorker do
   use Oban.Worker, queue: :kura_rollout, max_attempts: 1
 
   alias Tuist.Kura
-  alias Tuist.Kura.KuraDeployment
-  alias Tuist.Kura.KuraServer
+  alias Tuist.Kura.Deployment
   alias Tuist.Kura.Provisioner
+  alias Tuist.Kura.Server
   alias Tuist.Repo
 
   require Logger
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"deployment_id" => id}}) do
-    case Repo.get(KuraDeployment, id) do
+    case Repo.get(Deployment, id) do
       nil ->
         Logger.warning("[Kura.RolloutWorker] deployment #{id} not found")
         :ok
 
-      %KuraDeployment{status: :running} = deployment ->
+      %Deployment{status: :running} = deployment ->
         # A retry picked up a deployment we'd already started. The
         # cluster-side rollout is idempotent at steady state, but we
         # fail explicitly so the operator notices.
         {:ok, _} = Kura.mark_failed(deployment, "deployment was already running; re-trigger manually")
         :ok
 
-      %KuraDeployment{status: status} when status in [:succeeded, :failed, :cancelled] ->
+      %Deployment{status: status} when status in [:succeeded, :failed, :cancelled] ->
         Logger.info("[Kura.RolloutWorker] deployment #{id} already in #{status}")
         :ok
 
-      %KuraDeployment{} = deployment ->
+      %Deployment{} = deployment ->
         execute(deployment)
     end
   end
 
-  defp execute(%KuraDeployment{} = deployment) do
+  defp execute(%Deployment{} = deployment) do
     deployment = Repo.preload(deployment, [:account, :kura_server])
 
     case deployment.kura_server do
       nil -> fail(deployment, nil, "deployment has no parent kura_server")
-      %KuraServer{} = server -> roll(deployment, server)
+      %Server{} = server -> roll(deployment, server)
     end
   end
 
-  defp roll(deployment, %KuraServer{} = server) do
+  defp roll(deployment, %Server{} = server) do
     {:ok, deployment} = Kura.mark_running(deployment)
 
     inputs = %{

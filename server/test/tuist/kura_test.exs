@@ -6,8 +6,8 @@ defmodule Tuist.KuraTest do
 
   alias Tuist.Accounts
   alias Tuist.Kura
-  alias Tuist.Kura.KuraDeployment
-  alias Tuist.Kura.KuraServer
+  alias Tuist.Kura.Deployment
+  alias Tuist.Kura.Server
   alias Tuist.Kura.Workers.RolloutWorker
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -92,7 +92,7 @@ defmodule Tuist.KuraTest do
     end
 
     test "inserts a deployment row and enqueues the rollout worker", %{account: account} do
-      assert {:ok, %KuraDeployment{status: :pending} = deployment} =
+      assert {:ok, %Deployment{status: :pending} = deployment} =
                Kura.create_deployment(%{
                  account_id: account.id,
                  cluster_id: "eu-1",
@@ -250,8 +250,8 @@ defmodule Tuist.KuraTest do
         })
 
       {:ok, gone} =
-        %KuraServer{}
-        |> KuraServer.create_changeset(%{
+        %Server{}
+        |> Server.create_changeset(%{
           account_id: account.id,
           region: "eu",
           spec: :small,
