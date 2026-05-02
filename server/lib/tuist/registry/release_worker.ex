@@ -42,9 +42,7 @@ defmodule Tuist.Registry.ReleaseWorker do
   ]
 
   @impl Oban.Worker
-  def perform(%Oban.Job{
-        args: %{"scope" => scope, "name" => name, "repository_full_handle" => full_handle, "tag" => tag}
-      }) do
+  def perform(%Oban.Job{args: %{"scope" => scope, "name" => name, "repository_full_handle" => full_handle, "tag" => tag}}) do
     do_sync_release(scope, name, full_handle, tag)
   end
 
