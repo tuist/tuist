@@ -30,11 +30,6 @@ Sensitive authentication data (passwords, tokens) are excluded from exports.
 - Build system data (Xcode graphs, projects, targets)
 - Cacheable tasks (Xcode cache analytics: type, status, keys)
 
-### Kura Servers & Rollouts
-- **Kura servers** (`kura_servers` table): Per-account server records including region, customer-facing spec, volume size, lifecycle status, public URL, current image tag, opaque provisioner handle, provisioner metadata, and timestamps
-- **Kura deployments** (`kura_deployments` table): Rollout attempts linked to an account and Kura server, including target cluster identifier, requested image tag, rollout status, error message, Oban job ID, start/finish timestamps, and audit timestamps
-- **Derived cache endpoints** (`account_cache_endpoints` table): The Kura public URLs mirrored into the account's cache endpoint list while a server is active
-
 ### App Previews & Builds
 - Preview metadata (versions, platforms, git info)
 - App build information
