@@ -31,7 +31,7 @@ defmodule Tuist.Kura.Workers.DestroyServerWorkerTest do
 
   describe "perform/1" do
     test "returns :ok for a missing server" do
-      assert :ok = perform_for("00000000-0000-0000-0000-000000000000")
+      assert :ok = perform_for(Ecto.UUID.generate())
     end
 
     test "is a no-op for an already-destroyed row", %{server: server} do
