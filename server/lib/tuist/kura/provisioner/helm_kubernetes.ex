@@ -4,7 +4,8 @@ defmodule Tuist.Kura.Provisioner.HelmKubernetes do
   via the Helm chart at `kura/ops/helm/kura/`.
 
   `provision/3` is deterministic: it computes the helm release name and
-  returns it as the opaque ref. The first install happens in `rollout/2`,
+  returns it as the opaque ref. It does not install anything yet. The
+  first install and later staged updates both happen in `rollout/2`,
   which renders per-instance values and shells out to the chart's
   `rollout.sh`. The script owns the partitioned-warm-rollout state
   machine; we are a transport. `destroy/2` is `helm uninstall --wait`.
@@ -269,7 +270,21 @@ defmodule Tuist.Kura.Provisioner.HelmKubernetes do
       env_var("KURA_EXTENSION_HTTP_CLIENT_TUIST_REQUEST_TIMEOUT_MS", "4000")
     ]
 
-    base ++ signer_env()
+    base ++ jwt_verifier_env() ++ signer_env()
+  end
+
+  defp jwt_verifier_env do
+    case Tuist.Environment.secret_key_tokens() do
+      nil ->
+        []
+
+      secret ->
+        [
+          env_var("KURA_EXTENSION_JWT_VERIFIER_TUIST_ALGORITHM", "HS512"),
+          env_var("KURA_EXTENSION_JWT_VERIFIER_TUIST_SECRET", secret),
+          env_var("KURA_EXTENSION_JWT_VERIFIER_TUIST_ISSUER", "tuist")
+        ]
+    end
   end
 
   defp signer_env do

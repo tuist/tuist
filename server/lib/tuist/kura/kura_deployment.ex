@@ -1,16 +1,20 @@
 defmodule Tuist.Kura.KuraDeployment do
   @moduledoc """
-  One rollout attempt for a `KuraServer`.
+  One deployment record for a `KuraServer`.
 
   Created by `Tuist.Kura.create_server/1` (initial install) or
   `create_deployment/1` (version bump), picked up by
   `Tuist.Kura.Workers.RolloutWorker` via Oban. The worker dispatches
   to the region's provisioner, which decides what "rollout" means.
 
+  In product terms these rows track install and update attempts for a
+  Kura server. The provisioner's rollout logic is how a deployment gets
+  applied, especially for staged updates.
+
   Per-line stdout/stderr streams to the `kura_deployment_log_lines`
   ClickHouse table keyed by `id` so /ops can tail in real time.
 
-  `cluster_id` is an audit field: which backing cluster the rollout
+  `cluster_id` is an audit field: which backing cluster the deployment
   actually targeted, populated from `region.provisioner_config.cluster_id`
   at insert. Operators reading the deployment list see something
   concrete (`"eu-1"`) rather than the abstract region (`"eu"`).

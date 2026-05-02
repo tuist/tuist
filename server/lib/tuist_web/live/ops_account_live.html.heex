@@ -89,7 +89,7 @@
             <.button
               :if={List.first(server.deployments)}
               variant="secondary"
-              label="View logs"
+              label="View deployment"
               navigate={
                 ~p"/ops/accounts/#{@account.id}/kura/deployments/#{List.first(server.deployments).id}"
               }
@@ -127,11 +127,11 @@
 
   <%!--
   Add Kura server — picks a (region, spec) tuple plus optional volume
-  size override and image tag, then provisions a fresh server via
+  size override and image tag, then creates a fresh server via
   `Kura.create_server/1`. The list above updates live via PubSub as
-  the rollout worker advances the server's status. Region maps to a
-  provider impl behind the scenes (HelmKubernetes today); the customer
-  never picks a provider directly.
+  the background rollout worker advances the server's status. Region
+  maps to a provider impl behind the scenes (HelmKubernetes today);
+  the customer never picks a provider directly.
   --%>
   <%!--
   Add Kura server — uses Phoenix's <.form> wrapping <.modal> so phx-
@@ -149,7 +149,7 @@
     <.modal
       id="add-server-modal"
       title="Add Kura server"
-      description="Pick a region and a spec. The server is provisioned in the background and shows up in the list above as soon as it's ready."
+      description="Pick a region and a spec. The server is created in the background and shows up in the list above as soon as it's ready."
       header_type="icon"
       header_size="small"
       on_dismiss="close_add_server"
@@ -211,8 +211,8 @@
             demand and caches successful responses for an hour, so try again shortly if
             GitHub was temporarily unavailable.
           <% version -> %>
-            Provisioned with Kura <strong>{version.version}</strong>
-            (latest cached release). Subsequent upgrades pick up the next release the same way.
+            New servers start on Kura <strong>{version.version}</strong>
+            (latest cached release). Later deployments pick up the next release the same way.
         <% end %>
       </p>
 
@@ -232,7 +232,7 @@
             keep the visual treatment identical to the rest of the UI.
             --%>
             <button type="submit" class="noora-button" data-variant="primary" data-size="large">
-              <span>Provision server</span>
+              <span>Create server</span>
             </button>
           </:action>
         </.modal_footer>

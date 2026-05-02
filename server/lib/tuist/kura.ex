@@ -6,9 +6,10 @@ defmodule Tuist.Kura do
   many regions as it needs, but only one server per region. `spec` is
   the capacity tier of that server.
 
-  This context is provisioner-agnostic. The how-do-we-actually-provision
-  decisions live behind `Tuist.Kura.Provisioner`; here we just call into
-  it and store the opaque `provisioner_node_ref` it gives back.
+  This context is provisioner-agnostic. The backend resource-allocation
+  decisions live behind `Tuist.Kura.Provisioner`; here we ask for an
+  opaque `provisioner_node_ref`, persist the server row, and kick off
+  the install or update attempt that will make the server active.
 
   Lifecycle transitions broadcast on `"kura:account:<account_id>"` over
   Phoenix.PubSub. When a server reaches `:active` its public URL is
@@ -125,12 +126,13 @@ defmodule Tuist.Kura do
   ## Servers
 
   @doc """
-  Provisions a new Kura server for an account in a region.
+  Creates a new Kura server for an account in a region.
 
-  Calls the region's provisioner for an opaque ref, inserts a `KuraServer`
-  (status: `:provisioning`) and an initial `KuraDeployment`, and
-  enqueues the rollout worker. Returns `{:ok, server}` (deployments
-  preloaded) or `{:error, reason}`.
+  Internally this asks the region's provisioner for an opaque ref,
+  inserts a `KuraServer` (status: `:provisioning`) and an initial
+  `KuraDeployment` row, and enqueues the worker that performs the first
+  install. Returns `{:ok, server}` (deployment history preloaded) or
+  `{:error, reason}`.
 
   `attrs` keys: `:account_id`, `:region`, `:spec`, `:image_tag`,
   optional `:volume_size_gi` (defaults from the spec catalog).
@@ -208,8 +210,9 @@ defmodule Tuist.Kura do
     struct(KuraServer, Map.take(attrs, [:spec, :volume_size_gi]))
   end
 
-  # The deployment row carries `cluster_id` as an audit field — which
-  # backing cluster a rollout actually targeted. Filled from the
+  # The deployment row stored in `kura_deployments` carries `cluster_id`
+  # as an audit field — which backing cluster an install or update
+  # attempt actually targeted. Filled from the
   # region's provisioner_config so operators see something concrete (e.g.
   # "eu-1") instead of the abstract region ID.
   defp deployment_cluster_id(%Regions{provisioner_config: %{cluster_id: id}}), do: id
@@ -229,8 +232,8 @@ defmodule Tuist.Kura do
 
   @doc """
   Returns the non-destroyed servers for an account, each with its
-  deployments preloaded newest-first so the /ops UI can link straight
-  to the latest log tail.
+  deployment history preloaded newest-first so the /ops UI can link
+  straight to the latest log tail.
   """
   def list_servers_for_account(account_id) do
     deployments_query = from(d in KuraDeployment, order_by: [desc: d.inserted_at, desc: d.id])
@@ -319,7 +322,8 @@ defmodule Tuist.Kura do
   ## Deployments
 
   @doc """
-  Inserts a `KuraDeployment` and enqueues the rollout worker.
+  Inserts a `KuraDeployment` deployment record and enqueues the rollout
+  worker.
   """
   def create_deployment(attrs) do
     Repo.transaction(fn ->
@@ -343,7 +347,7 @@ defmodule Tuist.Kura do
     |> Repo.update()
   end
 
-  @doc "Returns deployments for the account, newest first."
+  @doc "Returns deployment records for the account, newest first."
   def list_deployments_for_account(account_id, limit \\ 50) do
     KuraDeployment
     |> where([d], d.account_id == ^account_id)
@@ -352,12 +356,12 @@ defmodule Tuist.Kura do
     |> Repo.all()
   end
 
-  @doc "Fetches a deployment, scoped so URLs cannot enumerate."
+  @doc "Fetches a deployment record, scoped so URLs cannot enumerate."
   def get_deployment(account_id, deployment_id) do
     Repo.get_by(KuraDeployment, id: deployment_id, account_id: account_id)
   end
 
-  @doc "Marks a deployment as running and stamps the start time."
+  @doc "Marks a deployment record as running and stamps the start time."
   def mark_running(%KuraDeployment{} = deployment) do
     update_deployment_status(deployment, %{
       status: :running,
@@ -365,7 +369,7 @@ defmodule Tuist.Kura do
     })
   end
 
-  @doc "Marks a deployment as succeeded."
+  @doc "Marks a deployment record as succeeded."
   def mark_succeeded(%KuraDeployment{} = deployment) do
     update_deployment_status(deployment, %{
       status: :succeeded,
@@ -374,7 +378,7 @@ defmodule Tuist.Kura do
     })
   end
 
-  @doc "Marks a deployment as failed."
+  @doc "Marks a deployment record as failed."
   def mark_failed(%KuraDeployment{} = deployment, message) when is_binary(message) do
     update_deployment_status(deployment, %{
       status: :failed,
@@ -393,7 +397,7 @@ defmodule Tuist.Kura do
 
   @doc """
   Appends a batch of `{sequence, stream, line}` log lines for a
-  deployment. Stream is `:stdout` or `:stderr`. Sequences are caller-
+  deployment record. Stream is `:stdout` or `:stderr`. Sequences are caller-
   assigned so ordering is stable across ClickHouse parts.
   """
   def append_log_lines(_deployment_id, []), do: {:ok, 0}
@@ -413,7 +417,7 @@ defmodule Tuist.Kura do
     {:ok, count}
   end
 
-  @doc "Returns log lines for a deployment, oldest first, capped at `limit`."
+  @doc "Returns log lines for a deployment record, oldest first, capped at `limit`."
   def list_log_lines(deployment_id, opts \\ []) do
     limit = Keyword.get(opts, :limit, 1_000)
     after_sequence = Keyword.get(opts, :after_sequence, -1)
