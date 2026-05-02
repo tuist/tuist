@@ -299,6 +299,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
            try await fileSystem.exists(testProductsPath.appending(component: SelectiveTestingGraph.fileName))
         {
             try await runTestWithoutBuildingFromBundle(
+                schemeName: schemeName,
                 testProductsPath: testProductsPath,
                 config: config,
                 deviceName: deviceName,
@@ -558,6 +559,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 derivedDataPath: derivedDataPath,
                 relativeTo: path
             ) {
+                if try await !fileSystem.exists(testProductsPath) {
+                    try await fileSystem.makeDirectory(at: testProductsPath)
+                }
                 let selectiveTestingGraph = computeSelectiveTestingGraph(
                     mapperEnvironment: mapperEnvironment,
                     schemes: schemes,
@@ -567,17 +571,20 @@ public struct TestService { // swiftlint:disable:this type_body_length
                     component: SelectiveTestingGraph.fileName
                 )
                 try await fileSystem.writeAsJSON(selectiveTestingGraph, at: selectiveTestingGraphPath)
-                let selectiveTestingPlanMetadata = computeSelectiveTestingPlanMetadata(
+                let selectiveTestingRunMetadata = computeSelectiveTestingRunMetadata(
                     mapperEnvironment: mapperEnvironment,
+                    graph: graph,
                     schemes: schemes,
-                    testPlanConfiguration: testPlanConfiguration
+                    schemeName: schemeName,
+                    testPlanConfiguration: testPlanConfiguration,
+                    action: action
                 )
-                let selectiveTestingPlanMetadataPath = testProductsPath.appending(
-                    component: SelectiveTestingPlanMetadata.fileName
+                let selectiveTestingRunMetadataPath = testProductsPath.appending(
+                    component: SelectiveTestingRunMetadata.fileName
                 )
                 try await fileSystem.writeAsJSON(
-                    selectiveTestingPlanMetadata,
-                    at: selectiveTestingPlanMetadataPath
+                    selectiveTestingRunMetadata,
+                    at: selectiveTestingRunMetadataPath
                 )
 
                 if isSharding,
@@ -738,6 +745,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
 
     // swiftlint:disable:next function_body_length function_parameter_count
     private func runTestWithoutBuildingFromBundle(
+        schemeName: String?,
         testProductsPath: AbsolutePath,
         config: Tuist,
         deviceName: String?,
@@ -762,12 +770,12 @@ public struct TestService { // swiftlint:disable:this type_body_length
         let selectiveTestingGraph: SelectiveTestingGraph = try await fileSystem.readJSONFile(
             at: selectiveTestingGraphPath
         )
-        let selectiveTestingPlanMetadataPath = testProductsPath.appending(
-            component: SelectiveTestingPlanMetadata.fileName
+        let selectiveTestingRunMetadataPath = testProductsPath.appending(
+            component: SelectiveTestingRunMetadata.fileName
         )
-        let selectiveTestingPlanMetadata: SelectiveTestingPlanMetadata? =
-            if try await fileSystem.exists(selectiveTestingPlanMetadataPath) {
-                try await fileSystem.readJSONFile(at: selectiveTestingPlanMetadataPath)
+        let selectiveTestingRunMetadata: SelectiveTestingRunMetadata? =
+            if try await fileSystem.exists(selectiveTestingRunMetadataPath) {
+                try await fileSystem.readJSONFile(at: selectiveTestingRunMetadataPath)
             } else {
                 nil
             }
@@ -807,21 +815,30 @@ public struct TestService { // swiftlint:disable:this type_body_length
             passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
         )
 
+        if shouldSkipWithoutBuildingExecution(
+            selectiveTestingRunMetadata: selectiveTestingRunMetadata,
+            testTargets: testTargets,
+            skipTestTargets: skipTestTargets,
+            passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
+        ) {
+            let timer = clock.startTimer()
+            try await uploadSkippedTestSummary(
+                schemeName: testPlanConfiguration?.testPlan ?? schemeName,
+                config: config,
+                timer: timer
+            )
+            AlertController.current.success(
+                .alert("All selected tests were fully cached by selective testing, skipping execution")
+            )
+            return
+        }
+
         var testError: Error?
-        var didSkipFullyCachedTestPlan = false
 
         do {
             try await xcodebuildController.run(arguments: xcodebuildArguments)
         } catch {
-            if shouldSkipMissingTestPlanError(
-                error,
-                selectiveTestingPlanMetadata: selectiveTestingPlanMetadata,
-                testPlanConfiguration: testPlanConfiguration
-            ) {
-                didSkipFullyCachedTestPlan = true
-            } else {
-                testError = error
-            }
+            testError = error
         }
 
         let summary = mode == .local
@@ -851,13 +868,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             throw testError
         }
 
-        if didSkipFullyCachedTestPlan, let testPlan = testPlanConfiguration?.testPlan {
-            AlertController.current.success(
-                .alert("The test plan \(testPlan) was fully cached by selective testing, skipping execution")
-            )
-        } else {
-            AlertController.current.success(.alert("The project tests ran successfully"))
-        }
+        AlertController.current.success(.alert("The project tests ran successfully"))
     }
 
     private func removeOption(_ option: String, from arguments: [String]) -> [String] {
@@ -1007,54 +1018,86 @@ public struct TestService { // swiftlint:disable:this type_body_length
         return SelectiveTestingGraph(testTargetHashes: testTargetHashes)
     }
 
-    private func computeSelectiveTestingPlanMetadata(
+    private func computeSelectiveTestingRunMetadata(
+        mapperEnvironment: MapperEnvironment,
+        graph: Graph,
+        schemes: [Scheme],
+        schemeName: String?,
+        testPlanConfiguration: TestPlanConfiguration?,
+        action: XcodeBuildTestAction
+    ) -> SelectiveTestingRunMetadata {
+        let selectedTargetNames = selectedTargetNames(
+            mapperEnvironment: mapperEnvironment,
+            schemes: schemes,
+            schemeName: schemeName,
+            testPlanConfiguration: testPlanConfiguration,
+            action: action
+        )
+        let runnableTargetNames = sortedUniqueTargetNames(
+            testActionTargets(
+                for: schemes,
+                testPlanConfiguration: testPlanConfiguration,
+                graph: graph,
+                action: action
+            ).map(\.target.name)
+        )
+
+        return SelectiveTestingRunMetadata(
+            selectedTargetNames: selectedTargetNames,
+            runnableTargetNames: runnableTargetNames
+        )
+    }
+
+    private func selectedTargetNames(
         mapperEnvironment: MapperEnvironment,
         schemes: [Scheme],
-        testPlanConfiguration: TestPlanConfiguration?
-    ) -> SelectiveTestingPlanMetadata {
-        guard let initialGraph = mapperEnvironment.initialGraph,
-              let testPlanConfiguration
-        else {
-            return SelectiveTestingPlanMetadata()
-        }
+        schemeName: String?,
+        testPlanConfiguration: TestPlanConfiguration?,
+        action: XcodeBuildTestAction
+    ) -> [String] {
+        let selectedSchemes =
+            if let schemeName, let initialGraph = mapperEnvironment.initialGraph {
+                GraphTraverser(graph: initialGraph).schemes().filter { $0.name == schemeName }
+            } else {
+                schemes
+            }
 
-        let initialTestPlanNames = selectedTestPlanNames(
-            in: GraphTraverser(graph: initialGraph).schemes(),
-            testPlanConfiguration: testPlanConfiguration
+        return sortedUniqueTargetNames(
+            initialTestTargets(
+                mapperEnvironment: mapperEnvironment,
+                schemes: selectedSchemes,
+                testPlanConfiguration: testPlanConfiguration,
+                action: action
+            ).map(\.target.name)
         )
-        let builtTestPlanNames = selectedTestPlanNames(
-            in: schemes,
-            testPlanConfiguration: testPlanConfiguration
-        )
-        let fullySkippedTestPlans = initialTestPlanNames
-            .subtracting(builtTestPlanNames)
-            .sorted()
-
-        return SelectiveTestingPlanMetadata(fullySkippedTestPlans: fullySkippedTestPlans)
     }
 
-    private func shouldSkipMissingTestPlanError(
-        _ error: Error,
-        selectiveTestingPlanMetadata: SelectiveTestingPlanMetadata?,
-        testPlanConfiguration: TestPlanConfiguration?
+    private func shouldSkipWithoutBuildingExecution(
+        selectiveTestingRunMetadata: SelectiveTestingRunMetadata?,
+        testTargets: [TestIdentifier],
+        skipTestTargets: [TestIdentifier],
+        passthroughXcodeBuildArguments: [String]
     ) -> Bool {
-        guard let testPlan = testPlanConfiguration?.testPlan,
-              let selectiveTestingPlanMetadata,
-              selectiveTestingPlanMetadata.containsFullySkippedTestPlan(named: testPlan),
-              let standardError = standardError(from: error)
+        guard let selectiveTestingRunMetadata,
+              !selectiveTestingRunMetadata.selectedTargetNames.isEmpty
         else { return false }
 
-        return standardError.contains("xctestproducts does not contain test plan: \(testPlan)")
+        var runnableTargetNames = Set(selectiveTestingRunMetadata.runnableTargetNames)
+        if !testTargets.isEmpty {
+            runnableTargetNames.formIntersection(testTargets.map(\.target))
+        }
+        runnableTargetNames.subtract(
+            skipTestTargets
+                .filter { $0.class == nil && $0.method == nil }
+                .map(\.target)
+        )
+        runnableTargetNames.subtract(passthroughSkippedTestTargetNames(passthroughXcodeBuildArguments))
+
+        return runnableTargetNames.isEmpty
     }
 
-    private func standardError(from error: Error) -> String? {
-        switch error {
-        case let SystemError.terminated(_, _, standardError),
-             let SystemError.signalled(_, _, standardError):
-            return String(data: standardError, encoding: .utf8)
-        default:
-            return nil
-        }
+    private func sortedUniqueTargetNames(_ targetNames: [String]) -> [String] {
+        Array(Set(targetNames)).sorted()
     }
 
     private func storeSuccessfulTestHashesFromGraph(
@@ -1451,21 +1494,6 @@ public struct TestService { // swiftlint:disable:this type_body_length
             }
 
         return targets
-    }
-
-    private func selectedTestPlanNames(
-        in schemes: [Scheme],
-        testPlanConfiguration: TestPlanConfiguration?
-    ) -> Set<String> {
-        schemes.reduce(into: Set<String>()) { result, scheme in
-            let testPlans: [TestPlan]
-            if let testPlan = testPlanConfiguration?.testPlan {
-                testPlans = scheme.testAction?.testPlans?.filter { $0.name == testPlan } ?? []
-            } else {
-                testPlans = scheme.testAction?.testPlans ?? []
-            }
-            result.formUnion(testPlans.map(\.name))
-        }
     }
 
     private func storeSuccessfulTestHashes(
