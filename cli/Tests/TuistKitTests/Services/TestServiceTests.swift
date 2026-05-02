@@ -3968,12 +3968,15 @@ final class TestServiceTests: TuistUnitTestCase {
         let testPlan = "IntegrationTestSuite"
 
         let selectiveTestingGraph = SelectiveTestingGraph(
-            testTargetHashes: ["IntegrationTests": "abc123"],
-            testPlanTargetNames: [testPlan: ["IntegrationTests"]]
+            testTargetHashes: ["IntegrationTests": "abc123"]
         )
         let graphPath = testProductsPath.appending(component: SelectiveTestingGraph.fileName)
         let data = try JSONEncoder().encode(selectiveTestingGraph)
         try data.write(to: graphPath.url)
+        let planMetadata = SelectiveTestingPlanMetadata(fullySkippedTestPlans: [testPlan])
+        let metadataPath = testProductsPath.appending(component: SelectiveTestingPlanMetadata.fileName)
+        let metadataData = try JSONEncoder().encode(planMetadata)
+        try metadataData.write(to: metadataPath.url)
 
         given(configLoader)
             .loadConfig(path: .any)
@@ -4025,12 +4028,15 @@ final class TestServiceTests: TuistUnitTestCase {
         let requestedTestPlan = "IntegrationTestSuite"
 
         let selectiveTestingGraph = SelectiveTestingGraph(
-            testTargetHashes: ["UnitTests": "abc123"],
-            testPlanTargetNames: ["UnitTestSuite": ["UnitTests"]]
+            testTargetHashes: ["UnitTests": "abc123"]
         )
         let graphPath = testProductsPath.appending(component: SelectiveTestingGraph.fileName)
         let data = try JSONEncoder().encode(selectiveTestingGraph)
         try data.write(to: graphPath.url)
+        let planMetadata = SelectiveTestingPlanMetadata(fullySkippedTestPlans: ["UnitTestSuite"])
+        let metadataPath = testProductsPath.appending(component: SelectiveTestingPlanMetadata.fileName)
+        let metadataData = try JSONEncoder().encode(planMetadata)
+        try metadataData.write(to: metadataPath.url)
 
         given(configLoader)
             .loadConfig(path: .any)
@@ -4271,6 +4277,9 @@ final class TestServiceTests: TuistUnitTestCase {
         let graphPath = testProductsPath.appending(component: SelectiveTestingGraph.fileName)
         let exists = try await fileSystem.exists(graphPath)
         XCTAssertTrue(exists, "Expected selective testing graph at \(graphPath.pathString)")
+        let metadataPath = testProductsPath.appending(component: SelectiveTestingPlanMetadata.fileName)
+        let metadataExists = try await fileSystem.exists(metadataPath)
+        XCTAssertTrue(metadataExists, "Expected selective testing metadata at \(metadataPath.pathString)")
     }
 
     fileprivate func testRun(

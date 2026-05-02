@@ -567,6 +567,18 @@ public struct TestService { // swiftlint:disable:this type_body_length
                     component: SelectiveTestingGraph.fileName
                 )
                 try await fileSystem.writeAsJSON(selectiveTestingGraph, at: selectiveTestingGraphPath)
+                let selectiveTestingPlanMetadata = computeSelectiveTestingPlanMetadata(
+                    mapperEnvironment: mapperEnvironment,
+                    schemes: schemes,
+                    testPlanConfiguration: testPlanConfiguration
+                )
+                let selectiveTestingPlanMetadataPath = testProductsPath.appending(
+                    component: SelectiveTestingPlanMetadata.fileName
+                )
+                try await fileSystem.writeAsJSON(
+                    selectiveTestingPlanMetadata,
+                    at: selectiveTestingPlanMetadataPath
+                )
 
                 if isSharding,
                    let fullHandle = config.fullHandle
@@ -750,6 +762,15 @@ public struct TestService { // swiftlint:disable:this type_body_length
         let selectiveTestingGraph: SelectiveTestingGraph = try await fileSystem.readJSONFile(
             at: selectiveTestingGraphPath
         )
+        let selectiveTestingPlanMetadataPath = testProductsPath.appending(
+            component: SelectiveTestingPlanMetadata.fileName
+        )
+        let selectiveTestingPlanMetadata: SelectiveTestingPlanMetadata? =
+            if try await fileSystem.exists(selectiveTestingPlanMetadataPath) {
+                try await fileSystem.readJSONFile(at: selectiveTestingPlanMetadataPath)
+            } else {
+                nil
+            }
 
         let cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
 
@@ -794,7 +815,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         } catch {
             if shouldSkipMissingTestPlanError(
                 error,
-                selectiveTestingGraph: selectiveTestingGraph,
+                selectiveTestingPlanMetadata: selectiveTestingPlanMetadata,
                 testPlanConfiguration: testPlanConfiguration
             ) {
                 didSkipFullyCachedTestPlan = true
@@ -983,28 +1004,43 @@ public struct TestService { // swiftlint:disable:this type_body_length
             }
         }
 
-        let testPlanTargetNames: [String: [String]] = matchingSchemes
-            .flatMap { $0.testAction?.testPlans ?? [] }
-            .reduce(into: [:]) { result, testPlan in
-                result[testPlan.name] = Array(
-                    Set(testPlan.testTargets.map(\.target.name))
-                ).sorted()
-            }
+        return SelectiveTestingGraph(testTargetHashes: testTargetHashes)
+    }
 
-        return SelectiveTestingGraph(
-            testTargetHashes: testTargetHashes,
-            testPlanTargetNames: testPlanTargetNames
+    private func computeSelectiveTestingPlanMetadata(
+        mapperEnvironment: MapperEnvironment,
+        schemes: [Scheme],
+        testPlanConfiguration: TestPlanConfiguration?
+    ) -> SelectiveTestingPlanMetadata {
+        guard let initialGraph = mapperEnvironment.initialGraph,
+              let testPlanConfiguration
+        else {
+            return SelectiveTestingPlanMetadata()
+        }
+
+        let initialTestPlanNames = selectedTestPlanNames(
+            in: GraphTraverser(graph: initialGraph).schemes(),
+            testPlanConfiguration: testPlanConfiguration
         )
+        let builtTestPlanNames = selectedTestPlanNames(
+            in: schemes,
+            testPlanConfiguration: testPlanConfiguration
+        )
+        let fullySkippedTestPlans = initialTestPlanNames
+            .subtracting(builtTestPlanNames)
+            .sorted()
+
+        return SelectiveTestingPlanMetadata(fullySkippedTestPlans: fullySkippedTestPlans)
     }
 
     private func shouldSkipMissingTestPlanError(
         _ error: Error,
-        selectiveTestingGraph: SelectiveTestingGraph,
+        selectiveTestingPlanMetadata: SelectiveTestingPlanMetadata?,
         testPlanConfiguration: TestPlanConfiguration?
     ) -> Bool {
         guard let testPlan = testPlanConfiguration?.testPlan,
-              let originalTargets = selectiveTestingGraph.testPlanTargetNames[testPlan],
-              !originalTargets.isEmpty,
+              let selectiveTestingPlanMetadata,
+              selectiveTestingPlanMetadata.containsFullySkippedTestPlan(named: testPlan),
               let standardError = standardError(from: error)
         else { return false }
 
@@ -1415,6 +1451,21 @@ public struct TestService { // swiftlint:disable:this type_body_length
             }
 
         return targets
+    }
+
+    private func selectedTestPlanNames(
+        in schemes: [Scheme],
+        testPlanConfiguration: TestPlanConfiguration?
+    ) -> Set<String> {
+        schemes.reduce(into: Set<String>()) { result, scheme in
+            let testPlans: [TestPlan]
+            if let testPlan = testPlanConfiguration?.testPlan {
+                testPlans = scheme.testAction?.testPlans?.filter { $0.name == testPlan } ?? []
+            } else {
+                testPlans = scheme.testAction?.testPlans ?? []
+            }
+            result.formUnion(testPlans.map(\.name))
+        }
     }
 
     private func storeSuccessfulTestHashes(
