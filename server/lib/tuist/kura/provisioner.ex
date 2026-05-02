@@ -62,7 +62,8 @@ defmodule Tuist.Kura.Provisioner do
   @doc """
   Destroy the backing resource. Must be safe to call on already-
   destroyed refs (return `:ok`) so the control plane can finalise the
-  row even after a provisioner crash mid-uninstall.
+  row after retries, even when a previous attempt already removed the
+  backing resource before failing to persist local state.
   """
   @callback destroy(ref :: String.t(), Regions.t()) :: :ok | {:error, term()}
 

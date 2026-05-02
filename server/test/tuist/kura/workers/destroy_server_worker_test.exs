@@ -2,7 +2,6 @@ defmodule Tuist.Kura.Workers.DestroyServerWorkerTest do
   use ExUnit.Case, async: false
   use TuistTestSupport.Cases.DataCase
 
-  import ExUnit.CaptureLog
   import Mimic
 
   alias Tuist.Accounts
@@ -31,13 +30,8 @@ defmodule Tuist.Kura.Workers.DestroyServerWorkerTest do
   end
 
   describe "perform/1" do
-    test "marks the row destroyed and stops on a missing server" do
-      log =
-        capture_log(fn ->
-          :ok = perform_for("00000000-0000-0000-0000-000000000000")
-        end)
-
-      assert log =~ "server 00000000-0000-0000-0000-000000000000 not found"
+    test "returns :ok for a missing server" do
+      assert :ok = perform_for("00000000-0000-0000-0000-000000000000")
     end
 
     test "is a no-op for an already-destroyed row", %{server: server} do
@@ -50,6 +44,7 @@ defmodule Tuist.Kura.Workers.DestroyServerWorkerTest do
     test "calls the provisioner and marks destroyed on success", %{server: server} do
       ref = make_ref()
       test_pid = self()
+      {:ok, server} = Kura.destroy_server(server)
 
       stub(Provisioner, :destroy, fn %Server{id: id} ->
         send(test_pid, {ref, :destroy_called, id})
@@ -62,29 +57,32 @@ defmodule Tuist.Kura.Workers.DestroyServerWorkerTest do
       assert %Server{status: :destroyed} = Repo.get!(Server, server.id)
     end
 
-    test "logs and still marks destroyed when the region is no longer in the catalog", %{server: server} do
+    test "returns an error and keeps the row destroying when the region is no longer in the catalog", %{
+      server: server
+    } do
+      {:ok, server} = Kura.destroy_server(server)
       stub(Provisioner, :destroy, fn _ -> {:error, :not_found} end)
 
-      log =
-        capture_log(fn ->
-          assert :ok = perform_for(server.id)
-        end)
-
-      assert log =~ "region #{server.region} not in catalog"
-      assert %Server{status: :destroyed} = Repo.get!(Server, server.id)
+      assert {:error, {:provisioner_destroy_failed, :not_found}} = perform_for(server.id)
+      assert %Server{status: :destroying} = Repo.get!(Server, server.id)
     end
 
-    test "logs and still marks destroyed when the provisioner fails", %{server: server} do
+    test "returns an error and keeps the row destroying when the provisioner fails", %{server: server} do
+      {:ok, server} = Kura.destroy_server(server)
       stub(Provisioner, :destroy, fn _ -> {:error, "helm uninstall exited 1"} end)
 
-      log =
-        capture_log(fn ->
-          assert :ok = perform_for(server.id)
-        end)
+      assert {:error, {:provisioner_destroy_failed, "helm uninstall exited 1"}} = perform_for(server.id)
+      assert %Server{status: :destroying} = Repo.get!(Server, server.id)
+    end
 
-      assert log =~ "provisioner destroy failed"
-      assert log =~ "helm uninstall exited 1"
-      assert %Server{status: :destroyed} = Repo.get!(Server, server.id)
+    test "enqueued destroy jobs allow retries", %{server: server} do
+      assert {:ok, _server} = Kura.destroy_server(server)
+
+      assert_enqueued(
+        worker: DestroyServerWorker,
+        args: %{"server_id" => server.id},
+        max_attempts: 5
+      )
     end
   end
 
