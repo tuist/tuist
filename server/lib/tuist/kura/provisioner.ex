@@ -11,7 +11,7 @@ defmodule Tuist.Kura.Provisioner do
   this behaviour.
 
   Implementations return an opaque `provisioner_node_ref` from
-  `provision/3`. The control plane stores it on the `KuraServer` row
+  `provision/3`. The control plane stores it on the `Server` row
   and hands it back for every subsequent operation. Refs are
   provisioner-defined; the control plane never parses them.
 
@@ -22,8 +22,8 @@ defmodule Tuist.Kura.Provisioner do
   """
 
   alias Tuist.Accounts.Account
-  alias Tuist.Kura.KuraServer
   alias Tuist.Kura.Regions
+  alias Tuist.Kura.Server
 
   @doc """
   Prepare or look up backing resources for `(account, region, server)`.
@@ -35,13 +35,13 @@ defmodule Tuist.Kura.Provisioner do
   guarantee.
 
   Returns the opaque ref plus any metadata the provisioner wants to
-  persist. Both are stored verbatim on the `KuraServer` row.
+  persist. Both are stored verbatim on the `Server` row.
 
   The control plane treats this as the resource-allocation step. Some
   implementations may create resources here; others may only return a
   deterministic handle and defer the first install to `rollout/2`.
   """
-  @callback provision(Account.t(), Regions.t(), KuraServer.t()) ::
+  @callback provision(Account.t(), Regions.t(), Server.t()) ::
               {:ok, ref :: String.t(), metadata :: map()} | {:error, term()}
 
   @doc """
@@ -89,33 +89,33 @@ defmodule Tuist.Kura.Provisioner do
   volume size. The customer-facing `Tuist.Kura.Specs` catalog stays
   free of any platform vocabulary.
   """
-  @callback resources_for(KuraServer.t()) :: map()
+  @callback resources_for(Server.t()) :: map()
 
   ## Convenience dispatchers
 
   @doc "Calls `rollout/2` on the region's provisioner."
-  def rollout(%KuraServer{provisioner_node_ref: ref, region: region_id}, inputs) do
+  def rollout(%Server{provisioner_node_ref: ref, region: region_id}, inputs) do
     with {:ok, region} <- Regions.fetch(region_id) do
       region.provisioner.rollout(ref, Map.put(inputs, :region, region))
     end
   end
 
   @doc "Calls `destroy/2` on the region's provisioner."
-  def destroy(%KuraServer{provisioner_node_ref: ref, region: region_id}) do
+  def destroy(%Server{provisioner_node_ref: ref, region: region_id}) do
     with {:ok, region} <- Regions.fetch(region_id) do
       region.provisioner.destroy(ref, region)
     end
   end
 
   @doc "Calls `public_url/3` on the region's provisioner."
-  def public_url(%Account{name: handle}, %KuraServer{provisioner_node_ref: ref, region: region_id}) do
+  def public_url(%Account{name: handle}, %Server{provisioner_node_ref: ref, region: region_id}) do
     with {:ok, region} <- Regions.fetch(region_id) do
       region.provisioner.public_url(handle, region, ref)
     end
   end
 
   @doc "Calls `current_image_tag/2` on the region's provisioner."
-  def current_image_tag(%KuraServer{provisioner_node_ref: ref, region: region_id}) do
+  def current_image_tag(%Server{provisioner_node_ref: ref, region: region_id}) do
     with {:ok, region} <- Regions.fetch(region_id) do
       region.provisioner.current_image_tag(ref, region)
     end

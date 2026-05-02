@@ -29,8 +29,8 @@ defmodule Tuist.Kura.Provisioner.HelmKubernetes do
 
   @behaviour Tuist.Kura.Provisioner
 
-  alias Tuist.Kura.KuraServer
   alias Tuist.Kura.Regions
+  alias Tuist.Kura.Server
 
   require Logger
 
@@ -60,7 +60,7 @@ defmodule Tuist.Kura.Provisioner.HelmKubernetes do
   ## Provisioner callbacks
 
   @impl true
-  def provision(%{name: handle}, %Regions{} = region, %KuraServer{}) do
+  def provision(%{name: handle}, %Regions{} = region, %Server{}) do
     {:ok, release_name(handle, region), %{}}
   end
 
@@ -68,7 +68,7 @@ defmodule Tuist.Kura.Provisioner.HelmKubernetes do
   def rollout(release, %{
         image_tag: image_tag,
         account: account,
-        server: %KuraServer{} = server,
+        server: %Server{} = server,
         region: %Regions{} = region,
         on_log_line: on_log_line
       }) do
@@ -168,7 +168,7 @@ defmodule Tuist.Kura.Provisioner.HelmKubernetes do
     |> write_temp("instance.yaml")
   end
 
-  defp values(image_tag, account, %Regions{} = region, %KuraServer{} = server, chart) do
+  defp values(image_tag, account, %Regions{} = region, %Server{} = server, chart) do
     release = release_name(account.name, region)
     hook_script = chart |> Path.join("hooks/tuist.lua") |> File.read!()
 
@@ -204,14 +204,14 @@ defmodule Tuist.Kura.Provisioner.HelmKubernetes do
   end
 
   @impl true
-  def resources_for(%KuraServer{spec: spec}) do
+  def resources_for(%Server{spec: spec}) do
     case Map.get(@pod_resources, spec) do
       nil -> %{}
       pod_resources -> %{"resources" => pod_resources}
     end
   end
 
-  defp resources(%KuraServer{} = server) do
+  defp resources(%Server{} = server) do
     case resources_for(server) do
       %{"resources" => _} = overlay -> overlay
       _ -> nil
@@ -220,7 +220,7 @@ defmodule Tuist.Kura.Provisioner.HelmKubernetes do
 
   defp resources(_), do: nil
 
-  defp persistence(%KuraServer{volume_size_gi: gi}) when is_integer(gi) and gi > 0 do
+  defp persistence(%Server{volume_size_gi: gi}) when is_integer(gi) and gi > 0 do
     %{"persistence" => %{"size" => "#{gi}Gi"}}
   end
 

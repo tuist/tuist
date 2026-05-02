@@ -7,8 +7,8 @@ defmodule Tuist.Kura.Workers.DestroyServerWorkerTest do
 
   alias Tuist.Accounts
   alias Tuist.Kura
-  alias Tuist.Kura.KuraServer
   alias Tuist.Kura.Provisioner
+  alias Tuist.Kura.Server
   alias Tuist.Kura.Workers.DestroyServerWorker
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -51,7 +51,7 @@ defmodule Tuist.Kura.Workers.DestroyServerWorkerTest do
       ref = make_ref()
       test_pid = self()
 
-      stub(Provisioner, :destroy, fn %KuraServer{id: id} ->
+      stub(Provisioner, :destroy, fn %Server{id: id} ->
         send(test_pid, {ref, :destroy_called, id})
         :ok
       end)
@@ -59,7 +59,7 @@ defmodule Tuist.Kura.Workers.DestroyServerWorkerTest do
       assert :ok = perform_for(server.id)
       assert_received {^ref, :destroy_called, server_id} when server_id == server.id
 
-      assert %KuraServer{status: :destroyed} = Repo.get!(KuraServer, server.id)
+      assert %Server{status: :destroyed} = Repo.get!(Server, server.id)
     end
 
     test "logs and still marks destroyed when the region is no longer in the catalog", %{server: server} do
@@ -71,7 +71,7 @@ defmodule Tuist.Kura.Workers.DestroyServerWorkerTest do
         end)
 
       assert log =~ "region #{server.region} not in catalog"
-      assert %KuraServer{status: :destroyed} = Repo.get!(KuraServer, server.id)
+      assert %Server{status: :destroyed} = Repo.get!(Server, server.id)
     end
 
     test "logs and still marks destroyed when the provisioner fails", %{server: server} do
@@ -84,7 +84,7 @@ defmodule Tuist.Kura.Workers.DestroyServerWorkerTest do
 
       assert log =~ "provisioner destroy failed"
       assert log =~ "helm uninstall exited 1"
-      assert %KuraServer{status: :destroyed} = Repo.get!(KuraServer, server.id)
+      assert %Server{status: :destroyed} = Repo.get!(Server, server.id)
     end
   end
 

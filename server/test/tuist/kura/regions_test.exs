@@ -2,9 +2,9 @@ defmodule Tuist.Kura.RegionsTest do
   use ExUnit.Case, async: true
   use Mimic
 
-  alias Tuist.Kura.KuraServer
   alias Tuist.Kura.Provisioner.HelmKubernetes
   alias Tuist.Kura.Regions
+  alias Tuist.Kura.Server
 
   describe "all/0" do
     test "exposes the eu production region backed by HelmKubernetes" do
@@ -123,7 +123,7 @@ defmodule Tuist.Kura.RegionsTest do
   describe "HelmKubernetes.resources_for/1" do
     test "maps each customer-facing spec to Pod resources" do
       for spec <- [:small, :medium, :large] do
-        server = %KuraServer{spec: spec}
+        server = %Server{spec: spec}
 
         assert %{"resources" => %{"requests" => req, "limits" => lim}} =
                  HelmKubernetes.resources_for(server)
@@ -135,7 +135,7 @@ defmodule Tuist.Kura.RegionsTest do
     end
 
     test "returns an empty map for an unknown spec" do
-      server = %KuraServer{spec: :nonsense}
+      server = %Server{spec: :nonsense}
       assert HelmKubernetes.resources_for(server) == %{}
     end
   end

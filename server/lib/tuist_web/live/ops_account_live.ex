@@ -15,8 +15,8 @@ defmodule TuistWeb.OpsAccountLive do
   alias Tuist.Billing
   alias Tuist.Billing.Subscription
   alias Tuist.Kura
-  alias Tuist.Kura.KuraServer
   alias Tuist.Kura.Regions
+  alias Tuist.Kura.Server
   alias Tuist.Kura.Specs
   alias Tuist.Repo
 
@@ -130,7 +130,7 @@ defmodule TuistWeb.OpsAccountLive do
       nil ->
         {:noreply, put_flash(socket, :error, "Server not found.")}
 
-      %KuraServer{} = server ->
+      %Server{} = server ->
         {:ok, _} = Kura.destroy_server(server)
         {:noreply, socket |> put_flash(:info, "Destroying Kura server…") |> load_kura_state()}
     end

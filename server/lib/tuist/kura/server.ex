@@ -1,4 +1,4 @@
-defmodule Tuist.Kura.KuraServer do
+defmodule Tuist.Kura.Server do
   @moduledoc """
   A Kura server allocated for a single account, in a single region.
 
@@ -32,7 +32,7 @@ defmodule Tuist.Kura.KuraServer do
   import Ecto.Changeset
 
   alias Tuist.Accounts.Account
-  alias Tuist.Kura.KuraDeployment
+  alias Tuist.Kura.Deployment
 
   @specs [:small, :medium, :large]
   @statuses [:provisioning, :active, :failed, :destroying, :destroyed]
@@ -50,7 +50,7 @@ defmodule Tuist.Kura.KuraServer do
 
     belongs_to :account, Account
 
-    has_many :deployments, KuraDeployment, foreign_key: :kura_server_id
+    has_many :deployments, Deployment, foreign_key: :kura_server_id
 
     timestamps(type: :utc_datetime_usec)
   end

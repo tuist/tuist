@@ -6,9 +6,9 @@ defmodule Tuist.Kura.Workers.RolloutWorkerTest do
 
   alias Tuist.Accounts
   alias Tuist.Kura
-  alias Tuist.Kura.KuraDeployment
-  alias Tuist.Kura.KuraServer
+  alias Tuist.Kura.Deployment
   alias Tuist.Kura.Provisioner
+  alias Tuist.Kura.Server
   alias Tuist.Kura.Workers.RolloutWorker
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -29,7 +29,7 @@ defmodule Tuist.Kura.Workers.RolloutWorkerTest do
 
     deployment = List.first(server.deployments)
 
-    stub(Provisioner, :rollout, fn %KuraServer{}, %{on_log_line: on_log_line} ->
+    stub(Provisioner, :rollout, fn %Server{}, %{on_log_line: on_log_line} ->
       on_log_line.("starting rollout", :stdout)
       on_log_line.("still working", :stderr)
       {:error, "rollout exited with status 1"}
@@ -38,8 +38,8 @@ defmodule Tuist.Kura.Workers.RolloutWorkerTest do
     assert {:error, "rollout exited with status 1"} =
              RolloutWorker.perform(%Oban.Job{args: %{"deployment_id" => deployment.id}})
 
-    assert %KuraDeployment{status: :failed, error_message: "rollout exited with status 1"} =
-             Repo.get!(KuraDeployment, deployment.id)
+    assert %Deployment{status: :failed, error_message: "rollout exited with status 1"} =
+             Repo.get!(Deployment, deployment.id)
 
     assert [
              %{sequence: 1, stream: :stdout, line: "starting rollout"},

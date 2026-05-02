@@ -1,6 +1,6 @@
-defmodule Tuist.Kura.KuraDeployment do
+defmodule Tuist.Kura.Deployment do
   @moduledoc """
-  One deployment record for a `KuraServer`.
+  One deployment record for a `Server`.
 
   Created by `Tuist.Kura.create_server/1` (initial install) or
   `create_deployment/1` (version bump), picked up by
@@ -24,7 +24,7 @@ defmodule Tuist.Kura.KuraDeployment do
   import Ecto.Changeset
 
   alias Tuist.Accounts.Account
-  alias Tuist.Kura.KuraServer
+  alias Tuist.Kura.Server
 
   @statuses [:pending, :running, :succeeded, :failed, :cancelled]
 
@@ -39,7 +39,7 @@ defmodule Tuist.Kura.KuraDeployment do
     field :finished_at, :utc_datetime
 
     belongs_to :account, Account
-    belongs_to :kura_server, KuraServer, type: :binary_id
+    belongs_to :kura_server, Server, type: :binary_id
 
     timestamps(type: :utc_datetime_usec)
   end

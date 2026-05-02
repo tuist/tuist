@@ -17,22 +17,22 @@ defmodule Tuist.Kura.Workers.DestroyServerWorker do
 
   alias Tuist.Kura
   alias Tuist.Kura.Provisioner
-  alias Tuist.Kura.KuraServer
+  alias Tuist.Kura.Server
   alias Tuist.Repo
 
   require Logger
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"server_id" => id}}) do
-    case Repo.get(KuraServer, id) do
+    case Repo.get(Server, id) do
       nil ->
         Logger.warning("[Kura.DestroyServerWorker] server #{id} not found")
         :ok
 
-      %KuraServer{status: :destroyed} ->
+      %Server{status: :destroyed} ->
         :ok
 
-      %KuraServer{} = server ->
+      %Server{} = server ->
         log_outcome(server, Provisioner.destroy(server))
         {:ok, _} = Kura.mark_destroyed(server)
         :ok
@@ -41,7 +41,7 @@ defmodule Tuist.Kura.Workers.DestroyServerWorker do
 
   defp log_outcome(_server, :ok), do: :ok
 
-  defp log_outcome(%KuraServer{region: region}, {:error, :not_found}) do
+  defp log_outcome(%Server{region: region}, {:error, :not_found}) do
     Logger.warning("[Kura.DestroyServerWorker] region #{region} not in catalog; marking destroyed anyway")
   end
 
