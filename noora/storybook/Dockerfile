@@ -19,9 +19,8 @@ ARG BUILDER_IMAGE="hexpm/elixir:${ELIXIR_VERSION}-erlang-${OTP_VERSION}-debian-$
 ARG RUNNER_IMAGE="debian:${DEBIAN_VERSION}"
 
 FROM node:24-slim AS npm-deps
-ENV PNPM_HOME="/pnpm"
-ENV PATH="$PNPM_HOME:$PATH"
-RUN corepack enable
+ENV XDG_DATA_HOME="/aube-data"
+RUN npm install -g --ignore-scripts=false @endevco/aube
 
 COPY package.json /app/noora/
 COPY js/ /app/noora/js/
@@ -30,10 +29,10 @@ COPY lib/ /app/noora/lib/
 COPY mix.exs README.md /app/noora/
 
 WORKDIR /app/noora
-RUN pnpm install
+RUN aube install
 
 RUN mkdir -p priv/static
-RUN pnpm run build
+RUN aube run build
 RUN ./node_modules/.bin/esbuild css/noora.css --bundle --minify --outfile=./priv/static/noora.css
 
 FROM ${BUILDER_IMAGE} AS builder

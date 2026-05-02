@@ -10,7 +10,3 @@ backend = "core:node"
 [[tools."npm:wrangler"]]
 version = "4.30.0"
 backend = "npm:wrangler"
-
-[[tools.pnpm]]
-version = "10.17.1"
-backend = "aqua:pnpm/pnpm"

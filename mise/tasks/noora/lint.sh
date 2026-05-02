@@ -4,7 +4,7 @@
 set -eo pipefail
 cd noora
 if [ "$usage_fix" = "true" ]; then
-  mix format; pnpm prettier --write "js/**/*.js" "css/**/*.css"
+  mix format; aube exec prettier --write "js/**/*.js" "css/**/*.css"
 else
-  mix format --check-formatted; pnpm prettier --check "js/**/*.js" "css/**/*.css"
+  mix format --check-formatted; aube exec prettier --check "js/**/*.js" "css/**/*.css"
 fi

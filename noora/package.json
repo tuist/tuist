@@ -2,7 +2,6 @@
   "name": "noora",
   "main": "index.js",
   "license": "MIT",
-  "packageManager": "pnpm@10.32.0",
   "module": "./priv/static/noora.js",
   "exports": {
     ".": "./priv/static/noora.js",
@@ -13,7 +12,7 @@
     "build:css": "esbuild css/noora.css --bundle --minify --sourcemap --outfile=./priv/static/noora.css",
     "build:js": "esbuild js/index.js --bundle --minify --sourcemap --format=esm --outfile=./priv/static/noora.js",
     "test": "vitest",
-    "build": "pnpm run build:js && pnpm run build:css"
+    "build": "aube run build:js && aube run build:css"
   },
   "dependencies": {
     "@zag-js/avatar": "^1.8.2",
