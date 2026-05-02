@@ -34,15 +34,12 @@ defmodule Tuist.Kura.Provisioner do
   partial unique index on `kura_servers` for the higher-level
   guarantee.
 
-  Returns the opaque ref plus any metadata the provisioner wants to
-  persist. Both are stored verbatim on the `Server` row.
-
   The control plane treats this as the resource-allocation step. Some
   implementations may create resources here; others may only return a
   deterministic handle and defer the first install to `rollout/2`.
   """
   @callback provision(Account.t(), Regions.t(), Server.t()) ::
-              {:ok, ref :: String.t(), metadata :: map()} | {:error, term()}
+              {:ok, ref :: String.t()} | {:error, term()}
 
   @doc """
   Apply a (possibly new) Kura image tag to an existing provisioned

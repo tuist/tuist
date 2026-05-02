@@ -84,22 +84,32 @@ defmodule Tuist.KuraTest do
     end
   end
 
-  describe "create_deployment/1" do
+  describe "create_deployment/2" do
     setup do
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
-      {:ok, account: account, user: user}
+
+      {:ok, server} =
+        %Server{}
+        |> Server.create_changeset(%{
+          account_id: account.id,
+          region: "local",
+          spec: :medium,
+          volume_size_gi: 200,
+          provisioner_node_ref: "kura-#{account.name}-local"
+        })
+        |> Repo.insert()
+
+      {:ok, account: account, server: server, user: user}
     end
 
-    test "inserts a deployment row and enqueues the rollout worker", %{account: account} do
+    test "inserts a deployment row and enqueues the rollout worker", %{server: server} do
       assert {:ok, %Deployment{status: :pending} = deployment} =
-               Kura.create_deployment(%{
-                 account_id: account.id,
-                 cluster_id: "eu-1",
-                 image_tag: "0.5.2"
-               })
+               Kura.create_deployment(server, "0.5.2")
 
       assert deployment.oban_job_id
+      assert deployment.kura_server_id == server.id
+      assert deployment.cluster_id == "local"
 
       assert_enqueued(
         worker: RolloutWorker,
@@ -107,22 +117,9 @@ defmodule Tuist.KuraTest do
       )
     end
 
-    test "rejects an unknown cluster", %{account: account} do
-      assert {:error, %Ecto.Changeset{errors: [cluster_id: _]}} =
-               Kura.create_deployment(%{
-                 account_id: account.id,
-                 cluster_id: "moon-1",
-                 image_tag: "0.5.2"
-               })
-    end
-
-    test "rejects a non-semver image tag", %{account: account} do
+    test "rejects a non-semver image tag", %{server: server} do
       assert {:error, %Ecto.Changeset{errors: [image_tag: _]}} =
-               Kura.create_deployment(%{
-                 account_id: account.id,
-                 cluster_id: "eu-1",
-                 image_tag: "latest"
-               })
+               Kura.create_deployment(server, "latest")
     end
   end
 
@@ -133,26 +130,31 @@ defmodule Tuist.KuraTest do
       user_b = AccountsFixtures.user_fixture()
       account_b = Accounts.get_account_from_user(user_b)
 
-      {:ok, d1} =
-        Kura.create_deployment(%{
+      {:ok, server_a} =
+        %Server{}
+        |> Server.create_changeset(%{
           account_id: account_a.id,
-          cluster_id: "eu-1",
-          image_tag: "0.5.0"
+          region: "local",
+          spec: :small,
+          volume_size_gi: 50,
+          provisioner_node_ref: "kura-#{account_a.name}-local"
         })
+        |> Repo.insert()
 
-      {:ok, _other} =
-        Kura.create_deployment(%{
+      {:ok, server_b} =
+        %Server{}
+        |> Server.create_changeset(%{
           account_id: account_b.id,
-          cluster_id: "eu-1",
-          image_tag: "0.5.0"
+          region: "local",
+          spec: :small,
+          volume_size_gi: 50,
+          provisioner_node_ref: "kura-#{account_b.name}-local"
         })
+        |> Repo.insert()
 
-      {:ok, d2} =
-        Kura.create_deployment(%{
-          account_id: account_a.id,
-          cluster_id: "eu-1",
-          image_tag: "0.5.1"
-        })
+      {:ok, d1} = Kura.create_deployment(server_a, "0.5.0")
+      {:ok, d2} = Kura.create_deployment(server_a, "0.5.1")
+      {:ok, _other} = Kura.create_deployment(server_b, "0.5.0")
 
       result = Kura.list_deployments_for_account(account_a.id, 10)
       assert Enum.map(result, & &1.id) == [d2.id, d1.id]

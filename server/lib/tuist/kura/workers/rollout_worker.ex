@@ -46,7 +46,7 @@ defmodule Tuist.Kura.Workers.RolloutWorker do
   end
 
   defp execute(%Deployment{} = deployment) do
-    deployment = Repo.preload(deployment, [:account, :kura_server])
+    deployment = Repo.preload(deployment, kura_server: :account)
 
     case deployment.kura_server do
       nil -> fail(deployment, nil, "deployment has no parent kura_server")
@@ -59,7 +59,7 @@ defmodule Tuist.Kura.Workers.RolloutWorker do
 
     inputs = %{
       image_tag: deployment.image_tag,
-      account: deployment.account,
+      account: server.account,
       server: server,
       on_log_line: log_sink(deployment.id)
     }

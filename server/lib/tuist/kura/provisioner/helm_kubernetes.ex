@@ -61,7 +61,7 @@ defmodule Tuist.Kura.Provisioner.HelmKubernetes do
 
   @impl true
   def provision(%{name: handle}, %Regions{} = region, %Server{}) do
-    {:ok, release_name(handle, region), %{}}
+    {:ok, release_name(handle, region)}
   end
 
   @impl true

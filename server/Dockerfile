@@ -230,30 +230,24 @@ RUN : "APT_CACHE_BUST=${APT_CACHE_BUST}" \
   apt-get install -y curl build-essential gcc wget libvips libstdc++6 openssl libncurses5 locales ca-certificates postgresql-client zip unzip git tini \
   && apt-get clean && rm -f /var/lib/apt/lists/*_*
 
-# helm + kubectl are used by Tuist.Kura.Workers.RolloutWorker to drive
-# the partitioned warm rollout against per-cluster kubeconfigs. We pin
-# both so every server image rolls Kura the same way regardless of when
-# it was built.
+# Pin rollout tooling and vendor the Kura chart into the runtime image.
 ARG HELM_VERSION=3.16.3
 ARG KUBECTL_VERSION=1.31.3
 RUN set -eux; \
   arch="$(dpkg --print-architecture)"; \
   case "$arch" in \
-    amd64) helm_arch=amd64; kubectl_arch=amd64 ;; \
-    arm64) helm_arch=arm64; kubectl_arch=arm64 ;; \
+    amd64|arm64) tool_arch="$arch" ;; \
     *) echo "unsupported arch $arch"; exit 1 ;; \
   esac; \
-  curl -fsSL "https://get.helm.sh/helm-v${HELM_VERSION}-linux-${helm_arch}.tar.gz" \
-    | tar -xz -C /tmp && \
-  mv "/tmp/linux-${helm_arch}/helm" /usr/local/bin/helm && \
-  rm -rf "/tmp/linux-${helm_arch}" && \
+  tmp_dir="$(mktemp -d)" && \
+  curl -fsSL "https://get.helm.sh/helm-v${HELM_VERSION}-linux-${tool_arch}.tar.gz" \
+    | tar -xz -C "$tmp_dir" && \
+  install -m 755 "$tmp_dir/linux-${tool_arch}/helm" /usr/local/bin/helm && \
   curl -fsSL -o /usr/local/bin/kubectl \
-    "https://dl.k8s.io/release/v${KUBECTL_VERSION}/bin/linux/${kubectl_arch}/kubectl" && \
-  chmod +x /usr/local/bin/kubectl /usr/local/bin/helm
+    "https://dl.k8s.io/release/v${KUBECTL_VERSION}/bin/linux/${tool_arch}/kubectl" && \
+  chmod +x /usr/local/bin/kubectl && \
+  rm -rf "$tmp_dir"
 
-# Bake the Kura Helm chart into the image so the rollout worker has a
-# stable on-disk copy. TUIST_KURA_CHART_PATH defaults to this location
-# in production (see config/runtime.exs).
 COPY kura/ops/helm/kura /app/priv/kura_chart
 
 RUN sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && locale-gen
