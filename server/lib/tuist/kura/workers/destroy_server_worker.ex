@@ -8,12 +8,18 @@ defmodule Tuist.Kura.Workers.DestroyServerWorker do
   instant the row enters `:destroying` — even before the cluster-side
   teardown finishes.
 
-  Failures here are logged but never block the row's transition to
-  `:destroyed`. A stuck `:destroying` row would block re-using the
-  `(account, region)` pair, which is worse than an orphaned backing
-  resource that an operator can clean up manually.
+  The destroy is intentionally ordered as:
+
+    1. tear down the backing resource through the provisioner
+    2. mark the row `:destroyed`
+
+  If either step fails, the worker returns an error to Oban and leaves
+  the row in `:destroying` so retries can continue from the same state.
+  `Tuist.Kura.Provisioner.destroy/2` is required to be idempotent so
+  those retries are safe even when the backing resource was already
+  removed.
   """
-  use Oban.Worker, queue: :kura_rollout, max_attempts: 1
+  use Oban.Worker, queue: :kura_rollout, max_attempts: 5
 
   alias Tuist.Kura
   alias Tuist.Kura.Provisioner
@@ -33,19 +39,17 @@ defmodule Tuist.Kura.Workers.DestroyServerWorker do
         :ok
 
       %Server{} = server ->
-        log_outcome(server, Provisioner.destroy(server))
-        {:ok, _} = Kura.mark_destroyed(server)
-        :ok
+        with :ok <- destroy_backing_resource(server),
+             {:ok, _} <- Kura.mark_destroyed(server) do
+          :ok
+        end
     end
   end
 
-  defp log_outcome(_server, :ok), do: :ok
-
-  defp log_outcome(%Server{region: region}, {:error, :not_found}) do
-    Logger.warning("[Kura.DestroyServerWorker] region #{region} not in catalog; marking destroyed anyway")
-  end
-
-  defp log_outcome(_server, {:error, reason}) do
-    Logger.warning("[Kura.DestroyServerWorker] provisioner destroy failed: #{inspect(reason)}")
+  defp destroy_backing_resource(server) do
+    case Provisioner.destroy(server) do
+      :ok -> :ok
+      {:error, reason} -> {:error, {:provisioner_destroy_failed, reason}}
+    end
   end
 end
