@@ -1332,9 +1332,11 @@ end
     /// can read it; these tests are how we keep its three contracts
     /// honest:
     ///
-    ///   * `authenticate` — forward the caller's Authorization header to
-    ///     `/api/projects`, translate the returned project list into a
-    ///     minimal Kura principal, or deny.
+    ///   * `authenticate` — mirror the existing cache service: first try
+    ///     the Tuist Guardian JWT fast path using `claims.projects`, then
+    ///     fall back to `/api/projects` when the bearer token is opaque or
+    ///     when the JWT claim set does not prove access to the requested
+    ///     project.
     ///   * `authorize` — resolve the request's project from
     ///     `ctx.tenant_id` + `ctx.namespace_id`, or the legacy query
     ///     params, require the tenant to match
@@ -1395,6 +1397,12 @@ end
             test_engine(&script(), move |_| unsafe {
                 std::env::set_var("KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL", &url);
                 std::env::set_var("KURA_EXTENSION_HOOK_TIMEOUT_MS", "5000");
+                std::env::set_var("KURA_EXTENSION_JWT_VERIFIER_TUIST_ALGORITHM", "HS512");
+                std::env::set_var(
+                    "KURA_EXTENSION_JWT_VERIFIER_TUIST_SECRET",
+                    "tuist-guardian-secret",
+                );
+                std::env::set_var("KURA_EXTENSION_JWT_VERIFIER_TUIST_ISSUER", "tuist");
                 std::env::set_var(
                     "KURA_EXTENSION_HTTP_CLIENT_TUIST_REQUEST_TIMEOUT_MS",
                     "4000",
@@ -1430,6 +1438,21 @@ end
             })
         }
 
+        fn guardian_jwt(projects: &[&str]) -> String {
+            jsonwebtoken::encode(
+                &jsonwebtoken::Header::new(Algorithm::HS512),
+                &serde_json::json!({
+                    "sub": "user-1",
+                    "type": "user",
+                    "iss": "tuist",
+                    "projects": projects,
+                    "exp": 4_000_000_000u64,
+                }),
+                &jsonwebtoken::EncodingKey::from_secret("tuist-guardian-secret".as_bytes()),
+            )
+            .expect("failed to sign guardian test token")
+        }
+
         // --- authenticate -----------------------------------------------
 
         #[tokio::test]
@@ -1463,6 +1486,44 @@ end
         }
 
         #[tokio::test]
+        async fn authorizes_from_local_jwt_projects_without_projects_endpoint() {
+            let engine = engine_pointing_at("http://127.0.0.1:1").await;
+            let token = guardian_jwt(&["acme/ios"]);
+
+            let mut context = ctx();
+            context
+                .headers
+                .insert("authorization".into(), format!("Bearer {token}"));
+            context.namespace_id = Some("ios".into());
+
+            let decision = engine.evaluate_access(&context).await;
+            assert!(matches!(decision, AccessDecision::Allow(Some(_))));
+        }
+
+        #[tokio::test]
+        async fn falls_back_to_projects_endpoint_when_jwt_claims_do_not_cover_requested_project() {
+            let calls = Arc::new(Mutex::new(0usize));
+            let calls_for_handler = calls.clone();
+            let base = spawn_projects_mock(move |_| {
+                *calls_for_handler.lock().unwrap() += 1;
+                (StatusCode::OK, projects_payload(&["acme/ios"]))
+            })
+            .await;
+            let engine = engine_pointing_at(&base).await;
+            let token = guardian_jwt(&["acme/android"]);
+
+            let mut context = ctx();
+            context
+                .headers
+                .insert("authorization".into(), format!("Bearer {token}"));
+            context.namespace_id = Some("ios".into());
+
+            let decision = engine.evaluate_access(&context).await;
+            assert!(matches!(decision, AccessDecision::Allow(Some(_))));
+            assert_eq!(*calls.lock().unwrap(), 1);
+        }
+
+        #[tokio::test]
         async fn forwards_bearer_to_projects_endpoint() {
             let captured = Arc::new(Mutex::new(None::<String>));
             let captured_for_handler = captured.clone();
@@ -1488,15 +1549,15 @@ end
             let mut context = ctx();
             context
                 .headers
-                .insert("authorization".into(), "Bearer user-token".into());
-            context.tenant_id = Some("acme".into());
-            context.namespace_id = Some("ios".into());
+                .insert("authorization".into(), "Bearer opaque-token".into());
+            context.query.insert("account_handle".into(), "acme".into());
+            context.query.insert("project_handle".into(), "ios".into());
 
             let _ = engine.evaluate_access(&context).await;
 
             assert_eq!(
                 captured.lock().unwrap().as_deref(),
-                Some("Bearer user-token")
+                Some("Bearer opaque-token")
             );
         }
 
@@ -1568,7 +1629,6 @@ end
             context
                 .headers
                 .insert("authorization".into(), "Bearer t".into());
-            context.tenant_id = Some("acme".into());
             context.namespace_id = Some("ios".into());
 
             let decision = engine.evaluate_access(&context).await;
@@ -1643,7 +1703,6 @@ end
             context
                 .headers
                 .insert("authorization".into(), "Bearer t".into());
-            context.query.insert("tenant_id".into(), "acme".into());
 
             let deny = expect_deny(engine.evaluate_access(&context).await);
             assert_eq!(deny.status, 403);

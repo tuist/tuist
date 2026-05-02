@@ -1,7 +1,7 @@
 defmodule Tuist.Kura.Provisioner do
   @moduledoc """
-  Behaviour the control plane uses to provision, roll, and destroy
-  Kura servers on a particular backing platform.
+  Behaviour the control plane uses to prepare backing resources, apply
+  Kura to them, and destroy servers on a particular platform.
 
   The control plane (Oban workers, /ops UI, the `Tuist.Kura` context)
   speaks in regions and accounts. It does not know whether a given
@@ -26,7 +26,7 @@ defmodule Tuist.Kura.Provisioner do
   alias Tuist.Kura.Regions
 
   @doc """
-  Provision a fresh Kura node for `(account, region, server)`.
+  Prepare or look up backing resources for `(account, region, server)`.
 
   Idempotent on the returned ref: calling twice for the same
   `(account_id, region)` should converge on the same backing resource
@@ -36,15 +36,21 @@ defmodule Tuist.Kura.Provisioner do
 
   Returns the opaque ref plus any metadata the provisioner wants to
   persist. Both are stored verbatim on the `KuraServer` row.
+
+  The control plane treats this as the resource-allocation step. Some
+  implementations may create resources here; others may only return a
+  deterministic handle and defer the first install to `rollout/2`.
   """
   @callback provision(Account.t(), Regions.t(), KuraServer.t()) ::
               {:ok, ref :: String.t(), metadata :: map()} | {:error, term()}
 
   @doc """
-  Push a (possibly new) Kura image tag to an existing node. Used both
-  for first install (right after `provision/3`) and for subsequent
-  version bumps. Implementations decide what "rollout" means: helm
-  upgrade in place, ssh + systemctl restart, a multi-step warm
+  Apply a (possibly new) Kura image tag to an existing provisioned
+  resource.
+
+  Used both for the first install (right after `provision/3`) and for
+  later version changes. Implementations decide what "rollout" means:
+  helm install or upgrade, ssh + systemctl restart, a multi-step warm
   rollout, etc.
 
   `inputs.on_log_line` is the sink for stdout/stderr the provisioner
