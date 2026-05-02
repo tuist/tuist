@@ -828,7 +828,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 timer: timer
             )
             AlertController.current.success(
-                .alert("All selected tests were fully cached by selective testing, skipping execution")
+                .alert("All selected tests matched previously successful hashes, skipping execution")
             )
             return
         }
