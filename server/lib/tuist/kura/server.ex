@@ -19,9 +19,6 @@ defmodule Tuist.Kura.Server do
   from `provision/3`. The control plane stores it untouched and hands
   it back to the provisioner for `rollout/3` and `destroy/1`. For the
   helm-Kubernetes provisioner it's the helm release name.
-  `provisioner_metadata` is a JSON bag the provisioner uses to remember
-  anything else it needs between calls (instance type, zone, peer
-  seeding info, etc.).
 
   Per-server install and update attempts live in `kura_deployments` via
   `kura_server_id`. These rows are the deployment records the
@@ -46,7 +43,6 @@ defmodule Tuist.Kura.Server do
     field :url, :string
     field :current_image_tag, :string
     field :provisioner_node_ref, :string
-    field :provisioner_metadata, :map, default: %{}
 
     belongs_to :account, Account
 
@@ -65,10 +61,9 @@ defmodule Tuist.Kura.Server do
       :region,
       :spec,
       :volume_size_gi,
-      :provisioner_node_ref,
-      :provisioner_metadata
+      :provisioner_node_ref
     ])
-    |> validate_required([:account_id, :region, :spec, :volume_size_gi])
+    |> validate_required([:account_id, :region, :spec, :volume_size_gi, :provisioner_node_ref])
     |> validate_number(:volume_size_gi, greater_than: 0, less_than_or_equal_to: 10_000)
     |> validate_change(:region, fn :region, value ->
       if Tuist.Kura.Regions.exists?(value),
@@ -88,8 +83,7 @@ defmodule Tuist.Kura.Server do
       :status,
       :url,
       :current_image_tag,
-      :provisioner_node_ref,
-      :provisioner_metadata
+      :provisioner_node_ref
     ])
     |> validate_required([:status])
   end

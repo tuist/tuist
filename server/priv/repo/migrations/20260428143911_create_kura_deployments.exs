@@ -5,10 +5,6 @@ defmodule Tuist.Repo.Migrations.CreateKuraDeployments do
     create table(:kura_deployments, primary_key: false) do
       add :id, :binary_id, primary_key: true
 
-      add :account_id,
-          references(:accounts, on_delete: :delete_all),
-          null: false
-
       add :cluster_id, :string, null: false
       add :image_tag, :string, null: false
       add :status, :integer, null: false, default: 0
@@ -19,10 +15,5 @@ defmodule Tuist.Repo.Migrations.CreateKuraDeployments do
 
       timestamps(type: :timestamptz)
     end
-
-    create index(:kura_deployments, [:account_id])
-    create index(:kura_deployments, [:account_id, :cluster_id])
-    create index(:kura_deployments, [:status])
-    create index(:kura_deployments, [:inserted_at])
   end
 end

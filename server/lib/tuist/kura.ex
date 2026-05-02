@@ -143,9 +143,8 @@ defmodule Tuist.Kura do
     with {:ok, region} <- fetch_region(attrs[:region]),
          {:ok, account} <- Accounts.get_account_by_id(attrs[:account_id]),
          attrs = with_defaults(attrs, region),
-         recycle_terminal_servers(attrs),
-         {:ok, ref, metadata} <- region.provisioner.provision(account, region, server_stub(attrs)) do
-      attrs = Map.merge(attrs, %{provisioner_node_ref: ref, provisioner_metadata: metadata})
+         {:ok, ref} <- region.provisioner.provision(account, region, server_stub(attrs)) do
+      attrs = Map.put(attrs, :provisioner_node_ref, ref)
       insert_server_and_enqueue(attrs, region)
     end
   end
@@ -167,7 +166,6 @@ defmodule Tuist.Kura do
 
   defp insert_initial_deployment(server, region, image_tag) do
     %{
-      account_id: server.account_id,
       cluster_id: deployment_cluster_id(region),
       image_tag: image_tag,
       kura_server_id: server.id
@@ -217,16 +215,6 @@ defmodule Tuist.Kura do
   # "eu-1") instead of the abstract region ID.
   defp deployment_cluster_id(%Regions{provisioner_config: %{cluster_id: id}}), do: id
   defp deployment_cluster_id(%Regions{id: id}), do: id
-
-  # Failed rows would block re-creation against the partial unique
-  # index `(account_id, region) where status != :destroyed`. Sweep
-  # them so a retry from /ops Just Works.
-  defp recycle_terminal_servers(%{account_id: account_id, region: region})
-       when not is_nil(account_id) and is_binary(region) do
-    Repo.delete_all(from(s in Server, where: s.account_id == ^account_id and s.region == ^region and s.status == :failed))
-  end
-
-  defp recycle_terminal_servers(_), do: :ok
 
   @doc """
   Returns the non-destroyed servers for an account, each with its
@@ -323,9 +311,9 @@ defmodule Tuist.Kura do
   Inserts a `Deployment` deployment record and enqueues the rollout
   worker.
   """
-  def create_deployment(attrs) do
+  def create_deployment(%Server{} = server, image_tag) when is_binary(image_tag) do
     Repo.transaction(fn ->
-      with {:ok, deployment} <- attrs |> Deployment.create_changeset() |> Repo.insert(),
+      with {:ok, deployment} <- insert_deployment(server, image_tag),
            {:ok, job} <- enqueue_rollout(deployment),
            {:ok, deployment} <- stamp_job_id(deployment, job.id) do
         deployment
@@ -333,6 +321,18 @@ defmodule Tuist.Kura do
         {:error, reason} -> Repo.rollback(reason)
       end
     end)
+  end
+
+  defp insert_deployment(%Server{} = server, image_tag) do
+    with {:ok, region} <- Regions.fetch(server.region) do
+      %{
+        cluster_id: deployment_cluster_id(region),
+        image_tag: image_tag,
+        kura_server_id: server.id
+      }
+      |> Deployment.create_changeset()
+      |> Repo.insert()
+    end
   end
 
   defp enqueue_rollout(%Deployment{id: id}) do
@@ -348,7 +348,8 @@ defmodule Tuist.Kura do
   @doc "Returns deployment records for the account, newest first."
   def list_deployments_for_account(account_id, limit \\ 50) do
     Deployment
-    |> where([d], d.account_id == ^account_id)
+    |> join(:inner, [d], s in assoc(d, :kura_server))
+    |> where([_d, s], s.account_id == ^account_id)
     |> order_by([d], desc: d.inserted_at, desc: d.id)
     |> limit(^limit)
     |> Repo.all()
@@ -356,7 +357,11 @@ defmodule Tuist.Kura do
 
   @doc "Fetches a deployment record, scoped so URLs cannot enumerate."
   def get_deployment(account_id, deployment_id) do
-    Repo.get_by(Deployment, id: deployment_id, account_id: account_id)
+    Deployment
+    |> join(:inner, [d], s in assoc(d, :kura_server))
+    |> where([d, s], d.id == ^deployment_id and s.account_id == ^account_id)
+    |> select([d, _s], d)
+    |> Repo.one()
   end
 
   @doc "Marks a deployment record as running and stamps the start time."
