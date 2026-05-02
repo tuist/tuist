@@ -1,5 +1,7 @@
 {
   "name": "noora",
+  "version": "0.81.1",
+  "private": true,
   "main": "index.js",
   "license": "MIT",
   "module": "./priv/static/noora.js",
