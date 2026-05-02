@@ -787,11 +787,20 @@ public struct TestService { // swiftlint:disable:this type_body_length
         )
 
         var testError: Error?
+        var didSkipFullyCachedTestPlan = false
 
         do {
             try await xcodebuildController.run(arguments: xcodebuildArguments)
         } catch {
-            testError = error
+            if shouldSkipMissingTestPlanError(
+                error,
+                selectiveTestingGraph: selectiveTestingGraph,
+                testPlanConfiguration: testPlanConfiguration
+            ) {
+                didSkipFullyCachedTestPlan = true
+            } else {
+                testError = error
+            }
         }
 
         let summary = mode == .local
@@ -821,7 +830,13 @@ public struct TestService { // swiftlint:disable:this type_body_length
             throw testError
         }
 
-        AlertController.current.success(.alert("The project tests ran successfully"))
+        if didSkipFullyCachedTestPlan, let testPlan = testPlanConfiguration?.testPlan {
+            AlertController.current.success(
+                .alert("The test plan \(testPlan) was fully cached by selective testing, skipping execution")
+            )
+        } else {
+            AlertController.current.success(.alert("The project tests ran successfully"))
+        }
     }
 
     private func removeOption(_ option: String, from arguments: [String]) -> [String] {
@@ -968,7 +983,42 @@ public struct TestService { // swiftlint:disable:this type_body_length
             }
         }
 
-        return SelectiveTestingGraph(testTargetHashes: testTargetHashes)
+        let testPlanTargetNames: [String: [String]] = matchingSchemes
+            .flatMap { $0.testAction?.testPlans ?? [] }
+            .reduce(into: [:]) { result, testPlan in
+                result[testPlan.name] = Array(
+                    Set(testPlan.testTargets.map(\.target.name))
+                ).sorted()
+            }
+
+        return SelectiveTestingGraph(
+            testTargetHashes: testTargetHashes,
+            testPlanTargetNames: testPlanTargetNames
+        )
+    }
+
+    private func shouldSkipMissingTestPlanError(
+        _ error: Error,
+        selectiveTestingGraph: SelectiveTestingGraph,
+        testPlanConfiguration: TestPlanConfiguration?
+    ) -> Bool {
+        guard let testPlan = testPlanConfiguration?.testPlan,
+              let originalTargets = selectiveTestingGraph.testPlanTargetNames[testPlan],
+              !originalTargets.isEmpty,
+              let standardError = standardError(from: error)
+        else { return false }
+
+        return standardError.contains("xctestproducts does not contain test plan: \(testPlan)")
+    }
+
+    private func standardError(from error: Error) -> String? {
+        switch error {
+        case let SystemError.terminated(_, _, standardError),
+             let SystemError.signalled(_, _, standardError):
+            return String(data: standardError, encoding: .utf8)
+        default:
+            return nil
+        }
     }
 
     private func storeSuccessfulTestHashesFromGraph(

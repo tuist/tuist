@@ -3960,6 +3960,105 @@ final class TestServiceTests: TuistUnitTestCase {
             .called(1)
     }
 
+    func test_run_testWithoutBuilding_skipsMissingTestPlanWhenItWasFullyCached() async throws {
+        // Given
+        let path = try temporaryPath()
+        let testProductsPath = path.appending(component: "MyApp.xctestproducts")
+        try await fileSystem.makeDirectory(at: testProductsPath)
+        let testPlan = "IntegrationTestSuite"
+
+        let selectiveTestingGraph = SelectiveTestingGraph(
+            testTargetHashes: ["IntegrationTests": "abc123"],
+            testPlanTargetNames: [testPlan: ["IntegrationTests"]]
+        )
+        let graphPath = testProductsPath.appending(component: SelectiveTestingGraph.fileName)
+        let data = try JSONEncoder().encode(selectiveTestingGraph)
+        try data.write(to: graphPath.url)
+
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject()))
+
+        let error = SystemError.terminated(
+            command: "xcodebuild test-without-building",
+            code: 66,
+            standardError: Data("xcodebuild: error: xctestproducts does not contain test plan: \(testPlan)".utf8)
+        )
+        given(xcodebuildController)
+            .run(arguments: .any)
+            .willThrow(error)
+
+        // When
+        try await AlertController.$current.withValue(AlertController()) {
+            try await testRun(
+                path: path,
+                action: .testWithoutBuilding,
+                testPlanConfiguration: TestPlanConfiguration(testPlan: testPlan),
+                passthroughXcodeBuildArguments: ["-testProductsPath", testProductsPath.pathString]
+            )
+        }
+
+        // Then
+        verify(generatorFactory)
+            .testing(
+                config: .any,
+                testPlan: .any,
+                includedTargets: .any,
+                excludedTargets: .any,
+                skipUITests: .any,
+                skipUnitTests: .any,
+                configuration: .any,
+                ignoreBinaryCache: .any,
+                ignoreSelectiveTesting: .any,
+                cacheStorage: .any,
+                destination: .any,
+                schemeName: .any
+            )
+            .called(0)
+    }
+
+    func test_run_testWithoutBuilding_doesNotSkipMissingUnknownTestPlan() async throws {
+        // Given
+        let path = try temporaryPath()
+        let testProductsPath = path.appending(component: "MyApp.xctestproducts")
+        try await fileSystem.makeDirectory(at: testProductsPath)
+        let requestedTestPlan = "IntegrationTestSuite"
+
+        let selectiveTestingGraph = SelectiveTestingGraph(
+            testTargetHashes: ["UnitTests": "abc123"],
+            testPlanTargetNames: ["UnitTestSuite": ["UnitTests"]]
+        )
+        let graphPath = testProductsPath.appending(component: SelectiveTestingGraph.fileName)
+        let data = try JSONEncoder().encode(selectiveTestingGraph)
+        try data.write(to: graphPath.url)
+
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject()))
+
+        let error = SystemError.terminated(
+            command: "xcodebuild test-without-building",
+            code: 66,
+            standardError: Data("xcodebuild: error: xctestproducts does not contain test plan: \(requestedTestPlan)".utf8)
+        )
+        given(xcodebuildController)
+            .run(arguments: .any)
+            .willThrow(error)
+
+        // When / Then
+        await XCTAssertThrowsSpecific(
+            {
+                try await testRun(
+                    path: path,
+                    action: .testWithoutBuilding,
+                    testPlanConfiguration: TestPlanConfiguration(testPlan: requestedTestPlan),
+                    passthroughXcodeBuildArguments: ["-testProductsPath", testProductsPath.pathString]
+                )
+            },
+            error
+        )
+    }
+
     func test_run_build_passesShardArchivePathToShardPlanService() async throws {
         // Given
         givenGenerator()
