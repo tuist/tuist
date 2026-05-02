@@ -1,6 +1,6 @@
 defmodule Tuist.Kura.KuraServer do
   @moduledoc """
-  A Kura server provisioned for a single account, in a single region.
+  A Kura server allocated for a single account, in a single region.
 
   Identity is `(account, region)`: an account can light up Kura in as
   many regions as it needs, but only one server per region. `spec` is
@@ -15,16 +15,17 @@ defmodule Tuist.Kura.KuraServer do
   `url` and `current_image_tag` are populated when the server first
   reaches `:active` and updated on subsequent successful deployments.
 
-  `provisioner_node_ref` is the opaque handle the provisioner returned from
-  `provision/3`. The control plane stores it untouched and hands it
-  back to the provisioner for `rollout/3` and `destroy/1`. For the
+  `provisioner_node_ref` is the opaque handle the provisioner returned
+  from `provision/3`. The control plane stores it untouched and hands
+  it back to the provisioner for `rollout/3` and `destroy/1`. For the
   helm-Kubernetes provisioner it's the helm release name.
   `provisioner_metadata` is a JSON bag the provisioner uses to remember
   anything else it needs between calls (instance type, zone, peer
   seeding info, etc.).
 
-  Per-server lifecycle events (rollout attempts) live in
-  `kura_deployments` via `kura_server_id`.
+  Per-server install and update attempts live in `kura_deployments` via
+  `kura_server_id`. These rows are the deployment records the
+  provisioner later applies with its own rollout strategy.
   """
   use Ecto.Schema
 

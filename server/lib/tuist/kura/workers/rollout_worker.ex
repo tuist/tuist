@@ -1,10 +1,10 @@
 defmodule Tuist.Kura.Workers.RolloutWorker do
   @moduledoc """
-  Executes a single Kura deployment through `Tuist.Kura.Provisioner`.
+  Executes a single Kura deployment record through `Tuist.Kura.Provisioner`.
 
-  Intentionally thin: load the deployment + parent server, mark
-  `:running`, hand it to the provisioner, translate the outcome into
-  row state. Provisioner-specific machinery (helm shells, log
+  Intentionally thin: load the deployment record and parent server,
+  mark `:running`, hand it to the provisioner, translate the outcome
+  into row state. Provisioner-specific machinery (helm shells, log
   streaming, kubeconfig discovery) lives behind the behaviour; this
   worker has no opinion about how the rollout happens.
 

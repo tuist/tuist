@@ -231,7 +231,7 @@ defmodule TuistWeb.OpsAccountLive do
       {:ok, server} ->
         {:noreply,
          socket
-         |> put_flash(:info, "Provisioning Kura server in #{server.region}…")
+         |> put_flash(:info, "Creating Kura server in #{server.region}…")
          |> assign(:add_server_form, default_add_server_form())
          |> push_event("close-modal", %{id: "add-server-modal"})
          |> load_kura_state()}
@@ -239,13 +239,13 @@ defmodule TuistWeb.OpsAccountLive do
       {:error, %Ecto.Changeset{} = changeset} ->
         {:noreply,
          socket
-         |> put_flash(:error, "Failed to provision: #{format_errors(changeset)}")
+         |> put_flash(:error, "Failed to create Kura server: #{format_errors(changeset)}")
          |> push_event("close-modal", %{id: "add-server-modal"})}
 
       {:error, reason} ->
         {:noreply,
          socket
-         |> put_flash(:error, "Failed to provision: #{inspect(reason)}")
+         |> put_flash(:error, "Failed to create Kura server: #{inspect(reason)}")
          |> push_event("close-modal", %{id: "add-server-modal"})}
     end
   end
@@ -275,7 +275,7 @@ defmodule TuistWeb.OpsAccountLive do
 
   def region_kubeconfig_status(_), do: :configured
 
-  def server_status_label(:provisioning), do: "Provisioning"
+  def server_status_label(:provisioning), do: "Creating"
   def server_status_label(:active), do: "Active"
   def server_status_label(:failed), do: "Failed"
   def server_status_label(:destroying), do: "Destroying"

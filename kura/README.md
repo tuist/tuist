@@ -438,7 +438,9 @@ The script may define these hooks:
 
 For tenant-aware deployments, `ctx` carries both the request target
 (`tenant_id`, `namespace_id`) and the node's configured tenant as
-`server_tenant_id` (derived from `KURA_TENANT_ID`), so hooks can reject
-cross-tenant traffic even when clients send explicit query params.
+`server_tenant_id` (derived from `KURA_TENANT_ID`). Tuist's Kura hook
+uses that server tenant as the source of truth, treats client-supplied
+tenant params as consistency checks only, and uses a Guardian JWT fast
+path before falling back to `/api/projects`.
 
 The runtime keeps decision caching, metrics, timeouts, and cryptographic primitives in Rust, while the script supplies policy.

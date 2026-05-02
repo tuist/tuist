@@ -1,8 +1,8 @@
 defmodule TuistWeb.OpsAccountKuraDeploymentLive do
   @moduledoc """
-  Detail view for a single Kura deployment: status, error message, and
-  the live tail of `helm` / `rollout.sh` output streamed from
-  ClickHouse. Polls every two seconds while the deployment is in a
+  Detail view for a single Kura deployment attempt: status, error
+  message, and the live tail of `helm` / `rollout.sh` output streamed
+  from ClickHouse. Polls every two seconds while the attempt is in a
   non-terminal state.
   """
   use TuistWeb, :live_view
@@ -102,15 +102,12 @@ defmodule TuistWeb.OpsAccountKuraDeploymentLive do
   def empty_logs_message(status) when status in [:pending, :running],
     do: "No log output yet. Polling every two seconds while the deployment is pending or running."
 
-  def empty_logs_message(:succeeded),
-    do: "The deployment finished without producing any captured log output."
+  def empty_logs_message(:succeeded), do: "The deployment finished without producing any captured log output."
 
   def empty_logs_message(:failed),
-    do:
-      "The deployment failed before producing any captured log output. See the error message above for details."
+    do: "The deployment failed before producing any captured log output. See the error message above for details."
 
-  def empty_logs_message(:cancelled),
-    do: "The deployment was cancelled before producing any log output."
+  def empty_logs_message(:cancelled), do: "The deployment was cancelled before producing any log output."
 
   def empty_logs_message(_), do: "No log output captured."
 end

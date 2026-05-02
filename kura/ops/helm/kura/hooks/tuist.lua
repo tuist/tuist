@@ -6,13 +6,14 @@
 --
 -- Three jobs, mirroring what the Tuist server does for `/api/cache/*`:
 --
---   1. authenticate — forward the caller's Authorization header to
---      the Tuist server's `/api/projects` endpoint. All four token
---      shapes the server accepts (Guardian JWTs, legacy user tokens,
---      project tokens, account tokens) work without Kura needing to
---      know how any of them are laid out. Kura's built-in allow/deny
---      TTL caches absorb the callback cost — a hot bearer token costs
---      one roundtrip, then hits cache.
+--   1. authenticate — first try the current cache service's JWT fast
+--      path: verify Tuist-issued Guardian JWTs locally and see whether
+--      `claims.projects` already contains the requested full handle.
+--      If that misses (non-JWT token, invalid JWT, or the claim set was
+--      trimmed and doesn't include this project), fall back to the
+--      Tuist server's `/api/projects` endpoint. That keeps all token
+--      shapes working without making the hot path pay a server
+--      roundtrip when the JWT already proves access.
 --
 --   2. authorize — the principal carries the list of project handles
 --      it can access. We resolve the request's target project from (in
@@ -29,6 +30,7 @@
 --
 -- Required Kura extension config (set by the chart / rollout worker):
 --   * KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL  → https://tuist.dev (or staging)
+--   * KURA_EXTENSION_JWT_VERIFIER_TUIST_*        → Guardian verifier for Tuist JWTs
 --   * KURA_EXTENSION_SIGNER_TUIST_ALGORITHM      → hmac-sha256
 --   * KURA_EXTENSION_SIGNER_TUIST_SECRET         → license signing key (raw bytes, base64-encoded)
 
@@ -38,6 +40,30 @@ local function authorization_header(headers)
     return nil
   end
   return authorization
+end
+
+local function bearer_token(headers)
+  local authorization = authorization_header(headers)
+  if authorization == nil then
+    return nil
+  end
+  return string.gsub(authorization, "^Bearer%s+", "")
+end
+
+local function normalized_projects(projects)
+  local normalized = {}
+
+  if projects == nil then
+    return normalized
+  end
+
+  for _, project in ipairs(projects) do
+    if project ~= nil and project ~= "" then
+      table.insert(normalized, string.lower(project))
+    end
+  end
+
+  return normalized
 end
 
 local function project_handles(body)
@@ -57,51 +83,14 @@ local function project_handles(body)
   return projects
 end
 
-function authenticate(ctx)
-  local authorization = authorization_header(ctx.headers)
-  if authorization == nil then
-    return {
-      deny = { status = 401, message = "Missing Authorization header" },
-      ttl_seconds = 3,
-    }
+local function server_tenant(ctx)
+  local tenant = ctx.server_tenant_id
+
+  if tenant ~= nil and tenant ~= "" then
+    return string.lower(tenant)
   end
 
-  local response = kura.http_json("tuist", {
-    method = "GET",
-    path = "/api/projects",
-    headers = {
-      ["authorization"] = authorization,
-    },
-  })
-
-  if response.status == 200 and response.body and response.body.projects then
-    return {
-      principal = {
-        id = "tuist",
-        kind = "subject",
-        attributes = {
-          projects = project_handles(response.body),
-        },
-      },
-      ttl_seconds = 60,
-    }
-  end
-
-  if response.status == 401 then
-    return {
-      deny = { status = 401, message = "Invalid or expired token" },
-      ttl_seconds = 3,
-    }
-  end
-
-  -- Treat anything else (5xx, network errors that surfaced as a non-2xx)
-  -- as transient: deny with a short TTL so we retry quickly when the
-  -- server recovers. KURA_EXTENSION_FAIL_CLOSED_AUTHENTICATE controls
-  -- what happens if Kura can't even invoke this hook.
-  return {
-    deny = { status = 503, message = "Authentication backend unavailable" },
-    ttl_seconds = 3,
-  }
+  return nil
 end
 
 local function request_tenant(ctx)
@@ -114,7 +103,6 @@ local function request_tenant(ctx)
     if (tenant == nil or tenant == "") and ctx.query.tenant_id ~= nil and ctx.query.tenant_id ~= "" then
       tenant = ctx.query.tenant_id
     end
-
   end
 
   if tenant ~= nil and tenant ~= "" then
@@ -144,14 +132,97 @@ local function request_namespace(ctx)
 end
 
 local function request_project(ctx)
-  local tenant = request_tenant(ctx)
+  local tenant = server_tenant(ctx)
+  local requested_tenant = request_tenant(ctx)
   local namespace = request_namespace(ctx)
 
-  if tenant ~= nil and namespace ~= nil then
-    return tenant, namespace, tenant .. "/" .. namespace
+  if tenant == nil then
+    return nil, nil, nil, 503, "Server tenant is unavailable"
   end
 
-  return tenant, namespace, nil
+  if requested_tenant ~= nil and requested_tenant ~= tenant then
+    return tenant, namespace, nil, 403, "Forbidden: tenant '" .. requested_tenant .. "' is routed to server for '" .. tenant .. "'"
+  end
+
+  if namespace ~= nil then
+    return tenant, namespace, tenant .. "/" .. namespace, nil, nil
+  end
+
+  return tenant, namespace, nil, 403, "Missing namespace_id/project_handle on request"
+end
+
+local function principal_from_projects(id, kind, projects)
+  return {
+    id = id or "tuist",
+    kind = kind or "subject",
+    attributes = {
+      projects = projects,
+    },
+  }
+end
+
+local function authenticate_via_projects_endpoint(authorization)
+  local response = kura.http_json("tuist", {
+    method = "GET",
+    path = "/api/projects",
+    headers = {
+      ["authorization"] = authorization,
+    },
+  })
+
+  if response.status == 200 and response.body and response.body.projects then
+    return {
+      principal = principal_from_projects("tuist", "subject", project_handles(response.body)),
+      ttl_seconds = 60,
+    }
+  end
+
+  if response.status == 401 then
+    return {
+      deny = { status = 401, message = "Invalid or expired token" },
+      ttl_seconds = 3,
+    }
+  end
+
+  -- Treat anything else (5xx, network errors that surfaced as a non-2xx)
+  -- as transient: deny with a short TTL so we retry quickly when the
+  -- server recovers. KURA_EXTENSION_FAIL_CLOSED_AUTHENTICATE controls
+  -- what happens if Kura can't even invoke this hook.
+  return {
+    deny = { status = 503, message = "Authentication backend unavailable" },
+    ttl_seconds = 3,
+  }
+end
+
+function authenticate(ctx)
+  local authorization = authorization_header(ctx.headers)
+  if authorization == nil then
+    return {
+      deny = { status = 401, message = "Missing Authorization header" },
+      ttl_seconds = 3,
+    }
+  end
+
+  local token = bearer_token(ctx.headers)
+  local _, _, project = request_project(ctx)
+  local ok, claims = pcall(function()
+    return kura.jwt_verify("tuist", token)
+  end)
+
+  if ok and project ~= nil then
+    local projects = normalized_projects(claims.projects)
+
+    for _, candidate in ipairs(projects) do
+      if candidate == project then
+        return {
+          principal = principal_from_projects(claims.sub, claims.type, projects),
+          ttl_seconds = 60,
+        }
+      end
+    end
+  end
+
+  return authenticate_via_projects_endpoint(authorization)
 end
 
 function authorize(ctx, principal)
@@ -162,29 +233,10 @@ function authorize(ctx, principal)
     }
   end
 
-  local tenant, _, project = request_project(ctx)
+  local _, _, project, status, message = request_project(ctx)
   if project == nil then
     return {
-      deny = { status = 403, message = "Missing tenant_id/account_handle or namespace_id/project_handle on request" },
-      ttl_seconds = 3,
-    }
-  end
-
-  local server_tenant = ctx.server_tenant_id
-  if server_tenant == nil or server_tenant == "" then
-    return {
-      deny = { status = 503, message = "Server tenant is unavailable" },
-      ttl_seconds = 3,
-    }
-  end
-
-  server_tenant = string.lower(server_tenant)
-  if tenant ~= server_tenant then
-    return {
-      deny = {
-        status = 403,
-        message = "Forbidden: tenant '" .. tenant .. "' is routed to server for '" .. server_tenant .. "'",
-      },
+      deny = { status = status, message = message },
       ttl_seconds = 3,
     }
   end
