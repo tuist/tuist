@@ -66,26 +66,9 @@ jobs:
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
-      - uses: namespacelabs/nscloud-cache-action@v1
+      - uses: ./.github/actions/setup-server-mix
         with:
-          cache: mise
-      - uses: jdx/mise-action@v4.0.1
-        with:
-          version: ${{ env.MISE_VERSION }}
-          install_args: "erlang elixir"
-          cache: "false"
-          working_directory: server
-      - name: Restore Mix Cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            server/deps
-            server/_build
-          key: mix-${{ hashFiles('server/mix.lock') }}
-          restore-keys: |
-            mix-
-      - name: Install dependencies
-        run: mix deps.get
+          mise-version: ${{ env.MISE_VERSION }}
       - name: Check marketing gettext template is up-to-date
         run: |
           # Extract only (without --merge) to check if marketing.pot changes
@@ -195,26 +178,12 @@ jobs:
           --health-retries 5
     steps:
       - uses: actions/checkout@v4
-      - uses: namespacelabs/nscloud-cache-action@v1
+      - uses: ./.github/actions/setup-server-mix
         with:
-          cache: mise
-      - uses: jdx/mise-action@v4.0.1
-        with:
-          version: ${{ env.MISE_VERSION }}
-          install_args: "erlang elixir github:ClickHouse/ClickHouse"
-          cache: "false"
-          working_directory: server
-      - name: Restore Mix Cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            server/deps
-            server/_build
-          key: mix-test-v2-${{ hashFiles('server/mix.lock') }}
-          restore-keys: |
-            mix-test-v2-
-      - name: Install dependencies
-        run: mix deps.get
+          mise-version: ${{ env.MISE_VERSION }}
+          mise-install-args: erlang elixir github:ClickHouse/ClickHouse
+          mix-cache-key: mix-test-v2
+          mix-cache-restore-key: mix-test-v2-
       - name: Compile
         run: mix compile --warnings-as-errors
       - name: Start ClickHouse
@@ -230,60 +199,30 @@ jobs:
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
-      - uses: namespacelabs/nscloud-cache-action@v1
+      - uses: ./.github/actions/setup-server-mix
         with:
-          cache: mise
-      - uses: jdx/mise-action@v4.0.1
-        with:
-          version: ${{ env.MISE_VERSION }}
-          install_args: "erlang elixir"
-          cache: "false"
-          working_directory: server
-      - name: Restore Mix Cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            server/deps
-            server/_build
-          key: mix-${{ hashFiles('server/mix.lock') }}
-          restore-keys: |
-            mix-
-      - name: Install dependencies
-        run: mix deps.get
+          mise-version: ${{ env.MISE_VERSION }}
       - name: Run Credo
         run: mix credo
   format:
     name: Format
     runs-on: namespace-profile-default-with-volume
     timeout-minutes: 15
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
-      - uses: namespacelabs/nscloud-cache-action@v1
+      - uses: ./.github/actions/setup-server-mix
         with:
-          cache: mise
-      - uses: jdx/mise-action@v4.0.1
-        with:
-          version: ${{ env.MISE_VERSION }}
-          install_args: "erlang elixir node pnpm npm:prettier"
-          cache: "false"
-          working_directory: server
-      - name: Restore Mix Cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            server/deps
-            server/_build
-          key: mix-${{ hashFiles('server/mix.lock') }}
-          restore-keys: |
-            mix-
+          mise-version: ${{ env.MISE_VERSION }}
+          mise-install-args: erlang elixir node pnpm npm:prettier
       - name: Restore PNPM Cache
         uses: actions/cache@v4
         with:
           path: |
             ~/.pnpm/store
           key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
-      - name: Install dependencies
-        run: mix deps.get && pnpm install --ignore-workspace
+      - name: Install pnpm dependencies
+        run: pnpm install --ignore-workspace
       - name: Check format
         run: mise run --no-deps format --check
   esbuild:
@@ -293,32 +232,18 @@ jobs:
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
-      - uses: namespacelabs/nscloud-cache-action@v1
+      - uses: ./.github/actions/setup-server-mix
         with:
-          cache: mise
-      - uses: jdx/mise-action@v4.0.1
-        with:
-          version: ${{ env.MISE_VERSION }}
-          install_args: "erlang elixir node pnpm"
-          cache: "false"
-          working_directory: server
-      - name: Restore Mix Cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            server/deps
-            server/_build
-          key: mix-${{ hashFiles('server/mix.lock') }}
-          restore-keys: |
-            mix-
+          mise-version: ${{ env.MISE_VERSION }}
+          mise-install-args: erlang elixir node pnpm
       - name: Restore PNPM Cache
         uses: actions/cache@v4
         with:
           path: |
             ~/.pnpm/store
           key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
-      - name: Install dependencies
-        run: mix deps.get && pnpm install --ignore-workspace
+      - name: Install pnpm dependencies
+        run: pnpm install --ignore-workspace
       - name: Build noora static assets
         working-directory: noora
         run: |
@@ -350,15 +275,9 @@ jobs:
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
-      - uses: namespacelabs/nscloud-cache-action@v1
+      - uses: ./.github/actions/setup-server-mix
         with:
-          cache: mise
-      - uses: jdx/mise-action@v4.0.1
-        with:
-          version: ${{ env.MISE_VERSION }}
-          install_args: "erlang elixir"
-          cache: "false"
-          working_directory: server
+          mise-version: ${{ env.MISE_VERSION }}
       - name: Install Trivy
         env:
           TRIVY_VERSION: "0.69.3"
@@ -366,17 +285,6 @@ jobs:
           curl -sfL "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz" -o /tmp/trivy.tar.gz
           sudo tar xzf /tmp/trivy.tar.gz -C /usr/local/bin trivy
           rm /tmp/trivy.tar.gz
-      - name: Restore Mix Cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            server/deps
-            server/_build
-          key: mix-${{ hashFiles('server/mix.lock') }}
-          restore-keys: |
-            mix-
-      - name: Install dependencies
-        run: mix deps.get
       - name: Check
         run: ./mise/tasks/security.sh
   docker_build:
@@ -476,26 +384,10 @@ jobs:
           --health-retries 5
     steps:
       - uses: actions/checkout@v4
-      - uses: namespacelabs/nscloud-cache-action@v1
+      - uses: ./.github/actions/setup-server-mix
         with:
-          cache: mise
-      - uses: jdx/mise-action@v4.0.1
-        with:
-          version: ${{ env.MISE_VERSION }}
-          install_args: "erlang elixir github:ClickHouse/ClickHouse"
-          cache: "false"
-          working_directory: server
-      - name: Restore Mix Cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            server/deps
-            server/_build
-          key: mix-${{ hashFiles('server/mix.lock') }}
-          restore-keys: |
-            mix-
-      - name: Install dependencies
-        run: mix deps.get
+          mise-version: ${{ env.MISE_VERSION }}
+          mise-install-args: erlang elixir github:ClickHouse/ClickHouse
       - name: Start ClickHouse
         run: mise run --no-deps clickhouse:start
       - name: Setup database
