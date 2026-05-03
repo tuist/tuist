@@ -169,12 +169,12 @@ macosFleet:
     # capi-provider-scaleway-applesilicon — operator that owns Mac
     # mini lifecycle (Scaleway create/release + SSH bootstrap +
     # tart-kubelet install). Bumping this tag rolls a new tart-kubelet
-    # binary across the fleet (the operator bakes it in). 3712d9d9
-    # carries the review-driven correctness + security batch (TOFU
-    # SSH host-key, sudo password in Secret, finalizer idempotent on
-    # Scaleway 404, plus tart-kubelet GC race fix and Run-on-timeout
-    # cleanup) and the legacy-annotation migration shim.
-    tag: "3712d9d9"
+    # binary across the fleet (the operator bakes it in). 64a2763c
+    # carries the BYOC-prep batch on top of 3712d9d9: macos-host-
+    # bootstrap extracted to a provider-agnostic module + per-machine
+    # ServiceAccount/token/ClusterRoleBinding replacing the shared
+    # fleet token.
+    tag: "64a2763c"
   # External k8s API server URL the Mac minis dial when joining.
   # The Syself-managed `autopilot-1.autopilot-prod.k8s.syself.net`
   # endpoint serves a TLS cert signed by a CA we don't have access to
