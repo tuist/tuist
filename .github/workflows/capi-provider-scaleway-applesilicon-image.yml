@@ -5,11 +5,13 @@ on:
     branches: [main]
     paths:
       - infra/cluster-api-provider-scaleway-applesilicon/**
+      - infra/macos-host-bootstrap/**
       - infra/tart-kubelet/**
       - .github/workflows/capi-provider-scaleway-applesilicon-image.yml
   pull_request:
     paths:
       - infra/cluster-api-provider-scaleway-applesilicon/**
+      - infra/macos-host-bootstrap/**
       - infra/tart-kubelet/**
       - .github/workflows/capi-provider-scaleway-applesilicon-image.yml
   workflow_dispatch: {}
@@ -38,6 +40,21 @@ jobs:
         working-directory: infra/cluster-api-provider-scaleway-applesilicon
         run: go vet ./...
 
+  test-macos-host-bootstrap:
+    runs-on: namespace-profile-default
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: infra/macos-host-bootstrap/go.mod
+          cache-dependency-path: infra/macos-host-bootstrap/go.sum
+      - name: Test (macos-host-bootstrap)
+        working-directory: infra/macos-host-bootstrap
+        run: go test ./...
+      - name: Vet (macos-host-bootstrap)
+        working-directory: infra/macos-host-bootstrap
+        run: go vet ./...
+
   test-tart-kubelet:
     runs-on: namespace-profile-default
     steps:
@@ -54,7 +71,7 @@ jobs:
         run: go vet ./...
 
   build:
-    needs: [test, test-tart-kubelet]
+    needs: [test, test-macos-host-bootstrap, test-tart-kubelet]
     if: github.event_name != 'pull_request'
     runs-on: namespace-profile-default
     steps:

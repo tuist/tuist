@@ -13,12 +13,21 @@ ARG ALPINE_VERSION=3.22
 
 FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-alpine${ALPINE_VERSION} AS manager-builder
 
+# The operator's go.mod has `replace ../macos-host-bootstrap`, so both
+# modules land under /src for the build to resolve. We do not COPY
+# go.work — workspace mode would expect every module the workspace
+# declares (including tart-kubelet) to be present, and only bringing
+# two of three into manager-builder would fail.
 WORKDIR /src
 COPY infra/cluster-api-provider-scaleway-applesilicon/go.mod \
-     infra/cluster-api-provider-scaleway-applesilicon/go.sum ./
+     infra/cluster-api-provider-scaleway-applesilicon/go.sum ./cluster-api-provider-scaleway-applesilicon/
+COPY infra/macos-host-bootstrap/go.mod \
+     infra/macos-host-bootstrap/go.sum ./macos-host-bootstrap/
+WORKDIR /src/cluster-api-provider-scaleway-applesilicon
 RUN go mod download
 
-COPY infra/cluster-api-provider-scaleway-applesilicon ./
+COPY infra/macos-host-bootstrap /src/macos-host-bootstrap
+COPY infra/cluster-api-provider-scaleway-applesilicon /src/cluster-api-provider-scaleway-applesilicon
 
 ARG TARGETOS
 ARG TARGETARCH

@@ -18,7 +18,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/api/v1alpha1"
-	"github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/internal/bootstrap"
+	"github.com/tuist/tuist/infra/macos-host-bootstrap"
 	"github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/internal/credentials"
 	"github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/internal/kubeconfig"
 	"github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/internal/scaleway"
@@ -224,7 +224,7 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 		fingerprint, err := bootstrap.Run(ctx, bootstrap.Config{
 			IP:                   ip,
 			SSHUser:              bootstrapCreds.SSHUsername,
-			SudoPassword:         bootstrapCreds.SudoPassword,
+			UserPassword:         bootstrapCreds.SudoPassword,
 			SSHPrivateKey:        sshKey,
 			NodeName:             machine.Name,
 			Kubeconfig:           kubeconfigYAML,

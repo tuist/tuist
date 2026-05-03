@@ -1,28 +1,42 @@
-// Package bootstrap turns a freshly-provisioned Scaleway Mac mini into
-// a tart-kubelet-ready cluster Node.
+// Package bootstrap turns a freshly-provisioned macOS host (any
+// provider) into a tart-kubelet-ready cluster Node.
 //
-// Each Mac mini joins the cluster as a real `Node` via tart-kubelet
-// — a small kubelet-shaped agent that watches the API server for Pods
-// scheduled to its Node and runs them as Tart VMs locally. From the
-// cluster's perspective, every Mac mini is a standalone Node with
-// kubernetes.io/os=darwin.
+// Provider-agnostic by design. Both Scaleway Apple Silicon (today)
+// and AWS EC2 Mac (the BYOC direction) call into Run with a Config
+// the provider's controller fills in; the bootstrap package itself
+// has no opinion on where the host came from.
+//
+// Provider seams (anything Config asks for, the caller supplies):
+//   - IP / SSHUser / SSHPrivateKey: how to reach the host.
+//   - UserPassword: a password for the SSH user. Scaleway returns
+//     one at server creation; on AWS EC2 Mac the controller would
+//     generate one and apply it via `dscl . -passwd` before calling
+//     Run. The bootstrap path uses it for two macOS-specific things
+//     (passwordless-sudoers, /etc/kcpassword for autoLogin) that
+//     don't change between providers.
+//   - KnownHostFingerprint: TOFU pin, persisted by the controller.
+//
+// Universal (the same on every provider):
+//   - Auto-login (Virtualization.framework requires a live console).
+//   - Hostname = CR name (so tart-kubelet's default --node-name
+//     lines up with the inventory resource).
+//   - Tart install via Homebrew.
+//   - Kubeconfig drop + tart-kubelet binary upload + launchd plist.
 //
 // Steps, in order, idempotent on retry:
-//  1. Wait for SSH (host has just booted from a Scaleway image).
-//  2. Grant the SSH user passwordless sudo using the OS-default password.
+//  1. Wait for SSH (host has just booted from the provider's image).
+//  2. Grant the SSH user passwordless sudo using UserPassword.
 //  3. Configure GUI auto-login via /etc/kcpassword + autoLoginUser
-//     so Virtualization.framework has a live console session (Tart's
-//     hard requirement).
-//  4. Set the macOS hostname to the CR name so tart-kubelet's default
-//     Node name lines up with the inventory CR.
+//     so Virtualization.framework has a live console session.
+//  4. Set the macOS hostname to NodeName.
 //  5. Install Homebrew + Tart.
 //  6. Drop the kubeconfig the controller built for this host.
-//  7. Download the tart-kubelet binary.
+//  7. Upload the tart-kubelet binary.
 //  8. Write the launchd plist with this host's flags + load it.
 //
-// After step 8 the agent on the Mac mini registers a Node and starts
-// reconciling Pods. The MachineReconciler flips Machine.Status.Ready
-// when this returns nil.
+// After step 8 the agent on the host registers a Node and starts
+// reconciling Pods. The provider's MachineReconciler flips
+// Machine.Status.Ready when this returns nil.
 package bootstrap
 
 import (
@@ -40,9 +54,17 @@ import (
 
 // Config drives the bootstrap.
 type Config struct {
-	IP            string
-	SSHUser       string
-	SudoPassword  string
+	IP      string
+	SSHUser string
+
+	// UserPassword is the SSH user's password. Used for two
+	// macOS-specific bootstrap steps (passwordless-sudoers entry
+	// + /etc/kcpassword for auto-login) and nothing else; the
+	// provider chooses how to obtain it (Scaleway returns one at
+	// server creation; AWS EC2 Mac sets one via `dscl . -passwd`
+	// before bootstrap is invoked).
+	UserPassword string
+
 	SSHPrivateKey []byte
 
 	// NodeName is the cluster Node name tart-kubelet should register.
@@ -105,10 +127,10 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 	}
 	defer client.Close()
 
-	if err := enablePasswordlessSudo(ctx, client, cfg.SSHUser, cfg.SudoPassword); err != nil {
+	if err := enablePasswordlessSudo(ctx, client, cfg.SSHUser, cfg.UserPassword); err != nil {
 		return hk.observed(), fmt.Errorf("passwordless sudo: %w", err)
 	}
-	if err := enableAutoLogin(ctx, client, cfg.SSHUser, cfg.SudoPassword); err != nil {
+	if err := enableAutoLogin(ctx, client, cfg.SSHUser, cfg.UserPassword); err != nil {
 		return hk.observed(), fmt.Errorf("auto-login: %w", err)
 	}
 	if cfg.NodeName != "" {
