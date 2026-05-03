@@ -271,12 +271,6 @@
       }
     >
     </div>
-    <TuistWeb.Docs.Components.search_modal
-      host={Tuist.Environment.typesense_host()}
-      api_key={Tuist.Environment.typesense_search_api_key()}
-      locale={@locale}
-      placeholder={dgettext("docs", "Search...")}
-    />
     {@inner_content}
   </body>
 </html>

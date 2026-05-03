@@ -183,6 +183,48 @@ class DocsSearch {
     this._bindGlobalShortcut();
     this._bindSearchBarTriggers();
     this._bindModalEvents();
+    this._bindTabs();
+  }
+
+  _bindTabs() {
+    const tabs = this.el.querySelectorAll('[data-tab-target]');
+    const panes = this.el.querySelectorAll('[data-tab-pane]');
+    if (!tabs.length || !panes.length) return;
+
+    const activate = (target) => {
+      this.el.setAttribute("data-tab", target);
+      tabs.forEach((tab) => {
+        const selected = tab.dataset.tabTarget === target;
+        if (selected) {
+          tab.setAttribute("data-selected", "true");
+          tab.setAttribute("aria-selected", "true");
+        } else {
+          tab.removeAttribute("data-selected");
+          tab.setAttribute("aria-selected", "false");
+        }
+      });
+      panes.forEach((pane) => {
+        if (pane.dataset.tabPane === target) {
+          pane.removeAttribute("hidden");
+        } else {
+          pane.setAttribute("hidden", "");
+        }
+      });
+
+      if (target === "search") {
+        requestAnimationFrame(() => this._input?.focus());
+      } else if (target === "ask") {
+        const askInput = this.el.querySelector('#docs-ask-input');
+        requestAnimationFrame(() => askInput?.focus());
+      }
+    };
+
+    tabs.forEach((tab) => {
+      this._on(tab, "click", (e) => {
+        e.preventDefault();
+        activate(tab.dataset.tabTarget);
+      });
+    });
   }
 
   destroy() {
