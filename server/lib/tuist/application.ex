@@ -343,6 +343,7 @@ defmodule Tuist.Application do
         ],
         else: []
     )
+    |> Kernel.++(kura_children())
     # Marketing.Stats polls ClickHouse on init. Skip it in test (tables
     # may not exist) and dev (noisy debug logs every 5 s).
     |> Kernel.++(
@@ -350,6 +351,15 @@ defmodule Tuist.Application do
         do: [],
         else: [Tuist.Marketing.Stats]
     )
+  end
+
+  # Reconciles Kura deployments stranded in `:running` after a crash or
+  # rolling deploy. Web mode only; processor mode doesn't run the
+  # `:kura_rollout` queue and so never produces orphans.
+  defp kura_children do
+    if Environment.web?() and not Environment.test?(),
+      do: [Tuist.Kura.Reconciler],
+      else: []
   end
 
   defp finch_pools do
