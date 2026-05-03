@@ -46,7 +46,7 @@ jobs:
 
       - name: Install blick and opencode
         run: |
-          mise use -g aube
+          mise use -g aube@1.6.2
           mise use -g github:tuist/blick
           mise use -g npm:opencode-ai
 
