@@ -51,13 +51,12 @@ func main() {
 		enableLeaderElection bool
 		secretsNamespace     string
 
-		apiServerURL          string
-		tokenSecretName       string
-		tokenSecretNamespace  string
-		tartKubeletBinaryPath string
-		tartKubeletHostCPU    int
-		tartKubeletHostMemory int
-		tartKubeletMaxPods    int
+		apiServerURL            string
+		nodeIdentityClusterRole string
+		tartKubeletBinaryPath   string
+		tartKubeletHostCPU      int
+		tartKubeletHostMemory   int
+		tartKubeletMaxPods      int
 	)
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "Prometheus metrics endpoint")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "Liveness/readiness probe endpoint")
@@ -68,10 +67,10 @@ func main() {
 
 	flag.StringVar(&apiServerURL, "api-server-url", os.Getenv("CAPI_TARTKUBELET_API_SERVER_URL"),
 		"External API server URL Mac minis dial when joining (https://...).")
-	flag.StringVar(&tokenSecretName, "tartkubelet-token-secret", os.Getenv("CAPI_TARTKUBELET_TOKEN_SECRET"),
-		"Name of the Secret holding the shared tart-kubelet ServiceAccount token.")
-	flag.StringVar(&tokenSecretNamespace, "tartkubelet-token-namespace", os.Getenv("CAPI_TARTKUBELET_TOKEN_NAMESPACE"),
-		"Namespace of the tart-kubelet token Secret.")
+	flag.StringVar(&nodeIdentityClusterRole, "node-identity-cluster-role",
+		envOrDefault("CAPI_NODE_IDENTITY_CLUSTER_ROLE", "tart-kubelet"),
+		"Name of the chart-managed ClusterRole each per-machine ServiceAccount binds to. "+
+			"Chart's deployment template injects the rendered name.")
 	flag.StringVar(&tartKubeletBinaryPath, "tartkubelet-binary-path",
 		envOrDefault("CAPI_TARTKUBELET_BINARY_PATH", "/opt/tart-kubelet/tart-kubelet-darwin-arm64"),
 		"Local path of the darwin/arm64 tart-kubelet binary baked into this image.")
@@ -120,16 +119,14 @@ func main() {
 	}
 
 	credsManager := &credentials.Manager{
-		Client:    mgr.GetClient(),
-		Scaleway:  scwClient,
-		Namespace: secretsNamespace,
+		Client:                  mgr.GetClient(),
+		Scaleway:                scwClient,
+		Namespace:               secretsNamespace,
+		NodeIdentityClusterRole: nodeIdentityClusterRole,
 	}
 
 	kubeconfigBuilder := &kubeconfig.Builder{
-		Client:               mgr.GetClient(),
-		APIServerURL:         apiServerURL,
-		TokenSecretName:      tokenSecretName,
-		TokenSecretNamespace: tokenSecretNamespace,
+		APIServerURL: apiServerURL,
 	}
 
 	if err := (&controllers.ScalewayAppleSiliconMachineReconciler{

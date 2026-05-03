@@ -63,6 +63,14 @@ type Manager struct {
 	// Namespace is where per-fleet Secrets live (typically the
 	// release's namespace).
 	Namespace string
+
+	// NodeIdentityClusterRole is the chart-managed ClusterRole every
+	// per-machine ServiceAccount binds to. The chart owns the role
+	// definition because permissions are uniform across the fleet;
+	// the operator only owns the per-machine binding. Set from the
+	// `--node-identity-cluster-role` flag (defaulted to the chart's
+	// rendered name in the chart's deployment template).
+	NodeIdentityClusterRole string
 }
 
 // EnsureFleetSSHKey returns the private SSH key bytes for `fleet`,

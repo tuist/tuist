@@ -214,7 +214,13 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 		}
 
-		kubeconfigYAML, err := r.Kubeconfig.Render(ctx, machine.Name)
+		identity, err := r.CredentialsManager.EnsureNodeIdentity(ctx, machine.Name)
+		if err != nil {
+			conditions.MarkFalse(machine, BootstrappedCondition, "NodeIdentityUnavailable",
+				clusterv1.ConditionSeverityWarning, "%v", err)
+			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+		}
+		kubeconfigYAML, err := r.Kubeconfig.Render(ctx, machine.Name, identity.Token, identity.CA)
 		if err != nil {
 			conditions.MarkFalse(machine, BootstrappedCondition, "KubeconfigUnavailable",
 				clusterv1.ConditionSeverityWarning, "%v", err)
@@ -270,7 +276,12 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 		if ip == "" {
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 		}
-		kubeconfigYAML, err := r.Kubeconfig.Render(ctx, machine.Name)
+		identity, err := r.CredentialsManager.EnsureNodeIdentity(ctx, machine.Name)
+		if err != nil {
+			logger.Error(err, "ensure node identity for update; will retry")
+			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+		}
+		kubeconfigYAML, err := r.Kubeconfig.Render(ctx, machine.Name, identity.Token, identity.CA)
 		if err != nil {
 			logger.Error(err, "render kubeconfig for update; will retry")
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil

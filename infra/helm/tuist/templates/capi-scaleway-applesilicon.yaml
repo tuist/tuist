@@ -42,13 +42,27 @@ rules:
     resources: [nodes]
     verbs: [get, list, watch]
   - apiGroups: [""]
-    # The operator owns two Secret families:
+    # The operator owns four Secret families in its own namespace:
     #   - <fleet>-ssh: per-fleet Ed25519 keypair, generated once
-    #   - bootstrap-token-<id> in kube-system: 24h kubelet bootstrap
-    #     tokens, minted per Machine reconcile
-    # Both are write paths. We additionally watch other Secrets (cluster
-    # Secret holding Scaleway creds is one) but never modify those.
+    #   - <machine>-bootstrap: per-machine sudo password +
+    #     SSH username + TOFU host fingerprint
+    #   - tart-kubelet-<machine>-token: per-machine kubelet auth token,
+    #     populated by k8s once it sees the SA annotation
+    # Plus bootstrap-token-<id> in kube-system. Other Secrets (cluster
+    # Secret holding Scaleway creds) are watched read-only.
     resources: [secrets]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [""]
+    # Per-machine kubelet identity. Manager.EnsureNodeIdentity creates
+    # one ServiceAccount per Mac mini in the operator's namespace and
+    # binds it to the chart's tart-kubelet ClusterRole.
+    resources: [serviceaccounts]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    # Per-machine binding referencing the chart's tart-kubelet
+    # ClusterRole. We bind, never modify the role itself; the chart
+    # owns the role definition centrally.
+    resources: [clusterrolebindings]
     verbs: [get, list, watch, create, update, patch, delete]
   - apiGroups: ["coordination.k8s.io"]
     resources: [leases]
@@ -109,8 +123,7 @@ spec:
             - --health-probe-bind-address=:8081
             - --secrets-namespace={{ .Release.Namespace }}
             - --api-server-url={{ .Values.macosFleet.apiServerURL | required ".Values.macosFleet.apiServerURL is required (external https URL Mac minis dial)" }}
-            - --tartkubelet-token-secret={{ include "tuist.componentName" (dict "root" . "component" "tart-kubelet") }}-token
-            - --tartkubelet-token-namespace={{ .Release.Namespace }}
+            - --node-identity-cluster-role={{ include "tuist.componentName" (dict "root" . "component" "tart-kubelet") }}
             - --tartkubelet-host-cpu={{ .Values.macosFleet.tartKubelet.hostCPU | default 8 }}
             - --tartkubelet-host-memory-mb={{ .Values.macosFleet.tartKubelet.hostMemoryMB | default 16384 }}
             - --tartkubelet-max-pods={{ .Values.macosFleet.tartKubelet.maxPods | default 8 }}
