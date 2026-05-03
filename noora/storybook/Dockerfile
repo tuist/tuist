@@ -19,17 +19,16 @@ ARG BUILDER_IMAGE="hexpm/elixir:${ELIXIR_VERSION}-erlang-${OTP_VERSION}-debian-$
 ARG RUNNER_IMAGE="debian:${DEBIAN_VERSION}"
 
 FROM node:24-slim AS npm-deps
-ENV XDG_DATA_HOME="/aube-data"
 RUN npm install -g --ignore-scripts=false @endevco/aube
 
-COPY package.json /app/noora/
+COPY package.json aube-lock.yaml /app/noora/
 COPY js/ /app/noora/js/
 COPY css/ /app/noora/css/
 COPY lib/ /app/noora/lib/
 COPY mix.exs README.md /app/noora/
 
 WORKDIR /app/noora
-RUN aube install
+RUN aube install --disable-global-virtual-store
 
 RUN mkdir -p priv/static
 RUN aube run build

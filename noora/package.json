@@ -42,5 +42,10 @@
     "prettier": "^3.7.4",
     "prettier-plugin-css-order": "^2.1.2",
     "vitest": "^4.0.0"
+  },
+  "aube": {
+    "allowBuilds": {
+      "esbuild": true
+    }
   }
 }

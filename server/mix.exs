@@ -200,7 +200,7 @@ defmodule Tuist.MixProject do
       ],
       test: ["ecto.create --quiet", "run priv/repo/timezone.exs", "ecto.migrate --quiet", "test"],
       "assets.setup": [
-        "cmd --cd .. aube install --filter noora",
+        "cmd --cd ../noora aube install",
         "esbuild.install --if-missing"
       ],
       "assets.build": [

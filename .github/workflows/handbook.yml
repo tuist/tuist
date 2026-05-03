@@ -7,14 +7,14 @@ on:
     paths:
       - handbook/**
       - .github/workflows/handbook.yml
-      - pnpm-lock.yaml
+      - handbook/aube-lock.yaml
       - handbook/package.json
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - handbook/**
       - .github/workflows/handbook.yml
-      - pnpm-lock.yaml
+      - handbook/aube-lock.yaml
       - handbook/package.json
   merge_group:
 
@@ -44,7 +44,7 @@ jobs:
           path: |
             ~/.local/share/aube
             ~/.cache/aube
-          key: aube-${{ hashFiles('pnpm-lock.yaml') }}
+          key: aube-${{ hashFiles('handbook/aube-lock.yaml') }}
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}

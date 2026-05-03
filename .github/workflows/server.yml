@@ -18,7 +18,7 @@ on:
       - noora/**
       - .github/workflows/server.yml
       - server/pnpm-lock.yaml
-      - pnpm-lock.yaml
+      - noora/aube-lock.yaml
   merge_group: {}
 
 permissions:
@@ -283,7 +283,7 @@ jobs:
             ~/.cache/aube
           key: aube-server-${{ hashFiles('server/pnpm-lock.yaml') }}
       - name: Install dependencies
-        run: mix deps.get && aube install --ignore-workspace
+        run: mix deps.get && aube install
       - name: Check format
         run: mise run --no-deps format --check
   esbuild:
@@ -319,7 +319,7 @@ jobs:
             ~/.cache/aube
           key: aube-server-${{ hashFiles('server/pnpm-lock.yaml') }}
       - name: Install dependencies
-        run: mix deps.get && aube install --ignore-workspace
+        run: mix deps.get && aube install
       - name: Build noora static assets
         working-directory: noora
         run: |

@@ -4,10 +4,8 @@
 set -euo pipefail
 
 if [ ! -f ../noora/priv/static/noora.js ] || [ ! -f ../noora/priv/static/noora.css ]; then
-  pushd .. >/dev/null
-  aube install --filter noora
-  popd >/dev/null
   pushd ../noora >/dev/null
+  aube install
   aube run build
   popd >/dev/null
 fi

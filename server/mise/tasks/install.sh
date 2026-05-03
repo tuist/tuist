@@ -35,11 +35,9 @@ bootstrap_clickhouse_database() {
 }
 
 mix deps.get
-aube install --ignore-workspace
-pushd .. >/dev/null
-aube install --filter noora
-popd >/dev/null
+aube install
 pushd ../noora >/dev/null
+aube install
 aube run build
 popd >/dev/null
 
