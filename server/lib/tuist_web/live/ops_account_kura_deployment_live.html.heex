@@ -48,7 +48,11 @@
       <%= if @log_lines == [] do %>
         <p data-part="empty-logs">{empty_logs_message(@deployment.status)}</p>
       <% else %>
-        <div id="kura-log-tail" phx-update="ignore" data-part="terminal"><%= for line <- @log_lines do %><div data-part="line">{line.line}</div><% end %></div>
+        <div id="kura-log-tail" phx-update="ignore" data-part="terminal">
+          <%= for line <- @log_lines do %>
+            <div data-part="line">{line.line}</div>
+          <% end %>
+        </div>
       <% end %>
     </.card_section>
   </.card>
