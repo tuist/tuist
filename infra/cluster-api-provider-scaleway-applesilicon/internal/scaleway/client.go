@@ -222,12 +222,22 @@ func (c *Client) GetServer(ctx context.Context, id, zone string) (*Server, error
 // When that happens we fall back to UpdateServer with
 // `schedule_deletion=true`, which queues the delete for the floor
 // expiry. Scaleway keeps billing through the floor either way.
+//
+// 404 from Scaleway means the server is already gone (manual delete,
+// scheduled-deletion already executed, or a previous reconcile that
+// completed but crashed before the patch landed). Treated as success
+// so the finalizer comes off and the CR can be GC'd; without this the
+// reconcile loops forever and the Mac mini billing keeps running on
+// any sibling server we haven't pruned.
 func (c *Client) DeleteServer(ctx context.Context, id, zone string) error {
 	err := c.API.DeleteServer(&applesilicon.DeleteServerRequest{
 		ServerID: id,
 		Zone:     scw.Zone(zone),
 	}, scw.WithContext(ctx))
 	if err == nil {
+		return nil
+	}
+	if IsNotFound(err) {
 		return nil
 	}
 	if !isPreconditionFailed(err) {
@@ -240,6 +250,9 @@ func (c *Client) DeleteServer(ctx context.Context, id, zone string) error {
 		ScheduleDeletion: &scheduled,
 	}, scw.WithContext(ctx))
 	if updateErr != nil {
+		if IsNotFound(updateErr) {
+			return nil
+		}
 		return fmt.Errorf("schedule deletion (after immediate delete failed with %v): %w", err, updateErr)
 	}
 	return nil
@@ -251,6 +264,24 @@ func isPreconditionFailed(err error) bool {
 	var scwErr *scw.ResponseError
 	if errors.As(err, &scwErr) {
 		return scwErr.StatusCode == http.StatusPreconditionFailed
+	}
+	return false
+}
+
+// IsNotFound returns true for Scaleway's 404 responses. Exposed so the
+// reconciler's delete path can distinguish "already gone" (clear the
+// finalizer, succeed) from genuine API errors (requeue).
+func IsNotFound(err error) bool {
+	if err == nil {
+		return false
+	}
+	var notFound *scw.ResourceNotFoundError
+	if errors.As(err, &notFound) {
+		return true
+	}
+	var scwErr *scw.ResponseError
+	if errors.As(err, &scwErr) {
+		return scwErr.StatusCode == http.StatusNotFound
 	}
 	return false
 }

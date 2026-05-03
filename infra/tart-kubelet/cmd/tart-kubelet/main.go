@@ -116,18 +116,19 @@ func main() {
 
 	resolver := &envresolver.Resolver{K8s: mgr.GetAPIReader()}
 
+	store := podagent.NewStore()
+
 	gcCollector := &podagent.Collector{
 		K8s:      mgr.GetAPIReader(),
 		Tart:     tartClient,
 		NodeName: nodeName,
 		Interval: 5 * time.Minute,
+		Store:    store,
 	}
 	if err := mgr.Add(gcCollector); err != nil {
 		setupLog.Error(err, "add gc collector")
 		os.Exit(1)
 	}
-
-	store := podagent.NewStore()
 
 	// Hydrate the Pod ↔ VM map from on-host state before reconciles
 	// fire. After a kubelet restart the in-memory store is empty but

@@ -144,6 +144,7 @@ func (c *Client) Run(ctx context.Context, name string, sharedDirs []string) erro
 	for time.Now().Before(deadline) {
 		select {
 		case <-ctx.Done():
+			c.cleanupAfterFailedRun(name)
 			return ctx.Err()
 		case <-time.After(3 * time.Second):
 		}
@@ -151,7 +152,23 @@ func (c *Client) Run(ctx context.Context, name string, sharedDirs []string) erro
 			return nil
 		}
 	}
+	c.cleanupAfterFailedRun(name)
 	return fmt.Errorf("tart run %s: VM did not obtain an IP in 2m", name)
+}
+
+// cleanupAfterFailedRun stops + deletes a VM whose Run() couldn't
+// confirm an IP. Without this the Setsid-detached `tart run` keeps
+// running on the host: each reconcile retry would orphan another VM
+// of the same name (which actually fails the next clone), or — once
+// names diverge — pile them up until disk fills. Best-effort: log via
+// the wrapped errors but never fail the parent error path on cleanup
+// errors, because the caller already has a more informative reason.
+func (c *Client) cleanupAfterFailedRun(name string) {
+	stopCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	_ = c.Stop(stopCtx, name, 10*time.Second)
+	_ = c.Delete(stopCtx, name)
+	_ = c.CleanupVMUserData(name)
 }
 
 // Stop gracefully halts a VM.

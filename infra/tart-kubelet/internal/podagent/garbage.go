@@ -32,11 +32,21 @@ import (
 
 // Collector is a controller-runtime Runnable that periodically
 // reclaims Tart-managed disk on the local Mac mini.
+//
+// Store, when set, contributes to the "expected" set on every pass.
+// Without it there's a window where a Pod has just been admitted, the
+// reconciler has already kicked off `tart pull` / `tart clone`, but
+// the Pod isn't yet visible on the API server's List response — and
+// the GC would happily delete the VM the reconciler just created.
+// Folding Store into expectedSet closes that window: any VM the
+// reconciler has explicitly registered counts as live regardless of
+// what API List returned.
 type Collector struct {
 	K8s      client.Reader
 	Tart     *tart.Client
 	NodeName string
 	Interval time.Duration
+	Store    *Store
 
 	mu sync.Mutex
 }
@@ -146,6 +156,17 @@ func (c *Collector) expectedSet(ctx context.Context) (*expectedSet, error) {
 		}
 		out.vms[VMNameForPod(pod)] = struct{}{}
 		out.images[pod.Spec.Containers[0].Image] = struct{}{}
+	}
+	// Store-side entries cover Pods the reconciler has already started
+	// a VM for but that haven't shown up on this List response yet
+	// (e.g. just-admitted Pods, or pods re-bound to this Node by
+	// startup recovery). Image set is intentionally not augmented from
+	// Store: Store doesn't track the originating image, and the OCI
+	// cache GC is allowed to be one cycle behind reality.
+	if c.Store != nil {
+		for _, e := range c.Store.Snapshot() {
+			out.vms[e.VMName] = struct{}{}
+		}
 	}
 	return out, nil
 }

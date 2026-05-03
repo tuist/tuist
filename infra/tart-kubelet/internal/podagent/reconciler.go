@@ -6,6 +6,8 @@ package podagent
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"sync"
 	"time"
@@ -249,17 +251,23 @@ func podIsHandled(pod *corev1.Pod) bool {
 
 // VMNameForPod produces a Tart-safe VM name. Tart accepts alphanum +
 // dashes; Pod names are already DNS-1123 (lowercase alphanum + dashes)
-// so we just join namespace + name with a length cap.
+// so we join namespace + name. When the join exceeds Tart's 63-char
+// cap we keep the first (max - 9) bytes and append `-` + an 8-char
+// SHA-256 prefix of the full namespace/name. Plain truncation would
+// collapse two Pods that diverge after byte 63 onto the same VM name;
+// the hash suffix preserves uniqueness without making short names ugly.
 //
 // Exported so the kubelet's startup recovery pass can match running
 // Tart VMs back to the Pods that created them after an agent restart.
 func VMNameForPod(pod *corev1.Pod) string {
 	name := pod.Namespace + "-" + pod.Name
 	const max = 63
-	if len(name) > max {
-		name = name[:max]
+	if len(name) <= max {
+		return name
 	}
-	return name
+	sum := sha256.Sum256([]byte(pod.Namespace + "/" + pod.Name))
+	suffix := "-" + hex.EncodeToString(sum[:4])
+	return name[:max-len(suffix)] + suffix
 }
 
 // === In-memory Pod ↔ VM map ================================================
