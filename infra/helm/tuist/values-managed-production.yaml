@@ -91,7 +91,15 @@ objectStorage:
   external:
     buckets:
       default: tuist-prod-storage
-      registry: tuist-prod-registry
+      # Existing Tigris bucket the Kamal cache nodes have been writing to
+      # since the registry launched. Reused as-is so the in-cluster
+      # registry-population + registry-serving pods read the same artifacts
+      # the cache fleet wrote (no copy step). Kept on the historical name
+      # rather than `tuist-prod-registry` to avoid a multi-hour rclone +
+      # cutover window. See `mise/tasks/registry/purge.sh` for the
+      # canonical reference and the cache-side `S3_REGISTRY_BUCKET`
+      # 1Password item that points at the same bucket.
+      registry: tuist-registry
 
 processor:
   # Supabase production project (yltsvvtmlktxdgpcbylg) — dedicated pooler on
