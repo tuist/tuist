@@ -450,7 +450,7 @@ oban_queues =
 # checkpoint, which the role can't execute and which crashes the Reporter
 # repeatedly when the processor wins the election.
 registry_cron_entries =
-  if Tuist.Environment.registry_population_mode?() and Tuist.Environment.registry_enabled?() do
+  if Tuist.Environment.registry_population_mode?() and Tuist.Environment.registry_population_enabled?() do
     [{"*/10 * * * *", Tuist.Registry.SyncWorker}]
   else
     []

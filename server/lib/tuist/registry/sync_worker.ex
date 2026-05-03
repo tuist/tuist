@@ -21,10 +21,10 @@ defmodule Tuist.Registry.SyncWorker do
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: args}) do
-    if Environment.registry_enabled?() do
+    if Environment.registry_population_enabled?() do
       sync_packages(args, Environment.registry_github_token())
     else
-      Logger.debug("Registry sync skipped: registry is not configured")
+      Logger.debug("Registry sync skipped: missing bucket or GitHub token")
       :ok
     end
   end

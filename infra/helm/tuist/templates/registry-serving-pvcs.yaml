@@ -11,12 +11,13 @@ metadata:
     app.kubernetes.io/component: registry-serving
     tuist.dev/registry-region: {{ $region.name | quote }}
 spec:
+  {{- $regionStorage := default (dict) $region.storage }}
   accessModes:
-    {{- toYaml (default (list "ReadWriteOnce") $region.storage.accessModes) | nindent 4 }}
+    {{- toYaml (default (list "ReadWriteOnce") (get $regionStorage "accessModes")) | nindent 4 }}
   resources:
     requests:
-      storage: {{ default $root.Values.registryServing.storage.size $region.storage.size }}
-  {{- with (default $root.Values.registryServing.storage.storageClassName $region.storage.storageClassName) }}
+      storage: {{ default $root.Values.registryServing.storage.size (get $regionStorage "size") }}
+  {{- with (default $root.Values.registryServing.storage.storageClassName (get $regionStorage "storageClassName")) }}
   storageClassName: {{ . | quote }}
   {{- end }}
 {{- end }}

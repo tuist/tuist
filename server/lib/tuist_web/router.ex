@@ -203,6 +203,13 @@ defmodule TuistWeb.Router do
 
   scope "/", TuistWeb do
     get "/robots.txt", RobotsTxtController, :show, metadata: %{robots_txt: false}
+
+    # Generic liveness endpoint. Returns 200 regardless of TUIST_MODE so the
+    # Cloudflare Worker (infra/registry-router/) and any external uptime probe
+    # can health-check whichever pod they hit without needing route-specific
+    # Accept headers. Mirrors the cache app's `/up` path.
+    get "/up", PageController, :ready
+    head "/up", PageController, :ready
   end
 
   scope "/api/registry/swift", TuistWeb do

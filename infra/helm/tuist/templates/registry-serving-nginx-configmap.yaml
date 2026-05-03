@@ -1,0 +1,134 @@
+{{- if .Values.registryServing.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "registry-serving-nginx") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: registry-serving
+data:
+  nginx.conf: |
+    # nginx sidecar for the registry-serving Deployment. The Phoenix
+    # `RegistryController` answers manifest + archive requests with an
+    # `x-accel-redirect` header pointing at either:
+    #
+    #   * `/internal/local/...` — served from the per-region PVC mounted at
+    #     /storage. Hot path: a previously-prefetched artifact replies
+    #     straight from disk with `add_header Cache-Control immutable`.
+    #
+    #   * `/internal/remote/https/<host>/<path>?<query>` — proxied to a
+    #     presigned S3 URL. Cold path: the prefetch worker enqueues a
+    #     download to /storage so the next request goes through the local
+    #     branch. We rewrite the proxy URL out of the `x-accel-redirect`
+    #     value rather than maintaining a separate `Location` header so the
+    #     Phoenix code path stays a single `send_resp(200, "")`.
+    #
+    # Without this sidecar the responses would be empty 200s — clients see
+    # the headers but no body. The registry is unusable.
+    worker_processes auto;
+    events {
+      worker_connections 1024;
+    }
+    http {
+      include /etc/nginx/mime.types;
+      sendfile on;
+      tcp_nopush on;
+      tcp_nodelay on;
+      keepalive_requests 10000;
+      client_max_body_size 0;
+
+      upstream registry_upstream {
+        server 127.0.0.1:8080;
+      }
+
+      # The Swift Package Registry contract requires a `Content-Version`
+      # header on every response. nginx replaces upstream headers when an
+      # x-accel-redirect resolves to a static file or a proxy_pass, so we
+      # re-inject it here for every registry request.
+      map $request_uri $registry_content_version {
+        "~^/api/registry/swift/" "1";
+        default "";
+      }
+
+      server {
+        listen 80;
+        listen [::]:80;
+        server_name _;
+
+        location /up {
+          proxy_pass http://registry_upstream;
+          proxy_set_header Host $host;
+          proxy_set_header X-Forwarded-Proto $scheme;
+          proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        }
+
+        location / {
+          proxy_pass http://registry_upstream;
+          proxy_http_version 1.1;
+          proxy_set_header Host $host;
+          proxy_set_header X-Real-IP $remote_addr;
+          proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+          proxy_set_header X-Forwarded-Proto $scheme;
+          proxy_set_header X-Forwarded-Host $host;
+          proxy_set_header X-Forwarded-Port $server_port;
+
+          proxy_connect_timeout 30m;
+          proxy_send_timeout 30m;
+          proxy_read_timeout 30m;
+          send_timeout 30m;
+
+          proxy_buffering off;
+          proxy_request_buffering off;
+        }
+
+        location /internal/local/ {
+          internal;
+          alias /storage/;
+          types { }
+          default_type application/octet-stream;
+          gzip off;
+          add_header Cache-Control "public, max-age=31536000, immutable";
+          add_header Content-Version $registry_content_version;
+          # Preserve the upstream Link header (set by Phoenix to advertise
+          # alternate Swift manifests). x-accel-redirect to a static-file
+          # location otherwise drops it.
+          add_header Link $upstream_http_link always;
+        }
+
+        location ~ ^/internal/remote/(.*?)/(.*?)/(.*) {
+          internal;
+          # Phoenix sets `application/zip` / `text/x-swift` on the original
+          # response. nginx hides S3's Content-Type so the upstream value
+          # passes through cleanly.
+          proxy_hide_header Content-Type;
+          default_type application/octet-stream;
+          resolver 1.1.1.1 ipv6=off;
+          set $saved_link $upstream_http_link;
+          set $download_url $1://$2/$3;
+          proxy_set_header Host $2;
+          proxy_pass $download_url$is_args$args;
+          add_header Content-Version $registry_content_version;
+          add_header Link $saved_link always;
+          proxy_request_buffering off;
+          proxy_buffering off;
+          proxy_intercept_errors on;
+          error_page 301 302 307 = @handle_remote_redirect;
+          error_page 403 404 = @handle_remote_not_found;
+        }
+
+        location @handle_remote_not_found {
+          types { }
+          default_type application/json;
+          return 404 '{"message":"Not found"}';
+        }
+
+        location @handle_remote_redirect {
+          set $saved_redirect_location $upstream_http_location;
+          proxy_hide_header Content-Type;
+          default_type application/octet-stream;
+          proxy_pass $saved_redirect_location;
+          add_header Content-Version $registry_content_version;
+        }
+      }
+    }
+{{- end }}

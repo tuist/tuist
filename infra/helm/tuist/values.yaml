@@ -327,6 +327,16 @@ registryServing:
     enabled: false
     className: ""
     annotations: {}
+  # nginx sidecar that interprets Phoenix's `x-accel-redirect` headers.
+  # See registry-serving-nginx-configmap.yaml for the location blocks. The
+  # sidecar terminates external traffic on port 80 and forwards to the
+  # Phoenix release listening on 127.0.0.1:8080.
+  nginx:
+    image:
+      repository: nginx
+      tag: "1.27-alpine"
+      pullPolicy: IfNotPresent
+    resources: {}
   storage:
     # Default PVC size per region. Sized for the bulk of SPI's source archives
     # (a few hundred MB per popular package, hundreds of packages = tens of

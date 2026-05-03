@@ -363,7 +363,20 @@ defmodule Tuist.Environment do
     end
   end
 
-  def registry_enabled?, do: not is_nil(registry_bucket()) and not is_nil(registry_github_token())
+  @doc """
+  Whether the registry is reachable from this pod. Requires only the bucket
+  because the read path (manifests, source archives) is served from S3 and
+  needs no GitHub credentials. Population workers additionally require
+  `registry_github_token/1` and check it themselves before fetching tags.
+  """
+  def registry_enabled?, do: not is_nil(registry_bucket())
+
+  @doc """
+  Whether the registry population workers (`SyncWorker`, `ReleaseWorker`)
+  have everything they need to mirror packages from upstream — both the
+  registry bucket and a GitHub PAT.
+  """
+  def registry_population_enabled?, do: registry_enabled?() and not is_nil(registry_github_token())
 
   def registry_storage_dir do
     case System.get_env("TUIST_REGISTRY_STORAGE_DIR") do

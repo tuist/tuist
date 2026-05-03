@@ -79,7 +79,9 @@ spec:
             - /app/bin/tuist
             - start
           ports:
-            - name: http
+            # Internal only — the nginx sidecar terminates external traffic
+            # on port 80 and forwards here. No Service targets this port.
+            - name: phoenix
               containerPort: 8080
             - name: metrics
               containerPort: 9091
@@ -151,38 +153,13 @@ spec:
           envFrom:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          # Phoenix `/api/registry/swift/availability` is a static 200 the
-          # SwiftPM client uses to check the registry is reachable. Reuse
-          # it as the kubelet probe target so a wedged BEAM gets restarted.
-          startupProbe:
-            httpGet:
-              path: /api/registry/swift/availability
-              port: http
-              httpHeaders:
-                - name: Accept
-                  value: application/vnd.swift.registry.v1+json
-            initialDelaySeconds: 5
-            periodSeconds: 5
-            timeoutSeconds: 3
-            failureThreshold: 30
-          readinessProbe:
-            httpGet:
-              path: /api/registry/swift/availability
-              port: http
-              httpHeaders:
-                - name: Accept
-                  value: application/vnd.swift.registry.v1+json
-            initialDelaySeconds: 5
-            periodSeconds: 10
-            timeoutSeconds: 3
-            failureThreshold: 3
+          # Liveness against Phoenix directly via the generic /up route.
+          # Readiness goes through the nginx sidecar (it's the public-facing
+          # port) so a wedged nginx is reflected in pod readiness too.
           livenessProbe:
             httpGet:
-              path: /api/registry/swift/availability
-              port: http
-              httpHeaders:
-                - name: Accept
-                  value: application/vnd.swift.registry.v1+json
+              path: /up
+              port: phoenix
             initialDelaySeconds: 30
             periodSeconds: 30
             timeoutSeconds: 3
@@ -196,9 +173,55 @@ spec:
           volumeMounts:
             - name: storage
               mountPath: /storage
+        - name: nginx
+          # Translates Phoenix's `x-accel-redirect` headers into actual byte
+          # streams — see registry-serving-nginx-configmap.yaml for the
+          # location blocks. Without this sidecar every archive / manifest
+          # request would return an empty 200.
+          image: "{{ $root.Values.registryServing.nginx.image.repository }}:{{ $root.Values.registryServing.nginx.image.tag }}"
+          imagePullPolicy: {{ $root.Values.registryServing.nginx.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 80
+          volumeMounts:
+            - name: nginx-config
+              mountPath: /etc/nginx/nginx.conf
+              subPath: nginx.conf
+            - name: storage
+              mountPath: /storage
+              readOnly: true
+          startupProbe:
+            httpGet:
+              path: /up
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /up
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /up
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 3
+            failureThreshold: 5
+          resources:
+            {{- toYaml $root.Values.registryServing.nginx.resources | nindent 12 }}
       volumes:
         - name: storage
           persistentVolumeClaim:
             claimName: {{ include "tuist.componentName" (dict "root" $root "component" (printf "registry-serving-%s" $region.name)) }}
+        - name: nginx-config
+          configMap:
+            name: {{ include "tuist.componentName" (dict "root" $root "component" "registry-serving-nginx") }}
 {{- end }}
 {{- end }}
