@@ -7,7 +7,17 @@
 
   We exec a wrapper shell rather than calling /opt/tuist/release/bin/tuist
   directly so we can source the env file before launching. launchd's
-  EnvironmentVariables key can't reference a file at load time.
+  EnvironmentVariables key can't reference a file at load time — but it
+  does take literal values, which we use for SECRETS_DIRECTORY.
+
+  SECRETS_DIRECTORY points at the release's bundled priv/secrets/.
+  `mix release` packages the app's priv/ at lib/<app>-<vsn>/priv/, so a
+  relative `priv/secrets/<env>.yml.enc` read against the release cwd
+  (/opt/tuist/release) would `enoent`. The Linux Dockerfile sidesteps
+  this by copying the encrypted YAMLs to a top-level /app/priv/secrets/
+  and pointing SECRETS_DIRECTORY there; the Tart image keeps the files
+  where mix put them and just sets the absolute path. Without this the
+  BEAM crashloops on boot inside Tuist.Environment.decrypt_secrets/0.
 
   KeepAlive=true so the BEAM gets restarted on unexpected exit. Liveness
   is the launchd job staying up + Oban heartbeats into oban_peers — the
@@ -18,6 +28,12 @@
 <dict>
     <key>Label</key>
     <string>dev.tuist.xcresult-processor</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>SECRETS_DIRECTORY</key>
+        <string>/opt/tuist/release/lib/tuist-0.1.0/priv/secrets/</string>
+    </dict>
 
     <key>ProgramArguments</key>
     <array>
