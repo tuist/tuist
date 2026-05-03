@@ -67,6 +67,7 @@ spec:
                 failureReason: { type: string }
                 failureMessage: { type: string }
                 tartKubeletBinarySHA: { type: string }
+                perMachineKubeconfigInstalled: { type: boolean }
                 addresses:
                   type: array
                   items:

@@ -257,6 +257,10 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 		}
 
 		conditions.MarkTrue(machine, BootstrappedCondition)
+		// Bootstrap pushes a per-machine kubeconfig as part of Stage 2,
+		// so flag the marker so the Stage 3 migration path doesn't fire
+		// redundantly on the next reconcile.
+		machine.Status.PerMachineKubeconfigInstalled = true
 		logger.Info("bootstrap complete", "host", ip)
 	}
 
@@ -271,7 +275,16 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 	// Running Tart VMs survive an agent restart (`nohup`-detached) and
 	// the kubelet's startup state-recovery pass re-binds them, so the
 	// rollout is zero-downtime for workloads.
-	if r.TartKubeletBinarySHA != "" && machine.Status.TartKubeletBinarySHA != r.TartKubeletBinarySHA {
+	// Stage 3 fires on either of two conditions:
+	//   - tart-kubelet binary drift: operator's baked-in SHA differs
+	//     from what last landed on the host. Routine after operator
+	//     image bumps.
+	//   - PerMachineKubeconfigInstalled is false: the machine still
+	//     has the legacy shared-fleet kubeconfig. Forcing a single
+	//     kubeconfig push migrates it onto the per-machine token.
+	//     The marker stays sticky once we set it.
+	binaryDrift := r.TartKubeletBinarySHA != "" && machine.Status.TartKubeletBinarySHA != r.TartKubeletBinarySHA
+	if binaryDrift || !machine.Status.PerMachineKubeconfigInstalled {
 		ip := machineIP(machine)
 		if ip == "" {
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
@@ -308,6 +321,7 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
 		}
 		machine.Status.TartKubeletBinarySHA = r.TartKubeletBinarySHA
+		machine.Status.PerMachineKubeconfigInstalled = true
 		logger.Info("rolled new tart-kubelet", "host", ip, "sha", r.TartKubeletBinarySHA)
 	}
 
