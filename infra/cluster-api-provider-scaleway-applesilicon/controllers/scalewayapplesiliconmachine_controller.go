@@ -175,6 +175,28 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 	if err != nil {
 		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 	}
+	// One-time migration off the legacy CR-annotation layout. Older
+	// reconciles wrote sudo-password + ssh-username as annotations on
+	// the CR. We now keep them in a per-machine Secret instead. If the
+	// Secret doesn't exist but the legacy annotations are still on the
+	// CR, copy them across and strip the annotations so the next
+	// reconcile reads from the Secret.
+	if bootstrapCreds == nil {
+		legacyPwd := machine.Annotations["scaleway.tuist.dev/sudo-password"]
+		legacyUser := machine.Annotations["scaleway.tuist.dev/ssh-username"]
+		if legacyPwd != "" && legacyUser != "" {
+			if err := r.CredentialsManager.SetMachineCredentials(ctx, machine.Name, legacyPwd, legacyUser); err != nil {
+				logger.Error(err, "migrate legacy bootstrap annotations to secret; will retry")
+				return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+			}
+			delete(machine.Annotations, "scaleway.tuist.dev/sudo-password")
+			delete(machine.Annotations, "scaleway.tuist.dev/ssh-username")
+			bootstrapCreds = &credentials.MachineBootstrap{
+				SudoPassword: legacyPwd,
+				SSHUsername:  legacyUser,
+			}
+		}
+	}
 	if bootstrapCreds == nil {
 		// Stage 1 didn't write the Secret yet (fresh CR mid-reconcile,
 		// or operator pod that crashed between CreateServer + Secret
