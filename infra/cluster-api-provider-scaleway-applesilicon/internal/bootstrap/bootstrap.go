@@ -30,7 +30,9 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"net"
 	"strings"
+	"sync"
 	"time"
 
 	"golang.org/x/crypto/ssh"
@@ -64,51 +66,69 @@ type Config struct {
 	HostCPU      int
 	HostMemoryMB int
 	MaxPods      int
+
+	// KnownHostFingerprint is the SHA256 fingerprint of the SSH
+	// server's host key, persisted by the controller after the first
+	// successful bootstrap. When empty (first reconcile, fleet
+	// expansion) the SSH client uses TOFU: it accepts the key the
+	// host presents on the first dial and the controller persists it
+	// for next time. When non-empty every dial verifies against it
+	// and refuses to connect on mismatch. Replaces a prior
+	// `ssh.InsecureIgnoreHostKey()` that left every bootstrap open
+	// to a network MITM (kubeconfig + tart-kubelet binary injection).
+	KnownHostFingerprint string
 }
 
 // Run executes the bootstrap. Idempotent: re-running on a partially-
 // bootstrapped host completes the missing steps without redoing the
 // finished ones.
-func Run(ctx context.Context, cfg Config) error {
+//
+// Returns the SSH host fingerprint observed during the dial. The
+// caller persists it so future reconciles verify the same host
+// (TOFU). When cfg.KnownHostFingerprint was already set, the returned
+// value equals it and Run rejects any mismatch as an error.
+func Run(ctx context.Context, cfg Config) (string, error) {
 	signer, err := ssh.ParsePrivateKey(cfg.SSHPrivateKey)
 	if err != nil {
-		return fmt.Errorf("parse ssh key: %w", err)
+		return "", fmt.Errorf("parse ssh key: %w", err)
 	}
 
-	if err := waitForSSH(ctx, cfg.IP, cfg.SSHUser, signer); err != nil {
-		return err
+	hk := newHostKeyState(cfg.KnownHostFingerprint)
+
+	if err := waitForSSH(ctx, cfg.IP, cfg.SSHUser, signer, hk); err != nil {
+		return "", err
 	}
 
-	client, err := dial(cfg.IP, cfg.SSHUser, signer)
+	client, err := dial(cfg.IP, cfg.SSHUser, signer, hk)
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer client.Close()
 
 	if err := enablePasswordlessSudo(ctx, client, cfg.SSHUser, cfg.SudoPassword); err != nil {
-		return fmt.Errorf("passwordless sudo: %w", err)
+		return hk.observed(), fmt.Errorf("passwordless sudo: %w", err)
 	}
 	if err := enableAutoLogin(ctx, client, cfg.SSHUser, cfg.SudoPassword); err != nil {
-		return fmt.Errorf("auto-login: %w", err)
+		return hk.observed(), fmt.Errorf("auto-login: %w", err)
 	}
 	if cfg.NodeName != "" {
 		if err := setHostname(ctx, client, cfg.NodeName); err != nil {
-			return fmt.Errorf("set hostname: %w", err)
+			return hk.observed(), fmt.Errorf("set hostname: %w", err)
 		}
 	}
 	if err := installTart(ctx, client); err != nil {
-		return fmt.Errorf("install tart: %w", err)
+		return hk.observed(), fmt.Errorf("install tart: %w", err)
 	}
 	if err := writeKubeconfig(ctx, client, cfg.Kubeconfig); err != nil {
-		return fmt.Errorf("write kubeconfig: %w", err)
+		return hk.observed(), fmt.Errorf("write kubeconfig: %w", err)
 	}
 	if err := installTartKubelet(ctx, client, cfg.TartKubeletBinary); err != nil {
-		return fmt.Errorf("install tart-kubelet: %w", err)
+		return hk.observed(), fmt.Errorf("install tart-kubelet: %w", err)
 	}
 	if err := loadTartKubeletLaunchd(ctx, client, cfg); err != nil {
-		return fmt.Errorf("load launchd job: %w", err)
+		return hk.observed(), fmt.Errorf("load launchd job: %w", err)
 	}
-	return nil
+	return hk.observed(), nil
 }
 
 // UpdateTartKubelet rolls a new tart-kubelet binary onto an
@@ -122,27 +142,33 @@ func Run(ctx context.Context, cfg Config) error {
 // cycle runs unconditionally — it's a ~1-second agent restart and Tart
 // VMs survive `nohup`-detached, so workloads are unaffected. The
 // kubelet's startup state-recovery pass re-binds them on the new agent.
-func UpdateTartKubelet(ctx context.Context, cfg Config) error {
+//
+// Returns the observed host fingerprint for the same reason Run does.
+// On the update path KnownHostFingerprint is normally already set (the
+// bootstrap reconcile populated it), so this is a verification rather
+// than a capture.
+func UpdateTartKubelet(ctx context.Context, cfg Config) (string, error) {
 	signer, err := ssh.ParsePrivateKey(cfg.SSHPrivateKey)
 	if err != nil {
-		return fmt.Errorf("parse ssh key: %w", err)
+		return "", fmt.Errorf("parse ssh key: %w", err)
 	}
-	client, err := dial(cfg.IP, cfg.SSHUser, signer)
+	hk := newHostKeyState(cfg.KnownHostFingerprint)
+	client, err := dial(cfg.IP, cfg.SSHUser, signer, hk)
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer client.Close()
 
 	if err := writeKubeconfig(ctx, client, cfg.Kubeconfig); err != nil {
-		return fmt.Errorf("refresh kubeconfig: %w", err)
+		return hk.observed(), fmt.Errorf("refresh kubeconfig: %w", err)
 	}
 	if err := installTartKubelet(ctx, client, cfg.TartKubeletBinary); err != nil {
-		return fmt.Errorf("install tart-kubelet: %w", err)
+		return hk.observed(), fmt.Errorf("install tart-kubelet: %w", err)
 	}
 	if err := loadTartKubeletLaunchd(ctx, client, cfg); err != nil {
-		return fmt.Errorf("reload launchd job: %w", err)
+		return hk.observed(), fmt.Errorf("reload launchd job: %w", err)
 	}
-	return nil
+	return hk.observed(), nil
 }
 
 // setHostname makes the macOS hostname match the CR name, so
@@ -283,23 +309,76 @@ func shellQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
 
-func dial(ip, user string, signer ssh.Signer) (*ssh.Client, error) {
+// hostKeyState wires SSH dials to the persisted-fingerprint TOFU
+// flow. The same instance is shared across waitForSSH retries and the
+// real dial: when we capture a fingerprint on a probe dial the real
+// dial verifies against it, so an attacker can't inject a different
+// host key between the two.
+type hostKeyState struct {
+	mu       sync.Mutex
+	expected string // empty until first observation; persisted by caller
+	captured string // SHA256 of the key the host actually presented
+}
+
+func newHostKeyState(known string) *hostKeyState {
+	return &hostKeyState{expected: known}
+}
+
+// observed returns the fingerprint the host actually presented during
+// the dial, or the expected value if the dial never happened. The
+// controller persists this so the next reconcile starts with a known
+// host.
+func (h *hostKeyState) observed() string {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.captured != "" {
+		return h.captured
+	}
+	return h.expected
+}
+
+func (h *hostKeyState) callback() ssh.HostKeyCallback {
+	return func(_ string, _ net.Addr, key ssh.PublicKey) error {
+		got := ssh.FingerprintSHA256(key)
+		h.mu.Lock()
+		defer h.mu.Unlock()
+		// Mid-bootstrap rotation guard: any state that has already
+		// observed a key requires every subsequent observation to
+		// match it. Without this, two dials in a single bootstrap
+		// (probe + real) could see different keys and the second
+		// would silently TOFU over the first.
+		if h.captured != "" && h.captured != got {
+			return fmt.Errorf("host key fingerprint changed mid-bootstrap: previously %s, now %s", h.captured, got)
+		}
+		// Persisted-fingerprint verification. When the operator
+		// already knows what key to expect (Secret carries
+		// host-fingerprint from a prior reconcile), refuse anything
+		// else regardless of TOFU state.
+		if h.expected != "" && got != h.expected {
+			return fmt.Errorf("host key fingerprint mismatch: expected %s, got %s", h.expected, got)
+		}
+		h.captured = got
+		return nil
+	}
+}
+
+func dial(ip, user string, signer ssh.Signer, hk *hostKeyState) (*ssh.Client, error) {
 	cfg := &ssh.ClientConfig{
 		User:            user,
 		Auth:            []ssh.AuthMethod{ssh.PublicKeys(signer)},
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		HostKeyCallback: hk.callback(),
 		Timeout:         15 * time.Second,
 	}
 	return ssh.Dial("tcp", ip+":22", cfg)
 }
 
-func waitForSSH(ctx context.Context, ip, user string, signer ssh.Signer) error {
+func waitForSSH(ctx context.Context, ip, user string, signer ssh.Signer, hk *hostKeyState) error {
 	deadline := time.Now().Add(5 * time.Minute)
 	for {
 		if time.Now().After(deadline) {
 			return fmt.Errorf("SSH not available after 5m at %s", ip)
 		}
-		client, err := dial(ip, user, signer)
+		client, err := dial(ip, user, signer, hk)
 		if err == nil {
 			client.Close()
 			return nil

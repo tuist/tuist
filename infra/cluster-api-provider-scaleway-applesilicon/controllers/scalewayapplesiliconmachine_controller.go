@@ -156,16 +156,30 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 		providerID := fmt.Sprintf("scw-applesilicon://%s/%s", machine.Spec.Zone, srv.ID)
 		machine.Spec.ProviderID = &providerID
 
-		// Stash the sudo password on the machine resource as an
-		// annotation; the bootstrap step needs it but it doesn't
-		// belong in spec or status.
-		if machine.Annotations == nil {
-			machine.Annotations = map[string]string{}
+		// Persist sudo password + SSH username in a per-machine
+		// Secret. They used to live as annotations on the CR, which
+		// exposed the sudo password to anyone with read on the CR
+		// (kubectl describe, etcd backups, audit, exports). The
+		// Secret stays in the operator's namespace alongside the SSH
+		// key, gated by the chart's RBAC.
+		if err := r.CredentialsManager.SetMachineCredentials(ctx, machine.Name, srv.SudoPassword, srv.SSHUsername); err != nil {
+			conditions.MarkFalse(machine, ProvisionedCondition, "CredentialsPersistFailed",
+				clusterv1.ConditionSeverityError, "%v", err)
+			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 		}
-		machine.Annotations["scaleway.tuist.dev/sudo-password"] = srv.SudoPassword
-		machine.Annotations["scaleway.tuist.dev/ssh-username"] = srv.SSHUsername
 		conditions.MarkTrue(machine, ProvisionedCondition)
 		logger.Info("provisioned Scaleway Mac mini", "id", srv.ID, "ip", srv.IP)
+	}
+
+	bootstrapCreds, err := r.CredentialsManager.GetMachineBootstrap(ctx, machine.Name)
+	if err != nil {
+		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+	}
+	if bootstrapCreds == nil {
+		// Stage 1 didn't write the Secret yet (fresh CR mid-reconcile,
+		// or operator pod that crashed between CreateServer + Secret
+		// write). Requeue.
+		return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
 	}
 
 	// Stage 2: bootstrap (idempotent — re-running picks up where it
@@ -185,18 +199,30 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 		}
 
-		if err := bootstrap.Run(ctx, bootstrap.Config{
-			IP:                ip,
-			SSHUser:           machine.Annotations["scaleway.tuist.dev/ssh-username"],
-			SudoPassword:      machine.Annotations["scaleway.tuist.dev/sudo-password"],
-			SSHPrivateKey:     sshKey,
-			NodeName:          machine.Name,
-			Kubeconfig:        kubeconfigYAML,
-			TartKubeletBinary: r.TartKubeletBinary,
-			HostCPU:           r.TartKubeletHostCPU,
-			HostMemoryMB:      r.TartKubeletHostMemoryMB,
-			MaxPods:           r.TartKubeletMaxPods,
-		}); err != nil {
+		fingerprint, err := bootstrap.Run(ctx, bootstrap.Config{
+			IP:                   ip,
+			SSHUser:              bootstrapCreds.SSHUsername,
+			SudoPassword:         bootstrapCreds.SudoPassword,
+			SSHPrivateKey:        sshKey,
+			NodeName:             machine.Name,
+			Kubeconfig:           kubeconfigYAML,
+			TartKubeletBinary:    r.TartKubeletBinary,
+			HostCPU:              r.TartKubeletHostCPU,
+			HostMemoryMB:         r.TartKubeletHostMemoryMB,
+			MaxPods:              r.TartKubeletMaxPods,
+			KnownHostFingerprint: bootstrapCreds.HostFingerprint,
+		})
+		// Persist whatever fingerprint Run captured even on the error
+		// path, so a transient bootstrap failure doesn't lose the
+		// TOFU pin we already verified successfully.
+		if fingerprint != "" && fingerprint != bootstrapCreds.HostFingerprint {
+			if perr := r.CredentialsManager.SetMachineHostFingerprint(ctx, machine.Name, fingerprint); perr != nil {
+				logger.Error(perr, "persist host fingerprint; will retry")
+			} else {
+				bootstrapCreds.HostFingerprint = fingerprint
+			}
+		}
+		if err != nil {
 			conditions.MarkFalse(machine, BootstrappedCondition, "BootstrapFailed",
 				clusterv1.ConditionSeverityWarning, "%v", err)
 			return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
@@ -227,17 +253,24 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			logger.Error(err, "render kubeconfig for update; will retry")
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 		}
-		if err := bootstrap.UpdateTartKubelet(ctx, bootstrap.Config{
-			IP:                ip,
-			SSHUser:           machine.Annotations["scaleway.tuist.dev/ssh-username"],
-			SSHPrivateKey:     sshKey,
-			NodeName:          machine.Name,
-			Kubeconfig:        kubeconfigYAML,
-			TartKubeletBinary: r.TartKubeletBinary,
-			HostCPU:           r.TartKubeletHostCPU,
-			HostMemoryMB:      r.TartKubeletHostMemoryMB,
-			MaxPods:           r.TartKubeletMaxPods,
-		}); err != nil {
+		fingerprint, err := bootstrap.UpdateTartKubelet(ctx, bootstrap.Config{
+			IP:                   ip,
+			SSHUser:              bootstrapCreds.SSHUsername,
+			SSHPrivateKey:        sshKey,
+			NodeName:             machine.Name,
+			Kubeconfig:           kubeconfigYAML,
+			TartKubeletBinary:    r.TartKubeletBinary,
+			HostCPU:              r.TartKubeletHostCPU,
+			HostMemoryMB:         r.TartKubeletHostMemoryMB,
+			MaxPods:              r.TartKubeletMaxPods,
+			KnownHostFingerprint: bootstrapCreds.HostFingerprint,
+		})
+		if fingerprint != "" && fingerprint != bootstrapCreds.HostFingerprint {
+			if perr := r.CredentialsManager.SetMachineHostFingerprint(ctx, machine.Name, fingerprint); perr != nil {
+				logger.Error(perr, "persist host fingerprint on update; will retry")
+			}
+		}
+		if err != nil {
 			logger.Error(err, "tart-kubelet update failed; will retry")
 			return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
 		}
