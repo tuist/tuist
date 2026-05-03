@@ -52,7 +52,12 @@ defmodule TuistWeb.Docs.AskComponent do
   end
 
   @impl true
-  def handle_event("hydrate", %{"messages" => messages}, socket) when is_list(messages) do
+  def handle_event(
+        "hydrate",
+        %{"messages" => messages},
+        %{assigns: %{hydrated?: false}} = socket
+      )
+      when is_list(messages) do
     sanitised = Enum.flat_map(messages, &sanitise_message/1)
     {:noreply, assign(socket, messages: sanitised, hydrated?: true)}
   end
@@ -66,6 +71,7 @@ defmodule TuistWeb.Docs.AskComponent do
 
     {:noreply,
      assign(socket,
+       hydrated?: true,
        pending_input: value,
        slash_open?: show_slash?,
        slash_filter: filter
@@ -75,6 +81,7 @@ defmodule TuistWeb.Docs.AskComponent do
   def handle_event("slash-select", %{"command" => command}, socket) do
     {:noreply,
      assign(socket,
+       hydrated?: true,
        pending_input: command,
        slash_open?: false,
        slash_filter: ""
@@ -97,6 +104,8 @@ defmodule TuistWeb.Docs.AskComponent do
         {:noreply, socket}
 
       true ->
+        socket = assign(socket, :hydrated?, true)
+
         case rate_limit_check(socket) do
           :ok ->
             socket = ensure_live_agent(socket)
@@ -198,6 +207,7 @@ defmodule TuistWeb.Docs.AskComponent do
 
     socket
     |> assign(
+      hydrated?: true,
       messages: [],
       pending_input: "",
       slash_open?: false,

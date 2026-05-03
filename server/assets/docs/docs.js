@@ -4,7 +4,7 @@ import { LiveSocket } from "phoenix_live_view";
 import topbar from "../app/js/vendor/topbar.js";
 import Noora from "noora";
 import ThemeSwitcher, { ThemeToggle, observeThemeChanges } from "../app/js/ThemeSwitcher.js";
-import DocsAskPersistHook from "./hooks/docs-ask-persist-hook.js";
+import AskPersistHook from "./hooks/ask-persist-hook.js";
 import DocsContentHook from "./hooks/docs-content-hook.js";
 import DocsCopyPageButtonHook, { dispatchCopyPageButtonFlash } from "./hooks/docs-copy-page-button-hook.js";
 import DocsInstallTabsHook from "./hooks/docs-install-tabs-hook.js";
@@ -24,7 +24,7 @@ let liveSocket = new LiveSocket("/live", Socket, {
   params: { _csrf_token: csrfToken, _csp_nonce: cspNonce },
   hooks: {
     ...Noora.Hooks,
-    DocsAskPersist: DocsAskPersistHook,
+    DocsAskPersist: AskPersistHook,
     DocsContent: DocsContentHook,
     DocsCopyPageButton: DocsCopyPageButtonHook,
     DocsInstallTabs: DocsInstallTabsHook,
