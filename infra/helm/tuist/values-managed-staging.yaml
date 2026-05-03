@@ -174,7 +174,7 @@ macosFleet:
     # bootstrap extracted to a provider-agnostic module + per-machine
     # ServiceAccount/token/ClusterRoleBinding replacing the shared
     # fleet token.
-    tag: "4f1592bb"
+    tag: "3aede924"
   # External k8s API server URL the Mac minis dial when joining.
   # The Syself-managed `autopilot-1.autopilot-prod.k8s.syself.net`
   # endpoint serves a TLS cert signed by a CA we don't have access to
