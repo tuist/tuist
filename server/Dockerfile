@@ -39,17 +39,18 @@ RUN swift build -c release --replace-scm-with-registry && \
 # Stage 1: NPM dependencies
 # ========================================
 FROM node:22-slim AS npm-deps
+ENV CI=1
 ENV XDG_DATA_HOME="/aube-data"
 RUN npm install -g --ignore-scripts=false @endevco/aube
 COPY server/package.json /app/package.json
 COPY server/pnpm-lock.yaml /app/pnpm-lock.yaml
 WORKDIR /app
-RUN --mount=type=cache,id=aube,target=/aube-data/aube aube install --frozen-lockfile --disable-global-virtual-store
+RUN --mount=type=cache,id=aube,target=/aube-data/aube aube install --frozen-lockfile
 
 # Build noora static assets (JS + CSS) from source
 COPY noora /noora
 WORKDIR /noora
-RUN --mount=type=cache,id=aube,target=/aube-data/aube aube install --disable-global-virtual-store
+RUN --mount=type=cache,id=aube,target=/aube-data/aube aube install
 RUN npx esbuild js/index.js --bundle --minify --sourcemap --format=esm --outfile=./priv/static/noora.js && \
     npx esbuild css/noora.css --bundle --minify --sourcemap --outfile=./priv/static/noora.css
 WORKDIR /app
