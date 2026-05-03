@@ -18,12 +18,22 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/envresolver"
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/tart"
 )
+
+// PodFinalizer blocks API-server deletion of a Pod until tart-kubelet
+// has stopped + deleted the underlying Tart VM. Without it, kubectl
+// force-delete (gracePeriodSeconds=0) or a reconciler crash mid-Stop
+// orphans the VM: kubectl reports the Pod gone while the VM keeps
+// running on the host until GC sweeps it. The standard finalizer
+// pattern lets us guarantee VM teardown completes before the Pod
+// disappears from the API server's perspective.
+const PodFinalizer = "tart-kubelet.tuist.dev/vm-cleanup"
 
 // Reconciler is the controller-runtime reconciler for Pods on this
 // Node. The cached client here is fine: the manager runs a single
@@ -68,7 +78,10 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	pod := &corev1.Pod{}
 	if err := r.CachedClient.Get(ctx, req.NamespacedName, pod); err != nil {
 		if apierrors.IsNotFound(err) {
-			// Pod was deleted; tear down the VM if we still hold it.
+			// API-server already removed the Pod (the only way this
+			// fires today is if the Pod was created without our
+			// finalizer or someone yanked it manually). Best-effort
+			// VM cleanup still runs from the in-memory Store.
 			r.deleteByKey(ctx, req.Namespace, req.Name)
 			return ctrl.Result{}, nil
 		}
@@ -76,10 +89,42 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 
 	if !pod.DeletionTimestamp.IsZero() {
+		// Pod is being deleted. Run VM teardown, then drop our
+		// finalizer so the API server can complete deletion. Order
+		// matters: we must not remove the finalizer until the VM
+		// is gone, otherwise the Pod disappears from kubectl's view
+		// while the VM is still running on the host.
 		if err := r.deletePod(ctx, pod); err != nil {
 			logger.Error(err, "delete failed; will retry")
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 		}
+		if controllerutil.RemoveFinalizer(pod, PodFinalizer) {
+			if err := r.CachedClient.Update(ctx, pod); err != nil {
+				if apierrors.IsConflict(err) || apierrors.IsNotFound(err) {
+					return ctrl.Result{}, nil
+				}
+				logger.Error(err, "remove finalizer; will retry")
+				return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
+			}
+		}
+		return ctrl.Result{}, nil
+	}
+
+	// Add our finalizer on the first reconcile after admission so
+	// the API server blocks the eventual deletion until our VM
+	// teardown finishes. Idempotent — controllerutil.AddFinalizer
+	// no-ops if the finalizer is already present.
+	if controllerutil.AddFinalizer(pod, PodFinalizer) {
+		if err := r.CachedClient.Update(ctx, pod); err != nil {
+			if apierrors.IsConflict(err) {
+				// Someone else updated the Pod; let the next
+				// reconcile pick up the latest version.
+				return ctrl.Result{Requeue: true}, nil
+			}
+			return ctrl.Result{}, fmt.Errorf("add finalizer: %w", err)
+		}
+		// Patch landed; let the watch fire the next reconcile with
+		// the updated object so we don't risk acting on a stale copy.
 		return ctrl.Result{}, nil
 	}
 

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/go-logr/logr"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
@@ -63,6 +64,14 @@ type ScalewayAppleSiliconMachineReconciler struct {
 	TartKubeletHostCPU      int
 	TartKubeletHostMemoryMB int
 	TartKubeletMaxPods      int
+
+	// TartKubeletMaxUpdateAttempts caps how many times the drift loop
+	// retries a failing UpdateTartKubelet before transitioning the CR
+	// to a terminal Failed state. Without a cap the operator
+	// SSH-hammers a wedged host every 60s indefinitely with no
+	// terminal-failure surface for ops. Defaulted to 5 attempts in
+	// the manager binary; chart can override per env if needed.
+	TartKubeletMaxUpdateAttempts int32
 }
 
 // +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=scalewayapplesiliconmachines,verbs=get;list;watch;create;update;patch;delete
@@ -284,19 +293,32 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 	//     kubeconfig push migrates it onto the per-machine token.
 	//     The marker stays sticky once we set it.
 	binaryDrift := r.TartKubeletBinarySHA != "" && machine.Status.TartKubeletBinarySHA != r.TartKubeletBinarySHA
-	if binaryDrift || !machine.Status.PerMachineKubeconfigInstalled {
+	// Once a CR enters the terminal-failed state (FailureReason set
+	// and FailureMessage describes the underlying error) we stop
+	// firing the drift loop. CAPI core takes over: surfaces the
+	// failure on the parent Machine and refuses to drive replacement
+	// without operator action. Recovery: clear FailureReason +
+	// reset TartKubeletUpdateAttempts to resume the loop.
+	terminalFailure := machine.Status.FailureReason != nil
+	if !terminalFailure && (binaryDrift || !machine.Status.PerMachineKubeconfigInstalled) {
 		ip := machineIP(machine)
 		if ip == "" {
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 		}
 		identity, err := r.CredentialsManager.EnsureNodeIdentity(ctx, machine.Name)
 		if err != nil {
-			logger.Error(err, "ensure node identity for update; will retry")
+			recordUpdateFailure(machine, fmt.Errorf("ensure node identity: %w", err), r.TartKubeletMaxUpdateAttempts, logger)
+			if machine.Status.FailureReason != nil {
+				return ctrl.Result{}, nil
+			}
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 		}
 		kubeconfigYAML, err := r.Kubeconfig.Render(ctx, machine.Name, identity.Token, identity.CA)
 		if err != nil {
-			logger.Error(err, "render kubeconfig for update; will retry")
+			recordUpdateFailure(machine, fmt.Errorf("render kubeconfig: %w", err), r.TartKubeletMaxUpdateAttempts, logger)
+			if machine.Status.FailureReason != nil {
+				return ctrl.Result{}, nil
+			}
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 		}
 		fingerprint, err := bootstrap.UpdateTartKubelet(ctx, bootstrap.Config{
@@ -317,11 +339,15 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			}
 		}
 		if err != nil {
-			logger.Error(err, "tart-kubelet update failed; will retry")
+			recordUpdateFailure(machine, fmt.Errorf("tart-kubelet update: %w", err), r.TartKubeletMaxUpdateAttempts, logger)
+			if machine.Status.FailureReason != nil {
+				return ctrl.Result{}, nil
+			}
 			return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
 		}
 		machine.Status.TartKubeletBinarySHA = r.TartKubeletBinarySHA
 		machine.Status.PerMachineKubeconfigInstalled = true
+		machine.Status.TartKubeletUpdateAttempts = 0
 		logger.Info("rolled new tart-kubelet", "host", ip, "sha", r.TartKubeletBinarySHA)
 	}
 
@@ -355,6 +381,31 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileDelete(
 }
 
 // === helpers ================================================================
+
+// recordUpdateFailure increments the drift-loop retry counter and,
+// once it crosses maxAttempts, flips the CR into a terminal Failed
+// state. The counter is reset on successful UpdateTartKubelet. We
+// don't try to be clever about which step in the loop failed; from
+// the CR's perspective, any failure that prevents the kubeconfig
+// landing on the host counts the same. Recovery is operator-driven:
+// `kubectl patch` to clear status.failureReason + zero
+// status.tartKubeletUpdateAttempts and the loop resumes.
+func recordUpdateFailure(machine *infrav1.ScalewayAppleSiliconMachine, err error, maxAttempts int32, logger logr.Logger) {
+	machine.Status.TartKubeletUpdateAttempts++
+	logger.Error(err, "tart-kubelet update step failed",
+		"attempt", machine.Status.TartKubeletUpdateAttempts,
+		"max", maxAttempts)
+	if maxAttempts > 0 && machine.Status.TartKubeletUpdateAttempts >= maxAttempts {
+		reason := "TartKubeletUpdateExceededRetries"
+		msg := fmt.Sprintf("tart-kubelet update failed %d times: %v",
+			machine.Status.TartKubeletUpdateAttempts, err)
+		machine.Status.FailureReason = &reason
+		machine.Status.FailureMessage = &msg
+		machine.Status.Phase = "Failed"
+		logger.Error(err, "tart-kubelet update permanently failed; CR transitioned to Failed",
+			"attempts", machine.Status.TartKubeletUpdateAttempts)
+	}
+}
 
 func machineIP(m *infrav1.ScalewayAppleSiliconMachine) string {
 	for _, a := range m.Status.Addresses {

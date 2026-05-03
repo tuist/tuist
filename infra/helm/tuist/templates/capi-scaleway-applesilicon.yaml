@@ -64,6 +64,18 @@ rules:
     # owns the role definition centrally.
     resources: [clusterrolebindings]
     verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    # `bind` verb on the specific tart-kubelet ClusterRole — k8s's
+    # privilege-escalation rule otherwise blocks the operator's SA
+    # from creating a ClusterRoleBinding to a Role whose permissions
+    # it doesn't hold itself (Pod read, Node create, etc.). The
+    # `bind` meta-verb is the documented escape hatch for exactly
+    # this controller-creates-binding pattern. Scoped to the one role
+    # by name so the operator can't bind itself to anything broader.
+    resources: [clusterroles]
+    resourceNames:
+      - {{ include "tuist.componentName" (dict "root" . "component" "tart-kubelet") }}
+    verbs: [bind]
   - apiGroups: ["coordination.k8s.io"]
     resources: [leases]
     verbs: [get, list, watch, create, update, patch, delete]

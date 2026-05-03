@@ -100,6 +100,19 @@ type ScalewayAppleSiliconMachineStatus struct {
 	// the regular drift-detection path takes over from there.
 	// +optional
 	PerMachineKubeconfigInstalled bool `json:"perMachineKubeconfigInstalled,omitempty"`
+
+	// TartKubeletUpdateAttempts counts consecutive failures of the
+	// drift-loop's UpdateTartKubelet call. Reset to zero on success.
+	// Once it crosses the operator's max-attempts threshold the CR
+	// transitions to a terminal Failed state with FailureReason set
+	// to "TartKubeletUpdateExceededRetries"; CAPI core surfaces that
+	// on the parent Machine and stops auto-driving it. Recovery is
+	// manual: clear FailureReason + zero this counter to resume the
+	// loop. Without this cap a persistently-broken host (binary
+	// corruption, disk-full, network partition) gets SSH-hammered
+	// every 60s indefinitely with no terminal-failure signal.
+	// +optional
+	TartKubeletUpdateAttempts int32 `json:"tartKubeletUpdateAttempts,omitempty"`
 }
 
 // +kubebuilder:object:root=true

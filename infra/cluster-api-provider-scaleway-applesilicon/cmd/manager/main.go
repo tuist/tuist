@@ -51,12 +51,13 @@ func main() {
 		enableLeaderElection bool
 		secretsNamespace     string
 
-		apiServerURL            string
-		nodeIdentityClusterRole string
-		tartKubeletBinaryPath   string
-		tartKubeletHostCPU      int
-		tartKubeletHostMemory   int
-		tartKubeletMaxPods      int
+		apiServerURL                 string
+		nodeIdentityClusterRole      string
+		tartKubeletBinaryPath        string
+		tartKubeletHostCPU           int
+		tartKubeletHostMemory        int
+		tartKubeletMaxPods           int
+		tartKubeletMaxUpdateAttempts int
 	)
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "Prometheus metrics endpoint")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "Liveness/readiness probe endpoint")
@@ -77,6 +78,9 @@ func main() {
 	flag.IntVar(&tartKubeletHostCPU, "tartkubelet-host-cpu", 8, "CPU cores tart-kubelet advertises on its Node")
 	flag.IntVar(&tartKubeletHostMemory, "tartkubelet-host-memory-mb", 16384, "Memory MB tart-kubelet advertises on its Node")
 	flag.IntVar(&tartKubeletMaxPods, "tartkubelet-max-pods", 8, "Max concurrent Pods on each Mac mini")
+	flag.IntVar(&tartKubeletMaxUpdateAttempts, "tartkubelet-max-update-attempts", 5,
+		"Drift-loop retries before transitioning the CR to a terminal Failed state. "+
+			"Set to 0 to disable the cap (not recommended for production).")
 
 	opts := zap.Options{Development: false}
 	opts.BindFlags(flag.CommandLine)
@@ -138,8 +142,9 @@ func main() {
 		TartKubeletBinary:       tartKubeletBinary,
 		TartKubeletBinarySHA:    binarySHA,
 		TartKubeletHostCPU:      tartKubeletHostCPU,
-		TartKubeletHostMemoryMB: tartKubeletHostMemory,
-		TartKubeletMaxPods:      tartKubeletMaxPods,
+		TartKubeletHostMemoryMB:      tartKubeletHostMemory,
+		TartKubeletMaxPods:           tartKubeletMaxPods,
+		TartKubeletMaxUpdateAttempts: int32(tartKubeletMaxUpdateAttempts),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup MachineReconciler")
 		os.Exit(1)
