@@ -154,6 +154,14 @@ processor:
 # Same priv/secrets selection as the build processor; the Tart image
 # embeds the encrypted bundle and decrypts it via MASTER_KEY.
 xcresultProcessor:
+  # replicaCount stays at the chart default (2). The topology spread
+  # in xcresult-processor-deployment.yaml forces the two replicas onto
+  # distinct Mac minis (the fleet has 2 hosts in production); the PDB
+  # below keeps at least one queue consumer up across voluntary
+  # disruptions (operator-driven host drains, fleet rolls).
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
   extraEnv:
     - name: TUIST_DEPLOY_ENV
       value: prod

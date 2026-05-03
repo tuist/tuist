@@ -295,6 +295,14 @@ xcresultProcessor:
   databaseUrlSecretName: ""  # default: processor-external-secrets
   databaseUrlSecretKey: "processor-database-url"
   extraEnv: []
+  # Pair with the topology spread in the Deployment template (one
+  # replica per Mac mini hostname, ScheduleAnyway). minAvailable: 1
+  # keeps at least one queue consumer up across voluntary disruptions
+  # (host drains, fleet rolls). Off by default so single-replica
+  # deployments don't fight the chart.
+  podDisruptionBudget:
+    enabled: false
+    minAvailable: 1
   resources:
     requests:
       cpu: "1000m"

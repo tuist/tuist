@@ -24,11 +24,10 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
     spec:
-      # Schedule onto a real macOS node — a Mac mini running kubelet
-      # backed by tart-cri. The taint `tuist.dev/macos=true:NoSchedule`
-      # is set by kubelet at registration (the operator's
-      # internal/bootstrap kubeletConfig() lays it down) so stray
-      # Linux Pods don't land here.
+      # Schedule onto a real macOS node — a Mac mini running
+      # tart-kubelet. The taint `tuist.dev/macos=true:NoSchedule` is
+      # set by tart-kubelet at registration so stray Linux Pods don't
+      # land here.
       nodeSelector:
         kubernetes.io/os: darwin
         tuist.dev/runtime: tart
@@ -36,6 +35,20 @@ spec:
         - key: tuist.dev/macos
           operator: Exists
           effect: NoSchedule
+      # When replicaCount > 1, force replicas onto distinct hosts.
+      # Without this, two replicas can land on the same Mac mini and a
+      # single host reboot drops the queue consumer count to zero.
+      # ScheduleAnyway (rather than DoNotSchedule) so a fleet that
+      # temporarily can't satisfy the spread (e.g. one mini being
+      # replaced) still schedules — burst capacity beats strict
+      # anti-collocation.
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              {{- include "tuist.componentLabels" (dict "root" . "component" "xcresult-processor") | nindent 14 }}
       # No init containers, no sidecars — tart-kubelet maps Pod ↔
       # Tart VM 1:1 and rejects multi-container Pods at admission.
       # The first (and only) container's image is the Tart VM image;
