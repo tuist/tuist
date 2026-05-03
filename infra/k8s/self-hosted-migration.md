@@ -214,6 +214,17 @@ clusterctl init \
 
 # Verify everything is Running.
 kubectl get pods -A
+
+# ClusterTopology feature gate: clusterctl init disables it by default.
+# Required for Phase 7 (tuist-hcloud ClusterClass). Patch the controller
+# deployments to flip it on; safe to do now even though Phase 7 is deferred.
+for ns in capi-system capi-kubeadm-control-plane-system; do
+  DEPLOY=$(kubectl -n $ns get deploy -o jsonpath='{.items[0].metadata.name}')
+  CURRENT=$(kubectl -n $ns get deploy $DEPLOY -o jsonpath='{.spec.template.spec.containers[0].args}')
+  NEW_ARGS=$(echo "$CURRENT" | jq -c '[.[] | gsub("ClusterTopology=false"; "ClusterTopology=true")]')
+  kubectl -n $ns patch deploy $DEPLOY --type=json \
+    -p="[{\"op\":\"replace\",\"path\":\"/spec/template/spec/containers/0/args\",\"value\":$NEW_ARGS}]"
+done
 ```
 
 ### 1.6 Recreate the org namespace + Hetzner Secret
