@@ -470,8 +470,6 @@ kura_chart_path =
     other -> raise "unknown env #{inspect(other)} for :kura_chart_path; add it to runtime.exs"
   end
 
-config :tuist, :kura_chart_path, kura_chart_path
-
 # Guardian
 config :tuist, Tuist.Guardian,
   issuer: "tuist",
@@ -488,6 +486,8 @@ config :tuist, Tuist.PromEx,
     port: 9091,
     auth_strategy: :none
   ]
+
+config :tuist, :kura_chart_path, kura_chart_path
 
 if otel_endpoint do
   config :opentelemetry,
