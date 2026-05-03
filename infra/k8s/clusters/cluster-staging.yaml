@@ -1,0 +1,40 @@
+# Staging workload Cluster, topology mode against tuist-hcloud.
+# Replaces infra/k8s/syself/workload-cluster-staging.yaml during the
+# Phase 7 classRef swap. Same shape: 3× cpx22 control plane + 2× cpx31
+# workers in fsn1.
+apiVersion: cluster.x-k8s.io/v1beta2
+kind: Cluster
+metadata:
+  name: tuist-staging
+  namespace: org-tuist
+spec:
+  clusterNetwork:
+    services:
+      cidrBlocks:
+        - 10.128.0.0/12
+    pods:
+      cidrBlocks:
+        - 192.168.0.0/16
+    serviceDomain: cluster.local
+  topology:
+    classRef:
+      name: tuist-hcloud
+    version: v1.34.6
+    controlPlane:
+      replicas: 3
+    variables:
+      - name: region
+        value: fsn1
+      - name: hcloudControlPlaneMachineType
+        value: cpx22
+      - name: hcloudWorkerMachineType
+        value: cpx31
+      - name: hcloudSSHKeyName
+        value:
+          - name: tuist-syself
+    workers:
+      machineDeployments:
+        - class: hcloud-worker
+          name: md-0
+          replicas: 2
+          failureDomain: fsn1

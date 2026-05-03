@@ -1,0 +1,61 @@
+# Production workload Cluster, topology mode against tuist-hcloud.
+# Two worker pools: md-0 general (ccx23, dedicated vCPU for the Phoenix
+# server's predictable p99 latency) + md-processor (cpx62 shared-vCPU,
+# 16 vCPU / 32 GiB each, optimized for xcactivitylog parsing
+# throughput-per-euro). Pool labels propagate from MachineDeployment
+# metadata to nodes via CAPI's machine-to-node label sync (only the
+# node-role.kubernetes.io/, node-restriction.kubernetes.io/, and
+# node.cluster.x-k8s.io/ prefixes are allowed through).
+apiVersion: cluster.x-k8s.io/v1beta2
+kind: Cluster
+metadata:
+  name: tuist
+  namespace: org-tuist
+spec:
+  clusterNetwork:
+    services:
+      cidrBlocks:
+        - 10.128.0.0/12
+    pods:
+      cidrBlocks:
+        - 192.168.0.0/16
+    serviceDomain: cluster.local
+  topology:
+    classRef:
+      name: tuist-hcloud
+    version: v1.34.6
+    controlPlane:
+      replicas: 3
+    variables:
+      - name: region
+        value: fsn1
+      - name: hcloudControlPlaneMachineType
+        value: cpx22
+      # Default for pools without an override (md-0).
+      - name: hcloudWorkerMachineType
+        value: ccx23
+      - name: hcloudSSHKeyName
+        value:
+          - name: tuist-syself
+    workers:
+      machineDeployments:
+        # General-purpose pool: Phoenix server, redis, system DaemonSets.
+        - class: hcloud-worker
+          name: md-0
+          replicas: 2
+          failureDomain: fsn1
+          metadata:
+            labels:
+              node.cluster.x-k8s.io/pool: general
+        # Dedicated processor pool: xcactivitylog parsing.
+        - class: hcloud-worker
+          name: md-processor
+          replicas: 2
+          failureDomain: fsn1
+          metadata:
+            labels:
+              node.cluster.x-k8s.io/pool: processor
+          variables:
+            overrides:
+              - name: hcloudWorkerMachineType
+                value: cpx62
