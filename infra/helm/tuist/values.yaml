@@ -255,11 +255,10 @@ processor:
 xcresultProcessor:
   # Dedicated macOS workers that consume `:process_xcresult`. The parse
   # path leans on `xcresulttool` from Xcode (no Linux equivalent), so
-  # these Pods schedule onto Mac mini nodes running kubelet backed by
-  # tart-cri (see infra/tart-cri/) — the macOS hosts join the cluster as
-  # real nodes with `kubernetes.io/os=darwin` + `tuist.dev/runtime=tart`
-  # and a `tuist.dev/macos:NoSchedule` taint that this Deployment
-  # tolerates.
+  # these Pods schedule onto Mac mini nodes running tart-kubelet (see
+  # infra/tart-kubelet/) — the macOS hosts join the cluster as real
+  # nodes with `kubernetes.io/os=darwin` + `tuist.dev/runtime=tart` and
+  # a `tuist.dev/macos:NoSchedule` taint that this Deployment tolerates.
   #
   # When enabled the chart emits two things:
   #   1. The Deployment template here (xcresult-processor-deployment.yaml).
@@ -272,7 +271,7 @@ xcresultProcessor:
   # Requires at least one Mac mini joined to the cluster. Tuist-managed
   # deployments declare the fleet via `macosFleet.enabled=true` (see
   # below) and the cluster-api-provider-scaleway-applesilicon operator
-  # provisions hosts from Scaleway and bootstraps kubelet + tart-cri
+  # provisions hosts from Scaleway and bootstraps Tart + tart-kubelet
   # over SSH. Self-hosters without a macOS fleet should leave this off;
   # xcresult ingestion silently no-ops for them (acceptable — Linux-only
   # deployments don't have xcresult uploads to ingest in the first place).
