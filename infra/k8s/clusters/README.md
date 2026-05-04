@@ -1,8 +1,7 @@
 # Tuist ClusterClass + Cluster CRs
 
-> **⚠️ DO NOT `kubectl apply` `cluster-*.yaml` OR `clusterclass-tuist.yaml` UNTIL PHASE 7 COMPLETES.**
->
-> The ClusterClass renders against caph's reference templates which are stale relative to the flat `cluster-template-hcloud.yaml`: `containerd 2.x` needs a `containerd.service` systemd unit shipped in the flat template's `files:` block but missing from this ClusterClass. Applying the per-env Cluster CRs today will provision Hetzner servers that fail mid-bootstrap (kubeadm `init` can't reach containerd's socket). The migration path in [`infra/k8s/self-hosted-migration.md`](../self-hosted-migration.md) (Phases 2/3) does NOT depend on this; `clusterctl move` brings the existing Apalla-rendered KCP/MD/templates over and they keep reconciling. See [Status](#status) and [Next steps to make this swappable](#next-steps-to-make-this-swappable) below.
+> **Status: Phase 7.2 + 7.3 complete; the ClusterClass produces working clusters end-to-end.**
+> Validated against a throwaway 5th cluster on the live mgmt cluster (CP initialized in ~2.3 min, workload kubeconfig minted, `kubectl get nodes` responds). What's still left in Phase 7: the per-cluster `topology.classRef.name` swap from `hetzner-apalla-1-34-v6` to `tuist-hcloud`, which has to wait until after Phase 3 cutover (the production Cluster CRs need to be on our mgmt cluster first).
 
 Self-hosted Kubernetes cluster manifests for the four workload clusters
 (staging / canary / production / preview), targeting our own management
@@ -62,21 +61,29 @@ caph's reference templates use Hetzner-published Ubuntu images plus cloud-init t
 
 ## Status
 
-- [x] caph reference templates pulled to `reference-templates/`
-- [x] `clusterclass-tuist.yaml` forked from `cluster-class.yaml` with these adaptations:
+- [x] caph reference templates pulled to `reference-templates/`.
+- [x] `clusterclass-tuist.yaml` forked from `cluster-class.yaml`. Adaptations from the validation runs:
   - Bare-metal MachineDeployment class + bare-metal templates dropped (we only use cloud servers).
   - All 5 resources scoped to the `org-tuist` namespace (otherwise `topology.classRef` lookup fails because Cluster CRs live in `org-tuist`).
   - `initConfiguration.skipPhases: [addon/kube-proxy]` added to the KCP because Cilium replaces kube-proxy on Tuist's clusters.
   - `hcloudPlacementGroups` variable defaults to `[]` (otherwise the patch errors at render time).
   - `hcloudControlPlanePlacementGroupName` and `hcloudWorkerMachinePlacementGroupName` patches split into separate `enabledIf` definitions: caph errors with "Placement group does not exist" if the field is set to empty string.
-  - `KUBERNETES_VERSION` and `CONTAINERD` versions in `preKubeadmCommands` ported from the flat `cluster-template-hcloud.yaml`. The reference ClusterClass hardcodes `KUBERNETES_VERSION=1.35.4` and uses an old `cri-containerd-cni-` bundle that's no longer published for containerd 2.x.
+  - `KUBERNETES_VERSION=1.34.6` and `CONTAINERD=2.2.3` in `preKubeadmCommands` ported from the flat `cluster-template-hcloud.yaml`. The reference ClusterClass hardcodes `KUBERNETES_VERSION=1.35.4` and uses an old `cri-containerd-cni-` bundle that's no longer published for containerd 2.x.
+  - Added `containerd.service` systemd unit to both KCP and worker `files:` blocks. The plain `containerd-` tarball doesn't ship one (only the older `cri-containerd-cni-` bundle did). Without this, `systemctl start containerd` finds no unit and PLEG never goes healthy.
+  - Added `containerRuntimeEndpoint`, `staticPodPath`, `cgroupDriver`, `clusterDNS`, `clusterDomain` to the kubelet `KubeletConfiguration` shipped via the `files:` block. Critical: kubelet is invoked with two `--config` flags (kubeadm's default + ours via `kubeletExtraArgs`); the second OVERRIDES the first, so any field not set in our config gets cleared. Without `containerRuntimeEndpoint` kubelet can't talk to containerd → PLEG never healthy → static pods never start.
 - [x] Per-env Cluster CRs (`cluster-{staging,canary,production,preview}.yaml`) authored in topology mode against `tuist-hcloud`.
-- [ ] **Validation against a throwaway 5th cluster: blocked.** End-to-end provisioning fails at the kubeadm-init phase because containerd 2.2.3 needs a systemd service file that the flat template ships in its `files:` block but caph's reference ClusterClass doesn't include. The fix is to port the `containerd.service` file definition (and any other gaps) from `cluster-template-hcloud.yaml`'s `files:` block into our ClusterClass's KCP and worker `files:` blocks. Hasn't been done yet.
-- [ ] `clusterctl move` migration via the existing runbook (Phase 3) does **not** depend on this. `clusterctl move` brings the existing Apalla-rendered KubeadmControlPlane / KubeadmConfigTemplate / HCloudMachineTemplate over as plain CAPI resources; caph reconciles them without needing `tuist-hcloud` to render anything new. The Cluster CRs keep `topology.classRef.name: hetzner-apalla-1-34-v6` (which doesn't resolve on our mgmt cluster, so the topology controller errors gracefully without taking destructive action). The `tuist-hcloud` swap happens later, when this ClusterClass produces working clusters end-to-end.
+- [x] **Validation against a throwaway 5th cluster: passing.** Full end-to-end: caph provisions Hetzner LB + server, cloud-init runs, containerd 2.2.3 starts, kubeadm init succeeds, all 4 control-plane static pods come up (etcd / kube-apiserver / kube-controller-manager / kube-scheduler), workload-cluster API responds via the LB, kubeconfig Secret is minted. ~2.3 min from `kubectl apply` to `ControlPlaneInitialized=True`. Cost per validation run: ~€0.30.
 
-## Next steps to make this swappable
+## What's left in Phase 7
 
-1. Port the `files:` block from `reference-templates/cluster-template-hcloud.yaml` (specifically the `containerd.service` systemd unit at lines 68-114 of the upstream file) into both the KCP `files:` and the worker `files:` in `clusterclass-tuist.yaml`.
-2. Validate end-to-end against a throwaway 5th cluster (the existing test fixture in this directory is sufficient, just `kubectl apply` it).
-3. Once a fresh cluster comes Ready and a smoke pod schedules, diff the rendered KubeadmControlPlane / KubeadmConfigTemplate / HCloudMachineTemplate against the moved Apalla originals on the mgmt cluster (after Phase 3 cutover). Iterate the ClusterClass until the diff is empty (no-op swap) or limited to fields CAPI is happy to reconcile in place.
-4. Per-cluster swap: `kubectl patch cluster <name> --type=merge -p '{"spec":{"topology":{"classRef":{"name":"tuist-hcloud"}}}}'`. Stagger across staging → canary → production → preview, watching for unexpected Machine deletions.
+The ClusterClass + per-env CRs are checked in and validated. The remaining work depends on Phase 3 (Syself cutover) having happened:
+
+1. **After Phase 3** (Cluster CRs are on our mgmt cluster, still reference `hetzner-apalla-1-34-v6`): diff the rendered KubeadmControlPlane / KubeadmConfigTemplate / HCloudMachineTemplate that `tuist-hcloud` would produce vs. the Apalla originals already on the mgmt cluster. Iterate the ClusterClass until the diff is either empty (no-op classRef swap) or limited to fields CAPI is happy to reconcile in place (labels, annotations).
+2. **Per-cluster swap** once the diff is acceptable:
+   ```bash
+   kubectl -n org-tuist patch cluster <name> --type=merge \
+     -p '{"spec":{"topology":{"classRef":{"name":"tuist-hcloud"}}}}'
+   ```
+   Stagger across staging → canary → production → preview. Watch `kubectl -n org-tuist get machine -w` for unexpected deletions.
+
+After the last swap, K8s minor bumps become `topology.version:` edits and we own the full cluster spec.

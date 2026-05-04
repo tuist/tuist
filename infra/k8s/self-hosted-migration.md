@@ -621,7 +621,7 @@ Only after all four clusters have soaked on our mgmt cluster for ≥1 week and C
 
 ## Phase 7: Author the `tuist-hcloud` ClusterClass (post-migration follow-up)
 
-Not blocking on Syself escape. Run after Phase 6 with no time pressure. The four workload clusters keep operating with `topology.classRef.name: hetzner-apalla-1-34-v6` (which doesn't resolve on our mgmt cluster ; topology controller errors gracefully) and reconcile fine via the rendered KubeadmControlPlane / KubeadmConfigTemplate / HCloudMachineTemplate that came along during `clusterctl move`.
+Not blocking on Syself escape. Run after Phase 6 with no time pressure. The four workload clusters keep operating with `topology.classRef.name: hetzner-apalla-1-34-v6` (which doesn't resolve on our mgmt cluster; topology controller errors gracefully) and reconcile fine via the rendered KubeadmControlPlane / KubeadmConfigTemplate / HCloudMachineTemplate that came along during `clusterctl move`.
 
 What this phase delivers: a `tuist-hcloud` ClusterClass we own, sourced from caph's reference templates plus a port of Apalla's hardening choices we deem load-bearing. After it lands, swap each Cluster's `topology.classRef.name` to `tuist-hcloud`. The swap is a CR edit only when the rendered diff is empty.
 
@@ -635,15 +635,13 @@ Categorize each item from Apalla's rendered KubeadmControlPlane spec:
 
 Score each as keep / drop / defer. The `infra/k8s/clusters/reference-templates/` directory has caph's vanilla starting point; Apalla's full rendered spec is captured in the `clusterctl describe` output saved to `/tmp/syself-pre-move-tree.txt` during Phase 2.1 (or re-pull from the still-running Cluster CRs on our mgmt cluster).
 
-### 7.2 Author the ClusterClass
+### 7.2 Author the ClusterClass ✓ DONE
 
-Save as `infra/k8s/clusters/clusterclass-tuist.yaml`. Two MachineDeployment classes (`hcloud-worker` for general, `hcloud-worker-processor` for the cpx62 pool) or one with overrides ; caller's choice. Pool labels (`node.cluster.x-k8s.io/pool: ...`) propagate from `MachineDeployment.metadata.labels` to nodes via CAPI's built-in machine-to-node label sync; no kubelet patch needed.
+Checked in at [`infra/k8s/clusters/clusterclass-tuist.yaml`](clusters/clusterclass-tuist.yaml) with the per-env Cluster CRs at [`infra/k8s/clusters/cluster-{staging,canary,production,preview}.yaml`](clusters/). See [`infra/k8s/clusters/README.md`](clusters/README.md) for the full list of adaptations from caph's reference (containerd 2.x systemd unit, kubelet config that doesn't get its essentials cleared by the second `--config` flag, placement-group conditional patches, K8s/containerd version pins, namespace scoping, kube-proxy skip, bare-metal stripped).
 
-Convert each `infra/k8s/syself/workload-cluster-*.yaml` to a topology-mode Cluster CR pointing at `tuist-hcloud`. Save as `infra/k8s/clusters/cluster-{staging,canary,production,preview}.yaml`.
+### 7.3 Validate via throwaway 5th cluster ✓ DONE
 
-### 7.3 Validate via throwaway 5th cluster
-
-Spin up `tuist-cc-validation` against the new ClusterClass on the mgmt cluster. Confirm Ready, sanity-check rendered children, delete. ~€1 of Hetzner spend.
+Spin up `tuist-cc-validation` against the new ClusterClass on the mgmt cluster. Confirmed end-to-end: caph provisions Hetzner LB + server, cloud-init runs, containerd 2.2.3 starts, kubeadm init succeeds, all 4 control-plane static pods come up, workload-cluster API responds via the LB, kubeconfig Secret is minted. ~2.3 min from `kubectl apply` to `ControlPlaneInitialized=True`. Cost per validation run: ~€0.30.
 
 ### 7.4 Diff render against current state
 

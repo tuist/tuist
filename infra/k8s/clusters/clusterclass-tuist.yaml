@@ -379,6 +379,13 @@ spec:
             owner: root:root
             path: /etc/kubernetes/resolv.conf
             permissions: "0744"
+          # NOTE: this is the second --config flag passed to kubelet
+          # (the first is /var/lib/kubelet/config.yaml from kubeadm).
+          # The second OVERRIDES the first, so any field omitted here
+          # gets cleared. Critical fields below are required for kubelet
+          # to talk to containerd (containerRuntimeEndpoint), watch
+          # static pods (staticPodPath), and resolve in-cluster DNS
+          # (clusterDNS / clusterDomain).
           - content: |
               apiVersion: kubelet.config.k8s.io/v1beta1
               kind: KubeletConfiguration
@@ -389,13 +396,53 @@ spec:
                   enabled: true
               authorization:
                 mode: Webhook
+              cgroupDriver: systemd
+              clusterDNS:
+                - 10.128.0.10
+              clusterDomain: cluster.local
+              containerRuntimeEndpoint: unix:///var/run/containerd/containerd.sock
               maxPods: 120
               readOnlyPort: 0
               resolvConf: /etc/kubernetes/resolv.conf
               serverTLSBootstrap: true
+              staticPodPath: /etc/kubernetes/manifests
             owner: root:root
             path: /etc/kubernetes/kubelet/config.yaml
             permissions: "0644"
+          # systemd unit for containerd 2.x. Ported from caph's flat
+          # cluster-template-hcloud.yaml; the reference ClusterClass omits
+          # this because it assumed the older cri-containerd-cni- bundle
+          # which shipped a service file. The plain `containerd-` tarball
+          # we install in preKubeadmCommands does not, so without this
+          # `systemctl start containerd` finds no unit and kubeadm init
+          # times out waiting for the CRI socket.
+          - content: |
+              [Unit]
+              Description=containerd container runtime
+              Documentation=https://containerd.io
+              After=network.target local-fs.target dbus.service
+
+              [Service]
+              ExecStartPre=-/sbin/modprobe overlay
+              ExecStart=/usr/local/bin/containerd
+
+              Type=notify
+              Delegate=yes
+              KillMode=process
+              Restart=always
+              RestartSec=5
+
+              LimitNPROC=infinity
+              LimitCORE=infinity
+
+              TasksMax=infinity
+              OOMScoreAdjust=-999
+
+              [Install]
+              WantedBy=multi-user.target
+            owner: root:root
+            path: /etc/systemd/system/containerd.service
+            permissions: "0744"
         initConfiguration:
           # Cilium is the CNI on Tuist's workload clusters and replaces
           # kube-proxy. Skip the kube-proxy addon during cluster init so
@@ -507,6 +554,7 @@ spec:
           owner: root:root
           path: /etc/kubernetes/resolv.conf
           permissions: "0744"
+        # See KCP files block above for why these fields are mandatory.
         - content: |
             apiVersion: kubelet.config.k8s.io/v1beta1
             kind: KubeletConfiguration
@@ -517,13 +565,47 @@ spec:
                 enabled: true
             authorization:
               mode: Webhook
+            cgroupDriver: systemd
+            clusterDNS:
+              - 10.128.0.10
+            clusterDomain: cluster.local
+            containerRuntimeEndpoint: unix:///var/run/containerd/containerd.sock
             maxPods: 220
             readOnlyPort: 0
             resolvConf: /etc/kubernetes/resolv.conf
             serverTLSBootstrap: true
+            staticPodPath: /etc/kubernetes/manifests
           owner: root:root
           path: /etc/kubernetes/kubelet/config.yaml
           permissions: "0644"
+        # See KCP files block above for why this systemd unit is needed.
+        - content: |
+            [Unit]
+            Description=containerd container runtime
+            Documentation=https://containerd.io
+            After=network.target local-fs.target dbus.service
+
+            [Service]
+            ExecStartPre=-/sbin/modprobe overlay
+            ExecStart=/usr/local/bin/containerd
+
+            Type=notify
+            Delegate=yes
+            KillMode=process
+            Restart=always
+            RestartSec=5
+
+            LimitNPROC=infinity
+            LimitCORE=infinity
+
+            TasksMax=infinity
+            OOMScoreAdjust=-999
+
+            [Install]
+            WantedBy=multi-user.target
+          owner: root:root
+          path: /etc/systemd/system/containerd.service
+          permissions: "0744"
       joinConfiguration:
         nodeRegistration:
           kubeletExtraArgs:
