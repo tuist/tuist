@@ -5,6 +5,8 @@ defmodule Tuist.Bundles.Bundle do
 
   import Ecto.Changeset
 
+  alias Tuist.Bundles.Artifact
+
   @derive {
     Flop.Schema,
     filterable: [
@@ -56,12 +58,9 @@ defmodule Tuist.Bundles.Bundle do
         apk: 4
       ]
 
-    # Artifacts live in ClickHouse, so they cannot hang off this PG
-    # schema as a regular Ecto association.
-    field :artifacts, {:array, :map}, virtual: true, default: []
-
     belongs_to :project, Tuist.Projects.Project, type: :integer
     belongs_to :uploaded_by_account, Tuist.Accounts.Account, type: :integer
+    has_many :artifacts, Artifact
 
     timestamps(type: :utc_datetime)
   end
