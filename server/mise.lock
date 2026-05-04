@@ -87,10 +87,6 @@ backend = "npm:appium"
 version = "3.4.2"
 backend = "npm:prettier"
 
-[[tools.pnpm]]
-version = "10.17.1"
-backend = "aqua:pnpm/pnpm"
-
 [[tools.sops]]
 version = "3.9.3"
 backend = "aqua:getsops/sops"

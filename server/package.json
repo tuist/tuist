@@ -23,6 +23,11 @@
       "follow-redirects": "1.16.0",
       "protobufjs": "7.5.5",
       "postcss": "8.5.10"
+    },
+    "allowBuilds": {
+      "core-js": true,
+      "protobufjs": true,
+      "vue-demi": true
     }
   }
 }

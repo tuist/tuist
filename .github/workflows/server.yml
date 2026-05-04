@@ -18,7 +18,7 @@ on:
       - noora/**
       - .github/workflows/server.yml
       - server/pnpm-lock.yaml
-      - pnpm-lock.yaml
+      - noora/aube-lock.yaml
   merge_group: {}
 
 permissions:
@@ -33,7 +33,6 @@ env:
   MISE_GITHUB_TOKEN: ${{ github.token }}
   MIX_ENV: test
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  PNPM_HOME: ~/.pnpm
   MISE_TASK_RUN_AUTO_INSTALL: 0
   MISE_GITHUB_ATTESTATIONS: 0
 
@@ -264,7 +263,7 @@ jobs:
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
-          install_args: "erlang elixir node pnpm npm:prettier"
+          install_args: "erlang elixir node aube npm:prettier"
           cache: "false"
           working_directory: server
       - name: Restore Mix Cache
@@ -276,14 +275,15 @@ jobs:
           key: mix-${{ hashFiles('server/mix.lock') }}
           restore-keys: |
             mix-
-      - name: Restore PNPM Cache
+      - name: Restore Aube Cache
         uses: actions/cache@v4
         with:
           path: |
-            ~/.pnpm/store
-          key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
+            ~/.local/share/aube
+            ~/.cache/aube
+          key: aube-server-${{ hashFiles('server/pnpm-lock.yaml') }}
       - name: Install dependencies
-        run: mix deps.get && pnpm install --ignore-workspace
+        run: mix deps.get && aube install
       - name: Check format
         run: mise run --no-deps format --check
   esbuild:
@@ -299,7 +299,7 @@ jobs:
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
-          install_args: "erlang elixir node pnpm"
+          install_args: "erlang elixir node aube"
           cache: "false"
           working_directory: server
       - name: Restore Mix Cache
@@ -311,18 +311,19 @@ jobs:
           key: mix-${{ hashFiles('server/mix.lock') }}
           restore-keys: |
             mix-
-      - name: Restore PNPM Cache
+      - name: Restore Aube Cache
         uses: actions/cache@v4
         with:
           path: |
-            ~/.pnpm/store
-          key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
+            ~/.local/share/aube
+            ~/.cache/aube
+          key: aube-server-${{ hashFiles('server/pnpm-lock.yaml') }}
       - name: Install dependencies
-        run: mix deps.get && pnpm install --ignore-workspace
+        run: mix deps.get && aube install
       - name: Build noora static assets
         working-directory: noora
         run: |
-          pnpm install
+          aube install
           npx esbuild js/index.js --bundle --minify --sourcemap --format=esm --outfile=./priv/static/noora.js
           npx esbuild css/noora.css --bundle --minify --sourcemap --outfile=./priv/static/noora.css
       - name: Install esbuild
