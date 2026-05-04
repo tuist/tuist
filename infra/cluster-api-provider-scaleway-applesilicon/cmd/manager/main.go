@@ -54,6 +54,7 @@ func main() {
 		apiServerURL                 string
 		nodeIdentityClusterRole      string
 		tartKubeletBinaryPath        string
+		tartTarballPath              string
 		tartKubeletHostCPU           int
 		tartKubeletHostMemory        int
 		tartKubeletMaxPods           int
@@ -75,6 +76,10 @@ func main() {
 	flag.StringVar(&tartKubeletBinaryPath, "tartkubelet-binary-path",
 		envOrDefault("CAPI_TARTKUBELET_BINARY_PATH", "/opt/tart-kubelet/tart-kubelet-darwin-arm64"),
 		"Local path of the darwin/arm64 tart-kubelet binary baked into this image.")
+	flag.StringVar(&tartTarballPath, "tart-tarball-path",
+		envOrDefault("CAPI_TART_TARBALL_PATH", "/opt/tart/tart.tar.gz"),
+		"Local path of the upstream tart.app tarball baked into this image. "+
+			"Pinned by Dockerfile ARG; bumping it is a deliberate operator-image change.")
 	flag.IntVar(&tartKubeletHostCPU, "tartkubelet-host-cpu", 8, "CPU cores tart-kubelet advertises on its Node")
 	flag.IntVar(&tartKubeletHostMemory, "tartkubelet-host-memory-mb", 16384, "Memory MB tart-kubelet advertises on its Node")
 	flag.IntVar(&tartKubeletMaxPods, "tartkubelet-max-pods", 8, "Max concurrent Pods on each Mac mini")
@@ -101,6 +106,14 @@ func main() {
 	}
 	binarySHA := sha256Hex(tartKubeletBinary)
 	setupLog.Info("loaded tart-kubelet binary", "path", tartKubeletBinaryPath, "bytes", len(tartKubeletBinary), "sha", binarySHA)
+
+	tartTarball, err := os.ReadFile(tartTarballPath)
+	if err != nil {
+		setupLog.Error(err, "read tart tarball", "path", tartTarballPath)
+		os.Exit(1)
+	}
+	tartTarballSHA := sha256Hex(tartTarball)
+	setupLog.Info("loaded tart tarball", "path", tartTarballPath, "bytes", len(tartTarball), "sha", tartTarballSHA)
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
@@ -142,6 +155,7 @@ func main() {
 		Kubeconfig:                   kubeconfigBuilder,
 		TartKubeletBinary:            tartKubeletBinary,
 		TartKubeletBinarySHA:         binarySHA,
+		TartTarball:                  tartTarball,
 		TartKubeletHostCPU:           tartKubeletHostCPU,
 		TartKubeletHostMemoryMB:      tartKubeletHostMemory,
 		TartKubeletMaxPods:           tartKubeletMaxPods,

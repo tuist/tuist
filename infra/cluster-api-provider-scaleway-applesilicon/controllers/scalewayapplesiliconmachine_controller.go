@@ -68,6 +68,15 @@ type ScalewayAppleSiliconMachineReconciler struct {
 	// re-uploads + reloads launchd.
 	TartKubeletBinarySHA string
 
+	// TartTarball is the gzipped tar of the upstream `tart.app` bundle
+	// pinned in the operator's Dockerfile and read at startup. Uploaded
+	// to each Mac mini over SSH at first bootstrap. We do not run a
+	// drift loop on the Tart version: a Mac mini already running VMs
+	// can't safely have its hypervisor swapped out from under them, so
+	// upgrading Tart fleet-wide goes through Machine replacement (the
+	// new Mac mini gets the operator-image-pinned Tart on bootstrap).
+	TartTarball []byte
+
 	// TartKubelet host advertising — passed into bootstrap which bakes
 	// them into the launchd plist on each Mac mini.
 	TartKubeletHostCPU      int
@@ -239,6 +248,7 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			NodeName:             machine.Name,
 			Kubeconfig:           kubeconfigYAML,
 			TartKubeletBinary:    r.TartKubeletBinary,
+			TartTarball:          r.TartTarball,
 			HostCPU:              r.TartKubeletHostCPU,
 			HostMemoryMB:         r.TartKubeletHostMemoryMB,
 			MaxPods:              r.TartKubeletMaxPods,

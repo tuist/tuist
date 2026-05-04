@@ -9,7 +9,9 @@
 //   - Auto-login (Virtualization.framework requires a live console).
 //   - Hostname = CR name (so tart-kubelet's default --node-name
 //     lines up with the inventory resource).
-//   - Tart install via Homebrew.
+//   - Tart install (the caller-supplied tart.app tarball pinned in
+//     the operator image is extracted to /usr/local/lib/tart.app
+//     with a /usr/local/bin/tart wrapper).
 //   - Kubeconfig drop + tart-kubelet binary upload + launchd plist.
 //
 // Steps, in order, idempotent on retry:
@@ -18,7 +20,8 @@
 //  3. Configure GUI auto-login via /etc/kcpassword + autoLoginUser
 //     so Virtualization.framework has a live console session.
 //  4. Set the macOS hostname to NodeName.
-//  5. Install Homebrew + Tart.
+//  5. Install Tart by extracting the operator-pinned tart.app tarball
+//     to /usr/local/lib/tart.app + wrapper at /usr/local/bin/tart.
 //  6. Drop the kubeconfig the controller built for this host.
 //  7. Upload the tart-kubelet binary.
 //  8. Write the launchd plist with this host's flags + load it.
@@ -70,6 +73,17 @@ type Config struct {
 	// startup. We upload these bytes over SSH to /usr/local/bin on the
 	// Mac mini — no external URL, no separate release artifact.
 	TartKubeletBinary []byte
+
+	// TartTarball is the gzipped tar of the upstream `tart.app` bundle
+	// (the asset published as `tart.tar.gz` on each cirruslabs/tart
+	// GitHub release), baked into the operator image at build time and
+	// read at startup. We ship the whole `.app` rather than the bare
+	// executable inside it because Tart's signature + Virtualization.
+	// framework entitlements live on the bundle, not the binary alone.
+	// Pinning the version in the operator image makes the Tart version
+	// reproducible across reboots and re-provisions; bumping it is a
+	// deliberate Dockerfile change.
+	TartTarball []byte
 
 	// HostCPU / HostMemoryMB / MaxPods are advertised on the Node.
 	HostCPU      int
@@ -125,7 +139,7 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 			return hk.observed(), fmt.Errorf("set hostname: %w", err)
 		}
 	}
-	if err := installTart(ctx, client); err != nil {
+	if err := installTart(ctx, client, cfg.TartTarball); err != nil {
 		return hk.observed(), fmt.Errorf("install tart: %w", err)
 	}
 	if err := writeKubeconfig(ctx, client, cfg.Kubeconfig); err != nil {
@@ -454,21 +468,34 @@ func encodeKCPassword(password string) string {
 	return b64(src)
 }
 
-// installTart installs Homebrew + Tart on the host. Idempotent.
-func installTart(ctx context.Context, client *ssh.Client) error {
+// installTart unpacks the operator-baked `tart.app` tarball into
+// /usr/local/lib/tart.app and writes a /usr/local/bin/tart wrapper
+// that execs the binary inside the bundle. Idempotent — overwrites on
+// every call, which is fine because the operator image pins the
+// version and a re-run on an already-bootstrapped host is rare.
+//
+// Why a wrapper script instead of a symlink: Tart's
+// Virtualization.framework entitlements are scoped to the .app
+// bundle's signature, so the executable has to be invoked through its
+// bundle path. The wrapper hides that path detail from callers
+// (tart-kubelet, operators SSHing in to debug) which all want a
+// stable `tart` on PATH.
+func installTart(ctx context.Context, client *ssh.Client, tarball []byte) error {
+	if len(tarball) == 0 {
+		return fmt.Errorf("tart tarball is empty")
+	}
 	script := `set -euo pipefail
-if [ ! -x /opt/homebrew/bin/brew ]; then
-    NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-fi
-if ! /opt/homebrew/bin/brew list --formula tart >/dev/null 2>&1; then
-    /opt/homebrew/bin/brew tap cirruslabs/cli >/dev/null 2>&1 || true
-    /opt/homebrew/bin/brew install cirruslabs/cli/tart
-fi
-sudo ln -sf /opt/homebrew/bin/tart /usr/local/bin/tart 2>/dev/null || \
-    (sudo mkdir -p /usr/local/bin && sudo ln -sf /opt/homebrew/bin/tart /usr/local/bin/tart)
-/opt/homebrew/bin/tart --version
+sudo mkdir -p /usr/local/lib /usr/local/bin
+sudo rm -rf /usr/local/lib/tart.app
+sudo tar -xzf - -C /usr/local/lib
+sudo tee /usr/local/bin/tart >/dev/null <<'EOF'
+#!/bin/sh
+exec /usr/local/lib/tart.app/Contents/MacOS/tart "$@"
+EOF
+sudo chmod 0755 /usr/local/bin/tart
+/usr/local/bin/tart --version
 `
-	return runCommand(ctx, client, script)
+	return runCommandWithStdin(ctx, client, script, string(tarball))
 }
 
 // === SSH helpers ===========================================================

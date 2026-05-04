@@ -22,7 +22,9 @@ import (
 // Client wraps the local `tart` binary.
 type Client struct {
 	// Binary is the path to the `tart` CLI on this Mac mini.
-	// Defaults to /opt/homebrew/bin/tart (Homebrew on Apple Silicon).
+	// Defaults to /usr/local/bin/tart, the wrapper script the
+	// CAPI provider's bootstrap step writes around the pinned
+	// tart.app bundle at /usr/local/lib/tart.app.
 	Binary string
 
 	// UserDataDir is the host directory where per-VM env files live.
@@ -39,7 +41,7 @@ type Client struct {
 // New returns a Client with sensible defaults.
 func New() *Client {
 	return &Client{
-		Binary:      "/opt/homebrew/bin/tart",
+		Binary:      "/usr/local/bin/tart",
 		UserDataDir: "/var/lib/tart-userdata",
 		LogDir:      "/var/log/tart-vms",
 	}

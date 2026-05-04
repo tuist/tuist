@@ -60,7 +60,7 @@ func main() {
 	flag.IntVar(&maxPods, "max-pods", 8, "Max concurrent Pods (= concurrent Tart VMs) on this Node.")
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "Prometheus metrics endpoint.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "Liveness/readiness probe endpoint.")
-	flag.StringVar(&tartBinary, "tart-binary", "/opt/homebrew/bin/tart", "Path to the local tart CLI.")
+	flag.StringVar(&tartBinary, "tart-binary", "/usr/local/bin/tart", "Path to the local tart CLI.")
 
 	// `--kubeconfig` is registered automatically by controller-runtime's
 	// init() (sigs.k8s.io/controller-runtime/pkg/client/config). Defining
