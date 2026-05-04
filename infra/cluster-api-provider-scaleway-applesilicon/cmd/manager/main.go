@@ -134,14 +134,15 @@ func main() {
 	}
 
 	if err := (&controllers.ScalewayAppleSiliconMachineReconciler{
-		Client:                  mgr.GetClient(),
-		Scheme:                  mgr.GetScheme(),
-		ScalewayClient:          scwClient,
-		CredentialsManager:      credsManager,
-		Kubeconfig:              kubeconfigBuilder,
-		TartKubeletBinary:       tartKubeletBinary,
-		TartKubeletBinarySHA:    binarySHA,
-		TartKubeletHostCPU:      tartKubeletHostCPU,
+		Client:                       mgr.GetClient(),
+		Scheme:                       mgr.GetScheme(),
+		ScalewayClient:               scwClient,
+		CredentialsManager:           credsManager,
+		Recorder:                     mgr.GetEventRecorderFor("scalewayapplesiliconmachine-controller"),
+		Kubeconfig:                   kubeconfigBuilder,
+		TartKubeletBinary:            tartKubeletBinary,
+		TartKubeletBinarySHA:         binarySHA,
+		TartKubeletHostCPU:           tartKubeletHostCPU,
 		TartKubeletHostMemoryMB:      tartKubeletHostMemory,
 		TartKubeletMaxPods:           tartKubeletMaxPods,
 		TartKubeletMaxUpdateAttempts: int32(tartKubeletMaxUpdateAttempts),

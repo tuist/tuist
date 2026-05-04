@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/go-logr/logr"
+	"k8s.io/client-go/tools/record"
 
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/api/v1alpha1"
 )
@@ -16,9 +17,16 @@ import (
 // terminal transition entirely (escape hatch documented on the
 // flag).
 
+// fakeRecorder is the FakeRecorder from client-go but its full
+// import path is a mouthful and tests don't read the events back —
+// just need a recorder that doesn't panic on Eventf.
+func fakeRecorder() record.EventRecorder {
+	return record.NewFakeRecorder(32)
+}
+
 func TestRecordUpdateFailure_IncrementsAttempts(t *testing.T) {
 	machine := &infrav1.ScalewayAppleSiliconMachine{}
-	recordUpdateFailure(machine, errors.New("boom"), 5, logr.Discard())
+	recordUpdateFailure(machine, errors.New("boom"), 5, logr.Discard(), fakeRecorder())
 	if machine.Status.TartKubeletUpdateAttempts != 1 {
 		t.Fatalf("attempts: got %d, want 1", machine.Status.TartKubeletUpdateAttempts)
 	}
@@ -30,7 +38,7 @@ func TestRecordUpdateFailure_IncrementsAttempts(t *testing.T) {
 func TestRecordUpdateFailure_TransitionsToFailedAtCap(t *testing.T) {
 	machine := &infrav1.ScalewayAppleSiliconMachine{}
 	for i := 0; i < 5; i++ {
-		recordUpdateFailure(machine, errors.New("boom"), 5, logr.Discard())
+		recordUpdateFailure(machine, errors.New("boom"), 5, logr.Discard(), fakeRecorder())
 	}
 	if machine.Status.TartKubeletUpdateAttempts != 5 {
 		t.Fatalf("attempts: got %d, want 5", machine.Status.TartKubeletUpdateAttempts)
@@ -52,7 +60,7 @@ func TestRecordUpdateFailure_TransitionsToFailedAtCap(t *testing.T) {
 func TestRecordUpdateFailure_DoesNotTransitionBeforeCap(t *testing.T) {
 	machine := &infrav1.ScalewayAppleSiliconMachine{}
 	for i := 0; i < 4; i++ {
-		recordUpdateFailure(machine, errors.New("boom"), 5, logr.Discard())
+		recordUpdateFailure(machine, errors.New("boom"), 5, logr.Discard(), fakeRecorder())
 	}
 	if machine.Status.FailureReason != nil {
 		t.Fatalf("did not expect terminal failure on attempt 4; got %q", *machine.Status.FailureReason)
@@ -62,7 +70,7 @@ func TestRecordUpdateFailure_DoesNotTransitionBeforeCap(t *testing.T) {
 func TestRecordUpdateFailure_DisabledCap(t *testing.T) {
 	machine := &infrav1.ScalewayAppleSiliconMachine{}
 	for i := 0; i < 100; i++ {
-		recordUpdateFailure(machine, errors.New("boom"), 0, logr.Discard())
+		recordUpdateFailure(machine, errors.New("boom"), 0, logr.Discard(), fakeRecorder())
 	}
 	if machine.Status.TartKubeletUpdateAttempts != 100 {
 		t.Fatalf("attempts: got %d, want 100", machine.Status.TartKubeletUpdateAttempts)

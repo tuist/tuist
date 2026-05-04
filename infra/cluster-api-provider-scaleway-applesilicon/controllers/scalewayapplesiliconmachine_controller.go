@@ -8,8 +8,10 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/tools/record"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util/conditions"
 	"sigs.k8s.io/cluster-api/util/patch"
@@ -42,6 +44,13 @@ type ScalewayAppleSiliconMachineReconciler struct {
 	Scheme             *runtime.Scheme
 	ScalewayClient     *scaleway.Client
 	CredentialsManager *credentials.Manager
+
+	// Recorder emits Events on lifecycle transitions. `kubectl describe
+	// scalewayapplesiliconmachine` then shows a tail-followable timeline
+	// of state changes alongside the static Conditions block, which is
+	// the difference between "I can see this is broken" and "I can see
+	// what step it's currently doing" while a Mac mini is mid-bootstrap.
+	Recorder record.EventRecorder
 
 	// Kubeconfig builds the per-host kubeconfig the bootstrap installs.
 	// Required for tart-kubelet to authenticate to the cluster.
@@ -144,6 +153,8 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 	// Stage 1: ensure the Scaleway server exists.
 	if machine.Status.ServerID == "" {
 		machine.Status.Phase = "Provisioning"
+		r.Recorder.Eventf(machine, corev1.EventTypeNormal, "Provisioning",
+			"Ordering %s Mac mini in zone %s", machine.Spec.Type, machine.Spec.Zone)
 		srv, err := r.ScalewayClient.CreateServer(
 			ctx,
 			machine.Name,
@@ -154,6 +165,8 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 		if err != nil {
 			conditions.MarkFalse(machine, ProvisionedCondition, "ScalewayCreateFailed",
 				clusterv1.ConditionSeverityError, "%v", err)
+			r.Recorder.Eventf(machine, corev1.EventTypeWarning, "ProvisioningFailed",
+				"Scaleway CreateServer: %v", err)
 			return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
 		}
 
@@ -172,9 +185,13 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 		if err := r.CredentialsManager.SetMachineCredentials(ctx, machine.Name, srv.SudoPassword, srv.SSHUsername); err != nil {
 			conditions.MarkFalse(machine, ProvisionedCondition, "CredentialsPersistFailed",
 				clusterv1.ConditionSeverityError, "%v", err)
+			r.Recorder.Eventf(machine, corev1.EventTypeWarning, "ProvisioningFailed",
+				"persist machine credentials: %v", err)
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 		}
 		conditions.MarkTrue(machine, ProvisionedCondition)
+		r.Recorder.Eventf(machine, corev1.EventTypeNormal, "Provisioned",
+			"Mac mini %s ordered, IP=%s", srv.ID, srv.IP)
 		logger.Info("provisioned Scaleway Mac mini", "id", srv.ID, "ip", srv.IP)
 	}
 
@@ -193,6 +210,8 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 	// left off).
 	if !conditions.IsTrue(machine, BootstrappedCondition) {
 		machine.Status.Phase = "Bootstrapping"
+		r.Recorder.Eventf(machine, corev1.EventTypeNormal, "Bootstrapping",
+			"Installing Tart + tart-kubelet on %s", machineIP(machine))
 
 		ip := machineIP(machine)
 		if ip == "" {
@@ -238,10 +257,14 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 		if err != nil {
 			conditions.MarkFalse(machine, BootstrappedCondition, "BootstrapFailed",
 				clusterv1.ConditionSeverityWarning, "%v", err)
+			r.Recorder.Eventf(machine, corev1.EventTypeWarning, "BootstrapFailed",
+				"%v (will retry)", err)
 			return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
 		}
 
 		conditions.MarkTrue(machine, BootstrappedCondition)
+		r.Recorder.Eventf(machine, corev1.EventTypeNormal, "Bootstrapped",
+			"Mac mini joined cluster as Node %s", machine.Name)
 		logger.Info("bootstrap complete", "host", ip)
 	}
 
@@ -271,7 +294,7 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 		}
 		identity, err := r.CredentialsManager.EnsureNodeIdentity(ctx, machine.Name)
 		if err != nil {
-			recordUpdateFailure(machine, fmt.Errorf("ensure node identity: %w", err), r.TartKubeletMaxUpdateAttempts, logger)
+			recordUpdateFailure(machine, fmt.Errorf("ensure node identity: %w", err), r.TartKubeletMaxUpdateAttempts, logger, r.Recorder)
 			if machine.Status.FailureReason != nil {
 				return ctrl.Result{}, nil
 			}
@@ -279,7 +302,7 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 		}
 		kubeconfigYAML, err := r.Kubeconfig.Render(ctx, machine.Name, identity.Token, identity.CA)
 		if err != nil {
-			recordUpdateFailure(machine, fmt.Errorf("render kubeconfig: %w", err), r.TartKubeletMaxUpdateAttempts, logger)
+			recordUpdateFailure(machine, fmt.Errorf("render kubeconfig: %w", err), r.TartKubeletMaxUpdateAttempts, logger, r.Recorder)
 			if machine.Status.FailureReason != nil {
 				return ctrl.Result{}, nil
 			}
@@ -303,7 +326,7 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			}
 		}
 		if err != nil {
-			recordUpdateFailure(machine, fmt.Errorf("tart-kubelet update: %w", err), r.TartKubeletMaxUpdateAttempts, logger)
+			recordUpdateFailure(machine, fmt.Errorf("tart-kubelet update: %w", err), r.TartKubeletMaxUpdateAttempts, logger, r.Recorder)
 			if machine.Status.FailureReason != nil {
 				return ctrl.Result{}, nil
 			}
@@ -311,6 +334,8 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 		}
 		machine.Status.TartKubeletBinarySHA = r.TartKubeletBinarySHA
 		machine.Status.TartKubeletUpdateAttempts = 0
+		r.Recorder.Eventf(machine, corev1.EventTypeNormal, "AgentRolled",
+			"Rolled tart-kubelet to %s", r.TartKubeletBinarySHA)
 		logger.Info("rolled new tart-kubelet", "host", ip, "sha", r.TartKubeletBinarySHA)
 	}
 
@@ -332,11 +357,17 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileDelete(
 	machine.Status.Phase = "Deleting"
 
 	if machine.Status.ServerID != "" {
+		r.Recorder.Eventf(machine, corev1.EventTypeNormal, "Deleting",
+			"Releasing Scaleway server %s", machine.Status.ServerID)
 		if err := r.ScalewayClient.DeleteServer(ctx, machine.Status.ServerID, machine.Spec.Zone); err != nil {
 			logger.Error(err, "Scaleway delete failed; will retry")
+			r.Recorder.Eventf(machine, corev1.EventTypeWarning, "DeleteFailed",
+				"Scaleway DeleteServer: %v (will retry)", err)
 			return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
 		}
 		machine.Status.ServerID = ""
+		r.Recorder.Eventf(machine, corev1.EventTypeNormal, "Deleted",
+			"Scaleway server released")
 	}
 
 	controllerutil.RemoveFinalizer(machine, MachineFinalizer)
@@ -353,7 +384,7 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileDelete(
 // landing on the host counts the same. Recovery is operator-driven:
 // `kubectl patch` to clear status.failureReason + zero
 // status.tartKubeletUpdateAttempts and the loop resumes.
-func recordUpdateFailure(machine *infrav1.ScalewayAppleSiliconMachine, err error, maxAttempts int32, logger logr.Logger) {
+func recordUpdateFailure(machine *infrav1.ScalewayAppleSiliconMachine, err error, maxAttempts int32, logger logr.Logger, recorder record.EventRecorder) {
 	machine.Status.TartKubeletUpdateAttempts++
 	logger.Error(err, "tart-kubelet update step failed",
 		"attempt", machine.Status.TartKubeletUpdateAttempts,
@@ -365,9 +396,14 @@ func recordUpdateFailure(machine *infrav1.ScalewayAppleSiliconMachine, err error
 		machine.Status.FailureReason = &reason
 		machine.Status.FailureMessage = &msg
 		machine.Status.Phase = "Failed"
+		recorder.Eventf(machine, corev1.EventTypeWarning, reason, "%s", msg)
 		logger.Error(err, "tart-kubelet update permanently failed; CR transitioned to Failed",
 			"attempts", machine.Status.TartKubeletUpdateAttempts)
+		return
 	}
+	recorder.Eventf(machine, corev1.EventTypeWarning, "AgentRollFailed",
+		"tart-kubelet update attempt %d/%d: %v",
+		machine.Status.TartKubeletUpdateAttempts, maxAttempts, err)
 }
 
 func machineIP(m *infrav1.ScalewayAppleSiliconMachine) string {

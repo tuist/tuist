@@ -189,26 +189,7 @@ is released back to Scaleway after the operator's delete reconcile.
 ### Investigate a failure
 ```bash
 kubectl describe scalewayapplesiliconmachine <name>
-# Check the Conditions: Provisioned / Bootstrapped / NodeReady
+# Check Conditions (Provisioned / Bootstrapped) and Events (lifecycle
+# transitions, drift-loop attempts, terminal-failure transitions)
 kubectl get events --field-selector involvedObject.kind=ScalewayAppleSiliconMachine
 ```
-
-## What's not implemented yet
-
-- **Per-host pod CIDR allocation.** Today the chart hand-assigns each
-  fleet a single pod CIDR; if you scale beyond 1 replica with the
-  same CIDR, the second host's CNI plugin will allocate IPs from the
-  same range (collisions). Options to fix: (a) bumped to a CIDR
-  manager controller in the operator, (b) per-Machine CIDR
-  annotation that the chart pre-computes, (c) Calico/Cilium IPAM
-  delegated to the cluster's existing CNI. (a) is the right
-  long-term answer; (b) is the cheap interim. Watch this space when
-  the fleet grows past 1 replica per env.
-- **Cross-host pod-to-pod routing.** Lives at the tart-cni layer, not
-  the CAPI provider. See `infra/tart-cri/AGENTS.md`.
-- **Webhooks for validation.** CRD-level OpenAPI schema catches
-  obvious shape errors; semantic validation (e.g. valid Scaleway
-  zone) happens at reconcile time, returning a Failed condition.
-- **Events for in-progress lifecycle stages.** Today `kubectl describe
-  machine` shows Conditions; explicit `Event` objects per state
-  transition would make tail-following easier.
