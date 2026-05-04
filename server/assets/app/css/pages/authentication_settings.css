@@ -108,8 +108,8 @@
         }
 
         & [data-part="read-only-value"] {
-          max-width: 100%;
           width: fit-content;
+          max-width: 100%;
 
           & > code {
             flex-grow: 0;
@@ -148,8 +148,8 @@
 
   & #scim-tokens-table {
     & table {
-      table-layout: fixed;
       min-width: 0;
+      table-layout: fixed;
     }
 
     & th:first-child {

@@ -28,8 +28,7 @@ function legacyCopyTextToClipboard(text, container = document.body) {
 }
 
 export function copyTextToClipboard(text, options = {}) {
-  const container =
-    options.container instanceof HTMLElement ? options.container : document.body;
+  const container = options.container instanceof HTMLElement ? options.container : document.body;
 
   return legacyCopyTextToClipboard(text, container).catch((legacyError) => {
     if (navigator.clipboard?.writeText && window.isSecureContext) {
