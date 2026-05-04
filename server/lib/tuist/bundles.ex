@@ -7,11 +7,14 @@ defmodule Tuist.Bundles do
 
   alias Tuist.Bundles.Artifact
   alias Tuist.Bundles.Bundle
+  alias Tuist.Bundles.BundleIngest
   alias Tuist.Bundles.BundleThreshold
   alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
   alias Tuist.Projects.Project
   alias Tuist.Repo
+
+  require Logger
 
   @doc """
   Creates a bundle with associated artifacts.
@@ -20,6 +23,13 @@ defmodule Tuist.Bundles do
   to ClickHouse. Both writes happen inside a single PG transaction so an
   exception from the ClickHouse insert (e.g. transient outage) rolls back
   the bundle insert; the caller sees the underlying error and can retry.
+
+  Once the transaction commits, the bundle row is shadow-written to the
+  ClickHouse `bundles` table. PostgreSQL remains the source of truth for
+  bundle reads in this phase, so a ClickHouse outage on the shadow write
+  is logged and the row's `replicated_to_ch` flag is flipped to `false`
+  so the eventual backfill picks it up; the caller still observes a
+  successful create.
   """
   def create_bundle(attrs \\ %{}, opts \\ []) do
     {artifacts, bundle_attrs} = Map.pop(attrs, :artifacts, [])
@@ -38,6 +48,7 @@ defmodule Tuist.Bundles do
 
     case result do
       {:ok, %{bundle: bundle}} ->
+        replicate_bundle_to_clickhouse(bundle)
         {:ok, Repo.preload(bundle, preload)}
 
       {:error, :bundle, changeset, _} ->
@@ -50,6 +61,24 @@ defmodule Tuist.Bundles do
   defp insert_artifacts_to_clickhouse(flattened) do
     IngestRepo.insert_all(Artifact, flattened)
     :ok
+  end
+
+  defp replicate_bundle_to_clickhouse(%Bundle{} = bundle) do
+    bundle
+    |> BundleIngest.from_bundle()
+    |> BundleIngest.Buffer.insert()
+
+    :ok
+  rescue
+    error ->
+      Logger.error("Failed to dual-write bundle #{bundle.id} to ClickHouse: #{Exception.message(error)}")
+
+      Repo.update_all(
+        from(b in Bundle, where: b.id == ^bundle.id),
+        set: [replicated_to_ch: false]
+      )
+
+      :ok
   end
 
   @doc """

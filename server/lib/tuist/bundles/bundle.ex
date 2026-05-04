@@ -58,6 +58,8 @@ defmodule Tuist.Bundles.Bundle do
         apk: 4
       ]
 
+    field :replicated_to_ch, :boolean, default: true
+
     belongs_to :project, Tuist.Projects.Project, type: :integer
     belongs_to :uploaded_by_account, Tuist.Accounts.Account, type: :integer
     has_many :artifacts, Artifact
