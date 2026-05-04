@@ -1,16 +1,14 @@
 defmodule Tuist.IngestRepo.Migrations.DropPgArtifactsTableAndReplicationFlag do
   @moduledoc """
-  Phase 4 of the PG → CH `artifacts` migration started in #10493 and
-  continued in #10509.
+  Drops the `artifacts` table and the `bundles.artifacts_replicated_to_ch`
+  column from PostgreSQL.
 
-  Lives in the IngestRepo migrations directory so it runs after the
-  phase-2 backfill (`20260428120000_backfill_artifacts_from_postgres`)
-  on fresh DBs that replay every migration from scratch. `mix ecto.migrate`
+  Lives in the IngestRepo migrations directory because `mix ecto.migrate`
   iterates configured repos in `:ecto_repos` order — Tuist.Repo first,
-  Tuist.IngestRepo second — so a sibling Repo-side migration at any
-  timestamp would otherwise drop the column before the backfill could
-  replay against it. Same precedent as the backfill itself, which is an
-  IngestRepo migration that drives PG via `Tuist.Repo.query!/2`.
+  Tuist.IngestRepo second — so any cross-DB ordering between PG schema
+  changes and IngestRepo migrations that touch PG (via
+  `Tuist.Repo.query!/2`) needs to be expressed as timestamp ordering
+  inside `priv/ingest_repo/migrations/`.
   """
 
   use Ecto.Migration

@@ -56,9 +56,8 @@ defmodule Tuist.Bundles.Bundle do
         apk: 4
       ]
 
-    # Artifacts live in ClickHouse — `Tuist.Bundles.Artifact` cannot be
-    # an `Ecto.Schema` association on a PG schema. Populated via virtual
-    # field by `Tuist.Bundles.create_bundle/2` and `Tuist.Bundles.get_bundle/2`.
+    # Artifacts live in ClickHouse, so they cannot hang off this PG
+    # schema as a regular Ecto association.
     field :artifacts, {:array, :map}, virtual: true, default: []
 
     belongs_to :project, Tuist.Projects.Project, type: :integer

@@ -84,9 +84,9 @@ defmodule Tuist.Bundles do
     |> Enum.map(&decode_artifact_type/1)
   end
 
-  # ClickHouse stores `artifact_type` as `LowCardinality(String)`; the rest
-  # of the codebase (filters, comparisons, JSON serialization) expects the
-  # historical PG `Ecto.Enum` atom shape, so normalize at the read boundary.
+  # ClickHouse stores `artifact_type` as `LowCardinality(String)`; filters,
+  # comparisons, and JSON serialization throughout the codebase work with
+  # atoms, so normalize at the read boundary.
   defp decode_artifact_type(%{artifact_type: type} = artifact) when is_binary(type) do
     %{artifact | artifact_type: String.to_existing_atom(type)}
   end

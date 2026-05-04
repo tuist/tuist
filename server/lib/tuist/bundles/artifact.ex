@@ -3,9 +3,7 @@ defmodule Tuist.Bundles.Artifact do
   ClickHouse-backed schema for bundle artifacts.
 
   Reads go through `Tuist.ClickHouseRepo`; writes go through
-  `Tuist.IngestRepo` (see `Tuist.Bundles.create_bundle/2`). The legacy
-  PostgreSQL `artifacts` table was dropped in favor of CH so the `size`
-  column can hold values larger than `Int32`.
+  `Tuist.IngestRepo` (see `Tuist.Bundles.create_bundle/2`).
   """
 
   use Ecto.Schema
