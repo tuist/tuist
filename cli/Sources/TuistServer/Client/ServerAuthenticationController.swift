@@ -327,6 +327,14 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
             Logger.current.debug("Refreshing authentication token for \(serverURL) if needed")
         #endif
 
+        if forceRefresh, locking {
+            return try await cachedValueStore.getValue(
+                key: forceRefreshLockKey(serverURL: serverURL)
+            ) {
+                try await executeRefresh(serverURL: serverURL, forceRefresh: true)
+            }
+        }
+
         let fetchActionResult = { () async throws -> AuthenticationToken? in
             switch try await tokenStatus(serverURL: serverURL, forceRefresh: false) {
             case let .valid(token):
@@ -366,9 +374,9 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
                         case .project:
                             return (token, nil as Date?)
                         case let .account(accessToken):
-                            return (token, accessToken.expiryDate)
+                            return (token, cacheExpirationDate(for: accessToken))
                         case let .user(accessToken: accessToken, refreshToken: _):
-                            return (token, accessToken.expiryDate)
+                            return (token, cacheExpirationDate(for: accessToken))
                         }
                     }
                 #else
@@ -394,9 +402,9 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
                     case .project:
                         return (token, nil as Date?)
                     case let .account(accessToken):
-                        return (token, accessToken.expiryDate)
+                        return (token, cacheExpirationDate(for: accessToken))
                     case let .user(accessToken: accessToken, refreshToken: _):
-                        return (token, accessToken.expiryDate)
+                        return (token, cacheExpirationDate(for: accessToken))
                     }
                 }
             #else
@@ -540,7 +548,7 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
                 upToDateToken = token
             case let .account(accessToken):
                 upToDateToken = token
-                expiresAt = accessToken.expiryDate
+                expiresAt = cacheExpirationDate(for: accessToken)
             case let .user(
                 accessToken, refreshToken
             ):
@@ -571,18 +579,18 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
                     #if canImport(TuistSupport)
                         Logger.current.debug("Access token refreshed for \(serverURL)")
                     #endif
+                    let accessToken = try JWT.parse(tokens.accessToken)
                     upToDateToken = .user(
-                        accessToken: try JWT.parse(tokens.accessToken),
+                        accessToken: accessToken,
                         refreshToken: try JWT.parse(tokens.refreshToken)
                     )
-                    expiresAt = try JWT.parse(tokens.accessToken)
-                        .expiryDate
+                    expiresAt = cacheExpirationDate(for: accessToken)
                 } else {
                     upToDateToken = .user(
                         accessToken: accessToken,
                         refreshToken: refreshToken
                     )
-                    expiresAt = accessToken.expiryDate
+                    expiresAt = cacheExpirationDate(for: accessToken)
                 }
             }
 
@@ -608,6 +616,14 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
         "token_\(serverURL.absoluteString)"
     }
 
+    private func forceRefreshLockKey(serverURL: URL) async throws -> String {
+        guard let token = try await fetchTokenFromStore(serverURL: serverURL) else {
+            return "\(lockKey(serverURL: serverURL))_force_refresh_absent"
+        }
+
+        return "\(lockKey(serverURL: serverURL))_force_refresh_\(stableHash(token.value))"
+    }
+
     private func fetchTokenFromStore(serverURL: URL) async throws -> AuthenticationToken? {
         let credentials: ServerCredentials? = try await ServerCredentialsStore.current.read(
             serverURL: serverURL
@@ -623,6 +639,17 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
                 )
             }
         }
+    }
+
+    private func stableHash(_ value: String) -> String {
+        let hash = value.utf8.reduce(UInt64(14_695_981_039_346_656_037)) { hash, byte in
+            (hash ^ UInt64(byte)) &* 1_099_511_628_211
+        }
+        return String(hash, radix: 16)
+    }
+
+    private func cacheExpirationDate(for token: JWT) -> Date {
+        token.expiryDate.addingTimeInterval(-30)
     }
 
     private func environmentToken() async throws -> AuthenticationToken? {
