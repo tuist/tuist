@@ -253,7 +253,7 @@
           }
 
           & > code {
-            border-radius: var(--noora-radius-small);
+            border-radius: var(--noora-radius-2);
             background: var(--noora-surface-background-secondary);
             padding: 1px 6px;
             font-size: 12px;

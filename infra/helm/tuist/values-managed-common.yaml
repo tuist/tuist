@@ -3,8 +3,9 @@
 # traffic flows through cert-manager + Cloudflare DNS-01 TLS and an ingress-nginx
 # LoadBalancer backed by the cloud provider's managed LB.
 #
-# This file is layered under values-managed-staging.yaml / values-managed-production.yaml;
-# those overlays tune replica count, host names, and any environment-specific knobs.
+# This file is layered under values-managed-staging.yaml /
+# values-managed-canary.yaml / values-managed-production.yaml; those overlays
+# tune replica count, host names, and any environment-specific knobs.
 
 global:
   commonLabels:
@@ -90,18 +91,21 @@ server:
     enabled: true
     asHook: true
     backoffLimit: 3
-    # Without a memory request the migration pod is the first thing
-    # kubelet evicts when a node hits the 300Mi pressure threshold,
-    # which is what killed the artifacts-backfill rollout. The limit
-    # bounds a runaway backfill so it self-terminates instead of
-    # taking the node's other pods down with it.
+    # Keep a non-zero memory request so the migration pod isn't the first
+    # thing kubelet evicts under node pressure. Production has room for this
+    # default; staging/canary override the request lower so the pre-upgrade
+    # hook still schedules on their smaller two-worker clusters. The 4Gi
+    # limit gives the artifact backfill (which streams chunks but still
+    # carries the BEAM, the PG cursor, and the CH client) headroom over
+    # its tens-of-MB working set, while still bounding a runaway so it
+    # self-terminates instead of taking the node's other pods down.
     resources:
       requests:
         cpu: "250m"
         memory: "1Gi"
       limits:
         cpu: "1000m"
-        memory: "2Gi"
+        memory: "4Gi"
 
   # HTTP probes all hit /ready. startupProbe covers the ~30-60s Phoenix boot
   # and the OTel / Sentry init latency we occasionally see in prod.

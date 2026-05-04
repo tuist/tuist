@@ -2415,5 +2415,48 @@ defmodule Tuist.Tests.AnalyticsTest do
       assert ci_only.count == 1
       assert local_only.count == 1
     end
+
+    # The day-grain MV is too coarse for hourly buckets — a test case that
+    # ran later in the day must not appear in earlier hourly buckets, and the
+    # count must change hour-to-hour as the rolling window shifts. The
+    # `:hour` branch falls back to the raw `test_case_runs` query.
+    test "uses second-precise window for hourly buckets (last-24-hours preset)" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 12:00:00Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      tc_id = UUIDv7.generate()
+
+      # Test case ran at 09:30 today — should be visible from the 10:00 bucket
+      # onward, but not from the 09:00 bucket (which ends at 09:59:59 — the
+      # run is at 09:30, so it would actually be in 09:00's bucket via the
+      # raw query if endpoint is ≥ 09:30; we choose 08:00 to make the assert
+      # unambiguous).
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: tc_id,
+        ran_at: ~N[2024-04-30 09:30:00.000000]
+      )
+
+      # When — hourly chart spanning the past 24 hours
+      got =
+        Analytics.test_cases_count_analytics(
+          project.id,
+          start_datetime: ~U[2024-04-29 12:00:00Z],
+          end_datetime: ~U[2024-04-30 12:00:00Z]
+        )
+
+      # Then — the bucket whose endpoint is before 09:30 must report 0; the
+      # bucket whose endpoint is after must report 1. With the day-grain MV
+      # both buckets would return the same value (counting the 09:30 run for
+      # the entire day), which is what this test guards against.
+      bucket_at = fn datetime ->
+        idx = Enum.find_index(got.dates, &(DateTime.compare(&1, datetime) == :eq))
+        Enum.at(got.values, idx)
+      end
+
+      assert bucket_at.(~U[2024-04-30 08:00:00Z]) == 0
+      assert bucket_at.(~U[2024-04-30 10:00:00Z]) == 1
+    end
   end
 end

@@ -40,6 +40,19 @@ server:
       cpu: "2000m"
       memory: "2Gi"
 
+  # The migration hook runs before Helm can roll any workload pods, so it
+  # must fit next to the steady-state canary server, processor, Redis, and
+  # telemetry pods on the 2-worker cluster. `Tuist.Release.migrate` only
+  # loads the app config and runs Ecto migrations (no Phoenix endpoint, no
+  # Oban, pool size 1), so peak working set is around 150-250Mi. Match the
+  # canary server's request so the hook fits whenever the server fits;
+  # the common 4Gi limit absorbs long-running data-backfill spikes.
+  migrationJob:
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "200Mi"
+
   extraEnv:
     # Selects which priv/secrets/<env>.yml.enc file the app decrypts at
     # boot. Image is env-agnostic (built with MIX_ENV=prod); this flag

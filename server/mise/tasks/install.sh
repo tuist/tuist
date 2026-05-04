@@ -35,12 +35,10 @@ bootstrap_clickhouse_database() {
 }
 
 mix deps.get
-pnpm install --ignore-workspace
-pushd .. >/dev/null
-pnpm install --filter noora
-popd >/dev/null
+aube install
 pushd ../noora >/dev/null
-pnpm run build
+aube install
+aube run build
 popd >/dev/null
 
 if [ -z "${CI:-}" ]; then

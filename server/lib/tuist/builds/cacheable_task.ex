@@ -3,6 +3,7 @@ defmodule Tuist.Builds.CacheableTask do
   A cacheable task represents a cache hit or miss for a compilation task in a build run.
   """
   use Ecto.Schema
+  use Tuist.Ingestion.Bufferable
 
   @derive {
     Flop.Schema,

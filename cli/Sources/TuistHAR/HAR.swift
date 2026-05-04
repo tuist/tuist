@@ -413,10 +413,11 @@ public enum HAR { // swiftlint:disable:this type_body_length
     /// Encodes a HAR log to JSON data.
     public static func encode(_ log: Log) throws -> Data {
         let encoder = JSONEncoder()
+        let formatter = dateFormatter
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         encoder.dateEncodingStrategy = .custom { date, encoder in
             var container = encoder.singleValueContainer()
-            try container.encode(dateFormatter.string(from: date))
+            try container.encode(formatter.string(from: date))
         }
         return try encoder.encode(["log": log])
     }
@@ -424,10 +425,11 @@ public enum HAR { // swiftlint:disable:this type_body_length
     /// Decodes a HAR log from JSON data.
     public static func decode(from data: Data) throws -> Log {
         let decoder = JSONDecoder()
+        let formatter = dateFormatter
         decoder.dateDecodingStrategy = .custom { decoder in
             let container = try decoder.singleValueContainer()
             let dateString = try container.decode(String.self)
-            if let date = dateFormatter.date(from: dateString) {
+            if let date = formatter.date(from: dateString) {
                 return date
             }
             let fallbackFormatter = ISO8601DateFormatter()

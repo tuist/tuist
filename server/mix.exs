@@ -13,7 +13,7 @@ defmodule Tuist.MixProject do
       releases: releases(),
       aliases: aliases(),
       deps: deps(),
-      compilers: [:boundary] ++ Mix.compilers(),
+      compilers: compilers(Mix.env()),
       listeners: [Phoenix.CodeReloader]
     ]
   end
@@ -32,6 +32,10 @@ defmodule Tuist.MixProject do
   defp elixirc_paths(:test), do: ["lib", "test/support", "credo"]
   defp elixirc_paths(:dev), do: ["lib", "credo"]
   defp elixirc_paths(_), do: ["lib"]
+
+  # Boundary verifies a large module graph and makes content edits slow in dev.
+  defp compilers(:dev), do: Mix.compilers()
+  defp compilers(_env), do: [:boundary] ++ Mix.compilers()
 
   # Specifies your project dependencies.
   #
@@ -196,11 +200,11 @@ defmodule Tuist.MixProject do
       ],
       test: ["ecto.create --quiet", "run priv/repo/timezone.exs", "ecto.migrate --quiet", "test"],
       "assets.setup": [
-        "cmd --cd .. pnpm install --filter noora",
+        "cmd --cd ../noora aube install",
         "esbuild.install --if-missing"
       ],
       "assets.build": [
-        "cmd --cd ../noora pnpm run build",
+        "cmd --cd ../noora aube run build",
         "esbuild app",
         "esbuild marketing",
         "esbuild docs",

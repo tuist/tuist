@@ -62,7 +62,7 @@
       flex: 1 0 0;
       flex-direction: column;
       box-sizing: border-box;
-      border-radius: var(--noora-radius-large);
+      border-radius: var(--noora-radius-4);
       padding: var(--noora-spacing-5);
       min-height: 196px;
 

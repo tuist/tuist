@@ -2,7 +2,9 @@ import ArgumentParser
 import Path
 import TuistSupport
 
-public struct CacheStartCommand: AsyncParsableCommand {
+public struct CacheStartCommand: AsyncParsableCommand, HARRecordingCommand {
+    public var shouldRecordHAR: Bool { false }
+
     public init() {}
     public static let configuration = CommandConfiguration(
         commandName: "cache-start",

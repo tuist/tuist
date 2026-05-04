@@ -51,12 +51,12 @@ The following data is stored in ClickHouse for analytics purposes:
 - **Shard runs** (`shard_runs` table): Per-shard execution results with status and duration
 - **Test runs** (`test_runs` table): Includes `shard_plan_id` linking test results to their shard plan
 - **Bundle artifacts** (`artifacts` table): App bundle artifact tree (paths, sizes, SHA hashes, parent/child hierarchy) per uploaded bundle.
+- **Active test cases daily stats** (`test_case_runs_active_daily_stats` materialized view): Pre-aggregated `uniqExactState(test_case_id)` per (`project_id`, `date`, `is_ci`) derived from `test_case_runs`. Powers the Test Cases analytics chart; contains no data not already covered by the source `test_case_runs` table.
 - Build performance metrics
 
 ### Non-Exportable Data
 - Encrypted passwords and authentication secrets
 - Encrypted SSO client secrets for Okta and custom OAuth2 providers
-- Internal replication bookkeeping (e.g., `bundles.artifacts_replicated_to_ch`) used to drive the PG → ClickHouse artifacts backfill
 - Kura cluster kubeconfigs and internal shared secrets (for example `cache_api_key`) used by the control plane to talk to deployment infrastructure
 
 ## Binary Files

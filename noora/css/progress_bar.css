@@ -62,7 +62,7 @@
 
     & > [data-part="max-bar"] {
       box-shadow: var(--noora-border-progress-bar-empty);
-      border-radius: var(--noora-radius-large);
+      border-radius: var(--noora-radius-4);
       background: var(--noora-progress-bar-empty);
       height: 100%;
     }
@@ -72,7 +72,7 @@
       bottom: 0;
       left: 0;
       box-shadow: var(--noora-border-progress-bar-line);
-      border-radius: var(--noora-radius-large);
+      border-radius: var(--noora-radius-4);
       background: var(--noora-progress-bar-purple);
     }
   }

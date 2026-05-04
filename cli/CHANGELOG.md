@@ -1,7 +1,42 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.189.0<!-- RELEASE NOTES START -->
+## What's Changed in 4.191.6<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* skip fully cached missing test plans by [@pepicrft](https://github.com/pepicrft) in [#10582](https://github.com/tuist/tuist/pull/10582)
+* disable HAR recording for cache daemon by [@fortmarek](https://github.com/fortmarek) in [#10589](https://github.com/tuist/tuist/pull/10589)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.191.5...4.191.6
+
+## What's Changed in 4.191.5<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* use stamp file for macro copy phase to keep incremental rebuilds by [@fortmarek](https://github.com/fortmarek) in [#10576](https://github.com/tuist/tuist/pull/10576)
+* fix macro copy phase output collision on macOS consumer targets by [@freak4pc](https://github.com/freak4pc) in [#10566](https://github.com/tuist/tuist/pull/10566)
+* intersect linkable dep destinations for orphan local SPM tests by [@mqzkim](https://github.com/mqzkim) in [#10554](https://github.com/tuist/tuist/pull/10554)
+* re-embed test target frameworks not embedded in host by [@pepicrft](https://github.com/pepicrft) in [#10504](https://github.com/tuist/tuist/pull/10504)
+* make shared cache and state writes safe across concurrent processes by [@pepicrft](https://github.com/pepicrft) in [#10562](https://github.com/tuist/tuist/pull/10562)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.191.1...4.191.5
+
+## What's Changed in 4.191.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* stabilize cache EE canary acceptance test by [@fortmarek](https://github.com/fortmarek) in [#10549](https://github.com/tuist/tuist/pull/10549)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.191.0...4.191.1
+
+## What's Changed in 4.191.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
 
@@ -17,7 +52,7 @@ All notable changes to this project will be documented in this file.
 
 
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.188.5...4.189.0
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.188.5...4.191.0
 
 ## What's Changed in 4.188.5<!-- RELEASE NOTES START -->
 

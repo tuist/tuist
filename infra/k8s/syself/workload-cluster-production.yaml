@@ -1,8 +1,15 @@
 # Production workload Cluster for Tuist on Syself Apalla (Hetzner).
 #
-# Shape: 3 × cpx22 cloud control plane + 2 × ccx23 dedicated-vCPU workers
-# in fsn1. ~€87/mo. Dedicated cores on the workers give us predictable
-# p99 latency without foreclosing HPA.
+# Shape: 3 × cpx22 cloud control plane
+#      + 2 × ccx23 dedicated-vCPU general workers (md-0)
+#      + 2 × cpx51 shared-vCPU processor workers (md-processor)
+# in fsn1. ~€191/mo. The general pool keeps dedicated cores for the
+# Phoenix server's predictable p99 latency. The processor pool runs on
+# fat shared-vCPU nodes (16 vCPU / 32 GiB each, ~€55/mo apiece) because
+# xcactivitylog parsing is CPU-bursty + memory-peaky and dominated by
+# throughput per euro, not per-core latency. Pods are pinned to their
+# pool via the node.cluster.x-k8s.io/pool label set on the MD; pod
+# anti-affinity puts one replica per node.
 
 apiVersion: cluster.x-k8s.io/v1beta1
 kind: Cluster
@@ -25,10 +32,39 @@ spec:
       replicas: 3
     workers:
       machineDeployments:
+        # General-purpose pool: Phoenix server, redis, system DaemonSets.
+        # Dedicated vCPU keeps p99 latency predictable. The pool label
+        # below is what `server.nodeSelector` in values-managed-production
+        # targets; pinning is one-sided because Syself's ClusterClass v6
+        # doesn't expose a taint variable, so without it the scheduler
+        # could place server pods on the cpx51 processor pool.
         - class: workeramd64hcloud
           name: md-0
           replicas: 2
           failureDomain: fsn1
+          metadata:
+            labels:
+              node.cluster.x-k8s.io/pool: general
+        # Dedicated processor pool: xcactivitylog parsing only. Shared-vCPU
+        # is acceptable here because parsing is async batch work, and cpx51
+        # gives us ~3× the cores per euro of ccx33. The pool label below
+        # is what `processor.nodeSelector` in values-managed-production.yaml
+        # targets; the prefix is required by Syself's ClusterClass v6 to
+        # propagate from MachineDeployment metadata to the kubelet's node
+        # registration (only `node-role.kubernetes.io/`,
+        # `node-restriction.kubernetes.io/`, and `node.cluster.x-k8s.io/`
+        # prefixes are allowed through).
+        - class: workeramd64hcloud
+          name: md-processor
+          replicas: 2
+          failureDomain: fsn1
+          metadata:
+            labels:
+              node.cluster.x-k8s.io/pool: processor
+          variables:
+            overrides:
+              - name: workerMachineTypeHcloud
+                value: cpx62
     variables:
       - name: region
         value: fsn1
@@ -36,6 +72,7 @@ spec:
         value: cpx22
       - name: controlPlaneMachineArchHcloud
         value: amd64
+      # Default machine type for pools without an override (md-0).
       - name: workerMachineTypeHcloud
         value: ccx23
       - name: SSHKeyNameHcloud

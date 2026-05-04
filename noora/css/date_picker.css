@@ -34,7 +34,7 @@
     outline: unset;
     box-shadow: var(--noora-button-border-secondary);
     border: 0;
-    border-radius: var(--noora-radius-medium);
+    border-radius: var(--noora-radius-3);
     background: var(--noora-button-background-secondary);
     padding: var(--noora-spacing-3) var(--noora-spacing-4);
     color: var(--noora-surface-label-primary);
@@ -110,7 +110,7 @@
     flex-direction: row;
     background-color: var(--noora-surface-background-tertiary);
     box-shadow: var(--noora-border-heavy);
-    border-radius: var(--noora-radius-xlarge);
+    border-radius: var(--noora-radius-6);
 
     @media (max-width: 767px) {
       /* Use Zag's --available-width variable to constrain to parent bounds */
@@ -174,7 +174,7 @@
     align-items: center;
     cursor: pointer;
     border: 0;
-    border-radius: var(--noora-radius-medium);
+    border-radius: var(--noora-radius-3);
     background: transparent;
     padding: var(--noora-spacing-2) var(--noora-spacing-4);
     color: var(--noora-surface-label-secondary);
@@ -199,7 +199,7 @@
     gap: var(--noora-spacing-3);
     overflow: hidden;
     background-color: var(--noora-surface-background-primary);
-    border-radius: var(--noora-radius-xlarge);
+    border-radius: var(--noora-radius-6);
 
     @media (min-width: 768px) {
       box-shadow: var(--noora-border-light-default);
@@ -256,7 +256,7 @@
     justify-content: center;
     cursor: pointer;
     border: 0;
-    border-radius: var(--noora-radius-medium);
+    border-radius: var(--noora-radius-3);
     background: transparent;
     padding: var(--noora-spacing-1);
     width: var(--noora-icon-size-large);
@@ -361,8 +361,8 @@
       [data-range-start]:not([data-selected])
     )::before {
     left: var(--noora-spacing-2);
-    border-top-left-radius: var(--noora-radius-medium);
-    border-bottom-left-radius: var(--noora-radius-medium);
+    border-top-left-radius: var(--noora-radius-3);
+    border-bottom-left-radius: var(--noora-radius-3);
   }
 
   /* Range end (non-selected) - add rounded right corners and right padding */
@@ -371,8 +371,8 @@
       [data-range-end]:not([data-selected])
     )::before {
     right: var(--noora-spacing-2);
-    border-top-right-radius: var(--noora-radius-medium);
-    border-bottom-right-radius: var(--noora-radius-medium);
+    border-top-right-radius: var(--noora-radius-3);
+    border-bottom-right-radius: var(--noora-radius-3);
   }
 
   /* Selected cells - collapse ::before to zero width by default, no radius */
@@ -431,8 +431,8 @@
       :has([data-outside-range])
     ):not(:has([data-disabled])):not(:has([data-selected]))::before {
     left: var(--noora-spacing-2);
-    border-top-left-radius: var(--noora-radius-medium);
-    border-bottom-left-radius: var(--noora-radius-medium);
+    border-top-left-radius: var(--noora-radius-3);
+    border-bottom-left-radius: var(--noora-radius-3);
   }
 
   /* Cell preceded by hidden cell - treat as first visible, add rounded left corners and left padding */
@@ -440,8 +440,8 @@
     [data-part="day-table-cell"][data-hidden]
     + [data-part="table-cell"]:has([data-in-range]):not([data-hidden])::before {
     left: var(--noora-spacing-2);
-    border-top-left-radius: var(--noora-radius-medium);
-    border-bottom-left-radius: var(--noora-radius-medium);
+    border-top-left-radius: var(--noora-radius-3);
+    border-bottom-left-radius: var(--noora-radius-3);
   }
 
   /* Last cell in row that's in range/hover-range - add rounded right corners and right padding */
@@ -454,8 +454,8 @@
       :has([data-outside-range])
     ):not(:has([data-disabled])):not(:has([data-selected]))::before {
     right: var(--noora-spacing-2);
-    border-top-right-radius: var(--noora-radius-medium);
-    border-bottom-right-radius: var(--noora-radius-medium);
+    border-top-right-radius: var(--noora-radius-3);
+    border-bottom-right-radius: var(--noora-radius-3);
   }
 
   /* Cell followed by hidden cell - treat as last visible, add rounded right corners and right padding */
@@ -464,8 +464,8 @@
       + [data-part="day-table-cell"][data-hidden]
     )::before {
     right: var(--noora-spacing-2);
-    border-top-right-radius: var(--noora-radius-medium);
-    border-bottom-right-radius: var(--noora-radius-medium);
+    border-top-right-radius: var(--noora-radius-3);
+    border-bottom-right-radius: var(--noora-radius-3);
   }
 
   /* First hover-range cell in row - add rounded left corners and left padding */
@@ -476,8 +476,8 @@
         )
     )::before {
     left: var(--noora-spacing-2);
-    border-top-left-radius: var(--noora-radius-medium);
-    border-bottom-left-radius: var(--noora-radius-medium);
+    border-top-left-radius: var(--noora-radius-3);
+    border-bottom-left-radius: var(--noora-radius-3);
   }
 
   /* Override: hover-range cells preceded by another hover-range - remove left padding/radius */
@@ -499,8 +499,8 @@
       :has([data-outside-range])
     )::before {
     right: var(--noora-spacing-2);
-    border-top-right-radius: var(--noora-radius-medium);
-    border-bottom-right-radius: var(--noora-radius-medium);
+    border-top-right-radius: var(--noora-radius-3);
+    border-bottom-right-radius: var(--noora-radius-3);
   }
 
   /* Day cell trigger (button) */
@@ -511,7 +511,7 @@
     position: relative;
     cursor: pointer;
     border: 0;
-    border-radius: var(--noora-radius-medium);
+    border-radius: var(--noora-radius-3);
     background: transparent;
     width: 30px;
     height: 30px;
@@ -559,7 +559,7 @@
       width: 8px;
       height: 2px;
       background: var(--noora-datepicker-today-marker);
-      border-radius: var(--noora-radius-max);
+      border-radius: var(--noora-radius-99);
     }
 
     &[data-today][data-selected]::after {
@@ -636,7 +636,7 @@
     align-items: center;
     gap: var(--noora-spacing-1);
     box-shadow: var(--noora-border-light-default);
-    border-radius: var(--noora-radius-medium);
+    border-radius: var(--noora-radius-3);
     background: var(--noora-surface-background-primary);
     padding: var(--noora-spacing-1);
 
@@ -707,7 +707,7 @@
     gap: var(--noora-spacing-1);
     cursor: pointer;
     border: 0;
-    border-radius: var(--noora-radius-medium);
+    border-radius: var(--noora-radius-3);
     padding: var(--noora-spacing-3) var(--noora-spacing-4);
     font: var(--noora-font-body-small);
     font-weight: var(--noora-font-weight-medium);
