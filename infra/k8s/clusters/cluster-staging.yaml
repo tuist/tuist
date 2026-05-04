@@ -1,5 +1,5 @@
 # Staging workload Cluster, topology mode against tuist-hcloud.
-# 3× cpx22 control plane + 2× cpx31 workers in fsn1.
+# 3× cpx22 control plane + 2× cpx32 workers in fsn1.
 apiVersion: cluster.x-k8s.io/v1beta2
 kind: Cluster
 metadata:
@@ -26,7 +26,7 @@ spec:
       - name: hcloudControlPlaneMachineType
         value: cpx22
       - name: hcloudWorkerMachineType
-        value: cpx31
+        value: cpx32
       - name: hcloudSSHKeyName
         value:
           - name: tuist-ops

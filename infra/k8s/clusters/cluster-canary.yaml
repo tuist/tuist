@@ -26,7 +26,7 @@ spec:
       - name: hcloudControlPlaneMachineType
         value: cpx22
       - name: hcloudWorkerMachineType
-        value: cpx31
+        value: cpx32
       - name: hcloudSSHKeyName
         value:
           - name: tuist-ops
