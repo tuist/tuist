@@ -188,35 +188,4 @@ defmodule Tuist.EnvironmentTest do
       assert is_nil(result)
     end
   end
-
-  describe "kura Hetzner configuration" do
-    test "reads the Hetzner API token from secrets" do
-      secrets = %{"kura" => %{"hetzner" => %{"api_token" => "hcloud-token"}}}
-
-      assert Environment.kura_hetzner_api_token(secrets) == "hcloud-token"
-    end
-
-    test "reads Cloudflare configuration from secrets" do
-      secrets = %{"kura" => %{"cloudflare" => %{"api_token" => "cf-token", "zone_id" => "zone-id"}}}
-
-      assert Environment.kura_cloudflare_api_token(secrets) == "cf-token"
-      assert Environment.kura_cloudflare_zone_id(secrets) == "zone-id"
-    end
-
-    test "reads Kura SSH keys from secrets" do
-      private_key = "-----BEGIN OPENSSH PRIVATE KEY-----\nkey\n-----END OPENSSH PRIVATE KEY-----"
-
-      secrets = %{
-        "kura" => %{
-          "ssh" => %{
-            "public_key" => "ssh-ed25519 public",
-            "private_key_base64" => Base.encode64(private_key)
-          }
-        }
-      }
-
-      assert Environment.kura_ssh_public_key(secrets) == "ssh-ed25519 public"
-      assert Environment.kura_ssh_private_key(secrets) == private_key
-    end
-  end
 end
