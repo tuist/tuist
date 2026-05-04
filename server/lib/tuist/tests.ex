@@ -186,7 +186,6 @@ defmodule Tuist.Tests do
 
         query =
           from(t in Test,
-            hints: ["FINAL"],
             where: t.id == ^uuid,
             order_by: [desc: t.inserted_at],
             limit: 1
@@ -2155,12 +2154,18 @@ defmodule Tuist.Tests do
   defp mark_test_case_runs_as_flaky(runs) when is_list(runs) do
     ids = runs |> Enum.map(& &1.id) |> Enum.uniq()
 
-    # FINAL is required because `test_case_runs` is a ReplacingMergeTree:
-    # without it, a run that has already been re-inserted (e.g. previously
-    # marked flaky) can return multiple versions for the same id until the
-    # merge collapses them, and we'd re-insert every version.
+    # `test_case_runs` is a ReplacingMergeTree, so a re-inserted run can
+    # return multiple versions per id until the background merge collapses
+    # them. We dedupe in Elixir on a small result set so the `proj_by_id`
+    # projection (binary search on `id`) is used; `FINAL` would disable it
+    # and force a full part scan with an in-memory merge.
     full_runs =
-      ClickHouseRepo.all(from(tcr in TestCaseRun, hints: ["FINAL"], where: tcr.id in ^ids))
+      from(tcr in TestCaseRun,
+        where: tcr.id in ^ids,
+        order_by: [desc: tcr.inserted_at]
+      )
+      |> ClickHouseRepo.all()
+      |> Enum.uniq_by(& &1.id)
 
     updated_runs =
       Enum.map(full_runs, fn run ->
