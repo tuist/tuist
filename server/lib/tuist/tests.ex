@@ -749,19 +749,14 @@ defmodule Tuist.Tests do
   ## Parameters
   - `test_case_id` - the test case UUID to update
   - `update_attrs` - map with `:is_flaky` boolean and/or `:state` (`"enabled"` | `"muted"` | `"skipped"`)
-  - `opts` - optional keyword list:
-    - `:actor_id` (account_id for user actions, nil for system)
-    - `:project_id` (when set, the update is rejected with `{:error, :not_found}` if the
-      test case does not belong to that project — defense-in-depth against cross-tenant writes)
+  - `opts` - optional keyword list with `:actor_id` (account_id for user actions, nil for system)
   """
   def update_test_case(test_case_id, update_attrs, opts \\ []) when is_map(update_attrs) do
     valid_keys = [:is_flaky, :state]
     filtered_attrs = Map.take(update_attrs, valid_keys)
     actor_id = Keyword.get(opts, :actor_id)
-    expected_project_id = Keyword.get(opts, :project_id)
 
-    with {:ok, test_case} <- get_test_case_by_id(test_case_id),
-         :ok <- ensure_project_match(test_case, expected_project_id) do
+    with {:ok, test_case} <- get_test_case_by_id(test_case_id) do
       attrs =
         test_case
         |> Map.from_struct()
@@ -776,10 +771,6 @@ defmodule Tuist.Tests do
       {:ok, Map.merge(test_case, filtered_attrs)}
     end
   end
-
-  defp ensure_project_match(_test_case, nil), do: :ok
-  defp ensure_project_match(%{project_id: pid}, pid), do: :ok
-  defp ensure_project_match(_test_case, _expected), do: {:error, :not_found}
 
   defp create_events_for_test_case_changes(test_case_id, old_test_case, new_attrs, actor_id) do
     event_types = determine_test_case_events(old_test_case, new_attrs)
