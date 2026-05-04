@@ -21,6 +21,8 @@ Sensitive authentication data (passwords, tokens) are excluded from exports.
 - API tokens, SCIM-scoped account tokens, and project tokens (existence, scopes, names, timestamps, and last-used metadata only; token values and hashes are excluded)
 - Custom cache endpoint configurations
 - Organization SSO configuration metadata, including the configured SSO provider, provider URL, and full OAuth2 endpoint URLs
+- Kura server records (`kura_servers` table): per-account Kura server configuration including region, spec tier, image tag, public URL, status, and volume size
+- Kura deployment history (`kura_deployments` table): rollout attempts for the account's Kura servers including image tag, status, error messages, and start/finish timestamps
 
 ### Projects & Development
 - Project information (account relationship, handle/name, build system, default branch, visibility/settings, repositories, and timestamps)
@@ -66,6 +68,7 @@ The following data is stored in ClickHouse for analytics purposes:
 - Encrypted SSO client secrets for Okta and custom OAuth2 providers
 - Internal replication bookkeeping (e.g., `bundles.artifacts_replicated_to_ch`) used to drive the PG → ClickHouse artifacts backfill
 - Kura cluster kubeconfigs and internal shared secrets (for example `cache_api_key`) used by the control plane to talk to deployment infrastructure
+- Kura deployment rollout logs (`kura_deployment_log_lines` ClickHouse table): per-line stdout/stderr captured from `helm` and the rollout script. These are operator-facing infrastructure logs (Kubernetes/Helm output) used by the `/ops` console, not customer content, and may include internal cluster identifiers
 
 ## Binary Files
 

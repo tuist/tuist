@@ -23,6 +23,7 @@ defmodule Tuist.Kura do
   alias Phoenix.PubSub
   alias Tuist.Accounts
   alias Tuist.Accounts.AccountCacheEndpoint
+  alias Tuist.ClickHouseRepo
   alias Tuist.GitHub.Releases
   alias Tuist.GitHub.Retry
   alias Tuist.IngestRepo
@@ -497,7 +498,7 @@ defmodule Tuist.Kura do
     LIMIT {limit:UInt32}
     """
 
-    case IngestRepo.query(query, %{
+    case ClickHouseRepo.query(query, %{
            "deployment_id" => deployment_id,
            "after_sequence" => max(after_sequence, 0),
            "limit" => limit
@@ -531,7 +532,7 @@ defmodule Tuist.Kura do
     LIMIT 1
     """
 
-    case IngestRepo.query(query, %{"deployment_id" => deployment_id}) do
+    case ClickHouseRepo.query(query, %{"deployment_id" => deployment_id}) do
       {:ok, %{rows: [[sequence]]}} -> sequence + 1
       _ -> 1
     end
