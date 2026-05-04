@@ -2,7 +2,7 @@ defmodule Tuist.Automations.ActionExecutorTest do
   # Integration test: drives ActionExecutor through the real
   # Tests.update_test_case down to ClickHouse so the merged-attrs path
   # (the fix for the read-modify-write race) is verified end-to-end.
-  use TuistTestSupport.Cases.DataCase, async: false
+  use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
   alias Tuist.Automations.ActionExecutor
