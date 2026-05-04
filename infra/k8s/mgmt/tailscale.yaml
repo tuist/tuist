@@ -1,0 +1,171 @@
+# Joins the management VM to a Tailscale tailnet as a regular tailnet
+# node so operators reach talosd on :50000 via a stable tailnet IP /
+# MagicDNS name (`tuist-mgmt`) instead of a hand-maintained
+# operator-IP allowlist on the Hetzner firewall.
+#
+# Architecture: tailscaled runs in a Deployment with hostNetwork=true
+# on the single mgmt control-plane node. The WireGuard interface lives
+# on the host, so inbound tailnet traffic is routed by the host kernel
+# to whatever's listening on :50000 (talosd). No subnet routing
+# needed — there's exactly one host to reach.
+#
+# Operator onboarding (one-time per operator):
+#   1. Install tailscale (https://tailscale.com/download).
+#   2. Be added to the Tuist tailnet by an admin.
+#   3. `talosctl config endpoint tuist-mgmt` (replaces the public IP).
+#   4. `talosctl health` should return clean.
+#
+# Tenant bootstrap (one-time, ever):
+#   1. Create / use the tuist.dev Tailscale tenant.
+#   2. Generate a reusable, pre-authorized auth key (Settings → Keys →
+#      Generate auth key; reusable=on, pre-authorized=on, expiry=90d).
+#      Store in 1Password as `tailscale-mgmt-auth-key`.
+#   3. On the mgmt cluster:
+#        kubectl -n mgmt-system create secret generic tailscale-auth-key \
+#          --from-literal=TS_AUTHKEY=<paste>
+#      The key is only needed for the initial registration;
+#      tailscaled persists the node key in the `tailscale-state` Secret
+#      via TS_KUBE_SECRET, so subsequent restarts don't re-auth.
+#   4. `kubectl apply -f infra/k8s/mgmt/tailscale.yaml`.
+#   5. Wait for the pod to come up, confirm the device shows up in
+#      the Tailscale admin console as `tuist-mgmt`.
+#   6. Test from an operator machine: `talosctl --endpoints tuist-mgmt
+#      --nodes tuist-mgmt version` returns the expected Talos version.
+#   7. Drop the `:50000` allowlist rule from the `tuist-mgmt` Hetzner
+#      firewall. Re-test talosctl. `:6443` stays public + cert auth
+#      (CI workflows reach it via KUBECONFIG_MGMT).
+#
+# Failure mode: if Tailscale's coordination server is unreachable,
+# already-paired peers keep working over their last-known direct path
+# or DERP relay. If tailscaled crashes here, operators briefly lose
+# `:50000` access until it restarts (a few seconds). `:6443` is
+# unaffected — that's still the public Hetzner IP + cert auth, so the
+# cluster keeps reconciling and CI keeps deploying.
+#
+# Expects:
+#   - mgmt-system namespace (created by etcd-snapshot.yaml).
+#   - Secret `tailscale-auth-key` (TS_AUTHKEY field), pre-created per
+#     the bootstrap steps above.
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: tailscale
+  namespace: mgmt-system
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: tailscale
+  namespace: mgmt-system
+rules:
+  # tailscaled persists its node key + machine state in the Secret
+  # named by TS_KUBE_SECRET. Scoped tightly to that single object.
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["tailscale-state"]
+    verbs: ["get", "update", "patch"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["create"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: tailscale
+  namespace: mgmt-system
+subjects:
+  - kind: ServiceAccount
+    name: tailscale
+    namespace: mgmt-system
+roleRef:
+  kind: Role
+  name: tailscale
+  apiGroup: rbac.authorization.k8s.io
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tailscale
+  namespace: mgmt-system
+  labels:
+    app: tailscale
+spec:
+  replicas: 1
+  strategy:
+    # One mgmt node, one tailscaled. RollingUpdate would briefly run
+    # two pods racing for the same TS_KUBE_SECRET / device identity.
+    type: Recreate
+  selector:
+    matchLabels:
+      app: tailscale
+  template:
+    metadata:
+      labels:
+        app: tailscale
+    spec:
+      serviceAccountName: tailscale
+      # hostNetwork: WireGuard interface created by tailscaled lives
+      # on the host so inbound traffic on the tailnet IP can reach
+      # services already listening on the host (talosd on :50000).
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+      nodeSelector:
+        node-role.kubernetes.io/control-plane: ""
+      containers:
+        - name: tailscale
+          image: ghcr.io/tailscale/tailscale:v1.84.0
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: TS_AUTHKEY
+              valueFrom:
+                secretKeyRef:
+                  name: tailscale-auth-key
+                  key: TS_AUTHKEY
+                  optional: true  # not needed after first registration
+            - name: TS_HOSTNAME
+              value: tuist-mgmt
+            - name: TS_KUBE_SECRET
+              value: tailscale-state
+            - name: TS_USERSPACE
+              # false = kernel WireGuard. Talos ships with the
+              # wireguard module loaded; if a future Talos release
+              # drops it we'll see this pod fail and can flip to
+              # userspace mode (small perf hit, no functional change
+              # for the low traffic on a mgmt session).
+              value: "false"
+            - name: TS_EXTRA_ARGS
+              # --ssh=false: don't expose Tailscale SSH (Talos doesn't
+              #   run sshd anyway, but be explicit).
+              # --accept-routes=false: don't accept subnet routes
+              #   advertised by other tailnet nodes.
+              # --accept-dns=false: don't override the host's DNS
+              #   resolver (Talos manages /etc/resolv.conf).
+              value: "--ssh=false --accept-routes=false --accept-dns=false"
+          securityContext:
+            capabilities:
+              add:
+                - NET_ADMIN
+                - NET_RAW
+          volumeMounts:
+            - name: tun
+              mountPath: /dev/net/tun
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 128Mi
+      volumes:
+        - name: tun
+          hostPath:
+            path: /dev/net/tun
+            type: CharDevice
