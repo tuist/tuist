@@ -1178,6 +1178,7 @@ defmodule Tuist.Tests do
 
     query
     |> ClickHouseRepo.all()
+    |> Enum.uniq_by(& &1.id)
     |> Enum.filter(&(&1.test_case_id in test_case_id_set))
     |> Enum.group_by(& &1.test_case_id)
   end

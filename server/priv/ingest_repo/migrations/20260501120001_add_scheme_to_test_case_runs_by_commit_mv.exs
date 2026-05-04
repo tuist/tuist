@@ -16,12 +16,24 @@ defmodule Tuist.IngestRepo.Migrations.AddSchemeToTestCaseRunsByCommitMv do
   `(project_id, git_commit_sha, scheme, is_ci, status, id)` so the lookup
   keyed by project + commit + scheme reads a small contiguous range.
 
-  Backfill runs partition-by-partition before the swap. The window between
-  dropping the legacy MV and creating the new MV is short (three DDLs); a
-  small number of inserts to `test_case_runs` during that window will not
-  be reflected in the by-commit lookup table. Those source rows are still
-  in `test_case_runs` and only affect cross-run flakiness detection for
-  that brief window — same trade-off the original MV migration accepted.
+  ## Catch-up against in-flight writes
+
+  Naive sequence "backfill + drop legacy MV + EXCHANGE + create new MV"
+  loses any row inserted into `test_case_runs` after that row's
+  partition was backfilled but before the legacy MV was dropped: those
+  rows go through the legacy MV into the legacy storage table, which
+  ends up parked in `test_case_runs_by_commit_v2` after the swap and
+  never make it into the canonical table.
+
+  To close that hole, we capture a `cutoff` timestamp before backfill
+  starts and, after the swap, re-insert any source rows with
+  `inserted_at >= cutoff` directly into the canonical table. The
+  destination is a `ReplacingMergeTree(inserted_at)` keyed on
+  `(project_id, git_commit_sha, scheme, is_ci, status, id)`, so any
+  overlap with rows already copied by the partition backfill or written
+  by the new MV is collapsed by background merges. The lookup
+  deduplicates by `id` in code as a defensive measure for the brief
+  window before merges complete.
   """
   use Ecto.Migration
   alias Tuist.IngestRepo
@@ -33,6 +45,8 @@ defmodule Tuist.IngestRepo.Migrations.AddSchemeToTestCaseRunsByCommitMv do
   @columns ~w(project_id git_commit_sha scheme is_ci status id test_case_id inserted_at)
 
   def up do
+    cutoff = NaiveDateTime.to_iso8601(NaiveDateTime.utc_now())
+
     IngestRepo.query!("DROP TABLE IF EXISTS test_case_runs_by_commit_new")
 
     IngestRepo.query!("""
@@ -69,6 +83,8 @@ defmodule Tuist.IngestRepo.Migrations.AddSchemeToTestCaseRunsByCommitMv do
       inserted_at
     FROM test_case_runs
     """)
+
+    catch_up_inflight_writes(cutoff)
 
     IngestRepo.query!("DROP TABLE IF EXISTS test_case_runs_by_commit_v2")
 
@@ -125,6 +141,23 @@ defmodule Tuist.IngestRepo.Migrations.AddSchemeToTestCaseRunsByCommitMv do
         )
       end)
     end
+  end
+
+  defp catch_up_inflight_writes(cutoff) do
+    Logger.info("Catching up test_case_runs writes since #{cutoff} into test_case_runs_by_commit")
+
+    retry_on_shutting_down(fn ->
+      IngestRepo.query!(
+        """
+        INSERT INTO test_case_runs_by_commit (#{Enum.join(@columns, ", ")})
+        SELECT #{Enum.join(@columns, ", ")}
+        FROM test_case_runs
+        WHERE inserted_at >= toDateTime64({cutoff:String}, 6)
+        """,
+        %{cutoff: cutoff},
+        timeout: 1_200_000
+      )
+    end)
   end
 
   defp retry_on_shutting_down(fun, attempts \\ 5) do
