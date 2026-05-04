@@ -372,20 +372,17 @@ spec:
             owner: root:root
             path: /etc/sysctl.d/99-kubelet.conf
             permissions: "0744"
-          - content: |
-              nameserver 1.1.1.1
-              nameserver 1.0.0.1
-              nameserver 2606:4700:4700::1111
-            owner: root:root
-            path: /etc/kubernetes/resolv.conf
-            permissions: "0744"
           # NOTE: this is the second --config flag passed to kubelet
           # (the first is /var/lib/kubelet/config.yaml from kubeadm).
           # The second OVERRIDES the first, so any field omitted here
           # gets cleared. Critical fields below are required for kubelet
           # to talk to containerd (containerRuntimeEndpoint), watch
           # static pods (staticPodPath), and resolve in-cluster DNS
-          # (clusterDNS / clusterDomain).
+          # (clusterDNS / clusterDomain). resolvConf is intentionally
+          # unset so kubelet falls back to the host's /etc/resolv.conf,
+          # which DHCP populates with Hetzner's resolvers (185.12.64.1,
+          # 185.12.64.2 + IPv6) — multi-IP, dual-stack, one network hop
+          # away. Same posture Apalla shipped on the workload clusters.
           - content: |
               apiVersion: kubelet.config.k8s.io/v1beta1
               kind: KubeletConfiguration
@@ -403,7 +400,6 @@ spec:
               containerRuntimeEndpoint: unix:///var/run/containerd/containerd.sock
               maxPods: 120
               readOnlyPort: 0
-              resolvConf: /etc/kubernetes/resolv.conf
               serverTLSBootstrap: true
               staticPodPath: /etc/kubernetes/manifests
             owner: root:root
@@ -547,14 +543,8 @@ spec:
           owner: root:root
           path: /etc/sysctl.d/99-kubelet.conf
           permissions: "0744"
-        - content: |
-            nameserver 1.1.1.1
-            nameserver 1.0.0.1
-            nameserver 2606:4700:4700::1111
-          owner: root:root
-          path: /etc/kubernetes/resolv.conf
-          permissions: "0744"
-        # See KCP files block above for why these fields are mandatory.
+        # See KCP files block above for why these fields are mandatory
+        # and why resolvConf is intentionally unset.
         - content: |
             apiVersion: kubelet.config.k8s.io/v1beta1
             kind: KubeletConfiguration
@@ -572,7 +562,6 @@ spec:
             containerRuntimeEndpoint: unix:///var/run/containerd/containerd.sock
             maxPods: 220
             readOnlyPort: 0
-            resolvConf: /etc/kubernetes/resolv.conf
             serverTLSBootstrap: true
             staticPodPath: /etc/kubernetes/manifests
           owner: root:root
