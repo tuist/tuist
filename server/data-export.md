@@ -20,6 +20,7 @@ Sensitive authentication data (passwords, tokens) are excluded from exports.
 - Account billing information and subscriptions
 - API tokens, SCIM-scoped account tokens, and project tokens (existence, scopes, names, timestamps, and last-used metadata only; token values and hashes are excluded)
 - Custom cache endpoint configurations
+- Kura server and deployment metadata, including region, capacity spec, storage size, lifecycle state, public URL, current image tag, and provider reference
 - Organization SSO configuration metadata, including the configured SSO provider, provider URL, and full OAuth2 endpoint URLs
 
 ### Projects & Development
@@ -65,7 +66,7 @@ The following data is stored in ClickHouse for analytics purposes:
 - Account, SCIM-scoped account, and project token values and encrypted token hashes
 - Encrypted SSO client secrets for Okta and custom OAuth2 providers
 - Internal replication bookkeeping (e.g., `bundles.artifacts_replicated_to_ch`) used to drive the PG → ClickHouse artifacts backfill
-- Kura cluster kubeconfigs and internal shared secrets (for example `cache_api_key`) used by the control plane to talk to deployment infrastructure
+- Kura cluster kubeconfigs, Hetzner and Cloudflare API tokens, SSH keys, and internal shared secrets (for example `cache_api_key`) used by the control plane to talk to deployment infrastructure
 
 ## Binary Files
 
