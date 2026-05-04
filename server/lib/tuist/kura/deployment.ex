@@ -49,7 +49,10 @@ defmodule Tuist.Kura.Deployment do
 
     belongs_to :kura_server, Server, type: :binary_id
 
-    timestamps(type: :utc_datetime)
+    # Sub-second precision so deployments inserted in quick succession
+    # keep a deterministic order when listed.
+    # credo:disable-for-next-line Credo.Checks.TimestampsType
+    timestamps(type: :utc_datetime_usec)
   end
 
   def statuses, do: @statuses

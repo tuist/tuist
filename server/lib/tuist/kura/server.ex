@@ -59,7 +59,10 @@ defmodule Tuist.Kura.Server do
 
     has_many :deployments, Deployment, foreign_key: :kura_server_id
 
-    timestamps(type: :utc_datetime)
+    # Sub-second precision so deployments inserted in quick succession
+    # keep a deterministic order when listed.
+    # credo:disable-for-next-line Credo.Checks.TimestampsType
+    timestamps(type: :utc_datetime_usec)
   end
 
   def specs, do: @specs
