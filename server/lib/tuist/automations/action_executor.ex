@@ -24,7 +24,7 @@ defmodule Tuist.Automations.ActionExecutor do
   def execute_actions(actions, automation, entity) when is_list(actions) do
     {merged_attrs, remaining_actions} = partition_actions(actions, entity)
 
-    with :ok <- apply_merged_attrs(entity, merged_attrs) do
+    with :ok <- apply_merged_attrs(entity, automation, merged_attrs) do
       run_remaining(remaining_actions, automation, entity)
     end
   end
@@ -47,10 +47,10 @@ defmodule Tuist.Automations.ActionExecutor do
   defp test_case_attr_change(%{"type" => "change_state", "state" => state}), do: {:state, state}
   defp test_case_attr_change(_), do: :pass
 
-  defp apply_merged_attrs(_entity, attrs) when map_size(attrs) == 0, do: :ok
+  defp apply_merged_attrs(_entity, _automation, attrs) when map_size(attrs) == 0, do: :ok
 
-  defp apply_merged_attrs(%{type: :test_case, id: id} = entity, attrs) do
-    case Tests.update_test_case(id, attrs) do
+  defp apply_merged_attrs(%{type: :test_case, id: id} = entity, automation, attrs) do
+    case Tests.update_test_case(id, attrs, project_id: Map.get(automation, :project_id)) do
       {:ok, _} ->
         :ok
 

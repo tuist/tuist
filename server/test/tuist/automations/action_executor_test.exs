@@ -17,7 +17,7 @@ defmodule Tuist.Automations.ActionExecutorTest do
     test_case
   end
 
-  defp automation, do: %{name: "Auto", project_id: 1}
+  defp automation_for(%{project_id: project_id}), do: %{name: "Auto", project_id: project_id}
 
   defp event_types(test_case_id) do
     {events, _meta} = Tests.list_test_case_events(test_case_id)
@@ -28,7 +28,7 @@ defmodule Tuist.Automations.ActionExecutorTest do
     assert :ok =
              ActionExecutor.execute_actions(
                [],
-               automation(),
+               %{name: "Auto", project_id: 0},
                %{type: :test_case, id: Ecto.UUID.generate()}
              )
   end
@@ -39,7 +39,7 @@ defmodule Tuist.Automations.ActionExecutorTest do
     assert :ok =
              ActionExecutor.execute_actions(
                [%{"type" => "change_state", "state" => "muted"}],
-               automation(),
+               automation_for(test_case),
                %{type: :test_case, id: test_case.id}
              )
 
@@ -49,13 +49,14 @@ defmodule Tuist.Automations.ActionExecutorTest do
 
   test "dispatches send_slack to SendSlackAction" do
     entity = %{type: :test_case, id: Ecto.UUID.generate()}
+    automation = %{name: "Auto", project_id: 0}
 
-    expect(SendSlackAction, :execute, fn _automation, ^entity, %{"type" => "send_slack"} -> :ok end)
+    expect(SendSlackAction, :execute, fn ^automation, ^entity, %{"type" => "send_slack"} -> :ok end)
 
     assert :ok =
              ActionExecutor.execute_actions(
                [%{"type" => "send_slack", "channel" => "C1", "message" => "hi"}],
-               automation(),
+               automation,
                entity
              )
   end
@@ -66,7 +67,7 @@ defmodule Tuist.Automations.ActionExecutorTest do
     assert :ok =
              ActionExecutor.execute_actions(
                [%{"type" => "add_label", "label" => "flaky"}],
-               automation(),
+               automation_for(test_case),
                %{type: :test_case, id: test_case.id}
              )
 
@@ -80,7 +81,7 @@ defmodule Tuist.Automations.ActionExecutorTest do
     assert :ok =
              ActionExecutor.execute_actions(
                [%{"type" => "remove_label", "label" => "flaky"}],
-               automation(),
+               automation_for(test_case),
                %{type: :test_case, id: test_case.id}
              )
 
@@ -97,7 +98,7 @@ defmodule Tuist.Automations.ActionExecutorTest do
                  %{"type" => "add_label", "label" => "flaky"},
                  %{"type" => "change_state", "state" => "muted"}
                ],
-               automation(),
+               automation_for(test_case),
                %{type: :test_case, id: test_case.id}
              )
 
@@ -117,7 +118,7 @@ defmodule Tuist.Automations.ActionExecutorTest do
                  %{"type" => "remove_label", "label" => "flaky"},
                  %{"type" => "change_state", "state" => "enabled"}
                ],
-               automation(),
+               automation_for(test_case),
                %{type: :test_case, id: test_case.id}
              )
 
@@ -137,7 +138,7 @@ defmodule Tuist.Automations.ActionExecutorTest do
                  %{"type" => "add_label", "label" => "flaky"},
                  %{"type" => "remove_label", "label" => "flaky"}
                ],
-               automation(),
+               automation_for(test_case),
                %{type: :test_case, id: test_case.id}
              )
 
@@ -163,7 +164,7 @@ defmodule Tuist.Automations.ActionExecutorTest do
                  %{"type" => "send_slack", "channel" => "C1", "message" => "hi"},
                  %{"type" => "change_state", "state" => "muted"}
                ],
-               automation(),
+               automation_for(test_case),
                entity
              )
 
@@ -179,9 +180,29 @@ defmodule Tuist.Automations.ActionExecutorTest do
                  %{"type" => "add_label", "label" => "flaky"},
                  %{"type" => "send_slack", "channel" => "C1", "message" => "hi"}
                ],
-               automation(),
+               %{name: "Auto", project_id: 0},
                %{type: :test_case, id: Ecto.UUID.generate()}
              )
+  end
+
+  test "rejects writes when the test case belongs to another project" do
+    test_case = insert_test_case(is_flaky: false, state: "enabled")
+    other_project = ProjectsFixtures.project_fixture()
+    reject(&SendSlackAction.execute/3)
+
+    assert {:error, :not_found} =
+             ActionExecutor.execute_actions(
+               [
+                 %{"type" => "add_label", "label" => "flaky"},
+                 %{"type" => "change_state", "state" => "muted"},
+                 %{"type" => "send_slack", "channel" => "C1", "message" => "hi"}
+               ],
+               %{name: "Auto", project_id: other_project.id},
+               %{type: :test_case, id: test_case.id}
+             )
+
+    assert {:ok, %{is_flaky: false, state: "enabled"}} = Tests.get_test_case_by_id(test_case.id)
+    assert event_types(test_case.id) == []
   end
 
   test "no-ops add_label / remove_label with non-flaky labels" do
@@ -193,7 +214,7 @@ defmodule Tuist.Automations.ActionExecutorTest do
                  %{"type" => "add_label", "label" => "slow"},
                  %{"type" => "remove_label", "label" => "slow"}
                ],
-               automation(),
+               automation_for(test_case),
                %{type: :test_case, id: test_case.id}
              )
 
@@ -208,7 +229,7 @@ defmodule Tuist.Automations.ActionExecutorTest do
     assert :ok =
              ActionExecutor.execute_actions(
                [%{"type" => "fly_to_moon"}],
-               automation(),
+               automation_for(test_case),
                %{type: :test_case, id: test_case.id}
              )
 
