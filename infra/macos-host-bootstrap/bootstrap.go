@@ -283,7 +283,9 @@ func renderLaunchdPlist(cfg Config) string {
 	}
 	maxPods := cfg.MaxPods
 	if maxPods == 0 {
-		maxPods = 8
+		// Apple's macOS SLA caps virtualized macOS instances at 2 per
+		// bare-metal host; Tart refuses to start a third VM.
+		maxPods = 2
 	}
 	user := cfg.SSHUser
 	if user == "" {

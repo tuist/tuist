@@ -82,7 +82,10 @@ func main() {
 			"Pinned by Dockerfile ARG; bumping it is a deliberate operator-image change.")
 	flag.IntVar(&tartKubeletHostCPU, "tartkubelet-host-cpu", 8, "CPU cores tart-kubelet advertises on its Node")
 	flag.IntVar(&tartKubeletHostMemory, "tartkubelet-host-memory-mb", 16384, "Memory MB tart-kubelet advertises on its Node")
-	flag.IntVar(&tartKubeletMaxPods, "tartkubelet-max-pods", 8, "Max concurrent Pods on each Mac mini")
+	flag.IntVar(&tartKubeletMaxPods, "tartkubelet-max-pods", 2,
+		"Max concurrent Pods on each Mac mini. Capped at 2 by Apple's macOS SLA "+
+			"(no more than two simultaneous virtualized macOS instances per host); "+
+			"Tart refuses to start a third VM.")
 	flag.IntVar(&tartKubeletMaxUpdateAttempts, "tartkubelet-max-update-attempts", 5,
 		"Drift-loop retries before transitioning the CR to a terminal Failed state. "+
 			"Set to 0 to disable the cap (not recommended for production).")

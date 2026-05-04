@@ -138,7 +138,7 @@ spec:
             - --node-identity-cluster-role={{ include "tuist.componentName" (dict "root" . "component" "tart-kubelet") }}
             - --tartkubelet-host-cpu={{ .Values.macosFleet.tartKubelet.hostCPU | default 8 }}
             - --tartkubelet-host-memory-mb={{ .Values.macosFleet.tartKubelet.hostMemoryMB | default 16384 }}
-            - --tartkubelet-max-pods={{ .Values.macosFleet.tartKubelet.maxPods | default 8 }}
+            - --tartkubelet-max-pods={{ .Values.macosFleet.tartKubelet.maxPods | default 2 }}
           env:
             # Scaleway credentials. ESO syncs them from 1Password into
             # this Secret automatically (see

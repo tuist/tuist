@@ -360,19 +360,18 @@ macosFleet:
   apiServerURL: ""
 
   # tart-kubelet — kubelet-shaped agent the CAPI provider installs on
-  # each Mac mini. Replaces the old VK provider; each Mac mini joins
-  # the cluster as a real Node and runs Pods scheduled to it as
-  # Tart VMs. The darwin/arm64 binary is baked into the operator's
-  # own image — bumping `macosFleet.image.tag` rolls a new kubelet.
+  # each Mac mini. Each Mac mini joins the cluster as a real Node and
+  # runs Pods scheduled to it as Tart VMs. The darwin/arm64 binary is
+  # baked into the operator's own image — bumping
+  # `macosFleet.image.tag` rolls a new kubelet.
   tartKubelet:
     # Capacity advertised by each Mac mini when it registers its Node.
+    # M4-S = 8 vCPU / 16 GB. maxPods is 2 because Apple's macOS SLA
+    # only permits up to two simultaneous virtualized macOS instances
+    # per bare-metal host (Tart refuses to start a third VM).
     hostCPU: 8
     hostMemoryMB: 16384
-    maxPods: 8
-    # Capacity advertised on the virtual Node per Mac mini. Sum of all
-    # Mac minis in the fleet = total Node capacity. M4-S = 8 vCPU/16GB.
-    hostCPU: 8
-    hostMemoryMB: 16384
+    maxPods: 2
   scaleway:
     # Name of the Secret holding `access-key`, `secret-key`,
     # `project-id`. ESO populates it from 1Password by default; set

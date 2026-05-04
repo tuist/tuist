@@ -114,7 +114,9 @@ func (m *Maintainer) configureNode(node *corev1.Node) {
 		mem = 16384
 	}
 	if maxPods == 0 {
-		maxPods = 8
+		// Apple's macOS SLA caps virtualized macOS instances at 2 per
+		// bare-metal host; Tart refuses to start a third VM.
+		maxPods = 2
 	}
 	if node.Status.Capacity == nil {
 		node.Status.Capacity = corev1.ResourceList{}

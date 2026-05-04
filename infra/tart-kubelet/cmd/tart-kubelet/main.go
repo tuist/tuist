@@ -57,7 +57,10 @@ func main() {
 	flag.StringVar(&nodeName, "node-name", envOr("TART_KUBELET_NODE_NAME", ""), "Node name to register as. Defaults to os.Hostname() when empty.")
 	flag.IntVar(&hostCPU, "host-cpu", 8, "CPU cores to advertise on the Node.")
 	flag.IntVar(&hostMemoryMB, "host-memory-mb", 16384, "Memory MB to advertise on the Node.")
-	flag.IntVar(&maxPods, "max-pods", 8, "Max concurrent Pods (= concurrent Tart VMs) on this Node.")
+	flag.IntVar(&maxPods, "max-pods", 2,
+		"Max concurrent Pods (= concurrent Tart VMs) on this Node. Capped at 2 "+
+			"by Apple's macOS SLA (no more than two simultaneous virtualized macOS "+
+			"instances per host); Tart refuses to start a third VM.")
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "Prometheus metrics endpoint.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "Liveness/readiness probe endpoint.")
 	flag.StringVar(&tartBinary, "tart-binary", "/usr/local/bin/tart", "Path to the local tart CLI.")
