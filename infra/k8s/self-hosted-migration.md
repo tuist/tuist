@@ -633,7 +633,7 @@ Categorize each item from Apalla's rendered KubeadmControlPlane spec:
 - **Hardening worth keeping**: API server audit logging, EventRateLimit admission, `protectKernelDefaults`, custom kubelet TLS cipher list, etcd `auto-compaction` + 8 GB quota.
 - **Optional**: konnectivity egress selector (only meaningful if API server and nodes are on separate networks; we're flat public), custom HPA tuning, eviction threshold tweaks.
 
-Score each as keep / drop / defer. The `infra/k8s/clusters/reference-templates/` directory has caph's vanilla starting point; Apalla's full rendered spec is captured in the `clusterctl describe` output saved to `/tmp/syself-pre-move-tree.txt` during Phase 2.1 (or re-pull from the still-running Cluster CRs on our mgmt cluster).
+Score each as keep / drop / defer. caph's vanilla starting point is the `cluster-class.yaml` asset on each release (`gh release download v1.1.0 --repo syself/cluster-api-provider-hetzner --pattern 'cluster-class*.yaml'`); Apalla's full rendered spec is captured in the `clusterctl describe` output saved to `/tmp/syself-pre-move-tree.txt` during Phase 2.1 (or re-pull from the still-running Cluster CRs on our mgmt cluster).
 
 ### 7.2 Author the ClusterClass ✓ DONE
 
@@ -671,11 +671,11 @@ Once all four Clusters are happily reconciling against `tuist-hcloud`, the Apall
 | Activity | Cadence | Owner | Notes |
 |---|---|---|---|
 | Talos image upgrade for the mgmt VM | Monthly | Agent PR + human review | `talosctl upgrade --image=...`; Talos is immutable and atomic: bumps replace the running image, ~2 min of mgmt API downtime per upgrade. No `apt`. Workload clusters keep serving. |
-| caph upgrade | Quarterly | Agent PR + human review | `clusterctl upgrade plan`/`apply` for caph. After Phase 7 lands, also rebase our ClusterClass against any upstream changes in caph's reference templates ([`infra/k8s/clusters/reference-templates/`](clusters/reference-templates/)) |
+| caph upgrade | Quarterly | Agent PR + human review | `clusterctl upgrade plan`/`apply` for caph. After Phase 7 lands, also rebase our ClusterClass against any upstream changes by pulling the new release's `cluster-class.yaml` asset and diffing |
 | CAPI minor upgrade | ~Yearly | Engineer + agent | `clusterctl upgrade plan` then `clusterctl upgrade apply`; do alongside K8s minor bumps |
 | Kubernetes minor bump (4 clusters) | Yearly | Engineer + agent | After Phase 7: bump each Cluster CR's `topology.version`. Until then: edit the rendered `KubeadmControlPlane.spec.version` + each `MachineDeployment.spec.template.spec.version` directly per cluster (4× edits, no template inheritance). Stage staging → canary → production over a few days. |
 | Etcd snapshot restore drill | Quarterly | Agent + supervise | Spin up a throwaway VM, restore the latest Tigris snapshot, confirm `kubectl get clusters` returns the expected state |
-| caph reference-template refresh | On caph minor releases | Agent | `curl` the new release assets into [`infra/k8s/clusters/reference-templates/`](clusters/reference-templates/). After Phase 7: diff against our `clusterclass-tuist.yaml`, port any upstream improvements |
+| caph reference-template diff | On caph minor releases | Agent | `gh release download <tag> --repo syself/cluster-api-provider-hetzner --pattern 'cluster-class*.yaml'`, diff against our `clusterclass-tuist.yaml`, port any upstream improvements |
 | Mgmt cluster downtime | Rare | Engineer | Workload clusters keep serving; preview scaling + autoscaler stop until restored |
 
 Steady state: ~1–2h/month of engineer time with agent execution, plus a half-day for the K8s minor bump once or twice a year.

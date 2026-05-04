@@ -25,22 +25,20 @@ machine types per pool, labels/taints).
 
 ```
 clusters/
-├── README.md                          this file
-├── clusterclass-tuist.yaml            our ClusterClass (in progress, see "Status")
-├── cluster-staging.yaml               per-env Cluster CRs in topology mode
+├── README.md                  this file
+├── clusterclass-tuist.yaml    our ClusterClass (Phase 7.2 + 7.3 done)
+├── cluster-staging.yaml       per-env Cluster CRs in topology mode
 ├── cluster-canary.yaml
 ├── cluster-production.yaml
-├── cluster-preview.yaml
-└── reference-templates/               caph v1.1.0 release assets, unchanged
-    ├── cluster-class.yaml             caph's reference ClusterClass (fork source)
-    ├── cluster-class-topology-example.yaml   per-cluster Cluster CR shape
-    ├── cluster-template-hcloud.yaml          single-cluster non-topology template
-    └── cluster-template-hcloud-network.yaml  same with Hetzner Cloud Network
+└── cluster-preview.yaml
 ```
 
-The `reference-templates/` directory is checked in for traceability:
-when caph publishes a new minor (v1.2.0+), the diff against this
-snapshot tells us what upstream changed in the ClusterClass shape.
+`clusterclass-tuist.yaml` was originally forked from caph's `cluster-class.yaml` release asset, with adaptations captured in [Status](#status) below. When caph ships a new minor and we want to compare against upstream, pull the relevant release tarball at that time:
+
+```bash
+gh release download v1.2.0 --repo syself/cluster-api-provider-hetzner \
+  --pattern 'cluster-class*.yaml' --pattern 'cluster-template-hcloud*.yaml'
+```
 
 ## Target shape per cluster
 
@@ -61,8 +59,7 @@ caph's reference templates use Hetzner-published Ubuntu images plus cloud-init t
 
 ## Status
 
-- [x] caph reference templates pulled to `reference-templates/`.
-- [x] `clusterclass-tuist.yaml` forked from `cluster-class.yaml`. Adaptations from the validation runs:
+- [x] `clusterclass-tuist.yaml` forked from caph v1.1.0's `cluster-class.yaml` release asset. Adaptations from the validation runs:
   - Bare-metal MachineDeployment class + bare-metal templates dropped (we only use cloud servers).
   - All 5 resources scoped to the `org-tuist` namespace (otherwise `topology.classRef` lookup fails because Cluster CRs live in `org-tuist`).
   - `initConfiguration.skipPhases: [addon/kube-proxy]` added to the KCP because Cilium replaces kube-proxy on Tuist's clusters.
