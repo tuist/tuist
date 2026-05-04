@@ -1,21 +1,9 @@
 // Per-machine kubelet identity. One ServiceAccount + one
 // long-lived service-account-token Secret + one ClusterRoleBinding
-// per Mac mini, all in the operator's namespace.
-//
-// The previous shape was one shared SA + token Secret across the
-// entire fleet, which meant a compromised host could impersonate
-// any other host (the same bearer token unlocked the same set of
-// resources from anywhere). For BYOC (PR #10499 description's
-// "Path to BYOC" section) that's a non-starter — customer A's Mac
-// mini can't be allowed to authenticate as customer B's. Per-Node
-// identity is the minimum viable separation.
-//
-// We stop short of upstream kubelet's TLS bootstrap + NodeAuthorizer
-// flow (CSRs, Node-bound certs, NodeRestriction admission) — that's
-// the right end state but a substantially larger change. Per-machine
-// SAs at least give us a per-machine *identity*; tightening the
-// per-machine RBAC to a Node-graph-restricted role is the natural
-// follow-up.
+// per Mac mini, all in the operator's namespace. The Mac mini's
+// kubeconfig embeds that machine's token, so a compromised host
+// can only authenticate as its own Node identity — a leaked token
+// doesn't unlock any other host in the fleet.
 
 package credentials
 
