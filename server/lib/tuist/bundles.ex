@@ -571,7 +571,12 @@ defmodule Tuist.Bundles do
     end
   end
 
-  defp flatten_artifacts(artifacts, bundle_id, parent_id \\ nil, current_timestamp \\ default_timestamp()) do
+  defp flatten_artifacts(
+         artifacts,
+         bundle_id,
+         parent_id \\ nil,
+         current_timestamp \\ DateTime.to_naive(DateTime.utc_now())
+       ) do
     valid_artifact_types = Enum.map(Artifact.artifact_types(), &Atom.to_string/1)
 
     Enum.flat_map(artifacts, fn artifact ->
@@ -599,13 +604,5 @@ defmodule Tuist.Bundles do
 
       [current_artifact | child_artifacts]
     end)
-  end
-
-  # Ch's `DateTime64(6)` adapter rejects `DateTime` and requires the
-  # microsecond precision element to be 6, so build a `NaiveDateTime`
-  # at usec precision up front.
-  defp default_timestamp do
-    %NaiveDateTime{microsecond: {value, _}} = ndt = DateTime.to_naive(DateTime.utc_now())
-    %{ndt | microsecond: {value, 6}}
   end
 end

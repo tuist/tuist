@@ -13,7 +13,7 @@ defmodule Tuist.BundlesTest do
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   setup do
-    stub(DateTime, :utc_now, fn -> ~U[2024-08-10 02:00:00Z] end)
+    stub(DateTime, :utc_now, fn -> ~U[2024-08-10 02:00:00.000000Z] end)
     :ok
   end
 
