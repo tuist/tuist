@@ -192,12 +192,12 @@ jobs:
           echo "${{ secrets.KUBECONFIG }}" | base64 -d > "$KUBECONFIG"
           chmod 600 "$KUBECONFIG"
       - name: kubectl apply CRDs
-        # Helm 3 installs `crds/*.yaml` only on first `helm install` and
-        # ignores them on every `helm upgrade` (intentional: Helm
-        # refuses to manage CRD lifecycle to avoid data loss). Re-apply
-        # them imperatively each deploy so schema additions ship without
-        # a manual step. `kubectl apply` is idempotent — no-op when
-        # nothing changed.
+        # Helm 3 installs `crds/*.yaml` on `helm install` and skips
+        # them on `helm upgrade` (intentional — Helm refuses to manage
+        # CRD lifecycle to avoid data loss on schema regressions). The
+        # deploy workflow re-applies them every run so chart-managed
+        # schema changes ship the same way code changes do; no
+        # operator-side manual step.
         run: kubectl apply -f "$HELM_CHART_PATH/crds/"
       - name: Recover interrupted Helm release
         run: |
