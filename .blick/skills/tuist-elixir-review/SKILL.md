@@ -59,15 +59,15 @@ Tenant-owned schemas include at least: `Bundle`, `Run`, `Cache`,
 
 ---
 
-## 3. ClickHouse `IngestRepo` is write-only
+## 3. ClickHouse `IngestRepo` is write-only — `ClickHouseRepo` is read-only
 
-There are **two** ClickHouse repos in this codebase, and they are not
-interchangeable. Be precise about which one a call uses before flagging.
+There are **two** ClickHouse repos in this codebase. They are NOT
+interchangeable — confusing them produces false positives.
 
-- **`Tuist.IngestRepo`** — write-only ingest path. Application code must
-  not read from it; reads happen out of band.
-- **`Tuist.ClickHouseRepo`** — the read-only ClickHouse repo (declared
-  with `read_only: true` in `server/lib/tuist/clickhouse_repo.ex`).
+| Repo | Purpose | Flag reads? |
+|------|---------|-------------|
+| **`Tuist.IngestRepo`** | Write-only ingest path | **YES** — never read |
+| **`Tuist.ClickHouseRepo`** | Read-only queries (`read_only: true`) | **NO** — this IS the allowed read path |
 
 ### Flag (Severity: high)
 
@@ -76,17 +76,16 @@ interchangeable. Be precise about which one a call uses before flagging.
   `Tuist.IngestRepo.exists?/1`, or `Tuist.IngestRepo.aggregate/3`.
 - Any `from(... ) |> Tuist.IngestRepo.<read fn>`.
 
-The fix is almost always to read through `Tuist.ClickHouseRepo` (for
-ClickHouse-only data) or `Tuist.Repo` (PostgreSQL).
+### Do not flag — critical distinction
 
-### Do not flag
-
+- **NEVER flag reads through `Tuist.ClickHouseRepo`**. This repo exists
+  specifically for application reads from ClickHouse. The
+  `server/lib/tuist/clickhouse_repo.ex` module declares `read_only: true`.
 - `Tuist.ClickHouseRepo.all/1`, `Tuist.ClickHouseRepo.one/1`,
-  `Tuist.ClickHouseRepo.aggregate/3`, or any other read through
-  `ClickHouseRepo`. That repo exists specifically for application reads.
-  Do **not** confuse it with `IngestRepo`.
+  `Tuist.ClickHouseRepo.aggregate/3` — these are the CORRECT way to read
+  ClickHouse data in application code.
 - Writes via `Tuist.IngestRepo.insert/2` / `insert_all/2,3` — those are
-  the intended use.
+  the intended use of the write path.
 
 ---
 
@@ -122,31 +121,62 @@ In `server/priv/repo/migrations/` and `server/priv/ingest_repo/migrations/`:
 
 ---
 
-## 6. `data-export.md` updates on schema changes
+## 6. Migration backfill ordering and race conditions
 
-`server/data-export.md` documents every piece of customer data Tuist
-stores, for GDPR Article 20 / CCPA exports. **It must be updated when
-the diff includes** any of:
+Backfills that populate new tables/MVs from existing data must account for
+concurrent writes happening during the migration window.
 
-- A new migration adding a table
-- A new migration adding a column that stores customer / user / project
-  data (not internal bookkeeping)
-- A new Ecto schema in `server/lib/tuist/**/*.ex` that maps to a
-  customer-facing table
-- New file storage paths in S3 (e.g. new keys under `bundles/`,
-  `previews/`, `caches/`)
+### Flag (Severity: high)
 
-### Flag (Severity: medium)
+- **Backfilling before establishing the live sync mechanism** (e.g.,
+  backfilling from PostgreSQL before creating a ClickHouse Materialized View
+  trigger). Rows inserted between the backfill scan and the MV creation will
+  be permanently lost. The MV only captures changes from its creation time
+  forward.
+- **Async buffered writes without durability on crash** (e.g.,
+  `Tuist.Ingestion.Buffer` with async mode). If the buffer process crashes
+  and restarts between PG commit and CH flush, the in-flight rows are lost
+  with no replay mechanism. Flag when a migration relies on async ingestion
+  without confirming the buffer is sync-only for that path or has explicit
+  crash-recovery replay logic.
+- **Dual-write backfills without a "processed" flag** to distinguish
+  pre-migration from post-migration rows. If live traffic continues inserting
+  during the backfill, the backfill may race with the dual-write and create
+  duplicates or miss rows.
 
-- A diff that touches `server/priv/repo/migrations/*.exs` (other than
-  pure index / constraint changes) or `server/priv/ingest_repo/migrations/*.exs`
-  **without** also modifying `server/data-export.md`.
+### Safe patterns
 
-This is a compliance gap, not just a docs nit — call it out clearly.
+- Create the MV/trigger first (captures new changes), then backfill historical
+  data, ensuring the backfill query excludes rows already captured by the MV.
+- Use a "watermark" column (`backfilled_at`, `replicated_to_ch`) to resume
+  from interruption and avoid re-processing.
 
 ---
 
-## 7. i18n — currency symbols are not translatable
+## 7. `data-export.md` updates on schema changes
+
+`server/data-export.md` documents customer data for GDPR Article 20 / CCPA
+exports. Internal bookkeeping (replication flags, sync timestamps,
+`replicated_to_ch`, `processed_at`, etc.) belongs in the Non-Exportable
+Data section, not the exportable list.
+
+### Flag (Severity: medium)
+
+- A diff that adds a **new customer-facing table** (stores user/project
+  data) or **new S3 storage paths** (`bundles/`, `previews/`, `caches/`)
+  **without** updating `server/data-export.md`.
+
+### Do not flag
+
+- Columns that are clearly internal bookkeeping (replication state
+  flags, backfill markers, `*_replicated_to_ch`, `processed_at`, etc.).
+  These should be documented in Non-Exportable Data, not flagged as
+  missing from exportable lists.
+- Pure index/constraint migrations with no new data columns.
+
+---
+
+## 8. i18n — currency symbols are not translatable
 
 In marketing copy and pricing UI:
 
@@ -166,7 +196,7 @@ In marketing copy and pricing UI:
 
 ---
 
-## 8. Translation files — `.po` is read-only for humans
+## 9. Translation files — `.po` is read-only for humans
 
 ### Flag (Severity: high)
 
@@ -197,7 +227,7 @@ In marketing copy and pricing UI:
 For each finding, confirm:
 
 1. The `path:line` is real and the snippet appears in the diff.
-2. The category above is one of 1–8; if it isn't, downgrade to a
+2. The category above is one of 1–9; if it isn't, downgrade to a
    question (`uncertain: ...`) rather than asserting a finding.
 3. The severity is set: **critical** (auth bypass / cross-tenant read or
    write), **high** (likely security or correctness bug), **medium**
