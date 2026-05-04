@@ -1,0 +1,116 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.16.5
+  name: scalewayapplesiliconmachinetemplates.infrastructure.cluster.x-k8s.io
+spec:
+  group: infrastructure.cluster.x-k8s.io
+  names:
+    categories:
+    - cluster-api
+    kind: ScalewayAppleSiliconMachineTemplate
+    listKind: ScalewayAppleSiliconMachineTemplateList
+    plural: scalewayapplesiliconmachinetemplates
+    shortNames:
+    - sammt
+    singular: scalewayapplesiliconmachinetemplate
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: |-
+          ScalewayAppleSiliconMachineTemplate is the template
+          MachineDeployment + MachineSet objects clone Machines from.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: |-
+              ScalewayAppleSiliconMachineTemplateSpec wraps the per-Machine spec
+              into the template shape CAPI expects.
+            properties:
+              template:
+                description: |-
+                  ScalewayAppleSiliconMachineTemplateResource is the embedded "spec"
+                  CAPI's MachineSet controller clones from when scaling up a
+                  MachineDeployment.
+                properties:
+                  spec:
+                    description: ScalewayAppleSiliconMachineSpec is the desired state
+                      of one Mac mini.
+                    properties:
+                      fleetName:
+                        description: |-
+                          FleetName groups Machines that share an SSH key. Set by the
+                          MachineTemplate (typically to the parent MachineDeployment's
+                          name). The operator generates one Ed25519 keypair per fleet,
+                          registers the public half with Scaleway via the IAM API, and
+                          stores the private half in `<fleetName>-ssh` so all Machines
+                          in the fleet share the same operator-held credential.
+                        type: string
+                      kubeletVersion:
+                        description: |-
+                          KubeletVersion override; defaults to the operator's
+                          chart-level value when empty.
+                        type: string
+                      os:
+                        default: macos-tahoe-26.0
+                        description: |-
+                          OS is the Scaleway-provided macOS image name. The controller
+                          resolves this to an OS UUID via `scw apple-silicon os list`.
+                        type: string
+                      podCIDR:
+                        description: |-
+                          PodCIDR is the per-host CIDR slice this Mac mini's CNI plugin
+                          hands out to Pods. Cluster operators carve the cluster CIDR
+                          (e.g. 10.42.0.0/16) into per-machine /24s and set this field
+                          per-Machine — there's no automatic IPAM at this layer (yet).
+                        type: string
+                      providerID:
+                        description: |-
+                          ProviderID, set by the controller after provisioning, takes the
+                          shape `scw-applesilicon://<zone>/<server-id>`. CAPI core expects
+                          this to populate; without it the parent Machine never goes Ready.
+                        type: string
+                      type:
+                        default: M4-S
+                        description: |-
+                          Type is Scaleway's Mac mini SKU (M1-M, M4-S, M4-M, etc.).
+                          Defaults to M4-S: only zone fr-par-1 currently carries M2/M4
+                          SKUs (fr-par-3 has M1-M only and it's been unstocked).
+                        type: string
+                      zone:
+                        default: fr-par-1
+                        description: Zone is the Scaleway zone (fr-par-1, fr-par-3,
+                          etc.).
+                        type: string
+                    required:
+                    - podCIDR
+                    type: object
+                required:
+                - spec
+                type: object
+            required:
+            - template
+            type: object
+        type: object
+    served: true
+    storage: true

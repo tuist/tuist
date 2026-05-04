@@ -61,29 +61,29 @@ spec:
             status:
               type: object
               properties:
-                ready: { type: boolean }
-                serverID: { type: string }
-                phase: { type: string }
-                failureReason: { type: string }
-                failureMessage: { type: string }
-                tartKubeletBinarySHA: { type: string }
-                perMachineKubeconfigInstalled: { type: boolean }
-                tartKubeletUpdateAttempts: { type: integer, format: int32 }
+                ready: {type: boolean}
+                serverID: {type: string}
+                phase: {type: string}
+                failureReason: {type: string}
+                failureMessage: {type: string}
+                tartKubeletBinarySHA: {type: string}
+                perMachineKubeconfigInstalled: {type: boolean}
+                tartKubeletUpdateAttempts: {type: integer, format: int32}
                 addresses:
                   type: array
                   items:
                     type: object
                     properties:
-                      type: { type: string }
-                      address: { type: string }
+                      type: {type: string}
+                      address: {type: string}
                 conditions:
                   type: array
                   items:
                     type: object
                     properties:
-                      type: { type: string }
-                      status: { type: string }
-                      severity: { type: string }
-                      lastTransitionTime: { type: string, format: date-time }
-                      reason: { type: string }
-                      message: { type: string }
+                      type: {type: string}
+                      status: {type: string}
+                      severity: {type: string}
+                      lastTransitionTime: {type: string, format: date-time}
+                      reason: {type: string}
+                      message: {type: string}

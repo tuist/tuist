@@ -37,20 +37,20 @@ spec:
                 controlPlaneEndpoint:
                   type: object
                   properties:
-                    host: { type: string }
-                    port: { type: integer }
+                    host: {type: string}
+                    port: {type: integer}
             status:
               type: object
               properties:
-                ready: { type: boolean }
+                ready: {type: boolean}
                 conditions:
                   type: array
                   items:
                     type: object
                     properties:
-                      type: { type: string }
-                      status: { type: string }
-                      severity: { type: string }
-                      lastTransitionTime: { type: string, format: date-time }
-                      reason: { type: string }
-                      message: { type: string }
+                      type: {type: string}
+                      status: {type: string}
+                      severity: {type: string}
+                      lastTransitionTime: {type: string, format: date-time}
+                      reason: {type: string}
+                      message: {type: string}

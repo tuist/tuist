@@ -34,10 +34,10 @@ spec:
                       type: object
                       required: [podCIDR]
                       properties:
-                        providerID: { type: string }
-                        type: { type: string, default: M2-M }
-                        zone: { type: string, default: fr-par-3 }
-                        os: { type: string, default: macos-tahoe-26.0 }
-                        podCIDR: { type: string }
-                        fleetName: { type: string }
-                        kubeletVersion: { type: string }
+                        providerID: {type: string}
+                        type: {type: string, default: M2-M}
+                        zone: {type: string, default: fr-par-3}
+                        os: {type: string, default: macos-tahoe-26.0}
+                        podCIDR: {type: string}
+                        fleetName: {type: string}
+                        kubeletVersion: {type: string}

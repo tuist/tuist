@@ -9,6 +9,9 @@
 // template MachineDeployments + MachineSets clone from, and
 // ScalewayAppleSiliconCluster is the (mostly stub) cluster-level resource
 // CAPI core requires to exist for the Cluster object to validate.
+//
+// +kubebuilder:object:generate=true
+// +groupName=infrastructure.cluster.x-k8s.io
 package v1alpha1
 
 import (
