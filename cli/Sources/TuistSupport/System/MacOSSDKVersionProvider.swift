@@ -28,3 +28,9 @@ public struct MacOSSDKVersionProvider: MacOSSDKVersionProviding {
         try cachedMacOSSDKVersion.value
     }
 }
+
+#if DEBUG
+    extension MacOSSDKVersionProvider {
+        public static var mocked: MockMacOSSDKVersionProviding? { current as? MockMacOSSDKVersionProviding }
+    }
+#endif

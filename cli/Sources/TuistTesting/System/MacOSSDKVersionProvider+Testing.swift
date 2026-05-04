@@ -1,10 +1,6 @@
 import Testing
 import TuistSupport
 
-extension MacOSSDKVersionProvider {
-    public static var mocked: MockMacOSSDKVersionProviding? { current as? MockMacOSSDKVersionProviding }
-}
-
 public struct MacOSSDKVersionProviderTestingTrait: TestTrait, SuiteTrait, TestScoping {
     public func provideScope(
         for _: Test,
