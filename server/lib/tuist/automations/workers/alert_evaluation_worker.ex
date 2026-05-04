@@ -78,11 +78,9 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
   end
 
   # Tests get marked `is_flaky = true` outside this alert's tracking: manually
-  # via UI/API, by a previous automation that has since been deleted or
-  # reconfigured, or by an earlier evaluation that lost its event due to the
-  # ClickHouse read-modify-write race fixed in `ActionExecutor`. Without this
-  # path they would stay flagged forever, because recovery walks
-  # `active_events` only.
+  # via UI/API, or by a previous automation that has since been deleted or
+  # reconfigured. Without this path they would stay flagged forever, because
+  # recovery walks `active_events` only.
   defp recover_orphaned_flaky_test_cases(alert, currently_triggered_set, active_events, already_recovered_ids) do
     tracked_ids =
       active_events
