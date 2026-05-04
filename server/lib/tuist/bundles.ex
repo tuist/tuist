@@ -48,8 +48,7 @@ defmodule Tuist.Bundles do
   defp insert_artifacts_to_clickhouse([]), do: :ok
 
   defp insert_artifacts_to_clickhouse(flattened) do
-    rows = Enum.map(flattened, &Artifact.to_ch_row/1)
-    IngestRepo.insert_all(Artifact, rows)
+    IngestRepo.insert_all(Artifact, flattened)
     :ok
   end
 
@@ -569,25 +568,20 @@ defmodule Tuist.Bundles do
     end
   end
 
-  defp flatten_artifacts(
-         artifacts,
-         bundle_id,
-         parent_id \\ nil,
-         current_timestamp \\ DateTime.truncate(DateTime.utc_now(), :second)
-       ) do
+  defp flatten_artifacts(artifacts, bundle_id, parent_id \\ nil, current_timestamp \\ default_timestamp()) do
     valid_artifact_types = Enum.map(Artifact.artifact_types(), &Atom.to_string/1)
 
     Enum.flat_map(artifacts, fn artifact ->
       artifact_id = UUIDv7.generate()
-      artifact_type = Map.get(artifact, :artifact_type)
+      artifact_type = Atom.to_string(Map.fetch!(artifact, :artifact_type))
 
-      if !Enum.member?(valid_artifact_types, Atom.to_string(artifact_type)) do
+      if !Enum.member?(valid_artifact_types, artifact_type) do
         raise "Invalid artifact type: #{artifact_type}. Must be one of #{inspect(valid_artifact_types)}."
       end
 
       current_artifact = %{
         id: artifact_id,
-        artifact_type: Map.get(artifact, :artifact_type),
+        artifact_type: artifact_type,
         path: Map.get(artifact, :path),
         size: Map.get(artifact, :size),
         shasum: Map.get(artifact, :shasum),
@@ -602,5 +596,13 @@ defmodule Tuist.Bundles do
 
       [current_artifact | child_artifacts]
     end)
+  end
+
+  # Ch's `DateTime64(6)` adapter rejects `DateTime` and requires the
+  # microsecond precision element to be 6, so build a `NaiveDateTime`
+  # at usec precision up front.
+  defp default_timestamp do
+    %NaiveDateTime{microsecond: {value, _}} = ndt = DateTime.to_naive(DateTime.utc_now())
+    %{ndt | microsecond: {value, 6}}
   end
 end
