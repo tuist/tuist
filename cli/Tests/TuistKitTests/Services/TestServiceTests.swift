@@ -3960,7 +3960,7 @@ final class TestServiceTests: TuistUnitTestCase {
             .called(1)
     }
 
-    func test_run_testWithoutBuilding_skipsWhenSelectedTestPlanTargetsWereFullyCached() async throws {
+    func test_run_testWithoutBuilding_skipsWhenRequestedTestPlanXCTestRunIsMissing() async throws {
         // Given
         let path = try temporaryPath()
         let testProductsPath = path.appending(component: "MyApp.xctestproducts")
@@ -3968,18 +3968,12 @@ final class TestServiceTests: TuistUnitTestCase {
         let testPlan = "IntegrationTestSuite"
 
         let selectiveTestingGraph = SelectiveTestingGraph(
-            testTargetHashes: ["IntegrationTests": "abc123"]
+            testTargetHashes: ["IntegrationTests": "abc123"],
+            attemptedTestPlans: [testPlan]
         )
         let graphPath = testProductsPath.appending(component: SelectiveTestingGraph.fileName)
         let data = try JSONEncoder().encode(selectiveTestingGraph)
         try data.write(to: graphPath.url)
-        let runMetadata = SelectiveTestingRunMetadata(
-            selectedTargetNames: ["IntegrationTests"],
-            runnableTargetNames: []
-        )
-        let metadataPath = testProductsPath.appending(component: SelectiveTestingRunMetadata.fileName)
-        let metadataData = try JSONEncoder().encode(runMetadata)
-        try metadataData.write(to: metadataPath.url)
 
         given(configLoader)
             .loadConfig(path: .any)
@@ -4018,25 +4012,20 @@ final class TestServiceTests: TuistUnitTestCase {
             .called(0)
     }
 
-    func test_run_testWithoutBuilding_skipsWhenSelectedSchemeTargetsWereFullyCached() async throws {
+    func test_run_testWithoutBuilding_skipsWhenRequestedSchemeXCTestRunIsMissing() async throws {
         // Given
         let path = try temporaryPath()
         let testProductsPath = path.appending(component: "MyApp.xctestproducts")
         try await fileSystem.makeDirectory(at: testProductsPath)
+        let schemeName = "App"
 
         let selectiveTestingGraph = SelectiveTestingGraph(
-            testTargetHashes: ["UnitTests": "abc123"]
+            testTargetHashes: ["UnitTests": "abc123"],
+            attemptedTestPlans: [schemeName]
         )
         let graphPath = testProductsPath.appending(component: SelectiveTestingGraph.fileName)
         let data = try JSONEncoder().encode(selectiveTestingGraph)
         try data.write(to: graphPath.url)
-        let runMetadata = SelectiveTestingRunMetadata(
-            selectedTargetNames: ["UnitTests"],
-            runnableTargetNames: []
-        )
-        let metadataPath = testProductsPath.appending(component: SelectiveTestingRunMetadata.fileName)
-        let metadataData = try JSONEncoder().encode(runMetadata)
-        try metadataData.write(to: metadataPath.url)
 
         given(configLoader)
             .loadConfig(path: .any)
@@ -4045,6 +4034,7 @@ final class TestServiceTests: TuistUnitTestCase {
         // When
         try await AlertController.$current.withValue(AlertController()) {
             try await testRun(
+                schemeName: schemeName,
                 path: path,
                 action: .testWithoutBuilding,
                 passthroughXcodeBuildArguments: ["-testProductsPath", testProductsPath.pathString]
@@ -4057,7 +4047,7 @@ final class TestServiceTests: TuistUnitTestCase {
             .called(0)
     }
 
-    func test_run_testWithoutBuilding_doesNotSkipWhenRunnableTargetsRemain() async throws {
+    func test_run_testWithoutBuilding_doesNotSkipWhenRequestedTestPlanXCTestRunIsPresent() async throws {
         // Given
         let path = try temporaryPath()
         let testProductsPath = path.appending(component: "MyApp.xctestproducts")
@@ -4065,18 +4055,54 @@ final class TestServiceTests: TuistUnitTestCase {
         let requestedTestPlan = "IntegrationTestSuite"
 
         let selectiveTestingGraph = SelectiveTestingGraph(
-            testTargetHashes: ["UnitTests": "abc123"]
+            testTargetHashes: ["UnitTests": "abc123"],
+            attemptedTestPlans: [requestedTestPlan]
         )
         let graphPath = testProductsPath.appending(component: SelectiveTestingGraph.fileName)
         let data = try JSONEncoder().encode(selectiveTestingGraph)
         try data.write(to: graphPath.url)
-        let runMetadata = SelectiveTestingRunMetadata(
-            selectedTargetNames: ["UnitTests"],
-            runnableTargetNames: ["UnitTests"]
+        // Simulate xcodebuild having emitted the .xctestrun for the requested plan.
+        let xctestrunPath = testProductsPath.appending(component: "\(requestedTestPlan).xctestrun")
+        try Data().write(to: xctestrunPath.url)
+
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject()))
+
+        given(xcodebuildController)
+            .run(arguments: .any)
+            .willReturn()
+
+        // When
+        try await AlertController.$current.withValue(AlertController()) {
+            try await testRun(
+                path: path,
+                action: .testWithoutBuilding,
+                testPlanConfiguration: TestPlanConfiguration(testPlan: requestedTestPlan),
+                passthroughXcodeBuildArguments: ["-testProductsPath", testProductsPath.pathString]
+            )
+        }
+
+        // Then
+        verify(xcodebuildController)
+            .run(arguments: .any)
+            .called(1)
+    }
+
+    func test_run_testWithoutBuilding_doesNotSkipUnknownTestPlan() async throws {
+        // Given
+        let path = try temporaryPath()
+        let testProductsPath = path.appending(component: "MyApp.xctestproducts")
+        try await fileSystem.makeDirectory(at: testProductsPath)
+        let typoTestPlan = "TpyoTestPlan"
+
+        let selectiveTestingGraph = SelectiveTestingGraph(
+            testTargetHashes: ["UnitTests": "abc123"],
+            attemptedTestPlans: ["IntegrationTestSuite"]
         )
-        let metadataPath = testProductsPath.appending(component: SelectiveTestingRunMetadata.fileName)
-        let metadataData = try JSONEncoder().encode(runMetadata)
-        try metadataData.write(to: metadataPath.url)
+        let graphPath = testProductsPath.appending(component: SelectiveTestingGraph.fileName)
+        let data = try JSONEncoder().encode(selectiveTestingGraph)
+        try data.write(to: graphPath.url)
 
         given(configLoader)
             .loadConfig(path: .any)
@@ -4085,7 +4111,7 @@ final class TestServiceTests: TuistUnitTestCase {
         let error = SystemError.terminated(
             command: "xcodebuild test-without-building",
             code: 66,
-            standardError: Data("xcodebuild: error: xctestproducts does not contain test plan: \(requestedTestPlan)".utf8)
+            standardError: Data("xcodebuild: error: xctestproducts does not contain test plan: \(typoTestPlan)".utf8)
         )
         given(xcodebuildController)
             .run(arguments: .any)
@@ -4097,7 +4123,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 try await testRun(
                     path: path,
                     action: .testWithoutBuilding,
-                    testPlanConfiguration: TestPlanConfiguration(testPlan: requestedTestPlan),
+                    testPlanConfiguration: TestPlanConfiguration(testPlan: typoTestPlan),
                     passthroughXcodeBuildArguments: ["-testProductsPath", testProductsPath.pathString]
                 )
             },
@@ -4317,9 +4343,8 @@ final class TestServiceTests: TuistUnitTestCase {
         let graphPath = testProductsPath.appending(component: SelectiveTestingGraph.fileName)
         let exists = try await fileSystem.exists(graphPath)
         XCTAssertTrue(exists, "Expected selective testing graph at \(graphPath.pathString)")
-        let metadataPath = testProductsPath.appending(component: SelectiveTestingRunMetadata.fileName)
-        let metadataExists = try await fileSystem.exists(metadataPath)
-        XCTAssertTrue(metadataExists, "Expected selective testing metadata at \(metadataPath.pathString)")
+        let writtenGraph: SelectiveTestingGraph = try await fileSystem.readJSONFile(at: graphPath)
+        XCTAssertEqual(writtenGraph.attemptedTestPlans, ["TestScheme"])
     }
 
     fileprivate func testRun(

@@ -559,9 +559,6 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 derivedDataPath: derivedDataPath,
                 relativeTo: path
             ) {
-                if try await !fileSystem.exists(testProductsPath) {
-                    try await fileSystem.makeDirectory(at: testProductsPath)
-                }
                 let selectiveTestingGraph = computeSelectiveTestingGraph(
                     mapperEnvironment: mapperEnvironment,
                     schemes: schemes,
@@ -571,21 +568,6 @@ public struct TestService { // swiftlint:disable:this type_body_length
                     component: SelectiveTestingGraph.fileName
                 )
                 try await fileSystem.writeAsJSON(selectiveTestingGraph, at: selectiveTestingGraphPath)
-                let selectiveTestingRunMetadata = computeSelectiveTestingRunMetadata(
-                    mapperEnvironment: mapperEnvironment,
-                    graph: graph,
-                    schemes: schemes,
-                    schemeName: schemeName,
-                    testPlanConfiguration: testPlanConfiguration,
-                    action: action
-                )
-                let selectiveTestingRunMetadataPath = testProductsPath.appending(
-                    component: SelectiveTestingRunMetadata.fileName
-                )
-                try await fileSystem.writeAsJSON(
-                    selectiveTestingRunMetadata,
-                    at: selectiveTestingRunMetadataPath
-                )
 
                 if isSharding,
                    let fullHandle = config.fullHandle
@@ -770,15 +752,6 @@ public struct TestService { // swiftlint:disable:this type_body_length
         let selectiveTestingGraph: SelectiveTestingGraph = try await fileSystem.readJSONFile(
             at: selectiveTestingGraphPath
         )
-        let selectiveTestingRunMetadataPath = testProductsPath.appending(
-            component: SelectiveTestingRunMetadata.fileName
-        )
-        let selectiveTestingRunMetadata: SelectiveTestingRunMetadata? =
-            if try await fileSystem.exists(selectiveTestingRunMetadataPath) {
-                try await fileSystem.readJSONFile(at: selectiveTestingRunMetadataPath)
-            } else {
-                nil
-            }
 
         let cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
 
@@ -815,15 +788,14 @@ public struct TestService { // swiftlint:disable:this type_body_length
             passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
         )
 
-        if shouldSkipWithoutBuildingExecution(
-            selectiveTestingRunMetadata: selectiveTestingRunMetadata,
-            testTargets: testTargets,
-            skipTestTargets: skipTestTargets,
-            passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
-        ) {
+        let requestedTestPlanOrScheme = testPlanConfiguration?.testPlan ?? schemeName
+        if let requestedTestPlanOrScheme,
+           selectiveTestingGraph.attemptedTestPlans.contains(requestedTestPlanOrScheme),
+           try await !bundleHasXCTestRun(for: requestedTestPlanOrScheme, in: testProductsPath)
+        {
             let timer = clock.startTimer()
             try await uploadSkippedTestSummary(
-                schemeName: testPlanConfiguration?.testPlan ?? schemeName,
+                schemeName: requestedTestPlanOrScheme,
                 config: config,
                 timer: timer
             )
@@ -990,8 +962,16 @@ public struct TestService { // swiftlint:disable:this type_body_length
         schemes: [Scheme],
         testPlanConfiguration: TestPlanConfiguration?
     ) -> SelectiveTestingGraph {
+        let attemptedTestPlans = attemptedTestPlans(
+            schemes: schemes,
+            testPlanConfiguration: testPlanConfiguration
+        )
+
         guard let initialGraph = mapperEnvironment.initialGraph else {
-            return SelectiveTestingGraph(testTargetHashes: [:])
+            return SelectiveTestingGraph(
+                testTargetHashes: [:],
+                attemptedTestPlans: attemptedTestPlans
+            )
         }
 
         let graphTraverser = GraphTraverser(graph: initialGraph)
@@ -1015,89 +995,49 @@ public struct TestService { // swiftlint:disable:this type_body_length
             }
         }
 
-        return SelectiveTestingGraph(testTargetHashes: testTargetHashes)
-    }
-
-    private func computeSelectiveTestingRunMetadata(
-        mapperEnvironment: MapperEnvironment,
-        graph: Graph,
-        schemes: [Scheme],
-        schemeName: String?,
-        testPlanConfiguration: TestPlanConfiguration?,
-        action: XcodeBuildTestAction
-    ) -> SelectiveTestingRunMetadata {
-        let selectedTargetNames = selectedTargetNames(
-            mapperEnvironment: mapperEnvironment,
-            schemes: schemes,
-            schemeName: schemeName,
-            testPlanConfiguration: testPlanConfiguration,
-            action: action
-        )
-        let runnableTargetNames = sortedUniqueTargetNames(
-            testActionTargets(
-                for: schemes,
-                testPlanConfiguration: testPlanConfiguration,
-                graph: graph,
-                action: action
-            ).map(\.target.name)
-        )
-
-        return SelectiveTestingRunMetadata(
-            selectedTargetNames: selectedTargetNames,
-            runnableTargetNames: runnableTargetNames
+        return SelectiveTestingGraph(
+            testTargetHashes: testTargetHashes,
+            attemptedTestPlans: attemptedTestPlans
         )
     }
 
-    private func selectedTargetNames(
-        mapperEnvironment: MapperEnvironment,
+    private func attemptedTestPlans(
         schemes: [Scheme],
-        schemeName: String?,
-        testPlanConfiguration: TestPlanConfiguration?,
-        action: XcodeBuildTestAction
+        testPlanConfiguration: TestPlanConfiguration?
     ) -> [String] {
-        let selectedSchemes =
-            if let schemeName, let initialGraph = mapperEnvironment.initialGraph {
-                GraphTraverser(graph: initialGraph).schemes().filter { $0.name == schemeName }
-            } else {
-                schemes
-            }
-
-        return sortedUniqueTargetNames(
-            initialTestTargets(
-                mapperEnvironment: mapperEnvironment,
-                schemes: selectedSchemes,
-                testPlanConfiguration: testPlanConfiguration,
-                action: action
-            ).map(\.target.name)
-        )
-    }
-
-    private func shouldSkipWithoutBuildingExecution(
-        selectiveTestingRunMetadata: SelectiveTestingRunMetadata?,
-        testTargets: [TestIdentifier],
-        skipTestTargets: [TestIdentifier],
-        passthroughXcodeBuildArguments: [String]
-    ) -> Bool {
-        guard let selectiveTestingRunMetadata,
-              !selectiveTestingRunMetadata.selectedTargetNames.isEmpty
-        else { return false }
-
-        var runnableTargetNames = Set(selectiveTestingRunMetadata.runnableTargetNames)
-        if !testTargets.isEmpty {
-            runnableTargetNames.formIntersection(testTargets.map(\.target))
+        if let testPlan = testPlanConfiguration?.testPlan {
+            return [testPlan]
         }
-        runnableTargetNames.subtract(
-            skipTestTargets
-                .filter { $0.class == nil && $0.method == nil }
-                .map(\.target)
-        )
-        runnableTargetNames.subtract(passthroughSkippedTestTargetNames(passthroughXcodeBuildArguments))
-
-        return runnableTargetNames.isEmpty
+        var names: [String] = []
+        var seen: Set<String> = []
+        for scheme in schemes {
+            let plans = scheme.testAction?.testPlans ?? []
+            if plans.isEmpty {
+                if seen.insert(scheme.name).inserted {
+                    names.append(scheme.name)
+                }
+            } else {
+                for plan in plans where seen.insert(plan.name).inserted {
+                    names.append(plan.name)
+                }
+            }
+        }
+        return names
     }
 
-    private func sortedUniqueTargetNames(_ targetNames: [String]) -> [String] {
-        Array(Set(targetNames)).sorted()
+    private func bundleHasXCTestRun(
+        for planOrSchemeName: String,
+        in testProductsPath: AbsolutePath
+    ) async throws -> Bool {
+        let xctestrunPaths = try await fileSystem
+            .glob(directory: testProductsPath, include: ["**/*.xctestrun"])
+            .collect()
+        return xctestrunPaths.contains { path in
+            // With test plans Xcode emits `<plan>.xctestrun`; without plans it emits
+            // `<scheme>_<destination>.xctestrun`. Match either shape.
+            let basename = path.basenameWithoutExt
+            return basename == planOrSchemeName || basename.hasPrefix("\(planOrSchemeName)_")
+        }
     }
 
     private func storeSuccessfulTestHashesFromGraph(
