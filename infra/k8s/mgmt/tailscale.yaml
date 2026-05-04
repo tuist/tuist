@@ -42,8 +42,11 @@
 #   5. On the mgmt cluster:
 #        kubectl -n mgmt-system create secret generic tailscale-oauth \
 #          --from-literal=TS_AUTHKEY="tskey-client-PASTE?ephemeral=false&preauthorized=true"
-#      (The query-string suffix tells tailscaled to mint a non-ephemeral
-#      pre-authorized key from the OAuth client.)
+#      `ephemeral=false&preauthorized=true` keep the device long-lived
+#      and skip manual approval. Don't add `&tag=` here — containerboot
+#      rejects it as an unknown attribute. The tag is set instead by
+#      `--advertise-tags=tag:tuist-mgmt` in TS_EXTRA_ARGS below, which
+#      OAuth flow requires regardless.
 #   6. `kubectl apply -f infra/k8s/mgmt/tailscale.yaml`.
 #   7. Wait for the pod to come up, confirm the device shows up in
 #      the Tailscale admin console as `tuist-mgmt` with `tag:tuist-mgmt`.
@@ -168,17 +171,19 @@ spec:
               # userspace mode (small perf hit, no functional change
               # for the low traffic on a mgmt session).
               value: "false"
+            - name: TS_ACCEPT_DNS
+              # Don't override the host's DNS resolver (Talos manages
+              # /etc/resolv.conf). Set as env var, NOT in
+              # TS_EXTRA_ARGS — containerboot already passes
+              # --accept-dns based on this env var, and adding the
+              # same flag to TS_EXTRA_ARGS causes "flag provided
+              # multiple times" and a crashloop.
+              value: "false"
             - name: TS_EXTRA_ARGS
-              # --advertise-tags=tag:tuist-mgmt: required when
-              #   authenticating with an OAuth client; the client is
-              #   scoped to mint keys only for this tag.
-              # --ssh=false: don't expose Tailscale SSH (Talos doesn't
-              #   run sshd anyway, but be explicit).
-              # --accept-routes=false: don't accept subnet routes
-              #   advertised by other tailnet nodes.
-              # --accept-dns=false: don't override the host's DNS
-              #   resolver (Talos manages /etc/resolv.conf).
-              value: "--advertise-tags=tag:tuist-mgmt --ssh=false --accept-routes=false --accept-dns=false"
+              # OAuth flow requires --advertise-tags here in addition
+              # to the `?tag=` query param on TS_AUTHKEY (containerboot
+              # rejects OAuth auth keys without --advertise-tags).
+              value: "--advertise-tags=tag:tuist-mgmt"
           securityContext:
             capabilities:
               add:
