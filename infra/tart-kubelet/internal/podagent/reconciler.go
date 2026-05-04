@@ -213,20 +213,13 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 }
 
 func (r *Reconciler) deletePod(ctx context.Context, pod *corev1.Pod) error {
-	if err := r.deleteByKey(ctx, pod.Namespace, pod.Name); err != nil {
-		return err
-	}
-	// Real kubelet finalizes deletion by re-issuing Delete with
-	// GracePeriodSeconds: 0 once the runtime has confirmed the
-	// container is gone. Without this, the Pod stays "Terminating"
-	// forever — k8s waits on the kubelet to ack, and we are it.
-	gracePeriod := int64(0)
-	if err := r.CachedClient.Delete(ctx, pod, &client.DeleteOptions{
-		GracePeriodSeconds: &gracePeriod,
-	}); err != nil && !apierrors.IsNotFound(err) {
-		return fmt.Errorf("finalize pod delete: %w", err)
-	}
-	return nil
+	// VM teardown only. The caller (Reconcile, on DeletionTimestamp)
+	// removes the finalizer afterward, which lets the API server
+	// complete deletion on its own — the controller-runtime-idiomatic
+	// shape. No `client.Delete` here: the chart's tart-kubelet
+	// ClusterRole grants update/patch on Pods (the real-kubelet
+	// surface) but not delete, and we don't need it.
+	return r.deleteByKey(ctx, pod.Namespace, pod.Name)
 }
 
 func (r *Reconciler) deleteByKey(ctx context.Context, namespace, name string) error {
