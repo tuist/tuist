@@ -43,6 +43,14 @@ defmodule Tuist.Kura do
   @versions_cache_key [__MODULE__, "versions"]
   @versions_cache_ttl to_timeout(hour: 1)
   @versions_cache_opts [ttl: @versions_cache_ttl, persist_across_deployments: true]
+  @create_server_keys %{
+    "account_id" => :account_id,
+    "region" => :region,
+    "spec" => :spec,
+    "image_tag" => :image_tag,
+    "volume_size_gi" => :volume_size_gi
+  }
+  @create_server_atom_keys Map.values(@create_server_keys)
 
   ## Versions
 
@@ -150,18 +158,23 @@ defmodule Tuist.Kura do
   end
 
   defp insert_server_and_enqueue(attrs, region) do
-    Repo.transaction(fn ->
-      with {:ok, server} <- attrs |> Server.create_changeset() |> Repo.insert(),
-           {:ok, deployment} <- insert_initial_deployment(server, region, attrs[:image_tag]),
-           {:ok, job} <- enqueue_rollout(deployment),
-           {:ok, _} <- stamp_job_id(deployment, job.id) do
-        server = Repo.preload(server, :deployments)
+    case Repo.transaction(fn ->
+           with {:ok, server} <- attrs |> Server.create_changeset() |> Repo.insert(),
+                {:ok, deployment} <- insert_initial_deployment(server, region, attrs[:image_tag]),
+                {:ok, job} <- enqueue_rollout(deployment),
+                {:ok, _} <- stamp_job_id(deployment, job.id) do
+             Repo.preload(server, :deployments)
+           else
+             {:error, reason} -> Repo.rollback(reason)
+           end
+         end) do
+      {:ok, server} ->
         broadcast_server(server, :created)
-        server
-      else
-        {:error, reason} -> Repo.rollback(reason)
-      end
-    end)
+        {:ok, server}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
   end
 
   defp insert_initial_deployment(server, region, image_tag) do
@@ -175,17 +188,35 @@ defmodule Tuist.Kura do
   end
 
   defp normalize_attrs(attrs) do
-    Map.new(attrs, fn
-      {key, value} when is_atom(key) -> {key, value}
-      {key, value} -> {String.to_existing_atom(key), value}
+    Enum.reduce(attrs, %{}, fn {key, value}, acc ->
+      case normalize_create_server_key(key) do
+        nil -> acc
+        normalized -> Map.put(acc, normalized, value)
+      end
     end)
   end
 
+  defp normalize_create_server_key(key) when is_atom(key) do
+    if key in @create_server_atom_keys, do: key
+  end
+
+  defp normalize_create_server_key(key) when is_binary(key) do
+    Map.get(@create_server_keys, key)
+  end
+
+  defp normalize_create_server_key(_), do: nil
+
   defp with_defaults(attrs, _region) do
     Map.put_new_lazy(attrs, :volume_size_gi, fn ->
-      Specs.default_volume_gi(attrs[:spec] || :medium) || 200
+      attrs |> Map.get(:spec, :medium) |> normalize_spec() |> Specs.default_volume_gi() || 200
     end)
   end
+
+  defp normalize_spec(spec) when spec in [:small, :medium, :large], do: spec
+  defp normalize_spec("small"), do: :small
+  defp normalize_spec("medium"), do: :medium
+  defp normalize_spec("large"), do: :large
+  defp normalize_spec(_), do: :medium
 
   defp fetch_region(nil) do
     {:error, %Ecto.Changeset{errors: [region: {"can't be blank", []}]}}
@@ -241,18 +272,28 @@ defmodule Tuist.Kura do
   `account_cache_endpoints`, and broadcasts.
   """
   def activate_server(%Server{} = server, image_tag) when is_binary(image_tag) do
-    {:ok, account} = Accounts.get_account_by_id(server.account_id)
-    url = Provisioner.public_url(account, server)
-
-    Repo.transaction(fn ->
-      {:ok, server} =
-        server
-        |> Server.status_changeset(%{status: :active, url: url, current_image_tag: image_tag})
-        |> Repo.update()
-
-      ensure_cache_endpoint(account, url)
+    with {:ok, account} <- Accounts.get_account_by_id(server.account_id),
+         url when is_binary(url) <- Provisioner.public_url(account, server),
+         {:ok, server} <- activate_server_transaction(server, account, url, image_tag) do
       broadcast_server(server, :updated)
-      server
+      {:ok, server}
+    else
+      {:error, reason} -> {:error, reason}
+      reason -> {:error, reason}
+    end
+  end
+
+  defp activate_server_transaction(server, account, url, image_tag) do
+    Repo.transaction(fn ->
+      with {:ok, server} <-
+             server
+             |> Server.status_changeset(%{status: :active, url: url, current_image_tag: image_tag})
+             |> Repo.update(),
+           :ok <- ensure_cache_endpoint(account, url) do
+        server
+      else
+        {:error, reason} -> Repo.rollback(reason)
+      end
     end)
   end
 
@@ -269,15 +310,23 @@ defmodule Tuist.Kura do
   and enqueues the destroy worker.
   """
   def destroy_server(%Server{} = server) do
-    Repo.transaction(fn ->
-      {:ok, server} =
-        server |> Server.status_changeset(%{status: :destroying}) |> Repo.update()
+    case Repo.transaction(fn ->
+           with {:ok, server} <-
+                  server |> Server.status_changeset(%{status: :destroying}) |> Repo.update(),
+                :ok <- remove_cache_endpoint(server),
+                {:ok, _} <- %{server_id: server.id} |> DestroyServerWorker.new() |> Oban.insert() do
+             server
+           else
+             {:error, reason} -> Repo.rollback(reason)
+           end
+         end) do
+      {:ok, server} ->
+        broadcast_server(server, :updated)
+        {:ok, server}
 
-      remove_cache_endpoint(server)
-      {:ok, _} = %{server_id: server.id} |> DestroyServerWorker.new() |> Oban.insert()
-      broadcast_server(server, :updated)
-      server
-    end)
+      {:error, reason} ->
+        {:error, reason}
+    end
   end
 
   @doc "Marks a server as `:destroyed` after the destroy worker finishes."
@@ -290,18 +339,23 @@ defmodule Tuist.Kura do
   end
 
   defp ensure_cache_endpoint(account, url) do
-    # Idempotent: a duplicate (account, technology, url) hits the
-    # unique constraint and we're done.
-    case Accounts.create_account_cache_endpoint(account, %{url: url, technology: :kura}) do
+    case %AccountCacheEndpoint{}
+         |> AccountCacheEndpoint.create_changeset(%{account_id: account.id, url: url, technology: :kura})
+         |> Repo.insert(on_conflict: :nothing, conflict_target: [:account_id, :technology, :url]) do
       {:ok, _} -> :ok
-      {:error, %Ecto.Changeset{}} -> :ok
+      {:error, reason} -> {:error, reason}
     end
   end
 
   defp remove_cache_endpoint(%Server{url: nil}), do: :ok
 
   defp remove_cache_endpoint(%Server{account_id: account_id, url: url}) do
-    Repo.delete_all(from(e in AccountCacheEndpoint, where: e.account_id == ^account_id and e.url == ^url))
+    Repo.delete_all(
+      from(e in AccountCacheEndpoint,
+        where: e.account_id == ^account_id and e.technology == :kura and e.url == ^url
+      )
+    )
+
     :ok
   end
 

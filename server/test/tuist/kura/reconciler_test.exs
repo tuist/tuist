@@ -1,6 +1,5 @@
 defmodule Tuist.Kura.ReconcilerTest do
-  use ExUnit.Case, async: false
-  use TuistTestSupport.Cases.DataCase
+  use TuistTestSupport.Cases.DataCase, async: true
 
   alias Tuist.Accounts
   alias Tuist.Kura
@@ -44,6 +43,14 @@ defmodule Tuist.Kura.ReconcilerTest do
              Repo.get!(Deployment, deployment.id)
 
     assert %Server{status: :failed} = Repo.get!(Server, server.id)
+  end
+
+  test "runs as an Oban worker" do
+    {_server, deployment} = running_deployment()
+    set_oban_state(deployment, "discarded")
+
+    assert :ok = Reconciler.perform(%Oban.Job{})
+    assert %Deployment{status: :failed, error_message: @orphan_message} = Repo.get!(Deployment, deployment.id)
   end
 
   test "fails deployments whose oban job has been purged" do
@@ -91,6 +98,7 @@ defmodule Tuist.Kura.ReconcilerTest do
 
   test "does not unset :destroyed servers when reconciling an orphaned deployment" do
     {server, deployment} = running_deployment()
+    {:ok, server} = Kura.destroy_server(server)
     {:ok, _} = Kura.mark_destroyed(server)
     set_oban_state(deployment, "discarded")
 

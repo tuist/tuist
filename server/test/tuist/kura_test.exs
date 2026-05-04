@@ -1,10 +1,10 @@
 defmodule Tuist.KuraTest do
-  use ExUnit.Case, async: false
-  use TuistTestSupport.Cases.DataCase
+  use TuistTestSupport.Cases.DataCase, async: true
 
   import Mimic
 
   alias Tuist.Accounts
+  alias Tuist.Accounts.AccountCacheEndpoint
   alias Tuist.Kura
   alias Tuist.Kura.Deployment
   alias Tuist.Kura.Server
@@ -12,7 +12,7 @@ defmodule Tuist.KuraTest do
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
-  setup :set_mimic_global
+  setup :set_mimic_from_context
 
   setup do
     Cachex.del(:tuist, "Elixir.Tuist.Kura-versions")
@@ -168,7 +168,7 @@ defmodule Tuist.KuraTest do
       {:ok, account: account, user: user}
     end
 
-    test "inserts a server (provisioning) and an initial deployment + enqueues rollout", %{account: account, user: user} do
+    test "inserts a server (provisioning) and an initial deployment + enqueues rollout", %{account: account} do
       assert {:ok, server} =
                Kura.create_server(%{
                  account_id: account.id,
@@ -236,6 +236,20 @@ defmodule Tuist.KuraTest do
       assert {:ok, _} = Kura.create_server(attrs)
       assert {:error, %Ecto.Changeset{}} = Kura.create_server(attrs)
     end
+
+    test "ignores unknown string keys instead of raising", %{account: account} do
+      assert {:ok, server} =
+               Kura.create_server(%{
+                 "account_id" => account.id,
+                 "region" => "local",
+                 "spec" => "small",
+                 "image_tag" => "0.5.2",
+                 "ignored-#{Ecto.UUID.generate()}" => "ignored"
+               })
+
+      assert server.region == "local"
+      assert server.spec == :small
+    end
   end
 
   describe "list_servers_for_account/1" do
@@ -262,11 +276,36 @@ defmodule Tuist.KuraTest do
         })
         |> Repo.insert()
 
+      {:ok, gone} = Kura.destroy_server(gone)
       {:ok, _} = Kura.mark_destroyed(gone)
 
       ids = account.id |> Kura.list_servers_for_account() |> Enum.map(& &1.id)
       assert kept.id in ids
       refute gone.id in ids
+    end
+  end
+
+  describe "activate_server/2" do
+    test "reactivates a failed server when its cache endpoint already exists" do
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      {:ok, server} =
+        Kura.create_server(%{
+          account_id: account.id,
+          region: "local",
+          spec: :small,
+          image_tag: "0.5.2"
+        })
+
+      {:ok, active} = Kura.activate_server(server, "0.5.2")
+      {:ok, failed} = Kura.fail_server(active)
+
+      assert {:ok, active_again} = Kura.activate_server(failed, "0.5.3")
+      assert active_again.status == :active
+      assert active_again.current_image_tag == "0.5.3"
+
+      assert [_] = Accounts.list_account_cache_endpoints(account, :kura)
     end
   end
 
@@ -293,6 +332,36 @@ defmodule Tuist.KuraTest do
       assert Accounts.list_account_cache_endpoints(account, :kura) == []
 
       assert_enqueued(worker: Tuist.Kura.Workers.DestroyServerWorker, args: %{"server_id" => server.id})
+    end
+
+    test "does not remove a default cache endpoint with the same URL" do
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      {:ok, server} =
+        Kura.create_server(%{
+          account_id: account.id,
+          region: "local",
+          spec: :medium,
+          image_tag: "0.5.2"
+        })
+
+      {:ok, server} = Kura.activate_server(server, "0.5.2")
+
+      {:ok, default_endpoint} =
+        %AccountCacheEndpoint{}
+        |> AccountCacheEndpoint.create_changeset(%{
+          account_id: account.id,
+          technology: :default,
+          url: server.url
+        })
+        |> Repo.insert()
+
+      assert {:ok, _server} = Kura.destroy_server(server)
+
+      assert Accounts.list_account_cache_endpoints(account, :kura) == []
+      assert [endpoint] = Accounts.list_account_cache_endpoints(account, :default)
+      assert endpoint.id == default_endpoint.id
     end
   end
 

@@ -76,9 +76,14 @@ defmodule Tuist.Kura.Workers.RolloutWorker do
 
     case Provisioner.rollout(server, inputs) do
       :ok ->
-        {:ok, _} = Kura.mark_succeeded(deployment)
-        Kura.activate_server(server, deployment.image_tag)
-        :ok
+        case Kura.activate_server(server, deployment.image_tag) do
+          {:ok, _} ->
+            {:ok, _} = Kura.mark_succeeded(deployment)
+            :ok
+
+          {:error, reason} ->
+            fail(deployment, server, reason)
+        end
 
       {:error, :not_found} ->
         fail(deployment, server, "region #{server.region} is no longer in the catalog")

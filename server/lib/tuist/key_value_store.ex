@@ -192,9 +192,9 @@ defmodule Tuist.KeyValueStore do
     Keyword.get(opts, :ttl, to_timeout(minute: 1))
   end
 
-  defp cache_key(cache_key) do
-    Enum.join(cache_key, "-")
-  end
+  defp cache_key(cache_key) when is_list(cache_key), do: Enum.map_join(cache_key, "-", &to_string/1)
+  defp cache_key(cache_key) when is_atom(cache_key), do: Atom.to_string(cache_key)
+  defp cache_key(cache_key) when is_binary(cache_key), do: cache_key
 
   defp use_redis?(opts) do
     Keyword.get(opts, :persist_across_deployments, false) and

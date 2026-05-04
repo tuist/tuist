@@ -1,6 +1,5 @@
 defmodule Tuist.Kura.Workers.RolloutWorkerTest do
-  use ExUnit.Case, async: false
-  use TuistTestSupport.Cases.DataCase
+  use TuistTestSupport.Cases.DataCase, async: true
 
   import Mimic
 
@@ -13,7 +12,7 @@ defmodule Tuist.Kura.Workers.RolloutWorkerTest do
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
-  setup :set_mimic_global
+  setup :set_mimic_from_context
 
   setup do
     user = AccountsFixtures.user_fixture()
@@ -43,6 +42,19 @@ defmodule Tuist.Kura.Workers.RolloutWorkerTest do
     assert server.status == :active
     assert server.current_image_tag == "0.5.2"
     assert server.url =~ ~r/^http:\/\/localhost:\d+$/
+  end
+
+  test "fails the deployment when server activation fails", %{deployment: deployment, server: server} do
+    stub(Provisioner, :rollout, fn %Server{}, _inputs -> :ok end)
+    stub(Kura, :activate_server, fn %Server{}, "0.5.2" -> {:error, :activation_failed} end)
+
+    assert {:error, ":activation_failed"} =
+             RolloutWorker.perform(%Oban.Job{args: %{"deployment_id" => deployment.id}})
+
+    assert %Deployment{status: :failed, error_message: ":activation_failed"} =
+             Repo.get!(Deployment, deployment.id)
+
+    assert %Server{status: :failed} = Repo.get!(Server, server.id)
   end
 
   test "cancels the deployment without provisioning when the server is destroying", %{
