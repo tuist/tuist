@@ -32,8 +32,10 @@ struct XcodeBuildTestCommandService {
     private let xcResultService: XCResultServicing
     private let rootDirectoryLocator: RootDirectoryLocating
     private let testQuarantineService: TestQuarantineServicing
+    private let testCaseListService: TestCaseListServicing
     private let shardService: ShardServicing
     private let serverEnvironmentService: ServerEnvironmentServicing
+    private let uploadBuildRunService: UploadBuildRunServicing?
 
     init(
         fileSystem: FileSysteming = FileSystem(),
@@ -48,8 +50,10 @@ struct XcodeBuildTestCommandService {
         xcResultService: XCResultServicing = XCResultService(),
         rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator(),
         testQuarantineService: TestQuarantineServicing = TestQuarantineService(),
+        testCaseListService: TestCaseListServicing = TestCaseListService(),
         shardService: ShardServicing = ShardService(),
-        serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService()
+        serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
+        uploadBuildRunService: UploadBuildRunServicing? = UploadBuildRunService()
     ) {
         self.fileSystem = fileSystem
         self.xcodeBuildController = xcodeBuildController
@@ -63,8 +67,10 @@ struct XcodeBuildTestCommandService {
         self.xcResultService = xcResultService
         self.rootDirectoryLocator = rootDirectoryLocator
         self.testQuarantineService = testQuarantineService
+        self.testCaseListService = testCaseListService
         self.shardService = shardService
         self.serverEnvironmentService = serverEnvironmentService
+        self.uploadBuildRunService = uploadBuildRunService
     }
 
     func run(
@@ -132,13 +138,22 @@ struct XcodeBuildTestCommandService {
         }
 
         let resultBundlePath: AbsolutePath? = resolvedResultBundlePath
-        let quarantinedTests = await testQuarantineService.quarantinedTests(config: config, skipQuarantine: skipQuarantine)
+        let (mutedTests, skippedTests) = try await loadQuarantinedTests(config: config, skipQuarantine: skipQuarantine)
+        let allQuarantinedTests = mutedTests + skippedTests
+        let xcodeBuildArgumentsWithSkip = passthroughXcodebuildArguments + skippedTests.flatMap { skipped in
+            ["-skip-testing", skipped.description]
+        }
 
         do {
-            try await xcodeBuildController.run(arguments: passthroughXcodebuildArguments)
+            try await xcodeBuildController.run(arguments: xcodeBuildArgumentsWithSkip)
         } catch {
             if let derivedDataPath {
-                await updateBuildRunId(projectDerivedDataDirectory: derivedDataPath)
+                await processBuildRun(
+                    projectDerivedDataDirectory: derivedDataPath,
+                    projectPath: path,
+                    config: config,
+                    passthroughXcodebuildArguments: passthroughXcodebuildArguments
+                )
             }
 
             var testSummary: TestSummary?
@@ -147,7 +162,7 @@ struct XcodeBuildTestCommandService {
                 if let parsed = try await xcResultService.parse(path: resultBundlePath, rootDirectory: rootDirectory) {
                     testSummary = testQuarantineService.markQuarantinedTests(
                         testSummary: parsed,
-                        quarantinedTests: quarantinedTests
+                        quarantinedTests: mutedTests
                     )
                 }
             }
@@ -157,7 +172,7 @@ struct XcodeBuildTestCommandService {
                 resultBundlePath: resultBundlePath,
                 projectDerivedDataDirectory: derivedDataPath,
                 config: config,
-                quarantinedTests: quarantinedTests,
+                quarantinedTests: allQuarantinedTests,
                 shardPlanId: shardPlanId,
                 shardIndex: shardIndex,
                 mode: mode
@@ -170,7 +185,7 @@ struct XcodeBuildTestCommandService {
                 let testStatuses = try await xcResultService.parseTestStatuses(path: resultBundlePath)
                 quarantinePass = testQuarantineService.onlyQuarantinedTestsFailed(
                     testStatuses: testStatuses,
-                    quarantinedTests: quarantinedTests
+                    quarantinedTests: mutedTests
                 )
             } else {
                 quarantinePass = false
@@ -191,14 +206,22 @@ struct XcodeBuildTestCommandService {
         }
 
         if let derivedDataPath {
-            await updateBuildRunId(projectDerivedDataDirectory: derivedDataPath)
+            await processBuildRun(
+                projectDerivedDataDirectory: derivedDataPath,
+                projectPath: path,
+                config: config,
+                passthroughXcodebuildArguments: passthroughXcodebuildArguments
+            )
         }
 
         var testSummary: TestSummary?
         if mode == .local, let resultBundlePath {
             let rootDirectory = await rootDirectory()
             if let parsed = try await xcResultService.parse(path: resultBundlePath, rootDirectory: rootDirectory) {
-                testSummary = testQuarantineService.markQuarantinedTests(testSummary: parsed, quarantinedTests: quarantinedTests)
+                testSummary = testQuarantineService.markQuarantinedTests(
+                    testSummary: parsed,
+                    quarantinedTests: mutedTests
+                )
             }
         }
         await uploadResultBundleIfNeeded(
@@ -206,7 +229,7 @@ struct XcodeBuildTestCommandService {
             resultBundlePath: resultBundlePath,
             projectDerivedDataDirectory: derivedDataPath,
             config: config,
-            quarantinedTests: quarantinedTests,
+            quarantinedTests: allQuarantinedTests,
             shardPlanId: shardPlanId,
             shardIndex: shardIndex,
             mode: mode
@@ -228,13 +251,31 @@ struct XcodeBuildTestCommandService {
         }
     }
 
-    private func updateBuildRunId(projectDerivedDataDirectory: AbsolutePath) async {
+    private func processBuildRun(
+        projectDerivedDataDirectory: AbsolutePath,
+        projectPath: AbsolutePath,
+        config: Tuist,
+        passthroughXcodebuildArguments: [String]
+    ) async {
         guard let mostRecentActivityLogPath = try? await xcActivityLogController.mostRecentActivityLogFile(
             projectDerivedDataDirectory: projectDerivedDataDirectory
         )
         else { return }
 
         await RunMetadataStorage.current.update(buildRunId: mostRecentActivityLogPath.path.basenameWithoutExt)
+
+        guard let uploadBuildRunService, config.fullHandle != nil else { return }
+        do {
+            try await uploadBuildRunService.uploadBuildRun(
+                activityLogPath: mostRecentActivityLogPath.path,
+                projectPath: projectPath,
+                config: config,
+                scheme: passedValue(for: "-scheme", arguments: passthroughXcodebuildArguments),
+                configuration: passedValue(for: "-configuration", arguments: passthroughXcodebuildArguments)
+            )
+        } catch {
+            AlertController.current.warning(.alert("Failed to upload build: \(error.localizedDescription)"))
+        }
     }
 
     private func projectPath(xcodeBuildArguments: XcodeBuildArguments) async throws -> AbsolutePath? {
@@ -322,7 +363,9 @@ struct XcodeBuildTestCommandService {
         }
         return try? await rootDirectoryLocator.locate(from: workingDirectory)
     }
+}
 
+extension XcodeBuildTestCommandService {
     private func uploadResultBundleIfNeeded(
         testSummary: TestSummary?,
         resultBundlePath: AbsolutePath?,
@@ -366,6 +409,38 @@ struct XcodeBuildTestCommandService {
             }
         } catch {
             AlertController.current.warning(.alert("Failed to upload test results: \(error.localizedDescription)"))
+        }
+    }
+
+    private func loadQuarantinedTests(
+        config: Tuist,
+        skipQuarantine: Bool
+    ) async throws -> (muted: [TestIdentifier], skipped: [TestIdentifier]) {
+        guard !skipQuarantine, let fullHandle = config.fullHandle else {
+            return ([], [])
+        }
+        let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
+        async let mutedTask = testCaseListService.listTestCases(
+            fullHandle: fullHandle, serverURL: serverURL, state: .muted
+        )
+        async let skippedTask = testCaseListService.listTestCases(
+            fullHandle: fullHandle, serverURL: serverURL, state: .skipped
+        )
+        do {
+            let (muted, skipped) = try await (mutedTask, skippedTask)
+            let total = muted.count + skipped.count
+            if total > 0 {
+                Logger.current.notice(
+                    "Found \(total) quarantined test(s): \(muted.count) muted, \(skipped.count) skipped",
+                    metadata: .subsection
+                )
+            }
+            return (muted, skipped)
+        } catch {
+            AlertController.current.warning(
+                .alert("Failed to fetch quarantined tests: \(error.localizedDescription). Running all tests.")
+            )
+            return ([], [])
         }
     }
 }

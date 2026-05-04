@@ -1104,7 +1104,7 @@ struct ResourcesProjectMapperTests {
     }
 
     @Test
-    func mapWhenStaticTargetHasXcstringsAddsThemToSourcesAndBundle() async throws {
+    func mapWhenStaticTargetHasXcstringsKeepsThemOnMainResourcesAndBundle() async throws {
         // Given
         let resources: [ResourceFileElement] = [
             .file(path: "/Resources/Localizable.xcstrings"),
@@ -1119,18 +1119,21 @@ struct ResourcesProjectMapperTests {
         let (gotProject, _) = try await subject.map(project: project)
 
         // Then
-        let gotTarget = try #require(gotProject.targets.values.sorted().last)
-        #expect(gotTarget.resources.resources.isEmpty)
-        let xcstringsSources = gotTarget.sources.filter { $0.path.extension == "xcstrings" }
-        #expect(xcstringsSources.count == 1)
         let expectedXcstringsPath = try AbsolutePath(validating: "/Resources/Localizable.xcstrings")
-        #expect(xcstringsSources.first?.path == expectedXcstringsPath)
+        let gotTarget = try #require(gotProject.targets.values.sorted().last)
+
+        // xcstrings is kept on the main target's Resources phase (mirrors the buildable-folders
+        // path) so Xcode runs string extraction in the same target where Swift sources live.
+        #expect(gotTarget.resources.resources == [.file(path: expectedXcstringsPath)])
+        // xcstrings is NOT in the main target's Sources phase. The Sources-phase placement only
+        // works when STRING_CATALOG_GENERATE_SYMBOLS=YES, which swift-build auto-enables only
+        // for SwiftPM packages, and Tuist-generated projects do not get that default.
+        #expect(gotTarget.sources.contains(where: { $0.path.extension == "xcstrings" }) == false)
 
         let resourcesTarget = try #require(gotProject.targets.values.sorted().first)
         #expect(resourcesTarget.product == .bundle)
         let companionXcstrings = resourcesTarget.resources.resources.filter { $0.path.extension == "xcstrings" }
-        #expect(companionXcstrings.count == 1)
-        #expect(companionXcstrings.first?.path == expectedXcstringsPath)
+        #expect(companionXcstrings == [.file(path: expectedXcstringsPath)])
         let companionOtherResources = resourcesTarget.resources.resources.filter { $0.path.extension != "xcstrings" }
         #expect(companionOtherResources.count == 1)
     }
@@ -1155,6 +1158,37 @@ struct ResourcesProjectMapperTests {
         #expect(bundleNameSetting == .string("\(project.name)_\(target.name)"))
         let targetKindSetting = gotTarget.settings?.base["PACKAGE_RESOURCE_TARGET_KIND"]
         #expect(targetKindSetting == .string("regular"))
+    }
+
+    @Test
+    func objcImplementationFileContentSanitizesTargetNameWithHyphens() {
+        // Given
+        let targetName = "YoutubePlayer-in-WKWebView"
+
+        // When
+        let got = ResourcesProjectMapper.objcImplementationFileContent(
+            targetName: targetName,
+            bundleName: "MyProject_YoutubePlayer-in-WKWebView"
+        )
+
+        // Then
+        #expect(!got.contains("YoutubePlayer-in-WKWebViewBundleFinder"))
+        #expect(got.contains("YoutubePlayerInWKWebViewBundleFinder"))
+        #expect(got.contains("YoutubePlayerInWKWebView_SWIFTPM_MODULE_BUNDLE"))
+        #expect(!got.contains("YoutubePlayer-in-WKWebView_SWIFTPM_MODULE_BUNDLE"))
+    }
+
+    @Test
+    func objcHeaderFileContentSanitizesTargetNameWithHyphens() {
+        // Given
+        let targetName = "YoutubePlayer-in-WKWebView"
+
+        // When
+        let got = ResourcesProjectMapper.objcHeaderFileContent(targetName: targetName)
+
+        // Then
+        #expect(got.contains("YoutubePlayerInWKWebView_SWIFTPM_MODULE_BUNDLE"))
+        #expect(!got.contains("YoutubePlayer-in-WKWebView_SWIFTPM_MODULE_BUNDLE"))
     }
 
     // MARK: - Helpers

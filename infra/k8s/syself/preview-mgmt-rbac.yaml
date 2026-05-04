@@ -1,0 +1,61 @@
+# Narrowly-scoped ServiceAccount for the preview-deploy and preview-sweep
+# GitHub workflows. Lives in the SYSELF MANAGEMENT cluster (not the workload
+# cluster) because the Cluster / MachineDeployment CRs the workflows patch
+# to scale the worker pool live there.
+#
+# Permissions are intentionally minimal:
+#   - get / patch the `tuist-preview` Cluster (to bump
+#     spec.topology.workers.machineDeployments[0].replicas).
+#   - get / list MachineDeployments in org-tuist (to read current replica count).
+#   - get Machines (to wait for new nodes to become Ready before deploying).
+#
+# Apply against the management cluster:
+#   sed 's/__ORG_NS__/org-tuist/g' infra/k8s/syself/preview-mgmt-rbac.yaml \
+#     | kubectl --kubeconfig ~/.kube/tuist-syself-mgmt.yaml apply -f -
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: preview-scaler
+  namespace: __ORG_NS__
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: preview-scaler-token
+  namespace: __ORG_NS__
+  annotations:
+    kubernetes.io/service-account.name: preview-scaler
+type: kubernetes.io/service-account-token
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: preview-scaler
+  namespace: __ORG_NS__
+rules:
+  # Read the Cluster (verify name + current replica count) and patch its
+  # topology to scale the MachineDeployment.
+  - apiGroups: [cluster.x-k8s.io]
+    resources: [clusters]
+    resourceNames: [tuist-preview]
+    verbs: [get, patch]
+  # Read MachineDeployments + Machines to wait for the scale-up to land.
+  # No resourceNames filter — the names include hashes that change.
+  - apiGroups: [cluster.x-k8s.io]
+    resources: [machinedeployments, machines]
+    verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: preview-scaler
+  namespace: __ORG_NS__
+roleRef:
+  kind: Role
+  name: preview-scaler
+  apiGroup: rbac.authorization.k8s.io
+subjects:
+  - kind: ServiceAccount
+    name: preview-scaler
+    namespace: __ORG_NS__

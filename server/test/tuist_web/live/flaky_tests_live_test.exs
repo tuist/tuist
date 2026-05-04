@@ -17,7 +17,8 @@ defmodule TuistWeb.FlakyTestsLiveTest do
       project: project
     } do
       # When
-      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/flaky-tests")
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/flaky-tests")
 
       # Then
       assert has_element?(lv, "[data-part='flaky-tests']")
@@ -35,7 +36,8 @@ defmodule TuistWeb.FlakyTestsLiveTest do
       RunsFixtures.optimize_test_case_runs()
 
       # When
-      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/flaky-tests")
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/flaky-tests")
 
       # Then
       assert has_element?(lv, "[data-part='flaky-tests-table']")
@@ -55,7 +57,10 @@ defmodule TuistWeb.FlakyTestsLiveTest do
 
       # When
       {:ok, lv, _html} =
-        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/flaky-tests?search=First")
+        live(
+          conn,
+          ~p"/#{organization.account.name}/#{project.name}/tests/flaky-tests?search=First"
+        )
 
       # Then
       assert has_element?(lv, "#flaky-tests-table", "testFirstFlaky")
@@ -69,7 +74,10 @@ defmodule TuistWeb.FlakyTestsLiveTest do
     } do
       # When
       {:ok, lv, _html} =
-        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/flaky-tests?sort_by=name&sort_order=asc")
+        live(
+          conn,
+          ~p"/#{organization.account.name}/#{project.name}/tests/flaky-tests?sort_by=name&sort_order=asc"
+        )
 
       # Then
       assert has_element?(lv, "[data-part='flaky-tests']")
@@ -82,7 +90,10 @@ defmodule TuistWeb.FlakyTestsLiveTest do
     } do
       # When
       {:ok, lv, _html} =
-        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/flaky-tests?sort_by=invalid_field")
+        live(
+          conn,
+          ~p"/#{organization.account.name}/#{project.name}/tests/flaky-tests?sort_by=invalid_field"
+        )
 
       # Then
       assert has_element?(lv, "[data-part='flaky-tests']")
@@ -101,7 +112,10 @@ defmodule TuistWeb.FlakyTestsLiveTest do
 
       # When - filter by CI environment
       {:ok, lv, _html} =
-        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/flaky-tests?analytics-environment=ci")
+        live(
+          conn,
+          ~p"/#{organization.account.name}/#{project.name}/tests/flaky-tests?analytics-environment=ci"
+        )
 
       # Then
       assert has_element?(lv, "#flaky-tests-table", "testCIFlaky")
@@ -133,7 +147,7 @@ defmodule TuistWeb.FlakyTestsLiveTest do
       refute has_element?(lv, "#flaky-tests-table", "testOldFlaky")
     end
 
-    test "renders flaky tests and flaky runs widgets", %{
+    test "renders flaky test cases, test case runs, and test runs widgets", %{
       conn: conn,
       organization: organization,
       project: project
@@ -150,8 +164,9 @@ defmodule TuistWeb.FlakyTestsLiveTest do
 
       # Then
       render_async(lv, 2000)
-      assert has_element?(lv, "#widget-flaky-tests")
-      assert has_element?(lv, "#widget-flaky-runs")
+      assert has_element?(lv, "#widget-flaky-test-cases")
+      assert has_element?(lv, "#widget-flaky-test-case-runs")
+      assert has_element?(lv, "#widget-flaky-test-runs")
     end
   end
 
@@ -160,9 +175,17 @@ defmodule TuistWeb.FlakyTestsLiveTest do
 
     IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
 
+    ran_at = Keyword.get(opts, :ran_at, NaiveDateTime.add(NaiveDateTime.utc_now(), -60))
+
+    RunsFixtures.test_case_event_fixture(
+      test_case_id: test_case.id,
+      event_type: "marked_flaky",
+      inserted_at: ran_at
+    )
+
     RunsFixtures.test_case_run_fixture(
       Keyword.merge(
-        [project_id: project.id, test_case_id: test_case.id, is_flaky: true],
+        [project_id: project.id, test_case_id: test_case.id, is_flaky: true, ran_at: ran_at],
         opts
       )
     )

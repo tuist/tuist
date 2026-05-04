@@ -2,7 +2,7 @@ name: Server Deployment
 
 # Build + deploy the Tuist server to a single Kubernetes environment.
 #
-# This workflow is the "building block": plan → build → push image → helm
+# This workflow is the "building block": build → push image → helm
 # upgrade. It runs against exactly one environment per invocation, with no
 # cascade and no acceptance tests. Use it for:
 #   - Ad-hoc staging / canary / production deploys via workflow_dispatch
@@ -16,6 +16,11 @@ name: Server Deployment
 # MASTER_KEY ESO secret decrypts the matching priv/secrets/<env>.yml.enc
 # file baked into the image. This means the same `sha-<SHA>` image is
 # promoted across environments - one build, N deploys.
+#
+# Environment → cluster wiring is by convention: namespace = `tuist-<env>`
+# (except production = `tuist`), values overlay = `values-managed-<env>.yaml`,
+# public host = `<env>.tuist.dev` (except production = `tuist.dev`). Adding a
+# new environment is just adding the matching values files.
 #
 # Required GitHub Environment secrets (per environment):
 #   KUBECONFIG - base64-encoded kubeconfig for that environment's cluster.
@@ -38,6 +43,9 @@ on:
       commit_sha:
         description: Commit SHA to deploy (defaults to the event's SHA)
         required: false
+      image_tag:
+        description: Pre-built image tag to deploy instead of building
+        required: false
   workflow_call:
     inputs:
       environment:
@@ -55,10 +63,6 @@ on:
           the workflow builds + pushes an image tagged sha-<commit_sha>.
         required: false
         type: string
-    outputs:
-      image_tag:
-        description: The image tag that was deployed.
-        value: ${{ jobs.plan.outputs.image_tag }}
 
 permissions:
   contents: read
@@ -76,60 +80,20 @@ env:
   DEPLOY_SHA: ${{ inputs.commit_sha || github.sha }}
 
 jobs:
-  plan:
-    name: Plan (${{ inputs.environment }})
-    runs-on: namespace-profile-default
-    outputs:
-      namespace: ${{ steps.map.outputs.namespace }}
-      image_tag: ${{ steps.map.outputs.image_tag }}
-      values_overlay: ${{ steps.map.outputs.values_overlay }}
-      public_host: ${{ steps.map.outputs.public_host }}
-      environment_key: ${{ steps.map.outputs.environment_key }}
-      skip_build: ${{ steps.map.outputs.skip_build }}
-    steps:
-      - id: map
-        env:
-          TARGET_ENV: ${{ inputs.environment }}
-          EXISTING_IMAGE_TAG: ${{ inputs.image_tag }}
-        run: |
-          case "$TARGET_ENV" in
-            staging)
-              env_key=staging; namespace=tuist-staging
-              overlay=values-managed-staging.yaml; host=staging.tuist.dev ;;
-            canary)
-              env_key=canary; namespace=tuist-canary
-              overlay=values-managed-canary.yaml; host=canary.tuist.dev ;;
-            production)
-              env_key=production; namespace=tuist
-              overlay=values-managed-production.yaml; host=tuist.dev ;;
-            *) echo "Unknown environment: $TARGET_ENV" >&2; exit 1 ;;
-          esac
-          # Env-agnostic tag - same image promotes across environments.
-          if [ -n "$EXISTING_IMAGE_TAG" ]; then
-            tag="$EXISTING_IMAGE_TAG"; skip_build=true
-          else
-            tag="sha-${DEPLOY_SHA:0:12}"; skip_build=false
-          fi
-          {
-            echo "environment_key=$env_key"
-            echo "namespace=$namespace"
-            echo "values_overlay=$overlay"
-            echo "public_host=$host"
-            echo "image_tag=$tag"
-            echo "skip_build=$skip_build"
-          } >> "$GITHUB_OUTPUT"
-
   build:
     name: Build + push
-    needs: plan
-    if: needs.plan.outputs.skip_build != 'true'
+    if: inputs.image_tag == ''
     runs-on: namespace-profile-default-with-volume
     timeout-minutes: 40
+    outputs:
+      image_tag: ${{ steps.tag.outputs.image_tag }}
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ env.DEPLOY_SHA }}
           submodules: false
+      - id: tag
+        run: echo "image_tag=sha-${DEPLOY_SHA:0:12}" >> "$GITHUB_OUTPUT"
       - uses: namespacelabs/nscloud-setup-buildx-action@v0
       - uses: docker/login-action@v3
         with:
@@ -143,16 +107,11 @@ jobs:
           target: runner
           push: true
           tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.plan.outputs.image_tag }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
           build-args: |
             TUIST_HOSTED=1
             MIX_ENV=prod
             APT_CACHE_BUST=${{ env.DEPLOY_SHA }}
-          # One cache scope across all environments: the image is
-          # env-agnostic, so canary/staging/production builds all share
-          # layers.
-          cache-from: type=gha,scope=server-cluster
-          cache-to: type=gha,mode=max,scope=server-cluster
 
   observability-install:
     # Installs / upgrades the grafana/k8s-monitoring wrapper chart ahead of
@@ -165,12 +124,14 @@ jobs:
     # provides the receiver change in lockstep, so a newer chart install
     # must never interleave with an older server rollout.
     name: Observability chart (${{ inputs.environment }})
-    needs: plan
+    needs: build
+    # `build` is skipped when image_tag is supplied - keep running.
+    if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped')
     runs-on: namespace-profile-default
     environment:
-      name: server-k8s-${{ needs.plan.outputs.environment_key }}
+      name: server-k8s-${{ inputs.environment }}
     concurrency:
-      group: server-deploy-${{ needs.plan.outputs.environment_key }}
+      group: server-deploy-${{ inputs.environment }}
       cancel-in-progress: false
     timeout-minutes: 15
     env:
@@ -194,27 +155,29 @@ jobs:
         run: |
           helm upgrade --install "$OBSERVABILITY_RELEASE_NAME" "$OBSERVABILITY_CHART_PATH" \
             --namespace "$OBSERVABILITY_NAMESPACE" --create-namespace \
-            -f "$OBSERVABILITY_CHART_PATH/values-${{ needs.plan.outputs.environment_key }}.yaml" \
+            -f "$OBSERVABILITY_CHART_PATH/values-${{ inputs.environment }}.yaml" \
             --timeout 10m --wait
 
   deploy:
-    name: Deploy to ${{ needs.plan.outputs.namespace }}
-    needs: [plan, build, observability-install]
+    name: Deploy to ${{ inputs.environment == 'production' && 'tuist' || format('tuist-{0}', inputs.environment) }}
+    needs: [build, observability-install]
     # `build` may be skipped when image_tag is passed in - keep running.
     # `observability-install` always runs, so it must be a plain success.
-    if: always() && needs.plan.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped') && needs.observability-install.result == 'success'
+    if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped') && needs.observability-install.result == 'success'
     runs-on: namespace-profile-default
     environment:
-      name: server-k8s-${{ needs.plan.outputs.environment_key }}
-      url: https://${{ needs.plan.outputs.public_host }}
+      name: server-k8s-${{ inputs.environment }}
+      url: https://${{ inputs.environment == 'production' && 'tuist.dev' || format('{0}.tuist.dev', inputs.environment) }}
     # Serialize deploys targeting the same environment so two concurrent
     # runs don't race on the Helm release.
     concurrency:
-      group: server-deploy-${{ needs.plan.outputs.environment_key }}
+      group: server-deploy-${{ inputs.environment }}
       cancel-in-progress: false
-    timeout-minutes: 30
+    timeout-minutes: 75
     env:
       KUBECONFIG: ${{ github.workspace }}/.kube/config
+      NAMESPACE: ${{ inputs.environment == 'production' && 'tuist' || format('tuist-{0}', inputs.environment) }}
+      IMAGE_TAG: ${{ inputs.image_tag != '' && inputs.image_tag || needs.build.outputs.image_tag }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -228,6 +191,65 @@ jobs:
           mkdir -p "$(dirname "$KUBECONFIG")"
           echo "${{ secrets.KUBECONFIG }}" | base64 -d > "$KUBECONFIG"
           chmod 600 "$KUBECONFIG"
+      - name: Recover interrupted Helm release
+        run: |
+          set -euo pipefail
+
+          status="$(
+            helm status "$HELM_RELEASE_NAME" -n "$NAMESPACE" 2>/dev/null |
+              awk '/^STATUS:/ { print $2 }' ||
+              true
+          )"
+          case "$status" in
+            pending-install|pending-upgrade|pending-rollback)
+              echo "Release $HELM_RELEASE_NAME is $status; rolling back to the last deployed revision before upgrading."
+              helm history "$HELM_RELEASE_NAME" -n "$NAMESPACE" --max 20
+
+              deployed_revision="$(
+                helm history "$HELM_RELEASE_NAME" -n "$NAMESPACE" --max 20 |
+                  awk '$0 ~ /[[:space:]]deployed[[:space:]]/ { revision = $1 } END { print revision }'
+              )"
+
+              if [ -z "$deployed_revision" ]; then
+                echo "No deployed revision found for $HELM_RELEASE_NAME in $NAMESPACE."
+                exit 1
+              fi
+
+              helm rollback "$HELM_RELEASE_NAME" "$deployed_revision" \
+                --namespace "$NAMESPACE" --wait --timeout 10m
+              ;;
+            *)
+              echo "Release $HELM_RELEASE_NAME status is ${status:-not-installed}; no recovery needed."
+              ;;
+          esac
+      - name: Clean up stale migration Jobs
+        # The chart's pre-upgrade migration hook is named
+        # `tuist-tuist-server-migrate` (stable across revisions). Any
+        # `tuist-tuist-server-migrate-<n>` Jobs in the namespace are
+        # orphans whose Pending pods would otherwise compete with the new
+        # hook for scheduler attention; sweep them before invoking helm.
+        run: |
+          set -euo pipefail
+
+          stale_jobs="$(
+            kubectl -n "$NAMESPACE" get jobs \
+              -l app.kubernetes.io/component=server-migration \
+              -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' |
+              grep -E '-[0-9]+$' || true
+          )"
+
+          if [ -z "$stale_jobs" ]; then
+            echo "No revision-suffixed migration Jobs to clean up."
+            exit 0
+          fi
+
+          echo "Deleting stale migration Jobs:"
+          echo "$stale_jobs"
+          # `--ignore-not-found` covers a rare race where helm's hook gets
+          # deleted between the list and delete calls. Cascade=foreground
+          # so dependent pods (Pending or otherwise) go with the Job.
+          echo "$stale_jobs" | xargs -r kubectl -n "$NAMESPACE" delete job \
+            --ignore-not-found --cascade=foreground --timeout=2m
       - name: helm upgrade --install
         # App secrets never pass through --set: the chart runs in
         # `server.managedSecrets: true` mode, which reads DATABASE_URL /
@@ -237,99 +259,57 @@ jobs:
         # leak them into `helm get manifest`.
         run: |
           helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
-            --namespace "${{ needs.plan.outputs.namespace }}" --create-namespace \
+            --namespace "$NAMESPACE" --create-namespace \
             -f "$HELM_CHART_PATH/values-managed-common.yaml" \
-            -f "$HELM_CHART_PATH/${{ needs.plan.outputs.values_overlay }}" \
-            --set server.image.tag="${{ needs.plan.outputs.image_tag }}" \
-            --atomic --timeout 15m --wait
+            -f "$HELM_CHART_PATH/values-managed-${{ inputs.environment }}.yaml" \
+            --set server.image.tag="$IMAGE_TAG" \
+            --atomic --timeout 60m --wait
       - name: Diagnostics on failure
         # `--atomic` rolls back the release on timeout, so `helm history` and
         # most cluster state reflect the rolled-back revision rather than the
         # failure. Migration-job pods linger long enough for logs to be useful;
         # everything else is best-effort.
         if: failure()
-        env:
-          NS: ${{ needs.plan.outputs.namespace }}
         run: |
           set +e
           echo "::group::helm history"
-          helm history "$HELM_RELEASE_NAME" -n "$NS" --max 10 || true
+          helm history "$HELM_RELEASE_NAME" -n "$NAMESPACE" --max 10 || true
           echo "::endgroup::"
           echo "::group::helm get manifest (last attempted revision)"
-          helm get manifest "$HELM_RELEASE_NAME" -n "$NS" 2>&1 | head -200 || true
+          helm get manifest "$HELM_RELEASE_NAME" -n "$NAMESPACE" 2>&1 | head -200 || true
           echo "::endgroup::"
           echo "::group::pods"
-          kubectl -n "$NS" get pods -o wide || true
+          kubectl -n "$NAMESPACE" get pods -o wide || true
           echo "::endgroup::"
           echo "::group::events (last 100, sorted)"
-          kubectl -n "$NS" get events --sort-by=.lastTimestamp 2>&1 | tail -100 || true
+          kubectl -n "$NAMESPACE" get events --sort-by=.lastTimestamp 2>&1 | tail -100 || true
           echo "::endgroup::"
           echo "::group::migration job"
-          kubectl -n "$NS" get jobs -l app.kubernetes.io/component=server-migration -o wide || true
-          for job in $(kubectl -n "$NS" get jobs -l app.kubernetes.io/component=server-migration -o name 2>/dev/null); do
+          kubectl -n "$NAMESPACE" get jobs -l app.kubernetes.io/component=server-migration -o wide || true
+          for job in $(kubectl -n "$NAMESPACE" get jobs -l app.kubernetes.io/component=server-migration -o name 2>/dev/null); do
             echo "--- describe $job ---"
-            kubectl -n "$NS" describe "$job" || true
+            kubectl -n "$NAMESPACE" describe "$job" || true
             echo "--- logs $job ---"
-            kubectl -n "$NS" logs "$job" --all-containers --tail=500 || true
+            kubectl -n "$NAMESPACE" logs "$job" --all-containers --tail=500 || true
           done
           echo "::endgroup::"
           echo "::group::server deployment + pods"
-          kubectl -n "$NS" describe deploy/tuist-tuist-server || true
-          for pod in $(kubectl -n "$NS" get pods -l app.kubernetes.io/component=server -o name 2>/dev/null); do
+          kubectl -n "$NAMESPACE" describe deploy/tuist-tuist-server || true
+          for pod in $(kubectl -n "$NAMESPACE" get pods -l app.kubernetes.io/component=server -o name 2>/dev/null); do
             echo "--- describe $pod ---"
-            kubectl -n "$NS" describe "$pod" || true
+            kubectl -n "$NAMESPACE" describe "$pod" || true
             echo "--- logs $pod (current) ---"
-            kubectl -n "$NS" logs "$pod" --all-containers --tail=500 || true
+            kubectl -n "$NAMESPACE" logs "$pod" --all-containers --tail=500 || true
             echo "--- logs $pod (previous) ---"
-            kubectl -n "$NS" logs "$pod" --all-containers --previous --tail=500 || true
+            kubectl -n "$NAMESPACE" logs "$pod" --all-containers --previous --tail=500 || true
           done
           echo "::endgroup::"
           echo "::group::external secrets"
-          kubectl -n "$NS" get externalsecret,secretstore 2>&1 || true
-          kubectl -n "$NS" describe externalsecret 2>&1 || true
+          kubectl -n "$NAMESPACE" get externalsecret,secretstore 2>&1 || true
+          kubectl -n "$NAMESPACE" describe externalsecret 2>&1 || true
           echo "::endgroup::"
       - name: Post-deploy smoke test
         run: |
-          kubectl -n "${{ needs.plan.outputs.namespace }}" rollout status deploy/tuist-tuist-server --timeout=10m
-          kubectl -n "${{ needs.plan.outputs.namespace }}" run smoke-$RANDOM --rm -i --restart=Never --image=curlimages/curl \
+          kubectl -n "$NAMESPACE" rollout status deploy/tuist-tuist-server --timeout=10m
+          kubectl -n "$NAMESPACE" run smoke-$RANDOM --rm -i --restart=Never --image=curlimages/curl \
             --command -- curl -fsS "http://tuist-tuist-server/ready"
-
-  observability-cleanup:
-    # One-shot migration step: removes the legacy `alloy` Helm release
-    # once the server is running against the new k8s-monitoring receiver.
-    # Kept in CI (rather than documented as a manual post-cutover task)
-    # because leaving the old chart running alongside the new one
-    # duplicates metrics + logs in Grafana Cloud until someone remembers
-    # to clean it up, which skews dashboards and inflates Loki volume.
-    #
-    # `--ignore-not-found` makes this a ~30 s no-op on every cluster once
-    # the one-time cutover has happened. Gated on a successful server
-    # deploy so a failed rollout can't leave the cluster with no
-    # receiver at all. After all three clusters have cut over, this job
-    # + infra/helm/alloy/ get deleted together in a follow-up PR.
-    name: Observability cleanup (${{ inputs.environment }})
-    needs: [plan, deploy]
-    runs-on: namespace-profile-default
-    environment:
-      name: server-k8s-${{ needs.plan.outputs.environment_key }}
-    concurrency:
-      group: server-deploy-${{ needs.plan.outputs.environment_key }}
-      cancel-in-progress: false
-    timeout-minutes: 5
-    env:
-      KUBECONFIG: ${{ github.workspace }}/.kube/config
-    steps:
-      - uses: jdx/mise-action@v3.2.0
-        with:
-          install_args: "helm"
-          cache: "false"
-      - name: Load kubeconfig
-        run: |
-          mkdir -p "$(dirname "$KUBECONFIG")"
-          echo "${{ secrets.KUBECONFIG }}" | base64 -d > "$KUBECONFIG"
-          chmod 600 "$KUBECONFIG"
-      - name: Uninstall deprecated alloy release
-        run: |
-          helm uninstall alloy \
-            --namespace "$OBSERVABILITY_NAMESPACE" \
-            --ignore-not-found --wait

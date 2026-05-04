@@ -6,11 +6,10 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  {{- if .Values.server.migrationJob.asHook }}
-  name: {{ include "tuist.componentName" (dict "root" . "component" "server-migrate") }}-{{ .Release.Revision }}
-  {{- else }}
+  # Stable name across revisions so the `before-hook-creation` delete
+  # policy below matches and deletes the prior Job (and its Pending pods)
+  # before the new hook schedules.
   name: {{ include "tuist.componentName" (dict "root" . "component" "server-migrate") }}
-  {{- end }}
   labels:
     {{- include "tuist.labels" . | nindent 4 }}
     app.kubernetes.io/component: server-migration
@@ -92,20 +91,7 @@ spec:
               value: {{ .Values.server.hosted | ternary "1" "0" | quote }}
             - name: TUIST_SELF_HOSTING_DEVELOPMENT_MODE
               value: {{ .Values.server.license.selfHostingDevelopmentMode | ternary "1" "0" | quote }}
-            {{- if .Values.server.license.key }}
-            - name: TUIST_LICENSE_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: {{ $secretName }}
-                  key: server-license-key
-            {{- end }}
-            {{- if .Values.server.license.certificateBase64 }}
-            - name: TUIST_LICENSE_CERTIFICATE_BASE64
-              valueFrom:
-                secretKeyRef:
-                  name: {{ $secretName }}
-                  key: server-license-certificate-base64
-            {{- end }}
+            {{- include "tuist.licenseEnv" . | nindent 12 }}
             {{- if or .Values.server.masterKey .Values.server.managedSecrets }}
             - name: MASTER_KEY
               valueFrom:

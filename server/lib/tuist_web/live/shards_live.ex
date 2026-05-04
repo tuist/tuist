@@ -120,6 +120,11 @@ defmodule TuistWeb.ShardsLive do
         Query.put(socket.assigns.uri.query, "analytics-date-range", preset)
       end
 
+    query_params =
+      query_params
+      |> Query.drop("before")
+      |> Query.drop("after")
+
     {:noreply, push_patch(socket, to: "/#{selected_account.name}/#{selected_project.name}/tests/shards?#{query_params}")}
   end
 
@@ -338,8 +343,12 @@ defmodule TuistWeb.ShardsLive do
     filters =
       Filter.Operations.decode_filters_from_query(params, socket.assigns.available_filters)
 
+    {start_datetime, end_datetime} = socket.assigns.analytics_period
+
     flop_filters = [
-      %{field: :project_id, op: :==, value: project.id}
+      %{field: :project_id, op: :==, value: project.id},
+      %{field: :ran_at, op: :>=, value: start_datetime},
+      %{field: :ran_at, op: :<=, value: end_datetime}
       | build_sharded_run_flop_filters(filters, search)
     ]
 

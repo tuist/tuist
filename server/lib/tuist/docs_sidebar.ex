@@ -190,6 +190,10 @@ defmodule Tuist.Docs.Sidebar do
                 slug: "/en/guides/features/test-insights/flaky-tests/xcode"
               },
               %Item{
+                label: "Generated projects",
+                slug: "/en/guides/features/test-insights/flaky-tests/generated-projects"
+              },
+              %Item{
                 label: "Gradle",
                 slug: "/en/guides/features/test-insights/flaky-tests/gradle"
               }

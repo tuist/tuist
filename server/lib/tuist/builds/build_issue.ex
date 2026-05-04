@@ -1,6 +1,7 @@
 defmodule Tuist.Builds.BuildIssue do
   @moduledoc false
   use Ecto.Schema
+  use Tuist.Ingestion.Bufferable
 
   @derive {
     Flop.Schema,

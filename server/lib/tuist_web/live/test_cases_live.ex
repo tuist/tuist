@@ -69,10 +69,11 @@ defmodule TuistWeb.TestCasesLive do
         field: :test_case_trait,
         display_name: dgettext("dashboard_tests", "Test case"),
         type: :option,
-        options: [:flaky, :quarantined],
+        options: [:flaky, :muted, :skipped],
         options_display_names: %{
           flaky: dgettext("dashboard_tests", "Flaky"),
-          quarantined: dgettext("dashboard_tests", "Quarantined")
+          muted: dgettext("dashboard_tests", "Muted"),
+          skipped: dgettext("dashboard_tests", "Skipped")
         },
         operator: :==,
         value: nil
@@ -199,6 +200,8 @@ defmodule TuistWeb.TestCasesLive do
       else
         Query.put(socket.assigns.uri.query, "analytics-date-range", preset)
       end
+
+    query_params = Query.drop(query_params, "page")
 
     {:noreply,
      push_patch(socket, to: "/#{selected_account.name}/#{selected_project.name}/tests/test-cases?#{query_params}")}
@@ -400,10 +403,21 @@ defmodule TuistWeb.TestCasesLive do
     sort_order = params["sort_order"] || "desc"
     search = params["search"] || ""
 
+    {start_datetime, end_datetime} = socket.assigns.analytics_period
+
+    is_ci =
+      case socket.assigns.analytics_environment do
+        "ci" -> true
+        "local" -> false
+        _ -> nil
+      end
+
     flop_filters = build_flop_filters(filters, search)
 
-    order_by = [String.to_existing_atom(sort_by)]
-    order_directions = [String.to_existing_atom(sort_order)]
+    # Append `:id` as the unique tiebreaker so LIMIT/OFFSET pagination stays
+    # deterministic when the primary sort column has ties.
+    order_by = [String.to_existing_atom(sort_by), :id]
+    order_directions = [String.to_existing_atom(sort_order), :asc]
 
     options = %{
       filters: flop_filters,
@@ -412,6 +426,8 @@ defmodule TuistWeb.TestCasesLive do
       page: page,
       page_size: 20
     }
+
+    list_opts = [active_period: {start_datetime, end_datetime}, is_ci: is_ci]
 
     socket
     |> assign(:active_filters, filters)
@@ -422,7 +438,7 @@ defmodule TuistWeb.TestCasesLive do
     |> assign_async(
       :test_cases_page,
       fn ->
-        {test_cases, test_cases_meta} = Tests.list_test_cases(project.id, options)
+        {test_cases, test_cases_meta} = Tests.list_test_cases(project.id, options, list_opts)
         {:ok, %{test_cases_page: %{test_cases: test_cases, meta: test_cases_meta}}}
       end,
       reset: true
@@ -454,8 +470,12 @@ defmodule TuistWeb.TestCasesLive do
     %{filter | field: :is_flaky, value: true}
   end
 
-  defp convert_trait_filter(%{field: :test_case_trait, value: :quarantined} = filter) do
+  defp convert_trait_filter(%{field: :test_case_trait, value: :muted} = filter) do
     %{filter | field: :state, value: "muted"}
+  end
+
+  defp convert_trait_filter(%{field: :test_case_trait, value: :skipped} = filter) do
+    %{filter | field: :state, value: "skipped"}
   end
 
   defp convert_trait_filter(filter), do: filter

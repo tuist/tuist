@@ -24,7 +24,7 @@ env:
 
 jobs:
   deploy:
-    runs-on: namespace-profile-default-macos
+    runs-on: namespace-profile-macos-xcode-26
     timeout-minutes: 45
     environment: xcode-processor-staging
     steps:

@@ -27,8 +27,6 @@ server:
       value: prod
     - name: TUIST_DATABASE_POOL_SIZE
       value: "15"
-    - name: TUIST_PROCESSOR_URL
-      value: http://processor.tuist.dev:4002
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
       value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
 
@@ -73,6 +71,14 @@ server:
                 app.kubernetes.io/component: server
             topologyKey: kubernetes.io/hostname
 
+  # Keep server pods on the dedicated-vCPU general pool. Without this the
+  # scheduler could place a server replica on the cpx51 processor pool
+  # (shared vCPU, sized for parsing) and we'd get the latency spikes the
+  # ccx23 dedicated cores were chosen to avoid. md-0 in
+  # workload-cluster-production.yaml carries the matching pool label.
+  nodeSelector:
+    node.cluster.x-k8s.io/pool: general
+
 postgresql:
   external:
     host: db.tuist.dev  # Supabase pooler endpoint for production.
@@ -83,9 +89,70 @@ clickhouse:
 
 objectStorage:
   external:
-    endpoint: https://fly.storage.tigris.dev
     buckets:
-      default: tuist
-      cache: tuist-cache
-      xcodeCache: tuist-xcode-cache
-      registry: tuist-registry
+      default: tuist-prod-storage
+
+processor:
+  # Supabase production project (yltsvvtmlktxdgpcbylg) — dedicated pooler on
+  # port 6543 (transaction mode). Same hostname as the direct Postgres
+  # endpoint, just a different port. Pooler creds are the `tuist_processor`
+  # role provisioned via infra/supabase/tuist-processor-role.sql.
+  database:
+    host: db.yltsvvtmlktxdgpcbylg.supabase.co
+  extraEnv:
+    # Must match the server's TUIST_DEPLOY_ENV above so the processor pod
+    # decrypts the same priv/secrets/<env>.yml.enc file the web tier does.
+    - name: TUIST_DEPLOY_ENV
+      value: prod
+    - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
+      value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
+  # Sized for the dedicated cpx51 processor pool (16 vCPU / 32 GiB shared
+  # vCPU per node). With anti-affinity pinning one replica per node, each
+  # pod owns the whole node minus kube-system overhead; we leave ~4 GiB
+  # and ~4 vCPU as headroom. The Swift parser holds ~3-4x the .xcactivitylog
+  # file size in memory while building the BuildStep tree and JSON-encoding
+  # the result; at queueConcurrency=5 most realistic builds fit comfortably
+  # in 24 GiB. If we ever start seeing OOMKills again the next move is
+  # either to lower queueConcurrency, bump pod memory, or reintroduce a
+  # per-archive size cap in Tuist.Processor.BuildProcessor.
+  # CPU limit at 12 cores lets the BEAM run ~12 dirty-CPU schedulers,
+  # so all 5 NIF parses run on dedicated dirty schedulers without
+  # serializing on scheduler availability the way they did at 4 cores.
+  resources:
+    requests:
+      cpu: "4000m"
+      memory: "8Gi"
+    limits:
+      cpu: "12000m"
+      memory: "24Gi"
+
+  # Pin processor pods to the dedicated cpx51 pool provisioned by
+  # md-processor in workload-cluster-production.yaml. The label is set on
+  # the MachineDeployment metadata; CAPI propagates it to each node's
+  # registration. Without this the pods could land on the cheaper ccx23
+  # general pool that doesn't have the memory headroom 5 concurrent parses
+  # need. Syself's ClusterClass v6 doesn't expose a taint variable, so we
+  # rely on nodeSelector alone — server pods stay on the general pool via
+  # their own anti-affinity, not via taint isolation.
+  nodeSelector:
+    node.cluster.x-k8s.io/pool: processor
+
+  # Hard one-replica-per-node spread. Soft preferred-anti-affinity wasn't
+  # enough — when the new ReplicaSet was rolling out and only one cpx62
+  # node was Ready yet, both pods landed on it and stayed stacked even
+  # after the second node came up; combined ~10 cores of work on one
+  # 16-vCPU node halved effective parsing throughput while the other
+  # node sat idle. DoNotSchedule + nodeTaintsPolicy=Honor (set in the
+  # template) makes the separation enforced without deadlocking under
+  # node drain — a tainted node is excluded from the topology so the
+  # replacement pod can still land on the surviving worker.
+  topologySpread:
+    enabled: true
+    whenUnsatisfiable: DoNotSchedule
+  affinity: {}
+
+# In-cluster Valkey backs the auth rate limiter (Hammer.Redis). The
+# chart wires TUIST_REDIS_URL to the embedded Service; without it the
+# rate limiter falls back to the per-pod InMemory bucket.
+redis:
+  enabled: true

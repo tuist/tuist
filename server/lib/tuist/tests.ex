@@ -40,6 +40,7 @@ defmodule Tuist.Tests do
   alias Tuist.Tests.TestCaseRun
   alias Tuist.Tests.TestCaseRunArgument
   alias Tuist.Tests.TestCaseRunAttachment
+  alias Tuist.Tests.TestCaseRunByCommit
   alias Tuist.Tests.TestCaseRunByShardId
   alias Tuist.Tests.TestCaseRunByTestRun
   alias Tuist.Tests.TestCaseRunDashboardCount
@@ -60,6 +61,33 @@ defmodule Tuist.Tests do
   is still considered part of the suite.
   """
   def active_window_days, do: @active_window_days
+
+  # State-change events emitted by `update_test_case` use the `muted` /
+  # `unmuted` names. Pre-rename rows have already been backfilled to these
+  # names by `RenameLegacyQuarantineEvents`, so consumers can match on a
+  # single canonical value.
+  @mute_event_types ~w(muted unmuted)
+  @skip_event_types ~w(skipped unskipped)
+  @quarantine_event_types @mute_event_types ++ @skip_event_types
+  @active_quarantine_event_types ~w(muted skipped)
+
+  @doc """
+  All mute-related event type names (`muted`, `unmuted`).
+  """
+  def mute_event_types, do: @mute_event_types
+
+  @doc """
+  All quarantine-related event type names — covers both Mute (`muted`,
+  `unmuted`) and Skip (`skipped`, `unskipped`) modes.
+  """
+  def quarantine_event_types, do: @quarantine_event_types
+
+  @doc """
+  Event types that mark a test as *currently* quarantined (`muted`,
+  `skipped`). The matching `un*` events leave a test in the
+  not-quarantined state.
+  """
+  def active_quarantine_event_types, do: @active_quarantine_event_types
 
   # Keys present on the `Test` struct that are NOT columns on the `test_runs`
   # ClickHouse table (Ecto metadata + association loaders). Used to scrub the
@@ -616,19 +644,69 @@ defmodule Tuist.Tests do
     {test_case_id_map, test_cases_with_flaky_run, new_test_case_ids}
   end
 
-  defp get_all_project_test_cases(project_id) do
+  defp collect_test_case_ids(project_id, test_modules) do
+    test_modules
+    |> Enum.flat_map(fn module_attrs ->
+      module_name = Map.get(module_attrs, :name)
+      test_cases = Map.get(module_attrs, :test_cases, [])
+
+      Enum.map(test_cases, fn case_attrs ->
+        suite_name = Map.get(case_attrs, :test_suite_name, "") || ""
+        generate_test_case_id(project_id, Map.get(case_attrs, :name), module_name, suite_name)
+      end)
+    end)
+    |> Enum.uniq()
+  end
+
+  # Batch size for `id IN (...)` lookups. Each UUID is ~38 bytes encoded in the
+  # SQL, so 5_000 IDs is ~190 KB, well below ClickHouse's default
+  # `max_query_size` of 256 KB even with surrounding query text. Larger batches
+  # would risk a `TOO_LARGE_QUERY` rejection on big test reports.
+  @existing_test_cases_batch_size 5_000
+
+  defp get_existing_test_cases(_project_id, []), do: %{}
+
+  # Returns the latest `recent_durations`, `is_flaky`, and `state` per test case
+  # for the given IDs. We avoid the FINAL hint because the per-call merge cost
+  # dominates when this is called during ingestion (every test report) and
+  # dedupe in Elixir from a small result set instead.
+  defp get_existing_test_cases(project_id, test_case_ids) do
+    test_case_ids
+    |> Enum.chunk_every(@existing_test_cases_batch_size)
+    |> Enum.reduce(%{}, fn ids_chunk, acc ->
+      project_id
+      |> existing_test_cases_chunk_query(ids_chunk)
+      |> ClickHouseRepo.all()
+      |> Enum.reduce(acc, &merge_latest_test_case/2)
+    end)
+  end
+
+  defp existing_test_cases_chunk_query(project_id, ids_chunk) do
     from(test_case in TestCase,
-      hints: ["FINAL"],
       where: test_case.project_id == ^project_id,
+      where: test_case.id in ^ids_chunk,
       select: %{
         id: test_case.id,
         recent_durations: test_case.recent_durations,
         is_flaky: test_case.is_flaky,
-        state: test_case.state
+        state: test_case.state,
+        inserted_at: test_case.inserted_at
       }
     )
-    |> IngestRepo.all()
-    |> Map.new(fn row -> {row.id, row} end)
+  end
+
+  defp merge_latest_test_case(row, acc) do
+    case Map.fetch(acc, row.id) do
+      {:ok, existing} ->
+        if NaiveDateTime.after?(row.inserted_at, existing.inserted_at) do
+          Map.put(acc, row.id, row)
+        else
+          acc
+        end
+
+      :error ->
+        Map.put(acc, row.id, row)
+    end
   end
 
   defp generate_test_case_id(project_id, name, module_name, suite_name) do
@@ -670,7 +748,7 @@ defmodule Tuist.Tests do
 
   ## Parameters
   - `test_case_id` - the test case UUID to update
-  - `update_attrs` - map with `:is_flaky` boolean and/or `:state` (`"enabled"` | `"muted"`)
+  - `update_attrs` - map with `:is_flaky` boolean and/or `:state` (`"enabled"` | `"muted"` | `"skipped"`)
   - `opts` - optional keyword list with `:actor_id` (account_id for user actions, nil for system)
   """
   def update_test_case(test_case_id, update_attrs, opts \\ []) when is_map(update_attrs) do
@@ -727,8 +805,12 @@ defmodule Tuist.Tests do
 
     events =
       case {Map.get(old_test_case, :state, "enabled"), Map.get(new_attrs, :state)} do
-        {old_state, "muted"} when old_state != "muted" -> [:muted | events]
+        {old_state, new_state} when old_state == new_state -> events
+        {_old, nil} -> events
         {"muted", "enabled"} -> [:unmuted | events]
+        {"skipped", "enabled"} -> [:unskipped | events]
+        {_old, "muted"} -> [:muted | events]
+        {_old, "skipped"} -> [:skipped | events]
         _ -> events
       end
 
@@ -929,7 +1011,8 @@ defmodule Tuist.Tests do
         get_test_case_run_data(test, test_modules)
       end
 
-    existing_test_cases = get_all_project_test_cases(test.project_id)
+    test_case_ids = collect_test_case_ids(test.project_id, test_modules)
+    existing_test_cases = get_existing_test_cases(test.project_id, test_case_ids)
 
     test_case_run_data_by_module =
       Enum.group_by(
@@ -1083,11 +1166,12 @@ defmodule Tuist.Tests do
     test_case_id_set = MapSet.new(test_case_ids)
 
     query =
-      from(tcr in TestCaseRun,
+      from(tcr in TestCaseRunByCommit,
         where: tcr.project_id == ^project_id,
         where: tcr.git_commit_sha == ^git_commit_sha,
         where: tcr.is_ci == true,
-        where: tcr.status in ["success", "failure"]
+        where: tcr.status in ["success", "failure"],
+        select: %{id: tcr.id, test_case_id: tcr.test_case_id, status: tcr.status}
       )
 
     query
@@ -1455,10 +1539,20 @@ defmodule Tuist.Tests do
   Lists test cases for a project directly from the test_cases table.
   Denormalized fields (last_status, last_duration, last_ran_at) are kept up to date
   by ReplacingMergeTree on each test run.
+
+  Options:
+    * `:active_period` — `{start_datetime, end_datetime}` tuple. When set, the result
+      is restricted to test cases that had at least one run in the given window
+      (via a join with `test_case_runs`), regardless of `last_ran_at`.
+    * `:is_ci` — when combined with `:active_period`, further restricts the run
+      lookup to CI (`true`) or local (`false`) runs.
   """
-  def list_test_cases(project_id, attrs) do
+  def list_test_cases(project_id, attrs, opts \\ []) do
     filters = Map.get(attrs, :filters, [])
     has_name_filter = Enum.any?(filters, fn f -> f.field == :name end)
+    quarantine_filter? = quarantine_filter?(filters)
+    active_period = Keyword.get(opts, :active_period)
+    is_ci = Keyword.get(opts, :is_ci)
 
     base_query =
       from(test_case in TestCase,
@@ -1467,14 +1561,80 @@ defmodule Tuist.Tests do
       )
 
     base_query =
-      if has_name_filter do
-        base_query
-      else
-        window_start = NaiveDateTime.add(NaiveDateTime.utc_now(), -@active_window_days, :day)
-        where(base_query, [test_case], test_case.last_ran_at >= ^window_start)
+      cond do
+        not is_nil(active_period) ->
+          active_ids = active_test_case_ids_query(project_id, active_period, is_ci)
+
+          from(test_case in base_query,
+            inner_join: active in subquery(active_ids),
+            on: test_case.id == active.test_case_id
+          )
+
+        # Quarantined-by-state filters (`state in ["muted", "skipped"]` or the
+        # legacy `quarantined=true` shortcut) bypass the active window. Skipped
+        # tests intentionally never run, so their `last_ran_at` doesn't
+        # refresh — without this branch they'd age out after 14 days and the
+        # CLI/Gradle plugin would silently start running them again.
+        quarantine_filter? ->
+          base_query
+
+        has_name_filter ->
+          base_query
+
+        true ->
+          window_start = NaiveDateTime.add(NaiveDateTime.utc_now(), -@active_window_days, :day)
+          where(base_query, [test_case], test_case.last_ran_at >= ^window_start)
       end
 
     Tuist.ClickHouseFlop.validate_and_run!(base_query, attrs, for: TestCase)
+  end
+
+  defp quarantine_filter?(filters) do
+    Enum.any?(filters, fn
+      %{field: :state, value: value} when value in ["muted", "skipped"] ->
+        true
+
+      %{field: "state", value: value} when value in ["muted", "skipped"] ->
+        true
+
+      %{field: :state, op: :in, value: values} when is_list(values) ->
+        Enum.any?(values, &(&1 in ["muted", "skipped"]))
+
+      %{field: "state", op: :in, value: values} when is_list(values) ->
+        Enum.any?(values, &(&1 in ["muted", "skipped"]))
+
+      _ ->
+        false
+    end)
+  end
+
+  # `inserted_at` is added alongside `ran_at` so the partition pruner can skip
+  # months outside the window. `test_case_runs` is `PARTITION BY
+  # toYYYYMM(inserted_at)` and `ran_at` is not a partition key. Rows with
+  # `inserted_at < ran_at` would not exist (insert happens after the run
+  # completes), so this never excludes a row that the `ran_at` window would
+  # have included.
+  defp active_test_case_ids_query(project_id, {start_datetime, end_datetime}, is_ci) do
+    start_naive = DateTime.to_naive(start_datetime)
+    end_naive = DateTime.to_naive(end_datetime)
+
+    query =
+      from(run in TestCaseRun,
+        where:
+          run.project_id == ^project_id and
+            run.ran_at >= ^start_naive and
+            run.ran_at <= ^end_naive and
+            run.inserted_at >= ^start_naive and
+            not is_nil(run.test_case_id),
+        group_by: run.test_case_id,
+        select: %{test_case_id: run.test_case_id}
+      )
+
+    case is_ci do
+      true -> from(r in query, where: r.is_ci == true)
+      false -> from(r in query, where: r.is_ci == false)
+      _ -> query
+    end
   end
 
   @doc """
@@ -1523,24 +1683,12 @@ defmodule Tuist.Tests do
   end
 
   defp build_flaky_test_cases_query(project_id, search_term, opts) do
-    stats_subquery =
-      from(flaky_run in FlakyTestCaseRun,
-        where: flaky_run.project_id == ^project_id,
-        group_by: flaky_run.test_case_id,
-        select: %{
-          test_case_id: flaky_run.test_case_id,
-          flaky_runs_count: count(flaky_run.test_case_id),
-          last_flaky_at: max(flaky_run.inserted_at),
-          last_flaky_run_id: fragment("argMax(test_run_id, inserted_at)")
-        }
-      )
-      |> apply_flaky_time_filter(opts)
-      |> apply_flaky_environment_filter(opts)
-
     base_query =
       from(test_case in TestCase,
         hints: ["FINAL"],
-        inner_join: stats in subquery(stats_subquery),
+        inner_join: flaky in subquery(currently_flaky_test_case_ids_subquery(project_id, opts)),
+        on: test_case.id == flaky.test_case_id,
+        inner_join: stats in subquery(flaky_stats_subquery(project_id, opts)),
         on: test_case.id == stats.test_case_id,
         where: test_case.project_id == ^project_id,
         select: %{
@@ -1548,7 +1696,7 @@ defmodule Tuist.Tests do
           name: test_case.name,
           module_name: test_case.module_name,
           suite_name: test_case.suite_name,
-          flaky_runs_count: coalesce(stats.flaky_runs_count, 0),
+          flaky_runs_count: stats.flaky_runs_count,
           last_flaky_at: stats.last_flaky_at,
           last_flaky_run_id: stats.last_flaky_run_id
         }
@@ -1558,27 +1706,53 @@ defmodule Tuist.Tests do
   end
 
   defp build_flaky_test_cases_count_query(project_id, search_term, opts) do
-    stats_subquery =
-      from(flaky_run in FlakyTestCaseRun,
-        where: flaky_run.project_id == ^project_id,
-        group_by: flaky_run.test_case_id,
-        select: %{
-          test_case_id: flaky_run.test_case_id
-        }
-      )
-      |> apply_flaky_time_filter(opts)
-      |> apply_flaky_environment_filter(opts)
-
     base_query =
       from(test_case in TestCase,
         hints: ["FINAL"],
-        inner_join: stats in subquery(stats_subquery),
+        inner_join: flaky in subquery(currently_flaky_test_case_ids_subquery(project_id, opts)),
+        on: test_case.id == flaky.test_case_id,
+        inner_join: stats in subquery(flaky_stats_subquery(project_id, opts)),
         on: test_case.id == stats.test_case_id,
         where: test_case.project_id == ^project_id,
         select: count(test_case.id)
       )
 
     apply_name_search(base_query, search_term)
+  end
+
+  defp flaky_stats_subquery(project_id, opts) do
+    from(flaky_run in FlakyTestCaseRun,
+      where: flaky_run.project_id == ^project_id,
+      group_by: flaky_run.test_case_id,
+      select: %{
+        test_case_id: flaky_run.test_case_id,
+        flaky_runs_count: count(flaky_run.test_case_id),
+        last_flaky_at: max(flaky_run.inserted_at),
+        last_flaky_run_id: fragment("argMax(test_run_id, inserted_at)")
+      }
+    )
+    |> apply_flaky_time_filter(opts)
+    |> apply_flaky_environment_filter(opts)
+  end
+
+  defp currently_flaky_test_case_ids_subquery(project_id, opts) do
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+    end_naive = DateTime.to_naive(end_datetime)
+
+    project_tc_ids =
+      from(tc in TestCase,
+        where: tc.project_id == ^project_id,
+        select: tc.id
+      )
+
+    from(e in TestCaseEvent,
+      where: e.event_type in ["marked_flaky", "unmarked_flaky"],
+      where: e.inserted_at <= ^end_naive,
+      where: e.test_case_id in subquery(project_tc_ids),
+      group_by: e.test_case_id,
+      having: fragment("argMax(?, ?) = 'marked_flaky'", e.event_type, e.inserted_at),
+      select: %{test_case_id: e.test_case_id}
+    )
   end
 
   defp apply_flaky_time_filter(query, opts) do
@@ -1616,20 +1790,20 @@ defmodule Tuist.Tests do
   defp apply_name_search(query, term), do: from(q in query, where: ilike(q.name, ^"%#{term}%"))
 
   defp apply_flaky_order(query, :flaky_runs_count, :asc),
-    do: from([tc, stats] in query, order_by: [asc: coalesce(stats.flaky_runs_count, 0)])
+    do: from([tc, _flaky, stats] in query, order_by: [asc: coalesce(stats.flaky_runs_count, 0)])
 
   defp apply_flaky_order(query, :last_flaky_at, :desc),
-    do: from([tc, stats] in query, order_by: [desc: stats.last_flaky_at])
+    do: from([tc, _flaky, stats] in query, order_by: [desc: stats.last_flaky_at])
 
   defp apply_flaky_order(query, :last_flaky_at, :asc),
-    do: from([tc, stats] in query, order_by: [asc: stats.last_flaky_at])
+    do: from([tc, _flaky, stats] in query, order_by: [asc: stats.last_flaky_at])
 
-  defp apply_flaky_order(query, :name, :desc), do: from([tc, _stats] in query, order_by: [desc: tc.name])
+  defp apply_flaky_order(query, :name, :desc), do: from([tc, _flaky, _stats] in query, order_by: [desc: tc.name])
 
-  defp apply_flaky_order(query, :name, :asc), do: from([tc, _stats] in query, order_by: [asc: tc.name])
+  defp apply_flaky_order(query, :name, :asc), do: from([tc, _flaky, _stats] in query, order_by: [asc: tc.name])
 
   defp apply_flaky_order(query, _, _),
-    do: from([tc, stats] in query, order_by: [desc: coalesce(stats.flaky_runs_count, 0)])
+    do: from([tc, _flaky, stats] in query, order_by: [desc: coalesce(stats.flaky_runs_count, 0)])
 
   defp row_to_flaky_test_case(row) do
     %FlakyTestCase{
@@ -1647,7 +1821,7 @@ defmodule Tuist.Tests do
   Lists test cases that are currently quarantined for a project.
   Returns quarantined test cases with information about who quarantined them.
   """
-  def list_quarantined_test_cases(project_id, attrs) do
+  def list_quarantined_test_cases(project_id, attrs, _opts \\ []) do
     page = Map.get(attrs, :page, 1)
     page_size = Map.get(attrs, :page_size, 20)
     order_by = attrs |> Map.get(:order_by, [:last_ran_at]) |> List.first()
@@ -1659,6 +1833,7 @@ defmodule Tuist.Tests do
     quarantined_by_filter = extract_quarantined_by_filter(filters)
     module_name_filter = extract_text_filter(filters, :module_name)
     suite_name_filter = extract_text_filter(filters, :suite_name)
+    state_filter = extract_state_filter(filters)
 
     results =
       project_id
@@ -1666,7 +1841,8 @@ defmodule Tuist.Tests do
         search_term,
         quarantined_by_filter,
         module_name_filter,
-        suite_name_filter
+        suite_name_filter,
+        state_filter
       )
       |> apply_quarantined_order(order_by, order_direction)
       |> from(limit: ^page_size, offset: ^offset)
@@ -1687,7 +1863,8 @@ defmodule Tuist.Tests do
         search_term,
         quarantined_by_filter,
         module_name_filter,
-        suite_name_filter
+        suite_name_filter,
+        state_filter
       )
       |> ClickHouseRepo.one()
 
@@ -1722,35 +1899,47 @@ defmodule Tuist.Tests do
     end)
   end
 
+  defp extract_state_filter(filters) do
+    Enum.find_value(filters, fn
+      %{field: :state, value: value} when value in ["muted", "skipped"] -> value
+      %{field: "state", value: value} when value in ["muted", "skipped"] -> value
+      _ -> nil
+    end)
+  end
+
   defp build_quarantined_test_cases_query(
          project_id,
          search_term,
          quarantined_by_filter,
          module_name_filter,
-         suite_name_filter
+         suite_name_filter,
+         state_filter
        ) do
     base_query =
-      from(test_case in TestCase,
-        as: :test_case,
-        hints: ["FINAL"],
-        where: test_case.project_id == ^project_id,
-        where: test_case.state == "muted",
-        select: %{
-          id: test_case.id,
-          name: test_case.name,
-          module_name: test_case.module_name,
-          suite_name: test_case.suite_name,
-          last_ran_at: test_case.last_ran_at,
-          last_run_id: test_case.last_run_id,
-          last_status: test_case.last_status
-        }
+      apply_quarantined_state_filter(
+        from(test_case in TestCase,
+          as: :test_case,
+          hints: ["FINAL"],
+          where: test_case.project_id == ^project_id,
+          select: %{
+            id: test_case.id,
+            name: test_case.name,
+            module_name: test_case.module_name,
+            suite_name: test_case.suite_name,
+            last_ran_at: test_case.last_ran_at,
+            last_run_id: test_case.last_run_id,
+            last_status: test_case.last_status,
+            state: test_case.state
+          }
+        ),
+        state_filter
       )
 
     base_query =
       if quarantined_by_filter do
         quarantine_info_subquery =
           from(e in TestCaseEvent,
-            where: e.event_type == "quarantined",
+            where: e.event_type in ^@active_quarantine_event_types,
             group_by: e.test_case_id,
             select: %{
               test_case_id: e.test_case_id,
@@ -1779,22 +1968,25 @@ defmodule Tuist.Tests do
          search_term,
          quarantined_by_filter,
          module_name_filter,
-         suite_name_filter
+         suite_name_filter,
+         state_filter
        ) do
     base_query =
-      from(test_case in TestCase,
-        as: :test_case,
-        hints: ["FINAL"],
-        where: test_case.project_id == ^project_id,
-        where: test_case.state == "muted",
-        select: count(test_case.id)
+      apply_quarantined_state_filter(
+        from(test_case in TestCase,
+          as: :test_case,
+          hints: ["FINAL"],
+          where: test_case.project_id == ^project_id,
+          select: count(test_case.id)
+        ),
+        state_filter
       )
 
     base_query =
       if quarantined_by_filter do
         quarantine_info_subquery =
           from(e in TestCaseEvent,
-            where: e.event_type == "quarantined",
+            where: e.event_type in ^@active_quarantine_event_types,
             group_by: e.test_case_id,
             select: %{
               test_case_id: e.test_case_id,
@@ -1826,14 +2018,14 @@ defmodule Tuist.Tests do
     quarantined_ids_subquery =
       from(tc in TestCase,
         hints: ["FINAL"],
-        where: tc.project_id == ^project_id and tc.state == "muted",
+        where: tc.project_id == ^project_id and tc.state in ["muted", "skipped"],
         select: tc.id
       )
 
     actor_ids =
       from(e in TestCaseEvent,
         where: e.test_case_id in subquery(quarantined_ids_subquery),
-        where: e.event_type == "quarantined",
+        where: e.event_type in ^@active_quarantine_event_types,
         group_by: e.test_case_id,
         having: fragment("argMax(?, ?) IS NOT NULL", e.actor_id, e.inserted_at),
         select: fragment("argMax(?, ?)", e.actor_id, e.inserted_at)
@@ -1854,7 +2046,7 @@ defmodule Tuist.Tests do
     query =
       from(e in TestCaseEvent,
         where: e.test_case_id in ^test_case_ids,
-        where: e.event_type == "quarantined",
+        where: e.event_type in ^@active_quarantine_event_types,
         group_by: e.test_case_id,
         select: %{
           test_case_id: e.test_case_id,
@@ -1890,17 +2082,30 @@ defmodule Tuist.Tests do
     end)
   end
 
+  # Secondary `id` keeps the sort deterministic when the primary column has
+  # ties. Without it ClickHouse is free to reshuffle tied rows between pages,
+  # which surfaces as "duplicates" across pagination because the same row can
+  # appear on two pages while another is skipped.
   defp apply_quarantined_order(query, :last_ran_at, :desc),
-    do: from([test_case: tc] in query, order_by: [desc: tc.last_ran_at])
+    do: from([test_case: tc] in query, order_by: [desc: tc.last_ran_at, asc: tc.id])
 
   defp apply_quarantined_order(query, :last_ran_at, :asc),
-    do: from([test_case: tc] in query, order_by: [asc: tc.last_ran_at])
+    do: from([test_case: tc] in query, order_by: [asc: tc.last_ran_at, asc: tc.id])
 
-  defp apply_quarantined_order(query, :name, :desc), do: from([test_case: tc] in query, order_by: [desc: tc.name])
+  defp apply_quarantined_order(query, :name, :desc),
+    do: from([test_case: tc] in query, order_by: [desc: tc.name, asc: tc.id])
 
-  defp apply_quarantined_order(query, :name, :asc), do: from([test_case: tc] in query, order_by: [asc: tc.name])
+  defp apply_quarantined_order(query, :name, :asc),
+    do: from([test_case: tc] in query, order_by: [asc: tc.name, asc: tc.id])
 
-  defp apply_quarantined_order(query, _, _), do: from([test_case: tc] in query, order_by: [desc: tc.last_ran_at])
+  defp apply_quarantined_order(query, _, _),
+    do: from([test_case: tc] in query, order_by: [desc: tc.last_ran_at, asc: tc.id])
+
+  defp apply_quarantined_state_filter(query, nil),
+    do: from([test_case: tc] in query, where: tc.state in ["muted", "skipped"])
+
+  defp apply_quarantined_state_filter(query, state) when state in ["muted", "skipped"],
+    do: from([test_case: tc] in query, where: tc.state == ^state)
 
   defp apply_quarantined_by_filter(query, nil), do: query
 
@@ -1937,17 +2142,25 @@ defmodule Tuist.Tests do
       quarantined_by_account_name: Map.get(quarantine_info, :actor_name),
       last_ran_at: row.last_ran_at,
       last_run_id: row.last_run_id,
-      last_status: row.last_status
+      last_status: row.last_status,
+      state: row.state
     }
   end
 
   defp mark_test_case_runs_as_flaky([]), do: :ok
 
   defp mark_test_case_runs_as_flaky(runs) when is_list(runs) do
+    ids = runs |> Enum.map(& &1.id) |> Enum.uniq()
+
+    # FINAL is required because `test_case_runs` is a ReplacingMergeTree:
+    # without it, a run that has already been re-inserted (e.g. previously
+    # marked flaky) can return multiple versions for the same id until the
+    # merge collapses them, and we'd re-insert every version.
+    full_runs =
+      ClickHouseRepo.all(from(tcr in TestCaseRun, hints: ["FINAL"], where: tcr.id in ^ids))
+
     updated_runs =
-      runs
-      |> Enum.uniq_by(& &1.id)
-      |> Enum.map(fn run ->
+      Enum.map(full_runs, fn run ->
         run
         |> Map.from_struct()
         |> Map.drop([

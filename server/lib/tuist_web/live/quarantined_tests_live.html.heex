@@ -1,58 +1,58 @@
 <div id="quarantined-tests">
+  <div data-part="filters">
+    <.date_picker
+      id="quarantined-tests-analytics-date-range-picker"
+      name="analytics-date-range"
+      presets={[
+        %{
+          id: "last-24-hours",
+          label: dgettext("dashboard_tests", "Last 24 hours"),
+          period: {24, :hour}
+        },
+        %{
+          id: "last-7-days",
+          label: dgettext("dashboard_tests", "Last 7 days"),
+          period: {7, :day}
+        },
+        %{
+          id: "last-30-days",
+          label: dgettext("dashboard_tests", "Last 30 days"),
+          period: {30, :day}
+        },
+        %{
+          id: "last-12-months",
+          label: dgettext("dashboard_tests", "Last 12 months"),
+          period: {12, :month}
+        },
+        %{id: "custom", label: dgettext("dashboard_tests", "Custom")}
+      ]}
+      selected_preset={@analytics_preset}
+      period={@analytics_period}
+      on_period_change="analytics_period_changed"
+      max={Date.utc_today()}
+    >
+      <:actions>
+        <.button
+          label={dgettext("dashboard_tests", "Cancel")}
+          variant="secondary"
+          phx-click={
+            JS.dispatch("phx:date-picker-cancel",
+              detail: %{id: "quarantined-tests-analytics-date-range-picker"}
+            )
+          }
+        />
+        <.button
+          label={dgettext("dashboard_tests", "Apply")}
+          phx-click={
+            JS.dispatch("phx:date-picker-apply",
+              detail: %{id: "quarantined-tests-analytics-date-range-picker"}
+            )
+          }
+        />
+      </:actions>
+    </.date_picker>
+  </div>
   <.card title={dgettext("dashboard_tests", "Analytics")} icon="chart_arcs" data-part="analytics">
-    <:actions>
-      <.date_picker
-        id="quarantined-tests-analytics-date-range-picker"
-        name="analytics-date-range"
-        presets={[
-          %{
-            id: "last-24-hours",
-            label: dgettext("dashboard_tests", "Last 24 hours"),
-            period: {24, :hour}
-          },
-          %{
-            id: "last-7-days",
-            label: dgettext("dashboard_tests", "Last 7 days"),
-            period: {7, :day}
-          },
-          %{
-            id: "last-30-days",
-            label: dgettext("dashboard_tests", "Last 30 days"),
-            period: {30, :day}
-          },
-          %{
-            id: "last-12-months",
-            label: dgettext("dashboard_tests", "Last 12 months"),
-            period: {12, :month}
-          },
-          %{id: "custom", label: dgettext("dashboard_tests", "Custom")}
-        ]}
-        selected_preset={@analytics_preset}
-        period={@analytics_period}
-        on_period_change="analytics_period_changed"
-        max={Date.utc_today()}
-      >
-        <:actions>
-          <.button
-            label={dgettext("dashboard_tests", "Cancel")}
-            variant="secondary"
-            phx-click={
-              JS.dispatch("phx:date-picker-cancel",
-                detail: %{id: "quarantined-tests-analytics-date-range-picker"}
-              )
-            }
-          />
-          <.button
-            label={dgettext("dashboard_tests", "Apply")}
-            phx-click={
-              JS.dispatch("phx:date-picker-apply",
-                detail: %{id: "quarantined-tests-analytics-date-range-picker"}
-              )
-            }
-          />
-        </:actions>
-      </.date_picker>
-    </:actions>
     <.card_section
       :if={!@quarantined_analytics.ok?}
       data-part="analytics-chart-section-skeleton"
@@ -252,6 +252,22 @@
               }
             />
           </:col>
+          <:col :let={test_case} label={dgettext("dashboard_tests", "Mode")}>
+            <.badge
+              :if={test_case.state == "muted"}
+              label={dgettext("dashboard_tests", "Muted")}
+              color="attention"
+              style="light-fill"
+              size="large"
+            />
+            <.badge
+              :if={test_case.state == "skipped"}
+              label={dgettext("dashboard_tests", "Skipped")}
+              color="destructive"
+              style="light-fill"
+              size="large"
+            />
+          </:col>
           <:col :let={test_case} label={dgettext("dashboard_tests", "Quarantined by")}>
             <%= if is_nil(test_case.quarantined_by_account_id) do %>
               <.badge
@@ -298,20 +314,7 @@
                 sort_icon(@quarantined_tests_sort_order)
             }
           >
-            <.link_button
-              :if={test_case.last_run_id}
-              navigate={
-                ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-runs/#{test_case.last_run_id}"
-              }
-              label={Tuist.Utilities.DateFormatter.from_now(test_case.last_ran_at)}
-              underline
-              variant="secondary"
-              size="large"
-              data-part="last-run-link"
-            />
-            <span :if={is_nil(test_case.last_run_id)}>
-              {Tuist.Utilities.DateFormatter.from_now(test_case.last_ran_at)}
-            </span>
+            <.text_cell sublabel={Tuist.Utilities.DateFormatter.from_now(test_case.last_ran_at)} />
           </:col>
         </.table>
         <.pagination_group

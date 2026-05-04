@@ -14,7 +14,7 @@ This file provides guidance to AI agents when working with code in this reposito
 - `noora/` - Noora design system (Elixir/Phoenix web components) - see `noora/AGENTS.md`
 - `mise/tasks/registry/` - Operational scripts for Swift package registry management (purge, sync)
 - `skills/` - Agent Skills (published to [tuist/agent-skills](https://github.com/tuist/agent-skills))
-- `processor/` - Build processor service (Elixir/Phoenix + Swift NIF) - see `processor/AGENTS.md`
+- `server/native/xcactivitylog_nif/` - Swift NIF linked into the server release for xcactivitylog parsing. The processor is no longer a standalone Elixir app; it's the same `ghcr.io/tuist/tuist` image booted with `TUIST_MODE=processor` to run the `:process_build` Oban queue consumer.
 - `xcode_processor/` - Xcode processor service for xcresult processing (Elixir/Phoenix + Swift NIF, macOS) - see `xcode_processor/AGENTS.md`
 - `search/` - Search infrastructure (TypeSense) - see `search/AGENTS.md`
 - `infra/` - Infrastructure and deployment assets - see `infra/AGENTS.md`
@@ -100,7 +100,7 @@ Tuist Server is an Elixir/Phoenix web application that extends the functionality
   - PostgreSQL (primary database)
   - ClickHouse (analytics database, write-only through IngestRepo)
 - **Frontend**: Phoenix LiveView with JavaScript/TypeScript and esbuild
-- **Package Management**: pnpm for JavaScript dependencies
+- **Package Management**: aube for JavaScript dependencies
 
 **Core Architecture Components:**
 - `lib/tuist/` - Core business logic modules (accounts, billing, bundles, projects, registry, etc.)
@@ -178,7 +178,7 @@ mise run dev                   # Start development server
 
 - `.mise.toml` - Development environment and tool versions
 - `mix.exs` - Elixir project configuration and dependencies
-- `package.json` - JavaScript dependencies managed by pnpm
+- `package.json` - JavaScript dependencies managed by aube
 - `config/` directory - Phoenix application configuration
 - `priv/secrets/dev.key` - Development secrets encryption key (not in repo)
 
@@ -240,10 +240,11 @@ The CI pipeline will fail if any `.po` files are modified by anyone other than `
 
 ## Deployment
 
-The application deploys to Render with different environments:
-- `mise run deploy:staging` - Deploy to staging
-- `mise run deploy:canary` - Deploy to canary
-- `mise run deploy:production` - Deploy to production
+The application deploys to managed Syself Kubernetes clusters on Hetzner via Helm. See `infra/AGENTS.md` for the full layout.
+
+- Push to `main` triggers `.github/workflows/server-production-deployment.yml`, which cascades canary → acceptance tests → production (hotfix fast-path available).
+- Single-environment deploys use `.github/workflows/server-deployment.yml` via `workflow_dispatch`.
+- Chart and per-env values live in `infra/helm/tuist/` (`values-managed-{staging,canary,production}.yaml`).
 
 ## Important Notes
 

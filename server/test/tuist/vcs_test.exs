@@ -2807,12 +2807,7 @@ defmodule Tuist.VCSTest do
         git_commit_sha: "abc123",
         git_ref: "refs/pull/123/head",
         git_remote_url_origin: "https://github.com/tuist/tuist",
-        project_id: project.id,
-        preview_url_template: "/{{account_name}}/{{project_name}}/previews/{{preview_id}}",
-        preview_qr_code_url_template: "/{{account_name}}/{{project_name}}/previews/{{preview_id}}/qr-code.png",
-        command_run_url_template: "/{{account_name}}/{{project_name}}/runs/{{command_event_id}}",
-        bundle_url_template: "/{{account_name}}/{{project_name}}/bundles/{{bundle_id}}",
-        build_url_template: "/{{account_name}}/{{project_name}}/builds/build-runs/{{build_id}}"
+        project_id: project.id
       }
 
       # When / Then
@@ -2844,13 +2839,7 @@ defmodule Tuist.VCSTest do
         git_commit_sha: "abc123",
         git_ref: "refs/pull/123/head",
         git_remote_url_origin: "https://github.com/tuist/tuist",
-        project_id: project.id,
-        preview_url_template: "url",
-        preview_qr_code_url_template: "url",
-        command_run_url_template: "url",
-        test_run_url_template: "url",
-        bundle_url_template: "url",
-        build_url_template: "url"
+        project_id: project.id
       }
 
       # When
@@ -3018,6 +3007,77 @@ defmodule Tuist.VCSTest do
       assert {:ok, github_app_installation} = result
       assert github_app_installation.account_id == account.id
       assert github_app_installation.installation_id == installation_id
+    end
+  end
+
+  describe "create_or_get_github_app_installation/1" do
+    test "creates a GitHub app installation when it does not exist" do
+      # Given
+      account = AccountsFixtures.account_fixture()
+      installation_id = "54321"
+
+      # When
+      result =
+        VCS.create_or_get_github_app_installation(%{
+          account_id: account.id,
+          installation_id: installation_id
+        })
+
+      # Then
+      assert {:ok, github_app_installation} = result
+      assert github_app_installation.account_id == account.id
+      assert github_app_installation.installation_id == installation_id
+    end
+
+    test "returns the existing GitHub app installation for the same account" do
+      # Given
+      account = AccountsFixtures.account_fixture()
+      installation_id = "12345"
+
+      {:ok, github_app_installation} =
+        VCS.create_github_app_installation(%{
+          account_id: account.id,
+          installation_id: installation_id
+        })
+
+      # When
+      result =
+        VCS.create_or_get_github_app_installation(%{
+          account_id: account.id,
+          installation_id: installation_id
+        })
+
+      # Then
+      assert {:ok, existing_installation} = result
+      assert existing_installation.id == github_app_installation.id
+      assert existing_installation.account_id == account.id
+      assert existing_installation.installation_id == installation_id
+    end
+
+    test "does not reconnect an existing GitHub app installation to a different account" do
+      # Given
+      connected_account = AccountsFixtures.account_fixture()
+      other_account = AccountsFixtures.account_fixture()
+      installation_id = "12345"
+
+      {:ok, github_app_installation} =
+        VCS.create_github_app_installation(%{
+          account_id: connected_account.id,
+          installation_id: installation_id
+        })
+
+      # When
+      result =
+        VCS.create_or_get_github_app_installation(%{
+          account_id: other_account.id,
+          installation_id: installation_id
+        })
+
+      # Then
+      assert result == {:error, :installation_already_connected}
+      assert {:ok, existing_installation} = VCS.get_github_app_installation_by_installation_id(installation_id)
+      assert existing_installation.id == github_app_installation.id
+      assert existing_installation.account_id == connected_account.id
     end
   end
 

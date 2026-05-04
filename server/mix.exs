@@ -6,7 +6,6 @@ defmodule Tuist.MixProject do
       app: :tuist,
       version: "0.1.0",
       elixir: "~> 1.19",
-      build_path: build_path(),
       elixirc_paths: elixirc_paths(Mix.env()),
       elixirc_options: [check_cwd: false],
       test_paths: ["test"],
@@ -14,7 +13,7 @@ defmodule Tuist.MixProject do
       releases: releases(),
       aliases: aliases(),
       deps: deps(),
-      compilers: [:boundary] ++ Mix.compilers(),
+      compilers: compilers(Mix.env()),
       listeners: [Phoenix.CodeReloader]
     ]
   end
@@ -34,12 +33,9 @@ defmodule Tuist.MixProject do
   defp elixirc_paths(:dev), do: ["lib", "credo"]
   defp elixirc_paths(_), do: ["lib"]
 
-  defp build_path do
-    case System.get_env("TUIST_MIX_BUILD_ROOT") do
-      root when root in [nil, ""] -> "_build"
-      root -> Path.join(root, "server")
-    end
-  end
+  # Boundary verifies a large module graph and makes content edits slow in dev.
+  defp compilers(:dev), do: Mix.compilers()
+  defp compilers(_env), do: [:boundary] ++ Mix.compilers()
 
   # Specifies your project dependencies.
   #
@@ -72,6 +68,8 @@ defmodule Tuist.MixProject do
       {:bandit, git: "https://github.com/tuist/bandit", branch: "detect-client-disconnect-on-timeout", override: true},
       {:credo, "== 1.7.13", only: [:dev, :test], runtime: false},
       {:sentry, "~> 11.0.4"},
+      {:tower, "0.8.0"},
+      {:tower_opentelemetry, "~> 0.2.0"},
       {:hackney, "~> 1.8"},
       {:castore, "~> 1.0.12"},
       {:uniq, "~> 0.6"},
@@ -168,7 +166,6 @@ defmodule Tuist.MixProject do
       {:opentelemetry_bandit, "~> 0.3"},
       {:opentelemetry_broadway, "~> 0.3"},
       {:loki_logger_handler, "~> 0.2"},
-      {:processor, path: "../processor", runtime: false},
       {:xcode_processor, path: "../xcode_processor", runtime: false},
       {:tidewave, "~> 0.5", only: :dev},
       {:carta, "~> 0.2.0"},
@@ -203,11 +200,11 @@ defmodule Tuist.MixProject do
       ],
       test: ["ecto.create --quiet", "run priv/repo/timezone.exs", "ecto.migrate --quiet", "test"],
       "assets.setup": [
-        "cmd --cd .. pnpm install --filter noora",
+        "cmd --cd ../noora aube install",
         "esbuild.install --if-missing"
       ],
       "assets.build": [
-        "cmd --cd ../noora pnpm run build",
+        "cmd --cd ../noora aube run build",
         "esbuild app",
         "esbuild marketing",
         "esbuild docs",
@@ -224,12 +221,6 @@ defmodule Tuist.MixProject do
   end
 
   defp releases do
-    [
-      tuist: [
-        applications: [
-          processor: :load
-        ]
-      ]
-    ]
+    [tuist: []]
   end
 end

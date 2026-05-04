@@ -2497,6 +2497,52 @@ defmodule Tuist.TestsTest do
       assert Enum.at(test_cases_desc, 2).name == "fastTest"
     end
 
+    test "paginates deterministically when callers append `:id` as a tiebreaker" do
+      # An automation sweep typically mutes many test cases at the same
+      # ran_at timestamp. Callers must pass `:id` as a secondary sort key
+      # so ClickHouse can't reshuffle tied rows between LIMIT/OFFSET pages.
+      # This test pins down the contract for them.
+      project = ProjectsFixtures.project_fixture()
+      ran_at = NaiveDateTime.utc_now()
+
+      test_cases =
+        for i <- 1..10 do
+          RunsFixtures.test_case_fixture(
+            project_id: project.id,
+            name: "tiedTest_#{i}",
+            state: "muted",
+            last_ran_at: ran_at,
+            inserted_at: ran_at
+          )
+        end
+
+      IngestRepo.insert_all(
+        TestCase,
+        Enum.map(test_cases, &(&1 |> Map.from_struct() |> Map.delete(:__meta__)))
+      )
+
+      attrs_base = %{
+        filters: [%{field: :state, op: :==, value: "muted"}],
+        order_by: [:last_ran_at, :id],
+        order_directions: [:desc, :asc],
+        page_size: 3
+      }
+
+      for_result =
+        for page <- 1..4 do
+          {rows, _meta} = Tests.list_test_cases(project.id, Map.put(attrs_base, :page, page))
+          Enum.map(rows, & &1.id)
+        end
+
+      collected = List.flatten(for_result)
+
+      assert length(collected) == 10
+      assert length(Enum.uniq(collected)) == 10
+
+      expected_ids = MapSet.new(test_cases, & &1.id)
+      assert MapSet.new(collected) == expected_ids
+    end
+
     test "preserves state when a new test run is ingested" do
       # Given
       project = ProjectsFixtures.project_fixture()
@@ -2539,6 +2585,84 @@ defmodule Tuist.TestsTest do
       # Then - the test case should still be muted
       {[updated_test_case], _meta} = Tests.list_test_cases(project.id, %{})
       assert updated_test_case.state == "muted"
+    end
+
+    test "skipped/muted state filters bypass the 14-day active window" do
+      # Skipped tests intentionally never run, so their `last_ran_at` doesn't
+      # refresh. Without bypassing the active-window filter for state-based
+      # quarantine queries, those tests would age out of the listing after 14
+      # days and the CLI/Gradle plugin would silently start running them again.
+      project = ProjectsFixtures.project_fixture()
+
+      stale_ran_at =
+        NaiveDateTime.utc_now() |> NaiveDateTime.add(-30, :day) |> NaiveDateTime.truncate(:microsecond)
+
+      {:ok, _test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          ran_at: stale_ran_at,
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "success",
+              duration: 1000,
+              test_cases: [
+                %{name: "stale_skipped", status: "success", duration: 100},
+                %{name: "stale_muted", status: "success", duration: 100}
+              ]
+            }
+          ]
+        )
+
+      RunsFixtures.optimize_test_case_runs()
+
+      # Resolve the seeded test_case rows by name (the test name search bypasses
+      # the active window in `list_test_cases/3`, so this works even with stale
+      # `last_ran_at`), then mark each one with the corresponding state.
+      {seeded_cases, _} =
+        Tests.list_test_cases(project.id, %{
+          filters: [%{field: :name, op: :ilike_and, value: "stale_"}]
+        })
+
+      Enum.each(seeded_cases, fn tc ->
+        new_state = if tc.name == "stale_skipped", do: "skipped", else: "muted"
+        {:ok, _} = Tests.update_test_case(tc.id, %{state: new_state})
+      end)
+
+      RunsFixtures.optimize_test_case_runs()
+
+      # Sanity check: with no quarantine filter, the stale rows are filtered out
+      # by the default 14-day active window.
+      {default_results, _} = Tests.list_test_cases(project.id, %{})
+      assert default_results == []
+
+      # state="skipped" must surface stale-skipped despite stale last_ran_at.
+      {skipped_results, _} =
+        Tests.list_test_cases(project.id, %{
+          filters: [%{field: :state, op: :==, value: "skipped"}]
+        })
+
+      assert Enum.map(skipped_results, & &1.name) == ["stale_skipped"]
+
+      # state="muted" must surface stale-muted despite stale last_ran_at.
+      {muted_results, _} =
+        Tests.list_test_cases(project.id, %{
+          filters: [%{field: :state, op: :==, value: "muted"}]
+        })
+
+      assert Enum.map(muted_results, & &1.name) == ["stale_muted"]
+
+      # The legacy `quarantined=true` shortcut (`state IN ["muted", "skipped"]`)
+      # also bypasses the window.
+      {quarantined_results, _} =
+        Tests.list_test_cases(project.id, %{
+          filters: [%{field: :state, op: :in, value: ["muted", "skipped"]}]
+        })
+
+      assert quarantined_results |> Enum.map(& &1.name) |> Enum.sort() == [
+               "stale_muted",
+               "stale_skipped"
+             ]
     end
   end
 
@@ -3934,6 +4058,63 @@ defmodule Tuist.TestsTest do
 
       {:ok, fetched_test_case} = Tests.get_test_case_by_id(test_case.id)
       assert fetched_test_case.state == "enabled"
+    end
+
+    test "skips a test case" do
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, _test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "success",
+              duration: 1000,
+              test_cases: [
+                %{name: "testOne", status: "success", duration: 100}
+              ]
+            }
+          ]
+        )
+
+      {[test_case], _meta} = Tests.list_test_cases(project.id, %{})
+
+      result = Tests.update_test_case(test_case.id, %{state: "skipped"})
+
+      assert {:ok, updated_test_case} = result
+      assert updated_test_case.state == "skipped"
+
+      {:ok, fetched_test_case} = Tests.get_test_case_by_id(test_case.id)
+      assert fetched_test_case.state == "skipped"
+    end
+
+    test "transitions directly from muted to skipped" do
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, _test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "success",
+              duration: 1000,
+              test_cases: [
+                %{name: "testOne", status: "success", duration: 100}
+              ]
+            }
+          ]
+        )
+
+      {[test_case], _meta} = Tests.list_test_cases(project.id, %{})
+      {:ok, _} = Tests.update_test_case(test_case.id, %{state: "muted"})
+
+      {:ok, updated_test_case} = Tests.update_test_case(test_case.id, %{state: "skipped"})
+      assert updated_test_case.state == "skipped"
+
+      {:ok, fetched_test_case} = Tests.get_test_case_by_id(test_case.id)
+      assert fetched_test_case.state == "skipped"
     end
   end
 
@@ -6286,7 +6467,7 @@ defmodule Tuist.TestsTest do
         %{
           id: event2_id,
           test_case_id: test_case_id,
-          event_type: "quarantined",
+          event_type: "muted",
           actor_id: nil,
           inserted_at: now
         }
@@ -6416,6 +6597,42 @@ defmodule Tuist.TestsTest do
       assert is_nil(hd(events).actor)
     end
 
+    test "creates skipped event when state transitions from enabled to skipped" do
+      project = ProjectsFixtures.project_fixture()
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id, state: "enabled")
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      {:ok, _updated} = Tests.update_test_case(test_case.id, %{state: "skipped"})
+
+      {events, _meta} = Tests.list_test_case_events(test_case.id)
+      assert length(events) == 1
+      assert hd(events).event_type == "skipped"
+    end
+
+    test "creates unskipped event when a skipped test case goes back to enabled" do
+      project = ProjectsFixtures.project_fixture()
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id, state: "skipped")
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      {:ok, _updated} = Tests.update_test_case(test_case.id, %{state: "enabled"})
+
+      {events, _meta} = Tests.list_test_case_events(test_case.id)
+      assert length(events) == 1
+      assert hd(events).event_type == "unskipped"
+    end
+
+    test "creates skipped event when transitioning from muted to skipped" do
+      project = ProjectsFixtures.project_fixture()
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id, state: "muted")
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      {:ok, _updated} = Tests.update_test_case(test_case.id, %{state: "skipped"})
+
+      {events, _meta} = Tests.list_test_case_events(test_case.id)
+      assert length(events) == 1
+      assert hd(events).event_type == "skipped"
+    end
+
     test "creates multiple events when both is_flaky and state change" do
       # Given
       project = ProjectsFixtures.project_fixture()
@@ -6466,7 +6683,7 @@ defmodule Tuist.TestsTest do
 
       RunsFixtures.test_case_event_fixture(
         test_case_id: test_case.id,
-        event_type: "quarantined"
+        event_type: "muted"
       )
 
       {quarantined_tests, meta} = Tests.list_quarantined_test_cases(project.id, %{})
@@ -6477,6 +6694,71 @@ defmodule Tuist.TestsTest do
       quarantined_test = hd(quarantined_tests)
       assert quarantined_test.name == "quarantinedTest"
       assert quarantined_test.module_name == "QuarantineModule"
+    end
+
+    test "returns skipped test cases alongside muted ones" do
+      project = ProjectsFixtures.project_fixture()
+
+      muted_test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          name: "mutedTest",
+          state: "muted"
+        )
+
+      skipped_test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          name: "skippedTest",
+          state: "skipped"
+        )
+
+      IngestRepo.insert_all(TestCase, [
+        muted_test_case |> Map.from_struct() |> Map.delete(:__meta__),
+        skipped_test_case |> Map.from_struct() |> Map.delete(:__meta__)
+      ])
+
+      {results, meta} = Tests.list_quarantined_test_cases(project.id, %{})
+
+      assert meta.total_count == 2
+      names = Enum.map(results, & &1.name)
+      assert "mutedTest" in names
+      assert "skippedTest" in names
+
+      states = Enum.map(results, & &1.state)
+      assert "muted" in states
+      assert "skipped" in states
+    end
+
+    test "supports filtering by state to show only skipped test cases" do
+      project = ProjectsFixtures.project_fixture()
+
+      muted_test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          name: "mutedTest",
+          state: "muted"
+        )
+
+      skipped_test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          name: "skippedTest",
+          state: "skipped"
+        )
+
+      IngestRepo.insert_all(TestCase, [
+        muted_test_case |> Map.from_struct() |> Map.delete(:__meta__),
+        skipped_test_case |> Map.from_struct() |> Map.delete(:__meta__)
+      ])
+
+      {results, meta} =
+        Tests.list_quarantined_test_cases(project.id, %{
+          filters: [%{field: :state, op: :==, value: "skipped"}]
+        })
+
+      assert meta.total_count == 1
+      assert [%{name: "skippedTest", state: "skipped"}] = results
     end
 
     test "does not return duplicates when quarantined and marked_flaky events share the same timestamp" do
@@ -6500,7 +6782,7 @@ defmodule Tuist.TestsTest do
 
       RunsFixtures.test_case_event_fixture(
         test_case_id: test_case.id,
-        event_type: "quarantined",
+        event_type: "muted",
         inserted_at: now
       )
 
@@ -6538,7 +6820,7 @@ defmodule Tuist.TestsTest do
 
         RunsFixtures.test_case_event_fixture(
           test_case_id: test_case.id,
-          event_type: "quarantined"
+          event_type: "muted"
         )
       end
 
@@ -6568,7 +6850,7 @@ defmodule Tuist.TestsTest do
 
         RunsFixtures.test_case_event_fixture(
           test_case_id: test_case.id,
-          event_type: "quarantined"
+          event_type: "muted"
         )
       end
 
@@ -6599,7 +6881,7 @@ defmodule Tuist.TestsTest do
 
         RunsFixtures.test_case_event_fixture(
           test_case_id: test_case.id,
-          event_type: "quarantined"
+          event_type: "muted"
         )
       end
 
@@ -6629,7 +6911,7 @@ defmodule Tuist.TestsTest do
 
       RunsFixtures.test_case_event_fixture(
         test_case_id: test_case.id,
-        event_type: "quarantined"
+        event_type: "muted"
       )
 
       {project1_results, _} = Tests.list_quarantined_test_cases(project1.id, %{})
@@ -6655,7 +6937,7 @@ defmodule Tuist.TestsTest do
 
       RunsFixtures.test_case_event_fixture(
         test_case_id: tuist_test_case.id,
-        event_type: "quarantined",
+        event_type: "muted",
         actor_id: nil
       )
 
@@ -6671,7 +6953,7 @@ defmodule Tuist.TestsTest do
 
       RunsFixtures.test_case_event_fixture(
         test_case_id: user_test_case.id,
-        event_type: "quarantined",
+        event_type: "muted",
         actor_id: user.account.id
       )
 
@@ -6702,7 +6984,7 @@ defmodule Tuist.TestsTest do
 
       RunsFixtures.test_case_event_fixture(
         test_case_id: user1_test_case.id,
-        event_type: "quarantined",
+        event_type: "muted",
         actor_id: user1.account.id
       )
 
@@ -6718,7 +7000,7 @@ defmodule Tuist.TestsTest do
 
       RunsFixtures.test_case_event_fixture(
         test_case_id: user2_test_case.id,
-        event_type: "quarantined",
+        event_type: "muted",
         actor_id: user2.account.id
       )
 
@@ -6752,7 +7034,7 @@ defmodule Tuist.TestsTest do
 
         RunsFixtures.test_case_event_fixture(
           test_case_id: test_case.id,
-          event_type: "quarantined"
+          event_type: "muted"
         )
       end
 
@@ -6789,7 +7071,7 @@ defmodule Tuist.TestsTest do
 
         RunsFixtures.test_case_event_fixture(
           test_case_id: test_case.id,
-          event_type: "quarantined"
+          event_type: "muted"
         )
       end
 
@@ -6836,13 +7118,13 @@ defmodule Tuist.TestsTest do
 
       RunsFixtures.test_case_event_fixture(
         test_case_id: test_case_id,
-        event_type: "quarantined",
+        event_type: "muted",
         inserted_at: ~N[2024-01-01 00:00:00.000000]
       )
 
       RunsFixtures.test_case_event_fixture(
         test_case_id: test_case_id,
-        event_type: "unquarantined",
+        event_type: "unmuted",
         inserted_at: ~N[2024-01-02 00:00:00.000000]
       )
 
@@ -6876,7 +7158,7 @@ defmodule Tuist.TestsTest do
 
       RunsFixtures.test_case_event_fixture(
         test_case_id: test_case.id,
-        event_type: "quarantined",
+        event_type: "muted",
         actor_id: nil
       )
 
@@ -6900,7 +7182,7 @@ defmodule Tuist.TestsTest do
 
       RunsFixtures.test_case_event_fixture(
         test_case_id: test_case.id,
-        event_type: "quarantined",
+        event_type: "muted",
         actor_id: user.account.id
       )
 
@@ -6926,7 +7208,7 @@ defmodule Tuist.TestsTest do
 
         RunsFixtures.test_case_event_fixture(
           test_case_id: test_case.id,
-          event_type: "quarantined",
+          event_type: "muted",
           actor_id: user.account.id
         )
       end
@@ -6954,7 +7236,7 @@ defmodule Tuist.TestsTest do
 
       RunsFixtures.test_case_event_fixture(
         test_case_id: test_case1.id,
-        event_type: "quarantined",
+        event_type: "muted",
         actor_id: user1.account.id
       )
 
@@ -6970,7 +7252,7 @@ defmodule Tuist.TestsTest do
 
       RunsFixtures.test_case_event_fixture(
         test_case_id: test_case2.id,
-        event_type: "quarantined",
+        event_type: "muted",
         actor_id: user2.account.id
       )
 
@@ -6998,7 +7280,7 @@ defmodule Tuist.TestsTest do
 
       RunsFixtures.test_case_event_fixture(
         test_case_id: test_case.id,
-        event_type: "quarantined",
+        event_type: "muted",
         actor_id: user.account.id
       )
 

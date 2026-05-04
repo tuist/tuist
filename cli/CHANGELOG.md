@@ -1,21 +1,82 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.187.0<!-- RELEASE NOTES START -->
+## What's Changed in 4.191.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* use stamp file for macro copy phase to keep incremental rebuilds by [@fortmarek](https://github.com/fortmarek) in [#10576](https://github.com/tuist/tuist/pull/10576)
+* fix macro copy phase output collision on macOS consumer targets by [@freak4pc](https://github.com/freak4pc) in [#10566](https://github.com/tuist/tuist/pull/10566)
+* intersect linkable dep destinations for orphan local SPM tests by [@mqzkim](https://github.com/mqzkim) in [#10554](https://github.com/tuist/tuist/pull/10554)
+* re-embed test target frameworks not embedded in host by [@pepicrft](https://github.com/pepicrft) in [#10504](https://github.com/tuist/tuist/pull/10504)
+* make shared cache and state writes safe across concurrent processes by [@pepicrft](https://github.com/pepicrft) in [#10562](https://github.com/tuist/tuist/pull/10562)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.191.1...4.191.2
+
+## What's Changed in 4.191.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* stabilize cache EE canary acceptance test by [@fortmarek](https://github.com/fortmarek) in [#10549](https://github.com/tuist/tuist/pull/10549)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.191.0...4.191.1
+
+## What's Changed in 4.191.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
 
+* add --skip-macro-support-targets flag to tuist graph by [@natanrolnik](https://github.com/natanrolnik) in [#10300](https://github.com/tuist/tuist/pull/10300)
+* re-add config-driven network proxy opt-out by [@pepicrft](https://github.com/pepicrft) in [#10513](https://github.com/tuist/tuist/pull/10513)
+* add "Skip" quarantine mode for test cases by [@fortmarek](https://github.com/fortmarek) in [#10429](https://github.com/tuist/tuist/pull/10429)
+### 🐛 Bug Fixes
+
+* keep static framework xcstrings on main target Resources phase by [@pepicrft](https://github.com/pepicrft) in [#10532](https://github.com/tuist/tuist/pull/10532)
+* refresh expired tokens under optionalAuthentication by [@fortmarek](https://github.com/fortmarek) in [#10537](https://github.com/tuist/tuist/pull/10537)
+* add TuistHTTP to TuistConfigLoader cross-platform deps by [@fortmarek](https://github.com/fortmarek) in [#10531](https://github.com/tuist/tuist/pull/10531)
+* bump tuist.Command to 0.14.1 to surface xcodebuild stderr by [@fortmarek](https://github.com/fortmarek) in [#10508](https://github.com/tuist/tuist/pull/10508)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.188.5...4.191.0
+
+## What's Changed in 4.188.5<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* update xcactivitylog_nif package path after processor consolidation by [@fortmarek](https://github.com/fortmarek) in [#10507](https://github.com/tuist/tuist/pull/10507)
+* honor #if guards in inspect dependencies --only implicit by [@fortmarek](https://github.com/fortmarek) in [#10474](https://github.com/tuist/tuist/pull/10474)
+* restore [Path] overload of TestAction.testPlans as deprecated by [@fortmarek](https://github.com/fortmarek) in [#10488](https://github.com/tuist/tuist/pull/10488)
+* sanitize target name in generated Obj-C bundle accessor identifiers by [@pepicrft](https://github.com/pepicrft) in [#10482](https://github.com/tuist/tuist/pull/10482)
+### ⚡ Performance
+
+* lower URLSession resource timeout from 300s to 90s by [@fortmarek](https://github.com/fortmarek) in [#10503](https://github.com/tuist/tuist/pull/10503)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.188.2...4.188.5
+
+## What's Changed in 4.188.2<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add CopyFileElement.buildProduct for embedding target products in Copy Files phases by [@freak4pc](https://github.com/freak4pc) in [#10467](https://github.com/tuist/tuist/pull/10467)
 * generate .xctestplan files from ProjectDescription by [@fortmarek](https://github.com/fortmarek) in [#10426](https://github.com/tuist/tuist/pull/10426)
 * add 'tuist teardown cache' command by [@fortmarek](https://github.com/fortmarek) in [#10421](https://github.com/tuist/tuist/pull/10421)
 * add --inspect-mode off to skip result bundle upload by [@fortmarek](https://github.com/fortmarek) in [#10447](https://github.com/tuist/tuist/pull/10447)
 ### 🐛 Bug Fixes
 
+* upload build run when -derivedDataPath is passed via passthrough by [@fortmarek](https://github.com/fortmarek) in [#10478](https://github.com/tuist/tuist/pull/10478)
+* include source filename in selective testing hash by [@fortmarek](https://github.com/fortmarek) in [#10475](https://github.com/tuist/tuist/pull/10475)
 * preserve bundle directory in AppleArchive uploads by [@fortmarek](https://github.com/fortmarek) in [#10460](https://github.com/tuist/tuist/pull/10460)
 * handle buildable-folder xcstrings stale analysis by [@pepicrft](https://github.com/pepicrft) in [#10445](https://github.com/tuist/tuist/pull/10445)
 
 
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.186.2...4.187.0
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.186.2...4.188.2
 
 ## What's Changed in 4.186.2<!-- RELEASE NOTES START -->
 

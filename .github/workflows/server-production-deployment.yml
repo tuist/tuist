@@ -16,7 +16,7 @@ name: Server Production Deployment
 # per push; it is now one.
 #
 # Each deploy leg is delegated to server-deployment.yml via workflow_call
-# so plan/deploy logic stays in one place. The first leg builds and
+# so the helm logic stays in one place. The first leg builds and
 # publishes the image; subsequent legs pass image_tag to skip rebuilding.
 #
 # Slack notifications:
@@ -101,8 +101,6 @@ jobs:
             TUIST_HOSTED=1
             MIX_ENV=prod
             APT_CACHE_BUST=${{ inputs.commit_sha || github.sha }}
-          cache-from: type=gha,scope=server-cluster
-          cache-to: type=gha,mode=max,scope=server-cluster
 
   # --------------------------------------------------------------------------
   # Canary leg - deploys the pre-built image. Runs for every push (hotfix
@@ -122,7 +120,7 @@ jobs:
   acceptance-tests:
     name: Acceptance Tests
     needs: canary
-    runs-on: namespace-profile-default-macos
+    runs-on: namespace-profile-macos-xcode-26
     timeout-minutes: 15
     environment: server-k8s-canary
     steps:

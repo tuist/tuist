@@ -133,6 +133,8 @@ defmodule TuistWeb.FlakyTestsLive do
         Query.put(socket.assigns.uri.query, "analytics-date-range", preset)
       end
 
+    query_params = Query.drop(query_params, "page")
+
     {:noreply,
      push_patch(socket, to: "/#{selected_account.name}/#{selected_project.name}/tests/flaky-tests?#{query_params}")}
   end
@@ -236,7 +238,7 @@ defmodule TuistWeb.FlakyTestsLive do
 
   defp assign_analytics(%{assigns: %{selected_project: project}} = socket, params) do
     analytics_environment = params["analytics-environment"] || "any"
-    analytics_selected_widget = params["analytics-selected-widget"] || "flaky_tests"
+    analytics_selected_widget = normalize_selected_widget(params["analytics-selected-widget"])
 
     %{preset: preset, period: {start_datetime, end_datetime} = period} =
       DatePicker.date_picker_params(params, "analytics")
@@ -257,13 +259,23 @@ defmodule TuistWeb.FlakyTestsLive do
     |> assign(:analytics_period, period)
     |> assign(:analytics_trend_label, analytics_trend_label(preset))
     |> assign(:analytics_selected_widget, analytics_selected_widget)
-    |> assign_async(:flaky_runs_analytics, fn ->
-      {:ok, %{flaky_runs_analytics: Analytics.test_run_analytics(project.id, Keyword.put(opts, :is_flaky, true))}}
+    |> assign_async(:flaky_test_cases_analytics, fn ->
+      {:ok, %{flaky_test_cases_analytics: Analytics.flaky_tests_analytics(project.id, opts)}}
     end)
-    |> assign_async(:flaky_tests_analytics, fn ->
-      {:ok, %{flaky_tests_analytics: Analytics.flaky_tests_analytics(project.id, opts)}}
+    |> assign_async(:flaky_test_case_runs_analytics, fn ->
+      {:ok, %{flaky_test_case_runs_analytics: Analytics.flaky_test_case_runs_analytics(project.id, opts)}}
+    end)
+    |> assign_async(:flaky_test_runs_analytics, fn ->
+      {:ok, %{flaky_test_runs_analytics: Analytics.test_run_analytics(project.id, Keyword.put(opts, :is_flaky, true))}}
     end)
   end
+
+  defp normalize_selected_widget(widget) when widget in ["flaky_test_cases", "flaky_test_case_runs", "flaky_test_runs"],
+    do: widget
+
+  defp normalize_selected_widget("flaky_tests"), do: "flaky_test_cases"
+  defp normalize_selected_widget("flaky_runs"), do: "flaky_test_runs"
+  defp normalize_selected_widget(_), do: "flaky_test_cases"
 
   defp analytics_trend_label("last-24-hours"), do: dgettext("dashboard_tests", "since yesterday")
   defp analytics_trend_label("last-7-days"), do: dgettext("dashboard_tests", "since last week")

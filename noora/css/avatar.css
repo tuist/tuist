@@ -74,7 +74,7 @@
 
   display: flex;
   align-items: center;
-  border-radius: var(--noora-radius-xlarge);
+  border-radius: var(--noora-radius-6);
   overflow: hidden;
 
   &[data-color="gray"] {
@@ -134,7 +134,7 @@
   }
 
   &[data-size="2xsmall"] {
-    border-radius: var(--noora-radius-small);
+    border-radius: var(--noora-radius-2);
 
     &,
     & [data-part="image"],
@@ -149,7 +149,7 @@
   }
 
   &[data-size="xsmall"] {
-    border-radius: var(--noora-radius-small);
+    border-radius: var(--noora-radius-2);
 
     &,
     & [data-part="image"],
@@ -164,7 +164,7 @@
   }
 
   &[data-size="small"] {
-    border-radius: var(--noora-radius-medium);
+    border-radius: var(--noora-radius-3);
 
     &,
     & [data-part="image"],
@@ -179,7 +179,7 @@
   }
 
   &[data-size="medium"] {
-    border-radius: var(--noora-radius-large);
+    border-radius: var(--noora-radius-4);
 
     &,
     & [data-part="image"],
@@ -194,7 +194,7 @@
   }
 
   &[data-size="large"] {
-    border-radius: var(--noora-radius-large);
+    border-radius: var(--noora-radius-4);
 
     &,
     & [data-part="image"],
@@ -209,7 +209,7 @@
   }
 
   &[data-size="xlarge"] {
-    border-radius: var(--noora-radius-xlarge);
+    border-radius: var(--noora-radius-6);
 
     &,
     & [data-part="image"],
@@ -224,7 +224,7 @@
   }
 
   &[data-size="2xlarge"] {
-    border-radius: var(--noora-radius-xlarge);
+    border-radius: var(--noora-radius-6);
 
     &,
     & [data-part="image"],

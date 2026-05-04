@@ -231,6 +231,7 @@ public enum Module: String, CaseIterable {
                 dependencies: [
                     .target(name: Module.alert.targetName),
                     .target(name: Module.cacheCommand.targetName),
+                    .target(name: Module.configLoader.targetName),
                     .target(name: Module.core.targetName),
                     .target(name: Module.environment.targetName),
                     .target(name: Module.environmentTesting.targetName),
@@ -932,8 +933,8 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.core.targetName, condition: .when([.macos])),
                     .target(name: Module.http.targetName),
                     .target(name: Module.constants.targetName, condition: .when([.macos])),
-                    .target(name: Module.environment.targetName, condition: .when([.macos])),
-                    .target(name: Module.logging.targetName, condition: .when([.macos])),
+                    .target(name: Module.environment.targetName),
+                    .target(name: Module.logging.targetName),
                     .target(name: Module.opener.targetName),
                     .target(name: Module.threadSafe.targetName),
                     .target(name: Module.uniqueIDGenerator.targetName),
@@ -1538,6 +1539,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.config.targetName),
                     .target(name: Module.rootDirectoryLocator.targetName),
                     .target(name: Module.constants.targetName),
+                    .target(name: Module.http.targetName),
                     .target(name: Module.loader.targetName),
                     .target(name: Module.testing.targetName),
                     .target(name: Module.support.targetName),
@@ -1955,6 +1957,8 @@ public enum Module: String, CaseIterable {
                 [
                     .target(name: Module.testing.targetName),
                     .target(name: Module.support.targetName),
+                    .target(name: Module.environment.targetName),
+                    .target(name: Module.environmentTesting.targetName),
                     .external(name: "OpenAPIRuntime"),
                     .external(name: "HTTPTypes"),
                 ]

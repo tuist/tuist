@@ -288,6 +288,33 @@ struct TestActionManifestMapperTests {
         #expect(testAction.testPlans?[1].path == preConfiguredPath)
     }
 
+    @Test(.inTemporaryDirectory) func action_with_deprecated_path_array_overload() async throws {
+        // Given: callers on the pre-TestPlan API still pass `[Path]` directly, e.g.
+        //   func testPlans(for variant: Variant) -> [Path]
+        //   testAction: .testPlans(testPlans(for: variant))
+        // The deprecated overload must keep compiling and behave as if each path were `.path(...)`.
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let testPlanPath = temporaryDirectory.appending(component: "TestPlan.xctestplan")
+        try await fileSystem.writeText(testPlanContent, at: testPlanPath)
+
+        let paths: [ProjectDescription.Path] = [.path(testPlanPath.pathString)]
+
+        let manifest = ProjectDescription.TestAction.testPlans(paths)
+        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryDirectory, rootDirectory: temporaryDirectory)
+
+        // When
+        let testAction = try await XcodeGraph.TestAction.from(
+            manifest: manifest,
+            generatorPaths: generatorPaths
+        )
+
+        // Then
+        #expect(testAction.testPlans?.count == 1)
+        #expect(testAction.testPlans?.first?.path == testPlanPath)
+        #expect(testAction.testPlans?.first?.kind == .referenced)
+        #expect(testAction.testPlans?.first?.isDefault == true)
+    }
+
     @Test(.inTemporaryDirectory, .withScopedAlertController())
     func action_with_literal_test_plan_missing_file_warns() async throws {
         // Given

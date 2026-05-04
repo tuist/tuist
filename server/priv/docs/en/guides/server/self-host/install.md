@@ -505,7 +505,7 @@ The official Tuist Docker image is available at:
 ghcr.io/tuist/tuist
 ```
 
-The published image includes embedded Linux build processing for `.xcactivitylog` archives, so self-hosted deployments can process builds without running a separate `processor` service. If you later want to offload build processing to dedicated workers, set `TUIST_PROCESSOR_URL` and `TUIST_PROCESSOR_WEBHOOK_SECRET` to enable the remote processor mode.
+The published image includes embedded Linux build processing for `.xcactivitylog` archives, so self-hosted deployments can process builds without running any additional service — the `ProcessBuildWorker` Oban job runs in-process on each server pod. If you want to offload build processing to a dedicated replica set (for example, to scale parse throughput independently of the web tier), set `processor.enabled: true` in the Helm chart: the chart deploys the same image as a queue-only consumer (`TUIST_PROCESSOR_MODE=true`). See [`values.yaml`](https://github.com/tuist/tuist/blob/main/infra/helm/tuist/values.yaml) for the full set of knobs.
 
 > [!NOTE]
 > `.xcresult` processing remains a separate concern and still requires the macOS-based `xcode_processor` service.

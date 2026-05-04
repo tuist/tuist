@@ -1,167 +1,202 @@
 <div id="flaky-tests">
+  <div data-part="filters">
+    <.dropdown
+      id="flaky-tests-analytics-environment-dropdown"
+      label={@analytics_environment_label}
+      secondary_text={dgettext("dashboard_tests", "Environment:")}
+    >
+      <.dropdown_item
+        value="any"
+        label={dgettext("dashboard_tests", "Any")}
+        patch={"?#{@uri.query |> Query.put("analytics-environment", "any") |> Query.drop("page")}"}
+        data-selected={@analytics_environment == "any"}
+      >
+        <:right_icon :if={@analytics_environment == "any"}><.check /></:right_icon>
+      </.dropdown_item>
+      <.dropdown_item
+        value="local"
+        label={dgettext("dashboard_tests", "Local")}
+        patch={"?#{@uri.query |> Query.put("analytics-environment", "local") |> Query.drop("page")}"}
+        data-selected={@analytics_environment == "local"}
+      >
+        <:right_icon :if={@analytics_environment == "local"}><.check /></:right_icon>
+      </.dropdown_item>
+      <.dropdown_item
+        value="ci"
+        label={dgettext("dashboard_tests", "CI")}
+        patch={"?#{@uri.query |> Query.put("analytics-environment", "ci") |> Query.drop("page")}"}
+        data-selected={@analytics_environment == "ci"}
+      >
+        <:right_icon :if={@analytics_environment == "ci"}><.check /></:right_icon>
+      </.dropdown_item>
+    </.dropdown>
+    <.date_picker
+      id="flaky-tests-analytics-date-range-picker"
+      name="analytics-date-range"
+      presets={[
+        %{
+          id: "last-24-hours",
+          label: dgettext("dashboard_tests", "Last 24 hours"),
+          period: {24, :hour}
+        },
+        %{
+          id: "last-7-days",
+          label: dgettext("dashboard_tests", "Last 7 days"),
+          period: {7, :day}
+        },
+        %{
+          id: "last-30-days",
+          label: dgettext("dashboard_tests", "Last 30 days"),
+          period: {30, :day}
+        },
+        %{
+          id: "last-12-months",
+          label: dgettext("dashboard_tests", "Last 12 months"),
+          period: {12, :month}
+        },
+        %{id: "custom", label: dgettext("dashboard_tests", "Custom")}
+      ]}
+      selected_preset={@analytics_preset}
+      period={@analytics_period}
+      on_period_change="analytics_period_changed"
+      max={Date.utc_today()}
+    >
+      <:actions>
+        <.button
+          label={dgettext("dashboard_tests", "Cancel")}
+          variant="secondary"
+          phx-click={
+            JS.dispatch("phx:date-picker-cancel",
+              detail: %{id: "flaky-tests-analytics-date-range-picker"}
+            )
+          }
+        />
+        <.button
+          label={dgettext("dashboard_tests", "Apply")}
+          phx-click={
+            JS.dispatch("phx:date-picker-apply",
+              detail: %{id: "flaky-tests-analytics-date-range-picker"}
+            )
+          }
+        />
+      </:actions>
+    </.date_picker>
+  </div>
   <.card
     title={dgettext("dashboard_tests", "Flaky Tests")}
     icon="progress_x"
     data-part="flaky-tests"
   >
-    <:actions>
-      <.dropdown
-        id="flaky-tests-analytics-environment-dropdown"
-        label={@analytics_environment_label}
-        secondary_text={dgettext("dashboard_tests", "Environment:")}
-      >
-        <.dropdown_item
-          value="any"
-          label={dgettext("dashboard_tests", "Any")}
-          patch={"?#{Query.put(@uri.query, "analytics-environment", "any")}"}
-          data-selected={@analytics_environment == "any"}
-        >
-          <:right_icon><.check /></:right_icon>
-        </.dropdown_item>
-        <.dropdown_item
-          value="local"
-          label={dgettext("dashboard_tests", "Local")}
-          patch={"?#{Query.put(@uri.query, "analytics-environment", "local")}"}
-          data-selected={@analytics_environment == "local"}
-        >
-          <:right_icon><.check /></:right_icon>
-        </.dropdown_item>
-        <.dropdown_item
-          value="ci"
-          label={dgettext("dashboard_tests", "CI")}
-          patch={"?#{Query.put(@uri.query, "analytics-environment", "ci")}"}
-          data-selected={@analytics_environment == "ci"}
-        >
-          <:right_icon><.check /></:right_icon>
-        </.dropdown_item>
-      </.dropdown>
-      <.date_picker
-        id="flaky-tests-analytics-date-range-picker"
-        name="analytics-date-range"
-        presets={[
-          %{
-            id: "last-24-hours",
-            label: dgettext("dashboard_tests", "Last 24 hours"),
-            period: {24, :hour}
-          },
-          %{
-            id: "last-7-days",
-            label: dgettext("dashboard_tests", "Last 7 days"),
-            period: {7, :day}
-          },
-          %{
-            id: "last-30-days",
-            label: dgettext("dashboard_tests", "Last 30 days"),
-            period: {30, :day}
-          },
-          %{
-            id: "last-12-months",
-            label: dgettext("dashboard_tests", "Last 12 months"),
-            period: {12, :month}
-          },
-          %{id: "custom", label: dgettext("dashboard_tests", "Custom")}
-        ]}
-        selected_preset={@analytics_preset}
-        period={@analytics_period}
-        on_period_change="analytics_period_changed"
-        max={Date.utc_today()}
-      >
-        <:actions>
-          <.button
-            label={dgettext("dashboard_tests", "Cancel")}
-            variant="secondary"
-            phx-click={
-              JS.dispatch("phx:date-picker-cancel",
-                detail: %{id: "flaky-tests-analytics-date-range-picker"}
-              )
-            }
-          />
-          <.button
-            label={dgettext("dashboard_tests", "Apply")}
-            phx-click={
-              JS.dispatch("phx:date-picker-apply",
-                detail: %{id: "flaky-tests-analytics-date-range-picker"}
-              )
-            }
-          />
-        </:actions>
-      </.date_picker>
-    </:actions>
     <div data-part="analytics-content">
       <div data-part="widgets">
         <.widget
-          loading={!@flaky_tests_analytics.ok?}
-          title={dgettext("dashboard_tests", "Flaky Tests")}
+          loading={!@flaky_test_cases_analytics.ok?}
+          title={dgettext("dashboard_tests", "Flagged flaky test cases")}
           description={
             dgettext(
               "dashboard_tests",
-              "Number of test cases currently flagged as flaky at each point in the period."
+              "Number of unique test cases currently flagged as flaky at the end of the period. Each test case is counted at most once, regardless of how often it flaked."
             )
           }
           value={
-            if @flaky_tests_analytics.ok?,
-              do: format_number(@flaky_tests_analytics.result.count)
+            if @flaky_test_cases_analytics.ok?,
+              do: format_number(@flaky_test_cases_analytics.result.count)
           }
-          id="widget-flaky-tests"
+          id="widget-flaky-test-cases"
           legend_color="flaky"
           trend_value={
-            if @flaky_tests_analytics.ok?,
-              do: @flaky_tests_analytics.result.trend,
+            if @flaky_test_cases_analytics.ok?,
+              do: @flaky_test_cases_analytics.result.trend,
               else: nil
           }
           trend_type={:inverse}
           trend_label={@analytics_trend_label}
           phx_click="select_widget"
-          phx_value_widget="flaky_tests"
-          selected={@analytics_selected_widget == "flaky_tests"}
+          phx_value_widget="flaky_test_cases"
+          selected={@analytics_selected_widget == "flaky_test_cases"}
           empty={
-            @flaky_tests_analytics.ok? &&
-              @flaky_tests_analytics.result.count == 0 &&
-              Enum.all?(@flaky_tests_analytics.result.values, &(&1 == 0))
+            @flaky_test_cases_analytics.ok? &&
+              @flaky_test_cases_analytics.result.count == 0 &&
+              Enum.all?(@flaky_test_cases_analytics.result.values, &(&1 == 0))
           }
         />
         <.widget
-          loading={!@flaky_runs_analytics.ok?}
-          title={dgettext("dashboard_tests", "Flaky Runs")}
+          loading={!@flaky_test_case_runs_analytics.ok?}
+          title={dgettext("dashboard_tests", "Flaky test case runs")}
           description={
             dgettext(
               "dashboard_tests",
-              "Number of individual test runs marked as flaky during the period."
+              "Total number of individual test case executions marked as flaky in the period. A single test case can be counted many times if it flaked across multiple runs."
             )
           }
           value={
-            if @flaky_runs_analytics.ok?,
-              do: format_number(@flaky_runs_analytics.result.count)
+            if @flaky_test_case_runs_analytics.ok?,
+              do: format_number(@flaky_test_case_runs_analytics.result.count)
           }
-          id="widget-flaky-runs"
+          id="widget-flaky-test-case-runs"
           legend_color="primary"
           trend_value={
-            if @flaky_runs_analytics.ok?,
-              do: @flaky_runs_analytics.result.trend,
+            if @flaky_test_case_runs_analytics.ok?,
+              do: @flaky_test_case_runs_analytics.result.trend,
               else: nil
           }
           trend_type={:inverse}
           trend_label={@analytics_trend_label}
           phx_click="select_widget"
-          phx_value_widget="flaky_runs"
-          selected={@analytics_selected_widget == "flaky_runs"}
-          empty={@flaky_runs_analytics.ok? && @flaky_runs_analytics.result.count == 0}
+          phx_value_widget="flaky_test_case_runs"
+          selected={@analytics_selected_widget == "flaky_test_case_runs"}
+          empty={
+            @flaky_test_case_runs_analytics.ok? &&
+              @flaky_test_case_runs_analytics.result.count == 0
+          }
+        />
+        <.widget
+          loading={!@flaky_test_runs_analytics.ok?}
+          title={dgettext("dashboard_tests", "Flaky test runs")}
+          description={
+            dgettext(
+              "dashboard_tests",
+              "Number of test runs (build-level test invocations) that contained at least one flaky test case. Each test run is counted once even if it contained many flaky executions."
+            )
+          }
+          value={
+            if @flaky_test_runs_analytics.ok?,
+              do: format_number(@flaky_test_runs_analytics.result.count)
+          }
+          id="widget-flaky-test-runs"
+          legend_color="tertiary"
+          trend_value={
+            if @flaky_test_runs_analytics.ok?,
+              do: @flaky_test_runs_analytics.result.trend,
+              else: nil
+          }
+          trend_type={:inverse}
+          trend_label={@analytics_trend_label}
+          phx_click="select_widget"
+          phx_value_widget="flaky_test_runs"
+          selected={@analytics_selected_widget == "flaky_test_runs"}
+          empty={@flaky_test_runs_analytics.ok? && @flaky_test_runs_analytics.result.count == 0}
         />
       </div>
       <.card_section :if={
-        (@analytics_selected_widget == "flaky_tests" and !@flaky_tests_analytics.ok?) or
-          (@analytics_selected_widget == "flaky_runs" and !@flaky_runs_analytics.ok?)
+        (@analytics_selected_widget == "flaky_test_cases" and !@flaky_test_cases_analytics.ok?) or
+          (@analytics_selected_widget == "flaky_test_case_runs" and
+             !@flaky_test_case_runs_analytics.ok?) or
+          (@analytics_selected_widget == "flaky_test_runs" and !@flaky_test_runs_analytics.ok?)
       }>
         <div data-part="analytics-chart">
           <.skeleton_chart />
         </div>
       </.card_section>
       <.card_section :if={
-        (@analytics_selected_widget == "flaky_tests" and @flaky_tests_analytics.ok? and
-           (@flaky_tests_analytics.result.count != 0 or
-              Enum.any?(@flaky_tests_analytics.result.values, &(&1 > 0)))) or
-          (@analytics_selected_widget == "flaky_runs" and @flaky_runs_analytics.ok? and
-             @flaky_runs_analytics.result.count != 0)
+        (@analytics_selected_widget == "flaky_test_cases" and @flaky_test_cases_analytics.ok? and
+           (@flaky_test_cases_analytics.result.count != 0 or
+              Enum.any?(@flaky_test_cases_analytics.result.values, &(&1 > 0)))) or
+          (@analytics_selected_widget == "flaky_test_case_runs" and
+             @flaky_test_case_runs_analytics.ok? and
+             @flaky_test_case_runs_analytics.result.count != 0) or
+          (@analytics_selected_widget == "flaky_test_runs" and @flaky_test_runs_analytics.ok? and
+             @flaky_test_runs_analytics.result.count != 0)
       }>
         <div data-part="analytics-chart">
           <.chart
@@ -184,16 +219,22 @@
                     formatter: "fn:toLocaleDate",
                     customValues:
                       case @analytics_selected_widget do
-                        "flaky_tests" ->
+                        "flaky_test_cases" ->
                           [
-                            List.first(@flaky_tests_analytics.result.dates),
-                            List.last(@flaky_tests_analytics.result.dates)
+                            List.first(@flaky_test_cases_analytics.result.dates),
+                            List.last(@flaky_test_cases_analytics.result.dates)
                           ]
 
-                        _ ->
+                        "flaky_test_case_runs" ->
                           [
-                            List.first(@flaky_runs_analytics.result.dates),
-                            List.last(@flaky_runs_analytics.result.dates)
+                            List.first(@flaky_test_case_runs_analytics.result.dates),
+                            List.last(@flaky_test_case_runs_analytics.result.dates)
+                          ]
+
+                        "flaky_test_runs" ->
+                          [
+                            List.first(@flaky_test_runs_analytics.result.dates),
+                            List.last(@flaky_test_runs_analytics.result.dates)
                           ]
                       end,
                     padding: [10, 0, 0, 0]
@@ -225,25 +266,32 @@
               %{
                 color:
                   case @analytics_selected_widget do
-                    "flaky_tests" -> "var:noora-chart-flaky"
-                    _ -> "var:noora-chart-primary"
+                    "flaky_test_cases" -> "var:noora-chart-flaky"
+                    "flaky_test_case_runs" -> "var:noora-chart-primary"
+                    "flaky_test_runs" -> "var:noora-chart-tertiary"
                   end,
                 data:
                   case @analytics_selected_widget do
-                    "flaky_tests" ->
-                      @flaky_tests_analytics.result.dates
-                      |> Enum.zip(@flaky_tests_analytics.result.values)
+                    "flaky_test_cases" ->
+                      @flaky_test_cases_analytics.result.dates
+                      |> Enum.zip(@flaky_test_cases_analytics.result.values)
                       |> Enum.map(&Tuple.to_list/1)
 
-                    _ ->
-                      @flaky_runs_analytics.result.dates
-                      |> Enum.zip(@flaky_runs_analytics.result.values)
+                    "flaky_test_case_runs" ->
+                      @flaky_test_case_runs_analytics.result.dates
+                      |> Enum.zip(@flaky_test_case_runs_analytics.result.values)
+                      |> Enum.map(&Tuple.to_list/1)
+
+                    "flaky_test_runs" ->
+                      @flaky_test_runs_analytics.result.dates
+                      |> Enum.zip(@flaky_test_runs_analytics.result.values)
                       |> Enum.map(&Tuple.to_list/1)
                   end,
                 name:
                   case @analytics_selected_widget do
-                    "flaky_tests" -> dgettext("dashboard_tests", "Flaky tests")
-                    _ -> dgettext("dashboard_tests", "Flaky runs")
+                    "flaky_test_cases" -> dgettext("dashboard_tests", "Flagged flaky test cases")
+                    "flaky_test_case_runs" -> dgettext("dashboard_tests", "Flaky test case runs")
+                    "flaky_test_runs" -> dgettext("dashboard_tests", "Flaky test runs")
                   end,
                 type: "line",
                 smooth: 0.1,
@@ -256,11 +304,14 @@
       </.card_section>
       <.empty_card_section
         :if={
-          (@analytics_selected_widget == "flaky_tests" and @flaky_tests_analytics.ok? and
-             @flaky_tests_analytics.result.count == 0 and
-             Enum.all?(@flaky_tests_analytics.result.values, &(&1 == 0))) or
-            (@analytics_selected_widget == "flaky_runs" and @flaky_runs_analytics.ok? and
-               @flaky_runs_analytics.result.count == 0)
+          (@analytics_selected_widget == "flaky_test_cases" and @flaky_test_cases_analytics.ok? and
+             @flaky_test_cases_analytics.result.count == 0 and
+             Enum.all?(@flaky_test_cases_analytics.result.values, &(&1 == 0))) or
+            (@analytics_selected_widget == "flaky_test_case_runs" and
+               @flaky_test_case_runs_analytics.ok? and
+               @flaky_test_case_runs_analytics.result.count == 0) or
+            (@analytics_selected_widget == "flaky_test_runs" and @flaky_test_runs_analytics.ok? and
+               @flaky_test_runs_analytics.result.count == 0)
         }
         title={dgettext("dashboard_tests", "No data yet")}
       >
@@ -397,7 +448,7 @@
             }
           >
             <.link_button
-              :if={test_case.last_flaky_run_id}
+              :if={test_case.flaky_runs_count > 0}
               navigate={
                 ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-runs/#{test_case.last_flaky_run_id}"
               }
@@ -407,9 +458,7 @@
               size="large"
               data-part="last-flaky-run-link"
             />
-            <span :if={is_nil(test_case.last_flaky_run_id)}>
-              {Tuist.Utilities.DateFormatter.from_now(test_case.last_flaky_at)}
-            </span>
+            <span :if={test_case.flaky_runs_count == 0}>—</span>
           </:col>
         </.table>
         <.pagination_group

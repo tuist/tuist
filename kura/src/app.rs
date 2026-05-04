@@ -1,5 +1,4 @@
 use std::{
-    collections::{BTreeMap, BTreeSet},
     future::Future,
     net::{Ipv4Addr, SocketAddr},
     sync::Arc,
@@ -7,8 +6,10 @@ use std::{
 };
 
 use axum_server::Handle;
-use tokio::sync::{Notify, RwLock};
-use tracing::info;
+use hyper_util::rt::TokioTimer;
+use tokio::sync::{Notify, oneshot};
+use tokio::{task::JoinHandle, time::Instant};
+use tracing::{info, warn};
 
 use crate::{
     analytics::Analytics,
@@ -21,10 +22,28 @@ use crate::{
     peer_tls::{build_internal_rustls_config, build_peer_client},
     reapi,
     replication::{spawn_membership_task, spawn_outbox_task},
-    state::AppState,
+    runtime::{DataDirLock, RuntimeState},
+    state::{AppState, ReadinessState},
     store::Store,
     telemetry::init_tracing,
 };
+
+#[derive(Clone, Copy, Debug)]
+struct ShutdownBudget {
+    deadline: Instant,
+}
+
+impl ShutdownBudget {
+    fn new(duration: Duration) -> Self {
+        Self {
+            deadline: Instant::now() + duration,
+        }
+    }
+
+    fn remaining(self) -> Duration {
+        self.deadline.saturating_duration_since(Instant::now())
+    }
+}
 
 pub async fn run() -> Result<(), String> {
     let config = Config::from_env().map_err(|error| format!("invalid configuration: {error}"))?;
@@ -36,6 +55,9 @@ pub async fn run() -> Result<(), String> {
         .map_err(|error| format!("failed to create directories: {error}"))?;
 
     let metrics = Metrics::new(config.region.clone(), config.tenant_id.clone());
+    let data_dir_lock = DataDirLock::acquire(&config.data_dir).inspect_err(|_| {
+        metrics.record_writer_lock_acquire_failure();
+    })?;
     let extension = ExtensionEngine::from_env(metrics.clone())
         .await
         .map_err(|error| format!("failed to initialize extension engine: {error}"))?;
@@ -54,28 +76,31 @@ pub async fn run() -> Result<(), String> {
         config.memory_hard_limit_bytes,
     );
     let store = Store::open(&config, io.clone(), memory.clone())?;
-    let members = RwLock::new(BTreeSet::new());
     let client = build_peer_client(&config).await?;
     let notify = Notify::new();
 
     let state = Arc::new(AppState {
         config,
+        _data_dir_lock: data_dir_lock,
         store,
         io,
         memory,
         metrics,
+        runtime: RuntimeState::new(),
         extension,
         analytics,
         client,
         notify,
-        members,
-        peer_nodes: RwLock::new(BTreeMap::new()),
-        bootstrapped_peers: tokio::sync::Mutex::new(BTreeSet::new()),
+        readiness: tokio::sync::Mutex::new(ReadinessState::new(Instant::now())),
     });
+    state.sync_runtime_metrics().await;
+    let drain_completion_timeout = Duration::from_millis(state.config.drain_completion_timeout_ms);
 
     spawn_membership_task(state.clone());
     spawn_outbox_task(state.clone());
     spawn_snapshot_task(state.clone());
+    spawn_runtime_metrics_task(state.clone());
+    spawn_drain_signal_task(state.clone());
 
     let address = SocketAddr::from((Ipv4Addr::UNSPECIFIED, state.config.port));
     let grpc_address = SocketAddr::from((Ipv4Addr::UNSPECIFIED, state.config.grpc_port));
@@ -88,22 +113,24 @@ pub async fn run() -> Result<(), String> {
         info!("Kura internal HTTP service listening on {internal_address}");
     }
 
-    let listener = tokio::net::TcpListener::bind(address)
-        .await
-        .map_err(|error| format!("failed to bind TCP listener: {error}"))?;
     let grpc_listener = tokio::net::TcpListener::bind(grpc_address)
         .await
         .map_err(|error| format!("failed to bind gRPC listener: {error}"))?;
-    let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(false);
+    let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(None::<ShutdownBudget>);
+    let (shutdown_budget_tx, shutdown_budget_rx) = oneshot::channel::<ShutdownBudget>();
     let grpc_shutdown_rx = shutdown_rx.clone();
     let grpc_state = state.clone();
     let grpc_handle = tokio::spawn(async move {
         let grpc_shutdown = async move {
             let mut shutdown_rx = grpc_shutdown_rx;
-            if *shutdown_rx.borrow() {
+            if shutdown_rx.borrow().is_some() {
                 return;
             }
-            let _ = shutdown_rx.changed().await;
+            while shutdown_rx.changed().await.is_ok() {
+                if shutdown_rx.borrow().is_some() {
+                    return;
+                }
+            }
         };
 
         if let Err(error) = reapi::serve(grpc_listener, grpc_state, grpc_shutdown).await {
@@ -118,12 +145,16 @@ pub async fn run() -> Result<(), String> {
         let handle = Handle::new();
         let shutdown_handle = handle.clone();
         tokio::spawn(async move {
-            if *internal_shutdown_rx.borrow() {
-                shutdown_handle.graceful_shutdown(None);
+            if let Some(budget) = *internal_shutdown_rx.borrow() {
+                shutdown_handle.graceful_shutdown(Some(budget.remaining()));
                 return;
             }
-            let _ = internal_shutdown_rx.changed().await;
-            shutdown_handle.graceful_shutdown(None);
+            while internal_shutdown_rx.changed().await.is_ok() {
+                if let Some(budget) = *internal_shutdown_rx.borrow() {
+                    shutdown_handle.graceful_shutdown(Some(budget.remaining()));
+                    return;
+                }
+            }
         });
         Some(tokio::spawn(async move {
             if let Err(error) = axum_server::bind_rustls(internal_address, tls_config)
@@ -135,21 +166,26 @@ pub async fn run() -> Result<(), String> {
             }
         }))
     } else {
-        let internal_listener = tokio::net::TcpListener::bind(internal_address)
-            .await
-            .map_err(|error| format!("failed to bind internal TCP listener: {error}"))?;
         let internal_router = http::internal_router(state.clone());
         let mut internal_shutdown_rx = shutdown_rx.clone();
-        Some(tokio::spawn(async move {
-            let internal_shutdown = async move {
-                if *internal_shutdown_rx.borrow() {
+        let handle = Handle::new();
+        let shutdown_handle = handle.clone();
+        tokio::spawn(async move {
+            if let Some(budget) = *internal_shutdown_rx.borrow() {
+                shutdown_handle.graceful_shutdown(Some(budget.remaining()));
+                return;
+            }
+            while internal_shutdown_rx.changed().await.is_ok() {
+                if let Some(budget) = *internal_shutdown_rx.borrow() {
+                    shutdown_handle.graceful_shutdown(Some(budget.remaining()));
                     return;
                 }
-                let _ = internal_shutdown_rx.changed().await;
-            };
-
-            if let Err(error) = axum::serve(internal_listener, internal_router)
-                .with_graceful_shutdown(internal_shutdown)
+            }
+        });
+        Some(tokio::spawn(async move {
+            if let Err(error) = axum_server::bind(internal_address)
+                .handle(handle)
+                .serve(internal_router.into_make_service())
                 .await
             {
                 tracing::error!("internal server failed: {error}");
@@ -158,15 +194,46 @@ pub async fn run() -> Result<(), String> {
     };
 
     let router = http::public_router(state.clone());
+    let public_handle = Handle::new();
+    let public_shutdown_handle = public_handle.clone();
+    let public_shutdown_state = state.clone();
+    tokio::spawn(async move {
+        shutdown_signal().await;
+        let budget = ShutdownBudget::new(drain_completion_timeout);
+        let _ = shutdown_budget_tx.send(budget);
+        let _ = public_shutdown_state.enter_draining();
+        public_shutdown_state.sync_runtime_metrics().await;
+        public_shutdown_handle.graceful_shutdown(Some(budget.remaining()));
+    });
 
-    axum::serve(listener, router)
-        .with_graceful_shutdown(shutdown_signal())
+    let mut public_server = axum_server::bind(address).handle(public_handle);
+    public_server
+        .http_builder()
+        .http1()
+        .keep_alive(true)
+        .timer(TokioTimer::new())
+        .header_read_timeout(Some(Duration::from_secs(30)));
+    public_server
+        .serve(router.into_make_service())
         .await
         .map_err(|error| format!("server error: {error}"))?;
-    let _ = shutdown_tx.send(true);
-    let _ = grpc_handle.await;
+    let shutdown_budget = shutdown_budget_rx.await.unwrap_or_else(|_| {
+        warn!("shutdown budget channel closed before graceful shutdown completed");
+        ShutdownBudget::new(drain_completion_timeout)
+    });
+    let _ = shutdown_tx.send(Some(shutdown_budget));
+    let drained = wait_for_inflight_drain(state.clone(), shutdown_budget).await;
+    if !drained {
+        warn!(
+            http_inflight = state.runtime.http_inflight(),
+            grpc_inflight = state.runtime.grpc_inflight(),
+            drain_timeout_ms = state.config.drain_completion_timeout_ms,
+            "timed out waiting for inflight requests to drain during shutdown"
+        );
+    }
+    wait_for_task_shutdown(grpc_handle, "gRPC", shutdown_budget).await;
     if let Some(internal_handle) = internal_handle {
-        let _ = internal_handle.await;
+        wait_for_task_shutdown(internal_handle, "internal", shutdown_budget).await;
     }
 
     telemetry.shutdown();
@@ -259,6 +326,36 @@ fn spawn_snapshot_task(state: Arc<AppState>) {
     });
 }
 
+fn spawn_runtime_metrics_task(state: Arc<AppState>) {
+    tokio::spawn(async move {
+        loop {
+            state.sync_runtime_metrics().await;
+            tokio::time::sleep(Duration::from_secs(1)).await;
+        }
+    });
+}
+
+#[cfg(unix)]
+fn spawn_drain_signal_task(state: Arc<AppState>) {
+    tokio::spawn(async move {
+        let mut signal =
+            tokio::signal::unix::signal(tokio::signal::unix::SignalKind::user_defined1())
+                .expect("failed to install SIGUSR1 handler");
+        loop {
+            if signal.recv().await.is_none() {
+                return;
+            }
+            if state.enter_draining() {
+                state.sync_runtime_metrics().await;
+                info!("received SIGUSR1, entering draining state");
+            }
+        }
+    });
+}
+
+#[cfg(not(unix))]
+fn spawn_drain_signal_task(_state: Arc<AppState>) {}
+
 struct ProcessMemorySnapshot {
     resident_bytes: u64,
     virtual_bytes: u64,
@@ -300,11 +397,55 @@ where
     }
 }
 
+async fn wait_for_inflight_drain(state: Arc<AppState>, budget: ShutdownBudget) -> bool {
+    loop {
+        let inflight_changed = state.runtime.inflight_changed();
+        if state.runtime.total_inflight() == 0 {
+            return true;
+        }
+
+        let remaining = budget.remaining();
+        if remaining.is_zero() {
+            return false;
+        }
+
+        if tokio::time::timeout(remaining, inflight_changed)
+            .await
+            .is_err()
+        {
+            return false;
+        }
+    }
+}
+
+async fn wait_for_task_shutdown<T>(
+    mut handle: JoinHandle<T>,
+    server: &str,
+    budget: ShutdownBudget,
+) {
+    let remaining = budget.remaining();
+    match tokio::time::timeout(remaining, &mut handle).await {
+        Ok(Ok(_)) => {}
+        Ok(Err(error)) => {
+            warn!("{server} server task ended unexpectedly: {error}");
+        }
+        Err(_) => {
+            warn!(
+                timeout_ms = remaining.as_millis(),
+                "timed out waiting for {server} server to shut down; aborting task"
+            );
+            handle.abort();
+            let _ = handle.await;
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use tokio::{sync::oneshot, time::timeout};
 
     use super::*;
+    use crate::test_support::test_context;
 
     #[tokio::test]
     async fn wait_for_shutdown_signal_returns_when_ctrl_c_resolves() {
@@ -350,5 +491,38 @@ mod tests {
             .await
             .expect("shutdown waiter should return after terminate")
             .expect("shutdown waiter task should finish cleanly");
+    }
+
+    #[tokio::test]
+    async fn wait_for_inflight_drain_returns_when_requests_finish() {
+        let context = test_context(|_| {}).await;
+        let guard = context.state.start_http_request();
+        let waiter = tokio::spawn(wait_for_inflight_drain(
+            context.state.clone(),
+            ShutdownBudget::new(Duration::from_millis(250)),
+        ));
+
+        tokio::time::sleep(Duration::from_millis(20)).await;
+        drop(guard);
+
+        assert!(
+            waiter
+                .await
+                .expect("wait task should finish after request completion")
+        );
+    }
+
+    #[tokio::test]
+    async fn wait_for_inflight_drain_times_out_when_requests_do_not_finish() {
+        let context = test_context(|_| {}).await;
+        let _guard = context.state.start_grpc_request();
+
+        assert!(
+            !wait_for_inflight_drain(
+                context.state.clone(),
+                ShutdownBudget::new(Duration::from_millis(25)),
+            )
+            .await
+        );
     }
 }

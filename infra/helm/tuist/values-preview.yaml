@@ -1,0 +1,131 @@
+# Overlay for ephemeral preview environments.
+#
+# Pins every pod (server, cache, embedded postgres / clickhouse / minio /
+# redis, migration job) onto nodes labeled `role=preview` and tolerates the
+# matching `role=preview:NoSchedule` taint so the dedicated preview node pool
+# is reserved for these short-lived releases. The chart's tuist.podScheduling
+# helper already threads these into every workload — no template changes
+# required.
+#
+# Apply with:
+#   helm install pr-1234 infra/helm/tuist -f infra/helm/tuist/values-preview.yaml
+#
+# Preview state is intentionally ephemeral: the workloads are disposable and
+# using node-local storage avoids the flaky CSI attach/format path that was
+# stalling short-lived preview releases.
+global:
+  nodeSelector:
+    role: preview
+  tolerations:
+    - key: role
+      operator: Equal
+      value: preview
+      effect: NoSchedule
+  commonLabels:
+    tuist.dev/environment: preview
+
+server:
+  replicaCount: 1
+  autoscaling:
+    enabled: false
+  podDisruptionBudget:
+    enabled: false
+  cluster:
+    enabled: false
+  # License is synced from 1Password via ESO into the chart's
+  # server-external-secrets Secret. The 1P item must exist in the vault that
+  # the ClusterSecretStore (default name: onepassword) is bound to. ESO and
+  # the SecretStore must be installed in the cluster before `helm install`.
+  externalSecrets:
+    license:
+      item: TUIST_LICENSE_KEY
+      field: password
+  # Static ingress configuration for the preview cluster. The dynamic per-deploy
+  # bits (enabled, host, and the matching appUrl) are passed by CI:
+  #
+  #   --set server.ingress.enabled=true
+  #   --set server.ingress.host=pr-1234.preview.tuist.dev
+  #   --set server.appUrl=https://pr-1234.preview.tuist.dev
+  #
+  # Convention for the host label:
+  #   pr-<number>      for PR builds (stable across pushes; redeploys upgrade)
+  #   sha-<7chars>     for one-off commits / branches without a PR
+  #
+  # TLS comes from a wildcard cert for *.preview.tuist.dev pre-issued at
+  # cluster bootstrap (cert-manager DNS-01 against Cloudflare). Two ways to
+  # plug it in — pick one when bootstrapping the preview cluster:
+  #
+  #   1. ingress-nginx default-ssl-certificate: start the controller with
+  #      --default-ssl-certificate=ingress-nginx/preview-tuist-dev-wildcard-tls
+  #      and leave tlsSecretName empty here. Every Ingress without its own
+  #      tls: block falls back to the wildcard. No per-namespace plumbing.
+  #   2. cert-manager + reflector: mirror the wildcard Secret into each
+  #      preview-* namespace and set tlsSecretName below to its name.
+  #
+  # No external-dns annotations are needed: a single A record
+  #   *.preview.tuist.dev -> <preview ingress IP>
+  # already resolves every per-PR subdomain.
+  ingress:
+    enabled: false
+    className: nginx
+    host: ""
+    tlsSecretName: ""
+    annotations: {}
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 1Gi
+
+cache:
+  # Cache is enabled by default for previews. DATABASE_URL is composed by
+  # the chart's tuist.cacheDatabaseUrl helper to point at a dedicated
+  # `tuist_cache` database in the embedded Postgres (auto-created on first
+  # boot via templates/postgresql-init.yaml).
+  enabled: true
+  replicaCount: 1
+  podSecurityContext:
+    fsGroup: 990
+  storage:
+    pvc:
+      create: false
+  data:
+    pvc:
+      create: false
+
+postgresql:
+  mode: embedded
+  embedded:
+    persistence:
+      create: false
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        memory: 512Mi
+
+clickhouse:
+  mode: embedded
+  embedded:
+    persistence:
+      create: false
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        memory: 1Gi
+
+redis:
+  enabled: false
+
+objectStorage:
+  mode: embedded
+  embedded:
+    persistence:
+      create: false
+
+observability:
+  enabled: false

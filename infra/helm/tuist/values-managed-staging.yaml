@@ -25,8 +25,6 @@ server:
       value: stag
     - name: TUIST_DATABASE_POOL_SIZE
       value: "15"
-    - name: TUIST_PROCESSOR_URL
-      value: http://processor-staging.tuist.dev:4002
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
       value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
 
@@ -48,11 +46,86 @@ server:
   podDisruptionBudget:
     enabled: false
 
-  # Staging uses smaller resources than prod.
+  # Staging only has 2 cpx22 worker nodes (~2.5GiB allocatable each), and
+  # system DaemonSets eat ~1GiB per node before app pods schedule. With
+  # `maxSurge: 1` (the chart default) a rolling deploy needs the new server
+  # pod to start *before* the old one terminates, which doesn't fit. Swap
+  # to `maxUnavailable: 1` so the old pod terminates first; brief downtime
+  # during deploy is acceptable for staging.
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+
+  # Staging is squeezed onto 2 cpx22 workers (~2.5Gi allocatable each, ~1.5Gi
+  # eaten by system DaemonSets). Requests are sized for *scheduling*, not for
+  # actual runtime memory usage — the BEAM regularly uses 700-900MiB. Limits
+  # carry the real headroom; the burstable QoS class is intentional given how
+  # idle staging stays.
   resources:
     requests:
       cpu: "250m"
-      memory: "768Mi"
+      memory: "384Mi"
     limits:
       cpu: "1000m"
+      memory: "1536Mi"
+
+  # The migration hook is an extra pod that starts before Helm can
+  # terminate any existing workload pod. `Tuist.Release.migrate` only loads
+  # the app config and runs Ecto migrations (no Phoenix endpoint, no Oban,
+  # pool size 1), so peak working set is around 150-250Mi. Match the
+  # staging server's shape so the hook fits whenever the server fits; the
+  # common 4Gi limit still caps backfill spikes.
+  migrationJob:
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "200Mi"
+
+objectStorage:
+  external:
+    buckets:
+      default: tuist-stag-storage
+
+processor:
+  # Supabase staging project (inzgspjesrhqhleomvkb) — dedicated pooler on
+  # port 6543 (transaction mode). Same hostname as the direct Postgres
+  # endpoint, just a different port. Pooler creds are the `tuist_processor`
+  # role provisioned via infra/supabase/tuist-processor-role.sql.
+  database:
+    host: db.inzgspjesrhqhleomvkb.supabase.co
+  # Single replica on staging — 2-replica redundancy isn't needed for a
+  # pre-prod env, and a second pod doesn't fit on the 2-worker cluster
+  # alongside the server pod + system DaemonSets. PDB stays off too;
+  # rolling deploys terminate the one pod, jobs queue up briefly in
+  # oban_jobs, and resume once the new pod boots.
+  replicaCount: 1
+  podDisruptionBudget:
+    enabled: false
+  # Same surge=0/unavailable=1 reasoning as the server above.
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  extraEnv:
+    # Must match the server's TUIST_DEPLOY_ENV above so the processor pod
+    # decrypts the same priv/secrets/<env>.yml.enc file the web tier does.
+    - name: TUIST_DEPLOY_ENV
+      value: stag
+    - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
+      value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
+  # The processor runs the full Tuist BEAM release (Repos, Vault, Cachex,
+  # ingestion buffers, Oban, etc.) — TUIST_MODE=processor only skips the
+  # Phoenix endpoint binding and narrows the Oban queue set. Boot memory sits
+  # around 600-800MiB. Same burstable shape as the server above: low request
+  # so it schedules next to the server on the cramped staging cluster, high
+  # limit so runtime isn't constrained.
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "384Mi"
+    limits:
+      cpu: "500m"
       memory: "1536Mi"

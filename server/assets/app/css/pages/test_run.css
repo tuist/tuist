@@ -64,7 +64,7 @@
         & > [data-part="badge-warning"],
         & > [data-part="badge-processing"],
         & > [data-part="badge-flaky"] {
-          border-radius: var(--noora-radius-large);
+          border-radius: var(--noora-radius-4);
           & > [data-part="icon"] {
             padding: var(--noora-spacing-3);
             width: var(--noora-icon-size-large);
@@ -296,7 +296,7 @@
         & > [data-part="more-card"] {
           position: absolute;
           box-shadow: var(--noora-border-light-default);
-          border-radius: var(--noora-radius-large);
+          border-radius: var(--noora-radius-4);
           background-color: var(--noora-surface-background-primary);
           height: 48px;
           &[data-index="one"] {
@@ -326,7 +326,7 @@
 
   & .argument-collapsible {
     box-shadow: var(--noora-light-border-default);
-    border-radius: var(--noora-radius-large);
+    border-radius: var(--noora-radius-4);
     overflow: hidden;
 
     & > [data-part="argument-header"] {
@@ -381,7 +381,7 @@
         flex-direction: column;
         gap: var(--noora-spacing-2);
         box-shadow: var(--noora-border-section);
-        border-radius: var(--noora-radius-medium);
+        border-radius: var(--noora-radius-3);
         background: var(--noora-surface-background-tertiary);
         padding: var(--noora-spacing-5);
         color: var(--noora-surface-label-primary);
@@ -398,7 +398,7 @@
 
       & [data-part="attachment-image"] {
         border: 1px solid var(--noora-surface-border-secondary);
-        border-radius: var(--noora-radius-medium);
+        border-radius: var(--noora-radius-3);
         width: auto;
         max-width: 400px;
         height: auto;
@@ -445,7 +445,7 @@
         & > [data-part="more-card"] {
           position: absolute;
           box-shadow: var(--noora-border-light-default);
-          border-radius: var(--noora-radius-large);
+          border-radius: var(--noora-radius-4);
           background-color: var(--noora-surface-background-primary);
           height: 48px;
           &[data-index="one"] {
@@ -464,7 +464,7 @@
       & [data-part="collapsible"] {
         z-index: var(--noora-z-index-1);
         box-shadow: var(--noora-light-border-default);
-        border-radius: var(--noora-radius-xlarge);
+        border-radius: var(--noora-radius-6);
         overflow: hidden;
 
         & [data-part="header-row"] {
@@ -648,7 +648,7 @@
               flex-direction: column;
               gap: var(--noora-spacing-5);
               box-shadow: var(--noora-light-border-default);
-              border-radius: var(--noora-radius-large);
+              border-radius: var(--noora-radius-4);
               padding: var(--noora-spacing-5);
 
               & [data-part="repetition-wrapper"] {
@@ -676,7 +676,7 @@
               flex-direction: column;
               gap: var(--noora-spacing-2);
               box-shadow: var(--noora-border-section);
-              border-radius: var(--noora-radius-medium);
+              border-radius: var(--noora-radius-3);
               background: var(--noora-surface-background-tertiary);
               padding: var(--noora-spacing-5);
               color: var(--noora-surface-label-primary);
@@ -752,7 +752,7 @@
 
       & > [data-part="image"] {
         & > img {
-          border-radius: var(--noora-radius-large);
+          border-radius: var(--noora-radius-4);
         }
 
         & > img[data-theme="light"] {
@@ -799,7 +799,7 @@
 .test-failure-card {
   z-index: var(--noora-z-index-1);
   box-shadow: var(--noora-border-light-default);
-  border-radius: var(--noora-radius-large);
+  border-radius: var(--noora-radius-4);
   background-color: var(--noora-surface-background-primary);
   padding: var(--noora-spacing-4);
 
@@ -822,7 +822,7 @@
         gap: var(--noora-spacing-5);
 
         & > [data-part="icon"] {
-          border-radius: var(--noora-radius-large);
+          border-radius: var(--noora-radius-4);
           background-color: var(--noora-icon-destructive-background);
           padding: var(--noora-spacing-4);
           width: 24px;
@@ -902,7 +902,7 @@
 
         & [data-part="repetition-failure"] {
           box-shadow: var(--noora-border-light-default);
-          border-radius: var(--noora-radius-medium);
+          border-radius: var(--noora-radius-3);
           background: var(--noora-surface-background-tertiary);
           padding: var(--noora-spacing-5);
           color: var(--noora-surface-label-primary);
@@ -933,7 +933,7 @@
           & .test-failure-card [data-part="attachment-image"],
           & .argument-collapsible [data-part="attachment-image"] {
             border: 1px solid var(--noora-surface-border-secondary);
-            border-radius: var(--noora-radius-medium);
+            border-radius: var(--noora-radius-3);
             width: auto;
             max-width: 400px;
             height: auto;
@@ -947,7 +947,7 @@
             gap: var(--noora-spacing-2);
             margin: 0;
             box-shadow: var(--noora-border-section);
-            border-radius: var(--noora-radius-medium);
+            border-radius: var(--noora-radius-3);
             background: var(--noora-surface-background-tertiary);
             padding: var(--noora-spacing-5);
             color: var(--noora-surface-label-primary);
@@ -960,7 +960,7 @@
 
       & > [data-part="repetition-failure"] {
         box-shadow: var(--noora-border-light-default);
-        border-radius: var(--noora-radius-medium);
+        border-radius: var(--noora-radius-3);
         background: var(--noora-surface-background-tertiary);
         padding: var(--noora-spacing-5);
         color: var(--noora-surface-label-primary);
@@ -1020,7 +1020,7 @@
           display: grid;
           grid-template-columns: max-content max-content 1fr;
           gap: var(--noora-spacing-3) var(--noora-spacing-7);
-          border-radius: var(--noora-radius-medium);
+          border-radius: var(--noora-radius-3);
           background: var(--noora-surface-background-tertiary);
           padding: var(--noora-spacing-5);
           overflow-x: auto;
@@ -1070,7 +1070,7 @@
 
         & .test-failure-card [data-part="attachment-image"] {
           border: 1px solid var(--noora-surface-border-secondary);
-          border-radius: var(--noora-radius-medium);
+          border-radius: var(--noora-radius-3);
           width: auto;
           max-width: 400px;
           height: auto;
@@ -1083,7 +1083,7 @@
           gap: var(--noora-spacing-2);
           margin: 0;
           box-shadow: var(--noora-border-section);
-          border-radius: var(--noora-radius-medium);
+          border-radius: var(--noora-radius-3);
           background: var(--noora-surface-background-tertiary);
           padding: var(--noora-spacing-5);
           color: var(--noora-surface-label-primary);

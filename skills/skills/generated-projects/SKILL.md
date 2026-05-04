@@ -1,5 +1,5 @@
 ---
-name: using-tuist-generated-projects
+name: generated-projects
 description: Guides day-to-day work in Tuist-generated Xcode workspaces, including generation, build and test commands, and buildable folders. Use when working in a Tuist-generated project or when users mention `tuist generate`, `xcodebuild test`, or generated workspaces.
 ---
 

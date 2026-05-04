@@ -128,6 +128,32 @@ http://{{ include "tuist.componentName" (dict "root" . "component" "object-stora
 {{- end -}}
 {{- end -}}
 
+{{/*
+Cache app's DATABASE_URL. Resolves to (in order):
+  1. cache.databaseUrl when set explicitly (self-hosted with own Postgres).
+  2. embedded Postgres + cache.embedded.database when postgresql.mode is
+     "embedded". The cache database is created by templates/postgresql-init.yaml
+     on first Postgres boot.
+  3. empty string (cache must be disabled or running in managedSecrets mode
+     where DATABASE_URL is unlocked from priv/secrets at runtime).
+
+Fails the render when an explicit `cache.databaseUrl` is set alongside an
+embedded Postgres. The two sources are mutually exclusive — silently
+preferring one would let an operator's intent (typically: an explicit URL
+written to override the embedded composition) be overridden by the chart's
+default. Mirrors the guard in tuist.licenseEnv.
+*/}}
+{{- define "tuist.cacheDatabaseUrl" -}}
+{{- if and .Values.cache.databaseUrl (eq .Values.postgresql.mode "embedded") -}}
+{{- fail "cache.databaseUrl and postgresql.mode=embedded are mutually exclusive — set one (explicit external URL OR embedded Postgres composition), not both." -}}
+{{- end -}}
+{{- if .Values.cache.databaseUrl -}}
+{{- .Values.cache.databaseUrl -}}
+{{- else if eq .Values.postgresql.mode "embedded" -}}
+ecto://{{ .Values.postgresql.embedded.username }}:{{ .Values.postgresql.embedded.password }}@{{ include "tuist.componentName" (dict "root" . "component" "postgresql") }}:5432/{{ .Values.cache.embedded.database }}
+{{- end -}}
+{{- end -}}
+
 {{- define "tuist.databaseUrl" -}}
 {{- if eq .Values.postgresql.mode "embedded" -}}
 ecto://{{ .Values.postgresql.embedded.username }}:{{ .Values.postgresql.embedded.password }}@{{ include "tuist.componentName" (dict "root" . "component" "postgresql") }}:5432/{{ .Values.postgresql.embedded.database }}
@@ -184,10 +210,48 @@ http://{{ include "tuist.componentName" (dict "root" . "component" "clickhouse")
 {{- end -}}
 {{- end -}}
 
+{{- define "tuist.redisUrl" -}}
+{{- if eq .Values.redis.mode "embedded" -}}
+redis://{{ include "tuist.componentName" (dict "root" . "component" "redis") }}:6379
+{{- else -}}
+{{- .Values.redis.external.url -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "tuist.observabilityOtlpEndpoint" -}}
 {{- if .Values.observability.enabled -}}
 http://{{ include "tuist.componentName" (dict "root" . "component" "otel-collector") }}:4317
 {{- end -}}
+{{- end -}}
+
+{{/*
+License env vars. Resolves to (in order):
+  1. ESO-managed Secret (server.externalSecrets.license.item set) — preview /
+     managed envs that sync the license from 1Password. Mirrors the MASTER_KEY
+     flow in templates/external-secrets.yaml.
+  2. Chart-managed app-secrets Secret — when server.license.key is inlined.
+*/}}
+{{- define "tuist.licenseEnv" -}}
+{{- $appSecret := include "tuist.componentName" (dict "root" . "component" "app-secrets") -}}
+{{- $esoSecret := include "tuist.componentName" (dict "root" . "component" "server-external-secrets") -}}
+{{- $useEso := ne (.Values.server.externalSecrets.license.item | default "") "" -}}
+{{- if and $useEso .Values.server.license.key -}}
+{{- fail "server.externalSecrets.license.item and server.license.key are mutually exclusive — pick one license source." -}}
+{{- end -}}
+{{- if or $useEso .Values.server.license.key }}
+- name: TUIST_LICENSE_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ ternary $esoSecret $appSecret $useEso | quote }}
+      key: server-license-key
+{{- end }}
+{{- if .Values.server.license.certificateBase64 }}
+- name: TUIST_LICENSE_CERTIFICATE_BASE64
+  valueFrom:
+    secretKeyRef:
+      name: {{ $appSecret | quote }}
+      key: server-license-certificate-base64
+{{- end }}
 {{- end -}}
 
 {{- define "tuist.serverHeadlessServiceName" -}}

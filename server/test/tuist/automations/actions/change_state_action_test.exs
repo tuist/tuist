@@ -39,6 +39,34 @@ defmodule Tuist.Automations.Actions.ChangeStateActionTest do
       assert {:ok, %{state: "enabled"}} = Tests.get_test_case_by_id(test_case.id)
     end
 
+    test "flips a test case's state to skipped" do
+      project = ProjectsFixtures.project_fixture()
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id, state: "enabled")
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      assert :ok =
+               ChangeStateAction.execute(
+                 %{type: :test_case, id: test_case.id},
+                 %{"state" => "skipped"}
+               )
+
+      assert {:ok, %{state: "skipped"}} = Tests.get_test_case_by_id(test_case.id)
+    end
+
+    test "flips a skipped test case back to enabled" do
+      project = ProjectsFixtures.project_fixture()
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id, state: "skipped")
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      assert :ok =
+               ChangeStateAction.execute(
+                 %{type: :test_case, id: test_case.id},
+                 %{"state" => "enabled"}
+               )
+
+      assert {:ok, %{state: "enabled"}} = Tests.get_test_case_by_id(test_case.id)
+    end
+
     test "returns :not_found when the test case doesn't exist" do
       assert {:error, :not_found} =
                ChangeStateAction.execute(

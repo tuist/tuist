@@ -125,14 +125,6 @@ extension Environmenting {
         isVariableTruthy("TUIST_LEGACY_MODULE_CACHE")
     }
 
-    public var isSwiftFileSystemBackendEnabled: Bool {
-        let value = variables["TUIST_FILESYSTEM_BACKEND"]?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-        guard let value else { return true }
-        return ["swift-file-system", "swift_file_system", "swiftfilesystem"].contains(value)
-    }
-
     public func pathRelativeToWorkingDirectory(_ path: String?) async throws -> AbsolutePath {
         let currentWorkingDirectory = try await currentWorkingDirectory()
         if let path {

@@ -37,8 +37,8 @@ This service provides:
    - `PORT` - Port to run on (default: 4000)
    - `SERVER_URL` - URL of the main Tuist server for authentication
    - `STORAGE_DIR` - Directory for artifact storage (default: `/storage`)
-   - `DISK_HIGH_WATERMARK_PERCENT` - Optional high watermark (%) that triggers disk eviction (default: `85`)
-   - `DISK_TARGET_PERCENT` - Optional target usage (%) the eviction job aims for after cleanup (default: `70`)
+   - `DISK_HIGH_WATERMARK_PERCENT` - Optional high watermark (%) that triggers disk eviction (default: `75`)
+   - `DISK_TARGET_PERCENT` - Optional target usage (%) the eviction job aims for after cleanup (default: `60`)
    - `S3_BUCKET` - S3 bucket for module and Gradle cache artifacts
    - `S3_XCODE_CACHE_BUCKET` - Optional dedicated S3 bucket for Xcode cache artifacts (defaults to `S3_BUCKET`). When set to a different value, Xcode cache reads and writes use this bucket directly.
    - `S3_REGISTRY_BUCKET` - S3 bucket for Swift package registry

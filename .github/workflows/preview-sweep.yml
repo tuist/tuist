@@ -1,0 +1,76 @@
+name: Preview Sweep
+
+# Hourly cleanup pass over the preview cluster. Deletes preview namespaces
+# whose `tuist.dev/expires-at` label is in the past — uninstalls the
+# release and drops the namespace. Also exposed as workflow_dispatch for
+# force-runs (e.g. after manually uninstalling something out-of-band).
+#
+# No worker-pool scaling here: the preview cluster keeps a fixed worker
+# pool (see infra/k8s/syself/workload-cluster-preview.yaml). Scaling from
+# CI would require management-cluster permissions Syself's OIDC users
+# don't have.
+#
+# Required GitHub Environment secret (environment: server-k8s-preview):
+#   KUBECONFIG  - same secret used by preview-deploy.yml.
+
+on:
+  schedule:
+    - cron: "0 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sweep:
+    name: Sweep expired previews
+    runs-on: ubuntu-latest
+    environment:
+      name: server-k8s-preview
+    timeout-minutes: 15
+    env:
+      KUBECONFIG: ${{ github.workspace }}/.kube/config
+    steps:
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          install_args: "helm kubectl"
+          cache: "false"
+      - name: Load kubeconfig
+        run: |
+          mkdir -p "$(dirname "$KUBECONFIG")"
+          echo "${{ secrets.KUBECONFIG }}" | base64 -d > "$KUBECONFIG"
+          chmod 600 "$KUBECONFIG"
+
+      - name: Delete expired preview namespaces
+        # We helm-uninstall first so chart hooks (PVC retention etc.) get a
+        # chance to run, then drop the namespace. `kubectl delete namespace`
+        # is itself a backstop — if helm uninstall fails, the namespace
+        # delete cascades through anyway.
+        run: |
+          set -euo pipefail
+          NOW=$(date +%s)
+          MAPPING=$(kubectl get namespaces -l tuist.dev/preview=true \
+            -o jsonpath='{range .items[*]}{.metadata.name}={.metadata.labels.tuist\.dev/expires-at}{"\n"}{end}')
+          if [ -z "$MAPPING" ]; then
+            echo "No preview namespaces found."
+            exit 0
+          fi
+          echo "Found preview namespaces:"
+          echo "$MAPPING"
+
+          while IFS='=' read -r NS EXP; do
+            [ -z "$NS" ] && continue
+            if [ -z "$EXP" ] || ! [[ "$EXP" =~ ^[0-9]+$ ]]; then
+              echo "::warning::namespace $NS has missing/invalid expires-at label; skipping"
+              continue
+            fi
+            if [ "$EXP" -le "$NOW" ]; then
+              echo "==> Expired: $NS (expired $((NOW - EXP))s ago) — uninstalling"
+              # Strip the `preview-` prefix to get the helm release name.
+              RELEASE="${NS#preview-}"
+              helm uninstall "$RELEASE" --namespace "$NS" --wait --timeout 5m || true
+              kubectl delete namespace "$NS" --wait=true --timeout 5m || true
+            else
+              echo "    Live: $NS (expires in $((EXP - NOW))s)"
+            fi
+          done <<< "$MAPPING"

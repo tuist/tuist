@@ -198,29 +198,51 @@ defmodule TuistWeb.AuthController do
          provider_organization_id,
          oauth_return_url
        ) do
-    if can_link_existing_user?(existing_user, auth.provider, sso_organization) do
-      {:ok, _oauth_identity} =
-        Accounts.link_oauth_identity_to_user(existing_user, %{
-          provider: auth.provider,
-          id_in_provider: to_string(auth.uid),
-          provider_organization_id: provider_organization_id
-        })
+    cond do
+      can_link_existing_user?(existing_user, auth.provider, sso_organization) ->
+        {:ok, _oauth_identity} =
+          Accounts.link_oauth_identity_to_user(existing_user, %{
+            provider: auth.provider,
+            id_in_provider: to_string(auth.uid),
+            provider_organization_id: provider_organization_id
+          })
 
-      if oauth_return_url do
+        if oauth_return_url do
+          conn
+          |> put_session(:user_return_to, oauth_return_url)
+          |> delete_session(:oauth_return_to)
+          |> Authentication.log_in_user(existing_user, auth_params)
+        else
+          Authentication.log_in_user(conn, existing_user, auth_params)
+        end
+
+      invitation = pending_invitation_for(existing_user, sso_organization) ->
+        # The user came in through SSO but isn't a member of the org yet —
+        # however, an admin has issued them an invitation. Send them to the
+        # accept page so they can review and explicitly accept; we don't
+        # want to silently flip membership during a login redirect.
+        #
+        # The accept page is behind `:require_authenticated_user`, which
+        # will overwrite `:user_return_to` with the invitation URL when it
+        # bounces the visitor to /users/log_in. Stash whatever return
+        # target was pending before that overwrite (e.g. the device-code
+        # URL for `tuist auth login`) under a separate key so the LiveView
+        # can resume the original flow after the user clicks Accept.
+        prior_return_to =
+          oauth_return_url || get_session(conn, :user_return_to)
+
         conn
-        |> put_session(:user_return_to, oauth_return_url)
-        |> delete_session(:oauth_return_to)
-        |> Authentication.log_in_user(existing_user, auth_params)
-      else
-        Authentication.log_in_user(conn, existing_user, auth_params)
-      end
-    else
-      log(
-        :warning,
-        "Refused to link existing user #{existing_user.id} via custom SSO provider #{auth.provider}: user is not a member of the authenticating organization."
-      )
+        |> maybe_put_post_invitation_return_to(prior_return_to)
+        |> redirect(to: ~p"/auth/invitations/#{invitation.token}")
+        |> halt()
 
-      raise_sso_unauthorized(:existing_user_not_member)
+      true ->
+        log(
+          :warning,
+          "Refused to link existing user #{existing_user.id} via custom SSO provider #{auth.provider}: user is not a member of the authenticating organization."
+        )
+
+        raise_sso_unauthorized(:existing_user_not_member)
     end
   end
 
@@ -235,6 +257,18 @@ defmodule TuistWeb.AuthController do
 
   defp can_link_existing_user?(user, _provider, %Organization{} = organization) do
     Accounts.belongs_to_organization?(user, organization)
+  end
+
+  defp pending_invitation_for(_user, nil), do: nil
+
+  defp pending_invitation_for(%{email: email}, %Organization{} = organization) do
+    Accounts.get_invitation_by_invitee_email_and_organization(email, organization)
+  end
+
+  defp maybe_put_post_invitation_return_to(conn, nil), do: conn
+
+  defp maybe_put_post_invitation_return_to(conn, return_to) do
+    put_session(conn, :post_invitation_return_to, return_to)
   end
 
   def authenticate_cli_deprecated(conn, params) do
@@ -288,6 +322,19 @@ defmodule TuistWeb.AuthController do
 
   def complete_signup(conn, _params) do
     redirect(conn, to: ~p"/users/log_in")
+  end
+
+  def cancel_pending_signup(conn, _params) do
+    conn
+    |> delete_session(:pending_oauth_signup)
+    |> put_flash(
+      :error,
+      dgettext(
+        "dashboard_auth",
+        "An account with this email already exists. Please log in instead."
+      )
+    )
+    |> redirect(to: ~p"/users/log_in")
   end
 
   defp oauth_failure_message(%Ueberauth.Failure{errors: errors}) do

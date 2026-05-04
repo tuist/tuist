@@ -121,6 +121,10 @@ config :logger, :console,
     :selected_project_handle
   ]
 
+config :mime, :types, %{
+  "application/linkset+json" => ["linkset"]
+}
+
 # Money
 config :money,
   default_currency: :USD
@@ -135,6 +139,8 @@ config :phoenix, :json_library, Jason
 # This configures prom_ex to use a different storage using [this](https://github.com/plausible/analytics/pull/5130/)
 # as a reference
 config :prom_ex, :storage_adapter, Tuist.PromEx.StripedPeep
+
+config :tower, reporters: [TowerOpentelemetry]
 
 # Oban
 config :tuist, Oban,
@@ -274,6 +280,8 @@ config :tuist, :blocked_handles, [
   "careers",
   "jobs"
 ]
+
+config :tuist, :dev_all_locales, System.get_env("TUIST_DEV_ALL_LOCALES") in ~w(1 true TRUE yes YES)
 
 config :tuist, :urls,
   production: "https://tuist.dev",

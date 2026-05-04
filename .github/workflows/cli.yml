@@ -61,6 +61,10 @@ concurrency:
   group: cli-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
+# .build cache keys: restore-keys hashes Package.swift (not Package.resolved) so the
+# fallback never crosses structural changes. See #10510 / e8fa267 for the incidents
+# (stale workspace state pointing at moved local SPM paths; Linux linker failures
+# from partial-artifact reuse) that motivate the narrower scope.
 jobs:
   cli-lint:
     name: Lint
@@ -79,7 +83,9 @@ jobs:
         id: cache
         with:
           path: .build
-          key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved') }}
+          key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
+          restore-keys: |
+            ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.swift') }}-
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
@@ -93,7 +99,7 @@ jobs:
         if: github.event.pull_request.head.repo.fork != true
         run: tuist setup
       - name: Install Tuist dependencies
-        if: steps.cache.outputs.cache-matched-key == ''
+        if: steps.cache.outputs.cache-hit != 'true'
         run: tuist install
       - name: Lint
         run: |
@@ -110,11 +116,13 @@ jobs:
       - uses: actions/checkout@v4
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
-      - uses: actions/cache/restore@v4
+      - uses: actions/cache@v4
         id: cache
         with:
           path: .build
-          key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved') }}
+          key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
+          restore-keys: |
+            ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.swift') }}-
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
@@ -128,7 +136,7 @@ jobs:
         if: github.event.pull_request.head.repo.fork != true
         run: tuist setup
       - name: Install Tuist dependencies
-        if: steps.cache.outputs.cache-matched-key == ''
+        if: steps.cache.outputs.cache-hit != 'true'
         run: tuist install
       - name: Build
         run: swift build --configuration debug --replace-scm-with-registry --force-resolved-versions
@@ -152,7 +160,9 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .build
-          key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved') }}
+          key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
+          restore-keys: |
+            ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.swift') }}-
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
@@ -165,7 +175,7 @@ jobs:
         if: github.event.pull_request.head.repo.fork != true
         run: tuist setup
       - name: Install Tuist dependencies
-        if: steps.cache-restore.outputs.cache-matched-key == ''
+        if: steps.cache-restore.outputs.cache-hit != 'true'
         run: tuist install
       - name: Cache
         run: tuist cache
@@ -178,7 +188,7 @@ jobs:
 
   cli-unit-tests:
     name: Unit Tests
-    runs-on: namespace-profile-default-macos
+    runs-on: namespace-profile-macos-xcode-26
     timeout-minutes: 30
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
@@ -197,7 +207,9 @@ jobs:
         id: cache
         with:
           path: .build
-          key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved') }}
+          key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
+          restore-keys: |
+            ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.swift') }}-
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
@@ -211,14 +223,14 @@ jobs:
         if: github.event.pull_request.head.repo.fork != true
         run: tuist setup
       - name: Install Tuist dependencies
-        if: steps.cache.outputs.cache-matched-key == ''
+        if: steps.cache.outputs.cache-hit != 'true'
         run: tuist install
       - name: Run tests
         run: tuist test TuistUnitTests -- -retry-tests-on-failure -test-iterations 4
 
   cli-acceptance-tests-build:
     name: Build Acceptance Tests
-    runs-on: namespace-profile-default-macos
+    runs-on: namespace-profile-macos-xcode-26
     timeout-minutes: 60
     if: (github.event.pull_request.draft == false || github.event_name != 'pull_request') && github.event.pull_request.head.repo.fork != true
     outputs:
@@ -239,7 +251,9 @@ jobs:
         id: cache
         with:
           path: .build
-          key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved') }}
+          key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
+          restore-keys: |
+            ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.swift') }}-
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
@@ -253,7 +267,7 @@ jobs:
         if: github.event.pull_request.head.repo.fork != true
         run: tuist setup
       - name: Install Tuist dependencies
-        if: steps.cache.outputs.cache-matched-key == ''
+        if: steps.cache.outputs.cache-hit != 'true'
         run: tuist install
       - name: Skip Xcode Macro Fingerprint Validation
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
@@ -267,7 +281,7 @@ jobs:
 
   cli-acceptance-tests:
     name: Acceptance Tests
-    runs-on: namespace-profile-default-macos
+    runs-on: namespace-profile-macos-xcode-26
     timeout-minutes: 60
     needs: cli-acceptance-tests-build
     if: toJSON(fromJSON(needs.cli-acceptance-tests-build.outputs.matrix).shard) != '[]'
@@ -290,7 +304,9 @@ jobs:
         id: cache
         with:
           path: .build
-          key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved') }}
+          key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
+          restore-keys: |
+            ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.swift') }}-
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
@@ -304,7 +320,7 @@ jobs:
         if: github.event.pull_request.head.repo.fork != true
         run: tuist setup
       - name: Install Tuist dependencies
-        if: steps.cache.outputs.cache-matched-key == ''
+        if: steps.cache.outputs.cache-hit != 'true'
         run: tuist install
       - name: Skip Xcode Macro Fingerprint Validation
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
@@ -337,7 +353,9 @@ jobs:
         id: cache
         with:
           path: .build
-          key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved') }}
+          key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
+          restore-keys: |
+            ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.swift') }}-
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
@@ -345,7 +363,7 @@ jobs:
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
       - name: Install Tuist dependencies
-        if: steps.cache.outputs.cache-matched-key == ''
+        if: steps.cache.outputs.cache-hit != 'true'
         run: tuist install
       - name: Skip Xcode Macro Fingerprint Validation
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
@@ -379,7 +397,9 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .build
-          key: linux-cli-${{ hashFiles('Package.resolved') }}
+          key: linux-cli-${{ hashFiles('Package.resolved', 'Package.swift') }}
+          restore-keys: |
+            linux-cli-${{ hashFiles('Package.swift') }}-
       - name: Resolve dependencies
         if: steps.cache-restore.outputs.cache-hit != 'true'
         run: swift package resolve --replace-scm-with-registry
@@ -407,7 +427,9 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .build
-          key: linux-cli-${{ hashFiles('Package.resolved') }}
+          key: linux-cli-${{ hashFiles('Package.resolved', 'Package.swift') }}
+          restore-keys: |
+            linux-cli-${{ hashFiles('Package.swift') }}-
       - name: Resolve dependencies
         if: steps.cache-restore.outputs.cache-hit != 'true'
         run: swift package resolve --replace-scm-with-registry

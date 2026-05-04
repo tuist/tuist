@@ -12,7 +12,10 @@ ARG RUNNER_IMAGE="debian:${DEBIAN_RUNNER_VERSION}"
 
 # ========================================
 # Stage: Swift NIF builder
-# Only built when referenced by selfhosted target (BuildKit skips otherwise)
+# Builds the native xcactivitylog parser. The result is linked into the
+# Elixir release via the C bridge in Stage `nif-bridge-builder` below, and
+# bundled into every runtime image — the same release boots as the web
+# server or as an Oban processor pod depending on TUIST_PROCESSOR_MODE.
 # ========================================
 FROM swift:6.2-bookworm AS swift-builder
 
@@ -21,11 +24,11 @@ RUN apt-get update -qq && apt-get install -y -qq unzip > /dev/null 2>&1 \
 
 WORKDIR /nif
 
-COPY processor/native/xcactivitylog_nif/Package.swift .
-COPY processor/native/xcactivitylog_nif/Package.resolved .
-COPY processor/native/xcactivitylog_nif/Sources/ Sources/
-COPY processor/native/xcactivitylog_nif/Tests/ Tests/
-COPY processor/native/xcactivitylog_nif/.swiftpm/ .swiftpm/
+COPY server/native/xcactivitylog_nif/Package.swift .
+COPY server/native/xcactivitylog_nif/Package.resolved .
+COPY server/native/xcactivitylog_nif/Sources/ Sources/
+COPY server/native/xcactivitylog_nif/Tests/ Tests/
+COPY server/native/xcactivitylog_nif/.swiftpm/ .swiftpm/
 
 RUN swift build -c release --replace-scm-with-registry && \
     cp .build/release/libXCActivityLogNIF.so /nif/libXCActivityLogNIF.so && \
@@ -36,18 +39,18 @@ RUN swift build -c release --replace-scm-with-registry && \
 # Stage 1: NPM dependencies
 # ========================================
 FROM node:22-slim AS npm-deps
-ENV PNPM_HOME="/pnpm"
-ENV PATH="$PNPM_HOME:$PATH"
-RUN corepack enable
+ENV CI=1
+ENV XDG_DATA_HOME="/aube-data"
+RUN npm install -g --ignore-scripts=false @endevco/aube
 COPY server/package.json /app/package.json
 COPY server/pnpm-lock.yaml /app/pnpm-lock.yaml
 WORKDIR /app
-RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
+RUN --mount=type=cache,id=aube,target=/aube-data/aube aube install --frozen-lockfile
 
 # Build noora static assets (JS + CSS) from source
 COPY noora /noora
 WORKDIR /noora
-RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install
+RUN --mount=type=cache,id=aube,target=/aube-data/aube aube install
 RUN npx esbuild js/index.js --bundle --minify --sourcemap --format=esm --outfile=./priv/static/noora.js && \
     npx esbuild css/noora.css --bundle --minify --sourcemap --outfile=./priv/static/noora.css
 WORKDIR /app
@@ -80,7 +83,6 @@ RUN mkdir config
 # Copy path dependencies (only mix.exs/mix.lock for dep resolution)
 COPY tuist_common /tuist_common
 COPY noora /noora
-COPY processor/mix.exs processor/mix.lock /processor/
 COPY xcode_processor/mix.exs xcode_processor/mix.lock /xcode_processor/
 COPY xcode_processor/config /xcode_processor/config
 
@@ -110,10 +112,53 @@ COPY server/config/config.exs config/
 COPY server/config/prod.exs server/config/can.exs server/config/stag.exs config/
 
 # Copy path dependency sources for compilation
-COPY processor/lib /processor/lib
 COPY xcode_processor/lib /xcode_processor/lib
 
 RUN mix deps.compile
+
+# ========================================
+# Stage: OG image generator
+# Renders marketing/docs Open Graph images via headless Chromium. Built in
+# parallel with the main builder (both branch from deps-builder) so its long
+# Chromium-driven runtime overlaps with mix compile + release rather than
+# stacking on top of them.
+# ========================================
+FROM deps-builder AS og-images
+
+# Chromium and font packages only this stage needs. Sits before the source
+# COPY so the apt layer stays cached as long as deps-builder is cached, even
+# when server/lib changes.
+RUN apt-get update -y && \
+  apt-get install -y --no-install-recommends chromium fonts-noto-cjk fonts-noto-core && \
+  apt-get clean && rm -rf /var/lib/apt/lists/*
+
+COPY server/priv priv
+COPY skills/skills priv/static/skills
+COPY examples/xcode /examples/xcode
+COPY server/lib lib
+
+RUN mix compile
+
+# Persist generated OG images (and their .cachekey sidecars) across builds in
+# BuildKit caches. The mix tasks skip per-image rendering when the input hash
+# matches the existing sidecar, so when the layer above is invalidated by an
+# unrelated lib change we still get a fast no-op pass for unchanged images.
+RUN --mount=type=cache,id=og-marketing,target=/og-cache/marketing,sharing=locked \
+    --mount=type=cache,id=og-docs,target=/og-cache/docs,sharing=locked \
+    set -e; \
+    OUT_M=/app/_build/${MIX_ENV}/lib/tuist/priv/static/marketing/images/og/generated; \
+    OUT_D=/app/_build/${MIX_ENV}/lib/tuist/priv/docs/images/og/generated; \
+    mkdir -p "$OUT_M" "$OUT_D"; \
+    if [ -d /og-cache/marketing ] && [ -n "$(ls -A /og-cache/marketing 2>/dev/null)" ]; then \
+      cp -a /og-cache/marketing/. "$OUT_M/"; \
+    fi; \
+    if [ -d /og-cache/docs ] && [ -n "$(ls -A /og-cache/docs 2>/dev/null)" ]; then \
+      cp -a /og-cache/docs/. "$OUT_D/"; \
+    fi; \
+    mix docs.gen.og_images; \
+    mix marketing.gen.og_images; \
+    cp -a "$OUT_M/." /og-cache/marketing/; \
+    cp -a "$OUT_D/." /og-cache/docs/
 
 # ========================================
 # Stage 3: Main application builder
@@ -123,6 +168,7 @@ FROM deps-builder AS builder
 COPY server/priv priv
 COPY skills/skills priv/static/skills
 COPY server/assets assets
+COPY server/native native
 
 # Xcode example READMEs needed at compile time by Tuist.Docs.Loader
 COPY examples/xcode /examples/xcode
@@ -131,15 +177,6 @@ COPY server/lib lib
 
 RUN mix compile --warnings-as-errors
 
-# Install Chromium for OG image generation (headless, no GPU)
-RUN apt-get update -y && \
-  apt-get install -y --no-install-recommends chromium fonts-noto-cjk fonts-noto-core && \
-  apt-get clean && rm -rf /var/lib/apt/lists/*
-
-# Generate OG images using headless Chromium
-RUN mix docs.gen.og_images
-RUN mix marketing.gen.og_images
-
 COPY server/config/runtime.exs config/
 COPY server/rel rel
 
@@ -147,30 +184,39 @@ COPY --from=npm-deps /app/node_modules /app/node_modules
 COPY --from=npm-deps /noora/priv/static /noora/priv/static
 RUN mix assets.deploy
 
+# Pull pre-generated OG images from the parallel og-images stage. Splitting
+# the Chromium pipeline into its own stage lets it run concurrently with mix
+# compile + assets.deploy + release here instead of stacking on top.
+COPY --from=og-images /app/_build/${MIX_ENV}/lib/tuist/priv/static/marketing/images/og/generated /app/_build/${MIX_ENV}/lib/tuist/priv/static/marketing/images/og/generated
+COPY --from=og-images /app/_build/${MIX_ENV}/lib/tuist/priv/docs/images/og/generated /app/_build/${MIX_ENV}/lib/tuist/priv/docs/images/og/generated
+
 RUN mix release
 
 # ========================================
-# Stage: NIF bridge builder (for selfhosted)
-# Compiles the C NIF bridge linking against the Swift library
+# Stage: NIF bridge builder
+# Compiles the C NIF bridge linking against the Swift library and places the
+# result under the release's tuist app priv dir so Tuist.Processor.XCActivityLogNIF
+# can load it at runtime.
 # ========================================
 FROM builder AS nif-bridge-builder
 
-COPY processor/native/xcactivitylog_nif/nif_bridge.c /tmp/nif/nif_bridge.c
+COPY server/native/xcactivitylog_nif/nif_bridge.c /tmp/nif/nif_bridge.c
 COPY --from=swift-builder /nif/libXCActivityLogNIF.so /tmp/nif/libXCActivityLogNIF.so
 
-RUN mkdir -p /app/_build/prod/rel/tuist/lib/processor-0.1.0/priv/native && \
+RUN TUIST_REL_DIR=$(ls -d /app/_build/${MIX_ENV}/rel/tuist/lib/tuist-*) && \
+    mkdir -p "$TUIST_REL_DIR/priv/native" && \
     ERL_INCLUDE=$(erl -eval 'io:format("~s/erts-~s/include", [code:root_dir(), erlang:system_info(version)])' -s init stop -noshell) && \
     cc -shared -fPIC \
-      -o /app/_build/prod/rel/tuist/lib/processor-0.1.0/priv/native/xcactivitylog_nif.so \
+      -o "$TUIST_REL_DIR/priv/native/xcactivitylog_nif.so" \
       /tmp/nif/nif_bridge.c \
       -I"$ERL_INCLUDE" \
       -L/tmp/nif \
       -lXCActivityLogNIF \
       -Wl,-rpath,'$ORIGIN' && \
-    cp /tmp/nif/libXCActivityLogNIF.so /app/_build/prod/rel/tuist/lib/processor-0.1.0/priv/native/
+    cp /tmp/nif/libXCActivityLogNIF.so "$TUIST_REL_DIR/priv/native/"
 
 # ========================================
-# Stage 5: Common runtime base
+# Stage: Common runtime
 # ========================================
 FROM ${RUNNER_IMAGE} AS runner-base
 
@@ -195,11 +241,22 @@ RUN chown nobody /app
 
 ARG MIX_ENV=prod
 ARG TUIST_HOSTED=1
+ARG TUIST_VERSION=0.0.0
 ARG EMBED_CLICKHOUSE=false
 ENV MIX_ENV=$MIX_ENV
 ENV TUIST_HOSTED=$TUIST_HOSTED
+ENV TUIST_VERSION=$TUIST_VERSION
 
-COPY --from=builder --chown=nobody:root /app/_build/${MIX_ENV}/rel/tuist ./
+# Swift runtime libs the NIF links against at load time. Small (~20 MB) but
+# carried by every release image because any pod may run in processor mode
+# (TUIST_PROCESSOR_MODE=true) and execute the xcactivitylog NIF.
+COPY --from=swift-builder /nif/swift-libs/ /usr/local/lib/
+RUN ldconfig
+
+# Release taken from nif-bridge-builder so the compiled xcactivitylog_nif +
+# libXCActivityLogNIF are already under lib/tuist-<vsn>/priv/native where
+# Tuist.Processor.XCActivityLogNIF.load_nif expects them.
+COPY --from=nif-bridge-builder --chown=nobody:root /app/_build/${MIX_ENV}/rel/tuist ./
 
 COPY server/priv/secrets/can.yml.enc /app/priv/secrets/can.yml.enc
 COPY server/priv/secrets/stag.yml.enc /app/priv/secrets/stag.yml.enc
@@ -234,30 +291,10 @@ ENV SECRETS_DIRECTORY=/app/priv/secrets/
 COPY server/priv/repo/structure.sql /app/priv/repo/structure.sql
 
 # ========================================
-# Stage: Self-hosted runtime — includes Swift NIF
-# Build with: docker build --target runner-selfhosted .
-# ========================================
-FROM runner-base AS runner-selfhosted
-
-# Swift runtime libraries needed by the NIF
-COPY --from=swift-builder /nif/swift-libs/ /usr/local/lib/
-RUN ldconfig
-
-# Copy compiled NIF .so files into processor priv dir
-COPY --from=nif-bridge-builder /app/_build/prod/rel/tuist/lib/processor-0.1.0/priv/native/ /app/lib/processor-0.1.0/priv/native/
-
-USER nobody
-
-HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
-  CMD curl -fsS http://127.0.0.1:8080/ready || exit 1
-
-ENTRYPOINT ["/usr/bin/tini", "--"]
-CMD ["sh", "-c", "/app/bin/start"]
-
-# ========================================
-# Stage: Default runtime (hosted) — no Swift NIF
-# BuildKit skips swift-builder since it's not referenced by this target
-# This must be the LAST stage so it's the default docker build target
+# Stage: Default runtime
+# Boots as web server by default; set TUIST_PROCESSOR_MODE=true to run as an
+# Oban processor pod (queue consumer, no web endpoint). The Swift NIF ships
+# in runner-base, so no extra overlay is required for either role.
 # ========================================
 FROM runner-base AS runner
 

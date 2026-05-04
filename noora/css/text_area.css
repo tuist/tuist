@@ -7,7 +7,7 @@
   & > [data-part="wrapper"] {
     padding: var(--noora-spacing-5);
     box-shadow: var(--noora-border-light-default);
-    border-radius: var(--noora-radius-medium);
+    border-radius: var(--noora-radius-3);
     background: var(--noora-surface-background-primary);
     display: flex;
     position: relative;

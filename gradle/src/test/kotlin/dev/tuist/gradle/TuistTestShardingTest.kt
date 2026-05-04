@@ -46,7 +46,7 @@ class TuistTestShardingTest {
         val project = org.gradle.testfixtures.ProjectBuilder.builder()
             .withProjectDir(projectDir)
             .build()
-        return project.tasks.create("testShards", TuistPrepareTestShardsTask::class.java)
+        return project.tasks.register("testShards", TuistPrepareTestShardsTask::class.java).get()
     }
 
     private fun shardPlan(shardCount: Int = 2) = ShardPlan(

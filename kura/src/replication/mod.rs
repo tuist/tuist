@@ -63,7 +63,9 @@ pub fn spawn_membership_task(state: SharedState) {
         loop {
             let mut members = BTreeSet::new();
             let mut peer_nodes = BTreeMap::new();
-            for peer in discovery_targets(&state.config).await {
+            let targets = discovery_targets(&state.config).await;
+            let mut peer_status_successes = 0_usize;
+            for peer in &targets {
                 match state
                     .client
                     .get(format!("{peer}/_internal/status"))
@@ -75,6 +77,7 @@ pub fn spawn_membership_task(state: SharedState) {
                         .await
                     {
                         Ok(payload) => {
+                            peer_status_successes += 1;
                             if payload.tenant_id != state.config.tenant_id
                                 || payload.node_url == state.config.node_url
                             {
@@ -92,34 +95,17 @@ pub fn spawn_membership_task(state: SharedState) {
                 }
             }
 
-            *state.members.write().await = members;
-            let (discovered_peers, lost_peers) = {
-                let mut known_peers = state.peer_nodes.write().await;
-                let lost_peers = known_peers
-                    .keys()
-                    .filter(|peer| !peer_nodes.contains_key(*peer))
-                    .cloned()
-                    .collect::<Vec<_>>();
-                let discovered_peers = peer_nodes
-                    .keys()
-                    .filter(|peer| !known_peers.contains_key(*peer))
-                    .cloned()
-                    .collect::<Vec<_>>();
-                *known_peers = peer_nodes;
-                (discovered_peers, lost_peers)
-            };
-            if !lost_peers.is_empty() {
-                let mut bootstrapped = state.bootstrapped_peers.lock().await;
-                for peer in lost_peers {
-                    bootstrapped.remove(&peer);
-                }
-            }
+            let discovery_observed = targets.is_empty() || peer_status_successes > 0;
+            let membership_update = state
+                .apply_membership_view(members, peer_nodes, discovery_observed)
+                .await;
             state
                 .metrics
-                .update_discovered_peer_nodes(state.peer_nodes.read().await.len());
-            for peer in discovered_peers {
+                .update_discovered_peer_nodes(membership_update.known_peer_count);
+            for peer in state.peers_needing_bootstrap().await {
                 maybe_spawn_bootstrap_task(state.clone(), peer).await;
             }
+            state.maybe_mark_serving().await;
             sleep(Duration::from_secs(2)).await;
         }
     });
@@ -145,37 +131,34 @@ pub fn spawn_outbox_task(state: SharedState) {
 }
 
 pub async fn replication_targets(state: &SharedState) -> Vec<String> {
-    let mut targets = state.config.peers.iter().cloned().collect::<BTreeSet<_>>();
-    targets.extend(state.peer_nodes.read().await.keys().cloned());
-    targets.remove(&state.config.node_url);
-    targets.into_iter().collect()
+    state.replication_targets().await
 }
 
 async fn maybe_spawn_bootstrap_task(state: SharedState, peer: String) {
-    let mut bootstrapped = state.bootstrapped_peers.lock().await;
-    if !bootstrapped.insert(peer.clone()) {
+    if !state.note_bootstrap_started(&peer).await {
         return;
     }
-    drop(bootstrapped);
 
     tokio::spawn(async move {
         let started_at = std::time::Instant::now();
         let result = bootstrap_from_peer(&state, &peer).await;
         match result {
             Ok(stats) => {
+                state.note_bootstrap_succeeded(&peer).await;
                 state.metrics.record_bootstrap_run(
                     "ok",
                     started_at.elapsed(),
                     stats.tombstones_applied,
                     stats.artifacts_applied,
                 );
+                state.maybe_mark_serving().await;
             }
             Err(error) => {
                 warn!("bootstrap from {peer} failed: {error}");
                 state
                     .metrics
                     .record_bootstrap_run("error", started_at.elapsed(), 0, 0);
-                state.bootstrapped_peers.lock().await.remove(&peer);
+                state.note_bootstrap_failed(&peer).await;
             }
         }
     });

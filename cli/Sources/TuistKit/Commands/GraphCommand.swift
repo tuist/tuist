@@ -33,6 +33,13 @@ public struct GraphCommand: AsyncParsableCommand {
     )
     var skipExternalDependencies: Bool = false
 
+    @Flag(
+        name: [.customShort("m"), .long],
+        help: "Skip Swift Macro support targets (SwiftSyntax, SwiftCompilerPlugin, etc.). Macro plugin targets themselves are still shown.",
+        envKey: .graphSkipMacroSupportTargets
+    )
+    var skipMacroSupportTargets: Bool = false
+
     @Option(
         name: [.customShort("l"), .long],
         help: "A platform to filter. Only targets for this platform will be showed in the graph. Available platforms: ios, macos, tvos, watchos",
@@ -89,6 +96,7 @@ public struct GraphCommand: AsyncParsableCommand {
             layoutAlgorithm: layoutAlgorithm,
             skipTestTargets: skipTestTargets,
             skipExternalDependencies: skipExternalDependencies,
+            skipMacroSupportTargets: skipMacroSupportTargets,
             open: open,
             platformToFilter: platform,
             targetsToFilter: targets,

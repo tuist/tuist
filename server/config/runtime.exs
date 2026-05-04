@@ -7,15 +7,16 @@ import Config
 # any compile-time configuration in here, as it won't be applied.
 # The block below contains prod specific runtime configuration.
 
-# ## Using releases
+# ## Pod role
 #
-# If you use `mix release`, you need to explicitly enable the server
-# by passing the TUIST_WEB=true when you start it:
+# The release boots into one of two modes selected by `TUIST_MODE`:
 #
-#     TUIST_WEB=true bin/tuist start
+#   * unset / `TUIST_MODE=web` — Phoenix endpoint binds, every Oban queue
+#     and ingestion buffer runs. Default for `bin/tuist start`.
+#   * `TUIST_MODE=processor` — no Phoenix listener; Oban runs only the
+#     `:process_build` queue.
 #
-# Alternatively, you can use `mix phx.gen.release` to generate a `bin/server`
-# script that automatically sets the env var above.
+# See `Tuist.Environment.mode/0` for the full list.
 if Tuist.Environment.web?() do
   config :tuist, TuistWeb.Endpoint, server: true
 end
@@ -44,6 +45,24 @@ if Enum.member?([:prod, :stag, :can], env) do
       do: [:inet6, {:keepalive, true}],
       else: [{:keepalive, true}]
 
+  # Picks the connection shape based on `TUIST_DATABASE_POOLED` (set by the
+  # chart on processor pods, unset on server pods). Direct Postgres keeps
+  # `:named` prepares + tcp_keepalives_* startup parameters; transaction-
+  # mode poolers (Supabase Supavisor on 6543, PgBouncer, etc.) drop both
+  # — they reject non-standard startup parameters with `protocol_violation`
+  # and can't reuse named prepares across transactions that land on
+  # different backend connections.
+  pooled? = Tuist.Environment.database_pooled?()
+
+  postgres_parameters =
+    if pooled?,
+      do: [],
+      else: [
+        tcp_keepalives_idle: "60",
+        tcp_keepalives_interval: "30",
+        tcp_keepalives_count: "3"
+      ]
+
   database_options = [
     pool_size: Tuist.Environment.database_pool_size(secrets),
     queue_target: Tuist.Environment.database_queue_target(secrets),
@@ -54,11 +73,8 @@ if Enum.member?([:prod, :stag, :can], env) do
     hostname: parsed_url.host,
     port: parsed_url.port || 5432,
     socket_options: socket_opts,
-    parameters: [
-      tcp_keepalives_idle: "60",
-      tcp_keepalives_interval: "30",
-      tcp_keepalives_count: "3"
-    ]
+    parameters: postgres_parameters,
+    prepare: if(pooled?, do: :unnamed, else: :named)
   ]
 
   database_options =
@@ -278,6 +294,7 @@ if Tuist.Environment.error_tracking_enabled?() do
     client: TuistCommon.SentryHTTPClient,
     dsn: Tuist.Environment.sentry_dsn(secrets),
     environment_name: env,
+    release: Tuist.Environment.version(),
     enable_source_code_context: true,
     root_source_code_paths: [File.cwd!()],
     before_send: {Tuist.SentryEventFilter, :before_send}
@@ -380,9 +397,42 @@ end
 
 otel_endpoint = Tuist.Environment.get([:otel, :exporter, :otlp, :endpoint])
 
-# Oban
+# Oban.
+#
+# Three queue-list shapes derived from the same base. New queues go into
+# `base_queues` and are picked up by both the default and delegate paths.
+#
+#   * Processor pods (TUIST_MODE=processor) only consume :process_build
+#     so the CPU-heavy xcactivitylog parse is isolated from the hot web path.
+#   * Server pods with TUIST_DELEGATE_PROCESS_BUILD=1 skip :process_build
+#     entirely so jobs land exclusively on the processor fleet.
+#   * Self-hosted installs without a dedicated processor leave both flags
+#     unset and run every queue locally.
+base_queues = [default: 10, process_xcresult: 2]
+process_build_queue = {:process_build, Tuist.Environment.process_build_queue_concurrency()}
+
+oban_queues =
+  cond do
+    Tuist.Environment.processor_mode?() -> [process_build_queue]
+    Tuist.Environment.delegate_process_build?() -> base_queues
+    true -> base_queues ++ [process_build_queue]
+  end
+
+# Leader-only Oban work (Cron, Pruner, Lifeline, Oban.Met.Reporter) runs on
+# whichever node wins the peer election. Server pods are always running and
+# carry the full DB role, so we make them the only leader-eligible nodes by
+# setting `peer: false` on processor pods. Oban normalises that to the
+# Isolated peer with `leader?: false`, so leader-only plugins start there but
+# stay idle.
+#
+# Why not let the processor become leader? The tuist_processor role is
+# least-privilege (USAGE only on schema public, see
+# infra/supabase/tuist-processor-role.sql). Oban.Met.Reporter's leader path
+# runs `CREATE OR REPLACE FUNCTION public.oban_count_estimate(...)` on every
+# checkpoint, which the role can't execute and which crashes the Reporter
+# repeatedly when the processor wins the election.
 config :tuist, Oban,
-  queues: [default: 10, process_build: 2, process_xcresult: 2],
+  queues: oban_queues,
   plugins: [
     {Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 7},
     {Oban.Plugins.Lifeline, rescue_after: to_timeout(minute: 30)},
@@ -402,6 +452,10 @@ config :tuist, Oban,
          else: []
        )}
   ]
+
+if Tuist.Environment.processor_mode?() do
+  config :tuist, Oban, peer: false
+end
 
 # Guardian
 config :tuist, Tuist.Guardian,
@@ -424,7 +478,11 @@ if otel_endpoint do
   config :opentelemetry,
     span_processor: :batch,
     resource: [
-      service: [name: "tuist-server", namespace: "tuist"],
+      service: [
+        name: "tuist-server",
+        namespace: "tuist",
+        version: to_string(Tuist.Environment.version())
+      ],
       deployment: [environment: to_string(env)]
     ]
 

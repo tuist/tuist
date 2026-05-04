@@ -121,6 +121,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
     private let ciController: CIControlling
     private let clock: Clock
     private let testQuarantineService: TestQuarantineServicing
+    private let testCaseListService: TestCaseListServicing
     private let shardPlanService: ShardPlanServicing
     private let shardMatrixOutputService: ShardMatrixOutputServicing
     private let shardService: ShardServicing
@@ -161,6 +162,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         ciController: CIControlling = CIController(),
         clock: Clock = WallClock(),
         testQuarantineService: TestQuarantineServicing = TestQuarantineService(),
+        testCaseListService: TestCaseListServicing = TestCaseListService(),
         shardPlanService: ShardPlanServicing = ShardPlanService(),
         shardMatrixOutputService: ShardMatrixOutputServicing = ShardMatrixOutputService(),
         shardService: ShardServicing = ShardService(),
@@ -187,6 +189,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         self.ciController = ciController
         self.clock = clock
         self.testQuarantineService = testQuarantineService
+        self.testCaseListService = testCaseListService
         self.shardPlanService = shardPlanService
         self.shardMatrixOutputService = shardMatrixOutputService
         self.shardService = shardService
@@ -296,6 +299,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
            try await fileSystem.exists(testProductsPath.appending(component: SelectiveTestingGraph.fileName))
         {
             try await runTestWithoutBuildingFromBundle(
+                schemeName: schemeName,
                 testProductsPath: testProductsPath,
                 config: config,
                 deviceName: deviceName,
@@ -347,11 +351,34 @@ public struct TestService { // swiftlint:disable:this type_body_length
             return
         }
 
-        let skipTestTargets = skipTestTargets
-        let quarantinedTests = await testQuarantineService.quarantinedTests(
-            config: config,
-            skipQuarantine: skipQuarantine
-        )
+        let (mutedQuarantinedTests, skippedQuarantinedTests): ([TestIdentifier], [TestIdentifier])
+        if !skipQuarantine, let fullHandle = config.fullHandle {
+            let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
+            async let mutedTask = testCaseListService.listTestCases(
+                fullHandle: fullHandle, serverURL: serverURL, state: .muted
+            )
+            async let skippedTask = testCaseListService.listTestCases(
+                fullHandle: fullHandle, serverURL: serverURL, state: .skipped
+            )
+            do {
+                (mutedQuarantinedTests, skippedQuarantinedTests) = try await (mutedTask, skippedTask)
+            } catch {
+                AlertController.current.warning(
+                    .alert("Failed to fetch quarantined tests: \(error.localizedDescription). Running all tests.")
+                )
+                (mutedQuarantinedTests, skippedQuarantinedTests) = ([], [])
+            }
+            let totalQuarantined = mutedQuarantinedTests.count + skippedQuarantinedTests.count
+            if totalQuarantined > 0 {
+                Logger.current.notice(
+                    "Found \(totalQuarantined) quarantined test(s): \(mutedQuarantinedTests.count) muted, \(skippedQuarantinedTests.count) skipped",
+                    metadata: .subsection
+                )
+            }
+        } else {
+            (mutedQuarantinedTests, skippedQuarantinedTests) = ([], [])
+        }
+        let skipTestTargets = skipTestTargets + skippedQuarantinedTests
 
         let graphTraverser = GraphTraverser(graph: graph)
         let version = osVersion?.version()
@@ -510,7 +537,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 testPlanConfiguration: testPlanConfiguration,
                 passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
                 config: config,
-                quarantinedTests: quarantinedTests,
+                quarantinedTests: mutedQuarantinedTests,
                 mode: mode
             )
         } catch {
@@ -700,6 +727,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
 
     // swiftlint:disable:next function_body_length function_parameter_count
     private func runTestWithoutBuildingFromBundle(
+        schemeName: String?,
         testProductsPath: AbsolutePath,
         config: Tuist,
         deviceName: String?,
@@ -759,6 +787,28 @@ public struct TestService { // swiftlint:disable:this type_body_length
             derivedDataPath: derivedDataPath,
             passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
         )
+
+        let requestedTestPlan = testPlanConfiguration?.testPlan
+        let requestedTestPlanOrScheme = requestedTestPlan ?? schemeName
+        if let requestedTestPlanOrScheme,
+           selectiveTestingGraph.attemptedTestPlans.contains(requestedTestPlanOrScheme),
+           try await !bundleHasXCTestRun(
+               for: requestedTestPlanOrScheme,
+               isTestPlan: requestedTestPlan != nil,
+               in: testProductsPath
+           )
+        {
+            let timer = clock.startTimer()
+            try await uploadSkippedTestSummary(
+                schemeName: requestedTestPlanOrScheme,
+                config: config,
+                timer: timer
+            )
+            AlertController.current.success(
+                .alert("All selected tests matched previously successful hashes, skipping execution")
+            )
+            return
+        }
 
         var testError: Error?
 
@@ -917,8 +967,16 @@ public struct TestService { // swiftlint:disable:this type_body_length
         schemes: [Scheme],
         testPlanConfiguration: TestPlanConfiguration?
     ) -> SelectiveTestingGraph {
+        let attemptedTestPlans = attemptedTestPlans(
+            schemes: schemes,
+            testPlanConfiguration: testPlanConfiguration
+        )
+
         guard let initialGraph = mapperEnvironment.initialGraph else {
-            return SelectiveTestingGraph(testTargetHashes: [:])
+            return SelectiveTestingGraph(
+                testTargetHashes: [:],
+                attemptedTestPlans: attemptedTestPlans
+            )
         }
 
         let graphTraverser = GraphTraverser(graph: initialGraph)
@@ -942,7 +1000,53 @@ public struct TestService { // swiftlint:disable:this type_body_length
             }
         }
 
-        return SelectiveTestingGraph(testTargetHashes: testTargetHashes)
+        return SelectiveTestingGraph(
+            testTargetHashes: testTargetHashes,
+            attemptedTestPlans: attemptedTestPlans
+        )
+    }
+
+    private func attemptedTestPlans(
+        schemes: [Scheme],
+        testPlanConfiguration: TestPlanConfiguration?
+    ) -> [String] {
+        if let testPlan = testPlanConfiguration?.testPlan {
+            return [testPlan]
+        }
+        var names: [String] = []
+        var seen: Set<String> = []
+        for scheme in schemes {
+            let plans = scheme.testAction?.testPlans ?? []
+            if plans.isEmpty {
+                if seen.insert(scheme.name).inserted {
+                    names.append(scheme.name)
+                }
+            } else {
+                for plan in plans where seen.insert(plan.name).inserted {
+                    names.append(plan.name)
+                }
+            }
+        }
+        return names
+    }
+
+    private func bundleHasXCTestRun(
+        for planOrSchemeName: String,
+        isTestPlan: Bool,
+        in testProductsPath: AbsolutePath
+    ) async throws -> Bool {
+        let xctestrunPaths = try await fileSystem
+            .glob(directory: testProductsPath, include: ["**/*.xctestrun"])
+            .collect()
+        return xctestrunPaths.contains { path in
+            let basename = path.basenameWithoutExt
+            if isTestPlan {
+                // With test plans Xcode emits `<plan>.xctestrun`.
+                return basename == planOrSchemeName
+            }
+            // Without plans Xcode emits `<scheme>_<destination>.xctestrun`.
+            return basename == planOrSchemeName || basename.hasPrefix("\(planOrSchemeName)_")
+        }
     }
 
     private func storeSuccessfulTestHashesFromGraph(
@@ -1474,9 +1578,14 @@ public struct TestService { // swiftlint:disable:this type_body_length
             )
         }
 
+        let passthroughDerivedDataPath = try? await xcodeBuildAgumentParser
+            .parse(passthroughXcodeBuildArguments)
+            .derivedDataPath
         let projectDerivedDataDirectory: AbsolutePath?
         if let derivedDataPath {
             projectDerivedDataDirectory = derivedDataPath
+        } else if let passthroughDerivedDataPath {
+            projectDerivedDataDirectory = passthroughDerivedDataPath
         } else {
             projectDerivedDataDirectory = try? await derivedDataLocator.locate(
                 for: graphTraverser.workspace.xcWorkspacePath

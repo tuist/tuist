@@ -14,12 +14,17 @@ defmodule TuistWeb.GitHubAppSetupController do
     finished the App registration and handed Tuist the new App's
     credentials. We just fill in the `installation_id` (and `html_url`
     from the install webhook later) on that row.
+
+  Calling the setup endpoint twice for the same `(account, installation)`
+  is a no-op; reusing an installation that's already linked to a
+  *different* account is rejected.
   """
 
   use TuistWeb, :controller
 
   alias Tuist.Accounts
   alias Tuist.VCS
+  alias Tuist.VCS.GitHubAppInstallation
   alias TuistWeb.Errors.BadRequestError
 
   def setup(conn, params) do
@@ -37,20 +42,37 @@ defmodule TuistWeb.GitHubAppSetupController do
 
       {:error, :invalid_state_token} ->
         raise BadRequestError, dgettext("dashboard", "Invalid installation request. Please try again.")
+
+      {:error, :installation_already_connected} ->
+        raise BadRequestError, dgettext("dashboard", "This GitHub app installation is already connected.")
     end
   end
 
   defp attach_installation_id(account, client_url, installation_id) do
-    case VCS.get_github_app_installation_for_account(account.id) do
+    installation_id = to_string(installation_id)
+
+    case VCS.get_github_app_installation_by_installation_id(installation_id) do
+      {:ok, %GitHubAppInstallation{account_id: account_id}} when account_id != account.id ->
+        {:error, :installation_already_connected}
+
       {:ok, existing} ->
-        VCS.update_github_app_installation(existing, %{installation_id: installation_id})
+        # Idempotent re-install for the same account.
+        {:ok, existing}
 
       {:error, :not_found} ->
-        VCS.create_github_app_installation(%{
-          account_id: account.id,
-          installation_id: installation_id,
-          client_url: client_url || VCS.default_client_url()
-        })
+        case VCS.get_github_app_installation_for_account(account.id) do
+          {:ok, pending} ->
+            # GHES manifest flow: a pending row already carries the App
+            # credentials; fill in the installation_id GitHub just assigned.
+            VCS.update_github_app_installation(pending, %{installation_id: installation_id})
+
+          {:error, :not_found} ->
+            VCS.create_github_app_installation(%{
+              account_id: account.id,
+              installation_id: installation_id,
+              client_url: client_url || VCS.default_client_url()
+            })
+        end
     end
   end
 

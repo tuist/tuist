@@ -947,6 +947,22 @@ struct GenerateAcceptanceTestmacOSAppWithCopyFiles {
         XCTAssertTrue(
             buildPhases.contains(where: { $0.name() == "Copy Templates" })
         )
+
+        let embedLoginItemsPhase = try #require(
+            buildPhases
+                .compactMap { $0 as? PBXCopyFilesBuildPhase }
+                .first(where: { $0.name == "Embed Login Items" })
+        )
+        #expect(embedLoginItemsPhase.dstSubfolderSpec == .wrapper)
+        #expect(embedLoginItemsPhase.dstPath == "Contents/Library/LoginItems")
+
+        let buildFile = try #require(embedLoginItemsPhase.files?.first)
+        let fileRef = try #require(buildFile.file as? PBXFileReference)
+        #expect(fileRef.path == "LoginItemHelper.app")
+        #expect(fileRef.sourceTree == .buildProductsDir)
+        let attributes = buildFile.settings?["ATTRIBUTES"] as? [String]
+        #expect(attributes?.contains("CodeSignOnCopy") == true)
+        #expect(attributes?.contains("RemoveHeadersOnCopy") == true)
     }
 }
 

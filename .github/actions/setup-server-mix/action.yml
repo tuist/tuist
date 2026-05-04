@@ -1,0 +1,53 @@
+name: Setup Server Mix
+description: Install mise tools, restore mix deps + _build cache, fetch hex deps for server jobs.
+
+inputs:
+  mise-version:
+    description: Version of mise to install
+    required: true
+  mise-install-args:
+    description: Tools to install via mise (passed to install_args)
+    required: false
+    default: erlang elixir
+  mix-cache-key:
+    description: |
+      Primary cache key prefix for deps + _build (mix.lock hash is appended automatically).
+      Default is shared across most server jobs; override if a job needs an isolated mix state
+      (e.g. test currently uses mix-test-v2 to keep MIX_ENV=test artifacts separate).
+    required: false
+    default: mix
+  mix-cache-restore-key:
+    description: Restore-keys prefix for deps + _build cache fallback
+    required: false
+    default: mix-
+  github-token:
+    description: GitHub token used by mise to fetch tools (avoids rate limits)
+    required: false
+    default: ${{ github.token }}
+
+runs:
+  using: composite
+  steps:
+    - uses: namespacelabs/nscloud-cache-action@v1
+      with:
+        cache: mise
+    - uses: jdx/mise-action@v4.0.1
+      with:
+        version: ${{ inputs.mise-version }}
+        install_args: ${{ inputs.mise-install-args }}
+        cache: "false"
+        working_directory: server
+        github_token: ${{ inputs.github-token }}
+    - name: Restore Mix Cache
+      uses: actions/cache@v4
+      with:
+        path: |
+          server/deps
+          server/_build
+        key: ${{ inputs.mix-cache-key }}-${{ hashFiles('server/mix.lock') }}
+        restore-keys: |
+          ${{ inputs.mix-cache-restore-key }}
+    - name: Install dependencies
+      shell: bash
+      working-directory: server
+      run: mix deps.get

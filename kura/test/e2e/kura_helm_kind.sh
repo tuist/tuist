@@ -49,7 +49,7 @@ PF1_PID=$!
 
 for port in "${HTTP_PORT_0}" "${HTTP_PORT_1}"; do
   for _ in $(seq 1 60); do
-    if curl -fsS "http://127.0.0.1:${port}/up" >/dev/null 2>&1; then
+    if curl -fsS "http://127.0.0.1:${port}/ready" >/dev/null 2>&1; then
       break
     fi
     sleep 2

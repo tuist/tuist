@@ -4,6 +4,14 @@
   gap: var(--noora-spacing-6);
   padding: var(--noora-spacing-7) var(--noora-spacing-5);
 
+  & > [data-part="filters"] {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    align-items: center;
+    gap: var(--noora-spacing-4);
+  }
+
   & [data-part="widgets"] {
     display: flex;
     flex-direction: row;
@@ -40,7 +48,6 @@
       visibility: hidden;
     }
     & > [data-part="selective-testing-chart-section"] {
-      padding: var(--noora-spacing-9) var(--noora-spacing-7);
       & > [data-part="legends-and-toggle"] {
         display: flex;
         justify-content: space-between;
@@ -121,7 +128,7 @@
         & > [data-part="more-card"] {
           position: absolute;
           box-shadow: var(--noora-border-light-default);
-          border-radius: var(--noora-radius-large);
+          border-radius: var(--noora-radius-4);
           background-color: var(--noora-surface-background-primary);
           height: 48px;
           &[data-index="one"] {
@@ -167,7 +174,7 @@
         & > [data-part="more-card"] {
           position: absolute;
           box-shadow: var(--noora-border-light-default);
-          border-radius: var(--noora-radius-large);
+          border-radius: var(--noora-radius-4);
           background-color: var(--noora-surface-background-primary);
           height: 48px;
           &[data-index="one"] {
@@ -189,7 +196,7 @@
 .test-case-card {
   z-index: var(--noora-z-index-1);
   box-shadow: var(--noora-border-light-default);
-  border-radius: var(--noora-radius-large);
+  border-radius: var(--noora-radius-4);
   background-color: var(--noora-surface-background-primary);
   padding: var(--noora-spacing-4);
 
@@ -200,7 +207,7 @@
     gap: var(--noora-spacing-5);
 
     & > [data-part="icon"] {
-      border-radius: var(--noora-radius-large);
+      border-radius: var(--noora-radius-4);
       background-color: var(--noora-icon-destructive-background);
       padding: var(--noora-spacing-3);
       width: 20px;
@@ -258,7 +265,7 @@
 .flaky-test-case-card {
   z-index: var(--noora-z-index-1);
   box-shadow: var(--noora-border-light-default);
-  border-radius: var(--noora-radius-large);
+  border-radius: var(--noora-radius-4);
   background-color: var(--noora-surface-background-primary);
   padding: var(--noora-spacing-4);
 
@@ -269,7 +276,7 @@
     gap: var(--noora-spacing-5);
 
     & > [data-part="icon"] {
-      border-radius: var(--noora-radius-large);
+      border-radius: var(--noora-radius-4);
       background-color: color-mix(in srgb, var(--noora-chart-flaky) 15%, transparent);
       padding: var(--noora-spacing-3);
       width: 20px;

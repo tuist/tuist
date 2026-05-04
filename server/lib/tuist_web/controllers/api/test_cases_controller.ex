@@ -65,7 +65,7 @@ defmodule TuistWeb.API.TestCasesController do
         type: %Schema{
           title: "TestCasesIndexState",
           type: :string,
-          enum: ["enabled", "muted"]
+          enum: ["enabled", "muted", "skipped"]
         },
         description: "Filter by test case state."
       ],
@@ -115,10 +115,13 @@ defmodule TuistWeb.API.TestCasesController do
       ) do
     filters = build_filters(params)
 
+    # `:id` is the unique tiebreaker for `:last_ran_at` so LIMIT/OFFSET pages
+    # don't reshuffle tied rows between requests (which surfaces as duplicate
+    # test cases across pages — see `tuist test case list --quarantined`).
     options = %{
       filters: filters,
-      order_by: [:last_ran_at],
-      order_directions: [:desc],
+      order_by: [:last_ran_at, :id],
+      order_directions: [:desc, :asc],
       page: page,
       page_size: page_size
     }
@@ -138,7 +141,7 @@ defmodule TuistWeb.API.TestCasesController do
             suite: build_suite(test_case.suite_name),
             avg_duration: test_case.avg_duration,
             is_flaky: test_case.is_flaky,
-            is_quarantined: (test_case.state || "enabled") == "muted",
+            is_quarantined: quarantined?(test_case.state),
             state: test_case.state || "enabled",
             url: ~p"/#{selected_project.account.name}/#{selected_project.name}/tests/test-cases/#{test_case.id}"
           }
@@ -206,9 +209,14 @@ defmodule TuistWeb.API.TestCasesController do
              is_quarantined: %Schema{
                type: :boolean,
                deprecated: true,
-               description: "Whether the test case is quarantined. Deprecated: use `state` instead."
+               description:
+                 "Whether the test case is quarantined (either `muted` or `skipped`). Deprecated: use `state` instead."
              },
-             state: %Schema{type: :string, enum: ["enabled", "muted"], description: "The state of the test case."},
+             state: %Schema{
+               type: :string,
+               description:
+                 "The state of the test case. Currently one of `enabled`, `muted`, or `skipped`; the field is left as an open string so adding new states in the future doesn't break clients pinned to the older spec."
+             },
              last_status: %Schema{
                type: :string,
                enum: ["success", "failure", "skipped"],
@@ -263,7 +271,7 @@ defmodule TuistWeb.API.TestCasesController do
             },
             suite: build_suite(test_case.suite_name),
             is_flaky: test_case.is_flaky,
-            is_quarantined: (test_case.state || "enabled") == "muted",
+            is_quarantined: quarantined?(test_case.state),
             state: test_case.state || "enabled",
             last_status: to_string(test_case.last_status),
             last_duration: test_case.last_duration,
@@ -349,10 +357,12 @@ defmodule TuistWeb.API.TestCasesController do
                        "first_run",
                        "marked_flaky",
                        "unmarked_flaky",
+                       "quarantined",
+                       "unquarantined",
                        "muted",
                        "unmuted",
-                       "quarantined",
-                       "unquarantined"
+                       "skipped",
+                       "unskipped"
                      ],
                      description: "The type of event."
                    },
@@ -447,10 +457,16 @@ defmodule TuistWeb.API.TestCasesController do
   defp maybe_add_filter(filters, field, value), do: filters ++ [%{field: field, op: :==, value: value}]
 
   defp maybe_add_quarantined_filter(filters, nil), do: filters
-  defp maybe_add_quarantined_filter(filters, true), do: filters ++ [%{field: :state, op: :==, value: "muted"}]
+
+  defp maybe_add_quarantined_filter(filters, true),
+    do: filters ++ [%{field: :state, op: :in, value: ["muted", "skipped"]}]
+
   defp maybe_add_quarantined_filter(filters, false), do: filters ++ [%{field: :state, op: :==, value: "enabled"}]
 
   defp build_suite(nil), do: nil
   defp build_suite(""), do: nil
   defp build_suite(suite_name), do: %{id: suite_name, name: suite_name}
+
+  defp quarantined?(state) when state in ["muted", "skipped"], do: true
+  defp quarantined?(_), do: false
 end

@@ -15,7 +15,7 @@
     cursor: pointer;
     outline: unset;
     box-shadow: var(--noora-border-light-default);
-    border-radius: var(--noora-radius-medium);
+    border-radius: var(--noora-radius-3);
     background: var(--noora-button-secondary-background);
     padding: var(--noora-spacing-3);
     color: var(--noora-surface-label-primary);

@@ -859,13 +859,7 @@ defmodule TuistWeb.API.BuildsController do
         git_commit_sha: build.git_commit_sha,
         git_ref: build.git_ref,
         git_remote_url_origin: Map.get(body_params, :git_remote_url_origin),
-        project_id: selected_project.id,
-        preview_url_template: "#{url(~p"/")}:account_name/:project_name/previews/:preview_id",
-        preview_qr_code_url_template: "#{url(~p"/")}:account_name/:project_name/previews/:preview_id/qr-code.png",
-        command_run_url_template: "#{url(~p"/")}:account_name/:project_name/runs/:command_event_id",
-        test_run_url_template: "#{url(~p"/")}:account_name/:project_name/tests/test-runs/:test_run_id",
-        bundle_url_template: "#{url(~p"/")}:account_name/:project_name/bundles/:bundle_id",
-        build_url_template: "#{url(~p"/")}:account_name/:project_name/builds/build-runs/:build_id"
+        project_id: selected_project.id
       })
     end
 
@@ -953,13 +947,7 @@ defmodule TuistWeb.API.BuildsController do
               git_commit_sha: Map.get(params, :git_commit_sha),
               git_ref: Map.get(params, :git_ref),
               git_remote_url_origin: Map.get(params, :git_remote_url_origin),
-              project_id: params.project.id,
-              preview_url_template: "#{url(~p"/")}:account_name/:project_name/previews/:preview_id",
-              preview_qr_code_url_template: "#{url(~p"/")}:account_name/:project_name/previews/:preview_id/qr-code.png",
-              command_run_url_template: "#{url(~p"/")}:account_name/:project_name/runs/:command_event_id",
-              test_run_url_template: "#{url(~p"/")}:account_name/:project_name/tests/test-runs/:test_run_id",
-              bundle_url_template: "#{url(~p"/")}:account_name/:project_name/bundles/:bundle_id",
-              build_url_template: "#{url(~p"/")}:account_name/:project_name/builds/build-runs/:build_id"
+              project_id: params.project.id
             }
           }
           |> Tuist.Builds.Workers.ProcessBuildWorker.new()

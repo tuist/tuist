@@ -43,6 +43,14 @@ spec:
       affinity:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- with .Values.server.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.server.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
         - name: server
           image: "{{ .Values.server.image.repository }}:{{ .Values.server.image.tag | default .Chart.AppVersion }}"
@@ -60,8 +68,9 @@ spec:
               containerPort: 4369
             {{- end }}
           env:
-            - name: TUIST_WEB
-              value: "true"
+            # TUIST_MODE defaults to :web in Tuist.Environment.mode/0 — no
+            # need to set it explicitly here. The processor Deployment sets
+            # TUIST_MODE=processor; everything else is :web.
             {{- if not .Values.server.managedSecrets }}
             - name: DATABASE_URL
               value: {{ include "tuist.databaseUrl" . | quote }}
@@ -85,20 +94,16 @@ spec:
               value: {{ .Values.server.skipEmailConfirmation | ternary "1" "0" | quote }}
             - name: TUIST_SELF_HOSTING_DEVELOPMENT_MODE
               value: {{ .Values.server.license.selfHostingDevelopmentMode | ternary "1" "0" | quote }}
-            {{- if .Values.server.license.key }}
-            - name: TUIST_LICENSE_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: {{ $secretName }}
-                  key: server-license-key
+            {{- if .Values.processor.enabled }}
+            # Hand off the :process_build queue entirely to processor pods —
+            # without this the server's local Oban worker (default concurrency
+            # 2) races the dedicated processor and steals jobs the processor
+            # was meant to do, defeating the whole point of a separate parse
+            # fleet.
+            - name: TUIST_DELEGATE_PROCESS_BUILD
+              value: "1"
             {{- end }}
-            {{- if .Values.server.license.certificateBase64 }}
-            - name: TUIST_LICENSE_CERTIFICATE_BASE64
-              valueFrom:
-                secretKeyRef:
-                  name: {{ $secretName }}
-                  key: server-license-certificate-base64
-            {{- end }}
+            {{- include "tuist.licenseEnv" . | nindent 12 }}
             {{- if or .Values.server.masterKey .Values.server.managedSecrets }}
             - name: MASTER_KEY
               valueFrom:
@@ -120,35 +125,47 @@ spec:
             - name: RELEASE_NODE
               value: "$(TUIST_CLUSTER_APP_NAME)@$(POD_IP)"
             {{- end }}
-            {{- if not .Values.server.managedSecrets }}
             - name: TUIST_S3_BUCKET_NAME
-              value: {{ .Values.server.s3.bucketName | quote }}
+              value: {{ include "tuist.objectStorageBucketDefault" . | quote }}
             - name: TUIST_S3_ENDPOINT
               value: {{ include "tuist.objectStorageEndpoint" . | quote }}
             - name: TUIST_S3_REGION
-              value: {{ .Values.server.s3.region | quote }}
-            {{- if $objectStorageAccessKey }}
+              value: {{ include "tuist.objectStorageRegion" . | quote }}
+            - name: TUIST_S3_VIRTUAL_HOST
+              value: {{ .Values.server.s3.virtualHost | ternary "1" "0" | quote }}
+            - name: TUIST_S3_BUCKET_AS_HOST
+              value: {{ .Values.server.s3.bucketAsHost | ternary "1" "0" | quote }}
+            {{- if and (eq .Values.objectStorage.mode "external") .Values.objectStorage.external.managedSecrets }}
+            - name: TUIST_S3_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tuist.componentName" (dict "root" . "component" "object-storage-external-secrets") }}
+                  key: object-storage-access-key
+            - name: TUIST_S3_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tuist.componentName" (dict "root" . "component" "object-storage-external-secrets") }}
+                  key: object-storage-secret-key
+            {{- else if and $objectStorageAccessKey $objectStorageSecretKey }}
             - name: TUIST_S3_ACCESS_KEY_ID
               valueFrom:
                 secretKeyRef:
                   name: {{ $secretName }}
                   key: object-storage-access-key
-            {{- end }}
-            {{- if $objectStorageSecretKey }}
             - name: TUIST_S3_SECRET_ACCESS_KEY
               valueFrom:
                 secretKeyRef:
                   name: {{ $secretName }}
                   key: object-storage-secret-key
             {{- end }}
-            - name: TUIST_S3_VIRTUAL_HOST
-              value: {{ .Values.server.s3.virtualHost | ternary "1" "0" | quote }}
-            - name: TUIST_S3_BUCKET_AS_HOST
-              value: {{ .Values.server.s3.bucketAsHost | ternary "1" "0" | quote }}
-            {{- end }}
             {{- if .Values.cache.enabled }}
             - name: TUIST_CACHE_ENDPOINTS
               value: {{ .Values.server.cacheEndpointUrl | default (printf "http://%s:%v" (include "tuist.componentName" (dict "root" . "component" "cache")) .Values.cache.service.port) | quote }}
+            {{- end }}
+            {{- $redisUrl := include "tuist.redisUrl" . }}
+            {{- if and .Values.redis.enabled $redisUrl }}
+            - name: TUIST_REDIS_URL
+              value: {{ $redisUrl | quote }}
             {{- end }}
             {{- if and .Values.observability.enabled (include "tuist.observabilityOtlpEndpoint" .) }}
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
