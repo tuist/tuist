@@ -22,7 +22,6 @@ defmodule Tuist.Kura.Regions do
   """
 
   alias Tuist.Kura.Provisioner.HelmKubernetes
-  alias Tuist.Kura.Provisioner.HetznerCloud
 
   defstruct [:id, :display_name, :provisioner, :provisioner_config]
 
@@ -76,12 +75,11 @@ defmodule Tuist.Kura.Regions do
     %__MODULE__{
       id: "eu",
       display_name: "Europe (Hetzner Falkenstein)",
-      provisioner: HetznerCloud,
+      provisioner: HelmKubernetes,
       provisioner_config: %{
-        target_id: "fsn1",
-        location: "fsn1",
-        image: "ubuntu-24.04",
-        public_host_template: "{account_handle}-{region}.kura.tuist.dev"
+        cluster_id: "eu-1",
+        helm_overlay: "hetzner",
+        public_host_template: "{account_handle}-{cluster_id}.kura.tuist.dev"
       }
     }
   end

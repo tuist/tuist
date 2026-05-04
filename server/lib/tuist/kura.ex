@@ -14,7 +14,7 @@ defmodule Tuist.Kura do
   Lifecycle transitions broadcast on `"kura:account:<account_id>"` over
   Phoenix.PubSub. When a server reaches `:active` its public URL is
   mirrored into `account_cache_endpoints`; when it's destroyed the row
-  is removed. `account_cache_endpoints` is now derived state. Operators
+  is removed. `account_cache_endpoints` is now derived state — operators
   manage Kura through this module, not the endpoints table.
   """
 
@@ -60,7 +60,7 @@ defmodule Tuist.Kura do
   Reads through `Tuist.KeyValueStore` with a one-hour TTL: the first
   request after a cold start (or after the TTL expires) calls GitHub
   Releases; subsequent successful calls hit the in-memory or Redis
-  cache. No background worker, no `kura_versions` table. The source
+  cache. No background worker, no `kura_versions` table — the source
   of truth is the GitHub release feed.
 
   Returns a list of `%{version: String.t(), released_at: DateTime.t()}`
@@ -240,11 +240,10 @@ defmodule Tuist.Kura do
   end
 
   # The deployment row stored in `kura_deployments` carries `cluster_id`
-  # as a historical audit field: which backing target an install or update
-  # attempt actually targeted. Filled from the region's provisioner_config
-  # so operators see something concrete (for example "fsn1") instead of the
-  # abstract region ID.
-  defp deployment_cluster_id(%Regions{provisioner_config: %{target_id: id}}), do: id
+  # as an audit field — which backing cluster an install or update
+  # attempt actually targeted. Filled from the
+  # region's provisioner_config so operators see something concrete (e.g.
+  # "eu-1") instead of the abstract region ID.
   defp deployment_cluster_id(%Regions{provisioner_config: %{cluster_id: id}}), do: id
   defp deployment_cluster_id(%Regions{id: id}), do: id
 
