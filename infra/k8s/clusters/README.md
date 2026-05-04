@@ -1,5 +1,9 @@
 # Tuist ClusterClass + Cluster CRs
 
+> **⚠️ DO NOT `kubectl apply` `cluster-*.yaml` OR `clusterclass-tuist.yaml` UNTIL PHASE 7 COMPLETES.**
+>
+> The ClusterClass renders against caph's reference templates which are stale relative to the flat `cluster-template-hcloud.yaml`: `containerd 2.x` needs a `containerd.service` systemd unit shipped in the flat template's `files:` block but missing from this ClusterClass. Applying the per-env Cluster CRs today will provision Hetzner servers that fail mid-bootstrap (kubeadm `init` can't reach containerd's socket). The migration path in [`infra/k8s/self-hosted-migration.md`](../self-hosted-migration.md) (Phases 2/3) does NOT depend on this; `clusterctl move` brings the existing Apalla-rendered KCP/MD/templates over and they keep reconciling. See [Status](#status) and [Next steps to make this swappable](#next-steps-to-make-this-swappable) below.
+
 Self-hosted Kubernetes cluster manifests for the four workload clusters
 (staging / canary / production / preview), targeting our own management
 cluster running CAPI + caph (no Syself, no Apalla, no CSO).

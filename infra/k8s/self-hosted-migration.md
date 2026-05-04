@@ -153,7 +153,7 @@ op document create ~/.kube/tuist-mgmt.yaml \
 
 # Wipe local generated configs once they're in 1Password (they hold
 # admin certs).
-shred -u /tmp/tuist-mgmt-config/controlplane.yaml \
+rm /tmp/tuist-mgmt-config/controlplane.yaml \
         /tmp/tuist-mgmt-config/worker.yaml \
         /tmp/tuist-mgmt-config/talosconfig
 ```
@@ -169,7 +169,11 @@ The reason `:6443` isn't allowlisted: cluster-autoscaler runs in each workload c
 Talos's etcd ports (`:2379`, `:2380`) and kubelet API (`:10250`) are exposed only on the loopback / node interface by default; no firewall rule needed to keep them off the public internet.
 
 ```bash
-HCLOUD_TOKEN="$(op read 'op://Founders/hetzner-tuist-mgmt/credential')"
+export HCLOUD_TOKEN="$(op read 'op://Founders/hetzner-tuist-mgmt/credential')"
+
+# If running this step in a fresh shell, re-resolve MGMT_SERVER_ID from the
+# Hetzner side (avoids relying on the §1.3 export still being set).
+export MGMT_SERVER_ID=$(hcloud server describe tuist-mgmt -o json | jq -r '.id')
 
 # Operator IPs to allowlist for talosctl. Add more as the team grows.
 OPERATOR_IPS='["<your-ip>/32"]'
@@ -198,7 +202,7 @@ curl -sX POST https://api.hetzner.cloud/v1/firewalls \
 
 clusterctl 1.13 is v1beta2-native and reads v1beta1 CRs cleanly via conversion webhooks, so a version skew with Syself's controllers (which we can't introspect from `org-tuist`) is safe.
 
-We do **not** install `cluster-stack-operator`. The original plan was to use it with Syself's `hetzner-apalla` ClusterStack, but that stack turned out to be Apalla-proprietary. Topology is handled by a ClusterClass we author ourselves (Phase 1.5).
+We do **not** install `cluster-stack-operator`. The original plan was to use it with Syself's `hetzner-apalla` ClusterStack, but that stack turned out to be Apalla-proprietary. Topology is handled by a ClusterClass we author ourselves (Phase 7, deferred).
 
 ```bash
 export KUBECONFIG=~/.kube/tuist-mgmt.yaml
@@ -271,7 +275,7 @@ Add a lifecycle rule that deletes objects older than 7 days. Save the keys to 1P
 
 ```bash
 # Use the admin talosconfig from /tmp/tuist-mgmt-config/talosconfig (Phase
-# 1.3) or pull a fresh copy from 1Password if that's been shredded:
+# 1.3) or pull a fresh copy from 1Password if that's been removed:
 #   op document get 'talosconfig: tuist-mgmt' --vault Founders > /tmp/admin-talosconfig
 #   export TALOSCONFIG=/tmp/admin-talosconfig
 export TALOSCONFIG=/tmp/tuist-mgmt-config/talosconfig
@@ -295,7 +299,7 @@ kubectl -n mgmt-system create secret generic tigris-credentials \
   --from-literal=access_key_id="$(op read 'op://Founders/tigris-tuist-mgmt-etcd/access_key_id')" \
   --from-literal=secret_access_key="$(op read 'op://Founders/tigris-tuist-mgmt-etcd/secret_access_key')"
 
-shred -u /tmp/snapshotter-talosconfig
+rm /tmp/snapshotter-talosconfig
 ```
 
 Verify the first run within an hour:
@@ -308,7 +312,9 @@ kubectl -n mgmt-system create job --from=cronjob/etcd-snapshot etcd-snapshot-man
 kubectl -n mgmt-system logs job/etcd-snapshot-manual
 ```
 
-The mgmt cluster's etcd holds CAPI CRs, Secrets, and ClusterClass state: everything `clusterctl move` (or our hand-rolled equivalent) would replay if we ever rebuild from a snapshot. The workload clusters' own etcds (per-cluster KubeadmControlPlane quorums) are *not* covered by this; that's intentional, since workload clusters hold no state we can't reconstruct from Helm + ESO + 1Password. If a stateful in-cluster service ever lands, revisit.
+The mgmt cluster's etcd holds CAPI CRs, Secrets, and ClusterClass state: everything `clusterctl move` (or our hand-rolled equivalent) would replay if we ever rebuild from a snapshot. The workload clusters' own etcds (per-cluster KubeadmControlPlane quorums) are *not* covered by this; that's intentional, since workload clusters hold no state we can't reconstruct from Helm + ESO + 1Password.
+
+> **TODO: load-bearing assumption check:** the "no in-cluster state" rule above breaks the moment any stateful service (Redis, NATS, an in-cluster queue, a PVC-backed app, etc.) lands in any workload cluster. **Before merging a Helm chart that introduces one, the reviewer must either (a) add per-cluster etcd snapshot tooling here OR (b) document explicitly that the new state is treated as ephemeral / reconstructible.** Don't let this assumption rot silently.
 
 ---
 
@@ -523,7 +529,7 @@ EOF
 op document create /tmp/ca-mgmt-kubeconfig.yaml \
   --vault tuist-k8s-production \
   --title 'kubeconfig: cluster-autoscaler → tuist-mgmt'
-shred -u /tmp/ca-mgmt-kubeconfig.yaml
+rm /tmp/ca-mgmt-kubeconfig.yaml
 
 # 4. The ExternalSecret in the platform chart picks it up. Flip the toggles.
 helm upgrade platform infra/helm/platform \
