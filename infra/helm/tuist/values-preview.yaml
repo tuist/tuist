@@ -9,6 +9,10 @@
 #
 # Apply with:
 #   helm install pr-1234 infra/helm/tuist -f infra/helm/tuist/values-preview.yaml
+#
+# Preview state is intentionally ephemeral: the workloads are disposable and
+# using node-local storage avoids the flaky CSI attach/format path that was
+# stalling short-lived preview releases.
 global:
   nodeSelector:
     role: preview
@@ -81,18 +85,20 @@ cache:
   # boot via templates/postgresql-init.yaml).
   enabled: true
   replicaCount: 1
+  podSecurityContext:
+    fsGroup: 990
   storage:
     pvc:
-      size: 5Gi
+      create: false
   data:
     pvc:
-      size: 2Gi
+      create: false
 
 postgresql:
   mode: embedded
   embedded:
     persistence:
-      size: 2Gi
+      create: false
     resources:
       requests:
         cpu: 50m
@@ -104,7 +110,7 @@ clickhouse:
   mode: embedded
   embedded:
     persistence:
-      size: 5Gi
+      create: false
     resources:
       requests:
         cpu: 100m
@@ -119,7 +125,7 @@ objectStorage:
   mode: embedded
   embedded:
     persistence:
-      size: 5Gi
+      create: false
 
 observability:
   enabled: false

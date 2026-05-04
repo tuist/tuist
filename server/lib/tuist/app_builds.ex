@@ -260,11 +260,18 @@ defmodule Tuist.AppBuilds do
   def preview_by_id(id, opts \\ []) do
     if Tuist.UUIDv7.valid?(id) do
       preload = Keyword.get(opts, :preload, [])
-      preview = Preview |> Repo.get_by(id: id) |> Repo.preload(preload)
+      project_id = Keyword.get(opts, :project_id)
 
-      case preview do
+      query = from(p in Preview, where: p.id == ^id)
+
+      query =
+        if is_nil(project_id),
+          do: query,
+          else: where(query, [p], p.project_id == ^project_id)
+
+      case Repo.one(query) do
         nil -> {:error, :not_found}
-        %Preview{} = preview -> {:ok, preview}
+        %Preview{} = preview -> {:ok, Repo.preload(preview, preload)}
       end
     else
       {:error, "The provided preview ID #{id} doesn't have a valid format."}

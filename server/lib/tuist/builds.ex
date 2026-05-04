@@ -35,12 +35,19 @@ defmodule Tuist.Builds do
     ClickHouseRepo.one(from(b in Build, where: b.inserted_at >= ^twenty_four_hours_ago, select: count())) || 0
   end
 
+  # `ORDER BY inserted_at DESC LIMIT 1` picks the latest version of the row
+  # without the multi-part merge `FINAL` would force; the `proj_by_id`
+  # projection lets the lookup binary-search to a single granule.
   def get_build(id) do
     with {:ok, uuid} <- Ecto.UUID.cast(id),
          build when not is_nil(build) <-
-           Build
-           |> from(hints: ["FINAL"], where: [id: ^uuid])
-           |> ClickHouseRepo.one() do
+           ClickHouseRepo.one(
+             from(b in Build,
+               where: b.id == ^uuid,
+               order_by: [desc: b.inserted_at],
+               limit: 1
+             )
+           ) do
       {:ok, build}
     else
       _ -> {:error, :not_found}
