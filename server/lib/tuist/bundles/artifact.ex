@@ -1,9 +1,6 @@
 defmodule Tuist.Bundles.Artifact do
   @moduledoc """
   ClickHouse-backed schema for bundle artifacts.
-
-  Reads go through `Tuist.ClickHouseRepo`; writes go through
-  `Tuist.IngestRepo` (see `Tuist.Bundles.create_bundle/2`).
   """
 
   use Ecto.Schema
