@@ -60,37 +60,31 @@ backend = "github:endevco/aube"
 checksum = "sha256:1c47d2c0a50cf80f49aedcc2f58ce8abcbdf763092e772c8961c6e5b18916e8b"
 url = "https://github.com/endevco/aube/releases/download/v1.6.2/aube-v1.6.2-aarch64-unknown-linux-gnu.tar.gz"
 url_api = "https://api.github.com/repos/endevco/aube/releases/assets/410164231"
-provenance = "github-attestations"
 
 [tools.aube."platforms.linux-arm64-musl"]
 checksum = "sha256:9780776921db3a54fc3237f50b9686489d93115e26584c7a85d54ce96a8e9b39"
 url = "https://github.com/endevco/aube/releases/download/v1.6.2/aube-v1.6.2-aarch64-unknown-linux-musl.tar.gz"
 url_api = "https://api.github.com/repos/endevco/aube/releases/assets/410164229"
-provenance = "github-attestations"
 
 [tools.aube."platforms.linux-x64"]
 checksum = "sha256:16fcc40dfbaac110ce8f4e88728a440f2366094a45fd6c189bcbcc2b3ea31f06"
 url = "https://github.com/endevco/aube/releases/download/v1.6.2/aube-v1.6.2-x86_64-unknown-linux-gnu.tar.gz"
 url_api = "https://api.github.com/repos/endevco/aube/releases/assets/410164107"
-provenance = "github-attestations"
 
 [tools.aube."platforms.linux-x64-musl"]
 checksum = "sha256:2ee3821fd62b56bb39cb2ceffe6ad38975e35f82311ca7f9ec6ee28bc6d284b8"
 url = "https://github.com/endevco/aube/releases/download/v1.6.2/aube-v1.6.2-x86_64-unknown-linux-musl.tar.gz"
 url_api = "https://api.github.com/repos/endevco/aube/releases/assets/410164199"
-provenance = "github-attestations"
 
 [tools.aube."platforms.macos-arm64"]
 checksum = "sha256:4ce92482500f77f0779f288328cb7411f7ae2441b8618eae36a2ab5ea7591a32"
 url = "https://github.com/endevco/aube/releases/download/v1.6.2/aube-v1.6.2-aarch64-apple-darwin.tar.gz"
 url_api = "https://api.github.com/repos/endevco/aube/releases/assets/410166750"
-provenance = "github-attestations"
 
 [tools.aube."platforms.windows-x64"]
 checksum = "sha256:916594efae8f8b59fc898913f96d199a21d212c7037043853ee04df7264611d0"
 url = "https://github.com/endevco/aube/releases/download/v1.6.2/aube-v1.6.2-x86_64-pc-windows-msvc.zip"
 url_api = "https://api.github.com/repos/endevco/aube/releases/assets/410174742"
-provenance = "github-attestations"
 
 [[tools.bats]]
 version = "1.11.1"
@@ -233,37 +227,30 @@ backend = "aqua:jqlang/jq"
 [tools.jq."platforms.linux-arm64"]
 checksum = "sha256:6bc62f25981328edd3cfcfe6fe51b073f2d7e7710d7ef7fcdac28d4e384fc3d4"
 url = "https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-linux-arm64"
-provenance = "github-attestations"
 
 [tools.jq."platforms.linux-arm64-musl"]
 checksum = "sha256:6bc62f25981328edd3cfcfe6fe51b073f2d7e7710d7ef7fcdac28d4e384fc3d4"
 url = "https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-linux-arm64"
-provenance = "github-attestations"
 
 [tools.jq."platforms.linux-x64"]
 checksum = "sha256:020468de7539ce70ef1bceaf7cde2e8c4f2ca6c3afb84642aabc5c97d9fc2a0d"
 url = "https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-linux-amd64"
-provenance = "github-attestations"
 
 [tools.jq."platforms.linux-x64-musl"]
 checksum = "sha256:020468de7539ce70ef1bceaf7cde2e8c4f2ca6c3afb84642aabc5c97d9fc2a0d"
 url = "https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-linux-amd64"
-provenance = "github-attestations"
 
 [tools.jq."platforms.macos-arm64"]
 checksum = "sha256:a9fe3ea2f86dfc72f6728417521ec9067b343277152b114f4e98d8cb0e263603"
 url = "https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-macos-arm64"
-provenance = "github-attestations"
 
 [tools.jq."platforms.macos-x64"]
 checksum = "sha256:e80dbe0d2a2597e3c11c404f03337b981d74b4a8504b70586c354b7697a7c27f"
 url = "https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-macos-amd64"
-provenance = "github-attestations"
 
 [tools.jq."platforms.windows-x64"]
 checksum = "sha256:23cb60a1354eed6bcc8d9b9735e8c7b388cd1fdcb75726b93bc299ef22dd9334"
 url = "https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-windows-amd64.exe"
-provenance = "github-attestations"
 
 [[tools.protoc]]
 version = "32.1"

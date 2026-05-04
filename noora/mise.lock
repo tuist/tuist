@@ -8,25 +8,21 @@ backend = "github:endevco/aube"
 checksum = "sha256:1c47d2c0a50cf80f49aedcc2f58ce8abcbdf763092e772c8961c6e5b18916e8b"
 url = "https://github.com/endevco/aube/releases/download/v1.6.2/aube-v1.6.2-aarch64-unknown-linux-gnu.tar.gz"
 url_api = "https://api.github.com/repos/endevco/aube/releases/assets/410164231"
-provenance = "github-attestations"
 
 [tools.aube."platforms.linux-x64"]
 checksum = "sha256:16fcc40dfbaac110ce8f4e88728a440f2366094a45fd6c189bcbcc2b3ea31f06"
 url = "https://github.com/endevco/aube/releases/download/v1.6.2/aube-v1.6.2-x86_64-unknown-linux-gnu.tar.gz"
 url_api = "https://api.github.com/repos/endevco/aube/releases/assets/410164107"
-provenance = "github-attestations"
 
 [tools.aube."platforms.macos-arm64"]
 checksum = "sha256:4ce92482500f77f0779f288328cb7411f7ae2441b8618eae36a2ab5ea7591a32"
 url = "https://github.com/endevco/aube/releases/download/v1.6.2/aube-v1.6.2-aarch64-apple-darwin.tar.gz"
 url_api = "https://api.github.com/repos/endevco/aube/releases/assets/410166750"
-provenance = "github-attestations"
 
 [tools.aube."platforms.windows-x64"]
 checksum = "sha256:916594efae8f8b59fc898913f96d199a21d212c7037043853ee04df7264611d0"
 url = "https://github.com/endevco/aube/releases/download/v1.6.2/aube-v1.6.2-x86_64-pc-windows-msvc.zip"
 url_api = "https://api.github.com/repos/endevco/aube/releases/assets/410174742"
-provenance = "github-attestations"
 
 [[tools.node]]
 version = "24.14.0"
