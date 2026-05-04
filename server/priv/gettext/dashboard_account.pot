@@ -1211,7 +1211,7 @@ msgstr ""
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:405
 #, elixir-autogen, elixir-format
-msgid "Base URL"
+msgid "SCIM endpoint URL"
 msgstr ""
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:453
@@ -1281,7 +1281,7 @@ msgstr ""
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:395
 #, elixir-autogen, elixir-format
-msgid "Let your IdP (Okta, Azure AD/Entra, JumpCloud, etc.) provision users into this organization at the base URL below using a bearer token."
+msgid "Let your IdP (Okta, Azure AD/Entra, JumpCloud, etc.) provision users into this organization at the SCIM endpoint URL below using a bearer token."
 msgstr ""
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:486

@@ -26,7 +26,7 @@ Configure <.localized_link href="/guides/integrations/authentication/sso#okta">O
 ### Step 1: Generate a Tuist SCIM token {#okta-step-1}
 
 1. In Tuist, navigate to your organization's **Authentication** settings tab.
-2. In the **SCIM provisioning** section, copy the **Base URL**. It should end in `/scim/v2`.
+2. In the **SCIM provisioning** section, copy the **SCIM endpoint URL**. It should end in `/scim/v2`.
 3. Click **Generate token**.
 4. Name the token (for example, `Okta`).
 5. Copy the generated token. Tuist shows the token only once.
@@ -43,7 +43,7 @@ Configure <.localized_link href="/guides/integrations/authentication/sso#okta">O
 1. Open the SCIM app's **Provisioning** tab.
 2. Under **Settings > Integration**, click **Configure API Integration** or **Edit**.
 3. Check **Enable API integration**.
-4. Paste the Tuist SCIM base URL into **Base URL**.
+4. Paste the Tuist **SCIM endpoint URL** into Okta's **Base URL** field.
 5. Paste the Tuist SCIM token into **API Token** prefixed with `Bearer `. For example, `Bearer tuist_scim_...`. Okta sends this field as the `Authorization` header, and Tuist expects a bearer token.
 6. Enable **Import Groups** if you want Okta to read Tuist's SCIM groups.
 7. Click **Test API Credentials**. Okta should report that the integration was verified successfully.
