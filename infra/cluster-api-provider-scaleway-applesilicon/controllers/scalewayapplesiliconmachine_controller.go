@@ -166,11 +166,9 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 		machine.Spec.ProviderID = &providerID
 
 		// Persist sudo password + SSH username in a per-machine
-		// Secret. They used to live as annotations on the CR, which
-		// exposed the sudo password to anyone with read on the CR
-		// (kubectl describe, etcd backups, audit, exports). The
-		// Secret stays in the operator's namespace alongside the SSH
-		// key, gated by the chart's RBAC.
+		// Secret in the operator's namespace, gated by the chart's
+		// RBAC and never exposed via the CR's wider read surface
+		// (etcd backups, audit logs, `kubectl describe`).
 		if err := r.CredentialsManager.SetMachineCredentials(ctx, machine.Name, srv.SudoPassword, srv.SSHUsername); err != nil {
 			conditions.MarkFalse(machine, ProvisionedCondition, "CredentialsPersistFailed",
 				clusterv1.ConditionSeverityError, "%v", err)
@@ -244,10 +242,6 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 		}
 
 		conditions.MarkTrue(machine, BootstrappedCondition)
-		// Bootstrap pushes a per-machine kubeconfig as part of Stage 2,
-		// so flag the marker so the Stage 3 migration path doesn't fire
-		// redundantly on the next reconcile.
-		machine.Status.PerMachineKubeconfigInstalled = true
 		logger.Info("bootstrap complete", "host", ip)
 	}
 
@@ -262,14 +256,6 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 	// Running Tart VMs survive an agent restart (`nohup`-detached) and
 	// the kubelet's startup state-recovery pass re-binds them, so the
 	// rollout is zero-downtime for workloads.
-	// Stage 3 fires on either of two conditions:
-	//   - tart-kubelet binary drift: operator's baked-in SHA differs
-	//     from what last landed on the host. Routine after operator
-	//     image bumps.
-	//   - PerMachineKubeconfigInstalled is false: the machine still
-	//     has the legacy shared-fleet kubeconfig. Forcing a single
-	//     kubeconfig push migrates it onto the per-machine token.
-	//     The marker stays sticky once we set it.
 	binaryDrift := r.TartKubeletBinarySHA != "" && machine.Status.TartKubeletBinarySHA != r.TartKubeletBinarySHA
 	// Once a CR enters the terminal-failed state (FailureReason set
 	// and FailureMessage describes the underlying error) we stop
@@ -278,7 +264,7 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 	// without operator action. Recovery: clear FailureReason +
 	// reset TartKubeletUpdateAttempts to resume the loop.
 	terminalFailure := machine.Status.FailureReason != nil
-	if !terminalFailure && (binaryDrift || !machine.Status.PerMachineKubeconfigInstalled) {
+	if binaryDrift && !terminalFailure {
 		ip := machineIP(machine)
 		if ip == "" {
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
@@ -324,7 +310,6 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
 		}
 		machine.Status.TartKubeletBinarySHA = r.TartKubeletBinarySHA
-		machine.Status.PerMachineKubeconfigInstalled = true
 		machine.Status.TartKubeletUpdateAttempts = 0
 		logger.Info("rolled new tart-kubelet", "host", ip, "sha", r.TartKubeletBinarySHA)
 	}

@@ -1,10 +1,10 @@
-// Per-machine bootstrap credentials. The pieces in here used to live
-// on the ScalewayAppleSiliconMachine CR as annotations; that exposed
-// the sudo password to anyone with read access on the CR (kubectl
-// describe, etcd backups, audit logs, kubectl get -o yaml export).
-// Moving them to a Secret narrows the read surface to whatever the
-// chart's RBAC grants on Secrets in the operator's namespace, which
-// is the same surface the SSH key already lives on.
+// Per-machine bootstrap credentials persisted in a Kubernetes
+// Secret named `<machine-name>-bootstrap` in the operator's
+// namespace. Same RBAC surface as the per-fleet SSH key — the
+// operator's ServiceAccount can read it, nothing else can. The
+// sudo password is sensitive enough that we don't want it exposed
+// via the wider read surface that the CR object carries (etcd
+// backups, audit logs, casual `kubectl describe` / `-o yaml`).
 //
 // The Secret holds three things:
 //

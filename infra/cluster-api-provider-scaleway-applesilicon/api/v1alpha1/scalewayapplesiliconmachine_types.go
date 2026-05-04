@@ -93,14 +93,6 @@ type ScalewayAppleSiliconMachineStatus struct {
 	// +optional
 	TartKubeletBinarySHA string `json:"tartKubeletBinarySHA,omitempty"`
 
-	// PerMachineKubeconfigInstalled flips to true the first time the
-	// operator pushes a per-machine kubeconfig (post BYOC-prep cutover
-	// from the legacy shared-fleet token). Pre-cutover machines start
-	// false; the reconciler force-pushes once and flips the marker so
-	// the regular drift-detection path takes over from there.
-	// +optional
-	PerMachineKubeconfigInstalled bool `json:"perMachineKubeconfigInstalled,omitempty"`
-
 	// TartKubeletUpdateAttempts counts consecutive failures of the
 	// drift-loop's UpdateTartKubelet call. Reset to zero on success.
 	// Once it crosses the operator's max-attempts threshold the CR
