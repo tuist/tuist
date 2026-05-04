@@ -398,6 +398,15 @@ spec:
                   enabled: false
                 webhook:
                   enabled: true
+                # Required so kubelet trusts the kube-apiserver's
+                # client cert for /exec, /port-forward, and etcd
+                # health checks. kubeadm's stock KubeletConfiguration
+                # sets this; our `files:`-shipped config OVERRIDES
+                # kubeadm's (second --config wins), so we must
+                # re-include it. Same trap as containerRuntimeEndpoint
+                # and staticPodPath.
+                x509:
+                  clientCAFile: /etc/kubernetes/pki/ca.crt
               authorization:
                 mode: Webhook
               cgroupDriver: systemd
@@ -572,6 +581,8 @@ spec:
                 enabled: false
               webhook:
                 enabled: true
+              x509:
+                clientCAFile: /etc/kubernetes/pki/ca.crt  # see KCP block above for why
             authorization:
               mode: Webhook
             cgroupDriver: systemd
