@@ -10,7 +10,10 @@ inputs:
     required: false
     default: erlang elixir
   mix-cache-key:
-    description: Primary cache key prefix for deps + _build (mix.lock hash is appended automatically)
+    description: |
+      Primary cache key prefix for deps + _build (mix.lock hash is appended automatically).
+      Default is shared across most server jobs; override if a job needs an isolated mix state
+      (e.g. test currently uses mix-test-v2 to keep MIX_ENV=test artifacts separate).
     required: false
     default: mix
   mix-cache-restore-key:
