@@ -1,22 +1,11 @@
-// Package bootstrap turns a freshly-provisioned macOS host (any
-// provider) into a tart-kubelet-ready cluster Node.
+// Package bootstrap turns a freshly-provisioned macOS host into a
+// tart-kubelet-ready cluster Node.
 //
-// Provider-agnostic by design. Both Scaleway Apple Silicon (today)
-// and AWS EC2 Mac (the BYOC direction) call into Run with a Config
-// the provider's controller fills in; the bootstrap package itself
-// has no opinion on where the host came from.
-//
-// Provider seams (anything Config asks for, the caller supplies):
-//   - IP / SSHUser / SSHPrivateKey: how to reach the host.
-//   - UserPassword: a password for the SSH user. Scaleway returns
-//     one at server creation; on AWS EC2 Mac the controller would
-//     generate one and apply it via `dscl . -passwd` before calling
-//     Run. The bootstrap path uses it for two macOS-specific things
-//     (passwordless-sudoers, /etc/kcpassword for autoLogin) that
-//     don't change between providers.
-//   - KnownHostFingerprint: TOFU pin, persisted by the controller.
-//
-// Universal (the same on every provider):
+// Provider-agnostic by design: the caller fills in a Config and Run
+// does the rest. Anything host-shaped (IP, SSH credentials, the
+// SSH user's password used for passwordless-sudoers and
+// /etc/kcpassword, the TOFU host-key pin) is an input; everything
+// macOS-shaped is the same on every host:
 //   - Auto-login (Virtualization.framework requires a live console).
 //   - Hostname = CR name (so tart-kubelet's default --node-name
 //     lines up with the inventory resource).
@@ -60,15 +49,13 @@ type Config struct {
 	// UserPassword is the SSH user's password. Used for two
 	// macOS-specific bootstrap steps (passwordless-sudoers entry
 	// + /etc/kcpassword for auto-login) and nothing else; the
-	// provider chooses how to obtain it (Scaleway returns one at
-	// server creation; AWS EC2 Mac sets one via `dscl . -passwd`
-	// before bootstrap is invoked).
+	// caller is responsible for obtaining it.
 	UserPassword string
 
 	SSHPrivateKey []byte
 
 	// NodeName is the cluster Node name tart-kubelet should register.
-	// Matches the ScalewayAppleSiliconMachine CR name so `kubectl get
+	// Typically matches the CAPI Machine CR name so `kubectl get
 	// nodes` reflects the inventory.
 	NodeName string
 
@@ -414,8 +401,8 @@ func waitForSSH(ctx context.Context, ip, user string, signer ssh.Signer, hk *hos
 }
 
 // enablePasswordlessSudo writes a sudoers.d entry for the SSH user. We
-// authenticate the initial sudo with the OS-default password Scaleway
-// returns at server creation time; subsequent sudo calls don't need it.
+// authenticate the initial sudo with the SSH user's password supplied
+// by the caller; subsequent sudo calls don't need it.
 func enablePasswordlessSudo(ctx context.Context, client *ssh.Client, user, password string) error {
 	script := fmt.Sprintf(`set -euo pipefail
 if [ -f /etc/sudoers.d/%[1]s-nopasswd ]; then exit 0; fi
