@@ -18,6 +18,10 @@ defmodule Tuist.Bundles.Artifact do
 
     field :inserted_at, Ch, type: "DateTime64(6)"
     field :updated_at, Ch, type: "DateTime64(6)"
+
+    belongs_to :bundle, Tuist.Bundles.Bundle, type: Ecto.UUID, define_field: false
+    belongs_to :artifact, __MODULE__, type: Ecto.UUID, define_field: false
+    has_many :children, __MODULE__, foreign_key: :artifact_id
   end
 
   @doc """
