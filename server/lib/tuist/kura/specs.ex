@@ -18,26 +18,33 @@ defmodule Tuist.Kura.Specs do
   the customer-facing source of truth.
   """
 
-  defstruct [:id, :label, :description, :default_volume_gi]
+  defstruct [:id, :label, :description, :default_volume_gi, :bandwidth]
 
+  # Per-spec ingress/egress bandwidth limits applied as Cilium-honored
+  # pod annotations on the StatefulSet. Starting points sized for a
+  # 1 Gbps Hetzner AX NIC with light oversubscription; revisit once we
+  # have load data.
   @catalog [
     %{
       id: :small,
       label: "Small",
       description: "Single small team, ~4 GB hot working set",
-      default_volume_gi: 50
+      default_volume_gi: 50,
+      bandwidth: %{ingress: "100M", egress: "100M"}
     },
     %{
       id: :medium,
       label: "Medium",
       description: "Mid-size team, ~16 GB hot working set, ~50 K artifacts",
-      default_volume_gi: 200
+      default_volume_gi: 200,
+      bandwidth: %{ingress: "250M", egress: "250M"}
     },
     %{
       id: :large,
       label: "Large",
       description: "Busy CI fleet, ~64 GB hot working set",
-      default_volume_gi: 500
+      default_volume_gi: 500,
+      bandwidth: %{ingress: "500M", egress: "500M"}
     }
   ]
 
@@ -55,6 +62,18 @@ defmodule Tuist.Kura.Specs do
     case get(id) do
       nil -> nil
       %__MODULE__{default_volume_gi: gi} -> gi
+    end
+  end
+
+  @doc """
+  Bandwidth caps for a spec, as `{ingress, egress}` strings consumable
+  by Cilium's `kubernetes.io/{ingress,egress}-bandwidth` pod
+  annotations. Returns `nil` for unknown specs.
+  """
+  def bandwidth(id) when is_atom(id) do
+    case get(id) do
+      nil -> nil
+      %__MODULE__{bandwidth: bw} -> bw
     end
   end
 end
