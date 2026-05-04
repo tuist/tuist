@@ -25,6 +25,13 @@ defmodule Tuist.Kura.Provisioner.HelmKubernetes do
     * `:kind_cluster_name` — when set and no kubeconfig secret is
       configured, autodiscover via `kind get kubeconfig` and (in dev/test)
       auto-create the cluster.
+    * `:tenant_isolation` — when true, generated values pin the
+      StatefulSet to per-account nodes via `nodeSelector` +
+      `tolerations` keyed on `tuist.dev/account=<handle>`. The matching
+      labelled+tainted node pool must already exist (manual or CAPI
+      `MachineDeployment`); without it, pods stay `Pending` and the
+      rollout fails closed with logs in `/ops`. Off by default so local
+      kind, with one shared node, schedules normally.
   """
 
   @behaviour Tuist.Kura.Provisioner
@@ -203,10 +210,38 @@ defmodule Tuist.Kura.Provisioner.HelmKubernetes do
       ]
     }
 
-    [resources_for(server), persistence(server), ingress(region, account.name)]
+    [
+      resources_for(server),
+      persistence(server),
+      ingress(region, account.name),
+      tenant_isolation(region, account.name)
+    ]
     |> Enum.reject(&(&1 in [nil, %{}]))
     |> Enum.reduce(base, &Map.merge(&2, &1))
   end
+
+  # Per-account hardware isolation: pin pods to nodes labelled and
+  # tainted for this account. Operators must provision the matching
+  # node pool before rollout (today: manual or CAPI `MachineDeployment`;
+  # once #10586 lands, the provisioner can grow a creation step).
+  # Mirrors the macOS fleet pattern from #10499.
+  defp tenant_isolation(%Regions{provisioner_config: %{tenant_isolation: true}}, handle) do
+    value = dns_handle(handle)
+
+    %{
+      "nodeSelector" => %{"tuist.dev/account" => value},
+      "tolerations" => [
+        %{
+          "key" => "tuist.dev/account",
+          "operator" => "Equal",
+          "value" => value,
+          "effect" => "NoSchedule"
+        }
+      ]
+    }
+  end
+
+  defp tenant_isolation(_region, _handle), do: nil
 
   @impl true
   def resources_for(%Server{spec: spec}) do

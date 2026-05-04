@@ -231,6 +231,62 @@ defmodule Tuist.Kura.Provisioner.HelmKubernetesTest do
                }
              ]
     end
+
+    @tag :tmp_dir
+    test "pins pods to per-account nodes when tenant_isolation is on", %{tmp_dir: tmp_dir} do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+      stub(Tuist.Environment, :secret_key_tokens, fn -> nil end)
+      stub(Tuist.License, :get_license, fn -> {:error, :missing} end)
+
+      region = %Regions{
+        id: "eu",
+        provisioner_config: %{
+          cluster_id: "eu-1",
+          helm_overlay: "hetzner",
+          public_host_template: "{account_handle}-{cluster_id}.kura.tuist.dev",
+          tenant_isolation: true
+        }
+      }
+
+      values =
+        HelmKubernetes.instance_values(
+          "0.5.2",
+          %{name: "TUIST"},
+          region,
+          %Server{spec: :medium, volume_size_gi: 100},
+          chart_fixture(tmp_dir, "return true")
+        )
+
+      assert values["nodeSelector"] == %{"tuist.dev/account" => "tuist"}
+
+      assert values["tolerations"] == [
+               %{
+                 "key" => "tuist.dev/account",
+                 "operator" => "Equal",
+                 "value" => "tuist",
+                 "effect" => "NoSchedule"
+               }
+             ]
+    end
+
+    @tag :tmp_dir
+    test "omits tenant scheduling when the region does not opt in", %{tmp_dir: tmp_dir} do
+      stub(Tuist.Environment, :app_url, fn -> "http://localhost:4000" end)
+      stub(Tuist.Environment, :secret_key_tokens, fn -> nil end)
+      stub(Tuist.License, :get_license, fn -> {:error, :missing} end)
+
+      values =
+        HelmKubernetes.instance_values(
+          "0.5.2",
+          %{name: "TUIST"},
+          local_region(),
+          %Server{spec: :small, volume_size_gi: 25},
+          chart_fixture(tmp_dir, "return true")
+        )
+
+      refute Map.has_key?(values, "nodeSelector")
+      refute Map.has_key?(values, "tolerations")
+    end
   end
 
   describe "image_tag_from_image/1" do
