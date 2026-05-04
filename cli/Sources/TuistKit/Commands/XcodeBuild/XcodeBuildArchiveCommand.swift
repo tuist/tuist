@@ -3,7 +3,7 @@ import Foundation
 import TuistSupport
 import XcodeGraph
 
-public struct XcodeBuildArchiveCommand: AsyncParsableCommand, TrackableParsableCommand, RecentPathRememberableCommand {
+public struct XcodeBuildArchiveCommand: AsyncParsableCommand, TrackableParsableCommand {
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "archive",

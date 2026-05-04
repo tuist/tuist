@@ -132,8 +132,30 @@ defmodule XcodeProcessor.XCResultProcessor do
         Map.put(module, "test_cases", test_cases)
       end)
 
-    Map.put(parsed_data, "test_modules", test_modules)
+    parsed_data
+    |> Map.put("test_modules", test_modules)
+    |> override_run_status_when_only_quarantined_failed()
   end
+
+  # Mirror the local CLI behavior: when every failing test case is
+  # quarantined (muted), the run passes from the user's perspective — CI
+  # exits 0 — so the dashboard's run-level status should agree. Only the
+  # top-level status is rewritten; individual test cases keep their raw
+  # `failure` status so flakiness signal stays intact.
+  defp override_run_status_when_only_quarantined_failed(%{"status" => "failure"} = data) do
+    failing_cases =
+      (data["test_modules"] || [])
+      |> Enum.flat_map(&Map.get(&1, "test_cases", []))
+      |> Enum.filter(&(&1["status"] == "failure"))
+
+    if failing_cases != [] and Enum.all?(failing_cases, &Map.get(&1, "is_quarantined", false)) do
+      Map.put(data, "status", "success")
+    else
+      data
+    end
+  end
+
+  defp override_run_status_when_only_quarantined_failed(data), do: data
 
   defp matches_quarantine?(test_case, module_name, quarantined) do
     quarantined["target"] == module_name &&

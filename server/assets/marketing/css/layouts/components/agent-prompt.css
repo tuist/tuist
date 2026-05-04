@@ -78,7 +78,7 @@
     visibility: hidden;
     animation: agent-prompt-blink 0.8s step-end infinite;
     margin-left: var(--noora-spacing-1);
-    border-radius: var(--noora-radius-xsmall);
+    border-radius: var(--noora-radius-1);
     width: 0.65ch;
     height: 1em;
   }

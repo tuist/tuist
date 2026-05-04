@@ -222,6 +222,34 @@ jobs:
               echo "Release $HELM_RELEASE_NAME status is ${status:-not-installed}; no recovery needed."
               ;;
           esac
+      - name: Clean up stale migration Jobs
+        # The chart's pre-upgrade migration hook is named
+        # `tuist-tuist-server-migrate` (stable across revisions). Any
+        # `tuist-tuist-server-migrate-<n>` Jobs in the namespace are
+        # orphans whose Pending pods would otherwise compete with the new
+        # hook for scheduler attention; sweep them before invoking helm.
+        run: |
+          set -euo pipefail
+
+          stale_jobs="$(
+            kubectl -n "$NAMESPACE" get jobs \
+              -l app.kubernetes.io/component=server-migration \
+              -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' |
+              grep -E '-[0-9]+$' || true
+          )"
+
+          if [ -z "$stale_jobs" ]; then
+            echo "No revision-suffixed migration Jobs to clean up."
+            exit 0
+          fi
+
+          echo "Deleting stale migration Jobs:"
+          echo "$stale_jobs"
+          # `--ignore-not-found` covers a rare race where helm's hook gets
+          # deleted between the list and delete calls. Cascade=foreground
+          # so dependent pods (Pending or otherwise) go with the Job.
+          echo "$stale_jobs" | xargs -r kubectl -n "$NAMESPACE" delete job \
+            --ignore-not-found --cascade=foreground --timeout=2m
       - name: helm upgrade --install
         # App secrets never pass through --set: the chart runs in
         # `server.managedSecrets: true` mode, which reads DATABASE_URL /

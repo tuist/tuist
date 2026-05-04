@@ -14,7 +14,7 @@
     display: flex;
     flex-direction: column;
     gap: 0;
-    border-radius: var(--noora-radius-2xlarge);
+    border-radius: var(--noora-radius-8);
     padding: 0;
 
     & > [data-part="header"] {
@@ -229,7 +229,7 @@
     flex-direction: row;
     align-items: center;
     gap: var(--noora-spacing-3);
-    border-radius: var(--noora-radius-medium);
+    border-radius: var(--noora-radius-3);
     background: var(--noora-surface-background-tertiary);
     padding: var(--noora-spacing-3) var(--noora-spacing-3) var(--noora-spacing-3) var(--noora-spacing-5);
     min-width: 0;
@@ -271,7 +271,7 @@
       }
 
       & code {
-        border-radius: var(--noora-radius-xsmall);
+        border-radius: var(--noora-radius-1);
         background: var(--noora-surface-background-tertiary);
         padding: 1px var(--noora-spacing-2);
         color: var(--noora-surface-label-primary);

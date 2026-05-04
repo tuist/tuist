@@ -158,7 +158,7 @@
     display: flex;
     flex-direction: row;
     align-items: flex-start;
-    border-radius: var(--noora-radius-2xlarge);
+    border-radius: var(--noora-radius-8);
     & > [data-part="header"] {
       display: flex;
       flex-grow: 1;
@@ -198,7 +198,7 @@
         justify-content: space-between;
         align-items: flex-start;
         box-shadow: var(--noora-border-medium);
-        border-radius: var(--noora-radius-2xlarge);
+        border-radius: var(--noora-radius-8);
         background: linear-gradient(252deg, rgba(255, 255, 255, 0) 0%, rgba(235, 235, 235, 0.2) 100%),
           var(--noora-surface-background-primary);
         padding: var(--noora-spacing-8);
@@ -279,7 +279,7 @@
         & > [data-part="billing-email"] {
           cursor: not-allowed;
           box-shadow: var(--noora-border-light-default);
-          border-radius: var(--noora-radius-medium);
+          border-radius: var(--noora-radius-3);
           background: var(--noora-surface-background-tertiary);
           padding: var(--noora-spacing-3) var(--noora-spacing-4);
           color: var(--noora-surface-label-primary);
@@ -296,7 +296,7 @@
   flex-direction: column;
   gap: var(--noora-spacing-9);
   box-shadow: var(--noora-border-light-default);
-  border-radius: var(--noora-radius-2xlarge);
+  border-radius: var(--noora-radius-8);
   padding: var(--noora-spacing-8);
   width: 252px;
   overflow: hidden;
@@ -318,7 +318,7 @@
     left: 0;
     flex-direction: column;
     align-items: center;
-    border-radius: var(--noora-radius-2xlarge);
+    border-radius: var(--noora-radius-8);
 
     & > [data-part="label"] {
       z-index: var(--noora-z-index-2);

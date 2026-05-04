@@ -831,14 +831,16 @@
     0px 2px 4px 0px oklch(31.82% 0.0113 248.18 / 0.04);
 
   /* Radius */
-  --noora-radius-none: 0rem;
-  --noora-radius-xsmall: 0.125rem;
-  --noora-radius-small: 0.25rem;
-  --noora-radius-medium: 0.375rem;
-  --noora-radius-large: 0.5rem;
-  --noora-radius-xlarge: 0.75rem;
-  --noora-radius-2xlarge: 1rem;
-  --noora-radius-max: 1000px;
+  --noora-radius-0: 0rem;
+  --noora-radius-1: 0.125rem;
+  --noora-radius-2: 0.25rem;
+  --noora-radius-3: 0.375rem;
+  --noora-radius-4: 0.5rem;
+  --noora-radius-5: 0.625rem;
+  --noora-radius-6: 0.75rem;
+  --noora-radius-7: 0.875rem;
+  --noora-radius-8: 1rem;
+  --noora-radius-99: 1000px;
 
   /* Icon */
   --noora-icon-size-small: 0.75rem;

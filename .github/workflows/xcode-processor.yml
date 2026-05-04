@@ -31,7 +31,7 @@ env:
 jobs:
   swift-build:
     name: Swift Build (XCResultNIF)
-    runs-on: namespace-profile-default-macos
+    runs-on: namespace-profile-macos-xcode-26
     timeout-minutes: 15
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     defaults:

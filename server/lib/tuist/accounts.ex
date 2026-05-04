@@ -30,6 +30,8 @@ defmodule Tuist.Accounts do
 
   require Logger
 
+  @reset_password_delivery_cooldown_in_minutes 5
+
   def new_organizations_in_last_hour do
     Repo.all(from(o in Organization, where: o.created_at > ago(1, "hour"), preload: [:account]))
   end
@@ -1447,13 +1449,19 @@ defmodule Tuist.Accounts do
   """
   def deliver_user_reset_password_instructions(%{user: %User{} = user, reset_password_url: reset_password_url})
       when is_function(reset_password_url, 1) do
-    {encoded_token, user_token} = UserToken.build_email_token(user, "reset_password")
-    Repo.insert!(user_token)
+    if recently_sent_reset_password_instructions?(user) do
+      :ok
+    else
+      Repo.delete_all(UserToken.by_user_and_contexts_query(user, ["reset_password"]))
 
-    UserNotifier.deliver_reset_password_instructions(%{
-      user: user,
-      reset_password_url: reset_password_url.(encoded_token)
-    })
+      {encoded_token, user_token} = UserToken.build_email_token(user, "reset_password")
+      Repo.insert!(user_token)
+
+      UserNotifier.deliver_reset_password_instructions(%{
+        user: user,
+        reset_password_url: reset_password_url.(encoded_token)
+      })
+    end
   end
 
   @doc """
@@ -1498,6 +1506,16 @@ defmodule Tuist.Accounts do
       {:ok, %{user: user}} -> {:ok, user}
       {:error, :user, changeset, _} -> {:error, changeset}
     end
+  end
+
+  defp recently_sent_reset_password_instructions?(%User{id: user_id}) do
+    Repo.exists?(
+      from t in UserToken,
+        where:
+          t.user_id == ^user_id and
+            t.context == "reset_password" and
+            t.inserted_at > ago(@reset_password_delivery_cooldown_in_minutes, "minute")
+    )
   end
 
   defp generate_random_string(length) do

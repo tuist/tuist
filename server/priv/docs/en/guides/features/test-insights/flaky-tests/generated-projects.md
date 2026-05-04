@@ -44,7 +44,7 @@ This is particularly useful for catching flaky tests that don't fail consistentl
 
 ### Automatic clearing
 
-Tuist automatically clears the flaky flag from tests that haven't been flaky for 14 days. This ensures that tests that have been fixed don't remain marked as flaky indefinitely.
+Detection and clearing run through an **automation alert** on the project. Every project gets a default "Flaky test detection" automation whose *trigger* marks a test as flaky and whose *recovery* clears the flag once the test has gone the configured recovery window (default **14 days**) without re-triggering. Edit it under **Settings → Automations** to change the recovery window, swap the recovery actions (e.g. also un-quarantine), or disable recovery entirely so tests stay marked flaky until you clear them by hand.
 
 ### Manual management
 
@@ -54,10 +54,17 @@ You can also manually mark or unmark tests as flaky from the test case detail pa
 
 ## Quarantining flaky tests {#quarantining}
 
-Quarantining isolates a flaky test so it doesn't block CI while you fix it. A quarantined test is in one of two modes:
+Quarantining isolates a flaky test so it doesn't block CI while you fix it. By default it's a **manual action** — you quarantine, un-quarantine, and switch modes from the test case detail page in the dashboard — but you can also wire it into an **automation alert** under **Settings → Automations** so a test is automatically muted (or skipped) when it crosses a flakiness threshold, and un-quarantined when it recovers. Every transition, manual or automated, is recorded on the test case's audit log.
+
+A quarantined test is in one of two modes:
 
 - **Muted**: the test still runs, but `tuist test` masks the failure. Failures still feed the flaky-tests detector, so you can keep watching the test without breaking the build. Pick this for a test you're actively investigating.
 - **Skipped**: xcodebuild receives `-skip-testing <identifier>`, so the test never starts. It produces no new results and drops off the flaky-tests dashboard until you re-enable it. Pick this when the test is broken, slow, or so persistently flaky that running it is just wasted CI minutes.
+
+### Why quarantined tests can appear as passing {#quarantined-passing}
+
+- **Muted tests** still execute. A muted test that fails is recorded as **failed** on the test case run and flagged as flaky — the per-test status is not rewritten. What gets overridden is the **overall test run**: if every failing test case in the run is muted, the run as a whole is reported as passed, so muted failures don't break CI.
+- **Skipped tests** don't run at all, so the dashboard keeps showing the status from the test's last actual execution — that snapshot can be weeks old.
 
 ### Running tests {#running-tests}
 
@@ -78,3 +85,24 @@ tuist test --skip-quarantine
 ## Slack notifications {#slack-notifications}
 
 Get notified instantly when a test becomes flaky by setting up <.localized_link href="/guides/integrations/slack#flaky-test-alerts">flaky test alerts</.localized_link> in your Slack integration.
+
+## Querying flaky and quarantined state {#querying}
+
+### CLI
+
+The `tuist test case` command tree exposes everything Tuist tracks about a test case:
+
+```sh
+tuist test case list --flaky                       # only flaky test cases
+tuist test case list --quarantined                 # only muted or skipped test cases
+tuist test case show <test_case_id>                # detail: flakiness rate, last status, run counts
+tuist test case events <test_case_id>              # audit log: marked_flaky, muted, skipped, ...
+tuist test case run list <test_case_id>            # run history with status and duration
+tuist test case run show <test_case_run_id>        # single run, including failure breakdown
+```
+
+All of these accept `--json` for scripting.
+
+### REST API
+
+The same data is available over HTTP — see the [Test Cases endpoints](https://tuist.dev/api/docs#tag/test-cases) in the API reference for the full list of routes, filters, and response fields. State changes (mark/unmark flaky, mute, skip) currently happen from the dashboard UI, not via the public REST API.

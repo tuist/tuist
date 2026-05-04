@@ -90,16 +90,16 @@ defmodule TuistWeb.LayoutLive do
              show_avatar: true,
              avatar_color: Accounts.avatar_color(account)
            }
-         end) ++
-           [
-             %{
-               label: dgettext("dashboard", "Create organization"),
-               value: "create-organization",
-               href: ~p"/organizations/new",
-               icon: "building_plus",
-               selected: false
-             }
-           ]
+         end),
+       footer_items: [
+         %{
+           label: dgettext("dashboard", "Create organization"),
+           value: "create-organization",
+           href: ~p"/organizations/new",
+           icon: "building_plus",
+           selected: false
+         }
+       ]
      })
      |> append_breadcrumb(%{
        label: selected_project.name,
@@ -113,16 +113,16 @@ defmodule TuistWeb.LayoutLive do
              href: ~p"/#{account_handle}/#{project.name}",
              badge: build_system_badge(project.build_system)
            }
-         end) ++
-           [
-             %{
-               label: dgettext("dashboard", "Create project"),
-               value: "create-project",
-               href: ~p"/projects/new?account_id=#{selected_account.id}",
-               icon: "circle_plus",
-               selected: false
-             }
-           ]
+         end),
+       footer_items: [
+         %{
+           label: dgettext("dashboard", "Create project"),
+           value: "create-project",
+           href: ~p"/projects/new?account_id=#{selected_account.id}",
+           icon: "circle_plus",
+           selected: false
+         }
+       ]
      })
      |> assign_latest_app_release()
      |> assign_latest_cli_release()
@@ -170,16 +170,16 @@ defmodule TuistWeb.LayoutLive do
              show_avatar: true,
              avatar_color: Accounts.avatar_color(account)
            }
-         end) ++
-           [
-             %{
-               label: dgettext("dashboard", "Create organization"),
-               value: "create-organization",
-               href: ~p"/organizations/new",
-               icon: "building_plus",
-               selected: false
-             }
-           ]
+         end),
+       footer_items: [
+         %{
+           label: dgettext("dashboard", "Create organization"),
+           value: "create-organization",
+           href: ~p"/organizations/new",
+           icon: "building_plus",
+           selected: false
+         }
+       ]
      })
      |> assign(
        :can_read_billing,

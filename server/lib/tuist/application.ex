@@ -5,6 +5,12 @@ defmodule Tuist.Application do
   use Boundary, top_level?: true, deps: [Tuist, TuistWeb]
 
   alias Tuist.Builds.Build
+  alias Tuist.Builds.BuildFile
+  alias Tuist.Builds.BuildIssue
+  alias Tuist.Builds.BuildMachineMetric
+  alias Tuist.Builds.BuildTarget
+  alias Tuist.Builds.CacheableTask
+  alias Tuist.Builds.CASOutput
   alias Tuist.Cache.CASEvent
   alias Tuist.CommandEvents
   alias Tuist.DBConnection.TelemetryListener
@@ -275,6 +281,12 @@ defmodule Tuist.Application do
         {Tuist.IngestRepo, connection_listeners: {[TelemetryListener], :clickhouse_write}},
         Supervisor.child_spec(CommandEvents.Event.Buffer, id: CommandEvents.Event.Buffer),
         Supervisor.child_spec(Build.Buffer, id: Build.Buffer),
+        Supervisor.child_spec(BuildFile.Buffer, id: BuildFile.Buffer),
+        Supervisor.child_spec(BuildIssue.Buffer, id: BuildIssue.Buffer),
+        Supervisor.child_spec(BuildMachineMetric.Buffer, id: BuildMachineMetric.Buffer),
+        Supervisor.child_spec(BuildTarget.Buffer, id: BuildTarget.Buffer),
+        Supervisor.child_spec(CacheableTask.Buffer, id: CacheableTask.Buffer),
+        Supervisor.child_spec(CASOutput.Buffer, id: CASOutput.Buffer),
         Supervisor.child_spec(XcodeGraph.Buffer, id: XcodeGraph.Buffer),
         Supervisor.child_spec(XcodeProject.Buffer, id: XcodeProject.Buffer),
         Supervisor.child_spec(XcodeTarget.Buffer, id: XcodeTarget.Buffer),
