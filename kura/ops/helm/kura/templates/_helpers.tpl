@@ -44,6 +44,13 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- printf "%s-headless" (include "kura.fullname" .) -}}
 {{- end -}}
 
+{{- /*
+Generates the same-cluster `KURA_PEERS` list from the StatefulSet's
+own headless service DNS. Kura's runtime accepts a comma-separated
+peer list, so extending this helper with a future `extraSeedPeers`
+values field is the one-knob change needed to cross-cluster mesh
+(e.g. Hetzner backbone + Scaleway edge); no protocol-level work.
+*/ -}}
 {{- define "kura.seedPeers" -}}
 {{- $full := include "kura.fullname" . -}}
 {{- $headless := include "kura.headlessServiceName" . -}}
