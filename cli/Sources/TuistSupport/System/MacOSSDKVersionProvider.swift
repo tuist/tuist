@@ -1,5 +1,7 @@
+import Command
 import Foundation
 import Mockable
+import TuistThreadSafe
 
 @Mockable
 public protocol MacOSSDKVersionProviding: Sendable {
@@ -10,22 +12,29 @@ public protocol MacOSSDKVersionProviding: Sendable {
     ///
     /// - Returns: macOS SDK version (for example, "26.5").
     /// - Throws: An error if the SDK version can't be determined.
-    func macOSSDKVersion() throws -> String
+    func macOSSDKVersion() async throws -> String
 }
 
-public struct MacOSSDKVersionProvider: MacOSSDKVersionProviding {
-    @TaskLocal public static var current: MacOSSDKVersionProviding = MacOSSDKVersionProvider(System())
+public final class MacOSSDKVersionProvider: MacOSSDKVersionProviding, @unchecked Sendable {
+    @TaskLocal public static var current: MacOSSDKVersionProviding = MacOSSDKVersionProvider()
 
-    let cachedMacOSSDKVersion: ThrowableCaching<String>
+    private let commandRunner: CommandRunning
+    private let cachedVersion: TuistThreadSafe.ThreadSafe<String?> = .init(nil)
 
-    init(_ system: Systeming) {
-        cachedMacOSSDKVersion = ThrowableCaching<String> {
-            try system.capture(["/usr/bin/xcrun", "--sdk", "macosx", "--show-sdk-version"]).spm_chomp()
-        }
+    public init(commandRunner: CommandRunning = CommandRunner()) {
+        self.commandRunner = commandRunner
     }
 
-    public func macOSSDKVersion() throws -> String {
-        try cachedMacOSSDKVersion.value
+    public func macOSSDKVersion() async throws -> String {
+        if let cachedVersion = cachedVersion.value {
+            return cachedVersion
+        }
+        let value = try await commandRunner
+            .run(arguments: ["/usr/bin/xcrun", "--sdk", "macosx", "--show-sdk-version"])
+            .concatenatedString()
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        cachedVersion.mutate { $0 = value }
+        return value
     }
 }
 

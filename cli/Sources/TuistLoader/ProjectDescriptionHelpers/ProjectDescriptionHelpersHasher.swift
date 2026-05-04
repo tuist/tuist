@@ -40,7 +40,7 @@ public struct ProjectDescriptionHelpersHasher: ProjectDescriptionHelpersHashing 
         let tuistEnvVariables = Environment.current.manifestLoadingVariables.map { "\($0.key)=\($0.value)" }.sorted()
         let swiftlangVersion = try SwiftVersionProvider.current.swiftlangVersion()
         let macosVersion = machineEnvironment.macOSVersion
-        let macosSDKVersion = try MacOSSDKVersionProvider.current.macOSSDKVersion()
+        let macosSDKVersion = try await MacOSSDKVersionProvider.current.macOSSDKVersion()
         #if DEBUG
             let debug = true
         #else
