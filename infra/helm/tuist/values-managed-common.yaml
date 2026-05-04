@@ -194,7 +194,7 @@ macosFleet:
   enabled: true
   image:
     repository: ghcr.io/tuist/capi-provider-scaleway-applesilicon
-    tag: ""
+    tag: ""  # Set by CI to the latest green build of the operator image.
 
 # Everything below = external. The managed deployment never runs embedded
 # Postgres / ClickHouse / object storage / observability stacks.

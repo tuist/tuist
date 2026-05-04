@@ -46,6 +46,12 @@ on:
       image_tag:
         description: Pre-built image tag to deploy instead of building
         required: false
+      macos_fleet_image_tag:
+        description: >-
+          CAPI operator (capi-provider-scaleway-applesilicon) image tag.
+          Leave blank to auto-resolve to the latest successful build of
+          the operator image on main.
+        required: false
   workflow_call:
     inputs:
       environment:
@@ -63,11 +69,24 @@ on:
           the workflow builds + pushes an image tagged sha-<commit_sha>.
         required: false
         type: string
+      macos_fleet_image_tag:
+        description: >-
+          CAPI operator image tag (capi-provider-scaleway-applesilicon).
+          Leave blank to auto-resolve to the latest successful build on
+          main. The operator image rides its own build pipeline
+          (capi-provider-scaleway-applesilicon-image.yml) rather than
+          the per-commit server build, so it has its own tag input.
+        required: false
+        type: string
 
 permissions:
   contents: read
   packages: write
   id-token: write
+  # actions:read lets the deploy job's gh-api lookup find the latest
+  # successful run of capi-provider-scaleway-applesilicon-image.yml
+  # to pin macosFleet.image.tag at upgrade time.
+  actions: read
 
 env:
   REGISTRY: ghcr.io
@@ -258,6 +277,35 @@ jobs:
           # so dependent pods (Pending or otherwise) go with the Job.
           echo "$stale_jobs" | xargs -r kubectl -n "$NAMESPACE" delete job \
             --ignore-not-found --cascade=foreground --timeout=2m
+      - name: Resolve macosFleet image tag
+        # The CAPI operator image is built by its own workflow on
+        # main pushes that touch infra/cluster-api-provider-scaleway-
+        # applesilicon (or the modules it embeds). When the deploy
+        # caller didn't pin a tag explicitly, look up the SHA of the
+        # most recent green build on main so the helm upgrade pins to
+        # an immutable tag rather than the floating `:latest`.
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MACOS_FLEET_IMAGE_TAG_INPUT: ${{ inputs.macos_fleet_image_tag }}
+        run: |
+          set -euo pipefail
+          if [ -n "${MACOS_FLEET_IMAGE_TAG_INPUT}" ]; then
+            TAG="${MACOS_FLEET_IMAGE_TAG_INPUT}"
+          else
+            HEAD_SHA="$(
+              gh api -H "Accept: application/vnd.github+json" \
+                "repos/${{ github.repository }}/actions/workflows/capi-provider-scaleway-applesilicon-image.yml/runs?status=success&branch=main&per_page=1" \
+                -q '.workflow_runs[0].head_sha'
+            )"
+            if [ -z "${HEAD_SHA}" ] || [ "${HEAD_SHA}" = "null" ]; then
+              echo "No successful run found for capi-provider-scaleway-applesilicon-image.yml on main." >&2
+              exit 1
+            fi
+            # The operator image build tags with the 8-char SHA prefix.
+            TAG="${HEAD_SHA:0:8}"
+          fi
+          echo "MACOS_FLEET_IMAGE_TAG=${TAG}" >> "$GITHUB_ENV"
+          echo "Resolved macosFleet image tag: ${TAG}"
       - name: helm upgrade --install
         # App secrets never pass through --set: the chart runs in
         # `server.managedSecrets: true` mode, which reads DATABASE_URL /
@@ -271,6 +319,7 @@ jobs:
             -f "$HELM_CHART_PATH/values-managed-common.yaml" \
             -f "$HELM_CHART_PATH/values-managed-${{ inputs.environment }}.yaml" \
             --set server.image.tag="$IMAGE_TAG" \
+            --set macosFleet.image.tag="$MACOS_FLEET_IMAGE_TAG" \
             --atomic --timeout 60m --wait
       - name: Diagnostics on failure
         # `--atomic` rolls back the release on timeout, so `helm history` and
