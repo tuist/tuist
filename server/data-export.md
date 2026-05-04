@@ -57,7 +57,6 @@ The following data is stored in ClickHouse for analytics purposes:
 ### Non-Exportable Data
 - Encrypted passwords and authentication secrets
 - Encrypted SSO client secrets for Okta and custom OAuth2 providers
-- Internal replication bookkeeping (e.g., `bundles.artifacts_replicated_to_ch`) used to drive the PG → ClickHouse artifacts backfill
 
 ## Binary Files
 
