@@ -63,11 +63,13 @@ defmodule Tuist.Bundles do
     :ok
   end
 
+  # Synchronous on purpose: an async buffer write would return before the
+  # row reaches ClickHouse, so a later flush failure could not flip the
+  # `replicated_to_ch` flag and the backfill would skip the bundle even
+  # though it never landed in CH.
   defp replicate_bundle_to_clickhouse(%Bundle{} = bundle) do
-    bundle
-    |> BundleIngest.from_bundle()
-    |> BundleIngest.Buffer.insert()
-
+    row = BundleIngest.from_bundle(bundle)
+    IngestRepo.insert_all(BundleIngest, [row])
     :ok
   rescue
     error ->

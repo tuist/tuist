@@ -1,13 +1,13 @@
 defmodule Tuist.Bundles.BundleIngest do
   @moduledoc """
   ClickHouse-shaped sibling of `Tuist.Bundles.Bundle`. Used to dual-write
-  bundle rows to ClickHouse during the PG → CH migration. Will be folded
-  back into `Tuist.Bundles.Bundle` once the cutover is complete and the
-  PG `bundles` table is dropped.
+  bundle rows to ClickHouse during the PG → CH migration via a synchronous
+  `IngestRepo.insert_all/2` call from `Tuist.Bundles.create_bundle/2`. Will
+  be folded back into `Tuist.Bundles.Bundle` once the cutover is complete
+  and the PG `bundles` table is dropped.
   """
 
   use Ecto.Schema
-  use Tuist.Ingestion.Bufferable
 
   alias Tuist.Bundles.Bundle
 
