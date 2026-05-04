@@ -37,11 +37,8 @@ defmodule Tuist.Bundles do
       |> Repo.transaction()
 
     case result do
-      {:ok, %{bundle: bundle, artifacts: []}} ->
+      {:ok, %{bundle: bundle}} ->
         {:ok, Repo.preload(bundle, preload)}
-
-      {:ok, %{bundle: bundle, artifacts: flattened}} ->
-        {:ok, Repo.preload(%{bundle | artifacts: flattened}, preload)}
 
       {:error, :bundle, changeset, _} ->
         {:error, changeset}
