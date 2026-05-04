@@ -18,7 +18,7 @@ on:
       - noora/**
       - .github/workflows/server.yml
       - server/pnpm-lock.yaml
-      - pnpm-lock.yaml
+      - noora/aube-lock.yaml
   merge_group: {}
 
 permissions:
@@ -33,7 +33,6 @@ env:
   MISE_GITHUB_TOKEN: ${{ github.token }}
   MIX_ENV: test
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  PNPM_HOME: ~/.pnpm
   MISE_TASK_RUN_AUTO_INSTALL: 0
   MISE_GITHUB_ATTESTATIONS: 0
 
@@ -214,15 +213,16 @@ jobs:
       - uses: ./.github/actions/setup-server-mix
         with:
           mise-version: ${{ env.MISE_VERSION }}
-          mise-install-args: erlang elixir node pnpm npm:prettier
-      - name: Restore PNPM Cache
+          mise-install-args: erlang elixir node aube npm:prettier
+      - name: Restore Aube Cache
         uses: actions/cache@v4
         with:
           path: |
-            ~/.pnpm/store
-          key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
-      - name: Install pnpm dependencies
-        run: pnpm install --ignore-workspace
+            ~/.local/share/aube
+            ~/.cache/aube
+          key: aube-server-${{ hashFiles('server/pnpm-lock.yaml') }}
+      - name: Install aube dependencies
+        run: aube install
       - name: Check format
         run: mise run --no-deps format --check
   esbuild:
@@ -235,19 +235,20 @@ jobs:
       - uses: ./.github/actions/setup-server-mix
         with:
           mise-version: ${{ env.MISE_VERSION }}
-          mise-install-args: erlang elixir node pnpm
-      - name: Restore PNPM Cache
+          mise-install-args: erlang elixir node aube
+      - name: Restore Aube Cache
         uses: actions/cache@v4
         with:
           path: |
-            ~/.pnpm/store
-          key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
-      - name: Install pnpm dependencies
-        run: pnpm install --ignore-workspace
+            ~/.local/share/aube
+            ~/.cache/aube
+          key: aube-server-${{ hashFiles('server/pnpm-lock.yaml') }}
+      - name: Install aube dependencies
+        run: aube install
       - name: Build noora static assets
         working-directory: noora
         run: |
-          pnpm install
+          aube install
           npx esbuild js/index.js --bundle --minify --sourcemap --format=esm --outfile=./priv/static/noora.js
           npx esbuild css/noora.css --bundle --minify --sourcemap --outfile=./priv/static/noora.css
       - name: Install esbuild
