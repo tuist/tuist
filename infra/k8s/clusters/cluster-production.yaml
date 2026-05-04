@@ -36,7 +36,7 @@ spec:
         value: ccx23
       - name: hcloudSSHKeyName
         value:
-          - name: tuist-syself
+          - name: tuist-ops
     workers:
       machineDeployments:
         # General-purpose pool: Phoenix server, redis, system DaemonSets.

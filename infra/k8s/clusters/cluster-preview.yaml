@@ -42,7 +42,7 @@ spec:
         value: cpx42
       - name: hcloudSSHKeyName
         value:
-          - name: tuist-syself
+          - name: tuist-ops
     workers:
       machineDeployments:
         - class: hcloud-worker

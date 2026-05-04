@@ -114,7 +114,7 @@ KUBECONFIG="$WL_KUBECONFIG" helm upgrade --install cilium cilium/cilium \
 # ---------------------------------------------------------------------------
 log "Step 3/11: create hetzner Secret on workload (HCCM + CSI both read it)"
 
-HCLOUD_TOKEN=$(op read --account tuist.1password.com "op://Founders/hetzner-tuist-workloads/credential")
+HCLOUD_TOKEN=$(op read --account tuist.1password.com "op://Founders/tuist-workloads/password")
 
 KUBECONFIG="$WL_KUBECONFIG" kubectl -n kube-system create secret generic hetzner \
   --from-literal=hcloud="$HCLOUD_TOKEN" \

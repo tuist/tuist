@@ -29,7 +29,7 @@ spec:
         value: cpx31
       - name: hcloudSSHKeyName
         value:
-          - name: tuist-syself
+          - name: tuist-ops
     workers:
       machineDeployments:
         - class: hcloud-worker
