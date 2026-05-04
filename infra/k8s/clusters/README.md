@@ -1,8 +1,5 @@
 # Tuist ClusterClass + Cluster CRs
 
-> **Status: Phase 7.2 + 7.3 complete; the ClusterClass produces working clusters end-to-end.**
-> Validated against a throwaway 5th cluster on the live mgmt cluster (CP initialized in ~2.3 min, workload kubeconfig minted, `kubectl get nodes` responds). What's still left in Phase 7: the per-cluster `topology.classRef.name` swap from `hetzner-apalla-1-34-v6` to `tuist-hcloud`, which has to wait until after Phase 3 cutover (the production Cluster CRs need to be on our mgmt cluster first).
-
 Self-hosted Kubernetes cluster manifests for the four workload clusters
 (staging / canary / production / preview), targeting our own management
 cluster running CAPI + caph (no Syself, no Apalla, no CSO).
@@ -26,7 +23,7 @@ machine types per pool, labels/taints).
 ```
 clusters/
 ├── README.md                  this file
-├── clusterclass-tuist.yaml    our ClusterClass (Phase 7.2 + 7.3 done)
+├── clusterclass-tuist.yaml    our ClusterClass
 ├── cluster-staging.yaml       per-env Cluster CRs in topology mode
 ├── cluster-canary.yaml
 ├── cluster-production.yaml
@@ -71,12 +68,12 @@ caph's reference templates use Hetzner-published Ubuntu images plus cloud-init t
 - [x] Per-env Cluster CRs (`cluster-{staging,canary,production,preview}.yaml`) authored in topology mode against `tuist-hcloud`.
 - [x] **Validation against a throwaway 5th cluster: passing.** Full end-to-end: caph provisions Hetzner LB + server, cloud-init runs, containerd 2.2.3 starts, kubeadm init succeeds, all 4 control-plane static pods come up (etcd / kube-apiserver / kube-controller-manager / kube-scheduler), workload-cluster API responds via the LB, kubeconfig Secret is minted. ~2.3 min from `kubectl apply` to `ControlPlaneInitialized=True`. Cost per validation run: ~€0.30.
 
-## What's left in Phase 7
+## Cutover
 
-The ClusterClass + per-env CRs are checked in and validated. The remaining work depends on Phase 3 (Syself cutover) having happened:
+The ClusterClass + per-env CRs are checked in and validated. The remaining work depends on the Cluster CRs being on our mgmt cluster (i.e. after the Syself cutover completes):
 
-1. **After Phase 3** (Cluster CRs are on our mgmt cluster, still reference `hetzner-apalla-1-34-v6`): diff the rendered KubeadmControlPlane / KubeadmConfigTemplate / HCloudMachineTemplate that `tuist-hcloud` would produce vs. the Apalla originals already on the mgmt cluster. Iterate the ClusterClass until the diff is either empty (no-op classRef swap) or limited to fields CAPI is happy to reconcile in place (labels, annotations).
-2. **Per-cluster swap** once the diff is acceptable:
+1. Diff the rendered KubeadmControlPlane / KubeadmConfigTemplate / HCloudMachineTemplate that `tuist-hcloud` would produce vs. the Apalla originals already on the mgmt cluster. Iterate the ClusterClass until the diff is either empty (no-op classRef swap) or limited to fields CAPI is happy to reconcile in place (labels, annotations).
+2. Per-cluster swap once the diff is acceptable:
    ```bash
    kubectl -n org-tuist patch cluster <name> --type=merge \
      -p '{"spec":{"topology":{"classRef":{"name":"tuist-hcloud"}}}}'

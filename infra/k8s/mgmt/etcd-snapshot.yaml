@@ -8,8 +8,8 @@
 # documented in https://www.talos.dev/v1.7/talos-guides/install/cloud-platforms/.
 #
 # Expects two pre-existing Secrets in mgmt-system:
-#   - talos-snapshotter-config: a restricted talosconfig (role
-#     os:etcd:backup): see infra/k8s/self-hosted-migration.md §1.8
+#   - talos-snapshotter-config: a restricted talosconfig (role os:etcd:backup),
+#     generated via `talosctl config new --roles os:etcd:backup`
 #   - tigris-credentials: bucket-scoped Tigris keys
 #     (access_key_id + secret_access_key fields)
 #
