@@ -9,7 +9,6 @@ import TuistServer
 
 #if os(macOS)
     import TuistExtension
-    import TuistHAR
     import TuistKit
     import TuistLoader
     import TuistSupport
@@ -80,26 +79,23 @@ func initNoora(jsonThroughNoora: Bool = false) -> Noora {
         sessionController.scheduleMaintenance(stateDirectory: Environment.current.stateDirectory)
 
         let logger = Logger(label: "dev.tuist.cli", factory: loggerHandler)
-        let harRecorder = HARRecorder(filePath: sessionPaths.networkFilePath)
 
         try await withAdditionalMiddlewares {
             try await withInitializedManifestLoader {
                 try await ServerAuthenticationConfig.$current.withValue(ServerAuthenticationConfig(backgroundRefresh: true)) {
                     try await Noora.$current.withValue(initNoora()) {
                         try await Logger.$current.withValue(logger) {
-                            try await HARRecorder.$current.withValue(harRecorder) {
-                                try await ServerCredentialsStore.$current
-                                    .withValue(ServerCredentialsStore(backend: .fileSystem)) {
-                                        try await CachedValueStore.$current.withValue(CachedValueStore(backend: .fileSystem)) {
-                                            try await Extension.$hashCacheService
-                                                .withValue(HashCacheCommandService()) {
-                                                    try await withCacheService {
-                                                        try await action(sessionPaths)
-                                                    }
+                            try await ServerCredentialsStore.$current
+                                .withValue(ServerCredentialsStore(backend: .fileSystem)) {
+                                    try await CachedValueStore.$current.withValue(CachedValueStore(backend: .fileSystem)) {
+                                        try await Extension.$hashCacheService
+                                            .withValue(HashCacheCommandService()) {
+                                                try await withCacheService {
+                                                    try await action(sessionPaths)
                                                 }
-                                        }
+                                            }
                                     }
-                            }
+                                }
                         }
                     }
                 }
