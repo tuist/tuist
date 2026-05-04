@@ -1,0 +1,59 @@
+{
+  "$schema": "https://raw.githubusercontent.com/grafana/grafana/main/docs/sources/developers/plugins/plugin.schema.json",
+  "type": "app",
+  "name": "Tuist",
+  "id": "tuist-tuist-app",
+  "info": {
+    "description": "Track your Xcode and Gradle projects with dashboards powered by Tuist.",
+    "author": {
+      "name": "Tuist",
+      "url": "https://tuist.dev"
+    },
+    "keywords": ["tuist", "xcode", "gradle", "swift", "ios", "macos", "android", "build", "cache", "ci"],
+    "logos": {
+      "small": "img/logo.svg",
+      "large": "img/logo.svg"
+    },
+    "links": [
+      { "name": "Documentation", "url": "https://docs.tuist.dev" },
+      { "name": "Source", "url": "https://github.com/tuist/tuist/tree/main/grafana" }
+    ],
+    "screenshots": [],
+    "version": "%VERSION%",
+    "updated": "%TODAY%"
+  },
+  "dependencies": {
+    "grafanaDependency": ">=10.4.0",
+    "plugins": [
+      {
+        "id": "prometheus",
+        "type": "datasource",
+        "name": "Prometheus",
+        "version": ">=1.0.0"
+      }
+    ]
+  },
+  "includes": [
+    {
+      "type": "page",
+      "name": "Setup",
+      "path": "/a/tuist-tuist-app/setup",
+      "role": "Admin",
+      "action": "plugins:write",
+      "addToNav": true,
+      "defaultNav": true
+    },
+    {
+      "type": "dashboard",
+      "name": "Tuist Xcode",
+      "path": "dashboards/xcode.json",
+      "addToNav": true
+    },
+    {
+      "type": "dashboard",
+      "name": "Tuist Gradle",
+      "path": "dashboards/gradle.json",
+      "addToNav": true
+    }
+  ]
+}

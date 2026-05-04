@@ -1586,6 +1586,7 @@ components:
                     - mcp
                     - account:members:read
                     - account:members:write
+                    - account:metrics:read
                     - account:registry:read
                     - account:registry:write
                     - project:previews:read
@@ -5593,6 +5594,7 @@ components:
               - mcp
               - account:members:read
               - account:members:write
+              - account:metrics:read
               - account:registry:read
               - account:registry:write
               - project:previews:read
@@ -12354,6 +12356,7 @@ paths:
                               - mcp
                               - account:members:read
                               - account:members:write
+                              - account:metrics:read
                               - account:registry:read
                               - account:registry:write
                               - project:previews:read
@@ -12467,6 +12470,7 @@ paths:
                       - mcp
                       - account:members:read
                       - account:members:write
+                      - account:metrics:read
                       - account:registry:read
                       - account:registry:write
                       - project:previews:read

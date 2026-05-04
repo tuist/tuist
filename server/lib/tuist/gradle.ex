@@ -53,7 +53,31 @@ defmodule Tuist.Gradle do
 
     create_machine_metrics(build_id, machine_metrics, now)
 
+    emit_gradle_build_metrics(attrs, build_entry)
+
     {:ok, build_id}
+  end
+
+  defp emit_gradle_build_metrics(%{project_id: project_id} = attrs, build_entry) do
+    case Tuist.Projects.get_project_by_id(project_id) do
+      %{account: account} = project ->
+        :telemetry.execute(
+          [:tuist, :metrics, :gradle, :build, :run],
+          %{duration_seconds: (build_entry.duration_ms || 0) / 1_000},
+          %{
+            account_id: account.id,
+            project: "#{account.name}/#{project.name}",
+            module: Map.get(attrs, :root_project_name, "") || "",
+            is_ci: Map.get(attrs, :is_ci, false),
+            status: to_string(Map.get(attrs, :status, "")),
+            gradle_version: Map.get(attrs, :gradle_version, "") || "",
+            jvm_version: Map.get(attrs, :java_version, "") || ""
+          }
+        )
+
+      _ ->
+        :ok
+    end
   end
 
   defp build_entry(attrs, build_id, task_counts, now) do

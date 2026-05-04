@@ -1,0 +1,11 @@
+node_modules/
+dist/
+coverage/
+.DS_Store
+*.log
+*.tgz
+.eslintcache
+.cache/
+
+# Built plugin archives (artifact of mise run bundle)
+tuist-tuist-app-*.zip

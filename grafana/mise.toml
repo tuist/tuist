@@ -1,0 +1,15 @@
+[tools]
+    node = "24.14.0"
+    pnpm = "10.17.1"
+
+# webpack-cli loads `.config/webpack/webpack.config.ts` via ts-node. Without
+# TRANSPILE_ONLY it hard-errors on the `.ts` extension imports in the scaffold
+# (`allowImportingTsExtensions` would need to be set in a tsconfig we don't
+# control cleanly). Setting it at the project level means every task picks it
+# up without ceremony.
+[env]
+    TS_NODE_TRANSPILE_ONLY = "true"
+    TS_NODE_FILES = "true"
+
+[hooks]
+    postinstall = "pnpm install --prefer-offline"

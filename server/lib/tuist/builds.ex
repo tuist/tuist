@@ -96,19 +96,36 @@ defmodule Tuist.Builds do
       create_machine_metrics(build_map, machine_metrics)
 
       project = Project |> Repo.get(build.project_id) |> Repo.preload(:account)
-
-      if project do
-        Tuist.PubSub.broadcast(
-          build,
-          "#{project.account.name}/#{project.name}",
-          :xcode_build_created
-        )
-      end
+      broadcast_and_emit_metrics(build, project)
 
       {:ok, build}
     else
       {:error, changeset}
     end
+  end
+
+  defp broadcast_and_emit_metrics(_build, nil), do: :ok
+
+  defp broadcast_and_emit_metrics(build, project) do
+    Tuist.PubSub.broadcast(
+      build,
+      "#{project.account.name}/#{project.name}",
+      :xcode_build_created
+    )
+
+    :telemetry.execute(
+      [:tuist, :metrics, :xcode, :build, :run],
+      %{duration_seconds: (build.duration || 0) / 1_000},
+      %{
+        account_id: project.account.id,
+        project: "#{project.account.name}/#{project.name}",
+        scheme: build.scheme || "",
+        is_ci: !!build.is_ci,
+        status: build.status || "",
+        xcode_version: build.xcode_version || "",
+        macos_version: build.macos_version || ""
+      }
+    )
   end
 
   defp create_build_files(build, files) do

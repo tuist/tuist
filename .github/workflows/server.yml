@@ -218,10 +218,13 @@ jobs:
         run: mix compile --warnings-as-errors
       - name: Start ClickHouse
         run: mise run --no-deps clickhouse:start
-      - name: Setup database
-        run: mise run --no-deps db:reset
-      - name: Run tests
-        run: mix test --warnings-as-errors
+      - name: Setup database and run tests
+        run: |
+          mix do \
+            compile, \
+            ecto.create, \
+            ecto.load, \
+            test --warnings-as-errors
   credo:
     name: Credo
     runs-on: namespace-profile-default-with-volume
@@ -499,9 +502,11 @@ jobs:
         run: mix deps.get
       - name: Start ClickHouse
         run: mise run --no-deps clickhouse:start
-      - name: Setup database
-        run: mise run --no-deps db:reset
-      - name: Run migrations
-        run: mix ecto.migrate
-      - name: Seed the database
-        run: mix run priv/repo/seeds.exs
+      - name: Setup and seed database
+        run: |
+          mix do \
+            compile, \
+            ecto.create, \
+            ecto.load, \
+            ecto.migrate, \
+            run priv/repo/seeds.exs

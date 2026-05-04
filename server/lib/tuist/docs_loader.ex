@@ -151,6 +151,7 @@ defmodule Tuist.Docs.Loader do
 
     processed_markdown =
       markdown
+      |> expand_generated_markers()
       |> String.replace(@script_setup_regex, "")
       |> localize_link_components(locale)
       |> strip_custom_heading_ids()
@@ -377,6 +378,16 @@ defmodule Tuist.Docs.Loader do
     Regex.replace(@custom_heading_id_regex, markdown, "\\1")
   end
 
+  # Replaces `{{TUIST_METRICS_TABLE}}` markers with a Markdown block rendered
+  # from `Tuist.Metrics.Schema` so the metrics reference page can never drift
+  # from the server's actual schema. New markers can be added here as the
+  # docs grow.
+  defp expand_generated_markers(markdown) do
+    String.replace(markdown, "{{TUIST_METRICS_TABLE}}", fn _ ->
+      Tuist.Metrics.Schema.Markdown.render()
+    end)
+  end
+
   defp extract_custom_heading_ids(markdown) do
     cleaned = String.replace(markdown, @script_setup_regex, "")
 
@@ -414,7 +425,10 @@ defmodule Tuist.Docs.Loader do
   end
 
   defp extract_headings(markdown) do
-    cleaned = String.replace(markdown, @script_setup_regex, "")
+    cleaned =
+      markdown
+      |> expand_generated_markers()
+      |> String.replace(@script_setup_regex, "")
 
     @heading_extract_regex
     |> Regex.scan(cleaned)

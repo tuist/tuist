@@ -167,6 +167,13 @@ defmodule Tuist.Authorization do
     end
   end
 
+  object :account_metrics do
+    action :read do
+      desc("Allows an account token with account:metrics:read scope to scrape its account's metrics endpoint.")
+      allow([:authenticated_as_account, :accounts_match, scopes_permit: "account:metrics:read"])
+    end
+  end
+
   object :account_token do
     action :create do
       desc("Allows the admin of an account to create an account token.")

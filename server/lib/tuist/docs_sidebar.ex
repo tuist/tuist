@@ -342,6 +342,7 @@ defmodule Tuist.Docs.Sidebar do
             label: "Continuous integration",
             slug: "/en/guides/integrations/continuous-integration"
           },
+          %Item{label: "Grafana", slug: "/en/guides/integrations/grafana"},
           %Item{label: "HTTP proxy", slug: "/en/guides/integrations/http-proxy"},
           %Item{label: "SSO", slug: "/en/guides/integrations/sso"},
           %Item{label: "Slack", slug: "/en/guides/integrations/slack"},
@@ -441,6 +442,7 @@ defmodule Tuist.Docs.Sidebar do
       %Group{
         label: "References",
         items: [
+          %Item{label: "Metrics", slug: "/en/references/metrics"},
           %Item{label: "tuist.toml", slug: "/en/references/tuist-toml"},
           %Item{
             label: "Project description",
