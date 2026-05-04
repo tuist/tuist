@@ -18,4 +18,11 @@ defmodule Tuist.Kura.SpecsTest do
     assert Specs.default_volume_gi(:large) == 500
     assert Specs.default_volume_gi(:nonsense) == nil
   end
+
+  test "bandwidth/1 returns Cilium-shaped caps per spec" do
+    assert Specs.bandwidth(:small) == %{ingress: "100M", egress: "100M"}
+    assert Specs.bandwidth(:medium) == %{ingress: "250M", egress: "250M"}
+    assert Specs.bandwidth(:large) == %{ingress: "500M", egress: "500M"}
+    assert Specs.bandwidth(:nonsense) == nil
+  end
 end

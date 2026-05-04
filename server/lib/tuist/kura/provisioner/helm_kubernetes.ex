@@ -25,19 +25,20 @@ defmodule Tuist.Kura.Provisioner.HelmKubernetes do
     * `:kind_cluster_name` — when set and no kubeconfig secret is
       configured, autodiscover via `kind get kubeconfig` and (in dev/test)
       auto-create the cluster.
-    * `:tenant_isolation` — when true, generated values pin the
-      StatefulSet to per-account nodes via `nodeSelector` +
-      `tolerations` keyed on `tuist.dev/account=<handle>`. The matching
-      labelled+tainted node pool must already exist (manual or CAPI
-      `MachineDeployment`); without it, pods stay `Pending` and the
-      rollout fails closed with logs in `/ops`. Off by default so local
-      kind, with one shared node, schedules normally.
+
+  Tenant separation is application-layer: `KURA_TENANT_ID` (already in
+  the StatefulSet env) plus per-pod Cilium ingress/egress bandwidth
+  caps generated from the spec catalog. Hardware is shared across
+  accounts via a single pool of bare-metal Hetzner nodes labelled
+  `tuist.dev/role=kura`; the pool selector + toleration live in the
+  Hetzner provider overlay rather than per-account values.
   """
 
   @behaviour Tuist.Kura.Provisioner
 
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
+  alias Tuist.Kura.Specs
 
   require Logger
 
@@ -214,34 +215,32 @@ defmodule Tuist.Kura.Provisioner.HelmKubernetes do
       resources_for(server),
       persistence(server),
       ingress(region, account.name),
-      tenant_isolation(region, account.name)
+      bandwidth_annotations(server)
     ]
     |> Enum.reject(&(&1 in [nil, %{}]))
     |> Enum.reduce(base, &Map.merge(&2, &1))
   end
 
-  # Per-account hardware isolation: pin pods to nodes labelled and
-  # tainted for this account. Operators must provision the matching
-  # node pool before rollout (today: manual or CAPI `MachineDeployment`;
-  # once #10586 lands, the provisioner can grow a creation step).
-  # Mirrors the macOS fleet pattern from #10499.
-  defp tenant_isolation(%Regions{provisioner_config: %{tenant_isolation: true}}, handle) do
-    value = dns_handle(handle)
-
-    %{
-      "nodeSelector" => %{"tuist.dev/account" => value},
-      "tolerations" => [
+  # Per-pod Cilium bandwidth caps. Cilium honors the
+  # `kubernetes.io/{ingress,egress}-bandwidth` annotations and shapes
+  # traffic at the pod's veth, so on a shared bare-metal pool one
+  # account's burst can't starve another's host NIC. Sized per spec
+  # tier (the pod's customer-facing capacity), tunable in
+  # `Tuist.Kura.Specs`.
+  defp bandwidth_annotations(%Server{spec: spec}) do
+    case Specs.bandwidth(spec) do
+      %{ingress: ingress, egress: egress} ->
         %{
-          "key" => "tuist.dev/account",
-          "operator" => "Equal",
-          "value" => value,
-          "effect" => "NoSchedule"
+          "podAnnotations" => %{
+            "kubernetes.io/ingress-bandwidth" => ingress,
+            "kubernetes.io/egress-bandwidth" => egress
+          }
         }
-      ]
-    }
-  end
 
-  defp tenant_isolation(_region, _handle), do: nil
+      _ ->
+        nil
+    end
+  end
 
   @impl true
   def resources_for(%Server{spec: spec}) do

@@ -233,44 +233,28 @@ defmodule Tuist.Kura.Provisioner.HelmKubernetesTest do
     end
 
     @tag :tmp_dir
-    test "pins pods to per-account nodes when tenant_isolation is on", %{tmp_dir: tmp_dir} do
+    test "emits per-pod Cilium bandwidth annotations from the spec catalog", %{tmp_dir: tmp_dir} do
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
       stub(Tuist.Environment, :secret_key_tokens, fn -> nil end)
       stub(Tuist.License, :get_license, fn -> {:error, :missing} end)
-
-      region = %Regions{
-        id: "eu",
-        provisioner_config: %{
-          cluster_id: "eu-1",
-          helm_overlay: "hetzner",
-          public_host_template: "{account_handle}-{cluster_id}.kura.tuist.dev",
-          tenant_isolation: true
-        }
-      }
 
       values =
         HelmKubernetes.instance_values(
           "0.5.2",
           %{name: "TUIST"},
-          region,
+          local_region(),
           %Server{spec: :medium, volume_size_gi: 100},
           chart_fixture(tmp_dir, "return true")
         )
 
-      assert values["nodeSelector"] == %{"tuist.dev/account" => "tuist"}
-
-      assert values["tolerations"] == [
-               %{
-                 "key" => "tuist.dev/account",
-                 "operator" => "Equal",
-                 "value" => "tuist",
-                 "effect" => "NoSchedule"
-               }
-             ]
+      assert values["podAnnotations"] == %{
+               "kubernetes.io/ingress-bandwidth" => "250M",
+               "kubernetes.io/egress-bandwidth" => "250M"
+             }
     end
 
     @tag :tmp_dir
-    test "omits tenant scheduling when the region does not opt in", %{tmp_dir: tmp_dir} do
+    test "omits bandwidth annotations for unknown specs", %{tmp_dir: tmp_dir} do
       stub(Tuist.Environment, :app_url, fn -> "http://localhost:4000" end)
       stub(Tuist.Environment, :secret_key_tokens, fn -> nil end)
       stub(Tuist.License, :get_license, fn -> {:error, :missing} end)
@@ -280,12 +264,11 @@ defmodule Tuist.Kura.Provisioner.HelmKubernetesTest do
           "0.5.2",
           %{name: "TUIST"},
           local_region(),
-          %Server{spec: :small, volume_size_gi: 25},
+          %Server{spec: :nonsense, volume_size_gi: 25},
           chart_fixture(tmp_dir, "return true")
         )
 
-      refute Map.has_key?(values, "nodeSelector")
-      refute Map.has_key?(values, "tolerations")
+      refute Map.has_key?(values, "podAnnotations")
     end
   end
 

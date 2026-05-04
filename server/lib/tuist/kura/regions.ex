@@ -79,8 +79,7 @@ defmodule Tuist.Kura.Regions do
       provisioner_config: %{
         cluster_id: "eu-1",
         helm_overlay: "hetzner",
-        public_host_template: "{account_handle}-{cluster_id}.kura.tuist.dev",
-        tenant_isolation: true
+        public_host_template: "{account_handle}-{cluster_id}.kura.tuist.dev"
       }
     }
   end
