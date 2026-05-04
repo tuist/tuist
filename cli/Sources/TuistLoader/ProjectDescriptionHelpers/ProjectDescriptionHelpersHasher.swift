@@ -38,15 +38,17 @@ public struct ProjectDescriptionHelpersHasher: ProjectDescriptionHelpersHashing 
             .compactMap { $0.sha256() }
             .compactMap { $0.compactMap { byte in String(format: "%02x", byte) }.joined() }
         let tuistEnvVariables = Environment.current.manifestLoadingVariables.map { "\($0.key)=\($0.value)" }.sorted()
-        let swiftVersion = try SwiftVersionProvider.current.swiftVersion()
+        let swiftlangVersion = try SwiftVersionProvider.current.swiftlangVersion()
         let macosVersion = machineEnvironment.macOSVersion
+        let macosSDKVersion = try MacOSSDKVersionProvider.current.macOSSDKVersion()
         #if DEBUG
             let debug = true
         #else
             let debug = false
         #endif
 
-        let identifiers = [macosVersion, swiftVersion, tuistVersion] + fileHashes + tuistEnvVariables + ["\(debug)"]
+        let identifiers =
+            [macosVersion, macosSDKVersion, swiftlangVersion, tuistVersion] + fileHashes + tuistEnvVariables + ["\(debug)"]
 
         return identifiers.joined(separator: "-").md5
     }
