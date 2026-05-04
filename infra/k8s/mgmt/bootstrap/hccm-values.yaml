@@ -1,0 +1,54 @@
+# Upstream hcloud-cloud-controller-manager values.
+# Replaces Syself's fork (`ghcr.io/syself/hetzner-cloud-controller-manager`)
+# that Apalla shipped on the workload clusters. Same API surface,
+# same Service annotations consumed (`load-balancer.hetzner.cloud/*`),
+# no behaviour delta we depend on.
+#
+# Required at install time:
+#   --set 'env.HCLOUD_LOAD_BALANCERS_LOCATION.value=<region>'
+# The bootstrap script reads `region` from the Cluster CR variables.
+#
+# Expects the `hetzner` Secret in kube-system with key `hcloud`
+# (the workload Hetzner project token; same Secret the ClusterClass
+# already provisions in `org-tuist`, but HCCM lives on the workload
+# cluster so we re-create it there at bootstrap time).
+
+env:
+  HCLOUD_LOAD_BALANCERS_ENABLED:
+    value: "true"
+  HCLOUD_LOAD_BALANCERS_DISABLE_IPV6:
+    value: "true"
+  CACHE_TIMEOUT:
+    value: "5m"
+  # HCLOUD_LOAD_BALANCERS_LOCATION is set per-cluster at install time.
+
+# Single replica is fine; HCCM holds a leader-election lock and
+# reconciles cheaply.
+replicaCount: 1
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    memory: 128Mi
+
+# Run on control-plane nodes only — HCCM needs cluster-admin and the
+# CP nodes are the smaller blast radius.
+nodeSelector:
+  node-role.kubernetes.io/control-plane: ""
+
+tolerations:
+  - key: node-role.kubernetes.io/control-plane
+    operator: Exists
+    effect: NoSchedule
+  # Allow scheduling before Cilium is ready (bootstrap ordering: HCCM
+  # marks nodes Ready only after it sets providerID, but Cilium needs
+  # nodes Ready to start; HCCM running with this toleration breaks
+  # the deadlock).
+  - key: node.cloudprovider.kubernetes.io/uninitialized
+    value: "true"
+    effect: NoSchedule
+  - key: node.kubernetes.io/not-ready
+    operator: Exists
+    effect: NoSchedule

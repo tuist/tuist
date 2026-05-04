@@ -1,0 +1,33 @@
+# hcloud-csi-driver values.
+# Installed for parity with the existing Syself-managed clusters even
+# though no PVCs exist on any workload cluster today (Tigris is the
+# object store; Postgres is on Supabase). Future-proofs the cluster
+# so a new workload that wants a PVC just gets one.
+#
+# Expects the `hetzner` Secret in kube-system with key `hcloud`
+# (same Secret HCCM uses).
+
+# Default StorageClass uses Hetzner volumes (block storage in fsn1).
+storageClasses:
+  - name: hcloud-volumes
+    defaultStorageClass: true
+    reclaimPolicy: Retain  # safer default — let the operator garbage-collect explicitly
+    # Volume binding deferred so PVCs follow the pod placement.
+    volumeBindingMode: WaitForFirstConsumer
+
+controller:
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      memory: 128Mi
+
+node:
+  resources:
+    requests:
+      cpu: 25m
+      memory: 32Mi
+    limits:
+      memory: 64Mi
