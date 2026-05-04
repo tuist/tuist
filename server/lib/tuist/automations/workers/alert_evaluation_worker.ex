@@ -5,6 +5,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
   alias Tuist.Automations
   alias Tuist.Automations.ActionExecutor
   alias Tuist.Automations.Monitors.FlakyTestsMonitor
+  alias Tuist.Tests
 
   require Logger
 
@@ -62,38 +63,62 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
     seconds = parse_window(recovery_config["window"] || "#{recovery_config["days_without_trigger"] || 14}d")
     cutoff = NaiveDateTime.add(NaiveDateTime.utc_now(), -seconds, :second)
 
-    recovered =
-      Enum.filter(active_events, fn event ->
+    recovered_ids =
+      active_events
+      |> Enum.filter(fn event ->
         MapSet.member?(all_ids_set, event.test_case_id) and
           not MapSet.member?(currently_triggered_set, event.test_case_id) and
           NaiveDateTime.before?(event.triggered_at, cutoff)
       end)
+      |> Enum.map(& &1.test_case_id)
 
-    Enum.each(recovered, fn event ->
-      entity = %{type: :test_case, id: event.test_case_id}
+    Enum.each(recovered_ids, &recover_test_case(alert, &1))
 
-      # Run recovery actions BEFORE appending the "recovered" event. If we
-      # flipped the order, a failure in the Slack ping / label removal /
-      # state reset would leave the rule visually resolved while the user's
-      # intended side effects never happened.
-      case ActionExecutor.execute_actions(alert.recovery_actions, alert, entity) do
-        :ok ->
-          now = NaiveDateTime.utc_now()
+    recover_orphaned_flaky_test_cases(alert, currently_triggered_set, active_events, recovered_ids)
+  end
 
-          Automations.create_alert_event(%{
-            alert_id: alert.id,
-            test_case_id: event.test_case_id,
-            status: "recovered",
-            triggered_at: now,
-            recovered_at: now
-          })
+  # Tests get marked `is_flaky = true` outside this alert's tracking: manually
+  # via UI/API, by a previous automation that has since been deleted or
+  # reconfigured, or by an earlier evaluation that lost its event due to the
+  # ClickHouse read-modify-write race fixed in `ActionExecutor`. Without this
+  # path they would stay flagged forever, because recovery walks
+  # `active_events` only.
+  defp recover_orphaned_flaky_test_cases(alert, currently_triggered_set, active_events, already_recovered_ids) do
+    tracked_ids =
+      active_events
+      |> MapSet.new(& &1.test_case_id)
+      |> MapSet.union(MapSet.new(already_recovered_ids))
 
-        {:error, reason} ->
-          Logger.error(
-            "Alert #{alert.id} recovery actions failed for test_case #{event.test_case_id}: #{inspect(reason)}"
-          )
-      end
+    alert.project_id
+    |> Tests.list_flagged_flaky_test_case_ids()
+    |> Enum.reject(fn id ->
+      MapSet.member?(tracked_ids, id) or MapSet.member?(currently_triggered_set, id)
     end)
+    |> Enum.each(&recover_test_case(alert, &1))
+  end
+
+  defp recover_test_case(alert, test_case_id) do
+    entity = %{type: :test_case, id: test_case_id}
+
+    # Run recovery actions BEFORE appending the "recovered" event. If we
+    # flipped the order, a failure in the Slack ping / label removal /
+    # state reset would leave the rule visually resolved while the user's
+    # intended side effects never happened.
+    case ActionExecutor.execute_actions(alert.recovery_actions, alert, entity) do
+      :ok ->
+        now = NaiveDateTime.utc_now()
+
+        Automations.create_alert_event(%{
+          alert_id: alert.id,
+          test_case_id: test_case_id,
+          status: "recovered",
+          triggered_at: now,
+          recovered_at: now
+        })
+
+      {:error, reason} ->
+        Logger.error("Alert #{alert.id} recovery actions failed for test_case #{test_case_id}: #{inspect(reason)}")
+    end
   end
 
   defp parse_window(window) when is_binary(window) do
