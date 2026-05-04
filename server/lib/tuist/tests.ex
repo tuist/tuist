@@ -1135,9 +1135,10 @@ defmodule Tuist.Tests do
 
   defp check_cross_run_flakiness(test, test_case_data) do
     test_case_ids = Enum.map(test_case_data, & &1.test_case_id)
+    scheme = test.scheme || ""
 
     existing_runs =
-      get_existing_ci_runs_for_commit(test_case_ids, test.git_commit_sha, test.project_id)
+      get_existing_ci_runs_for_commit(test_case_ids, test.git_commit_sha, test.project_id, scheme)
 
     Enum.map_reduce(test_case_data, [], fn data, historical_runs ->
       case filter_cross_run_flaky(data, existing_runs) do
@@ -1160,15 +1161,16 @@ defmodule Tuist.Tests do
     end
   end
 
-  defp get_existing_ci_runs_for_commit([], _git_commit_sha, _project_id), do: %{}
+  defp get_existing_ci_runs_for_commit([], _git_commit_sha, _project_id, _scheme), do: %{}
 
-  defp get_existing_ci_runs_for_commit(test_case_ids, git_commit_sha, project_id) do
+  defp get_existing_ci_runs_for_commit(test_case_ids, git_commit_sha, project_id, scheme) do
     test_case_id_set = MapSet.new(test_case_ids)
 
     query =
       from(tcr in TestCaseRunByCommit,
         where: tcr.project_id == ^project_id,
         where: tcr.git_commit_sha == ^git_commit_sha,
+        where: tcr.scheme == ^scheme,
         where: tcr.is_ci == true,
         where: tcr.status in ["success", "failure"],
         select: %{id: tcr.id, test_case_id: tcr.test_case_id, status: tcr.status}
@@ -1176,6 +1178,7 @@ defmodule Tuist.Tests do
 
     query
     |> ClickHouseRepo.all()
+    |> Enum.uniq_by(& &1.id)
     |> Enum.filter(&(&1.test_case_id in test_case_id_set))
     |> Enum.group_by(& &1.test_case_id)
   end
