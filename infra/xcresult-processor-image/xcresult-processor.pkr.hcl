@@ -9,20 +9,22 @@ packer {
 
 # Build the Tart VM image that hosts the Tuist xcresult processor on macOS.
 #
-# The image is the per-Pod artifact in the new architecture: every Pod the
-# Virtual Kubelet provider schedules onto the macOS fleet boots a copy of
-# this image as a Tart VM. The VM runs the Tuist server release in
-# xcresult-processor mode (TUIST_XCRESULT_PROCESSOR_MODE=1, TUIST_WEB=0)
-# under launchd, draining the `:process_xcresult` Oban queue.
+# The image is the per-Pod artifact: every Pod the tart-cri runtime
+# schedules onto the macOS fleet boots a copy of this image as a Tart
+# VM. The VM runs the Tuist server release in xcresult-processor mode
+# (TUIST_XCRESULT_PROCESSOR_MODE=1, TUIST_WEB=0) under launchd,
+# draining the `:process_xcresult` Oban queue.
 #
 # Image layout:
 #   /opt/tuist/release/        <- Erlang release (built upstream by CI)
-#   /opt/tuist/inject-env.sh   <- reads VM custom data into /etc/tuist.env
+#   /opt/tuist/inject-env.sh   <- reads kubelet env mount into /etc/tuist.env
 #   /Library/LaunchDaemons/dev.tuist.xcresult-processor.plist
 #
-# Env injection: Orchard passes per-VM env vars (MASTER_KEY, DATABASE_URL,
-# TUIST_DEPLOY_ENV) via Tart's custom-data mechanism. inject-env.sh runs
-# at boot, materializes /etc/tuist.env, and launchd's plist sources it.
+# Env injection: tart-kubelet stages the Pod's env vars (MASTER_KEY,
+# DATABASE_URL, TUIST_DEPLOY_ENV, ...) under `--dir env:<host-path>:ro`,
+# which the guest sees at /Volumes/My Shared Files/env/tuist.env.
+# inject-env.sh runs at boot, materializes /etc/tuist.env, and
+# launchd's plist sources it.
 
 variable "base_image" {
   type        = string

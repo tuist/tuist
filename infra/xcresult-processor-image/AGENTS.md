@@ -4,15 +4,14 @@ The Tart VM image that hosts the Tuist xcresult processor on macOS.
 
 ## Architecture
 
-Every Pod the Virtual Kubelet provider (`infra/vk-orchard/`) schedules onto
-the macOS fleet boots a copy of this image as a Tart VM via Orchard. The
-VM runs the Tuist server release in xcresult-processor mode under launchd,
-draining `:process_xcresult` from the same Postgres the Linux server pods
-write to.
+Every Pod the tart-cri runtime (`infra/tart-cri/`) schedules onto the
+macOS fleet boots a copy of this image as a Tart VM. The VM runs the
+Tuist server release in xcresult-processor mode under launchd, draining
+`:process_xcresult` from the same Postgres the Linux server pods write to.
 
 The image is the *deploy artifact*: `helm upgrade --set
 xcresultProcessor.image.tag=<sha>` updates the Pod spec, k8s rolls Pods,
-the VK provider creates new VMs from the new image tag and tears down the
+tart-kubelet creates new VMs from the new image tag and tears down the
 old ones.
 
 ## Layout (inside the VM)
@@ -20,7 +19,7 @@ old ones.
 | Path | Purpose |
 |---|---|
 | `/opt/tuist/release/` | Erlang release built upstream by CI |
-| `/opt/tuist/inject-env.sh` | Reads Orchard custom data into `/etc/tuist.env` at boot |
+| `/opt/tuist/inject-env.sh` | Reads the kubelet env mount into `/etc/tuist.env` at boot |
 | `/etc/tuist.env` | Sourced env vars (MASTER_KEY, DATABASE_URL, TUIST_DEPLOY_ENV) |
 | `/Library/LaunchDaemons/dev.tuist.xcresult-processor.plist` | Boots `tuist start` |
 | `/var/log/xcresult-processor/{stdout,stderr}.log` | Captured output |
@@ -47,8 +46,9 @@ The local build:
 
 ## Env injection at runtime
 
-Orchard creates the VM with a JSON custom-data payload of the shape
-`{"env": {"<NAME>": "<value>", ...}}`. The keys the launchd unit
+tart-kubelet stages the Pod's env vars as a `KEY=value` file under
+`--dir env:<host-path>:ro`, which the guest sees at
+`/Volumes/My Shared Files/env/tuist.env`. The keys the launchd unit
 expects:
 
 | Env var | Source | Notes |
@@ -65,7 +65,7 @@ expects:
 launchd unit sources it before exec'ing `tuist start`. This means the
 image itself ships **no environment-specific state** — staging, canary,
 and production all run the same image, distinguished only by the env the
-VK provider passes through from the Pod spec.
+Pod spec injects.
 
 ## Why a single image, not per-env
 

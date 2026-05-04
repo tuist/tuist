@@ -53,7 +53,8 @@ spec:
       # Tart VM 1:1 and rejects multi-container Pods at admission.
       # The first (and only) container's image is the Tart VM image;
       # env flows through to /etc/tuist.env inside the VM via the
-      # shared `env` directory mounted from the host's user-data dir.
+      # tart-kubelet `--dir env:<host-path>:ro` mount, which the guest
+      # sees at /Volumes/My Shared Files/env.
       containers:
         - name: xcresult-processor
           image: "{{ .Values.xcresultProcessor.image.repository }}:{{ .Values.xcresultProcessor.image.tag | default "latest" }}"

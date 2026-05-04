@@ -139,12 +139,10 @@ xcresultProcessor:
   enabled: true
   replicaCount: 1
   image:
-    # Pinned to a SHA so production's `:latest` (still on the legacy
-    # Orchard `--user-data` flow) isn't disturbed by feature-branch
-    # builds. e38122ec sets SECRETS_DIRECTORY in the launchd plist so
-    # the BEAM finds priv/secrets/<env>.yml.enc at the path mix release
-    # actually writes (lib/tuist-0.1.0/priv/secrets/) instead of the
-    # relative default that resolved to a non-existent
+    # Pinned to a known-good SHA. e38122ec sets SECRETS_DIRECTORY in the
+    # launchd plist so the BEAM finds priv/secrets/<env>.yml.enc at the
+    # path mix release actually writes (lib/tuist-0.1.0/priv/secrets/)
+    # instead of the relative default that resolved to a non-existent
     # /opt/tuist/release/priv/secrets/.
     tag: "e38122ec"
   strategy:
