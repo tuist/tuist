@@ -59,7 +59,7 @@ defmodule Tuist.Kura.Server do
 
     has_many :deployments, Deployment, foreign_key: :kura_server_id
 
-    timestamps(type: :utc_datetime_usec)
+    timestamps(type: :utc_datetime)
   end
 
   def specs, do: @specs

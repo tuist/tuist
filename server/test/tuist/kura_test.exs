@@ -45,23 +45,16 @@ defmodule Tuist.KuraTest do
     end
 
     test "does not cache a failed GitHub fetch" do
-      stub(Req, :get, fn _url, _opts ->
-        call_count = Process.get(:github_release_call_count, 0)
-        Process.put(:github_release_call_count, call_count + 1)
+      expect(Req, :get, fn _url, _opts -> {:error, :timeout} end)
 
-        case call_count do
-          0 ->
-            {:error, :timeout}
-
-          _ ->
-            {:ok,
-             %Req.Response{
-               status: 200,
-               body: [
-                 %{"tag_name" => "kura@0.5.2", "published_at" => "2026-04-29T00:00:00Z"}
-               ]
-             }}
-        end
+      expect(Req, :get, fn _url, _opts ->
+        {:ok,
+         %Req.Response{
+           status: 200,
+           body: [
+             %{"tag_name" => "kura@0.5.2", "published_at" => "2026-04-29T00:00:00Z"}
+           ]
+         }}
       end)
 
       assert Kura.latest_versions(10) == []

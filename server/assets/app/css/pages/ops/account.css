@@ -32,17 +32,17 @@
   & [data-part="actions"] {
     display: flex;
     flex-wrap: wrap;
-    gap: var(--noora-spacing-3);
     align-items: center;
+    gap: var(--noora-spacing-3);
   }
 
   /* "Latest version + Poll now" header row inside the deployments card. */
   & [data-part="row"] {
     display: flex;
     flex-wrap: wrap;
-    gap: var(--noora-spacing-4);
-    align-items: center;
     justify-content: space-between;
+    align-items: center;
+    gap: var(--noora-spacing-4);
   }
 
   /* Trigger-deployment form: stack labels vertically with consistent
@@ -95,15 +95,15 @@
   }
 
   & [data-part="terminal"] {
+    border-radius: var(--noora-radius-medium);
+    background: var(--noora-surface-background-secondary, #0b0d12);
+    padding: var(--noora-spacing-4);
     max-height: 60vh;
     overflow: auto;
-    padding: var(--noora-spacing-4);
-    background: var(--noora-surface-background-secondary, #0b0d12);
     color: var(--noora-surface-label-on-dark, #e6e6e6);
-    border-radius: var(--noora-radius-medium);
-    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     font-size: 12px;
     line-height: 1.5;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
     & [data-part="line"] {
       white-space: pre-wrap;
@@ -132,13 +132,13 @@
        we use a native select and style it to roughly match. */
     & > select {
       appearance: auto;
-      padding: var(--noora-spacing-3) var(--noora-spacing-4);
       border: 1px solid var(--noora-surface-border-primary);
       border-radius: var(--noora-radius-medium);
       background: var(--noora-surface-background-primary);
+      padding: var(--noora-spacing-3) var(--noora-spacing-4);
+      width: 100%;
       color: var(--noora-surface-label-primary);
       font: var(--noora-font-body-medium);
-      width: 100%;
     }
   }
 

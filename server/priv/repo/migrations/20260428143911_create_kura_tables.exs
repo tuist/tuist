@@ -29,14 +29,18 @@ defmodule Tuist.Repo.Migrations.CreateKuraTables do
       timestamps(type: :timestamptz)
     end
 
+    # excellent_migrations:safety-assured-for-next-line check_constraint_added
     create constraint(:kura_servers, :kura_servers_spec_valid, check: "spec IN (0, 1, 2)")
 
+    # excellent_migrations:safety-assured-for-next-line check_constraint_added
     create constraint(:kura_servers, :kura_servers_status_valid,
              check: "status IN (0, 1, 2, 3, 4)"
            )
 
+    # excellent_migrations:safety-assured-for-next-line index_not_concurrently
     create index(:kura_servers, [:account_id])
 
+    # excellent_migrations:safety-assured-for-next-line index_not_concurrently
     create unique_index(
              :kura_servers,
              [:account_id, :region],
@@ -63,10 +67,12 @@ defmodule Tuist.Repo.Migrations.CreateKuraTables do
       timestamps(type: :timestamptz)
     end
 
+    # excellent_migrations:safety-assured-for-next-line check_constraint_added
     create constraint(:kura_deployments, :kura_deployments_status_valid,
              check: "status IN (0, 1, 2, 3, 4)"
            )
 
+    # excellent_migrations:safety-assured-for-next-line index_not_concurrently
     create index(:kura_deployments, [:kura_server_id, :inserted_at])
   end
 end
