@@ -1,6 +1,5 @@
 defmodule Tuist.Kura.DeploymentTest do
-  use ExUnit.Case, async: false
-  use TuistTestSupport.Cases.DataCase
+  use TuistTestSupport.Cases.DataCase, async: true
 
   alias Tuist.Kura.Deployment
   alias Tuist.Kura.Server
@@ -56,6 +55,35 @@ defmodule Tuist.Kura.DeploymentTest do
       end
     end
 
+    test "rejects image tags longer than Docker allows" do
+      changeset =
+        Deployment.create_changeset(%{
+          cluster_id: "local",
+          image_tag: "0.5.2-" <> String.duplicate("a", 123),
+          kura_server_id: Ecto.UUID.generate()
+        })
+
+      refute changeset.valid?
+      assert "should be at most 128 character(s)" in errors_on(changeset).image_tag
+    end
+
+    test "ignores lifecycle fields on create" do
+      changeset =
+        Deployment.create_changeset(%{
+          cluster_id: "local",
+          image_tag: "0.5.2",
+          kura_server_id: Ecto.UUID.generate(),
+          status: :succeeded,
+          error_message: "already done",
+          oban_job_id: 123
+        })
+
+      assert changeset.valid?
+      refute Ecto.Changeset.get_change(changeset, :status)
+      refute Ecto.Changeset.get_change(changeset, :error_message)
+      refute Ecto.Changeset.get_change(changeset, :oban_job_id)
+    end
+
     test "database constrains status to known enum integers" do
       %{rows: [[definition]]} =
         Repo.query!("""
@@ -72,6 +100,26 @@ defmodule Tuist.Kura.DeploymentTest do
       end
     end
 
+    test "database rejects status integers outside known enum values" do
+      server = insert_server()
+      now = DateTime.utc_now()
+
+      assert_raise Postgrex.Error, ~r/kura_deployments_status_valid/, fn ->
+        Repo.transaction(fn ->
+          Repo.query!(
+            """
+            INSERT INTO kura_deployments
+            (id, cluster_id, image_tag, status, kura_server_id, inserted_at, updated_at)
+            VALUES ($1::uuid, $2, $3, $4, $5::uuid, $6::timestamptz, $7::timestamptz)
+            """,
+            [Ecto.UUID.dump!(Ecto.UUID.generate()), "local", "0.5.2", 99, Ecto.UUID.dump!(server.id), now, now]
+          )
+        end)
+      end
+
+      assert Repo.get!(Server, server.id)
+    end
+
     test "enforces the server foreign key in the database" do
       assert {:error, changeset} =
                %{
@@ -86,18 +134,7 @@ defmodule Tuist.Kura.DeploymentTest do
     end
 
     test "inserts a deployment for an existing server" do
-      account = then(AccountsFixtures.user_fixture(), & &1.account)
-
-      server =
-        %Server{}
-        |> Server.create_changeset(%{
-          account_id: account.id,
-          region: "local",
-          spec: :small,
-          volume_size_gi: 50,
-          provisioner_node_ref: "kura-#{account.name}-local"
-        })
-        |> Repo.insert!()
+      server = insert_server()
 
       deployment =
         %{
@@ -142,6 +179,13 @@ defmodule Tuist.Kura.DeploymentTest do
       assert Ecto.Changeset.get_change(changeset, :oban_job_id) == 123
     end
 
+    test "casts status updates from string params" do
+      changeset = Deployment.status_changeset(%Deployment{status: :pending}, %{status: "running"})
+
+      assert changeset.valid?
+      assert Ecto.Changeset.get_change(changeset, :status) == :running
+    end
+
     test "allows expected status transitions" do
       transitions = [
         {:pending, :pending},
@@ -178,5 +222,19 @@ defmodule Tuist.Kura.DeploymentTest do
         assert %{status: [^expected_error]} = errors_on(changeset)
       end
     end
+  end
+
+  defp insert_server do
+    account = then(AccountsFixtures.user_fixture(), & &1.account)
+
+    %Server{}
+    |> Server.create_changeset(%{
+      account_id: account.id,
+      region: "local",
+      spec: :small,
+      volume_size_gi: 50,
+      provisioner_node_ref: "kura-#{account.name}-local"
+    })
+    |> Repo.insert!()
   end
 end

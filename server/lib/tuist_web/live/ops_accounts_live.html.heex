@@ -2,7 +2,7 @@
   <div data-part="header">
     <h1 data-part="title">{dgettext("dashboard", "Accounts")}</h1>
   </div>
-  <.card title="Accounts" icon="users">
+  <.card title={dgettext("dashboard", "Accounts")} icon="users">
     <.card_section>
       <div data-part="filters">
         <.form for={%{}} phx-change="search" phx-submit="search" phx-debounce="300">
@@ -10,7 +10,7 @@
             type="search"
             id="ops-accounts-search"
             name="search"
-            placeholder="Search by name"
+            placeholder={dgettext("dashboard", "Search by name")}
             show_suffix={false}
             value={@search}
           />
@@ -21,37 +21,37 @@
         rows={@accounts}
         row_navigate={fn account -> ~p"/ops/accounts/#{account.id}" end}
       >
-        <:col :let={account} label="Name">
+        <:col :let={account} label={dgettext("dashboard", "Name")}>
           <.text_cell label={account.name} />
         </:col>
-        <:col :let={account} label="Type">
+        <:col :let={account} label={dgettext("dashboard", "Type")}>
           <.text_cell label={account_type(account)} />
         </:col>
-        <:col :let={account} label="Billing email">
-          <.text_cell label={account.billing_email || "—"} />
+        <:col :let={account} label={dgettext("dashboard", "Billing email")}>
+          <.text_cell label={account.billing_email || dgettext("dashboard", "None")} />
         </:col>
-        <:col :let={account} label="Plan">
+        <:col :let={account} label={dgettext("dashboard", "Plan")}>
           <.badge_cell
             label={plan_label(current_plan(account))}
             color={plan_color(current_plan(account))}
             style="light-fill"
           />
         </:col>
-        <:col :let={account} label="Status">
+        <:col :let={account} label={dgettext("dashboard", "Status")}>
           <.badge_cell
             label={status_label(subscription_status(account))}
             color={status_color(subscription_status(account))}
             style="light-fill"
           />
         </:col>
-        <:col :let={account} label="Stripe customer">
-          <.text_cell label={account.customer_id || "Not created"} />
+        <:col :let={account} label={dgettext("dashboard", "Stripe customer")}>
+          <.text_cell label={account.customer_id || dgettext("dashboard", "Not created")} />
         </:col>
         <:empty_state>
           <.table_empty_state
             icon="users"
-            title="No accounts"
-            subtitle="No accounts match the current filter."
+            title={dgettext("dashboard", "No accounts")}
+            subtitle={dgettext("dashboard", "No accounts match the current filter.")}
           />
         </:empty_state>
       </.table>

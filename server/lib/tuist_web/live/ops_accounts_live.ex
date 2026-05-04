@@ -15,7 +15,7 @@ defmodule TuistWeb.OpsAccountsLive do
 
   @impl true
   def mount(_params, _session, socket) do
-    {:ok, assign(socket, :head_title, "Accounts · Tuist Ops")}
+    {:ok, assign(socket, :head_title, "#{dgettext("dashboard", "Accounts")} · Tuist Ops")}
   end
 
   @impl true

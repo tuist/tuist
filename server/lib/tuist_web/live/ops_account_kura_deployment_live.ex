@@ -18,14 +18,15 @@ defmodule TuistWeb.OpsAccountKuraDeploymentLive do
   def mount(%{"id" => account_id, "deployment_id" => deployment_id}, _session, socket) do
     case Accounts.get_account_by_id(parse_id(account_id)) do
       {:error, :not_found} ->
-        {:ok, socket |> put_flash(:error, "Account not found.") |> push_navigate(to: ~p"/ops/accounts")}
+        {:ok,
+         socket |> put_flash(:error, dgettext("dashboard", "Account not found.")) |> push_navigate(to: ~p"/ops/accounts")}
 
       {:ok, account} ->
         case Kura.get_deployment(account.id, deployment_id) do
           nil ->
             {:ok,
              socket
-             |> put_flash(:error, "Deployment not found.")
+             |> put_flash(:error, dgettext("dashboard", "Deployment not found."))
              |> push_navigate(to: ~p"/ops/accounts/#{account.id}")}
 
           deployment ->
@@ -33,7 +34,7 @@ defmodule TuistWeb.OpsAccountKuraDeploymentLive do
 
             {:ok,
              socket
-             |> assign(:head_title, "Deployment · Tuist Ops")
+             |> assign(:head_title, "#{dgettext("dashboard", "Deployment")} · Tuist Ops")
              |> assign(:account, account)
              |> assign(:deployment, deployment)
              |> assign(:log_lines, [])
@@ -84,11 +85,11 @@ defmodule TuistWeb.OpsAccountKuraDeploymentLive do
     end
   end
 
-  def deployment_status_label(:pending), do: "Pending"
-  def deployment_status_label(:running), do: "Running"
-  def deployment_status_label(:succeeded), do: "Succeeded"
-  def deployment_status_label(:failed), do: "Failed"
-  def deployment_status_label(:cancelled), do: "Cancelled"
+  def deployment_status_label(:pending), do: dgettext("dashboard", "Pending")
+  def deployment_status_label(:running), do: dgettext("dashboard", "Running")
+  def deployment_status_label(:succeeded), do: dgettext("dashboard", "Succeeded")
+  def deployment_status_label(:failed), do: dgettext("dashboard", "Failed")
+  def deployment_status_label(:cancelled), do: dgettext("dashboard", "Cancelled")
 
   def deployment_status_color(:pending), do: "neutral"
   def deployment_status_color(:running), do: "information"
@@ -96,18 +97,24 @@ defmodule TuistWeb.OpsAccountKuraDeploymentLive do
   def deployment_status_color(:failed), do: "destructive"
   def deployment_status_color(:cancelled), do: "warning"
 
-  def format_time(nil), do: "—"
+  def format_time(nil), do: dgettext("dashboard", "None")
   def format_time(%DateTime{} = dt), do: Calendar.strftime(dt, "%Y-%m-%d %H:%M:%S UTC")
 
   def empty_logs_message(status) when status in [:pending, :running],
-    do: "No log output yet. Polling every two seconds while the deployment is pending or running."
+    do: dgettext("dashboard", "No log output yet. Polling every two seconds while the deployment is pending or running.")
 
-  def empty_logs_message(:succeeded), do: "The deployment finished without producing any captured log output."
+  def empty_logs_message(:succeeded),
+    do: dgettext("dashboard", "The deployment finished without producing any captured log output.")
 
   def empty_logs_message(:failed),
-    do: "The deployment failed before producing any captured log output. See the error message above for details."
+    do:
+      dgettext(
+        "dashboard",
+        "The deployment failed before producing any captured log output. See the error message above for details."
+      )
 
-  def empty_logs_message(:cancelled), do: "The deployment was cancelled before producing any log output."
+  def empty_logs_message(:cancelled),
+    do: dgettext("dashboard", "The deployment was cancelled before producing any log output.")
 
-  def empty_logs_message(_), do: "No log output captured."
+  def empty_logs_message(_), do: dgettext("dashboard", "No log output captured.")
 end

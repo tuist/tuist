@@ -4,7 +4,8 @@ defmodule Tuist.Kura.RegionsTest do
 
   alias Tuist.Kura.Provisioner.HelmKubernetes
   alias Tuist.Kura.Regions
-  alias Tuist.Kura.Server
+
+  setup :set_mimic_from_context
 
   describe "all/0" do
     test "exposes the eu production region backed by HelmKubernetes" do
@@ -89,7 +90,6 @@ defmodule Tuist.Kura.RegionsTest do
 
       assert region.provisioner_config.kind_cluster_name == "kura-dev-42"
       assert region.provisioner_config.public_url == "http://localhost:4042"
-      assert HelmKubernetes.public_url("tuist", region, "any-ref") == "http://localhost:4042"
     end
 
     test "falls back to suffix 0 outside mise" do
@@ -98,45 +98,6 @@ defmodule Tuist.Kura.RegionsTest do
 
       assert region.provisioner_config.kind_cluster_name == "kura-dev-0"
       assert region.provisioner_config.public_url == "http://localhost:4000"
-    end
-  end
-
-  describe "HelmKubernetes.public_url/3 (eu)" do
-    test "interpolates the production host template with the account handle" do
-      region = Regions.get("eu")
-      assert HelmKubernetes.public_url("tuist", region, "any-ref") == "https://tuist-eu-1.kura.tuist.dev"
-    end
-  end
-
-  describe "HelmKubernetes.release_name/2" do
-    test "produces a kura-<account>-<cluster> release name" do
-      region = Regions.get("eu")
-      assert HelmKubernetes.release_name("tuist", region) == "kura-tuist-eu-1"
-    end
-
-    test "uses the local cluster_id for kind regions" do
-      region = Regions.get("local")
-      assert HelmKubernetes.release_name("tuist", region) == "kura-tuist-local"
-    end
-  end
-
-  describe "HelmKubernetes.resources_for/1" do
-    test "maps each customer-facing spec to Pod resources" do
-      for spec <- [:small, :medium, :large] do
-        server = %Server{spec: spec}
-
-        assert %{"resources" => %{"requests" => req, "limits" => lim}} =
-                 HelmKubernetes.resources_for(server)
-
-        assert is_binary(req["cpu"])
-        assert is_binary(req["memory"])
-        assert is_binary(lim["memory"])
-      end
-    end
-
-    test "returns an empty map for an unknown spec" do
-      server = %Server{spec: :nonsense}
-      assert HelmKubernetes.resources_for(server) == %{}
     end
   end
 end

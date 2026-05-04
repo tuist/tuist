@@ -65,14 +65,17 @@ defmodule Tuist.Kura.Provisioner.HelmKubernetes do
   end
 
   @impl true
-  def rollout(release, %{
-        image_tag: image_tag,
-        account: account,
-        server: %Server{} = server,
-        region: %Regions{} = region,
-        on_log_line: on_log_line
-      }) do
-    with {:ok, chart} <- chart_path(),
+  def rollout(
+        release,
+        %{
+          image_tag: image_tag,
+          account: account,
+          server: %Server{} = server,
+          region: %Regions{} = region,
+          on_log_line: on_log_line
+        } = inputs
+      ) do
+    with {:ok, chart} <- chart_path(inputs),
          {:ok, kubeconfig} <- write_kubeconfig(region),
          {:ok, values} <- write_instance_values(image_tag, account, region, server, chart) do
       args = [
@@ -117,7 +120,7 @@ defmodule Tuist.Kura.Provisioner.HelmKubernetes do
   def public_url(handle, %Regions{provisioner_config: config}, _ref) do
     cond do
       template = config[:public_host_template] ->
-        "https://" <> interpolate_host(template, handle, config)
+        "https://" <> interpolate_host(template, dns_handle(handle), config)
 
       url = config[:public_url] ->
         url
@@ -156,7 +159,7 @@ defmodule Tuist.Kura.Provisioner.HelmKubernetes do
   ops scripts can compute it without going through `provision/3`.
   """
   def release_name(handle, %Regions{provisioner_config: %{cluster_id: cluster_id}}) do
-    "kura-#{handle}-#{cluster_id}"
+    "kura-#{dns_handle(handle)}-#{cluster_id}"
   end
 
   ## Values rendering
@@ -227,7 +230,7 @@ defmodule Tuist.Kura.Provisioner.HelmKubernetes do
         nil
 
       template ->
-        host = interpolate_host(template, handle, config)
+        host = interpolate_host(template, dns_handle(handle), config)
 
         %{
           "ingress" => %{
@@ -325,6 +328,8 @@ defmodule Tuist.Kura.Provisioner.HelmKubernetes do
     |> String.replace("{cluster_id}", cluster_id)
   end
 
+  defp dns_handle(handle), do: String.downcase(handle)
+
   @doc false
   def image_tag_from_image(image) when is_binary(image) do
     image
@@ -351,8 +356,8 @@ defmodule Tuist.Kura.Provisioner.HelmKubernetes do
 
   ## Kubeconfig discovery
 
-  defp chart_path do
-    case Application.get_env(:tuist, :kura_chart_path) do
+  defp chart_path(inputs) do
+    case Map.get(inputs, :chart_path) || Application.get_env(:tuist, :kura_chart_path) do
       nil ->
         {:error, "kura_chart_path is not configured"}
 

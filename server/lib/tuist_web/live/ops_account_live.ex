@@ -10,7 +10,6 @@ defmodule TuistWeb.OpsAccountLive do
   import Ecto.Query, only: [from: 2]
   import TuistWeb.OpsAccountHelpers
 
-  alias Phoenix.LiveView.JS
   alias Tuist.Accounts
   alias Tuist.Billing
   alias Tuist.Billing.Subscription
@@ -19,8 +18,6 @@ defmodule TuistWeb.OpsAccountLive do
   alias Tuist.Kura.Server
   alias Tuist.Kura.Specs
   alias Tuist.Repo
-
-  require Logger
 
   @impl true
   def mount(%{"id" => id}, _session, socket) do
@@ -41,7 +38,7 @@ defmodule TuistWeb.OpsAccountLive do
       {:error, :not_found} ->
         {:ok,
          socket
-         |> put_flash(:error, "Account not found.")
+         |> put_flash(:error, dgettext("dashboard", "Account not found."))
          |> push_navigate(to: ~p"/ops/accounts")}
     end
   end
@@ -81,7 +78,7 @@ defmodule TuistWeb.OpsAccountLive do
 
   defp load_kura_state(socket) do
     account = socket.assigns.account
-    latest = 1 |> Kura.latest_versions() |> List.first()
+    latest = List.first(Kura.latest_versions(1))
 
     socket
     |> assign(:kura_servers, Kura.list_servers_for_account(account.id))
@@ -107,7 +104,11 @@ defmodule TuistWeb.OpsAccountLive do
     case Kura.latest_versions(1) do
       [] ->
         {:noreply,
-         put_flash(socket, :error, "Could not resolve a Kura release from GitHub right now. Try again shortly.")}
+         put_flash(
+           socket,
+           :error,
+           dgettext("dashboard", "Could not resolve a Kura release from GitHub right now. Try again shortly.")
+         )}
 
       [%{version: image_tag} | _] ->
         spec = parse_spec(params["spec"])
@@ -128,11 +129,11 @@ defmodule TuistWeb.OpsAccountLive do
   def handle_event("destroy_server", %{"id" => id}, socket) do
     case Kura.get_server(socket.assigns.account.id, id) do
       nil ->
-        {:noreply, put_flash(socket, :error, "Server not found.")}
+        {:noreply, put_flash(socket, :error, dgettext("dashboard", "Server not found."))}
 
       %Server{} = server ->
         {:ok, _} = Kura.destroy_server(server)
-        {:noreply, socket |> put_flash(:info, "Destroying Kura server…") |> load_kura_state()}
+        {:noreply, socket |> put_flash(:info, dgettext("dashboard", "Destroying Kura server...")) |> load_kura_state()}
     end
   end
 
@@ -144,7 +145,7 @@ defmodule TuistWeb.OpsAccountLive do
     customer = fetch_stripe_customer(account.customer_id)
 
     if customer_has_billing_details?(customer) do
-      # Customer already has name/email/address on Stripe — upgrade in
+      # Customer already has name/email/address on Stripe: upgrade in
       # one click without prompting ops to re-enter anything.
       {:ok, _sub} = Billing.upgrade_to_enterprise(account, %{cadence: "monthly"})
 
@@ -153,10 +154,12 @@ defmodule TuistWeb.OpsAccountLive do
        |> assign(:account, preload_billing(account))
        |> put_flash(
          :info,
-         "#{account.name} upgraded to Enterprise. Stripe will send an invoice for the first period."
+         dgettext("dashboard", "%{account} upgraded to Enterprise. Stripe will send an invoice for the first period.",
+           account: account.name
+         )
        )}
     else
-      # Missing billing details — open the modal pre-filled with whatever
+      # Missing billing details: open the modal pre-filled with whatever
       # the Stripe customer already has.
       {:noreply,
        socket
@@ -179,7 +182,9 @@ defmodule TuistWeb.OpsAccountLive do
      |> assign(:upgrade_target_customer, nil)
      |> put_flash(
        :info,
-       "#{account.name} upgraded to Enterprise. Stripe will send an invoice for the first period."
+       dgettext("dashboard", "%{account} upgraded to Enterprise. Stripe will send an invoice for the first period.",
+         account: account.name
+       )
      )
      |> push_event("close-modal", %{id: "enterprise-modal"})}
   end
@@ -190,7 +195,7 @@ defmodule TuistWeb.OpsAccountLive do
 
     case Billing.get_current_active_subscription(account) do
       nil ->
-        {:noreply, put_flash(socket, :error, "No active subscription to cancel.")}
+        {:noreply, put_flash(socket, :error, dgettext("dashboard", "No active subscription to cancel."))}
 
       %_{} = subscription ->
         case Billing.cancel_subscription_at_period_end(subscription) do
@@ -198,10 +203,16 @@ defmodule TuistWeb.OpsAccountLive do
             {:noreply,
              socket
              |> assign(:account, preload_billing(account))
-             |> put_flash(:info, "#{account.name} plan set to cancel at the end of the current period.")}
+             |> put_flash(
+               :info,
+               dgettext("dashboard", "%{account} plan set to cancel at the end of the current period.",
+                 account: account.name
+               )
+             )}
 
           {:error, reason} ->
-            {:noreply, put_flash(socket, :error, "Cancel failed: #{inspect(reason)}")}
+            {:noreply,
+             put_flash(socket, :error, dgettext("dashboard", "Cancel failed: %{reason}", reason: inspect(reason)))}
         end
     end
   end
@@ -231,7 +242,10 @@ defmodule TuistWeb.OpsAccountLive do
       {:ok, server} ->
         {:noreply,
          socket
-         |> put_flash(:info, "Creating Kura server in #{server.region}…")
+         |> put_flash(
+           :info,
+           dgettext("dashboard", "Creating Kura server in %{region}...", region: server.region)
+         )
          |> assign(:add_server_form, default_add_server_form())
          |> push_event("close-modal", %{id: "add-server-modal"})
          |> load_kura_state()}
@@ -239,13 +253,19 @@ defmodule TuistWeb.OpsAccountLive do
       {:error, %Ecto.Changeset{} = changeset} ->
         {:noreply,
          socket
-         |> put_flash(:error, "Failed to create Kura server: #{format_errors(changeset)}")
+         |> put_flash(
+           :error,
+           dgettext("dashboard", "Failed to create Kura server: %{reason}", reason: format_errors(changeset))
+         )
          |> push_event("close-modal", %{id: "add-server-modal"})}
 
       {:error, reason} ->
         {:noreply,
          socket
-         |> put_flash(:error, "Failed to create Kura server: #{inspect(reason)}")
+         |> put_flash(
+           :error,
+           dgettext("dashboard", "Failed to create Kura server: %{reason}", reason: inspect(reason))
+         )
          |> push_event("close-modal", %{id: "add-server-modal"})}
     end
   end
@@ -265,21 +285,11 @@ defmodule TuistWeb.OpsAccountLive do
 
   ## View helpers
 
-  def region_kubeconfig_status(%Regions{provisioner_config: %{cluster_id: cluster_id}}) do
-    case Tuist.Environment.kura_kubeconfig(cluster_id) do
-      nil -> :missing
-      "" -> :missing
-      _ -> :configured
-    end
-  end
-
-  def region_kubeconfig_status(_), do: :configured
-
-  def server_status_label(:provisioning), do: "Creating"
-  def server_status_label(:active), do: "Active"
-  def server_status_label(:failed), do: "Failed"
-  def server_status_label(:destroying), do: "Destroying"
-  def server_status_label(:destroyed), do: "Destroyed"
+  def server_status_label(:provisioning), do: dgettext("dashboard", "Creating")
+  def server_status_label(:active), do: dgettext("dashboard", "Active")
+  def server_status_label(:failed), do: dgettext("dashboard", "Failed")
+  def server_status_label(:destroying), do: dgettext("dashboard", "Destroying")
+  def server_status_label(:destroyed), do: dgettext("dashboard", "Destroyed")
 
   def server_status_color(:provisioning), do: "information"
   def server_status_color(:active), do: "success"
@@ -351,66 +361,66 @@ defmodule TuistWeb.OpsAccountLive do
 
   # ISO 3166-1 alpha-2 codes for the countries most likely to appear on
   # Enterprise invoices. Sorted alphabetically by name.
-  @countries [
-    {"AR", "Argentina"},
-    {"AU", "Australia"},
-    {"AT", "Austria"},
-    {"BE", "Belgium"},
-    {"BR", "Brazil"},
-    {"BG", "Bulgaria"},
-    {"CA", "Canada"},
-    {"CL", "Chile"},
-    {"CN", "China"},
-    {"CO", "Colombia"},
-    {"HR", "Croatia"},
-    {"CY", "Cyprus"},
-    {"CZ", "Czechia"},
-    {"DK", "Denmark"},
-    {"EE", "Estonia"},
-    {"FI", "Finland"},
-    {"FR", "France"},
-    {"DE", "Germany"},
-    {"GR", "Greece"},
-    {"HK", "Hong Kong"},
-    {"HU", "Hungary"},
-    {"IS", "Iceland"},
-    {"IN", "India"},
-    {"ID", "Indonesia"},
-    {"IE", "Ireland"},
-    {"IL", "Israel"},
-    {"IT", "Italy"},
-    {"JP", "Japan"},
-    {"LV", "Latvia"},
-    {"LT", "Lithuania"},
-    {"LU", "Luxembourg"},
-    {"MY", "Malaysia"},
-    {"MT", "Malta"},
-    {"MX", "Mexico"},
-    {"NL", "Netherlands"},
-    {"NZ", "New Zealand"},
-    {"NO", "Norway"},
-    {"PH", "Philippines"},
-    {"PL", "Poland"},
-    {"PT", "Portugal"},
-    {"RO", "Romania"},
-    {"SG", "Singapore"},
-    {"SK", "Slovakia"},
-    {"SI", "Slovenia"},
-    {"ZA", "South Africa"},
-    {"KR", "South Korea"},
-    {"ES", "Spain"},
-    {"SE", "Sweden"},
-    {"CH", "Switzerland"},
-    {"TW", "Taiwan"},
-    {"TH", "Thailand"},
-    {"TR", "Turkey"},
-    {"UA", "Ukraine"},
-    {"AE", "United Arab Emirates"},
-    {"GB", "United Kingdom"},
-    {"US", "United States"},
-    {"UY", "Uruguay"},
-    {"VN", "Vietnam"}
-  ]
+  @country_codes ~w(AR AU AT BE BR BG CA CL CN CO HR CY CZ DK EE FI FR DE GR HK HU IS IN ID IE IL IT JP LV LT LU MY MT MX NL NZ NO PH PL PT RO SG SK SI ZA KR ES SE CH TW TH TR UA AE GB US UY VN)
 
-  def countries, do: @countries
+  def countries, do: Enum.map(@country_codes, &{&1, country_name(&1)})
+
+  defp country_name("AR"), do: dgettext("dashboard", "Argentina")
+  defp country_name("AU"), do: dgettext("dashboard", "Australia")
+  defp country_name("AT"), do: dgettext("dashboard", "Austria")
+  defp country_name("BE"), do: dgettext("dashboard", "Belgium")
+  defp country_name("BR"), do: dgettext("dashboard", "Brazil")
+  defp country_name("BG"), do: dgettext("dashboard", "Bulgaria")
+  defp country_name("CA"), do: dgettext("dashboard", "Canada")
+  defp country_name("CL"), do: dgettext("dashboard", "Chile")
+  defp country_name("CN"), do: dgettext("dashboard", "China")
+  defp country_name("CO"), do: dgettext("dashboard", "Colombia")
+  defp country_name("HR"), do: dgettext("dashboard", "Croatia")
+  defp country_name("CY"), do: dgettext("dashboard", "Cyprus")
+  defp country_name("CZ"), do: dgettext("dashboard", "Czechia")
+  defp country_name("DK"), do: dgettext("dashboard", "Denmark")
+  defp country_name("EE"), do: dgettext("dashboard", "Estonia")
+  defp country_name("FI"), do: dgettext("dashboard", "Finland")
+  defp country_name("FR"), do: dgettext("dashboard", "France")
+  defp country_name("DE"), do: dgettext("dashboard", "Germany")
+  defp country_name("GR"), do: dgettext("dashboard", "Greece")
+  defp country_name("HK"), do: dgettext("dashboard", "Hong Kong")
+  defp country_name("HU"), do: dgettext("dashboard", "Hungary")
+  defp country_name("IS"), do: dgettext("dashboard", "Iceland")
+  defp country_name("IN"), do: dgettext("dashboard", "India")
+  defp country_name("ID"), do: dgettext("dashboard", "Indonesia")
+  defp country_name("IE"), do: dgettext("dashboard", "Ireland")
+  defp country_name("IL"), do: dgettext("dashboard", "Israel")
+  defp country_name("IT"), do: dgettext("dashboard", "Italy")
+  defp country_name("JP"), do: dgettext("dashboard", "Japan")
+  defp country_name("LV"), do: dgettext("dashboard", "Latvia")
+  defp country_name("LT"), do: dgettext("dashboard", "Lithuania")
+  defp country_name("LU"), do: dgettext("dashboard", "Luxembourg")
+  defp country_name("MY"), do: dgettext("dashboard", "Malaysia")
+  defp country_name("MT"), do: dgettext("dashboard", "Malta")
+  defp country_name("MX"), do: dgettext("dashboard", "Mexico")
+  defp country_name("NL"), do: dgettext("dashboard", "Netherlands")
+  defp country_name("NZ"), do: dgettext("dashboard", "New Zealand")
+  defp country_name("NO"), do: dgettext("dashboard", "Norway")
+  defp country_name("PH"), do: dgettext("dashboard", "Philippines")
+  defp country_name("PL"), do: dgettext("dashboard", "Poland")
+  defp country_name("PT"), do: dgettext("dashboard", "Portugal")
+  defp country_name("RO"), do: dgettext("dashboard", "Romania")
+  defp country_name("SG"), do: dgettext("dashboard", "Singapore")
+  defp country_name("SK"), do: dgettext("dashboard", "Slovakia")
+  defp country_name("SI"), do: dgettext("dashboard", "Slovenia")
+  defp country_name("ZA"), do: dgettext("dashboard", "South Africa")
+  defp country_name("KR"), do: dgettext("dashboard", "South Korea")
+  defp country_name("ES"), do: dgettext("dashboard", "Spain")
+  defp country_name("SE"), do: dgettext("dashboard", "Sweden")
+  defp country_name("CH"), do: dgettext("dashboard", "Switzerland")
+  defp country_name("TW"), do: dgettext("dashboard", "Taiwan")
+  defp country_name("TH"), do: dgettext("dashboard", "Thailand")
+  defp country_name("TR"), do: dgettext("dashboard", "Turkey")
+  defp country_name("UA"), do: dgettext("dashboard", "Ukraine")
+  defp country_name("AE"), do: dgettext("dashboard", "United Arab Emirates")
+  defp country_name("GB"), do: dgettext("dashboard", "United Kingdom")
+  defp country_name("US"), do: dgettext("dashboard", "United States")
+  defp country_name("UY"), do: dgettext("dashboard", "Uruguay")
+  defp country_name("VN"), do: dgettext("dashboard", "Vietnam")
 end

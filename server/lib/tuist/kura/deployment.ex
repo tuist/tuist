@@ -59,6 +59,7 @@ defmodule Tuist.Kura.Deployment do
     |> cast(attrs, [:cluster_id, :image_tag, :kura_server_id])
     |> validate_required([:cluster_id, :image_tag, :kura_server_id])
     |> validate_format(:image_tag, @image_tag_format, message: @image_tag_message)
+    |> validate_length(:image_tag, max: 128)
     |> foreign_key_constraint(:kura_server_id)
   end
 

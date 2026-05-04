@@ -1,5 +1,5 @@
 defmodule Tuist.Kura.Provisioner.HelmKubernetesTest do
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
   use Mimic
 
   import ExUnit.CaptureLog
@@ -8,12 +8,12 @@ defmodule Tuist.Kura.Provisioner.HelmKubernetesTest do
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
 
-  setup :set_mimic_global
+  setup :set_mimic_from_context
 
   describe "rollout/2" do
-    test "writes kubeconfig and invokes the chart rollout script" do
-      chart = chart_fixture("return true")
-      put_chart_path(chart)
+    @tag :tmp_dir
+    test "writes kubeconfig and invokes the chart rollout script", %{tmp_dir: tmp_dir} do
+      chart = chart_fixture(tmp_dir, "return true")
 
       stub(Tuist.Environment, :kura_kubeconfig, fn "local" -> "apiVersion: v1\nclusters: []\n" end)
       stub(Tuist.Environment, :app_url, fn -> "http://localhost:4000" end)
@@ -29,6 +29,7 @@ defmodule Tuist.Kura.Provisioner.HelmKubernetesTest do
                  account: %{name: "tuist"},
                  server: %Server{spec: :small, volume_size_gi: 25},
                  region: region,
+                 chart_path: chart,
                  on_log_line: fn line, stream -> send(test_pid, {:log_line, line, stream}) end
                })
 
@@ -56,9 +57,9 @@ defmodule Tuist.Kura.Provisioner.HelmKubernetesTest do
       assert file_mode(values_path) == 0o600
     end
 
-    test "returns a tagged error when rollout exits non-zero" do
-      chart = chart_fixture("return true", rollout_exit_status: 17)
-      put_chart_path(chart)
+    @tag :tmp_dir
+    test "returns a tagged error when rollout exits non-zero", %{tmp_dir: tmp_dir} do
+      chart = chart_fixture(tmp_dir, "return true", rollout_exit_status: 17)
 
       stub(Tuist.Environment, :kura_kubeconfig, fn "local" -> "apiVersion: v1\nclusters: []\n" end)
       stub(Tuist.Environment, :app_url, fn -> "http://localhost:4000" end)
@@ -71,6 +72,7 @@ defmodule Tuist.Kura.Provisioner.HelmKubernetesTest do
                  account: %{name: "tuist"},
                  server: %Server{spec: :small, volume_size_gi: 25},
                  region: local_region(),
+                 chart_path: chart,
                  on_log_line: fn _, _ -> :ok end
                })
     end
@@ -88,9 +90,66 @@ defmodule Tuist.Kura.Provisioner.HelmKubernetesTest do
     end
   end
 
+  describe "public_url/3" do
+    test "interpolates the production host template with the account handle" do
+      assert HelmKubernetes.public_url("tuist", eu_region(), "any-ref") == "https://tuist-eu-1.kura.tuist.dev"
+    end
+
+    test "normalizes the account handle for DNS hosts" do
+      assert HelmKubernetes.public_url("TUIST", eu_region(), "any-ref") == "https://tuist-eu-1.kura.tuist.dev"
+    end
+
+    test "uses the configured public URL for local kind regions" do
+      region = %Regions{
+        id: "local",
+        provisioner_config: %{
+          cluster_id: "local",
+          public_url: "http://localhost:4042"
+        }
+      }
+
+      assert HelmKubernetes.public_url("tuist", region, "any-ref") == "http://localhost:4042"
+    end
+  end
+
+  describe "release_name/2" do
+    test "produces a kura-<account>-<cluster> release name" do
+      assert HelmKubernetes.release_name("tuist", eu_region()) == "kura-tuist-eu-1"
+    end
+
+    test "normalizes the account handle for Kubernetes resource names" do
+      assert HelmKubernetes.release_name("TUIST", eu_region()) == "kura-tuist-eu-1"
+    end
+
+    test "uses the local cluster_id for kind regions" do
+      assert HelmKubernetes.release_name("tuist", local_region()) == "kura-tuist-local"
+    end
+  end
+
+  describe "resources_for/1" do
+    test "maps each customer-facing spec to Pod resources" do
+      for spec <- [:small, :medium, :large] do
+        server = %Server{spec: spec}
+
+        assert %{"resources" => %{"requests" => req, "limits" => lim}} =
+                 HelmKubernetes.resources_for(server)
+
+        assert is_binary(req["cpu"])
+        assert is_binary(req["memory"])
+        assert is_binary(lim["memory"])
+      end
+    end
+
+    test "returns an empty map for an unknown spec" do
+      server = %Server{spec: :nonsense}
+      assert HelmKubernetes.resources_for(server) == %{}
+    end
+  end
+
   describe "instance_values/5" do
-    test "renders per-account values for the local kind overlay" do
-      chart = chart_fixture("print('tuist hook')")
+    @tag :tmp_dir
+    test "renders per-account values for the local kind overlay", %{tmp_dir: tmp_dir} do
+      chart = chart_fixture(tmp_dir, "print('tuist hook')")
 
       stub(Tuist.Environment, :app_url, fn -> "http://localhost:4000" end)
       stub(Tuist.Environment, :secret_key_tokens, fn -> "jwt-secret" end)
@@ -108,7 +167,7 @@ defmodule Tuist.Kura.Provisioner.HelmKubernetesTest do
       assert values =
                HelmKubernetes.instance_values(
                  "0.5.2",
-                 %{name: "tuist"},
+                 %{name: "TUIST"},
                  region,
                  %Server{spec: :small, volume_size_gi: 25},
                  chart
@@ -116,7 +175,7 @@ defmodule Tuist.Kura.Provisioner.HelmKubernetesTest do
 
       assert values["fullnameOverride"] == "kura-tuist-local"
       assert values["image"] == %{"tag" => "0.5.2"}
-      assert values["config"] == %{"tenantId" => "tuist", "region" => "local"}
+      assert values["config"] == %{"tenantId" => "TUIST", "region" => "local"}
       assert values["extension"] == %{"enabled" => true, "script" => "print('tuist hook')"}
       assert values["persistence"] == %{"size" => "25Gi"}
 
@@ -134,7 +193,8 @@ defmodule Tuist.Kura.Provisioner.HelmKubernetesTest do
       assert env["KURA_EXTENSION_SIGNER_TUIST_SECRET"] == "signing-secret"
     end
 
-    test "renders ingress hosts from the public host template" do
+    @tag :tmp_dir
+    test "renders ingress hosts from the public host template", %{tmp_dir: tmp_dir} do
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
       stub(Tuist.Environment, :secret_key_tokens, fn -> nil end)
       stub(Tuist.License, :get_license, fn -> {:error, :missing} end)
@@ -151,10 +211,10 @@ defmodule Tuist.Kura.Provisioner.HelmKubernetesTest do
       values =
         HelmKubernetes.instance_values(
           "0.5.2",
-          %{name: "tuist"},
+          %{name: "TUIST"},
           region,
           %Server{spec: :medium, volume_size_gi: 100},
-          chart_fixture("return true")
+          chart_fixture(tmp_dir, "return true")
         )
 
       assert values["ingress"]["hosts"] == [
@@ -192,8 +252,8 @@ defmodule Tuist.Kura.Provisioner.HelmKubernetesTest do
     end
   end
 
-  defp chart_fixture(hook_script, opts \\ []) do
-    root = Path.join(System.tmp_dir!(), "helm-kubernetes-test-#{System.unique_integer([:positive])}")
+  defp chart_fixture(tmp_dir, hook_script, opts \\ []) do
+    root = Path.join(tmp_dir, "chart-#{System.unique_integer([:positive])}")
     hooks = Path.join(root, "hooks")
     File.mkdir_p!(hooks)
     File.write!(Path.join(hooks, "tuist.lua"), hook_script)
@@ -230,17 +290,15 @@ defmodule Tuist.Kura.Provisioner.HelmKubernetesTest do
     }
   end
 
-  defp put_chart_path(chart) do
-    previous = Application.get_env(:tuist, :kura_chart_path)
-    Application.put_env(:tuist, :kura_chart_path, chart)
-
-    on_exit(fn ->
-      if previous do
-        Application.put_env(:tuist, :kura_chart_path, previous)
-      else
-        Application.delete_env(:tuist, :kura_chart_path)
-      end
-    end)
+  defp eu_region do
+    %Regions{
+      id: "eu",
+      provisioner_config: %{
+        cluster_id: "eu-1",
+        helm_overlay: "hetzner",
+        public_host_template: "{account_handle}-{cluster_id}.kura.tuist.dev"
+      }
+    }
   end
 
   defp file_mode(path) do

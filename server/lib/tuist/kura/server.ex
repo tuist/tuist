@@ -31,15 +31,26 @@ defmodule Tuist.Kura.Server do
   alias Tuist.Accounts.Account
   alias Tuist.Kura.Deployment
 
-  @specs [:small, :medium, :large]
-  @statuses [:provisioning, :active, :failed, :destroying, :destroyed]
+  @spec_mappings [small: 0, medium: 1, large: 2]
+  @specs Keyword.keys(@spec_mappings)
+  @status_mappings [provisioning: 0, active: 1, failed: 2, destroying: 3, destroyed: 4]
+  @statuses Keyword.keys(@status_mappings)
+  @allowed_status_transitions %{
+    provisioning: [:provisioning, :active, :failed, :destroying],
+    active: [:active, :failed, :destroying],
+    failed: [:failed, :active, :destroying],
+    destroying: [:destroying, :destroyed],
+    destroyed: [:destroyed]
+  }
+  @image_tag_format ~r/^v?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?\z/
+  @image_tag_message "must be a Kura image tag like 0.5.2, 0.5.2-rc.1, or v0.5.2"
 
   @primary_key {:id, :binary_id, autogenerate: true}
   schema "kura_servers" do
     field :region, :string
-    field :spec, Ecto.Enum, values: Enum.with_index(@specs), default: :medium
+    field :spec, Ecto.Enum, values: @spec_mappings, default: :medium
     field :volume_size_gi, :integer
-    field :status, Ecto.Enum, values: Enum.with_index(@statuses), default: :provisioning
+    field :status, Ecto.Enum, values: @status_mappings, default: :provisioning
     field :url, :string
     field :current_image_tag, :string
     field :provisioner_node_ref, :string
@@ -86,5 +97,32 @@ defmodule Tuist.Kura.Server do
       :provisioner_node_ref
     ])
     |> validate_required([:status])
+    |> validate_format(:current_image_tag, @image_tag_format, message: @image_tag_message)
+    |> validate_length(:current_image_tag, max: 128)
+    |> validate_active_fields()
+    |> validate_status_transition()
+  end
+
+  defp validate_active_fields(changeset) do
+    if get_field(changeset, :status) == :active do
+      validate_required(changeset, [:url, :current_image_tag])
+    else
+      changeset
+    end
+  end
+
+  defp validate_status_transition(%Ecto.Changeset{errors: errors} = changeset) do
+    if Keyword.has_key?(errors, :status) do
+      changeset
+    else
+      from = changeset.data.status || :provisioning
+      to = get_field(changeset, :status)
+
+      if to in Map.get(@allowed_status_transitions, from, []) do
+        changeset
+      else
+        add_error(changeset, :status, "cannot transition from #{from} to #{to}")
+      end
+    end
   end
 end

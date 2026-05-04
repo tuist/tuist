@@ -1,6 +1,5 @@
 defmodule Tuist.Kura.Workers.DestroyServerWorkerTest do
-  use ExUnit.Case, async: false
-  use TuistTestSupport.Cases.DataCase
+  use TuistTestSupport.Cases.DataCase, async: true
 
   import Mimic
 
@@ -12,7 +11,7 @@ defmodule Tuist.Kura.Workers.DestroyServerWorkerTest do
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
-  setup :set_mimic_global
+  setup :set_mimic_from_context
 
   setup do
     user = AccountsFixtures.user_fixture()
@@ -36,6 +35,7 @@ defmodule Tuist.Kura.Workers.DestroyServerWorkerTest do
 
     test "is a no-op for an already-destroyed row", %{server: server} do
       reject(&Provisioner.destroy/1)
+      {:ok, server} = Kura.destroy_server(server)
       {:ok, _} = Kura.mark_destroyed(server)
 
       assert :ok = perform_for(server.id)
