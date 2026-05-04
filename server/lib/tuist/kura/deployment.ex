@@ -14,10 +14,10 @@ defmodule Tuist.Kura.Deployment do
   Per-line stdout/stderr streams to the `kura_deployment_log_lines`
   ClickHouse table keyed by `id` so /ops can tail in real time.
 
-  `cluster_id` is an audit field: which backing cluster the deployment
-  actually targeted, captured at insert time so operators reading the
-  deployment list see something concrete (`"eu-1"`) rather than the
-  abstract region (`"eu"`).
+  `cluster_id` is a historical audit field: which backing target the
+  deployment actually targeted, captured at insert time so operators
+  reading the deployment list see something concrete (`"fsn1"`) rather
+  than the abstract region (`"eu"`).
   """
   use Ecto.Schema
 

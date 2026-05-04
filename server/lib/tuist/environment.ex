@@ -209,6 +209,41 @@ defmodule Tuist.Environment do
     end
   end
 
+  def kura_hetzner_api_token(secrets \\ secrets()) do
+    System.get_env("TUIST_KURA_HETZNER_API_TOKEN") || get([:kura, :hetzner, :api_token], secrets)
+  end
+
+  def kura_cloudflare_api_token(secrets \\ secrets()) do
+    System.get_env("TUIST_KURA_CLOUDFLARE_API_TOKEN") || get([:kura, :cloudflare, :api_token], secrets)
+  end
+
+  def kura_cloudflare_zone_id(secrets \\ secrets()) do
+    System.get_env("TUIST_KURA_CLOUDFLARE_ZONE_ID") || get([:kura, :cloudflare, :zone_id], secrets)
+  end
+
+  def kura_ssh_public_key(secrets \\ secrets()) do
+    System.get_env("TUIST_KURA_SSH_PUBLIC_KEY") || get([:kura, :ssh, :public_key], secrets)
+  end
+
+  def kura_ssh_private_key(secrets \\ secrets()) do
+    cond do
+      key = System.get_env("TUIST_KURA_SSH_PRIVATE_KEY") ->
+        key
+
+      key = System.get_env("TUIST_KURA_SSH_PRIVATE_KEY_BASE64") ->
+        Base.decode64!(key)
+
+      key = get([:kura, :ssh, :private_key], secrets) ->
+        key
+
+      key = get([:kura, :ssh, :private_key_base64], secrets) ->
+        Base.decode64!(key)
+
+      true ->
+        nil
+    end
+  end
+
   def plain_authentication_secret(secrets \\ secrets()) do
     get([:plain, :authentication_secret], secrets)
   end
