@@ -390,6 +390,15 @@ defmodule Tuist.Kura do
     })
   end
 
+  @doc "Marks a deployment record as cancelled before the provisioner runs."
+  def mark_cancelled(%Deployment{} = deployment, message) when is_binary(message) do
+    update_deployment_status(deployment, %{
+      status: :cancelled,
+      error_message: message,
+      finished_at: now_truncated()
+    })
+  end
+
   defp update_deployment_status(deployment, attrs) do
     deployment |> Deployment.status_changeset(attrs) |> Repo.update()
   end
@@ -423,7 +432,7 @@ defmodule Tuist.Kura do
   @doc "Returns log lines for a deployment record, oldest first, capped at `limit`."
   def list_log_lines(deployment_id, opts \\ []) do
     limit = Keyword.get(opts, :limit, 1_000)
-    after_sequence = Keyword.get(opts, :after_sequence, -1)
+    after_sequence = Keyword.get(opts, :after_sequence, 0)
 
     query = """
     SELECT sequence, stream, line, inserted_at
@@ -436,7 +445,7 @@ defmodule Tuist.Kura do
 
     case IngestRepo.query(query, %{
            "deployment_id" => deployment_id,
-           "after_sequence" => max(after_sequence, -1),
+           "after_sequence" => max(after_sequence, 0),
            "limit" => limit
          }) do
       {:ok, %{rows: rows}} ->
@@ -457,6 +466,22 @@ defmodule Tuist.Kura do
   defp parse_stream("stdout"), do: :stdout
   defp parse_stream("stderr"), do: :stderr
   defp parse_stream(other), do: other
+
+  @doc false
+  def next_log_sequence(deployment_id) do
+    query = """
+    SELECT sequence
+    FROM kura_deployment_log_lines
+    WHERE deployment_id = {deployment_id:UUID}
+    ORDER BY sequence DESC
+    LIMIT 1
+    """
+
+    case IngestRepo.query(query, %{"deployment_id" => deployment_id}) do
+      {:ok, %{rows: [[sequence]]}} -> sequence + 1
+      _ -> 1
+    end
+  end
 
   ## PubSub
 

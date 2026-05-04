@@ -41,6 +41,13 @@ defmodule Tuist.Kura.Workers.DestroyServerWorkerTest do
       assert :ok = perform_for(server.id)
     end
 
+    test "is a no-op for a row that has not entered destroying", %{server: server} do
+      reject(&Provisioner.destroy/1)
+
+      assert :ok = perform_for(server.id)
+      assert %Server{status: :provisioning} = Repo.get!(Server, server.id)
+    end
+
     test "calls the provisioner and marks destroyed on success", %{server: server} do
       ref = make_ref()
       test_pid = self()
@@ -81,6 +88,7 @@ defmodule Tuist.Kura.Workers.DestroyServerWorkerTest do
       assert_enqueued(
         worker: DestroyServerWorker,
         args: %{"server_id" => server.id},
+        queue: :kura_rollout,
         max_attempts: 5
       )
     end

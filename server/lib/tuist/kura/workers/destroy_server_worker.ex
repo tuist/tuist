@@ -38,7 +38,11 @@ defmodule Tuist.Kura.Workers.DestroyServerWorker do
       %Server{status: :destroyed} ->
         :ok
 
-      %Server{} = server ->
+      %Server{status: status} when status != :destroying ->
+        Logger.info("[Kura.DestroyServerWorker] server #{id} is #{status}; skipping destroy")
+        :ok
+
+      %Server{status: :destroying} = server ->
         with :ok <- destroy_backing_resource(server),
              {:ok, _} <- Kura.mark_destroyed(server) do
           :ok

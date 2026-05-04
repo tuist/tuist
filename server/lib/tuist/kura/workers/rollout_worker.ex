@@ -30,10 +30,7 @@ defmodule Tuist.Kura.Workers.RolloutWorker do
         :ok
 
       %Deployment{status: :running} = deployment ->
-        # A retry picked up a deployment we'd already started. The
-        # cluster-side rollout is idempotent at steady state, but we
-        # fail explicitly so the operator notices.
-        {:ok, _} = Kura.mark_failed(deployment, "deployment was already running; re-trigger manually")
+        fail_running(deployment)
         :ok
 
       %Deployment{status: status} when status in [:succeeded, :failed, :cancelled] ->
@@ -45,13 +42,26 @@ defmodule Tuist.Kura.Workers.RolloutWorker do
     end
   end
 
+  defp fail_running(%Deployment{} = deployment) do
+    deployment = Repo.preload(deployment, :kura_server)
+    fail(deployment, deployment.kura_server, "deployment was already running; re-trigger manually")
+  end
+
   defp execute(%Deployment{} = deployment) do
     deployment = Repo.preload(deployment, kura_server: :account)
 
     case deployment.kura_server do
       nil -> fail(deployment, nil, "deployment has no parent kura_server")
+      %Server{status: status} = server when status in [:destroying, :destroyed] -> cancel(deployment, server)
       %Server{} = server -> roll(deployment, server)
     end
+  end
+
+  defp cancel(deployment, %Server{} = server) do
+    message = "server #{server.id} is #{server.status}; skipping rollout"
+    {:ok, _} = Kura.append_log_lines(deployment.id, [{next_sequence(deployment.id), :stderr, message}])
+    {:ok, _} = Kura.mark_cancelled(deployment, message)
+    :ok
   end
 
   defp roll(deployment, %Server{} = server) do
@@ -81,7 +91,7 @@ defmodule Tuist.Kura.Workers.RolloutWorker do
   defp fail(deployment, server, reason) do
     message = if is_binary(reason), do: reason, else: inspect(reason)
     # Synthetic log line so /ops shows the reason instead of an empty terminal.
-    {:ok, _} = Kura.append_log_lines(deployment.id, [{next_sequence(), :stderr, message}])
+    {:ok, _} = Kura.append_log_lines(deployment.id, [{next_sequence(deployment.id), :stderr, message}])
     {:ok, _} = Kura.mark_failed(deployment, message)
     if server, do: Kura.fail_server(server)
     {:error, message}
@@ -94,13 +104,14 @@ defmodule Tuist.Kura.Workers.RolloutWorker do
     Process.put(:kura_log_sequence, 0)
 
     fn line, stream ->
-      {:ok, _} = Kura.append_log_lines(deployment_id, [{next_sequence(), stream, line}])
+      {:ok, _} = Kura.append_log_lines(deployment_id, [{next_sequence(deployment_id), stream, line}])
       :ok
     end
   end
 
-  defp next_sequence do
-    seq = Process.get(:kura_log_sequence, 0) + 1
+  defp next_sequence(deployment_id) do
+    seq = Process.get(:kura_log_sequence) || Kura.next_log_sequence(deployment_id) - 1
+    seq = seq + 1
     Process.put(:kura_log_sequence, seq)
     seq
   end

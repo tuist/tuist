@@ -56,6 +56,16 @@ defmodule Tuist.Kura.ReconcilerTest do
              Repo.get!(Deployment, deployment.id)
   end
 
+  test "fails running deployments without an oban job id" do
+    {_server, deployment} = running_deployment()
+    deployment |> Ecto.Changeset.change(%{oban_job_id: nil}) |> Repo.update!()
+
+    Reconciler.reconcile()
+
+    assert %Deployment{status: :failed, error_message: @orphan_message} =
+             Repo.get!(Deployment, deployment.id)
+  end
+
   test "leaves :running deployments alone when the oban job is still alive" do
     {server, deployment} = running_deployment()
     set_oban_state(deployment, "executing")

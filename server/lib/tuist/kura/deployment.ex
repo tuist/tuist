@@ -25,13 +25,23 @@ defmodule Tuist.Kura.Deployment do
 
   alias Tuist.Kura.Server
 
-  @statuses [:pending, :running, :succeeded, :failed, :cancelled]
+  @status_mappings [pending: 0, running: 1, succeeded: 2, failed: 3, cancelled: 4]
+  @statuses Keyword.keys(@status_mappings)
+  @allowed_status_transitions %{
+    pending: [:pending, :running, :failed, :cancelled],
+    running: [:running, :succeeded, :failed, :cancelled],
+    succeeded: [:succeeded],
+    failed: [:failed],
+    cancelled: [:cancelled]
+  }
+  @image_tag_format ~r/^v?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?\z/
+  @image_tag_message "must be a Kura image tag like 0.5.2, 0.5.2-rc.1, or v0.5.2"
 
   @primary_key {:id, :binary_id, autogenerate: true}
   schema "kura_deployments" do
     field :cluster_id, :string
     field :image_tag, :string
-    field :status, Ecto.Enum, values: Enum.with_index(@statuses), default: :pending
+    field :status, Ecto.Enum, values: @status_mappings, default: :pending
     field :error_message, :string
     field :oban_job_id, :integer
     field :started_at, :utc_datetime
@@ -48,7 +58,7 @@ defmodule Tuist.Kura.Deployment do
     deployment
     |> cast(attrs, [:cluster_id, :image_tag, :kura_server_id])
     |> validate_required([:cluster_id, :image_tag, :kura_server_id])
-    |> validate_format(:image_tag, ~r/^\d+\.\d+\.\d+$/, message: "must be a Kura semver like 0.5.2")
+    |> validate_format(:image_tag, @image_tag_format, message: @image_tag_message)
     |> foreign_key_constraint(:kura_server_id)
   end
 
@@ -56,5 +66,21 @@ defmodule Tuist.Kura.Deployment do
     deployment
     |> cast(attrs, [:status, :error_message, :oban_job_id, :started_at, :finished_at])
     |> validate_required([:status])
+    |> validate_status_transition()
+  end
+
+  defp validate_status_transition(%Ecto.Changeset{errors: errors} = changeset) do
+    if Keyword.has_key?(errors, :status) do
+      changeset
+    else
+      from = changeset.data.status || :pending
+      to = get_field(changeset, :status)
+
+      if to in Map.get(@allowed_status_transitions, from, []) do
+        changeset
+      else
+        add_error(changeset, :status, "cannot transition from #{from} to #{to}")
+      end
+    end
   end
 end

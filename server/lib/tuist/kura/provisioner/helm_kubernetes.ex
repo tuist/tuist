@@ -145,7 +145,7 @@ defmodule Tuist.Kura.Provisioner.HelmKubernetes do
       ]
 
       case MuonTrap.cmd("env", args, stderr_to_stdout: true) do
-        {output, 0} -> {:ok, parse_image_tag(output)}
+        {output, 0} -> {:ok, image_tag_from_image(output)}
         {output, _} -> {:error, String.trim(output)}
       end
     end
@@ -163,16 +163,17 @@ defmodule Tuist.Kura.Provisioner.HelmKubernetes do
 
   defp write_instance_values(image_tag, account, region, server, chart) do
     image_tag
-    |> values(account, region, server, chart)
+    |> instance_values(account, region, server, chart)
     |> Ymlr.document!()
-    |> write_temp("instance.yaml")
+    |> write_temp("instance")
   end
 
-  defp values(image_tag, account, %Regions{} = region, %Server{} = server, chart) do
+  @doc false
+  def instance_values(image_tag, account, %Regions{} = region, %Server{} = server, chart) do
     release = release_name(account.name, region)
     hook_script = chart |> Path.join("hooks/tuist.lua") |> File.read!()
 
-    %{
+    base = %{
       "fullnameOverride" => release,
       "image" => %{"tag" => image_tag},
       "config" => %{
@@ -198,9 +199,10 @@ defmodule Tuist.Kura.Provisioner.HelmKubernetes do
         }
       ]
     }
-    |> maybe_merge(resources(server))
-    |> maybe_merge(persistence(server))
-    |> maybe_merge(ingress(region, account.name))
+
+    [resources_for(server), persistence(server), ingress(region, account.name)]
+    |> Enum.reject(&(&1 in [nil, %{}]))
+    |> Enum.reduce(base, &Map.merge(&2, &1))
   end
 
   @impl true
@@ -210,15 +212,6 @@ defmodule Tuist.Kura.Provisioner.HelmKubernetes do
       pod_resources -> %{"resources" => pod_resources}
     end
   end
-
-  defp resources(%Server{} = server) do
-    case resources_for(server) do
-      %{"resources" => _} = overlay -> overlay
-      _ -> nil
-    end
-  end
-
-  defp resources(_), do: nil
 
   defp persistence(%Server{volume_size_gi: gi}) when is_integer(gi) and gi > 0 do
     %{"persistence" => %{"size" => "#{gi}Gi"}}
@@ -254,9 +247,6 @@ defmodule Tuist.Kura.Provisioner.HelmKubernetes do
         }
     end
   end
-
-  defp maybe_merge(map, nil), do: map
-  defp maybe_merge(map, fragment) when is_map(fragment), do: Map.merge(map, fragment)
 
   defp extension_env(%Regions{} = region) do
     base = [
@@ -335,8 +325,23 @@ defmodule Tuist.Kura.Provisioner.HelmKubernetes do
     |> String.replace("{cluster_id}", cluster_id)
   end
 
-  defp parse_image_tag(output) do
-    case output |> String.trim() |> String.split(":", parts: 2) do
+  @doc false
+  def image_tag_from_image(image) when is_binary(image) do
+    image
+    |> String.trim()
+    |> String.split("/", trim: true)
+    |> List.last()
+    |> image_tag_from_last_path_segment()
+  end
+
+  defp image_tag_from_last_path_segment(nil), do: nil
+
+  defp image_tag_from_last_path_segment(segment) do
+    segment
+    |> String.split("@", parts: 2)
+    |> List.first()
+    |> String.split(":", parts: 2)
+    |> case do
       [_image, tag] when tag != "" -> tag
       _ -> nil
     end
@@ -458,7 +463,8 @@ defmodule Tuist.Kura.Provisioner.HelmKubernetes do
 
   defp write_temp(contents, label) do
     with {:ok, path} <- Briefly.create(prefix: "kura-#{label}-", extname: ".yaml"),
-         :ok <- File.write(path, contents) do
+         :ok <- File.write(path, contents),
+         :ok <- File.chmod(path, 0o600) do
       {:ok, path}
     else
       {:error, reason} -> {:error, "failed to write #{label}: #{inspect(reason)}"}
