@@ -30,6 +30,8 @@ defmodule Tuist.SCIM do
   alias Tuist.Environment
   alias Tuist.Repo
 
+  require Logger
+
   @group_admins "admins"
   @group_users "users"
 
@@ -120,14 +122,17 @@ defmodule Tuist.SCIM do
   defp organization_account(%Organization{} = organization), do: Repo.preload(organization, :account).account
 
   @doc """
-  Best-effort touch of `last_used_at`. Failures are swallowed.
+  Best-effort touch of `last_used_at`. Failures are logged without blocking the request.
   """
   def touch_token(%AccountToken{} = token) do
     now = DateTime.truncate(DateTime.utc_now(), :second)
 
     Repo.update_all(from(t in AccountToken, where: t.id == ^token.id), set: [last_used_at: now])
   rescue
-    _ -> :ok
+    exception ->
+      Logger.warning("Failed to touch SCIM token last_used_at: #{Exception.message(exception)}")
+
+      :ok
   end
 
   ## Users
