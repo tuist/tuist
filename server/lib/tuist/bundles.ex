@@ -56,7 +56,10 @@ defmodule Tuist.Bundles do
   Gets a single bundle.
   """
   def get_bundle(id, opts \\ []) do
-    preload = Keyword.get(opts, :preload, [])
+    # `:artifacts` is always loaded from ClickHouse via `bundle_artifacts/1`,
+    # so strip it from the preload list to avoid Ecto issuing a PG query
+    # against the (no-longer-existing) PG `artifacts` table.
+    preload = opts |> Keyword.get(:preload, []) |> drop_artifacts_preload()
     project_id = Keyword.get(opts, :project_id)
 
     query =
@@ -73,6 +76,19 @@ defmodule Tuist.Bundles do
       {:ok, %{bundle | artifacts: bundle_artifacts(bundle)}}
     end
   end
+
+  defp drop_artifacts_preload(:artifacts), do: []
+  defp drop_artifacts_preload({:artifacts, _}), do: []
+
+  defp drop_artifacts_preload(preload) when is_list(preload) do
+    Enum.reject(preload, fn
+      :artifacts -> true
+      {:artifacts, _} -> true
+      _ -> false
+    end)
+  end
+
+  defp drop_artifacts_preload(other), do: other
 
   def get_bundle_artifact_tree(bundle_id) do
     from(a in Artifact,

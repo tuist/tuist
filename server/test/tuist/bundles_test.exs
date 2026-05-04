@@ -216,6 +216,20 @@ defmodule Tuist.BundlesTest do
       # Then
       assert {:error, :not_found} == got
     end
+
+    test "ignores :artifacts in the preload list instead of issuing a Postgres query against the CH-backed association" do
+      # Given
+      bundle = BundlesFixtures.bundle_fixture()
+
+      # When — `:artifacts` would otherwise cause Ecto to preload through
+      # Tuist.Repo against the dropped PG `artifacts` table. The function
+      # should silently strip it and load the artifacts from CH instead.
+      {:ok, got} = Bundles.get_bundle(bundle.id, preload: [:artifacts, :uploaded_by_account])
+
+      # Then
+      assert got.id == bundle.id
+      assert got.artifacts == []
+    end
   end
 
   describe "install_size_deviation/1" do
