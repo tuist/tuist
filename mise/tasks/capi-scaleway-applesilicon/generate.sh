@@ -41,10 +41,10 @@ echo "→ Generating CRD manifests (${CRD_OUT_DIR}/)"
 
 # CAPI core looks up infrastructure-provider CRDs by the
 # `cluster.x-k8s.io/v1beta1=<api-version>` label. controller-gen
-# doesn't emit that on its own; patch it in here so the chart-managed
-# CRDs stay drop-in compatible with what was hand-written before.
+# doesn't emit that on its own; patch it in here so CAPI core
+# discovers our CRDs.
 echo "→ Adding CAPI provider label to generated CRDs"
-for f in "${REPO_ROOT}/${CRD_OUT_DIR}"/scalewayapplesilicon*.yaml; do
+for f in "${REPO_ROOT}/${CRD_OUT_DIR}"/infrastructure.cluster.x-k8s.io_scalewayapplesilicon*.yaml; do
   yq -i '.metadata.labels."cluster.x-k8s.io/v1beta1" = "v1alpha1"' "$f"
 done
 
