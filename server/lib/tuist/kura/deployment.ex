@@ -49,7 +49,7 @@ defmodule Tuist.Kura.Deployment do
 
     belongs_to :kura_server, Server, type: :binary_id
 
-    timestamps(type: :utc_datetime_usec)
+    timestamps(type: :utc_datetime)
   end
 
   def statuses, do: @statuses

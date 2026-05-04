@@ -232,8 +232,8 @@ RUN : "APT_CACHE_BUST=${APT_CACHE_BUST}" \
   && apt-get clean && rm -f /var/lib/apt/lists/*_*
 
 # Pin rollout tooling used by Kura Helm rollouts.
-ARG HELM_VERSION=3.16.3
-ARG KUBECTL_VERSION=1.31.3
+ARG HELM_VERSION=3.20.2
+ARG KUBECTL_VERSION=1.36.0
 RUN set -eux; \
   arch="$(dpkg --print-architecture)"; \
   case "$arch" in \
