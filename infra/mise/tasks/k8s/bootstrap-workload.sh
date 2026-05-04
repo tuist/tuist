@@ -108,8 +108,12 @@ KUBECONFIG="$WL_KUBECONFIG" helm upgrade --install cilium cilium/cilium \
   --namespace kube-system \
   -f "$BOOTSTRAP_DIR/cilium-values.yaml" \
   --set "k8sServiceHost=${API_HOST}" \
-  --set "k8sServicePort=${API_PORT}" \
-  --wait --timeout 5m
+  --set "k8sServicePort=${API_PORT}"
+# Don't --wait here: hubble-relay (a Deployment) can't schedule
+# until at least one non-CP node is Ready, and that doesn't happen
+# until HCCM is installed below. The cilium-agent DaemonSet installs
+# on each node as the node registers, no wait needed; later steps
+# only depend on the agent, not hubble-relay.
 
 # ---------------------------------------------------------------------------
 log "Step 3/11: create hetzner Secret on workload (HCCM + CSI both read it)"
