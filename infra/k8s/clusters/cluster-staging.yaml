@@ -1,7 +1,5 @@
 # Staging workload Cluster, topology mode against tuist-hcloud.
-# Replaces infra/k8s/syself/workload-cluster-staging.yaml once the
-# classRef on the moved Cluster CR is swapped to tuist-hcloud.
-# Same shape: 3× cpx22 control plane + 2× cpx31 workers in fsn1.
+# 3× cpx22 control plane + 2× cpx31 workers in fsn1.
 apiVersion: cluster.x-k8s.io/v1beta2
 kind: Cluster
 metadata:
