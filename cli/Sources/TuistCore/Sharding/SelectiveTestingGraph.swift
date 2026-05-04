@@ -23,11 +23,6 @@ public struct SelectiveTestingGraph: Codable {
 
     public static let fileName = "selective-testing-graph.json"
 
-    enum CodingKeys: String, CodingKey {
-        case testTargetHashes
-        case attemptedTestPlans
-    }
-
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         testTargetHashes = try container.decode([String: String].self, forKey: .testTargetHashes)

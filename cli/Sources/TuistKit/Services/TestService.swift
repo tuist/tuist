@@ -788,10 +788,15 @@ public struct TestService { // swiftlint:disable:this type_body_length
             passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
         )
 
-        let requestedTestPlanOrScheme = testPlanConfiguration?.testPlan ?? schemeName
+        let requestedTestPlan = testPlanConfiguration?.testPlan
+        let requestedTestPlanOrScheme = requestedTestPlan ?? schemeName
         if let requestedTestPlanOrScheme,
            selectiveTestingGraph.attemptedTestPlans.contains(requestedTestPlanOrScheme),
-           try await !bundleHasXCTestRun(for: requestedTestPlanOrScheme, in: testProductsPath)
+           try await !bundleHasXCTestRun(
+               for: requestedTestPlanOrScheme,
+               isTestPlan: requestedTestPlan != nil,
+               in: testProductsPath
+           )
         {
             let timer = clock.startTimer()
             try await uploadSkippedTestSummary(
@@ -1027,15 +1032,19 @@ public struct TestService { // swiftlint:disable:this type_body_length
 
     private func bundleHasXCTestRun(
         for planOrSchemeName: String,
+        isTestPlan: Bool,
         in testProductsPath: AbsolutePath
     ) async throws -> Bool {
         let xctestrunPaths = try await fileSystem
             .glob(directory: testProductsPath, include: ["**/*.xctestrun"])
             .collect()
         return xctestrunPaths.contains { path in
-            // With test plans Xcode emits `<plan>.xctestrun`; without plans it emits
-            // `<scheme>_<destination>.xctestrun`. Match either shape.
             let basename = path.basenameWithoutExt
+            if isTestPlan {
+                // With test plans Xcode emits `<plan>.xctestrun`.
+                return basename == planOrSchemeName
+            }
+            // Without plans Xcode emits `<scheme>_<destination>.xctestrun`.
             return basename == planOrSchemeName || basename.hasPrefix("\(planOrSchemeName)_")
         }
     }
