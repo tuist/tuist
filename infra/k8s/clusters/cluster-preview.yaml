@@ -1,6 +1,18 @@
 # Preview workload Cluster, topology mode against tuist-hcloud.
 # Single CP + worker; the worker pool replica count is managed by the
 # preview-deploy / preview-sweep workflows, not by this manifest.
+#
+# DO NOT `kubectl apply` THIS FILE AFTER INITIAL BOOTSTRAP.
+# The `replicas: 1` on the worker MachineDeployment will fight the
+# preview-deploy workflow, which scales the pool 0→1 on PR open and
+# back on the hourly sweep. A re-apply resets replicas to 1 and
+# leaves any in-flight scale-down in an inconsistent state. To make
+# topology changes (CP machine type, K8s version, etc.), edit the
+# Cluster CR in place via `kubectl edit` and let the topology
+# controller reconcile only the diff. Long-term fix: server-side
+# apply with a field manager that explicitly excludes
+# `workers.machineDeployments[?(@.name=="md-0")].replicas` from the
+# managed-fields set.
 apiVersion: cluster.x-k8s.io/v1beta2
 kind: Cluster
 metadata:

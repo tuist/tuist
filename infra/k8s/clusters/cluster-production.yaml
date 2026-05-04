@@ -48,6 +48,14 @@ spec:
             labels:
               node.cluster.x-k8s.io/pool: general
         # Dedicated processor pool: xcactivitylog parsing.
+        # CA annotations declared here propagate to the rendered
+        # MachineDeployment via topology mode. Without them the
+        # classRef swap to tuist-hcloud would re-render the MD
+        # without the autoscaler bounds, dropping cluster-autoscaler's
+        # node-group registration mid-flight. Values must match the
+        # live MD at swap time — verify with:
+        #   kubectl -n org-tuist get md tuist-md-processor \
+        #     -o jsonpath='{.metadata.annotations}'
         - class: hcloud-worker
           name: md-processor
           replicas: 2
@@ -55,6 +63,9 @@ spec:
           metadata:
             labels:
               node.cluster.x-k8s.io/pool: processor
+            annotations:
+              cluster.x-k8s.io/cluster-autoscaler-node-group-min-size: "2"
+              cluster.x-k8s.io/cluster-autoscaler-node-group-max-size: "6"
           variables:
             overrides:
               - name: hcloudWorkerMachineType

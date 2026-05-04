@@ -325,6 +325,13 @@ spec:
       imageName: ubuntu-24.04
       type: cx23
 ---
+# KEEP IN SYNC with the worker `KubeadmConfigTemplate` below: the
+# `files:` block (kubelet config + containerd systemd unit + sysctl)
+# and `preKubeadmCommands` (containerd/runc/kubelet install) must
+# stay byte-for-byte equivalent except for the indicated per-role
+# differences (the KCP gets initConfiguration + joinConfiguration +
+# clusterConfiguration; the worker gets joinConfiguration only;
+# kubelet `maxPods` is intentionally lower on the CP).
 apiVersion: controlplane.cluster.x-k8s.io/v1beta2
 kind: KubeadmControlPlaneTemplate
 metadata:
@@ -468,6 +475,11 @@ spec:
           - grep VERSION= /etc/os-release; uname -a
           - export CONTAINERD=2.2.3
           - export RUNC=1.2.5
+          # KUBERNETES_VERSION pins what apt installs
+          # (kubelet/kubeadm/kubectl). topology.version on each
+          # Cluster CR pins what KCP writes into the static pod
+          # manifests. The two MUST stay aligned — `mise run
+          # k8s:lint-version-drift` checks this at commit time.
           - export KUBERNETES_VERSION=1.34.6
           - export TRIMMED_KUBERNETES_VERSION=$(echo ${KUBERNETES_VERSION} | sed 's/^v//' | awk -F . '{print $1 "." $2}')
           - ARCH="$(dpkg --print-architecture)"
@@ -509,6 +521,13 @@ spec:
           - apt-get -y autoremove
           - apt-get -y clean all
 ---
+# KEEP IN SYNC with the `KubeadmControlPlaneTemplate` above: the
+# `files:` block (kubelet config + containerd systemd unit + sysctl)
+# and `preKubeadmCommands` (containerd/runc/kubelet install) must
+# stay byte-for-byte equivalent except for the indicated per-role
+# differences (this template gets joinConfiguration only, no
+# initConfiguration / clusterConfiguration; kubelet `maxPods` is
+# higher than CP since worker nodes pack more pods).
 apiVersion: bootstrap.cluster.x-k8s.io/v1beta2
 kind: KubeadmConfigTemplate
 metadata:
