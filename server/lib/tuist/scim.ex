@@ -29,6 +29,7 @@ defmodule Tuist.SCIM do
   alias Tuist.Base64
   alias Tuist.Environment
   alias Tuist.Repo
+  alias Tuist.SCIM.Filter
 
   require Logger
 
@@ -470,7 +471,7 @@ defmodule Tuist.SCIM do
         end)
 
       op_name == "remove" ->
-        ids = member_ids_from_path(path) ++ extract_member_ids(value)
+        ids = Filter.member_ids_from_path(path) ++ extract_member_ids(value)
 
         Enum.each(ids, fn user_id ->
           remove_member(organization, user_id)
@@ -492,7 +493,7 @@ defmodule Tuist.SCIM do
 
   defp apply_group_op(organization, _role, %{"op" => op_name, "path" => path}) when is_binary(op_name) do
     if String.downcase(op_name) == "remove" do
-      Enum.each(member_ids_from_path(path), fn user_id ->
+      Enum.each(Filter.member_ids_from_path(path), fn user_id ->
         remove_member(organization, user_id)
       end)
     end
@@ -510,15 +511,6 @@ defmodule Tuist.SCIM do
 
   defp extract_member_ids(%{"value" => v}) when is_binary(v), do: [v]
   defp extract_member_ids(_), do: []
-
-  # Parses Okta-style `members[value eq "user-id"]` filters.
-  defp member_ids_from_path(path) when is_binary(path) do
-    ~r/value\s+eq\s+"([^"]+)"/i
-    |> Regex.scan(path)
-    |> Enum.map(fn [_, id] -> id end)
-  end
-
-  defp member_ids_from_path(_), do: []
 
   defp add_member(organization, user_id, role) do
     case Accounts.get_user_by_id(user_id) do
