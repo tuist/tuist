@@ -131,6 +131,15 @@ defmodule Tuist.Accounts.User do
     change(user, active: active)
   end
 
+  def email_changeset(user, attrs) do
+    user
+    |> cast(attrs, [:email])
+    |> update_change(:email, &String.downcase/1)
+    |> validate_required([:email])
+    |> validate_format(:email, @valid_email_regex, message: "must be a valid email address")
+    |> unique_constraint(:email, name: "index_users_on_email")
+  end
+
   def preferred_locale_changeset(user, attrs) do
     user
     |> cast(attrs, [:preferred_locale])

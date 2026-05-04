@@ -3,6 +3,7 @@ defmodule TuistWeb.SCIM.UsersControllerTest do
 
   import TuistTestSupport.Fixtures.AccountsFixtures
 
+  alias Tuist.Accounts
   alias Tuist.SCIM
 
   setup %{conn: conn} do
@@ -49,6 +50,14 @@ defmodule TuistWeb.SCIM.UsersControllerTest do
       conn = post(conn, "/scim/v2/Users", Jason.encode!(%{userName: "not-an-email"}))
       assert json_response(conn, 400)["scimType"] == "invalidValue"
     end
+
+    test "returns conflict when the email belongs to a user outside the organization", %{conn: conn} do
+      _existing = user_fixture(email: "taken@example.com")
+
+      conn = post(conn, "/scim/v2/Users", Jason.encode!(%{userName: "taken@example.com"}))
+
+      assert json_response(conn, 409)["scimType"] == "uniqueness"
+    end
   end
 
   describe "GET /Users" do
@@ -80,6 +89,11 @@ defmodule TuistWeb.SCIM.UsersControllerTest do
       conn = get(conn, "/scim/v2/Users?filter=foo bar baz")
       assert json_response(conn, 400)["scimType"] == "invalidFilter"
     end
+
+    test "rejects unsupported filter attributes", %{conn: conn} do
+      conn = get(conn, ~s(/scim/v2/Users?filter=displayName eq "Alice"))
+      assert json_response(conn, 400)["scimType"] == "invalidFilter"
+    end
   end
 
   describe "PATCH /Users/:id" do
@@ -95,6 +109,7 @@ defmodule TuistWeb.SCIM.UsersControllerTest do
       conn = patch(conn, "/scim/v2/Users/#{user.id}", body)
       assert json_response(conn, 200)["active"] == false
       assert {:error, :not_found} = SCIM.get_user(org, user.id)
+      assert Accounts.get_user_by_id(user.id).active == true
     end
   end
 
@@ -106,6 +121,7 @@ defmodule TuistWeb.SCIM.UsersControllerTest do
       assert response(conn, 204)
 
       assert {:error, :not_found} = SCIM.get_user(org, user.id)
+      assert Accounts.get_user_by_id(user.id).active == true
     end
   end
 

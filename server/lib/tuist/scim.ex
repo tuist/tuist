@@ -8,9 +8,9 @@ defmodule Tuist.SCIM do
   the `account:scim:write` scope) which the IdP uses to authenticate against
   the SCIM endpoints under `/scim/v2/`.
 
-  Users are deduplicated by email. Provisioning a user that already exists in
-  Tuist adds them to the calling organization with the requested role; it does
-  not overwrite their account.
+  Users are deduplicated by email. Provisioning creates new users by email, or
+  updates the organization role for users who are already members of the calling
+  organization. Existing users from other organizations are not claimed.
 
   Groups are synthetic: each organization exposes exactly two groups, "Admins"
   and "Users", which mirror the existing role hierarchy. Group membership ops
@@ -45,20 +45,16 @@ defmodule Tuist.SCIM do
   def create_token(%Organization{} = organization, attrs \\ %{}) do
     account = organization_account(organization)
     raw = Base64.encode(:crypto.strong_rand_bytes(24))
-    encrypted = Bcrypt.hash_pwd_salt(raw <> Environment.secret_key_password())
+    encrypted = Bcrypt.hash_pwd_salt(scim_token_secret(raw))
 
-    case %AccountToken{}
-         |> Ecto.Changeset.change(%{
+    case %{
            account_id: account.id,
            encrypted_token_hash: encrypted,
            scopes: [AccountToken.scim_scope()],
            name: Map.get(attrs, :name),
            all_projects: false
-         })
-         |> Ecto.Changeset.validate_required([:account_id, :encrypted_token_hash, :scopes, :name])
-         |> Ecto.Changeset.validate_length(:name, max: 64)
-         |> Ecto.Changeset.unique_constraint([:account_id, :encrypted_token_hash])
-         |> Ecto.Changeset.unique_constraint([:account_id, :name], name: "account_tokens_account_id_name_index")
+         }
+         |> AccountToken.scim_changeset()
          |> Repo.insert() do
       {:ok, token} -> {:ok, {token, "tuist_scim_#{token.id}_#{raw}"}}
       {:error, changeset} -> {:error, changeset}
@@ -98,9 +94,18 @@ defmodule Tuist.SCIM do
   Looks up the organization that owns the given plaintext bearer token.
   """
   def authenticate_token(plaintext) when is_binary(plaintext) do
-    with {:ok, %AccountToken{} = token} <-
-           plaintext |> account_token_plaintext() |> Accounts.account_token(preload: [account: :organization]),
-         true <- scim_token?(token),
+    scope = AccountToken.scim_scope()
+
+    with {:ok, token_id, raw} <- parse_scim_token(plaintext),
+         {:ok, _} <- UUIDv7.cast(token_id),
+         %AccountToken{} = token <-
+           Repo.one(
+             from t in AccountToken,
+               where: t.id == ^token_id and ^scope in t.scopes,
+               preload: [account: :organization]
+           ),
+         false <- Accounts.account_token_expired?(token),
+         true <- verify_scim_token(token, raw),
          %Account{organization: %Organization{} = organization} <- token.account do
       {:ok, Repo.preload(organization, :account), token}
     else
@@ -110,14 +115,18 @@ defmodule Tuist.SCIM do
 
   def authenticate_token(_), do: {:error, :invalid_token}
 
-  defp account_token_plaintext(plaintext) do
+  defp parse_scim_token(plaintext) do
     case String.split(plaintext, "_", parts: 4) do
-      ["tuist", "scim", token_id, raw] -> "tuist_#{token_id}_#{raw}"
-      _ -> plaintext
+      ["tuist", "scim", token_id, raw] -> {:ok, token_id, raw}
+      _ -> {:error, :invalid_token}
     end
   end
 
-  defp scim_token?(%AccountToken{scopes: scopes}), do: AccountToken.scim_scope() in scopes
+  defp verify_scim_token(%AccountToken{} = token, raw) do
+    Bcrypt.verify_pass(scim_token_secret(raw), token.encrypted_token_hash)
+  end
+
+  defp scim_token_secret(raw), do: "scim:" <> raw <> Environment.secret_key_password()
 
   defp organization_account(%Organization{account: %Account{} = account}), do: account
   defp organization_account(%Organization{} = organization), do: Repo.preload(organization, :account).account
@@ -145,7 +154,7 @@ defmodule Tuist.SCIM do
 
     base = members_query(organization)
 
-    base =
+    filtered =
       case filter do
         %{attribute: "userName", op: :eq, value: value} ->
           downcased = String.downcase(value)
@@ -158,22 +167,24 @@ defmodule Tuist.SCIM do
           base
 
         _other ->
-          base
+          {:error, :unsupported_filter}
       end
 
-    total =
-      Repo.one(from u in subquery(from(u in base, select: %{id: u.id})), select: count(u.id))
+    with %Ecto.Query{} = query <- filtered do
+      total =
+        Repo.one(from u in subquery(from(u in query, select: %{id: u.id})), select: count(u.id))
 
-    users =
-      from(u in base,
-        order_by: u.id,
-        offset: ^(start_index - 1),
-        limit: ^count
-      )
-      |> Repo.all()
-      |> Repo.preload(:account)
+      users =
+        from(u in query,
+          order_by: u.id,
+          offset: ^(start_index - 1),
+          limit: ^count
+        )
+        |> Repo.all()
+        |> Repo.preload(:account)
 
-    %{total: total, users: users, start_index: start_index, count: length(users)}
+      {:ok, %{total: total, users: users, start_index: start_index, count: length(users)}}
+    end
   end
 
   defp members_query(%Organization{id: organization_id}) do
@@ -201,30 +212,63 @@ defmodule Tuist.SCIM do
   @doc """
   Provisions a user from a SCIM `POST /Users` request.
 
-  If a user with this email already exists, they are added to the organization
-  with the requested role (idempotent if already a member). Otherwise a new
-  user account is created and added.
+  If a user with this email already exists in the organization, their role is
+  updated. If the email belongs to a user outside the organization, the request
+  is rejected instead of claiming the account.
   """
   def provision_user(%Organization{} = organization, attrs) do
     email = attrs |> Map.fetch!(:user_name) |> String.downcase()
     role = attrs |> Map.get(:role, :user) |> normalize_role()
     active = Map.get(attrs, :active, true)
 
+    fn ->
+      user =
+        case provisionable_user(organization, email) do
+          {:ok, %User{} = user} -> user
+          {:error, reason} -> Repo.rollback(reason)
+        end
+
+      if active do
+        :ok = Accounts.add_user_to_organization(user, organization, role: role)
+
+        case update_user_role_if_needed(user, organization, role) do
+          {:ok, _} -> user
+          {:error, reason} -> Repo.rollback(reason)
+        end
+      else
+        :ok = remove_user_role_from_organization(user, organization)
+        %{user | active: false}
+      end
+    end
+    |> Repo.transaction()
+    |> case do
+      {:ok, user} -> {:ok, Repo.preload(user, :account)}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp provisionable_user(%Organization{} = organization, email) do
     case Accounts.get_user_by_email(email) do
       {:ok, %User{} = user} ->
-        with :ok <- Accounts.add_user_to_organization(user, organization, role: role),
-             {:ok, _} <- update_user_role_if_needed(user, organization, role),
-             {:ok, user} <- set_active(user, active) do
-          {:ok, Repo.preload(user, :account)}
+        if Accounts.belongs_to_organization?(user, organization) do
+          {:ok, user}
+        else
+          {:error, :email_taken}
         end
 
       {:error, :not_found} ->
-        with {:ok, user} <- Accounts.create_user(email, confirmed_at: default_confirmed_at()),
-             :ok <- Accounts.add_user_to_organization(user, organization, role: role),
-             {:ok, user} <- set_active(user, active) do
-          {:ok, Repo.preload(user, :account)}
+        case Accounts.create_user(email, confirmed_at: default_confirmed_at()) do
+          {:ok, user} -> {:ok, user}
+          {:error, changeset} -> if email_taken?(changeset), do: {:error, :email_taken}, else: {:error, changeset}
         end
     end
+  end
+
+  defp email_taken?(%Ecto.Changeset{errors: errors}) do
+    Enum.any?(errors, fn
+      {:email, {_message, opts}} -> Keyword.get(opts, :constraint) == :unique
+      _ -> false
+    end)
   end
 
   defp default_confirmed_at do
@@ -264,14 +308,13 @@ defmodule Tuist.SCIM do
   defp apply_attrs(%User{} = user, organization, %{active: false} = attrs) do
     with {:ok, updated_user} <- apply_attrs(user, organization, Map.delete(attrs, :active)),
          :ok <- remove_user_role_from_organization(updated_user, organization) do
-      set_active(updated_user, false)
+      {:ok, %{updated_user | active: false}}
     end
   end
 
   defp apply_attrs(%User{} = user, organization, attrs) do
     Multi.new()
     |> maybe_update_email(user, attrs)
-    |> maybe_update_active(user, attrs)
     |> maybe_update_role(user, organization, attrs)
     |> Repo.transaction()
     |> case do
@@ -289,17 +332,11 @@ defmodule Tuist.SCIM do
     if downcased == user.email do
       multi
     else
-      Multi.update(multi, :email, Ecto.Changeset.change(user, email: downcased))
+      Multi.update(multi, :email, User.email_changeset(user, %{email: downcased}))
     end
   end
 
   defp maybe_update_email(multi, _user, _attrs), do: multi
-
-  defp maybe_update_active(multi, user, %{active: active}) when is_boolean(active) and active != user.active do
-    Multi.update(multi, :active, User.active_changeset(user, active))
-  end
-
-  defp maybe_update_active(multi, _user, _attrs), do: multi
 
   defp maybe_update_role(multi, user, organization, %{role: role}) when role in [:admin, :user] do
     Multi.run(multi, :role, fn _repo, _ ->
@@ -376,20 +413,13 @@ defmodule Tuist.SCIM do
   defp normalize_role(_), do: :user
 
   @doc """
-  Soft-deactivates a user via SCIM `DELETE /Users/:id`. Sets `active: false`
-  and removes their role in the organization.
+  Deprovisions a user via SCIM `DELETE /Users/:id` by removing their role in the organization.
   """
   def deactivate_user(%Organization{} = organization, user_id) do
     with {:ok, user} <- get_user(organization, user_id) do
       :ok = remove_user_role_from_organization(user, organization)
-      set_active(user, false)
+      {:ok, %{user | active: false}}
     end
-  end
-
-  defp set_active(%User{active: same} = user, same), do: {:ok, user}
-
-  defp set_active(%User{} = user, active) do
-    user |> User.active_changeset(active) |> Repo.update()
   end
 
   defp remove_user_role_from_organization(%User{id: user_id}, %Organization{id: organization_id}) do
@@ -478,12 +508,22 @@ defmodule Tuist.SCIM do
         end)
 
       op_name == "replace" and path in ["members", nil] ->
+        target_users =
+          value
+          |> extract_member_ids()
+          |> Enum.flat_map(fn user_id ->
+            case get_user(organization, user_id) do
+              {:ok, user} -> [user]
+              {:error, :not_found} -> []
+            end
+          end)
+
         Enum.each(Accounts.get_organization_members(organization, role), fn u ->
           remove_member(organization, u.id)
         end)
 
-        Enum.each(extract_member_ids(value), fn user_id ->
-          add_member(organization, user_id, role)
+        Enum.each(target_users, fn user ->
+          add_member_user(organization, user, role)
         end)
 
       true ->
@@ -513,20 +553,26 @@ defmodule Tuist.SCIM do
   defp extract_member_ids(_), do: []
 
   defp add_member(organization, user_id, role) do
-    case Accounts.get_user_by_id(user_id) do
-      %User{} = user ->
-        :ok = Accounts.add_user_to_organization(user, organization, role: role)
-        Accounts.update_user_role_in_organization(user, organization, role)
+    case get_user(organization, user_id) do
+      {:ok, %User{} = user} -> add_member_user(organization, user, role)
+      {:error, :not_found} -> :ok
+    end
+  end
 
-      _ ->
-        :ok
+  defp add_member_user(organization, user, role) do
+    :ok = Accounts.add_user_to_organization(user, organization, role: role)
+
+    case Accounts.update_user_role_in_organization(user, organization, role) do
+      {:ok, _} -> :ok
+      {:error, :not_found} -> :ok
+      {:error, reason} -> {:error, reason}
     end
   end
 
   defp remove_member(organization, user_id) do
-    case Accounts.get_user_by_id(user_id) do
-      %User{} = user -> remove_user_role_from_organization(user, organization)
-      _ -> :ok
+    case get_user(organization, user_id) do
+      {:ok, %User{} = user} -> remove_user_role_from_organization(user, organization)
+      {:error, :not_found} -> :ok
     end
   end
 

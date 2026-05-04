@@ -11,8 +11,8 @@ defmodule Tuist.SCIM.Filter do
     * `members[value eq "user-id"]`
 
   Returns `%{attribute: String.t(), op: :eq, value: String.t()}` on success or
-  `:error` on anything else. Callers treat `:error` as "ignore the filter and
-  return all results" to stay forgiving with non-conformant clients.
+  `:error` on malformed/unsupported expressions. Controllers return SCIM
+  `invalidFilter` responses for unsupported filters.
   """
 
   @pattern ~r/^\s*(?<attr>[a-zA-Z][a-zA-Z0-9]*)\s+(?<op>[a-zA-Z]+)\s+"(?<value>[^"]*)"\s*$/

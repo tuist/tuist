@@ -70,9 +70,9 @@ To test deprovisioning, unassign or deactivate a user in Okta and verify that th
 
 ## Lifecycle behavior {#lifecycle-behavior}
 
-When Okta assigns a user to the SCIM app, Tuist creates or reuses the user by email and adds them to the organization. The SCIM app is authoritative for the users assigned to it, so only assign users or groups whose email identities your Okta tenant is allowed to manage.
+When Okta assigns a user to the SCIM app, Tuist creates the user if the email is not already known to Tuist, then adds them to the organization. If the email already belongs to an existing Tuist user outside the organization, Tuist rejects the request to prevent an IdP from claiming a user that it does not already manage in that organization.
 
-When Okta unassigns or deactivates the user, Tuist removes their organization role and marks the user inactive while preserving the user record and any work they own. If the user is provisioned again later, Tuist marks the user active again.
+When Okta unassigns or deactivates the user, Tuist removes their organization role while preserving the user record and any work they own. Deprovisioning does not disable the user globally, because the same Tuist user can belong to other organizations.
 
 Tuist exposes two synthetic SCIM groups: `Admins` and `Users`. Group membership changes from Okta map to organization roles in Tuist.
 

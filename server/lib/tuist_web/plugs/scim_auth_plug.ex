@@ -49,14 +49,12 @@ defmodule TuistWeb.Plugs.SCIMAuthPlug do
     end
   end
 
-  # Honors X-Forwarded-Proto and X-Forwarded-Host so meta.location URLs in
-  # SCIM responses are correct when running behind a tunnel/proxy (ngrok,
-  # Cloudflare, Render).
   defp base_url(conn) do
-    forwarded_scheme = first_forwarded(conn, "x-forwarded-proto")
     forwarded_host = first_forwarded(conn, "x-forwarded-host")
+    forwarded_host = if trusted_forwarded_host?(forwarded_host), do: forwarded_host
+    forwarded_scheme = if forwarded_host, do: first_forwarded(conn, "x-forwarded-proto")
 
-    scheme = forwarded_scheme || Atom.to_string(conn.scheme)
+    scheme = trusted_forwarded_scheme(forwarded_scheme) || Atom.to_string(conn.scheme)
 
     {host, port_suffix} =
       if is_binary(forwarded_host) do
@@ -77,6 +75,30 @@ defmodule TuistWeb.Plugs.SCIMAuthPlug do
 
   defp downcase_if_scheme(value, "x-forwarded-proto"), do: String.downcase(value)
   defp downcase_if_scheme(value, _), do: value
+
+  defp trusted_forwarded_host?(nil), do: false
+
+  defp trusted_forwarded_host?(forwarded_host) do
+    forwarded_host = forwarded_host |> host_without_port() |> String.downcase()
+
+    :tuist
+    |> Application.get_env(TuistWeb.Endpoint, [])
+    |> Keyword.get(:url, [])
+    |> Keyword.get(:host)
+    |> case do
+      nil -> false
+      configured_host -> String.downcase(configured_host) == forwarded_host
+    end
+  end
+
+  defp host_without_port(host) do
+    host
+    |> String.split(":", parts: 2)
+    |> List.first()
+  end
+
+  defp trusted_forwarded_scheme(scheme) when scheme in ["http", "https"], do: scheme
+  defp trusted_forwarded_scheme(_scheme), do: nil
 
   defp default_port_suffix("https", _port), do: ""
   defp default_port_suffix("http", 80), do: ""

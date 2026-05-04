@@ -20,7 +20,7 @@ defmodule Tuist.SCIMTest do
       assert {:ok, ^organization, _token} = plaintext |> SCIM.authenticate_token() |> resolve(organization)
     end
 
-    test "authenticate_token/1 accepts organization account tokens with the SCIM scope" do
+    test "authenticate_token/1 rejects generic organization account tokens with the SCIM scope" do
       organization = organization_fixture(preload: [:account])
 
       {:ok, {_token, plaintext}} =
@@ -30,7 +30,17 @@ defmodule Tuist.SCIMTest do
           name: "scim"
         })
 
-      assert {:ok, ^organization, _token} = plaintext |> SCIM.authenticate_token() |> resolve(organization)
+      assert {:error, :invalid_token} = SCIM.authenticate_token(plaintext)
+    end
+
+    test "authenticate_token/1 rejects the generic form of a SCIM token" do
+      organization = organization_fixture()
+      {:ok, {_token, plaintext}} = SCIM.create_token(organization, %{name: "x"})
+
+      generic_plaintext = String.replace(plaintext, "tuist_scim_", "tuist_", global: false)
+
+      assert {:error, :invalid_token} = Accounts.account_token(generic_plaintext)
+      assert {:error, :invalid_token} = SCIM.authenticate_token(generic_plaintext)
     end
 
     test "authenticate_token/1 rejects account tokens without the SCIM scope" do
@@ -100,23 +110,36 @@ defmodule Tuist.SCIMTest do
       assert %{name: "admin"} = Accounts.get_user_role_in_organization(existing, org)
     end
 
-    test "provision_user/2 with active: false creates an inactive user", %{organization: org} do
+    test "provision_user/2 rejects existing users outside the organization", %{organization: org} do
+      _existing = user_fixture(email: "outsider@example.com")
+
+      assert {:error, :email_taken} = SCIM.provision_user(org, %{user_name: "outsider@example.com"})
+    end
+
+    test "provision_user/2 with active: false does not add the user to the organization", %{organization: org} do
       assert {:ok, user} = SCIM.provision_user(org, %{user_name: "carol@example.com", active: false})
       assert user.active == false
+      assert Accounts.get_user_by_id(user.id).active == true
+      refute Accounts.belongs_to_organization?(user, org)
     end
 
     test "list_users/2 paginates with a userName filter", %{organization: org} do
       {:ok, _} = SCIM.provision_user(org, %{user_name: "x@example.com"})
       {:ok, _} = SCIM.provision_user(org, %{user_name: "y@example.com"})
 
-      page = SCIM.list_users(org)
+      assert {:ok, page} = SCIM.list_users(org)
       assert page.total >= 2
       assert length(page.users) == page.total
       assert "x@example.com" in Enum.map(page.users, & &1.email)
       assert "y@example.com" in Enum.map(page.users, & &1.email)
 
-      assert %{total: 1, users: [%{email: "x@example.com"}]} =
+      assert {:ok, %{total: 1, users: [%{email: "x@example.com"}]}} =
                SCIM.list_users(org, filter: %{attribute: "userName", op: :eq, value: "x@example.com"})
+    end
+
+    test "list_users/2 rejects unsupported filter attributes", %{organization: org} do
+      assert {:error, :unsupported_filter} =
+               SCIM.list_users(org, filter: %{attribute: "displayName", op: :eq, value: "alice"})
     end
 
     test "patch_user/3 deactivates and removes role via replace active=false", %{organization: org} do
@@ -126,6 +149,7 @@ defmodule Tuist.SCIMTest do
 
       assert {:ok, updated} = SCIM.patch_user(org, user.id, ops)
       assert updated.active == false
+      assert Accounts.get_user_by_id(user.id).active == true
       refute Accounts.belongs_to_organization?(user, org)
     end
 
@@ -136,14 +160,25 @@ defmodule Tuist.SCIMTest do
 
       assert {:ok, updated} = SCIM.patch_user(org, user.id, ops)
       assert updated.active == false
+      assert Accounts.get_user_by_id(user.id).active == true
       refute Accounts.belongs_to_organization?(user, org)
     end
 
-    test "deactivate_user/2 sets active false and removes role", %{organization: org} do
+    test "patch_user/3 returns a changeset when an email update conflicts", %{organization: org} do
+      {:ok, user} = SCIM.provision_user(org, %{user_name: "rename@example.com"})
+      _taken = user_fixture(email: "taken-rename@example.com")
+
+      ops = [%{"op" => "replace", "path" => "userName", "value" => "taken-rename@example.com"}]
+
+      assert {:error, %Ecto.Changeset{}} = SCIM.patch_user(org, user.id, ops)
+    end
+
+    test "deactivate_user/2 returns inactive and removes role without flipping the global user flag", %{organization: org} do
       {:ok, user} = SCIM.provision_user(org, %{user_name: "f@example.com"})
 
       assert {:ok, deactivated} = SCIM.deactivate_user(org, user.id)
       assert deactivated.active == false
+      assert Accounts.get_user_by_id(user.id).active == true
 
       refute Accounts.belongs_to_organization?(user, org)
     end
@@ -168,6 +203,7 @@ defmodule Tuist.SCIMTest do
 
       assert {:ok, deactivated} = SCIM.deactivate_user(org, user.id)
       assert deactivated.active == false
+      assert Accounts.get_user_by_id(user.id).active == true
       assert Accounts.get_user_by_id(user.id)
       assert Accounts.get_user_role_in_organization(user, org) == nil
     end
@@ -201,6 +237,14 @@ defmodule Tuist.SCIMTest do
 
       {:ok, _} = SCIM.patch_group(org, "admins", ops)
       assert %{name: "admin"} = Accounts.get_user_role_in_organization(regular, org)
+    end
+
+    test "patch_group/3 add op ignores users outside the organization", %{organization: org} do
+      outsider = user_fixture()
+      ops = [%{"op" => "add", "value" => [%{"value" => to_string(outsider.id)}]}]
+
+      {:ok, _} = SCIM.patch_group(org, "admins", ops)
+      refute Accounts.belongs_to_organization?(outsider, org)
     end
 
     test "patch_group/3 remove op via Okta-style path filter removes the member", %{

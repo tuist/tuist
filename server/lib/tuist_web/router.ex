@@ -186,6 +186,7 @@ defmodule TuistWeb.Router do
   pipeline :scim_api do
     plug :accepts, ["scim+json", "json"]
     plug TuistWeb.Plugs.SCIMAuthPlug
+    plug TuistWeb.Plugs.SCIMRateLimitPlug
     plug SentryContextPlug
     plug ObservabilityContextPlug
   end

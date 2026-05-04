@@ -19,15 +19,18 @@ defmodule TuistWeb.SCIM.UsersController do
     if filter == :error do
       send_scim_error(conn, 400, "Unsupported filter expression", "invalidFilter")
     else
-      page =
-        SCIM.list_users(organization,
-          filter: filter,
-          start_index: parse_int(Map.get(params, "startIndex"), 1),
-          count: parse_int(Map.get(params, "count"), 100)
-        )
+      case SCIM.list_users(organization,
+             filter: filter,
+             start_index: parse_int(Map.get(params, "startIndex"), 1),
+             count: parse_int(Map.get(params, "count"), 100)
+           ) do
+        {:ok, page} ->
+          resources = Enum.map(page.users, &Resource.render_user(&1, base_url))
+          send_scim_json(conn, 200, Resource.render_list(resources, page))
 
-      resources = Enum.map(page.users, &Resource.render_user(&1, base_url))
-      send_scim_json(conn, 200, Resource.render_list(resources, page))
+        {:error, :unsupported_filter} ->
+          send_scim_error(conn, 400, "Unsupported filter attribute", "invalidFilter")
+      end
     end
   end
 
@@ -57,6 +60,9 @@ defmodule TuistWeb.SCIM.UsersController do
       {:error, :invalid_email} ->
         send_scim_error(conn, 400, "userName must be a valid email address", "invalidValue")
 
+      {:error, :email_taken} ->
+        send_scim_error(conn, 409, "User already exists", "uniqueness")
+
       {:error, %Ecto.Changeset{} = changeset} ->
         send_scim_error(conn, 400, format_changeset(changeset), "invalidValue")
 
@@ -75,6 +81,7 @@ defmodule TuistWeb.SCIM.UsersController do
     else
       {:error, :not_found} -> send_scim_error(conn, 404, "User not found")
       {:error, :invalid_email} -> send_scim_error(conn, 400, "userName must be a valid email", "invalidValue")
+      {:error, :email_taken} -> send_scim_error(conn, 409, "User already exists", "uniqueness")
       {:error, %Ecto.Changeset{} = c} -> send_scim_error(conn, 400, format_changeset(c), "invalidValue")
       {:error, _} -> send_scim_error(conn, 500, "Could not replace user")
     end
@@ -88,6 +95,7 @@ defmodule TuistWeb.SCIM.UsersController do
     case SCIM.patch_user(organization, id, ops) do
       {:ok, user} -> send_scim_json(conn, 200, Resource.render_user(user, base_url))
       {:error, :not_found} -> send_scim_error(conn, 404, "User not found")
+      {:error, :email_taken} -> send_scim_error(conn, 409, "User already exists", "uniqueness")
       {:error, %Ecto.Changeset{} = c} -> send_scim_error(conn, 400, format_changeset(c), "invalidValue")
       {:error, _} -> send_scim_error(conn, 500, "Could not patch user")
     end
@@ -151,7 +159,13 @@ defmodule TuistWeb.SCIM.UsersController do
 
   defp format_changeset(changeset) do
     changeset
-    |> Ecto.Changeset.traverse_errors(fn {msg, _} -> msg end)
+    |> Ecto.Changeset.traverse_errors(&format_error/1)
     |> Enum.map_join("; ", fn {field, errors} -> "#{field}: #{Enum.join(errors, ", ")}" end)
+  end
+
+  defp format_error({message, opts}) do
+    Regex.replace(~r"%{(\w+)}", message, fn _, key ->
+      opts |> Keyword.get(String.to_existing_atom(key), key) |> to_string()
+    end)
   end
 end

@@ -338,19 +338,18 @@ case okta_seed_value.(:scim_token, nil) do
           {token_id, raw}
 
         _ ->
-          ["tuist", token_id, raw] = String.split(okta_scim_token, "_", parts: 3)
-          {token_id, raw}
+          raise "Okta SCIM token must use the tuist_scim_<id>_<token> format"
       end
 
     okta_scim_encrypted_token_hash =
-      Bcrypt.hash_pwd_salt(okta_scim_token_raw <> Environment.secret_key_password())
+      Bcrypt.hash_pwd_salt("scim:" <> okta_scim_token_raw <> Environment.secret_key_password())
 
     organization_account = Repo.preload(organization, :account).account
 
     case Repo.get(AccountToken, okta_scim_token_id) do
       nil ->
         %AccountToken{id: okta_scim_token_id}
-        |> Ecto.Changeset.change(%{
+        |> AccountToken.scim_changeset(%{
           encrypted_token_hash: okta_scim_encrypted_token_hash,
           name: "Okta",
           account_id: organization_account.id,
@@ -361,7 +360,7 @@ case okta_seed_value.(:scim_token, nil) do
 
       token ->
         token
-        |> Ecto.Changeset.change(%{
+        |> AccountToken.scim_changeset(%{
           encrypted_token_hash: okta_scim_encrypted_token_hash,
           name: "Okta",
           account_id: organization_account.id,

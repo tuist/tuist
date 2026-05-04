@@ -99,6 +99,28 @@ defmodule Tuist.Accounts.AccountToken do
     |> unique_constraint([:account_id, :name], name: "account_tokens_account_id_name_index")
   end
 
+  def scim_changeset(attrs) do
+    scim_changeset(%__MODULE__{}, attrs)
+  end
+
+  def scim_changeset(token, attrs) do
+    token
+    |> cast(attrs, [
+      :account_id,
+      :encrypted_token_hash,
+      :scopes,
+      :name,
+      :all_projects
+    ])
+    |> update_change(:name, &String.trim/1)
+    |> validate_required([:account_id, :encrypted_token_hash, :scopes, :name])
+    |> validate_length(:name, min: 1, max: 64)
+    |> validate_format(:name, ~r/^[^\r\n]+$/, message: "must not contain line breaks")
+    |> validate_scim_scope()
+    |> unique_constraint([:account_id, :encrypted_token_hash])
+    |> unique_constraint([:account_id, :name], name: "account_tokens_account_id_name_index")
+  end
+
   defp validate_name(changeset) do
     changeset
     |> validate_format(:name, ~r/^[a-zA-Z0-9-_]+$/,
@@ -116,6 +138,16 @@ defmodule Tuist.Accounts.AccountToken do
         []
       else
         [scopes: "contains invalid scopes: #{Enum.join(invalid, ", ")}"]
+      end
+    end)
+  end
+
+  defp validate_scim_scope(changeset) do
+    validate_change(changeset, :scopes, fn :scopes, scopes ->
+      if scopes == [@scim_scope] do
+        []
+      else
+        [scopes: "must only contain #{@scim_scope}"]
       end
     end)
   end
