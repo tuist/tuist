@@ -56,7 +56,7 @@ defmodule Tuist.IngestRepo.Migrations.BackfillBundlesFromPostgres do
     git_branch: {:nullable, :string},
     git_commit_sha: {:nullable, :string},
     git_ref: {:nullable, :string},
-    supported_platforms: {:array, "LowCardinality(String)"},
+    supported_platforms: "Array(LowCardinality(String))",
     version: :string,
     type: "LowCardinality(String)",
     project_id: :i64,
