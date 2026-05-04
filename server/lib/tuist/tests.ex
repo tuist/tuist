@@ -70,6 +70,7 @@ defmodule Tuist.Tests do
   @skip_event_types ~w(skipped unskipped)
   @quarantine_event_types @mute_event_types ++ @skip_event_types
   @active_quarantine_event_types ~w(muted skipped)
+  @active_quarantine_states ~w(muted skipped)
 
   @doc """
   All mute-related event type names (`muted`, `unmuted`).
@@ -88,6 +89,13 @@ defmodule Tuist.Tests do
   not-quarantined state.
   """
   def active_quarantine_event_types, do: @active_quarantine_event_types
+
+  @doc """
+  `TestCase.state` values that indicate a test is currently quarantined.
+  Source of truth for the quarantined-tests list and analytics — both
+  must use this constant so the count and the table cannot disagree.
+  """
+  def active_quarantine_states, do: @active_quarantine_states
 
   # Keys present on the `Test` struct that are NOT columns on the `test_runs`
   # ClickHouse table (Ecto metadata + association loaders). Used to scrub the
@@ -1903,8 +1911,8 @@ defmodule Tuist.Tests do
 
   defp extract_state_filter(filters) do
     Enum.find_value(filters, fn
-      %{field: :state, value: value} when value in ["muted", "skipped"] -> value
-      %{field: "state", value: value} when value in ["muted", "skipped"] -> value
+      %{field: :state, value: value} when value in @active_quarantine_states -> value
+      %{field: "state", value: value} when value in @active_quarantine_states -> value
       _ -> nil
     end)
   end
@@ -2020,7 +2028,7 @@ defmodule Tuist.Tests do
     quarantined_ids_subquery =
       from(tc in TestCase,
         hints: ["FINAL"],
-        where: tc.project_id == ^project_id and tc.state in ["muted", "skipped"],
+        where: tc.project_id == ^project_id and tc.state in @active_quarantine_states,
         select: tc.id
       )
 
@@ -2104,9 +2112,9 @@ defmodule Tuist.Tests do
     do: from([test_case: tc] in query, order_by: [desc: tc.last_ran_at, asc: tc.id])
 
   defp apply_quarantined_state_filter(query, nil),
-    do: from([test_case: tc] in query, where: tc.state in ["muted", "skipped"])
+    do: from([test_case: tc] in query, where: tc.state in @active_quarantine_states)
 
-  defp apply_quarantined_state_filter(query, state) when state in ["muted", "skipped"],
+  defp apply_quarantined_state_filter(query, state) when state in @active_quarantine_states,
     do: from([test_case: tc] in query, where: tc.state == ^state)
 
   defp apply_quarantined_by_filter(query, nil), do: query
