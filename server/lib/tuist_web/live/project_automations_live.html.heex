@@ -122,14 +122,25 @@
                       >
                         <:right_icon><.check /></:right_icon>
                       </.dropdown_item>
+                      <.dropdown_item
+                        value="flaky_run_count_below"
+                        label={dgettext("dashboard_projects", "Flaky runs (cleanup)")}
+                        on_click="update_create_automation_form_type"
+                        data-selected={@create_automation_form_type == "flaky_run_count_below"}
+                      >
+                        <:right_icon><.check /></:right_icon>
+                      </.dropdown_item>
                     </.dropdown>
                   </div>
                   <div data-part="form-row">
                     <label data-part="label">
-                      <%= if @create_automation_form_type == "flakiness_rate" do %>
-                        {dgettext("dashboard_projects", "Is greater than or equal to (%)")}
-                      <% else %>
-                        {dgettext("dashboard_projects", "Reach at least (count)")}
+                      <%= cond do %>
+                        <% @create_automation_form_type == "flakiness_rate" -> %>
+                          {dgettext("dashboard_projects", "Is greater than or equal to (%)")}
+                        <% @create_automation_form_type == "flaky_run_count_below" -> %>
+                          {dgettext("dashboard_projects", "Stays below (count)")}
+                        <% true -> %>
+                          {dgettext("dashboard_projects", "Reach at least (count)")}
                       <% end %>
                     </label>
                     <.text_input

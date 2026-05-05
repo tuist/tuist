@@ -164,13 +164,31 @@ defmodule TuistWeb.ProjectAutomationsLive do
       case type do
         "flakiness_rate" -> "10"
         "flaky_run_count" -> "3"
+        "flaky_run_count_below" -> "1"
         _ -> socket.assigns.create_automation_form_threshold
+      end
+
+    # Cleanup automations exist to *unmark* tests, so flip the default trigger
+    # action when the user picks the inverse monitor (and back to add_label
+    # when they leave it). Only swap if the form is still in its single-default
+    # state — preserve any custom actions the user has already added.
+    trigger_actions =
+      case {type, socket.assigns.create_automation_form_trigger_actions} do
+        {"flaky_run_count_below", [%{"type" => "add_label", "label" => "flaky"}]} ->
+          [default_remove_label_action()]
+
+        {other, [%{"type" => "remove_label", "label" => "flaky"}]} when other != "flaky_run_count_below" ->
+          [default_add_label_action()]
+
+        {_, current} ->
+          current
       end
 
     {:noreply,
      socket
      |> assign(create_automation_form_type: type)
-     |> assign(create_automation_form_threshold: threshold)}
+     |> assign(create_automation_form_threshold: threshold)
+     |> assign(create_automation_form_trigger_actions: trigger_actions)}
   end
 
   def handle_event("update_create_automation_form_threshold", %{"value" => value}, socket) do
@@ -412,6 +430,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
 
   def monitor_type_label("flakiness_rate"), do: dgettext("dashboard_projects", "Flakiness rate")
   def monitor_type_label("flaky_run_count"), do: dgettext("dashboard_projects", "Flaky runs")
+  def monitor_type_label("flaky_run_count_below"), do: dgettext("dashboard_projects", "Flaky runs (cleanup)")
   def monitor_type_label(_), do: dgettext("dashboard_projects", "Unknown")
 
   def state_action_label("muted"), do: dgettext("dashboard_projects", "Mute")
@@ -468,6 +487,18 @@ defmodule TuistWeb.ProjectAutomationsLive do
     threshold = format_threshold(trigger_config["threshold"] || 0)
     window = trigger_config["window"] || "30d"
     dgettext("dashboard_projects", "When flaky runs ≥ %{threshold} over %{window}", threshold: threshold, window: window)
+  end
+
+  def automation_summary(%{monitor_type: "flaky_run_count_below", trigger_config: trigger_config}) do
+    threshold = format_threshold(trigger_config["threshold"] || 0)
+    window = trigger_config["window"] || "30d"
+
+    dgettext(
+      "dashboard_projects",
+      "When a flaky-marked test stays below %{threshold} flaky runs over %{window}",
+      threshold: threshold,
+      window: window
+    )
   end
 
   def automation_summary(_), do: ""
