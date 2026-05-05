@@ -478,6 +478,11 @@
               label={dgettext("dashboard_tests", "Processing")}
               status="in_progress"
             />
+            <.status_badge_cell
+              :if={test_run.status == "failed_processing"}
+              label={dgettext("dashboard_tests", "Failed processing")}
+              status="warning"
+            />
           </:col>
           <:col :let={test_run} label={dgettext("dashboard_tests", "Branch")}>
             <.text_cell
