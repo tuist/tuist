@@ -222,4 +222,81 @@ describe("fetchStatusFromGrafana", () => {
     const snapshot = await fetchStatusFromGrafana(ENV);
     expect(snapshot.recentIncidents.map((i) => i.id)).toEqual(["fresh"]);
   });
+
+  it("matches affectedComponents from real Grafana labels of shape {key, label}", async () => {
+    globalThis.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url.endsWith("FieldsService.GetFields")) {
+        return new Response(
+          JSON.stringify({
+            fields: [{ name: "affected_service", selectoptions: [{ value: "cache" }, { value: "api" }] }],
+          }),
+        );
+      }
+      const isActive = (typeof init?.body === "string" ? init.body : "").includes("status:active");
+      const incidents = isActive
+        ? [
+            {
+              incidentID: "inc-real",
+              title: "Cache slow",
+              severity: "minor",
+              status: "active",
+              createdTime: "2026-05-05T11:00:00.000Z",
+              // The shape Grafana actually returns: a flat { key, label } pair.
+              labels: [{ key: "affected_service", label: "cache" }],
+            },
+          ]
+        : [];
+      return new Response(JSON.stringify({ incidents }));
+    }) as typeof fetch;
+
+    const snapshot = await fetchStatusFromGrafana(ENV);
+    expect(snapshot.activeIncidents[0]?.affectedComponents).toEqual(["cache"]);
+    expect(snapshot.components.find((c) => c.id === "cache")?.status).toBe("degraded_performance");
+  });
+
+  it("sends pagination cursor as a top-level sibling of query, not inside it", async () => {
+    const incidentBodies: Array<Record<string, unknown>> = [];
+    let page = 0;
+    globalThis.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url.endsWith("FieldsService.GetFields")) {
+        return new Response(JSON.stringify({ fields: [] }));
+      }
+      const body = typeof init?.body === "string" ? JSON.parse(init.body) : {};
+      const isActive = JSON.stringify(body).includes("status:active");
+      if (!isActive) {
+        return new Response(JSON.stringify({ incidents: [] }));
+      }
+      incidentBodies.push(body);
+      page++;
+      if (page === 1) {
+        return new Response(
+          JSON.stringify({
+            incidents: [{ incidentID: "p1", title: "P1", status: "active" }],
+            cursor: { hasMore: true, nextValue: "next-token" },
+          }),
+        );
+      }
+      return new Response(
+        JSON.stringify({
+          incidents: [{ incidentID: "p2", title: "P2", status: "active" }],
+          cursor: { hasMore: false, nextValue: "" },
+        }),
+      );
+    }) as typeof fetch;
+
+    const snapshot = await fetchStatusFromGrafana(ENV);
+
+    // First active call has no cursor; second carries it as a top-level field.
+    expect(incidentBodies[0]).toEqual({
+      query: { queryString: "isdrill:false status:active", limit: 100, orderDirection: "DESC" },
+    });
+    expect(incidentBodies[1]).toEqual({
+      query: { queryString: "isdrill:false status:active", limit: 100, orderDirection: "DESC" },
+      cursor: "next-token",
+    });
+    // Both pages of incidents are merged.
+    expect(snapshot.activeIncidents.map((i) => i.id).sort()).toEqual(["p1", "p2"]);
+  });
 });

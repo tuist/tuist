@@ -34,8 +34,8 @@ status/
 
 - `GET /` — status page (HTML), with `<link rel="alternate">` autodiscovery for RSS and Atom
 - `GET /api/status.json` — current snapshot as JSON
-- `GET /api/debug/incidents.json` — raw upstream Grafana Incident response (active + recent), no field renaming. Disabled in fake-data mode. Useful for diagnosing field-name drift.
-- `GET /api/debug/fields.json` — raw `FieldsService.GetFields` response plus the configured label key. Use this when the components list is empty to discover what your label field is actually named in Grafana.
+- `GET /api/debug/incidents.json` — raw upstream Grafana Incident response (active + recent), no field renaming. Gated behind `ENABLE_DEBUG_ROUTES="true"` (404 otherwise). Disabled in fake-data mode. Useful for diagnosing field-name drift.
+- `GET /api/debug/fields.json` — raw `FieldsService.GetFields` response plus the configured label key. Same gate. Use this when the components list is empty to discover what your label field is actually named in Grafana.
 - `GET /feed.rss` — RSS 2.0, one item per incident update (active + last 14 days)
 - `GET /feed.atom` — Atom 1.0, same content as RSS
 - `GET /favicon.svg` — Tuist mark with brand purple baked in
@@ -54,6 +54,7 @@ Variables live in `wrangler.jsonc` under `vars`. The token must be set via `wran
 | `GRAFANA_INCIDENT_API_URL`    | Per-stack proxy URL: `https://<your-stack-slug>.grafana.net/api/plugins/grafana-irm-app/resources`. The regional `incident-prod-*.grafana.net` form rejects stack-scoped service account tokens (`legacy auth cannot be upgraded`), so don't use it.                        |
 | `GRAFANA_INCIDENT_API_TOKEN`  | Stack-level service account token (`glsa_…`) with Viewer role. **Secret. Set with `wrangler secret put` for prod and in `status/.dev.vars` for local dev.**                                                                                                                 |
 | `GRAFANA_COMPONENT_LABEL_KEY` | Name (or slug) of the Grafana Incident label field whose select options define the public components shown on the page. Default `affected_service`. Each select option contributes one component: `value` → component id, `label` → display name, `description` → subtitle. |
+| `ENABLE_DEBUG_ROUTES`         | When `"true"`, exposes `/api/debug/incidents.json` and `/api/debug/fields.json`. Unset by default so production returns 404; set in `.dev.vars` for local debugging.                                                                                                        |
 
 ### Local run
 

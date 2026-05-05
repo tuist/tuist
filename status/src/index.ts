@@ -28,10 +28,16 @@ app.get("/api/status.json", async (c) => {
   return c.json(snapshot);
 });
 
-// Returns the raw upstream response from Grafana Incident, with no field
-// renaming or coercion. Useful for verifying the integration end-to-end and
-// diagnosing field-name drift. Only enabled when not in fake-data mode.
+// Debug routes return the raw upstream Grafana responses (incidents and label
+// fields) for diagnosing field-name drift and missing components. They expose
+// internal-only metadata so they're gated behind ENABLE_DEBUG_ROUTES, which is
+// unset in production and only enabled locally via .dev.vars.
+function debugRoutesEnabled(env: Env): boolean {
+  return env.ENABLE_DEBUG_ROUTES === "true";
+}
+
 app.get("/api/debug/incidents.json", async (c) => {
+  if (!debugRoutesEnabled(c.env)) return c.notFound();
   if (c.env.USE_FAKE_DATA === "true") {
     return c.json({ error: "USE_FAKE_DATA is true; nothing to debug" }, 400);
   }
@@ -39,10 +45,8 @@ app.get("/api/debug/incidents.json", async (c) => {
   return c.json(raw);
 });
 
-// Returns the raw FieldsService.GetFields response. Use this to discover the
-// actual name/slug of the label field that holds your component values when
-// the components list comes back empty.
 app.get("/api/debug/fields.json", async (c) => {
+  if (!debugRoutesEnabled(c.env)) return c.notFound();
   if (c.env.USE_FAKE_DATA === "true") {
     return c.json({ error: "USE_FAKE_DATA is true; nothing to debug" }, 400);
   }

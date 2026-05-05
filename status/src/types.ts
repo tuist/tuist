@@ -51,4 +51,7 @@ export interface Env {
   // Name (or slug) of the Grafana Incident label field whose select options
   // define the public components shown on the status page.
   GRAFANA_COMPONENT_LABEL_KEY: string;
+  // When set to "true", exposes /api/debug/* routes that return raw upstream
+  // Grafana responses. Unset by default — debug routes return 404 in production.
+  ENABLE_DEBUG_ROUTES?: string;
 }

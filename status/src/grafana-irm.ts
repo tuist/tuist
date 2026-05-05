@@ -40,10 +40,11 @@ interface RawIncident {
 }
 
 interface RawLabel {
-  // Grafana Incident labels are typically `{ label: { key, value } }` when
-  // returned from QueryIncidents. Both shapes are tolerated below.
-  label?: { key?: string; value?: string };
+  // Grafana Incident returns labels as `{ key, label }` where `label` holds
+  // the value (named that way because the field is a "label field"). Older
+  // and nested shapes are tolerated for safety.
   key?: string;
+  label?: string | { key?: string; value?: string };
   value?: string;
 }
 
@@ -95,11 +96,15 @@ function statusFrom(input: string | undefined): IncidentStatus {
 }
 
 function labelKey(l: RawLabel): string | undefined {
-  return l.label?.key ?? l.key;
+  if (l.key) return l.key;
+  if (typeof l.label === "object" && l.label !== null) return l.label.key;
+  return undefined;
 }
 
 function labelValue(l: RawLabel): string | undefined {
-  return l.label?.value ?? l.value;
+  if (typeof l.label === "string") return l.label;
+  if (typeof l.label === "object" && l.label !== null) return l.label.value;
+  return l.value;
 }
 
 function affectedComponentsFrom(
@@ -223,7 +228,7 @@ async function queryIncidents(opts: ClientOpts, queryString: string, limit = 100
   let cursor: string | undefined;
   for (let page = 0; page < 5; page++) {
     const body: Record<string, unknown> = { query: { queryString, limit, orderDirection: "DESC" } };
-    if (cursor) (body.query as Record<string, unknown>).cursor = cursor;
+    if (cursor) body.cursor = cursor;
     const res = await rpc<QueryIncidentsResponse>(opts, "IncidentsService.QueryIncidents", body);
     const batch = res.incidents ?? [];
     out.push(...batch);
