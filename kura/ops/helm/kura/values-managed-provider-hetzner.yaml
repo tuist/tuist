@@ -1,6 +1,5 @@
-# Provider overlay: Hetzner (via Syself Apalla cluster-stack).
-# Layered after values-managed.yaml. Carries provider-wide knobs that
-# every Hetzner location inherits.
+# Provider overlay: Hetzner. Layered after values-managed.yaml.
+# Carries provider-wide knobs that every Hetzner location inherits.
 
 persistence:
   storageClass: hcloud-volumes
