@@ -1,7 +1,7 @@
 # Cross-cutting defaults for Kura on the Tuist-managed Kubernetes cluster
-# (Hetzner via Syself). Layered with a per-region and a per-account
-# overlay; the deploy workflow appends a generated per-instance file last
-# to set fullnameOverride and the public host.
+# (Hetzner). Layered with a per-region and a per-account overlay; the
+# deploy workflow appends a generated per-instance file last to set
+# fullnameOverride and the public host.
 #
 # See infra/k8s/kura-rollout.md for the rollout flow.
 
