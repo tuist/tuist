@@ -1692,13 +1692,20 @@ defmodule Tuist.Tests do
     if search_filter, do: search_filter[:value]
   end
 
+  # The flaky-stats join is `left_join`, not `inner_join`: a test case can be
+  # currently flagged flaky (per `test_case_events`) without having any
+  # `flaky_test_case_runs` rows in the analytics window — for example a
+  # low-frequency test that was auto-flagged a while ago and hasn't run since,
+  # or a test whose recent flaky runs sit in a different `:is_ci` segment.
+  # `inner_join` here would silently drop such rows and put the list out of
+  # sync with the analytics card, which counts purely off events.
   defp build_flaky_test_cases_query(project_id, search_term, opts) do
     base_query =
       from(test_case in TestCase,
         hints: ["FINAL"],
         inner_join: flaky in subquery(currently_flaky_test_case_ids_subquery(project_id, opts)),
         on: test_case.id == flaky.test_case_id,
-        inner_join: stats in subquery(flaky_stats_subquery(project_id, opts)),
+        left_join: stats in subquery(flaky_stats_subquery(project_id, opts)),
         on: test_case.id == stats.test_case_id,
         where: test_case.project_id == ^project_id,
         select: %{
@@ -1706,7 +1713,7 @@ defmodule Tuist.Tests do
           name: test_case.name,
           module_name: test_case.module_name,
           suite_name: test_case.suite_name,
-          flaky_runs_count: stats.flaky_runs_count,
+          flaky_runs_count: coalesce(stats.flaky_runs_count, 0),
           last_flaky_at: stats.last_flaky_at,
           last_flaky_run_id: stats.last_flaky_run_id
         }
@@ -1721,7 +1728,7 @@ defmodule Tuist.Tests do
         hints: ["FINAL"],
         inner_join: flaky in subquery(currently_flaky_test_case_ids_subquery(project_id, opts)),
         on: test_case.id == flaky.test_case_id,
-        inner_join: stats in subquery(flaky_stats_subquery(project_id, opts)),
+        left_join: stats in subquery(flaky_stats_subquery(project_id, opts)),
         on: test_case.id == stats.test_case_id,
         where: test_case.project_id == ^project_id,
         select: count(test_case.id)
