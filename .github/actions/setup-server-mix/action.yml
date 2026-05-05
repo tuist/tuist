@@ -23,7 +23,7 @@ inputs:
   github-token:
     description: GitHub token used by mise to fetch tools (avoids rate limits)
     required: false
-    default: ${{ github.token }}
+    default: ""
 
 runs:
   using: composite
@@ -37,7 +37,7 @@ runs:
         install_args: ${{ inputs.mise-install-args }}
         cache: "false"
         working_directory: server
-        github_token: ${{ inputs.github-token }}
+        github_token: ${{ inputs.github-token || env.MISE_GITHUB_TOKEN }}
     - name: Restore Mix Cache
       uses: actions/cache@v4
       with:
