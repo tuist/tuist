@@ -315,6 +315,13 @@ defmodule Tuist.Application do
 
     children
     |> Kernel.++(
+      if Environment.registry_mode?() do
+        registry_children()
+      else
+        []
+      end
+    )
+    |> Kernel.++(
       if Environment.dev_use_remote_storage?() do
         []
       else
@@ -363,6 +370,16 @@ defmodule Tuist.Application do
         do: [],
         else: [Tuist.Marketing.Stats]
     )
+  end
+
+  defp registry_children do
+    base = [Tuist.Registry.Storage, Tuist.Registry.Metadata]
+
+    if Environment.registry_serving_mode?() do
+      base ++ [Tuist.Registry.AlternateManifests]
+    else
+      base
+    end
   end
 
   defp dev_content_children do

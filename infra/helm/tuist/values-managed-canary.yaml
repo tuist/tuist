@@ -68,6 +68,7 @@ objectStorage:
   external:
     buckets:
       default: tuist-can-storage
+      registry: tuist-can-registry
 
 processor:
   # Supabase canary project (thapckmapmffdgaiarvu) — dedicated pooler on
@@ -98,6 +99,46 @@ processor:
     limits:
       cpu: "1000m"
       memory: "1Gi"
+
+registryPopulation:
+  database:
+    host: db.thapckmapmffdgaiarvu.supabase.co
+  extraEnv:
+    - name: TUIST_DEPLOY_ENV
+      value: can
+    - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
+      value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "256Mi"
+    limits:
+      cpu: "500m"
+      memory: "768Mi"
+
+# Canary is single-region (Frankfurt only). Multi-region serving comes
+# online with production.
+registryServing:
+  regions:
+    - name: eu-central
+      replicaCount: 1
+      storage:
+        size: 50Gi
+      ingress:
+        host: registry-eu-central-canary.tuist.dev
+        tlsSecretName: registry-eu-central-canary-tls
+  extraEnv:
+    - name: TUIST_DEPLOY_ENV
+      value: can
+    - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
+      value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "256Mi"
+    limits:
+      cpu: "500m"
+      memory: "768Mi"
 
 # In-cluster Valkey backs the auth rate limiter (Hammer.Redis). The
 # chart wires TUIST_REDIS_URL to the embedded Service; without it the

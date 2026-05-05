@@ -91,6 +91,15 @@ objectStorage:
   external:
     buckets:
       default: tuist-prod-storage
+      # Existing Tigris bucket the Kamal cache nodes have been writing to
+      # since the registry launched. Reused as-is so the in-cluster
+      # registry-population + registry-serving pods read the same artifacts
+      # the cache fleet wrote (no copy step). Kept on the historical name
+      # rather than `tuist-prod-registry` to avoid a multi-hour rclone +
+      # cutover window. See `mise/tasks/registry/purge.sh` for the
+      # canonical reference and the cache-side `S3_REGISTRY_BUCKET`
+      # 1Password item that points at the same bucket.
+      registry: tuist-registry
 
 processor:
   # Supabase production project (yltsvvtmlktxdgpcbylg) — dedicated pooler on
@@ -150,6 +159,53 @@ processor:
     enabled: true
     whenUnsatisfiable: DoNotSchedule
   affinity: {}
+
+# Registry population: same Supabase project as the rest of the
+# production stack, scoped to the `tuist_registry` role provisioned via
+# infra/supabase/tuist-registry-role.sql.
+registryPopulation:
+  database:
+    host: db.yltsvvtmlktxdgpcbylg.supabase.co
+  extraEnv:
+    - name: TUIST_DEPLOY_ENV
+      value: prod
+    - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
+      value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
+  nodeSelector:
+    node.cluster.x-k8s.io/pool: general
+
+# Per-region registry serving deployments. The Cloudflare Worker at
+# infra/registry-router/ does the geo-routing — these hostnames just
+# need to resolve to ingress-nginx in their respective region clusters
+# and serve `/api/registry/swift/*`. cert-manager fronts each with its
+# own Let's Encrypt cert (DNS-01 via the cloudflare provider).
+registryServing:
+  regions:
+    - name: eu-central
+      replicaCount: 2
+      storage:
+        size: 200Gi
+      nodeSelector:
+        node.cluster.x-k8s.io/pool: general
+        topology.kubernetes.io/region: eu-central
+      ingress:
+        host: registry-eu-central.tuist.dev
+        tlsSecretName: registry-eu-central-tls
+    - name: us-east
+      replicaCount: 2
+      storage:
+        size: 200Gi
+      nodeSelector:
+        node.cluster.x-k8s.io/pool: general
+        topology.kubernetes.io/region: us-east
+      ingress:
+        host: registry-us-east.tuist.dev
+        tlsSecretName: registry-us-east-tls
+  extraEnv:
+    - name: TUIST_DEPLOY_ENV
+      value: prod
+    - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
+      value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
 
 # In-cluster Valkey backs the auth rate limiter (Hammer.Redis). The
 # chart wires TUIST_REDIS_URL to the embedded Service; without it the

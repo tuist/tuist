@@ -172,6 +172,60 @@ processor:
       cpu: "1000m"
       memory: "1Gi"
 
+# Single-replica registry sync pod. Enabled across managed envs; per-env
+# bucket name comes from objectStorage.external.buckets.registry below.
+# The GitHub PAT is synced from 1Password (REGISTRY_GITHUB_TOKEN); see
+# registry-population-external-secrets.yaml for the ESO template.
+registryPopulation:
+  enabled: true
+  managedSecrets: true
+  externalSecrets:
+    refreshInterval: "1h"
+    storeRef:
+      kind: ClusterSecretStore
+      name: onepassword
+    databasePassword:
+      item: REGISTRY_POPULATION_DATABASE_PASSWORD
+      field: password
+    githubToken:
+      item: REGISTRY_GITHUB_TOKEN
+      field: password
+  resources:
+    requests:
+      cpu: "250m"
+      memory: "512Mi"
+    limits:
+      cpu: "1000m"
+      memory: "2Gi"
+
+# Per-region registry serving deployments. Per-env overlays
+# (values-managed-{staging,canary,production}.yaml) populate `regions`
+# with the actual hostnames + replicaCount + storage sizes. Keeping the
+# defaults empty here so canary/staging can opt into a smaller footprint.
+registryServing:
+  enabled: true
+  ingress:
+    enabled: true
+    className: nginx
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-cloudflare
+      nginx.ingress.kubernetes.io/proxy-body-size: "0"
+      nginx.ingress.kubernetes.io/proxy-buffering: "off"
+      nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
+      nginx.ingress.kubernetes.io/proxy-read-timeout: "120"
+      nginx.ingress.kubernetes.io/proxy-send-timeout: "120"
+  storage:
+    storageClassName: hcloud-volumes
+    size: 100Gi
+  resources:
+    requests:
+      cpu: "250m"
+      memory: "512Mi"
+    limits:
+      cpu: "1000m"
+      memory: "1Gi"
+  regions: []
+
 # Everything below = external. The managed deployment never runs embedded
 # Postgres / ClickHouse / object storage / observability stacks.
 cache:

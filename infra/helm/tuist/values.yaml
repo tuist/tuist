@@ -252,6 +252,120 @@ processor:
   # archive plus its CAS sidecar files.
   tmpSizeLimit: 16Gi
 
+# Single-replica pod that runs the Swift package registry sync workers
+# (TUIST_MODE=registry_population). Pulls from SwiftPackageIndex on a cron
+# every 10 minutes, mirrors source archives + manifests into the registry
+# bucket, and writes per-package JSON metadata back to S3. Read traffic
+# never lands here — that's `registryServing` below.
+#
+# Disabled by default. Self-hosters who want a registry mirror enable
+# both this and `registryServing` and supply a GitHub PAT.
+registryPopulation:
+  enabled: false
+  managedSecrets: false
+  # Optional comma-separated allowlist of "owner/repo" patterns (with
+  # trailing-* wildcard). When set, only matching packages are mirrored.
+  # Useful for per-tenant private mirrors or for shrinking the working set
+  # in staging. Empty = mirror everything in SwiftPackageIndex.
+  syncAllowlist: ""
+  # Per-tick batch size — how many packages SyncWorker pulls from the
+  # cursor on each cron run. Bound by GitHub rate limits (5k req/h on
+  # a PAT, ~3 req per package), so 1000/run x 6 runs/h ≈ 18k req/h fans
+  # out across multiple tags only on first sync; steady-state is much
+  # lower (one tag-list call per package).
+  syncLimit: 1000
+  # Same shape as processor.database — used only when managedSecrets is true.
+  # Self-hosted installs read DATABASE_URL from priv/secrets via MASTER_KEY,
+  # or from server.databaseUrl when both are unset.
+  database:
+    host: ""
+    port: 6543
+    name: postgres
+    username: tuist_registry
+    params: "sslmode=require"
+  externalSecrets:
+    refreshInterval: "1h"
+    storeRef:
+      kind: ClusterSecretStore
+      name: onepassword
+    databasePassword:
+      item: REGISTRY_POPULATION_DATABASE_PASSWORD
+      field: password
+    githubToken:
+      item: REGISTRY_GITHUB_TOKEN
+      field: password
+  affinity: {}
+  nodeSelector: {}
+  tolerations: []
+  podAnnotations: {}
+  podLabels: {}
+  extraEnv: []
+  resources: {}
+  # Grace period long enough for an in-flight ReleaseWorker (`git clone`,
+  # `unzip`, archive normalisation, S3 upload) to finish on SIGTERM. Oban's
+  # Lifeline rescues anything still running at the deadline on the next
+  # boot.
+  terminationGracePeriodSeconds: 600
+  # ReleaseWorker unzips source archives into /tmp. Sized for the largest
+  # mirrored package plus headroom across a few concurrent jobs (registry
+  # release queue defaults to concurrency 5).
+  tmpSizeLimit: 8Gi
+
+# Per-region registry serving pods. Each region becomes its own Deployment
+# (registry-serving-<name>) + PVC + Service so the local disk cache stays
+# local to the region the user's traffic landed in. The Cloudflare Worker
+# at infra/registry-router/ does the geo-routing and picks the closest
+# healthy origin; CLI clients only ever see tuist.dev.
+#
+# Disabled by default — self-hosters with a single-region cluster and no
+# need for a mirror leave both registry* values off.
+registryServing:
+  enabled: false
+  service:
+    port: 80
+  ingress:
+    enabled: false
+    className: ""
+    annotations: {}
+  # nginx sidecar that interprets Phoenix's `x-accel-redirect` headers.
+  # See registry-serving-nginx-configmap.yaml for the location blocks. The
+  # sidecar terminates external traffic on port 80 and forwards to the
+  # Phoenix release listening on 127.0.0.1:8080.
+  nginx:
+    image:
+      repository: nginx
+      tag: "1.27-alpine"
+      pullPolicy: IfNotPresent
+    resources: {}
+  storage:
+    # Default PVC size per region. Sized for the bulk of SPI's source archives
+    # (a few hundred MB per popular package, hundreds of packages = tens of
+    # GiB hot working set). Per-region overrides under `regions[].storage`.
+    size: 100Gi
+    storageClassName: ""
+  resources: {}
+  podAnnotations: {}
+  podLabels: {}
+  extraEnv: []
+  terminationGracePeriodSeconds: 30
+  # List of regions to deploy. Each entry creates one Deployment +
+  # Service + PVC; a per-region Ingress is emitted when `ingress.host`
+  # is set. `nodeSelector` defaults to `topology.kubernetes.io/region: <name>`
+  # if not provided, so multi-region clusters using the standard label work
+  # out of the box.
+  #
+  # Example:
+  #   regions:
+  #     - name: eu-central
+  #       replicaCount: 2
+  #       storage: { size: 200Gi }
+  #       ingress: { host: registry-eu-central.tuist.dev, tlsSecretName: registry-eu-central-tls }
+  #     - name: us-east
+  #       replicaCount: 2
+  #       storage: { size: 200Gi }
+  #       ingress: { host: registry-us-east.tuist.dev, tlsSecretName: registry-us-east-tls }
+  regions: []
+
 cache:
   enabled: true
   replicaCount: 1

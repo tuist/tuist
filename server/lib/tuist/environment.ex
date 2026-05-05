@@ -66,6 +66,12 @@ defmodule Tuist.Environment do
       ingestion buffer. What the existing server pods run.
     * `:processor` — no Phoenix listener, narrowed Oban queue set to
       `:process_build`. Booted by processor-deployment.yaml.
+    * `:registry_population` — no Phoenix listener, narrowed Oban queue set
+      to `:registry_sync` and `:registry_release`. Single replica, runs the
+      Swift package mirror sync.
+    * `:registry_serving` — Phoenix listener with only the registry routes
+      mounted, plus the `:registry_prefetch` queue used to fill the local
+      PVC after a disk miss. Replicated per region with its own PVC.
 
   Read once from `TUIST_MODE`. Add new modes here when the supervision tree
   needs another shape (e.g. a future `:scheduler` or `:ingest`).
@@ -73,6 +79,8 @@ defmodule Tuist.Environment do
   def mode do
     case System.get_env("TUIST_MODE") do
       "processor" -> :processor
+      "registry_population" -> :registry_population
+      "registry_serving" -> :registry_serving
       _ -> :web
     end
   end
@@ -80,6 +88,12 @@ defmodule Tuist.Environment do
   def web?, do: mode() == :web
 
   def processor_mode?, do: mode() == :processor
+
+  def registry_population_mode?, do: mode() == :registry_population
+
+  def registry_serving_mode?, do: mode() == :registry_serving
+
+  def registry_mode?, do: registry_population_mode?() or registry_serving_mode?()
 
   def database_url(secrets \\ secrets()) do
     System.get_env("DATABASE_URL") || get([:database_url], secrets)
@@ -332,6 +346,68 @@ defmodule Tuist.Environment do
       System.get_env("TUIST_S3_BUCKET_NAME") || get([:s3, :bucket_name], secrets)
     else
       "tuist-development"
+    end
+  end
+
+  def registry_bucket(secrets \\ secrets()) do
+    case System.get_env("TUIST_S3_REGISTRY_BUCKET") || get([:s3, :registry_bucket], secrets) do
+      bucket when is_binary(bucket) and bucket != "" -> bucket
+      _ -> nil
+    end
+  end
+
+  def registry_github_token(secrets \\ secrets()) do
+    case System.get_env("TUIST_REGISTRY_GITHUB_TOKEN") || get([:registry, :github_token], secrets) do
+      token when is_binary(token) and token != "" -> token
+      _ -> nil
+    end
+  end
+
+  @doc """
+  Whether the registry is reachable from this pod. Requires only the bucket
+  because the read path (manifests, source archives) is served from S3 and
+  needs no GitHub credentials. Population workers additionally require
+  `registry_github_token/1` and check it themselves before fetching tags.
+  """
+  def registry_enabled?, do: not is_nil(registry_bucket())
+
+  @doc """
+  Whether the registry population workers (`SyncWorker`, `ReleaseWorker`)
+  have everything they need to mirror packages from upstream — both the
+  registry bucket and a GitHub PAT.
+  """
+  def registry_population_enabled?, do: registry_enabled?() and not is_nil(registry_github_token())
+
+  def registry_storage_dir do
+    case System.get_env("TUIST_REGISTRY_STORAGE_DIR") do
+      dir when is_binary(dir) and dir != "" ->
+        dir
+
+      _ ->
+        case Application.get_env(:tuist, :registry_storage_dir) do
+          dir when is_binary(dir) and dir != "" -> dir
+          _ -> nil
+        end
+    end
+  end
+
+  def registry_sync_allowlist do
+    case System.get_env("TUIST_REGISTRY_SYNC_ALLOWLIST") do
+      nil ->
+        nil
+
+      value ->
+        value
+        |> String.split(",")
+        |> Enum.map(&String.trim/1)
+        |> Enum.reject(&(&1 == ""))
+    end
+  end
+
+  def registry_sync_limit do
+    case System.get_env("TUIST_REGISTRY_SYNC_LIMIT") do
+      value when is_binary(value) and value != "" -> String.to_integer(value)
+      _ -> 1_000
     end
   end
 
