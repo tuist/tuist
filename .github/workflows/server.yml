@@ -321,7 +321,7 @@ jobs:
           sudo tar xzf /tmp/trivy.tar.gz -C /usr/local/bin trivy
           rm /tmp/trivy.tar.gz
       - name: Scan image for vulnerabilities
-        run: trivy image --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 --no-progress tuist/tuist
+        run: trivy image --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 --no-progress --ignorefile .trivyignore tuist/tuist
   # The Codegen produces non-deterministic results, so we're skipping it for now
   # api-codegen:
   #   name: API Codegen Check
