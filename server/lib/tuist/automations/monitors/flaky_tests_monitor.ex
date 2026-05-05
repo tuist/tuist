@@ -17,16 +17,22 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
   the worker's transition logic — this module just reports the current
   match; the worker silences the initial baseline so users don't get
   flooded for the established state.
+
+  All four comparison directions read the
+  `test_case_run_daily_stats_per_case` AggregatingMergeTree, ordered by
+  `(project_id, date, test_case_id)`. A 30-day evaluation reads ~30 rows
+  per test case for the project — bounded prefix scan rather than a
+  full-table walk on `test_case_runs` (which is keyed on
+  `(test_run_id, …)` and would have to filter `project_id` after reading
+  every granule in the relevant monthly partitions).
   """
   import Ecto.Query
 
   alias Tuist.ClickHouseRepo
-  alias Tuist.Tests.FlakyTestCaseRun
   alias Tuist.Tests.TestCase
-  alias Tuist.Tests.TestCaseRun
+  alias Tuist.Tests.TestCaseRunDailyStatsPerCase
 
   @comparisons ~w(gte gt lt lte)
-  @below_comparisons ~w(lt lte)
 
   def evaluate(alert) do
     trigger_config = alert.trigger_config
@@ -35,9 +41,10 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
     comparison = parse_comparison(trigger_config["comparison"])
     project_id = alert.project_id
 
-    cutoff = DateTime.add(DateTime.utc_now(), -window, :second)
+    cutoff_date = window_cutoff_date(window)
 
-    triggered_test_case_ids = ClickHouseRepo.all(flakiness_rate_query(project_id, cutoff, threshold, comparison))
+    triggered_test_case_ids =
+      ClickHouseRepo.all(flakiness_rate_query(project_id, cutoff_date, threshold, comparison))
 
     %{
       triggered: triggered_test_case_ids,
@@ -52,9 +59,10 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
     comparison = parse_comparison(trigger_config["comparison"])
     project_id = alert.project_id
 
-    cutoff = DateTime.add(DateTime.utc_now(), -window, :second)
+    cutoff_date = window_cutoff_date(window)
 
-    triggered_test_case_ids = ClickHouseRepo.all(flaky_run_count_query(project_id, cutoff, threshold, comparison))
+    triggered_test_case_ids =
+      ClickHouseRepo.all(flaky_run_count_query(project_id, cutoff_date, threshold, comparison))
 
     %{
       triggered: triggered_test_case_ids,
@@ -62,90 +70,112 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
     }
   end
 
+  # The MV is keyed on `(project_id, date, test_case_id)`, so we round the
+  # cutoff to the start of the day. A 30-day window evaluated mid-day picks
+  # up a few hours of additional data on day -30 — acceptable for
+  # threshold-based alerts and well within the noise of test-run timing.
+  defp window_cutoff_date(window_seconds) do
+    DateTime.utc_now()
+    |> DateTime.add(-window_seconds, :second)
+    |> DateTime.to_date()
+  end
+
   # Ecto's `fragment(...)` macro requires a literal first argument to prevent
-  # SQL-injection routes, so each comparison gets its own clause instead of an
-  # interpolated operator.
-  defp flakiness_rate_query(project_id, cutoff, threshold, "gte") do
-    from(tcr in TestCaseRun,
-      where: tcr.project_id == ^project_id,
-      where: tcr.inserted_at >= ^cutoff,
-      group_by: tcr.test_case_id,
-      having: fragment("countIf(?) * 100.0 / count() >= ?", tcr.is_flaky, ^threshold),
-      select: tcr.test_case_id
+  # SQL-injection routes, so each comparison gets its own clause instead of
+  # an interpolated operator.
+  defp flakiness_rate_query(project_id, cutoff_date, threshold, "gte") do
+    from(daily in TestCaseRunDailyStatsPerCase,
+      where: daily.project_id == ^project_id,
+      where: daily.date >= ^cutoff_date,
+      group_by: daily.test_case_id,
+      having:
+        fragment(
+          "sumMerge(flaky_run_count) * 100.0 / countMerge(run_count) >= ?",
+          ^threshold
+        ),
+      select: daily.test_case_id
     )
   end
 
-  defp flakiness_rate_query(project_id, cutoff, threshold, "gt") do
-    from(tcr in TestCaseRun,
-      where: tcr.project_id == ^project_id,
-      where: tcr.inserted_at >= ^cutoff,
-      group_by: tcr.test_case_id,
-      having: fragment("countIf(?) * 100.0 / count() > ?", tcr.is_flaky, ^threshold),
-      select: tcr.test_case_id
+  defp flakiness_rate_query(project_id, cutoff_date, threshold, "gt") do
+    from(daily in TestCaseRunDailyStatsPerCase,
+      where: daily.project_id == ^project_id,
+      where: daily.date >= ^cutoff_date,
+      group_by: daily.test_case_id,
+      having:
+        fragment(
+          "sumMerge(flaky_run_count) * 100.0 / countMerge(run_count) > ?",
+          ^threshold
+        ),
+      select: daily.test_case_id
     )
   end
 
-  defp flakiness_rate_query(project_id, cutoff, threshold, "lt") do
-    from(tcr in TestCaseRun,
-      where: tcr.project_id == ^project_id,
-      where: tcr.inserted_at >= ^cutoff,
-      group_by: tcr.test_case_id,
-      having: fragment("countIf(?) * 100.0 / count() < ?", tcr.is_flaky, ^threshold),
-      select: tcr.test_case_id
+  defp flakiness_rate_query(project_id, cutoff_date, threshold, "lt") do
+    from(daily in TestCaseRunDailyStatsPerCase,
+      where: daily.project_id == ^project_id,
+      where: daily.date >= ^cutoff_date,
+      group_by: daily.test_case_id,
+      having:
+        fragment(
+          "sumMerge(flaky_run_count) * 100.0 / countMerge(run_count) < ?",
+          ^threshold
+        ),
+      select: daily.test_case_id
     )
   end
 
-  defp flakiness_rate_query(project_id, cutoff, threshold, "lte") do
-    from(tcr in TestCaseRun,
-      where: tcr.project_id == ^project_id,
-      where: tcr.inserted_at >= ^cutoff,
-      group_by: tcr.test_case_id,
-      having: fragment("countIf(?) * 100.0 / count() <= ?", tcr.is_flaky, ^threshold),
-      select: tcr.test_case_id
+  defp flakiness_rate_query(project_id, cutoff_date, threshold, "lte") do
+    from(daily in TestCaseRunDailyStatsPerCase,
+      where: daily.project_id == ^project_id,
+      where: daily.date >= ^cutoff_date,
+      group_by: daily.test_case_id,
+      having:
+        fragment(
+          "sumMerge(flaky_run_count) * 100.0 / countMerge(run_count) <= ?",
+          ^threshold
+        ),
+      select: daily.test_case_id
     )
   end
 
-  # `gte` / `gt` reach for the `flaky_test_case_runs` MV because it stores
-  # only flaky rows and is keyed on `(project_id, ran_at, test_case_id)` —
-  # cheap aggregate. `lt` / `lte` need the zero-flaky-runs case too, so they
-  # have to scan `test_case_runs` and `countIf` flakiness directly.
-  defp flaky_run_count_query(project_id, cutoff, threshold, "gte") do
-    from(tcr in FlakyTestCaseRun,
-      where: tcr.project_id == ^project_id,
-      where: tcr.ran_at >= ^cutoff,
-      group_by: tcr.test_case_id,
-      having: fragment("count() >= ?", ^threshold),
-      select: tcr.test_case_id
+  defp flaky_run_count_query(project_id, cutoff_date, threshold, "gte") do
+    from(daily in TestCaseRunDailyStatsPerCase,
+      where: daily.project_id == ^project_id,
+      where: daily.date >= ^cutoff_date,
+      group_by: daily.test_case_id,
+      having: fragment("sumMerge(flaky_run_count) >= ?", ^threshold),
+      select: daily.test_case_id
     )
   end
 
-  defp flaky_run_count_query(project_id, cutoff, threshold, "gt") do
-    from(tcr in FlakyTestCaseRun,
-      where: tcr.project_id == ^project_id,
-      where: tcr.ran_at >= ^cutoff,
-      group_by: tcr.test_case_id,
-      having: fragment("count() > ?", ^threshold),
-      select: tcr.test_case_id
+  defp flaky_run_count_query(project_id, cutoff_date, threshold, "gt") do
+    from(daily in TestCaseRunDailyStatsPerCase,
+      where: daily.project_id == ^project_id,
+      where: daily.date >= ^cutoff_date,
+      group_by: daily.test_case_id,
+      having: fragment("sumMerge(flaky_run_count) > ?", ^threshold),
+      select: daily.test_case_id
     )
   end
 
-  defp flaky_run_count_query(project_id, cutoff, threshold, "lt") do
-    from(tcr in TestCaseRun,
-      where: tcr.project_id == ^project_id,
-      where: tcr.inserted_at >= ^cutoff,
-      group_by: tcr.test_case_id,
-      having: fragment("countIf(?) < ?", tcr.is_flaky, ^threshold),
-      select: tcr.test_case_id
+  defp flaky_run_count_query(project_id, cutoff_date, threshold, "lt") do
+    from(daily in TestCaseRunDailyStatsPerCase,
+      where: daily.project_id == ^project_id,
+      where: daily.date >= ^cutoff_date,
+      group_by: daily.test_case_id,
+      having: fragment("sumMerge(flaky_run_count) < ?", ^threshold),
+      select: daily.test_case_id
     )
   end
 
-  defp flaky_run_count_query(project_id, cutoff, threshold, "lte") do
-    from(tcr in TestCaseRun,
-      where: tcr.project_id == ^project_id,
-      where: tcr.inserted_at >= ^cutoff,
-      group_by: tcr.test_case_id,
-      having: fragment("countIf(?) <= ?", tcr.is_flaky, ^threshold),
-      select: tcr.test_case_id
+  defp flaky_run_count_query(project_id, cutoff_date, threshold, "lte") do
+    from(daily in TestCaseRunDailyStatsPerCase,
+      where: daily.project_id == ^project_id,
+      where: daily.date >= ^cutoff_date,
+      group_by: daily.test_case_id,
+      having: fragment("sumMerge(flaky_run_count) <= ?", ^threshold),
+      select: daily.test_case_id
     )
   end
 
@@ -179,8 +209,4 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
   # it as the fallback so existing alerts don't change behaviour.
   defp parse_comparison(comparison) when comparison in @comparisons, do: comparison
   defp parse_comparison(_), do: "gte"
-
-  # Kept so other callers / future tests can branch on direction without
-  # re-deriving the set.
-  def below_comparison?(comparison), do: comparison in @below_comparisons
 end
