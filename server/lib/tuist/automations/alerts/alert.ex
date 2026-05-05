@@ -23,6 +23,7 @@ defmodule Tuist.Automations.Alerts.Alert do
     field :recovery_enabled, :boolean, default: false
     field :recovery_config, :map, default: %{}
     field :recovery_actions, {:array, :map}, default: []
+    field :baseline_established_at, :utc_datetime
 
     belongs_to :project, Project, type: :integer
 
@@ -41,7 +42,8 @@ defmodule Tuist.Automations.Alerts.Alert do
       :trigger_actions,
       :recovery_enabled,
       :recovery_config,
-      :recovery_actions
+      :recovery_actions,
+      :baseline_established_at
     ])
     |> validate_required([:project_id, :name, :monitor_type])
     |> validate_inclusion(:monitor_type, @monitor_types)

@@ -25,6 +25,37 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
 
   defp evaluate_and_execute(alert) do
     %{triggered: triggered_ids, all: all_ids} = evaluate_monitor(alert)
+
+    if alert.baseline_established_at == nil do
+      establish_baseline(alert, triggered_ids)
+    else
+      run_transitions(alert, triggered_ids, all_ids)
+    end
+
+    :ok
+  end
+
+  # First evaluation after the alert was created: every test case currently
+  # matching the condition is part of the established state. Record them as
+  # `triggered` AlertEvents so subsequent evaluations only fire on
+  # transitions, but skip the trigger actions — there's no transition to
+  # announce yet, and firing for the entire matching set would spam users.
+  defp establish_baseline(alert, triggered_ids) do
+    now = NaiveDateTime.utc_now()
+
+    Enum.each(triggered_ids, fn test_case_id ->
+      Automations.create_alert_event(%{
+        alert_id: alert.id,
+        test_case_id: test_case_id,
+        status: "triggered",
+        triggered_at: now
+      })
+    end)
+
+    {:ok, _} = Automations.update_alert(alert, %{baseline_established_at: DateTime.utc_now()})
+  end
+
+  defp run_transitions(alert, triggered_ids, all_ids) do
     active_events = Automations.list_active_alert_events(alert.id)
     already_triggered_ids = MapSet.new(active_events, & &1.test_case_id)
 
@@ -50,8 +81,6 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
     if alert.recovery_enabled do
       handle_recovery(alert, triggered_ids, active_events, all_ids)
     end
-
-    :ok
   end
 
   defp handle_recovery(alert, currently_triggered_ids, active_events, all_ids) do

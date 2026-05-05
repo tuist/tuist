@@ -720,27 +720,6 @@ defmodule Tuist.Tests do
   end
 
   @doc """
-  Returns the IDs of test cases in `project_id` whose latest row has
-  `is_flaky == true`. The automation engine uses this to evaluate recovery
-  uniformly against every flagged test, regardless of whether the flag came
-  from one of its trigger actions, the UI/API, or another automation.
-
-  `argMax(is_flaky, inserted_at)` resolves the latest row per id without the
-  per-call merge cost of `FINAL`; the `project_id` leading sort key keeps the
-  scan bounded to the project's parts.
-  """
-  def list_flagged_flaky_test_case_ids(project_id) do
-    ClickHouseRepo.all(
-      from(tc in TestCase,
-        where: tc.project_id == ^project_id,
-        group_by: tc.id,
-        having: fragment("argMax(?, ?) = true", tc.is_flaky, tc.inserted_at),
-        select: tc.id
-      )
-    )
-  end
-
-  @doc """
   Gets a test case by its UUID with all denormalized fields.
   Returns {:ok, test_case} or {:error, :not_found}.
   """
