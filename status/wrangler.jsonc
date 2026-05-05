@@ -1,0 +1,16 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "tuist-status",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-04-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": {
+    "enabled": true
+  },
+  "vars": {
+    "USE_FAKE_DATA": "true",
+    "STATUS_PAGE_TITLE": "Tuist Status",
+    "GRAFANA_INCIDENT_API_URL": "https://tuist.grafana.net/api/plugins/grafana-irm-app/resources",
+    "GRAFANA_COMPONENT_LABEL_KEY": "affected_service"
+  }
+}
