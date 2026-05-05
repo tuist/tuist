@@ -125,7 +125,7 @@ defmodule Tuist.Tests.Analytics do
     dates = date_range_for_date_period(date_period, start_datetime: start_datetime, end_datetime: end_datetime)
     date_endpoints = Enum.map(dates, &date_to_end_of_bucket(&1, date_period))
 
-    values = Enum.map(date_endpoints, &count_quarantined_test_cases_at(project_id, &1))
+    values = quarantined_counts_at_endpoints(project_id, date_endpoints)
     count = List.last(values) || 0
 
     %{
@@ -135,20 +135,50 @@ defmodule Tuist.Tests.Analytics do
     }
   end
 
-  defp count_quarantined_test_cases_at(project_id, endpoint) do
-    latest_state_per_test_case =
-      from(tc in TestCase,
-        where: tc.project_id == ^project_id and tc.inserted_at <= ^endpoint,
-        group_by: tc.id,
-        select: %{state: fragment("argMax(?, ?)", tc.state, tc.inserted_at)}
-      )
+  # Single-pass aggregation: groups `test_cases` by `id`, computes
+  # `argMaxIf(state, inserted_at, inserted_at <= Tᵢ)` per bucket endpoint Tᵢ
+  # in parallel, then `countIf` over each result. One ClickHouse query for
+  # the whole chart instead of one per bucket.
+  defp quarantined_counts_at_endpoints(_project_id, []), do: []
 
-    ClickHouseRepo.one(
-      from(s in subquery(latest_state_per_test_case),
-        where: s.state in ^Tests.active_quarantine_states(),
-        select: count()
-      )
-    ) || 0
+  defp quarantined_counts_at_endpoints(project_id, endpoints) do
+    indexed_endpoints = Enum.with_index(endpoints)
+    active_states = Tests.active_quarantine_states()
+    active_states_sql = Enum.map_join(active_states, ", ", &"'#{&1}'")
+
+    state_columns =
+      Enum.map_join(indexed_endpoints, ",\n    ", fn {_endpoint, i} ->
+        "argMaxIf(state, inserted_at, inserted_at <= {endpoint_#{i}:DateTime64(6)}) AS s_#{i}"
+      end)
+
+    count_columns =
+      Enum.map_join(indexed_endpoints, ",\n  ", fn {_endpoint, i} ->
+        "countIf(s_#{i} IN (#{active_states_sql})) AS c_#{i}"
+      end)
+
+    query = """
+    SELECT
+      #{count_columns}
+    FROM (
+      SELECT
+        id,
+        #{state_columns}
+      FROM test_cases
+      WHERE project_id = {project_id:Int64}
+      GROUP BY id
+    )
+    """
+
+    params =
+      indexed_endpoints
+      |> Enum.into(%{project_id: project_id}, fn {endpoint, i} ->
+        {:"endpoint_#{i}", DateTime.to_naive(endpoint)}
+      end)
+
+    case ClickHouseRepo.query(query, params) do
+      {:ok, %{rows: [counts]}} -> counts
+      {:ok, %{rows: []}} -> List.duplicate(0, length(endpoints))
+    end
   end
 
   @doc """
