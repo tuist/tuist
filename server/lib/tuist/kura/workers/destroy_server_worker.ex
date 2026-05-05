@@ -24,13 +24,12 @@ defmodule Tuist.Kura.Workers.DestroyServerWorker do
   alias Tuist.Kura
   alias Tuist.Kura.Provisioner
   alias Tuist.Kura.Server
-  alias Tuist.Repo
 
   require Logger
 
   @impl Oban.Worker
-  def perform(%Oban.Job{args: %{"server_id" => id}}) do
-    case Repo.get(Server, id) do
+  def perform(%Oban.Job{args: %{"server_id" => id, "account_id" => account_id}}) do
+    case Kura.get_server(account_id, id) do
       nil ->
         Logger.warning("[Kura.DestroyServerWorker] server #{id} not found")
         :ok
