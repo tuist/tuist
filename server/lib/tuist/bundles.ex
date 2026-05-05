@@ -21,6 +21,10 @@ defmodule Tuist.Bundles do
   artifacts insert happens first so a transient ClickHouse outage on
   either step surfaces before we report success and we never end up with
   a bundle row that has no artifacts.
+
+  Returns `{:ok, bundle}` on success or `{:error, changeset}` if the
+  input fails validation (invalid `type`, `supported_platforms`, or
+  missing required fields).
   """
   def create_bundle(attrs \\ %{}, opts \\ []) do
     {artifacts, bundle_attrs} = Map.pop(attrs, :artifacts, [])
@@ -33,37 +37,35 @@ defmodule Tuist.Bundles do
     # matching freshly-created bundles.
     timestamp = bundle_attrs |> Map.get(:inserted_at) |> truncate_timestamp()
 
-    artifacts
-    |> flatten_artifacts(bundle_id, nil, timestamp)
-    |> insert_artifacts_to_clickhouse()
+    changeset =
+      bundle_attrs
+      |> Map.merge(%{inserted_at: timestamp, updated_at: timestamp})
+      |> then(&Bundle.create_changeset(%Bundle{}, &1))
 
-    IngestRepo.insert_all(Bundle, [
-      %{
-        id: bundle_id,
-        app_bundle_id: Map.fetch!(bundle_attrs, :app_bundle_id),
-        name: Map.fetch!(bundle_attrs, :name),
-        install_size: Map.fetch!(bundle_attrs, :install_size),
-        download_size: Map.get(bundle_attrs, :download_size),
-        git_branch: Map.get(bundle_attrs, :git_branch),
-        git_commit_sha: Map.get(bundle_attrs, :git_commit_sha),
-        git_ref: Map.get(bundle_attrs, :git_ref),
-        supported_platforms: bundle_attrs |> Map.fetch!(:supported_platforms) |> Enum.map(&as_string/1),
-        version: Map.fetch!(bundle_attrs, :version),
-        type: bundle_attrs |> Map.fetch!(:type) |> as_string(),
-        project_id: Map.fetch!(bundle_attrs, :project_id),
-        uploaded_by_account_id: Map.get(bundle_attrs, :uploaded_by_account_id),
-        inserted_at: timestamp,
-        updated_at: timestamp
-      }
-    ])
+    if changeset.valid? do
+      artifacts
+      |> flatten_artifacts(bundle_id, nil, timestamp)
+      |> insert_artifacts_to_clickhouse()
 
-    bundle =
-      from(b in Bundle, where: b.id == type(^bundle_id, Ecto.UUID))
-      |> ClickHouseRepo.one()
-      |> decode_bundle()
-      |> Repo.preload(preload)
+      IngestRepo.insert_all(Bundle, [bundle_row_from_changeset(changeset)])
 
-    {:ok, bundle}
+      bundle =
+        from(b in Bundle, where: b.id == type(^bundle_id, Ecto.UUID))
+        |> ClickHouseRepo.one()
+        |> decode_bundle()
+        |> Repo.preload(preload)
+
+      {:ok, bundle}
+    else
+      {:error, changeset}
+    end
+  end
+
+  defp bundle_row_from_changeset(changeset) do
+    changeset
+    |> Ecto.Changeset.apply_changes()
+    |> Map.from_struct()
+    |> Map.drop([:__meta__, :project, :uploaded_by_account, :artifacts])
   end
 
   defp insert_artifacts_to_clickhouse([]), do: :ok
@@ -72,12 +74,6 @@ defmodule Tuist.Bundles do
     IngestRepo.insert_all(Artifact, flattened)
     :ok
   end
-
-  # Internal callers (fixtures, tests) pass enum values as atoms; the
-  # API controller passes them as strings after OpenAPI casting. Accept
-  # both so the encode boundary doesn't have to care.
-  defp as_string(value) when is_atom(value), do: Atom.to_string(value)
-  defp as_string(value) when is_binary(value), do: value
 
   defp truncate_timestamp(nil), do: truncate_timestamp(DateTime.utc_now())
 

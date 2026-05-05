@@ -213,6 +213,51 @@ defmodule Tuist.BundlesTest do
         })
       end
     end
+
+    test "returns {:error, changeset} when the bundle type is invalid" do
+      # Given
+      project_id = ProjectsFixtures.project_fixture().id
+
+      # When
+      {:error, changeset} =
+        Bundles.create_bundle(%{
+          id: UUIDv7.generate(),
+          name: "App",
+          app_bundle_id: "dev.tuist.app",
+          install_size: 1024,
+          supported_platforms: [:ios],
+          version: "1.0.0",
+          type: :not_a_real_type,
+          project_id: project_id
+        })
+
+      # Then — the bundle is not persisted and the caller gets a
+      # changeset with the offending field flagged.
+      refute changeset.valid?
+      assert "is invalid" in errors_on(changeset).type
+    end
+
+    test "returns {:error, changeset} when supported_platforms contains an invalid entry" do
+      # Given
+      project_id = ProjectsFixtures.project_fixture().id
+
+      # When
+      {:error, changeset} =
+        Bundles.create_bundle(%{
+          id: UUIDv7.generate(),
+          name: "App",
+          app_bundle_id: "dev.tuist.app",
+          install_size: 1024,
+          supported_platforms: [:ios, :made_up_os],
+          version: "1.0.0",
+          type: :app,
+          project_id: project_id
+        })
+
+      # Then
+      refute changeset.valid?
+      assert "has an invalid entry" in errors_on(changeset).supported_platforms
+    end
   end
 
   describe "get_bundle/1" do
