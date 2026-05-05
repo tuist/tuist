@@ -5,6 +5,7 @@ defmodule Tuist.MCP.Components.Tools.ListTestCaseEvents do
 
   use Tuist.MCP.Tool,
     name: "list_test_case_events",
+    title: "List Test Case Events",
     schema: %{
       "type" => "object",
       "properties" => %{

@@ -19,6 +19,11 @@ defmodule Tuist.Docs.RedirectsTest do
                {:ok, "/en/docs/guides/features/cache"}
     end
 
+    test "redirects old SSO guide to authentication SSO guide" do
+      assert Redirects.resolve("/en/docs/guides/integrations/sso") ==
+               {:ok, "/en/docs/guides/integrations/authentication/sso"}
+    end
+
     test "preserves dynamic suffixes for example redirects" do
       assert Redirects.resolve("/en/docs/guides/examples/generated-projects/app_with_airship_sdk") ==
                {:ok, "/en/docs/references/examples/generated-projects/app_with_airship_sdk"}

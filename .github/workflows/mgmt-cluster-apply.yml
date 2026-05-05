@@ -1,0 +1,110 @@
+name: Mgmt Cluster Apply
+
+# Auto-applies CAPI manifests (ClusterClass + per-env Cluster CRs) and
+# mgmt-cluster workloads (etcd-snapshot CronJob, Tailscale daemon) to
+# our self-hosted CAPI mgmt cluster on push to main when the relevant
+# paths change.
+#
+# Why a workflow instead of Argo CD / Flux: the mgmt cluster has a tiny
+# manifest surface (one ClusterClass, four Cluster CRs, two mgmt-side
+# workloads) — drift detection / continuous reconciliation provided by
+# a long-running GitOps controller is overkill at this scale. A
+# push-driven CI apply gets us GitOps-style "the repo is the source of
+# truth" without the operational overhead of running another controller.
+# We can graduate to Argo CD later if the mgmt-cluster surface grows.
+#
+# Order matters: the ClusterClass is applied before the Cluster CRs
+# because the topology controller resolves `topology.classRef.name`
+# at admission time. Mgmt-side workloads (etcd-snapshot, tailscale)
+# are independent and applied last.
+#
+# Known limitation: KubeadmControlPlaneTemplate spec is immutable.
+# When the ClusterClass changes anything in the KCT, kubectl apply
+# fails with "field is immutable, please create new resource instead".
+# This workflow surfaces that as a failure — operator must
+# `kubectl delete kubeadmcontrolplanetemplate tuist-hcloud-control-plane`
+# manually, then re-run this workflow. Intentional: that operation
+# also requires deleting + recreating each Cluster CR, which is too
+# destructive to automate.
+#
+# Required secrets (on the mgmt-cluster-apply GitHub Environment):
+#   OP_SERVICE_ACCOUNT_TOKEN - 1Password SA scoped read-only to the
+#     tuist-k8s-mgmt vault, where the mgmt cluster's kubeconfig is
+#     stored as `kubeconfig: tuist-mgmt`.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'infra/k8s/clusters/**'
+      - 'infra/k8s/mgmt/etcd-snapshot.yaml'
+      - 'infra/k8s/mgmt/tailscale.yaml'
+      - '.github/workflows/mgmt-cluster-apply.yml'
+  workflow_dispatch:
+
+# Serialize: don't let two pushes apply concurrently and race.
+concurrency:
+  group: mgmt-cluster-apply
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  apply:
+    name: kubectl apply
+    runs-on: namespace-profile-default
+    environment:
+      name: mgmt-cluster-apply
+    timeout-minutes: 10
+    env:
+      KUBECONFIG: ${{ github.workspace }}/.kube/config
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          install_args: "kubectl"
+          cache: "false"
+      - uses: 1password/install-cli-action@v2
+      - name: Load mgmt kubeconfig from 1Password
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          mkdir -p "$(dirname "$KUBECONFIG")"
+          op document get "kubeconfig: tuist-mgmt" --vault tuist-k8s-mgmt --output "$KUBECONFIG"
+          chmod 600 "$KUBECONFIG"
+      - name: Diff (visibility into what's about to change)
+        # `kubectl diff` exits non-zero when there's a diff, which is
+        # the expected case here, so don't fail the step on that.
+        # The actual gate is the apply step below.
+        continue-on-error: true
+        run: |
+          set +e
+          echo "::group::ClusterClass diff"
+          kubectl diff -f infra/k8s/clusters/clusterclass-tuist.yaml || true
+          echo "::endgroup::"
+          for f in infra/k8s/clusters/cluster-*.yaml; do
+            echo "::group::$(basename "$f") diff"
+            kubectl diff -f "$f" || true
+            echo "::endgroup::"
+          done
+          echo "::group::etcd-snapshot.yaml diff"
+          kubectl diff -f infra/k8s/mgmt/etcd-snapshot.yaml || true
+          echo "::endgroup::"
+          echo "::group::tailscale.yaml diff"
+          kubectl diff -f infra/k8s/mgmt/tailscale.yaml || true
+          echo "::endgroup::"
+      - name: Apply ClusterClass first (Cluster CRs reference it)
+        run: |
+          kubectl apply -f infra/k8s/clusters/clusterclass-tuist.yaml
+      - name: Apply per-env Cluster CRs
+        run: |
+          for f in infra/k8s/clusters/cluster-*.yaml; do
+            echo "==> $f"
+            kubectl apply -f "$f"
+          done
+      - name: Apply mgmt-side workloads
+        # These are mgmt-cluster Deployments / CronJobs, not Cluster
+        # CRs. Independent of the CAPI manifests above.
+        run: |
+          kubectl apply -f infra/k8s/mgmt/etcd-snapshot.yaml
+          kubectl apply -f infra/k8s/mgmt/tailscale.yaml

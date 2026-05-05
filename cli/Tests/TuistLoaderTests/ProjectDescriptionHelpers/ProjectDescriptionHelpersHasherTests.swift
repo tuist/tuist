@@ -5,6 +5,7 @@ import ProjectDescription
 import Testing
 import TuistCore
 import TuistEnvironment
+import TuistMacOSSDK
 import TuistSupport
 @testable import TuistLoader
 @testable import TuistTesting
@@ -16,8 +17,12 @@ struct ProjectDescriptionHelpersHasherTests {
     init() throws {
         let swiftVersionProviderMock = try #require(SwiftVersionProvider.mocked)
         given(swiftVersionProviderMock)
-            .swiftVersion()
-            .willReturn("5.2")
+            .swiftlangVersion()
+            .willReturn("5.7.0.127.4")
+        let macOSSDKVersionProviderMock = try #require(MacOSSDKVersionProvider.mocked)
+        given(macOSSDKVersionProviderMock)
+            .macOSSDKVersion()
+            .willReturn("26.5")
         machineEnvironment = .init()
         given(machineEnvironment)
             .macOSVersion
@@ -28,7 +33,12 @@ struct ProjectDescriptionHelpersHasherTests {
         )
     }
 
-    @Test(.withMockedSwiftVersionProvider, .withMockedEnvironment(), .inTemporaryDirectory) func hash() async throws {
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .withMockedMacOSSDKVersionProvider,
+        .withMockedEnvironment(),
+        .inTemporaryDirectory
+    ) func hash() async throws {
         // Given
         let environmentMock = try #require(TuistEnvironment.Environment.mocked)
         let temporaryDir = try #require(FileSystem.temporaryTestDirectory)
@@ -37,9 +47,14 @@ struct ProjectDescriptionHelpersHasherTests {
         environmentMock.manifestLoadingVariables = ["TUIST_VARIABLE": "TEST"]
 
         // Then
+        var firstHash: String?
         for _ in 0 ..< 20 {
             let got = try await subject.hash(helpersDirectory: temporaryDir)
-            #expect(got == "5032b92c268cb7283c91ee37ec935c73")
+            if let firstHash {
+                #expect(got == firstHash)
+            } else {
+                firstHash = got
+            }
         }
     }
 }

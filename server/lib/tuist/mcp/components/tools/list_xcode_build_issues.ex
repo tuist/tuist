@@ -5,6 +5,7 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeBuildIssues do
 
   use Tuist.MCP.Tool,
     name: "list_xcode_build_issues",
+    title: "List Xcode Build Issues",
     schema: %{
       "type" => "object",
       "properties" => %{

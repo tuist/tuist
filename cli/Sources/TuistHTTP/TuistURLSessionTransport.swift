@@ -1,6 +1,7 @@
 import Foundation
 import HTTPTypes
 import OpenAPIRuntime
+import TuistLogging
 
 #if canImport(FoundationNetworking)
     import FoundationNetworking
@@ -51,6 +52,19 @@ public struct TuistURLSessionTransport: ClientTransport {
 
         let responseHeaders = buildHTTPFields(from: httpResponse)
         let httpResponseObj = HTTPResponse(status: .init(code: httpResponse.statusCode), headerFields: responseHeaders)
+
+        if httpResponse.statusCode >= 400 {
+            Logger.current.error(
+                """
+                Received HTTP error response. Status: \(httpResponse.statusCode), method: \(request.method.rawValue), \
+                baseURL: \(baseURL.absoluteString), path: \(request.path ?? ""), \
+                requestID: \(request.requestID ?? "unknown"), \
+                responseRequestID: \(httpResponse.requestID ?? "unknown"), \
+                contentType: \(httpResponse.value(forHTTPHeaderField: "content-type") ?? "unknown"), \
+                contentLength: \(httpResponse.value(forHTTPHeaderField: "content-length") ?? "unknown")
+                """
+            )
+        }
 
         let responseBody: HTTPBody? = data.isEmpty ? nil : HTTPBody(data)
 

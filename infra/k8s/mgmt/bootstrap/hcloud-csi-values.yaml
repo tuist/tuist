@@ -1,0 +1,42 @@
+# hcloud-csi-driver values.
+# Installed for parity with the existing Syself-managed clusters even
+# though no PVCs exist on any workload cluster today (Tigris is the
+# object store; Postgres is on Supabase). Future-proofs the cluster
+# so a new workload that wants a PVC just gets one.
+#
+# Expects the `hetzner` Secret in kube-system with key `hcloud`
+# (same Secret HCCM uses).
+
+# Default StorageClass uses Hetzner volumes (block storage in fsn1).
+storageClasses:
+  - name: hcloud-volumes
+    defaultStorageClass: true
+    reclaimPolicy: Retain  # safer default — let the operator garbage-collect explicitly
+    # Volume binding deferred so PVCs follow the pod placement.
+    volumeBindingMode: WaitForFirstConsumer
+
+controller:
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      memory: 128Mi
+
+node:
+  # CSI driver needs to reach Hetzner's instance metadata service at
+  # 169.254.169.254 (link-local) on startup to determine the volume
+  # location. That address isn't reachable from pod-network namespaces
+  # under Cilium with bpf-masquerade; hostNetwork=true puts the
+  # node pod in the host's namespace where the metadata service is
+  # directly reachable. Default in the chart is false, which leads
+  # to a CrashLoopBackOff with "context deadline exceeded" trying to
+  # GET /hetzner/v1/metadata/availability-zone.
+  hostNetwork: true
+  resources:
+    requests:
+      cpu: 25m
+      memory: 32Mi
+    limits:
+      memory: 64Mi

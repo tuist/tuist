@@ -54,9 +54,9 @@
               @selected_account
             ) == :ok
         }
-        label={dgettext("dashboard", "SSO")}
-        selected={@selected_tab == "sso"}
-        navigate={~p"/#{@selected_account.name}/sso"}
+        label={dgettext("dashboard", "Authentication")}
+        selected={@selected_tab == "authentication"}
+        navigate={~p"/#{@selected_account.name}/authentication"}
       />
       <.tab_menu_horizontal_item
         :if={

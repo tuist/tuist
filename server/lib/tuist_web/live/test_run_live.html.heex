@@ -34,9 +34,9 @@
             <.circle_dashed />
           </div>
         </div>
-        <div :if={@run.status == "failed_processing"} data-part="badge-failure">
+        <div :if={@run.status == "failed_processing"} data-part="badge-warning">
           <div data-part="icon">
-            <.alert_circle />
+            <.alert_hexagon />
           </div>
         </div>
         <div :if={@run.status == "skipped"} data-part="badge-warning">
@@ -243,6 +243,13 @@
               <.badge
                 :if={@run.status == "skipped"}
                 label={dgettext("dashboard_tests", "Skipped")}
+                color="warning"
+                style="fill"
+                size="large"
+              />
+              <.badge
+                :if={@run.status == "failed_processing"}
+                label={dgettext("dashboard_tests", "Failed processing")}
                 color="warning"
                 style="fill"
                 size="large"

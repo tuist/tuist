@@ -5,6 +5,7 @@ defmodule Tuist.MCP.Components.Tools.GetBundleArtifactTree do
 
   use Tuist.MCP.Tool,
     name: "get_bundle_artifact_tree",
+    title: "Get App Bundle Artifact Tree",
     schema: %{
       "type" => "object",
       "properties" => %{

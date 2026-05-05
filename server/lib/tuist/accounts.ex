@@ -1274,10 +1274,15 @@ defmodule Tuist.Accounts do
       Repo.one(from(u in User, where: u.email == ^email, preload: [:account]))
 
     if User.valid_password?(user, password) do
-      if is_nil(user.confirmed_at) do
-        {:error, :not_confirmed}
-      else
-        {:ok, user}
+      cond do
+        is_nil(user.confirmed_at) ->
+          {:error, :not_confirmed}
+
+        not user.active ->
+          {:error, :invalid_email_or_password}
+
+        true ->
+          {:ok, user}
       end
     else
       {:error, :invalid_email_or_password}
@@ -1366,9 +1371,10 @@ defmodule Tuist.Accounts do
     preload = Keyword.get(opts, :preload, [])
     {:ok, query} = UserToken.verify_session_token_query(token)
 
-    query
-    |> Repo.one()
-    |> Repo.preload(preload)
+    case query |> Repo.one() |> Repo.preload(preload) do
+      %User{active: false} -> nil
+      user -> user
+    end
   end
 
   @doc """
@@ -1600,17 +1606,32 @@ defmodule Tuist.Accounts do
              |> Repo.one()
              |> Repo.preload(preload),
            false <- account_token_expired?(token),
+           :ok <- reject_inactive_account_token_users(token),
            true <- verify_pass(token, token_hash) do
         {:ok, token}
       else
         nil -> {:error, :not_found}
         true -> {:error, :expired}
+        {:error, :inactive_user} -> {:error, :inactive_user}
         _ -> {:error, :invalid_token}
       end
     else
       {:error, :invalid_token}
     end
   end
+
+  defp reject_inactive_account_token_users(%AccountToken{} = token) do
+    token = Repo.preload(token, account: :user, created_by_account: :user)
+
+    if account_user_inactive?(token.account) or account_user_inactive?(token.created_by_account) do
+      {:error, :inactive_user}
+    else
+      :ok
+    end
+  end
+
+  defp account_user_inactive?(%Account{user: %User{active: false}}), do: true
+  defp account_user_inactive?(_account), do: false
 
   @doc """
   Lists account tokens for a given account with pagination support via Flop.

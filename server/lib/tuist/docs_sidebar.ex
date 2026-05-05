@@ -343,7 +343,19 @@ defmodule Tuist.Docs.Sidebar do
             slug: "/en/guides/integrations/continuous-integration"
           },
           %Item{label: "HTTP proxy", slug: "/en/guides/integrations/http-proxy"},
-          %Item{label: "SSO", slug: "/en/guides/integrations/sso"},
+          %Item{
+            label: "Authentication",
+            items: [
+              %Item{
+                label: "Single Sign-On",
+                slug: "/en/guides/integrations/authentication/sso"
+              },
+              %Item{
+                label: "SCIM provisioning",
+                slug: "/en/guides/integrations/authentication/scim"
+              }
+            ]
+          },
           %Item{label: "Slack", slug: "/en/guides/integrations/slack"},
           %Item{
             label: "Git forges",

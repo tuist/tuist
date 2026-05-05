@@ -22,6 +22,6 @@ dependencies:
     repository: https://kubernetes-sigs.github.io/external-dns
     condition: external-dns.enabled
   - name: external-secrets
-    version: 0.10.4
+    version: 2.3.0  # matches Apalla on the existing workload clusters; ships ESO with the onepasswordSDK provider (added in 0.13+)
     repository: https://charts.external-secrets.io
     condition: external-secrets.enabled

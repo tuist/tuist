@@ -5,6 +5,7 @@ defmodule Tuist.MCP.Components.Tools.ListGenerations do
 
   use Tuist.MCP.Tool,
     name: "list_generations",
+    title: "List Project Generations",
     authorize: [action: :read, category: :run],
     schema: %{
       "type" => "object",

@@ -21,7 +21,7 @@ extension SynthesizedResourceInterfaceTemplates {
       {% set rootType %}{% call typeBlock document.metadata %}{% endset %}
       {%- set containsAny %}{%- call typesContainAny document.metadata -%}{% endset %}
       {% if document.metadata.type == "Array" %}
-      {{accessModifier}} {% if containsAny %}nonisolated(unsafe) {%+ endif %}static let items: {{rootType}} = {%+ call valueBlock document.data document.metadata +%}
+      {{accessModifier}} {%+ if containsAny %}nonisolated(unsafe) {%+ endif %}static let items: {{rootType}} = {%+ call valueBlock document.data document.metadata +%}
       {% elif document.metadata.type == "Dictionary" %}
       {% for key,value in document.metadata.properties %}
       {{accessModifier}} {%+ call propertyBlock key value document.data %}

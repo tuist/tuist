@@ -1,0 +1,7 @@
+[tools]
+    aube = "1.6.2"
+    node = "22.12.0"
+    "npm:wrangler" = "4.40.3"
+
+[hooks]
+    postinstall = "mise run install"
