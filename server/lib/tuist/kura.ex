@@ -315,7 +315,10 @@ defmodule Tuist.Kura do
            with {:ok, server} <-
                   server |> Server.status_changeset(%{status: :destroying}) |> Repo.update(),
                 :ok <- remove_cache_endpoint(server),
-                {:ok, _} <- %{server_id: server.id} |> DestroyServerWorker.new() |> Oban.insert() do
+                {:ok, _} <-
+                  %{server_id: server.id, account_id: server.account_id}
+                  |> DestroyServerWorker.new()
+                  |> Oban.insert() do
              server
            else
              {:error, reason} -> Repo.rollback(reason)
