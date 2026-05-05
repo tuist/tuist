@@ -1,0 +1,7 @@
+node_modules/
+dist/
+.wrangler/
+aube-lock.yaml
+src/views/icons.ts
+src/views/logo.ts
+src/views/noora-css.ts

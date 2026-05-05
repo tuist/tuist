@@ -427,32 +427,32 @@ url = "https://github.com/realm/SwiftLint/releases/download/0.59.1/portable_swif
 url = "https://github.com/realm/SwiftLint/releases/download/0.59.1/portable_swiftlint.zip"
 
 [[tools.tuist]]
-version = "4.191.7"
+version = "4.191.8"
 backend = "aqua:tuist/tuist"
 
 [tools.tuist."platforms.linux-arm64"]
-checksum = "sha256:1aa34f9eee138ba42cba7b0d2dbae6addabfa7404a05ae28456d1148b847686c"
-url = "https://github.com/tuist/tuist/releases/download/4.191.7/tuist-linux-aarch64.tar.gz"
+checksum = "sha256:c8b50a4bb2e1ee67512c6664766e8e9bb4a5cfca6cdd6b5785b1ddf59b28aaee"
+url = "https://github.com/tuist/tuist/releases/download/4.191.8/tuist-linux-aarch64.tar.gz"
 
 [tools.tuist."platforms.linux-arm64-musl"]
-checksum = "sha256:1aa34f9eee138ba42cba7b0d2dbae6addabfa7404a05ae28456d1148b847686c"
-url = "https://github.com/tuist/tuist/releases/download/4.191.7/tuist-linux-aarch64.tar.gz"
+checksum = "sha256:c8b50a4bb2e1ee67512c6664766e8e9bb4a5cfca6cdd6b5785b1ddf59b28aaee"
+url = "https://github.com/tuist/tuist/releases/download/4.191.8/tuist-linux-aarch64.tar.gz"
 
 [tools.tuist."platforms.linux-x64"]
-checksum = "sha256:7d2bca649315dfd7fd93494696b3ca7b5f25d104566c79bea8928c7da31df00e"
-url = "https://github.com/tuist/tuist/releases/download/4.191.7/tuist-linux-x86_64.tar.gz"
+checksum = "sha256:714fab4c5a1fc97e537d71d099f3548054060544e6c6b16d6e923a29304620ed"
+url = "https://github.com/tuist/tuist/releases/download/4.191.8/tuist-linux-x86_64.tar.gz"
 
 [tools.tuist."platforms.linux-x64-musl"]
-checksum = "sha256:7d2bca649315dfd7fd93494696b3ca7b5f25d104566c79bea8928c7da31df00e"
-url = "https://github.com/tuist/tuist/releases/download/4.191.7/tuist-linux-x86_64.tar.gz"
+checksum = "sha256:714fab4c5a1fc97e537d71d099f3548054060544e6c6b16d6e923a29304620ed"
+url = "https://github.com/tuist/tuist/releases/download/4.191.8/tuist-linux-x86_64.tar.gz"
 
 [tools.tuist."platforms.macos-arm64"]
-checksum = "sha256:80536a33d2c4aa160bbdecce2ef68d935c658703decb08265fb41bb6a308e1cf"
-url = "https://github.com/tuist/tuist/releases/download/4.191.7/tuist.zip"
+checksum = "sha256:0bd2ca2bf8e0d59d88145628acc710f8ac2dcd86087d8c1d0cc9702d7d7d0b5e"
+url = "https://github.com/tuist/tuist/releases/download/4.191.8/tuist.zip"
 
 [tools.tuist."platforms.macos-x64"]
-checksum = "sha256:80536a33d2c4aa160bbdecce2ef68d935c658703decb08265fb41bb6a308e1cf"
-url = "https://github.com/tuist/tuist/releases/download/4.191.7/tuist.zip"
+checksum = "sha256:0bd2ca2bf8e0d59d88145628acc710f8ac2dcd86087d8c1d0cc9702d7d7d0b5e"
+url = "https://github.com/tuist/tuist/releases/download/4.191.8/tuist.zip"
 
 [[tools.yq]]
 version = "4.52.5"

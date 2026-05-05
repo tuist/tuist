@@ -5,6 +5,7 @@ defmodule Tuist.MCP.Components.Tools.GetTestRun do
 
   use Tuist.MCP.Tool,
     name: "get_test_run",
+    title: "Get Test Run",
     schema: %{
       "type" => "object",
       "properties" => %{
