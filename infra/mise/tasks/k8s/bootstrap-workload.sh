@@ -227,28 +227,30 @@ KUBECONFIG="$WL_KUBECONFIG" helm upgrade --install k8s-monitoring "$REPO_ROOT/in
   --wait --timeout 5m || echo "WARN: monitoring chart didn't go Ready in 5min; continuing (not blocking the cluster)"
 
 # ---------------------------------------------------------------------------
-log "Step 10/11: install the tuist app chart"
+log "Step 10/11: pre-create the app namespace (CI deploys the app itself)"
 
-# tuist-staging is the namespace the existing chart expects.
+# The bootstrap script intentionally does NOT install the tuist app
+# chart. Real Tuist server deploys go through `server-deployment.yml`
+# in CI: it builds the server image tagged by commit SHA, pushes to
+# ghcr.io, then `helm upgrade --set image.tag=<sha>`. The chart's
+# `appVersion` is a placeholder, not a real image with the encrypted
+# secrets file baked in — installing it from here would just produce
+# a CrashLoopBackOff.
+#
+# We only pre-create the namespace + the ESO-synced server-master-key
+# Secret (already wired by the platform / common values) so CI's
+# first deploy doesn't have to bootstrap its own namespace.
 APP_NAMESPACE="tuist-${ENV}"
 KUBECONFIG="$WL_KUBECONFIG" kubectl create namespace "$APP_NAMESPACE" --dry-run=client -o yaml | \
   KUBECONFIG="$WL_KUBECONFIG" kubectl apply -f -
-
-helm dependency update "$REPO_ROOT/infra/helm/tuist" >/dev/null
-
-KUBECONFIG="$WL_KUBECONFIG" helm upgrade --install tuist "$REPO_ROOT/infra/helm/tuist" \
-  --namespace "$APP_NAMESPACE" \
-  -f "$REPO_ROOT/infra/helm/tuist/values-managed-common.yaml" \
-  -f "$REPO_ROOT/infra/helm/tuist/values-managed-${ENV}.yaml" \
-  --wait --timeout 10m
 
 # ---------------------------------------------------------------------------
 log "Step 11/11: report ingress LB IP (DNS cut target)"
 
 # Wait for HCCM to provision the LB and write the IP back.
 for i in $(seq 1 60); do
-  LB_IP=$(KUBECONFIG="$WL_KUBECONFIG" kubectl -n ingress-nginx get svc ingress-nginx-controller \
-    -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || true)
+  LB_IP=$(KUBECONFIG="$WL_KUBECONFIG" kubectl -n platform get svc -l app.kubernetes.io/name=ingress-nginx \
+    -o jsonpath='{.items[0].status.loadBalancer.ingress[0].ip}' 2>/dev/null || true)
   if [ -n "$LB_IP" ]; then
     break
   fi
