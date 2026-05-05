@@ -1714,8 +1714,17 @@ defmodule Tuist.Tests do
           module_name: test_case.module_name,
           suite_name: test_case.suite_name,
           flaky_runs_count: coalesce(stats.flaky_runs_count, 0),
-          last_flaky_at: stats.last_flaky_at,
-          last_flaky_run_id: stats.last_flaky_run_id
+          # ClickHouse's LEFT JOIN fills missing rows with each type's
+          # zero value rather than NULL. `nullIf` collapses those zero
+          # sentinels back to NULL so the consumer doesn't render
+          # `1970-01-01` / `00000000-…` for stale-flagged tests.
+          last_flaky_at:
+            fragment("nullIf(?, toDateTime64(0, 6))", stats.last_flaky_at),
+          last_flaky_run_id:
+            fragment(
+              "nullIf(?, toUUID('00000000-0000-0000-0000-000000000000'))",
+              stats.last_flaky_run_id
+            )
         }
       )
 

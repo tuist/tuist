@@ -99,35 +99,38 @@ defmodule TuistWeb.FlakyTestsLiveTest do
       assert has_element?(lv, "[data-part='flaky-tests']")
     end
 
-    test "filters flaky tests table by environment", %{
+    test "renders all currently-flagged tests regardless of the environment filter", %{
       conn: conn,
       organization: organization,
       project: project
     } do
-      # Given
+      # The environment filter scopes the per-row stats (flaky_runs_count,
+      # last_flaky_at), not membership — otherwise the list silently drops
+      # currently-flagged tests whose flaky runs sit in the other env, and
+      # the count diverges from the analytics card.
       recent = NaiveDateTime.add(NaiveDateTime.utc_now(), -60)
       create_flaky_test_case(project, "testCIFlaky", is_ci: true, ran_at: recent)
       create_flaky_test_case(project, "testLocalFlaky", is_ci: false, ran_at: recent)
       RunsFixtures.optimize_test_case_runs()
 
-      # When - filter by CI environment
       {:ok, lv, _html} =
         live(
           conn,
           ~p"/#{organization.account.name}/#{project.name}/tests/flaky-tests?analytics-environment=ci"
         )
 
-      # Then
       assert has_element?(lv, "#flaky-tests-table", "testCIFlaky")
-      refute has_element?(lv, "#flaky-tests-table", "testLocalFlaky")
+      assert has_element?(lv, "#flaky-tests-table", "testLocalFlaky")
     end
 
-    test "filters flaky tests table by time range", %{
+    test "renders all currently-flagged tests regardless of the time-range filter", %{
       conn: conn,
       organization: organization,
       project: project
     } do
-      # Given
+      # Same invariant: the date range scopes the stats columns; the list
+      # itself shows every currently-flagged test, including ones whose
+      # flaky runs predate the window.
       recent = NaiveDateTime.add(NaiveDateTime.utc_now(), -60)
       create_flaky_test_case(project, "testRecentFlaky", ran_at: recent)
 
@@ -135,16 +138,14 @@ defmodule TuistWeb.FlakyTestsLiveTest do
       create_flaky_test_case(project, "testOldFlaky", ran_at: old_datetime)
       RunsFixtures.optimize_test_case_runs()
 
-      # When - use default 30-day range
       {:ok, lv, _html} =
         live(
           conn,
           ~p"/#{organization.account.name}/#{project.name}/tests/flaky-tests?analytics-date-range=last-30-days"
         )
 
-      # Then
       assert has_element?(lv, "#flaky-tests-table", "testRecentFlaky")
-      refute has_element?(lv, "#flaky-tests-table", "testOldFlaky")
+      assert has_element?(lv, "#flaky-tests-table", "testOldFlaky")
     end
 
     test "renders flaky test cases, test case runs, and test runs widgets", %{

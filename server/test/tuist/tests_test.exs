@@ -4700,10 +4700,10 @@ defmodule Tuist.TestsTest do
       old = Enum.find(results, &(&1.name == "oldFlaky"))
 
       assert recent.flaky_runs_count >= 1
-      assert recent.last_flaky_at != nil
+      assert recent.last_flaky_at
 
       assert old.flaky_runs_count == 0
-      assert old.last_flaky_at == nil
+      refute old.last_flaky_at
 
       {all_results, all_meta} = Tests.list_flaky_test_cases(project.id, %{})
 
@@ -4772,7 +4772,7 @@ defmodule Tuist.TestsTest do
       no_ci_only = hd(no_ci_results)
       assert no_ci_only.name == "ciFlaky"
       assert no_ci_only.flaky_runs_count == 0
-      assert no_ci_only.last_flaky_at == nil
+      refute no_ci_only.last_flaky_at
     end
 
     test "scopes flaky-run stats by combined time range and environment filters" do
