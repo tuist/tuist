@@ -194,6 +194,13 @@ log "Step 8/11: wire ESO -> 1Password for the per-env vault"
 
 OP_TOKEN=$(op read --account tuist.1password.com "op://Founders/${OP_TOKEN_ID}/credential")
 
+# Wait for ESO's ClusterSecretStore CRD to be Established. The platform
+# chart installs ESO and its CRDs are registered through the chart's
+# templates rather than `crds/`, so they may not be visible to kubectl
+# apply immediately even though `helm upgrade --wait` returned.
+KUBECONFIG="$WL_KUBECONFIG" kubectl wait --for=condition=Established \
+  crd/clustersecretstores.external-secrets.io --timeout=2m
+
 # Apply namespace + ClusterSecretStore (vault name templated).
 VAULT_NAME="$VAULT_NAME" envsubst < "$BOOTSTRAP_DIR/onepassword-secretstore.yaml" | \
   KUBECONFIG="$WL_KUBECONFIG" kubectl apply -f -
