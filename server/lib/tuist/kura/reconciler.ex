@@ -68,6 +68,11 @@ defmodule Tuist.Kura.Reconciler do
   defp oban_job_state(nil), do: :orphaned
 
   defp oban_job_state(job_id) do
+    # Intentional cross-tenant lookup: the reconciler runs as a
+    # background job to detect orphaned deployments after a web-process
+    # crash, and Oban jobs aren't account-scoped to begin with. The
+    # deployment row carrying job_id is already account-owned, so
+    # there's no leak: we only act on rows the caller already loaded.
     case Repo.get(Oban.Job, job_id) do
       nil -> :orphaned
       %Oban.Job{state: state} when state in @terminal_oban_states -> :orphaned
