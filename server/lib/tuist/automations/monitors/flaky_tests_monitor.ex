@@ -194,11 +194,12 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
     )
   end
 
+  # `Alert.changeset/2` constrains `trigger_config.window` to `Nd`, so we
+  # only need to handle day-suffixed strings here. Non-matching values fall
+  # back to the default 30 days for legacy/garbage data.
   defp parse_window(window) when is_binary(window) do
     case Integer.parse(window) do
-      {value, "d"} -> value * 86_400
-      {value, "h"} -> value * 3600
-      {value, "m"} -> value * 60
+      {value, "d"} when value > 0 -> value * 86_400
       _ -> 30 * 86_400
     end
   end

@@ -139,8 +139,8 @@ defmodule Tuist.Automations.Alerts.Alert do
       !is_number(threshold) or threshold <= 0 or threshold > 100 ->
         add_error(changeset, :trigger_config, "threshold must be a number between 0 and 100")
 
-      !is_binary(window) ->
-        add_error(changeset, :trigger_config, "window must be a string like '30d'")
+      !valid_window?(window) ->
+        add_error(changeset, :trigger_config, "window must be a string like '30d' (day-level only)")
 
       true ->
         changeset
@@ -155,11 +155,18 @@ defmodule Tuist.Automations.Alerts.Alert do
       !is_integer(threshold) or threshold <= 0 ->
         add_error(changeset, :trigger_config, "threshold must be a positive integer")
 
-      !is_binary(window) ->
-        add_error(changeset, :trigger_config, "window must be a string like '30d'")
+      !valid_window?(window) ->
+        add_error(changeset, :trigger_config, "window must be a string like '30d' (day-level only)")
 
       true ->
         changeset
     end
   end
+
+  # The flaky-test monitor evaluates against a per-day-aggregated MV, so
+  # sub-day windows would silently round to a full day and look broken.
+  # Constrain `trigger_config.window` to day-level (`Nd`) up front so users
+  # don't think `1h` / `5m` are honored.
+  defp valid_window?(window) when is_binary(window), do: Regex.match?(~r/^[1-9]\d*d$/, window)
+  defp valid_window?(_), do: false
 end

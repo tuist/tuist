@@ -69,7 +69,6 @@ defmodule TuistWeb.ProjectAutomationsLive do
   end
 
   @comparisons ~w(gte gt lt lte)
-  @below_comparisons ~w(lt lte)
 
   # Only varies by metric — switching comparison keeps whatever the user has
   # typed, since "% < 5" and "% >= 5" are both reasonable starting points and
@@ -488,12 +487,10 @@ defmodule TuistWeb.ProjectAutomationsLive do
     threshold = format_threshold(trigger_config["threshold"] || 0)
     window = trigger_config["window"] || "30d"
     symbol = comparison_symbol(parse_comparison(trigger_config["comparison"]))
-    scope = scope_phrase(parse_comparison(trigger_config["comparison"]))
 
     dgettext(
       "dashboard_projects",
-      "When %{scope}flakiness rate %{symbol} %{threshold}% over %{window}",
-      scope: scope,
+      "When flakiness rate %{symbol} %{threshold}% over %{window}",
       symbol: symbol,
       threshold: threshold,
       window: window
@@ -504,12 +501,10 @@ defmodule TuistWeb.ProjectAutomationsLive do
     threshold = format_threshold(trigger_config["threshold"] || 0)
     window = trigger_config["window"] || "30d"
     symbol = comparison_symbol(parse_comparison(trigger_config["comparison"]))
-    scope = scope_phrase(parse_comparison(trigger_config["comparison"]))
 
     dgettext(
       "dashboard_projects",
-      "When %{scope}flaky runs %{symbol} %{threshold} over %{window}",
-      scope: scope,
+      "When flaky runs %{symbol} %{threshold} over %{window}",
       symbol: symbol,
       threshold: threshold,
       window: window
@@ -517,11 +512,6 @@ defmodule TuistWeb.ProjectAutomationsLive do
   end
 
   def automation_summary(_), do: ""
-
-  defp scope_phrase(comparison) when comparison in @below_comparisons,
-    do: dgettext("dashboard_projects", "a flaky-marked test's ")
-
-  defp scope_phrase(_), do: ""
 
   defp format_threshold(n) when is_float(n) and trunc(n) == n, do: trunc(n)
   defp format_threshold(n), do: n

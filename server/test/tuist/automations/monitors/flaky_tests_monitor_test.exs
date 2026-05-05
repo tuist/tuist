@@ -30,7 +30,7 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitorTest do
         AutomationsFixtures.automation_alert_fixture(
           project: project,
           monitor_type: "flakiness_rate",
-          trigger_config: %{"threshold" => 5, "window" => "1h", "comparison" => "lt"}
+          trigger_config: %{"threshold" => 5, "window" => "1d", "comparison" => "lt"}
         )
 
       # The test case has 1 run, 0 flaky → rate = 0%, below 5%. The fact that
@@ -40,34 +40,22 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitorTest do
       assert triggered_id == test_case.id
     end
 
-    test "skips test cases with no runs in the window (no measurement to compare)" do
+    test "skips test cases with no runs at all (no measurement to compare)" do
       project = ProjectsFixtures.project_fixture()
 
-      {:ok, _run} =
-        RunsFixtures.test_fixture(
-          project_id: project.id,
-          test_modules: [
-            %{
-              name: "M",
-              status: "success",
-              duration: 1000,
-              test_cases: [%{name: "abandoned", status: "success", duration: 100}]
-            }
-          ]
-        )
+      # A TestCase row exists but no TestCaseRun: the MV has nothing to
+      # aggregate for it, so the GROUP BY excludes it entirely.
+      orphan_id = UUIDv7.generate()
+      RunsFixtures.test_case_fixture(project_id: project.id, id: orphan_id, name: "no_runs")
 
       alert =
         AutomationsFixtures.automation_alert_fixture(
           project: project,
           monitor_type: "flakiness_rate",
-          trigger_config: %{"threshold" => 5, "window" => "1m", "comparison" => "lt"}
+          trigger_config: %{"threshold" => 5, "window" => "30d", "comparison" => "lt"}
         )
 
-      # Window is 1 minute and the run was inserted "now-ish" by the fixture;
-      # the test asserts the simpler property that tests with no in-window
-      # rows aren't returned. To make that bullet-proof we'd freeze time —
-      # for now, the rate-meets-threshold case below covers the negative.
-      _ = FlakyTestsMonitor.evaluate(alert)
+      refute orphan_id in FlakyTestsMonitor.evaluate(alert).triggered
     end
 
     test "skips test cases whose rate meets the threshold" do
