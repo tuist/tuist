@@ -5,7 +5,6 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
   alias Tuist.Automations
   alias Tuist.Automations.ActionExecutor
   alias Tuist.Automations.Monitors.FlakyTestsMonitor
-  alias Tuist.Tests
 
   require Logger
 
@@ -25,37 +24,39 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
   end
 
   defp evaluate_and_execute(alert) do
-    %{triggered: triggered_ids, all: all_ids} = evaluate_monitor(alert)
+    %{triggered: triggered_ids, flagged: flagged_ids} = evaluate_monitor(alert)
     active_events = Automations.list_active_alert_events(alert.id)
     already_triggered_ids = MapSet.new(active_events, & &1.test_case_id)
 
     newly_triggered = Enum.reject(triggered_ids, &MapSet.member?(already_triggered_ids, &1))
 
-    Enum.each(newly_triggered, fn test_case_id ->
-      entity = %{type: :test_case, id: test_case_id}
-
-      case ActionExecutor.execute_actions(alert.trigger_actions, alert, entity) do
-        :ok ->
-          Automations.create_alert_event(%{
-            alert_id: alert.id,
-            test_case_id: test_case_id,
-            status: "triggered",
-            triggered_at: NaiveDateTime.utc_now()
-          })
-
-        {:error, reason} ->
-          Logger.error("Alert #{alert.id} trigger actions failed for test_case #{test_case_id}: #{inspect(reason)}")
-      end
-    end)
+    Enum.each(newly_triggered, &trigger_for(alert, &1))
 
     if alert.recovery_enabled do
-      handle_recovery(alert, triggered_ids, active_events, all_ids)
+      handle_recovery(alert, triggered_ids, active_events, flagged_ids)
     end
 
     :ok
   end
 
-  defp handle_recovery(alert, currently_triggered_ids, active_events, _all_ids) do
+  defp trigger_for(alert, test_case_id) do
+    entity = %{type: :test_case, id: test_case_id}
+
+    case ActionExecutor.execute_actions(alert.trigger_actions, alert, entity) do
+      :ok ->
+        Automations.create_alert_event(%{
+          alert_id: alert.id,
+          test_case_id: test_case_id,
+          status: "triggered",
+          triggered_at: NaiveDateTime.utc_now()
+        })
+
+      {:error, reason} ->
+        Logger.error("Alert #{alert.id} trigger actions failed for test_case #{test_case_id}: #{inspect(reason)}")
+    end
+  end
+
+  defp handle_recovery(alert, currently_triggered_ids, active_events, flagged_ids) do
     currently_triggered_set = MapSet.new(currently_triggered_ids)
     events_by_id = Map.new(active_events, &{&1.test_case_id, &1})
 
@@ -63,30 +64,29 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
     seconds = parse_window(recovery_config["window"] || "#{recovery_config["days_without_trigger"] || 14}d")
     cutoff = NaiveDateTime.add(NaiveDateTime.utc_now(), -seconds, :second)
 
-    alert.project_id
-    |> Tests.list_flagged_flaky_test_case_ids()
+    flagged_ids
     |> MapSet.new()
     |> MapSet.union(MapSet.new(active_events, & &1.test_case_id))
     |> Enum.reject(&MapSet.member?(currently_triggered_set, &1))
     |> Enum.filter(&recovery_window_elapsed?(events_by_id, &1, cutoff))
-    |> Enum.each(&recover_test_case(alert, &1))
+    |> Enum.each(&recover_for(alert, &1))
   end
 
-  # When this alert flagged the test, its triggered event tells us when, so we
-  # wait the recovery window before unflagging to prevent ping-ponging while
-  # the test flickers in and out of the trigger condition. Tests flagged
-  # without a matching event (manually via UI/API, by a previous automation
-  # that has since been deleted or reconfigured) have no `triggered_at` to gate
-  # against; they recover on the first evaluation that finds them not currently
-  # triggered.
-  defp recovery_window_elapsed?(events_by_id, test_case_id, cutoff) do
-    case Map.get(events_by_id, test_case_id) do
+  # When this alert flagged the entity, its triggered event tells us when, so
+  # we wait the recovery window before recovering to prevent ping-ponging
+  # while the entity flickers in and out of the trigger condition. Entities
+  # flagged without a matching event (e.g. manually via UI/API, or by a
+  # previous automation that has since been deleted or reconfigured) have no
+  # `triggered_at` to gate against; they recover on the first evaluation that
+  # finds them not currently triggered.
+  defp recovery_window_elapsed?(events_by_id, entity_id, cutoff) do
+    case Map.get(events_by_id, entity_id) do
       nil -> true
       event -> NaiveDateTime.before?(event.triggered_at, cutoff)
     end
   end
 
-  defp recover_test_case(alert, test_case_id) do
+  defp recover_for(alert, test_case_id) do
     entity = %{type: :test_case, id: test_case_id}
 
     # Run recovery actions BEFORE appending the "recovered" event. If we
@@ -132,6 +132,6 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
 
   defp evaluate_monitor(alert) do
     Logger.warning("Unknown monitor type: #{alert.monitor_type}")
-    %{triggered: [], all: []}
+    %{triggered: [], flagged: []}
   end
 end

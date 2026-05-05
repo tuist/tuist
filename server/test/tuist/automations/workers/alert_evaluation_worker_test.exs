@@ -6,15 +6,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
   alias Tuist.Automations.ActionExecutor
   alias Tuist.Automations.Monitors.FlakyTestsMonitor
   alias Tuist.Automations.Workers.AlertEvaluationWorker
-  alias Tuist.Tests
   alias TuistTestSupport.Fixtures.AutomationsFixtures
-
-  setup :stub_no_flagged_test_cases
-
-  defp stub_no_flagged_test_cases(_context) do
-    stub(Tests, :list_flagged_flaky_test_case_ids, fn _project_id -> [] end)
-    :ok
-  end
 
   defp run(alert_id) do
     AlertEvaluationWorker.perform(%Oban.Job{args: %{"alert_id" => alert_id}})
@@ -38,7 +30,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     triggered_id = Ecto.UUID.generate()
 
     expect(FlakyTestsMonitor, :evaluate, fn _automation ->
-      %{triggered: [triggered_id], all: [triggered_id]}
+      %{triggered: [triggered_id], flagged: []}
     end)
 
     expect(Automations, :list_active_alert_events, fn _id -> [] end)
@@ -64,7 +56,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     already = Ecto.UUID.generate()
 
     expect(FlakyTestsMonitor, :evaluate, fn _automation ->
-      %{triggered: [already], all: [already]}
+      %{triggered: [already], flagged: [already]}
     end)
 
     expect(Automations, :list_active_alert_events, fn _id ->
@@ -88,7 +80,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     recovered_id = Ecto.UUID.generate()
 
     expect(FlakyTestsMonitor, :evaluate, fn _automation ->
-      %{triggered: [], all: [recovered_id]}
+      %{triggered: [], flagged: [recovered_id]}
     end)
 
     triggered_long_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -3, :day)
@@ -126,7 +118,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     recovered_id = Ecto.UUID.generate()
 
     expect(FlakyTestsMonitor, :evaluate, fn _automation ->
-      %{triggered: [], all: [recovered_id]}
+      %{triggered: [], flagged: [recovered_id]}
     end)
 
     triggered_recently = NaiveDateTime.add(NaiveDateTime.utc_now(), -1, :day)
@@ -144,9 +136,8 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
   test "does not run recovery when recovery_enabled is false" do
     automation = AutomationsFixtures.automation_alert_fixture(recovery_enabled: false)
 
-    expect(FlakyTestsMonitor, :evaluate, fn _automation -> %{triggered: [], all: []} end)
+    expect(FlakyTestsMonitor, :evaluate, fn _automation -> %{triggered: [], flagged: []} end)
     expect(Automations, :list_active_alert_events, fn _id -> [] end)
-    reject(&Tests.list_flagged_flaky_test_case_ids/1)
     reject(&Automations.create_alert_event/1)
 
     assert :ok = run(automation.id)
@@ -163,15 +154,10 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     flagged_id = Ecto.UUID.generate()
 
     expect(FlakyTestsMonitor, :evaluate, fn _automation ->
-      %{triggered: [], all: [flagged_id]}
+      %{triggered: [], flagged: [flagged_id]}
     end)
 
     expect(Automations, :list_active_alert_events, fn _id -> [] end)
-
-    expect(Tests, :list_flagged_flaky_test_case_ids, fn project_id ->
-      assert project_id == automation.project_id
-      [flagged_id]
-    end)
 
     expected_entity = %{type: :test_case, id: flagged_id}
 
@@ -203,12 +189,10 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     flagged_and_triggered = Ecto.UUID.generate()
 
     expect(FlakyTestsMonitor, :evaluate, fn _automation ->
-      %{triggered: [flagged_and_triggered], all: [flagged_and_triggered]}
+      %{triggered: [flagged_and_triggered], flagged: [flagged_and_triggered]}
     end)
 
     expect(Automations, :list_active_alert_events, fn _id -> [] end)
-
-    expect(Tests, :list_flagged_flaky_test_case_ids, fn _project_id -> [flagged_and_triggered] end)
 
     expected_entity = %{type: :test_case, id: flagged_and_triggered}
 
@@ -236,14 +220,12 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     triggered_recently = NaiveDateTime.add(NaiveDateTime.utc_now(), -1, :day)
 
     expect(FlakyTestsMonitor, :evaluate, fn _automation ->
-      %{triggered: [], all: [tracked_id]}
+      %{triggered: [], flagged: [tracked_id]}
     end)
 
     expect(Automations, :list_active_alert_events, fn _id ->
       [%{test_case_id: tracked_id, triggered_at: triggered_recently}]
     end)
-
-    expect(Tests, :list_flagged_flaky_test_case_ids, fn _project_id -> [tracked_id] end)
 
     reject(&ActionExecutor.execute_actions/3)
     reject(&Automations.create_alert_event/1)
@@ -263,14 +245,12 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     triggered_long_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -3, :day)
 
     expect(FlakyTestsMonitor, :evaluate, fn _automation ->
-      %{triggered: [], all: [test_case_id]}
+      %{triggered: [], flagged: [test_case_id]}
     end)
 
     expect(Automations, :list_active_alert_events, fn _id ->
       [%{test_case_id: test_case_id, triggered_at: triggered_long_ago}]
     end)
-
-    expect(Tests, :list_flagged_flaky_test_case_ids, fn _project_id -> [test_case_id] end)
 
     expected_entity = %{type: :test_case, id: test_case_id}
 
