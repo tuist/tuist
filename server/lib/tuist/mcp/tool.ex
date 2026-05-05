@@ -42,12 +42,17 @@ defmodule Tuist.MCP.Tool do
 
       @mcp_tool_name Keyword.fetch!(unquote(opts), :name)
       @mcp_tool_schema Keyword.fetch!(unquote(opts), :schema)
+      @mcp_tool_title Keyword.fetch!(unquote(opts), :title)
+      @mcp_tool_read_only_hint Keyword.get(unquote(opts), :read_only_hint, true)
 
       @impl EMCP.Tool
       def name, do: @mcp_tool_name
 
       @impl EMCP.Tool
       def input_schema, do: @mcp_tool_schema
+
+      @impl EMCP.Tool
+      def annotations, do: %{title: @mcp_tool_title, readOnlyHint: @mcp_tool_read_only_hint}
 
       unquote(call_impl)
 

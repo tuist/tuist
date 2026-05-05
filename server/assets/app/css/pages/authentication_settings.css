@@ -1,4 +1,4 @@
-#sso-settings {
+#authentication-settings {
   display: flex;
   flex-direction: column;
   gap: var(--noora-spacing-9);
@@ -9,14 +9,38 @@
     font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
   }
 
-  & [data-part="sso-card"] {
+  & [data-part="sso-card"],
+  & [data-part="scim-card"] {
     display: flex;
     flex-direction: column;
     gap: 0;
     border-radius: var(--noora-radius-8);
     padding: 0;
 
-    & > [data-part="section"] {
+    & > [data-part="header"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-2);
+      box-shadow: inset 0 -1px 0 0 var(--noora-surface-border-primary);
+      padding: var(--noora-spacing-7) var(--noora-spacing-8);
+
+      & > [data-part="title"] {
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
+      }
+
+      & > [data-part="subtitle"] {
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+      }
+    }
+
+    & > [data-part="content"] {
+      display: flex;
+      flex-direction: column;
+    }
+
+    & [data-part="section"] {
       display: flex;
       flex-direction: row;
       align-items: flex-start;
@@ -75,6 +99,35 @@
           }
         }
       }
+
+      &[data-section="base-url"] {
+        align-items: center;
+
+        & > [data-part="field"] {
+          align-items: flex-end;
+        }
+
+        & [data-part="read-only-value"] {
+          width: fit-content;
+          max-width: 100%;
+
+          & > code {
+            flex-grow: 0;
+          }
+        }
+      }
+
+      /* Center the Generate-token button vertically with its label, since
+         the field is a single button rather than a stacked input column. */
+      &[data-section="tokens"] {
+        align-items: center;
+
+        & > [data-part="field"] {
+          flex-direction: row;
+          justify-content: flex-end;
+          align-items: center;
+        }
+      }
     }
 
     & > [data-part="footer"] {
@@ -88,6 +141,89 @@
     }
   }
 
+  & [data-part="tokens-table"] {
+    box-shadow: inset 0 1px 0 0 var(--noora-surface-border-primary);
+    padding: var(--noora-spacing-6) var(--noora-spacing-8);
+  }
+
+  & #scim-tokens-table {
+    & table {
+      min-width: 0;
+      table-layout: fixed;
+    }
+
+    & th:first-child {
+      width: 32%;
+    }
+
+    & th:nth-child(2),
+    & th:nth-child(3) {
+      width: 28%;
+    }
+
+    & th:last-child {
+      width: 72px;
+    }
+
+    & td:last-child > [data-part="cell"][data-type="button"] {
+      justify-content: flex-end;
+      width: 100%;
+    }
+  }
+
+  & #generate-scim-token-modal > [data-part="positioner"] > [data-part="content"] {
+    width: min(560px, 90vw);
+    max-width: 560px;
+  }
+
+  & #generate-scim-token-modal-body {
+    padding: 0;
+
+    & [data-part="modal-content-wrapper"] {
+      display: flex;
+      flex-direction: column;
+
+      & > .noora-line-divider {
+        flex-shrink: 0;
+      }
+    }
+  }
+
+  & [data-part="modal-body"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-5);
+    padding: var(--noora-spacing-7);
+
+    & > [data-part="modal-description"] {
+      margin: 0;
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+    }
+
+    & [data-part="modal-message"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-2);
+
+      & > [data-part="title"] {
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+      }
+
+      & > [data-part="subtitle"] {
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+      }
+    }
+
+    & .noora-text-input > .noora-label {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: var(--noora-spacing-2);
+    }
+  }
+
   & [data-part="read-only-value"] {
     display: flex;
     flex-direction: row;
@@ -95,16 +231,21 @@
     gap: var(--noora-spacing-3);
     border-radius: var(--noora-radius-3);
     background: var(--noora-surface-background-tertiary);
-    padding: var(--noora-spacing-4) var(--noora-spacing-5);
+    padding: var(--noora-spacing-3) var(--noora-spacing-3) var(--noora-spacing-3) var(--noora-spacing-5);
     min-width: 0;
 
     & > code {
+      flex-grow: 1;
       overflow: hidden;
       color: var(--noora-surface-label-primary);
       font: var(--noora-font-weight-regular) var(--noora-font-body-small);
       font-family: "Geist Mono", monospace;
       text-overflow: ellipsis;
       white-space: nowrap;
+    }
+
+    & > .noora-button {
+      flex-shrink: 0;
     }
   }
 
@@ -141,8 +282,9 @@
   }
 
   @media (max-width: 768px) {
-    & [data-part="sso-card"] {
-      & > [data-part="section"] {
+    & [data-part="sso-card"],
+    & [data-part="scim-card"] {
+      & [data-part="section"] {
         flex-direction: column;
         gap: var(--noora-spacing-5);
 

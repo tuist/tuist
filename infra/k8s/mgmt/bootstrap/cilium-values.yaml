@@ -1,0 +1,98 @@
+# Cilium values for Tuist workload clusters.
+# Replicates the shape Apalla shipped on the Syself-managed clusters
+# (kube-proxy replacement, host firewall, BBR + bandwidth manager,
+# egress gateway, hubble metrics, ip-masq-agent).
+#
+# Version: pin chart appVersion to v1.18.x; the tuist-hcloud
+# ClusterClass already does `skipPhases: [addon/kube-proxy]` in
+# kubeadm initConfiguration, so kube-proxy DaemonSet never gets
+# created and Cilium MUST be installed before anything tries to talk
+# Service IPs.
+#
+# Required at install time (not in this file because the API endpoint
+# is per-cluster):
+#   --set k8sServiceHost=<workload cluster API LB IP>
+#   --set k8sServicePort=443
+# The bootstrap script extracts these from the Cluster CR's
+# spec.controlPlaneEndpoint after KCP is initialized.
+
+ipam:
+  mode: kubernetes  # use node PodCIDR from kubeadm
+
+routingMode: tunnel
+tunnelProtocol: vxlan
+
+kubeProxyReplacement: true
+
+# Datapath / performance
+bpf:
+  masquerade: true
+  tproxy: true
+  preallocateMaps: true
+bandwidthManager:
+  enabled: true
+  bbr: true
+ipMasqAgent:
+  enabled: true
+
+# Security
+hostFirewall:
+  enabled: true
+policyEnforcementMode: default
+authentication:
+  mutual:
+    spire:
+      enabled: false
+  enabled: true
+
+# L7 + Envoy (proxy lives in its own pod, not in the agent)
+l7Proxy: true
+envoy:
+  enabled: true
+
+# Egress gateway
+egressGateway:
+  enabled: true
+
+# Service LB IPAM (Cilium can act as LB IPAM; HCCM still does the
+# actual Hetzner LB provisioning, this is just for the in-cluster
+# IPAM bookkeeping)
+loadBalancer:
+  algorithm: maglev
+  mode: snat
+  l7:
+    backend: envoy
+
+# Observability
+hubble:
+  enabled: true
+  relay:
+    enabled: true
+  ui:
+    enabled: false  # access via port-forward; no in-cluster UI ingress
+  metrics:
+    enabled:
+      - dns:query;ignoreAAAA
+      - drop
+      - tcp
+      - flow
+      - icmp
+      - http
+
+# Operator
+operator:
+  replicas: 1  # single-replica is fine for staging/canary; bump to 2 for production via overlay
+  prometheus:
+    enabled: true
+
+# Prometheus
+prometheus:
+  enabled: true
+
+# Pod resources kept moderate; tune later based on Grafana dashboards.
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    memory: 512Mi
