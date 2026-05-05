@@ -31,9 +31,5 @@ spec:
   zone: {{ $.Values.macosFleet.machine.zone | default "fr-par-1" | quote }}
   os: {{ $.Values.macosFleet.machine.os | default "macos-tahoe-26.0" | quote }}
   fleetName: {{ $fleetName | quote }}
-  # podCIDR is a CRD-required field that's not actively used today —
-  # tart-kubelet's Pods get Tart-internal IPs, not cluster CIDR slices.
-  # Leave it nominal until we add per-host CNI plumbing.
-  podCIDR: {{ $.Values.macosFleet.machine.podCIDR | default "10.0.0.0/24" | quote }}
 {{- end }}
 {{- end }}

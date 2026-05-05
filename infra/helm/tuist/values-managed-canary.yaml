@@ -111,8 +111,6 @@ macosFleet:
   replicas: 1
   controlPlane:
     host: api-canary.tuist.dev
-  machine:
-    podCIDR: 10.43.1.0/24
 
 # In-cluster Valkey backs the auth rate limiter (Hammer.Redis). The
 # chart wires TUIST_REDIS_URL to the embedded Service; without it the

@@ -131,8 +131,6 @@ Day-1 operator runbook:
      enabled: true
      controlPlane:
        host: api.tuist.dev
-     machine:
-       podCIDR: 10.44.1.0/24
      scaleway:
        externalSecrets:
          item: SCALEWAY_API   # bare item name; vault from ClusterSecretStore

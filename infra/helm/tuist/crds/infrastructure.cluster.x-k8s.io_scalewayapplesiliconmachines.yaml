@@ -78,13 +78,6 @@ spec:
                     OS is the Scaleway-provided macOS image name. The controller
                     resolves this to an OS UUID via `scw apple-silicon os list`.
                   type: string
-                podCIDR:
-                  description: |-
-                    PodCIDR is the per-host CIDR slice this Mac mini's CNI plugin
-                    hands out to Pods. Cluster operators carve the cluster CIDR
-                    (e.g. 10.42.0.0/16) into per-machine /24s and set this field
-                    per-Machine — there's no automatic IPAM at this layer (yet).
-                  type: string
                 providerID:
                   description: |-
                     ProviderID, set by the controller after provisioning, takes the
@@ -102,8 +95,6 @@ spec:
                   default: fr-par-1
                   description: Zone is the Scaleway zone (fr-par-1, fr-par-3, etc.).
                   type: string
-              required:
-                - podCIDR
               type: object
             status:
               description: ScalewayAppleSiliconMachineStatus is the observed state of the Machine.

@@ -28,12 +28,6 @@ type ScalewayAppleSiliconMachineSpec struct {
 	// +kubebuilder:default=macos-tahoe-26.0
 	OS string `json:"os,omitempty"`
 
-	// PodCIDR is the per-host CIDR slice this Mac mini's CNI plugin
-	// hands out to Pods. Cluster operators carve the cluster CIDR
-	// (e.g. 10.42.0.0/16) into per-machine /24s and set this field
-	// per-Machine — there's no automatic IPAM at this layer (yet).
-	PodCIDR string `json:"podCIDR"`
-
 	// FleetName groups Machines that share an SSH key. Set by the
 	// MachineTemplate (typically to the parent MachineDeployment's
 	// name). The operator generates one Ed25519 keypair per fleet,

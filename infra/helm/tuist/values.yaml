@@ -323,8 +323,8 @@ xcresultProcessor:
 # Operator UX:
 #   1. Drop Scaleway IAM credentials in 1Password (one item with
 #      `access-key`, `secret-key`, `project-id` fields).
-#   2. Set `macosFleet.enabled: true` + `controlPlane.host` +
-#      `machine.podCIDR` in the chart.
+#   2. Set `macosFleet.enabled: true` + `controlPlane.host` in the
+#      chart.
 #   3. `helm upgrade`. Done — Mac minis are ordered, joined to the
 #      cluster as `kubernetes.io/os=darwin` Nodes, and the
 #      xcresult-processor Deployment schedules onto them.
@@ -406,7 +406,6 @@ macosFleet:
     type: M4-S
     zone: fr-par-1
     os: macos-tahoe-26.0
-    podCIDR: ""        # required: per-host slice of cluster CIDR
 
 cache:
   enabled: true

@@ -175,11 +175,6 @@ macosFleet:
   replicas: 2
   controlPlane:
     host: api.tuist.dev
-  machine:
-    podCIDR: 10.44.1.0/24  # First-host slice; second host's CIDR
-                           # follows the same /24-per-host pattern
-                           # (the CAPI provider carves the next slice
-                           # via spec.machineTemplate annotations).
 
 # In-cluster Valkey backs the auth rate limiter (Hammer.Redis). The
 # chart wires TUIST_REDIS_URL to the embedded Service; without it the
