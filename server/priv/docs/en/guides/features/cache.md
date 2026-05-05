@@ -9,7 +9,7 @@
 
 Build artifacts are not shared across environments, forcing you to rebuild the same code over and over. Tuist's caching feature shares artifacts remotely so your team and CI get faster builds without rebuilding what has already been built.
 
-Pick the caching solution that matches your build system. For Xcode projects, the module cache and the Xcode cache work at different granularity levels and can be used together; the module cache replaces whole modules with prebuilt binaries while the Xcode cache reuses compilation artifacts for whatever still gets compiled.
+Pick the caching solution that matches your build system. For Xcode projects, the module cache and the Xcode cache work at different granularity levels and can be used together; the module cache replaces whole modules with prebuilt binaries before the build runs, while the Xcode cache (similar to Bazel) reuses build action outputs keyed by the content of their inputs for whatever the build system still has to compile.
 
 <HomeCards>
     <HomeCard

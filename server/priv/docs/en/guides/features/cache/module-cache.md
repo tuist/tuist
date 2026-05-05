@@ -20,7 +20,7 @@ Tuist Module Cache provides a powerful way to optimize build times by caching yo
 > [!TIP]
 > **Combine with the Xcode cache**
 >
-> The module cache and the <.localized_link href="/guides/features/cache/xcode-cache">Xcode cache</.localized_link> are complementary because they work at different granularity levels. The module cache replaces whole modules with prebuilt `.xcframework`s, while the Xcode cache reuses compilation artifacts at the object level for everything the build system still compiles. Using both together is the recommended setup, and it's how we cache `tuist/tuist` itself.
+> The module cache and the <.localized_link href="/guides/features/cache/xcode-cache">Xcode cache</.localized_link> are complementary because they work at different granularity levels. The module cache replaces whole modules with prebuilt `.xcframework`s before the build runs, while the Xcode cache (similar to Bazel) reuses build action outputs keyed by the content of their inputs for whatever the build system still has to compile.
 
 
 ## Warming {#warming}
