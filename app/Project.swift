@@ -224,6 +224,7 @@ let project = Project(
             sources: ["Sources/TuistErrorHandling/**"],
             dependencies: [
                 .project(target: "TuistServer", path: "../"),
+                .project(target: "TuistLogging", path: "../"),
                 .project(target: "TuistHTTP", path: "../"),
                 .external(name: "OpenAPIRuntime"),
             ]
@@ -248,6 +249,8 @@ let project = Project(
             sources: ["Sources/TuistAuthentication/**"],
             dependencies: [
                 .project(target: "TuistServer", path: "../"),
+                .project(target: "TuistHTTP", path: "../"),
+                .project(target: "TuistLogging", path: "../"),
                 .target(name: "TuistAppStorage"),
             ]
         ),

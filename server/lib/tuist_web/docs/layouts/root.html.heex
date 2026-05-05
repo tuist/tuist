@@ -8,6 +8,7 @@
     <.live_title>
       {assigns[:page_title] || assigns[:head_title] || "Tuist"}
     </.live_title>
+    <TuistWeb.LayoutComponents.head_favicon_links />
     <TuistWeb.LayoutComponents.head_meta_meta_tags {assigns} />
     <TuistWeb.LayoutComponents.head_x_meta_tags {assigns} />
     <!-- Assets -->

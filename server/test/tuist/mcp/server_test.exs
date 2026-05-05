@@ -38,7 +38,7 @@ defmodule Tuist.MCP.ServerTest do
       assert "list_projects" in tool_names
     end
 
-    test "every tool exposes a human-readable title and readOnlyHint=true" do
+    test "every tool exposes a human-readable title and explicit review hints" do
       server = Server.server()
 
       for {name, module} <- server.tools do
@@ -49,6 +49,12 @@ defmodule Tuist.MCP.ServerTest do
 
         assert annotations[:readOnlyHint] == true,
                "tool #{name} must declare readOnlyHint: true"
+
+        assert annotations[:openWorldHint] == false,
+               "tool #{name} must declare openWorldHint: false"
+
+        assert annotations[:destructiveHint] == false,
+               "tool #{name} must declare destructiveHint: false"
       end
     end
 

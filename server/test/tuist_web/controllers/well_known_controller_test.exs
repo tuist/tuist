@@ -119,6 +119,25 @@ defmodule TuistWeb.WellKnownControllerTest do
     end
   end
 
+  describe "GET /.well-known/openai-apps-challenge" do
+    test "returns the OpenAI Apps challenge token for Tuist-hosted deployments", %{conn: conn} do
+      expect(Environment, :tuist_hosted?, fn -> true end)
+
+      conn = get(conn, "/.well-known/openai-apps-challenge")
+
+      assert response(conn, 200) == "YoBqoSMoA-RuEX8RMuCKrLnPCXDYUsYtKg-yjFBHmDQ"
+      assert get_resp_header(conn, "content-type") == ["text/plain; charset=utf-8"]
+    end
+
+    test "returns not found for on-premise deployments", %{conn: conn} do
+      expect(Environment, :tuist_hosted?, fn -> false end)
+
+      conn = get(conn, "/.well-known/openai-apps-challenge")
+
+      assert response(conn, 404) == ""
+    end
+  end
+
   describe "GET /.well-known/openid_configuration" do
     test "returns the OpenID configuration", %{conn: conn} do
       issuer = "https://test.example.com"

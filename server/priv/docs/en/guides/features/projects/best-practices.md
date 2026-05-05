@@ -92,6 +92,33 @@ Tuist follows the <.localized_link href="/cli/directories">XDG Base Directory Sp
 
 Concurrent `tuist` invocations across worktrees are safe to run in parallel. Avoid pointing `TUIST_XDG_CACHE_HOME` at a worktree-local path unless you specifically need isolation; doing so forces every worktree to re-warm helpers, plugins, and binaries.
 
+#### Keep SwiftPM scratch per worktree {#worktrees-swiftpm-scratch}
+
+Swift Package Manager has its own path controls. `--scratch-path` is mutable working state and defaults to `.build`, while `--cache-path` is the shared cache directory. Those two paths should not be treated the same when several worktrees are active.
+
+Tuist's default `tuist install` behavior already keeps SwiftPM scratch under the package directory, so each worktree gets its own `.build`. Keep that isolation. A single shared SwiftPM scratch directory can mix checkouts, build intermediates, plugins, macros, and lock files from unrelated branches.
+
+If you pass SwiftPM arguments through `tuist install -- ...` or through `installOptions` in `Tuist.swift`, share `--cache-path` when you want faster dependency fetches, but leave `--scratch-path` unset or point it at a worktree-local directory:
+
+```swift
+import ProjectDescription
+
+let tuist = Tuist(
+    project: .tuist(
+        installOptions: .options(
+            passthroughSwiftPackageManagerArguments: [
+                "--cache-path",
+                "/Users/Shared/swiftpm/cache/xcode-16-macos",
+            ]
+        )
+    )
+)
+```
+
+Use a wrapper or CI environment variable for the cache path if it needs to vary by Xcode, Swift toolchain, or platform. Avoid committing a shared `--scratch-path` to the repository.
+
+If dependency state looks corrupted in only one worktree, delete that worktree's `.build` directory and run `tuist install` again. If the shared SwiftPM cache itself looks suspect across worktrees, use `swift package purge-cache` before re-installing dependencies.
+
 #### Lean on the module cache {#worktrees-module-cache}
 
 The <.localized_link href="/guides/features/cache/module-cache">module cache</.localized_link> is what makes parallel worktrees tractable. Because Tuist computes a deterministic <.localized_link href="/guides/features/projects/hashing">hash</.localized_link> for each target, two worktrees pointing at branches that share most of their history will hit the same binaries. Run `tuist cache` on every commit to `main` from CI; locally, `tuist generate` in each worktree pulls whatever it can from the cache and only builds what your branch actually changed.
