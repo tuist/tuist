@@ -1,12 +1,6 @@
 import { html, raw } from "hono/html";
 import type { HtmlEscapedString } from "hono/utils/html";
-import type {
-  Component,
-  ComponentStatus,
-  Incident,
-  IncidentSeverity,
-  StatusSnapshot,
-} from "../types.js";
+import type { Component, ComponentStatus, Incident, IncidentSeverity, StatusSnapshot } from "../types.js";
 import {
   ICON_ALERT_CIRCLE,
   ICON_ALERT_HEXAGON,
@@ -116,11 +110,7 @@ function statusBadge(status: ComponentStatus): Renderable {
 
 function severityBadge(severity: IncidentSeverity): Renderable {
   const color = SEVERITY_TO_BADGE_COLOR[severity];
-  return html`<span
-    class="noora-badge"
-    data-style="light-fill"
-    data-color="${color}"
-    data-size="small"
+  return html`<span class="noora-badge" data-style="light-fill" data-color="${color}" data-size="small"
     >${SEVERITY_LABEL[severity]}</span
   >`;
 }
@@ -166,12 +156,11 @@ function incidentToComponentStatus(i: Incident): ComponentStatus {
 
 function incidentBlock(incident: Incident): Renderable {
   const updates = incident.updates.map(
-    (u) => html`<li>
-      <time data-part="time" datetime="${u.at}">${formatDate(u.at)}</time>
-      <div data-part="body">
-        <span data-part="status">${u.status}.</span> ${u.body}
-      </div>
-    </li>`,
+    (u) =>
+      html`<li>
+        <time data-part="time" datetime="${u.at}">${formatDate(u.at)}</time>
+        <div data-part="body"><span data-part="status">${u.status}.</span> ${u.body}</div>
+      </li>`,
   );
   return html`<article class="status-incident" id="${incident.id}">
     <header data-part="header">
@@ -244,18 +233,8 @@ export function statusPage({ title, snapshot }: PageOptions): Renderable {
         <title>${title}</title>
         <meta name="description" content="${title} — current status of Tuist services." />
         <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-        <link
-          rel="alternate"
-          type="application/rss+xml"
-          title="${title} — RSS"
-          href="/feed.rss"
-        />
-        <link
-          rel="alternate"
-          type="application/atom+xml"
-          title="${title} — Atom"
-          href="/feed.atom"
-        />
+        <link rel="alternate" type="application/rss+xml" title="${title} — RSS" href="/feed.rss" />
+        <link rel="alternate" type="application/atom+xml" title="${title} — Atom" href="/feed.atom" />
         <link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
         <style>
           ${raw(STYLES)}
@@ -284,8 +263,7 @@ export function statusPage({ title, snapshot }: PageOptions): Renderable {
             <footer class="status-footer">
               <span>Tuist — status.tuist.dev</span>
               <span>
-                <a href="/api/status.json">JSON</a> ·
-                <a href="/feed.rss">RSS</a> ·
+                <a href="/api/status.json">JSON</a> · <a href="/feed.rss">RSS</a> ·
                 <a href="/feed.atom">Atom</a>
               </span>
             </footer>

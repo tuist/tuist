@@ -118,11 +118,7 @@ function affectedComponentsFrom(
   return Array.from(ids);
 }
 
-function toIncident(
-  raw: RawIncident,
-  componentLabelKey: string,
-  knownIds: Set<string>,
-): Incident {
+function toIncident(raw: RawIncident, componentLabelKey: string, knownIds: Set<string>): Incident {
   const updates: IncidentUpdate[] = [];
   if (raw.summary) {
     updates.push({
@@ -163,10 +159,7 @@ function severityToComponentStatus(s: IncidentSeverity): ComponentStatus {
   }
 }
 
-function rollUpComponents(
-  defs: Omit<Component, "status">[],
-  active: Incident[],
-): Component[] {
+function rollUpComponents(defs: Omit<Component, "status">[], active: Incident[]): Component[] {
   const worst = new Map<string, IncidentSeverity>();
   for (const i of active) {
     for (const id of i.affectedComponents) {
@@ -247,10 +240,7 @@ function withinLastDays(iso: string | null | undefined, days: number): boolean {
   return Date.now() - t <= days * 24 * 60 * 60_000;
 }
 
-async function fetchComponentDefinitions(
-  opts: ClientOpts,
-  labelKey: string,
-): Promise<Omit<Component, "status">[]> {
+async function fetchComponentDefinitions(opts: ClientOpts, labelKey: string): Promise<Omit<Component, "status">[]> {
   const res = await rpc<GetFieldsResponse>(opts, "FieldsService.GetFields", {
     domainName: "labels",
   });
@@ -314,9 +304,7 @@ export async function fetchRawIncidents(env: {
     (fieldsRes.fields ?? []).find(
       (f) => !f.archived && (f.name?.toLowerCase() === wanted || f.slug?.toLowerCase() === wanted),
     ) ?? null;
-  const recent = recentAll.filter((i) =>
-    withinLastDays(i.closedTime ?? i.incidentEnd ?? i.modifiedTime, 14),
-  );
+  const recent = recentAll.filter((i) => withinLastDays(i.closedTime ?? i.incidentEnd ?? i.modifiedTime, 14));
   return { componentField, active, recent };
 }
 
@@ -338,9 +326,7 @@ export async function fetchStatusFromGrafana(env: {
     queryIncidents(opts, "isdrill:false status:resolved"),
   ]);
   const knownIds = new Set(defs.map((d) => d.id));
-  const activeIncidents = active.map((r) =>
-    toIncident(r, env.GRAFANA_COMPONENT_LABEL_KEY, knownIds),
-  );
+  const activeIncidents = active.map((r) => toIncident(r, env.GRAFANA_COMPONENT_LABEL_KEY, knownIds));
   const recentIncidents = recentAll
     .filter((i) => withinLastDays(i.closedTime ?? i.incidentEnd ?? i.modifiedTime, 14))
     .map((r) => toIncident(r, env.GRAFANA_COMPONENT_LABEL_KEY, knownIds));

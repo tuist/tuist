@@ -30,8 +30,8 @@ env:
   MISE_GITHUB_TOKEN: ${{ github.token }}
 
 jobs:
-  build:
-    name: Typecheck & build
+  typecheck:
+    name: Typecheck
     runs-on: ubuntu-latest
     timeout-minutes: 10
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
@@ -48,7 +48,64 @@ jobs:
         with:
           version: ${{ env.MISE_VERSION }}
           working_directory: status
-      - name: Typecheck
-        run: aube run typecheck
-      - name: Build (dry-run deploy)
-        run: aube run build
+      - run: aube run typecheck
+
+  style:
+    name: Style
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - name: Restore Aube Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.local/share/aube
+            ~/.cache/aube
+          key: aube-${{ hashFiles('status/aube-lock.yaml') }}
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          working_directory: status
+      - run: aube run format:check
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - name: Restore Aube Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.local/share/aube
+            ~/.cache/aube
+          key: aube-${{ hashFiles('status/aube-lock.yaml') }}
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          working_directory: status
+      - run: aube run test
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - name: Restore Aube Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.local/share/aube
+            ~/.cache/aube
+          key: aube-${{ hashFiles('status/aube-lock.yaml') }}
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          working_directory: status
+      - run: aube run build
