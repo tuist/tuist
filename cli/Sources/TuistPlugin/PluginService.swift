@@ -1,3 +1,4 @@
+import Command
 import FileSystem
 import Foundation
 import Path
@@ -70,6 +71,7 @@ public struct PluginService: PluginServicing {
     private let fileArchivingFactory: FileArchivingFactorying
     private let fileClient: FileClienting
     private let fileSystem: FileSystem
+    private let commandRunner: CommandRunning
 
     /// Creates a `PluginService`.
     /// - Parameters:
@@ -86,7 +88,8 @@ public struct PluginService: PluginServicing {
         cacheDirectoriesProvider: CacheDirectoriesProviding = CacheDirectoriesProvider(),
         fileArchivingFactory: FileArchivingFactorying = FileArchivingFactory(),
         fileClient: FileClienting = FileClient(),
-        fileSystem: FileSystem = FileSystem()
+        fileSystem: FileSystem = FileSystem(),
+        commandRunner: CommandRunning = CommandRunner()
     ) {
         self.manifestLoader = manifestLoader
         self.templatesDirectoryLocator = templatesDirectoryLocator
@@ -95,6 +98,7 @@ public struct PluginService: PluginServicing {
         self.fileArchivingFactory = fileArchivingFactory
         self.fileClient = fileClient
         self.fileSystem = fileSystem
+        self.commandRunner = commandRunner
     }
 
     public func remotePluginPaths(using configGeneratedProjectsOptions: TuistGeneratedProjectOptions) async throws
@@ -258,8 +262,8 @@ public struct PluginService: PluginServicing {
 
         Logger.current.notice("Cloning plugin from \(url) @ \(gitId)", metadata: .subsection)
         Logger.current.notice("\(pluginRepositoryDirectory.pathString)", metadata: .subsection)
-        try gitController.clone(url: url, to: pluginRepositoryDirectory)
-        try gitController.checkout(id: gitId, in: pluginRepositoryDirectory)
+        try await gitController.clone(url: url, to: pluginRepositoryDirectory)
+        try await gitController.checkout(id: gitId, in: pluginRepositoryDirectory)
     }
 
     private func fetchGitPluginRelease(
@@ -314,11 +318,11 @@ public struct PluginService: PluginServicing {
                 }
 
                 // Mark files as executables (this information is lost during (un)archiving)
-                try await fileSystem.contentsOfDirectory(pluginReleaseDirectory)
+                let pluginReleaseExecutables = try await fileSystem.contentsOfDirectory(pluginReleaseDirectory)
                     .filter { $0.basename.hasPrefix("tuist-") }
-                    .forEach {
-                        try System.shared.chmod(.executable, path: $0, options: [.onlyFiles])
-                    }
+                for pluginReleaseExecutable in pluginReleaseExecutables {
+                    try await commandRunner.runAndWait(arguments: ["chmod", "+x", pluginReleaseExecutable.pathString])
+                }
             } catch {
                 thrownError = error
             }

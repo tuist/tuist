@@ -39,7 +39,7 @@ public struct ProjectDescriptionHelpersHasher: ProjectDescriptionHelpersHashing 
             .compactMap { $0.sha256() }
             .compactMap { $0.compactMap { byte in String(format: "%02x", byte) }.joined() }
         let tuistEnvVariables = Environment.current.manifestLoadingVariables.map { "\($0.key)=\($0.value)" }.sorted()
-        let swiftlangVersion = try SwiftVersionProvider.current.swiftlangVersion()
+        let swiftlangVersion = try await SwiftVersionProvider.current.swiftlangVersion()
         let macosVersion = machineEnvironment.macOSVersion
         let macosSDKVersion = try await MacOSSDKVersionProvider.current.macOSSDKVersion()
         #if DEBUG

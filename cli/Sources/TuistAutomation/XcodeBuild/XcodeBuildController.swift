@@ -21,25 +21,21 @@ public struct XcodeBuildController: XcodeBuildControlling {
 
     private let formatter: Formatting
     private let simulatorController: SimulatorController
-    private let system: Systeming
     private let commandRunner: CommandRunning
 
     public init() {
         self.init(
             formatter: Formatter(),
-            commandRunner: CommandRunner(),
-            system: System.shared
+            commandRunner: CommandRunner()
         )
     }
 
     init(
         formatter: Formatting,
-        commandRunner: CommandRunning,
-        system: Systeming
+        commandRunner: CommandRunning
     ) {
         self.formatter = formatter
         self.simulatorController = SimulatorController()
-        self.system = system
         self.commandRunner = commandRunner
     }
 
@@ -344,14 +340,14 @@ public struct XcodeBuildController: XcodeBuildControlling {
         
         logger.debug("Running xcodebuild command: \(command.joined(separator: " "))")
         
-        try system.run(command,
-                       verbose: false,
-                       environment: Environment.current.variables,
-                       redirection: .stream(stdout: { bytes in
-            log(bytes)
-        }, stderr: { bytes in
-            log(bytes, isError: true)
-        }))
+        for try await event in commandRunner.run(arguments: command, environment: Environment.current.variables) {
+            switch event {
+            case let .standardOutput(bytes):
+                log(bytes)
+            case let .standardError(bytes):
+                log(bytes, isError: true)
+            }
+        }
     }
     
     public func version() async throws -> Version? {
@@ -375,16 +371,16 @@ public struct XcodeBuildController: XcodeBuildControlling {
         // share any schemes, so automatically bail out if it looks
         // like that's happening.
         return try await Task.retrying(maxRetryCount: 5) {
-            let systemTask = Task {
-                return try await self.system.runAndCollectOutput(command).standardOutput
+            let commandTask = Task {
+                return try await self.commandRunner.runAndCollectOutput(arguments: command).standardOutput
             }
             
             let timeoutTask = Task {
                 try await Task.sleep(nanoseconds: 20_000_000)
-                systemTask.cancel()
+                commandTask.cancel()
             }
             
-            let result = try await systemTask.value
+            let result = try await commandTask.value
             timeoutTask.cancel()
             return result
         }.value

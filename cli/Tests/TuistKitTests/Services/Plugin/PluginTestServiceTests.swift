@@ -8,7 +8,7 @@ final class PluginTestServiceTests: TuistUnitTestCase {
 
     override func setUp() {
         super.setUp()
-        subject = PluginTestService()
+        subject = PluginTestService(commandRunner: mockCommandRunner)
     }
 
     override func tearDown() {
@@ -20,7 +20,7 @@ final class PluginTestServiceTests: TuistUnitTestCase {
         // Given
         let path = try temporaryPath()
 
-        system.succeedCommand([
+        mockCommandRunner.succeedCommand([
             "swift", "test",
             "--configuration", PluginCommand.PackageConfiguration.release.rawValue,
             "--package-path", path.pathString,
@@ -40,7 +40,7 @@ final class PluginTestServiceTests: TuistUnitTestCase {
 
     func test_run_with_no_arguments() async throws {
         // Given
-        system.succeedCommand([
+        mockCommandRunner.succeedCommand([
             "swift", "test",
             "--configuration", PluginCommand.PackageConfiguration.debug.rawValue,
         ])

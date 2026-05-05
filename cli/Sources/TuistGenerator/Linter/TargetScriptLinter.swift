@@ -1,3 +1,4 @@
+import Command
 import FileSystem
 import Foundation
 import TuistCore
@@ -15,17 +16,20 @@ protocol TargetScriptLinting {
 
 struct TargetScriptLinter: TargetScriptLinting {
     private let fileSystem: FileSysteming
+    private let commandRunner: CommandRunning
 
     init(
-        fileSystem: FileSysteming = FileSystem()
+        fileSystem: FileSysteming = FileSystem(),
+        commandRunner: CommandRunning = CommandRunner()
     ) {
         self.fileSystem = fileSystem
+        self.commandRunner = commandRunner
     }
 
     func lint(_ script: TargetScript) async throws -> [LintingIssue] {
         var issues: [LintingIssue] = []
         issues.append(contentsOf: lintEmbeddedScriptNotEmpty(script))
-        issues.append(contentsOf: lintToolExistence(script))
+        issues.append(contentsOf: await lintToolExistence(script))
         try await issues.append(contentsOf: lintPathExistence(script))
         return issues
     }
@@ -44,11 +48,11 @@ struct TargetScriptLinter: TargetScriptLinting {
     ///
     /// - Parameter action: Action to be linted.
     /// - Returns: Found linting issues.
-    private func lintToolExistence(_ script: TargetScript) -> [LintingIssue] {
+    private func lintToolExistence(_ script: TargetScript) async -> [LintingIssue] {
         guard let tool = script.tool
         else { return [] }
         do {
-            _ = try System.shared.which(tool)
+            _ = try await commandRunner.which(tool)
             return []
         } catch {
             return [LintingIssue(

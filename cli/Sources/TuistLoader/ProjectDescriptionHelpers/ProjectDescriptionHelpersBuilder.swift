@@ -1,3 +1,5 @@
+import struct Command.CommandRunner
+import protocol Command.CommandRunning
 import FileSystem
 import Foundation
 import Path
@@ -78,6 +80,7 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
     /// Clock for measuring build duration.
     private let clock: Clock
     private let fileSystem: FileSysteming
+    private let commandRunner: CommandRunning
 
     /// The name of the default project description helpers module
     static let defaultHelpersName = "ProjectDescriptionHelpers"
@@ -93,13 +96,15 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
         cacheDirectory: AbsolutePath,
         helpersDirectoryLocator: HelpersDirectoryLocating = HelpersDirectoryLocator(),
         clock: Clock = WallClock(),
-        fileSystem: FileSysteming = FileSystem()
+        fileSystem: FileSysteming = FileSystem(),
+        commandRunner: CommandRunning = CommandRunner()
     ) {
         self.projectDescriptionHelpersHasher = projectDescriptionHelpersHasher
         self.cacheDirectory = cacheDirectory
         self.helpersDirectoryLocator = helpersDirectoryLocator
         self.clock = clock
         self.fileSystem = fileSystem
+        self.commandRunner = commandRunner
     }
 
     public func build(
@@ -215,9 +220,8 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
                 )
 
                 let timer = clock.startTimer()
-                try System.shared.runAndPrint(
-                    command,
-                    verbose: false,
+                try await commandRunner.runAndPrint(
+                    arguments: command,
                     environment: Environment.current.manifestLoadingVariables
                 )
                 let duration = timer.stop()

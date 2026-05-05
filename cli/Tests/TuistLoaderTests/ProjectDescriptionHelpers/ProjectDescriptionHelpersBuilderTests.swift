@@ -10,9 +10,11 @@ final class ProjectDescriptionHelpersBuilderTests: TuistUnitTestCase {
     var helpersDirectoryLocator: MockHelpersDirectoryLocator!
     var subject: ProjectDescriptionHelpersBuilder!
     var cachePath: AbsolutePath!
+    var commandRunner: MockCommandRunner!
 
     override func setUpWithError() throws {
         super.setUp()
+        commandRunner = MockCommandRunner()
         projectDescriptionHelpersHasher = MockProjectDescriptionHelpersHasher()
         helpersDirectoryLocator = MockHelpersDirectoryLocator()
         resourceLocator = ResourceLocator()
@@ -25,6 +27,7 @@ final class ProjectDescriptionHelpersBuilderTests: TuistUnitTestCase {
         helpersDirectoryLocator = nil
         resourceLocator = nil
         cachePath = nil
+        commandRunner = nil
         subject = nil
         super.tearDown()
     }
@@ -43,7 +46,7 @@ final class ProjectDescriptionHelpersBuilderTests: TuistUnitTestCase {
         let projectDescriptionPath = try await resourceLocator.projectDescription()
         let searchPaths = ProjectDescriptionSearchPaths.paths(for: projectDescriptionPath)
 
-        system.defaultCaptureStubs = (nil, nil, 0)
+        commandRunner.defaultCaptureStubs = (nil, nil, 0)
         projectDescriptionHelpersHasher.stubHash = { $0.basename }
 
         // When
@@ -60,7 +63,7 @@ final class ProjectDescriptionHelpersBuilderTests: TuistUnitTestCase {
         }
 
         // Then
-        XCTAssertEqual(system.calls.count, 3)
+        XCTAssertEqual(commandRunner.calls.count, 3)
         XCTAssertEqual(allModules.uniqued().count, 3)
     }
 
@@ -78,7 +81,7 @@ final class ProjectDescriptionHelpersBuilderTests: TuistUnitTestCase {
         let projectDescriptionPath = try await resourceLocator.projectDescription()
         let searchPaths = ProjectDescriptionSearchPaths.paths(for: projectDescriptionPath)
 
-        system.defaultCaptureStubs = (nil, nil, 0)
+        commandRunner.defaultCaptureStubs = (nil, nil, 0)
         projectDescriptionHelpersHasher.stubHash = { $0.basename }
 
         // When
@@ -99,7 +102,7 @@ final class ProjectDescriptionHelpersBuilderTests: TuistUnitTestCase {
         }
 
         // Then
-        XCTAssertEqual(system.calls.count, 3) // one per path
+        XCTAssertEqual(commandRunner.calls.count, 3) // one per path
         XCTAssertEqual(allModules.uniqued().count, 3)
     }
 
@@ -114,7 +117,8 @@ final class ProjectDescriptionHelpersBuilderTests: TuistUnitTestCase {
         let subject = ProjectDescriptionHelpersBuilder(
             projectDescriptionHelpersHasher: projectDescriptionHelpersHasher,
             cacheDirectory: cachePath,
-            helpersDirectoryLocator: helpersDirectoryLocator
+            helpersDirectoryLocator: helpersDirectoryLocator,
+            commandRunner: commandRunner
         )
         self.subject = subject
         return subject

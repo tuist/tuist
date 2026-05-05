@@ -1,3 +1,4 @@
+import Command
 import Foundation
 import Mockable
 import Path
@@ -13,7 +14,7 @@ public protocol GitControlling {
     /// - Parameters:
     ///   - url: The `url` to the git repository to clone.
     ///   - path: The `AbsolutePath` to clone the git repository.
-    func clone(url: String, into path: AbsolutePath) throws
+    func clone(url: String, into path: AbsolutePath) async throws
 
     /// Clones the given `url` **to** the given `path`.
     /// `path` must point to a directory where a git repo can be cloned.
@@ -21,7 +22,7 @@ public protocol GitControlling {
     /// - Parameters:
     ///   - url: The `url` to the git repository to clone.
     ///   - path: The `AbsolutePath` to clone the git repository.
-    func clone(url: String, to path: AbsolutePath?) throws
+    func clone(url: String, to path: AbsolutePath?) async throws
 
     /// Checkout to some git `id` in the given `path`.
     ///
@@ -33,111 +34,111 @@ public protocol GitControlling {
     /// - Parameters:
     ///   - id: An identifier for the `git checkout` command.
     ///   - path: The path to the git repository (location with `.git` directory) in which to perform the checkout.
-    func checkout(id: String, in path: AbsolutePath?) throws
+    func checkout(id: String, in path: AbsolutePath?) async throws
 
     /// Return the tagged versions of the repository at the given `url`.
     ///
     /// - Parameters:
     ///   - url: The `url` of the git repository.
-    func remoteTaggedVersions(url: String) throws -> [Version]
+    func remoteTaggedVersions(url: String) async throws -> [Version]
 
     /// Return the current commit SHA
-    func currentCommitSHA(workingDirectory: AbsolutePath) throws -> String
+    func currentCommitSHA(workingDirectory: AbsolutePath) async throws -> String
 
     /// Return the git URL origin
-    func urlOrigin(workingDirectory: AbsolutePath) throws -> String
+    func urlOrigin(workingDirectory: AbsolutePath) async throws -> String
 
     /// - Returns: `true` if the `git` repository has a remote `origin`.
-    func hasUrlOrigin(workingDirectory: AbsolutePath) throws -> Bool
+    func hasUrlOrigin(workingDirectory: AbsolutePath) async throws -> Bool
 
     /// - Returns: `true` if we recognize that we're in a `git` repository
-    func isInGitRepository(workingDirectory: AbsolutePath) -> Bool
+    func isInGitRepository(workingDirectory: AbsolutePath) async -> Bool
 
     /// - Returns: `true` if there are commits in the current branch.
-    func hasCurrentBranchCommits(workingDirectory: AbsolutePath) -> Bool
+    func hasCurrentBranchCommits(workingDirectory: AbsolutePath) async -> Bool
 
     /// Returns git information including ref, branch, and SHA with CI provider fallbacks.
     /// - Parameter workingDirectory: The working directory of the git repository
-    func gitInfo(workingDirectory: AbsolutePath) throws -> GitInfo
+    func gitInfo(workingDirectory: AbsolutePath) async throws -> GitInfo
 
     /// Returns the top level `.git` directory path.
-    func topLevelGitDirectory(workingDirectory: AbsolutePath) throws -> AbsolutePath
+    func topLevelGitDirectory(workingDirectory: AbsolutePath) async throws -> AbsolutePath
 }
 
 /// An implementation of `GitControlling`.
-/// Uses the system to execute git commands.
+/// Uses CommandRunner to execute git commands.
 public struct GitController: GitControlling {
-    private let system: Systeming
+    private let commandRunner: CommandRunning
     private let environment: Environmenting
 
     public init(
-        system: Systeming = System.shared,
+        commandRunner: CommandRunning = CommandRunner(),
         environment: Environmenting = Environment.current
     ) {
-        self.system = system
+        self.commandRunner = commandRunner
         self.environment = environment
     }
 
-    public func topLevelGitDirectory(workingDirectory: AbsolutePath) throws -> AbsolutePath {
+    public func topLevelGitDirectory(workingDirectory: AbsolutePath) async throws -> AbsolutePath {
         try AbsolutePath(
-            validating: try capture(command: "git", "-C", workingDirectory.pathString, "rev-parse", "--show-toplevel")
+            validating: try await capture(command: "git", "-C", workingDirectory.pathString, "rev-parse", "--show-toplevel")
                 .trimmingCharacters(in: .whitespacesAndNewlines)
         )
     }
 
-    public func clone(url: String, into path: AbsolutePath) throws {
-        try run(command: "git", "-C", path.pathString, "clone", url)
+    public func clone(url: String, into path: AbsolutePath) async throws {
+        try await run(command: "git", "-C", path.pathString, "clone", url)
     }
 
-    public func clone(url: String, to path: AbsolutePath? = nil) throws {
+    public func clone(url: String, to path: AbsolutePath? = nil) async throws {
         if let path {
-            try run(command: "git", "clone", url, path.pathString)
+            try await run(command: "git", "clone", url, path.pathString)
         } else {
-            try run(command: "git", "clone", url)
+            try await run(command: "git", "clone", url)
         }
     }
 
-    public func checkout(id: String, in path: AbsolutePath?) throws {
+    public func checkout(id: String, in path: AbsolutePath?) async throws {
         if let path {
             let gitDirectory = path.appending(component: ".git")
-            try run(command: "git", "--git-dir", gitDirectory.pathString, "--work-tree", path.pathString, "checkout", id)
+            try await run(command: "git", "--git-dir", gitDirectory.pathString, "--work-tree", path.pathString, "checkout", id)
         } else {
-            try run(command: "git", "checkout", id)
+            try await run(command: "git", "checkout", id)
         }
     }
 
-    public func currentCommitSHA(workingDirectory: AbsolutePath) throws -> String {
-        try capture(command: "git", "-C", workingDirectory.pathString, "rev-parse", "HEAD")
+    public func currentCommitSHA(workingDirectory: AbsolutePath) async throws -> String {
+        try await capture(command: "git", "-C", workingDirectory.pathString, "rev-parse", "HEAD")
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    public func hasUrlOrigin(workingDirectory: AbsolutePath) throws -> Bool {
-        try capture(command: "git", "-C", workingDirectory.pathString, "remote")
+    public func hasUrlOrigin(workingDirectory: AbsolutePath) async throws -> Bool {
+        try await capture(command: "git", "-C", workingDirectory.pathString, "remote")
             .components(separatedBy: .newlines)
             .contains("origin")
     }
 
-    public func urlOrigin(workingDirectory: AbsolutePath) throws -> String {
-        try capture(command: "git", "-C", workingDirectory.pathString, "remote", "get-url", "origin")
+    public func urlOrigin(workingDirectory: AbsolutePath) async throws -> String {
+        try await capture(command: "git", "-C", workingDirectory.pathString, "remote", "get-url", "origin")
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    public func remoteTaggedVersions(url: String) throws -> [Version] {
-        try parseVersions(lsRemote(url: url))
+    public func remoteTaggedVersions(url: String) async throws -> [Version] {
+        try parseVersions(try await lsRemote(url: url))
     }
 
-    public func isInGitRepository(workingDirectory: AbsolutePath) -> Bool {
+    public func isInGitRepository(workingDirectory: AbsolutePath) async -> Bool {
         do {
-            try run(command: "git", "-C", workingDirectory.pathString, "rev-parse")
+            try await run(command: "git", "-C", workingDirectory.pathString, "rev-parse")
             return true
         } catch {
             return false
         }
     }
 
-    public func hasCurrentBranchCommits(workingDirectory: AbsolutePath) -> Bool {
+    public func hasCurrentBranchCommits(workingDirectory: AbsolutePath) async -> Bool {
         do {
-            try run(command: "git", "-C", workingDirectory.pathString, "log", "-1")
+            try await run(command: "git", "-C", workingDirectory.pathString, "log", "-1")
             return true
         } catch {
             return false
@@ -184,7 +185,7 @@ public struct GitController: GitControlling {
         "BUILD_SOURCEBRANCHNAME",
     ]
 
-    public func gitInfo(workingDirectory: AbsolutePath) throws -> GitInfo {
+    public func gitInfo(workingDirectory: AbsolutePath) async throws -> GitInfo {
         let environment = environment.variables
 
         // Ref
@@ -216,11 +217,16 @@ public struct GitController: GitControlling {
         let branchName: String?
         if let ciBranch {
             branchName = ciBranch
-        } else if isInGitRepository(workingDirectory: workingDirectory) {
-            if let currentBranch = try? capture(command: "git", "-C", workingDirectory.pathString, "branch", "--show-current")
-                .trimmingCharacters(in: .whitespacesAndNewlines),
-                !currentBranch.isEmpty
-            {
+        } else if await isInGitRepository(workingDirectory: workingDirectory) {
+            if let currentBranch = try? await capture(
+                command: "git",
+                "-C",
+                workingDirectory.pathString,
+                "branch",
+                "--show-current"
+            )
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+            !currentBranch.isEmpty {
                 branchName = currentBranch
             } else {
                 branchName = nil
@@ -229,7 +235,7 @@ public struct GitController: GitControlling {
             branchName = nil
         }
 
-        guard isInGitRepository(workingDirectory: workingDirectory)
+        guard await isInGitRepository(workingDirectory: workingDirectory)
         else {
             return GitInfo(
                 ref: gitRef,
@@ -243,25 +249,25 @@ public struct GitController: GitControlling {
         // HEAD is an ephemeral merge commit. Use the second parent (the actual
         // PR branch tip) instead, since the merge commit doesn't exist on the remote.
         let commitSHA: String?
-        if hasCurrentBranchCommits(workingDirectory: workingDirectory) {
+        if await hasCurrentBranchCommits(workingDirectory: workingDirectory) {
             let isPullRequestMergeRef = gitRef?.hasPrefix("refs/pull/") == true
             if isPullRequestMergeRef,
-               let secondParent = try? capture(
+               let secondParent = try? await capture(
                    command: "git", "-C", workingDirectory.pathString, "rev-parse", "HEAD^2"
                ).trimmingCharacters(in: .whitespacesAndNewlines),
                !secondParent.isEmpty
             {
                 commitSHA = secondParent
             } else {
-                commitSHA = try? currentCommitSHA(workingDirectory: workingDirectory)
+                commitSHA = try? await currentCommitSHA(workingDirectory: workingDirectory)
             }
         } else {
             commitSHA = nil
         }
 
         let remoteURLOrigin: String?
-        if try hasUrlOrigin(workingDirectory: workingDirectory) {
-            remoteURLOrigin = try urlOrigin(workingDirectory: workingDirectory)
+        if try await hasUrlOrigin(workingDirectory: workingDirectory) {
+            remoteURLOrigin = try await urlOrigin(workingDirectory: workingDirectory)
         } else {
             remoteURLOrigin = nil
         }
@@ -274,19 +280,19 @@ public struct GitController: GitControlling {
         )
     }
 
-    private func run(command: String...) throws {
+    private func run(command: String...) async throws {
         if environment.isVerbose {
-            try system.runAndPrint(command, verbose: true, environment: Environment.current.variables)
+            try await commandRunner.runAndPrint(arguments: command, environment: Environment.current.variables)
         } else {
-            try system.run(command)
+            try await commandRunner.runAndWait(arguments: command)
         }
     }
 
-    private func capture(command: String...) throws -> String {
+    private func capture(command: String...) async throws -> String {
         if environment.isVerbose {
-            return try system.capture(command, verbose: true, environment: Environment.current.variables)
+            return try await commandRunner.capture(arguments: command, environment: Environment.current.variables)
         } else {
-            return try system.capture(command)
+            return try await commandRunner.capture(arguments: command)
         }
     }
 
@@ -305,7 +311,7 @@ public struct GitController: GitControlling {
         return versions
     }
 
-    private func lsRemote(url: String) throws -> String {
-        try capture(command: "git", "ls-remote", "-t", "--sort=v:refname", url)
+    private func lsRemote(url: String) async throws -> String {
+        try await capture(command: "git", "ls-remote", "-t", "--sort=v:refname", url)
     }
 }

@@ -1,3 +1,4 @@
+import Command
 import FileSystem
 import Foundation
 import Path
@@ -17,13 +18,13 @@ public protocol SwiftPackageManagerInteracting {
 
 public struct SwiftPackageManagerInteractor: SwiftPackageManagerInteracting {
     private let fileSystem: FileSysteming
-    private let system: Systeming
+    private let commandRunner: CommandRunning
     public init(
         fileSystem: FileSysteming = FileSystem(),
-        system: Systeming = System.shared
+        commandRunner: CommandRunning = CommandRunner()
     ) {
         self.fileSystem = fileSystem
-        self.system = system
+        self.commandRunner = commandRunner
     }
 
     public func install(
@@ -84,18 +85,16 @@ public struct SwiftPackageManagerInteractor: SwiftPackageManagerInteracting {
 
         arguments.append(contentsOf: ["-workspace", workspacePath.pathString, "-list"])
 
-        try system.run(
-            arguments,
-            verbose: false,
-            environment: Environment.current.variables,
-            redirection: .stream(stdout: { bytes in
+        for try await event in commandRunner.run(arguments: arguments, environment: Environment.current.variables) {
+            switch event {
+            case let .standardOutput(bytes):
                 let output = String(decoding: bytes, as: Unicode.UTF8.self)
                 Logger.current.debug("\(output)")
-            }, stderr: { bytes in
+            case let .standardError(bytes):
                 let error = String(decoding: bytes, as: Unicode.UTF8.self)
                 Logger.current.error("\(error)")
-            })
-        )
+            }
+        }
 
         if try await !fileSystem.exists(rootPackageResolvedPath), try await fileSystem.exists(workspacePackageResolvedPath) {
             try await fileSystem.copy(workspacePackageResolvedPath, to: rootPackageResolvedPath)

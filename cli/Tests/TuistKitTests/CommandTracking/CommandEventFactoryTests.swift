@@ -35,7 +35,7 @@ struct CommandEventFactoryTests {
 
     // MARK: - Tests
 
-    @Test(.withMockedSwiftVersionProvider, .inTemporaryDirectory) func tagCommand_tagsExpectedCommand() throws {
+    @Test(.withMockedSwiftVersionProvider, .inTemporaryDirectory) func tagCommand_tagsExpectedCommand() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         let projectPath = path.appending(component: "Project")
@@ -271,7 +271,7 @@ struct CommandEventFactoryTests {
             .willReturn(true)
 
         // When
-        let event = try subject.make(
+        let event = try await subject.make(
             from: info,
             path: path
         )
@@ -297,7 +297,7 @@ struct CommandEventFactoryTests {
         )
     }
 
-    @Test(.withMockedSwiftVersionProvider, .inTemporaryDirectory) func make_when_is_not_in_git_repository() throws {
+    @Test(.withMockedSwiftVersionProvider, .inTemporaryDirectory) func make_when_is_not_in_git_repository() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         let info = TrackableCommandInfo(
@@ -329,7 +329,7 @@ struct CommandEventFactoryTests {
             .willReturn(false)
 
         // When
-        let event = try subject.make(
+        let event = try await subject.make(
             from: info,
             path: path
         )
@@ -343,7 +343,7 @@ struct CommandEventFactoryTests {
     @Test(
         .withMockedSwiftVersionProvider,
         .inTemporaryDirectory
-    ) func make_when_is_in_git_repository_and_branch_has_no_commits_and_no_remote_url_origin() throws {
+    ) func make_when_is_in_git_repository_and_branch_has_no_commits_and_no_remote_url_origin() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         let info = TrackableCommandInfo(
@@ -387,7 +387,7 @@ struct CommandEventFactoryTests {
             .willReturn(.test(ref: nil, branch: nil, sha: "commit-sha"))
 
         // When
-        let event = try subject.make(
+        let event = try await subject.make(
             from: info,
             path: path
         )
@@ -401,7 +401,7 @@ struct CommandEventFactoryTests {
     @Test(
         .withMockedSwiftVersionProvider,
         .inTemporaryDirectory
-    ) func make_when_is_in_git_repository_and_branch_has_commits_and_no_remote_url_origin() throws {
+    ) func make_when_is_in_git_repository_and_branch_has_commits_and_no_remote_url_origin() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         let info = TrackableCommandInfo(
@@ -441,7 +441,7 @@ struct CommandEventFactoryTests {
             .willReturn(false)
 
         // When
-        let event = try subject.make(
+        let event = try await subject.make(
             from: info,
             path: path
         )
@@ -455,7 +455,7 @@ struct CommandEventFactoryTests {
     @Test(
         .withMockedSwiftVersionProvider,
         .inTemporaryDirectory
-    ) func make_includes_cache_endpoint_from_trackable_command_info() throws {
+    ) func make_includes_cache_endpoint_from_trackable_command_info() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         let cacheEndpoint = "https://eu.cache.tuist.dev"
@@ -488,7 +488,7 @@ struct CommandEventFactoryTests {
             .willReturn(.test())
 
         // When
-        let event = try subject.make(
+        let event = try await subject.make(
             from: info,
             path: path
         )
@@ -500,7 +500,7 @@ struct CommandEventFactoryTests {
     @Test(
         .withMockedSwiftVersionProvider,
         .inTemporaryDirectory
-    ) func make_includes_empty_cache_endpoint_when_not_set() throws {
+    ) func make_includes_empty_cache_endpoint_when_not_set() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         let info = TrackableCommandInfo(
@@ -532,7 +532,7 @@ struct CommandEventFactoryTests {
             .willReturn(.test())
 
         // When
-        let event = try subject.make(
+        let event = try await subject.make(
             from: info,
             path: path
         )

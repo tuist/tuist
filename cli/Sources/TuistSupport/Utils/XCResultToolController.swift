@@ -1,3 +1,4 @@
+import Command
 import Mockable
 import Path
 
@@ -10,25 +11,25 @@ public protocol XCResultToolControlling {
 }
 
 public struct XCResultToolController: XCResultToolControlling {
-    private let system: Systeming
+    private let commandRunner: CommandRunning
 
     public init(
-        system: Systeming = System.shared
+        commandRunner: CommandRunning = CommandRunner()
     ) {
-        self.system = system
+        self.commandRunner = commandRunner
     }
 
     public func resultBundleObject(_ path: AbsolutePath) async throws -> String {
         if try await XcodeController.current.selectedVersion() >= Version(16, 0, 0) {
-            return try system.capture(
-                [
+            return try await commandRunner.capture(
+                arguments: [
                     "/usr/bin/xcrun", "xcresulttool", "get", "--path", path.pathString, "--format",
                     "json", "--legacy",
                 ]
             )
         } else {
-            return try system.capture(
-                [
+            return try await commandRunner.capture(
+                arguments: [
                     "/usr/bin/xcrun", "xcresulttool", "get", "--path", path.pathString, "--format",
                     "json",
                 ]
@@ -38,15 +39,15 @@ public struct XCResultToolController: XCResultToolControlling {
 
     public func resultBundleObject(_ path: AbsolutePath, id: String) async throws -> String {
         if try await XcodeController.current.selectedVersion() >= Version(16, 0, 0) {
-            return try system.capture(
-                [
+            return try await commandRunner.capture(
+                arguments: [
                     "/usr/bin/xcrun", "xcresulttool", "get", "--path", path.pathString, "--id", id,
                     "--format", "json", "--legacy",
                 ]
             )
         } else {
-            return try system.capture(
-                [
+            return try await commandRunner.capture(
+                arguments: [
                     "/usr/bin/xcrun", "xcresulttool", "get", "--path", path.pathString, "--id", id,
                     "--format", "json",
                 ]

@@ -11,7 +11,7 @@ import XcodeGraph
 struct ForeignBuildHasherTests {
     private let subject: ForeignBuildHasher
     private let contentHasher = MockContentHashing()
-    private let system = MockSystem()
+    private let commandRunner = MockCommandRunner()
 
     init() {
         given(contentHasher)
@@ -20,7 +20,7 @@ struct ForeignBuildHasherTests {
 
         subject = ForeignBuildHasher(
             contentHasher: contentHasher,
-            system: system
+            commandRunner: commandRunner
         )
     }
 
@@ -85,7 +85,7 @@ struct ForeignBuildHasherTests {
     func hash_scriptInput_runsScriptAndHashesOutput() async throws {
         // Given
         let script = "git rev-parse HEAD"
-        system.succeedCommand(["/bin/sh", "-c", script], output: "abc123")
+        commandRunner.succeedCommand(["/bin/sh", "-c", script], output: "abc123")
 
         // When
         let result = try await subject.hash(

@@ -25,8 +25,8 @@ public struct CommandEventFactory {
     public func make(
         from info: TrackableCommandInfo,
         path: AbsolutePath
-    ) throws -> CommandEvent {
-        let gitInfo = try gitController.gitInfo(workingDirectory: path)
+    ) async throws -> CommandEvent {
+        let gitInfo = try await gitController.gitInfo(workingDirectory: path)
 
         let graph = info.graph.map {
             map(
@@ -46,7 +46,7 @@ public struct CommandEventFactory {
             durationInMs: Int(info.durationInMs),
             clientId: machineEnvironment.clientId,
             tuistVersion: Constants.version,
-            swiftVersion: try SwiftVersionProvider.current.swiftVersion(),
+            swiftVersion: try await SwiftVersionProvider.current.swiftVersion(),
             macOSVersion: machineEnvironment.macOSVersion,
             machineHardwareName: machineEnvironment.hardwareName,
             isCI: Environment.current.isCI,

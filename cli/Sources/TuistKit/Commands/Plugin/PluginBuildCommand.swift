@@ -1,7 +1,7 @@
 import ArgumentParser
 import Foundation
 
-public struct PluginBuildCommand: ParsableCommand {
+public struct PluginBuildCommand: AsyncParsableCommand {
     public init() {}
 
     public static var configuration: CommandConfiguration {
@@ -38,8 +38,8 @@ public struct PluginBuildCommand: ParsableCommand {
     )
     var products: [String] = []
 
-    public func run() throws {
-        try PluginBuildService().run(
+    public func run() async throws {
+        try await PluginBuildService().run(
             path: pluginOptions.path,
             configuration: pluginOptions.configuration,
             buildTests: buildTests,
