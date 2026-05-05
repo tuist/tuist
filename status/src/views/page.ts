@@ -5,9 +5,11 @@ import {
   ICON_ALERT_CIRCLE,
   ICON_ALERT_HEXAGON,
   ICON_ALERT_TRIANGLE,
+  ICON_BELL,
   ICON_CIRCLE_CHECK,
   ICON_CIRCLE_DASHED,
-  ICON_INFO_CIRCLE,
+  ICON_HISTORY,
+  ICON_LAYOUT_GRID,
   ICON_RSS,
 } from "./icons.js";
 import { TUIST_MARK_SVG } from "./logo.js";
@@ -255,9 +257,9 @@ export function statusPage({ title, snapshot }: PageOptions): Renderable {
               <span data-part="meta">Updated ${formatDate(snapshot.fetchedAt)}</span>
             </header>
 
-            ${card({ icon: ICON_CIRCLE_CHECK, title: "Components", body: componentsBody })}
-            ${card({ icon: ICON_ALERT_CIRCLE, title: "Active incidents", body: activeBody })}
-            ${card({ icon: ICON_INFO_CIRCLE, title: "Past 14 days", body: recentBody })}
+            ${card({ icon: ICON_LAYOUT_GRID, title: "Components", body: componentsBody })}
+            ${card({ icon: ICON_BELL, title: "Active incidents", body: activeBody })}
+            ${card({ icon: ICON_HISTORY, title: "Past 14 days", body: recentBody })}
             ${card({ icon: ICON_RSS, title: "Subscribe", body: subscribeBody })}
 
             <footer class="status-footer">
