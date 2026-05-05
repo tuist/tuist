@@ -56,6 +56,53 @@ defmodule Tuist.Automations.Alerts.AlertTest do
       assert changeset.valid?
     end
 
+    test "accepts a flaky_run_count alert with lt comparison" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "monitor_type" => "flaky_run_count",
+            "trigger_config" => %{"threshold" => 1, "window" => "30d", "comparison" => "lt"},
+            "trigger_actions" => [%{"type" => "remove_label", "label" => "flaky"}]
+          })
+        )
+
+      assert changeset.valid?
+    end
+
+    test "accepts a flakiness_rate alert with lte comparison" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "monitor_type" => "flakiness_rate",
+            "trigger_config" => %{"threshold" => 5, "window" => "30d", "comparison" => "lte"},
+            "trigger_actions" => [%{"type" => "remove_label", "label" => "flaky"}]
+          })
+        )
+
+      assert changeset.valid?
+    end
+
+    test "rejects an unknown comparison" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "trigger_config" => %{"threshold" => 5, "window" => "30d", "comparison" => "bogus"}
+          })
+        )
+
+      refute changeset.valid?
+      assert errors_on(changeset).trigger_config
+    end
+
     test "rejects flakiness_rate config with threshold out of range" do
       project = ProjectsFixtures.project_fixture()
 

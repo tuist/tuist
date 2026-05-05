@@ -98,39 +98,77 @@
                   </span>
                 </div>
                 <div data-part="form-row-inline">
-                  <div data-part="form-row">
+                  <div data-part="form-row" data-size="dropdown">
                     <label data-part="label">
                       {dgettext("dashboard_projects", "When")}
                     </label>
                     <.dropdown
-                      id="create-automation-type-dropdown"
-                      label={monitor_type_label(@create_automation_form_type)}
+                      id="create-automation-metric-dropdown"
+                      label={metric_label(@create_automation_form_metric)}
                     >
                       <.dropdown_item
                         value="flakiness_rate"
                         label={dgettext("dashboard_projects", "Flakiness rate")}
-                        on_click="update_create_automation_form_type"
-                        data-selected={@create_automation_form_type == "flakiness_rate"}
+                        on_click="update_create_automation_form_metric"
+                        data-selected={@create_automation_form_metric == "flakiness_rate"}
                       >
                         <:right_icon><.check /></:right_icon>
                       </.dropdown_item>
                       <.dropdown_item
                         value="flaky_run_count"
                         label={dgettext("dashboard_projects", "Flaky runs")}
-                        on_click="update_create_automation_form_type"
-                        data-selected={@create_automation_form_type == "flaky_run_count"}
+                        on_click="update_create_automation_form_metric"
+                        data-selected={@create_automation_form_metric == "flaky_run_count"}
                       >
                         <:right_icon><.check /></:right_icon>
                       </.dropdown_item>
                     </.dropdown>
                   </div>
-                  <div data-part="form-row">
+                  <div data-part="form-row" data-size="dropdown">
                     <label data-part="label">
-                      <%= if @create_automation_form_type == "flakiness_rate" do %>
-                        {dgettext("dashboard_projects", "Is greater than or equal to (%)")}
-                      <% else %>
-                        {dgettext("dashboard_projects", "Reach at least (count)")}
-                      <% end %>
+                      {dgettext("dashboard_projects", "Comparison")}
+                    </label>
+                    <.dropdown
+                      id="create-automation-comparison-dropdown"
+                      label={comparison_label(@create_automation_form_comparison)}
+                    >
+                      <.dropdown_item
+                        value="gte"
+                        label={dgettext("dashboard_projects", "Greater or equal")}
+                        on_click="update_create_automation_form_comparison"
+                        data-selected={@create_automation_form_comparison == "gte"}
+                      >
+                        <:right_icon><.check /></:right_icon>
+                      </.dropdown_item>
+                      <.dropdown_item
+                        value="gt"
+                        label={dgettext("dashboard_projects", "Greater than")}
+                        on_click="update_create_automation_form_comparison"
+                        data-selected={@create_automation_form_comparison == "gt"}
+                      >
+                        <:right_icon><.check /></:right_icon>
+                      </.dropdown_item>
+                      <.dropdown_item
+                        value="lt"
+                        label={dgettext("dashboard_projects", "Less than")}
+                        on_click="update_create_automation_form_comparison"
+                        data-selected={@create_automation_form_comparison == "lt"}
+                      >
+                        <:right_icon><.check /></:right_icon>
+                      </.dropdown_item>
+                      <.dropdown_item
+                        value="lte"
+                        label={dgettext("dashboard_projects", "Less or equal")}
+                        on_click="update_create_automation_form_comparison"
+                        data-selected={@create_automation_form_comparison == "lte"}
+                      >
+                        <:right_icon><.check /></:right_icon>
+                      </.dropdown_item>
+                    </.dropdown>
+                  </div>
+                  <div data-part="form-row" data-size="compact">
+                    <label data-part="label">
+                      {threshold_label(@create_automation_form_metric)}
                     </label>
                     <.text_input
                       type="basic"
@@ -142,7 +180,7 @@
                       phx-debounce="300"
                     />
                   </div>
-                  <div data-part="form-row">
+                  <div data-part="form-row" data-size="compact">
                     <label data-part="label">
                       {dgettext("dashboard_projects", "Over the last")}
                     </label>
@@ -353,10 +391,32 @@
                             @create_automation_form_trigger_actions,
                             "add_label",
                             "flaky"
-                          )
+                          ) and
+                            not has_label_action?(
+                              @create_automation_form_trigger_actions,
+                              "remove_label",
+                              "flaky"
+                            )
                         }
                         value="add_label_flaky"
                         label={dgettext("dashboard_projects", "Mark as flaky")}
+                        on_click="add_create_automation_form_trigger_action"
+                      />
+                      <.dropdown_item
+                        :if={
+                          not has_label_action?(
+                            @create_automation_form_trigger_actions,
+                            "remove_label",
+                            "flaky"
+                          ) and
+                            not has_label_action?(
+                              @create_automation_form_trigger_actions,
+                              "add_label",
+                              "flaky"
+                            )
+                        }
+                        value="remove_label_flaky"
+                        label={dgettext("dashboard_projects", "Unmark as flaky")}
                         on_click="add_create_automation_form_trigger_action"
                       />
                       <.dropdown_item
@@ -584,10 +644,32 @@
                             @create_automation_form_recovery_actions,
                             "remove_label",
                             "flaky"
-                          )
+                          ) and
+                            not has_label_action?(
+                              @create_automation_form_recovery_actions,
+                              "add_label",
+                              "flaky"
+                            )
                         }
                         value="remove_label_flaky"
                         label={dgettext("dashboard_projects", "Unmark as flaky")}
+                        on_click="add_create_automation_form_recovery_action"
+                      />
+                      <.dropdown_item
+                        :if={
+                          not has_label_action?(
+                            @create_automation_form_recovery_actions,
+                            "add_label",
+                            "flaky"
+                          ) and
+                            not has_label_action?(
+                              @create_automation_form_recovery_actions,
+                              "remove_label",
+                              "flaky"
+                            )
+                        }
+                        value="add_label_flaky"
+                        label={dgettext("dashboard_projects", "Mark as flaky")}
                         on_click="add_create_automation_form_recovery_action"
                       />
                       <.dropdown_item

@@ -142,4 +142,105 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
 
     assert :ok = run(automation.id)
   end
+
+  describe "baseline establishment" do
+    test "first evaluation records the matching set silently and stamps baseline_established_at" do
+      automation = AutomationsFixtures.automation_alert_fixture(baseline_established_at: nil)
+
+      [tc1, tc2] = [Ecto.UUID.generate(), Ecto.UUID.generate()]
+
+      expect(FlakyTestsMonitor, :evaluate, fn _automation ->
+        %{triggered: [tc1, tc2], all: [tc1, tc2]}
+      end)
+
+      # No trigger actions on the baseline path.
+      reject(&ActionExecutor.execute_actions/3)
+
+      # Both matching test cases get a `triggered` event so subsequent
+      # evaluations skip them.
+      expect(Automations, :create_alert_event, 2, fn %{
+                                                       alert_id: id,
+                                                       test_case_id: tc,
+                                                       status: "triggered"
+                                                     } ->
+        assert id == automation.id
+        assert tc in [tc1, tc2]
+        :ok
+      end)
+
+      expect(Automations, :update_alert, fn ^automation, %{baseline_established_at: %DateTime{}} ->
+        {:ok, automation}
+      end)
+
+      assert :ok = run(automation.id)
+    end
+
+    test "subsequent evaluations after the baseline fire on transitions only" do
+      automation = AutomationsFixtures.automation_alert_fixture()
+      newcomer = Ecto.UUID.generate()
+      already = Ecto.UUID.generate()
+
+      expect(FlakyTestsMonitor, :evaluate, fn _automation ->
+        %{triggered: [already, newcomer], all: [already, newcomer]}
+      end)
+
+      expect(Automations, :list_active_alert_events, fn _id ->
+        [%{test_case_id: already, triggered_at: NaiveDateTime.utc_now()}]
+      end)
+
+      expected_entity = %{type: :test_case, id: newcomer}
+
+      expect(ActionExecutor, :execute_actions, fn _actions, ^automation, ^expected_entity -> :ok end)
+
+      expect(Automations, :create_alert_event, fn %{
+                                                    alert_id: id,
+                                                    test_case_id: ^newcomer,
+                                                    status: "triggered"
+                                                  } ->
+        assert id == automation.id
+        :ok
+      end)
+
+      reject(&Automations.update_alert/2)
+
+      assert :ok = run(automation.id)
+    end
+  end
+
+  test "dispatches lt-comparison alerts to the metric's evaluator" do
+    automation =
+      AutomationsFixtures.automation_alert_fixture(
+        monitor_type: "flaky_run_count",
+        trigger_config: %{"threshold" => 1, "window" => "30d", "comparison" => "lt"},
+        trigger_actions: [%{"type" => "remove_label", "label" => "flaky"}]
+      )
+
+    cleanup_id = Ecto.UUID.generate()
+
+    reject(&FlakyTestsMonitor.evaluate/1)
+
+    expect(FlakyTestsMonitor, :evaluate_by_run_count, fn ^automation ->
+      %{triggered: [cleanup_id], all: [cleanup_id]}
+    end)
+
+    expect(Automations, :list_active_alert_events, fn _id -> [] end)
+
+    expected_entity = %{type: :test_case, id: cleanup_id}
+
+    expect(ActionExecutor, :execute_actions, fn actions, ^automation, ^expected_entity ->
+      assert actions == automation.trigger_actions
+      :ok
+    end)
+
+    expect(Automations, :create_alert_event, fn %{
+                                                  alert_id: id,
+                                                  test_case_id: ^cleanup_id,
+                                                  status: "triggered"
+                                                } ->
+      assert id == automation.id
+      :ok
+    end)
+
+    assert :ok = run(automation.id)
+  end
 end
