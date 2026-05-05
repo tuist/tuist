@@ -391,10 +391,32 @@
                             @create_automation_form_trigger_actions,
                             "add_label",
                             "flaky"
-                          )
+                          ) and
+                            not has_label_action?(
+                              @create_automation_form_trigger_actions,
+                              "remove_label",
+                              "flaky"
+                            )
                         }
                         value="add_label_flaky"
                         label={dgettext("dashboard_projects", "Mark as flaky")}
+                        on_click="add_create_automation_form_trigger_action"
+                      />
+                      <.dropdown_item
+                        :if={
+                          not has_label_action?(
+                            @create_automation_form_trigger_actions,
+                            "remove_label",
+                            "flaky"
+                          ) and
+                            not has_label_action?(
+                              @create_automation_form_trigger_actions,
+                              "add_label",
+                              "flaky"
+                            )
+                        }
+                        value="remove_label_flaky"
+                        label={dgettext("dashboard_projects", "Unmark as flaky")}
                         on_click="add_create_automation_form_trigger_action"
                       />
                       <.dropdown_item
@@ -622,10 +644,32 @@
                             @create_automation_form_recovery_actions,
                             "remove_label",
                             "flaky"
-                          )
+                          ) and
+                            not has_label_action?(
+                              @create_automation_form_recovery_actions,
+                              "add_label",
+                              "flaky"
+                            )
                         }
                         value="remove_label_flaky"
                         label={dgettext("dashboard_projects", "Unmark as flaky")}
+                        on_click="add_create_automation_form_recovery_action"
+                      />
+                      <.dropdown_item
+                        :if={
+                          not has_label_action?(
+                            @create_automation_form_recovery_actions,
+                            "add_label",
+                            "flaky"
+                          ) and
+                            not has_label_action?(
+                              @create_automation_form_recovery_actions,
+                              "remove_label",
+                              "flaky"
+                            )
+                        }
+                        value="add_label_flaky"
+                        label={dgettext("dashboard_projects", "Mark as flaky")}
                         on_click="add_create_automation_form_recovery_action"
                       />
                       <.dropdown_item
