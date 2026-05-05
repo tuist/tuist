@@ -439,6 +439,13 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/get(getTestCase)`.
     func getTestCase(_ input: Operations.getTestCase.Input) async throws -> Operations.getTestCase.Output
+    /// Update a test case.
+    ///
+    /// Updates mutable fields on a test case. Supports changing `state` (currently one of `enabled`, `muted`, or `skipped`; the field is left as an open string so adding new states in the future doesn't break clients pinned to the older spec) and toggling `is_flaky`. Corresponding events (`muted`/`unmuted`, `skipped`/`unskipped`, `marked_flaky`/`unmarked_flaky`) are recorded automatically when values transition.
+    ///
+    /// - Remark: HTTP `PATCH /api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/patch(updateTestCase)`.
+    func updateTestCase(_ input: Operations.updateTestCase.Input) async throws -> Operations.updateTestCase.Output
     /// Get cache endpoints.
     ///
     /// Returns cache endpoints for the requested account.
@@ -1745,6 +1752,23 @@ extension APIProtocol {
         try await getTestCase(Operations.getTestCase.Input(
             path: path,
             headers: headers
+        ))
+    }
+    /// Update a test case.
+    ///
+    /// Updates mutable fields on a test case. Supports changing `state` (currently one of `enabled`, `muted`, or `skipped`; the field is left as an open string so adding new states in the future doesn't break clients pinned to the older spec) and toggling `is_flaky`. Corresponding events (`muted`/`unmuted`, `skipped`/`unskipped`, `marked_flaky`/`unmarked_flaky`) are recorded automatically when values transition.
+    ///
+    /// - Remark: HTTP `PATCH /api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/patch(updateTestCase)`.
+    public func updateTestCase(
+        path: Operations.updateTestCase.Input.Path,
+        headers: Operations.updateTestCase.Input.Headers = .init(),
+        body: Operations.updateTestCase.Input.Body? = nil
+    ) async throws -> Operations.updateTestCase.Output {
+        try await updateTestCase(Operations.updateTestCase.Input(
+            path: path,
+            headers: headers,
+            body: body
         ))
     }
     /// Get cache endpoints.
@@ -36546,6 +36570,469 @@ public enum Operations {
             /// - Throws: An error if `self` is not `.notFound`.
             /// - SeeAlso: `.notFound`.
             public var notFound: Operations.getTestCase.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Update a test case.
+    ///
+    /// Updates mutable fields on a test case. Supports changing `state` (currently one of `enabled`, `muted`, or `skipped`; the field is left as an open string so adding new states in the future doesn't break clients pinned to the older spec) and toggling `is_flaky`. Corresponding events (`muted`/`unmuted`, `skipped`/`unskipped`, `marked_flaky`/`unmarked_flaky`) are recorded automatically when values transition.
+    ///
+    /// - Remark: HTTP `PATCH /api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/patch(updateTestCase)`.
+    public enum updateTestCase {
+        public static let id: Swift.String = "updateTestCase"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PUT/path`.
+            public struct Path: Sendable, Hashable {
+                /// The handle of the account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PUT/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PUT/path/project_handle`.
+                public var project_handle: Swift.String
+                /// The ID of the test case.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PUT/path/test_case_id`.
+                public var test_case_id: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the account.
+                ///   - project_handle: The handle of the project.
+                ///   - test_case_id: The ID of the test case.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String,
+                    test_case_id: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                    self.test_case_id = test_case_id
+                }
+            }
+            public var path: Operations.updateTestCase.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PUT/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.updateTestCase.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.updateTestCase.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.updateTestCase.Input.Headers
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PUT/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PUT/requestBody/json`.
+                public struct jsonPayload: Codable, Hashable, Sendable {
+                    /// Whether to mark the test case as flaky.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PUT/requestBody/json/is_flaky`.
+                    public var is_flaky: Swift.Bool?
+                    /// The new state of the test case. Currently one of `enabled`, `muted`, or `skipped`; the field is left as an open string so adding new states in the future doesn't break clients pinned to the older spec.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PUT/requestBody/json/state`.
+                    public var state: Swift.String?
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - is_flaky: Whether to mark the test case as flaky.
+                    ///   - state: The new state of the test case. Currently one of `enabled`, `muted`, or `skipped`; the field is left as an open string so adding new states in the future doesn't break clients pinned to the older spec.
+                    public init(
+                        is_flaky: Swift.Bool? = nil,
+                        state: Swift.String? = nil
+                    ) {
+                        self.is_flaky = is_flaky
+                        self.state = state
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case is_flaky
+                        case state
+                    }
+                }
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PUT/requestBody/content/application\/json`.
+                case json(Operations.updateTestCase.Input.Body.jsonPayload)
+            }
+            public var body: Operations.updateTestCase.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            ///   - body:
+            public init(
+                path: Operations.updateTestCase.Input.Path,
+                headers: Operations.updateTestCase.Input.Headers = .init(),
+                body: Operations.updateTestCase.Input.Body? = nil
+            ) {
+                self.path = path
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PUT/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PUT/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// The test case ID.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PUT/responses/200/content/json/id`.
+                        public var id: Swift.String
+                        /// Whether the test case is marked as flaky.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PUT/responses/200/content/json/is_flaky`.
+                        public var is_flaky: Swift.Bool
+                        /// Whether the test case is quarantined (either `muted` or `skipped`). Deprecated: use `state` instead.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PUT/responses/200/content/json/is_quarantined`.
+                        @available(*, deprecated)
+                        public var is_quarantined: Swift.Bool
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PUT/responses/200/content/json/module`.
+                        public struct modulePayload: Codable, Hashable, Sendable {
+                            /// ID of the module.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PUT/responses/200/content/json/module/id`.
+                            public var id: Swift.String
+                            /// Name of the module.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PUT/responses/200/content/json/module/name`.
+                            public var name: Swift.String
+                            /// Creates a new `modulePayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - id: ID of the module.
+                            ///   - name: Name of the module.
+                            public init(
+                                id: Swift.String,
+                                name: Swift.String
+                            ) {
+                                self.id = id
+                                self.name = name
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case id
+                                case name
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PUT/responses/200/content/json/module`.
+                        public var module: Operations.updateTestCase.Output.Ok.Body.jsonPayload.modulePayload
+                        /// Name of the test case.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PUT/responses/200/content/json/name`.
+                        public var name: Swift.String
+                        /// The state of the test case. Currently one of `enabled`, `muted`, or `skipped`; the field is left as an open string so adding new states in the future doesn't break clients pinned to the older spec.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PUT/responses/200/content/json/state`.
+                        public var state: Swift.String
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PUT/responses/200/content/json/suite`.
+                        public struct suitePayload: Codable, Hashable, Sendable {
+                            /// ID of the suite.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PUT/responses/200/content/json/suite/id`.
+                            public var id: Swift.String
+                            /// Name of the suite.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PUT/responses/200/content/json/suite/name`.
+                            public var name: Swift.String
+                            /// Creates a new `suitePayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - id: ID of the suite.
+                            ///   - name: Name of the suite.
+                            public init(
+                                id: Swift.String,
+                                name: Swift.String
+                            ) {
+                                self.id = id
+                                self.name = name
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case id
+                                case name
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PUT/responses/200/content/json/suite`.
+                        public var suite: Operations.updateTestCase.Output.Ok.Body.jsonPayload.suitePayload?
+                        /// URL to view the test case in the dashboard.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PUT/responses/200/content/json/url`.
+                        public var url: Swift.String
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - id: The test case ID.
+                        ///   - is_flaky: Whether the test case is marked as flaky.
+                        ///   - is_quarantined: Whether the test case is quarantined (either `muted` or `skipped`). Deprecated: use `state` instead.
+                        ///   - module:
+                        ///   - name: Name of the test case.
+                        ///   - state: The state of the test case. Currently one of `enabled`, `muted`, or `skipped`; the field is left as an open string so adding new states in the future doesn't break clients pinned to the older spec.
+                        ///   - suite:
+                        ///   - url: URL to view the test case in the dashboard.
+                        public init(
+                            id: Swift.String,
+                            is_flaky: Swift.Bool,
+                            is_quarantined: Swift.Bool,
+                            module: Operations.updateTestCase.Output.Ok.Body.jsonPayload.modulePayload,
+                            name: Swift.String,
+                            state: Swift.String,
+                            suite: Operations.updateTestCase.Output.Ok.Body.jsonPayload.suitePayload? = nil,
+                            url: Swift.String
+                        ) {
+                            self.id = id
+                            self.is_flaky = is_flaky
+                            self.is_quarantined = is_quarantined
+                            self.module = module
+                            self.name = name
+                            self.state = state
+                            self.suite = suite
+                            self.url = url
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case id
+                            case is_flaky
+                            case is_quarantined
+                            case module
+                            case name
+                            case state
+                            case suite
+                            case url
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PUT/responses/200/content/application\/json`.
+                    case json(Operations.updateTestCase.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.updateTestCase.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.updateTestCase.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.updateTestCase.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The updated test case
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/patch(updateTestCase)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.updateTestCase.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.updateTestCase.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PUT/responses/400/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PUT/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.updateTestCase.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.updateTestCase.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// Invalid update params (empty body or malformed field values)
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/patch(updateTestCase)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.updateTestCase.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Operations.updateTestCase.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PUT/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PUT/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.updateTestCase.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.updateTestCase.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// You don't have permission to update this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/patch(updateTestCase)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.updateTestCase.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.updateTestCase.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PUT/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PUT/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.updateTestCase.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.updateTestCase.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// Test case not found
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/patch(updateTestCase)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.updateTestCase.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.updateTestCase.Output.NotFound {
                 get throws {
                     switch self {
                     case let .notFound(response):

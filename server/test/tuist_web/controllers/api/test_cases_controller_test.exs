@@ -605,4 +605,280 @@ defmodule TuistWeb.API.TestCasesControllerTest do
       assert json_response(conn, :forbidden)
     end
   end
+
+  describe "PATCH /api/projects/:account_handle/:project_handle/tests/test-cases/:test_case_id" do
+    setup %{conn: conn} do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      conn = Authentication.put_current_user(conn, user)
+
+      %{conn: conn, user: user, project: project}
+    end
+
+    test "updates state from muted to enabled", %{conn: conn, user: user, project: project} do
+      # Given
+      test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          name: "testExample",
+          module_name: "MyTests",
+          suite_name: "MySuite",
+          state: "muted",
+          last_ran_at: NaiveDateTime.utc_now()
+        )
+
+      updated = %{test_case | state: "enabled"}
+
+      stub(Tests, :get_test_case_by_id, fn _id -> {:ok, test_case} end)
+
+      expect(Tests, :update_test_case, fn id, attrs, opts ->
+        assert id == test_case.id
+        assert attrs == %{state: "enabled"}
+        assert Keyword.fetch!(opts, :actor_id) == user.account.id
+        {:ok, updated}
+      end)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> patch(
+          "/api/projects/#{user.account.name}/#{project.name}/tests/test-cases/#{test_case.id}",
+          %{state: "enabled"}
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+      assert response["id"] == test_case.id
+      assert response["state"] == "enabled"
+      assert response["is_quarantined"] == false
+      assert response["module"]["name"] == "MyTests"
+      assert response["suite"]["name"] == "MySuite"
+      assert response["url"] =~ test_case.id
+    end
+
+    test "updates state from enabled to muted", %{conn: conn, user: user, project: project} do
+      # Given
+      test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          name: "testExample",
+          state: "enabled",
+          last_ran_at: NaiveDateTime.utc_now()
+        )
+
+      updated = %{test_case | state: "muted"}
+
+      stub(Tests, :get_test_case_by_id, fn _id -> {:ok, test_case} end)
+
+      expect(Tests, :update_test_case, fn _id, attrs, _opts ->
+        assert attrs == %{state: "muted"}
+        {:ok, updated}
+      end)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> patch(
+          "/api/projects/#{user.account.name}/#{project.name}/tests/test-cases/#{test_case.id}",
+          %{state: "muted"}
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+      assert response["state"] == "muted"
+      assert response["is_quarantined"] == true
+    end
+
+    test "returns 404 when test case does not exist", %{conn: conn, user: user, project: project} do
+      # Given
+      stub(Tests, :get_test_case_by_id, fn _id -> {:error, :not_found} end)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> patch(
+          "/api/projects/#{user.account.name}/#{project.name}/tests/test-cases/#{UUIDv7.generate()}",
+          %{state: "enabled"}
+        )
+
+      # Then
+      assert json_response(conn, :not_found)
+    end
+
+    test "returns 404 when test case is deleted between lookup and update", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      # Given
+      test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          state: "muted",
+          last_ran_at: NaiveDateTime.utc_now()
+        )
+
+      stub(Tests, :get_test_case_by_id, fn _id -> {:ok, test_case} end)
+      stub(Tests, :update_test_case, fn _id, _attrs, _opts -> {:error, :not_found} end)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> patch(
+          "/api/projects/#{user.account.name}/#{project.name}/tests/test-cases/#{test_case.id}",
+          %{state: "enabled"}
+        )
+
+      # Then
+      assert json_response(conn, :not_found)
+    end
+
+    test "returns 404 when test case belongs to a different project", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      # Given
+      other_project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: other_project.id,
+          last_ran_at: NaiveDateTime.utc_now()
+        )
+
+      stub(Tests, :get_test_case_by_id, fn _id -> {:ok, test_case} end)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> patch(
+          "/api/projects/#{user.account.name}/#{project.name}/tests/test-cases/#{test_case.id}",
+          %{state: "enabled"}
+        )
+
+      # Then
+      assert json_response(conn, :not_found)
+    end
+
+    test "returns 403 when user is not authorized", %{conn: conn, project: project} do
+      # Given
+      other_user = AccountsFixtures.user_fixture(preload: [:account])
+      conn = Authentication.put_current_user(conn, other_user)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> patch(
+          "/api/projects/#{project.account.name}/#{project.name}/tests/test-cases/#{UUIDv7.generate()}",
+          %{state: "enabled"}
+        )
+
+      # Then
+      assert json_response(conn, :forbidden)
+    end
+
+    test "returns 400 when state value is invalid", %{conn: conn, user: user, project: project} do
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> patch(
+          "/api/projects/#{user.account.name}/#{project.name}/tests/test-cases/#{UUIDv7.generate()}",
+          %{state: "not-a-real-state"}
+        )
+
+      # Then
+      assert response(conn, 400)
+    end
+
+    test "returns 400 when body omits both state and is_flaky", %{conn: conn, user: user, project: project} do
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> patch(
+          "/api/projects/#{user.account.name}/#{project.name}/tests/test-cases/#{UUIDv7.generate()}",
+          %{}
+        )
+
+      # Then
+      assert json_response(conn, :bad_request)["message"] =~ "Provide at least one"
+    end
+
+    test "marks a test case as flaky", %{conn: conn, user: user, project: project} do
+      # Given
+      test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          name: "testExample",
+          is_flaky: false,
+          last_ran_at: NaiveDateTime.utc_now()
+        )
+
+      updated = %{test_case | is_flaky: true}
+
+      stub(Tests, :get_test_case_by_id, fn _id -> {:ok, test_case} end)
+
+      expect(Tests, :update_test_case, fn _id, attrs, _opts ->
+        assert attrs == %{is_flaky: true}
+        {:ok, updated}
+      end)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> patch(
+          "/api/projects/#{user.account.name}/#{project.name}/tests/test-cases/#{test_case.id}",
+          %{is_flaky: true}
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+      assert response["is_flaky"] == true
+    end
+
+    test "updates state and is_flaky together", %{conn: conn, user: user, project: project} do
+      # Given
+      test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          name: "testExample",
+          state: "muted",
+          is_flaky: true,
+          last_ran_at: NaiveDateTime.utc_now()
+        )
+
+      updated = %{test_case | state: "enabled", is_flaky: false}
+
+      stub(Tests, :get_test_case_by_id, fn _id -> {:ok, test_case} end)
+
+      expect(Tests, :update_test_case, fn _id, attrs, _opts ->
+        assert attrs == %{state: "enabled", is_flaky: false}
+        {:ok, updated}
+      end)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> patch(
+          "/api/projects/#{user.account.name}/#{project.name}/tests/test-cases/#{test_case.id}",
+          %{state: "enabled", is_flaky: false}
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+      assert response["state"] == "enabled"
+      assert response["is_flaky"] == false
+    end
+  end
 end

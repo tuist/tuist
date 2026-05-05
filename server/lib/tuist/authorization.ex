@@ -486,6 +486,17 @@ defmodule Tuist.Authorization do
       allow([:authenticated_as_account, scopes_permit: "project:tests:read"])
       allow([:authenticated_as_account, scopes_permit: "project:tests:write"])
     end
+
+    action :update do
+      desc("Allows users of a project to update a tests data.")
+      allow([:authenticated_as_user, user_role: :user])
+
+      desc("Allows the admin of a project to update tests data.")
+      allow([:authenticated_as_user, user_role: :admin])
+
+      desc("Allows an account token with project:tests:write scope to update tests data.")
+      allow([:authenticated_as_account, scopes_permit: "project:tests:write"])
+    end
   end
 
   object :build do
