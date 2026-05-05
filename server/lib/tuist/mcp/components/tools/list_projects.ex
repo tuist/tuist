@@ -5,6 +5,7 @@ defmodule Tuist.MCP.Components.Tools.ListProjects do
 
   use Tuist.MCP.Tool,
     name: "list_projects",
+    title: "List Projects",
     schema: %{
       "type" => "object",
       "properties" => %{}
