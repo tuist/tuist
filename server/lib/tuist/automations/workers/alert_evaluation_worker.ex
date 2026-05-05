@@ -24,90 +24,76 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
   end
 
   defp evaluate_and_execute(alert) do
-    %{triggered: triggered_ids, flagged: flagged_ids} = evaluate_monitor(alert)
+    %{triggered: triggered_ids, all: all_ids} = evaluate_monitor(alert)
     active_events = Automations.list_active_alert_events(alert.id)
     already_triggered_ids = MapSet.new(active_events, & &1.test_case_id)
 
     newly_triggered = Enum.reject(triggered_ids, &MapSet.member?(already_triggered_ids, &1))
 
-    Enum.each(newly_triggered, &trigger_for(alert, &1))
+    Enum.each(newly_triggered, fn test_case_id ->
+      entity = %{type: :test_case, id: test_case_id}
+
+      case ActionExecutor.execute_actions(alert.trigger_actions, alert, entity) do
+        :ok ->
+          Automations.create_alert_event(%{
+            alert_id: alert.id,
+            test_case_id: test_case_id,
+            status: "triggered",
+            triggered_at: NaiveDateTime.utc_now()
+          })
+
+        {:error, reason} ->
+          Logger.error("Alert #{alert.id} trigger actions failed for test_case #{test_case_id}: #{inspect(reason)}")
+      end
+    end)
 
     if alert.recovery_enabled do
-      handle_recovery(alert, triggered_ids, active_events, flagged_ids)
+      handle_recovery(alert, triggered_ids, active_events, all_ids)
     end
 
     :ok
   end
 
-  defp trigger_for(alert, test_case_id) do
-    entity = %{type: :test_case, id: test_case_id}
-
-    case ActionExecutor.execute_actions(alert.trigger_actions, alert, entity) do
-      :ok ->
-        Automations.create_alert_event(%{
-          alert_id: alert.id,
-          test_case_id: test_case_id,
-          status: "triggered",
-          triggered_at: NaiveDateTime.utc_now()
-        })
-
-      {:error, reason} ->
-        Logger.error("Alert #{alert.id} trigger actions failed for test_case #{test_case_id}: #{inspect(reason)}")
-    end
-  end
-
-  defp handle_recovery(alert, currently_triggered_ids, active_events, flagged_ids) do
+  defp handle_recovery(alert, currently_triggered_ids, active_events, all_ids) do
     currently_triggered_set = MapSet.new(currently_triggered_ids)
-    events_by_id = Map.new(active_events, &{&1.test_case_id, &1})
+    all_ids_set = MapSet.new(all_ids)
 
     recovery_config = alert.recovery_config || %{}
     seconds = parse_window(recovery_config["window"] || "#{recovery_config["days_without_trigger"] || 14}d")
     cutoff = NaiveDateTime.add(NaiveDateTime.utc_now(), -seconds, :second)
 
-    flagged_ids
-    |> MapSet.new()
-    |> MapSet.union(MapSet.new(active_events, & &1.test_case_id))
-    |> Enum.reject(&MapSet.member?(currently_triggered_set, &1))
-    |> Enum.filter(&recovery_window_elapsed?(events_by_id, &1, cutoff))
-    |> Enum.each(&recover_for(alert, &1))
-  end
+    recovered =
+      Enum.filter(active_events, fn event ->
+        MapSet.member?(all_ids_set, event.test_case_id) and
+          not MapSet.member?(currently_triggered_set, event.test_case_id) and
+          NaiveDateTime.before?(event.triggered_at, cutoff)
+      end)
 
-  # When this alert flagged the entity, its triggered event tells us when, so
-  # we wait the recovery window before recovering to prevent ping-ponging
-  # while the entity flickers in and out of the trigger condition. Entities
-  # flagged without a matching event (e.g. manually via UI/API, or by a
-  # previous automation that has since been deleted or reconfigured) have no
-  # `triggered_at` to gate against; they recover on the first evaluation that
-  # finds them not currently triggered.
-  defp recovery_window_elapsed?(events_by_id, entity_id, cutoff) do
-    case Map.get(events_by_id, entity_id) do
-      nil -> true
-      event -> NaiveDateTime.before?(event.triggered_at, cutoff)
-    end
-  end
+    Enum.each(recovered, fn event ->
+      entity = %{type: :test_case, id: event.test_case_id}
 
-  defp recover_for(alert, test_case_id) do
-    entity = %{type: :test_case, id: test_case_id}
+      # Run recovery actions BEFORE appending the "recovered" event. If we
+      # flipped the order, a failure in the Slack ping / label removal /
+      # state reset would leave the rule visually resolved while the user's
+      # intended side effects never happened.
+      case ActionExecutor.execute_actions(alert.recovery_actions, alert, entity) do
+        :ok ->
+          now = NaiveDateTime.utc_now()
 
-    # Run recovery actions BEFORE appending the "recovered" event. If we
-    # flipped the order, a failure in the Slack ping / label removal /
-    # state reset would leave the rule visually resolved while the user's
-    # intended side effects never happened.
-    case ActionExecutor.execute_actions(alert.recovery_actions, alert, entity) do
-      :ok ->
-        now = NaiveDateTime.utc_now()
+          Automations.create_alert_event(%{
+            alert_id: alert.id,
+            test_case_id: event.test_case_id,
+            status: "recovered",
+            triggered_at: now,
+            recovered_at: now
+          })
 
-        Automations.create_alert_event(%{
-          alert_id: alert.id,
-          test_case_id: test_case_id,
-          status: "recovered",
-          triggered_at: now,
-          recovered_at: now
-        })
-
-      {:error, reason} ->
-        Logger.error("Alert #{alert.id} recovery actions failed for test_case #{test_case_id}: #{inspect(reason)}")
-    end
+        {:error, reason} ->
+          Logger.error(
+            "Alert #{alert.id} recovery actions failed for test_case #{event.test_case_id}: #{inspect(reason)}"
+          )
+      end
+    end)
   end
 
   defp parse_window(window) when is_binary(window) do
@@ -130,8 +116,12 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
     FlakyTestsMonitor.evaluate_by_run_count(alert)
   end
 
+  defp evaluate_monitor(%{monitor_type: "flaky_run_count_below"} = alert) do
+    FlakyTestsMonitor.evaluate_by_run_count_below(alert)
+  end
+
   defp evaluate_monitor(alert) do
     Logger.warning("Unknown monitor type: #{alert.monitor_type}")
-    %{triggered: [], flagged: []}
+    %{triggered: [], all: []}
   end
 end

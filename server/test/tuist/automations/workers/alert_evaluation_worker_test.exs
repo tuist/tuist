@@ -30,7 +30,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     triggered_id = Ecto.UUID.generate()
 
     expect(FlakyTestsMonitor, :evaluate, fn _automation ->
-      %{triggered: [triggered_id], flagged: []}
+      %{triggered: [triggered_id], all: [triggered_id]}
     end)
 
     expect(Automations, :list_active_alert_events, fn _id -> [] end)
@@ -56,7 +56,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     already = Ecto.UUID.generate()
 
     expect(FlakyTestsMonitor, :evaluate, fn _automation ->
-      %{triggered: [already], flagged: [already]}
+      %{triggered: [already], all: [already]}
     end)
 
     expect(Automations, :list_active_alert_events, fn _id ->
@@ -80,7 +80,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     recovered_id = Ecto.UUID.generate()
 
     expect(FlakyTestsMonitor, :evaluate, fn _automation ->
-      %{triggered: [], flagged: [recovered_id]}
+      %{triggered: [], all: [recovered_id]}
     end)
 
     triggered_long_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -3, :day)
@@ -118,7 +118,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     recovered_id = Ecto.UUID.generate()
 
     expect(FlakyTestsMonitor, :evaluate, fn _automation ->
-      %{triggered: [], flagged: [recovered_id]}
+      %{triggered: [], all: [recovered_id]}
     end)
 
     triggered_recently = NaiveDateTime.add(NaiveDateTime.utc_now(), -1, :day)
@@ -136,130 +136,47 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
   test "does not run recovery when recovery_enabled is false" do
     automation = AutomationsFixtures.automation_alert_fixture(recovery_enabled: false)
 
-    expect(FlakyTestsMonitor, :evaluate, fn _automation -> %{triggered: [], flagged: []} end)
+    expect(FlakyTestsMonitor, :evaluate, fn _automation -> %{triggered: [], all: []} end)
     expect(Automations, :list_active_alert_events, fn _id -> [] end)
     reject(&Automations.create_alert_event/1)
 
     assert :ok = run(automation.id)
   end
 
-  test "recovers tests flagged without an active alert event on first sight" do
+  test "dispatches flaky_run_count_below alerts to evaluate_by_run_count_below" do
     automation =
       AutomationsFixtures.automation_alert_fixture(
-        recovery_enabled: true,
-        recovery_config: %{"window" => "14d"},
-        recovery_actions: [%{"type" => "remove_label", "label" => "flaky"}]
+        monitor_type: "flaky_run_count_below",
+        trigger_config: %{"threshold" => 1, "window" => "30d"},
+        trigger_actions: [%{"type" => "remove_label", "label" => "flaky"}]
       )
 
-    flagged_id = Ecto.UUID.generate()
+    cleanup_id = Ecto.UUID.generate()
 
-    expect(FlakyTestsMonitor, :evaluate, fn _automation ->
-      %{triggered: [], flagged: [flagged_id]}
+    reject(&FlakyTestsMonitor.evaluate/1)
+    reject(&FlakyTestsMonitor.evaluate_by_run_count/1)
+
+    expect(FlakyTestsMonitor, :evaluate_by_run_count_below, fn ^automation ->
+      %{triggered: [cleanup_id], all: [cleanup_id]}
     end)
 
     expect(Automations, :list_active_alert_events, fn _id -> [] end)
 
-    expected_entity = %{type: :test_case, id: flagged_id}
-
-    expect(ActionExecutor, :execute_actions, fn actions, ^automation, ^expected_entity ->
-      assert actions == automation.recovery_actions
-      :ok
-    end)
-
-    expect(Automations, :create_alert_event, fn %{
-                                                  alert_id: id,
-                                                  test_case_id: ^flagged_id,
-                                                  status: "recovered"
-                                                } ->
-      assert id == automation.id
-      :ok
-    end)
-
-    assert :ok = run(automation.id)
-  end
-
-  test "does not recover a flagged test that is currently triggered (trigger path takes over)" do
-    automation =
-      AutomationsFixtures.automation_alert_fixture(
-        recovery_enabled: true,
-        trigger_actions: [%{"type" => "add_label", "label" => "flaky"}],
-        recovery_actions: [%{"type" => "remove_label", "label" => "flaky"}]
-      )
-
-    flagged_and_triggered = Ecto.UUID.generate()
-
-    expect(FlakyTestsMonitor, :evaluate, fn _automation ->
-      %{triggered: [flagged_and_triggered], flagged: [flagged_and_triggered]}
-    end)
-
-    expect(Automations, :list_active_alert_events, fn _id -> [] end)
-
-    expected_entity = %{type: :test_case, id: flagged_and_triggered}
+    expected_entity = %{type: :test_case, id: cleanup_id}
 
     expect(ActionExecutor, :execute_actions, fn actions, ^automation, ^expected_entity ->
       assert actions == automation.trigger_actions
       :ok
     end)
 
-    expect(Automations, :create_alert_event, fn %{status: "triggered", test_case_id: ^flagged_and_triggered} ->
+    expect(Automations, :create_alert_event, fn %{
+                                                  alert_id: id,
+                                                  test_case_id: ^cleanup_id,
+                                                  status: "triggered"
+                                                } ->
+      assert id == automation.id
       :ok
     end)
-
-    assert :ok = run(automation.id)
-  end
-
-  test "waits the recovery window for flagged tests with an active alert event" do
-    automation =
-      AutomationsFixtures.automation_alert_fixture(
-        recovery_enabled: true,
-        recovery_config: %{"window" => "14d"},
-        recovery_actions: [%{"type" => "remove_label", "label" => "flaky"}]
-      )
-
-    tracked_id = Ecto.UUID.generate()
-    triggered_recently = NaiveDateTime.add(NaiveDateTime.utc_now(), -1, :day)
-
-    expect(FlakyTestsMonitor, :evaluate, fn _automation ->
-      %{triggered: [], flagged: [tracked_id]}
-    end)
-
-    expect(Automations, :list_active_alert_events, fn _id ->
-      [%{test_case_id: tracked_id, triggered_at: triggered_recently}]
-    end)
-
-    reject(&ActionExecutor.execute_actions/3)
-    reject(&Automations.create_alert_event/1)
-
-    assert :ok = run(automation.id)
-  end
-
-  test "recovers a flagged test once when both flagged and tracked by an active alert event" do
-    automation =
-      AutomationsFixtures.automation_alert_fixture(
-        recovery_enabled: true,
-        recovery_config: %{"window" => "1d"},
-        recovery_actions: [%{"type" => "remove_label", "label" => "flaky"}]
-      )
-
-    test_case_id = Ecto.UUID.generate()
-    triggered_long_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -3, :day)
-
-    expect(FlakyTestsMonitor, :evaluate, fn _automation ->
-      %{triggered: [], flagged: [test_case_id]}
-    end)
-
-    expect(Automations, :list_active_alert_events, fn _id ->
-      [%{test_case_id: test_case_id, triggered_at: triggered_long_ago}]
-    end)
-
-    expected_entity = %{type: :test_case, id: test_case_id}
-
-    expect(ActionExecutor, :execute_actions, fn actions, ^automation, ^expected_entity ->
-      assert actions == automation.recovery_actions
-      :ok
-    end)
-
-    expect(Automations, :create_alert_event, fn %{status: "recovered", test_case_id: ^test_case_id} -> :ok end)
 
     assert :ok = run(automation.id)
   end
