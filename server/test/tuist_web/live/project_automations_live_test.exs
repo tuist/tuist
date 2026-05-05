@@ -64,7 +64,7 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
       assert automation.trigger_config["threshold"] == 3
     end
 
-    test "saves a cleanup alert when comparison switches to lt", %{
+    test "switching the comparison to lt persists it without touching threshold or actions", %{
       conn: conn,
       organization: organization,
       project: project
@@ -80,9 +80,12 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
       assert [automation] = Automations.list_alerts(project.id)
       assert automation.monitor_type == "flaky_run_count"
       assert automation.trigger_config["comparison"] == "lt"
-      assert automation.trigger_config["threshold"] == 1
-      # Default trigger action flipped to `remove_label` to match the cleanup intent.
-      assert [%{"type" => "remove_label", "label" => "flaky"}] = automation.trigger_actions
+      # Threshold stays at the metric default (3) — switching comparison
+      # doesn't clobber whatever the user typed.
+      assert automation.trigger_config["threshold"] == 3
+      # Trigger actions stay at the form default; the user picks Unmark as
+      # flaky explicitly via the action dropdown.
+      assert [%{"type" => "add_label", "label" => "flaky"}] = automation.trigger_actions
     end
 
     test "supports adding multiple actions and dropping the change_state option once added", %{

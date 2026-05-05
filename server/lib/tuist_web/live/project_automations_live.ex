@@ -71,10 +71,12 @@ defmodule TuistWeb.ProjectAutomationsLive do
   @comparisons ~w(gte gt lt lte)
   @below_comparisons ~w(lt lte)
 
-  defp default_threshold("flakiness_rate", comparison) when comparison in @below_comparisons, do: "5"
-  defp default_threshold("flakiness_rate", _), do: "10"
-  defp default_threshold("flaky_run_count", comparison) when comparison in @below_comparisons, do: "1"
-  defp default_threshold("flaky_run_count", _), do: "3"
+  # Only varies by metric — switching comparison keeps whatever the user has
+  # typed, since "% < 5" and "% >= 5" are both reasonable starting points and
+  # auto-resetting on every dropdown click would clobber their input.
+  defp default_threshold("flakiness_rate"), do: "10"
+  defp default_threshold("flaky_run_count"), do: "3"
+  defp default_threshold(_), do: "1"
 
   defp default_change_state_action(state), do: %{"type" => "change_state", "state" => state}
   defp default_add_label_action, do: %{"type" => "add_label", "label" => "flaky"}
@@ -174,36 +176,14 @@ defmodule TuistWeb.ProjectAutomationsLive do
   end
 
   def handle_event("update_create_automation_form_metric", %{"data" => metric}, socket) do
-    threshold = default_threshold(metric, socket.assigns.create_automation_form_comparison)
-
     {:noreply,
      socket
      |> assign(create_automation_form_metric: metric)
-     |> assign(create_automation_form_threshold: threshold)}
+     |> assign(create_automation_form_threshold: default_threshold(metric))}
   end
 
   def handle_event("update_create_automation_form_comparison", %{"data" => comparison}, socket) do
-    threshold = default_threshold(socket.assigns.create_automation_form_metric, comparison)
-
-    # Below comparisons (lt/lte) exist to *unmark* tests, so flip the default
-    # trigger action when the user switches direction. Only swap if the form
-    # is still in its single-default state — preserve any custom actions the
-    # user has already added.
-    was_below = socket.assigns.create_automation_form_comparison in @below_comparisons
-    is_below = comparison in @below_comparisons
-
-    trigger_actions =
-      case {is_below, was_below, socket.assigns.create_automation_form_trigger_actions} do
-        {true, false, [%{"type" => "add_label", "label" => "flaky"}]} -> [default_remove_label_action()]
-        {false, true, [%{"type" => "remove_label", "label" => "flaky"}]} -> [default_add_label_action()]
-        {_, _, current} -> current
-      end
-
-    {:noreply,
-     socket
-     |> assign(create_automation_form_comparison: comparison)
-     |> assign(create_automation_form_threshold: threshold)
-     |> assign(create_automation_form_trigger_actions: trigger_actions)}
+    {:noreply, assign(socket, create_automation_form_comparison: comparison)}
   end
 
   def handle_event("update_create_automation_form_threshold", %{"value" => value}, socket) do
