@@ -14,7 +14,7 @@ The Xcode cache was introduced in Xcode 26. You might also see it referred to as
 > [!TIP]
 > **Combine with the module cache**
 >
-> The Xcode cache and the <.localized_link href="/guides/features/cache/module-cache">module cache</.localized_link> work at different granularity levels and complement each other. The module cache replaces whole modules with prebuilt `.xcframework`s before the build runs, while the Xcode cache reuses compilation outputs for whatever still gets compiled.
+> The Xcode cache and the <.localized_link href="/guides/features/cache/module-cache">module cache</.localized_link> work at different granularity levels and complement each other. The module cache replaces whole modules with prebuilt `.xcframework`s before the build runs, while the Xcode cache reuses compilation outputs.
 
 
 ## Setup {#setup}
