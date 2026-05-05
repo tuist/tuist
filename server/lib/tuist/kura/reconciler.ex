@@ -44,6 +44,11 @@ defmodule Tuist.Kura.Reconciler do
   end
 
   def reconcile do
+    # Intentional cross-tenant scan: this is a system-level recovery job
+    # (Oban Cron) detecting deployments stranded after a server restart.
+    # It only ever transitions a `:running` row to `:failed`, never reads
+    # back to a tenant-facing surface, so there's no leak path; account
+    # isolation is enforced at the writer (Tuist.Kura.mark_failed/2).
     query = from(d in Deployment, where: d.status == :running, preload: :kura_server)
 
     query
