@@ -168,9 +168,7 @@
                   </div>
                   <div data-part="form-row" data-size="compact">
                     <label data-part="label">
-                      {dgettext("dashboard_projects", "Threshold (%{unit})",
-                        unit: threshold_unit(@create_automation_form_metric)
-                      )}
+                      {threshold_label(@create_automation_form_metric)}
                     </label>
                     <.text_input
                       type="basic"

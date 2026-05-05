@@ -460,9 +460,9 @@ defmodule TuistWeb.ProjectAutomationsLive do
   def comparison_symbol("lte"), do: "≤"
   def comparison_symbol(_), do: "≥"
 
-  def threshold_unit("flakiness_rate"), do: dgettext("dashboard_projects", "%")
-  def threshold_unit("flaky_run_count"), do: dgettext("dashboard_projects", "count")
-  def threshold_unit(_), do: ""
+  def threshold_label("flakiness_rate"), do: dgettext("dashboard_projects", "Percent")
+  def threshold_label("flaky_run_count"), do: dgettext("dashboard_projects", "Count")
+  def threshold_label(_), do: dgettext("dashboard_projects", "Threshold")
 
   def state_action_label("muted"), do: dgettext("dashboard_projects", "Mute")
   def state_action_label("skipped"), do: dgettext("dashboard_projects", "Skip")
