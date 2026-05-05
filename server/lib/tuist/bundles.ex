@@ -31,16 +31,38 @@ defmodule Tuist.Bundles do
     # before the CH cutover, so callers that compare against
     # second-truncated values (e.g. the dashboard date picker) keep
     # matching freshly-created bundles.
-    timestamp =
-      DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_naive() |> bump_usec_precision()
+    timestamp = bundle_attrs |> Map.get(:inserted_at) |> truncate_timestamp()
 
-    flattened = flatten_artifacts(artifacts, bundle_id, nil, timestamp)
-    insert_artifacts_to_clickhouse(flattened)
+    artifacts
+    |> flatten_artifacts(bundle_id, nil, timestamp)
+    |> insert_artifacts_to_clickhouse()
 
-    bundle_row = encode_bundle_for_ch(bundle_attrs, timestamp)
-    IngestRepo.insert_all(Bundle, [bundle_row])
+    IngestRepo.insert_all(Bundle, [
+      %{
+        id: bundle_id,
+        app_bundle_id: Map.fetch!(bundle_attrs, :app_bundle_id),
+        name: Map.fetch!(bundle_attrs, :name),
+        install_size: Map.fetch!(bundle_attrs, :install_size),
+        download_size: Map.get(bundle_attrs, :download_size),
+        git_branch: Map.get(bundle_attrs, :git_branch),
+        git_commit_sha: Map.get(bundle_attrs, :git_commit_sha),
+        git_ref: Map.get(bundle_attrs, :git_ref),
+        supported_platforms: bundle_attrs |> Map.fetch!(:supported_platforms) |> Enum.map(&as_string/1),
+        version: Map.fetch!(bundle_attrs, :version),
+        type: bundle_attrs |> Map.fetch!(:type) |> as_string(),
+        project_id: Map.fetch!(bundle_attrs, :project_id),
+        uploaded_by_account_id: Map.get(bundle_attrs, :uploaded_by_account_id),
+        inserted_at: timestamp,
+        updated_at: timestamp
+      }
+    ])
 
-    bundle = bundle_row |> bundle_struct_from_row() |> Repo.preload(preload)
+    bundle =
+      from(b in Bundle, where: b.id == type(^bundle_id, Ecto.UUID))
+      |> ClickHouseRepo.one()
+      |> decode_bundle()
+      |> Repo.preload(preload)
+
     {:ok, bundle}
   end
 
@@ -51,80 +73,19 @@ defmodule Tuist.Bundles do
     :ok
   end
 
-  defp encode_bundle_for_ch(attrs, default_timestamp) do
-    inserted_at =
-      case Map.get(attrs, :inserted_at) do
-        nil -> default_timestamp
-        value -> to_naive_usec(value)
-      end
+  # Internal callers (fixtures, tests) pass enum values as atoms; the
+  # API controller passes them as strings after OpenAPI casting. Accept
+  # both so the encode boundary doesn't have to care.
+  defp as_string(value) when is_atom(value), do: Atom.to_string(value)
+  defp as_string(value) when is_binary(value), do: value
 
-    %{
-      id: Map.fetch!(attrs, :id),
-      app_bundle_id: Map.fetch!(attrs, :app_bundle_id),
-      name: Map.fetch!(attrs, :name),
-      install_size: Map.fetch!(attrs, :install_size),
-      download_size: Map.get(attrs, :download_size),
-      git_branch: Map.get(attrs, :git_branch),
-      git_commit_sha: Map.get(attrs, :git_commit_sha),
-      git_ref: Map.get(attrs, :git_ref),
-      supported_platforms: encode_platforms(Map.fetch!(attrs, :supported_platforms)),
-      version: Map.fetch!(attrs, :version),
-      type: encode_type(Map.fetch!(attrs, :type)),
-      project_id: Map.fetch!(attrs, :project_id),
-      uploaded_by_account_id: Map.get(attrs, :uploaded_by_account_id),
-      inserted_at: inserted_at,
-      updated_at: inserted_at
-    }
-  end
+  defp truncate_timestamp(nil), do: truncate_timestamp(DateTime.utc_now())
 
-  defp bundle_struct_from_row(row) do
-    Ecto.put_meta(
-      %Bundle{
-        id: row.id,
-        app_bundle_id: row.app_bundle_id,
-        name: row.name,
-        install_size: row.install_size,
-        download_size: row.download_size,
-        git_branch: row.git_branch,
-        git_commit_sha: row.git_commit_sha,
-        git_ref: row.git_ref,
-        supported_platforms: decode_platforms(row.supported_platforms),
-        version: row.version,
-        type: decode_type(row.type),
-        project_id: row.project_id,
-        uploaded_by_account_id: row.uploaded_by_account_id,
-        inserted_at: from_naive_usec(row.inserted_at),
-        updated_at: from_naive_usec(row.updated_at)
-      },
-      state: :loaded
-    )
-  end
-
-  defp encode_platforms(nil), do: []
-  defp encode_platforms(platforms), do: Enum.map(platforms, &encode_atom/1)
-
-  defp encode_type(value), do: encode_atom(value)
-
-  defp encode_atom(value) when is_atom(value), do: Atom.to_string(value)
-  defp encode_atom(value) when is_binary(value), do: value
-
-  defp decode_platforms(nil), do: []
-
-  defp decode_platforms(platforms) when is_list(platforms) do
-    Enum.map(platforms, &decode_atom/1)
-  end
-
-  defp decode_type(nil), do: nil
-  defp decode_type(value), do: decode_atom(value)
-
-  defp decode_atom(value) when is_binary(value), do: String.to_existing_atom(value)
-  defp decode_atom(value) when is_atom(value), do: value
-
-  defp to_naive_usec(%DateTime{} = dt) do
+  defp truncate_timestamp(%DateTime{} = dt) do
     dt |> DateTime.truncate(:second) |> DateTime.to_naive() |> bump_usec_precision()
   end
 
-  defp to_naive_usec(%NaiveDateTime{} = ndt) do
+  defp truncate_timestamp(%NaiveDateTime{} = ndt) do
     ndt |> NaiveDateTime.truncate(:second) |> bump_usec_precision()
   end
 
@@ -132,24 +93,29 @@ defmodule Tuist.Bundles do
     %{ndt | microsecond: {value, 6}}
   end
 
-  defp from_naive_usec(nil), do: nil
-  defp from_naive_usec(%DateTime{} = dt), do: dt
-  defp from_naive_usec(%NaiveDateTime{} = ndt), do: DateTime.from_naive!(ndt, "Etc/UTC")
-
-  # ClickHouse stores enum-shaped fields as strings; the rest of the codebase
-  # works with atoms, so normalize at every read boundary that returns a
-  # `%Bundle{}` struct.
+  # ClickHouse stores enum-shaped fields as strings and timestamps as
+  # `DateTime64(6)` (read back as `NaiveDateTime`); the rest of the
+  # codebase works with atoms and `DateTime`, so normalize at every
+  # read boundary that returns a `%Bundle{}` struct.
   defp decode_bundle(nil), do: nil
 
   defp decode_bundle(%Bundle{} = bundle) do
     %{
       bundle
       | type: decode_type(bundle.type),
-        supported_platforms: decode_platforms(bundle.supported_platforms),
+        supported_platforms: Enum.map(bundle.supported_platforms || [], &String.to_existing_atom/1),
         inserted_at: from_naive_usec(bundle.inserted_at),
         updated_at: from_naive_usec(bundle.updated_at)
     }
   end
+
+  defp decode_type(nil), do: nil
+  defp decode_type(value) when is_atom(value), do: value
+  defp decode_type(value) when is_binary(value), do: String.to_existing_atom(value)
+
+  defp from_naive_usec(nil), do: nil
+  defp from_naive_usec(%DateTime{} = dt), do: dt
+  defp from_naive_usec(%NaiveDateTime{} = ndt), do: DateTime.from_naive!(ndt, "Etc/UTC")
 
   defp decode_bundles(bundles) when is_list(bundles), do: Enum.map(bundles, &decode_bundle/1)
 
@@ -378,7 +344,7 @@ defmodule Tuist.Bundles do
     last_bundle =
       query
       |> then(&if(is_nil(git_branch), do: &1, else: where(&1, [b], b.git_branch == ^git_branch)))
-      |> then(&if(is_nil(type), do: &1, else: where(&1, [b], b.type == ^encode_type(type))))
+      |> then(&if(is_nil(type), do: &1, else: where(&1, [b], b.type == ^Atom.to_string(type))))
       |> order_by([b], desc: b.inserted_at)
       |> limit(1)
       |> ClickHouseRepo.one()
@@ -386,7 +352,7 @@ defmodule Tuist.Bundles do
 
     if is_nil(last_bundle) && fallback do
       query
-      |> then(&if(is_nil(type), do: &1, else: where(&1, [b], b.type == ^encode_type(type))))
+      |> then(&if(is_nil(type), do: &1, else: where(&1, [b], b.type == ^Atom.to_string(type))))
       |> order_by([b], desc: b.inserted_at)
       |> limit(1)
       |> ClickHouseRepo.one()
@@ -510,7 +476,7 @@ defmodule Tuist.Bundles do
       |> where([b], b.project_id == ^project.id)
       |> where([b], b.inserted_at >= ^start_datetime and b.inserted_at <= ^end_datetime)
       |> then(&if(is_nil(git_branch), do: &1, else: where(&1, [b], b.git_branch == ^git_branch)))
-      |> then(&if(is_nil(type), do: &1, else: where(&1, [b], b.type == ^encode_type(type))))
+      |> then(&if(is_nil(type), do: &1, else: where(&1, [b], b.type == ^Atom.to_string(type))))
       |> then(&if(is_nil(name), do: &1, else: where(&1, [b], b.name == ^name)))
       |> select([b], %{
         id: b.id,
