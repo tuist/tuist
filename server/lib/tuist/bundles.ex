@@ -14,6 +14,8 @@ defmodule Tuist.Bundles do
   alias Tuist.Projects.Project
   alias Tuist.Repo
 
+  require Logger
+
   @doc """
   Creates a bundle with associated artifacts.
 
@@ -99,15 +101,66 @@ defmodule Tuist.Bundles do
     %{
       bundle
       | type: decode_type(bundle.type),
-        supported_platforms: Enum.map(bundle.supported_platforms || [], &String.to_existing_atom/1),
+        supported_platforms: decode_platforms(bundle.supported_platforms),
         inserted_at: from_naive_usec(bundle.inserted_at),
         updated_at: from_naive_usec(bundle.updated_at)
     }
   end
 
+  # Decode through the known `Bundle.types/0` set instead of calling
+  # `String.to_existing_atom/1` blindly: a malformed backfill, manual
+  # repair, or future enum mismatch would otherwise raise
+  # `ArgumentError` at the read boundary and turn dashboard / API
+  # bundle reads into 500s. Unknown values are dropped (logged so
+  # they're traceable) and the field falls back to `nil`, which the
+  # consumer code already handles via the catch-all `format_bundle_type/1`
+  # clause.
   defp decode_type(nil), do: nil
-  defp decode_type(value) when is_atom(value), do: value
-  defp decode_type(value) when is_binary(value), do: String.to_existing_atom(value)
+
+  defp decode_type(value) do
+    case lookup_known_atom(value, Bundle.types()) do
+      {:ok, atom} ->
+        atom
+
+      :error ->
+        Logger.warning("Discarding unknown bundle type value from ClickHouse: #{inspect(value)}")
+        nil
+    end
+  end
+
+  # Same protection as `decode_type/1`, but for the
+  # `Array(LowCardinality(String))` column. Unknown entries are
+  # filtered out so a single stray string doesn't take the whole bundle
+  # down on read.
+  defp decode_platforms(nil), do: []
+
+  defp decode_platforms(values) when is_list(values) do
+    known = Bundle.supported_platforms()
+
+    Enum.flat_map(values, fn value ->
+      case lookup_known_atom(value, known) do
+        {:ok, atom} ->
+          [atom]
+
+        :error ->
+          Logger.warning(
+            "Discarding unknown bundle supported_platforms value from ClickHouse: #{inspect(value)}"
+          )
+
+          []
+      end
+    end)
+  end
+
+  defp lookup_known_atom(value, known) when is_atom(value) do
+    if value in known, do: {:ok, value}, else: :error
+  end
+
+  defp lookup_known_atom(value, known) when is_binary(value) do
+    Enum.find_value(known, :error, fn atom ->
+      if Atom.to_string(atom) == value, do: {:ok, atom}
+    end)
+  end
 
   defp from_naive_usec(nil), do: nil
   defp from_naive_usec(%DateTime{} = dt), do: dt
@@ -163,8 +216,19 @@ defmodule Tuist.Bundles do
     |> Enum.map(&decode_artifact_type/1)
   end
 
+  # Same `String.to_existing_atom/1` protection as `decode_type/1` /
+  # `decode_platforms/1`: an unknown `artifact_type` string in CH falls
+  # back to `:unknown` (already a member of `Artifact.artifact_types/0`)
+  # so a stray value can't 500 the bundle detail view.
   defp decode_artifact_type(%{artifact_type: type} = artifact) when is_binary(type) do
-    %{artifact | artifact_type: String.to_existing_atom(type)}
+    case lookup_known_atom(type, Artifact.artifact_types()) do
+      {:ok, atom} ->
+        %{artifact | artifact_type: atom}
+
+      :error ->
+        Logger.warning("Discarding unknown artifact type value from ClickHouse: #{inspect(type)}")
+        %{artifact | artifact_type: :unknown}
+    end
   end
 
   defp decode_artifact_type(artifact), do: artifact

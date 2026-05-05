@@ -316,6 +316,66 @@ defmodule Tuist.BundlesTest do
       assert got.id == bundle.id
       assert got.artifacts == []
     end
+
+    test "drops unknown supported_platforms values from a malformed CH row instead of crashing" do
+      # Given — a bundle inserted directly into ClickHouse (bypassing
+      # the changeset's `validate_supported_platforms/1`) so we can
+      # simulate a malformed backfill or future enum mismatch landing in
+      # the column. Without the read-boundary guard, `String.to_existing_atom/1`
+      # would raise `ArgumentError` and turn `get_bundle/1` into a 500.
+      bundle_id = UUIDv7.generate()
+      project_id = ProjectsFixtures.project_fixture().id
+
+      Tuist.IngestRepo.insert_all(Bundle, [
+        %{
+          id: bundle_id,
+          app_bundle_id: "dev.tuist.app",
+          name: "App",
+          install_size: 1024,
+          supported_platforms: ["ios", "future_platform_we_dont_know_about"],
+          version: "1.0.0",
+          type: "app",
+          project_id: project_id,
+          inserted_at: ~N[2024-01-01 02:00:00.000000],
+          updated_at: ~N[2024-01-01 02:00:00.000000]
+        }
+      ])
+
+      # When
+      {:ok, bundle} = Bundles.get_bundle(bundle_id)
+
+      # Then — the unknown entry is dropped, the known one is decoded.
+      assert bundle.supported_platforms == [:ios]
+      assert bundle.type == :app
+    end
+
+    test "falls back to nil when the CH bundle row carries an unknown type" do
+      # Given
+      bundle_id = UUIDv7.generate()
+      project_id = ProjectsFixtures.project_fixture().id
+
+      Tuist.IngestRepo.insert_all(Bundle, [
+        %{
+          id: bundle_id,
+          app_bundle_id: "dev.tuist.app",
+          name: "App",
+          install_size: 1024,
+          supported_platforms: ["ios"],
+          version: "1.0.0",
+          type: "future_bundle_type",
+          project_id: project_id,
+          inserted_at: ~N[2024-01-01 02:00:00.000000],
+          updated_at: ~N[2024-01-01 02:00:00.000000]
+        }
+      ])
+
+      # When
+      {:ok, bundle} = Bundles.get_bundle(bundle_id)
+
+      # Then — `format_bundle_type/1`'s catch-all clause renders this as
+      # "Unknown" in the dashboard rather than blowing up.
+      assert bundle.type == nil
+    end
   end
 
   describe "install_size_deviation/1" do
