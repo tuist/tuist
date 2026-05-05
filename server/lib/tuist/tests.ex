@@ -186,7 +186,6 @@ defmodule Tuist.Tests do
 
         query =
           from(t in Test,
-            hints: ["FINAL"],
             where: t.id == ^uuid,
             order_by: [desc: t.inserted_at],
             limit: 1
@@ -1135,9 +1134,10 @@ defmodule Tuist.Tests do
 
   defp check_cross_run_flakiness(test, test_case_data) do
     test_case_ids = Enum.map(test_case_data, & &1.test_case_id)
+    scheme = test.scheme || ""
 
     existing_runs =
-      get_existing_ci_runs_for_commit(test_case_ids, test.git_commit_sha, test.project_id)
+      get_existing_ci_runs_for_commit(test_case_ids, test.git_commit_sha, test.project_id, scheme)
 
     Enum.map_reduce(test_case_data, [], fn data, historical_runs ->
       case filter_cross_run_flaky(data, existing_runs) do
@@ -1160,15 +1160,16 @@ defmodule Tuist.Tests do
     end
   end
 
-  defp get_existing_ci_runs_for_commit([], _git_commit_sha, _project_id), do: %{}
+  defp get_existing_ci_runs_for_commit([], _git_commit_sha, _project_id, _scheme), do: %{}
 
-  defp get_existing_ci_runs_for_commit(test_case_ids, git_commit_sha, project_id) do
+  defp get_existing_ci_runs_for_commit(test_case_ids, git_commit_sha, project_id, scheme) do
     test_case_id_set = MapSet.new(test_case_ids)
 
     query =
       from(tcr in TestCaseRunByCommit,
         where: tcr.project_id == ^project_id,
         where: tcr.git_commit_sha == ^git_commit_sha,
+        where: tcr.scheme == ^scheme,
         where: tcr.is_ci == true,
         where: tcr.status in ["success", "failure"],
         select: %{id: tcr.id, test_case_id: tcr.test_case_id, status: tcr.status}
@@ -1176,6 +1177,7 @@ defmodule Tuist.Tests do
 
     query
     |> ClickHouseRepo.all()
+    |> Enum.uniq_by(& &1.id)
     |> Enum.filter(&(&1.test_case_id in test_case_id_set))
     |> Enum.group_by(& &1.test_case_id)
   end
@@ -2152,12 +2154,18 @@ defmodule Tuist.Tests do
   defp mark_test_case_runs_as_flaky(runs) when is_list(runs) do
     ids = runs |> Enum.map(& &1.id) |> Enum.uniq()
 
-    # FINAL is required because `test_case_runs` is a ReplacingMergeTree:
-    # without it, a run that has already been re-inserted (e.g. previously
-    # marked flaky) can return multiple versions for the same id until the
-    # merge collapses them, and we'd re-insert every version.
+    # `test_case_runs` is a ReplacingMergeTree, so a re-inserted run can
+    # return multiple versions per id until the background merge collapses
+    # them. We dedupe in Elixir on a small result set so the `proj_by_id`
+    # projection (binary search on `id`) is used; `FINAL` would disable it
+    # and force a full part scan with an in-memory merge.
     full_runs =
-      ClickHouseRepo.all(from(tcr in TestCaseRun, hints: ["FINAL"], where: tcr.id in ^ids))
+      from(tcr in TestCaseRun,
+        where: tcr.id in ^ids,
+        order_by: [desc: tcr.inserted_at]
+      )
+      |> ClickHouseRepo.all()
+      |> Enum.uniq_by(& &1.id)
 
     updated_runs =
       Enum.map(full_runs, fn run ->

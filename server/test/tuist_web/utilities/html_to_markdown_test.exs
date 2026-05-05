@@ -77,4 +77,29 @@ defmodule TuistWeb.Utilities.HtmlToMarkdownTest do
 
     assert markdown == "[Broken link](http://[bad)"
   end
+
+  test "ignores HTML comments while absolutizing URLs" do
+    html = """
+    <html>
+      <head>
+        <title>Customers</title>
+      </head>
+      <body>
+        <main>
+          <!--<section><a href="/hidden">Hidden</a></section>-->
+          <p><a href="/customers/example-studios">Read the story</a>.</p>
+        </main>
+      </body>
+    </html>
+    """
+
+    markdown = HtmlToMarkdown.convert(html, request_url: "https://tuist.dev/customers")
+
+    assert markdown ==
+             String.trim_trailing("""
+             # Customers
+
+             [Read the story](https://tuist.dev/customers/example-studios).
+             """)
+  end
 end

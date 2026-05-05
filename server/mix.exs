@@ -199,11 +199,11 @@ defmodule Tuist.MixProject do
       ],
       test: ["ecto.create --quiet", "run priv/repo/timezone.exs", "ecto.migrate --quiet", "test"],
       "assets.setup": [
-        "cmd --cd .. pnpm install --filter noora",
+        "cmd --cd ../noora aube install",
         "esbuild.install --if-missing"
       ],
       "assets.build": [
-        "cmd --cd ../noora pnpm run build",
+        "cmd --cd ../noora aube run build",
         "esbuild app",
         "esbuild marketing",
         "esbuild docs",

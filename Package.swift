@@ -542,6 +542,18 @@ var targets: [Target] = [
         path: "cli/Sources/TuistThreadSafe"
     ),
     .target(
+        name: "TuistMacOSSDK",
+        dependencies: [
+            mockableDependency,
+            commandDependency,
+            "TuistThreadSafe",
+        ],
+        path: "cli/Sources/TuistMacOSSDK",
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
         name: "TuistEncodable",
         dependencies: [
             swiftToolsSupportDependency,
@@ -863,6 +875,7 @@ var targets: [Target] = [
         name: "TuistTesting",
         dependencies: [
             "TuistSupport",
+            "TuistMacOSSDK",
             "TuistXcodeBuildProducts",
             .target(name: "TuistServer", condition: .when(platforms: [.macOS])),
             .target(name: "TuistHTTP", condition: .when(platforms: [.macOS])),
@@ -1402,6 +1415,7 @@ targets.append(contentsOf: [
             "TuistCore",
             xcodeGraphDependency,
             "TuistSupport",
+            "TuistMacOSSDK",
             mockableDependency,
             "ProjectDescription",
             fileSystemDependency,

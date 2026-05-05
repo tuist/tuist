@@ -18,7 +18,7 @@ defmodule TuistWeb.GitHubAppSetupController do
          {:ok, account_id} <- extract_account_id(params),
          {:ok, account} <- Accounts.get_account_by_id(account_id),
          {:ok, _github_app_installation} <-
-           VCS.create_github_app_installation(%{account_id: account.id, installation_id: installation_id}) do
+           VCS.create_or_get_github_app_installation(%{account_id: account.id, installation_id: installation_id}) do
       redirect(conn, to: ~p"/#{account.name}/integrations")
     else
       {:error, :missing_installation_id} ->
@@ -29,6 +29,9 @@ defmodule TuistWeb.GitHubAppSetupController do
 
       {:error, :invalid_state_token} ->
         raise BadRequestError, dgettext("dashboard", "Invalid installation request. Please try again.")
+
+      {:error, :installation_already_connected} ->
+        raise BadRequestError, dgettext("dashboard", "This GitHub app installation is already connected.")
     end
   end
 

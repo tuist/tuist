@@ -3010,6 +3010,77 @@ defmodule Tuist.VCSTest do
     end
   end
 
+  describe "create_or_get_github_app_installation/1" do
+    test "creates a GitHub app installation when it does not exist" do
+      # Given
+      account = AccountsFixtures.account_fixture()
+      installation_id = "54321"
+
+      # When
+      result =
+        VCS.create_or_get_github_app_installation(%{
+          account_id: account.id,
+          installation_id: installation_id
+        })
+
+      # Then
+      assert {:ok, github_app_installation} = result
+      assert github_app_installation.account_id == account.id
+      assert github_app_installation.installation_id == installation_id
+    end
+
+    test "returns the existing GitHub app installation for the same account" do
+      # Given
+      account = AccountsFixtures.account_fixture()
+      installation_id = "12345"
+
+      {:ok, github_app_installation} =
+        VCS.create_github_app_installation(%{
+          account_id: account.id,
+          installation_id: installation_id
+        })
+
+      # When
+      result =
+        VCS.create_or_get_github_app_installation(%{
+          account_id: account.id,
+          installation_id: installation_id
+        })
+
+      # Then
+      assert {:ok, existing_installation} = result
+      assert existing_installation.id == github_app_installation.id
+      assert existing_installation.account_id == account.id
+      assert existing_installation.installation_id == installation_id
+    end
+
+    test "does not reconnect an existing GitHub app installation to a different account" do
+      # Given
+      connected_account = AccountsFixtures.account_fixture()
+      other_account = AccountsFixtures.account_fixture()
+      installation_id = "12345"
+
+      {:ok, github_app_installation} =
+        VCS.create_github_app_installation(%{
+          account_id: connected_account.id,
+          installation_id: installation_id
+        })
+
+      # When
+      result =
+        VCS.create_or_get_github_app_installation(%{
+          account_id: other_account.id,
+          installation_id: installation_id
+        })
+
+      # Then
+      assert result == {:error, :installation_already_connected}
+      assert {:ok, existing_installation} = VCS.get_github_app_installation_by_installation_id(installation_id)
+      assert existing_installation.id == github_app_installation.id
+      assert existing_installation.account_id == connected_account.id
+    end
+  end
+
   describe "get_github_app_installation_repositories/1" do
     test "returns all repositories from single page with caching" do
       # Given

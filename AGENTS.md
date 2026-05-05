@@ -103,7 +103,7 @@ Tuist Server is an Elixir/Phoenix web application that extends the functionality
   - PostgreSQL (primary database)
   - ClickHouse (analytics database, write-only through IngestRepo)
 - **Frontend**: Phoenix LiveView with JavaScript/TypeScript and esbuild
-- **Package Management**: pnpm for JavaScript dependencies
+- **Package Management**: aube for JavaScript dependencies
 
 **Core Architecture Components:**
 - `lib/tuist/` - Core business logic modules (accounts, billing, bundles, projects, registry, etc.)
@@ -181,7 +181,7 @@ mise run dev                   # Start development server
 
 - `.mise.toml` - Development environment and tool versions
 - `mix.exs` - Elixir project configuration and dependencies
-- `package.json` - JavaScript dependencies managed by pnpm
+- `package.json` - JavaScript dependencies managed by aube
 - `config/` directory - Phoenix application configuration
 - `priv/secrets/dev.key` - Development secrets encryption key (not in repo)
 

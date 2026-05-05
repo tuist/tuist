@@ -36,7 +36,9 @@ tuist test --scheme MyScheme -- -retry-tests-on-failure -test-iterations 3
 
 ### Cross-run detection {#cross-run-detection}
 
-Even without test retries, Tuist can detect flaky tests by comparing results across different CI runs on the same commit. If a test passes in one CI run but fails in another run for the same commit, both runs are marked as flaky.
+Even without test retries, Tuist can detect flaky tests by comparing results across different CI runs on the same commit and the same scheme. If a test passes in one CI run but fails in another run for the same commit and scheme, both runs are marked as flaky.
+
+The scheme is part of the comparison key because the same test can behave deterministically differently across schemes — for example, a snapshot test that's only valid against a specific simulator destination, or a test target that's compiled with different flags. Two runs of the same commit on different schemes are treated as separate execution variants and won't flag each other as flaky.
 
 This is particularly useful for catching flaky tests that don't fail consistently enough to be caught by retries, but still cause intermittent CI failures.
 

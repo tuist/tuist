@@ -127,44 +127,16 @@ defmodule TuistWeb.TestRunLive do
     {:noreply, socket}
   end
 
-  def handle_info({:test_created, test}, %{assigns: %{run: run, selected_project: project}} = socket) do
+  def handle_info({:test_created, test}, %{assigns: %{run: run}} = socket) do
     if test.id == run.id do
-      case Tests.get_test(run.id, preload: [:ran_by_account, :build_run, :gradle_build, :shard_plan, :run_destinations]) do
-        {:ok, refreshed_run} ->
-          refreshed_run = Map.put(refreshed_run, :project, project)
-
-          {:noreply,
-           socket
-           |> assign(:run, refreshed_run)
-           |> assign_initial_analytics_state()
-           |> assign_initial_test_cases_state()
-           |> assign_initial_failures_state()
-           |> assign_initial_flaky_runs_state()}
-
-        {:error, :not_found} ->
-          {:noreply, socket}
-      end
+      {:noreply, reload_run_state(socket)}
     else
       {:noreply, socket}
     end
   end
 
-  def handle_event("refresh_test_run", _params, %{assigns: %{run: run, selected_project: project}} = socket) do
-    case Tests.get_test(run.id, preload: [:ran_by_account, :build_run, :gradle_build, :shard_plan, :run_destinations]) do
-      {:ok, refreshed_run} ->
-        refreshed_run = Map.put(refreshed_run, :project, project)
-
-        {:noreply,
-         socket
-         |> assign(:run, refreshed_run)
-         |> assign_initial_analytics_state()
-         |> assign_initial_test_cases_state()
-         |> assign_initial_failures_state()
-         |> assign_initial_flaky_runs_state()}
-
-      {:error, :not_found} ->
-        {:noreply, socket}
-    end
+  def handle_event("refresh_test_run", _params, socket) do
+    {:noreply, reload_run_state(socket)}
   end
 
   def handle_event("search-selective-testing", %{"search" => search}, socket) do
@@ -296,6 +268,25 @@ defmodule TuistWeb.TestRunLive do
       end
     else
       "asc"
+    end
+  end
+
+  defp reload_run_state(%{assigns: %{run: run, selected_project: project, selected_tab: selected_tab, uri: uri}} = socket) do
+    case Tests.get_test(run.id, preload: [:ran_by_account, :build_run, :gradle_build, :shard_plan, :run_destinations]) do
+      {:ok, refreshed_run} ->
+        refreshed_run = Map.put(refreshed_run, :project, project)
+        params = URI.decode_query(uri.query || "")
+
+        socket
+        |> assign(:run, refreshed_run)
+        |> assign_initial_analytics_state()
+        |> assign_initial_test_cases_state()
+        |> assign_initial_failures_state()
+        |> assign_initial_flaky_runs_state()
+        |> assign_tab_data(selected_tab, params)
+
+      {:error, :not_found} ->
+        socket
     end
   end
 
