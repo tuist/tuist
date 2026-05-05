@@ -279,7 +279,11 @@ defmodule TuistWeb.API.BuildsController do
            properties: %{
              id: %Schema{type: :string, format: :uuid, description: "The build ID."},
              duration: %Schema{type: :integer, description: "Build duration in milliseconds."},
-             status: %Schema{type: :string, enum: ["success", "failure"], description: "Build status."},
+             status: %Schema{
+               type: :string,
+               enum: ["success", "failure", "processing", "failed_processing"],
+               description: "Build status."
+             },
              category: %Schema{
                type: :string,
                enum: ["clean", "incremental"],

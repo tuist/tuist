@@ -228,11 +228,291 @@ jobs:
       - name: Run tests
         run: tuist test TuistUnitTests -- -retry-tests-on-failure -test-iterations 4
 
+  cli-server-image:
+    name: Server Image
+    # GHCR write permissions and the preview-cluster secret path are not exposed
+    # to forks. Keep fork PRs on the existing canary-backed acceptance path.
+    if: github.event.pull_request.head.repo.fork != true
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/server-image-build.yml
+    with:
+      tag: image-${{ github.sha }}
+      scan: true
+      tuist_hosted: "0"
+      mix_env: prod
+
+  # Deploys the Tuist server image into an ephemeral Helm release on the
+  # Syself-managed preview cluster used for per-PR previews. The cluster already
+  # provides ESO, a ClusterSecretStore, ingress, and the wildcard
+  # `*.preview.tuist.dev` certificate, so this job only creates the release
+  # namespace, installs the chart, seeds test fixtures, and exposes the server
+  # and object-storage hosts for the macOS shards.
+  #
+  # Each run gets its own Helm release in its own namespace, keyed on the PR
+  # number when available so multiple pushes to the same PR upgrade in place,
+  # and github.run_id otherwise. The teardown job removes the release and
+  # namespace; preview-sweep.yml's TTL annotation is the backstop.
+  cli-acceptance-cluster:
+    name: Acceptance Cluster
+    needs: cli-server-image
+    runs-on: ubuntu-latest
+    # Budget: 20m helm wait + ~5min smoke/seed/retry + setup overhead.
+    timeout-minutes: 40
+    # ESO + KUBECONFIG secrets aren't exposed to forks.
+    # TEMP (this PR only): drop the `draft == false` gate so this runs on
+    # draft PRs while we exercise the new pipeline. Restore the gate before
+    # merge.
+    if: github.event.pull_request.head.repo.fork != true
+    environment: server-k8s-preview
+    permissions:
+      contents: read
+      packages: read
+    outputs:
+      url: ${{ steps.deploy.outputs.url }}
+      release: ${{ steps.resolve.outputs.release }}
+      namespace: ${{ steps.resolve.outputs.namespace }}
+    env:
+      KUBECONFIG: ${{ github.workspace }}/.kube/config
+      IMAGE_TAG: ${{ needs.cli-server-image.outputs.image_tag }}
+      # helm + kubectl aren't pinned in mise.lock; the workflow-level
+      # MISE_LOCKED=1 would block their install.
+      MISE_LOCKED: "0"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: "helm kubectl"
+          cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - name: Resolve release / namespace / host
+        id: resolve
+        run: |
+          set -euo pipefail
+          if [ -n "${{ github.event.pull_request.number }}" ]; then
+            slug="pr-${{ github.event.pull_request.number }}"
+          else
+            slug="run-${{ github.run_id }}"
+          fi
+          release="acceptance-${slug}"
+          namespace="acceptance-${slug}"
+          host="${release}.preview.tuist.dev"
+          # Embedded MinIO needs a public hostname too — the server signs
+          # presigned URLs with TUIST_S3_ENDPOINT, and the CLI on the
+          # macOS runner has to resolve that. Cluster-internal DNS would
+          # fail at the upload step.
+          object_storage_host="minio-${release}.preview.tuist.dev"
+          echo "release=${release}" >>"$GITHUB_OUTPUT"
+          echo "namespace=${namespace}" >>"$GITHUB_OUTPUT"
+          echo "host=${host}" >>"$GITHUB_OUTPUT"
+          echo "object_storage_host=${object_storage_host}" >>"$GITHUB_OUTPUT"
+      - name: Load kubeconfig
+        run: |
+          mkdir -p "$(dirname "$KUBECONFIG")"
+          echo "${{ secrets.KUBECONFIG }}" | base64 -d > "$KUBECONFIG"
+          chmod 600 "$KUBECONFIG"
+      - name: Re-apply role=preview label/taint on workers
+        # Same idempotent step preview-deploy.yml uses — CAPI/Syself doesn't
+        # surface node labels via topology variables, so workers come up
+        # unlabeled after MachineDeployment scale events.
+        run: |
+          kubectl label nodes -l '!node-role.kubernetes.io/control-plane' role=preview --overwrite
+          kubectl taint nodes -l '!node-role.kubernetes.io/control-plane' role=preview:NoSchedule --overwrite
+      - name: Provision GHCR pull secret in the namespace
+        # The chart's image is private (ghcr.io/tuist/tuist). Create a
+        # docker-registry secret named `ghcr-pull-secret` in the deploy
+        # namespace so the chart's pods can pull on this fresh namespace
+        # without depending on a cluster-wide reflector.
+        env:
+          NAMESPACE: ${{ steps.resolve.outputs.namespace }}
+        run: |
+          kubectl create namespace "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
+          kubectl -n "$NAMESPACE" create secret docker-registry ghcr-pull-secret \
+            --docker-server=ghcr.io \
+            --docker-username="${{ github.actor }}" \
+            --docker-password="${{ secrets.GITHUB_TOKEN }}" \
+            --dry-run=client -o yaml | kubectl apply -f -
+      - name: helm upgrade --install
+        id: deploy
+        env:
+          RELEASE: ${{ steps.resolve.outputs.release }}
+          NAMESPACE: ${{ steps.resolve.outputs.namespace }}
+          HOST: ${{ steps.resolve.outputs.host }}
+          OBJECT_STORAGE_HOST: ${{ steps.resolve.outputs.object_storage_host }}
+        run: |
+          set -euo pipefail
+          # Clean up any leftover release from a previous failed run on this
+          # PR — k8s Jobs (the chart's pre-upgrade migration job) have
+          # immutable fields, so `helm upgrade --install` against a stale
+          # release fails with "field is immutable". Uninstall + reinstall
+          # is fine because we don't need to preserve state across runs.
+          helm uninstall "$RELEASE" --namespace "$NAMESPACE" --wait --ignore-not-found
+          # extraEnv override for TUIST_S3_ENDPOINT: the chart's helper
+          # hardcodes the cluster-internal Service DNS for embedded MinIO,
+          # which the macOS runner can't resolve. Server signs presigned
+          # upload URLs with this value, so it has to be the public host.
+          # k8s honours the *last* env entry when names collide, so the
+          # extraEnv here wins over the chart's hardcoded value.
+          # Cache is disabled for acceptance:
+          #   * The cache pod's Exqlite repo fails to open its database
+          #     on the preview cluster's CSI volumes (database_open_failed
+          #     during schema_migrations create), keeping the helm install
+          #     in a perpetual not-ready state.
+          #   * Acceptance tests don't exercise the cache; the build/test
+          #     steps set TUIST_ENABLE_CACHING=0 so the CLI doesn't ask
+          #     for cache endpoints.
+          # Drop --atomic so we keep the broken release around for
+          # post-mortem on failure (otherwise helm tears everything
+          # down before we can grab pod logs). We still --wait, so a
+          # timeout is treated as failure.
+          if ! helm upgrade --install "$RELEASE" infra/helm/tuist \
+            --namespace "$NAMESPACE" \
+            -f infra/helm/tuist/values-preview.yaml \
+            --set global.imagePullSecrets[0].name=ghcr-pull-secret \
+            --set cache.enabled=false \
+            --set server.image.tag="$IMAGE_TAG" \
+            --set server.ingress.enabled=true \
+            --set server.ingress.host="$HOST" \
+            --set "server.appUrl=https://${HOST}" \
+            --set "server.extraEnv[0].name=TUIST_S3_ENDPOINT" \
+            --set "server.extraEnv[0].value=https://${OBJECT_STORAGE_HOST}" \
+            --timeout 20m --wait; then
+            echo "::error::helm install failed; pod state + logs:" >&2
+            kubectl -n "$NAMESPACE" get pods -o wide >&2 || true
+            kubectl -n "$NAMESPACE" get events --sort-by=.lastTimestamp >&2 || true
+            for pod in $(kubectl -n "$NAMESPACE" get pods -o name); do
+              echo "=== describe $pod ===" >&2
+              kubectl -n "$NAMESPACE" describe "$pod" >&2 || true
+              echo "=== logs $pod (current) ===" >&2
+              kubectl -n "$NAMESPACE" logs "$pod" --all-containers --tail=200 >&2 || true
+              echo "=== logs $pod (previous) ===" >&2
+              kubectl -n "$NAMESPACE" logs "$pod" --all-containers --previous --tail=200 >&2 || true
+            done
+            exit 1
+          fi
+          # Expose the embedded MinIO Service externally so the macOS test
+          # shards (and anything else outside the cluster) can resolve the
+          # presigned URLs the server hands out. nginx default-ssl-cert
+          # serves the wildcard *.preview.tuist.dev cert; no per-host TLS
+          # plumbing required.
+          cat <<EOF | kubectl apply -f -
+          apiVersion: networking.k8s.io/v1
+          kind: Ingress
+          metadata:
+            name: ${RELEASE}-tuist-object-storage
+            namespace: ${NAMESPACE}
+            annotations:
+              nginx.ingress.kubernetes.io/proxy-body-size: "0"
+              nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+              nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+          spec:
+            ingressClassName: nginx
+            rules:
+              - host: ${OBJECT_STORAGE_HOST}
+                http:
+                  paths:
+                    - path: /
+                      pathType: Prefix
+                      backend:
+                        service:
+                          name: ${RELEASE}-tuist-object-storage
+                          port:
+                            number: 9000
+          EOF
+          # TTL label so preview-sweep.yml cleans up if the explicit
+          # teardown job below misses (e.g. workflow cancelled). Epoch
+          # seconds, matching the format preview-deploy.yml writes — k8s
+          # label values can't contain ':' so ISO timestamps are out.
+          kubectl label namespace "$NAMESPACE" \
+            "tuist.dev/expires-at=$(( $(date +%s) + 2 * 3600 ))" \
+            "tuist.dev/preview=true" \
+            --overwrite
+
+          # Seed the test user (tuistrocks@tuist.dev) + fixture project.
+          # The chart deploys with TUIST_DEPLOY_ENV=prod, where seeds.exs
+          # doesn't auto-run. The CLI's TUIST_AUTH_EMAIL/_PASSWORD env
+          # vars point at this user; without it every test fails fast on
+          # "unauthorized" trying to upload run metadata.
+          #
+          # Use Tuist.Release.seed/0 — it disables the Phoenix endpoint
+          # and PromEx (so the eval node doesn't fight the running pod
+          # for those ports), starts the application, runs seeds.exs,
+          # and halts. Without those overrides, Application.ensure_all_started
+          # fails with `:eaddrinuse` on the metrics port.
+          #
+          # Override every data-volume env var to 0: acceptance tests
+          # only need the test user / org / projects (created at the top
+          # of seeds.exs unconditionally). The bulk data generation
+          # (default 2k build runs, 1.5k test runs, 8k command events,
+          # ~30k CAS records) blew past the chart's 1Gi server memory
+          # limit and got OOMKilled (exit 137).
+          #
+          # Retry up to 3× — Application.ensure_all_started occasionally
+          # races with the running pod's cachex locksmith setup; a brief
+          # back-off lets that settle.
+          SERVER_POD=$(kubectl get pods -n "$NAMESPACE" \
+            -l app.kubernetes.io/component=server \
+            -o jsonpath='{.items[0].metadata.name}')
+          attempt=0
+          until [ $attempt -ge 3 ]; do
+            attempt=$((attempt + 1))
+            if kubectl exec -n "$NAMESPACE" "$SERVER_POD" -- \
+                 sh -c 'SEED_BUILD_RUNS=0 SEED_TEST_RUNS=0 SEED_COMMAND_EVENTS=0 SEED_PREVIEWS=0 SEED_BUNDLES=0 SEED_XCODE_GRAPHS=0 /app/bin/tuist eval "Tuist.Release.seed()"'; then
+              break
+            fi
+            if [ $attempt -lt 3 ]; then
+              echo "Seed attempt $attempt failed; retrying in 20s…"
+              sleep 20
+            else
+              echo "::error::Seed failed after 3 attempts"
+              exit 1
+            fi
+          done
+          # Smoke test the server through the public host. Retries cover
+          # DNS / cert propagation lag.
+          for i in $(seq 1 30); do
+            if curl -fsSL --max-time 5 "https://${HOST}/ready" >/dev/null; then
+              echo "OK — https://${HOST}/ready returned 200"
+              break
+            fi
+            echo "Attempt $i: https://${HOST}/ready not yet reachable; retrying in 10s..."
+            sleep 10
+          done
+          if ! curl -fsSL --max-time 5 "https://${HOST}/ready" >/dev/null; then
+            echo "::error::https://${HOST}/ready never returned 200 after ~5 min."
+            exit 1
+          fi
+          # MinIO health check — its `/minio/health/live` endpoint returns
+          # 200 once the server is accepting requests. Wait for the new
+          # Ingress + DNS to resolve.
+          for i in $(seq 1 30); do
+            if curl -fsSL --max-time 5 "https://${OBJECT_STORAGE_HOST}/minio/health/live" >/dev/null; then
+              echo "OK — https://${OBJECT_STORAGE_HOST}/minio/health/live returned 200"
+              echo "url=https://${HOST}" >>"$GITHUB_OUTPUT"
+              exit 0
+            fi
+            echo "Attempt $i: https://${OBJECT_STORAGE_HOST}/minio/health/live not yet reachable; retrying in 10s..."
+            sleep 10
+          done
+          echo "::error::https://${OBJECT_STORAGE_HOST}/minio/health/live never returned 200 after ~5 min."
+          exit 1
+
   cli-acceptance-tests-build:
     name: Build Acceptance Tests
     runs-on: namespace-profile-macos-xcode-26
     timeout-minutes: 60
-    if: (github.event.pull_request.draft == false || github.event_name != 'pull_request') && github.event.pull_request.head.repo.fork != true
+    # Build runs against the default tuist server (canary). Only the one
+    # cluster-bound test (InspectAcceptanceTests.build) reads the cluster
+    # URL via TUIST_ACCEPTANCE_URL on the test step; the rest of the
+    # acceptance suite + shard-plan registration stay on canary.
+    # TEMP (this PR only): drop the `draft == false` gate so the docker build and
+    # acceptance tests run on draft PRs while we exercise the new pipeline.
+    # Restore the gate before merge.
+    if: github.event.pull_request.head.repo.fork != true
     outputs:
       matrix: ${{ steps.shard.outputs.matrix }}
     steps:
@@ -283,7 +563,11 @@ jobs:
     name: Acceptance Tests
     runs-on: namespace-profile-macos-xcode-26
     timeout-minutes: 60
-    needs: cli-acceptance-tests-build
+    # Wait on both: the sharded test build (gives us the matrix) AND the
+    # cluster deploy (gives us the URL). The cluster job exits successfully
+    # the moment the helm release is healthy + the smoke test passes, so
+    # macOS shards only spin up when the cluster is actually reachable.
+    needs: [cli-acceptance-tests-build, cli-acceptance-cluster]
     if: toJSON(fromJSON(needs.cli-acceptance-tests-build.outputs.matrix).shard) != '[]'
     strategy:
       fail-fast: false
@@ -335,10 +619,63 @@ jobs:
           security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
           security default-keychain -s $KEYCHAIN_PATH
           security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
+      - name: Authenticate against acceptance cluster
+        # Only the cluster-bound test (InspectAcceptanceTests.build) needs
+        # this — its trait calls LoginCommand programmatically against
+        # TUIST_ACCEPTANCE_URL, but persisting a session for that host up
+        # front saves a round-trip and matches the canary auth pattern.
+        env:
+          TUIST_URL: ${{ needs.cli-acceptance-cluster.outputs.url }}
+        run: tuist auth login --email tuistrocks@tuist.dev --password tuistrocks
       - name: Run shard ${{ matrix.shard }}
         run: tuist test --without-building --platform macOS TuistAcceptanceTests -- -retry-tests-on-failure -test-iterations 2
         env:
           TUIST_SHARD_INDEX: ${{ matrix.shard }}
+          # TUIST_URL is left unset so the suite runs against canary by
+          # default (where shard plans + run-metadata uploads are
+          # registered). The single cluster-bound test reads
+          # TUIST_ACCEPTANCE_URL instead via withFixtureConnectedToAcceptanceCluster.
+          TUIST_ACCEPTANCE_URL: ${{ needs.cli-acceptance-cluster.outputs.url }}
+          TUIST_AUTH_EMAIL: tuistrocks@tuist.dev
+          TUIST_AUTH_PASSWORD: tuistrocks
+
+  # Teardown the helm release + namespace once the test shards finish (or fail,
+  # or get cancelled). preview-sweep.yml's TTL annotation is the backstop, but
+  # an explicit uninstall here keeps the cluster from accumulating stale
+  # releases between sweeps.
+  cli-acceptance-cluster-teardown:
+    name: Acceptance Cluster Teardown
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [cli-acceptance-cluster, cli-acceptance-tests]
+    # Always run, even if the cluster job failed — a partial deploy still
+    # leaves a release behind that the next run's `helm uninstall` would
+    # have to clean up. Earlier we gated on cluster success, but that left
+    # stale releases that broke immutable-field upgrades.
+    if: always() && needs.cli-acceptance-cluster.outputs.release != ''
+    environment: server-k8s-preview
+    env:
+      KUBECONFIG: ${{ github.workspace }}/.kube/config
+      RELEASE: ${{ needs.cli-acceptance-cluster.outputs.release }}
+      NAMESPACE: ${{ needs.cli-acceptance-cluster.outputs.namespace }}
+      MISE_LOCKED: "0"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: "helm kubectl"
+          cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - name: Load kubeconfig
+        run: |
+          mkdir -p "$(dirname "$KUBECONFIG")"
+          echo "${{ secrets.KUBECONFIG }}" | base64 -d > "$KUBECONFIG"
+          chmod 600 "$KUBECONFIG"
+      - name: helm uninstall + delete namespace
+        run: |
+          helm uninstall "$RELEASE" --namespace "$NAMESPACE" --wait --ignore-not-found || true
+          kubectl delete namespace "$NAMESPACE" --wait=false --ignore-not-found
 
   cli-acceptance-tests-fork:
     name: Acceptance Tests (Fork)

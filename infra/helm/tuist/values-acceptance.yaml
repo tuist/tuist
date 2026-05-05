@@ -1,0 +1,88 @@
+# Overlay for the per-shard kind cluster the CLI acceptance tests run against.
+#
+# Same shape as values-preview.yaml — embedded postgres/clickhouse/objectStorage,
+# single replica, autoscaling/PDB/cluster off — minus everything we don't need on a
+# CI runner: cache, redis, observability, ingress, and the role=preview node pinning
+# (kind-acceptance.yaml is single-node anyway). The processor is on so build runs
+# get parsed by `Tuist.Builds.Workers.ProcessBuildWorker` end-to-end, which is the
+# regression path the acceptance test gates on.
+#
+# Apply with:
+#   helm install tuist infra/helm/tuist \
+#     -f infra/helm/tuist/values-acceptance.yaml \
+#     --set server.image.tag=image-<sha> \
+#     --set server.license.key=<TUIST_LICENSE_KEY>
+
+server:
+  replicaCount: 1
+  autoscaling:
+    enabled: false
+  podDisruptionBudget:
+    enabled: false
+  cluster:
+    enabled: false
+  ingress:
+    enabled: false
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 1Gi
+  # License is synced from 1Password via ESO. The mise task
+  # `cli:acceptance-cluster:up` installs External Secrets Operator + a 1Password
+  # `onepassword` ClusterSecretStore in the kind cluster before `helm install` so
+  # this ExternalSecret can resolve. Same item Pedro's preview-up.sh uses.
+  externalSecrets:
+    license:
+      item: TUIST_LICENSE_KEY
+      field: password
+
+cache:
+  enabled: false
+
+processor:
+  enabled: true
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 1Gi
+
+postgresql:
+  mode: embedded
+  embedded:
+    persistence:
+      size: 1Gi
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        memory: 512Mi
+
+clickhouse:
+  mode: embedded
+  embedded:
+    persistence:
+      size: 1Gi
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        memory: 1Gi
+
+redis:
+  enabled: false
+
+objectStorage:
+  mode: embedded
+  embedded:
+    persistence:
+      size: 1Gi
+
+observability:
+  enabled: false
