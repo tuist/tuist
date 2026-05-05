@@ -6901,8 +6901,8 @@ defmodule Tuist.TestsTest do
 
       IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
 
-      expect(Tests, :update_test_case, 1, fn id, attrs, opts ->
-        Mimic.call_original(Tests, :update_test_case, [id, attrs, opts])
+      expect(Tests, :update_test_case, 1, fn id, attrs ->
+        Mimic.call_original(Tests, :update_test_case, [id, attrs])
       end)
 
       assert :ok =
