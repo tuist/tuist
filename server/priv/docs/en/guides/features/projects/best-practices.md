@@ -75,3 +75,33 @@ tuist install --force-resolved-versions
 ```
 
 This flag ensures that dependencies are resolved using the exact versions pinned in `Package.resolved`, eliminating issues caused by non-determinism in dependency resolution. This is particularly important on CI where reproducible builds are critical.
+
+### Worktrees and agentic coding {#worktrees-and-agentic-coding}
+
+Coding agents and human contributors increasingly work in parallel: a developer keeps a worktree open for the feature they are reviewing while one or more agents iterate on their own branches in sibling worktrees. A few project choices make this much smoother.
+
+#### Use buildable folders for agent-driven edits {#worktrees-buildable-folders}
+
+When an agent adds or removes files, anything that depends on a file list in `Project.swift` requires `tuist generate` before the project builds again. [Buildable folders](#buildable-folders) push that responsibility down to Xcode's synchronized groups, so file-tree edits no longer trigger a regeneration.
+
+Pair this with the `generated-projects` <.localized_link href="/guides/features/agentic-coding/skills">skill</.localized_link>, which teaches agents the day-to-day workflow of a Tuist project.
+
+#### Don't isolate the cache per worktree {#worktrees-shared-cache}
+
+Tuist follows the <.localized_link href="/cli/directories">XDG Base Directory Specification</.localized_link>, so by default every worktree on the same machine shares `~/.cache/tuist` and `~/.local/state/tuist`. That is what you want: helpers compiled in one worktree, plugins downloaded in another, and module-cache binaries pulled by a third are all reusable.
+
+Concurrent `tuist` invocations across worktrees are safe to run in parallel. Avoid pointing `TUIST_XDG_CACHE_HOME` at a worktree-local path unless you specifically need isolation; doing so forces every worktree to re-warm helpers, plugins, and binaries.
+
+#### Lean on the module cache {#worktrees-module-cache}
+
+The <.localized_link href="/guides/features/cache/module-cache">module cache</.localized_link> is what makes parallel worktrees tractable. Because Tuist computes a deterministic <.localized_link href="/guides/features/projects/hashing">hash</.localized_link> for each target, two worktrees pointing at branches that share most of their history will hit the same binaries. Run `tuist cache` on every commit to `main` from CI; locally, `tuist generate` in each worktree pulls whatever it can from the cache and only builds what your branch actually changed.
+
+If a worktree falls back to source builds when you expected a cache hit, follow the <.localized_link href="/guides/features/projects/hashing#debugging">hashing debugging steps</.localized_link>; non-deterministic hashes (typically caused by absolute paths in the project) are the most common cause and they show up loudly when comparing two worktrees.
+
+#### Speed up Swift Package resolution with the registry {#worktrees-registry}
+
+Each worktree resolves Swift packages independently. On a project with a large dependency graph that adds up fast. Switching to the <.localized_link href="/guides/features/registry">Tuist Registry</.localized_link> avoids re-cloning git histories and drops resolution from minutes to seconds.
+
+#### Give agents access to project insights {#worktrees-mcp}
+
+Once builds and tests are running across many worktrees, the most useful thing an agent can do is reason about *which* of those runs regressed, which tests are flaky, or how the bundle size has changed. Tuist exposes that data through the <.localized_link href="/guides/features/agentic-coding/mcp">MCP server</.localized_link> and the <.localized_link href="/guides/features/agentic-coding/skills">Skills</.localized_link> package. Pick one per workflow and stick to it; mixing both for the same task tends to produce inconsistent agent behavior.
