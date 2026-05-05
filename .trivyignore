@@ -1,0 +1,13 @@
+# Vulnerabilities ignored by Trivy. Each entry must carry a reason.
+# Revisit when the upstream tool ships a fix and bump the pinned version
+# in server/Dockerfile to drop the entry.
+
+# CVE-2026-33186 (CRITICAL): google.golang.org/grpc/authz authorization
+# bypass via improper HTTP/2 path validation. Bundled by helm v3.20.2
+# (grpc v1.72.2). Helm v4.1.4 still bundles grpc v1.78.0; the fix is
+# in grpc v1.79.3 which no helm release ships yet. The vulnerability
+# is in the gRPC server-side authz package; helm uses gRPC as a client
+# to talk to its plugin system and never serves authz-gated gRPC
+# traffic, so the practical exposure is zero. Drop this entry once a
+# helm release bundling grpc >= 1.79.3 lands and Dockerfile is bumped.
+CVE-2026-33186
