@@ -4460,6 +4460,106 @@ final class TestServiceTests: TuistUnitTestCase {
         XCTAssertEqual(writtenGraph.attemptedTestPlans.sorted(), ["Regression", "Smoke"])
     }
 
+    func test_run_build_writesOriginalTestPlanNames_whenSelectiveTestingPrunesPlanFromGeneratedScheme() async throws {
+        // Given
+        givenGenerator()
+        let path = try temporaryPath()
+        let bundleName = "MyApp.xctestproducts"
+        let testProductsPath = path.appending(component: bundleName)
+        try await fileSystem.makeDirectory(at: testProductsPath)
+
+        let projectPath = path.appending(component: "Project")
+        let smokeTestPlanPath = projectPath.appending(components: "TestPlans", "Smoke.xctestplan")
+        let integrationTestPlanPath = projectPath.appending(components: "TestPlans", "IntegrationTestSuite.xctestplan")
+        let smokeTarget = TestableTarget(target: TargetReference(projectPath: projectPath, name: "SmokeTests"))
+        let integrationTarget = TestableTarget(target: TargetReference(projectPath: projectPath, name: "IntegrationTests"))
+        let initialScheme = Scheme.test(
+            name: "TestScheme",
+            testAction: .test(
+                testPlans: [
+                    .init(path: smokeTestPlanPath, testTargets: [smokeTarget], isDefault: true),
+                    .init(path: integrationTestPlanPath, testTargets: [integrationTarget], isDefault: false),
+                ]
+            )
+        )
+        let generatedScheme = Scheme.test(
+            name: "TestScheme",
+            testAction: .test(
+                testPlans: [
+                    .init(path: smokeTestPlanPath, testTargets: [smokeTarget], isDefault: true),
+                ]
+            )
+        )
+        let initialGraph: Graph = .test(
+            workspace: .test(schemes: [.test(name: "App-Workspace")]),
+            projects: [
+                projectPath: .test(
+                    path: projectPath,
+                    targets: [.test(name: "SmokeTests"), .test(name: "IntegrationTests")],
+                    schemes: [initialScheme]
+                ),
+            ]
+        )
+        let generatedGraph: Graph = .test(
+            workspace: .test(schemes: [.test(name: "App-Workspace")]),
+            projects: [
+                projectPath: .test(
+                    path: projectPath,
+                    targets: [.test(name: "SmokeTests")],
+                    schemes: [generatedScheme]
+                ),
+            ]
+        )
+        var environment = MapperEnvironment()
+        environment.initialGraph = initialGraph
+        environment.targetTestHashes = [
+            projectPath: [
+                "SmokeTests": "hash-smoke",
+                "IntegrationTests": "hash-integration",
+            ],
+        ]
+
+        given(generator)
+            .generateWithGraph(path: .any, options: .any)
+            .willProduce { path, _ in
+                (path, generatedGraph, environment)
+            }
+        given(buildGraphInspector)
+            .testableSchemes(graphTraverser: .any)
+            .willReturn([generatedScheme])
+        given(buildGraphInspector)
+            .testableTarget(
+                scheme: .any,
+                testPlan: .any,
+                testTargets: .any,
+                skipTestTargets: .any,
+                graphTraverser: .any,
+                action: .any
+            )
+            .willProduce { scheme, _, _, _, _, _ in
+                GraphTarget.test(target: Target.test(name: scheme.name))
+            }
+        given(buildGraphInspector)
+            .workspaceSchemes(graphTraverser: .any)
+            .willReturn([])
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject()))
+
+        // When
+        try await testRun(
+            schemeName: "TestScheme",
+            path: path,
+            action: .build,
+            passthroughXcodeBuildArguments: ["-testProductsPath", bundleName]
+        )
+
+        // Then
+        let graphPath = testProductsPath.appending(component: SelectiveTestingGraph.fileName)
+        let writtenGraph: SelectiveTestingGraph = try await fileSystem.readJSONFile(at: graphPath)
+        XCTAssertEqual(writtenGraph.attemptedTestPlans.sorted(), ["IntegrationTestSuite", "Smoke"])
+    }
+
     fileprivate func testRun(
         runId: String = "run-id",
         schemeName: String? = nil,
