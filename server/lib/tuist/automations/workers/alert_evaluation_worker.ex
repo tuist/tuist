@@ -112,16 +112,8 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
     FlakyTestsMonitor.evaluate(alert)
   end
 
-  defp evaluate_monitor(%{monitor_type: "flakiness_rate_below"} = alert) do
-    FlakyTestsMonitor.evaluate_below(alert)
-  end
-
   defp evaluate_monitor(%{monitor_type: "flaky_run_count"} = alert) do
     FlakyTestsMonitor.evaluate_by_run_count(alert)
-  end
-
-  defp evaluate_monitor(%{monitor_type: "flaky_run_count_below"} = alert) do
-    FlakyTestsMonitor.evaluate_by_run_count_below(alert)
   end
 
   defp evaluate_monitor(alert) do

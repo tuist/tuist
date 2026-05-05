@@ -64,7 +64,7 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
       assert automation.trigger_config["threshold"] == 3
     end
 
-    test "saves a cleanup alert when comparison switches to below", %{
+    test "saves a cleanup alert when comparison switches to lt", %{
       conn: conn,
       organization: organization,
       project: project
@@ -74,11 +74,12 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
       render_hook(lv, "open_create_automation_modal", %{})
       render_hook(lv, "update_create_automation_form_name", %{"value" => "Cleanup"})
       render_hook(lv, "update_create_automation_form_metric", %{"data" => "flaky_run_count"})
-      render_hook(lv, "update_create_automation_form_direction", %{"data" => "below"})
+      render_hook(lv, "update_create_automation_form_comparison", %{"data" => "lt"})
       render_hook(lv, "save_automation", %{})
 
       assert [automation] = Automations.list_alerts(project.id)
-      assert automation.monitor_type == "flaky_run_count_below"
+      assert automation.monitor_type == "flaky_run_count"
+      assert automation.trigger_config["comparison"] == "lt"
       assert automation.trigger_config["threshold"] == 1
       # Default trigger action flipped to `remove_label` to match the cleanup intent.
       assert [%{"type" => "remove_label", "label" => "flaky"}] = automation.trigger_actions

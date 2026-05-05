@@ -99,6 +99,15 @@
 
       & > [data-part="form-row"] {
         flex: 1;
+        min-width: 0;
+      }
+
+      /* Number / short-string inputs (threshold count, "30d" window) don't
+         need to grow with the dropdowns — pin them so the dropdown labels
+         stay on one line. */
+      & > [data-part="form-row"][data-size="compact"] {
+        flex: 0 0 auto;
+        width: 5.5rem;
       }
     }
 

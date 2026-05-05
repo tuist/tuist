@@ -59,7 +59,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
     |> assign(editing_automation_id: nil)
     |> assign(create_automation_form_name: "")
     |> assign(create_automation_form_metric: "flakiness_rate")
-    |> assign(create_automation_form_direction: "above")
+    |> assign(create_automation_form_comparison: "gte")
     |> assign(create_automation_form_threshold: "10")
     |> assign(create_automation_form_window: "30d")
     |> assign(create_automation_form_trigger_actions: [default_add_label_action()])
@@ -68,25 +68,13 @@ defmodule TuistWeb.ProjectAutomationsLive do
     |> assign(create_automation_form_recovery_actions: [default_remove_label_action()])
   end
 
-  # Splits the persisted `monitor_type` into the two UI dimensions: the metric
-  # being measured and the comparison direction. Keeping the persisted shape
-  # parallel (`*_below` suffix) avoids a schema migration; the form just
-  # composes/decomposes it on the way in and out.
-  defp split_monitor_type("flakiness_rate"), do: {"flakiness_rate", "above"}
-  defp split_monitor_type("flakiness_rate_below"), do: {"flakiness_rate", "below"}
-  defp split_monitor_type("flaky_run_count"), do: {"flaky_run_count", "above"}
-  defp split_monitor_type("flaky_run_count_below"), do: {"flaky_run_count", "below"}
-  defp split_monitor_type(_), do: {"flakiness_rate", "above"}
+  @comparisons ~w(gte gt lt lte)
+  @below_comparisons ~w(lt lte)
 
-  defp compose_monitor_type("flakiness_rate", "above"), do: "flakiness_rate"
-  defp compose_monitor_type("flakiness_rate", "below"), do: "flakiness_rate_below"
-  defp compose_monitor_type("flaky_run_count", "above"), do: "flaky_run_count"
-  defp compose_monitor_type("flaky_run_count", "below"), do: "flaky_run_count_below"
-
-  defp default_threshold("flakiness_rate", "above"), do: "10"
-  defp default_threshold("flakiness_rate", "below"), do: "5"
-  defp default_threshold("flaky_run_count", "above"), do: "3"
-  defp default_threshold("flaky_run_count", "below"), do: "1"
+  defp default_threshold("flakiness_rate", comparison) when comparison in @below_comparisons, do: "5"
+  defp default_threshold("flakiness_rate", _), do: "10"
+  defp default_threshold("flaky_run_count", comparison) when comparison in @below_comparisons, do: "1"
+  defp default_threshold("flaky_run_count", _), do: "3"
 
   defp default_change_state_action(state), do: %{"type" => "change_state", "state" => state}
   defp default_add_label_action, do: %{"type" => "add_label", "label" => "flaky"}
@@ -104,7 +92,8 @@ defmodule TuistWeb.ProjectAutomationsLive do
   defp automation_to_form(automation) do
     %{
       name: automation.name,
-      monitor_type: automation.monitor_type,
+      metric: automation.monitor_type,
+      comparison: parse_comparison(automation.trigger_config["comparison"]),
       threshold: to_string(automation.trigger_config["threshold"] || ""),
       window: automation.trigger_config["window"] || "30d",
       trigger_actions: automation.trigger_actions,
@@ -117,6 +106,9 @@ defmodule TuistWeb.ProjectAutomationsLive do
       enabled: automation.enabled
     }
   end
+
+  defp parse_comparison(comparison) when comparison in @comparisons, do: comparison
+  defp parse_comparison(_), do: "gte"
 
   @impl true
   def handle_params(_params, _uri, socket) do
@@ -152,14 +144,13 @@ defmodule TuistWeb.ProjectAutomationsLive do
     with {:ok, automation} <- Automations.get_alert(id),
          true <- automation.project_id == project.id do
       form = automation_to_form(automation)
-      {metric, direction} = split_monitor_type(form.monitor_type)
 
       socket =
         socket
         |> assign(editing_automation_id: automation.id)
         |> assign(create_automation_form_name: form.name)
-        |> assign(create_automation_form_metric: metric)
-        |> assign(create_automation_form_direction: direction)
+        |> assign(create_automation_form_metric: form.metric)
+        |> assign(create_automation_form_comparison: form.comparison)
         |> assign(create_automation_form_threshold: form.threshold)
         |> assign(create_automation_form_window: form.window)
         |> assign(create_automation_form_trigger_actions: form.trigger_actions)
@@ -183,7 +174,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
   end
 
   def handle_event("update_create_automation_form_metric", %{"data" => metric}, socket) do
-    threshold = default_threshold(metric, socket.assigns.create_automation_form_direction)
+    threshold = default_threshold(metric, socket.assigns.create_automation_form_comparison)
 
     {:noreply,
      socket
@@ -191,28 +182,26 @@ defmodule TuistWeb.ProjectAutomationsLive do
      |> assign(create_automation_form_threshold: threshold)}
   end
 
-  def handle_event("update_create_automation_form_direction", %{"data" => direction}, socket) do
-    threshold = default_threshold(socket.assigns.create_automation_form_metric, direction)
+  def handle_event("update_create_automation_form_comparison", %{"data" => comparison}, socket) do
+    threshold = default_threshold(socket.assigns.create_automation_form_metric, comparison)
 
-    # `below` automations exist to *unmark* tests, so flip the default trigger
-    # action when the user switches direction. Only swap if the form is still
-    # in its single-default state — preserve any custom actions the user has
-    # already added.
+    # Below comparisons (lt/lte) exist to *unmark* tests, so flip the default
+    # trigger action when the user switches direction. Only swap if the form
+    # is still in its single-default state — preserve any custom actions the
+    # user has already added.
+    was_below = socket.assigns.create_automation_form_comparison in @below_comparisons
+    is_below = comparison in @below_comparisons
+
     trigger_actions =
-      case {direction, socket.assigns.create_automation_form_trigger_actions} do
-        {"below", [%{"type" => "add_label", "label" => "flaky"}]} ->
-          [default_remove_label_action()]
-
-        {"above", [%{"type" => "remove_label", "label" => "flaky"}]} ->
-          [default_add_label_action()]
-
-        {_, current} ->
-          current
+      case {is_below, was_below, socket.assigns.create_automation_form_trigger_actions} do
+        {true, false, [%{"type" => "add_label", "label" => "flaky"}]} -> [default_remove_label_action()]
+        {false, true, [%{"type" => "remove_label", "label" => "flaky"}]} -> [default_add_label_action()]
+        {_, _, current} -> current
       end
 
     {:noreply,
      socket
-     |> assign(create_automation_form_direction: direction)
+     |> assign(create_automation_form_comparison: comparison)
      |> assign(create_automation_form_threshold: threshold)
      |> assign(create_automation_form_trigger_actions: trigger_actions)}
   end
@@ -411,18 +400,16 @@ defmodule TuistWeb.ProjectAutomationsLive do
   end
 
   defp build_automation_attrs(project_id, assigns) do
-    monitor_type =
-      compose_monitor_type(assigns.create_automation_form_metric, assigns.create_automation_form_direction)
-
     threshold = parse_threshold(assigns.create_automation_form_metric, assigns.create_automation_form_threshold)
 
     base = %{
       "project_id" => project_id,
       "name" => assigns.create_automation_form_name,
-      "monitor_type" => monitor_type,
+      "monitor_type" => assigns.create_automation_form_metric,
       "trigger_config" => %{
         "threshold" => threshold,
-        "window" => assigns.create_automation_form_window
+        "window" => assigns.create_automation_form_window,
+        "comparison" => assigns.create_automation_form_comparison
       },
       "trigger_actions" => assigns.create_automation_form_trigger_actions,
       "recovery_enabled" => assigns.create_automation_form_recovery_enabled
@@ -461,9 +448,17 @@ defmodule TuistWeb.ProjectAutomationsLive do
   def metric_label("flaky_run_count"), do: dgettext("dashboard_projects", "Flaky runs")
   def metric_label(_), do: dgettext("dashboard_projects", "Unknown")
 
-  def direction_label("above"), do: dgettext("dashboard_projects", "Is greater than or equal to")
-  def direction_label("below"), do: dgettext("dashboard_projects", "Is less than")
-  def direction_label(_), do: dgettext("dashboard_projects", "Unknown")
+  def comparison_label("gte"), do: dgettext("dashboard_projects", "Greater or equal")
+  def comparison_label("gt"), do: dgettext("dashboard_projects", "Greater than")
+  def comparison_label("lt"), do: dgettext("dashboard_projects", "Less than")
+  def comparison_label("lte"), do: dgettext("dashboard_projects", "Less or equal")
+  def comparison_label(_), do: dgettext("dashboard_projects", "Unknown")
+
+  def comparison_symbol("gte"), do: "≥"
+  def comparison_symbol("gt"), do: ">"
+  def comparison_symbol("lt"), do: "<"
+  def comparison_symbol("lte"), do: "≤"
+  def comparison_symbol(_), do: "≥"
 
   def threshold_unit("flakiness_rate"), do: dgettext("dashboard_projects", "%")
   def threshold_unit("flaky_run_count"), do: dgettext("dashboard_projects", "count")
@@ -512,20 +507,14 @@ defmodule TuistWeb.ProjectAutomationsLive do
   def automation_summary(%{monitor_type: "flakiness_rate", trigger_config: trigger_config}) do
     threshold = format_threshold(trigger_config["threshold"] || 0)
     window = trigger_config["window"] || "30d"
-
-    dgettext("dashboard_projects", "When flakiness rate ≥ %{threshold}% over %{window}",
-      threshold: threshold,
-      window: window
-    )
-  end
-
-  def automation_summary(%{monitor_type: "flakiness_rate_below", trigger_config: trigger_config}) do
-    threshold = format_threshold(trigger_config["threshold"] || 0)
-    window = trigger_config["window"] || "30d"
+    symbol = comparison_symbol(parse_comparison(trigger_config["comparison"]))
+    scope = scope_phrase(parse_comparison(trigger_config["comparison"]))
 
     dgettext(
       "dashboard_projects",
-      "When a flaky-marked test's flakiness rate < %{threshold}% over %{window}",
+      "When %{scope}flakiness rate %{symbol} %{threshold}% over %{window}",
+      scope: scope,
+      symbol: symbol,
       threshold: threshold,
       window: window
     )
@@ -534,22 +523,25 @@ defmodule TuistWeb.ProjectAutomationsLive do
   def automation_summary(%{monitor_type: "flaky_run_count", trigger_config: trigger_config}) do
     threshold = format_threshold(trigger_config["threshold"] || 0)
     window = trigger_config["window"] || "30d"
-    dgettext("dashboard_projects", "When flaky runs ≥ %{threshold} over %{window}", threshold: threshold, window: window)
-  end
-
-  def automation_summary(%{monitor_type: "flaky_run_count_below", trigger_config: trigger_config}) do
-    threshold = format_threshold(trigger_config["threshold"] || 0)
-    window = trigger_config["window"] || "30d"
+    symbol = comparison_symbol(parse_comparison(trigger_config["comparison"]))
+    scope = scope_phrase(parse_comparison(trigger_config["comparison"]))
 
     dgettext(
       "dashboard_projects",
-      "When a flaky-marked test's flaky runs < %{threshold} over %{window}",
+      "When %{scope}flaky runs %{symbol} %{threshold} over %{window}",
+      scope: scope,
+      symbol: symbol,
       threshold: threshold,
       window: window
     )
   end
 
   def automation_summary(_), do: ""
+
+  defp scope_phrase(comparison) when comparison in @below_comparisons,
+    do: dgettext("dashboard_projects", "a flaky-marked test's ")
+
+  defp scope_phrase(_), do: ""
 
   defp format_threshold(n) when is_float(n) and trunc(n) == n, do: trunc(n)
   defp format_threshold(n), do: n

@@ -56,15 +56,15 @@ defmodule Tuist.Automations.Alerts.AlertTest do
       assert changeset.valid?
     end
 
-    test "accepts flaky_run_count_below monitor_type with integer threshold" do
+    test "accepts a flaky_run_count alert with lt comparison" do
       project = ProjectsFixtures.project_fixture()
 
       changeset =
         Alert.changeset(
           %Alert{},
           valid_attrs(project, %{
-            "monitor_type" => "flaky_run_count_below",
-            "trigger_config" => %{"threshold" => 1, "window" => "30d"},
+            "monitor_type" => "flaky_run_count",
+            "trigger_config" => %{"threshold" => 1, "window" => "30d", "comparison" => "lt"},
             "trigger_actions" => [%{"type" => "remove_label", "label" => "flaky"}]
           })
         )
@@ -72,15 +72,15 @@ defmodule Tuist.Automations.Alerts.AlertTest do
       assert changeset.valid?
     end
 
-    test "accepts flakiness_rate_below monitor_type" do
+    test "accepts a flakiness_rate alert with lte comparison" do
       project = ProjectsFixtures.project_fixture()
 
       changeset =
         Alert.changeset(
           %Alert{},
           valid_attrs(project, %{
-            "monitor_type" => "flakiness_rate_below",
-            "trigger_config" => %{"threshold" => 5, "window" => "30d"},
+            "monitor_type" => "flakiness_rate",
+            "trigger_config" => %{"threshold" => 5, "window" => "30d", "comparison" => "lte"},
             "trigger_actions" => [%{"type" => "remove_label", "label" => "flaky"}]
           })
         )
@@ -88,16 +88,14 @@ defmodule Tuist.Automations.Alerts.AlertTest do
       assert changeset.valid?
     end
 
-    test "rejects flaky_run_count_below with non-positive threshold" do
+    test "rejects an unknown comparison" do
       project = ProjectsFixtures.project_fixture()
 
       changeset =
         Alert.changeset(
           %Alert{},
           valid_attrs(project, %{
-            "monitor_type" => "flaky_run_count_below",
-            "trigger_config" => %{"threshold" => 0, "window" => "30d"},
-            "trigger_actions" => [%{"type" => "remove_label", "label" => "flaky"}]
+            "trigger_config" => %{"threshold" => 5, "window" => "30d", "comparison" => "bogus"}
           })
         )
 

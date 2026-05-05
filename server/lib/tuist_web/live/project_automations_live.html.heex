@@ -129,28 +129,44 @@
                       {dgettext("dashboard_projects", "Comparison")}
                     </label>
                     <.dropdown
-                      id="create-automation-direction-dropdown"
-                      label={direction_label(@create_automation_form_direction)}
+                      id="create-automation-comparison-dropdown"
+                      label={comparison_label(@create_automation_form_comparison)}
                     >
                       <.dropdown_item
-                        value="above"
-                        label={dgettext("dashboard_projects", "Is greater than or equal to")}
-                        on_click="update_create_automation_form_direction"
-                        data-selected={@create_automation_form_direction == "above"}
+                        value="gte"
+                        label={dgettext("dashboard_projects", "Greater or equal")}
+                        on_click="update_create_automation_form_comparison"
+                        data-selected={@create_automation_form_comparison == "gte"}
                       >
                         <:right_icon><.check /></:right_icon>
                       </.dropdown_item>
                       <.dropdown_item
-                        value="below"
-                        label={dgettext("dashboard_projects", "Is less than")}
-                        on_click="update_create_automation_form_direction"
-                        data-selected={@create_automation_form_direction == "below"}
+                        value="gt"
+                        label={dgettext("dashboard_projects", "Greater than")}
+                        on_click="update_create_automation_form_comparison"
+                        data-selected={@create_automation_form_comparison == "gt"}
+                      >
+                        <:right_icon><.check /></:right_icon>
+                      </.dropdown_item>
+                      <.dropdown_item
+                        value="lt"
+                        label={dgettext("dashboard_projects", "Less than")}
+                        on_click="update_create_automation_form_comparison"
+                        data-selected={@create_automation_form_comparison == "lt"}
+                      >
+                        <:right_icon><.check /></:right_icon>
+                      </.dropdown_item>
+                      <.dropdown_item
+                        value="lte"
+                        label={dgettext("dashboard_projects", "Less or equal")}
+                        on_click="update_create_automation_form_comparison"
+                        data-selected={@create_automation_form_comparison == "lte"}
                       >
                         <:right_icon><.check /></:right_icon>
                       </.dropdown_item>
                     </.dropdown>
                   </div>
-                  <div data-part="form-row">
+                  <div data-part="form-row" data-size="compact">
                     <label data-part="label">
                       {dgettext("dashboard_projects", "Threshold (%{unit})",
                         unit: threshold_unit(@create_automation_form_metric)
@@ -166,7 +182,7 @@
                       phx-debounce="300"
                     />
                   </div>
-                  <div data-part="form-row">
+                  <div data-part="form-row" data-size="compact">
                     <label data-part="label">
                       {dgettext("dashboard_projects", "Over the last")}
                     </label>

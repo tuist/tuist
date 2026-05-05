@@ -143,20 +143,19 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     assert :ok = run(automation.id)
   end
 
-  test "dispatches flaky_run_count_below alerts to evaluate_by_run_count_below" do
+  test "dispatches lt-comparison alerts to the metric's evaluator" do
     automation =
       AutomationsFixtures.automation_alert_fixture(
-        monitor_type: "flaky_run_count_below",
-        trigger_config: %{"threshold" => 1, "window" => "30d"},
+        monitor_type: "flaky_run_count",
+        trigger_config: %{"threshold" => 1, "window" => "30d", "comparison" => "lt"},
         trigger_actions: [%{"type" => "remove_label", "label" => "flaky"}]
       )
 
     cleanup_id = Ecto.UUID.generate()
 
     reject(&FlakyTestsMonitor.evaluate/1)
-    reject(&FlakyTestsMonitor.evaluate_by_run_count/1)
 
-    expect(FlakyTestsMonitor, :evaluate_by_run_count_below, fn ^automation ->
+    expect(FlakyTestsMonitor, :evaluate_by_run_count, fn ^automation ->
       %{triggered: [cleanup_id], all: [cleanup_id]}
     end)
 

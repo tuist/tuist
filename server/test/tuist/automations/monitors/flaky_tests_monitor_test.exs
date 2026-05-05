@@ -7,8 +7,8 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitorTest do
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
 
-  describe "evaluate_below/1" do
-    test "fires for flagged tests with no runs in the window" do
+  describe "evaluate/1 with lt comparison" do
+    test "fires for flagged tests with rate below threshold" do
       project = ProjectsFixtures.project_fixture()
 
       {:ok, _run} =
@@ -30,19 +30,16 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitorTest do
       alert =
         AutomationsFixtures.automation_alert_fixture(
           project: project,
-          monitor_type: "flakiness_rate_below",
-          trigger_config: %{"threshold" => 5, "window" => "1h"},
+          monitor_type: "flakiness_rate",
+          trigger_config: %{"threshold" => 5, "window" => "1h", "comparison" => "lt"},
           trigger_actions: [%{"type" => "remove_label", "label" => "flaky"}]
         )
 
-      # `test_fixture` inserts runs at `now`, so a 1h window catches them. The
-      # test_case has zero flaky runs, so its rate is 0% — well below 5% — and
-      # it should fire. (The "no runs at all" branch is exercised below.)
-      assert %{triggered: triggered} = FlakyTestsMonitor.evaluate_below(alert)
+      assert %{triggered: triggered} = FlakyTestsMonitor.evaluate(alert)
       assert triggered == [test_case.id]
     end
 
-    test "skips flagged tests whose flakiness rate meets the threshold" do
+    test "skips flagged tests whose rate meets the threshold" do
       project = ProjectsFixtures.project_fixture()
 
       {:ok, _run} =
@@ -61,8 +58,6 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitorTest do
       {[test_case], _meta} = Tests.list_test_cases(project.id, %{})
       {:ok, _} = Tests.update_test_case(test_case.id, %{is_flaky: true})
 
-      # Half the runs in the window are flaky → 50% rate, well above any
-      # reasonable cleanup threshold.
       for ran_at <- [
             NaiveDateTime.add(NaiveDateTime.utc_now(), -1, :day),
             NaiveDateTime.add(NaiveDateTime.utc_now(), -2, :day)
@@ -87,12 +82,12 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitorTest do
       alert =
         AutomationsFixtures.automation_alert_fixture(
           project: project,
-          monitor_type: "flakiness_rate_below",
-          trigger_config: %{"threshold" => 10, "window" => "30d"},
+          monitor_type: "flakiness_rate",
+          trigger_config: %{"threshold" => 10, "window" => "30d", "comparison" => "lt"},
           trigger_actions: [%{"type" => "remove_label", "label" => "flaky"}]
         )
 
-      assert %{triggered: []} = FlakyTestsMonitor.evaluate_below(alert)
+      assert %{triggered: []} = FlakyTestsMonitor.evaluate(alert)
     end
 
     test "ignores tests that are not flagged" do
@@ -101,7 +96,6 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitorTest do
       {:ok, _run} =
         RunsFixtures.test_fixture(
           project_id: project.id,
-          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -60, :day),
           test_modules: [
             %{
               name: "M",
@@ -115,16 +109,16 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitorTest do
       alert =
         AutomationsFixtures.automation_alert_fixture(
           project: project,
-          monitor_type: "flakiness_rate_below",
-          trigger_config: %{"threshold" => 5, "window" => "30d"},
+          monitor_type: "flakiness_rate",
+          trigger_config: %{"threshold" => 5, "window" => "30d", "comparison" => "lt"},
           trigger_actions: [%{"type" => "remove_label", "label" => "flaky"}]
         )
 
-      assert %{triggered: []} = FlakyTestsMonitor.evaluate_below(alert)
+      assert %{triggered: []} = FlakyTestsMonitor.evaluate(alert)
     end
   end
 
-  describe "evaluate_by_run_count_below/1" do
+  describe "evaluate_by_run_count/1 with lt comparison" do
     test "fires for flagged tests with no flaky runs in the window" do
       project = ProjectsFixtures.project_fixture()
 
@@ -152,12 +146,12 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitorTest do
       alert =
         AutomationsFixtures.automation_alert_fixture(
           project: project,
-          monitor_type: "flaky_run_count_below",
-          trigger_config: %{"threshold" => 1, "window" => "30d"},
+          monitor_type: "flaky_run_count",
+          trigger_config: %{"threshold" => 1, "window" => "30d", "comparison" => "lt"},
           trigger_actions: [%{"type" => "remove_label", "label" => "flaky"}]
         )
 
-      assert %{triggered: triggered} = FlakyTestsMonitor.evaluate_by_run_count_below(alert)
+      assert %{triggered: triggered} = FlakyTestsMonitor.evaluate_by_run_count(alert)
       assert triggered == [stale.id]
     end
 
@@ -172,9 +166,7 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitorTest do
               name: "M",
               status: "success",
               duration: 1000,
-              test_cases: [
-                %{name: "healthy", status: "success", duration: 100}
-              ]
+              test_cases: [%{name: "healthy", status: "success", duration: 100}]
             }
           ]
         )
@@ -182,12 +174,12 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitorTest do
       alert =
         AutomationsFixtures.automation_alert_fixture(
           project: project,
-          monitor_type: "flaky_run_count_below",
-          trigger_config: %{"threshold" => 100, "window" => "30d"},
+          monitor_type: "flaky_run_count",
+          trigger_config: %{"threshold" => 100, "window" => "30d", "comparison" => "lt"},
           trigger_actions: [%{"type" => "remove_label", "label" => "flaky"}]
         )
 
-      assert %{triggered: []} = FlakyTestsMonitor.evaluate_by_run_count_below(alert)
+      assert %{triggered: []} = FlakyTestsMonitor.evaluate_by_run_count(alert)
     end
 
     test "skips flagged tests whose flaky run count meets the threshold" do
@@ -216,8 +208,6 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitorTest do
       {:ok, _} = Tests.update_test_case(still_flaky.id, %{is_flaky: true})
       {:ok, _} = Tests.update_test_case(no_longer_flaky.id, %{is_flaky: true})
 
-      # `still_flaky` has 2 flaky runs in the window, `no_longer_flaky` has 0,
-      # so with threshold=2 only the latter falls below.
       RunsFixtures.test_case_run_fixture(
         project_id: project.id,
         test_case_id: still_flaky.id,
@@ -235,16 +225,18 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitorTest do
       alert =
         AutomationsFixtures.automation_alert_fixture(
           project: project,
-          monitor_type: "flaky_run_count_below",
-          trigger_config: %{"threshold" => 2, "window" => "30d"},
+          monitor_type: "flaky_run_count",
+          trigger_config: %{"threshold" => 2, "window" => "30d", "comparison" => "lt"},
           trigger_actions: [%{"type" => "remove_label", "label" => "flaky"}]
         )
 
-      assert %{triggered: triggered} = FlakyTestsMonitor.evaluate_by_run_count_below(alert)
+      assert %{triggered: triggered} = FlakyTestsMonitor.evaluate_by_run_count(alert)
       assert triggered == [no_longer_flaky.id]
     end
+  end
 
-    test "ignores flaky runs outside the trigger window" do
+  describe "evaluate_by_run_count/1 with gt comparison" do
+    test "fires when count is strictly greater than threshold" do
       project = ProjectsFixtures.project_fixture()
 
       {:ok, _run} =
@@ -255,34 +247,69 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitorTest do
               name: "M",
               status: "success",
               duration: 1000,
-              test_cases: [
-                %{name: "old_flake", status: "success", duration: 100}
-              ]
+              test_cases: [%{name: "tc", status: "success", duration: 100}]
             }
           ]
         )
 
       {[test_case], _meta} = Tests.list_test_cases(project.id, %{})
-      {:ok, _} = Tests.update_test_case(test_case.id, %{is_flaky: true})
 
-      # Flaky run sits 60 days ago, outside the 30d window.
-      RunsFixtures.test_case_run_fixture(
-        project_id: project.id,
-        test_case_id: test_case.id,
-        is_flaky: true,
-        ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -60, :day)
-      )
+      for _ <- 1..3 do
+        RunsFixtures.test_case_run_fixture(
+          project_id: project.id,
+          test_case_id: test_case.id,
+          is_flaky: true
+        )
+      end
 
       alert =
         AutomationsFixtures.automation_alert_fixture(
           project: project,
-          monitor_type: "flaky_run_count_below",
-          trigger_config: %{"threshold" => 1, "window" => "30d"},
-          trigger_actions: [%{"type" => "remove_label", "label" => "flaky"}]
+          monitor_type: "flaky_run_count",
+          trigger_config: %{"threshold" => 2, "window" => "30d", "comparison" => "gt"}
         )
 
-      assert %{triggered: triggered} = FlakyTestsMonitor.evaluate_by_run_count_below(alert)
-      assert triggered == [test_case.id]
+      assert %{triggered: [triggered_id]} = FlakyTestsMonitor.evaluate_by_run_count(alert)
+      assert triggered_id == test_case.id
+    end
+  end
+
+  describe "evaluate_by_run_count/1 default comparison" do
+    test "treats missing comparison as gte" do
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, _run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          test_modules: [
+            %{
+              name: "M",
+              status: "success",
+              duration: 1000,
+              test_cases: [%{name: "tc", status: "success", duration: 100}]
+            }
+          ]
+        )
+
+      {[test_case], _meta} = Tests.list_test_cases(project.id, %{})
+
+      for _ <- 1..3 do
+        RunsFixtures.test_case_run_fixture(
+          project_id: project.id,
+          test_case_id: test_case.id,
+          is_flaky: true
+        )
+      end
+
+      alert =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "flaky_run_count",
+          trigger_config: %{"threshold" => 3, "window" => "30d"}
+        )
+
+      assert %{triggered: triggered} = FlakyTestsMonitor.evaluate_by_run_count(alert)
+      assert test_case.id in triggered
     end
   end
 end

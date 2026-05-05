@@ -6,7 +6,8 @@ defmodule Tuist.Automations.Alerts.Alert do
 
   alias Tuist.Projects.Project
 
-  @monitor_types ~w(flakiness_rate flakiness_rate_below flaky_run_count flaky_run_count_below)
+  @monitor_types ~w(flakiness_rate flaky_run_count)
+  @comparisons ~w(gte gt lt lte)
   @valid_states ~w(enabled muted skipped)
 
   @primary_key {:id, UUIDv7, autogenerate: true}
@@ -110,21 +111,21 @@ defmodule Tuist.Automations.Alerts.Alert do
     monitor_type = get_field(changeset, :monitor_type)
     trigger_config = get_field(changeset, :trigger_config) || %{}
 
-    case monitor_type do
-      "flakiness_rate" ->
-        validate_flakiness_rate_config(changeset, trigger_config)
+    changeset =
+      case monitor_type do
+        "flakiness_rate" -> validate_flakiness_rate_config(changeset, trigger_config)
+        "flaky_run_count" -> validate_flaky_run_count_config(changeset, trigger_config)
+        _ -> changeset
+      end
 
-      "flakiness_rate_below" ->
-        validate_flakiness_rate_config(changeset, trigger_config)
+    validate_comparison(changeset, trigger_config)
+  end
 
-      "flaky_run_count" ->
-        validate_flaky_run_count_config(changeset, trigger_config)
-
-      "flaky_run_count_below" ->
-        validate_flaky_run_count_config(changeset, trigger_config)
-
-      _ ->
-        changeset
+  defp validate_comparison(changeset, trigger_config) do
+    case Map.get(trigger_config, "comparison") do
+      nil -> changeset
+      value when value in @comparisons -> changeset
+      _ -> add_error(changeset, :trigger_config, "comparison must be one of: #{Enum.join(@comparisons, ", ")}")
     end
   end
 
