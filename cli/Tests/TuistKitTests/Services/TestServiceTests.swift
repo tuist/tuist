@@ -1,3 +1,4 @@
+import Command
 import Foundation
 import Mockable
 import Path
@@ -4108,27 +4109,34 @@ final class TestServiceTests: TuistUnitTestCase {
             .loadConfig(path: .any)
             .willReturn(.test(project: .testGeneratedProject()))
 
-        let error = SystemError.terminated(
-            command: "xcodebuild test-without-building",
-            code: 66,
-            standardError: Data("xcodebuild: error: xctestproducts does not contain test plan: \(typoTestPlan)".utf8)
+        let error = CommandError.terminated(
+            66,
+            stderr: "xcodebuild: error: xctestproducts does not contain test plan: \(typoTestPlan)",
+            command: ["xcodebuild", "test-without-building"]
         )
         given(xcodebuildController)
             .run(arguments: .any)
             .willThrow(error)
 
         // When / Then
-        await XCTAssertThrowsSpecific(
-            {
-                try await testRun(
-                    path: path,
-                    action: .testWithoutBuilding,
-                    testPlanConfiguration: TestPlanConfiguration(testPlan: typoTestPlan),
-                    passthroughXcodeBuildArguments: ["-testProductsPath", testProductsPath.pathString]
-                )
-            },
-            error
-        )
+        do {
+            try await testRun(
+                path: path,
+                action: .testWithoutBuilding,
+                testPlanConfiguration: TestPlanConfiguration(testPlan: typoTestPlan),
+                passthroughXcodeBuildArguments: ["-testProductsPath", testProductsPath.pathString]
+            )
+            XCTFail("Expected xcodebuild to throw")
+        } catch let CommandError.terminated(exitCode, stderr, command) {
+            XCTAssertEqual(exitCode, 66)
+            XCTAssertEqual(
+                stderr,
+                "xcodebuild: error: xctestproducts does not contain test plan: \(typoTestPlan)"
+            )
+            XCTAssertEqual(command, ["xcodebuild", "test-without-building"])
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
     }
 
     func test_run_testWithoutBuilding_doesNotSkipWhenLegacyGraphHasNoAttemptedTestPlans() async throws {

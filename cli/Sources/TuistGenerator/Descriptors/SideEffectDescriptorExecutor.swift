@@ -1,3 +1,4 @@
+import Command
 import FileSystem
 import Foundation
 import TuistCore
@@ -13,9 +14,14 @@ public protocol SideEffectDescriptorExecuting {
 
 public struct SideEffectDescriptorExecutor: SideEffectDescriptorExecuting {
     private let fileSystem: FileSystem
+    private let commandRunner: CommandRunning
 
-    public init(fileSystem: FileSystem = FileSystem()) {
+    public init(
+        fileSystem: FileSystem = FileSystem(),
+        commandRunner: CommandRunning = CommandRunner()
+    ) {
         self.fileSystem = fileSystem
+        self.commandRunner = commandRunner
     }
 
     // MARK: - SideEffectDescriptorExecuting
@@ -25,7 +31,7 @@ public struct SideEffectDescriptorExecutor: SideEffectDescriptorExecuting {
             Logger.current.debug("Side effect: \(sideEffect)")
             switch sideEffect {
             case let .command(commandDescriptor):
-                try perform(command: commandDescriptor)
+                try await perform(command: commandDescriptor)
             case let .file(fileDescriptor):
                 try await process(file: fileDescriptor)
             case let .directory(directoryDescriptor):
@@ -65,8 +71,8 @@ public struct SideEffectDescriptorExecutor: SideEffectDescriptorExecuting {
         }
     }
 
-    private func perform(command: CommandDescriptor) throws {
-        try System.shared.run(command.command)
+    private func perform(command: CommandDescriptor) async throws {
+        try await commandRunner.runAndWait(arguments: command.command)
     }
 
     private func process(testPlan: TestPlanDescriptor) async throws {
@@ -82,7 +88,7 @@ public struct SideEffectDescriptorExecutor: SideEffectDescriptorExecuting {
 #if DEBUG
     final class MockSideEffectDescriptorExecutor: SideEffectDescriptorExecuting {
         var executeStub: (([SideEffectDescriptor]) throws -> Void)?
-        func execute(sideEffects: [SideEffectDescriptor]) throws {
+        func execute(sideEffects: [SideEffectDescriptor]) async throws {
             try executeStub?(sideEffects)
         }
     }

@@ -1787,8 +1787,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
     private func rootDirectory() async throws -> AbsolutePath? {
         let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
         let workingDirectory = Environment.current.workspacePath ?? currentWorkingDirectory
-        if gitController.isInGitRepository(workingDirectory: workingDirectory) {
-            return try gitController.topLevelGitDirectory(workingDirectory: workingDirectory)
+        if await gitController.isInGitRepository(workingDirectory: workingDirectory) {
+            return try await gitController.topLevelGitDirectory(workingDirectory: workingDirectory)
         } else {
             return try await rootDirectoryLocator.locate(from: workingDirectory)
         }
@@ -1815,7 +1815,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             testModules: []
         )
 
-        let gitInfo = try gitController.gitInfo(workingDirectory: gitInfoDirectory)
+        let gitInfo = try await gitController.gitInfo(workingDirectory: gitInfoDirectory)
         let ciInfo = ciController.ciInfo()
 
         let test = try await createTestService.createTest(

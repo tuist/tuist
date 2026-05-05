@@ -1,3 +1,4 @@
+import Command
 import Path
 import Testing
 import TuistAcceptanceTesting
@@ -12,7 +13,7 @@ struct EditAcceptanceTests {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         try await TuistTest.run(EditCommand.self, ["--path", fixtureDirectory.pathString, "--permanent"])
         let workspacePath = try await TuistAcceptanceTest.xcworkspacePath(in: fixtureDirectory)
-        try build(scheme: "Manifests", workspacePath: workspacePath)
+        try await build(scheme: "Manifests", workspacePath: workspacePath)
     }
 
     @Test(.disabled(), .withFixture("generated_plugin"))
@@ -51,9 +52,9 @@ struct EditAcceptanceTests {
     }
 }
 
-private func build(scheme: String, workspacePath: AbsolutePath) throws {
-    try System.shared.runAndPrint(
-        [
+private func build(scheme: String, workspacePath: AbsolutePath) async throws {
+    try await CommandRunner().runAndPrint(
+        arguments: [
             "/usr/bin/xcrun",
             "xcodebuild",
             "clean",

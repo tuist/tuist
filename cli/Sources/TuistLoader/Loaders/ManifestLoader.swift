@@ -1,3 +1,4 @@
+import Command
 import FileSystem
 import Foundation
 import Mockable
@@ -129,6 +130,7 @@ public class ManifestLoader: ManifestLoading {
     private let swiftPackageManagerController: SwiftPackageManagerControlling
     private let packageInfoLoader: PackageInfoLoading
     private let fileSystem: FileSysteming
+    private let commandRunner: CommandRunning
 
     // MARK: - Init
 
@@ -152,7 +154,8 @@ public class ManifestLoader: ManifestLoading {
         manifestFilesLocator: ManifestFilesLocating,
         swiftPackageManagerController: SwiftPackageManagerControlling,
         packageInfoLoader: PackageInfoLoading,
-        fileSystem: FileSysteming = FileSystem()
+        fileSystem: FileSysteming = FileSystem(),
+        commandRunner: CommandRunning = CommandRunner()
     ) {
         self.environment = environment
         self.resourceLocator = resourceLocator
@@ -162,6 +165,7 @@ public class ManifestLoader: ManifestLoading {
         self.swiftPackageManagerController = swiftPackageManagerController
         self.packageInfoLoader = packageInfoLoader
         self.fileSystem = fileSystem
+        self.commandRunner = commandRunner
         decoder = JSONDecoder()
     }
 
@@ -334,9 +338,8 @@ public class ManifestLoader: ManifestLoading {
         ) + ["--tuist-dump"]
 
         do {
-            let string = try System.shared.capture(
-                arguments,
-                verbose: false,
+            let string = try await commandRunner.capture(
+                arguments: arguments,
                 environment: Environment.current.manifestLoadingVariables
             )
 
@@ -446,7 +449,7 @@ public class ManifestLoader: ManifestLoading {
                     }
                     return try await XcodeController.current.selected().path
                 }()
-                let packageVersion = try swiftPackageManagerController.getToolsVersion(
+                let packageVersion = try await swiftPackageManagerController.getToolsVersion(
                     at: path.parentDirectory
                 )
                 let manifestPath =
@@ -536,10 +539,11 @@ public class ManifestLoader: ManifestLoading {
     }
 
     private func logUnexpectedImportErrorIfNeeded(in path: AbsolutePath, error: Error, manifest: Manifest) {
-        guard case let TuistSupport.SystemError.terminated(command, _, standardError) = error,
+        guard case let CommandError.terminated(_, standardError, command) = error,
               manifest == .config || manifest == .plugin,
-              command == "swiftc",
-              let errorMessage = String(data: standardError, encoding: .utf8) else { return }
+              command.first == "swiftc" else { return }
+
+        let errorMessage = standardError
 
         let defaultHelpersName = ProjectDescriptionHelpersBuilder.defaultHelpersName
 
@@ -553,9 +557,10 @@ public class ManifestLoader: ManifestLoading {
     }
 
     private func logPluginHelperBuildErrorIfNeeded(in _: AbsolutePath, error: Error, manifest _: Manifest) {
-        guard case let TuistSupport.SystemError.terminated(command, _, standardError) = error,
-              command == "swiftc",
-              let errorMessage = String(data: standardError, encoding: .utf8) else { return }
+        guard case let CommandError.terminated(_, standardError, command) = error,
+              command.first == "swiftc" else { return }
+
+        let errorMessage = standardError
 
         let pluginHelpers = plugins.projectDescriptionHelpers
         guard let pluginHelper = pluginHelpers.first(where: { errorMessage.contains($0.name) }) else { return }

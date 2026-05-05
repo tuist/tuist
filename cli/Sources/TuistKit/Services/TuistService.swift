@@ -1,3 +1,4 @@
+import Command
 import FileSystem
 import Foundation
 import Path
@@ -18,15 +19,18 @@ public final class TuistService: NSObject {
     private let pluginService: PluginServicing
     private let configLoader: ConfigLoading
     private let fileSystem: FileSysteming
+    private let commandRunner: CommandRunning
 
     public init(
         pluginService: PluginServicing = PluginService(),
         configLoader: ConfigLoading = ConfigLoader(),
-        fileSystem: FileSysteming = FileSystem()
+        fileSystem: FileSysteming = FileSystem(),
+        commandRunner: CommandRunning = CommandRunner()
     ) {
         self.pluginService = pluginService
         self.configLoader = configLoader
         self.fileSystem = fileSystem
+        self.commandRunner = commandRunner
     }
 
     public func run(
@@ -62,15 +66,14 @@ public final class TuistService: NSObject {
 
         if let pluginCommand = pluginExecutables.first(where: { $0.basename == commandName }) {
             arguments[0] = pluginCommand.pathString
-        } else if System.shared.commandExists(commandName) {
+        } else if await commandRunner.commandExists(commandName) {
             arguments[0] = commandName
         } else {
             throw TuistServiceError.taskUnavailable
         }
 
-        try System.shared.runAndPrint(
-            arguments,
-            verbose: Environment.current.isVerbose,
+        try await commandRunner.runAndPrint(
+            arguments: arguments,
             environment: [
                 Constants.EnvironmentVariables.tuistBinaryPath: tuistBinaryPath,
             ].merging(Environment.current.variables) { tuistEnv, _ in tuistEnv }

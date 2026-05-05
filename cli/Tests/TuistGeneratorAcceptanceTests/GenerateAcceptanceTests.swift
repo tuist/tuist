@@ -58,7 +58,7 @@ struct GeneratorAcceptanceTests {
         // When
         try await TuistTest.run(InstallCommand.self, ["--path", fixtureDirectory.pathString])
         try await TuistTest.run(GenerateCommand.self, ["--path", fixtureDirectory.pathString, "--no-open"])
-        try System.shared.run([
+        try await CommandRunner().runAndWait(arguments: [
             "/usr/bin/xcodebuild",
             "-scheme",
             "App",
@@ -1125,7 +1125,8 @@ struct GenerateAcceptanceTestmacOSAppWithExtensions {
         if try await !fileSystem.exists(
             AbsolutePath(validating: "/Library/Developer/SDKs/WorkflowExtensionSDK.sdk")
         ) {
-            try System.shared.run(["sudo", "installer", "-package", sdkPkgPath.pathString, "-target", "/"])
+            try await CommandRunner()
+                .runAndWait(arguments: ["sudo", "installer", "-package", sdkPkgPath.pathString, "-target", "/"])
         }
 
         try await run(GenerateCommand.self)
@@ -1909,8 +1910,8 @@ private func XCTAssertSchemeContainsBuildSettings(
 ) async throws {
     let fixturePath = try fixtureDirectory(sourceLocation: sourceLocation)
     let workspacePath = try await TuistAcceptanceTest.xcworkspacePath(in: fixturePath, sourceLocation: sourceLocation)
-    let buildSettings = try await System.shared.runAndCollectOutput(
-        [
+    let buildSettings = try await CommandRunner().runAndCollectOutput(
+        arguments: [
             "/usr/bin/xcodebuild",
             "-scheme",
             scheme,
@@ -1952,8 +1953,8 @@ private func XCTAssertProductWithDestinationContainsAppClipWithArchitecture(
         return
     }
 
-    let fileInfo = try await System.shared.runAndCollectOutput(
-        [
+    let fileInfo = try await CommandRunner().runAndCollectOutput(
+        arguments: [
             "file",
             appClipPath.appending(component: appClip).pathString,
         ]
@@ -2061,8 +2062,8 @@ private func XCTAssertProductWithDestinationContainsInfoPlistKey(
         resource: "Info.plist",
         sourceLocation: sourceLocation
     )
-    let output = try await System.shared.runAndCollectOutput(
-        [
+    let output = try await CommandRunner().runAndCollectOutput(
+        arguments: [
             "/usr/libexec/PlistBuddy",
             "-c",
             "print :\(key)",

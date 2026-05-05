@@ -75,7 +75,7 @@ struct InstallService {
         if update {
             Logger.current.notice("Updating dependencies.", metadata: .section)
 
-            try swiftPackageManagerController.update(
+            try await swiftPackageManagerController.update(
                 at: packageManifestPath.parentDirectory,
                 arguments: mergedArguments,
                 printOutput: true
@@ -83,7 +83,7 @@ struct InstallService {
         } else {
             Logger.current.notice("Resolving and fetching dependencies.", metadata: .section)
 
-            try swiftPackageManagerController.resolve(
+            try await swiftPackageManagerController.resolve(
                 at: packageManifestPath.parentDirectory,
                 arguments: mergedArguments,
                 printOutput: true

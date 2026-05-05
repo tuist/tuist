@@ -45,7 +45,7 @@ final class OpenerTests: TuistUnitTestCase {
         let temporaryPath = try temporaryPath()
         let path = temporaryPath.appending(component: "tool")
         try await FileSystem().touch(path)
-        system.succeedCommand(["/usr/bin/open", path.pathString])
+        mockCommandRunner.succeedCommand(["/usr/bin/open", path.pathString])
         try await subject.open(path: path)
     }
 }
