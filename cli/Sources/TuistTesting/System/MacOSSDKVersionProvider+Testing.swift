@@ -1,5 +1,5 @@
 import Testing
-import TuistSupport
+import TuistMacOSSDK
 
 public struct MacOSSDKVersionProviderTestingTrait: TestTrait, SuiteTrait, TestScoping {
     public func provideScope(

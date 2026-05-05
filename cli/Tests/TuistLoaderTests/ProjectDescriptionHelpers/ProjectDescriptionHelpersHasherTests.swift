@@ -5,6 +5,7 @@ import ProjectDescription
 import Testing
 import TuistCore
 import TuistEnvironment
+import TuistMacOSSDK
 import TuistSupport
 @testable import TuistLoader
 @testable import TuistTesting

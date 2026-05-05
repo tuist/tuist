@@ -3,6 +3,7 @@ import Foundation
 import Path
 import TuistConstants
 import TuistEnvironment
+import TuistMacOSSDK
 import TuistSupport
 
 public protocol ProjectDescriptionHelpersHashing {
