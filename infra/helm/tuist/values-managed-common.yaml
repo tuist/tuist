@@ -184,7 +184,12 @@ xcresultProcessor:
   queueConcurrency: 4
   image:
     repository: ghcr.io/tuist/tuist-xcresult-processor
-    tag: ""  # Set by CI to the commit SHA on each deploy.
+    # Bumped automatically by the release workflow when an
+    # xcresult-processor-scoped conventional commit lands on main; the
+    # workflow rebuilds the Tart VM image on the bare-metal Mac mini,
+    # pushes the matching semver tag, and rewrites this line in the
+    # same auto-commit.
+    tag: "0.1.0"
 
 # Mac mini fleet provisioned declaratively via the Cluster API
 # Scaleway-Apple-Silicon provider. Scaling is `kubectl scale

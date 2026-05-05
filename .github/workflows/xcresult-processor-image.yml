@@ -137,10 +137,11 @@ jobs:
 
       - name: Push image to GHCR
         run: |
+          # SHA-tagged builds for ad-hoc deploys; semver tags + `:latest`
+          # are owned by release.yml's release-xcresult-processor job.
           set -euo pipefail
           GIT_SHA="${GITHUB_SHA::8}"
           tart push tuist-xcresult-processor "ghcr.io/tuist/tuist-xcresult-processor:${GIT_SHA}"
-          tart push tuist-xcresult-processor "ghcr.io/tuist/tuist-xcresult-processor:latest"
           echo "Pushed ghcr.io/tuist/tuist-xcresult-processor:${GIT_SHA}"
 
       - name: Cleanup
