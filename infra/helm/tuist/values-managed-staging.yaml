@@ -156,16 +156,6 @@ xcresultProcessor:
 macosFleet:
   enabled: true
   replicas: 1
-  # External k8s API server URL the Mac minis dial when joining.
-  # The Syself-managed `autopilot-1.autopilot-prod.k8s.syself.net`
-  # endpoint serves a TLS cert signed by a CA we don't have access to
-  # (different from the in-cluster CA the SA token Secret carries).
-  # Pinned to the Hetzner LB IP instead — same endpoint our local
-  # ops kubeconfig uses, signed by the in-cluster CA so SA-token-based
-  # auth verifies cleanly. Trade-off: single endpoint, no autopilot
-  # multi-CP failover at the DNS layer. Acceptable until Syself
-  # publishes an externally-trusted cert chain.
-  apiServerURL: "https://91.98.223.188:443"
   machine:
     # M4-S is normally what we'd pick (smallest M4); falls back to
     # M2-M when M4-S is no_stock. Override per Scaleway capacity.

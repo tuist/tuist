@@ -134,7 +134,9 @@ spec:
             - --metrics-bind-address=:8080
             - --health-probe-bind-address=:8081
             - --secrets-namespace={{ .Release.Namespace }}
-            - --api-server-url={{ .Values.macosFleet.apiServerURL | required ".Values.macosFleet.apiServerURL is required (external https URL Mac minis dial)" }}
+            {{- with .Values.macosFleet.apiServerURL }}
+            - --api-server-url={{ . }}
+            {{- end }}
             - --node-identity-cluster-role={{ include "tuist.componentName" (dict "root" . "component" "tart-kubelet") }}
             - --tartkubelet-host-cpu={{ .Values.macosFleet.tartKubelet.hostCPU | default 8 }}
             - --tartkubelet-host-memory-mb={{ .Values.macosFleet.tartKubelet.hostMemoryMB | default 16384 }}

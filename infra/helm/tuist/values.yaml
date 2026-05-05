@@ -355,8 +355,10 @@ macosFleet:
     tag: ""
     pullPolicy: IfNotPresent
   # External URL of the cluster API server that Mac minis dial when
-  # joining. Required when macosFleet.enabled — Mac minis are off
-  # cluster, so the in-cluster service URL won't resolve.
+  # joining. Auto-discovered from the kube-public/cluster-info
+  # ConfigMap that kubeadm/CAPI write during cluster bootstrap; only
+  # set this when the ConfigMap isn't usable (non-kubeadm cluster,
+  # split-horizon DNS, ad-hoc override).
   apiServerURL: ""
 
   # tart-kubelet — kubelet-shaped agent the CAPI provider installs on

@@ -12,14 +12,22 @@
 package main
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"flag"
+	"fmt"
 	"os"
+	"time"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/client-go/kubernetes"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
@@ -68,7 +76,10 @@ func main() {
 		"Namespace where the operator stores per-fleet SSH key Secrets")
 
 	flag.StringVar(&apiServerURL, "api-server-url", os.Getenv("CAPI_TARTKUBELET_API_SERVER_URL"),
-		"External API server URL Mac minis dial when joining (https://...).")
+		"External API server URL Mac minis dial when joining (https://...). "+
+			"When unset, auto-discovered from the kube-public/cluster-info ConfigMap that "+
+			"kubeadm/CAPI populate during cluster bootstrap. Override only if the ConfigMap "+
+			"isn't usable (non-kubeadm cluster, split-horizon DNS, etc.).")
 	flag.StringVar(&nodeIdentityClusterRole, "node-identity-cluster-role",
 		envOrDefault("CAPI_NODE_IDENTITY_CLUSTER_ROLE", "tart-kubelet"),
 		"Name of the chart-managed ClusterRole each per-machine ServiceAccount binds to. "+
@@ -118,7 +129,20 @@ func main() {
 	tartTarballSHA := sha256Hex(tartTarball)
 	setupLog.Info("loaded tart tarball", "path", tartTarballPath, "bytes", len(tartTarball), "sha", tartTarballSHA)
 
-	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
+	restConfig := ctrl.GetConfigOrDie()
+
+	if apiServerURL == "" {
+		discovered, err := discoverAPIServerURL(restConfig)
+		if err != nil {
+			setupLog.Error(err, "discover api server url from kube-public/cluster-info; "+
+				"set --api-server-url (or CAPI_TARTKUBELET_API_SERVER_URL) to skip discovery")
+			os.Exit(1)
+		}
+		apiServerURL = discovered
+		setupLog.Info("auto-discovered api server url", "source", "kube-public/cluster-info", "url", apiServerURL)
+	}
+
+	mgr, err := ctrl.NewManager(restConfig, ctrl.Options{
 		Scheme:                 scheme,
 		Metrics:                metricsserver.Options{BindAddress: metricsAddr},
 		HealthProbeBindAddress: probeAddr,
@@ -194,4 +218,50 @@ func envOrDefault(key, fallback string) string {
 func sha256Hex(b []byte) string {
 	h := sha256.Sum256(b)
 	return hex.EncodeToString(h[:])
+}
+
+// discoverAPIServerURL reads the cluster's externally-reachable
+// kube-apiserver URL from the kube-public/cluster-info ConfigMap.
+//
+// kubeadm (and CAPI's KubeadmControlPlane on top of it) write that
+// ConfigMap during cluster bootstrap with whatever
+// `controlPlaneEndpoint` was configured (IP or DNS) plus the cluster
+// CA. It's intentionally world-readable so `kubeadm join` can fetch
+// it before establishing TLS — the operator's ServiceAccount can read
+// it without extra RBAC.
+//
+// Reading from cluster-info instead of taking a chart-injected URL
+// removes a hardcoded value from the chart values: the chart no
+// longer needs to know the cluster's LB IP, and the value tracks
+// whatever caph reconciles the LB to in the future.
+func discoverAPIServerURL(restConfig *rest.Config) (string, error) {
+	clientset, err := kubernetes.NewForConfig(restConfig)
+	if err != nil {
+		return "", fmt.Errorf("clientset for cluster-info read: %w", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	cm, err := clientset.CoreV1().ConfigMaps(metav1.NamespacePublic).
+		Get(ctx, "cluster-info", metav1.GetOptions{})
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return "", fmt.Errorf("kube-public/cluster-info ConfigMap not found (cluster not bootstrapped via kubeadm/CAPI?)")
+		}
+		return "", fmt.Errorf("get kube-public/cluster-info: %w", err)
+	}
+	raw, ok := cm.Data["kubeconfig"]
+	if !ok {
+		return "", fmt.Errorf("kube-public/cluster-info has no `kubeconfig` key")
+	}
+	cfg, err := clientcmd.Load([]byte(raw))
+	if err != nil {
+		return "", fmt.Errorf("parse cluster-info kubeconfig: %w", err)
+	}
+	for _, cluster := range cfg.Clusters {
+		if cluster != nil && cluster.Server != "" {
+			return cluster.Server, nil
+		}
+	}
+	return "", fmt.Errorf("cluster-info kubeconfig has no cluster.server entry")
 }
