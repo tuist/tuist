@@ -97,17 +97,26 @@
       flex-direction: row;
       gap: var(--noora-spacing-5);
 
+      /* Pin each control to a width that comfortably holds its label and
+         value without forcing the row over to a single growing column.
+         Without explicit widths the flexed dropdowns ballooned and the
+         inputs cramped; with `flex: 0 1 auto` everything stays predictable
+         across modal sizes. */
       & > [data-part="form-row"] {
-        flex: 1;
+        flex: 0 1 auto;
         min-width: 0;
       }
 
-      /* Number / short-string inputs (threshold count, "30d" window) don't
-         need to grow with the dropdowns — pin them so the dropdown labels
-         stay on one line. */
+      /* Dropdowns have to fit their longest label ("Greater or equal",
+         "Flakiness rate") on a single line. */
+      & > [data-part="form-row"][data-size="dropdown"] {
+        width: 11rem;
+      }
+
+      /* Number / short-string inputs ("3", "30d") sit happily in a smaller
+         box. */
       & > [data-part="form-row"][data-size="compact"] {
-        flex: 0 0 auto;
-        width: 5.5rem;
+        width: 7rem;
       }
     }
 
