@@ -247,7 +247,7 @@ defmodule Tuist.Processor.XCResultProcessor do
       # the base directory preserved). Treat the temp dir as the bundle when
       # `Info.plist` is present at its root.
       nil ->
-        if File.exists?(Path.join(temp_dir, "Info.plist")), do: temp_dir, else: nil
+        if File.exists?(Path.join(temp_dir, "Info.plist")), do: temp_dir
 
       path ->
         path
