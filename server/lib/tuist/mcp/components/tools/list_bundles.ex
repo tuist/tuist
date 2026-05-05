@@ -5,6 +5,7 @@ defmodule Tuist.MCP.Components.Tools.ListBundles do
 
   use Tuist.MCP.Tool,
     name: "list_bundles",
+    title: "List App Bundles",
     authorize: [action: :read, category: :bundle],
     schema: %{
       "type" => "object",

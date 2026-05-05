@@ -5,6 +5,7 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeModuleCacheTargets do
 
   use Tuist.MCP.Tool,
     name: "list_xcode_module_cache_targets",
+    title: "List Xcode Module Cache Targets",
     schema: %{
       "type" => "object",
       "properties" => %{
