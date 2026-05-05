@@ -820,10 +820,7 @@
     0px 8px 6px 0px oklch(31.8% 0.011 248.2 / 0.02),
     0px 2px 4px 0px oklch(31.8% 0.011 248.2 / 0.04);
   --noora-border-section:
-    0px 1px 0px 0px oklch(100% 0 0 / 0.9) inset,
-    0px 1px 1px 0px oklch(31.8% 0.011 248.2 / 0.05),
-    0px 0px 0px 1px oklch(31.8% 0.011 248.2 / 0.08),
-    0px 2px 2px 0px oklch(31.8% 0.011 248.2 / 0.06);
+    0 0 0 1px oklch(31.8% 0.011 248.2 / 0.06);
   --noora-border-heavy:
     0px 0px 0px 1.5px oklch(31.82% 0.0113 248.18 / 0.1) inset,
     0px -1.5px 0px 0px oklch(31.82% 0.0113 248.18 / 0.12) inset,
@@ -960,10 +957,7 @@
       0px 0px 0px 1px oklch(54.9% 0 0 / 0.2) inset,
       0px 2px 4px 0px oklch(0% 0 0 / 0.12), 0px 4px 8px 0px oklch(0% 0 0 / 0.24);
     --noora-border-section:
-      0px 1px 0px 0px oklch(100% 0 0 / 0.2) inset,
-      0px 1px 1px 0px oklch(16.2% 0 0 / 0.8),
-      0px 0px 0px 1px oklch(34.8% 0 0 / 0.7),
-      0px 2px 2px 0px oklch(0% 0 0 / 0.24);
+      0 0 0 1px oklch(34.8% 0 0 / 0.55);
     --noora-border-heavy:
       0px 1.5px 0px 0px oklch(54.9% 0 0 / 0.3) inset,
       0px 0px 0px 1.5px oklch(54.9% 0 0 / 0.2) inset,
