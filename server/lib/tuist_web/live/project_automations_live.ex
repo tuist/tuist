@@ -58,7 +58,8 @@ defmodule TuistWeb.ProjectAutomationsLive do
     socket
     |> assign(editing_automation_id: nil)
     |> assign(create_automation_form_name: "")
-    |> assign(create_automation_form_type: "flakiness_rate")
+    |> assign(create_automation_form_metric: "flakiness_rate")
+    |> assign(create_automation_form_direction: "above")
     |> assign(create_automation_form_threshold: "10")
     |> assign(create_automation_form_window: "30d")
     |> assign(create_automation_form_trigger_actions: [default_add_label_action()])
@@ -66,6 +67,26 @@ defmodule TuistWeb.ProjectAutomationsLive do
     |> assign(create_automation_form_recovery_window: "14d")
     |> assign(create_automation_form_recovery_actions: [default_remove_label_action()])
   end
+
+  # Splits the persisted `monitor_type` into the two UI dimensions: the metric
+  # being measured and the comparison direction. Keeping the persisted shape
+  # parallel (`*_below` suffix) avoids a schema migration; the form just
+  # composes/decomposes it on the way in and out.
+  defp split_monitor_type("flakiness_rate"), do: {"flakiness_rate", "above"}
+  defp split_monitor_type("flakiness_rate_below"), do: {"flakiness_rate", "below"}
+  defp split_monitor_type("flaky_run_count"), do: {"flaky_run_count", "above"}
+  defp split_monitor_type("flaky_run_count_below"), do: {"flaky_run_count", "below"}
+  defp split_monitor_type(_), do: {"flakiness_rate", "above"}
+
+  defp compose_monitor_type("flakiness_rate", "above"), do: "flakiness_rate"
+  defp compose_monitor_type("flakiness_rate", "below"), do: "flakiness_rate_below"
+  defp compose_monitor_type("flaky_run_count", "above"), do: "flaky_run_count"
+  defp compose_monitor_type("flaky_run_count", "below"), do: "flaky_run_count_below"
+
+  defp default_threshold("flakiness_rate", "above"), do: "10"
+  defp default_threshold("flakiness_rate", "below"), do: "5"
+  defp default_threshold("flaky_run_count", "above"), do: "3"
+  defp default_threshold("flaky_run_count", "below"), do: "1"
 
   defp default_change_state_action(state), do: %{"type" => "change_state", "state" => state}
   defp default_add_label_action, do: %{"type" => "add_label", "label" => "flaky"}
@@ -131,12 +152,14 @@ defmodule TuistWeb.ProjectAutomationsLive do
     with {:ok, automation} <- Automations.get_alert(id),
          true <- automation.project_id == project.id do
       form = automation_to_form(automation)
+      {metric, direction} = split_monitor_type(form.monitor_type)
 
       socket =
         socket
         |> assign(editing_automation_id: automation.id)
         |> assign(create_automation_form_name: form.name)
-        |> assign(create_automation_form_type: form.monitor_type)
+        |> assign(create_automation_form_metric: metric)
+        |> assign(create_automation_form_direction: direction)
         |> assign(create_automation_form_threshold: form.threshold)
         |> assign(create_automation_form_window: form.window)
         |> assign(create_automation_form_trigger_actions: form.trigger_actions)
@@ -159,25 +182,28 @@ defmodule TuistWeb.ProjectAutomationsLive do
     {:noreply, assign(socket, create_automation_form_name: name)}
   end
 
-  def handle_event("update_create_automation_form_type", %{"data" => type}, socket) do
-    threshold =
-      case type do
-        "flakiness_rate" -> "10"
-        "flaky_run_count" -> "3"
-        "flaky_run_count_below" -> "1"
-        _ -> socket.assigns.create_automation_form_threshold
-      end
+  def handle_event("update_create_automation_form_metric", %{"data" => metric}, socket) do
+    threshold = default_threshold(metric, socket.assigns.create_automation_form_direction)
 
-    # Cleanup automations exist to *unmark* tests, so flip the default trigger
-    # action when the user picks the inverse monitor (and back to add_label
-    # when they leave it). Only swap if the form is still in its single-default
-    # state — preserve any custom actions the user has already added.
+    {:noreply,
+     socket
+     |> assign(create_automation_form_metric: metric)
+     |> assign(create_automation_form_threshold: threshold)}
+  end
+
+  def handle_event("update_create_automation_form_direction", %{"data" => direction}, socket) do
+    threshold = default_threshold(socket.assigns.create_automation_form_metric, direction)
+
+    # `below` automations exist to *unmark* tests, so flip the default trigger
+    # action when the user switches direction. Only swap if the form is still
+    # in its single-default state — preserve any custom actions the user has
+    # already added.
     trigger_actions =
-      case {type, socket.assigns.create_automation_form_trigger_actions} do
-        {"flaky_run_count_below", [%{"type" => "add_label", "label" => "flaky"}]} ->
+      case {direction, socket.assigns.create_automation_form_trigger_actions} do
+        {"below", [%{"type" => "add_label", "label" => "flaky"}]} ->
           [default_remove_label_action()]
 
-        {other, [%{"type" => "remove_label", "label" => "flaky"}]} when other != "flaky_run_count_below" ->
+        {"above", [%{"type" => "remove_label", "label" => "flaky"}]} ->
           [default_add_label_action()]
 
         {_, current} ->
@@ -186,7 +212,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
 
     {:noreply,
      socket
-     |> assign(create_automation_form_type: type)
+     |> assign(create_automation_form_direction: direction)
      |> assign(create_automation_form_threshold: threshold)
      |> assign(create_automation_form_trigger_actions: trigger_actions)}
   end
@@ -385,12 +411,15 @@ defmodule TuistWeb.ProjectAutomationsLive do
   end
 
   defp build_automation_attrs(project_id, assigns) do
-    threshold = parse_threshold(assigns.create_automation_form_type, assigns.create_automation_form_threshold)
+    monitor_type =
+      compose_monitor_type(assigns.create_automation_form_metric, assigns.create_automation_form_direction)
+
+    threshold = parse_threshold(assigns.create_automation_form_metric, assigns.create_automation_form_threshold)
 
     base = %{
       "project_id" => project_id,
       "name" => assigns.create_automation_form_name,
-      "monitor_type" => assigns.create_automation_form_type,
+      "monitor_type" => monitor_type,
       "trigger_config" => %{
         "threshold" => threshold,
         "window" => assigns.create_automation_form_window
@@ -417,7 +446,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
     end
   end
 
-  defp parse_threshold(_type, value) do
+  defp parse_threshold(_metric, value) do
     parse_int(value, 1)
   end
 
@@ -428,10 +457,17 @@ defmodule TuistWeb.ProjectAutomationsLive do
     end
   end
 
-  def monitor_type_label("flakiness_rate"), do: dgettext("dashboard_projects", "Flakiness rate")
-  def monitor_type_label("flaky_run_count"), do: dgettext("dashboard_projects", "Flaky runs")
-  def monitor_type_label("flaky_run_count_below"), do: dgettext("dashboard_projects", "Flaky runs (cleanup)")
-  def monitor_type_label(_), do: dgettext("dashboard_projects", "Unknown")
+  def metric_label("flakiness_rate"), do: dgettext("dashboard_projects", "Flakiness rate")
+  def metric_label("flaky_run_count"), do: dgettext("dashboard_projects", "Flaky runs")
+  def metric_label(_), do: dgettext("dashboard_projects", "Unknown")
+
+  def direction_label("above"), do: dgettext("dashboard_projects", "Is greater than or equal to")
+  def direction_label("below"), do: dgettext("dashboard_projects", "Is less than")
+  def direction_label(_), do: dgettext("dashboard_projects", "Unknown")
+
+  def threshold_unit("flakiness_rate"), do: dgettext("dashboard_projects", "%")
+  def threshold_unit("flaky_run_count"), do: dgettext("dashboard_projects", "count")
+  def threshold_unit(_), do: ""
 
   def state_action_label("muted"), do: dgettext("dashboard_projects", "Mute")
   def state_action_label("skipped"), do: dgettext("dashboard_projects", "Skip")
@@ -483,6 +519,18 @@ defmodule TuistWeb.ProjectAutomationsLive do
     )
   end
 
+  def automation_summary(%{monitor_type: "flakiness_rate_below", trigger_config: trigger_config}) do
+    threshold = format_threshold(trigger_config["threshold"] || 0)
+    window = trigger_config["window"] || "30d"
+
+    dgettext(
+      "dashboard_projects",
+      "When a flaky-marked test's flakiness rate < %{threshold}% over %{window}",
+      threshold: threshold,
+      window: window
+    )
+  end
+
   def automation_summary(%{monitor_type: "flaky_run_count", trigger_config: trigger_config}) do
     threshold = format_threshold(trigger_config["threshold"] || 0)
     window = trigger_config["window"] || "30d"
@@ -495,7 +543,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
 
     dgettext(
       "dashboard_projects",
-      "When a flaky-marked test stays below %{threshold} flaky runs over %{window}",
+      "When a flaky-marked test's flaky runs < %{threshold} over %{window}",
       threshold: threshold,
       window: window
     )

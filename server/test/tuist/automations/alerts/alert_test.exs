@@ -72,6 +72,22 @@ defmodule Tuist.Automations.Alerts.AlertTest do
       assert changeset.valid?
     end
 
+    test "accepts flakiness_rate_below monitor_type" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "monitor_type" => "flakiness_rate_below",
+            "trigger_config" => %{"threshold" => 5, "window" => "30d"},
+            "trigger_actions" => [%{"type" => "remove_label", "label" => "flaky"}]
+          })
+        )
+
+      assert changeset.valid?
+    end
+
     test "rejects flaky_run_count_below with non-positive threshold" do
       project = ProjectsFixtures.project_fixture()
 

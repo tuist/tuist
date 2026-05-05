@@ -80,6 +80,67 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
   end
 
   @doc """
+  Inverse of `evaluate/1`. Fires for tests that are currently flagged
+  (`is_flaky = true`) whose flakiness rate is strictly below `threshold`
+  inside the trigger window. Intended for cleanup automations that unflag
+  stale labels (manual marks, marks left over from a deleted automation)
+  without coupling them to any other alert's recovery state.
+  """
+  def evaluate_below(alert) do
+    trigger_config = alert.trigger_config
+    threshold = trigger_config["threshold"] || 10
+    window = parse_window(trigger_config["window"] || "30d")
+    project_id = alert.project_id
+
+    cutoff = DateTime.add(DateTime.utc_now(), -window, :second)
+
+    flagged_ids = Tests.list_flagged_flaky_test_case_ids(project_id)
+
+    triggered_test_case_ids =
+      if Enum.any?(flagged_ids) do
+        # Tests with no runs at all in the window have an undefined rate; the
+        # query below returns no row for them. Treat them as below threshold,
+        # since "no recent activity" is the strongest signal that the flaky
+        # mark is stale.
+        with_runs_below =
+          ClickHouseRepo.all(
+            from(tcr in TestCaseRun,
+              where: tcr.project_id == ^project_id,
+              where: tcr.inserted_at >= ^cutoff,
+              where: tcr.test_case_id in ^flagged_ids,
+              group_by: tcr.test_case_id,
+              having: fragment("countIf(?) * 100.0 / count() < ?", tcr.is_flaky, ^threshold),
+              select: tcr.test_case_id
+            )
+          )
+
+        with_any_runs =
+          ClickHouseRepo.all(
+            from(tcr in TestCaseRun,
+              where: tcr.project_id == ^project_id,
+              where: tcr.inserted_at >= ^cutoff,
+              where: tcr.test_case_id in ^flagged_ids,
+              select: tcr.test_case_id,
+              distinct: true
+            )
+          )
+
+        without_any_runs = MapSet.difference(MapSet.new(flagged_ids), MapSet.new(with_any_runs))
+
+        Enum.uniq(with_runs_below ++ MapSet.to_list(without_any_runs))
+      else
+        []
+      end
+
+    all_test_case_ids = load_all_test_case_ids(project_id, alert.recovery_enabled)
+
+    %{
+      triggered: triggered_test_case_ids,
+      all: all_test_case_ids
+    }
+  end
+
+  @doc """
   Inverse of `evaluate_by_run_count/1`. Fires for tests that are currently
   flagged (`is_flaky = true`) but accumulated fewer than `threshold` flaky
   runs in the trigger window. Intended for cleanup automations that unflag
