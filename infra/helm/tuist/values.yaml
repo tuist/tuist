@@ -349,10 +349,9 @@ macosFleet:
     port: 6443
   image:
     repository: ghcr.io/tuist/capi-provider-scaleway-applesilicon
-    # Set by the deploy workflow at `helm upgrade` time. CI resolves the
-    # tag to the SHA of the most recent successful run of
-    # `capi-provider-scaleway-applesilicon-image.yml` on main; the helm
-    # chart never sees a floating `:latest`.
+    # Pin the operator image to a specific build SHA in your env values.
+    # Falls back to `:latest` if unset, which is fine for development
+    # but not production.
     tag: ""
     pullPolicy: IfNotPresent
   # External URL of the cluster API server that Mac minis dial when

@@ -194,7 +194,12 @@ macosFleet:
   enabled: true
   image:
     repository: ghcr.io/tuist/capi-provider-scaleway-applesilicon
-    tag: ""  # Set by CI to the latest green build of the operator image.
+    # Pinned operator image. The image is built by its own workflow on
+    # main pushes that touch the operator's sources; this tag selects
+    # which of those builds the cluster runs. Bumping is a deliberate
+    # PR — same as bumping the Tart version pin in the operator's
+    # Dockerfile.
+    tag: "02a21dec"
 
 # Everything below = external. The managed deployment never runs embedded
 # Postgres / ClickHouse / object storage / observability stacks.
