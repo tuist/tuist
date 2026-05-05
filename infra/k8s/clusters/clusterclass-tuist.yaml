@@ -1,0 +1,691 @@
+apiVersion: cluster.x-k8s.io/v1beta2
+kind: ClusterClass
+metadata:
+  name: tuist-hcloud
+  namespace: org-tuist
+spec:
+  controlPlane:
+    templateRef:
+      apiVersion: controlplane.cluster.x-k8s.io/v1beta2
+      kind: KubeadmControlPlaneTemplate
+      name: tuist-hcloud-control-plane
+    machineInfrastructure:
+      templateRef:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+        kind: HCloudMachineTemplate
+        name: tuist-hcloud-hcloud-machinetemplate
+    healthCheck:
+      checks:
+        nodeStartupTimeoutSeconds: 900
+        unhealthyNodeConditions:
+          - type: Ready
+            status: Unknown
+            timeoutSeconds: 300
+          - type: Ready
+            status: "False"
+            timeoutSeconds: 300
+      remediation:
+        triggerIf:
+          unhealthyLessThanOrEqualTo: 33%
+  infrastructure:
+    templateRef:
+      apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+      kind: HetznerClusterTemplate
+      name: tuist-hcloud-cluster
+  workers:
+    machineDeployments:
+      - class: hcloud-worker
+        bootstrap:
+          templateRef:
+            apiVersion: bootstrap.cluster.x-k8s.io/v1beta2
+            kind: KubeadmConfigTemplate
+            name: tuist-hcloud-hcloud-worker-bootstraptemplate
+        infrastructure:
+          templateRef:
+            apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+            kind: HCloudMachineTemplate
+            name: tuist-hcloud-hcloud-machinetemplate
+        healthCheck:
+          checks:
+            nodeStartupTimeoutSeconds: 600
+            unhealthyNodeConditions:
+              - type: Ready
+                status: Unknown
+                timeoutSeconds: 300
+              - type: Ready
+                status: "False"
+                timeoutSeconds: 300
+          remediation:
+            triggerIf:
+              unhealthyInRange: "[0-2]"
+  variables:
+    - name: clusterEndpointHost
+      required: false
+      schema:
+        openAPIV3Schema:
+          type: string
+          default: ""
+    - name: clusterEndpointPort
+      required: false
+      schema:
+        openAPIV3Schema:
+          type: integer
+          default: 443
+    - name: clusterLoadBalancerType
+      required: false
+      schema:
+        openAPIV3Schema:
+          type: string
+          default: "lb11"
+    - name: clusterLoadBalancerExtraServices
+      required: false
+      schema:
+        openAPIV3Schema:
+          type: array
+          default: []
+          items:
+            type: object
+            properties:
+              protocol:
+                type: string
+              listenPort:
+                type: integer
+              destinationPort:
+                type: integer
+    - name: hcloudPlacementGroups
+      required: false
+      schema:
+        openAPIV3Schema:
+          type: array
+          default: []
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              type:
+                type: string
+    - name: hcloudNetwork
+      required: false
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+            cidrBlock:
+              type: string
+            subnetCidrBlock:
+              type: string
+            networkZone:
+              type: string
+    - name: hcloudSSHKeyName
+      required: true
+      schema:
+        openAPIV3Schema:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+    - name: region
+      required: true
+      schema:
+        openAPIV3Schema:
+          type: string
+          default: fsn1
+    - name: hcloudControlPlaneMachineType
+      required: true
+      schema:
+        openAPIV3Schema:
+          type: string
+          default: cx33
+    - name: hcloudControlPlaneMachineImageName
+      required: false
+      schema:
+        openAPIV3Schema:
+          type: string
+          default: ubuntu-24.04
+    - name: hcloudControlPlanePlacementGroupName
+      required: false
+      schema:
+        openAPIV3Schema:
+          type: string
+          default: ""
+    - name: hcloudWorkerMachineType
+      required: true
+      schema:
+        openAPIV3Schema:
+          type: string
+          default: cx23
+    - name: hcloudWorkerMachineImageName
+      required: false
+      schema:
+        openAPIV3Schema:
+          type: string
+          default: ubuntu-24.04
+    - name: hcloudWorkerMachinePlacementGroupName
+      required: false
+      schema:
+        openAPIV3Schema:
+          type: string
+          default: ""
+  patches:
+    - name: HetznerClusterTemplateGeneral
+      definitions:
+        - selector:
+            apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+            kind: HetznerClusterTemplate
+            matchResources:
+              infrastructureCluster: true
+          jsonPatches:
+            - op: replace
+              path: "/spec/template/spec/controlPlaneEndpoint/host"
+              valueFrom:
+                variable: clusterEndpointHost
+            - op: replace
+              path: "/spec/template/spec/controlPlaneEndpoint/port"
+              valueFrom:
+                variable: clusterEndpointPort
+            - op: add
+              path: "/spec/template/spec/controlPlaneLoadBalancer/type"
+              valueFrom:
+                variable: clusterLoadBalancerType
+            - op: add
+              path: "/spec/template/spec/controlPlaneLoadBalancer/extraServices"
+              valueFrom:
+                variable: clusterLoadBalancerExtraServices
+            - op: add
+              path: "/spec/template/spec/hcloudPlacementGroups"
+              valueFrom:
+                variable: hcloudPlacementGroups
+            - op: add
+              path: "/spec/template/spec/sshKeys/hcloud"
+              valueFrom:
+                variable: hcloudSSHKeyName
+            - op: add
+              path: "/spec/template/spec/controlPlaneRegions"
+              valueFrom:
+                template: "[{{ .region | quote }}]"
+            - op: add
+              path: "/spec/template/spec/controlPlaneLoadBalancer/region"
+              valueFrom:
+                variable: region
+    - name: HetznerClusterTemplateNetwork
+      enabledIf: "{{ if .hcloudNetwork.enabled }}true{{end}}"
+      definitions:
+        - selector:
+            apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+            kind: HetznerClusterTemplate
+            matchResources:
+              infrastructureCluster: true
+          jsonPatches:
+            - op: add
+              path: "/spec/template/spec/hcloudNetwork"
+              valueFrom:
+                variable: hcloudNetwork
+    - name: HCloudMachineTemplateControlPlane
+      definitions:
+        - selector:
+            apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+            kind: HCloudMachineTemplate
+            matchResources:
+              controlPlane: true
+          jsonPatches:
+            - op: replace
+              path: "/spec/template/spec/type"
+              valueFrom:
+                variable: hcloudControlPlaneMachineType
+            - op: replace
+              path: "/spec/template/spec/imageName"
+              valueFrom:
+                variable: hcloudControlPlaneMachineImageName
+    # placementGroupName patch split out + conditional: caph errors out
+    # ("Placement group does not exist") if we set placementGroupName to
+    # empty string. Only patch when the variable is non-empty.
+    - name: HCloudMachineTemplateControlPlanePlacementGroup
+      enabledIf: '{{ if ne .hcloudControlPlanePlacementGroupName "" }}true{{end}}'
+      definitions:
+        - selector:
+            apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+            kind: HCloudMachineTemplate
+            matchResources:
+              controlPlane: true
+          jsonPatches:
+            - op: add
+              path: "/spec/template/spec/placementGroupName"
+              valueFrom:
+                variable: hcloudControlPlanePlacementGroupName
+    - name: HCloudMachineTemplateWorker
+      definitions:
+        - selector:
+            apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+            kind: HCloudMachineTemplate
+            matchResources:
+              machineDeploymentClass:
+                names:
+                  - hcloud-worker
+          jsonPatches:
+            - op: replace
+              path: "/spec/template/spec/type"
+              valueFrom:
+                variable: hcloudWorkerMachineType
+            - op: replace
+              path: "/spec/template/spec/imageName"
+              valueFrom:
+                variable: hcloudWorkerMachineImageName
+    - name: HCloudMachineTemplateWorkerPlacementGroup
+      enabledIf: '{{ if ne .hcloudWorkerMachinePlacementGroupName "" }}true{{end}}'
+      definitions:
+        - selector:
+            apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+            kind: HCloudMachineTemplate
+            matchResources:
+              machineDeploymentClass:
+                names:
+                  - hcloud-worker
+          jsonPatches:
+            - op: add
+              path: "/spec/template/spec/placementGroupName"
+              valueFrom:
+                variable: hcloudWorkerMachinePlacementGroupName
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+kind: HetznerClusterTemplate
+metadata:
+  name: tuist-hcloud-cluster
+  namespace: org-tuist
+spec:
+  template:
+    spec:
+      controlPlaneEndpoint:
+        host: ""
+        port: 443
+      controlPlaneLoadBalancer:
+        region: fsn1
+      controlPlaneRegions: []
+      hcloudNetwork:
+        enabled: false
+      hetznerSecretRef:
+        key:
+          hcloudToken: hcloud
+        name: hetzner
+      sshKeys:
+        hcloud: []
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+kind: HCloudMachineTemplate
+metadata:
+  name: tuist-hcloud-hcloud-machinetemplate
+  namespace: org-tuist
+spec:
+  template:
+    spec:
+      imageName: ubuntu-24.04
+      type: cx23
+---
+# KEEP IN SYNC with the worker `KubeadmConfigTemplate` below: the
+# `files:` block (kubelet config + containerd systemd unit + sysctl)
+# and `preKubeadmCommands` (containerd/runc/kubelet install) must
+# stay byte-for-byte equivalent except for the indicated per-role
+# differences (the KCP gets initConfiguration + joinConfiguration +
+# clusterConfiguration; the worker gets joinConfiguration only;
+# kubelet `maxPods` is intentionally lower on the CP).
+apiVersion: controlplane.cluster.x-k8s.io/v1beta2
+kind: KubeadmControlPlaneTemplate
+metadata:
+  name: tuist-hcloud-control-plane
+  namespace: org-tuist
+spec:
+  template:
+    spec:
+      kubeadmConfigSpec:
+        clusterConfiguration:
+          apiServer:
+            extraArgs:
+              - name: kubelet-preferred-address-types
+                value: ExternalIP,Hostname,InternalDNS,ExternalDNS
+          controllerManager:
+            extraArgs:
+              - name: cloud-provider
+                value: external
+          etcd:
+            local:
+              dataDir: /var/lib/etcd
+        files:
+          - content: |
+              net.ipv4.conf.lxc*.rp_filter = 0
+            owner: root:root
+            path: /etc/sysctl.d/99-cilium.conf
+            permissions: "0744"
+          - content: |
+              overlay
+              br_netfilter
+            owner: root:root
+            path: /etc/modules-load.d/crio.conf
+            permissions: "0744"
+          - content: |
+              net.bridge.bridge-nf-call-iptables  = 1
+              net.bridge.bridge-nf-call-ip6tables = 1
+              net.ipv4.ip_forward                 = 1
+            owner: root:root
+            path: /etc/sysctl.d/99-kubernetes-cri.conf
+            permissions: "0744"
+          - content: |
+              vm.overcommit_memory=1
+              kernel.panic=10
+              kernel.panic_on_oops=1
+            owner: root:root
+            path: /etc/sysctl.d/99-kubelet.conf
+            permissions: "0744"
+          # NOTE: this is the second --config flag passed to kubelet
+          # (the first is /var/lib/kubelet/config.yaml from kubeadm).
+          # The second OVERRIDES the first, so any field omitted here
+          # gets cleared. Critical fields below are required for kubelet
+          # to talk to containerd (containerRuntimeEndpoint), watch
+          # static pods (staticPodPath), and resolve in-cluster DNS
+          # (clusterDNS / clusterDomain). resolvConf is intentionally
+          # unset so kubelet falls back to the host's /etc/resolv.conf,
+          # which DHCP populates with Hetzner's resolvers (185.12.64.1,
+          # 185.12.64.2 + IPv6) — multi-IP, dual-stack, one network hop
+          # away. Same posture Apalla shipped on the workload clusters.
+          - content: |
+              apiVersion: kubelet.config.k8s.io/v1beta1
+              kind: KubeletConfiguration
+              authentication:
+                anonymous:
+                  enabled: false
+                webhook:
+                  enabled: true
+                # Required so kubelet trusts the kube-apiserver's
+                # client cert for /exec, /port-forward, and etcd
+                # health checks. kubeadm's stock KubeletConfiguration
+                # sets this; our `files:`-shipped config OVERRIDES
+                # kubeadm's (second --config wins), so we must
+                # re-include it. Same trap as containerRuntimeEndpoint
+                # and staticPodPath.
+                x509:
+                  clientCAFile: /etc/kubernetes/pki/ca.crt
+              authorization:
+                mode: Webhook
+              cgroupDriver: systemd
+              clusterDNS:
+                - 10.128.0.10
+              clusterDomain: cluster.local
+              containerRuntimeEndpoint: unix:///var/run/containerd/containerd.sock
+              # Point kubelet at the systemd-resolved-managed file
+              # (real upstream resolvers from DHCP, e.g. Hetzner's
+              # 185.12.64.1) instead of /etc/resolv.conf (which is a
+              # symlink to a stub at 127.0.0.53 that pods cannot
+              # reach across network namespaces). Without this,
+              # CoreDNS upstream resolution AND any pod with
+              # dnsPolicy=Default fails to resolve external names —
+              # in particular HCCM crashes on startup trying to
+              # resolve api.hetzner.cloud.
+              resolvConf: /run/systemd/resolve/resolv.conf
+              maxPods: 120
+              readOnlyPort: 0
+              serverTLSBootstrap: true
+              staticPodPath: /etc/kubernetes/manifests
+            owner: root:root
+            path: /etc/kubernetes/kubelet/config.yaml
+            permissions: "0644"
+          # systemd unit for containerd 2.x. Ported from caph's flat
+          # cluster-template-hcloud.yaml; the reference ClusterClass omits
+          # this because it assumed the older cri-containerd-cni- bundle
+          # which shipped a service file. The plain `containerd-` tarball
+          # we install in preKubeadmCommands does not, so without this
+          # `systemctl start containerd` finds no unit and kubeadm init
+          # times out waiting for the CRI socket.
+          - content: |
+              [Unit]
+              Description=containerd container runtime
+              Documentation=https://containerd.io
+              After=network.target local-fs.target dbus.service
+
+              [Service]
+              ExecStartPre=-/sbin/modprobe overlay
+              ExecStart=/usr/local/bin/containerd
+
+              Type=notify
+              Delegate=yes
+              KillMode=process
+              Restart=always
+              RestartSec=5
+
+              LimitNPROC=infinity
+              LimitCORE=infinity
+
+              TasksMax=infinity
+              OOMScoreAdjust=-999
+
+              [Install]
+              WantedBy=multi-user.target
+            owner: root:root
+            path: /etc/systemd/system/containerd.service
+            permissions: "0744"
+        initConfiguration:
+          # Cilium is the CNI on Tuist's workload clusters and replaces
+          # kube-proxy. Skip the kube-proxy addon during cluster init so
+          # the kube-proxy DaemonSet is never deployed; existing nodes
+          # already have no kube-proxy (Apalla shipped the same skip).
+          skipPhases:
+            - addon/kube-proxy
+          nodeRegistration:
+            kubeletExtraArgs:
+              - name: cloud-provider
+                value: external
+              - name: config
+                value: /etc/kubernetes/kubelet/config.yaml
+        joinConfiguration:
+          nodeRegistration:
+            kubeletExtraArgs:
+              - name: cloud-provider
+                value: external
+              - name: config
+                value: /etc/kubernetes/kubelet/config.yaml
+        # preKubeadmCommands ported from caph's flat cluster-template-hcloud.yaml
+        # (the reference ClusterClass uses an older `cri-containerd-cni-` bundle
+        # that's no longer published for containerd 2.x; this version installs
+        # containerd + runc separately, matching what the flat template does).
+        preKubeadmCommands:
+          - set -x
+          - grep VERSION= /etc/os-release; uname -a
+          - export CONTAINERD=2.2.3
+          - export RUNC=1.2.5
+          # KUBERNETES_VERSION pins what apt installs
+          # (kubelet/kubeadm/kubectl). topology.version on each
+          # Cluster CR pins what KCP writes into the static pod
+          # manifests. The two MUST stay aligned — `mise run
+          # k8s:lint-version-drift` checks this at commit time.
+          - export KUBERNETES_VERSION=1.34.6
+          - export TRIMMED_KUBERNETES_VERSION=$(echo ${KUBERNETES_VERSION} | sed 's/^v//' | awk -F . '{print $1 "." $2}')
+          - ARCH="$(dpkg --print-architecture)"
+          - localectl set-locale LANG=en_US.UTF-8
+          - localectl set-locale LANGUAGE=en_US.UTF-8
+          - apt-get update -y
+          - apt-get -y install at jq unzip wget socat mtr logrotate apt-transport-https
+          - sed -i '/swap/d' /etc/fstab
+          - swapoff -a
+          - modprobe overlay
+          - modprobe br_netfilter
+          - sysctl --system
+          - wget https://github.com/opencontainers/runc/releases/download/v$RUNC/runc.$ARCH
+          - wget https://github.com/opencontainers/runc/releases/download/v$RUNC/runc.sha256sum
+          - sha256sum --check --ignore-missing runc.sha256sum
+          - install runc.$ARCH /usr/local/sbin/runc
+          - rm -f runc.$ARCH runc.sha256sum
+          - wget https://github.com/containerd/containerd/releases/download/v$CONTAINERD/containerd-$CONTAINERD-linux-$ARCH.tar.gz
+          - wget https://github.com/containerd/containerd/releases/download/v$CONTAINERD/containerd-$CONTAINERD-linux-$ARCH.tar.gz.sha256sum
+          - sha256sum --check containerd-$CONTAINERD-linux-$ARCH.tar.gz.sha256sum
+          - tar -zxf containerd-$CONTAINERD-linux-$ARCH.tar.gz -C /usr/local
+          - rm -f containerd-$CONTAINERD-linux-$ARCH.tar.gz containerd-$CONTAINERD-linux-$ARCH.tar.gz.sha256sum
+          - mkdir -p /etc/containerd
+          - containerd config default > /etc/containerd/config.toml
+          - sed -i "s/SystemdCgroup = false/SystemdCgroup = true/" /etc/containerd/config.toml
+          - systemctl daemon-reload
+          - systemctl enable containerd
+          - systemctl start containerd
+          - mkdir -p /etc/apt/keyrings/
+          - curl -fsSL https://pkgs.k8s.io/core:/stable:/v$TRIMMED_KUBERNETES_VERSION/deb/Release.key | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+          - echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v$TRIMMED_KUBERNETES_VERSION/deb/ /" | sudo tee /etc/apt/sources.list.d/kubernetes.list
+          - apt-get update
+          - apt-get install -y kubelet="$KUBERNETES_VERSION-*" kubeadm="$KUBERNETES_VERSION-*" kubectl="$KUBERNETES_VERSION-*" bash-completion
+          - apt-mark hold kubelet kubectl kubeadm
+          - systemctl enable kubelet
+          - kubeadm config images pull --kubernetes-version $KUBERNETES_VERSION
+          - echo 'source <(kubectl completion bash)' >>/root/.bashrc
+          - echo 'export KUBECONFIG=/etc/kubernetes/admin.conf' >>/root/.bashrc
+          - apt-get -y autoremove
+          - apt-get -y clean all
+---
+# KEEP IN SYNC with the `KubeadmControlPlaneTemplate` above: the
+# `files:` block (kubelet config + containerd systemd unit + sysctl)
+# and `preKubeadmCommands` (containerd/runc/kubelet install) must
+# stay byte-for-byte equivalent except for the indicated per-role
+# differences (this template gets joinConfiguration only, no
+# initConfiguration / clusterConfiguration; kubelet `maxPods` is
+# higher than CP since worker nodes pack more pods).
+apiVersion: bootstrap.cluster.x-k8s.io/v1beta2
+kind: KubeadmConfigTemplate
+metadata:
+  name: tuist-hcloud-hcloud-worker-bootstraptemplate
+  namespace: org-tuist
+spec:
+  template:
+    spec:
+      files:
+        - content: |
+            net.ipv4.conf.lxc*.rp_filter = 0
+          owner: root:root
+          path: /etc/sysctl.d/99-cilium.conf
+          permissions: "0744"
+        - content: |
+            overlay
+            br_netfilter
+          owner: root:root
+          path: /etc/modules-load.d/crio.conf
+          permissions: "0744"
+        - content: |
+            net.bridge.bridge-nf-call-iptables  = 1
+            net.bridge.bridge-nf-call-ip6tables = 1
+            net.ipv4.ip_forward                 = 1
+          owner: root:root
+          path: /etc/sysctl.d/99-kubernetes-cri.conf
+          permissions: "0744"
+        - content: |
+            vm.overcommit_memory=1
+            kernel.panic=10
+            kernel.panic_on_oops=1
+          owner: root:root
+          path: /etc/sysctl.d/99-kubelet.conf
+          permissions: "0744"
+        # See KCP files block above for why these fields are mandatory
+        # and why resolvConf is intentionally unset.
+        - content: |
+            apiVersion: kubelet.config.k8s.io/v1beta1
+            kind: KubeletConfiguration
+            authentication:
+              anonymous:
+                enabled: false
+              webhook:
+                enabled: true
+              x509:
+                clientCAFile: /etc/kubernetes/pki/ca.crt  # see KCP block above for why
+            authorization:
+              mode: Webhook
+            cgroupDriver: systemd
+            clusterDNS:
+              - 10.128.0.10
+            clusterDomain: cluster.local
+            containerRuntimeEndpoint: unix:///var/run/containerd/containerd.sock
+            maxPods: 220
+            readOnlyPort: 0
+            serverTLSBootstrap: true
+            staticPodPath: /etc/kubernetes/manifests
+          owner: root:root
+          path: /etc/kubernetes/kubelet/config.yaml
+          permissions: "0644"
+        # See KCP files block above for why this systemd unit is needed.
+        - content: |
+            [Unit]
+            Description=containerd container runtime
+            Documentation=https://containerd.io
+            After=network.target local-fs.target dbus.service
+
+            [Service]
+            ExecStartPre=-/sbin/modprobe overlay
+            ExecStart=/usr/local/bin/containerd
+
+            Type=notify
+            Delegate=yes
+            KillMode=process
+            Restart=always
+            RestartSec=5
+
+            LimitNPROC=infinity
+            LimitCORE=infinity
+
+            TasksMax=infinity
+            OOMScoreAdjust=-999
+
+            [Install]
+            WantedBy=multi-user.target
+          owner: root:root
+          path: /etc/systemd/system/containerd.service
+          permissions: "0744"
+      joinConfiguration:
+        nodeRegistration:
+          kubeletExtraArgs:
+            - name: cloud-provider
+              value: external
+            - name: config
+              value: /etc/kubernetes/kubelet/config.yaml
+      # See KCP preKubeadmCommands above for why we port from the flat template
+      # rather than use the reference ClusterClass's containerd install path.
+      preKubeadmCommands:
+        - set -x
+        - grep VERSION= /etc/os-release; uname -a
+        - export CONTAINERD=2.2.3
+        - export RUNC=1.2.5
+        - export KUBERNETES_VERSION=1.34.6
+        - export TRIMMED_KUBERNETES_VERSION=$(echo ${KUBERNETES_VERSION} | sed 's/^v//' | awk -F . '{print $1 "." $2}')
+        - ARCH="$(dpkg --print-architecture)"
+        - localectl set-locale LANG=en_US.UTF-8
+        - localectl set-locale LANGUAGE=en_US.UTF-8
+        - apt-get update -y
+        - apt-get -y install at jq unzip wget socat mtr logrotate apt-transport-https
+        - sed -i '/swap/d' /etc/fstab
+        - swapoff -a
+        - modprobe overlay
+        - modprobe br_netfilter
+        - sysctl --system
+        - wget https://github.com/opencontainers/runc/releases/download/v$RUNC/runc.$ARCH
+        - wget https://github.com/opencontainers/runc/releases/download/v$RUNC/runc.sha256sum
+        - sha256sum --check --ignore-missing runc.sha256sum
+        - install runc.$ARCH /usr/local/sbin/runc
+        - rm -f runc.$ARCH runc.sha256sum
+        - wget https://github.com/containerd/containerd/releases/download/v$CONTAINERD/containerd-$CONTAINERD-linux-$ARCH.tar.gz
+        - wget https://github.com/containerd/containerd/releases/download/v$CONTAINERD/containerd-$CONTAINERD-linux-$ARCH.tar.gz.sha256sum
+        - sha256sum --check containerd-$CONTAINERD-linux-$ARCH.tar.gz.sha256sum
+        - tar -zxf containerd-$CONTAINERD-linux-$ARCH.tar.gz -C /usr/local
+        - rm -f containerd-$CONTAINERD-linux-$ARCH.tar.gz containerd-$CONTAINERD-linux-$ARCH.tar.gz.sha256sum
+        - mkdir -p /etc/containerd
+        - containerd config default > /etc/containerd/config.toml
+        - sed -i "s/SystemdCgroup = false/SystemdCgroup = true/" /etc/containerd/config.toml
+        - systemctl daemon-reload
+        - systemctl enable containerd
+        - systemctl start containerd
+        - mkdir -p /etc/apt/keyrings/
+        - curl -fsSL https://pkgs.k8s.io/core:/stable:/v$TRIMMED_KUBERNETES_VERSION/deb/Release.key | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+        - echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v$TRIMMED_KUBERNETES_VERSION/deb/ /" | sudo tee /etc/apt/sources.list.d/kubernetes.list
+        - apt-get update
+        - apt-get install -y kubelet="$KUBERNETES_VERSION-*" kubeadm="$KUBERNETES_VERSION-*" kubectl="$KUBERNETES_VERSION-*" bash-completion
+        - apt-mark hold kubelet kubectl kubeadm
+        - systemctl enable kubelet
+        - kubeadm config images pull --kubernetes-version $KUBERNETES_VERSION
+        - echo 'source <(kubectl completion bash)' >>/root/.bashrc
+        - echo 'export KUBECONFIG=/etc/kubernetes/admin.conf' >>/root/.bashrc
+        - apt-get -y autoremove
+        - apt-get -y clean all

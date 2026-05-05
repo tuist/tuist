@@ -22,8 +22,13 @@ name: Server Deployment
 # public host = `<env>.tuist.dev` (except production = `tuist.dev`). Adding a
 # new environment is just adding the matching values files.
 #
-# Required GitHub Environment secrets (per environment):
-#   KUBECONFIG - base64-encoded kubeconfig for that environment's cluster.
+# Required secrets:
+#   OP_SERVICE_ACCOUNT_TOKEN (per GitHub Environment server-k8s-<env>) -
+#     1Password service-account token scoped read-only to the
+#     tuist-k8s-<env> vault, where the cluster's kubeconfig is stored
+#     as a Document item named `kubeconfig: tuist-<env>`. Each
+#     environment's secret value is the SA token for that environment's
+#     vault — staging deploys can't read canary/production kubeconfigs.
 # App secrets live inside the cluster (MASTER_KEY via ESO, DATABASE_URL /
 # ClickHouse / Tigris keys in priv/secrets/<env>.yml.enc baked into the
 # image).
@@ -144,10 +149,14 @@ jobs:
         with:
           install_args: "helm kubectl"
           cache: "false"
-      - name: Load kubeconfig
+      - uses: 1password/install-cli-action@v2
+      - name: Load kubeconfig from 1Password
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
         run: |
           mkdir -p "$(dirname "$KUBECONFIG")"
-          echo "${{ secrets.KUBECONFIG }}" | base64 -d > "$KUBECONFIG"
+          op document get "kubeconfig: tuist-${{ inputs.environment }}" \
+            --vault "tuist-k8s-${{ inputs.environment }}" --output "$KUBECONFIG"
           chmod 600 "$KUBECONFIG"
       - name: helm dependency update
         run: helm dependency update "$OBSERVABILITY_CHART_PATH"
@@ -186,10 +195,14 @@ jobs:
         with:
           install_args: "helm kubectl"
           cache: "false"
-      - name: Load kubeconfig
+      - uses: 1password/install-cli-action@v2
+      - name: Load kubeconfig from 1Password
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
         run: |
           mkdir -p "$(dirname "$KUBECONFIG")"
-          echo "${{ secrets.KUBECONFIG }}" | base64 -d > "$KUBECONFIG"
+          op document get "kubeconfig: tuist-${{ inputs.environment }}" \
+            --vault "tuist-k8s-${{ inputs.environment }}" --output "$KUBECONFIG"
           chmod 600 "$KUBECONFIG"
       - name: kubectl apply CRDs
         # Helm 3 installs `crds/*.yaml` on `helm install` and skips
