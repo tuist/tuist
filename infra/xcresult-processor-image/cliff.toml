@@ -62,25 +62,25 @@ split_commits = false
 commit_preprocessors = [
     { pattern = '\((\w+\s)?#([0-9]+)\)', replace = "" },
 ]
-# Match commits scoped to xcresult-processor. Component covers the
+# Match commits scoped to xcresult-processor-image. Component covers the
 # Tart VM image (Packer template, launchd plist, env injector) plus
 # the server release pieces it bakes in (the xcresult NIF + the
 # server's release entry points run by TUIST_MODE=xcresult_processor).
 commit_parsers = [
-    { message = "^feat\\([^)]*\\bxcresult-processor\\b[^)]*\\)", group = "<!-- 0 -->⛰️  Features" },
-    { message = "^fix\\([^)]*\\bxcresult-processor\\b[^)]*\\)", group = "<!-- 1 -->🐛 Bug Fixes" },
-    { message = "^docs?\\([^)]*\\bxcresult-processor\\b[^)]*\\)", group = "<!-- 3 -->📚 Documentation" },
-    { message = "^perf\\([^)]*\\bxcresult-processor\\b[^)]*\\)", group = "<!-- 4 -->⚡ Performance" },
-    { message = "^refactor\\([^)]*\\bxcresult-processor\\b[^)]*\\)", group = "<!-- 2 -->🚜 Refactor" },
-    { message = "^style\\([^)]*\\bxcresult-processor\\b[^)]*\\)", group = "<!-- 5 -->🎨 Styling" },
-    { message = "^test\\([^)]*\\bxcresult-processor\\b[^)]*\\)", group = "<!-- 6 -->🧪 Testing" },
-    { message = "^chore\\([^)]*\\bxcresult-processor\\b[^)]*\\)", skip = true },
-    { message = "^ci\\([^)]*\\bxcresult-processor\\b[^)]*\\)", skip = true },
+    { message = "^feat\\([^)]*\\bxcresult-processor-image\\b[^)]*\\)", group = "<!-- 0 -->⛰️  Features" },
+    { message = "^fix\\([^)]*\\bxcresult-processor-image\\b[^)]*\\)", group = "<!-- 1 -->🐛 Bug Fixes" },
+    { message = "^docs?\\([^)]*\\bxcresult-processor-image\\b[^)]*\\)", group = "<!-- 3 -->📚 Documentation" },
+    { message = "^perf\\([^)]*\\bxcresult-processor-image\\b[^)]*\\)", group = "<!-- 4 -->⚡ Performance" },
+    { message = "^refactor\\([^)]*\\bxcresult-processor-image\\b[^)]*\\)", group = "<!-- 2 -->🚜 Refactor" },
+    { message = "^style\\([^)]*\\bxcresult-processor-image\\b[^)]*\\)", group = "<!-- 5 -->🎨 Styling" },
+    { message = "^test\\([^)]*\\bxcresult-processor-image\\b[^)]*\\)", group = "<!-- 6 -->🧪 Testing" },
+    { message = "^chore\\([^)]*\\bxcresult-processor-image\\b[^)]*\\)", skip = true },
+    { message = "^ci\\([^)]*\\bxcresult-processor-image\\b[^)]*\\)", skip = true },
     { message = "^[a-z]+\\([^)]+\\)", skip = true },
 ]
 protect_breaking_commits = false
 filter_commits = true
-tag_pattern = "xcresult-processor@[0-9].*"
+tag_pattern = "xcresult-processor-image@[0-9].*"
 skip_tags = "beta|alpha"
 ignore_tags = "rc"
 topo_order = false

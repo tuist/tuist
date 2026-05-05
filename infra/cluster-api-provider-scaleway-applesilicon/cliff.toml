@@ -62,24 +62,24 @@ split_commits = false
 commit_preprocessors = [
     { pattern = '\((\w+\s)?#([0-9]+)\)', replace = "" },
 ]
-# Match commits scoped to capi-operator. The component spans three Go
+# Match commits scoped to capi-scaleway. The component spans three Go
 # modules (the operator itself, macos-host-bootstrap, tart-kubelet) but
 # they ship together in one operator image, so a single scope is enough.
 commit_parsers = [
-    { message = "^feat\\([^)]*\\bcapi-operator\\b[^)]*\\)", group = "<!-- 0 -->⛰️  Features" },
-    { message = "^fix\\([^)]*\\bcapi-operator\\b[^)]*\\)", group = "<!-- 1 -->🐛 Bug Fixes" },
-    { message = "^docs?\\([^)]*\\bcapi-operator\\b[^)]*\\)", group = "<!-- 3 -->📚 Documentation" },
-    { message = "^perf\\([^)]*\\bcapi-operator\\b[^)]*\\)", group = "<!-- 4 -->⚡ Performance" },
-    { message = "^refactor\\([^)]*\\bcapi-operator\\b[^)]*\\)", group = "<!-- 2 -->🚜 Refactor" },
-    { message = "^style\\([^)]*\\bcapi-operator\\b[^)]*\\)", group = "<!-- 5 -->🎨 Styling" },
-    { message = "^test\\([^)]*\\bcapi-operator\\b[^)]*\\)", group = "<!-- 6 -->🧪 Testing" },
-    { message = "^chore\\([^)]*\\bcapi-operator\\b[^)]*\\)", skip = true },
-    { message = "^ci\\([^)]*\\bcapi-operator\\b[^)]*\\)", skip = true },
+    { message = "^feat\\([^)]*\\bcapi-scaleway\\b[^)]*\\)", group = "<!-- 0 -->⛰️  Features" },
+    { message = "^fix\\([^)]*\\bcapi-scaleway\\b[^)]*\\)", group = "<!-- 1 -->🐛 Bug Fixes" },
+    { message = "^docs?\\([^)]*\\bcapi-scaleway\\b[^)]*\\)", group = "<!-- 3 -->📚 Documentation" },
+    { message = "^perf\\([^)]*\\bcapi-scaleway\\b[^)]*\\)", group = "<!-- 4 -->⚡ Performance" },
+    { message = "^refactor\\([^)]*\\bcapi-scaleway\\b[^)]*\\)", group = "<!-- 2 -->🚜 Refactor" },
+    { message = "^style\\([^)]*\\bcapi-scaleway\\b[^)]*\\)", group = "<!-- 5 -->🎨 Styling" },
+    { message = "^test\\([^)]*\\bcapi-scaleway\\b[^)]*\\)", group = "<!-- 6 -->🧪 Testing" },
+    { message = "^chore\\([^)]*\\bcapi-scaleway\\b[^)]*\\)", skip = true },
+    { message = "^ci\\([^)]*\\bcapi-scaleway\\b[^)]*\\)", skip = true },
     { message = "^[a-z]+\\([^)]+\\)", skip = true },
 ]
 protect_breaking_commits = false
 filter_commits = true
-tag_pattern = "capi-operator@[0-9].*"
+tag_pattern = "capi-scaleway@[0-9].*"
 skip_tags = "beta|alpha"
 ignore_tags = "rc"
 topo_order = false

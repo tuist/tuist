@@ -56,12 +56,12 @@ jobs:
       helm-should-release: ${{ steps.helm-check.outputs.should-release }}
       helm-next-version: ${{ steps.helm-check.outputs.next-version }}
       helm-next-version-number: ${{ steps.helm-check.outputs.next-version-number }}
-      capi-operator-should-release: ${{ steps.capi-operator-check.outputs.should-release }}
-      capi-operator-next-version: ${{ steps.capi-operator-check.outputs.next-version }}
-      capi-operator-next-version-number: ${{ steps.capi-operator-check.outputs.next-version-number }}
-      xcresult-processor-should-release: ${{ steps.xcresult-processor-check.outputs.should-release }}
-      xcresult-processor-next-version: ${{ steps.xcresult-processor-check.outputs.next-version }}
-      xcresult-processor-next-version-number: ${{ steps.xcresult-processor-check.outputs.next-version-number }}
+      capi-scaleway-should-release: ${{ steps.capi-scaleway-check.outputs.should-release }}
+      capi-scaleway-next-version: ${{ steps.capi-scaleway-check.outputs.next-version }}
+      capi-scaleway-next-version-number: ${{ steps.capi-scaleway-check.outputs.next-version-number }}
+      xcresult-processor-image-should-release: ${{ steps.xcresult-processor-image-check.outputs.should-release }}
+      xcresult-processor-image-next-version: ${{ steps.xcresult-processor-image-check.outputs.next-version }}
+      xcresult-processor-image-next-version-number: ${{ steps.xcresult-processor-image-check.outputs.next-version-number }}
       should-release-any: ${{ steps.check-any.outputs.should-release }}
     steps:
       - uses: actions/checkout@v4
@@ -616,12 +616,12 @@ jobs:
             echo "next-version-number=${LATEST_VERSION#helm@}" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Check capi-operator for releasable changes
-        id: capi-operator-check
+      - name: Check capi-scaleway for releasable changes
+        id: capi-scaleway-check
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # The capi-operator component spans three Go modules; they all
+          # The capi-scaleway component spans three Go modules; they all
           # ship together inside the operator's container image.
           INCLUDE_PATHS=(
             --include-path "infra/cluster-api-provider-scaleway-applesilicon/**/*"
@@ -629,7 +629,7 @@ jobs:
             --include-path "infra/tart-kubelet/**/*"
           )
 
-          LATEST_VERSION=$(git tag -l | grep -E "^capi-operator@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
+          LATEST_VERSION=$(git tag -l | grep -E "^capi-scaleway@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
 
           if [ -n "$LATEST_VERSION" ]; then
             CHANGELOG=$(git cliff "${INCLUDE_PATHS[@]}" --config infra/cluster-api-provider-scaleway-applesilicon/cliff.toml --repository "." 2>/dev/null -- ${LATEST_VERSION}..HEAD || echo "")
@@ -645,40 +645,40 @@ jobs:
             fi
           else
             if [ -n "$LATEST_VERSION" ]; then
-              NEXT_VERSION="${LATEST_VERSION#capi-operator@}"
+              NEXT_VERSION="${LATEST_VERSION#capi-scaleway@}"
             else
-              echo "No capi-operator tags or capi-operator-scoped commits found, defaulting to initial version"
+              echo "No capi-scaleway tags or capi-scaleway-scoped commits found, defaulting to initial version"
               NEXT_VERSION="0.1.0"
             fi
           fi
 
-          if [[ "$NEXT_VERSION" == capi-operator@* ]]; then
-            VERSION_NUM="${NEXT_VERSION#capi-operator@}"
-            while [[ "$VERSION_NUM" == capi-operator@* ]]; do
-              VERSION_NUM="${VERSION_NUM#capi-operator@}"
+          if [[ "$NEXT_VERSION" == capi-scaleway@* ]]; then
+            VERSION_NUM="${NEXT_VERSION#capi-scaleway@}"
+            while [[ "$VERSION_NUM" == capi-scaleway@* ]]; do
+              VERSION_NUM="${VERSION_NUM#capi-scaleway@}"
             done
-            NEXT_VERSION="capi-operator@$VERSION_NUM"
+            NEXT_VERSION="capi-scaleway@$VERSION_NUM"
           else
-            NEXT_VERSION="capi-operator@$NEXT_VERSION"
+            NEXT_VERSION="capi-scaleway@$NEXT_VERSION"
           fi
 
-          echo "Latest capi-operator version: ${LATEST_VERSION:-none}"
-          echo "Next capi-operator version: $NEXT_VERSION"
+          echo "Latest capi-scaleway version: ${LATEST_VERSION:-none}"
+          echo "Next capi-scaleway version: $NEXT_VERSION"
 
           if [ "$LATEST_VERSION" != "$NEXT_VERSION" ]; then
-            echo "capi-operator version bump detected: ${LATEST_VERSION:-none} -> $NEXT_VERSION"
+            echo "capi-scaleway version bump detected: ${LATEST_VERSION:-none} -> $NEXT_VERSION"
             echo "should-release=true" >> "$GITHUB_OUTPUT"
             echo "next-version=$NEXT_VERSION" >> "$GITHUB_OUTPUT"
-            echo "next-version-number=${NEXT_VERSION#capi-operator@}" >> "$GITHUB_OUTPUT"
+            echo "next-version-number=${NEXT_VERSION#capi-scaleway@}" >> "$GITHUB_OUTPUT"
           else
-            echo "No capi-operator version change detected"
+            echo "No capi-scaleway version change detected"
             echo "should-release=false" >> "$GITHUB_OUTPUT"
             echo "next-version=$LATEST_VERSION" >> "$GITHUB_OUTPUT"
-            echo "next-version-number=${LATEST_VERSION#capi-operator@}" >> "$GITHUB_OUTPUT"
+            echo "next-version-number=${LATEST_VERSION#capi-scaleway@}" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Check xcresult-processor for releasable changes
-        id: xcresult-processor-check
+      - name: Check xcresult-processor-image for releasable changes
+        id: xcresult-processor-image-check
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -694,7 +694,7 @@ jobs:
             --include-path "server/mix.lock"
           )
 
-          LATEST_VERSION=$(git tag -l | grep -E "^xcresult-processor@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
+          LATEST_VERSION=$(git tag -l | grep -E "^xcresult-processor-image@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
 
           if [ -n "$LATEST_VERSION" ]; then
             CHANGELOG=$(git cliff "${INCLUDE_PATHS[@]}" --config infra/xcresult-processor-image/cliff.toml --repository "." 2>/dev/null -- ${LATEST_VERSION}..HEAD || echo "")
@@ -710,36 +710,36 @@ jobs:
             fi
           else
             if [ -n "$LATEST_VERSION" ]; then
-              NEXT_VERSION="${LATEST_VERSION#xcresult-processor@}"
+              NEXT_VERSION="${LATEST_VERSION#xcresult-processor-image@}"
             else
-              echo "No xcresult-processor tags or xcresult-processor-scoped commits found, defaulting to initial version"
+              echo "No xcresult-processor-image tags or xcresult-processor-image-scoped commits found, defaulting to initial version"
               NEXT_VERSION="0.1.0"
             fi
           fi
 
-          if [[ "$NEXT_VERSION" == xcresult-processor@* ]]; then
-            VERSION_NUM="${NEXT_VERSION#xcresult-processor@}"
-            while [[ "$VERSION_NUM" == xcresult-processor@* ]]; do
-              VERSION_NUM="${VERSION_NUM#xcresult-processor@}"
+          if [[ "$NEXT_VERSION" == xcresult-processor-image@* ]]; then
+            VERSION_NUM="${NEXT_VERSION#xcresult-processor-image@}"
+            while [[ "$VERSION_NUM" == xcresult-processor-image@* ]]; do
+              VERSION_NUM="${VERSION_NUM#xcresult-processor-image@}"
             done
-            NEXT_VERSION="xcresult-processor@$VERSION_NUM"
+            NEXT_VERSION="xcresult-processor-image@$VERSION_NUM"
           else
-            NEXT_VERSION="xcresult-processor@$NEXT_VERSION"
+            NEXT_VERSION="xcresult-processor-image@$NEXT_VERSION"
           fi
 
-          echo "Latest xcresult-processor version: ${LATEST_VERSION:-none}"
-          echo "Next xcresult-processor version: $NEXT_VERSION"
+          echo "Latest xcresult-processor-image version: ${LATEST_VERSION:-none}"
+          echo "Next xcresult-processor-image version: $NEXT_VERSION"
 
           if [ "$LATEST_VERSION" != "$NEXT_VERSION" ]; then
-            echo "xcresult-processor version bump detected: ${LATEST_VERSION:-none} -> $NEXT_VERSION"
+            echo "xcresult-processor-image version bump detected: ${LATEST_VERSION:-none} -> $NEXT_VERSION"
             echo "should-release=true" >> "$GITHUB_OUTPUT"
             echo "next-version=$NEXT_VERSION" >> "$GITHUB_OUTPUT"
-            echo "next-version-number=${NEXT_VERSION#xcresult-processor@}" >> "$GITHUB_OUTPUT"
+            echo "next-version-number=${NEXT_VERSION#xcresult-processor-image@}" >> "$GITHUB_OUTPUT"
           else
-            echo "No xcresult-processor version change detected"
+            echo "No xcresult-processor-image version change detected"
             echo "should-release=false" >> "$GITHUB_OUTPUT"
             echo "next-version=$LATEST_VERSION" >> "$GITHUB_OUTPUT"
-            echo "next-version-number=${LATEST_VERSION#xcresult-processor@}" >> "$GITHUB_OUTPUT"
+            echo "next-version-number=${LATEST_VERSION#xcresult-processor-image@}" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Check if any component needs release
@@ -754,8 +754,8 @@ jobs:
              [ "${{ steps.skills-check.outputs.should-release }}" == "true" ] || \
              [ "${{ steps.noora-check.outputs.should-release }}" == "true" ] || \
              [ "${{ steps.helm-check.outputs.should-release }}" == "true" ] || \
-             [ "${{ steps.capi-operator-check.outputs.should-release }}" == "true" ] || \
-             [ "${{ steps.xcresult-processor-check.outputs.should-release }}" == "true" ]; then
+             [ "${{ steps.capi-scaleway-check.outputs.should-release }}" == "true" ] || \
+             [ "${{ steps.xcresult-processor-image-check.outputs.should-release }}" == "true" ]; then
             echo "At least one component needs release"
             echo "should-release=true" >> "$GITHUB_OUTPUT"
           else
@@ -1806,10 +1806,10 @@ jobs:
             infra/helm/tuist/Chart.yaml
           retention-days: 1
 
-  release-capi-operator:
+  release-capi-scaleway:
     name: Release CAPI operator
     needs: check-releases
-    if: needs.check-releases.outputs.capi-operator-should-release == 'true'
+    if: needs.check-releases.outputs.capi-scaleway-should-release == 'true'
     runs-on: namespace-profile-default-with-volume
     timeout-minutes: 30
     env:
@@ -1833,7 +1833,7 @@ jobs:
       - name: Get release notes
         id: release-notes
         run: |
-          LATEST_VERSION=$(git tag -l | grep -E "^capi-operator@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
+          LATEST_VERSION=$(git tag -l | grep -E "^capi-scaleway@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
 
           INCLUDE_PATHS=(
             --include-path "infra/cluster-api-provider-scaleway-applesilicon/**/*"
@@ -1852,7 +1852,7 @@ jobs:
       - name: Update CHANGELOG.md
         working-directory: infra/cluster-api-provider-scaleway-applesilicon
         run: |
-          LATEST_VERSION=$(git tag -l | grep -E "^capi-operator@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
+          LATEST_VERSION=$(git tag -l | grep -E "^capi-scaleway@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
 
           INCLUDE_PATHS=(
             --include-path "infra/cluster-api-provider-scaleway-applesilicon/**/*"
@@ -1873,7 +1873,7 @@ jobs:
           # anchored to the operator's repository line so the
           # substitution only fires for the macosFleet block.
           sed -i '/repository: ghcr.io\/tuist\/capi-provider-scaleway-applesilicon/,/tag:/{
-            s|tag: "[^"]*"|tag: "${{ needs.check-releases.outputs.capi-operator-next-version-number }}"|
+            s|tag: "[^"]*"|tag: "${{ needs.check-releases.outputs.capi-scaleway-next-version-number }}"|
           }' infra/helm/tuist/values-managed-common.yaml
 
       - name: Set up Docker Buildx
@@ -1894,22 +1894,22 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            ghcr.io/tuist/capi-provider-scaleway-applesilicon:${{ needs.check-releases.outputs.capi-operator-next-version-number }}
+            ghcr.io/tuist/capi-provider-scaleway-applesilicon:${{ needs.check-releases.outputs.capi-scaleway-next-version-number }}
             ghcr.io/tuist/capi-provider-scaleway-applesilicon:latest
 
-      - name: Upload capi-operator artifacts
+      - name: Upload capi-scaleway artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: capi-operator-artifacts
+          name: capi-scaleway-artifacts
           path: |
             infra/cluster-api-provider-scaleway-applesilicon/CHANGELOG.md
             infra/helm/tuist/values-managed-common.yaml
           retention-days: 1
 
-  release-xcresult-processor:
+  release-xcresult-processor-image:
     name: Release xcresult processor image
     needs: check-releases
-    if: needs.check-releases.outputs.xcresult-processor-should-release == 'true'
+    if: needs.check-releases.outputs.xcresult-processor-image-should-release == 'true'
     runs-on: [self-hosted, macos, bare-metal, vm-image-builder]
     timeout-minutes: 60
     env:
@@ -1932,7 +1932,7 @@ jobs:
       - name: Get release notes
         id: release-notes
         run: |
-          LATEST_VERSION=$(git tag -l | grep -E "^xcresult-processor@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
+          LATEST_VERSION=$(git tag -l | grep -E "^xcresult-processor-image@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
 
           INCLUDE_PATHS=(
             --include-path "infra/xcresult-processor-image/**/*"
@@ -1953,7 +1953,7 @@ jobs:
       - name: Update CHANGELOG.md
         working-directory: infra/xcresult-processor-image
         run: |
-          LATEST_VERSION=$(git tag -l | grep -E "^xcresult-processor@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
+          LATEST_VERSION=$(git tag -l | grep -E "^xcresult-processor-image@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
 
           INCLUDE_PATHS=(
             --include-path "infra/xcresult-processor-image/**/*"
@@ -1975,7 +1975,7 @@ jobs:
           # Anchor the substitution to the xcresult-processor's
           # repository line so only that block's tag is rewritten.
           sed -i '/repository: ghcr.io\/tuist\/tuist-xcresult-processor/,/tag:/{
-            s|tag: "[^"]*"|tag: "${{ needs.check-releases.outputs.xcresult-processor-next-version-number }}"|
+            s|tag: "[^"]*"|tag: "${{ needs.check-releases.outputs.xcresult-processor-image-next-version-number }}"|
           }' infra/helm/tuist/values-managed-common.yaml
 
       - name: Build server release for macOS
@@ -2033,15 +2033,15 @@ jobs:
       - name: Push image to GHCR
         run: |
           set -euo pipefail
-          VERSION="${{ needs.check-releases.outputs.xcresult-processor-next-version-number }}"
+          VERSION="${{ needs.check-releases.outputs.xcresult-processor-image-next-version-number }}"
           tart push tuist-xcresult-processor "ghcr.io/tuist/tuist-xcresult-processor:${VERSION}"
           tart push tuist-xcresult-processor "ghcr.io/tuist/tuist-xcresult-processor:latest"
           echo "Pushed ghcr.io/tuist/tuist-xcresult-processor:${VERSION}"
 
-      - name: Upload xcresult-processor artifacts
+      - name: Upload xcresult-processor-image artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: xcresult-processor-artifacts
+          name: xcresult-processor-image-artifacts
           path: |
             infra/xcresult-processor-image/CHANGELOG.md
             infra/helm/tuist/values-managed-common.yaml
@@ -2072,8 +2072,8 @@ jobs:
         release-skills,
         release-noora,
         release-helm,
-        release-capi-operator,
-        release-xcresult-processor,
+        release-capi-scaleway,
+        release-xcresult-processor-image,
       ]
     if: |
       always() &&
@@ -2092,8 +2092,8 @@ jobs:
       (needs.release-skills.result == 'success' || needs.release-skills.result == 'skipped') &&
       (needs.release-noora.result == 'success' || needs.release-noora.result == 'skipped') &&
       (needs.release-helm.result == 'success' || needs.release-helm.result == 'skipped') &&
-      (needs.release-capi-operator.result == 'success' || needs.release-capi-operator.result == 'skipped') &&
-      (needs.release-xcresult-processor.result == 'success' || needs.release-xcresult-processor.result == 'skipped')
+      (needs.release-capi-scaleway.result == 'success' || needs.release-capi-scaleway.result == 'skipped') &&
+      (needs.release-xcresult-processor-image.result == 'success' || needs.release-xcresult-processor-image.result == 'skipped')
     runs-on: namespace-profile-default-with-volume
     timeout-minutes: 30
     concurrency:
@@ -2252,16 +2252,16 @@ jobs:
       - name: Download CAPI operator artifacts
         # No `path:` so the artifact's `infra/...` paths land back at
         # workspace root for the later `git add` to find them.
-        if: needs.check-releases.outputs.capi-operator-should-release == 'true' && needs.release-capi-operator.result == 'success'
+        if: needs.check-releases.outputs.capi-scaleway-should-release == 'true' && needs.release-capi-scaleway.result == 'success'
         uses: actions/download-artifact@v4
         with:
-          name: capi-operator-artifacts
+          name: capi-scaleway-artifacts
 
-      - name: Download xcresult-processor artifacts
-        if: needs.check-releases.outputs.xcresult-processor-should-release == 'true' && needs.release-xcresult-processor.result == 'success'
+      - name: Download xcresult-processor-image artifacts
+        if: needs.check-releases.outputs.xcresult-processor-image-should-release == 'true' && needs.release-xcresult-processor-image.result == 'success'
         uses: actions/download-artifact@v4
         with:
-          name: xcresult-processor-artifacts
+          name: xcresult-processor-image-artifacts
 
       - name: Create tags for successfully released components
         run: |
@@ -2287,11 +2287,11 @@ jobs:
           if [ "${{ needs.check-releases.outputs.helm-should-release }}" == "true" ] && [ "${{ needs.release-helm.result }}" == "success" ]; then
             git tag ${{ needs.check-releases.outputs.helm-next-version }}
           fi
-          if [ "${{ needs.check-releases.outputs.capi-operator-should-release }}" == "true" ] && [ "${{ needs.release-capi-operator.result }}" == "success" ]; then
-            git tag ${{ needs.check-releases.outputs.capi-operator-next-version }}
+          if [ "${{ needs.check-releases.outputs.capi-scaleway-should-release }}" == "true" ] && [ "${{ needs.release-capi-scaleway.result }}" == "success" ]; then
+            git tag ${{ needs.check-releases.outputs.capi-scaleway-next-version }}
           fi
-          if [ "${{ needs.check-releases.outputs.xcresult-processor-should-release }}" == "true" ] && [ "${{ needs.release-xcresult-processor.result }}" == "success" ]; then
-            git tag ${{ needs.check-releases.outputs.xcresult-processor-next-version }}
+          if [ "${{ needs.check-releases.outputs.xcresult-processor-image-should-release }}" == "true" ] && [ "${{ needs.release-xcresult-processor-image.result }}" == "success" ]; then
+            git tag ${{ needs.check-releases.outputs.xcresult-processor-image-next-version }}
           fi
 
       - name: Create CLI GitHub Release
@@ -2395,31 +2395,31 @@ jobs:
 
             ${{ needs.release-helm.outputs.release-notes }}
 
-      - name: Create CAPI Operator GitHub Release
-        if: needs.check-releases.outputs.capi-operator-should-release == 'true' && needs.release-capi-operator.result == 'success'
+      - name: Create CAPI Scaleway GitHub Release
+        if: needs.check-releases.outputs.capi-scaleway-should-release == 'true' && needs.release-capi-scaleway.result == 'success'
         uses: softprops/action-gh-release@v2
         with:
           draft: false
           repository: tuist/tuist
-          name: CAPI Operator ${{ needs.check-releases.outputs.capi-operator-next-version-number }}
-          tag_name: ${{ needs.check-releases.outputs.capi-operator-next-version }}
+          name: CAPI Scaleway ${{ needs.check-releases.outputs.capi-scaleway-next-version-number }}
+          tag_name: ${{ needs.check-releases.outputs.capi-scaleway-next-version }}
           body: |
-            Docker image: `ghcr.io/tuist/capi-provider-scaleway-applesilicon:${{ needs.check-releases.outputs.capi-operator-next-version-number }}`
+            Docker image: `ghcr.io/tuist/capi-provider-scaleway-applesilicon:${{ needs.check-releases.outputs.capi-scaleway-next-version-number }}`
 
-            ${{ needs.release-capi-operator.outputs.release-notes }}
+            ${{ needs.release-capi-scaleway.outputs.release-notes }}
 
-      - name: Create xcresult-processor GitHub Release
-        if: needs.check-releases.outputs.xcresult-processor-should-release == 'true' && needs.release-xcresult-processor.result == 'success'
+      - name: Create xcresult-processor-image GitHub Release
+        if: needs.check-releases.outputs.xcresult-processor-image-should-release == 'true' && needs.release-xcresult-processor-image.result == 'success'
         uses: softprops/action-gh-release@v2
         with:
           draft: false
           repository: tuist/tuist
-          name: xcresult Processor ${{ needs.check-releases.outputs.xcresult-processor-next-version-number }}
-          tag_name: ${{ needs.check-releases.outputs.xcresult-processor-next-version }}
+          name: xcresult Processor ${{ needs.check-releases.outputs.xcresult-processor-image-next-version-number }}
+          tag_name: ${{ needs.check-releases.outputs.xcresult-processor-image-next-version }}
           body: |
-            Tart image: `ghcr.io/tuist/tuist-xcresult-processor:${{ needs.check-releases.outputs.xcresult-processor-next-version-number }}`
+            Tart image: `ghcr.io/tuist/tuist-xcresult-processor:${{ needs.check-releases.outputs.xcresult-processor-image-next-version-number }}`
 
-            ${{ needs.release-xcresult-processor.outputs.release-notes }}
+            ${{ needs.release-xcresult-processor-image.outputs.release-notes }}
 
       - name: Trigger Homebrew Formula Update
         if: needs.check-releases.outputs.cli-should-release == 'true' && needs.release-cli.result == 'success'
@@ -2493,12 +2493,12 @@ jobs:
             FILES_ADDED=true
           fi
 
-          if [ "${{ needs.check-releases.outputs.capi-operator-should-release }}" == "true" ] && [ "${{ needs.release-capi-operator.result }}" == "success" ]; then
+          if [ "${{ needs.check-releases.outputs.capi-scaleway-should-release }}" == "true" ] && [ "${{ needs.release-capi-scaleway.result }}" == "success" ]; then
             git add infra/cluster-api-provider-scaleway-applesilicon/CHANGELOG.md infra/helm/tuist/values-managed-common.yaml
             FILES_ADDED=true
           fi
 
-          if [ "${{ needs.check-releases.outputs.xcresult-processor-should-release }}" == "true" ] && [ "${{ needs.release-xcresult-processor.result }}" == "success" ]; then
+          if [ "${{ needs.check-releases.outputs.xcresult-processor-image-should-release }}" == "true" ] && [ "${{ needs.release-xcresult-processor-image.result }}" == "success" ]; then
             git add infra/xcresult-processor-image/CHANGELOG.md infra/helm/tuist/values-managed-common.yaml
             FILES_ADDED=true
           fi
@@ -2536,11 +2536,11 @@ jobs:
               if [ "${{ needs.check-releases.outputs.helm-should-release }}" == "true" ] && [ "${{ needs.release-helm.result }}" == "success" ]; then
                 COMMIT_MSG="$COMMIT_MSG Helm Chart ${{ needs.check-releases.outputs.helm-next-version }}"
               fi
-              if [ "${{ needs.check-releases.outputs.capi-operator-should-release }}" == "true" ] && [ "${{ needs.release-capi-operator.result }}" == "success" ]; then
-                COMMIT_MSG="$COMMIT_MSG CAPI Operator ${{ needs.check-releases.outputs.capi-operator-next-version }}"
+              if [ "${{ needs.check-releases.outputs.capi-scaleway-should-release }}" == "true" ] && [ "${{ needs.release-capi-scaleway.result }}" == "success" ]; then
+                COMMIT_MSG="$COMMIT_MSG CAPI Scaleway ${{ needs.check-releases.outputs.capi-scaleway-next-version }}"
               fi
-              if [ "${{ needs.check-releases.outputs.xcresult-processor-should-release }}" == "true" ] && [ "${{ needs.release-xcresult-processor.result }}" == "success" ]; then
-                COMMIT_MSG="$COMMIT_MSG xcresult Processor ${{ needs.check-releases.outputs.xcresult-processor-next-version }}"
+              if [ "${{ needs.check-releases.outputs.xcresult-processor-image-should-release }}" == "true" ] && [ "${{ needs.release-xcresult-processor-image.result }}" == "success" ]; then
+                COMMIT_MSG="$COMMIT_MSG xcresult Processor ${{ needs.check-releases.outputs.xcresult-processor-image-next-version }}"
               fi
 
               git commit -m "$COMMIT_MSG"
