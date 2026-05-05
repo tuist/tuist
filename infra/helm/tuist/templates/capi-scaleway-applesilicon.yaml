@@ -39,8 +39,12 @@ rules:
     resources: [machines, machinesets, machinedeployments, clusters]
     verbs: [get, list, watch]
   - apiGroups: [""]
+    # `delete` is needed at Machine teardown so the Node object the
+    # tart-kubelet registered doesn't linger as NotReady after the
+    # host is released back to Scaleway (the kubelet can't deregister
+    # itself once the VM is gone).
     resources: [nodes]
-    verbs: [get, list, watch]
+    verbs: [get, list, watch, delete]
   - apiGroups: [""]
     # The operator owns four Secret families in its own namespace:
     #   - <fleet>-ssh: per-fleet Ed25519 keypair, generated once

@@ -96,6 +96,17 @@ func (m *Manager) SetMachineHostFingerprint(ctx context.Context, machineName, fi
 	})
 }
 
+// DeleteMachineBootstrap removes the per-machine bootstrap Secret
+// (sudo password, SSH username, host fingerprint). Idempotent.
+func (m *Manager) DeleteMachineBootstrap(ctx context.Context, machineName string) error {
+	name := machineName + machineBootstrapSecretSuffix
+	secret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Namespace: m.Namespace, Name: name}}
+	if err := m.Client.Delete(ctx, secret); err != nil && !apierrors.IsNotFound(err) {
+		return fmt.Errorf("delete machine bootstrap secret: %w", err)
+	}
+	return nil
+}
+
 func (m *Manager) upsertMachineBootstrap(ctx context.Context, machineName string, mutate func(*corev1.Secret)) error {
 	name := machineName + machineBootstrapSecretSuffix
 	secret := &corev1.Secret{}

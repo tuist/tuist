@@ -169,6 +169,34 @@ func (m *Manager) ensureNodeClusterRoleBinding(ctx context.Context, bindingName,
 	return nil
 }
 
+// DeleteNodeIdentity removes the per-machine ServiceAccount, token
+// Secret, and ClusterRoleBinding. Idempotent: missing resources are
+// not an error.
+//
+// Order matters: drop the ClusterRoleBinding first so the token
+// loses its cluster-wide read on Secrets/ConfigMaps before the token
+// itself is deleted. Without this, a deleted Machine would leave
+// behind a long-lived credential bound to a privileged ClusterRole.
+func (m *Manager) DeleteNodeIdentity(ctx context.Context, machineName string) error {
+	saName := nodeIdentitySAPrefix + "-" + machineName
+	tokenSecretName := saName + "-token"
+	bindingName := saName
+
+	binding := &rbacv1.ClusterRoleBinding{ObjectMeta: metav1.ObjectMeta{Name: bindingName}}
+	if err := m.Client.Delete(ctx, binding); err != nil && !apierrors.IsNotFound(err) {
+		return fmt.Errorf("delete cluster role binding: %w", err)
+	}
+	tokenSecret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Namespace: m.Namespace, Name: tokenSecretName}}
+	if err := m.Client.Delete(ctx, tokenSecret); err != nil && !apierrors.IsNotFound(err) {
+		return fmt.Errorf("delete token secret: %w", err)
+	}
+	sa := &corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{Namespace: m.Namespace, Name: saName}}
+	if err := m.Client.Delete(ctx, sa); err != nil && !apierrors.IsNotFound(err) {
+		return fmt.Errorf("delete service account: %w", err)
+	}
+	return nil
+}
+
 // waitForTokenSecretPopulated polls the Secret until k8s fills in
 // `data.token` + `data.ca.crt`. Both are populated by the
 // service-account-token controller once it sees the

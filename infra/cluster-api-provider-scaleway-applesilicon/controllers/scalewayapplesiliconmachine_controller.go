@@ -10,6 +10,7 @@ import (
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
@@ -97,28 +98,38 @@ type ScalewayAppleSiliconMachineReconciler struct {
 // +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=scalewayapplesiliconmachines/finalizers,verbs=update
 // +kubebuilder:rbac:groups=cluster.x-k8s.io,resources=machines,verbs=get;list;watch
 // +kubebuilder:rbac:groups=cluster.x-k8s.io,resources=clusters,verbs=get;list;watch
-// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update
-// +kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update;delete
+// +kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch;delete
+// +kubebuilder:rbac:groups="",resources=serviceaccounts,verbs=get;list;watch;create;update;delete
+// +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=clusterrolebindings,verbs=get;list;watch;create;update;delete
 
-func (r *ScalewayAppleSiliconMachineReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+// Reconcile uses named returns so the deferred patchHelper.Patch can
+// promote a patch error into the function's return value. Without
+// named returns, `err = perr` in the defer would assign to a local
+// variable that Go has already evaluated for the return — the defer
+// would silently swallow the patch failure and the function would
+// report success, leaving Status.ServerID unpersisted after a
+// successful CreateServer and letting the next reconcile order a
+// second Mac mini.
+func (r *ScalewayAppleSiliconMachineReconciler) Reconcile(ctx context.Context, req ctrl.Request) (result ctrl.Result, err error) {
 	logger := log.FromContext(ctx).WithValues("machine", req.NamespacedName)
 	logger.Info("reconcile entry")
 
 	machine := &infrav1.ScalewayAppleSiliconMachine{}
-	if err := r.Get(ctx, req.NamespacedName, machine); err != nil {
-		if apierrors.IsNotFound(err) {
+	if getErr := r.Get(ctx, req.NamespacedName, machine); getErr != nil {
+		if apierrors.IsNotFound(getErr) {
 			return ctrl.Result{}, nil
 		}
-		return ctrl.Result{}, err
+		return ctrl.Result{}, getErr
 	}
 
-	patchHelper, err := patch.NewHelper(machine, r.Client)
-	if err != nil {
-		return ctrl.Result{}, err
+	patchHelper, helperErr := patch.NewHelper(machine, r.Client)
+	if helperErr != nil {
+		return ctrl.Result{}, helperErr
 	}
 	defer func() {
-		if perr := patchHelper.Patch(ctx, machine); perr != nil && err == nil {
-			err = perr
+		if patchErr := patchHelper.Patch(ctx, machine); patchErr != nil && err == nil {
+			err = patchErr
 		}
 	}()
 
@@ -366,6 +377,8 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileDelete(
 	logger := log.FromContext(ctx)
 	machine.Status.Phase = "Deleting"
 
+	// Stage 1: release the Scaleway server. Skip if already released
+	// (mid-cleanup retry).
 	if machine.Status.ServerID != "" {
 		r.Recorder.Eventf(machine, corev1.EventTypeNormal, "Deleting",
 			"Releasing Scaleway server %s", machine.Status.ServerID)
@@ -378,6 +391,40 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileDelete(
 		machine.Status.ServerID = ""
 		r.Recorder.Eventf(machine, corev1.EventTypeNormal, "Deleted",
 			"Scaleway server released")
+	}
+
+	// Stage 2: drop the per-machine kubelet identity. The token is
+	// long-lived and bound to a ClusterRole that reads Secrets and
+	// ConfigMaps cluster-wide; leaving it behind after the host is
+	// released would orphan a valid privileged credential. The
+	// credentials.Manager deletes the ClusterRoleBinding first so the
+	// token loses authority before the token Secret itself is removed.
+	if err := r.CredentialsManager.DeleteNodeIdentity(ctx, machine.Name); err != nil {
+		logger.Error(err, "delete node identity; will retry")
+		r.Recorder.Eventf(machine, corev1.EventTypeWarning, "DeleteFailed",
+			"delete node identity: %v (will retry)", err)
+		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+	}
+
+	// Stage 3: drop the per-machine bootstrap Secret (sudo password,
+	// SSH username, TOFU host fingerprint).
+	if err := r.CredentialsManager.DeleteMachineBootstrap(ctx, machine.Name); err != nil {
+		logger.Error(err, "delete machine bootstrap; will retry")
+		r.Recorder.Eventf(machine, corev1.EventTypeWarning, "DeleteFailed",
+			"delete machine bootstrap: %v (will retry)", err)
+		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+	}
+
+	// Stage 4: drop the cluster Node object the kubelet registered.
+	// The host is gone, so the kubelet can't deregister itself;
+	// without this the Node lingers as NotReady forever and confuses
+	// scaling / drain semantics for downstream tooling.
+	node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: machine.Name}}
+	if err := r.Client.Delete(ctx, node); err != nil && !apierrors.IsNotFound(err) {
+		logger.Error(err, "delete Node object; will retry")
+		r.Recorder.Eventf(machine, corev1.EventTypeWarning, "DeleteFailed",
+			"delete Node: %v (will retry)", err)
+		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 	}
 
 	controllerutil.RemoveFinalizer(machine, MachineFinalizer)
