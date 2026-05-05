@@ -5,6 +5,7 @@ import Path
 import ProjectDescription
 import TuistCore
 import TuistEnvironment
+import TuistGit
 import TuistLogging
 import TuistSupport
 import XcodeGraph
@@ -129,6 +130,7 @@ public class ManifestLoader: ManifestLoading {
     private let swiftPackageManagerController: SwiftPackageManagerControlling
     private let packageInfoLoader: PackageInfoLoading
     private let fileSystem: FileSysteming
+    private let gitController: GitControlling
 
     // MARK: - Init
 
@@ -140,7 +142,8 @@ public class ManifestLoader: ManifestLoading {
             projectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactory(),
             manifestFilesLocator: ManifestFilesLocator(),
             swiftPackageManagerController: SwiftPackageManagerController(),
-            packageInfoLoader: PackageInfoLoader()
+            packageInfoLoader: PackageInfoLoader(),
+            gitController: GitController()
         )
     }
 
@@ -152,7 +155,8 @@ public class ManifestLoader: ManifestLoading {
         manifestFilesLocator: ManifestFilesLocating,
         swiftPackageManagerController: SwiftPackageManagerControlling,
         packageInfoLoader: PackageInfoLoading,
-        fileSystem: FileSysteming = FileSystem()
+        fileSystem: FileSysteming = FileSystem(),
+        gitController: GitControlling = GitController()
     ) {
         self.environment = environment
         self.resourceLocator = resourceLocator
@@ -162,6 +166,7 @@ public class ManifestLoader: ManifestLoading {
         self.swiftPackageManagerController = swiftPackageManagerController
         self.packageInfoLoader = packageInfoLoader
         self.fileSystem = fileSystem
+        self.gitController = gitController
         decoder = JSONDecoder()
     }
 
@@ -467,6 +472,18 @@ public class ManifestLoader: ManifestLoading {
         arguments.append(contentsOf: projectDescriptionHelperArguments)
         arguments.append(contentsOf: packageDescriptionArguments)
         arguments.append(path.pathString)
+        if case .packageSettings = manifest {
+            // PackageDescription.Context expects SwiftPM's manifest runtime context argument.
+            let context = PackageDescriptionContext(
+                packageDirectory: path.parentDirectory.pathString,
+                gitInformation: try packageDescriptionContextGitInformation(at: path.parentDirectory)
+            )
+            let data = try JSONEncoder().encode(context)
+            arguments.append(contentsOf: [
+                "-context",
+                String(decoding: data, as: UTF8.self),
+            ])
+        }
 
         if !disableSandbox {
             #if os(macOS)
@@ -504,6 +521,22 @@ public class ManifestLoader: ManifestLoading {
         } else {
             return arguments
         }
+    }
+
+    private func packageDescriptionContextGitInformation(at packageDirectory: AbsolutePath) throws -> PackageDescriptionContext
+        .GitInformation?
+    {
+        guard gitController.isGitAvailable(),
+              gitController.isInGitRepository(workingDirectory: packageDirectory)
+        else {
+            return nil
+        }
+
+        return PackageDescriptionContext.GitInformation(
+            currentTag: try gitController.currentTag(workingDirectory: packageDirectory),
+            currentCommit: try gitController.currentCommitSHA(workingDirectory: packageDirectory),
+            hasUncommittedChanges: try gitController.hasUncommittedChanges(workingDirectory: packageDirectory)
+        )
     }
 
     private func macOSSandboxProfile(
