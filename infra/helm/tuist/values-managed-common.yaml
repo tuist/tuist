@@ -185,11 +185,13 @@ xcresultProcessor:
   image:
     repository: ghcr.io/tuist/tuist-xcresult-processor
     # Bumped automatically by the release workflow when an
-    # xcresult-processor-scoped conventional commit lands on main; the
-    # workflow rebuilds the Tart VM image on the bare-metal Mac mini,
-    # pushes the matching semver tag, and rewrites this line in the
-    # same auto-commit.
-    tag: "0.1.0"
+    # xcresult-processor-image-scoped conventional commit lands on
+    # main; the workflow rebuilds the Tart VM image on the bare-metal
+    # Mac mini, pushes the matching semver tag, and rewrites this
+    # line in the same auto-commit. Until release.yml has run for
+    # this scope, pin to a known-good SHA-tagged build that the
+    # standalone xcresult-processor-image.yml workflow pushed.
+    tag: "e38122ec"
 
 # Mac mini fleet provisioned declaratively via the Cluster API
 # Scaleway-Apple-Silicon provider. Scaling is `kubectl scale
@@ -200,10 +202,13 @@ macosFleet:
   image:
     repository: ghcr.io/tuist/capi-provider-scaleway-applesilicon
     # Bumped automatically by the release workflow when a
-    # capi-operator-scoped conventional commit lands on main; the
+    # capi-scaleway-scoped conventional commit lands on main; the
     # workflow builds the new image, pushes the matching semver tag,
-    # and rewrites this line in the same auto-commit.
-    tag: "0.1.0"
+    # and rewrites this line in the same auto-commit. Until
+    # release.yml has run for this scope, pin to a known-good
+    # SHA-tagged build that the standalone
+    # capi-provider-scaleway-applesilicon-image.yml workflow pushed.
+    tag: "02a21dec"
 
 # Everything below = external. The managed deployment never runs embedded
 # Postgres / ClickHouse / object storage / observability stacks.
