@@ -5,6 +5,7 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeBuildTargets do
 
   use Tuist.MCP.Tool,
     name: "list_xcode_build_targets",
+    title: "List Xcode Build Targets",
     schema: %{
       "type" => "object",
       "properties" => %{
