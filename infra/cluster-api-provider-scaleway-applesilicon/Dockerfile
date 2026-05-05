@@ -22,7 +22,7 @@ ARG ALPINE_VERSION=3.22
 # operator image, roll out via Helm. New Mac minis pick up the new
 # version on first bootstrap; existing ones keep their installed Tart
 # until they're replaced.
-ARG TART_VERSION=2.34.0
+ARG TART_VERSION=2.32.1
 
 FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-alpine${ALPINE_VERSION} AS manager-builder
 
