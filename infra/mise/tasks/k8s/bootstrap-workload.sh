@@ -337,7 +337,12 @@ echo "ingress LB responded HTTP $SMOKE_HTTP. Routing is healthy."
 # the file contents; if not, create. Only runs after the smoke above
 # passes, so a stale kubeconfig never overwrites a working one when
 # bootstrap is invoked against a half-built cluster.
-KUBECONFIG_ITEM="kubeconfig: ${CLUSTER_NAME}"
+# Doc name follows env, not cluster_name, so the deploy workflow can
+# look up `kubeconfig: tuist-${env}` uniformly across all environments.
+# Production's Cluster CR uses metadata.name=tuist (no env suffix), but
+# we still store its kubeconfig as `kubeconfig: tuist-production` to
+# keep the workflow's lookup pattern simple.
+KUBECONFIG_ITEM="kubeconfig: tuist-${ENV}"
 KUBECONFIG_VAULT="tuist-k8s-${ENV}"
 if op item get "$KUBECONFIG_ITEM" --account tuist.1password.com --vault "$KUBECONFIG_VAULT" >/dev/null 2>&1; then
   echo "Existing 1P item found; replacing the document"

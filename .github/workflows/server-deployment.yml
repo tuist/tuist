@@ -26,11 +26,9 @@ name: Server Deployment
 #   OP_SERVICE_ACCOUNT_TOKEN (per GitHub Environment server-k8s-<env>) -
 #     1Password service-account token scoped read-only to the
 #     tuist-k8s-<env> vault, where the cluster's kubeconfig is stored
-#     as a Document item named `kubeconfig: <cluster-name>` (matches
-#     the Cluster CR's metadata.name: `tuist` for production,
-#     `tuist-<env>` otherwise). Each environment's secret value is the
-#     SA token for that environment's vault — staging deploys can't
-#     read canary/production kubeconfigs.
+#     as a Document item named `kubeconfig: tuist-<env>`. Each
+#     environment's secret value is the SA token for that environment's
+#     vault — staging deploys can't read canary/production kubeconfigs.
 # App secrets live inside the cluster (MASTER_KEY via ESO, DATABASE_URL /
 # ClickHouse / Tigris keys in priv/secrets/<env>.yml.enc baked into the
 # image).
@@ -157,7 +155,7 @@ jobs:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
         run: |
           mkdir -p "$(dirname "$KUBECONFIG")"
-          op document get "kubeconfig: ${{ inputs.environment == 'production' && 'tuist' || format('tuist-{0}', inputs.environment) }}" \
+          op document get "kubeconfig: tuist-${{ inputs.environment }}" \
             --vault "tuist-k8s-${{ inputs.environment }}" --output "$KUBECONFIG"
           chmod 600 "$KUBECONFIG"
       - name: Verify cluster reachability
@@ -214,7 +212,7 @@ jobs:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
         run: |
           mkdir -p "$(dirname "$KUBECONFIG")"
-          op document get "kubeconfig: ${{ inputs.environment == 'production' && 'tuist' || format('tuist-{0}', inputs.environment) }}" \
+          op document get "kubeconfig: tuist-${{ inputs.environment }}" \
             --vault "tuist-k8s-${{ inputs.environment }}" --output "$KUBECONFIG"
           chmod 600 "$KUBECONFIG"
       - name: Verify cluster reachability
